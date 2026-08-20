@@ -1,6 +1,6 @@
 # WO-P1-035: Durable Job Execution Coordinator
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/job_execution.py`, `src/a_conductor/__init__.py`, `tests/test_job_execution.py`, `docs/contracts/durable-job-execution.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-035-durable-job-execution-coordinator.md`
 Branch: main
 Model tier: high
@@ -47,3 +47,6 @@ Bind an explicitly invoked, already-gated durable job to an injected bounded exe
 
 - [2026-08-20] Opened from clean durable-job-store baseline `9382442`.
 - [2026-08-20] Contract defined; local claim opened from baseline `9382442`.
+- [2026-08-20] RED missing-module gate captured before implementation.
+- [2026-08-20] Coordinator targeted GREEN: 11/11 tests after raw-command/invalid-result regressions.
+- [2026-08-20] Full verification: 502 passed, 1 environment-specific Tk skip; compileall/diff checks passed; no background/router surface; active Conductor PID 25396 preserved.

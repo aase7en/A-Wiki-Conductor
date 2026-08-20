@@ -40,6 +40,14 @@ from .domain import (
     Worker,
     WorkerState,
 )
+from .job_execution import (
+    DurableJobExecutionCoordinator,
+    DurableJobStore,
+    JobBackendResult,
+    JobExecutionBackend,
+    JobExecutionCoordinatorError,
+    JobExecutionOutcome,
+)
 from .job_state import (
     JobRuntimeState,
     JobStateError,
@@ -247,6 +255,12 @@ __all__ = [
     "TaskState",
     "Worker",
     "WorkerState",
+    "DurableJobExecutionCoordinator",
+    "DurableJobStore",
+    "JobBackendResult",
+    "JobExecutionBackend",
+    "JobExecutionCoordinatorError",
+    "JobExecutionOutcome",
     "JobRuntimeState",
     "JobStateError",
     "JobTransitionPlan",
