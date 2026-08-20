@@ -61,6 +61,11 @@ from .supervised_execution import (
     SupervisedLaunchOutcome,
     SupervisedLaunchPlan,
 )
+from .transport_recovery import (
+    ExecutionTransportService,
+    TransportMutationOutcome,
+    TransportRecoveryError,
+)
 from .job_control import DurableJobControlService
 from .job_execution import (
     DurableJobExecutionCoordinator,
@@ -310,6 +315,9 @@ __all__ = [
     "SupervisedInspectionState",
     "SupervisedLaunchOutcome",
     "SupervisedLaunchPlan",
+    "ExecutionTransportService",
+    "TransportMutationOutcome",
+    "TransportRecoveryError",
     "DurableJobControlService",
     "DurableJobExecutionCoordinator",
     "DurableJobStore",

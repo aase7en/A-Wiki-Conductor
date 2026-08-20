@@ -1,6 +1,6 @@
 # WO-AC-RES-003: Transport-Loss State & Lease Preservation
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/transport_recovery.py`, `src/a_conductor/__init__.py`, `tests/test_transport_recovery.py`, `docs/contracts/transport-loss-lease.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-AC-RES-003-transport-loss-lease.md`
 Branch: main
 Model tier: high
@@ -43,3 +43,7 @@ Make transport loss an explicit durable execution condition that never implies e
 ## Checkpoint log
 
 - [2026-08-20] Opened from clean AC-RES-002 completion `03a623d`.
+
+- [2026-08-20] RED gate confirmed missing transport recovery module before implementation.
+- [2026-08-20] Targeted transport recovery tests: 10 passed, including idempotent duplicate loss, ownership mismatch blocking, and shared SQLite job/execution claim preservation.
+- [2026-08-20] Full-suite rerun intentionally deferred pending separate Python/Tcl-Tk environment remediation; AC-RES-003 acceptance relies on targeted store regression + compile/diff gates.

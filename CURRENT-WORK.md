@@ -8,28 +8,27 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-`WO-AC-RES-003 — Transport-Loss State & Lease Preservation`
+None.
 
-Status: `IN_PROGRESS`
+## Recently completed
 
-## Goal
-
-Persist transport loss/degradation/recovery independently from process/result state while preserving the existing durable job worker claim.
-
-## Baseline
-
-- AC-RES-001 durable execution records: `0a3040d`
+- AC-RES-001 durable execution record: `0a3040d`
 - AC-RES-002 supervised subprocess: `03a623d`
-- active Conductor listener PID `25396` must not be touched
+- AC-RES-003 transport-loss state + claim preservation: transport health mutations are independent, idempotent, and ownership-gated
 
-## Boundary
+## AC-RES-003 evidence
 
-- reuse durable job worker claim; no second lease table
-- transport changes only `TransportState`
-- duplicate same-state signal is idempotent
-- ownership mismatch blocks mutation; no automatic reassignment/release
-- no actual reconnect/retry loop in this slice
+- targeted transport tests: 10 passed
+- transport `LOST` preserves execution `RUNNING`
+- durable job remains `CLAIMED` by the same worker
+- repeated same transport signal creates no version/event churn
+- ownership/project mismatch blocks transport mutation
+- no release/retry/relaunch/reconnect-loop API added
+
+## Environment follow-up
+
+Current Hermes/uv Python full-suite environment remains independently diagnosed as unstable; recommended Python build `20260623` or newer in a separate bounded remediation task.
 
 ## Next safe action
 
-Write RED tests integrating real SQLite job + execution stores for `LOST` while execution remains RUNNING and job remains CLAIMED by the same worker.
+Open `AC-RES-004 — Recovery Reconciliation + Repo Identity Gate`: reconcile durable execution state against supervised process/result evidence and current repo/project identity before permitting next mutation. Unknown/mismatch must return recovery-blocked rather than rerun.
