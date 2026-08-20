@@ -4,43 +4,29 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Hold at the pre-live-lifecycle safety boundary after completing pure recovery/resume logic. The next concrete lifecycle backend must not be live-tested against an active Conductor/Phase6 worker.
+Design the safe staged integration-test path for the first concrete lifecycle mutation backend without provisioning or touching active runtime workers.
 
 ## Current task
 
-No active work order. `WO-P1-013 — Lifecycle Resume Planner from Durable Journal` is complete and ready to commit.
+`WO-P1-014 — Lifecycle Integration Test Strategy`
+
+Status: `IN_PROGRESS`
 
 ## Completed
 
 - C1 contracts/schemas complete.
 - Local Git safety baseline complete.
-- Typed core domain: `dbf5b34`.
-- Serena runtime-manager contract: `2b2ecbd`.
-- Pure runtime safety classifiers: `676a881`.
-- Reusable Serena worker config/project binding: `4e36681`.
-- Read-only Windows observer: `af1979e`.
-- Normalized worker status evaluator: `26ea225`.
-- Strict read-only Windows I/O: `e0682cc`.
-- Reusable worker/project registry: `61db9af`.
-- SQLite registry persistence: `f32f192`.
-- Pure lifecycle decision planner: `1b36658`.
-- Checkpointed lifecycle transaction executor: `74bc59b`.
-- Append-only SQLite lifecycle journal: `2997072`.
-- Pure lifecycle recovery/resume planner implemented and verified: targeted 17 passed; full suite **233 passed**; compileall/diff/I-O scan clean.
-
-## Recovery/resume semantics
-
-- Durable checkpoints must be an exact prefix of the approved lifecycle plan.
-- Only `CONSISTENT_WITH_JOURNAL` permits resume.
-- `MUTATION_AHEAD_OF_JOURNAL` / `UNKNOWN` require recovery.
-- `UNEXPECTED_DRIFT` refuses resume.
-- Missing checkpoint does not imply a vanished worker's mutation should be rerun.
+- Typed/provider-neutral runtime foundation complete.
+- Reusable Project/A-Worker registry + SQLite persistence complete.
+- Pure lifecycle planner, transaction executor, durable journal, and resume planner complete.
+- P1-013 recovery planner commit: `fcd3d61`; full suite 233 passed.
+- `DR-P1-002` durable safety gate is recorded in `PROJECT-PLAN.md`.
+- Initial read-only P1-014 preflight: candidate A-Worker 3 runtime root absent; candidate port 18013 had no listener; `A:/GitHub/serena-test` exists but is not yet approved as a mutation target.
 
 ## Current repository state
 
 - branch: `main`
-- coordination commit before P1-013 source: `c74fa12`
-- P1-013 implementation is verified but currently uncommitted and should be committed next.
+- HEAD before P1-014 coordination commit: `fcd3d61`
 - no Git remote
 - exact per-command safe-directory override required; global Git config unchanged.
 
@@ -48,25 +34,23 @@ No active work order. `WO-P1-013 — Lifecycle Resume Planner from Durable Journ
 
 ### DR-C1-001 — GitHub publication
 
-Recommended private-first; no remote creation/push until resolved.
+Recommended private-first; no remote/push until resolved.
 
-### DR-P1-002 — Live lifecycle integration test strategy
+### DR-P1-002 — First live lifecycle integration target
 
-Concrete lifecycle backend testing can disconnect a worker because start/stop changes Serena/tunnel process state.
-
-Recommended resolution: use a **dedicated free/sacrificial A-Worker test slot, preferably A-Worker 3**, with isolated runtime root, `SERENA_HOME`, health port, transport binding, logs, and a disposable/read-only test project. Do not use active `Sunday-Conducter` or Phase6 as the first mutation target.
+No target is approved yet. WO-P1-014 will define a staged test strategy. Recommended architecture is Stage A self-owned dummy process first, then Stage B dedicated isolated `A-Worker 3` Serena/transport runtime. Active `Sunday-Conducter` and Phase6 are forbidden as first mutation targets.
 
 ## Do not do
 
-- Do not live-test process/tunnel lifecycle mutation against current Conductor or Phase6 worker.
-- Do not broad-kill processes.
-- Do not modify A-Wiki/Phase6 repositories.
-- Do not create Git remote/push until DR-C1-001 is resolved.
+- No process/tunnel/Serena lifecycle mutation in P1-014.
+- No provisioning of A-Worker 3 or port/tunnel resources.
+- No writes to `serena-test`, A-Wiki, Phase6, or external runtime roots.
+- No remote/push.
 
 ## Next safe action
 
-Commit P1-013 + continuity checkpoint. After commit, only mock-only/docs work should cross this boundary until DR-P1-002 has a dedicated worker test target.
+Commit P1-014 coordination state, then inspect `A:/GitHub/serena-test` repository identity/status read-only and write the integration-test strategy contract.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> latest completed WO. Verify Git HEAD/status. Re-run A-Wiki duplicate-work/claim checks before opening another overlapping architecture work order.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Verify Git HEAD/status before mutation.
