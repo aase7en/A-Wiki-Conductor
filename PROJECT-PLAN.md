@@ -268,6 +268,7 @@ Scope:
 - start/stop/restart worker safely
 - isolated `SERENA_HOME` generation/management
 - runtime profile generation/management
+- per-worker Serena configuration surface (profile-driven, recorded 2026-08-21 from explicit user requirements): language backend / language-server selection, project binding, tool enable/disable (excluded/included/fixed tools), and modes — edited through the Conductor UI, materialized into the worker's isolated `SERENA_HOME` config, and applied on worker restart. Live `serena_config.yml` hand-editing remains a debugging fallback only. This is a selected subset exposed per the §6 Serena-dashboard relationship rule; Conductor does not clone the whole Serena dashboard.
 - per-worker health port allocation
 - health indicator per worker
 - active-project verification after startup
