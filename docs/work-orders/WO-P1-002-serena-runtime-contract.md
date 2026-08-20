@@ -1,6 +1,6 @@
 # WO-P1-002: Serena Runtime Manager Contract from Validated Prototype
 
-Status: in_progress
+Status: done
 Lane/files: `docs/contracts/serena-runtime-manager.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-002-serena-runtime-contract.md`
 Branch: main
 Model tier: mid
@@ -54,3 +54,5 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after typed domain implementation commit `dbf5b34c44a3a10d70bf994a78739324c43bfe7a`. External prototype inspection is read-only.
+
+- [2026-08-20] Contract extraction completed from validated local prototype read-only. Added `docs/contracts/serena-runtime-manager.md` covering reusable worker resources, RuntimeProfile, PID/process ownership, idempotent start/stop/restart/release, health/project identity, collision handling, secrets/evidence, and REUSE/WRAP/EXTEND boundaries. Verification: `git diff --check` PASS; UUID/secret-assignment scan 0 hits; no concrete local instance root retained in the new contract. No external runtime files or processes were modified.
