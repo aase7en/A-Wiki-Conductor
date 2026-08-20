@@ -4,35 +4,37 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue Phase 1 into concrete Serena lifecycle operations now that owned-process mutation, runtime materialization, and `SERENA_HOME` isolation are proven on dummy resources.
+Implement concrete Serena lifecycle operations on existing safety boundaries, still without live worker mutation.
 
 ## Current task
 
-No active work order. `WO-P1-019 — Owned-Process Environment Isolation` completed; awaiting close commit.
+`WO-P1-020 — Concrete Serena Lifecycle Operations`
+
+Status: `IN_PROGRESS`
 
 ## Completed
 
 - Core runtime safety/registry/persistence/lifecycle stack complete.
-- Exact-owned Windows process controller complete (`8c4cb8c`).
-- Serena lifecycle backend composition complete (`62b36bc`).
-- Serena runtime materializer complete (`7a42bfd`).
-- Controlled child environment isolation complete: targeted 42/42, full suite 300/300, active Conductor PID 25396 preserved.
+- Exact-owned process controller (`8c4cb8c`).
+- Serena lifecycle backend composition (`62b36bc`).
+- Serena runtime materializer (`7a42bfd`).
+- Controlled child environment isolation (`963a9c4`), full suite 300 passed.
 
 ## Repository state
 
 - branch: `main`
-- HEAD before P1-019 close commit: `e8c401a`
+- HEAD before P1-020 coordination commit: `963a9c4`
 - no Git remote
 
 ## Gates
 
 - GitHub connector requested but platform-blocked; no GitHub mutation.
-- `DR-P1-002`: live Serena/tunnel testing only on a dedicated isolated worker.
+- `DR-P1-002`: live Serena/tunnel integration remains dedicated-worker-only.
 
 ## Next safe action
 
-Commit P1-019. Open P1-020 for concrete Serena lifecycle operations using existing observer/materializer/process-controller boundaries; remain fake/dummy-first and do not provision A-Worker 3 yet.
+Claim/commit P1-020 and write RED tests for assignment/resource checks, materialize/start/stop, ready/released verification, and injected preflight/identity/persistence boundaries.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Verify HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO; verify HEAD/status before mutation.
