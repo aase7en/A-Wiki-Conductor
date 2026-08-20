@@ -4,11 +4,11 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / concrete read-only Windows I/O**
+**Phase 1 — Multi-Serena Control Center / reusable worker pool registry**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-007-readonly-io-backends.md`
+`docs/work-orders/WO-P1-008-worker-pool-registry.md`
 
 Status: `IN_PROGRESS`
 
@@ -20,30 +20,29 @@ Status: `IN_PROGRESS`
 - [x] Serena runtime-manager contract extracted from validated prototype.
 - [x] Pure runtime ownership/collision classifiers complete.
 - [x] Serena reusable worker config + dynamic project binding complete.
-- [x] Read-only Windows runtime observer boundary complete.
-- [x] Normalized pure A-Worker status evaluator complete; full suite 113 tests.
-- [x] WO-P1-006 implementation commit: `26ea225`.
+- [x] Read-only Windows observer + strict concrete read-only backends complete.
+- [x] Live read-only Conductor smoke: PID VALID, process OWNED, port OWNED, ready HTTP 200.
+- [x] Normalized A-Worker status evaluator complete.
+- [x] WO-P1-007 implementation commit: `e0682cc`.
 
-## Active checklist — WO-P1-007
+## Active checklist — WO-P1-008
 
 - [x] Open/claim work order.
 - [ ] Commit coordination checkpoint before source changes.
-- [ ] Write failing strict-backend tests first.
+- [ ] Write failing worker/project registry tests first.
 - [ ] Capture RED result.
-- [ ] Implement allowlisted PowerShell inspection runner.
-- [ ] Implement loopback-only `/readyz` HTTP probe.
+- [ ] Implement in-memory registry + Windows worktree normalization.
 - [ ] Run full tests green.
-- [ ] Compileall + mutation/security scan + diff check.
-- [ ] Optional live read-only smoke against current Conductor runtime.
+- [ ] Compileall + I/O/persistence scan + diff check.
 - [ ] Update checkpoint/handoff and commit.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before WO-P1-007 coordination commit: `26ea225`
+- HEAD before WO-P1-008 coordination commit: `e0682cc`
 - Git remote: none
 - Use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
-- Pytest: use ignored local `runtime/pytest-temp` basetemp to avoid Hermes temp cleanup noise.
+- Pytest: use ignored local `runtime/pytest-temp` basetemp.
 
 ## DECISION_REQUIRED
 
@@ -51,11 +50,12 @@ Status: `IN_PROGRESS`
 
 ## Constraints
 
-- Concrete I/O is read-only and allowlisted only.
-- No lifecycle mutation, generic shell, non-loopback HTTP, or credential access.
+- Registry is in-memory only and side-effect free with respect to filesystem/process/network.
+- Do not duplicate A-Wiki work-order/claim semantics.
+- No runtime lifecycle mutation.
 - No A-Wiki/Phase6 mutation.
 - No Git remote/push.
 
 ## Next safe action
 
-Commit WO-P1-007 coordination checkpoint, then write failing security/backend tests before implementation.
+Commit WO-P1-008 coordination checkpoint, then write failing registry tests before implementation.

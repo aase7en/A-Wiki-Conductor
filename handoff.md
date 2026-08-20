@@ -4,11 +4,11 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Add strict concrete read-only Windows I/O backends for the already-tested observer boundary, without introducing target lifecycle mutation.
+Implement the reusable A-Worker/Project registry that will back the Control Center before introducing process lifecycle mutation or persistence.
 
 ## Current task
 
-`WO-P1-007 — Concrete Read-Only Windows I/O Backends`
+`WO-P1-008 — Reusable Worker Pool + Project Registry`
 
 Status: `IN_PROGRESS`
 
@@ -19,15 +19,17 @@ Status: `IN_PROGRESS`
 - Typed core domain complete, commit `dbf5b34`.
 - Serena runtime-manager contract complete, commit `2b2ecbd`.
 - Pure runtime safety classifiers complete, commit `676a881`.
-- Reusable Serena worker config/project binding complete, commit `4e36681`.
-- Read-only Windows observer boundary complete, commit `af1979e`.
-- Normalized worker-status evaluator complete; full suite `113 passed`, commit `26ea225`.
-- WO-P1-007 opened/claimed.
+- Reusable Serena worker profile/project binding complete, commit `4e36681`.
+- Read-only Windows observer complete, commit `af1979e`.
+- Normalized worker status evaluator complete, commit `26ea225`.
+- Strict concrete read-only Windows I/O complete, full suite `134 passed`, commit `e0682cc`.
+- Live read-only Conductor smoke observed PID VALID, process OWNED, port OWNED, ready HTTP 200 without mutation.
+- WO-P1-008 opened/claimed; reuse classification is `NEW` only at A-Conductor runtime-control layer and does not replace A-Wiki claims.
 
 ## Current repository state
 
 - branch: `main`
-- HEAD before WO-P1-007 coordination commit: `26ea225`
+- HEAD before WO-P1-008 coordination commit: `e0682cc`
 - no Git remote
 - exact per-command safe-directory override required; global Git config unchanged.
 
@@ -41,15 +43,15 @@ Use ignored local pytest basetemp: ensure `runtime/` exists, then `python -m pyt
 
 ## Do not do
 
-- No target process/tunnel/Serena start/stop/kill/restart.
-- No generic arbitrary PowerShell execution.
-- No non-loopback HTTP or credential access.
+- No runtime/process/tunnel lifecycle mutation.
+- No filesystem/Git/network/SQLite behavior in WO-P1-008.
+- Do not duplicate A-Wiki claim/work-order implementation.
 - No A-Wiki/Phase6 mutation.
 - No remote/push.
 
 ## Next safe action
 
-Commit WO-P1-007 coordination checkpoint, then write failing allowlist/backend tests before implementation.
+Commit WO-P1-008 coordination checkpoint, then write failing worker/project registry tests before implementation.
 
 ## Resume instructions
 
