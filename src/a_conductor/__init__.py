@@ -1,5 +1,18 @@
 """A-Conductor core package."""
 
+from .control_events import (
+    ControlEvent,
+    ControlEventLogError,
+    SQLiteControlEventLog,
+)
+from .lifecycle_assembly import (
+    ControlCenterAssignmentService,
+    LifecycleAssemblyError,
+    LocalLifecycleContextProvider,
+    LocalSerenaBackendFactory,
+    SQLiteLifecycleEvidenceService,
+    build_local_lifecycle_coordinator,
+)
 from .control_center import (
     ControlCenterError,
     ControlCenterService,
@@ -156,6 +169,15 @@ from .worker_status import (
 )
 
 __all__ = [
+    "ControlEvent",
+    "ControlEventLogError",
+    "SQLiteControlEventLog",
+    "ControlCenterAssignmentService",
+    "LifecycleAssemblyError",
+    "LocalLifecycleContextProvider",
+    "LocalSerenaBackendFactory",
+    "SQLiteLifecycleEvidenceService",
+    "build_local_lifecycle_coordinator",
     "ControlCenterError",
     "ControlCenterService",
     "ControlCenterSnapshot",

@@ -4,38 +4,27 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / local lifecycle assembly**
+**Phase 1 — Multi-Serena Control Center / desktop lifecycle wiring**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-028-local-lifecycle-assembly.md`
-
-Status: `IN_PROGRESS`
+None — `WO-P1-028` completed; awaiting close commit.
 
 ## Completed
 
 - [x] Local process-manager/runtime safety stack through tunnel/preflight boundaries.
 - [x] Control Center service + desktop shell.
-- [x] Durable Serena config store (`95ceb5d`).
-- [x] Lifecycle coordinator (`045e7df`), full suite 386 passed + 1 known Tk environment skip.
+- [x] Durable Serena config store.
+- [x] Lifecycle coordinator (`045e7df`).
+- [x] Local lifecycle context/backend assembly + append-only payload-free event log.
 - [x] Stage B transport gate `DR-P1-003` remains isolated.
-
-## Active checklist — WO-P1-028
-
-- [x] Open work order.
-- [ ] Claim + commit coordination checkpoint.
-- [ ] Write RED context/backend/event-log assembly tests.
-- [ ] Implement read-only context provider + backend factory + append-only event log.
-- [ ] Add local coordinator builder.
-- [ ] Run targeted/full verification.
-- [ ] Close/commit work order.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before P1-028 coordination commit: `045e7df`
+- HEAD before P1-028 close commit: `111b78c`
 - Git remote: none
 
 ## Next safe action
 
-Claim/commit P1-028, then write failing assembly/event-log tests before implementation.
+Commit P1-028, then wire desktop Start/Stop/Restart through a Control Center lifecycle facade using background execution and stable result/error codes.
