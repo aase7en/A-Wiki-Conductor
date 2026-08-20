@@ -4,20 +4,28 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Expose the completed durable runtime primitives through a small application service that future Discord/Desktop surfaces can call without knowing persistence/execution internals.
+Expose the completed durable runtime stack through a bounded application service suitable for future Discord/Desktop transports without adding planner/router/scheduler behavior.
 
 ## Current task
 
-No active work order. Most recently completed: `WO-P1-037`.
+`WO-P1-038 — Durable Job Control Service`
 
-## Evidence
+Status: `IN_PROGRESS`
 
-- P1-037 targeted: 8 passed
-- full suite: 525 passed, 1 Tk environment skip
-- exact assigned project root + mutation authority assembly verified
-- resolver reads fresh snapshot each call and has no fallback/cache
-- active Conductor PID 25396 preserved
+## Baseline
+
+- worker-native-adapter assembly commit: `543b1ab`
+- P1-037 full suite: 525 passed, 1 Tk environment skip
+- active Conductor listener: PID `25396`
+
+## Boundary
+
+- service delegates state mutations to SQLiteJobStore
+- service delegates execution to DurableJobExecutionCoordinator
+- service adds no direct SQL or alternate transition graph
+- no generic transition/command surface
+- no scheduler/router/planner/Discord/UI code
 
 ## Next safe action
 
-Build an explicit Durable Job Control Service facade for create/ready/claim/gate/execute/recover/checkpoint/read operations. It must delegate to existing store/coordinator and add no alternate state machine, planner, scheduler, or router.
+Commit P1-038 coordination/contract checkpoint, then write RED bounded facade/composition/reopen durability tests.
