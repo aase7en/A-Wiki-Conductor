@@ -20,6 +20,7 @@ from .control_center import (
     RegistryStore,
     WorkerScreenRow,
 )
+from .desktop_control import DesktopControlService, LifecycleCommandService
 from .desktop_ui import AConductorDesktopApp, DesktopTheme
 from .domain import (
     Agent,
@@ -183,6 +184,8 @@ __all__ = [
     "ControlCenterSnapshot",
     "RegistryStore",
     "WorkerScreenRow",
+    "DesktopControlService",
+    "LifecycleCommandService",
     "AConductorDesktopApp",
     "DesktopTheme",
     "Agent",

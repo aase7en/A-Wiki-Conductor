@@ -9,9 +9,9 @@ from typing import Mapping, Sequence
 
 import tkinter as tk
 
-from .control_center import ControlCenterError, ControlCenterService
+from .control_center import ControlCenterError
+from .desktop_control import DesktopControlService
 from .desktop_ui import AConductorDesktopApp
-from .persistence import SQLiteRegistryStore
 
 
 def default_database_path(environment: Mapping[str, str] | None = None) -> Path:
@@ -22,8 +22,8 @@ def default_database_path(environment: Mapping[str, str] | None = None) -> Path:
     return Path.home() / ".a-conductor" / "control-center.sqlite"
 
 
-def _open_service(database_path: str | Path) -> ControlCenterService:
-    return ControlCenterService.open(SQLiteRegistryStore(Path(database_path)))
+def _open_service(database_path: str | Path) -> DesktopControlService:
+    return DesktopControlService.open(Path(database_path))
 
 
 def run_smoke(database_path: str | Path) -> tuple[int, str]:

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import tkinter as tk
+from concurrent.futures import Future
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -13,6 +15,9 @@ from a_conductor.control_center import (
 from a_conductor.desktop_app import default_database_path, run_smoke
 from a_conductor.desktop_ui import AConductorDesktopApp, DesktopTheme
 from a_conductor.domain import Project, WorkerState
+from a_conductor.lifecycle import LifecycleAction
+from a_conductor.lifecycle_coordinator import LifecycleCoordinatorError
+from a_conductor.lifecycle_executor import LifecycleExecutionResult, LifecycleExecutionState
 
 
 class FakeService:
@@ -193,3 +198,137 @@ def test_smoke_constructs_real_service_ui_without_mainloop(tmp_path: Path) -> No
         pytest.skip(f"Tk display unavailable: {exc}")
     assert code == 0
     assert summary == "A-CONDUCTOR_SMOKE_OK projects=0 workers=3"
+
+
+class ImmediateExecutor:
+    def submit(self, fn, *args, **kwargs):
+        future = Future()
+        try:
+            future.set_result(fn(*args, **kwargs))
+        except BaseException as exc:
+            future.set_exception(exc)
+        return future
+
+    def shutdown(self, wait=False, cancel_futures=False):
+        return None
+
+
+class FakeLifecycleService(FakeService):
+    def __init__(self, snapshot: ControlCenterSnapshot) -> None:
+        super().__init__(snapshot)
+        self.lifecycle_calls: list[tuple[str, str]] = []
+        self.raise_error: BaseException | None = None
+
+    def _run(self, action: LifecycleAction, worker_id: str):
+        self.lifecycle_calls.append((action.value, worker_id))
+        if self.raise_error is not None:
+            raise self.raise_error
+        return LifecycleExecutionResult(
+            state=LifecycleExecutionState.NOOP,
+            action=action,
+            reason_code="TEST_NOOP",
+            transaction_id="tx-ui",
+        )
+
+    def start_worker(self, worker_id: str):
+        return self._run(LifecycleAction.START, worker_id)
+
+    def stop_worker(self, worker_id: str):
+        return self._run(LifecycleAction.STOP, worker_id)
+
+    def restart_worker(self, worker_id: str):
+        return self._run(LifecycleAction.RESTART, worker_id)
+
+
+def lifecycle_snapshot() -> ControlCenterSnapshot:
+    base = sample_snapshot()
+    project = base.projects[0]
+    workers = list(base.workers)
+    workers[1] = replace(
+        workers[1],
+        assignment_id="assignment-2",
+        project_id=project.project_id,
+        project_display_name=project.display_name,
+        project_root_path=project.root_path,
+        mutation_allowed=True,
+    )
+    return ControlCenterSnapshot(projects=base.projects, workers=tuple(workers), online=True)
+
+
+def test_lifecycle_capable_service_enables_state_aware_controls(root) -> None:
+    service = FakeLifecycleService(lifecycle_snapshot())
+    app = AConductorDesktopApp(root, service=service, background_executor=ImmediateExecutor())
+
+    stopped_item = app.worker_tree.get_children()[1]
+    app.worker_tree.selection_set(stopped_item)
+    app.worker_tree.focus(stopped_item)
+    app._update_lifecycle_buttons()
+    assert app.start_button.instate(["!disabled"])
+    assert app.stop_button.instate(["disabled"])
+    assert app.restart_button.instate(["disabled"])
+
+    ready_item = app.worker_tree.get_children()[0]
+    app.worker_tree.selection_set(ready_item)
+    app.worker_tree.focus(ready_item)
+    app._update_lifecycle_buttons()
+    assert app.start_button.instate(["disabled"])
+    assert app.stop_button.instate(["!disabled"])
+    assert app.restart_button.instate(["!disabled"])
+
+
+def test_start_selected_runs_through_background_executor_and_logs_result(root) -> None:
+    service = FakeLifecycleService(lifecycle_snapshot())
+    app = AConductorDesktopApp(root, service=service, background_executor=ImmediateExecutor())
+    item = app.worker_tree.get_children()[1]
+    app.worker_tree.selection_set(item)
+    app.worker_tree.focus(item)
+    app._update_lifecycle_buttons()
+
+    app.start_selected()
+    root.update()
+
+    assert service.lifecycle_calls == [("START", "a-worker-02")]
+    activity = app.activity_text.get("1.0", "end")
+    assert "START" in activity
+    assert "TEST_NOOP" in activity
+
+
+def test_known_lifecycle_error_logs_code_only(root) -> None:
+    service = FakeLifecycleService(lifecycle_snapshot())
+    service.raise_error = LifecycleCoordinatorError("WORKER_STATE_PERSISTENCE_FAILED")
+    app = AConductorDesktopApp(
+        root,
+        service=service,
+        background_executor=ImmediateExecutor(),
+        error_handler=lambda _code: None,
+    )
+    item = app.worker_tree.get_children()[1]
+    app.worker_tree.selection_set(item)
+    app.worker_tree.focus(item)
+
+    app.start_selected()
+    root.update()
+
+    activity = app.activity_text.get("1.0", "end")
+    assert "WORKER_STATE_PERSISTENCE_FAILED" in activity
+
+
+def test_unknown_lifecycle_exception_never_logs_raw_secret_text(root) -> None:
+    service = FakeLifecycleService(lifecycle_snapshot())
+    service.raise_error = RuntimeError("super-secret-runtime-detail")
+    app = AConductorDesktopApp(
+        root,
+        service=service,
+        background_executor=ImmediateExecutor(),
+        error_handler=lambda _code: None,
+    )
+    item = app.worker_tree.get_children()[1]
+    app.worker_tree.selection_set(item)
+    app.worker_tree.focus(item)
+
+    app.start_selected()
+    root.update()
+
+    activity = app.activity_text.get("1.0", "end")
+    assert "LIFECYCLE_COMMAND_FAILED" in activity
+    assert "super-secret-runtime-detail" not in activity
