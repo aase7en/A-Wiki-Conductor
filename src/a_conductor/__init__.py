@@ -93,6 +93,14 @@ from .fault_injection import (
     FakeLaunchObservation,
     FaultScenario,
 )
+from .serena_transport_adapter import (
+    SerenaProjectBindingRepositoryObserver,
+    SerenaTransportAdapter,
+    SerenaTransportClassification,
+    SerenaTransportEvent,
+    SerenaTransportEventKind,
+    classify_serena_transport_events,
+)
 from .job_control import DurableJobControlService
 from .job_execution import (
     DurableJobExecutionCoordinator,
@@ -364,6 +372,12 @@ __all__ = [
     "DeterministicFaultExecutor",
     "FakeLaunchObservation",
     "FaultScenario",
+    "SerenaProjectBindingRepositoryObserver",
+    "SerenaTransportAdapter",
+    "SerenaTransportClassification",
+    "SerenaTransportEvent",
+    "SerenaTransportEventKind",
+    "classify_serena_transport_events",
     "DurableJobControlService",
     "DurableJobExecutionCoordinator",
     "DurableJobStore",

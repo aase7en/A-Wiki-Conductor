@@ -4,13 +4,11 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Resilient Execution Supervisor MVP**
+**Resilient Execution Supervisor MVP — sequence complete (AC-RES-001..008)**
 
 ## Active work order
 
-`docs/work-orders/WO-AC-RES-008-serena-transport-adapter.md`
-
-Status: `IN_PROGRESS`
+None.
 
 ## Completed resilient foundation
 
@@ -21,24 +19,23 @@ Status: `IN_PROGRESS`
 - AC-RES-005 duplicate execution protection: `a0a2e52`
 - AC-RES-006 output backpressure: `9cc3c46`
 - AC-RES-007 fake executor + fault injection: `97f6a06`
+- AC-RES-008 serena transport adapter: completion commit is the immediate transaction
 
-## AC-RES-008 micro-steps
+## AC-RES-008 evidence
 
-- [x] 008-A reuse gate + coordination + contract checkpoint
-- [ ] 008-B RED adapter scenario tests
-- [ ] 008-C implement deterministic mapping + binding observer
-- [ ] 008-D integrated recovery tests via fake executor
-- [ ] 008-E regression + safety verification
-- [ ] 008-F close/commit/push
+- 15 deterministic adapter tests passed; full suite 742 passed, 0 skipped; compileall PASS.
+- classification is pure and I/O-free: 502→DEGRADED, repeated→LOST, session-terminated→LOST immediate, probe→DEGRADED/UNAVAILABLE, OK→CONNECTED.
+- every transport transition preserves execution state and job claim (TRANSPORT != EXECUTION).
+- binding observer: worktree agreement enforced for all policies; branch/head enforcement scoped to EXACT; mismatch → RECOVERY_BLOCKED before collect.
+- integrated with DeterministicFaultExecutor: adapter-driven LOST → ATTACH_RUNNING → reconcile → VERIFY_RESULT, launch count 1.
+- A-Wiki reuse gate 2026-08-20: GitHub searched (`serena adapter`, `resilient execution`, `supervised`, `claim_acquire`) — no overlap; classification WRAP+EXTEND.
+- no real Serena/MCP/tunnel interaction; temp stores/repos only.
 
-## Infrastructure note
+## Infrastructure state
 
-GitHub remote created 2026-08-20 (explicit user decision): private repo `aase7en/A-Wiki-Conductor`; `main` pushed and tracking `origin/main`.
-
-## Invariant
-
-Do not use real Serena outages as the recovery test harness. The adapter maps observations only; transport/recovery/dedup/artifact decisions stay in AC-RES-003/004/005/006.
+- Remote `origin` = `https://github.com/aase7en/A-Wiki-Conductor.git` (private, explicit user decision 2026-08-20); push after each completed chunk.
+- Runtime observation at 008 close: listener PID `25396` (tunnel-client) no longer running — stopped externally; this work only made read-only `tasklist` queries.
 
 ## Next safe action
 
-Write RED deterministic tests for `serena_transport_adapter` event classification and binding identity mapping, then implement the mapping without I/O.
+Resilient MVP primitives are done. Decide the next milestone with the user: (a) wire the supervisor into `DurableJobExecutionCoordinator` (EXTEND, new work order + reuse gate), or (b) return to PROJECT-PLAN Phase 1 near-term order (worker lifecycle/UI milestones). Do not start either without a new work order.

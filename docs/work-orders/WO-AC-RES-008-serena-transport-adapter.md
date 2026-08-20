@@ -1,6 +1,6 @@
 # WO-AC-RES-008: Serena Transport Adapter Integration
 
-Status: in_progress
+Status: complete
 Lane/files: `src/a_conductor/serena_transport_adapter.py`, `src/a_conductor/__init__.py`, `tests/test_serena_transport_adapter.py`, `docs/contracts/serena-transport-adapter.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-AC-RES-008-serena-transport-adapter.md`
 Branch: main
 Model tier: high
@@ -41,11 +41,11 @@ A-Wiki reuse-before-build gate (2026-08-20): A-Wiki GitHub `aase7en/A-Wiki` sear
 ## Micro-steps
 
 - [x] 008-A reuse gate + coordination + contract checkpoint
-- [ ] 008-B RED adapter scenario tests
-- [ ] 008-C implement deterministic mapping + binding observer
-- [ ] 008-D integrated recovery tests via fake executor
-- [ ] 008-E regression + safety verification
-- [ ] 008-F close/commit/push
+- [x] 008-B RED adapter scenario tests
+- [x] 008-C implement deterministic mapping + binding observer
+- [x] 008-D integrated recovery tests via fake executor
+- [x] 008-E regression + safety verification
+- [x] 008-F close/commit/push
 
 ## Forbidden
 
@@ -58,3 +58,14 @@ A-Wiki reuse-before-build gate (2026-08-20): A-Wiki GitHub `aase7en/A-Wiki` sear
 ## Checkpoint log
 
 - [2026-08-20] Opened from AC-RES-007 completion `97f6a06`; GitHub remote `origin` now exists (private repo `aase7en/A-Wiki-Conductor`), `main` pushed.
+- [2026-08-20] RED confirmed (`ModuleNotFoundError`), implemented, 15/15 adapter tests green; one test expectation corrected (worktree agreement is policy-unconditional safety, branch/head enforcement is EXACT-scoped).
+- [2026-08-20] Closed. Runtime observation at close: listener PID `25396` no longer running (external stop; this work made only read-only `tasklist` queries).
+
+## Completion evidence
+
+- 15 deterministic adapter tests passed: classification (502→DEGRADED, 502×2→LOST, session-terminated→LOST immediate, probe→DEGRADED/UNAVAILABLE, OK→CONNECTED), transport-only mutation (execution state RUNNING and job claim preserved in every transition), empty-window no-op, validation errors.
+- Binding observer: worktree agreement enforced for all policies; branch/head enforcement scoped to `EXACT`; mismatch surfaces `SERENA_BINDING_IDENTITY_MISMATCH`/`SERENA_BINDING_WORKTREE_MISMATCH` and AC-RES-004 returns `RECOVERY_BLOCKED` with that reason before any collect (`collect_count == 0`).
+- Integrated test with `DeterministicFaultExecutor`: adapter-driven `LOST` → duplicate guard `ATTACH_RUNNING` → advance → reconcile → `VERIFY_RESULT`, launch count stays 1, claim preserved.
+- Module performs no I/O: no network/process/file/Git access; all mutations flow through `ExecutionTransportService`; static scan clean (single docstring-word false positive only).
+- Full suite 742 passed, 0 skipped; compileall PASS.
+- Temp stores/repos only; no real Serena/MCP/tunnel interaction.
