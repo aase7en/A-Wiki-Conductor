@@ -2,79 +2,46 @@
 
 Last updated: 2026-08-20
 
-## Project
-
-A-Wiki Conductor / product name **A-Conductor**.
-
 ## Current objective
 
-Extract a product-grade Serena runtime-manager contract from the validated manual multi-instance deployment before implementing any process manager.
-
-## Current phase
-
-`Phase 1 — Multi-Serena Control Center / runtime-manager contract extraction`
+Implement side-effect-free runtime safety classifiers from the approved Serena runtime-manager contract before real process supervision.
 
 ## Current task
 
-`WO-P1-002 — Serena Runtime Manager Contract from Validated Prototype`
+`WO-P1-003 — Pure Runtime Safety Validators`
 
 Status: `IN_PROGRESS`
 
 ## Completed
 
-- C1 provider-neutral domain/invariant contract complete.
-- Task/RepositoryIdentity/Evidence JSON Schemas complete and mechanically validated.
-- Local Git safety baseline complete on `main`.
-- WO-P1-001 typed core domain implemented test-first; `17 passed`.
-- Implementation commit: `dbf5b34c44a3a10d70bf994a78739324c43bfe7a`.
-- WO-P1-002 opened and claimed for docs-only/read-only runtime contract extraction.
+- C1 contracts/schemas complete.
+- Local Git baseline complete.
+- Typed core domain complete, test-first (`17 passed`), commit `dbf5b34`.
+- Serena runtime-manager contract extracted from validated local prototype read-only, commit `2b2ecbd`.
+- WO-P1-003 opened/claimed.
 
-## Evidence
-
-- `pytest -q`: 17 passed for typed domain.
-- `python -m compileall -q src`: PASS.
-- provider/product leakage scan in `src/a_conductor/domain.py`: clean.
-- Git current HEAD before WO-P1-002 coordination commit: `dbf5b34c44a3a10d70bf994a78739324c43bfe7a`.
-
-## Repository state
+## Current repository state
 
 - branch: `main`
-- Git remote: none
-- Git safe-directory guard is handled per-command only; global Git config was not modified.
-
-## Decisions made
-
-- Worker remains runtime-neutral; Serena is first runtime implementation only.
-- External multi-Serena launcher/runbook is implementation evidence, not product source to copy blindly.
-- WO-P1-002 is docs-only/read-only; process code begins only after this contract is reviewed.
+- HEAD before WO-P1-003 coordination commit: `2b2ecbd`
+- no Git remote
+- exact per-command safe-directory override required by this filesystem; global Git config unchanged.
 
 ## DECISION_REQUIRED
 
-### DR-C1-001 — GitHub repository publication
-
-Need explicit visibility/public-safety decision before creating/configuring a GitHub remote. Recommended default: private-first.
-
-## Known problems / warnings
-
-- No GitHub remote/cross-machine A-Conductor claim visibility yet.
-- External runtime prototype may contain machine-specific or secret-adjacent configuration. Only stable concepts may be recorded; credentials/tunnel IDs must not be copied.
-- Local A-Wiki has unrelated dirty work and remains read-only.
+`DR-C1-001`: GitHub visibility/public-safety before remote creation. Recommended private-first.
 
 ## Do not do
 
-- Do not modify `C:/AI/serena-instances/` during WO-P1-002.
-- Do not start/stop runtime processes or tunnels.
-- Do not modify A-Wiki/Phase6.
-- Do not create Git remote/push.
-
-## TODO
-
-See `CURRENT-WORK.md` and `docs/work-orders/WO-P1-002-serena-runtime-contract.md`.
+- No process/tunnel/Serena start/stop.
+- No subprocess/socket/network/filesystem mutation in WO-P1-003.
+- No A-Wiki/Phase6 mutation.
+- No remote/push.
 
 ## Next safe action
 
-Commit the WO-P1-002 coordination checkpoint, then inspect the external runbook and representative runtime scripts read-only.
+Commit the WO-P1-003 coordination checkpoint, then write failing runtime-safety tests before implementation.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Re-run duplicate-work/claim checks when resuming in a new session or after significant time.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Reconcile actual Git/work-order/claim state before mutation.
