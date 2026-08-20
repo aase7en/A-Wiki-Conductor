@@ -4,11 +4,11 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / Serena runtime profile model**
+**Phase 1 — Multi-Serena Control Center / read-only Windows observation**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-004-serena-runtime-profile.md`
+`docs/work-orders/WO-P1-005-windows-runtime-observation.md`
 
 Status: `IN_PROGRESS`
 
@@ -16,26 +16,27 @@ Status: `IN_PROGRESS`
 
 - [x] C1 contracts/invariants + JSON Schemas validated.
 - [x] Local Git safety baseline on `main`.
-- [x] Provider-neutral typed domain models complete; 17 tests.
-- [x] Serena runtime-manager contract extracted read-only from validated prototype.
-- [x] Pure runtime ownership/collision classifiers complete; full suite 41 tests.
-- [x] Runtime-safety implementation commit: `676a881`.
+- [x] Provider-neutral typed domain models complete.
+- [x] Serena runtime-manager contract extracted from validated prototype.
+- [x] Pure runtime safety classifiers complete; full suite 41 tests at that checkpoint.
+- [x] Serena reusable worker config + dynamic project binding complete; full suite 67 tests.
+- [x] WO-P1-004 implementation commit: `4e36681`.
 
-## Active checklist — WO-P1-004
+## Active checklist — WO-P1-005
 
 - [x] Open/claim work order.
 - [ ] Commit coordination checkpoint before source changes.
-- [ ] Write failing Serena runtime-profile tests first.
+- [ ] Write failing observer tests first.
 - [ ] Capture RED result.
-- [ ] Implement stable worker config + dynamic project binding dataclasses.
+- [ ] Implement injected read-only command runner boundary + PID/process/port/ready observations.
 - [ ] Run pytest green.
-- [ ] Compileall + forbidden import/secret-field scan + diff check.
+- [ ] Compileall + mutation-primitive scan + diff check.
 - [ ] Update checkpoint/handoff and commit.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before WO-P1-004 coordination commit: `676a881`
+- HEAD before WO-P1-005 coordination commit: `4e36681`
 - Git remote: none
 - Use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
 
@@ -45,12 +46,12 @@ Status: `IN_PROGRESS`
 
 ## Constraints
 
-- Pure configuration/data validation only.
-- No process/network/filesystem operations.
-- No secret/tunnel credential values.
+- Observation only; no process/tunnel/runtime mutation.
+- No PID-file cleanup or configuration writes.
+- No secret/credential access.
 - No A-Wiki/Phase6 mutation.
 - No Git remote/push.
 
 ## Next safe action
 
-Commit the WO-P1-004 coordination checkpoint, then write failing tests before implementation.
+Commit the WO-P1-005 coordination checkpoint, then write failing tests before implementing the read-only observer.

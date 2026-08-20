@@ -4,11 +4,11 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Model reusable Serena worker resources separately from dynamic Project/worktree assignment before any real process supervision.
+Add a bounded read-only Windows observation adapter so A-Conductor can collect process/PID-file/port/readiness facts before any process lifecycle implementation.
 
 ## Current task
 
-`WO-P1-004 — Serena Worker Runtime Profile Model`
+`WO-P1-005 — Read-Only Windows Runtime Observation Adapter`
 
 Status: `IN_PROGRESS`
 
@@ -18,13 +18,14 @@ Status: `IN_PROGRESS`
 - Local Git safety baseline complete.
 - Typed core domain complete, test-first, commit `dbf5b34`.
 - Serena runtime-manager contract complete, commit `2b2ecbd`.
-- Pure runtime safety classifiers complete; full suite `41 passed`, commit `676a881`.
-- WO-P1-004 opened/claimed.
+- Pure runtime safety classifiers complete, commit `676a881`.
+- Serena reusable worker profile/project binding complete; full suite `67 passed`, commit `4e36681`.
+- WO-P1-005 opened/claimed.
 
 ## Current repository state
 
 - branch: `main`
-- HEAD before WO-P1-004 coordination commit: `676a881`
+- HEAD before WO-P1-005 coordination commit: `4e36681`
 - no Git remote
 - exact per-command safe-directory override required; global Git config unchanged.
 
@@ -34,15 +35,14 @@ Status: `IN_PROGRESS`
 
 ## Do not do
 
-- No process/tunnel/Serena start/stop.
-- No filesystem/network/subprocess logic in WO-P1-004.
-- No real secret/tunnel credential values.
+- No process/tunnel/Serena start/stop/kill/restart.
+- No PID-file cleanup, config writes, or credential access.
 - No A-Wiki/Phase6 mutation.
 - No remote/push.
 
 ## Next safe action
 
-Commit WO-P1-004 coordination checkpoint, then write failing tests for stable worker config vs dynamic project binding.
+Commit WO-P1-005 coordination checkpoint, then write failing observer tests before implementation.
 
 ## Resume instructions
 

@@ -33,7 +33,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-004` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/serena_runtime.py`, `src/a_conductor/__init__.py`, `tests/test_serena_runtime.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-004-serena-runtime-profile.md` |
+| `WO-P1-005` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/windows_observer.py`, `src/a_conductor/__init__.py`, `tests/test_windows_observer.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-005-windows-runtime-observation.md` |
 
 > Current limitation: this project is not yet Git-initialized, so this claim is durable only on the local project filesystem. Cross-machine claim/commit/push semantics become fully enforceable after the GitHub repository decision is resolved.
 
