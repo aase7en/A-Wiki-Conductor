@@ -1,7 +1,7 @@
 # WO-AC-RES-002: Supervised Subprocess Launch / Inspect / Collect
 
-Status: in_progress
-Lane/files: `src/a_conductor/supervised_child.py`, `src/a_conductor/supervised_execution.py`, `src/a_conductor/__init__.py`, `tests/test_supervised_child.py`, `tests/test_supervised_execution.py`, `docs/contracts/supervised-subprocess.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-AC-RES-002-supervised-subprocess.md`
+Status: completed
+Lane/files: `src/a_conductor/supervised_child.py`, `src/a_conductor/supervised_execution.py`, `src/a_conductor/execution_store.py`, `src/a_conductor/__init__.py`, `tests/test_supervised_child.py`, `tests/test_supervised_execution.py`, `docs/contracts/supervised-subprocess.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-AC-RES-002-supervised-subprocess.md`
 Branch: main
 Model tier: high
 
@@ -44,3 +44,8 @@ Do not generalize/duplicate the existing owned-process engine. Launch an interna
 ## Checkpoint log
 
 - [2026-08-20] Opened from clean AC-RES-001 completion `0a3040d`.
+
+- [2026-08-20] Scope expanded minimally to `src/a_conductor/execution_store.py`: `started_at` is now optional when persisting a known child PID before the helper result supplies the precise start timestamp. No schema change.
+- [2026-08-20] Targeted AC-RES-001+002 regression: 38 passed; compileall/diff checks PASS; static scan found no `shell=True` in supervised modules.
+- [2026-08-20] Bounded real Windows owned-process smoke PASS in temp directory: supervisor PID 28964, child PID 28820, `SUPERVISOR_RUNNING -> RESULT_AVAILABLE -> VERIFICATION_REQUIRED`, exit code 0, durable stdout/result evidence present. Active Conductor PID 25396 unchanged.
+- [2026-08-20] Full-suite rerun remains intentionally deferred until separate Python/Tcl-Tk environment remediation; no evidence indicates AC-RES-002 regression.

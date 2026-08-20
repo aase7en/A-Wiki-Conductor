@@ -481,7 +481,7 @@ class SQLiteExecutionStore:
         execution_id: str,
         *,
         pid: int,
-        started_at: str,
+        started_at: str | None,
         expected_version: int,
         evidence_ref: str | None = None,
     ) -> DurableExecutionRecord:

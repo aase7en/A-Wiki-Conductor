@@ -8,25 +8,26 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-`WO-AC-RES-002 — Supervised Subprocess Launch / Inspect / Collect`
+None.
 
-Status: `IN_PROGRESS`
+## Recently completed
 
-## Goal
+- `P1-038 — Durable Job Control Service` at `4f300ca`.
+- `AC-RES-001 — Durable Execution Record` at `0a3040d`.
+- `AC-RES-002 — Supervised Subprocess Launch / Inspect / Collect` — exact-owned supervisor helper, durable child PID/log/result evidence, read-only inspect, no-rerun collect.
 
-Reuse exact-owned-process primitives to run suitable commands independently from one transport request, with durable child PID/log/result evidence and no blind retry.
+## AC-RES-002 evidence
 
-## Baseline
+- AC-RES-001+002 targeted regression: 38 passed
+- internal helper uses `shell=False`; target executable allowlist + shell-intermediary denylist enforced
+- target argv is not stored in SQLite/result JSON
+- bounded real Windows smoke: `SUPERVISOR_RUNNING -> RESULT_AVAILABLE -> VERIFICATION_REQUIRED`, exit 0
+- active Conductor listener preserved at PID 25396
 
-- P1-038 complete: `4f300ca`
-- AC-RES-001 complete: `0a3040d`
-- transport and execution states already persist independently
-- active Conductor listener PID `25396` must not be touched
+## Environment follow-up
 
-## Architecture choice
-
-Reuse `WindowsOwnedProcessController` to own an internal A-Conductor supervisor helper. The helper carries `execution_id` as the ownership marker, launches the real target with `shell=False`, writes child PID/result JSON atomically, and inherits sanitized environment + durable log handles.
+Current Hermes/uv Python build remains independently diagnosed as unstable for the legacy full-suite path. Recommended remediation: Python build `20260623` or newer in a separate bounded environment work order.
 
 ## Next safe action
 
-Write RED tests for the helper's result contract and for launch/inspect/collect using injected fake process/controller components before any real subprocess smoke.
+Open `AC-RES-003 — Transport-Loss State & Lease Preservation`: add explicit transport-loss/reconnect events and policy around durable executions/jobs without touching process result state, never release ownership on temporary transport loss, and provide bounded transport retry-budget metadata only (no reconnect implementation yet).

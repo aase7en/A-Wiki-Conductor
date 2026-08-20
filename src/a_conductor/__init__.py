@@ -52,6 +52,15 @@ from .execution_store import (
     ExecutionStoreError,
     SQLiteExecutionStore,
 )
+from .supervised_execution import (
+    SupervisedCollectOutcome,
+    SupervisedExecutionError,
+    SupervisedExecutionService,
+    SupervisedInspection,
+    SupervisedInspectionState,
+    SupervisedLaunchOutcome,
+    SupervisedLaunchPlan,
+)
 from .job_control import DurableJobControlService
 from .job_execution import (
     DurableJobExecutionCoordinator,
@@ -294,6 +303,13 @@ __all__ = [
     "ExecutionEventType",
     "ExecutionStoreError",
     "SQLiteExecutionStore",
+    "SupervisedCollectOutcome",
+    "SupervisedExecutionError",
+    "SupervisedExecutionService",
+    "SupervisedInspection",
+    "SupervisedInspectionState",
+    "SupervisedLaunchOutcome",
+    "SupervisedLaunchPlan",
     "DurableJobControlService",
     "DurableJobExecutionCoordinator",
     "DurableJobStore",

@@ -2,23 +2,25 @@
 
 Last updated: 2026-08-20
 
+## Current objective
+
+Continue the Resilient Execution Supervisor after supervised subprocess launch/inspect/collect became transport-independent.
+
 ## Current task
 
-`WO-AC-RES-002 — Supervised Subprocess Launch / Inspect / Collect`
+No active work order.
 
-Status: `IN_PROGRESS`
+## Latest verified state
 
-## Baseline
-
-- branch: main
-- baseline HEAD: `0a3040d`
-- AC-RES-001 durable execution records complete
-- active Conductor listener: PID `25396`
-
-## Boundary
-
-Do not create a second generic process manager. Reuse exact-owned-process control; supervisor helper is only a transport-independent wrapper around a validated target command. No retry/reconnect/deduplication/Serena-specific integration yet.
+- P1-038 complete: `4f300ca`
+- AC-RES-001 complete: `0a3040d`
+- AC-RES-002 targeted regression: 38 passed
+- real temp-directory Windows smoke PASS with actual `WindowsOwnedProcessController`/observer
+- execution helper persists child PID/result atomically and never persists raw target argv/env/output
+- inspect never launches; collect never reruns
+- successful child result moves execution to `VERIFICATION_REQUIRED`, not implicit final success
+- active Conductor listener remains PID `25396`
 
 ## Next safe action
 
-RED tests first: helper never uses shell, result JSON excludes argv/env/output, launch returns after startup handshake, inspect never launches, collect never reruns.
+Open `AC-RES-003 — Transport-Loss State & Lease Preservation`. Transport changes must be independent from execution process/result state. Temporary loss must preserve execution/job/file ownership; no actual reconnect loop or backend failover in this slice.
