@@ -8,26 +8,24 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-`docs/work-orders/WO-P1-031-native-execution-core.md`
+None.
 
-Status: `IN_PROGRESS`
+Most recently completed:
+- `WO-P1-031 — Native Execution Core`
+- `WO-P1-030 — Runtime Setup Service + Desktop Dialog`
+- `WO-P1-028R1 — Lifecycle Assembly Contract Regression Repair`
 
 ## Completed foundation
 
 - [x] Phase 1 local Multi-Serena Control Center MVP.
 - [x] Runtime lifecycle/setup/readiness safety stack.
 - [x] A-Wiki ↔ A-Conductor sibling-repo responsibility contract.
-- [x] A-Wiki reuse-before-build gate for P1-031: classified `EXTEND`.
-
-## Active checklist — WO-P1-031
-
-- [x] Verify clean branch/HEAD and run A-Wiki reuse scan.
-- [x] Open bounded work order + native execution contract.
-- [ ] Commit coordination checkpoint.
-- [ ] Write RED filesystem/subprocess safety tests.
-- [ ] Implement native execution core.
-- [ ] Run targeted/full/compile/diff verification.
-- [ ] Close and commit work order.
+- [x] Native execution core classified `EXTEND` against A-Wiki.
+- [x] Project-root-confined bounded text read/list/write.
+- [x] Atomic write with mutation authority and SHA-256 overwrite precondition.
+- [x] Authorized argv subprocess primitive with `shell=False`, executable allowlist, cwd confinement, timeout, conservative environment, bounded output and digests.
+- [x] P1-031 verification: 16 targeted + 439 full-suite tests, compileall, diff check, static safety scan.
+- [x] Active Conductor listener preserved at PID 25396.
 
 ## External / deferred gate
 
@@ -37,9 +35,8 @@ Status: `IN_PROGRESS`
 ## Repository state
 
 - Branch: `main`
-- Base HEAD for P1-031: `ce00f13`
 - Git remote: none
 
 ## Next safe action
 
-Commit the P1-031 coordination/docs checkpoint, then write RED tests for path confinement, safe atomic writes, subprocess argv/allowlist/cwd/timeout/environment/output bounds before implementation.
+Open a bounded fixed-method adapter work order over the Native Execution Core. Preferred next slice: safe Git read/write families plus test/build execution with known command shapes. Do not expose raw `NativeSubprocessRunner` directly to an LLM and do not add destructive Git families without a separate decision/authority design.

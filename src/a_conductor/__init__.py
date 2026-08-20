@@ -74,6 +74,17 @@ from .lifecycle_journal import (
     LifecycleSequenceError,
     SQLiteLifecycleJournal,
 )
+from .native_execution import (
+    NativeCommandResult,
+    NativeCommandSpec,
+    NativeDirectoryEntry,
+    NativeExecutionError,
+    NativeExecutionScope,
+    NativeFileSystem,
+    NativeReadResult,
+    NativeSubprocessRunner,
+    NativeWriteResult,
+)
 from .owned_process import (
     OwnedProcessMutationResult,
     OwnedProcessMutationState,
@@ -234,6 +245,15 @@ __all__ = [
     "LifecycleResumeDecision",
     "LifecycleResumePlan",
     "plan_lifecycle_resume",
+    "NativeCommandResult",
+    "NativeCommandSpec",
+    "NativeDirectoryEntry",
+    "NativeExecutionError",
+    "NativeExecutionScope",
+    "NativeFileSystem",
+    "NativeReadResult",
+    "NativeSubprocessRunner",
+    "NativeWriteResult",
     "PersistenceError",
     "SQLiteRegistryStore",
     "OwnedProcessMutationResult",
