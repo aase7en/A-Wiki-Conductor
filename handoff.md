@@ -4,42 +4,40 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue toward the Work-class durable agent tunnel North Star while preserving the A-Wiki/A-Conductor boundary. The first deterministic Native Execution Core is complete; the next unblocked layer is fixed-method Git/Test adapters over that core.
+Continue building the Work-class execution plane over the completed Native Execution Core without widening it into a generic model-facing shell.
 
 ## Current task
 
-No active work order.
+`WO-P1-032 — Native Git + Verification Adapters`
 
-Most recently completed: `WO-P1-031 — Native Execution Core`.
+Status: `IN_PROGRESS`
 
-## P1-031 evidence
+## Baseline
 
-- A-Wiki reuse-before-build classification: `EXTEND`.
-- Contract: `docs/contracts/native-execution-core.md`.
-- Project-root path confinement rejects absolute/traversal/symlink escape.
-- Text filesystem operations are bounded; writes require mutation authority and SHA-256 overwrite preconditions.
-- Subprocess uses argv + `shell=False`, explicit executable allowlist, confined cwd, bounded timeout, conservative inherited environment, authorized overrides only, bounded stdout/stderr and full-stream digests.
-- No delete/move/destructive Git/generic model-facing shell primitive was added.
-- Targeted tests: 16 passed.
-- Full suite: 439 passed.
-- compileall: PASS; git diff check: PASS; static safety scan: PASS.
-- Active Conductor listener remains `127.0.0.1:18011`, PID `25396`.
+- Base HEAD: `24f4e33 feat: add native execution core`.
+- P1-031 evidence: 16 targeted + 439 full-suite tests; compileall/diff/static safety PASS.
+- Native core contract: `docs/contracts/native-execution-core.md`.
+- Adapter contract: `docs/contracts/native-execution-adapters.md`.
 
-## Binding boundaries
+## Current scope
 
-- A-Wiki = brain/policy/memory/orchestration knowledge.
-- A-Conductor = durable execution/runtime/enforcement/recovery/operator surfaces.
-- Serena = semantic code intelligence specialist.
-- `NativeSubprocessRunner` is a low-level trusted-adapter primitive, not a raw chat shell.
+- Fixed read-only Git: status, working diff, cached diff.
+- Fixed verification: pytest, compileall.
+- Root-confined path validation and command option-injection defense.
+- Verification commands declare mutation intent; read-only scopes must refuse them.
+
+## Forbidden
+
+No Git add/commit/reset/clean/checkout/stash/rebase/merge/push, no arbitrary command strings, no shell=True, no A-Wiki/tunnel/provider mutation.
 
 ## External / deferred gate
 
-`DR-P1-003 / BLOCKED_EXTERNAL`: Worker 3 live Stage B requires a unique authorized transport binding. A-Wiki companion registration payload is prepared but not yet applied from this Conductor-pinned surface.
+`DR-P1-003 / BLOCKED_EXTERNAL` remains unchanged. A-Wiki companion registration payload remains prepared but not applied.
 
 ## Next safe action
 
-Open a bounded work order for fixed-method Git/Test adapters. Reuse `StrictReadOnlyGitRunner` where applicable, route execution through the native core when it adds policy/evidence value, and keep destructive Git operations out of scope.
+Commit P1-032 docs/claim checkpoint, write RED adapter tests, implement `native_adapters.py`, then run targeted/full/compile/diff/static gates.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `docs/contracts/a-wiki-a-conductor-integration.md` -> `docs/contracts/native-execution-core.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file; verify branch/HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> native execution contracts -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO; verify branch/HEAD/status before mutation.
