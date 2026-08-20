@@ -1,6 +1,6 @@
 # WO-P1-001: Typed Core Domain Models
 
-Status: in_progress
+Status: done
 Lane/files: `pyproject.toml`, `src/a_conductor/__init__.py`, `src/a_conductor/domain.py`, `tests/test_domain.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-001-domain-models.md`
 Branch: main
 Model tier: mid
@@ -59,3 +59,7 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after local Git baseline `3ed22df0d884cf15729167d923ec4a0e32593662`. Python 3.11.15 + pytest 9.1.1 confirmed available. Strategy: stdlib dataclasses/enums first; no framework lock-in.
+
+- [2026-08-20] RED checkpoint: `pytest -q` failed during collection as expected with `ModuleNotFoundError: No module named a_conductor` (1 collection error). No source implementation existed yet. Proceeding to minimal implementation.
+
+- [2026-08-20] GREEN checkpoint: implemented dependency-light frozen dataclasses/enums in `src/a_conductor/domain.py` plus package exports. Verification: `pytest -q` = 17 passed; `python -m compileall -q src` PASS; `git diff --check` PASS; provider/product leakage scan clean. No process/network/broker/UI behavior added.
