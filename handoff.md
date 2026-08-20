@@ -4,11 +4,11 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Persist the reusable Project/A-Worker registry with local SQLite so Control Center assignments survive restart, while keeping the later task broker out of scope.
+Complete the pure lifecycle decision policy that gates future runtime mutation for START/STOP/RESTART/RELEASE.
 
 ## Current task
 
-`WO-P1-009 — SQLite Registry Persistence`
+`WO-P1-010 — Pure Runtime Lifecycle Decision Planner`
 
 Status: `IN_PROGRESS`
 
@@ -23,13 +23,14 @@ Status: `IN_PROGRESS`
 - Read-only Windows observer complete, commit `af1979e`.
 - Normalized worker status evaluator complete, commit `26ea225`.
 - Strict concrete read-only Windows I/O complete, commit `e0682cc`.
-- Reusable in-memory worker/project registry complete; full suite `150 passed`, commit `61db9af`.
-- WO-P1-009 opened/claimed.
+- Reusable worker/project registry complete, commit `61db9af`.
+- SQLite registry persistence complete; full suite `159 passed`, commit `f32f192`.
+- WO-P1-010 opened/claimed.
 
 ## Current repository state
 
 - branch: `main`
-- HEAD before WO-P1-009 coordination commit: `61db9af`
+- HEAD before WO-P1-010 coordination commit: `f32f192`
 - no Git remote
 - exact per-command safe-directory override required; global Git config unchanged.
 
@@ -43,16 +44,14 @@ Use ignored local pytest basetemp: ensure `runtime/` exists, then `python -m pyt
 
 ## Do not do
 
-- No task broker tables/logic in WO-P1-009.
-- No process/tunnel/Serena lifecycle mutation.
-- No network/UI/provider behavior.
-- No credentials/secrets.
+- No actual target process/tunnel/Serena lifecycle mutation in WO-P1-010.
+- No PID cleanup/profile rendering or I/O.
 - No A-Wiki/Phase6 mutation.
 - No remote/push.
 
 ## Next safe action
 
-Commit WO-P1-009 coordination checkpoint, then write failing SQLite registry persistence tests before implementation.
+Commit WO-P1-010 coordination checkpoint, then write failing lifecycle-policy tests before implementation.
 
 ## Resume instructions
 

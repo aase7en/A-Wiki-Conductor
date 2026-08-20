@@ -4,11 +4,11 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / SQLite registry persistence**
+**Phase 1 — Multi-Serena Control Center / pure lifecycle decision policy**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-009-sqlite-registry-persistence.md`
+`docs/work-orders/WO-P1-010-lifecycle-decision-planner.md`
 
 Status: `IN_PROGRESS`
 
@@ -18,26 +18,28 @@ Status: `IN_PROGRESS`
 - [x] Local Git safety baseline on `main`.
 - [x] Provider-neutral typed domain models complete.
 - [x] Serena runtime-manager contract extracted from validated prototype.
-- [x] Runtime safety classifiers, observer, strict read-only backends, normalized worker status complete.
+- [x] Runtime safety classifiers + read-only observer + strict I/O backends complete.
 - [x] Live read-only Conductor smoke: PID VALID, process OWNED, port OWNED, ready HTTP 200.
-- [x] Reusable in-memory Project/A-Worker registry complete; full suite 150 tests.
-- [x] WO-P1-008 implementation commit: `61db9af`.
+- [x] Normalized worker status evaluator complete.
+- [x] Reusable in-memory Project/A-Worker registry complete.
+- [x] SQLite registry persistence complete; full suite 159 tests.
+- [x] WO-P1-009 implementation commit: `f32f192`.
 
-## Active checklist — WO-P1-009
+## Active checklist — WO-P1-010
 
 - [x] Open/claim work order.
 - [ ] Commit coordination checkpoint before source changes.
-- [ ] Write failing SQLite round-trip/schema/corruption tests first.
+- [ ] Write failing START/STOP/RESTART/RELEASE policy tests first.
 - [ ] Capture RED result.
-- [ ] Implement versioned `SQLiteRegistryStore`.
+- [ ] Implement pure lifecycle context/plan types + decision planner.
 - [ ] Run full tests green.
-- [ ] Compileall + diff check + persistence-boundary review.
+- [ ] Compileall + I/O/mutation scan + diff check.
 - [ ] Update checkpoint/handoff and commit.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before WO-P1-009 coordination commit: `61db9af`
+- HEAD before WO-P1-010 coordination commit: `f32f192`
 - Git remote: none
 - Use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
 - Pytest: use ignored local `runtime/pytest-temp` basetemp.
@@ -48,12 +50,11 @@ Status: `IN_PROGRESS`
 
 ## Constraints
 
-- SQLite stores registry state only; no task broker tables yet.
-- stdlib-only; no migration framework dependency.
-- No process/network/UI behavior.
+- Lifecycle policy is pure and symbolic only.
+- No target mutation, cleanup, profile rendering, shell/process/network/filesystem/persistence I/O.
 - No A-Wiki/Phase6 mutation.
 - No Git remote/push.
 
 ## Next safe action
 
-Commit WO-P1-009 coordination checkpoint, then write failing persistence tests before implementation.
+Commit WO-P1-010 coordination checkpoint, then write failing lifecycle-policy tests before implementation.
