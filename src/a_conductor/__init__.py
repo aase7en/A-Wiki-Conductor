@@ -74,6 +74,11 @@ from .lifecycle_journal import (
     LifecycleSequenceError,
     SQLiteLifecycleJournal,
 )
+from .native_adapters import (
+    NativeCommandRunner,
+    NativeGitReadAdapter,
+    NativeVerificationAdapter,
+)
 from .native_execution import (
     NativeCommandResult,
     NativeCommandSpec,
@@ -245,6 +250,9 @@ __all__ = [
     "LifecycleResumeDecision",
     "LifecycleResumePlan",
     "plan_lifecycle_resume",
+    "NativeCommandRunner",
+    "NativeGitReadAdapter",
+    "NativeVerificationAdapter",
     "NativeCommandResult",
     "NativeCommandSpec",
     "NativeDirectoryEntry",

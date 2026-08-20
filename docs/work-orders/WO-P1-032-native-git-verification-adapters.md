@@ -1,6 +1,6 @@
 # WO-P1-032: Native Git + Verification Adapters
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/native_adapters.py`, `src/a_conductor/__init__.py`, `tests/test_native_adapters.py`, `docs/contracts/native-execution-adapters.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-032-native-git-verification-adapters.md`
 Branch: main
 Model tier: high
@@ -42,3 +42,4 @@ Put fixed-method adapters over `NativeSubprocessRunner` so A-Conductor can inspe
 ## Checkpoint log
 
 - [2026-08-20] Opened from clean P1-031 commit `24f4e33`.
+- [2026-08-20] GREEN: 10 targeted + 448 full-suite passed; 1 Tk/Tcl environment skip; compileall/diff/static safety PASS; real Git adapter smoke exit 0; PID 25396 preserved. Work order complete.
