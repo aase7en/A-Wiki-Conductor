@@ -4,39 +4,41 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue toward the Work-class durable agent tunnel North Star. Native Execution Core and its first fixed Git/verification adapters are complete; next is a separately gated transactional Git mutation layer.
+Add transactional Git stage/commit support without weakening the deterministic Native Execution boundary.
 
 ## Current task
 
-No active work order.
+`WO-P1-033 — Transactional Git Stage + Commit`
 
-Most recently completed: `WO-P1-032 — Native Git + Verification Adapters`.
+Status: `IN_PROGRESS`
 
-## P1-032 evidence
+## Baseline
 
-- Fixed Git read methods only: status, working diff, cached diff.
-- Fixed verification methods only: pytest, compileall.
-- Git pathspecs are root-confined and passed after `--`.
-- Verification paths are existing/root-confined and commands declare mutation intent.
-- No Git mutation/network methods and no generic `run` method are exposed by adapters.
-- Targeted tests: 10 passed.
-- Full suite: 448 passed, 1 environment-specific Tk/Tcl skip.
-- compileall/diff/static safety: PASS.
-- Real NativeGitReadAdapter smoke against this repo: exit 0, no timeout.
-- Active Conductor listener remains `127.0.0.1:18011`, PID `25396`.
+- Base HEAD: `88a863f feat: add native git and verification adapters`.
+- Native execution core + read-only Git/verification adapters are complete.
+- P1-032 evidence: 10 targeted + 448 full-suite passed, 1 environment-specific Tk/Tcl skip; real read-only Git adapter smoke exit 0.
+- Transaction contract: `docs/contracts/native-git-transactions.md`.
 
-## Binding boundaries
+## Current safety design
 
-A-Wiki owns orchestration/policy; A-Conductor owns deterministic execution enforcement; Serena is semantic code intelligence. Raw NativeSubprocessRunner remains a trusted-adapter primitive, not a model-facing shell.
+- Snapshot exact HEAD + status hash + cached-diff hash before mutation.
+- Stage requires explicit file paths and exact snapshot preconditions.
+- Commit requires exact snapshot preconditions and a non-empty cached diff.
+- Commit is deterministic/noninteractive in this first slice: hooks skipped, GPG signing disabled.
+- Integration tests must use temporary Git repos only.
+
+## Forbidden
+
+No blanket stage `.`, reset/clean/checkout/switch/stash/rebase/merge/cherry-pick/revert/push/fetch/pull/remote mutation, force options, or generic Git argv passthrough.
 
 ## External / deferred gate
 
-`DR-P1-003 / BLOCKED_EXTERNAL` remains unchanged. A-Wiki companion registration payload is prepared but not applied.
+`DR-P1-003 / BLOCKED_EXTERNAL` unchanged. A-Wiki companion registration payload remains prepared but unapplied.
 
 ## Next safe action
 
-Open a transactional Git staging/commit work order with explicit worktree/staged-diff preconditions. Do not add reset/clean/checkout/stash/rebase/merge/push or remote operations.
+Commit docs/claim checkpoint, write RED unit and temp-repo transaction tests, implement `native_git_transactions.py`, then run targeted/full/compile/diff/static gates.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> native execution contracts -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file; verify branch/HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> native execution contracts -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO; verify branch/HEAD/status before mutation.
