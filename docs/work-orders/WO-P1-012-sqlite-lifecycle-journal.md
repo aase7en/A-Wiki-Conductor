@@ -1,6 +1,6 @@
 # WO-P1-012: SQLite Lifecycle Checkpoint Journal
 
-Status: in_progress
+Status: done
 Lane/files: `src/a_conductor/lifecycle_journal.py`, `src/a_conductor/__init__.py`, `tests/test_lifecycle_journal.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-012-sqlite-lifecycle-journal.md`
 Branch: main
 Model tier: mid
@@ -57,3 +57,7 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after lifecycle transaction executor commit `74bc59b`. Scope is append-only lifecycle checkpoint persistence only; future task broker remains out of scope.
+
+- [2026-08-20] RED checkpoint: `src/a_conductor/lifecycle_journal.py` confirmed absent; targeted journal tests failed during collection with `ModuleNotFoundError: a_conductor.lifecycle_journal` as expected.
+
+- [2026-08-20] GREEN checkpoint: implemented versioned append-only `SQLiteLifecycleJournal` with transaction/sequence identity, exact-duplicate idempotence, conflict/gap rejection, typed ordered load, explicit corruption/schema errors, and coexistence with registry tables. Targeted journal tests 19 passed; full suite 216 passed; compileall PASS; `git diff --check` PASS; source scan shows no UPDATE/DELETE path for lifecycle checkpoint history. No task/lease broker or runtime mutation added.
