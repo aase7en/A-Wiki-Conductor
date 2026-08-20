@@ -1,30 +1,31 @@
 # A-Conductor — Current Work
 
-Last updated: 2026-08-20 (autonomous night session)
+Last updated: 2026-08-21 (autonomous night session 2)
 
 ## Current phase
 
-**Resilient Execution Supervisor complete and wired; product packaged with CI.**
+**Config surface delivered; leftover decisions cleared. Awaiting user milestone pick.**
 
-## Session summary (2026-08-20 night, GLM 5.3/ZCode under user authorization)
+## Session summary (2026-08-21 night 2, GLM 5.3/ZCode under user authorization)
 
-All work done as small PRs on `origin` (private `aase7en/A-Wiki-Conductor`), each CI-verified before merge:
+All work as small PRs, CI-green before every merge:
 
-- **PR #1 / WO-P1-045** (merge `b9a8738`): `pyproject` packaging (console script `a-conductor`, zero third-party deps, test extra), root `README.md`, `docs/references/serena-configuration-notes.md` (durable capture of the Serena configuration surface for future fork/copy-and-develop).
-- **PR #2 / WO-P1-046** (merge `7ea5528`): GitHub Actions CI — windows-latest, Python 3.11, `pip install -e .[test]`, full pytest, desktop smoke. Bug fixed during loop: runner had no pytest (added `[test]` extra).
-- **PR #3 / WO-P1-047** (merge `8669cdb`): `SupervisedCommandRunner` — native git/verification commands route through the AC-RES supervisor (durable records, duplicate guard, bounded collect); resolver `runner_factory` injection (opt-in); **upstream race fix** in `SupervisedExecutionService.inspect()` (result file re-checked before non-healthy conclusions) with deterministic regression test.
+- **PR #4 / WO-P1-048** (merge `e420999`): opened the per-worker Serena config surface work order; roadmap item added (§13).
+- **PR #5 / WO-P1-048 B-C** (merge `56ca37b`): `WorkerSerenaSettings` typed model (language backend, excluded/included/fixed tools with Serena exclusivity, base modes, tool timeout), full-file renderer, confined atomic applier.
+- **PR #6 / WO-P1-048 D-E** (merge `c860c7a`): `serena_worker_settings` store table + facade; desktop **Config** button + CLI-minimal dialog (prefill, validation, nothing persisted on invalid input, "applies on next start" semantics).
+- **PR #7 / WO-P1-049** (merge `617fac5`): `build_supervised_native_adapter_resolver` + `DurableJobControlService.open(supervised=True)` — the resilient path is now a tested one-parameter enable; default stays plain until per-job identity plumbing (decision recorded).
 
 ## Evidence
 
-- Full suite after PR #3: **749 passed, 0 skipped** locally; identical suite green on clean GitHub runner (CI 2m20s).
-- Smoke: `A-CONDUCTOR_SMOKE_OK projects=0 workers=3`.
-- Every chunk has a closed work order with completion evidence under `docs/work-orders/`.
+- Final main regression: 764 passed, 2 skipped (display-dependent), 0 failed; smoke `A-CONDUCTOR_SMOKE_OK projects=0 workers=3`.
+- Supervised integration: real pytest job flow through `supervised=True` → `VERIFYING` + one `execution_records` row `VERIFICATION_REQUIRED` + durable artifacts.
+- Known flake (pre-existing, untouched by diffs): `test_real_dummy_process_start_idempotent_stop` once exceeded its real-process deadline under full-suite load; passes in isolation and on rerun.
 
-## DECISION_REQUIRED (user)
+## Leftover inventory (all cleared or explicitly user-gated)
 
-- **DR-P1-003 / WO-P1-023 (blocked_external)**: live Worker-3 transport validation requires explicit authorization for external tunnel provisioning (or a dedicated unique transport binding). Local/CI work is not blocked by this.
-- No unresolved engineering bugs from tonight's loop — all three bugs found (import location, CI pytest, inspect race) were fixed with regression tests. Nothing deferred to a stronger model.
+- Cleared: config surface (P1-048), supervised enabling path (P1-049), packaging/CI/README/notes (prior session PRs #1-3).
+- User-gated (cannot be done by an agent): (1) DR-P1-003 live Worker-3 transport validation — requires tunnel creation in the OpenAI Platform web UI, same flow as the wastewater instance prepared on 2026-08-21; (2) flipping `supervised=True` as the deployment default — one parameter once you accept the static per-(repo, argv) dedup identity.
 
 ## Next safe action
 
-Pick with the user: (a) authorize/decline DR-P1-003 live Worker-3 validation, (b) switch production resolver assembly to supervised runners by default (currently opt-in via `runner_factory`), or (c) continue Phase 1 milestones. Do not start without a new work order + reuse gate.
+User picks: (a) authorize/perform Worker-3 tunnel creation for live validation, (b) flip supervised default for your deployments, or (c) continue Phase 1 milestones (next natural chunk: materialize WorkerSerenaSettings into a real worker's SERENA_HOME on start — wiring `apply_worker_serena_settings` into the runtime setup/start flow). Open a new work order + reuse gate first.

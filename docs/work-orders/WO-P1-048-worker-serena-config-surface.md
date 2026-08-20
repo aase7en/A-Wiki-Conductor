@@ -1,6 +1,6 @@
 # WO-P1-048: Per-Worker Serena Configuration Surface
 
-Status: in_progress
+Status: complete
 Lane/files: `src/a_conductor/worker_serena_settings.py`, `src/a_conductor/serena_config_store.py`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/desktop_control.py`, `src/a_conductor/__init__.py`, `tests/test_worker_serena_settings.py`, `tests/test_serena_config_store.py`, `tests/test_desktop_ui.py`, `docs/work-orders/WO-P1-048-worker-serena-config-surface.md`, `PROJECT-PLAN.md`, `CURRENT-WORK.md`, `handoff.md`
 Branch: chunk/p1-048-config-surface-docs (PR series)
 Model tier: high
@@ -44,7 +44,7 @@ Deliver the per-worker Serena configuration surface recorded in PROJECT-PLAN §7
 - [x] 048-C implement model + renderer + confined applier
 - [x] 048-D store integration (save/get settings) + tests
 - [x] 048-E desktop UI panel + control service wiring + tests
-- [ ] 048-F regression + close/commit/push
+- [x] 048-F regression + close/commit/push
 
 ## Checkpoint log
 
