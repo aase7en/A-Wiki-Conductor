@@ -105,6 +105,7 @@ from .supervised_command_runner import (
     SupervisedCommandRunner,
     SupervisedExecutionFingerprintStore,
     SupervisedLauncher,
+    build_supervised_native_adapter_resolver,
 )
 from .worker_serena_settings import (
     LanguageBackend,
@@ -392,6 +393,7 @@ __all__ = [
     "SupervisedCommandRunner",
     "SupervisedExecutionFingerprintStore",
     "SupervisedLauncher",
+    "build_supervised_native_adapter_resolver",
     "LanguageBackend",
     "WorkerSerenaSettings",
     "WorkerSettingsApplyError",

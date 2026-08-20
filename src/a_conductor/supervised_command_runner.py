@@ -352,3 +352,70 @@ class SupervisedCommandRunner:
             code = collected.error_code or "SUPERVISED_COLLECT_FAILED"
             return self._failure_result(argv, error_code=f"SUPERVISED_COLLECT_FAILED:{code}")
         return self._mapped_result(argv, collected.record, exit_code=collected.result.exit_code)
+
+
+def build_supervised_native_adapter_resolver(
+    *,
+    service: object,
+    database_path: "Path | str",
+    python_executable: str = __import__("sys").executable,
+    git_executable: str = "git",
+    poll_interval_seconds: float = 0.05,
+):
+    """Assemble a ControlCenter resolver whose native commands run supervised.
+
+    Enabling point for the resilient path: pass the returned resolver (or set
+    ``supervised=True`` on ``DurableJobControlService.open``) to route git and
+    verification commands through durable execution records, duplicate
+    protection, and bounded collection. The default assembly remains the plain
+    subprocess runner until per-job fingerprint identity plumbing lands; the
+    static identity below keeps dedup correct per (repo, argv) which is the
+    operation-level duplicate dimension.
+    """
+    import sys
+
+    from .execution_store import SQLiteExecutionStore
+    from .native_operation_assembly import ControlCenterNativeAdapterResolver
+    from .owned_process import WindowsOwnedProcessController
+    from .supervised_execution import SupervisedExecutionService
+    from .windows_io import LoopbackReadyzHttpProbe, StrictPowerShellInspectionRunner
+    from .windows_observer import WindowsRuntimeObserver
+
+    store = SQLiteExecutionStore(database_path)
+    observer = WindowsRuntimeObserver(
+        runner=StrictPowerShellInspectionRunner(),
+        http_probe=LoopbackReadyzHttpProbe(),
+    )
+    controller = WindowsOwnedProcessController(observer=observer)
+    python_name = PureWindowsPath(python_executable).name
+    git_name = PureWindowsPath(git_executable).name
+    supervised_service = SupervisedExecutionService(
+        store=store,
+        controller=controller,
+        observer=observer,
+        allowed_target_executables=(python_name, git_name),
+        python_executable=python_executable,
+    )
+
+    def runner_factory(scope: NativeExecutionScope) -> SupervisedCommandRunner:
+        return SupervisedCommandRunner(
+            scope=scope,
+            execution_store=store,
+            supervised=supervised_service,
+            job_id="job:native-supervised",
+            work_order_ref="docs/contracts/resilient-execution-supervisor.md",
+            project_id="project:native",
+            worker_id="worker:native-supervised",
+            backend_id="supervised-native",
+            branch="unknown",
+            head_before="unknown",
+            runtime_profile_ref="runtime:supervised-native",
+            poll_interval_seconds=poll_interval_seconds,
+        )
+
+    return ControlCenterNativeAdapterResolver(
+        service=service,
+        git_executable=git_executable,
+        python_executable=python_executable,
+        runner_factory=runner_factory,
+    )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -202,3 +203,78 @@ def test_service_exposes_no_generic_transition_command_scheduler_or_router(tmp_p
         "decompose",
     ):
         assert not hasattr(service, forbidden)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows supervised integration")
+def test_supervised_mode_routes_pytest_through_durable_execution(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    (repo / "tests").mkdir(parents=True)
+    (repo / "tests" / "test_ok.py").write_text(
+        "def test_ok():\n    assert True\n", encoding="utf-8"
+    )
+
+    class RepoSnapshotProvider:
+        def snapshot(self):
+            from a_conductor.control_center import ControlCenterSnapshot, WorkerScreenRow
+            from a_conductor.domain import WorkerState
+
+            return ControlCenterSnapshot(
+                projects=(),
+                workers=(
+                    WorkerScreenRow(
+                        worker_id="a-worker-01",
+                        display_name="A-Worker 1",
+                        state=WorkerState.READY,
+                        runtime_id="runtime-1",
+                        assignment_id="assignment-1",
+                        project_id="project-1",
+                        project_display_name="Repo",
+                        project_root_path=str(repo.resolve()),
+                        mutation_allowed=True,
+                    ),
+                ),
+                online=True,
+            )
+
+    database = tmp_path / "control.sqlite"
+    service = DurableJobControlService.open(
+        database,
+        operations=(
+            NativeOperationDefinition(
+                operation_ref="op:pytest-supervised",
+                kind=NativeOperationKind.PYTEST,
+                paths=("tests",),
+                timeout_seconds=120,
+            ),
+        ),
+        control_center=RepoSnapshotProvider(),
+        supervised=True,
+    )
+
+    created = service.create_job(job_id="job-1", work_order_ref="wo", project_id="p")
+    ready = service.mark_ready("job-1", expected_version=created.version)
+    claimed = service.claim("job-1", expected_version=ready.version, worker_id="a-worker-01")
+    gating = service.gate("job-1", expected_version=claimed.version, worker_id="a-worker-01")
+
+    outcome = service.execute_operation(
+        "job-1",
+        expected_version=gating.version,
+        worker_id="a-worker-01",
+        operation_ref="op:pytest-supervised",
+    )
+
+    assert outcome.success is True
+    assert outcome.job.state is TaskState.VERIFYING
+
+    from a_conductor.execution_store import SQLiteExecutionStore
+
+    executions = SQLiteExecutionStore(database)
+    with executions._connect() as connection:
+        rows = connection.execute(
+            "SELECT execution_id, execution_state FROM execution_records"
+        ).fetchall()
+    assert len(rows) == 1
+    assert rows[0]["execution_state"] == "VERIFICATION_REQUIRED"
+    run_dirs = list((repo / "runs").glob("exec-*"))
+    assert len(run_dirs) == 1
+    assert (run_dirs[0] / "result.json").is_file()
