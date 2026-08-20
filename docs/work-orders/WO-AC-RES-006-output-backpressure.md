@@ -1,6 +1,6 @@
 # WO-AC-RES-006: Output Backpressure + Durable Reports
 
-Status: in_progress
+Status: complete
 Lane/files: `src/a_conductor/execution_artifacts.py`, `src/a_conductor/__init__.py`, `tests/test_execution_artifacts.py`, `docs/contracts/output-backpressure.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-AC-RES-006-output-backpressure.md`
 Branch: main
 Model tier: high
@@ -29,10 +29,10 @@ Expose complete AC-RES-002 durable stdout/stderr/report evidence through bounded
 
 - [x] 006-A fit analysis: reuse AC-RES-002 durable stdout/stderr/report refs; no second logger.
 - [x] 006-B coordination + contract checkpoint.
-- [ ] 006-C RED artifact confinement/backpressure/summary tests.
-- [ ] 006-D minimal bounded reader implementation.
-- [ ] 006-E regression + safety verification.
-- [ ] 006-F close/commit.
+- [x] 006-C RED artifact confinement/backpressure/summary tests.
+- [x] 006-D minimal bounded reader implementation.
+- [x] 006-E regression + safety verification.
+- [x] 006-F close/commit.
 
 ## Forbidden
 
@@ -52,3 +52,16 @@ Expose complete AC-RES-002 durable stdout/stderr/report evidence through bounded
 ## Checkpoint log
 
 - [2026-08-20] Opened from clean AC-RES-005 completion `a0a2e52`.
+
+## Completion evidence
+
+- 10 artifact/backpressure targeted tests passed.
+- 80 AC-RES-001..006 focused/regression tests passed.
+- large real temp stdout was preserved fully on disk while tail response stayed within requested byte budget.
+- full-file SHA-256 + total bytes are computed without returning full content.
+- chunk/tail hard maximum is 64 KiB; invalid budgets reject.
+- invalid UTF-8 decodes with replacement while raw bytes/digest remain exact.
+- traversal is blocked; symlink escape test is exercised when platform permissions allow symlink creation.
+- pytest tail summary extracts only observed passed/failed/skipped/warnings/duration fields and leaves missing counts as `None`.
+- service exposes no delete/truncate/rotate/write/launch/retry/execute/push API.
+- compileall/diff PASS; PID `25396` unchanged.

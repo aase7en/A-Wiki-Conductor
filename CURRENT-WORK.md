@@ -8,9 +8,7 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-`docs/work-orders/WO-AC-RES-006-output-backpressure.md`
-
-Status: `IN_PROGRESS`
+None.
 
 ## Completed resilient foundation
 
@@ -19,19 +17,21 @@ Status: `IN_PROGRESS`
 - AC-RES-003 transport-loss state + claim preservation: `f9838a5`
 - AC-RES-004 recovery reconciliation + repo identity gate: `bb5dab0`
 - AC-RES-005 duplicate execution protection: `a0a2e52`
+- AC-RES-006 output backpressure + bounded durable artifact reads: completion commit is the immediate transaction
 
-## AC-RES-006 micro-steps
+## AC-RES-006 evidence
 
-- [x] 006-A fit analysis: reuse AC-RES-002 durable refs; no second logger
-- [x] 006-B contract + claim coordination
-- [ ] 006-C RED artifact confinement/backpressure/summary tests
-- [ ] 006-D minimal bounded reader implementation
-- [ ] 006-E regression + safety verification
-- [ ] 006-F close/commit
+- 10 targeted tests; 80 AC-RES-001..006 focused/regression tests
+- full durable logs remain on disk; transport-facing tail/chunk max 64 KiB
+- full SHA-256 + size metadata without full response payload
+- traversal/symlink confinement + invalid UTF-8 safety
+- bounded pytest summary extraction
+- no process/log/Git/network mutation API
+- PID `25396` unchanged
 
-## Invariant
+## Project continuity rule
 
-Complete raw execution evidence stays on disk. Transports receive bounded tails/chunks/metadata/summaries only; caller never supplies an arbitrary path.
+Before recommending a new chat/session because context is crowded, checkpoint active WO, HEAD/worktree, evidence, blockers/decisions, exact next safe action, and ownership/forbidden constraints in repository artifacts.
 
 ## Environment follow-up
 
@@ -39,4 +39,4 @@ Hermes/uv Python/Tcl-Tk full-suite environment remains independently diagnosed a
 
 ## Next safe action
 
-Commit AC-RES-006 coordination checkpoint, then write RED tests for durable-ref confinement, traversal/symlink escape, hard byte budgets, chunk/tail/digest behavior, invalid UTF-8 handling, and pytest summary extraction.
+Open `AC-RES-007 — Fake Executor + Fault Injection`: deterministic local simulation of disconnect-before-launch, after-launch, mid-command, after-completion-before-result, delay, large output, nonzero exit, malformed response, duplicate request, and wrong identity. Do not use real Serena outages as the harness.

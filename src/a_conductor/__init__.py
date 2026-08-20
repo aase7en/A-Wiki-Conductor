@@ -59,6 +59,14 @@ from .execution_deduplication import (
     ExecutionFingerprintSpec,
     compute_execution_fingerprint,
 )
+from .execution_artifacts import (
+    MAX_ARTIFACT_READ_BYTES,
+    ExecutionArtifactError,
+    ExecutionArtifactKind,
+    ExecutionArtifactService,
+    ExecutionArtifactSlice,
+    PytestExecutionSummary,
+)
 from .supervised_execution import (
     SupervisedCollectOutcome,
     SupervisedExecutionError,
@@ -327,6 +335,12 @@ __all__ = [
     "DuplicateExecutionGuard",
     "ExecutionFingerprintSpec",
     "compute_execution_fingerprint",
+    "MAX_ARTIFACT_READ_BYTES",
+    "ExecutionArtifactError",
+    "ExecutionArtifactKind",
+    "ExecutionArtifactService",
+    "ExecutionArtifactSlice",
+    "PytestExecutionSummary",
     "SupervisedCollectOutcome",
     "SupervisedExecutionError",
     "SupervisedExecutionService",
