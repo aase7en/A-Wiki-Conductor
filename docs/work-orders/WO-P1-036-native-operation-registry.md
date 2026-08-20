@@ -1,6 +1,6 @@
 # WO-P1-036: Allowlisted Native Operation Registry + Backend
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/native_operations.py`, `src/a_conductor/__init__.py`, `tests/test_native_operations.py`, `docs/contracts/native-operation-registry.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-036-native-operation-registry.md`
 Branch: main
 Model tier: high
@@ -55,3 +55,6 @@ Resolve opaque operation references to a small enum-backed set of fixed native a
 
 - [2026-08-20] Opened from clean durable-execution-coordinator baseline `0de7365`.
 - [2026-08-20] Contract defined; local claim opened from baseline `0de7365`.
+- [2026-08-20] RED missing-module gate captured before implementation.
+- [2026-08-20] Targeted registry/backend GREEN: 15/15 including end-to-end digest-only durable evidence.
+- [2026-08-20] Full verification: 518 passed; compileall/diff/static API safety passed; active Conductor PID 25396 preserved.

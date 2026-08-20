@@ -4,27 +4,21 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Connect the completed durable job transaction layer to fixed native execution primitives through opaque allowlisted operation IDs, while keeping A-Wiki authoritative for planning/orchestration.
+Continue from the completed allowlisted operation backend toward real Control Center worker/project assembly, while preserving A-Wiki as planner/orchestrator.
 
 ## Current task
 
-`WO-P1-036 — Allowlisted Native Operation Registry + Backend`
+No active work order. Most recently completed: `WO-P1-036`.
 
-Status: `IN_PROGRESS`
+## Evidence
 
-## Baseline
-
-- durable execution coordinator commit: `0de7365`
-- P1-035 full suite: 502 passed, 1 Tk environment skip
-- active Conductor listener: PID `25396`
-
-## Boundary
-
-- five enum-backed initial operations only: Git status/working diff/cached diff, pytest, compileall
-- no arbitrary argv/executable/shell string
-- output remains ephemeral; durable evidence uses digest refs only
-- no Git mutation/filesystem mutation/scheduler/router/model selection
+- targeted P1-036: 15 passed
+- full suite: 518 passed
+- raw output -> digest-only evidence end-to-end verified
+- operation definitions expose no executable/argv/shell/command fields
+- backend exposes no generic run/Git mutation/filesystem mutation/router surface
+- active Conductor PID 25396 preserved
 
 ## Next safe action
 
-Commit P1-036 coordination/contract checkpoint, then write RED registry/backend and end-to-end durable evidence tests.
+Build a worker-native-adapter resolver from Control Center assignment/project state. It must confine scope to the exact assigned project root and inherit `mutation_allowed` from the durable assignment; no fallback to another worker/project.
