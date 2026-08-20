@@ -4,28 +4,33 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue Resilient Execution Supervisor after recovery reconciliation became ownership- and repository-identity-gated.
+Implement AC-RES-005 duplicate execution protection so repeated transport/session requests cannot silently spawn an equivalent long-running operation twice.
 
 ## Current task
 
-No active work order after AC-RES-004 completion commit.
+`WO-AC-RES-005 — Duplicate Execution Protection`
 
-## Latest verified state
+Status: `IN_PROGRESS`
 
-- AC-RES-001 durable execution record: `0a3040d`
-- AC-RES-002 supervised subprocess: `03a623d`
-- AC-RES-003 transport loss/claim preservation: `f9838a5`
-- AC-RES-004 implementation currently verified by 59 focused/regression tests; completion commit is the immediate transaction
-- active Conductor listener: PID `25396`
+## Baseline
 
-## Important real recovery evidence
+- branch `main`
+- HEAD before coordination checkpoint: `bb5dab0`
+- AC-RES-004: 59 focused/regression tests passed
+- active Conductor listener remains PID `25396`
 
-During AC-RES-004 export, the Serena tunnel produced a network error. Reconnect/inspection proved the requested helper file was absent while production/test files were intact; only then was helper creation retried. This is direct evidence for the no-blind-retry recovery protocol.
+## Design boundary
 
-## Project rule
+- canonical in-memory SHA-256 fingerprint builder
+- read-only newest-first SQLite fingerprint lookup
+- exact durable identity recheck after hash match
+- decisions only: `SAFE_TO_LAUNCH`, `ATTACH_RUNNING`, `REUSE_COMPLETED`, `BLOCKED_UNKNOWN`
+- no launch/retry/failover/Git/filesystem/network mutation
 
-If context window becomes crowded, checkpoint repo continuity first, then recommend a new session. The next session resumes via `AGENTS.md -> PROJECT-PLAN.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active WO`, without requiring copied chat history.
+## Context rollover rule
+
+If chat context becomes crowded, checkpoint active WO/HEAD/worktree/evidence/next-safe-action/ownership constraints before recommending a new session. The new session resumes from repository continuity artifacts, not copied chat history.
 
 ## Next safe action
 
-After committing AC-RES-004, open `AC-RES-005 — Duplicate Execution Protection`. Reuse execution fingerprint/state; attach/monitor equivalent live execution instead of spawning a duplicate. Do not implement automatic retry or advanced routing yet.
+Write RED AC-RES-005 tests, then implement the smallest fingerprint/query/decision layer without touching AC-RES-002 process launch behavior.
