@@ -4,28 +4,23 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Implement `AC-RES-001 — Durable Execution Record`, the first Resilient Execution Supervisor slice.
+Continue the Resilient Execution Supervisor MVP after AC-RES-001 established durable execution identity/state persistence.
 
 ## Current task
 
-Status: `IN_PROGRESS`
+No active work order.
 
-## Baseline
+## Latest verified state
 
-- branch: `main`
-- baseline HEAD: `4f300ca`
-- resilient supervisor contract: `docs/contracts/resilient-execution-supervisor.md`
-- AC-RES-001 contract: `docs/contracts/durable-execution-record.md`
-- active Conductor listener: PID `25396`
-
-## Scope
-
-Separate transport health from execution process/result status and persist stable execution identity with optimistic concurrency + append-only bounded metadata events.
-
-## Forbidden
-
-No subprocess launch, retry, reconnect, Serena-specific logic, duplicate job/task state machine, or raw prompt/env/stdout/stderr persistence.
+- P1-038 complete: `4f300ca`
+- AC-RES-001 targeted tests: 22 passed
+- transport and execution states are independent durable dimensions
+- execution records persist immutable repo/job/worker/backend/operation identity + fingerprint and bounded refs
+- all mutations require expected version and append bounded metadata events
+- no raw prompt/env/stdout/stderr persistence
+- no process launch/retry/reconnect/deduplication implemented yet
+- active Conductor listener must remain untouched at PID `25396`
 
 ## Next safe action
 
-Write pure execution-record tests before persistence implementation.
+Open `AC-RES-002 — Supervised Subprocess`. Reuse exact-owned-process/native execution primitives; do not build another generic shell engine. First tests should use temp directories/processes and never active Conductor/Phase6 workers.

@@ -8,28 +8,26 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-`WO-AC-RES-001 — Durable Execution Record`
+None.
 
-Status: `IN_PROGRESS`
+## Recently completed
 
-## Goal
+- `P1-038 — Durable Job Control Service` at `4f300ca`.
+- `AC-RES-001 — Durable Execution Record` — stable execution identity, independent transport/execution state, optimistic versioning and append-only bounded metadata events.
+- Resilient Execution Supervisor architecture at `c57bd2a`.
+- Operator/Telegram/wire foundation committed through `984a20e`.
 
-Persist stable execution identity and separate transport state from execution process/result state without launching processes yet.
+## AC-RES-001 evidence
 
-## Baseline
+- pure model + SQLite store targeted tests: 22 passed
+- `TRANSPORT=LOST` with `EXECUTION=RUNNING` is persisted without implicit failure
+- raw prompt/transcript/command/env/stdout/stderr fields absent from model/schema
+- no process launch/retry/reconnect/Serena-specific logic added
 
-- P1-038 completed at `4f300ca`.
-- Resilient Execution Supervisor architecture committed at `c57bd2a`.
-- GPT Work classified the repeated full-suite `0x80000003` crash as Python/Tcl-Tk environment related; Python build `20260623` or newer recommended as a separate environment-remediation task.
-- Active Conductor listener remains PID `25396`.
+## Environment follow-up
 
-## AC-RES-001 boundary
-
-- Reuse durable-job SQLite/optimistic-concurrency patterns.
-- Add per-execution runtime records, not another task/work-order engine.
-- Persist identifiers, fingerprints, bounded summaries and evidence refs only.
-- No process launch/inspect/collect/reconnect/retry/dedupe in this slice.
+Current Hermes/uv Python build remains independently diagnosed as unstable for the legacy full-suite path. Recommended remediation is Python build `20260623` or newer in a separate bounded environment work order. Do not mutate it casually.
 
 ## Next safe action
 
-Write RED pure record tests, then RED SQLite durability/version/event tests.
+Open `AC-RES-002 — Supervised Subprocess`: reuse `WindowsOwnedProcessController`/native execution primitives to allocate a durable run directory, launch an exact owned process with redirected durable logs, persist PID, and expose inspect/collect without depending on one long transport request.

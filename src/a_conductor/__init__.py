@@ -40,6 +40,18 @@ from .domain import (
     Worker,
     WorkerState,
 )
+from .execution_record import (
+    DurableExecutionRecord,
+    ExecutionProcessState,
+    TransportState,
+    new_execution_record,
+)
+from .execution_store import (
+    ExecutionEvent,
+    ExecutionEventType,
+    ExecutionStoreError,
+    SQLiteExecutionStore,
+)
 from .job_control import DurableJobControlService
 from .job_execution import (
     DurableJobExecutionCoordinator,
@@ -274,6 +286,14 @@ __all__ = [
     "TaskState",
     "Worker",
     "WorkerState",
+    "DurableExecutionRecord",
+    "ExecutionProcessState",
+    "TransportState",
+    "new_execution_record",
+    "ExecutionEvent",
+    "ExecutionEventType",
+    "ExecutionStoreError",
+    "SQLiteExecutionStore",
     "DurableJobControlService",
     "DurableJobExecutionCoordinator",
     "DurableJobStore",

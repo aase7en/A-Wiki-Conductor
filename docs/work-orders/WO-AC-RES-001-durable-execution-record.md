@@ -1,6 +1,6 @@
 # WO-AC-RES-001: Durable Execution Record
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/execution_record.py`, `src/a_conductor/execution_store.py`, `src/a_conductor/__init__.py`, `tests/test_execution_record.py`, `tests/test_execution_store.py`, `docs/contracts/durable-execution-record.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-AC-RES-001-durable-execution-record.md`
 Branch: main
 Model tier: high
@@ -47,3 +47,7 @@ Implement the first Resilient Execution Supervisor slice: durable execution iden
 ## Checkpoint log
 
 - [2026-08-20] Opened after P1-038 completed at `4f300ca`; resilient supervisor architecture baseline `c57bd2a`.
+
+- [2026-08-20] RED pure-model gate confirmed missing module before implementation.
+- [2026-08-20] Pure record + SQLite store targeted verification: 22 passed.
+- [2026-08-20] Full-suite rerun intentionally deferred while current Python/Tcl-Tk environment remains independently diagnosed as unstable; AC-RES-001 acceptance uses targeted/compile/diff/schema gates.
