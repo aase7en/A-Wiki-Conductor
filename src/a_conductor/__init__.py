@@ -18,6 +18,10 @@ from .domain import (
     Worker,
     WorkerState,
 )
+from .persistence import (
+    PersistenceError,
+    SQLiteRegistryStore,
+)
 from .registry import (
     AssignmentConflictError,
     AssignmentRecord,
@@ -79,6 +83,8 @@ __all__ = [
     "TaskState",
     "Worker",
     "WorkerState",
+    "PersistenceError",
+    "SQLiteRegistryStore",
     "AssignmentConflictError",
     "AssignmentRecord",
     "ControlPlaneRegistry",

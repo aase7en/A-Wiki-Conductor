@@ -1,6 +1,6 @@
 # WO-P1-009: SQLite Registry Persistence
 
-Status: in_progress
+Status: done
 Lane/files: `src/a_conductor/persistence.py`, `src/a_conductor/__init__.py`, `tests/test_persistence.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-009-sqlite-registry-persistence.md`
 Branch: main
 Model tier: mid
@@ -55,3 +55,7 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after reusable worker-pool registry commit `61db9af`. Scope is Phase 1 registry persistence only, not the later task broker.
+
+- [2026-08-20] RED checkpoint: `src/a_conductor/persistence.py` confirmed absent; targeted persistence tests failed during collection with `ModuleNotFoundError: a_conductor.persistence` as expected.
+
+- [2026-08-20] GREEN checkpoint: implemented stdlib-only versioned `SQLiteRegistryStore` for Project/Worker/Assignment registry state. Targeted persistence tests 9 passed; full suite 159 passed; compileall PASS; `git diff --check` PASS. Corrupt worker state/schema version/assignment reference fails explicitly. No task/lease/evidence broker tables, process/network/UI behavior, or secrets added.
