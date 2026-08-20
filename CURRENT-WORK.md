@@ -19,6 +19,7 @@ Status: `IN_PROGRESS`
 - [x] Durable Serena config + lifecycle coordinator/assembly.
 - [x] Desktop lifecycle wiring.
 - [x] Stage B transport gate `DR-P1-003` remains isolated.
+- [x] Cross-repo boundary contract established: A-Conductor stays a sibling repo; A-Wiki companion registration payload prepared in `docs/contracts/a-wiki-companion-registration-payload.md`.
 
 ## Active checklist — WO-P1-030
 
@@ -37,4 +38,4 @@ Status: `IN_PROGRESS`
 
 ## Next safe action
 
-Claim/commit P1-030, then write failing runtime setup/readiness/Git capture tests before implementation.
+Resume the existing uncommitted P1-030 implementation without resetting it: inspect actual `runtime_setup.py`, `desktop_control.py`, `desktop_ui.py`, and targeted tests; fix the known atomic Serena-config copy portability issue and stale UI/test wiring; then run unique targeted tests before the full suite. The cross-repo contract checkpoint is complete on the A-Conductor side; A-Wiki registration remains an explicit apply-later step.

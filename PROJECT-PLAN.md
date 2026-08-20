@@ -579,6 +579,11 @@ This North Star supersedes any interpretation of Phase 1 as the final product bo
 
 ## 16. A-Wiki Reuse-Before-Build Gate
 
+**Binding boundary contract:** `docs/contracts/a-wiki-a-conductor-integration.md`
+**Prepared A-Wiki companion registration payload:** `docs/contracts/a-wiki-companion-registration-payload.md`
+
+A-Conductor remains a separate sibling Git repository, not an A-Wiki worktree by default. Repository separation does not permit orchestration duplication: the binding contract defines ownership, anti-duplication rules, logical cross-repo interfaces, and the `REUSE / WRAP / EXTEND / REPLACE / NEW` classification gate.
+
 A-Wiki is the existing brain/policy/protocol repository and must be checked before A-Conductor creates coordination primitives that may already exist.
 
 Current A-Wiki GitHub `main` already documents or references:
