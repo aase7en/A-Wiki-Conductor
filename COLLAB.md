@@ -35,6 +35,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
+| `WO-P1-028` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/lifecycle_assembly.py`, `src/a_conductor/control_events.py`, `src/a_conductor/__init__.py`, `tests/test_lifecycle_assembly.py`, `tests/test_control_events.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-028-local-lifecycle-assembly.md` |
 
 > Local Git is initialized. This repository currently has no Git remote; cross-machine claim/push semantics remain unavailable until the GitHub publication decision is resolved.
 
