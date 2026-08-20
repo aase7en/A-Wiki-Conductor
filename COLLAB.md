@@ -34,6 +34,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
+| `WO-AC-RES-001` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/execution_record.py`, `src/a_conductor/execution_store.py`, `src/a_conductor/__init__.py`, `tests/test_execution_record.py`, `tests/test_execution_store.py`, `docs/contracts/durable-execution-record.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-AC-RES-001-durable-execution-record.md` |
 
 > Local Git is initialized. This repository currently has no Git remote; cross-machine claim/push semantics remain unavailable until the GitHub publication decision is resolved.
 

@@ -4,22 +4,28 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue from the completed Durable Job Control Service into the Resilient Execution Supervisor MVP without duplicating A-Wiki orchestration or the existing durable job state machine.
+Implement `AC-RES-001 — Durable Execution Record`, the first Resilient Execution Supervisor slice.
 
 ## Current task
 
-No active work order.
+Status: `IN_PROGRESS`
 
-## Latest verified state
+## Baseline
 
-- P1-038 targeted tests: 6 passed
-- P1-038 safe to commit per independent GPT Work diagnosis
-- full-suite `0x80000003` crash classified as Python/Tcl-Tk environment issue; recommended Python build `20260623` or newer
-- no environment change has been applied yet
-- active Conductor listener remains `127.0.0.1:18011`, PID `25396`
-- operator/Telegram/wire layers are committed and remain transport-neutral/no-network
-- Resilient Execution Supervisor contract/roadmap is committed at `c57bd2a`
+- branch: `main`
+- baseline HEAD: `4f300ca`
+- resilient supervisor contract: `docs/contracts/resilient-execution-supervisor.md`
+- AC-RES-001 contract: `docs/contracts/durable-execution-record.md`
+- active Conductor listener: PID `25396`
+
+## Scope
+
+Separate transport health from execution process/result status and persist stable execution identity with optimistic concurrency + append-only bounded metadata events.
+
+## Forbidden
+
+No subprocess launch, retry, reconnect, Serena-specific logic, duplicate job/task state machine, or raw prompt/env/stdout/stderr persistence.
 
 ## Next safe action
 
-Open `AC-RES-001 — Durable Execution Record`. Reuse `SQLiteJobStore`, `DurableJobExecutionCoordinator`, owned-process primitives, lifecycle reconciliation patterns, worker identity/health, and operator protocol. Do not implement process launch, retry, failover, or Serena integration in AC-RES-001.
+Write pure execution-record tests before persistence implementation.
