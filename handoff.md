@@ -4,33 +4,28 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Implement AC-RES-004 recovery reconciliation so transport reconnection never causes blind retry and repository mutation cannot resume under mismatched identity.
+Continue Resilient Execution Supervisor after recovery reconciliation became ownership- and repository-identity-gated.
 
 ## Current task
 
-`WO-AC-RES-004 — Recovery Reconciliation + Repo Identity Gate`
+No active work order after AC-RES-004 completion commit.
 
-Status: `IN_PROGRESS`
+## Latest verified state
 
-## Baseline
+- AC-RES-001 durable execution record: `0a3040d`
+- AC-RES-002 supervised subprocess: `03a623d`
+- AC-RES-003 transport loss/claim preservation: `f9838a5`
+- AC-RES-004 implementation currently verified by 59 focused/regression tests; completion commit is the immediate transaction
+- active Conductor listener: PID `25396`
 
-- branch: `main`
-- AC-RES-003 completion: `f9838a5`
-- AC-RES-002 real Windows supervised smoke passed
-- active Conductor listener remains PID `25396`
+## Important real recovery evidence
 
-## Reuse
-
-- `SupervisedExecutionService.inspect/collect`
-- `TransportRecoveryService`
-- `StrictReadOnlyGitRunner`
-- `NativeGitReadAdapter.status_short()`
-- durable execution/job stores
+During AC-RES-004 export, the Serena tunnel produced a network error. Reconnect/inspection proved the requested helper file was absent while production/test files were intact; only then was helper creation retried. This is direct evidence for the no-blind-retry recovery protocol.
 
 ## Project rule
 
-Before recommending a new chat/session because context is crowded, checkpoint active WO, HEAD/worktree, evidence, blocker/decision, exact next safe action, and forbidden/ownership constraints in repo continuity files. A new session must resume from repo state without requiring copied chat history.
+If context window becomes crowded, checkpoint repo continuity first, then recommend a new session. The next session resumes via `AGENTS.md -> PROJECT-PLAN.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active WO`, without requiring copied chat history.
 
 ## Next safe action
 
-Write RED AC-RES-004 tests. Reconciliation may monitor/collect/block but must never relaunch, retry, reset, clean, checkout, release the claim, or perform Serena-specific reconnect logic.
+After committing AC-RES-004, open `AC-RES-005 — Duplicate Execution Protection`. Reuse execution fingerprint/state; attach/monitor equivalent live execution instead of spawning a duplicate. Do not implement automatic retry or advanced routing yet.

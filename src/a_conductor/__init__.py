@@ -66,6 +66,13 @@ from .transport_recovery import (
     TransportMutationOutcome,
     TransportRecoveryError,
 )
+from .recovery_reconciliation import (
+    RecoveryDecision,
+    RecoveryReconciliationOutcome,
+    RecoveryReconciliationService,
+    RecoveryRepositoryObservation,
+    StrictRecoveryRepositoryObserver,
+)
 from .job_control import DurableJobControlService
 from .job_execution import (
     DurableJobExecutionCoordinator,
@@ -318,6 +325,11 @@ __all__ = [
     "ExecutionTransportService",
     "TransportMutationOutcome",
     "TransportRecoveryError",
+    "RecoveryDecision",
+    "RecoveryReconciliationOutcome",
+    "RecoveryReconciliationService",
+    "RecoveryRepositoryObservation",
+    "StrictRecoveryRepositoryObserver",
     "DurableJobControlService",
     "DurableJobExecutionCoordinator",
     "DurableJobStore",

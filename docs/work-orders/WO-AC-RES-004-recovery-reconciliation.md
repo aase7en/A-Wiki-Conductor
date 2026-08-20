@@ -1,6 +1,6 @@
 # WO-AC-RES-004: Recovery Reconciliation + Repo Identity Gate
 
-Status: in_progress
+Status: complete
 Lane/files: `src/a_conductor/recovery_reconciliation.py`, `src/a_conductor/__init__.py`, `tests/test_recovery_reconciliation.py`, `docs/contracts/recovery-reconciliation.md`, `AGENTS.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-AC-RES-004-recovery-reconciliation.md`
 Branch: main
 Model tier: high
@@ -48,9 +48,20 @@ After transport returns, reconcile the original supervised execution against dur
 
 - [x] 004-A fit/reuse inspection: reuse AC-RES-001/002/003 + read-only Git identity/status.
 - [x] 004-B coordination + context-window rollover rule captured.
-- [ ] 004-C RED recovery/identity tests.
-- [ ] 004-D minimal reconciler.
-- [ ] 004-E regression/verification.
-- [ ] 004-F close + commit.
+- [x] 004-C RED recovery/identity tests.
+- [x] 004-D minimal reconciler.
+- [x] 004-E regression/verification.
+- [x] 004-F close + commit.
 
 - [2026-08-20] Resume baseline verified at `f9838a5`; only this WO was untracked before claim.
+
+## Completion evidence
+
+- 11 AC-RES-004 targeted tests passed.
+- 59 AC-RES-001..004 focused/regression tests passed.
+- `python -m compileall -q src` PASS.
+- `git diff --check` PASS.
+- static forbidden API scan found no retry/relaunch/reset/clean/checkout/push methods.
+- active Conductor listener remained PID `25396`.
+- Real transport incident during 004-E: Serena tunnel failed while creating `runtime/export_ac_res_004.py`; reconnect inspection proved the helper was absent while production/test files were intact, so only the confirmed-never-started helper creation was retried. No blind mutation retry occurred.
+- Full legacy suite intentionally not used as acceptance evidence because the current Hermes/uv Python/Tcl-Tk environment has a separately diagnosed runtime defect; targeted/regression evidence is authoritative for this bounded slice.
