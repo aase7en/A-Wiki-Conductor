@@ -8,9 +8,7 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-`docs/work-orders/WO-P1-020-serena-lifecycle-operations.md`
-
-Status: `IN_PROGRESS`
+None — `WO-P1-020` completed; awaiting close commit.
 
 ## Completed
 
@@ -18,30 +16,22 @@ Status: `IN_PROGRESS`
 - [x] Read-only Windows observer + strict inspection.
 - [x] Stage A dummy lifecycle integration.
 - [x] Exact-owned process controller (`8c4cb8c`).
-- [x] Serena lifecycle composition (`62b36bc`).
-- [x] Serena materializer (`7a42bfd`).
-- [x] Controlled process environment isolation (`963a9c4`), full suite 300 passed.
-
-## Active checklist — WO-P1-020
-
-- [x] Open work order.
-- [ ] Claim/commit coordination state.
-- [ ] Write RED operations tests.
-- [ ] Implement concrete local lifecycle operations.
-- [ ] Run targeted/full verification.
-- [ ] Close/commit work order.
+- [x] Serena lifecycle backend composition (`62b36bc`).
+- [x] Serena runtime materializer (`7a42bfd`).
+- [x] Controlled process environment isolation (`963a9c4`).
+- [x] Concrete Serena lifecycle operations; targeted 32 passed; full suite 313 passed; active Conductor preserved.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before coordination commit: `963a9c4`
+- HEAD before P1-020 close commit: `33d82fa`
 - Git remote: none
 
 ## Gates
 
 - GitHub connector platform-blocked; no remote/push.
-- `DR-P1-002`: no live Serena/tunnel/A-Worker 3 mutation.
+- `DR-P1-002`: live Serena/tunnel integration remains dedicated-worker-only.
 
 ## Next safe action
 
-Claim/commit P1-020, then write failing concrete operations tests before implementation.
+Commit P1-020 close checkpoint, then implement read-only Git project identity verification and strict runtime preflight/tunnel boundaries before Stage B live worker provisioning.

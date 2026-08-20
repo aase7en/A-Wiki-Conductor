@@ -88,6 +88,15 @@ from .serena_lifecycle_backend import (
     SerenaLifecycleOperations,
     SerenaOperationResult,
 )
+from .serena_operations import (
+    BoundSerenaLifecycleOperations,
+    SerenaAssignmentService,
+    SerenaEvidenceService,
+    SerenaPreflightService,
+    SerenaProjectIdentityService,
+    SerenaTokenProvider,
+    SerenaTunnelGuard,
+)
 from .serena_runtime import (
     ProjectIdentityPolicy,
     SerenaProjectBinding,
@@ -178,6 +187,13 @@ __all__ = [
     "SerenaLifecycleBackend",
     "SerenaLifecycleOperations",
     "SerenaOperationResult",
+    "BoundSerenaLifecycleOperations",
+    "SerenaAssignmentService",
+    "SerenaEvidenceService",
+    "SerenaPreflightService",
+    "SerenaProjectIdentityService",
+    "SerenaTokenProvider",
+    "SerenaTunnelGuard",
     "ProjectIdentityPolicy",
     "SerenaProjectBinding",
     "SerenaWorkerConfig",

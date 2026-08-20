@@ -157,7 +157,61 @@ class SerenaMaterializedRuntime:
     process_spec: OwnedProcessSpec
 
 
+def _describe_layout(worker: SerenaWorkerConfig) -> SerenaMaterializedRuntime:
+    instance_root = _absolute_path(worker.instance_root, "INSTANCE_ROOT_INVALID")
+    serena_home = _require_under_root(
+        _absolute_path(worker.serena_home, "SERENA_HOME_INVALID"),
+        instance_root,
+    )
+    run_dir = _require_under_root(
+        _absolute_path(worker.run_dir, "RUN_DIR_INVALID"),
+        instance_root,
+    )
+    log_dir = _require_under_root(
+        _absolute_path(worker.log_dir, "LOG_DIR_INVALID"),
+        instance_root,
+    )
+    health_host = _loopback_host(worker.health_host)
+    executable_path = _absolute_path(
+        worker.runtime_executable_ref,
+        "RUNTIME_EXECUTABLE_INVALID",
+    )
+    if not executable_path.is_file():
+        raise SerenaMaterializationError("RUNTIME_EXECUTABLE_NOT_FOUND")
+    profile_path = run_dir / "runtime-profile.yaml"
+    try:
+        process_spec = OwnedProcessSpec(
+            allowed_root=instance_root,
+            cwd=run_dir,
+            pid_path=run_dir / "runtime.pid",
+            stdout_path=log_dir / "runtime.stdout.log",
+            stderr_path=log_dir / "runtime.stderr.log",
+            command=(
+                str(executable_path),
+                "run",
+                "--profile-file",
+                str(profile_path),
+            ),
+            expected_executable_name=PureWindowsPath(executable_path).name,
+            expected_profile_marker=str(profile_path),
+            stop_timeout_seconds=worker.stop_timeout_seconds,
+            environment_overrides=(("SERENA_HOME", str(serena_home)),),
+        )
+    except ValueError as exc:
+        raise SerenaMaterializationError("OWNED_PROCESS_SPEC_INVALID") from exc
+    return SerenaMaterializedRuntime(
+        profile_path=profile_path,
+        serena_home=serena_home,
+        health_url=_health_url(health_host, worker.health_port),
+        process_spec=process_spec,
+    )
+
+
 class SerenaRuntimeMaterializer:
+    def describe_existing(self, worker: SerenaWorkerConfig) -> SerenaMaterializedRuntime:
+        """Describe deterministic runtime paths/spec without rendering profile secrets."""
+        return _describe_layout(worker)
+
     def materialize(
         self,
         worker: SerenaWorkerConfig,
