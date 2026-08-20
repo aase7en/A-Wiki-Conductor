@@ -4,11 +4,11 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / pure lifecycle decision policy**
+**Phase 1 — Multi-Serena Control Center / lifecycle transaction executor**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-010-lifecycle-decision-planner.md`
+`docs/work-orders/WO-P1-011-lifecycle-transaction-executor.md`
 
 Status: `IN_PROGRESS`
 
@@ -18,20 +18,25 @@ Status: `IN_PROGRESS`
 - [x] Local Git safety baseline on `main`.
 - [x] Provider-neutral typed domain models complete.
 - [x] Serena runtime-manager contract extracted from validated prototype.
-- [x] Runtime safety classifiers + read-only observer + strict I/O backends complete.
+- [x] Runtime safety classifiers + read-only observer + strict Windows I/O backends complete.
 - [x] Live read-only Conductor smoke: PID VALID, process OWNED, port OWNED, ready HTTP 200.
 - [x] Normalized worker status evaluator complete.
-- [x] Reusable in-memory Project/A-Worker registry complete.
-- [x] SQLite registry persistence complete; full suite 159 tests.
-- [x] WO-P1-009 implementation commit: `f32f192`.
+- [x] Reusable Project/A-Worker registry + SQLite persistence complete.
+- [x] Pure START/STOP/RESTART/RELEASE lifecycle decision planner complete.
+- [x] P1-010 implementation commit: `1b36658a91f462778d04cbd88f77674a529b98dd`.
+- [x] Full suite after P1-010: 177 passed.
 
-## Active checklist — WO-P1-010
+## Active checklist — WO-P1-011
 
+- [x] Reconcile actual HEAD/worktree after context handoff.
 - [x] Open/claim work order.
 - [ ] Commit coordination checkpoint before source changes.
-- [ ] Write failing START/STOP/RESTART/RELEASE policy tests first.
+- [ ] Write failing transaction/checkpoint tests first.
 - [ ] Capture RED result.
-- [ ] Implement pure lifecycle context/plan types + decision planner.
+- [ ] Implement injected lifecycle step backend + checkpoint sink protocols.
+- [ ] Ensure non-PROCEED plans never call backend.
+- [ ] Ensure every successful PROCEED step checkpoints before next step.
+- [ ] Ensure failed/uncertain mutation and checkpoint-after-mutation failure stop with recovery semantics.
 - [ ] Run full tests green.
 - [ ] Compileall + I/O/mutation scan + diff check.
 - [ ] Update checkpoint/handoff and commit.
@@ -39,8 +44,9 @@ Status: `IN_PROGRESS`
 ## Repository state
 
 - Branch: `main`
-- HEAD before WO-P1-010 coordination commit: `f32f192`
+- HEAD before WO-P1-011 coordination commit: `1b36658a91f462778d04cbd88f77674a529b98dd`
 - Git remote: none
+- Worktree reconciliation before P1-011: only the new WO file was untracked; no unrelated drift found.
 - Use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
 - Pytest: use ignored local `runtime/pytest-temp` basetemp.
 
@@ -50,11 +56,12 @@ Status: `IN_PROGRESS`
 
 ## Constraints
 
-- Lifecycle policy is pure and symbolic only.
-- No target mutation, cleanup, profile rendering, shell/process/network/filesystem/persistence I/O.
+- Executor is abstract/injected only; no concrete host/process mutation backend.
+- No subprocess/PowerShell/network/filesystem/SQLite implementation in `lifecycle_executor.py`.
+- No live start/stop/restart of current Conductor/Phase6 runtime.
 - No A-Wiki/Phase6 mutation.
 - No Git remote/push.
 
 ## Next safe action
 
-Commit WO-P1-010 coordination checkpoint, then write failing lifecycle-policy tests before implementation.
+Commit the P1-011 coordination checkpoint, then write failing lifecycle transaction/checkpoint tests before implementation.
