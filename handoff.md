@@ -4,40 +4,32 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue toward the Work-class durable agent tunnel North Star. The Native Execution Foundation now includes confined filesystem/subprocess, fixed Git/verification adapters, and transactional Git stage/commit with drift preconditions.
+Build the durable runtime layer needed for Work-class resumable execution while keeping A-Wiki authoritative for planning, work-order content, memory, and orchestration policy.
 
 ## Current task
 
-No active work order.
+`WO-P1-034 — Durable Job State + Checkpoint Store`
 
-Most recently completed: `WO-P1-033 — Transactional Git Stage + Commit`.
+Status: `IN_PROGRESS`
 
-## P1-033 evidence
+## Baseline
 
-- Snapshot captures exact HEAD + status SHA-256 + cached-diff SHA-256.
-- Stage and commit re-observe and refuse HEAD/index/status drift before mutation.
-- Stage requires explicit non-directory paths; blanket `.` is refused.
-- Git read snapshot hardening disables fsmonitor and external diff/textconv execution.
-- Stage refuses selected paths that activate configured external clean/process filters.
-- Mutation commands use an empty temporary hooks path; commit additionally disables GPG signing and is noninteractive.
-- Real temporary-repo tests prove stage, drift refusal, filter refusal, hook suppression, GPG-sign override, and commit HEAD postcondition.
-- Targeted P1-032/P1-033 tests: 22 passed.
-- Full suite: 461 passed.
-- compileall/diff/public-adapter safety: PASS.
-- Active Conductor listener remains `127.0.0.1:18011`, PID `25396`.
+- Native execution foundation complete through transactional Git mutations.
+- Latest completed feature commit before this work order: `23443fe`.
+- Full suite at that checkpoint: 461 passed.
+- Active Conductor listener remained `127.0.0.1:18011`, PID `25396`.
 
-## Binding boundaries
+## P1-034 boundary
 
-A-Wiki remains brain/policy/memory/orchestration knowledge. A-Conductor owns deterministic execution, durable runtime state, recovery, and operator surfaces. Serena remains semantic code intelligence. No generic model-facing shell was added.
-
-## External / deferred gate
-
-`DR-P1-003 / BLOCKED_EXTERNAL` unchanged. A-Wiki companion registration payload remains prepared but not applied.
+- A-Wiki work orders are referenced opaquely; their prompt/spec content is not copied into the job DB.
+- A-Conductor stores operational state: TaskState, worker claim, attempt budget, recovery classification, optimistic version, append-only checkpoint/evidence metadata.
+- No planner/router/scheduler/background loop in this work order.
+- No A-Wiki repo mutation.
 
 ## Next safe action
 
-Open a Durable Job Engine work order. Persist execution/checkpoint/retry/recovery state around existing adapters; do not create a second A-Wiki planner/router.
+Commit the P1-034 coordination/contract checkpoint, then write RED transition-policy tests before implementing `job_state.py`; persistence tests and `job_store.py` come after the pure policy is green.
 
-## Resume instructions
+## Resume order
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> A-Wiki/A-Conductor + native execution contracts -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file; verify branch/HEAD/status before mutation.
+`AGENTS.md -> PROJECT-PLAN.md -> docs/contracts/a-wiki-a-conductor-integration.md -> docs/contracts/durable-job-state.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active work order -> git status/HEAD`.

@@ -4,39 +4,52 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Native Execution Foundation — transactional Git safety complete**
+**Durable Work-class Runtime Foundation**
 
 ## Active work order
 
-None.
+`docs/work-orders/WO-P1-034-durable-job-state.md`
 
-Most recently completed:
-- `WO-P1-033 — Transactional Git Stage + Commit`
-- `WO-P1-032 — Native Git + Verification Adapters`
-- `WO-P1-031 — Native Execution Core`
+Status: `IN_PROGRESS`
+
+## Goal
+
+Add provider-neutral durable job runtime state around opaque A-Wiki work-order references without duplicating A-Wiki planning/orchestration.
 
 ## Completed foundation
 
 - [x] Phase 1 local Control Center MVP.
-- [x] Native Execution Core.
-- [x] Fixed read-only Git + pytest/compileall adapters.
-- [x] Transactional Git stage/commit with exact HEAD/status/index preconditions.
-- [x] Git read hardening: fsmonitor disabled; external diff/textconv disabled.
-- [x] Stage filter safety: selected paths with configured clean/process filters are refused.
-- [x] Mutation hook safety: empty temporary hooks path; commit GPG signing disabled/noninteractive.
-- [x] P1-033 verification: 22 targeted + 461 full-suite tests; compileall/diff/public-adapter safety PASS.
-- [x] Active Conductor listener preserved at PID 25396.
+- [x] Native filesystem/subprocess execution core.
+- [x] Fixed Git + verification adapters.
+- [x] Transactional exact-file Git stage/commit with optimistic preconditions and hook/signing isolation.
+- [x] A-Wiki ↔ A-Conductor responsibility contract.
 
-## External / deferred gate
+## P1-034 checklist
 
-- `DR-P1-003`: live Worker 3 Stage B remains `BLOCKED_EXTERNAL` until a unique transport binding is explicitly provisioned/authorized.
-- A-Wiki companion registration payload remains prepared and unapplied from this Conductor-pinned surface.
+- [x] Open work order.
+- [x] Reuse gate: classify as `WRAP + EXTEND` of A-Wiki work-order/handoff semantics.
+- [x] Define durable job-state contract.
+- [ ] Claim + coordination checkpoint commit.
+- [ ] Write RED pure transition-policy tests.
+- [ ] Implement `job_state.py`.
+- [ ] Write RED SQLite store/concurrency/checkpoint tests.
+- [ ] Implement `job_store.py`.
+- [ ] Export public bounded API.
+- [ ] Run targeted/full/compileall/diff/schema safety verification.
+- [ ] Close work order + release claim + commit.
 
-## Repository state
+## External/deferred gates
 
-- Branch: `main`
-- Git remote: none
+- `DR-P1-003`: Worker 3 live Stage B remains `BLOCKED_EXTERNAL` until unique authorized transport provisioning exists.
+- A-Wiki companion registration payload is prepared but not yet applied to the A-Wiki repo.
+- GitHub remote remains intentionally absent.
+
+## Repository
+
+- branch: `main`
+- baseline before P1-034: `23443fe`
+- no Git remote
 
 ## Next safe action
 
-Move up one layer from host primitives to a Durable Job Engine: persistent job/task execution records, checkpoint/resume semantics, bounded retry/recovery, and adapter dispatch. Reuse A-Wiki orchestration/work-order knowledge rather than inventing a competing planner.
+Claim P1-034, commit docs/coordination checkpoint, then write RED tests for pure state transitions before persistence implementation.
