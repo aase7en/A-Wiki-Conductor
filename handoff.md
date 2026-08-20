@@ -4,11 +4,11 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Persist lifecycle transaction checkpoints durably and append-only in SQLite so successful mutation steps can be recovered/audited across application restart before any concrete runtime mutation backend is introduced.
+Add a pure lifecycle resume planner that trusts durable journal checkpoints only when external reconciliation says the current runtime state is consistent with them.
 
 ## Current task
 
-`WO-P1-012 — SQLite Lifecycle Checkpoint Journal`
+`WO-P1-013 — Lifecycle Resume Planner from Durable Journal`
 
 Status: `IN_PROGRESS`
 
@@ -26,13 +26,14 @@ Status: `IN_PROGRESS`
 - Reusable worker/project registry: `61db9af`.
 - SQLite registry persistence: `f32f192`.
 - Pure lifecycle decision planner: `1b36658`.
-- Checkpointed lifecycle transaction executor: `74bc59b`; full suite 197 passed.
-- P1-012 opened/claimed.
+- Checkpointed lifecycle transaction executor: `74bc59b`.
+- Append-only SQLite lifecycle journal: `2997072`; full suite 216 passed.
+- P1-013 opened/claimed.
 
 ## Current repository state
 
 - branch: `main`
-- HEAD before WO-P1-012 coordination commit: `74bc59b`
+- HEAD before WO-P1-013 coordination commit: `2997072`
 - no Git remote
 - exact per-command safe-directory override required; global Git config unchanged.
 
@@ -46,18 +47,18 @@ Use ignored local pytest basetemp: `python -m pytest tests -q --basetemp=runtime
 
 ## Safety boundary
 
-P1-012 may write only to test/local SQLite journal files through its persistence API. It must not start/stop/restart processes, modify runtime profiles, or introduce task/lease broker tables.
+P1-013 is pure reasoning only. It may validate journal checkpoint structure and an externally supplied lifecycle reconciliation assessment, but it must not inspect or mutate the machine itself.
 
 ## Do not do
 
-- No live target lifecycle mutation.
-- No task broker/scheduler/lease tables.
+- No lifecycle execution/mutation.
+- No observer/PowerShell/network/filesystem/SQLite calls in the recovery planner.
 - No A-Wiki/Phase6 mutation.
 - No remote/push.
 
 ## Next safe action
 
-Commit the P1-012 coordination checkpoint, then write failing journal tests for append-only/idempotent/conflict/gap/coexistence behavior before implementation.
+Commit the P1-013 coordination checkpoint, then write failing recovery/resume tests before implementation.
 
 ## Resume instructions
 
