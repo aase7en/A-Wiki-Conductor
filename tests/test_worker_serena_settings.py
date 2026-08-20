@@ -171,3 +171,67 @@ def test_render_round_trip_key_values(tmp_path: Path) -> None:
         "web_dashboard: false",
     ):
         assert fragment in text
+
+
+def test_store_round_trip_settings(tmp_path: Path) -> None:
+    from a_conductor.serena_config_store import (
+        SerenaConfigStoreError,
+        SQLiteSerenaConfigStore,
+    )
+
+    store = SQLiteSerenaConfigStore(tmp_path / "settings.sqlite")
+    store.initialize()
+    assert store.get_worker_settings("a-worker-01") is None
+
+    settings = base_settings()
+    store.save_worker_settings(settings)
+    assert store.get_worker_settings("a-worker-01") == settings
+
+    updated = base_settings(tool_timeout=999, excluded_tools=())
+    store.save_worker_settings(updated)
+    assert store.get_worker_settings("a-worker-01") == updated
+    assert store.get_worker_settings("a-worker-02") is None
+
+    try:
+        store.save_worker_settings("not-settings")
+    except SerenaConfigStoreError as exc:
+        assert "SETTINGS_INVALID" in str(exc)
+    else:
+        raise AssertionError("non-settings value was accepted")
+
+
+def test_desktop_control_settings_facade_defaults_and_save(tmp_path: Path) -> None:
+    from a_conductor.desktop_control import DesktopControlService
+    from a_conductor.serena_config_store import (
+        SerenaConfigStoreError,
+        SQLiteSerenaConfigStore,
+    )
+
+    store = SQLiteSerenaConfigStore(tmp_path / "facade.sqlite")
+    service = DesktopControlService(
+        control_center=object(),
+        lifecycle=object(),
+        settings_store=store,
+    )
+
+    default = service.worker_settings("a-worker-01")
+    assert default == WorkerSerenaSettings(worker_id="a-worker-01")
+
+    saved = service.save_worker_settings(base_settings())
+    assert saved == base_settings()
+    assert service.worker_settings("a-worker-01") == base_settings()
+
+    try:
+        service.save_worker_settings("not-settings")
+    except SerenaConfigStoreError as exc:
+        assert "SETTINGS_INVALID" in str(exc)
+    else:
+        raise AssertionError("facade accepted invalid settings")
+
+    unavailable = DesktopControlService(control_center=object(), lifecycle=object())
+    try:
+        unavailable.worker_settings("a-worker-01")
+    except SerenaConfigStoreError as exc:
+        assert "SETTINGS_STORE_NOT_AVAILABLE" in str(exc)
+    else:
+        raise AssertionError("missing store was not reported")

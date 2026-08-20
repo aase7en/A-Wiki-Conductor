@@ -42,11 +42,12 @@ Deliver the per-worker Serena configuration surface recorded in PROJECT-PLAN §7
 - [x] 048-A requirements + design + this work order (user requirement recorded 2026-08-21)
 - [x] 048-B RED settings model/renderer/applier tests
 - [x] 048-C implement model + renderer + confined applier
-- [ ] 048-D store integration (save/get settings) + tests
-- [ ] 048-E desktop UI panel + control service wiring + tests
+- [x] 048-D store integration (save/get settings) + tests
+- [x] 048-E desktop UI panel + control service wiring + tests
 - [ ] 048-F regression + close/commit/push
 
 ## Checkpoint log
 
 - [2026-08-21] Opened on branch chunk/p1-048-config-surface-docs; baseline main `ff2a06b`.
 - [2026-08-21] 048-B/C complete on branch chunk/p1-048b-settings-model: 11/11 settings tests green (RED first: ModuleNotFoundError); bugfix loop fixed empty-list YAML spacing. Full suite 760 passed. Evidence: model validation (worker-id pattern, tool/mode identifier rules, FIXED_TOOLS_EXCLUSivity, timeout bounds), full-file renderer with line-asserted output, confined atomic applier under `<instances_root>/<worker>/serena-home/`.
+- [2026-08-21] 048-D/E complete on branch chunk/p1-048c-config-panel: additive `serena_worker_settings` table + save/get on `SQLiteSerenaConfigStore` (JSON list columns); `DesktopControlService` settings facade (default settings when none saved, SETTINGS_STORE_NOT_AVAILABLE when unwired, wired by `open()`); desktop UI "Config" button + CLI-minimal Toplevel dialog (language backend combobox, tool timeout, excluded/included/fixed tools, base modes, bound project read-only) with validation errors surfaced and nothing persisted on invalid input; palette entry added. Bugfix loop: restore newline broken by a bad edit; test helper must call `_update_lifecycle_buttons()` explicitly (Tk event not reliable in tests). Full suite 764 passed, 1 skipped (display-dependent).

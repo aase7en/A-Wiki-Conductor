@@ -7,6 +7,7 @@ credential values.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from .serena_runtime import (
     SerenaProjectBinding,
     SerenaWorkerConfig,
 )
+from .worker_serena_settings import LanguageBackend, WorkerSerenaSettings
 
 
 _SCHEMA_VERSION = "1"
@@ -138,6 +140,16 @@ class SQLiteSerenaConfigStore:
                         reference_id TEXT PRIMARY KEY,
                         file_path TEXT NOT NULL,
                         allowed_root TEXT NOT NULL
+                    );
+
+                    CREATE TABLE IF NOT EXISTS serena_worker_settings (
+                        worker_id TEXT PRIMARY KEY,
+                        language_backend TEXT NOT NULL,
+                        excluded_tools TEXT NOT NULL,
+                        included_optional_tools TEXT NOT NULL,
+                        fixed_tools TEXT NOT NULL,
+                        base_modes TEXT NOT NULL,
+                        tool_timeout INTEGER NOT NULL CHECK (tool_timeout BETWEEN 1 AND 86400)
                     );
                     """
                 )
@@ -378,3 +390,66 @@ class SQLiteSerenaConfigStore:
                 "SELECT reference_id, file_path, allowed_root FROM serena_local_references ORDER BY reference_id"
             ).fetchall()
         return tuple(self._reference_from_row(row) for row in rows)
+
+    def save_worker_settings(self, settings: WorkerSerenaSettings) -> None:
+        if not isinstance(settings, WorkerSerenaSettings):
+            raise SerenaConfigStoreError("SETTINGS_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute(
+                    """
+                    INSERT INTO serena_worker_settings(
+                        worker_id, language_backend, excluded_tools,
+                        included_optional_tools, fixed_tools, base_modes, tool_timeout
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(worker_id) DO UPDATE SET
+                        language_backend=excluded.language_backend,
+                        excluded_tools=excluded.excluded_tools,
+                        included_optional_tools=excluded.included_optional_tools,
+                        fixed_tools=excluded.fixed_tools,
+                        base_modes=excluded.base_modes,
+                        tool_timeout=excluded.tool_timeout
+                    """,
+                    (
+                        settings.worker_id,
+                        settings.language_backend.value,
+                        json.dumps(list(settings.excluded_tools)),
+                        json.dumps(list(settings.included_optional_tools)),
+                        json.dumps(list(settings.fixed_tools)),
+                        json.dumps(list(settings.base_modes)),
+                        settings.tool_timeout,
+                    ),
+                )
+                connection.commit()
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise SerenaConfigStoreError("SETTINGS_STORE_WRITE_FAILED") from exc
+
+    def get_worker_settings(self, worker_id: str) -> WorkerSerenaSettings | None:
+        if not isinstance(worker_id, str) or not worker_id.strip():
+            raise SerenaConfigStoreError("SETTINGS_WORKER_ID_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT worker_id, language_backend, excluded_tools,
+                       included_optional_tools, fixed_tools, base_modes, tool_timeout
+                FROM serena_worker_settings WHERE worker_id = ?
+                """,
+                (worker_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            return WorkerSerenaSettings(
+                worker_id=row["worker_id"],
+                language_backend=LanguageBackend(row["language_backend"]),
+                excluded_tools=tuple(json.loads(row["excluded_tools"])),
+                included_optional_tools=tuple(json.loads(row["included_optional_tools"])),
+                fixed_tools=tuple(json.loads(row["fixed_tools"])),
+                base_modes=tuple(json.loads(row["base_modes"])),
+                tool_timeout=int(row["tool_timeout"]),
+            )
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            raise SerenaConfigStoreError("SETTINGS_ROW_CORRUPT") from exc

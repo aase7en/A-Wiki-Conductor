@@ -16,7 +16,8 @@ from .lifecycle_assembly import build_local_lifecycle_coordinator
 from .lifecycle_coordinator import LifecycleCoordinator
 from .persistence import SQLiteRegistryStore
 from .runtime_setup import RuntimeSetupError, RuntimeSetupService, SetupReadiness, WorkerSetupDraft
-from .serena_config_store import SQLiteSerenaConfigStore
+from .serena_config_store import SerenaConfigStoreError, SQLiteSerenaConfigStore
+from .worker_serena_settings import WorkerSerenaSettings
 
 
 class LifecycleCommandService(Protocol):
@@ -30,10 +31,12 @@ class DesktopControlService:
         control_center: ControlCenterService,
         lifecycle: LifecycleCommandService,
         runtime_setup: RuntimeSetupService | None = None,
+        settings_store: SQLiteSerenaConfigStore | None = None,
     ) -> None:
         self.control_center = control_center
         self.lifecycle = lifecycle
         self.runtime_setup = runtime_setup
+        self.settings_store = settings_store
 
     @classmethod
     def open(
@@ -54,6 +57,7 @@ class DesktopControlService:
             control_center=control_center,
             lifecycle=lifecycle,
             runtime_setup=runtime_setup,
+            settings_store=config_store,
         )
 
     def snapshot(self):
@@ -120,3 +124,27 @@ class DesktopControlService:
 
     def lifecycle_readiness(self, worker_id: str) -> SetupReadiness:
         return self._require_runtime_setup().lifecycle_readiness(worker_id)
+
+    def _require_settings_store(self) -> SQLiteSerenaConfigStore:
+        if self.settings_store is None:
+            raise SerenaConfigStoreError("SETTINGS_STORE_NOT_AVAILABLE")
+        return self.settings_store
+
+    def worker_settings(self, worker_id: str) -> WorkerSerenaSettings:
+        store = self._require_settings_store()
+        try:
+            settings = store.get_worker_settings(worker_id)
+        except SerenaConfigStoreError:
+            raise
+        except Exception as exc:
+            raise SerenaConfigStoreError("SETTINGS_LOAD_FAILED") from exc
+        if settings is None:
+            return WorkerSerenaSettings(worker_id=worker_id)
+        return settings
+
+    def save_worker_settings(self, settings: WorkerSerenaSettings) -> WorkerSerenaSettings:
+        if not isinstance(settings, WorkerSerenaSettings):
+            raise SerenaConfigStoreError("SETTINGS_INVALID")
+        store = self._require_settings_store()
+        store.save_worker_settings(settings)
+        return settings
