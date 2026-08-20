@@ -11,6 +11,7 @@
 # Runtime state / logs / process metadata
 logs/
 run/
+runs/
 runtime/
 *.log
 *.pid
