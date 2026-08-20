@@ -407,6 +407,10 @@ Do not use the active Conductor or Phase6 worker as the first target for start/s
 
 Track this implementation gate as `DR-P1-002` until a dedicated lifecycle-test target is established.
 
+### Dedicated transport provisioning gate
+
+`DR-P1-003`: a dedicated live Worker 3 test must have a unique transport binding. A-Conductor must not silently reuse the active Conductor/Phase6 binding and must not invoke a credential-bearing/external tunnel provisioning flow merely because local provisioning scripts or credentials exist. External provisioning requires an explicit authorized provisioning action; until then, live Worker 3 transport validation is `BLOCKED_EXTERNAL` while local Control Center/UI work may continue.
+
 ## 13. Near-Term Implementation Order
 
 1. Preserve current validated two-instance infrastructure as reference implementation; do not blindly copy it into the product.
