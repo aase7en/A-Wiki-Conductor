@@ -4,23 +4,27 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue from the completed durable job execution transaction layer toward safe operation resolution and later durable Work-class execution.
+Connect the completed durable job transaction layer to fixed native execution primitives through opaque allowlisted operation IDs, while keeping A-Wiki authoritative for planning/orchestration.
 
 ## Current task
 
-No active work order. Most recently completed: `WO-P1-035`.
+`WO-P1-036 — Allowlisted Native Operation Registry + Backend`
 
-## Evidence
+Status: `IN_PROGRESS`
 
-- durable store baseline: `9382442`
-- P1-035 targeted: 11 passed
-- full suite: 502 passed, 1 Tk environment skip
-- compileall/diff: PASS
-- active Conductor listener: PID 25396
-- raw backend exception text is not persisted
-- raw-command-like `operation_ref` is rejected
-- no scheduler/router/retry-loop surface in coordinator
+## Baseline
+
+- durable execution coordinator commit: `0de7365`
+- P1-035 full suite: 502 passed, 1 Tk environment skip
+- active Conductor listener: PID `25396`
+
+## Boundary
+
+- five enum-backed initial operations only: Git status/working diff/cached diff, pytest, compileall
+- no arbitrary argv/executable/shell string
+- output remains ephemeral; durable evidence uses digest refs only
+- no Git mutation/filesystem mutation/scheduler/router/model selection
 
 ## Next safe action
 
-Create an allowlisted operation registry/backend that maps opaque identifiers to fixed NativeGitReadAdapter/NativeVerificationAdapter operations. No arbitrary argv or shell string should cross this boundary.
+Commit P1-036 coordination/contract checkpoint, then write RED registry/backend and end-to-end durable evidence tests.

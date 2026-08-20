@@ -8,7 +8,13 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None. Most recently completed: `WO-P1-035 — Durable Job Execution Coordinator`.
+`docs/work-orders/WO-P1-036-native-operation-registry.md`
+
+Status: `IN_PROGRESS`
+
+## Goal
+
+Resolve opaque operation refs to enum-backed fixed native adapter calls and return digest-only evidence to the durable job execution coordinator.
 
 ## Completed foundation
 
@@ -16,13 +22,20 @@ None. Most recently completed: `WO-P1-035 — Durable Job Execution Coordinator`
 - [x] Fixed Git/verification adapters.
 - [x] Transactional Git mutations.
 - [x] Durable job state/checkpoint store.
-- [x] Explicit durable execution coordinator with gated worker/version preconditions, attempt budget, evidence checkpoints, and recovery classification.
-- [x] P1-035 verification: 11 targeted; 502 full-suite passed with 1 environment-specific Tk skip; PID 25396 preserved.
+- [x] Durable job execution coordinator (`0de7365`).
+
+## P1-036 checklist
+
+- [x] Open work order.
+- [x] Define native operation registry contract.
+- [ ] Claim + coordination checkpoint commit.
+- [ ] Write RED registry/backend tests.
+- [ ] Implement `native_operations.py`.
+- [ ] Add end-to-end coordinator/store evidence test.
+- [ ] Export bounded public API.
+- [ ] Run targeted/full/compileall/diff/static safety verification.
+- [ ] Close work order + release claim + commit.
 
 ## Next safe action
 
-Open a bounded operation-registry/backend work order that resolves allowlisted opaque `operation_ref` identifiers to fixed native adapter calls. Keep commands/config ephemeral and never turn the coordinator into a generic shell.
-
-## Deferred/external
-
-Worker 3 live transport provisioning, A-Wiki companion registration apply, GitHub remote publication, scheduler/background loop, model/worker routing, Discord transport.
+Claim P1-036, commit coordination checkpoint, then write RED tests proving fixed dispatch and digest-only durable evidence.
