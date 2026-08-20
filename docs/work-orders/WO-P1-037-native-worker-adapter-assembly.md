@@ -1,6 +1,6 @@
 # WO-P1-037: Native Worker Adapter Assembly
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/native_operation_assembly.py`, `src/a_conductor/__init__.py`, `tests/test_native_operation_assembly.py`, `docs/contracts/native-worker-adapter-assembly.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-037-native-worker-adapter-assembly.md`
 Branch: main
 Model tier: high
@@ -42,3 +42,6 @@ Resolve a worker's current Control Center assignment into a fresh confined Nativ
 
 - [2026-08-20] Opened from clean allowlisted-operation-backend baseline `50bc4c7`.
 - [2026-08-20] Contract defined; local claim opened from baseline `50bc4c7`.
+- [2026-08-20] RED missing-module gate captured before implementation.
+- [2026-08-20] Targeted assembly GREEN: 8/8 including fresh reassignment resolution and real ControlCenterService coverage.
+- [2026-08-20] Full verification: 525 passed, 1 environment-specific Tk skip; compileall/diff/static safety passed; active Conductor PID 25396 preserved.

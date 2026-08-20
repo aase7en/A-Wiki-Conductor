@@ -96,6 +96,12 @@ from .lifecycle_journal import (
     LifecycleSequenceError,
     SQLiteLifecycleJournal,
 )
+from .native_operation_assembly import (
+    ControlCenterNativeAdapterResolver,
+    ControlCenterSnapshotProvider,
+    GitAdapterFactory,
+    VerificationAdapterFactory,
+)
 from .native_operations import (
     AllowlistedNativeJobBackend,
     NativeGitOperations,
@@ -313,6 +319,10 @@ __all__ = [
     "NativeGitTransactionAdapter",
     "NativeGitTransactionError",
     "NativeCommandRunner",
+    "ControlCenterNativeAdapterResolver",
+    "ControlCenterSnapshotProvider",
+    "GitAdapterFactory",
+    "VerificationAdapterFactory",
     "AllowlistedNativeJobBackend",
     "NativeGitOperations",
     "NativeOperationDefinition",

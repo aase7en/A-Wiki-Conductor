@@ -34,7 +34,6 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-037` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/native_operation_assembly.py`, `src/a_conductor/__init__.py`, `tests/test_native_operation_assembly.py`, `docs/contracts/native-worker-adapter-assembly.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-037-native-worker-adapter-assembly.md` |
 
 > Local Git is initialized. This repository currently has no Git remote; cross-machine claim/push semantics remain unavailable until the GitHub publication decision is resolved.
 

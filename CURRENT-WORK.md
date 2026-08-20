@@ -8,13 +8,7 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-`docs/work-orders/WO-P1-037-native-worker-adapter-assembly.md`
-
-Status: `IN_PROGRESS`
-
-## Goal
-
-Assemble fresh worker-specific NativeExecutionScope + fixed Git/verification adapters from current Control Center assignment state.
+None. Most recently completed: `WO-P1-037 — Native Worker Adapter Assembly`.
 
 ## Completed foundation
 
@@ -23,19 +17,10 @@ Assemble fresh worker-specific NativeExecutionScope + fixed Git/verification ada
 - [x] Transactional Git mutations.
 - [x] Durable job state/checkpoint store.
 - [x] Durable job execution coordinator.
-- [x] Allowlisted native operation registry/backend (`50bc4c7`).
-
-## P1-037 checklist
-
-- [x] Open work order.
-- [x] Define assembly contract.
-- [ ] Claim + coordination checkpoint commit.
-- [ ] Write RED assembly tests.
-- [ ] Implement `native_operation_assembly.py`.
-- [ ] Export bounded public API.
-- [ ] Run targeted/full/compileall/diff/static safety verification.
-- [ ] Close work order + release claim + commit.
+- [x] Allowlisted native operation registry/backend.
+- [x] Fresh Control Center worker assignment -> confined native Git-read/verification adapter assembly.
+- [x] P1-037 verification: 8 targeted + 525 full-suite passed, 1 Tk environment skip; PID 25396 preserved.
 
 ## Next safe action
 
-Claim P1-037, commit coordination checkpoint, then write RED tests proving exact fresh assignment/root/mutation authority and no fallback/cache behavior.
+Open an application-level Durable Job Control Service that composes job store + execution coordinator/backend behind a small command API suitable for future Discord/Desktop adapters. No scheduler/router/planner.
