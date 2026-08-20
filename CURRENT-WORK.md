@@ -8,29 +8,37 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None — `WO-P1-023` Stage B preflight recorded as `BLOCKED_EXTERNAL`; awaiting checkpoint commit.
+`docs/work-orders/WO-P1-024-control-center-service.md`
+
+Status: `IN_PROGRESS`
 
 ## Completed
 
-- [x] Runtime safety/registry/persistence/lifecycle stack.
-- [x] Read-only Windows observer + strict inspection.
-- [x] Exact-owned process/environment + Serena lifecycle/materialization/operations.
+- [x] Local process-manager/runtime safety stack through tunnel/preflight boundaries.
 - [x] Read-only Git project identity verifier.
-- [x] Opaque reference/token + strict tunnel doctor preflight boundaries (`99df50e`), full suite 343 passed.
-- [x] Stage B read-only preflight completed.
+- [x] Full suite at last code checkpoint: 343 passed.
+- [x] `DR-P1-003` Stage B unique transport provisioning gate recorded.
 
-## Decision gates
+## Active checklist — WO-P1-024
 
-- `DR-C1-001`: GitHub publication unresolved; connector platform-blocked, local repo has no remote.
-- `DR-P1-002`: first live lifecycle target must be a dedicated isolated worker.
-- `DR-P1-003`: Worker 3 live transport validation is `BLOCKED_EXTERNAL` until a unique transport binding exists or external provisioning is explicitly authorized.
+- [x] Open work order.
+- [ ] Claim + commit coordination checkpoint.
+- [ ] Write RED application-service tests.
+- [ ] Implement persistent registry facade + immutable screen model.
+- [ ] Run targeted/full verification.
+- [ ] Close/commit work order.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before P1-023 checkpoint commit: `99df50e`
+- HEAD before P1-024 coordination commit: `bef2d66`
 - Git remote: none
+
+## Gates
+
+- GitHub connector platform-blocked; no remote/push.
+- Stage B live transport remains `BLOCKED_EXTERNAL`; local UI work continues.
 
 ## Next safe action
 
-Commit P1-023 gate checkpoint, then build the local Control Center application service/facade used by the CLI-inspired desktop Projects/Workers screen. Continue dummy/read-only integration while DR-P1-003 remains blocked.
+Claim/commit P1-024, then write failing Control Center service tests before implementation.
