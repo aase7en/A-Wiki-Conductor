@@ -4,24 +4,27 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Resilient Execution Supervisor MVP: primitives AC-RES-001..007 complete; next is AC-RES-008 Serena adapter integration.
+Resilient Execution Supervisor MVP: final primitive AC-RES-008 — map Serena/MCP transport events and project-binding identity onto the generic AC-RES-003/004 model.
 
 ## Current task
 
-`WO-AC-RES-007 — Fake Executor + Fault Injection`
+`WO-AC-RES-008 — Serena Transport Adapter Integration`
 
-Status: `COMPLETE`
+Status: `IN_PROGRESS`
 
 ## Baseline
 
-- branch `main`
-- AC-RES-007 completion commit is the immediate `feat: add deterministic fault injection` transaction
-- full suite 726 passed, 1 skipped
+- branch `main`, tracking `origin/main` (`https://github.com/aase7en/A-Wiki-Conductor.git`, private, created 2026-08-20 by explicit user decision)
+- AC-RES-007 completion `97f6a06`; full suite 726 passed, 1 skipped at that commit
 - active Conductor listener remains PID `25396`
 
 ## Boundary
 
-The fake is test support only. Production transport/recovery/dedup/artifact logic (AC-RES-003/004/005/006) stays authoritative; the fake must not become a second execution engine.
+Adapter = deterministic mapping only (no I/O). AC-RES-003/004/005/006 remain authoritative for transport mutation, recovery, dedup, output. AC-RES-007 fake remains the fault harness.
+
+## A-Wiki gate result (2026-08-20)
+
+A-Wiki GitHub searched (`serena adapter`, `resilient execution`, `supervised`, `claim_acquire`): no overlap; A-Wiki local main is 105 behind origin, so GitHub was inspected directly. Classification: `WRAP + EXTEND`.
 
 ## Context rollover rule
 
@@ -29,4 +32,4 @@ If context becomes crowded, checkpoint repository continuity before recommending
 
 ## Next safe action
 
-Open `WO-AC-RES-008` (Serena adapter integration) with a fresh work order and the reuse-before-build gate; do not redesign completed primitives.
+Write RED tests for `tests/test_serena_transport_adapter.py` (event classification, binding identity, integrated fake-executor recovery), then implement `src/a_conductor/serena_transport_adapter.py`.

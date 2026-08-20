@@ -8,7 +8,9 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None.
+`docs/work-orders/WO-AC-RES-008-serena-transport-adapter.md`
+
+Status: `IN_PROGRESS`
 
 ## Completed resilient foundation
 
@@ -18,25 +20,25 @@ None.
 - AC-RES-004 recovery reconciliation + repo identity gate: `bb5dab0`
 - AC-RES-005 duplicate execution protection: `a0a2e52`
 - AC-RES-006 output backpressure: `9cc3c46`
-- AC-RES-007 fake executor + fault injection: completion commit is the immediate transaction
+- AC-RES-007 fake executor + fault injection: `97f6a06`
 
-## AC-RES-007 evidence
+## AC-RES-008 micro-steps
 
-- 12 deterministic scenario tests; all 10 contract scenarios plus delayed-advance and duplicate-launch-rejection.
-- fake advances only via explicit `advance()`; no threads/timers/sleeps/network/real process spawn.
-- launch count observable; duplicate request assessed `ATTACH_RUNNING` with job claim preserved; no scenario relaunches (`actual_start_count == 1`).
-- transport loss while running preserved the original; completed-before-delivery result recovered without relaunch.
-- never-started provenance distinguishable from unknown process state; malformed result and unknown process produce `RECOVERY_REQUIRED` with retry not permitted.
-- wrong branch identity blocks recovery before collect.
-- 300 KB stdout stays fully durable on disk while AC-RES-006 tail returns bounded bytes.
-- package exports: `DeterministicFaultExecutor`, `FakeLaunchObservation`, `FaultScenario`.
-- full suite 726 passed, 1 skipped (display-dependent UI test).
-- temp stores/repos only; no real Serena/tunnel/PID `25396` mutation.
+- [x] 008-A reuse gate + coordination + contract checkpoint
+- [ ] 008-B RED adapter scenario tests
+- [ ] 008-C implement deterministic mapping + binding observer
+- [ ] 008-D integrated recovery tests via fake executor
+- [ ] 008-E regression + safety verification
+- [ ] 008-F close/commit/push
+
+## Infrastructure note
+
+GitHub remote created 2026-08-20 (explicit user decision): private repo `aase7en/A-Wiki-Conductor`; `main` pushed and tracking `origin/main`.
 
 ## Invariant
 
-Do not use real Serena outages as the recovery test harness. Fault scenarios stay explicit and deterministic; production recovery decisions remain in AC-RES-003/004/005/006.
+Do not use real Serena outages as the recovery test harness. The adapter maps observations only; transport/recovery/dedup/artifact decisions stay in AC-RES-003/004/005/006.
 
 ## Next safe action
 
-Open `WO-AC-RES-008` (Serena adapter integration) per the PROJECT-PLAN resilient MVP sequence, with the A-Wiki reuse-before-build gate before any adapter work.
+Write RED deterministic tests for `serena_transport_adapter` event classification and binding identity mapping, then implement the mapping without I/O.
