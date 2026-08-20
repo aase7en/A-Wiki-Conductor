@@ -4,26 +4,34 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue Resilient Execution Supervisor after duplicate-execution protection is verified.
+Implement AC-RES-006 output backpressure so large supervised logs remain durable locally while transport responses stay bounded.
 
 ## Current task
 
-No active work order after AC-RES-005 completion commit.
+`WO-AC-RES-006 — Output Backpressure + Durable Reports`
 
-## Latest verified state
+Status: `IN_PROGRESS`
 
-- AC-RES-001: durable execution records
-- AC-RES-002: supervised subprocess
-- AC-RES-003: transport loss preserves ownership
-- AC-RES-004: recovery reconciliation/identity gate
-- AC-RES-005: canonical fingerprint + read-only duplicate lookup + attach/reuse/block/no-match decision
-- focused regression: 70 passed
-- active Conductor listener: PID `25396`
+## Baseline
+
+- branch `main`
+- AC-RES-005 completion `a0a2e52`
+- focused regression through AC-RES-005: 70 passed
+- active Conductor listener remains PID `25396`
+
+## Design boundary
+
+- read only durable stdout/stderr/report refs already created by AC-RES-002
+- enum artifact selection only; no arbitrary caller path
+- repo/run-dir confinement and symlink escape checks
+- max 64 KiB returned bytes per call
+- tail/chunk/full-digest metadata + bounded pytest summary
+- no process/log mutation/network transport
 
 ## Context rollover rule
 
-If context becomes crowded, checkpoint repository continuity first and only then recommend opening a new session. New sessions resume from `AGENTS.md -> PROJECT-PLAN.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active WO`.
+If chat context becomes crowded, checkpoint repository continuity first and only then recommend a new session. New sessions resume from repository artifacts without copied chat history.
 
 ## Next safe action
 
-Commit AC-RES-005, then open AC-RES-006 output backpressure/durable reports. Reuse AC-RES-002 stdout/stderr/result refs; add bounded read/summary behavior rather than another logging engine.
+Write RED artifact-reader tests, then implement the smallest read-only bounded artifact service.

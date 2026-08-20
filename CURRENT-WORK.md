@@ -8,7 +8,9 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None.
+`docs/work-orders/WO-AC-RES-006-output-backpressure.md`
+
+Status: `IN_PROGRESS`
 
 ## Completed resilient foundation
 
@@ -16,20 +18,20 @@ None.
 - AC-RES-002 supervised subprocess: `03a623d`
 - AC-RES-003 transport-loss state + claim preservation: `f9838a5`
 - AC-RES-004 recovery reconciliation + repo identity gate: `bb5dab0`
-- AC-RES-005 duplicate execution protection: completion commit is the immediate transaction
+- AC-RES-005 duplicate execution protection: `a0a2e52`
 
-## AC-RES-005 evidence
+## AC-RES-006 micro-steps
 
-- 11 targeted tests; 70 AC-RES-001..005 focused/regression tests
-- canonical worker-independent fingerprint with backend/runtime/repo/HEAD/operation/argv identity
-- read-only newest-first fingerprint lookup
-- live duplicate attaches; completed evidence reuses; partial/unknown blocks; only no-match is safe-to-launch
-- no process launch/retry API and no raw argv/command/env/prompt persistence
-- PID `25396` unchanged
+- [x] 006-A fit analysis: reuse AC-RES-002 durable refs; no second logger
+- [x] 006-B contract + claim coordination
+- [ ] 006-C RED artifact confinement/backpressure/summary tests
+- [ ] 006-D minimal bounded reader implementation
+- [ ] 006-E regression + safety verification
+- [ ] 006-F close/commit
 
-## Project continuity rule
+## Invariant
 
-Before recommending a new chat/session because context is crowded, checkpoint active WO, HEAD/worktree, evidence, blockers/decisions, exact next safe action, and ownership/forbidden constraints in repository artifacts.
+Complete raw execution evidence stays on disk. Transports receive bounded tails/chunks/metadata/summaries only; caller never supplies an arbitrary path.
 
 ## Environment follow-up
 
@@ -37,4 +39,4 @@ Hermes/uv Python/Tcl-Tk full-suite environment remains independently diagnosed a
 
 ## Next safe action
 
-Open `AC-RES-006 — Output Backpressure + Durable Reports`: preserve complete supervised stdout/stderr/report evidence on disk while returning bounded summaries/tails/failure slices through operator/MCP transports. Do not duplicate AC-RES-002 logging or introduce a network transport.
+Commit AC-RES-006 coordination checkpoint, then write RED tests for durable-ref confinement, traversal/symlink escape, hard byte budgets, chunk/tail/digest behavior, invalid UTF-8 handling, and pytest summary extraction.
