@@ -18,6 +18,14 @@ from .domain import (
     Worker,
     WorkerState,
 )
+from .lifecycle import (
+    LifecycleAction,
+    LifecycleContext,
+    LifecycleDecision,
+    LifecyclePlan,
+    LifecycleStep,
+    plan_lifecycle,
+)
 from .persistence import (
     PersistenceError,
     SQLiteRegistryStore,
@@ -83,6 +91,12 @@ __all__ = [
     "TaskState",
     "Worker",
     "WorkerState",
+    "LifecycleAction",
+    "LifecycleContext",
+    "LifecycleDecision",
+    "LifecyclePlan",
+    "LifecycleStep",
+    "plan_lifecycle",
     "PersistenceError",
     "SQLiteRegistryStore",
     "AssignmentConflictError",

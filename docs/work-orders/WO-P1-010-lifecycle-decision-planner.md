@@ -1,6 +1,6 @@
 # WO-P1-010: Pure Runtime Lifecycle Decision Planner
 
-Status: in_progress
+Status: done
 Lane/files: `src/a_conductor/lifecycle.py`, `src/a_conductor/__init__.py`, `tests/test_lifecycle.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-010-lifecycle-decision-planner.md`
 Branch: main
 Model tier: mid
@@ -55,3 +55,7 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after SQLite registry persistence commit `f32f192`. This is the final pure policy layer before a future lifecycle executor can mutate target runtime state.
+
+- [2026-08-20] RED checkpoint: `src/a_conductor/lifecycle.py` confirmed absent; targeted lifecycle-policy tests failed during collection with `ModuleNotFoundError: a_conductor.lifecycle` as expected.
+
+- [2026-08-20] GREEN checkpoint: implemented pure lifecycle decision planner for START/STOP/RESTART/RELEASE with symbolic steps and explicit PROCEED/NOOP/REFUSE/RECOVERY_REQUIRED outcomes. Targeted lifecycle tests 18 passed; full suite 177 passed; compileall PASS; `git diff --check` PASS; I/O/mutation scan clean. No host/runtime mutation capability added.
