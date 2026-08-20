@@ -19,6 +19,7 @@ from a_conductor.lifecycle import LifecycleAction
 from a_conductor.lifecycle_coordinator import LifecycleCoordinatorError
 from a_conductor.lifecycle_executor import LifecycleExecutionResult, LifecycleExecutionState
 from a_conductor.runtime_setup import SetupReadiness, WorkerSetupDraft
+from a_conductor.worker_serena_settings import WorkerSerenaSettings
 
 
 class FakeService:
@@ -465,3 +466,82 @@ def test_setup_capture_identity_actions_delegate(root, tmp_path: Path) -> None:
         ("EXACT", "a-worker-02"),
         ("NO_GIT", "a-worker-02"),
     ]
+
+
+class SettingsFakeService(FakeService):
+    def __init__(self, snapshot: ControlCenterSnapshot) -> None:
+        super().__init__(snapshot)
+        self.saved: list[WorkerSerenaSettings] = []
+
+    def worker_settings(self, worker_id: str) -> WorkerSerenaSettings:
+        return WorkerSerenaSettings(worker_id=worker_id)
+
+    def save_worker_settings(self, settings: WorkerSerenaSettings) -> WorkerSerenaSettings:
+        self.saved.append(settings)
+        return settings
+
+
+def _select_first_worker(app: AConductorDesktopApp, root: tk.Tk) -> None:
+    worker_item = app.worker_tree.get_children()[0]
+    app.worker_tree.selection_set(worker_item)
+    app.worker_tree.focus(worker_item)
+    app._update_lifecycle_buttons()
+    root.update_idletasks()
+
+
+def test_worker_config_dialog_prefills_and_saves(root) -> None:
+    service = SettingsFakeService(sample_snapshot())
+    codes: list[str] = []
+    app = AConductorDesktopApp(root, service=service, error_handler=codes.append)
+    _select_first_worker(app, root)
+
+    dialog = app.open_worker_config()
+
+    assert dialog is not None
+    assert app._config_entries["tool_timeout"].get() == "240"
+    assert app._config_entries["language_backend"].get() == "LSP"
+    assert app._config_entries["bound_project"].get().endswith("A-Wiki")
+    app._config_entries["excluded_tools"].insert(0, "find_file")
+    app._config_entries["tool_timeout"].delete(0, "end")
+    app._config_entries["tool_timeout"].insert(0, "300")
+    app._config_entries["base_modes"].insert(0, "editing")
+
+    app.save_worker_config(dialog)
+
+    assert codes == []
+    assert len(service.saved) == 1
+    saved = service.saved[0]
+    assert saved.worker_id == "a-worker-01"
+    assert saved.excluded_tools == ("find_file",)
+    assert saved.base_modes == ("editing",)
+    assert saved.tool_timeout == 300
+    assert not dialog.winfo_exists()
+
+
+def test_worker_config_invalid_combination_blocks_save(root) -> None:
+    service = SettingsFakeService(sample_snapshot())
+    codes: list[str] = []
+    app = AConductorDesktopApp(root, service=service, error_handler=codes.append)
+    _select_first_worker(app, root)
+    dialog = app.open_worker_config()
+    assert dialog is not None
+    app._config_entries["fixed_tools"].insert(0, "read_file")
+    app._config_entries["excluded_tools"].insert(0, "find_file")
+
+    app.save_worker_config(dialog)
+
+    assert service.saved == []
+    assert codes == ["SETTINGS_INVALID"]
+    assert dialog.winfo_exists()
+    dialog.destroy()
+
+
+def test_config_button_requires_settings_service_and_selection(root) -> None:
+    plain_app = AConductorDesktopApp(root, service=FakeService(sample_snapshot()))
+    assert plain_app.config_button.instate(["disabled"])
+    _select_first_worker(plain_app, root)
+    assert plain_app.config_button.instate(["disabled"])
+
+    settings_app = AConductorDesktopApp(root, service=SettingsFakeService(sample_snapshot()))
+    _select_first_worker(settings_app, root)
+    assert not settings_app.config_button.instate(["disabled"])

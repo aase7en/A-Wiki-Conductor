@@ -20,6 +20,7 @@ from .domain import WorkerState
 from .lifecycle_coordinator import LifecycleCoordinatorError
 from .lifecycle_executor import LifecycleExecutionResult
 from .runtime_setup import RuntimeSetupError, SetupReadiness, WorkerSetupDraft
+from .worker_serena_settings import LanguageBackend, WorkerSerenaSettings
 
 
 class ControlCenterUIService(Protocol):
@@ -245,6 +246,7 @@ class AConductorDesktopApp:
         self.stop_button = self._button(actions, "Stop", self.stop_selected)
         self.restart_button = self._button(actions, "Restart", self.restart_selected)
         self.setup_button = self._button(actions, "Setup", self.open_runtime_setup)
+        self.config_button = self._button(actions, "Config", self.open_worker_config)
         for index, button in enumerate(
             (
                 self.add_button,
@@ -255,6 +257,7 @@ class AConductorDesktopApp:
                 self.stop_button,
                 self.restart_button,
                 self.setup_button,
+                self.config_button,
             )
         ):
             button.grid(row=0, column=index, padx=(0, 6))
@@ -262,6 +265,7 @@ class AConductorDesktopApp:
         self.stop_button.state(["disabled"])
         self.restart_button.state(["disabled"])
         self.setup_button.state(["disabled"])
+        self.config_button.state(["disabled"])
 
         activity_panel = self._panel(self.root, "ACTIVITY / LOG")
         activity_panel.grid(row=2, column=0, sticky="nsew", padx=10, pady=(6, 10))
@@ -440,6 +444,12 @@ class AConductorDesktopApp:
             for name in ("worker_setup", "save_worker_setup")
         )
 
+    def _has_settings_service(self) -> bool:
+        return all(
+            callable(getattr(self.service, name, None))
+            for name in ("worker_settings", "save_worker_settings")
+        )
+
     def _readiness(self, worker_id: str) -> SetupReadiness:
         fn = getattr(self.service, "lifecycle_readiness", None)
         if not callable(fn):
@@ -457,6 +467,9 @@ class AConductorDesktopApp:
         has_lifecycle = self._has_lifecycle_service()
         has_setup = self._has_setup_service()
         self._set_enabled(self.setup_button, row is not None and has_setup)
+        self._set_enabled(
+            self.config_button, row is not None and self._has_settings_service()
+        )
         if row is None or not has_lifecycle or row.assignment_id is None:
             self._set_enabled(self.start_button, False)
             self._set_enabled(self.stop_button, False)
@@ -728,6 +741,7 @@ class AConductorDesktopApp:
             ("Assign Selected", self.assign_selected),
             ("Release Worker", self.release_selected),
             ("Runtime Setup", self.open_runtime_setup),
+            ("Worker Config", self.open_worker_config),
             ("Start Worker", self.start_selected),
             ("Stop Worker", self.stop_selected),
             ("Restart Worker", self.restart_selected),
@@ -749,3 +763,154 @@ class AConductorDesktopApp:
     def _run_palette_command(palette: tk.Toplevel, command) -> None:
         palette.destroy()
         command()
+
+    def open_worker_config(self) -> tk.Toplevel | None:
+        worker_id = self.selected_worker_id()
+        if worker_id is None:
+            self._handle_error("SELECT_WORKER")
+            return None
+        load = getattr(self.service, "worker_settings", None)
+        save = getattr(self.service, "save_worker_settings", None)
+        if not callable(load) or not callable(save):
+            self._handle_error("SETTINGS_NOT_AVAILABLE")
+            return None
+        try:
+            settings = load(worker_id)
+        except Exception:
+            self._handle_error("SETTINGS_LOAD_FAILED")
+            return None
+        if not isinstance(settings, WorkerSerenaSettings):
+            self._handle_error("SETTINGS_RESULT_INVALID")
+            return None
+
+        row = self._selected_worker_row()
+        bound_project = row.project_root_path if row is not None else ""
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"A-Conductor — Worker Config — {worker_id}")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=14)
+        frame.pack(fill="both", expand=True)
+        tk.Label(
+            frame,
+            text=f"> WORKER CONFIG  {worker_id}",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        frame.grid_columnconfigure(1, weight=1)
+
+        self._config_worker_id = worker_id
+        self._config_entries: dict[str, ttk.Entry | ttk.Combobox] = {}
+
+        backend_box = ttk.Combobox(
+            frame,
+            values=[backend.value for backend in LanguageBackend],
+            state="readonly",
+            width=30,
+        )
+        backend_box.set(settings.language_backend.value)
+        backend_box.grid(row=1, column=1, sticky="ew", pady=2)
+        self._config_entries["language_backend"] = backend_box
+        tk.Label(
+            frame,
+            text="Language backend",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        ).grid(row=1, column=0, sticky="w", padx=(0, 10))
+
+        fields = (
+            ("tool_timeout", "Tool timeout (s)", str(settings.tool_timeout)),
+            ("excluded_tools", "Excluded tools (comma)", ",".join(settings.excluded_tools)),
+            ("included_optional_tools", "Included optional tools", ",".join(settings.included_optional_tools)),
+            ("fixed_tools", "Fixed tools (exclusive)", ",".join(settings.fixed_tools)),
+            ("base_modes", "Base modes (comma)", ",".join(settings.base_modes)),
+            ("bound_project", "Bound project (via Assign)", bound_project or ""),
+        )
+        for row_index, (key, label, value) in enumerate(fields, start=2):
+            tk.Label(
+                frame,
+                text=label,
+                bg=self.theme.panel,
+                fg=self.theme.muted,
+                font=(self.theme.monospace_font, 9),
+            ).grid(row=row_index, column=0, sticky="w", padx=(0, 10), pady=2)
+            entry = ttk.Entry(frame, width=56)
+            entry.insert(0, value)
+            entry.grid(row=row_index, column=1, sticky="ew", pady=2)
+            if key == "bound_project":
+                entry.state(["disabled"])
+            self._config_entries[key] = entry
+
+        self._config_status = tk.Label(
+            frame,
+            text="Values apply on next worker start.",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        )
+        self._config_status.grid(row=len(fields) + 2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        button_row = len(fields) + 3
+        self._button(frame, "Save", lambda: self.save_worker_config(dialog)).grid(
+            row=button_row, column=0, sticky="w", pady=(12, 0)
+        )
+        self._button(frame, "Cancel", lambda: dialog.destroy() if dialog.winfo_exists() else None).grid(
+            row=button_row, column=1, sticky="w", pady=(12, 0)
+        )
+        return dialog
+
+    @staticmethod
+    def _csv_field(entry) -> tuple[str, ...]:
+        return tuple(part.strip() for part in entry.get().split(",") if part.strip())
+
+    def save_worker_config(self, dialog: tk.Toplevel | None = None) -> None:
+        worker_id = getattr(self, "_config_worker_id", None)
+        entries = getattr(self, "_config_entries", None)
+        save = getattr(self.service, "save_worker_settings", None)
+        if worker_id is None or not entries or not callable(save):
+            self._handle_error("SETTINGS_NOT_AVAILABLE")
+            return
+
+        try:
+            backend = LanguageBackend(str(entries["language_backend"].get()).strip())
+        except ValueError:
+            self._handle_error("SETTINGS_LANGUAGE_BACKEND_INVALID")
+            return
+        try:
+            timeout = int(str(entries["tool_timeout"].get()).strip())
+        except ValueError:
+            self._handle_error("SETTINGS_TOOL_TIMEOUT_INVALID")
+            return
+
+        try:
+            settings = WorkerSerenaSettings(
+                worker_id=worker_id,
+                language_backend=backend,
+                excluded_tools=self._csv_field(entries["excluded_tools"]),
+                included_optional_tools=self._csv_field(entries["included_optional_tools"]),
+                fixed_tools=self._csv_field(entries["fixed_tools"]),
+                base_modes=self._csv_field(entries["base_modes"]),
+                tool_timeout=timeout,
+            )
+        except ValueError as exc:
+            status = getattr(self, "_config_status", None)
+            if status is not None and status.winfo_exists():
+                status.configure(text=f"ERROR  {exc}", fg=self.theme.error)
+            self._handle_error("SETTINGS_INVALID")
+            return
+
+        try:
+            saved = save(settings)
+        except Exception:
+            self._handle_error("SETTINGS_SAVE_FAILED")
+            return
+        if not isinstance(saved, WorkerSerenaSettings):
+            self._handle_error("SETTINGS_RESULT_INVALID")
+            return
+        self.log_activity(f"Config       {saved.worker_id} SAVED (applies on next start)")
+        if dialog is not None and dialog.winfo_exists():
+            dialog.destroy()
