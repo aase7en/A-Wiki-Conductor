@@ -1,6 +1,6 @@
 # WO-P1-039: Transport-Neutral Operator Command Protocol
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/operator_protocol.py`, `tests/test_operator_protocol.py`, `docs/contracts/operator-command-api.md`, `docs/contracts/telegram-hermes-gateway.md`, `COLLAB.md`, `docs/work-orders/WO-P1-039-operator-command-protocol.md`
 Branch: main
 Model tier: high
@@ -44,6 +44,18 @@ This work order runs in parallel with `WO-P1-038`. It is additive-only and MUST 
 - `git diff --check`
 - static scan for generic command/prompt/network fields
 
+## Verification evidence
+
+- RED: missing `a_conductor.operator_protocol` module.
+- Targeted protocol tests: 37 passed.
+- `compileall`: PASS.
+- `git diff --check`: PASS.
+- Static request/response schema scan: no generic command/prompt/token/stdout/stderr fields.
+- Static import scan: no Telegram/Discord/network/subprocess dependency.
+- Full-suite verification intentionally deferred because an independent Windows Python `0x80000003` full-suite crash is under parallel GPT Work investigation; P1-039 does not touch that path.
+- P1-038-owned files were not edited or staged by this work order.
+
 ## Checkpoint log
 
 - [2026-08-20] Opened in parallel while GPT Work investigates the unrelated Windows full-suite runtime crash and P1-038 remains uncommitted but targeted-green.
+- [2026-08-20] Completed additive transport-neutral protocol + Telegram/Hermes architecture contract with targeted/static gates green.
