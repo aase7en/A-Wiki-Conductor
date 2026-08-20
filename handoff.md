@@ -4,42 +4,35 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue Phase 1 from a completed lifecycle transaction executor into durable lifecycle checkpoint persistence, without introducing live process mutation yet.
+Persist lifecycle transaction checkpoints durably and append-only in SQLite so successful mutation steps can be recovered/audited across application restart before any concrete runtime mutation backend is introduced.
 
 ## Current task
 
-No active work order at this exact checkpoint. `WO-P1-011 — Lifecycle Transaction Executor + Checkpoint Contract` is complete and ready to commit.
+`WO-P1-012 — SQLite Lifecycle Checkpoint Journal`
+
+Status: `IN_PROGRESS`
 
 ## Completed
 
 - C1 contracts/schemas complete.
 - Local Git safety baseline complete.
-- Typed domain: `dbf5b34`.
+- Typed core domain: `dbf5b34`.
 - Serena runtime-manager contract: `2b2ecbd`.
 - Pure runtime safety classifiers: `676a881`.
 - Reusable Serena worker config/project binding: `4e36681`.
 - Read-only Windows observer: `af1979e`.
-- Worker status evaluator: `26ea225`.
+- Normalized worker status evaluator: `26ea225`.
 - Strict read-only Windows I/O: `e0682cc`.
 - Reusable worker/project registry: `61db9af`.
 - SQLite registry persistence: `f32f192`.
 - Pure lifecycle decision planner: `1b36658`.
-- P1-011 abstract lifecycle transaction executor implemented and verified: targeted 20 passed; full suite 197 passed; compileall/diff/I-O scan clean.
-
-## P1-011 durable semantics
-
-- required `transaction_id` + 1-based checkpoint sequence;
-- only checkpointed steps appear in `completed_steps`;
-- non-PROCEED plans never call backend/checkpoint sink;
-- mutation uncertainty/backend exception -> recovery;
-- checkpoint failure after mutation -> recovery and halt;
-- executor has no concrete process/filesystem/network/persistence implementation.
+- Checkpointed lifecycle transaction executor: `74bc59b`; full suite 197 passed.
+- P1-012 opened/claimed.
 
 ## Current repository state
 
 - branch: `main`
-- coordination commit before P1-011 source: `7d72c3a`
-- P1-011 implementation is currently uncommitted and should be committed as the next action.
+- HEAD before WO-P1-012 coordination commit: `74bc59b`
 - no Git remote
 - exact per-command safe-directory override required; global Git config unchanged.
 
@@ -51,16 +44,21 @@ Use ignored local pytest basetemp: `python -m pytest tests -q --basetemp=runtime
 
 `DR-C1-001`: GitHub visibility/public-safety before remote creation. Recommended private-first.
 
+## Safety boundary
+
+P1-012 may write only to test/local SQLite journal files through its persistence API. It must not start/stop/restart processes, modify runtime profiles, or introduce task/lease broker tables.
+
 ## Do not do
 
-- No live target start/stop/restart yet.
+- No live target lifecycle mutation.
+- No task broker/scheduler/lease tables.
 - No A-Wiki/Phase6 mutation.
 - No remote/push.
 
 ## Next safe action
 
-Commit the verified P1-011 batch, then create/claim the next bounded work order for an append-only/idempotent SQLite lifecycle checkpoint journal. Do not jump directly to a concrete lifecycle mutation backend.
+Commit the P1-012 coordination checkpoint, then write failing journal tests for append-only/idempotent/conflict/gap/coexistence behavior before implementation.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> latest work-order checkpoints. Verify Git HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Verify Git HEAD/status before mutation.

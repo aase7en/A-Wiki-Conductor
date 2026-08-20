@@ -4,11 +4,13 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / lifecycle safety foundation**
+**Phase 1 — Multi-Serena Control Center / durable lifecycle checkpoint journal**
 
 ## Active work order
 
-None at this checkpoint. `WO-P1-011` is complete; next planned micro-step is durable lifecycle checkpoint persistence.
+`docs/work-orders/WO-P1-012-sqlite-lifecycle-journal.md`
+
+Status: `IN_PROGRESS`
 
 ## Completed foundation
 
@@ -20,23 +22,26 @@ None at this checkpoint. `WO-P1-011` is complete; next planned micro-step is dur
 - [x] Live read-only Conductor smoke: PID VALID, process OWNED, port OWNED, ready HTTP 200.
 - [x] Normalized worker status evaluator complete.
 - [x] Reusable Project/A-Worker registry + SQLite persistence complete.
-- [x] Pure START/STOP/RESTART/RELEASE lifecycle decision planner complete.
-- [x] Abstract lifecycle transaction executor complete with transaction-scoped durable checkpoint contract.
-- [x] P1-011 full suite: 197 passed.
+- [x] Pure lifecycle decision planner complete.
+- [x] Abstract lifecycle transaction executor with transaction-scoped checkpoints complete.
+- [x] P1-011 implementation commit: `74bc59b`.
+- [x] Full suite after P1-011: 197 passed.
 
-## P1-011 key safety results
+## Active checklist — WO-P1-012
 
-- Non-`PROCEED` lifecycle plans never call the backend.
-- A successful step is not considered durable-complete until its checkpoint records successfully.
-- `transaction_id` is required and checkpoints are 1-based sequenced.
-- Backend exception/uncertain outcome on a mutating step -> `RECOVERY_REQUIRED`.
-- Checkpoint failure after a mutating step -> `RECOVERY_REQUIRED`; later steps do not run.
-- No concrete host/process/filesystem/network/persistence backend exists in the executor.
+- [x] Open/claim work order.
+- [ ] Commit coordination checkpoint before source changes.
+- [ ] Write failing append-only/idempotence/conflict/gap/coexistence tests first.
+- [ ] Capture RED result.
+- [ ] Implement versioned `SQLiteLifecycleJournal`.
+- [ ] Run targeted and full tests green.
+- [ ] Compileall + diff check + append-only/schema review.
+- [ ] Update checkpoint/handoff and commit.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before P1-011 implementation commit: `7d72c3a` coordination checkpoint; implementation batch is ready to commit.
+- HEAD before WO-P1-012 coordination commit: `74bc59b`
 - Git remote: none
 - Use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
 - Pytest: use ignored local `runtime/pytest-temp` basetemp.
@@ -47,10 +52,12 @@ None at this checkpoint. `WO-P1-011` is complete; next planned micro-step is dur
 
 ## Constraints
 
-- No live lifecycle mutation yet.
+- Lifecycle journal only; no task/lease scheduler/broker tables.
+- Append-only public API; conflicting duplicate checkpoints must never overwrite history.
+- No live process/tunnel/Serena lifecycle mutation.
 - No A-Wiki/Phase6 mutation.
 - No Git remote/push.
 
 ## Next safe action
 
-Commit P1-011, then open a bounded work order for an append-only/idempotent SQLite lifecycle checkpoint journal. This remains local persistence only and does not start/stop any runtime.
+Commit the WO-P1-012 coordination checkpoint, then write failing SQLite lifecycle journal tests before implementation.
