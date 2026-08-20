@@ -8,7 +8,9 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None — `WO-P1-020` completed; awaiting close commit.
+`docs/work-orders/WO-P1-021-git-project-identity.md`
+
+Status: `IN_PROGRESS`
 
 ## Completed
 
@@ -16,22 +18,30 @@ None — `WO-P1-020` completed; awaiting close commit.
 - [x] Read-only Windows observer + strict inspection.
 - [x] Stage A dummy lifecycle integration.
 - [x] Exact-owned process controller (`8c4cb8c`).
-- [x] Serena lifecycle backend composition (`62b36bc`).
-- [x] Serena runtime materializer (`7a42bfd`).
-- [x] Controlled process environment isolation (`963a9c4`).
-- [x] Concrete Serena lifecycle operations; targeted 32 passed; full suite 313 passed; active Conductor preserved.
+- [x] Serena lifecycle backend/materializer/environment/operations through commit `5ea47c4`.
+- [x] Full suite at P1-020 close: 313 passed.
+
+## Active checklist — WO-P1-021
+
+- [x] Open work order.
+- [ ] Claim + commit coordination checkpoint.
+- [ ] Write RED project-identity tests.
+- [ ] Implement strict read-only Git verifier.
+- [ ] Run targeted/full verification.
+- [ ] Close/commit work order.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before P1-020 close commit: `33d82fa`
+- HEAD before coordination commit: `5ea47c4`
 - Git remote: none
 
 ## Gates
 
-- GitHub connector platform-blocked; no remote/push.
-- `DR-P1-002`: live Serena/tunnel integration remains dedicated-worker-only.
+- GitHub connector platform-blocked in this conversation; no remote/push.
+- No Git mutation in P1-021.
+- No live Serena/tunnel/A-Worker 3 mutation.
 
 ## Next safe action
 
-Commit P1-020 close checkpoint, then implement read-only Git project identity verification and strict runtime preflight/tunnel boundaries before Stage B live worker provisioning.
+Claim/commit P1-021, then write failing identity-policy tests before implementation.
