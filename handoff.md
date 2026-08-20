@@ -4,31 +4,29 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Build the first usable CLI-inspired A-Conductor desktop shell over the completed Control Center service.
+Wire safe Serena lifecycle execution into the usable desktop shell without placing runtime/secret logic in the UI.
 
 ## Current task
 
-`WO-P1-025 — CLI-Inspired Desktop Shell + Projects/Workers Screen`
-
-Status: `IN_PROGRESS`
+No active work order. `WO-P1-025 — Desktop Shell` completed; awaiting close commit.
 
 ## Completed
 
-- Local process-manager/runtime safety stack complete through tunnel/preflight boundaries.
-- Control Center application service complete (`3326bcb`), full suite 353 passed.
-- Tkinter 8.6 verified available.
-- Stage B Worker 3 transport validation remains separate `DR-P1-003 / BLOCKED_EXTERNAL`.
+- Core local process-manager/runtime safety stack complete.
+- Control Center service complete.
+- CLI-inspired Tkinter desktop shell + Projects/Workers screen complete; full suite 363 passed and separate-process smoke passed.
+- Stage B Worker 3 transport provisioning remains `DR-P1-003 / BLOCKED_EXTERNAL`.
 
 ## Repository state
 
 - branch: `main`
-- HEAD before P1-025 coordination commit: `3326bcb`
+- HEAD before P1-025 close commit: `efafddb`
 - no Git remote
 
 ## Next safe action
 
-Claim/commit P1-025. Write RED tests for theme/view refresh/smoke/default database path, then implement desktop UI + `python -m a_conductor` entrypoint. Keep lifecycle buttons disabled until next work order.
+Commit P1-025. Then implement opaque Serena runtime-config persistence, lifecycle coordinator, and finally enable Start/Stop/Restart UI actions.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO; verify HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file; verify HEAD/status before mutation.

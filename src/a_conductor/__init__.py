@@ -7,6 +7,7 @@ from .control_center import (
     RegistryStore,
     WorkerScreenRow,
 )
+from .desktop_ui import AConductorDesktopApp, DesktopTheme
 from .domain import (
     Agent,
     Assignment,
@@ -148,6 +149,8 @@ __all__ = [
     "ControlCenterSnapshot",
     "RegistryStore",
     "WorkerScreenRow",
+    "AConductorDesktopApp",
+    "DesktopTheme",
     "Agent",
     "Assignment",
     "Capability",

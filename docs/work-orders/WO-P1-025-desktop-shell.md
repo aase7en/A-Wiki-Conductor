@@ -1,42 +1,34 @@
 # WO-P1-025: CLI-Inspired Desktop Shell + Projects/Workers Screen
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/desktop_ui.py`, `src/a_conductor/desktop_app.py`, `src/a_conductor/__main__.py`, `src/a_conductor/__init__.py`, `tests/test_desktop_ui.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-025-desktop-shell.md`
 Branch: main
 Model tier: mid/high
 
 ## Goal
 
-Build the first usable A-Conductor desktop adapter over `ControlCenterService` using stdlib Tkinter 8.6: compact dark CLI-inspired Projects/Workers layout, activity panel, keyboard-first command palette, and safe project/assignment actions.
+Build the first usable A-Conductor desktop adapter over `ControlCenterService` using stdlib Tkinter 8.6.
 
-## Architecture classification
+## Acceptance evidence
 
-`NEW` UI adapter over existing service. Tkinter is not a core architectural dependency; the UI consumes immutable service snapshots and may be replaced later without redesigning the control plane.
-
-## Acceptance
-
-- tests first / RED before implementation;
-- dark/near-dark compact theme with restrained semantic colors;
-- top status bar, Projects list, Workers view (3 slots), action row, Activity/Log panel;
-- Add Project uses directory picker and existing read-only service registration;
-- Assign requires selected project + worker and persists through service;
-- Release calls service and surfaces stable error code only;
-- Refresh renders persisted state without filesystem/process side effects;
-- Start/Stop/Restart controls are present but disabled until lifecycle wiring work order;
-- Ctrl+K opens a minimal command palette for Add Project / Assign / Release / Refresh;
-- UI shows project assignment, state, worker ID, and path clearly;
-- `python -m a_conductor` launches desktop app using per-user local database path;
-- smoke mode can construct/refresh/destroy UI without entering long-running mainloop;
-- tests do not require external packages;
-- full suite + compileall + diff/static scan pass.
-
-## Forbidden
-
-- No process/tunnel lifecycle mutation in this work order.
-- No Git/repository mutation.
-- No API/credential values in UI.
-- No remote/push.
+- RED: desktop module missing before implementation.
+- Dark/near-dark compact CLI-inspired theme with semantic state colors.
+- Main shell contains ONLINE top bar, Projects list, three-slot Workers tree, action row, Activity/Log panel.
+- Add Project / Assign / Release / Refresh call the existing application service only.
+- Start/Stop/Restart controls are present but intentionally disabled until lifecycle wiring.
+- Ctrl+K command palette implemented for common safe actions.
+- Assignment/state/path/worker ID remain visible in worker table.
+- `python -m a_conductor --smoke --database runtime\a-conductor-ui-smoke.sqlite` => `A-CONDUCTOR_SMOKE_OK projects=0 workers=3` in a separate process.
+- Targeted tests: `9 passed, 1 skipped`; skipped test was an in-process second-Tk interpreter limitation, while separate-process smoke passed.
+- Full suite: `363 passed in 6.32s`.
+- `compileall`: PASS.
+- `git diff --check`: PASS.
+- Desktop static scan found no subprocess/tunnel/Git-mutation/API-key primitives.
+- Architecture: replaceable Tkinter adapter over service; core control plane remains UI-framework neutral.
 
 ## Checkpoint log
 
-- [2026-08-20] Opened after Control Center service commit `3326bcb`; Tkinter 8.6 verified available.
+- [2026-08-20] Opened after Control Center service commit `3326bcb`; Tkinter 8.6 verified.
+- [2026-08-20] Coordination commit `efafddb`.
+- [2026-08-20] RED desktop-module checkpoint.
+- [2026-08-20] GREEN UI actions/layout/tests + separate-process smoke; full suite 363/363. Complete.

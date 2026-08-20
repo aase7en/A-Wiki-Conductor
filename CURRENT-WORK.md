@@ -4,44 +4,26 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / desktop shell**
+**Phase 1 — Multi-Serena Control Center / lifecycle wiring**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-025-desktop-shell.md`
-
-Status: `IN_PROGRESS`
+None — `WO-P1-025` desktop shell completed; awaiting close commit.
 
 ## Completed
 
 - [x] Local process-manager/runtime safety stack through tunnel/preflight boundaries.
 - [x] Read-only Git identity verifier.
-- [x] Control Center application service (`3326bcb`), full suite 353 passed.
-- [x] Tkinter 8.6 verified available.
-- [x] Stage B live transport gate remains isolated as `DR-P1-003`.
-
-## Active checklist — WO-P1-025
-
-- [x] Open work order.
-- [ ] Claim + commit coordination checkpoint.
-- [ ] Write RED desktop adapter/smoke tests.
-- [ ] Implement dark CLI-inspired Projects/Workers shell.
-- [ ] Add command palette + safe project/assignment actions.
-- [ ] Add `python -m a_conductor` entrypoint + smoke mode.
-- [ ] Run targeted/full verification.
-- [ ] Close/commit work order.
+- [x] Control Center application service (`3326bcb`).
+- [x] CLI-inspired Tkinter desktop shell + Projects/Workers screen; full suite 363 passed; separate-process smoke passed.
+- [x] `DR-P1-003` Stage B live transport gate remains isolated.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before P1-025 coordination commit: `3326bcb`
+- HEAD before P1-025 close commit: `efafddb`
 - Git remote: none
-
-## Gates
-
-- GitHub connector platform-blocked; no remote/push.
-- Lifecycle Start/Stop/Restart UI actions remain disabled until explicit wiring work order.
 
 ## Next safe action
 
-Claim/commit P1-025, then write RED UI/presenter/smoke tests before implementation.
+Commit P1-025, then add durable Serena worker runtime-config persistence (opaque refs only), followed by lifecycle coordinator and UI Start/Stop/Restart wiring.
