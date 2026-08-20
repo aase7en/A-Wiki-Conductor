@@ -1,6 +1,6 @@
 # WO-P1-040: Telegram Operator Command Mapper
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/telegram_operator_commands.py`, `tests/test_telegram_operator_commands.py`, `COLLAB.md`, `docs/work-orders/WO-P1-040-telegram-command-mapper.md`
 Branch: main
 Model tier: high
@@ -41,6 +41,17 @@ Additive-only while `WO-P1-038` remains dirty and under runtime-crash investigat
 - `git diff --check`
 - static transport/network/command scan
 
+## Verification evidence
+
+- RED: missing `a_conductor.telegram_operator_commands` module.
+- Targeted operator + Telegram mapper tests: 66 passed.
+- `compileall`: PASS.
+- `git diff --check`: PASS.
+- Import/static scan: pure stdlib + `operator_protocol`; no Telegram SDK, network, subprocess, Discord, or bot-token dependency.
+- Full-suite verification intentionally deferred while the independent Windows Python `0x80000003` investigation remains active.
+- P1-038-owned files were not edited or staged by this work order.
+
 ## Checkpoint log
 
 - [2026-08-20] Opened after `P1-039` operator protocol commit `1adb118` while GPT Work investigates the independent full-suite Windows runtime crash.
+- [2026-08-20] Completed pure Telegram `/a` command mapper with exact grammar and free-form `/a run` rejection.
