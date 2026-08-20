@@ -1,6 +1,6 @@
 # WO-P1-004: Serena Worker Runtime Profile Model
 
-Status: in_progress
+Status: done
 Lane/files: `src/a_conductor/serena_runtime.py`, `src/a_conductor/__init__.py`, `tests/test_serena_runtime.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-004-serena-runtime-profile.md`
 Branch: main
 Model tier: mid
@@ -55,3 +55,5 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after pure runtime-safety commit `676a881`. Scope is configuration/data validation only.
+- [2026-08-20] RED checkpoint: `pytest -q` failed during collection with `ModuleNotFoundError: a_conductor.serena_runtime` as expected; no Serena runtime-profile implementation existed yet.
+- [2026-08-20] GREEN checkpoint: implemented immutable `SerenaWorkerConfig`, `SerenaProjectBinding`, and `ProjectIdentityPolicy`. Full verification: `pytest -q` = 67 passed; `python -m compileall -q src` PASS; `git diff --check` PASS; forbidden process/network/secret-value pattern scan clean. Worker config contains no permanent project/worktree binding and stores transport/credential references only as opaque refs. No I/O/process lifecycle behavior added.
