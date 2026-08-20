@@ -8,7 +8,13 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None. Most recently completed: `WO-P1-036 — Allowlisted Native Operation Registry + Backend`.
+`docs/work-orders/WO-P1-037-native-worker-adapter-assembly.md`
+
+Status: `IN_PROGRESS`
+
+## Goal
+
+Assemble fresh worker-specific NativeExecutionScope + fixed Git/verification adapters from current Control Center assignment state.
 
 ## Completed foundation
 
@@ -17,10 +23,19 @@ None. Most recently completed: `WO-P1-036 — Allowlisted Native Operation Regis
 - [x] Transactional Git mutations.
 - [x] Durable job state/checkpoint store.
 - [x] Durable job execution coordinator.
-- [x] Allowlisted opaque operation registry -> fixed Git read / pytest / compileall backend.
-- [x] Digest-only durable evidence; raw native stdout/stderr remains ephemeral.
-- [x] P1-036 verification: 15 targeted + 518 full-suite tests; compileall/diff/static safety PASS; PID 25396 preserved.
+- [x] Allowlisted native operation registry/backend (`50bc4c7`).
+
+## P1-037 checklist
+
+- [x] Open work order.
+- [x] Define assembly contract.
+- [ ] Claim + coordination checkpoint commit.
+- [ ] Write RED assembly tests.
+- [ ] Implement `native_operation_assembly.py`.
+- [ ] Export bounded public API.
+- [ ] Run targeted/full/compileall/diff/static safety verification.
+- [ ] Close work order + release claim + commit.
 
 ## Next safe action
 
-Open a bounded Native Worker Adapter Assembly work order that derives confined NativeExecutionScope + fixed adapters from the Control Center worker assignment/project root and mutation authority. No background scheduling/routing.
+Claim P1-037, commit coordination checkpoint, then write RED tests proving exact fresh assignment/root/mutation authority and no fallback/cache behavior.

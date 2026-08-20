@@ -4,21 +4,29 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue from the completed allowlisted operation backend toward real Control Center worker/project assembly, while preserving A-Wiki as planner/orchestrator.
+Bind the completed allowlisted native-operation backend to real current Control Center worker/project assignment state without adding routing or lifecycle mutation.
 
 ## Current task
 
-No active work order. Most recently completed: `WO-P1-036`.
+`WO-P1-037 — Native Worker Adapter Assembly`
 
-## Evidence
+Status: `IN_PROGRESS`
 
-- targeted P1-036: 15 passed
-- full suite: 518 passed
-- raw output -> digest-only evidence end-to-end verified
-- operation definitions expose no executable/argv/shell/command fields
-- backend exposes no generic run/Git mutation/filesystem mutation/router surface
-- active Conductor PID 25396 preserved
+## Baseline
+
+- allowlisted native operation backend commit: `50bc4c7`
+- P1-036 full suite: 518 passed
+- active Conductor listener: PID `25396`
+
+## Boundary
+
+- fresh snapshot per resolve
+- exact assigned project root only
+- exact assignment mutation authority only
+- Git + Python executable allowlist only
+- default result: NativeGitReadAdapter + NativeVerificationAdapter
+- no Git mutation/lifecycle/tunnel/router/scheduler surface
 
 ## Next safe action
 
-Build a worker-native-adapter resolver from Control Center assignment/project state. It must confine scope to the exact assigned project root and inherit `mutation_allowed` from the durable assignment; no fallback to another worker/project.
+Commit P1-037 coordination/contract checkpoint, then write RED assembly tests with injected adapter factories and real ControlCenterService coverage.
