@@ -4,26 +4,30 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Continue building the Work-class durable runtime above the native execution foundation while A-Wiki remains authoritative for planning/memory/orchestration policy.
+Build the durable runtime transaction layer above the completed native execution and durable job-state foundations, without duplicating A-Wiki planning/orchestration.
 
 ## Current task
 
-No active work order. Most recently completed: `WO-P1-034 — Durable Job State + Checkpoint Store`.
+`WO-P1-035 — Durable Job Execution Coordinator`
 
-## P1-034 evidence
+Status: `IN_PROGRESS`
 
-- Pure state policy: 18 tests passed.
-- Durable store targeted suite: 31 tests passed.
-- Full suite: 492 passed.
-- compileall + git diff check: PASS.
-- SQLite schema safety: PASS; no prompt/payload/transcript/command/stdout/stderr/message/content/secret/token columns in `job_records`/`job_events`.
-- Active Conductor listener preserved at `127.0.0.1:18011`, PID `25396`.
-- Job state references A-Wiki work orders opaquely and stores operational metadata only.
+## Baseline
+
+- durable job store commit: `9382442`
+- P1-034 full suite: 492 passed
+- active Conductor listener: `127.0.0.1:18011`, PID `25396`
+
+## P1-035 boundary
+
+- explicit invocation only
+- requires `GATING` + matching durable worker claim + expected version
+- backend injected; no process/Git/filesystem implementation in coordinator
+- success: `EXECUTING -> checkpoint -> VERIFYING`
+- failure: `EXECUTING -> RECOVERY_NEEDED`
+- no raw backend errors/payload persistence
+- no scheduler/router/retry loop
 
 ## Next safe action
 
-Open a bounded job-execution service work order that consumes durable jobs and fixed execution adapters through explicit state/checkpoint transitions. Do not add a planner/model router/background scheduler yet.
-
-## Resume order
-
-`AGENTS.md -> PROJECT-PLAN.md -> docs/contracts/a-wiki-a-conductor-integration.md -> docs/contracts/durable-job-state.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> git status/HEAD`.
+Commit P1-035 coordination/contract checkpoint, then write RED coordinator tests using the real SQLite job store and a fake bounded backend.

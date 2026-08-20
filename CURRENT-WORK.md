@@ -8,26 +8,36 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None.
+`docs/work-orders/WO-P1-035-durable-job-execution-coordinator.md`
 
-Most recently completed: `WO-P1-034 — Durable Job State + Checkpoint Store`.
+Status: `IN_PROGRESS`
+
+## Goal
+
+Bind one explicitly invoked, already-gated durable job to an injected bounded execution backend while preserving optimistic state, evidence, attempt, and recovery semantics.
 
 ## Completed foundation
 
-- [x] Phase 1 local Control Center MVP.
-- [x] Native filesystem/subprocess execution core.
-- [x] Fixed Git + verification adapters.
-- [x] Transactional exact-file Git stage/commit with optimistic preconditions and hook/signing isolation.
-- [x] Durable job state around opaque A-Wiki work-order refs.
-- [x] Optimistic job versioning, worker claim state, attempt budgets, recovery classification, append-only checkpoint/evidence metadata.
-- [x] P1-034 verification: 31 targeted + 492 full-suite tests, compileall/diff/schema safety PASS; Conductor PID 25396 preserved.
+- [x] Native execution core.
+- [x] Fixed Git/verification adapters.
+- [x] Transactional Git mutations.
+- [x] Durable job state/checkpoint store (`9382442`).
 
-## External/deferred gates
+## P1-035 checklist
 
-- `DR-P1-003`: Worker 3 live Stage B remains `BLOCKED_EXTERNAL` until unique authorized transport provisioning exists.
-- A-Wiki companion registration payload is prepared but not yet applied.
-- GitHub remote remains intentionally absent.
+- [x] Open work order.
+- [x] Define durable execution contract.
+- [ ] Claim + coordination checkpoint commit.
+- [ ] Write RED coordinator tests.
+- [ ] Implement `job_execution.py`.
+- [ ] Export bounded public API.
+- [ ] Run targeted/full/compileall/diff/static safety verification.
+- [ ] Close work order + release claim + commit.
+
+## Deferred
+
+No scheduler/background loop, model routing, worker routing, automatic retries, or concrete operation-ref resolver in this work order.
 
 ## Next safe action
 
-Open the next bounded work order for the durable job service/runner boundary: bind a durable job to an execution adapter through explicit checkpoints without adding background scheduling or duplicating A-Wiki planning.
+Claim P1-035, commit coordination checkpoint, then write RED tests against an actual `SQLiteJobStore` plus injected fake backend.
