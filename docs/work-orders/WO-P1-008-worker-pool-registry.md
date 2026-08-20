@@ -1,6 +1,6 @@
 # WO-P1-008: Reusable Worker Pool + Project Registry
 
-Status: in_progress
+Status: done
 Lane/files: `src/a_conductor/registry.py`, `src/a_conductor/__init__.py`, `tests/test_registry.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-008-worker-pool-registry.md`
 Branch: main
 Model tier: mid
@@ -59,3 +59,7 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after strict read-only Windows I/O commit `e0682cc`. Worker-pool registry is an A-Conductor runtime-control primitive and does not replace A-Wiki cross-agent claims.
+
+- [2026-08-20] RED checkpoint: `src/a_conductor/registry.py` confirmed absent; targeted registry tests failed during collection with `ModuleNotFoundError: a_conductor.registry` as expected.
+
+- [2026-08-20] GREEN checkpoint: implemented side-effect-free in-memory `ControlPlaneRegistry`, approved default `A-Worker 1..3` factory, deterministic snapshots, Windows worktree normalization, mutating-worktree conflict guard, runtime mismatch guard, busy-worker release guard, and reusable assign/release semantics. Targeted registry tests 16 passed; full suite 150 passed; compileall PASS; `git diff --check` PASS; I/O/persistence scan clean. No A-Wiki claim/work-order behavior duplicated.

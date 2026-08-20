@@ -18,6 +18,16 @@ from .domain import (
     Worker,
     WorkerState,
 )
+from .registry import (
+    AssignmentConflictError,
+    AssignmentRecord,
+    ControlPlaneRegistry,
+    DuplicateRegistrationError,
+    RegistryNotFoundError,
+    RegistrySnapshot,
+    WorkerBusyError,
+    windows_worktree_key,
+)
 from .runtime_safety import (
     PortBindingState,
     ProcessObservation,
@@ -69,6 +79,14 @@ __all__ = [
     "TaskState",
     "Worker",
     "WorkerState",
+    "AssignmentConflictError",
+    "AssignmentRecord",
+    "ControlPlaneRegistry",
+    "DuplicateRegistrationError",
+    "RegistryNotFoundError",
+    "RegistrySnapshot",
+    "WorkerBusyError",
+    "windows_worktree_key",
     "PortBindingState",
     "ProcessObservation",
     "ProcessOwnership",
