@@ -1,7 +1,7 @@
 # WO-P1-033: Transactional Git Stage + Commit
 
 Status: in_progress
-Lane/files: `src/a_conductor/native_git_transactions.py`, `src/a_conductor/__init__.py`, `tests/test_native_git_transactions.py`, `docs/contracts/native-git-transactions.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-033-transactional-git-mutations.md`
+Lane/files: `src/a_conductor/native_git_transactions.py`, `src/a_conductor/native_adapters.py`, `src/a_conductor/__init__.py`, `tests/test_native_git_transactions.py`, `tests/test_native_adapters.py`, `docs/contracts/native-git-transactions.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-033-transactional-git-mutations.md`
 Branch: main
 Model tier: high
 
@@ -40,3 +40,4 @@ Add narrowly scoped Git stage/commit transactions over the Native Execution Core
 ## Checkpoint log
 
 - [2026-08-20] Opened from clean P1-032 commit `88a863f`.
+- [2026-08-20] Scope expanded for Git read hardening discovered during transaction design: disable fsmonitor/textconv before snapshot; stage preflight will refuse effective clean/process filters.
