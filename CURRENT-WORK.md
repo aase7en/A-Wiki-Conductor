@@ -4,39 +4,30 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Durable Work-class Runtime Foundation**
+**Durable Work-class Runtime Foundation / Resilient Execution**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-038-durable-job-control-service.md`
+None.
 
-Status: `IN_PROGRESS`
+## Recently completed
 
-## Goal
+- `WO-P1-038 — Durable Job Control Service` — bounded application facade over durable job store + execution coordinator.
+- Operator/Telegram foundation through strict wire codec: commits `1adb118`, `441611d`, `b012ec7`, `a950d17`, `984a20e`.
+- Resilient Execution Supervisor architecture captured in `c57bd2a`.
 
-Expose the durable job/native execution foundation through one bounded application service suitable for later Discord/Desktop adapters.
+## P1-038 evidence
 
-## Completed foundation
+- targeted tests: 6 passed
+- `git diff --check`: PASS
+- active Conductor listener preserved at PID 25396
+- repeated full-suite Windows crash independently classified by GPT Work as Python/Tcl-Tk environment related rather than P1-038 regression
+- recommended environment remediation before relying on full-suite runs again: Python build `20260623` or newer
 
-- [x] Native execution core.
-- [x] Fixed Git/verification adapters.
-- [x] Transactional Git mutations.
-- [x] Durable job state/checkpoint store.
-- [x] Durable job execution coordinator.
-- [x] Allowlisted native operation backend.
-- [x] Fresh Control Center worker native-adapter assembly (`543b1ab`).
+## Environment follow-up
 
-## P1-038 checklist
-
-- [x] Open work order.
-- [x] Define control-service contract.
-- [ ] Claim + coordination checkpoint commit.
-- [ ] Write RED service/composition tests.
-- [ ] Implement `job_control.py`.
-- [ ] Export bounded public API.
-- [ ] Run targeted/full/compileall/diff/static safety verification.
-- [ ] Close work order + release claim + commit.
+Do not mutate the current Python/Hermes environment casually. Treat the interpreter upgrade as a separate bounded environment-remediation work order with rollback and verification.
 
 ## Next safe action
 
-Claim P1-038, commit coordination checkpoint, then write RED tests for bounded facade and real reopen durability.
+Open `AC-RES-001` as the first implementation slice of the Resilient Execution Supervisor: durable execution record with execution identity, transport state separated from execution state, immutable launch identity/fingerprint fields, bounded evidence paths, and no supervised process launch yet.

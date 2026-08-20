@@ -4,28 +4,22 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Expose the completed durable runtime stack through a bounded application service suitable for future Discord/Desktop transports without adding planner/router/scheduler behavior.
+Continue from the completed Durable Job Control Service into the Resilient Execution Supervisor MVP without duplicating A-Wiki orchestration or the existing durable job state machine.
 
 ## Current task
 
-`WO-P1-038 — Durable Job Control Service`
+No active work order.
 
-Status: `IN_PROGRESS`
+## Latest verified state
 
-## Baseline
-
-- worker-native-adapter assembly commit: `543b1ab`
-- P1-037 full suite: 525 passed, 1 Tk environment skip
-- active Conductor listener: PID `25396`
-
-## Boundary
-
-- service delegates state mutations to SQLiteJobStore
-- service delegates execution to DurableJobExecutionCoordinator
-- service adds no direct SQL or alternate transition graph
-- no generic transition/command surface
-- no scheduler/router/planner/Discord/UI code
+- P1-038 targeted tests: 6 passed
+- P1-038 safe to commit per independent GPT Work diagnosis
+- full-suite `0x80000003` crash classified as Python/Tcl-Tk environment issue; recommended Python build `20260623` or newer
+- no environment change has been applied yet
+- active Conductor listener remains `127.0.0.1:18011`, PID `25396`
+- operator/Telegram/wire layers are committed and remain transport-neutral/no-network
+- Resilient Execution Supervisor contract/roadmap is committed at `c57bd2a`
 
 ## Next safe action
 
-Commit P1-038 coordination/contract checkpoint, then write RED bounded facade/composition/reopen durability tests.
+Open `AC-RES-001 — Durable Execution Record`. Reuse `SQLiteJobStore`, `DurableJobExecutionCoordinator`, owned-process primitives, lifecycle reconciliation patterns, worker identity/health, and operator protocol. Do not implement process launch, retry, failover, or Serena integration in AC-RES-001.

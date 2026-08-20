@@ -40,6 +40,7 @@ from .domain import (
     Worker,
     WorkerState,
 )
+from .job_control import DurableJobControlService
 from .job_execution import (
     DurableJobExecutionCoordinator,
     DurableJobStore,
@@ -273,6 +274,7 @@ __all__ = [
     "TaskState",
     "Worker",
     "WorkerState",
+    "DurableJobControlService",
     "DurableJobExecutionCoordinator",
     "DurableJobStore",
     "JobBackendResult",
