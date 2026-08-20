@@ -1,6 +1,6 @@
 # WO-P1-042: Transport-Neutral Operator Dispatcher
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/operator_dispatch.py`, `tests/test_operator_dispatch.py`, `COLLAB.md`, `docs/work-orders/WO-P1-042-operator-dispatcher.md`
 Branch: main
 Model tier: high
@@ -37,6 +37,19 @@ Additive-only. `WO-P1-038` remains the owner of `job_control.py`, `__init__.py`,
 - `python -m compileall -q src`
 - `git diff --check`
 
+## Verification evidence
+
+- RED: missing `a_conductor.operator_dispatch` module.
+- Targeted dispatcher tests: 46 passed.
+- Combined operator/Telegram protocol+mapper+renderer+dispatcher tests: 83 passed.
+- `compileall`: PASS.
+- `git diff --check`: PASS.
+- Import scan: structural job state/event/outcome + operator protocol only; no concrete `job_control.py`, network, Telegram/Discord SDK, or subprocess import.
+- Exception sanitizer returns code-only responses and drops raw exception text.
+- Full-suite verification intentionally deferred while the independent Windows Python `0x80000003` investigation remains active.
+- P1-038-owned files were not edited or staged by this work order.
+
 ## Checkpoint log
 
 - [2026-08-20] Opened after Telegram mapper/renderer parallel commits while P1-038 remains targeted-green but full-suite blocked by Windows runtime crash investigation.
+- [2026-08-20] Completed structural operator dispatcher with bounded response mapping and event-ref cap.
