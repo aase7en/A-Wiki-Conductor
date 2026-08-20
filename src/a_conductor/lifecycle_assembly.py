@@ -179,9 +179,9 @@ class LocalLifecycleContextProvider:
                 if candidate.worker_id != worker_id:
                     break
         worktree_binding = classify_worktree_binding(
-            requesting_worker_id=worker_id,
-            requesting_mutation_allowed=bool(row.mutation_allowed),
+            worktree_key=target_key,
             active_mutating_worker_id=active_mutating_worker_id,
+            requesting_worker_id=worker_id,
         )
 
         identity_ok: bool | None = None

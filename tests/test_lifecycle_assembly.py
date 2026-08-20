@@ -243,12 +243,27 @@ def test_backend_factory_builds_serena_backend_from_persisted_metadata(tmp_path:
 
 
 def test_assignment_service_delegates_release_to_control_center(tmp_path: Path) -> None:
-    _, service, _, _, _, _ = setup_configured_service(tmp_path)
+    _, service, _, project, _, _ = setup_configured_service(tmp_path)
     adapter = ControlCenterAssignmentService(service)
-    result = adapter.clear("a-worker-01", "ignored-project-id")
+    result = adapter.clear("a-worker-01", project.project_id)
     assert result.success is True
     row = next(w for w in service.snapshot().workers if w.worker_id == "a-worker-01")
     assert row.assignment_id is None
+
+
+def test_assignment_service_refuses_project_identity_mismatch(tmp_path: Path) -> None:
+    _, service, _, _, _, _ = setup_configured_service(tmp_path)
+    adapter = ControlCenterAssignmentService(service)
+
+    result = adapter.clear("a-worker-01", "wrong-project-id")
+
+    assert result == SerenaOperationResult(
+        success=False,
+        error_code="ASSIGNMENT_IDENTITY_MISMATCH",
+        recovery_required=True,
+    )
+    row = next(w for w in service.snapshot().workers if w.worker_id == "a-worker-01")
+    assert row.assignment_id is not None
 
 
 def test_evidence_service_returns_append_only_event_ref(tmp_path: Path) -> None:
