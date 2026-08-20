@@ -1,6 +1,6 @@
 # WO-P1-000: Local Repository Safety Baseline
 
-Status: in_progress
+Status: done
 Lane/files: `.gitignore`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-000-repository-baseline.md`, existing C1 documentation/contracts for initial local commit
 Branch: bootstrap -> `main`
 Model tier: cheap-ok
@@ -56,3 +56,5 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened local-only Git baseline after WO-C1-001 completed. Remote publication remains blocked by `DR-C1-001`.
+
+- [2026-08-20] ChatGPT/Sunday-Conducter: local Git initialized on `main`; `.serena/` confirmed ignored; no remotes configured; root baseline commit `3ed22df0d884cf15729167d923ec4a0e32593662`; worktree clean after commit. Git ownership guard requires exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global config was intentionally not modified.
