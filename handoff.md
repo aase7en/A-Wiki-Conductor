@@ -4,28 +4,29 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Implement side-effect-free runtime safety classifiers from the approved Serena runtime-manager contract before real process supervision.
+Model reusable Serena worker resources separately from dynamic Project/worktree assignment before any real process supervision.
 
 ## Current task
 
-`WO-P1-003 — Pure Runtime Safety Validators`
+`WO-P1-004 — Serena Worker Runtime Profile Model`
 
 Status: `IN_PROGRESS`
 
 ## Completed
 
 - C1 contracts/schemas complete.
-- Local Git baseline complete.
-- Typed core domain complete, test-first (`17 passed`), commit `dbf5b34`.
-- Serena runtime-manager contract extracted from validated local prototype read-only, commit `2b2ecbd`.
-- WO-P1-003 opened/claimed.
+- Local Git safety baseline complete.
+- Typed core domain complete, test-first, commit `dbf5b34`.
+- Serena runtime-manager contract complete, commit `2b2ecbd`.
+- Pure runtime safety classifiers complete; full suite `41 passed`, commit `676a881`.
+- WO-P1-004 opened/claimed.
 
 ## Current repository state
 
 - branch: `main`
-- HEAD before WO-P1-003 coordination commit: `2b2ecbd`
+- HEAD before WO-P1-004 coordination commit: `676a881`
 - no Git remote
-- exact per-command safe-directory override required by this filesystem; global Git config unchanged.
+- exact per-command safe-directory override required; global Git config unchanged.
 
 ## DECISION_REQUIRED
 
@@ -34,14 +35,15 @@ Status: `IN_PROGRESS`
 ## Do not do
 
 - No process/tunnel/Serena start/stop.
-- No subprocess/socket/network/filesystem mutation in WO-P1-003.
+- No filesystem/network/subprocess logic in WO-P1-004.
+- No real secret/tunnel credential values.
 - No A-Wiki/Phase6 mutation.
 - No remote/push.
 
 ## Next safe action
 
-Commit the WO-P1-003 coordination checkpoint, then write failing runtime-safety tests before implementation.
+Commit WO-P1-004 coordination checkpoint, then write failing tests for stable worker config vs dynamic project binding.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Reconcile actual Git/work-order/claim state before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Reconcile Git/work-order/claim state before mutation.
