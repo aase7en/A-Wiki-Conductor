@@ -8,9 +8,7 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-`docs/work-orders/WO-AC-RES-007-fault-injection.md`
-
-Status: `IN_PROGRESS`
+None.
 
 ## Completed resilient foundation
 
@@ -20,20 +18,25 @@ Status: `IN_PROGRESS`
 - AC-RES-004 recovery reconciliation + repo identity gate: `bb5dab0`
 - AC-RES-005 duplicate execution protection: `a0a2e52`
 - AC-RES-006 output backpressure: `9cc3c46`
+- AC-RES-007 fake executor + fault injection: completion commit is the immediate transaction
 
-## AC-RES-007 micro-steps
+## AC-RES-007 evidence
 
-- [x] 007-A contract + coordination checkpoint
-- [ ] 007-B RED deterministic fake scenario tests
-- [ ] 007-C implement fake executor
-- [ ] 007-D integrated AC-RES recovery/fault tests
-- [ ] 007-E regression + safety verification
-- [ ] 007-F close/commit
+- 12 deterministic scenario tests; all 10 contract scenarios plus delayed-advance and duplicate-launch-rejection.
+- fake advances only via explicit `advance()`; no threads/timers/sleeps/network/real process spawn.
+- launch count observable; duplicate request assessed `ATTACH_RUNNING` with job claim preserved; no scenario relaunches (`actual_start_count == 1`).
+- transport loss while running preserved the original; completed-before-delivery result recovered without relaunch.
+- never-started provenance distinguishable from unknown process state; malformed result and unknown process produce `RECOVERY_REQUIRED` with retry not permitted.
+- wrong branch identity blocks recovery before collect.
+- 300 KB stdout stays fully durable on disk while AC-RES-006 tail returns bounded bytes.
+- package exports: `DeterministicFaultExecutor`, `FakeLaunchObservation`, `FaultScenario`.
+- full suite 726 passed, 1 skipped (display-dependent UI test).
+- temp stores/repos only; no real Serena/tunnel/PID `25396` mutation.
 
 ## Invariant
 
-Do not use real Serena outages as the recovery test harness. Fault scenarios are explicit and deterministic, and production recovery decisions stay in AC-RES-003/004/005/006.
+Do not use real Serena outages as the recovery test harness. Fault scenarios stay explicit and deterministic; production recovery decisions remain in AC-RES-003/004/005/006.
 
 ## Next safe action
 
-Commit coordination checkpoint, then write RED tests for fake lifecycle facts and integrated no-duplicate/recovery/backpressure behavior using temp stores/repos only.
+Open `WO-AC-RES-008` (Serena adapter integration) per the PROJECT-PLAN resilient MVP sequence, with the A-Wiki reuse-before-build gate before any adapter work.

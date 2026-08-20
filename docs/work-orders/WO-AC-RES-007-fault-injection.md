@@ -1,6 +1,6 @@
 # WO-AC-RES-007: Fake Executor + Fault Injection
 
-Status: in_progress
+Status: complete
 Lane/files: `src/a_conductor/fault_injection.py`, `src/a_conductor/__init__.py`, `tests/test_resilient_fault_injection.py`, `docs/contracts/fault-injection.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-AC-RES-007-fault-injection.md`
 Branch: main
 Model tier: high
@@ -43,11 +43,11 @@ Provide a deterministic local fake executor that simulates real transport/proces
 ## Micro-steps
 
 - [x] 007-A contract + coordination checkpoint
-- [ ] 007-B RED fake scenario tests
-- [ ] 007-C implement deterministic fake
-- [ ] 007-D integrated AC-RES recovery/fault tests
-- [ ] 007-E regression/safety verification
-- [ ] 007-F close/commit
+- [x] 007-B RED fake scenario tests
+- [x] 007-C implement deterministic fake
+- [x] 007-D integrated AC-RES recovery/fault tests
+- [x] 007-E regression/safety verification
+- [x] 007-F close/commit
 
 ## Forbidden
 
@@ -60,3 +60,17 @@ Provide a deterministic local fake executor that simulates real transport/proces
 ## Checkpoint log
 
 - [2026-08-20] Opened from clean AC-RES-006 completion `9cc3c46`.
+- [2026-08-20] Resume reconciliation (GLM 5.3/ZCode): fake implementation + 12 scenario tests found present-but-untracked and passing; verified against contract/acceptance, added package exports, full regression, closure.
+
+## Completion evidence
+
+- 12 deterministic scenario tests passed, covering all 10 contract scenarios plus delayed-advance and duplicate-launch-rejection.
+- fake advances only through explicit `advance()`; no threads, timers, sleeps, network, or real process spawn.
+- `actual_start_count` stays 1 in every scenario: duplicate request assessed `ATTACH_RUNNING` with job claim preserved; completed-before-delivery result recovered without relaunch.
+- never-started provenance is distinguishable from unknown process state; malformed result and unknown process return `RECOVERY_REQUIRED` with retry not permitted.
+- wrong branch identity blocks recovery (`RECOVERY_BLOCKED`) before any collect.
+- 300 KB stdout stays fully durable on disk while AC-RES-006 tail returns bounded bytes.
+- integrated with production AC-RES-003/004/005/006 services; the fake encodes no production recovery decision.
+- package exports added: `DeterministicFaultExecutor`, `FakeLaunchObservation`, `FaultScenario`.
+- full suite 726 passed, 1 skipped (display-dependent UI test).
+- temp stores/repos only; no real Serena/tunnel mutation; PID `25396` unchanged.

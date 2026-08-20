@@ -88,6 +88,11 @@ from .recovery_reconciliation import (
     RecoveryRepositoryObservation,
     StrictRecoveryRepositoryObserver,
 )
+from .fault_injection import (
+    DeterministicFaultExecutor,
+    FakeLaunchObservation,
+    FaultScenario,
+)
 from .job_control import DurableJobControlService
 from .job_execution import (
     DurableJobExecutionCoordinator,
@@ -356,6 +361,9 @@ __all__ = [
     "RecoveryReconciliationService",
     "RecoveryRepositoryObservation",
     "StrictRecoveryRepositoryObserver",
+    "DeterministicFaultExecutor",
+    "FakeLaunchObservation",
+    "FaultScenario",
     "DurableJobControlService",
     "DurableJobExecutionCoordinator",
     "DurableJobStore",

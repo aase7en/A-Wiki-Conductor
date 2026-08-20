@@ -4,24 +4,24 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Build deterministic fault injection for the Resilient Execution Supervisor without touching real Serena/tunnels.
+Resilient Execution Supervisor MVP: primitives AC-RES-001..007 complete; next is AC-RES-008 Serena adapter integration.
 
 ## Current task
 
 `WO-AC-RES-007 — Fake Executor + Fault Injection`
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 ## Baseline
 
 - branch `main`
-- AC-RES-006 completion `9cc3c46`
-- focused regression through AC-RES-006: 80 passed
+- AC-RES-007 completion commit is the immediate `feat: add deterministic fault injection` transaction
+- full suite 726 passed, 1 skipped
 - active Conductor listener remains PID `25396`
 
 ## Boundary
 
-The fake is test support only. It simulates lifecycle/output/result timing and implements supervised inspect/collect shape, while production transport/recovery/dedup/artifact logic remains authoritative.
+The fake is test support only. Production transport/recovery/dedup/artifact logic (AC-RES-003/004/005/006) stays authoritative; the fake must not become a second execution engine.
 
 ## Context rollover rule
 
@@ -29,4 +29,4 @@ If context becomes crowded, checkpoint repository continuity before recommending
 
 ## Next safe action
 
-Write RED deterministic scenario tests, implement the fake without threads/timers/network, then integrate it with AC-RES-003/004/005/006 in temp repositories.
+Open `WO-AC-RES-008` (Serena adapter integration) with a fresh work order and the reuse-before-build gate; do not redesign completed primitives.
