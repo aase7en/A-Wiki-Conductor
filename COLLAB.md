@@ -35,6 +35,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
 | `WO-P1-038` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/job_control.py`, `src/a_conductor/__init__.py`, `tests/test_job_control.py`, `docs/contracts/durable-job-control-service.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-038-durable-job-control-service.md` |
+| `WO-P1-041` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/telegram_operator_render.py`, `tests/test_telegram_operator_render.py`, `COLLAB.md`, `docs/work-orders/WO-P1-041-telegram-response-renderer.md` |
 
 > Local Git is initialized. This repository currently has no Git remote; cross-machine claim/push semantics remain unavailable until the GitHub publication decision is resolved.
 
