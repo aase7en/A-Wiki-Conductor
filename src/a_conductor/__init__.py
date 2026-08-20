@@ -26,6 +26,13 @@ from .lifecycle import (
     LifecycleStep,
     plan_lifecycle,
 )
+from .lifecycle_executor import (
+    LifecycleCheckpoint,
+    LifecycleExecutionResult,
+    LifecycleExecutionState,
+    LifecycleExecutor,
+    LifecycleStepResult,
+)
 from .persistence import (
     PersistenceError,
     SQLiteRegistryStore,
@@ -97,6 +104,11 @@ __all__ = [
     "LifecyclePlan",
     "LifecycleStep",
     "plan_lifecycle",
+    "LifecycleCheckpoint",
+    "LifecycleExecutionResult",
+    "LifecycleExecutionState",
+    "LifecycleExecutor",
+    "LifecycleStepResult",
     "PersistenceError",
     "SQLiteRegistryStore",
     "AssignmentConflictError",

@@ -4,13 +4,11 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / lifecycle transaction executor**
+**Phase 1 — Multi-Serena Control Center / lifecycle safety foundation**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-011-lifecycle-transaction-executor.md`
-
-Status: `IN_PROGRESS`
+None at this checkpoint. `WO-P1-011` is complete; next planned micro-step is durable lifecycle checkpoint persistence.
 
 ## Completed foundation
 
@@ -23,30 +21,23 @@ Status: `IN_PROGRESS`
 - [x] Normalized worker status evaluator complete.
 - [x] Reusable Project/A-Worker registry + SQLite persistence complete.
 - [x] Pure START/STOP/RESTART/RELEASE lifecycle decision planner complete.
-- [x] P1-010 implementation commit: `1b36658a91f462778d04cbd88f77674a529b98dd`.
-- [x] Full suite after P1-010: 177 passed.
+- [x] Abstract lifecycle transaction executor complete with transaction-scoped durable checkpoint contract.
+- [x] P1-011 full suite: 197 passed.
 
-## Active checklist — WO-P1-011
+## P1-011 key safety results
 
-- [x] Reconcile actual HEAD/worktree after context handoff.
-- [x] Open/claim work order.
-- [ ] Commit coordination checkpoint before source changes.
-- [ ] Write failing transaction/checkpoint tests first.
-- [ ] Capture RED result.
-- [ ] Implement injected lifecycle step backend + checkpoint sink protocols.
-- [ ] Ensure non-PROCEED plans never call backend.
-- [ ] Ensure every successful PROCEED step checkpoints before next step.
-- [ ] Ensure failed/uncertain mutation and checkpoint-after-mutation failure stop with recovery semantics.
-- [ ] Run full tests green.
-- [ ] Compileall + I/O/mutation scan + diff check.
-- [ ] Update checkpoint/handoff and commit.
+- Non-`PROCEED` lifecycle plans never call the backend.
+- A successful step is not considered durable-complete until its checkpoint records successfully.
+- `transaction_id` is required and checkpoints are 1-based sequenced.
+- Backend exception/uncertain outcome on a mutating step -> `RECOVERY_REQUIRED`.
+- Checkpoint failure after a mutating step -> `RECOVERY_REQUIRED`; later steps do not run.
+- No concrete host/process/filesystem/network/persistence backend exists in the executor.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before WO-P1-011 coordination commit: `1b36658a91f462778d04cbd88f77674a529b98dd`
+- HEAD before P1-011 implementation commit: `7d72c3a` coordination checkpoint; implementation batch is ready to commit.
 - Git remote: none
-- Worktree reconciliation before P1-011: only the new WO file was untracked; no unrelated drift found.
 - Use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
 - Pytest: use ignored local `runtime/pytest-temp` basetemp.
 
@@ -56,12 +47,10 @@ Status: `IN_PROGRESS`
 
 ## Constraints
 
-- Executor is abstract/injected only; no concrete host/process mutation backend.
-- No subprocess/PowerShell/network/filesystem/SQLite implementation in `lifecycle_executor.py`.
-- No live start/stop/restart of current Conductor/Phase6 runtime.
+- No live lifecycle mutation yet.
 - No A-Wiki/Phase6 mutation.
 - No Git remote/push.
 
 ## Next safe action
 
-Commit the P1-011 coordination checkpoint, then write failing lifecycle transaction/checkpoint tests before implementation.
+Commit P1-011, then open a bounded work order for an append-only/idempotent SQLite lifecycle checkpoint journal. This remains local persistence only and does not start/stop any runtime.
