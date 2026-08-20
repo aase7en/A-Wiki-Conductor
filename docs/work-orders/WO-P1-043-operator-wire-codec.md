@@ -1,6 +1,6 @@
 # WO-P1-043: Strict Operator Wire Codec
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/operator_wire.py`, `tests/test_operator_wire.py`, `COLLAB.md`, `docs/work-orders/WO-P1-043-operator-wire-codec.md`
 Branch: main
 Model tier: high
@@ -40,6 +40,18 @@ Additive-only while `WO-P1-038` remains dirty and the Windows full-suite crash i
 - `python -m compileall -q src`
 - `git diff --check`
 
+## Verification evidence
+
+- RED: missing `a_conductor.operator_wire` module.
+- Targeted operator protocol + wire tests: 57 passed.
+- `compileall`: PASS.
+- `git diff --check`: PASS.
+- Import scan: stdlib JSON + bounded operator protocol only; no network/socket/HTTP/Telegram/Discord/credential/subprocess dependency.
+- Duplicate JSON keys, non-finite constants, non-object payloads, invalid UTF-8, oversized messages, and unknown response fields are rejected.
+- Full-suite verification intentionally deferred while the independent Windows Python `0x80000003` investigation remains active.
+- P1-038-owned files were not edited or staged by this work order.
+
 ## Checkpoint log
 
 - [2026-08-20] Opened after operator dispatcher commit `a950d17` to prepare a transport-neutral Hermes/Pi5 wire boundary without touching network or credentials.
+- [2026-08-20] Completed strict compact UTF-8 JSON wire codec for operator request/response messages.
