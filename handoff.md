@@ -4,29 +4,30 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Wire safe Serena lifecycle execution into the usable desktop shell without placing runtime/secret logic in the UI.
+Persist non-secret Serena runtime configuration so safe lifecycle operations can be reconstructed after desktop app restart.
 
 ## Current task
 
-No active work order. `WO-P1-025 — Desktop Shell` completed; awaiting close commit.
+`WO-P1-026 — Durable Serena Runtime Configuration Store`
+
+Status: `IN_PROGRESS`
 
 ## Completed
 
 - Core local process-manager/runtime safety stack complete.
-- Control Center service complete.
-- CLI-inspired Tkinter desktop shell + Projects/Workers screen complete; full suite 363 passed and separate-process smoke passed.
-- Stage B Worker 3 transport provisioning remains `DR-P1-003 / BLOCKED_EXTERNAL`.
+- Control Center service + usable desktop shell complete (`ac25478`).
+- Stage B external transport gate remains `DR-P1-003 / BLOCKED_EXTERNAL`.
 
 ## Repository state
 
 - branch: `main`
-- HEAD before P1-025 close commit: `efafddb`
+- HEAD before P1-026 coordination commit: `ac25478`
 - no Git remote
 
 ## Next safe action
 
-Commit P1-025. Then implement opaque Serena runtime-config persistence, lifecycle coordinator, and finally enable Start/Stop/Restart UI actions.
+Claim/commit P1-026; write RED SQLite round-trip/coexistence/uniqueness/no-secret-content tests before implementation.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file; verify HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO; verify HEAD/status before mutation.
