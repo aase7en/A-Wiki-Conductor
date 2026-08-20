@@ -330,3 +330,28 @@ def test_target_executable_must_be_allowlisted_and_match_argv(tmp_path: Path) ->
         service.launch(plan)
     assert exc_info.value.code == "TARGET_EXECUTABLE_NOT_ALLOWED"
     assert controller.start_calls == []
+
+
+def test_inspect_prefers_result_written_while_supervisor_was_exiting(tmp_path: Path) -> None:
+    """A result file that appears concurrently with a stale supervisor observation wins.
+
+    Real-world race (2026-08-20, supervised command runner wiring): the pid
+    observation is slow; the helper writes result.json and exits while the
+    observer is still running, so the entry-time result check missed it and a
+    stale-PID conclusion was returned even though the result existed.
+    """
+
+    class LateResultObserver(FakeObserver):
+        def observe_process(self, **kwargs):
+            observation = super().observe_process(**kwargs)
+            write_result(tmp_path)
+            return observation
+
+    service, _ = make_service(tmp_path, observer=LateResultObserver(process_exists=False))
+    service.launch(make_plan(tmp_path))
+
+    inspection = service.inspect("exec-001")
+
+    assert inspection.state is SupervisedInspectionState.RESULT_AVAILABLE
+    assert inspection.result_available is True
+    assert inspection.recovery_required is False

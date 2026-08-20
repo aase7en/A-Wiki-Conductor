@@ -413,6 +413,12 @@ class SupervisedExecutionService:
                 result_available=True,
                 recovery_required=False,
             )
+
+        def result_appeared() -> bool:
+            # The result file is authoritative: a durable result written while
+            # a pid observation was in flight wins over any stale-pid conclusion.
+            return result_path.exists()
+
         metadata = self._observer.read_pid_metadata(supervisor_pid_path)
         if metadata.status is PidMetadataStatus.ABSENT:
             if record.execution_state is ExecutionProcessState.STARTING:
@@ -421,6 +427,14 @@ class SupervisedExecutionService:
                     state=SupervisedInspectionState.STARTING,
                     supervisor_pid=None,
                     result_available=False,
+                    recovery_required=False,
+                )
+            if result_appeared():
+                return SupervisedInspection(
+                    execution_id=execution_id,
+                    state=SupervisedInspectionState.RESULT_AVAILABLE,
+                    supervisor_pid=None,
+                    result_available=True,
                     recovery_required=False,
                 )
             return SupervisedInspection(
@@ -432,6 +446,14 @@ class SupervisedExecutionService:
                 error_code="SUPERVISOR_PID_ABSENT",
             )
         if metadata.status is not PidMetadataStatus.VALID or metadata.pid is None:
+            if result_appeared():
+                return SupervisedInspection(
+                    execution_id=execution_id,
+                    state=SupervisedInspectionState.RESULT_AVAILABLE,
+                    supervisor_pid=None,
+                    result_available=True,
+                    recovery_required=False,
+                )
             return SupervisedInspection(
                 execution_id=execution_id,
                 state=SupervisedInspectionState.RECOVERY_REQUIRED,
@@ -452,6 +474,14 @@ class SupervisedExecutionService:
                 state=SupervisedInspectionState.SUPERVISOR_RUNNING,
                 supervisor_pid=metadata.pid,
                 result_available=False,
+                recovery_required=False,
+            )
+        if result_appeared():
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.RESULT_AVAILABLE,
+                supervisor_pid=None,
+                result_available=True,
                 recovery_required=False,
             )
         if ownership is ProcessOwnership.STALE:

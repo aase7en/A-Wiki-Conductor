@@ -101,6 +101,11 @@ from .serena_transport_adapter import (
     SerenaTransportEventKind,
     classify_serena_transport_events,
 )
+from .supervised_command_runner import (
+    SupervisedCommandRunner,
+    SupervisedExecutionFingerprintStore,
+    SupervisedLauncher,
+)
 from .job_control import DurableJobControlService
 from .job_execution import (
     DurableJobExecutionCoordinator,
@@ -378,6 +383,9 @@ __all__ = [
     "SerenaTransportEvent",
     "SerenaTransportEventKind",
     "classify_serena_transport_events",
+    "SupervisedCommandRunner",
+    "SupervisedExecutionFingerprintStore",
+    "SupervisedLauncher",
     "DurableJobControlService",
     "DurableJobExecutionCoordinator",
     "DurableJobStore",
