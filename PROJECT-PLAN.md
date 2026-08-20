@@ -688,3 +688,39 @@ Complete
 ```
 
 The initial implementation may be Serena-backed, but core product concepts must remain runtime/provider neutral so that future agents and execution engines can be composed without redesigning the control plane.
+
+## 19. Resilient Execution Supervisor — Transport-Independent Recovery
+
+**Binding contract:** `docs/contracts/resilient-execution-supervisor.md`
+**Architecture capture:** `docs/work-orders/WO-P1-044-resilient-execution-supervisor-plan.md`
+
+Real A-Wiki Phase 6 failures established a stronger reliability requirement: a Serena/MCP/chat transport can return HTTP 502 or terminate while the underlying process continues or has already completed successfully. Therefore A-Conductor must treat transport state and execution state as independent dimensions.
+
+Core invariant:
+
+> **TRANSPORT FAILURE != EXECUTION FAILURE**
+
+Consequences:
+- never mark a substantial execution failed merely because its requesting/observing transport disappeared;
+- never blind-retry until the original execution is classified as never-started, still-running, completed, partial, or unknown;
+- preserve execution/job/file ownership across temporary transport loss;
+- re-check project/repo/branch/HEAD/dirty/claim identity before mutation after reconnect;
+- prefer supervised launch/inspect/collect for medium/long/high-output operations instead of one long MCP request;
+- persist durable run/log/report evidence and return bounded summaries/tails through transports;
+- deduplicate equivalent live executions using stable execution fingerprints;
+- use a fake backend/fault-injection harness rather than real Serena outages as the recovery test mechanism;
+- keep the abstraction backend-neutral for Serena, Codex, local shell, MCP servers and future workers.
+
+This capability is an **`EXTEND + WRAP`** of the existing durable job store/execution coordinator/native execution/owned-process/lifecycle recovery foundation. It must not create another job state machine, work-order system, planner, scheduler universe or A-Wiki memory system.
+
+MVP sequence:
+1. `AC-RES-001` — durable execution record;
+2. `AC-RES-002` — supervised subprocess launch/inspect/collect;
+3. `AC-RES-003` — transport-loss state separation;
+4. `AC-RES-004` — recovery reconciliation + identity gate;
+5. `AC-RES-005` — duplicate-execution protection;
+6. `AC-RES-006` — output backpressure + durable reports;
+7. `AC-RES-007` — fake executor + deterministic fault injection;
+8. `AC-RES-008` — Serena adapter integration.
+
+Advanced backend failover/routing should begin only after these primitives pass deterministic recovery tests. A-Conductor may enforce operational scheduling/routing/recovery, but A-Wiki remains owner of orchestration intelligence, policy, durable knowledge and cross-project memory.
