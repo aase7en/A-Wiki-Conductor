@@ -8,26 +8,28 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None.
+`WO-AC-RES-003 — Transport-Loss State & Lease Preservation`
 
-## Recently completed
+Status: `IN_PROGRESS`
 
-- `P1-038 — Durable Job Control Service` at `4f300ca`.
-- `AC-RES-001 — Durable Execution Record` at `0a3040d`.
-- `AC-RES-002 — Supervised Subprocess Launch / Inspect / Collect` — exact-owned supervisor helper, durable child PID/log/result evidence, read-only inspect, no-rerun collect.
+## Goal
 
-## AC-RES-002 evidence
+Persist transport loss/degradation/recovery independently from process/result state while preserving the existing durable job worker claim.
 
-- AC-RES-001+002 targeted regression: 38 passed
-- internal helper uses `shell=False`; target executable allowlist + shell-intermediary denylist enforced
-- target argv is not stored in SQLite/result JSON
-- bounded real Windows smoke: `SUPERVISOR_RUNNING -> RESULT_AVAILABLE -> VERIFICATION_REQUIRED`, exit 0
-- active Conductor listener preserved at PID 25396
+## Baseline
 
-## Environment follow-up
+- AC-RES-001 durable execution records: `0a3040d`
+- AC-RES-002 supervised subprocess: `03a623d`
+- active Conductor listener PID `25396` must not be touched
 
-Current Hermes/uv Python build remains independently diagnosed as unstable for the legacy full-suite path. Recommended remediation: Python build `20260623` or newer in a separate bounded environment work order.
+## Boundary
+
+- reuse durable job worker claim; no second lease table
+- transport changes only `TransportState`
+- duplicate same-state signal is idempotent
+- ownership mismatch blocks mutation; no automatic reassignment/release
+- no actual reconnect/retry loop in this slice
 
 ## Next safe action
 
-Open `AC-RES-003 — Transport-Loss State & Lease Preservation`: add explicit transport-loss/reconnect events and policy around durable executions/jobs without touching process result state, never release ownership on temporary transport loss, and provide bounded transport retry-budget metadata only (no reconnect implementation yet).
+Write RED tests integrating real SQLite job + execution stores for `LOST` while execution remains RUNNING and job remains CLAIMED by the same worker.
