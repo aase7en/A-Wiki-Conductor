@@ -11,6 +11,9 @@ requires-python = ">=3.11"
 license = { text = "Proprietary" }
 dependencies = []
 
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
 [project.scripts]
 a-conductor = "a_conductor.desktop_app:main"
 
