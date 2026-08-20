@@ -45,6 +45,14 @@ from .lifecycle_journal import (
     LifecycleSequenceError,
     SQLiteLifecycleJournal,
 )
+from .owned_process import (
+    OwnedProcessMutationResult,
+    OwnedProcessMutationState,
+    OwnedProcessSpec,
+    WindowsExactPidTerminator,
+    WindowsOwnedProcessController,
+    WindowsProcessSpawner,
+)
 from .persistence import (
     PersistenceError,
     SQLiteRegistryStore,
@@ -131,6 +139,12 @@ __all__ = [
     "plan_lifecycle_resume",
     "PersistenceError",
     "SQLiteRegistryStore",
+    "OwnedProcessMutationResult",
+    "OwnedProcessMutationState",
+    "OwnedProcessSpec",
+    "WindowsExactPidTerminator",
+    "WindowsOwnedProcessController",
+    "WindowsProcessSpawner",
     "AssignmentConflictError",
     "AssignmentRecord",
     "ControlPlaneRegistry",

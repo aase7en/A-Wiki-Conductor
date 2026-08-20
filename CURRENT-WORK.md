@@ -4,55 +4,49 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / Windows owned-process controller**
+**Phase 1 — Multi-Serena Control Center / local process manager**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-016-windows-owned-process-controller.md`
-
-Status: `IN_PROGRESS`
+None — `WO-P1-016` completed; next work order will be opened after the clean checkpoint commit.
 
 ## Completed foundation
 
 - [x] Contracts/local Git/provider-neutral runtime safety stack complete.
 - [x] Registry + SQLite persistence complete.
 - [x] Lifecycle planner/executor/journal/recovery stack complete.
-- [x] Stage A self-owned dummy-runtime integration GREEN; full suite 235 passed.
-- [x] P1-015 commit: `bf9d1eb`.
-
-## Active checklist — WO-P1-016
-
-- [x] Open/claim work order.
-- [ ] Commit coordination checkpoint.
-- [ ] Inspect validated start/stop scripts read-only.
-- [ ] Capture active Conductor PID/health baseline.
-- [ ] Write failing owned-process tests first.
-- [ ] Implement allowed-root spec + exact-PID controller.
-- [ ] Run integration only against Stage A dummy process.
-- [ ] Confirm active Conductor PID/health unchanged.
-- [ ] Run full suite + compileall + diff/mutation review.
-- [ ] Update checkpoint/handoff and commit.
+- [x] Read-only Windows observer + strict inspection backend complete.
+- [x] Stage A self-owned dummy-runtime lifecycle integration complete.
+- [x] Windows exact-owned process controller complete.
+- [x] P1-016 targeted tests: 16 passed.
+- [x] Full suite at P1-016 close: 250 passed.
+- [x] Atomic preservation run: active Conductor PID 25396 before/after; no active-worker targeting.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before WO-P1-016 coordination commit: `bf9d1eb`
+- HEAD before P1-016 close commit: `b0f8762`
 - Git remote: none
 - Use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
 
+## External integration state
+
+- GitHub connector was explicitly attempted at user request but returned platform `FORBIDDEN`; no GitHub-side mutation performed.
+- Local repo has no remote, so GitHub publication remains unresolved.
+
 ## DECISION_REQUIRED
 
-- `DR-C1-001`: GitHub publication; private-first recommended; no remote/push.
-- `DR-P1-002`: Stage A production mutation may target only self-owned dummy resources. Real Serena/tunnel/A-Worker 3 remains gated.
+- `DR-C1-001`: GitHub publication; private-first recommended; no remote/push until destination/visibility is known.
+- `DR-P1-002`: first live Serena/tunnel lifecycle integration must use a dedicated isolated worker, never the active Sunday-Conducter or Phase6 worker.
 
 ## Constraints
 
 - Exact owned process only; no broad kill.
 - No `shell=True`.
-- Mutable PID/log paths restricted to allowed runtime root.
-- No Serena/tunnel/A-Worker 3 mutation.
-- No writes to `serena-test`, A-Wiki, Phase6, or external runtime roots.
+- Mutable PID/log paths restricted to the worker-owned runtime root.
+- Active Sunday-Conducter/Phase6 workers are protected.
+- `serena-test` remains read-only candidate unless a disposable mutation target is created separately.
 
 ## Next safe action
 
-Commit coordination state, inspect validated prototype start/stop ownership pattern read-only, then write failing tests before implementation.
+Open `WO-P1-017` for Serena runtime profile rendering + lifecycle backend composition. Keep tests on fake/dummy resources first; do not provision or mutate A-Worker 3 until the Stage B preflight and isolation resources are explicitly validated.
