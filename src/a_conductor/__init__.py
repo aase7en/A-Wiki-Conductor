@@ -99,6 +99,11 @@ from .serena_materializer import (
     SerenaRuntimeMaterializer,
     discover_profile_placeholders,
 )
+from .serena_config_store import (
+    LocalReferencePath,
+    SerenaConfigStoreError,
+    SQLiteSerenaConfigStore,
+)
 from .serena_lifecycle_backend import (
     SerenaLifecycleBackend,
     SerenaLifecycleOperations,
@@ -220,6 +225,9 @@ __all__ = [
     "SerenaMaterializedRuntime",
     "SerenaRuntimeMaterializer",
     "discover_profile_placeholders",
+    "LocalReferencePath",
+    "SerenaConfigStoreError",
+    "SQLiteSerenaConfigStore",
     "SerenaLifecycleBackend",
     "SerenaLifecycleOperations",
     "SerenaOperationResult",
