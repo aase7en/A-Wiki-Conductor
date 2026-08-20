@@ -399,6 +399,14 @@ Required protections:
 - rollback path must exist for infrastructure migrations
 - legacy launchers/configuration remain recovery material until an explicit cleanup decision
 
+### Live lifecycle integration test gate
+
+The first concrete A-Conductor lifecycle mutation test must use a dedicated isolated test worker rather than an active development/production worker. Prefer a free/sacrificial slot such as `A-Worker 3` with its own runtime root, `SERENA_HOME`, health port, transport binding, logs, and disposable/read-only test project.
+
+Do not use the active Conductor or Phase6 worker as the first target for start/stop/restart testing. A live test must have explicit PID/resource ownership, rollback/recovery path, bounded scope, and evidence before the next mutation step.
+
+Track this implementation gate as `DR-P1-002` until a dedicated lifecycle-test target is established.
+
 ## 13. Near-Term Implementation Order
 
 1. Preserve current validated two-instance infrastructure as reference implementation; do not blindly copy it into the product.

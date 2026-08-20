@@ -33,6 +33,12 @@ from .lifecycle_executor import (
     LifecycleExecutor,
     LifecycleStepResult,
 )
+from .lifecycle_recovery import (
+    LifecycleReconciliationAssessment,
+    LifecycleResumeDecision,
+    LifecycleResumePlan,
+    plan_lifecycle_resume,
+)
 from .lifecycle_journal import (
     LifecycleCheckpointConflictError,
     LifecycleJournalError,
@@ -119,6 +125,10 @@ __all__ = [
     "LifecycleJournalError",
     "LifecycleSequenceError",
     "SQLiteLifecycleJournal",
+    "LifecycleReconciliationAssessment",
+    "LifecycleResumeDecision",
+    "LifecycleResumePlan",
+    "plan_lifecycle_resume",
     "PersistenceError",
     "SQLiteRegistryStore",
     "AssignmentConflictError",

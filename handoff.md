@@ -4,13 +4,11 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Add a pure lifecycle resume planner that trusts durable journal checkpoints only when external reconciliation says the current runtime state is consistent with them.
+Hold at the pre-live-lifecycle safety boundary after completing pure recovery/resume logic. The next concrete lifecycle backend must not be live-tested against an active Conductor/Phase6 worker.
 
 ## Current task
 
-`WO-P1-013 — Lifecycle Resume Planner from Durable Journal`
-
-Status: `IN_PROGRESS`
+No active work order. `WO-P1-013 — Lifecycle Resume Planner from Durable Journal` is complete and ready to commit.
 
 ## Completed
 
@@ -27,39 +25,48 @@ Status: `IN_PROGRESS`
 - SQLite registry persistence: `f32f192`.
 - Pure lifecycle decision planner: `1b36658`.
 - Checkpointed lifecycle transaction executor: `74bc59b`.
-- Append-only SQLite lifecycle journal: `2997072`; full suite 216 passed.
-- P1-013 opened/claimed.
+- Append-only SQLite lifecycle journal: `2997072`.
+- Pure lifecycle recovery/resume planner implemented and verified: targeted 17 passed; full suite **233 passed**; compileall/diff/I-O scan clean.
+
+## Recovery/resume semantics
+
+- Durable checkpoints must be an exact prefix of the approved lifecycle plan.
+- Only `CONSISTENT_WITH_JOURNAL` permits resume.
+- `MUTATION_AHEAD_OF_JOURNAL` / `UNKNOWN` require recovery.
+- `UNEXPECTED_DRIFT` refuses resume.
+- Missing checkpoint does not imply a vanished worker's mutation should be rerun.
 
 ## Current repository state
 
 - branch: `main`
-- HEAD before WO-P1-013 coordination commit: `2997072`
+- coordination commit before P1-013 source: `c74fa12`
+- P1-013 implementation is verified but currently uncommitted and should be committed next.
 - no Git remote
 - exact per-command safe-directory override required; global Git config unchanged.
 
-## Environment note
-
-Use ignored local pytest basetemp: `python -m pytest tests -q --basetemp=runtime/pytest-temp`.
-
 ## DECISION_REQUIRED
 
-`DR-C1-001`: GitHub visibility/public-safety before remote creation. Recommended private-first.
+### DR-C1-001 — GitHub publication
 
-## Safety boundary
+Recommended private-first; no remote creation/push until resolved.
 
-P1-013 is pure reasoning only. It may validate journal checkpoint structure and an externally supplied lifecycle reconciliation assessment, but it must not inspect or mutate the machine itself.
+### DR-P1-002 — Live lifecycle integration test strategy
+
+Concrete lifecycle backend testing can disconnect a worker because start/stop changes Serena/tunnel process state.
+
+Recommended resolution: use a **dedicated free/sacrificial A-Worker test slot, preferably A-Worker 3**, with isolated runtime root, `SERENA_HOME`, health port, transport binding, logs, and a disposable/read-only test project. Do not use active `Sunday-Conducter` or Phase6 as the first mutation target.
 
 ## Do not do
 
-- No lifecycle execution/mutation.
-- No observer/PowerShell/network/filesystem/SQLite calls in the recovery planner.
-- No A-Wiki/Phase6 mutation.
-- No remote/push.
+- Do not live-test process/tunnel lifecycle mutation against current Conductor or Phase6 worker.
+- Do not broad-kill processes.
+- Do not modify A-Wiki/Phase6 repositories.
+- Do not create Git remote/push until DR-C1-001 is resolved.
 
 ## Next safe action
 
-Commit the P1-013 coordination checkpoint, then write failing recovery/resume tests before implementation.
+Commit P1-013 + continuity checkpoint. After commit, only mock-only/docs work should cross this boundary until DR-P1-002 has a dedicated worker test target.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Verify Git HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> latest completed WO. Verify Git HEAD/status. Re-run A-Wiki duplicate-work/claim checks before opening another overlapping architecture work order.

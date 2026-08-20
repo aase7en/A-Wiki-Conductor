@@ -1,6 +1,6 @@
 # WO-P1-013: Lifecycle Resume Planner from Durable Journal
 
-Status: in_progress
+Status: done
 Lane/files: `src/a_conductor/lifecycle_recovery.py`, `src/a_conductor/__init__.py`, `tests/test_lifecycle_recovery.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-013-lifecycle-resume-planner.md`
 Branch: main
 Model tier: mid
@@ -57,3 +57,7 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after append-only lifecycle journal commit `2997072`. Recovery vocabulary is intentionally lifecycle-specific rather than reusing repository mutation classifications.
+
+- [2026-08-20] RED checkpoint: `src/a_conductor/lifecycle_recovery.py` confirmed absent; targeted recovery tests failed during collection with `ModuleNotFoundError: a_conductor.lifecycle_recovery` as expected.
+
+- [2026-08-20] GREEN checkpoint: implemented pure lifecycle-specific recovery/resume planner validating exact transaction/action/sequence/step prefix plus external reconciliation assessment. Targeted tests 17 passed; full suite 233 passed; compileall PASS; `git diff --check` PASS; I/O/mutation scan clean. `RESUME` is possible only for `CONSISTENT_WITH_JOURNAL`; mutation-ahead/unknown require recovery and drift refuses execution. No machine inspection or mutation added.
