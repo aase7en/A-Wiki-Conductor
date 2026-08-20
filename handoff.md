@@ -4,32 +4,34 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Finish Phase 1 transport/preflight boundaries before dedicated Stage B live-worker validation.
+Implement secret-safe tunnel reference/token and strict doctor preflight boundaries before dedicated Stage B worker validation.
 
 ## Current task
 
-No active work order. `WO-P1-021 — Read-Only Git Project Identity Verifier` completed; awaiting close commit.
+`WO-P1-022 — Tunnel Reference + Strict Preflight Boundaries`
+
+Status: `IN_PROGRESS`
 
 ## Completed
 
 - Core runtime safety/registry/persistence/lifecycle stack complete.
-- Exact-owned process controller and Serena local process-manager stack complete through `5ea47c4`.
-- Read-only Git project identity verifier complete: targeted 13/13, full suite 326/326, live read-only identity smoke passed.
+- Exact-owned process/environment + Serena lifecycle/materialization/operations stack complete.
+- Read-only Git project identity verifier complete (`d6589a7`), full suite 326 passed.
 
 ## Repository state
 
 - branch: `main`
-- HEAD before P1-021 close commit: `8616381`
+- HEAD before P1-022 coordination commit: `d6589a7`
 - no Git remote
 
 ## Gates
 
 - GitHub connector requested but platform-blocked; no GitHub mutation.
-- `DR-P1-002`: Stage B live integration must use dedicated isolated worker only.
+- No live tunnel provisioning/start or A-Worker 3 mutation in this work order.
 
 ## Next safe action
 
-Commit P1-021. Then implement strict tunnel-client preflight and opaque local reference/token/tunnel ownership boundaries without exposing credential/tunnel values.
+Claim/commit P1-022, write RED tests for opaque local reference resolution, exact token discovery, safe child environment reuse, and strict doctor preflight.
 
 ## Resume instructions
 

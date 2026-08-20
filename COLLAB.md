@@ -7,6 +7,7 @@
 
 | Lane | Theme | Owned scope | Must not touch without a separate claim |
 |---|---|---|---|
+| `WO-P1-022` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/tunnel_boundaries.py`, `src/a_conductor/owned_process.py`, `src/a_conductor/__init__.py`, `tests/test_tunnel_boundaries.py`, `tests/test_owned_process.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-022-tunnel-preflight-references.md` |
 | ARCH | architecture, contracts, ADRs, plans | `PROJECT-PLAN.md`, `docs/contracts/**`, `schemas/**`, architecture ADRs | runtime/UI implementation |
 | RUNTIME | worker/runtime/process/Serena adapters | future runtime/process source + runtime tests | UI and architecture hotspot files |
 | VERIFY | deterministic verification, evidence, recovery tests | future verifier/test/evidence tooling | product UI and unrelated runtime internals |
