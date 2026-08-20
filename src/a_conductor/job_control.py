@@ -44,15 +44,26 @@ class DurableJobControlService:
         operations: Sequence[NativeOperationDefinition],
         control_center: ControlCenterSnapshotProvider | None = None,
         native_resolver: WorkerNativeAdapterResolver | None = None,
+        supervised: bool = False,
     ) -> "DurableJobControlService":
         if native_resolver is None:
             if control_center is None:
                 raise ValueError(
                     "control_center is required when native_resolver is not injected"
                 )
-            native_resolver = ControlCenterNativeAdapterResolver(
-                service=control_center
-            )
+            if supervised:
+                from .supervised_command_runner import (
+                    build_supervised_native_adapter_resolver,
+                )
+
+                native_resolver = build_supervised_native_adapter_resolver(
+                    service=control_center,
+                    database_path=database_path,
+                )
+            else:
+                native_resolver = ControlCenterNativeAdapterResolver(
+                    service=control_center
+                )
         store = SQLiteJobStore(database_path)
         registry = NativeOperationRegistry(tuple(operations))
         backend = AllowlistedNativeJobBackend(
