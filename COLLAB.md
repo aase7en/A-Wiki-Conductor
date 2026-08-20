@@ -33,7 +33,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-008` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/registry.py`, `src/a_conductor/__init__.py`, `tests/test_registry.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-008-worker-pool-registry.md` |
+| `WO-P1-009` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/persistence.py`, `src/a_conductor/__init__.py`, `tests/test_persistence.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-009-sqlite-registry-persistence.md` |
 
 > Current limitation: this project is not yet Git-initialized, so this claim is durable only on the local project filesystem. Cross-machine claim/commit/push semantics become fully enforceable after the GitHub repository decision is resolved.
 

@@ -4,11 +4,11 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Implement the reusable A-Worker/Project registry that will back the Control Center before introducing process lifecycle mutation or persistence.
+Persist the reusable Project/A-Worker registry with local SQLite so Control Center assignments survive restart, while keeping the later task broker out of scope.
 
 ## Current task
 
-`WO-P1-008 — Reusable Worker Pool + Project Registry`
+`WO-P1-009 — SQLite Registry Persistence`
 
 Status: `IN_PROGRESS`
 
@@ -22,14 +22,14 @@ Status: `IN_PROGRESS`
 - Reusable Serena worker profile/project binding complete, commit `4e36681`.
 - Read-only Windows observer complete, commit `af1979e`.
 - Normalized worker status evaluator complete, commit `26ea225`.
-- Strict concrete read-only Windows I/O complete, full suite `134 passed`, commit `e0682cc`.
-- Live read-only Conductor smoke observed PID VALID, process OWNED, port OWNED, ready HTTP 200 without mutation.
-- WO-P1-008 opened/claimed; reuse classification is `NEW` only at A-Conductor runtime-control layer and does not replace A-Wiki claims.
+- Strict concrete read-only Windows I/O complete, commit `e0682cc`.
+- Reusable in-memory worker/project registry complete; full suite `150 passed`, commit `61db9af`.
+- WO-P1-009 opened/claimed.
 
 ## Current repository state
 
 - branch: `main`
-- HEAD before WO-P1-008 coordination commit: `e0682cc`
+- HEAD before WO-P1-009 coordination commit: `61db9af`
 - no Git remote
 - exact per-command safe-directory override required; global Git config unchanged.
 
@@ -43,15 +43,16 @@ Use ignored local pytest basetemp: ensure `runtime/` exists, then `python -m pyt
 
 ## Do not do
 
-- No runtime/process/tunnel lifecycle mutation.
-- No filesystem/Git/network/SQLite behavior in WO-P1-008.
-- Do not duplicate A-Wiki claim/work-order implementation.
+- No task broker tables/logic in WO-P1-009.
+- No process/tunnel/Serena lifecycle mutation.
+- No network/UI/provider behavior.
+- No credentials/secrets.
 - No A-Wiki/Phase6 mutation.
 - No remote/push.
 
 ## Next safe action
 
-Commit WO-P1-008 coordination checkpoint, then write failing worker/project registry tests before implementation.
+Commit WO-P1-009 coordination checkpoint, then write failing SQLite registry persistence tests before implementation.
 
 ## Resume instructions
 
