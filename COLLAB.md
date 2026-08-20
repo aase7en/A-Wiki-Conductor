@@ -33,7 +33,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-014` | ChatGPT / Sunday-Conducter | 2026-08-20 | `docs/contracts/lifecycle-integration-test-strategy.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-014-lifecycle-integration-test-strategy.md` |
+| — | — | — | No active claim at checkpoint; next safe work is Stage A self-owned dummy-runtime integration |
 
 > Current limitation: this project is not yet Git-initialized, so this claim is durable only on the local project filesystem. Cross-machine claim/commit/push semantics become fully enforceable after the GitHub repository decision is resolved.
 

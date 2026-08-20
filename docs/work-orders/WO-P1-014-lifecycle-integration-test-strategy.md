@@ -1,6 +1,6 @@
 # WO-P1-014: Lifecycle Integration Test Strategy
 
-Status: in_progress
+Status: done
 Lane/files: `docs/contracts/lifecycle-integration-test-strategy.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-014-lifecycle-integration-test-strategy.md`
 Branch: main
 Model tier: mid
@@ -56,3 +56,6 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after recovery planner commit `fcd3d61`. Initial read-only preflight: candidate A-Worker 3 root absent; port 18013 had no listener; `A:/GitHub/serena-test` exists as an unapproved candidate.
+
+- [2026-08-20] Read-only candidate repo check: local `serena-test` is a Git worktree on `main`, clean at inspection time, with no remote observed; it remains read-only/unapproved for mutation.
+- [2026-08-20] GREEN docs checkpoint: added `docs/contracts/lifecycle-integration-test-strategy.md` with Stage A self-owned dummy runtime, Stage B isolated A-Worker 3 Serena/transport integration, evidence/rollback/abort/success gates, and explicit forbidden first targets. `git diff --check` PASS; secret/UUID/tunnel-ID assignment scan 0 hits. No runtime resources were provisioned or mutated.
