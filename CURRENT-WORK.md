@@ -4,47 +4,38 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / Stage A self-owned dummy runtime integration**
+**Phase 1 — Multi-Serena Control Center / Stage A production mutation primitive preparation**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-015-stage-a-dummy-runtime-integration.md`
-
-Status: `IN_PROGRESS`
+None at this checkpoint. `WO-P1-015` is complete and verified.
 
 ## Completed foundation
 
-- [x] C1 contracts/invariants + JSON Schemas validated.
-- [x] Local Git safety baseline on `main`.
+- [x] C1 contracts/invariants + local Git baseline complete.
 - [x] Provider-neutral runtime/domain/safety/read-only observation stack complete.
 - [x] Reusable Project/A-Worker registry + SQLite persistence complete.
 - [x] Lifecycle planner + checkpointed executor + append-only journal + recovery/resume planner complete.
-- [x] Lifecycle integration strategy complete; P1-014 commit `ee5a75a`.
-- [x] Stage A is explicitly limited to test-harness-owned dummy process/resources.
+- [x] Lifecycle integration test strategy complete.
+- [x] Stage A self-owned dummy-runtime integration complete.
+- [x] START -> READY -> checkpoints passed against a real child process owned by the test harness.
+- [x] Repeated START -> NOOP without duplicate child.
+- [x] STOP terminated only the test-owned child.
+- [x] Checkpoint failure after spawn -> `RECOVERY_REQUIRED` and halted subsequent steps.
+- [x] Full suite after Stage A: **235 passed**.
+- [x] Active Sunday-Conducter preservation check: PID unchanged from pre-test baseline and `/readyz` remained HTTP 200.
 
-## Active checklist — WO-P1-015
+## DR-P1-002 status
 
-- [x] Open/claim work order.
-- [ ] Commit coordination checkpoint.
-- [ ] Capture active Conductor PID/health baseline read-only.
-- [ ] Add loopback dummy runtime helper under tests.
-- [ ] Add real integration tests using only test-owned `Popen` child.
-- [ ] Run targeted Stage A tests.
-- [ ] Verify START -> READY checkpoints.
-- [ ] Verify repeated START -> NOOP/no duplicate child.
-- [ ] Verify STOP targets only owned child.
-- [ ] Verify checkpoint failure after mutation -> RECOVERY_REQUIRED/no later steps.
-- [ ] Confirm active Conductor PID/health unchanged after Stage A tests.
-- [ ] Run full suite + compileall + diff check.
-- [ ] Update checkpoint/handoff and commit.
+Stage A test-harness safety is **GREEN**. It is now reasonable to implement a production owned-process mutation primitive, but integration tests must continue targeting only the self-owned dummy runtime. Real Serena/tunnel/A-Worker 3 testing remains gated.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before WO-P1-015 coordination commit: `ee5a75a`
-- Git remote: none
+- P1-015 coordination commit: `6467e67`.
+- Verified P1-015 implementation batch is ready to commit.
+- Git remote: none.
 - Use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
-- Pytest: use ignored local `runtime/pytest-temp` basetemp.
 
 ## DECISION_REQUIRED
 
@@ -54,16 +45,16 @@ Recommended default: **private-first**. No remote/push yet.
 
 ### DR-P1-002 — Real Serena/tunnel lifecycle integration
 
-Stage A dummy-runtime integration may proceed. Stage B real Serena/tunnel mutation remains gated pending dedicated A-Worker 3 resources and safe live target.
+Still unresolved for Stage B. A production mutation primitive may be developed/tested only against Stage A dummy resources until a dedicated A-Worker 3 target is safely provisioned.
 
 ## Constraints
 
-- Any process started in this WO must be spawned by the test harness itself and retained via its exact `Popen` object.
-- No broad process-name kill or external PID targeting.
-- No Serena/tunnel/A-Worker 3 mutation.
+- No active Conductor/Phase6 target mutation.
+- No A-Worker 3 provisioning yet.
 - No writes to `serena-test`, A-Wiki, Phase6, or external runtime roots.
+- No broad process termination.
 - No Git remote/push.
 
 ## Next safe action
 
-Commit WO-P1-015 coordination checkpoint, capture active Conductor read-only baseline, then add dummy helper/integration tests.
+Commit P1-015, then open a bounded work order for a production **owned-process controller** whose integration target remains the Stage A dummy runtime only.

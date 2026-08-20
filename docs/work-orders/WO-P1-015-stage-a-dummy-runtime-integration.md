@@ -1,6 +1,6 @@
 # WO-P1-015: Stage A Self-Owned Dummy Runtime Integration
 
-Status: in_progress
+Status: done
 Lane/files: `tests/support/dummy_runtime.py`, `tests/test_stage_a_dummy_runtime.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-015-stage-a-dummy-runtime-integration.md`
 Branch: main
 Model tier: mid
@@ -58,3 +58,5 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after lifecycle integration strategy commit `ee5a75a`. Stage A is test-harness-owned process integration only; no production mutation backend or Serena/tunnel target is in scope.
+
+- [2026-08-20] GREEN checkpoint: Stage A integration uses only a test-harness-owned Python child process and loopback `/readyz`. Targeted integration tests 2 passed: START->READY with ordered durable checkpoints, repeated START -> NOOP/no duplicate child, targeted STOP -> child exited, and injected checkpoint failure after spawn -> `RECOVERY_REQUIRED` with no later step. Full suite 235 passed; compileall/diff check PASS. Read-only post-test preservation check confirmed active Conductor tunnel-client PID unchanged from baseline and `/readyz` remained HTTP 200. No Serena/tunnel/A-Worker 3/external repo mutation occurred.
