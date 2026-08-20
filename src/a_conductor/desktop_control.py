@@ -15,6 +15,8 @@ from .lifecycle import LifecycleAction
 from .lifecycle_assembly import build_local_lifecycle_coordinator
 from .lifecycle_coordinator import LifecycleCoordinator
 from .persistence import SQLiteRegistryStore
+from .runtime_setup import RuntimeSetupError, RuntimeSetupService, SetupReadiness, WorkerSetupDraft
+from .serena_config_store import SQLiteSerenaConfigStore
 
 
 class LifecycleCommandService(Protocol):
@@ -27,9 +29,11 @@ class DesktopControlService:
         *,
         control_center: ControlCenterService,
         lifecycle: LifecycleCommandService,
+        runtime_setup: RuntimeSetupService | None = None,
     ) -> None:
         self.control_center = control_center
         self.lifecycle = lifecycle
+        self.runtime_setup = runtime_setup
 
     @classmethod
     def open(
@@ -40,8 +44,17 @@ class DesktopControlService:
     ) -> "DesktopControlService":
         database = Path(database_path)
         control_center = ControlCenterService.open(SQLiteRegistryStore(database))
+        config_store = SQLiteSerenaConfigStore(database)
         lifecycle = coordinator_builder(database, service=control_center)
-        return cls(control_center=control_center, lifecycle=lifecycle)
+        runtime_setup = RuntimeSetupService(
+            control_center=control_center,
+            config_store=config_store,
+        )
+        return cls(
+            control_center=control_center,
+            lifecycle=lifecycle,
+            runtime_setup=runtime_setup,
+        )
 
     def snapshot(self):
         return self.control_center.snapshot()
@@ -79,3 +92,31 @@ class DesktopControlService:
 
     def restart_worker(self, worker_id: str):
         return self.lifecycle.execute(worker_id, LifecycleAction.RESTART)
+
+    def _require_runtime_setup(self) -> RuntimeSetupService:
+        if self.runtime_setup is None:
+            raise RuntimeSetupError("RUNTIME_SETUP_NOT_AVAILABLE")
+        return self.runtime_setup
+
+    def worker_setup(self, worker_id: str) -> WorkerSetupDraft:
+        return self._require_runtime_setup().worker_setup(worker_id)
+
+    def save_worker_setup(
+        self,
+        draft: WorkerSetupDraft,
+        *,
+        serena_config_source=None,
+    ) -> WorkerSetupDraft:
+        return self._require_runtime_setup().save_worker_setup(
+            draft,
+            serena_config_source=serena_config_source,
+        )
+
+    def capture_exact_project_identity(self, worker_id: str):
+        return self._require_runtime_setup().capture_exact_project_identity(worker_id)
+
+    def save_no_git_project_identity(self, worker_id: str):
+        return self._require_runtime_setup().save_no_git_project_identity(worker_id)
+
+    def lifecycle_readiness(self, worker_id: str) -> SetupReadiness:
+        return self._require_runtime_setup().lifecycle_readiness(worker_id)

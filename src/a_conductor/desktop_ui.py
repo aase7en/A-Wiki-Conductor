@@ -6,6 +6,7 @@ contains no process, tunnel, Git, or persistence implementation.
 
 from __future__ import annotations
 
+from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +17,9 @@ from tkinter import filedialog, messagebox, ttk
 
 from .control_center import ControlCenterError, ControlCenterSnapshot
 from .domain import WorkerState
+from .lifecycle_coordinator import LifecycleCoordinatorError
+from .lifecycle_executor import LifecycleExecutionResult
+from .runtime_setup import RuntimeSetupError, SetupReadiness, WorkerSetupDraft
 
 
 class ControlCenterUIService(Protocol):
@@ -68,14 +72,21 @@ class AConductorDesktopApp:
         theme: DesktopTheme | None = None,
         directory_picker: Callable[[], str] | None = None,
         error_handler: Callable[[str], None] | None = None,
+        background_executor: Executor | None = None,
     ) -> None:
         self.root = root
         self.service = service
         self.theme = theme or DesktopTheme()
         self._directory_picker = directory_picker or filedialog.askdirectory
         self._error_handler = error_handler or self._show_error
+        self._background_executor = background_executor or ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="a-conductor-ui"
+        )
+        self._owns_background_executor = background_executor is None
         self._project_ids: list[str] = []
         self._worker_ids: dict[str, str] = {}
+        self._setup_entries: dict[str, ttk.Entry] = {}
+        self._setup_draft: WorkerSetupDraft | None = None
 
         self._configure_root()
         self._configure_styles()
@@ -218,6 +229,7 @@ class AConductorDesktopApp:
             self.worker_tree.heading(name, text=label, anchor="w")
             self.worker_tree.column(name, width=width, minwidth=80, anchor="w")
         self.worker_tree.grid(row=1, column=0, sticky="nsew", padx=9, pady=(0, 5))
+        self.worker_tree.bind("<<TreeviewSelect>>", lambda _event: self._update_lifecycle_buttons())
         self.worker_tree.tag_configure("ready", foreground=self.theme.ready)
         self.worker_tree.tag_configure("warning", foreground=self.theme.warning)
         self.worker_tree.tag_configure("error", foreground=self.theme.error)
@@ -229,9 +241,10 @@ class AConductorDesktopApp:
         self.assign_button = self._button(actions, "Assign", self.assign_selected)
         self.release_button = self._button(actions, "Release", self.release_selected)
         self.refresh_button = self._button(actions, "Refresh", self.refresh)
-        self.start_button = self._button(actions, "Start", self._lifecycle_not_wired)
-        self.stop_button = self._button(actions, "Stop", self._lifecycle_not_wired)
-        self.restart_button = self._button(actions, "Restart", self._lifecycle_not_wired)
+        self.start_button = self._button(actions, "Start", self.start_selected)
+        self.stop_button = self._button(actions, "Stop", self.stop_selected)
+        self.restart_button = self._button(actions, "Restart", self.restart_selected)
+        self.setup_button = self._button(actions, "Setup", self.open_runtime_setup)
         for index, button in enumerate(
             (
                 self.add_button,
@@ -241,12 +254,14 @@ class AConductorDesktopApp:
                 self.start_button,
                 self.stop_button,
                 self.restart_button,
+                self.setup_button,
             )
         ):
             button.grid(row=0, column=index, padx=(0, 6))
         self.start_button.state(["disabled"])
         self.stop_button.state(["disabled"])
         self.restart_button.state(["disabled"])
+        self.setup_button.state(["disabled"])
 
         activity_panel = self._panel(self.root, "ACTIVITY / LOG")
         activity_panel.grid(row=2, column=0, sticky="nsew", padx=10, pady=(6, 10))
@@ -343,6 +358,7 @@ class AConductorDesktopApp:
             if selected_worker == worker.worker_id:
                 self.worker_tree.selection_set(item)
                 self.worker_tree.focus(item)
+        self._update_lifecycle_buttons()
 
     def selected_project_id(self) -> str | None:
         selected = self.project_list.curselection()
@@ -399,8 +415,279 @@ class AConductorDesktopApp:
         self.log_activity(f"Release      {worker_id}")
         self.refresh()
 
-    def _lifecycle_not_wired(self) -> None:
-        self._handle_error("LIFECYCLE_NOT_WIRED")
+    @staticmethod
+    def _set_enabled(button: ttk.Button, enabled: bool) -> None:
+        button.state(["!disabled"] if enabled else ["disabled"])
+
+    def _selected_worker_row(self):
+        worker_id = self.selected_worker_id()
+        if worker_id is None:
+            return None
+        return next(
+            (row for row in self.service.snapshot().workers if row.worker_id == worker_id),
+            None,
+        )
+
+    def _has_lifecycle_service(self) -> bool:
+        return all(
+            callable(getattr(self.service, name, None))
+            for name in ("start_worker", "stop_worker", "restart_worker")
+        )
+
+    def _has_setup_service(self) -> bool:
+        return all(
+            callable(getattr(self.service, name, None))
+            for name in ("worker_setup", "save_worker_setup")
+        )
+
+    def _readiness(self, worker_id: str) -> SetupReadiness:
+        fn = getattr(self.service, "lifecycle_readiness", None)
+        if not callable(fn):
+            return SetupReadiness(True, "READY")
+        try:
+            result = fn(worker_id)
+        except RuntimeSetupError as exc:
+            return SetupReadiness(False, exc.code)
+        except Exception:
+            return SetupReadiness(False, "SETUP_READINESS_FAILED")
+        return result if isinstance(result, SetupReadiness) else SetupReadiness(False, "SETUP_READINESS_INVALID")
+
+    def _update_lifecycle_buttons(self) -> None:
+        row = self._selected_worker_row()
+        has_lifecycle = self._has_lifecycle_service()
+        has_setup = self._has_setup_service()
+        self._set_enabled(self.setup_button, row is not None and has_setup)
+        if row is None or not has_lifecycle or row.assignment_id is None:
+            self._set_enabled(self.start_button, False)
+            self._set_enabled(self.stop_button, False)
+            self._set_enabled(self.restart_button, False)
+            return
+
+        ready = self._readiness(row.worker_id).ready
+        self._set_enabled(
+            self.start_button,
+            row.state is WorkerState.STOPPED and ready,
+        )
+        self._set_enabled(
+            self.stop_button,
+            row.state in {WorkerState.READY, WorkerState.BUSY, WorkerState.STARTING},
+        )
+        self._set_enabled(
+            self.restart_button,
+            row.state is WorkerState.READY and ready,
+        )
+
+    def _submit_lifecycle(self, action: str, worker_id: str, command) -> None:
+        self.log_activity(f"{action:<12} {worker_id} QUEUED")
+        self._set_enabled(self.start_button, False)
+        self._set_enabled(self.stop_button, False)
+        self._set_enabled(self.restart_button, False)
+        future = self._background_executor.submit(command, worker_id)
+        self.root.after(0, self._poll_lifecycle_future, action, worker_id, future)
+
+    def _poll_lifecycle_future(
+        self,
+        action: str,
+        worker_id: str,
+        future: Future,
+    ) -> None:
+        if not future.done():
+            self.root.after(25, self._poll_lifecycle_future, action, worker_id, future)
+            return
+        try:
+            result = future.result()
+        except LifecycleCoordinatorError as exc:
+            self._handle_error(exc.code)
+            self._update_lifecycle_buttons()
+            return
+        except Exception:
+            self._handle_error("LIFECYCLE_COMMAND_FAILED")
+            self._update_lifecycle_buttons()
+            return
+
+        if not isinstance(result, LifecycleExecutionResult):
+            self._handle_error("LIFECYCLE_RESULT_INVALID")
+            self._update_lifecycle_buttons()
+            return
+        self.log_activity(
+            f"{action:<12} {worker_id} {result.state.value} {result.reason_code}"
+        )
+        self.refresh()
+
+    def _run_selected_lifecycle(self, action: str, method_name: str) -> None:
+        worker_id = self.selected_worker_id()
+        if worker_id is None:
+            self._handle_error("SELECT_WORKER")
+            return
+        command = getattr(self.service, method_name, None)
+        if not callable(command):
+            self._handle_error("LIFECYCLE_NOT_WIRED")
+            return
+        self._submit_lifecycle(action, worker_id, command)
+
+    def start_selected(self) -> None:
+        self._run_selected_lifecycle("START", "start_worker")
+
+    def stop_selected(self) -> None:
+        self._run_selected_lifecycle("STOP", "stop_worker")
+
+    def restart_selected(self) -> None:
+        self._run_selected_lifecycle("RESTART", "restart_worker")
+
+    def open_runtime_setup(self) -> tk.Toplevel | None:
+        worker_id = self.selected_worker_id()
+        if worker_id is None:
+            self._handle_error("SELECT_WORKER")
+            return None
+        worker_setup = getattr(self.service, "worker_setup", None)
+        if not callable(worker_setup):
+            self._handle_error("RUNTIME_SETUP_NOT_AVAILABLE")
+            return None
+        try:
+            draft = worker_setup(worker_id)
+        except RuntimeSetupError as exc:
+            self._handle_error(exc.code)
+            return None
+        except Exception:
+            self._handle_error("RUNTIME_SETUP_FAILED")
+            return None
+        if not isinstance(draft, WorkerSetupDraft):
+            self._handle_error("RUNTIME_SETUP_RESULT_INVALID")
+            return None
+
+        self._setup_draft = draft
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"A-Conductor — Runtime Setup — {worker_id}")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=14)
+        frame.pack(fill="both", expand=True)
+        tk.Label(
+            frame,
+            text=f"> RUNTIME SETUP  {worker_id}  {'CONFIGURED' if draft.configured else 'UNCONFIGURED'}",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 10))
+        frame.grid_columnconfigure(1, weight=1)
+
+        fields = (
+            ("instance_root", "Instance root", draft.instance_root),
+            ("serena_home", "SERENA_HOME", draft.serena_home),
+            ("run_dir", "Run directory", draft.run_dir),
+            ("log_dir", "Log directory", draft.log_dir),
+            ("health_host", "Health host", draft.health_host),
+            ("health_port", "Health port", str(draft.health_port)),
+            ("runtime_executable", "Runtime executable", draft.runtime_executable_ref),
+            ("profile_template", "Profile template", draft.profile_template_ref),
+            ("tunnel_reference_id", "Tunnel ref ID", draft.tunnel_binding_ref or ""),
+            ("tunnel_reference_file", "Tunnel ref file", draft.reference_file_path or ""),
+            ("tunnel_reference_root", "Tunnel ref allowed root", draft.reference_allowed_root or ""),
+            ("serena_config_source", "Serena config source", ""),
+        )
+        self._setup_entries = {}
+        for row_index, (key, label, value) in enumerate(fields, start=1):
+            tk.Label(
+                frame,
+                text=label,
+                bg=self.theme.panel,
+                fg=self.theme.muted,
+                font=(self.theme.monospace_font, 9),
+                anchor="w",
+            ).grid(row=row_index, column=0, sticky="w", padx=(0, 10), pady=2)
+            entry = ttk.Entry(frame, width=72)
+            entry.insert(0, value)
+            entry.grid(row=row_index, column=1, columnspan=2, sticky="ew", pady=2)
+            self._setup_entries[key] = entry
+
+        button_row = len(fields) + 1
+        self._button(frame, "Save", lambda: self.save_runtime_setup(dialog)).grid(
+            row=button_row, column=0, sticky="w", pady=(12, 0)
+        )
+        self._button(frame, "Capture Exact Git", self.capture_exact_identity).grid(
+            row=button_row, column=1, sticky="w", pady=(12, 0)
+        )
+        self._button(frame, "No Git", self.save_no_git_identity).grid(
+            row=button_row, column=2, sticky="w", pady=(12, 0)
+        )
+        return dialog
+
+    def save_runtime_setup(self, dialog: tk.Toplevel | None = None) -> None:
+        draft = self._setup_draft
+        save = getattr(self.service, "save_worker_setup", None)
+        if draft is None or not callable(save):
+            self._handle_error("RUNTIME_SETUP_NOT_AVAILABLE")
+            return
+        try:
+            health_port = int(self._setup_entries["health_port"].get().strip())
+        except (KeyError, ValueError):
+            self._handle_error("HEALTH_PORT_INVALID")
+            return
+
+        def value(key: str) -> str:
+            return self._setup_entries[key].get().strip()
+
+        updated = WorkerSetupDraft(
+            worker_id=draft.worker_id,
+            configured=draft.configured,
+            instance_root=value("instance_root"),
+            serena_home=value("serena_home"),
+            run_dir=value("run_dir"),
+            log_dir=value("log_dir"),
+            health_host=value("health_host"),
+            health_port=health_port,
+            runtime_executable_ref=value("runtime_executable"),
+            profile_template_ref=value("profile_template"),
+            tunnel_binding_ref=value("tunnel_reference_id") or None,
+            reference_file_path=value("tunnel_reference_file") or None,
+            reference_allowed_root=value("tunnel_reference_root") or None,
+            startup_timeout_seconds=draft.startup_timeout_seconds,
+            stop_timeout_seconds=draft.stop_timeout_seconds,
+        )
+        source = value("serena_config_source") or None
+        try:
+            saved = save(updated, serena_config_source=source)
+        except RuntimeSetupError as exc:
+            self._handle_error(exc.code)
+            return
+        except Exception:
+            self._handle_error("RUNTIME_SETUP_SAVE_FAILED")
+            return
+        if not isinstance(saved, WorkerSetupDraft):
+            self._handle_error("RUNTIME_SETUP_RESULT_INVALID")
+            return
+        self._setup_draft = saved
+        self.log_activity(f"Setup        {saved.worker_id} SAVED")
+        if dialog is not None and dialog.winfo_exists():
+            dialog.destroy()
+        self.refresh()
+
+    def capture_exact_identity(self) -> None:
+        self._run_identity_action("EXACT", "capture_exact_project_identity")
+
+    def save_no_git_identity(self) -> None:
+        self._run_identity_action("NO_GIT", "save_no_git_project_identity")
+
+    def _run_identity_action(self, label: str, method_name: str) -> None:
+        worker_id = self.selected_worker_id()
+        if worker_id is None:
+            self._handle_error("SELECT_WORKER")
+            return
+        command = getattr(self.service, method_name, None)
+        if not callable(command):
+            self._handle_error("RUNTIME_SETUP_NOT_AVAILABLE")
+            return
+        try:
+            command(worker_id)
+        except RuntimeSetupError as exc:
+            self._handle_error(exc.code)
+            return
+        except Exception:
+            self._handle_error("PROJECT_IDENTITY_SAVE_FAILED")
+            return
+        self.log_activity(f"Identity     {worker_id} {label}")
+        self._update_lifecycle_buttons()
 
     def _handle_error(self, code: str) -> None:
         self.log_activity(f"ERROR        {code}")
@@ -440,6 +727,10 @@ class AConductorDesktopApp:
             ("Add Project", self.add_project),
             ("Assign Selected", self.assign_selected),
             ("Release Worker", self.release_selected),
+            ("Runtime Setup", self.open_runtime_setup),
+            ("Start Worker", self.start_selected),
+            ("Stop Worker", self.stop_selected),
+            ("Restart Worker", self.restart_selected),
             ("Refresh", self.refresh),
         )
         for label, command in commands:

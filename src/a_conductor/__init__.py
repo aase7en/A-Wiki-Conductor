@@ -103,6 +103,12 @@ from .registry import (
     WorkerBusyError,
     windows_worktree_key,
 )
+from .runtime_setup import (
+    RuntimeSetupError,
+    RuntimeSetupService,
+    SetupReadiness,
+    WorkerSetupDraft,
+)
 from .runtime_safety import (
     PortBindingState,
     ProcessObservation,
@@ -249,6 +255,10 @@ __all__ = [
     "RegistrySnapshot",
     "WorkerBusyError",
     "windows_worktree_key",
+    "RuntimeSetupError",
+    "RuntimeSetupService",
+    "SetupReadiness",
+    "WorkerSetupDraft",
     "PortBindingState",
     "ProcessObservation",
     "ProcessOwnership",

@@ -18,6 +18,7 @@ from a_conductor.domain import Project, WorkerState
 from a_conductor.lifecycle import LifecycleAction
 from a_conductor.lifecycle_coordinator import LifecycleCoordinatorError
 from a_conductor.lifecycle_executor import LifecycleExecutionResult, LifecycleExecutionState
+from a_conductor.runtime_setup import SetupReadiness, WorkerSetupDraft
 
 
 class FakeService:
@@ -224,10 +225,9 @@ class FakeLifecycleService(FakeService):
         if self.raise_error is not None:
             raise self.raise_error
         return LifecycleExecutionResult(
+            transaction_id=f"tx-ui-{action.value.lower()}",
             state=LifecycleExecutionState.NOOP,
-            action=action,
             reason_code="TEST_NOOP",
-            transaction_id="tx-ui",
         )
 
     def start_worker(self, worker_id: str):
@@ -332,3 +332,136 @@ def test_unknown_lifecycle_exception_never_logs_raw_secret_text(root) -> None:
     activity = app.activity_text.get("1.0", "end")
     assert "LIFECYCLE_COMMAND_FAILED" in activity
     assert "super-secret-runtime-detail" not in activity
+
+
+class FakeSetupLifecycleService(FakeLifecycleService):
+    def __init__(self, snapshot: ControlCenterSnapshot, draft: WorkerSetupDraft) -> None:
+        super().__init__(snapshot)
+        self.draft = draft
+        self.readiness = SetupReadiness(False, "WORKER_CONFIG_MISSING")
+        self.saved = []
+        self.identity_calls: list[tuple[str, str]] = []
+
+    def worker_setup(self, worker_id: str):
+        return self.draft
+
+    def save_worker_setup(self, draft, *, serena_config_source=None):
+        self.saved.append((draft, serena_config_source))
+        self.draft = replace(draft, configured=True)
+        return self.draft
+
+    def capture_exact_project_identity(self, worker_id: str):
+        self.identity_calls.append(("EXACT", worker_id))
+        return object()
+
+    def save_no_git_project_identity(self, worker_id: str):
+        self.identity_calls.append(("NO_GIT", worker_id))
+        return object()
+
+    def lifecycle_readiness(self, worker_id: str):
+        return self.readiness
+
+
+def setup_draft(tmp_path: Path) -> WorkerSetupDraft:
+    root_path = (tmp_path / "worker").resolve()
+    return WorkerSetupDraft(
+        worker_id="a-worker-02",
+        configured=False,
+        instance_root=str(root_path),
+        serena_home=str(root_path / "serena-home"),
+        run_dir=str(root_path / "run"),
+        log_dir=str(root_path / "logs"),
+        health_host="127.0.0.1",
+        health_port=18012,
+        runtime_executable_ref="",
+        profile_template_ref="",
+        tunnel_binding_ref=None,
+        reference_file_path=None,
+        reference_allowed_root=None,
+        startup_timeout_seconds=15,
+        stop_timeout_seconds=10,
+    )
+
+
+def test_setup_readiness_gates_start_for_stopped_worker(root, tmp_path: Path) -> None:
+    service = FakeSetupLifecycleService(lifecycle_snapshot(), setup_draft(tmp_path))
+    app = AConductorDesktopApp(root, service=service, background_executor=ImmediateExecutor())
+    item = app.worker_tree.get_children()[1]
+    app.worker_tree.selection_set(item)
+    app.worker_tree.focus(item)
+
+    app._update_lifecycle_buttons()
+    assert app.start_button.instate(["disabled"])
+
+    service.readiness = SetupReadiness(True, "READY")
+    app._update_lifecycle_buttons()
+    assert app.start_button.instate(["!disabled"])
+
+
+def test_setup_dialog_contains_paths_refs_but_no_secret_value_fields(root, tmp_path: Path) -> None:
+    service = FakeSetupLifecycleService(lifecycle_snapshot(), setup_draft(tmp_path))
+    app = AConductorDesktopApp(root, service=service, background_executor=ImmediateExecutor())
+    item = app.worker_tree.get_children()[1]
+    app.worker_tree.selection_set(item)
+    app.worker_tree.focus(item)
+
+    dialog = app.open_runtime_setup()
+    root.update_idletasks()
+
+    assert isinstance(dialog, tk.Toplevel)
+    keys = set(app._setup_entries)
+    assert "tunnel_reference_id" in keys
+    assert "tunnel_reference_file" in keys
+    assert "serena_config_source" in keys
+    assert all(
+        forbidden not in key
+        for key in keys
+        for forbidden in ("api_key", "token_value", "secret_value", "tunnel_id_value")
+    )
+    dialog.destroy()
+
+
+def test_setup_dialog_save_delegates_non_secret_draft(root, tmp_path: Path) -> None:
+    service = FakeSetupLifecycleService(lifecycle_snapshot(), setup_draft(tmp_path))
+    app = AConductorDesktopApp(
+        root,
+        service=service,
+        background_executor=ImmediateExecutor(),
+        error_handler=lambda _code: None,
+    )
+    item = app.worker_tree.get_children()[1]
+    app.worker_tree.selection_set(item)
+    app.worker_tree.focus(item)
+    dialog = app.open_runtime_setup()
+    app._setup_entries["runtime_executable"].insert(0, str(tmp_path / "tunnel-client.exe"))
+    app._setup_entries["profile_template"].insert(0, str(tmp_path / "runtime.yaml.template"))
+    app._setup_entries["serena_config_source"].insert(0, str(tmp_path / "serena_config.yml"))
+
+    app.save_runtime_setup(dialog)
+
+    assert len(service.saved) == 1
+    saved, source = service.saved[0]
+    assert saved.worker_id == "a-worker-02"
+    assert saved.runtime_executable_ref.endswith("tunnel-client.exe")
+    assert str(source).endswith("serena_config.yml")
+
+
+def test_setup_capture_identity_actions_delegate(root, tmp_path: Path) -> None:
+    service = FakeSetupLifecycleService(lifecycle_snapshot(), setup_draft(tmp_path))
+    app = AConductorDesktopApp(
+        root,
+        service=service,
+        background_executor=ImmediateExecutor(),
+        error_handler=lambda _code: None,
+    )
+    item = app.worker_tree.get_children()[1]
+    app.worker_tree.selection_set(item)
+    app.worker_tree.focus(item)
+
+    app.capture_exact_identity()
+    app.save_no_git_identity()
+
+    assert service.identity_calls == [
+        ("EXACT", "a-worker-02"),
+        ("NO_GIT", "a-worker-02"),
+    ]

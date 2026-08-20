@@ -16,10 +16,9 @@ class FakeCoordinator:
     def execute(self, worker_id: str, action: LifecycleAction) -> LifecycleExecutionResult:
         self.calls.append((worker_id, action))
         return LifecycleExecutionResult(
+            transaction_id=f"tx-{action.value.lower()}",
             state=LifecycleExecutionState.NOOP,
-            action=action,
             reason_code="TEST_NOOP",
-            transaction_id="tx-test",
         )
 
 
@@ -28,9 +27,9 @@ def test_facade_delegates_lifecycle_actions(tmp_path: Path) -> None:
     coordinator = FakeCoordinator()
     service = DesktopControlService(control_center=control, lifecycle=coordinator)
 
-    assert service.start_worker("a-worker-01").action is LifecycleAction.START
-    assert service.stop_worker("a-worker-01").action is LifecycleAction.STOP
-    assert service.restart_worker("a-worker-01").action is LifecycleAction.RESTART
+    assert service.start_worker("a-worker-01").state is LifecycleExecutionState.NOOP
+    assert service.stop_worker("a-worker-01").state is LifecycleExecutionState.NOOP
+    assert service.restart_worker("a-worker-01").state is LifecycleExecutionState.NOOP
     assert coordinator.calls == [
         ("a-worker-01", LifecycleAction.START),
         ("a-worker-01", LifecycleAction.STOP),

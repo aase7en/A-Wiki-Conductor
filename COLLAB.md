@@ -7,7 +7,6 @@
 
 | Lane | Theme | Owned scope | Must not touch without a separate claim |
 |---|---|---|---|
-| `WO-P1-030` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/runtime_setup.py`, `src/a_conductor/desktop_control.py`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/__init__.py`, `tests/test_runtime_setup.py`, `tests/test_desktop_ui.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-030-runtime-setup.md` |
 | `WO-P1-022` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/tunnel_boundaries.py`, `src/a_conductor/owned_process.py`, `src/a_conductor/__init__.py`, `tests/test_tunnel_boundaries.py`, `tests/test_owned_process.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-022-tunnel-preflight-references.md` |
 | ARCH | architecture, contracts, ADRs, plans | `PROJECT-PLAN.md`, `docs/contracts/**`, `schemas/**`, architecture ADRs | runtime/UI implementation |
 | RUNTIME | worker/runtime/process/Serena adapters | future runtime/process source + runtime tests | UI and architecture hotspot files |
@@ -35,7 +34,6 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-028` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/lifecycle_assembly.py`, `src/a_conductor/control_events.py`, `src/a_conductor/__init__.py`, `tests/test_lifecycle_assembly.py`, `tests/test_control_events.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-028-local-lifecycle-assembly.md` |
 
 > Local Git is initialized. This repository currently has no Git remote; cross-machine claim/push semantics remain unavailable until the GitHub publication decision is resolved.
 

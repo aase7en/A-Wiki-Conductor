@@ -1,7 +1,7 @@
 # WO-P1-030: Runtime Setup Service + Desktop Dialog
 
-Status: in_progress
-Lane/files: `src/a_conductor/runtime_setup.py`, `src/a_conductor/desktop_control.py`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/__init__.py`, `tests/test_runtime_setup.py`, `tests/test_desktop_ui.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-030-runtime-setup.md`
+Status: completed
+Lane/files: `src/a_conductor/runtime_setup.py`, `src/a_conductor/desktop_control.py`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/__init__.py`, `tests/test_runtime_setup.py`, `tests/test_desktop_control.py` (stale fixture alignment only), `tests/test_desktop_ui.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-030-runtime-setup.md`
 Branch: main
 Model tier: high
 
@@ -15,6 +15,7 @@ Provide a safe Runtime Setup workflow for each A-Worker and its assigned project
 - setup view shows CONFIGURED/UNCONFIGURED without reading reference values;
 - worker defaults propose isolated `a-worker-01..03` roots and health ports 18011..18013 but do not persist until Save;
 - Save Worker Setup persists `SerenaWorkerConfig` with worker-owned home/run/log paths under selected instance root;
+- Setup accepts an explicit Serena config source file and copies it atomically into worker-owned `SERENA_HOME/serena_config.yml` without parsing/logging/persisting the source contents or source path;
 - optional tunnel reference stores opaque reference ID + local file path + allowed root only;
 - setup service never reads tunnel/reference file content;
 - exact Git identity capture uses fixed read-only Git runner and stores exact root/branch/HEAD binding;
@@ -37,3 +38,14 @@ Provide a safe Runtime Setup workflow for each A-Worker and its assigned project
 ## Checkpoint log
 
 - [2026-08-20] Opened after desktop lifecycle wiring close commit; worktree clean.
+
+- [2026-08-20] RED/resume reconciliation: 15 failures (Windows fsync handle, stale LifecycleExecutionResult test fixture, lifecycle/setup UI not implemented in desktop adapter).
+- [2026-08-20] GREEN targeted: `tests/test_runtime_setup.py tests/test_desktop_control.py tests/test_desktop_ui.py` = 34 passed.
+- [2026-08-20] Full-suite gate initially exposed pre-existing P1-028 lifecycle-assembly contract drift; repaired separately in `WO-P1-028R1` / commit `4f4b943` without staging P1-030 files.
+- [2026-08-20] Final full suite: 423 passed.
+- [2026-08-20] `python -m compileall -q src tests`: PASS.
+- [2026-08-20] `git diff --check`: PASS.
+- [2026-08-20] UI forbidden secret-value-field scan: PASS; transient token values remain only in pre-existing secure Serena materializer/operations internals.
+- [2026-08-20] Separate-process source-tree smoke: `PYTHONPATH=src python -m a_conductor --database runtime\a-conductor-ui-smoke-p1-030.sqlite --smoke` -> `A-CONDUCTOR_SMOKE_OK projects=0 workers=3`.
+- [2026-08-20] Active Conductor preservation gate: health listener `127.0.0.1:18011` PID `25396` before -> `25396` after smoke.
+- [2026-08-20] P1-030 complete. Live Worker 3 Stage B remains `DR-P1-003 / BLOCKED_EXTERNAL`; no tunnel provisioning was attempted.
