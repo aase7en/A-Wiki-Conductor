@@ -78,6 +78,11 @@ from .runtime_safety import (
     classify_tunnel_binding,
     classify_worktree_binding,
 )
+from .serena_materializer import (
+    SerenaMaterializationError,
+    SerenaMaterializedRuntime,
+    SerenaRuntimeMaterializer,
+)
 from .serena_lifecycle_backend import (
     SerenaLifecycleBackend,
     SerenaLifecycleOperations,
@@ -167,6 +172,9 @@ __all__ = [
     "classify_process_ownership",
     "classify_tunnel_binding",
     "classify_worktree_binding",
+    "SerenaMaterializationError",
+    "SerenaMaterializedRuntime",
+    "SerenaRuntimeMaterializer",
     "SerenaLifecycleBackend",
     "SerenaLifecycleOperations",
     "SerenaOperationResult",
