@@ -8,7 +8,9 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None — `WO-P1-016` completed; next work order will be opened after the clean checkpoint commit.
+`docs/work-orders/WO-P1-017-serena-lifecycle-backend.md`
+
+Status: `IN_PROGRESS`
 
 ## Completed foundation
 
@@ -17,36 +19,32 @@ None — `WO-P1-016` completed; next work order will be opened after the clean c
 - [x] Lifecycle planner/executor/journal/recovery stack complete.
 - [x] Read-only Windows observer + strict inspection backend complete.
 - [x] Stage A self-owned dummy-runtime lifecycle integration complete.
-- [x] Windows exact-owned process controller complete.
-- [x] P1-016 targeted tests: 16 passed.
+- [x] Windows exact-owned process controller complete; P1-016 commit `8c4cb8c`.
 - [x] Full suite at P1-016 close: 250 passed.
-- [x] Atomic preservation run: active Conductor PID 25396 before/after; no active-worker targeting.
+
+## Active checklist — WO-P1-017
+
+- [x] Open work order.
+- [ ] Claim shared scope.
+- [ ] Commit coordination checkpoint.
+- [ ] Write failing Serena lifecycle backend tests first.
+- [ ] Implement composition backend only.
+- [ ] Run targeted tests.
+- [ ] Run full suite + compileall + diff/static I/O scan.
+- [ ] Update checkpoint/handoff and commit.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before P1-016 close commit: `b0f8762`
+- HEAD before WO-P1-017 coordination commit: `8c4cb8c`
 - Git remote: none
-- Use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
+- exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
 
 ## External integration state
 
-- GitHub connector was explicitly attempted at user request but returned platform `FORBIDDEN`; no GitHub-side mutation performed.
-- Local repo has no remote, so GitHub publication remains unresolved.
-
-## DECISION_REQUIRED
-
-- `DR-C1-001`: GitHub publication; private-first recommended; no remote/push until destination/visibility is known.
-- `DR-P1-002`: first live Serena/tunnel lifecycle integration must use a dedicated isolated worker, never the active Sunday-Conducter or Phase6 worker.
-
-## Constraints
-
-- Exact owned process only; no broad kill.
-- No `shell=True`.
-- Mutable PID/log paths restricted to the worker-owned runtime root.
-- Active Sunday-Conducter/Phase6 workers are protected.
-- `serena-test` remains read-only candidate unless a disposable mutation target is created separately.
+- GitHub connector explicitly attempted but blocked by platform `FORBIDDEN`; no GitHub-side mutation performed.
+- `DR-P1-002` remains active: no live Serena/tunnel/A-Worker 3 mutation in this work order.
 
 ## Next safe action
 
-Open `WO-P1-017` for Serena runtime profile rendering + lifecycle backend composition. Keep tests on fake/dummy resources first; do not provision or mutate A-Worker 3 until the Stage B preflight and isolation resources are explicitly validated.
+Claim WO-P1-017, commit coordination state, then write RED tests for lifecycle-step mapping/outcome propagation before implementation.
