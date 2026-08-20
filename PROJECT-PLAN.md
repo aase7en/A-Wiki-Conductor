@@ -423,7 +423,8 @@ Track this implementation gate as `DR-P1-002` until a dedicated lifecycle-test t
 7. Implement start/stop/restart/assign/release/health/log operations.
 8. Add Worker 3 and test three-project concurrent operation.
 9. Remove normal dependency on manual `.cmd`/PowerShell launchers while retaining them as recovery/debugging tools.
-10. Add task router only after worker lifecycle is stable.
+10. Per-worker Serena configuration surface (WO-P1-048): typed settings edited in the UI, rendered to the isolated `SERENA_HOME` config, applied on worker restart.
+11. Add task router only after worker lifecycle is stable.
 11. Revisit Serena fork decision only after real integration constraints are observed.
 
 ## 14. Product Definition of Done — Control Center MVP
