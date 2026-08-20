@@ -52,6 +52,7 @@ from .owned_process import (
     WindowsExactPidTerminator,
     WindowsOwnedProcessController,
     WindowsProcessSpawner,
+    build_owned_child_environment,
 )
 from .persistence import (
     PersistenceError,
@@ -88,6 +89,7 @@ from .serena_materializer import (
     SerenaMaterializationError,
     SerenaMaterializedRuntime,
     SerenaRuntimeMaterializer,
+    discover_profile_placeholders,
 )
 from .serena_lifecycle_backend import (
     SerenaLifecycleBackend,
@@ -107,6 +109,13 @@ from .serena_runtime import (
     ProjectIdentityPolicy,
     SerenaProjectBinding,
     SerenaWorkerConfig,
+)
+from .tunnel_boundaries import (
+    LocalFileReferenceStore,
+    LocalTunnelOwnershipGuard,
+    ReferenceBackedSerenaTokenProvider,
+    ReferenceResolutionError,
+    StrictTunnelClientPreflightService,
 )
 from .windows_io import (
     LoopbackReadyzHttpProbe,
@@ -170,6 +179,7 @@ __all__ = [
     "WindowsExactPidTerminator",
     "WindowsOwnedProcessController",
     "WindowsProcessSpawner",
+    "build_owned_child_environment",
     "GitProjectIdentityVerifier",
     "GitReadOnlyRunner",
     "GitReadResult",
@@ -194,6 +204,7 @@ __all__ = [
     "SerenaMaterializationError",
     "SerenaMaterializedRuntime",
     "SerenaRuntimeMaterializer",
+    "discover_profile_placeholders",
     "SerenaLifecycleBackend",
     "SerenaLifecycleOperations",
     "SerenaOperationResult",
@@ -207,6 +218,11 @@ __all__ = [
     "ProjectIdentityPolicy",
     "SerenaProjectBinding",
     "SerenaWorkerConfig",
+    "LocalFileReferenceStore",
+    "LocalTunnelOwnershipGuard",
+    "ReferenceBackedSerenaTokenProvider",
+    "ReferenceResolutionError",
+    "StrictTunnelClientPreflightService",
     "LoopbackReadyzHttpProbe",
     "StrictPowerShellInspectionRunner",
     "CommandResult",

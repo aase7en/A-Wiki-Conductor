@@ -188,27 +188,32 @@ class ExactPidTerminator(Protocol):
     def terminate(self, pid: int, timeout_seconds: int) -> bool: ...
 
 
+def build_owned_child_environment(
+    spec: OwnedProcessSpec,
+    environment_source: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    source = os.environ if environment_source is None else environment_source
+    environment: dict[str, str] = {}
+    for key, value in source.items():
+        if (
+            isinstance(key, str)
+            and isinstance(value, str)
+            and key.casefold() in _SAFE_INHERITED_ENVIRONMENT_KEYS
+        ):
+            environment[key] = value
+
+    for override_key, override_value in spec.environment_overrides:
+        for existing_key in tuple(environment):
+            if existing_key.casefold() == override_key.casefold():
+                del environment[existing_key]
+        environment[override_key] = override_value
+    return environment
+
+
 class WindowsProcessSpawner:
     def __init__(self, environment_source: Mapping[str, str] | None = None) -> None:
         source = os.environ if environment_source is None else environment_source
         self._environment_source = dict(source)
-
-    def _child_environment(self, spec: OwnedProcessSpec) -> dict[str, str]:
-        environment: dict[str, str] = {}
-        for key, value in self._environment_source.items():
-            if (
-                isinstance(key, str)
-                and isinstance(value, str)
-                and key.casefold() in _SAFE_INHERITED_ENVIRONMENT_KEYS
-            ):
-                environment[key] = value
-
-        for override_key, override_value in spec.environment_overrides:
-            for existing_key in tuple(environment):
-                if existing_key.casefold() == override_key.casefold():
-                    del environment[existing_key]
-            environment[override_key] = override_value
-        return environment
 
     def spawn(self, spec: OwnedProcessSpec) -> subprocess.Popen[bytes]:
         spec.cwd.mkdir(parents=True, exist_ok=True)
@@ -224,7 +229,7 @@ class WindowsProcessSpawner:
                 stdin=subprocess.DEVNULL,
                 stdout=stdout_handle,
                 stderr=stderr_handle,
-                env=self._child_environment(spec),
+                env=build_owned_child_environment(spec, self._environment_source),
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         finally:

@@ -8,40 +8,28 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-`docs/work-orders/WO-P1-022-tunnel-preflight-references.md`
-
-Status: `IN_PROGRESS`
+None — `WO-P1-022` completed; awaiting close commit.
 
 ## Completed
 
 - [x] Runtime safety/registry/persistence/lifecycle stack.
 - [x] Read-only Windows observer + strict inspection.
-- [x] Exact-owned process controller + environment isolation.
-- [x] Serena lifecycle composition/materialization/operations through `5ea47c4`.
-- [x] Read-only Git project identity verifier (`d6589a7`), full suite 326 passed.
-
-## Active checklist — WO-P1-022
-
-- [x] Open work order.
-- [ ] Claim + commit coordination checkpoint.
-- [ ] Write RED reference/preflight tests.
-- [ ] Implement opaque file reference/token provider.
-- [ ] Share safe child environment builder with preflight.
-- [ ] Implement strict doctor preflight.
-- [ ] Run targeted/full verification.
-- [ ] Close/commit work order.
+- [x] Exact-owned process controller + controlled environment isolation.
+- [x] Serena lifecycle backend/materializer/operations.
+- [x] Read-only Git project identity verifier (`d6589a7`).
+- [x] Opaque reference/token + strict tunnel doctor preflight boundaries; full suite 343 passed; active Conductor preserved.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before coordination commit: `d6589a7`
+- HEAD before P1-022 close commit: `e69b190`
 - Git remote: none
 
 ## Gates
 
 - GitHub connector platform-blocked in this conversation; no remote/push.
-- No live tunnel provisioning/start or A-Worker 3 mutation in P1-022.
+- `DR-P1-002`: first live Serena/tunnel integration must use a dedicated isolated worker.
 
 ## Next safe action
 
-Claim/commit P1-022, then write failing reference/token/preflight tests before implementation.
+Commit P1-022 close checkpoint, then open Stage B preflight work order: inspect candidate A-Worker 3 resources/collisions, define disposable/isolated local paths and required tunnel reference without touching Sunday-Conducter/Phase6.

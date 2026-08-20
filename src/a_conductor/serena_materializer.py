@@ -23,6 +23,12 @@ from .serena_runtime import SerenaProjectBinding, SerenaWorkerConfig
 _PLACEHOLDER_RE = re.compile(r"__[A-Z][A-Z0-9_]*__")
 
 
+def discover_profile_placeholders(template_text: str) -> tuple[str, ...]:
+    if not isinstance(template_text, str):
+        raise TypeError("template_text must be a string")
+    return tuple(sorted(set(_PLACEHOLDER_RE.findall(template_text))))
+
+
 class SerenaMaterializationError(RuntimeError):
     def __init__(self, code: str) -> None:
         self.code = code
@@ -67,7 +73,7 @@ def _validate_token_map(
     template_text: str,
     token_values: Mapping[str, str],
 ) -> tuple[str, ...]:
-    placeholders = tuple(sorted(set(_PLACEHOLDER_RE.findall(template_text))))
+    placeholders = discover_profile_placeholders(template_text)
     try:
         supplied_keys = set(token_values.keys())
     except Exception as exc:
