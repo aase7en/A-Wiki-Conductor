@@ -1,6 +1,6 @@
 # WO-P1-007: Concrete Read-Only Windows I/O Backends
 
-Status: in_progress
+Status: done
 Lane/files: `src/a_conductor/windows_io.py`, `src/a_conductor/__init__.py`, `tests/test_windows_io.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-007-readonly-io-backends.md`
 Branch: main
 Model tier: mid
@@ -56,3 +56,7 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after normalized worker-status commit `26ea225`. Concrete I/O remains strictly read-only and allowlisted.
+
+- [2026-08-20] RED checkpoint: targeted Windows I/O tests confirmed `src/a_conductor/windows_io.py` absent and failed during collection with `ModuleNotFoundError: a_conductor.windows_io` as expected.
+
+- [2026-08-20] GREEN checkpoint: strict read-only backends implemented. Targeted backend tests 21 passed; full suite 134 passed; compileall PASS; `git diff --check` PASS; lifecycle-mutation primitive scan clean. Live read-only smoke against current Conductor instance: PID metadata VALID, process ownership OWNED, health-port binding OWNED, `/readyz` READY HTTP 200. No target process/config/runtime state was changed.

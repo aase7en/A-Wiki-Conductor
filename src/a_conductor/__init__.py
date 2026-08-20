@@ -34,6 +34,10 @@ from .serena_runtime import (
     SerenaProjectBinding,
     SerenaWorkerConfig,
 )
+from .windows_io import (
+    LoopbackReadyzHttpProbe,
+    StrictPowerShellInspectionRunner,
+)
 from .windows_observer import (
     CommandResult,
     HealthProbeObservation,
@@ -77,6 +81,8 @@ __all__ = [
     "ProjectIdentityPolicy",
     "SerenaProjectBinding",
     "SerenaWorkerConfig",
+    "LoopbackReadyzHttpProbe",
+    "StrictPowerShellInspectionRunner",
     "CommandResult",
     "HealthProbeObservation",
     "HealthProbeState",
