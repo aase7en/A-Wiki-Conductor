@@ -8,15 +8,27 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None — `WO-P1-029` completed; awaiting close commit.
+`docs/work-orders/WO-P1-030-runtime-setup.md`
+
+Status: `IN_PROGRESS`
 
 ## Completed
 
 - [x] Local process-manager/runtime safety stack through tunnel/preflight boundaries.
 - [x] Control Center service + desktop shell.
-- [x] Durable Serena config store + lifecycle coordinator/assembly.
-- [x] Desktop Start/Stop/Restart lifecycle wiring with background execution.
+- [x] Durable Serena config + lifecycle coordinator/assembly.
+- [x] Desktop lifecycle wiring.
 - [x] Stage B transport gate `DR-P1-003` remains isolated.
+
+## Active checklist — WO-P1-030
+
+- [x] Open work order.
+- [ ] Claim + commit coordination checkpoint.
+- [ ] Write RED setup-service/UI tests.
+- [ ] Implement worker setup/readiness + exact Git capture.
+- [ ] Add desktop Setup dialog and readiness-aware Start enablement.
+- [ ] Run targeted/full/smoke verification.
+- [ ] Close/commit work order.
 
 ## Repository state
 
@@ -25,4 +37,4 @@ None — `WO-P1-029` completed; awaiting close commit.
 
 ## Next safe action
 
-Commit P1-029, then add Runtime Setup service/UI so each A-Worker can be configured with worker-owned paths/port/executable/template/opaque tunnel reference and each project can capture an exact read-only Git identity before Start.
+Claim/commit P1-030, then write failing runtime setup/readiness/Git capture tests before implementation.
