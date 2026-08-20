@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable, Protocol
 
 from .control_center import ControlCenterSnapshot
-from .native_adapters import NativeGitReadAdapter, NativeVerificationAdapter
+from .native_adapters import NativeCommandRunner, NativeGitReadAdapter, NativeVerificationAdapter
 from .native_execution import NativeExecutionError, NativeExecutionScope
 from .native_operations import (
     NativeGitOperations,
@@ -30,6 +30,7 @@ GitAdapterFactory = Callable[[NativeExecutionScope], NativeGitOperations]
 VerificationAdapterFactory = Callable[
     [NativeExecutionScope], NativeVerificationOperations
 ]
+RunnerFactory = Callable[[NativeExecutionScope], NativeCommandRunner]
 
 
 def _require_executable(value: str, code: str) -> str:
@@ -50,6 +51,7 @@ class ControlCenterNativeAdapterResolver:
         max_file_bytes: int = 1_048_576,
         git_adapter_factory: GitAdapterFactory | None = None,
         verification_adapter_factory: VerificationAdapterFactory | None = None,
+        runner_factory: RunnerFactory | None = None,
     ) -> None:
         self._service = service
         self._git_executable = _require_executable(
@@ -65,12 +67,14 @@ class ControlCenterNativeAdapterResolver:
         self._verification_factory = (
             verification_adapter_factory or self._build_verification_adapter
         )
+        self._runner_factory = runner_factory
 
     def _build_git_adapter(
         self, scope: NativeExecutionScope
     ) -> NativeGitReadAdapter:
         return NativeGitReadAdapter(
             scope,
+            runner=self._runner_factory(scope) if self._runner_factory else None,
             git_executable=self._git_executable,
         )
 
@@ -79,6 +83,7 @@ class ControlCenterNativeAdapterResolver:
     ) -> NativeVerificationAdapter:
         return NativeVerificationAdapter(
             scope,
+            runner=self._runner_factory(scope) if self._runner_factory else None,
             python_executable=self._python_executable,
         )
 
