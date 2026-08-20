@@ -18,6 +18,17 @@ from .domain import (
     Worker,
     WorkerState,
 )
+from .runtime_safety import (
+    PortBindingState,
+    ProcessObservation,
+    ProcessOwnership,
+    TunnelBindingState,
+    WorktreeBindingState,
+    classify_port_binding,
+    classify_process_ownership,
+    classify_tunnel_binding,
+    classify_worktree_binding,
+)
 
 __all__ = [
     "Agent",
@@ -36,4 +47,13 @@ __all__ = [
     "TaskState",
     "Worker",
     "WorkerState",
+    "PortBindingState",
+    "ProcessObservation",
+    "ProcessOwnership",
+    "TunnelBindingState",
+    "WorktreeBindingState",
+    "classify_port_binding",
+    "classify_process_ownership",
+    "classify_tunnel_binding",
+    "classify_worktree_binding",
 ]
