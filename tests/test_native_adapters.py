@@ -60,6 +60,8 @@ def test_git_status_uses_fixed_read_only_shape_and_safe_directory(tmp_path: Path
         "git.exe",
         "-c",
         f"safe.directory={tmp_path.resolve().as_posix()}",
+        "-c",
+        "core.fsmonitor=false",
         "-C",
         str(tmp_path.resolve()),
         "status",
@@ -80,7 +82,7 @@ def test_git_working_diff_places_confined_pathspecs_after_separator(tmp_path: Pa
     adapter.working_diff(("src/a.py",), timeout_seconds=9)
 
     spec = runner.calls[0]
-    assert spec.argv[-4:] == ("diff", "--no-ext-diff", "--", "src/a.py")
+    assert spec.argv[-5:] == ("diff", "--no-ext-diff", "--no-textconv", "--", "src/a.py")
     separator = spec.argv.index("--")
     assert spec.argv[separator + 1 :] == ("src/a.py",)
     assert spec.mutation_intent is False
@@ -98,7 +100,7 @@ def test_git_cached_diff_is_fixed_and_cannot_be_widened_to_mutation(tmp_path: Pa
     adapter.cached_diff()
 
     spec = runner.calls[0]
-    assert spec.argv[-4:] == ("diff", "--cached", "--no-ext-diff", "--")
+    assert spec.argv[-5:] == ("diff", "--cached", "--no-ext-diff", "--no-textconv", "--")
     for forbidden in ("add", "commit", "reset", "clean", "checkout", "stash", "rebase", "merge", "push"):
         assert not hasattr(adapter, forbidden)
 

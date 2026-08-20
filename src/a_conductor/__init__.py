@@ -79,6 +79,13 @@ from .native_adapters import (
     NativeGitReadAdapter,
     NativeVerificationAdapter,
 )
+from .native_git_transactions import (
+    GitCommitOutcome,
+    GitMutationSnapshot,
+    GitStageOutcome,
+    NativeGitTransactionAdapter,
+    NativeGitTransactionError,
+)
 from .native_execution import (
     NativeCommandResult,
     NativeCommandSpec,
@@ -250,6 +257,11 @@ __all__ = [
     "LifecycleResumeDecision",
     "LifecycleResumePlan",
     "plan_lifecycle_resume",
+    "GitCommitOutcome",
+    "GitMutationSnapshot",
+    "GitStageOutcome",
+    "NativeGitTransactionAdapter",
+    "NativeGitTransactionError",
     "NativeCommandRunner",
     "NativeGitReadAdapter",
     "NativeVerificationAdapter",

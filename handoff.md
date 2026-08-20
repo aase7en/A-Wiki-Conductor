@@ -4,41 +4,40 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Add transactional Git stage/commit support without weakening the deterministic Native Execution boundary.
+Continue toward the Work-class durable agent tunnel North Star. The Native Execution Foundation now includes confined filesystem/subprocess, fixed Git/verification adapters, and transactional Git stage/commit with drift preconditions.
 
 ## Current task
 
-`WO-P1-033 — Transactional Git Stage + Commit`
+No active work order.
 
-Status: `IN_PROGRESS`
+Most recently completed: `WO-P1-033 — Transactional Git Stage + Commit`.
 
-## Baseline
+## P1-033 evidence
 
-- Base HEAD: `88a863f feat: add native git and verification adapters`.
-- Native execution core + read-only Git/verification adapters are complete.
-- P1-032 evidence: 10 targeted + 448 full-suite passed, 1 environment-specific Tk/Tcl skip; real read-only Git adapter smoke exit 0.
-- Transaction contract: `docs/contracts/native-git-transactions.md`.
+- Snapshot captures exact HEAD + status SHA-256 + cached-diff SHA-256.
+- Stage and commit re-observe and refuse HEAD/index/status drift before mutation.
+- Stage requires explicit non-directory paths; blanket `.` is refused.
+- Git read snapshot hardening disables fsmonitor and external diff/textconv execution.
+- Stage refuses selected paths that activate configured external clean/process filters.
+- Mutation commands use an empty temporary hooks path; commit additionally disables GPG signing and is noninteractive.
+- Real temporary-repo tests prove stage, drift refusal, filter refusal, hook suppression, GPG-sign override, and commit HEAD postcondition.
+- Targeted P1-032/P1-033 tests: 22 passed.
+- Full suite: 461 passed.
+- compileall/diff/public-adapter safety: PASS.
+- Active Conductor listener remains `127.0.0.1:18011`, PID `25396`.
 
-## Current safety design
+## Binding boundaries
 
-- Snapshot exact HEAD + status hash + cached-diff hash before mutation.
-- Stage requires explicit file paths and exact snapshot preconditions.
-- Commit requires exact snapshot preconditions and a non-empty cached diff.
-- Commit is deterministic/noninteractive in this first slice: hooks skipped, GPG signing disabled.
-- Integration tests must use temporary Git repos only.
-
-## Forbidden
-
-No blanket stage `.`, reset/clean/checkout/switch/stash/rebase/merge/cherry-pick/revert/push/fetch/pull/remote mutation, force options, or generic Git argv passthrough.
+A-Wiki remains brain/policy/memory/orchestration knowledge. A-Conductor owns deterministic execution, durable runtime state, recovery, and operator surfaces. Serena remains semantic code intelligence. No generic model-facing shell was added.
 
 ## External / deferred gate
 
-`DR-P1-003 / BLOCKED_EXTERNAL` unchanged. A-Wiki companion registration payload remains prepared but unapplied.
+`DR-P1-003 / BLOCKED_EXTERNAL` unchanged. A-Wiki companion registration payload remains prepared but not applied.
 
 ## Next safe action
 
-Commit docs/claim checkpoint, write RED unit and temp-repo transaction tests, implement `native_git_transactions.py`, then run targeted/full/compile/diff/static gates.
+Open a Durable Job Engine work order. Persist execution/checkpoint/retry/recovery state around existing adapters; do not create a second A-Wiki planner/router.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> native execution contracts -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO; verify branch/HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> A-Wiki/A-Conductor + native execution contracts -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file; verify branch/HEAD/status before mutation.

@@ -66,6 +66,8 @@ class NativeGitReadAdapter:
             self._git_executable,
             "-c",
             f"safe.directory={root.as_posix()}",
+            "-c",
+            "core.fsmonitor=false",
             "-C",
             str(root),
         )
@@ -99,7 +101,7 @@ class NativeGitReadAdapter:
             option_safe=False,
         )
         return self._run(
-            ("diff", "--no-ext-diff", "--", *pathspecs),
+            ("diff", "--no-ext-diff", "--no-textconv", "--", *pathspecs),
             timeout_seconds=timeout_seconds,
         )
 
@@ -116,7 +118,7 @@ class NativeGitReadAdapter:
             option_safe=False,
         )
         return self._run(
-            ("diff", "--cached", "--no-ext-diff", "--", *pathspecs),
+            ("diff", "--cached", "--no-ext-diff", "--no-textconv", "--", *pathspecs),
             timeout_seconds=timeout_seconds,
         )
 
