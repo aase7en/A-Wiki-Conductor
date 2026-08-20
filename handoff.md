@@ -2,25 +2,23 @@
 
 Last updated: 2026-08-20
 
-## Current objective
-
-Continue the Resilient Execution Supervisor MVP after AC-RES-001 established durable execution identity/state persistence.
-
 ## Current task
 
-No active work order.
+`WO-AC-RES-002 — Supervised Subprocess Launch / Inspect / Collect`
 
-## Latest verified state
+Status: `IN_PROGRESS`
 
-- P1-038 complete: `4f300ca`
-- AC-RES-001 targeted tests: 22 passed
-- transport and execution states are independent durable dimensions
-- execution records persist immutable repo/job/worker/backend/operation identity + fingerprint and bounded refs
-- all mutations require expected version and append bounded metadata events
-- no raw prompt/env/stdout/stderr persistence
-- no process launch/retry/reconnect/deduplication implemented yet
-- active Conductor listener must remain untouched at PID `25396`
+## Baseline
+
+- branch: main
+- baseline HEAD: `0a3040d`
+- AC-RES-001 durable execution records complete
+- active Conductor listener: PID `25396`
+
+## Boundary
+
+Do not create a second generic process manager. Reuse exact-owned-process control; supervisor helper is only a transport-independent wrapper around a validated target command. No retry/reconnect/deduplication/Serena-specific integration yet.
 
 ## Next safe action
 
-Open `AC-RES-002 — Supervised Subprocess`. Reuse exact-owned-process/native execution primitives; do not build another generic shell engine. First tests should use temp directories/processes and never active Conductor/Phase6 workers.
+RED tests first: helper never uses shell, result JSON excludes argv/env/output, launch returns after startup handshake, inspect never launches, collect never reruns.
