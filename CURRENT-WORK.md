@@ -8,7 +8,9 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None.
+`docs/work-orders/WO-AC-RES-007-fault-injection.md`
+
+Status: `IN_PROGRESS`
 
 ## Completed resilient foundation
 
@@ -17,26 +19,21 @@ None.
 - AC-RES-003 transport-loss state + claim preservation: `f9838a5`
 - AC-RES-004 recovery reconciliation + repo identity gate: `bb5dab0`
 - AC-RES-005 duplicate execution protection: `a0a2e52`
-- AC-RES-006 output backpressure + bounded durable artifact reads: completion commit is the immediate transaction
+- AC-RES-006 output backpressure: `9cc3c46`
 
-## AC-RES-006 evidence
+## AC-RES-007 micro-steps
 
-- 10 targeted tests; 80 AC-RES-001..006 focused/regression tests
-- full durable logs remain on disk; transport-facing tail/chunk max 64 KiB
-- full SHA-256 + size metadata without full response payload
-- traversal/symlink confinement + invalid UTF-8 safety
-- bounded pytest summary extraction
-- no process/log/Git/network mutation API
-- PID `25396` unchanged
+- [x] 007-A contract + coordination checkpoint
+- [ ] 007-B RED deterministic fake scenario tests
+- [ ] 007-C implement fake executor
+- [ ] 007-D integrated AC-RES recovery/fault tests
+- [ ] 007-E regression + safety verification
+- [ ] 007-F close/commit
 
-## Project continuity rule
+## Invariant
 
-Before recommending a new chat/session because context is crowded, checkpoint active WO, HEAD/worktree, evidence, blockers/decisions, exact next safe action, and ownership/forbidden constraints in repository artifacts.
-
-## Environment follow-up
-
-Hermes/uv Python/Tcl-Tk full-suite environment remains independently diagnosed as unstable. Recommended remediation: Python build `20260623` or newer in a separate bounded environment work order.
+Do not use real Serena outages as the recovery test harness. Fault scenarios are explicit and deterministic, and production recovery decisions stay in AC-RES-003/004/005/006.
 
 ## Next safe action
 
-Open `AC-RES-007 — Fake Executor + Fault Injection`: deterministic local simulation of disconnect-before-launch, after-launch, mid-command, after-completion-before-result, delay, large output, nonzero exit, malformed response, duplicate request, and wrong identity. Do not use real Serena outages as the harness.
+Commit coordination checkpoint, then write RED tests for fake lifecycle facts and integrated no-duplicate/recovery/backpressure behavior using temp stores/repos only.
