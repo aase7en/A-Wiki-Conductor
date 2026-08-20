@@ -1,32 +1,34 @@
 # HANDOFF — A-Conductor
 
-Last updated: 2026-08-20
+Last updated: 2026-08-20 (autonomous night session end)
 
 ## Current objective
 
-Resilient Execution Supervisor MVP sequence AC-RES-001..008 complete. Next milestone decision pending with the user.
+Product-shaped baseline achieved: resilient supervisor wired into native operations, installable `a-conductor` program, CI on every PR. Awaiting user decisions on next milestone.
 
-## Current task
+## Status
 
-`WO-AC-RES-008 — Serena Transport Adapter Integration`
-
-Status: `COMPLETE`
+`COMPLETE` for the authorized night scope (packaging + CI + supervisor wiring + review/bugfix loop).
 
 ## Baseline
 
-- branch `main`, tracking `origin/main` (`https://github.com/aase7en/A-Wiki-Conductor.git`, private, explicit user decision 2026-08-20)
-- AC-RES-008 completion commit is the immediate `feat: add serena transport adapter` transaction
-- full suite 742 passed, 0 skipped at closure
-- runtime observation at closure: listener PID `25396` (tunnel-client) no longer running; stopped externally — no process was killed by project work (read-only `tasklist` queries only)
+- branch `main` at merge `8669cdb` (PR #3), pushed; all work merged via PRs #1–#3 with green CI
+- full suite: 749 passed, 0 skipped (local + clean GitHub runner)
+- smoke: `A-CONDUCTOR_SMOKE_OK projects=0 workers=3`
 
-## Boundary
+## What the next agent must know
 
-Adapter = deterministic mapping only (no I/O). AC-RES-003/004/005/006 remain authoritative; the AC-RES-007 fake remains the fault harness. A-Wiki remains brain/policy/memory.
+- PRs #1/#2/#3 + their closed work orders (`WO-P1-045/046/047`) are the authoritative record of tonight's chunks; `docs/references/serena-configuration-notes.md` captures the Serena config surface read per user request.
+- `SupervisedCommandRunner` is opt-in: default resolver factories still build `NativeSubprocessRunner`; switching the default is a deliberate future decision.
+- AC-RES-002 `inspect()` result-race was fixed in PR #3 — result files now win over stale-pid conclusions; regression test in `tests/test_supervised_execution.py`.
+- DECISION_REQUIRED: DR-P1-003 live Worker-3 transport validation (external provisioning authorization) — `WO-P1-023`, still `blocked_external`.
+- No bugs were left unfixed; nothing was deferred to a stronger model.
+
+## Safety state
+
+- No real Serena/tunnel/PID mutation performed tonight; test targets were real short-lived Python child processes in temp dirs only.
+- PID 25396 (previous Conductor listener) was observed stopped externally earlier in the evening; not restarted by project work.
 
 ## Next safe action
 
-Open the next work order only after the user picks the milestone: (a) supervisor ↔ DurableJobExecutionCoordinator wiring, or (b) Phase 1 worker-lifecycle/UI milestones. Apply the A-Wiki reuse-before-build gate first.
-
-## Context rollover rule
-
-If context becomes crowded, checkpoint repository continuity before recommending a new session; new sessions resume from repository artifacts.
+Read `CURRENT-WORK.md` "Next safe action", confirm the milestone with the user, open a new work order + reuse gate before implementation.
