@@ -488,6 +488,95 @@ Both
   -> A-Conductor task contract + checkpoints + evidence + review
 ```
 
+### North Star — Work-Class Durable Agent Tunnel
+
+A-Conductor is not intended to stop at being a Serena control panel. Its long-term product goal is to become a durable local/hybrid agent tunnel and execution fabric that provides as many of the practical capabilities of products such as GPT Work / Claude-style long-running work surfaces as can reasonably and safely be implemented.
+
+Primary user outcome:
+
+> Give A-Conductor a goal once, preferably from Discord or another lightweight operator surface, and let it plan, decompose, route, execute, checkpoint, resume, verify, review, repair, and continue across suitable workers without requiring the user to repeatedly carry context or type `continue`.
+
+Target capabilities, implemented incrementally and without assuming any single vendor:
+- long-running and resumable jobs
+- background/durable execution where the selected worker/runtime supports it
+- strong native filesystem, shell, Git, test, build, and artifact operations behind deterministic safety gates
+- Serena as a semantic-code specialist rather than the only filesystem/shell engine
+- multi-agent / multi-provider worker routing
+- local, free, and low-cost model/runtime support where quality is sufficient
+- selective escalation to premium models/surfaces only when their capability is materially valuable
+- durable TODO/checklist/checkpoint/evidence/handoff state across sessions and vendors
+- repository/worktree identity and mutation authority controls
+- review/repair loops with explicit budgets and stop conditions
+- Discord-first or similarly lightweight remote operator interaction, while preserving the desktop Control Center for local visibility and recovery
+- provider/runtime neutrality so future execution surfaces can be added without redesigning the task model
+
+### Cost and Quota Objective
+
+A-Conductor should actively minimize unnecessary premium-model consumption and user subscription quota usage across future projects.
+
+This means cost-aware and quota-aware routing should eventually consider, where observable and policy-allowed:
+- whether deterministic/local execution can complete the step without an LLM
+- whether a local/free/low-cost model is sufficient
+- whether a premium reasoning model is required only for planning, difficult judgment, or review
+- whether a durable external execution surface is justified for a long task
+- model/provider price and practical quota pressure
+- context size and repeated-context cost
+- retry history and failure cost
+- expected task duration and `max_safe_transaction_scope`
+
+The goal is to **reduce dependence on and consumption of weekly / rolling-window premium limits**, not to bypass provider limits, access controls, or terms. Premium models should become high-value specialists rather than the default labor force whenever cheaper or local workers can safely do the work.
+
+Conceptually:
+
+```text
+User / Discord
+      |
+      v
+A-Conductor
+  Goal + Durable Task State
+      |
+      +--> Deterministic/native tools        [lowest cost when sufficient]
+      +--> Local/free/cheap A-Worker         [routine execution]
+      +--> Serena semantic specialist        [code intelligence]
+      +--> GPT/Claude/other premium worker   [hard reasoning/review]
+      +--> Durable Work-class surface        [long-running jobs]
+      |
+      v
+Evidence -> Verify -> Review -> Repair -> Continue -> Complete
+```
+
+### Relationship with A-Wiki Orchestrator
+
+A-Conductor and A-Wiki orchestrator are complementary layers and should be developed to cooperate rather than replace one another.
+
+Preferred responsibility split:
+- **A-Wiki** = brain, durable knowledge, policies, architectural decisions, cross-project memory, work-order/claim conventions, existing orchestration intelligence, and reusable procedures
+- **A-Conductor** = execution fabric, durable worker/runtime control, filesystem/process/tool execution, scheduling, checkpoints, evidence, recovery, operator UI/Discord gateway, and provider/runtime adapters
+- **A-Worker** = replaceable execution slot that may host Serena, local models, Codex-like workers, cloud agents, deterministic tools, or future providers
+
+A-Conductor must reuse or wrap A-Wiki orchestration primitives when practical. It must not create a second incompatible memory, claim, work-order, or orchestration universe merely because the execution control plane lives in another repository.
+
+Long-term integration direction:
+
+```text
+A-Wiki
+Knowledge / Policy / Memory / Orchestration Intelligence
+        |
+        v
+A-Conductor
+Durable Task + Cost/Quota Router + Execution Control Plane
+        |
+        v
+A-Worker 1..N / Durable External Workers
+        |
+        v
+Evidence / Handoff / Outcome
+        |
+        +--------------------> A-Wiki memory and learning loop
+```
+
+This North Star supersedes any interpretation of Phase 1 as the final product boundary. The current Serena Control Center is infrastructure needed to reach this larger goal.
+
 ## 16. A-Wiki Reuse-Before-Build Gate
 
 A-Wiki is the existing brain/policy/protocol repository and must be checked before A-Conductor creates coordination primitives that may already exist.
