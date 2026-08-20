@@ -33,7 +33,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| — | — | — | No active claim at checkpoint; Stage A dummy-runtime integration is green |
+| `WO-P1-016` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/owned_process.py`, `src/a_conductor/__init__.py`, `tests/test_owned_process.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-016-windows-owned-process-controller.md` |
 
 > Current limitation: this project is not yet Git-initialized, so this claim is durable only on the local project filesystem. Cross-machine claim/commit/push semantics become fully enforceable after the GitHub repository decision is resolved.
 
