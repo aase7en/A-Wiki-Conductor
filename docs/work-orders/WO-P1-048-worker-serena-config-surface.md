@@ -40,8 +40,8 @@ Deliver the per-worker Serena configuration surface recorded in PROJECT-PLAN §7
 ## Micro-steps
 
 - [x] 048-A requirements + design + this work order (user requirement recorded 2026-08-21)
-- [ ] 048-B RED settings model/renderer/applier tests
-- [ ] 048-C implement model + renderer + confined applier
+- [x] 048-B RED settings model/renderer/applier tests
+- [x] 048-C implement model + renderer + confined applier
 - [ ] 048-D store integration (save/get settings) + tests
 - [ ] 048-E desktop UI panel + control service wiring + tests
 - [ ] 048-F regression + close/commit/push
@@ -49,3 +49,4 @@ Deliver the per-worker Serena configuration surface recorded in PROJECT-PLAN §7
 ## Checkpoint log
 
 - [2026-08-21] Opened on branch chunk/p1-048-config-surface-docs; baseline main `ff2a06b`.
+- [2026-08-21] 048-B/C complete on branch chunk/p1-048b-settings-model: 11/11 settings tests green (RED first: ModuleNotFoundError); bugfix loop fixed empty-list YAML spacing. Full suite 760 passed. Evidence: model validation (worker-id pattern, tool/mode identifier rules, FIXED_TOOLS_EXCLUSivity, timeout bounds), full-file renderer with line-asserted output, confined atomic applier under `<instances_root>/<worker>/serena-home/`.

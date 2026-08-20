@@ -106,6 +106,12 @@ from .supervised_command_runner import (
     SupervisedExecutionFingerprintStore,
     SupervisedLauncher,
 )
+from .worker_serena_settings import (
+    LanguageBackend,
+    WorkerSerenaSettings,
+    WorkerSettingsApplyError,
+    apply_worker_serena_settings,
+)
 from .job_control import DurableJobControlService
 from .job_execution import (
     DurableJobExecutionCoordinator,
@@ -386,6 +392,10 @@ __all__ = [
     "SupervisedCommandRunner",
     "SupervisedExecutionFingerprintStore",
     "SupervisedLauncher",
+    "LanguageBackend",
+    "WorkerSerenaSettings",
+    "WorkerSettingsApplyError",
+    "apply_worker_serena_settings",
     "DurableJobControlService",
     "DurableJobExecutionCoordinator",
     "DurableJobStore",
