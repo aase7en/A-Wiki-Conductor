@@ -8,30 +8,38 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-None — `WO-P1-017` completed; awaiting clean close commit.
+`docs/work-orders/WO-P1-018-serena-runtime-materializer.md`
 
-## Completed foundation
+Status: `IN_PROGRESS`
 
-- [x] Contracts/local Git/provider-neutral runtime safety stack.
-- [x] Registry + SQLite persistence.
-- [x] Lifecycle planner/executor/journal/recovery stack.
-- [x] Read-only Windows observer + strict inspection backend.
-- [x] Stage A self-owned dummy-runtime integration.
+## Completed
+
+- [x] Runtime safety, registry, persistence, lifecycle planner/executor/journal/recovery.
+- [x] Read-only Windows observation and strict inspection.
+- [x] Stage A dummy lifecycle integration.
 - [x] Exact-owned Windows process controller (`8c4cb8c`).
-- [x] Serena lifecycle backend composition; targeted 24 passed, full suite 274 passed.
+- [x] Serena lifecycle backend composition (`62b36bc`), full suite 274 passed.
+
+## Active checklist — WO-P1-018
+
+- [x] Open work order.
+- [ ] Claim scope and commit coordination checkpoint.
+- [ ] Write RED materializer tests.
+- [ ] Implement bounded profile renderer + `OwnedProcessSpec` construction.
+- [ ] Run targeted/full verification.
+- [ ] Close/commit work order.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before P1-017 close commit: `ab9d757`
+- HEAD before P1-018 coordination commit: `62b36bc`
 - Git remote: none
-- exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global Git config unchanged.
 
-## External integration state
+## Gates
 
-- GitHub connector explicitly attempted but blocked by platform `FORBIDDEN`; no GitHub-side mutation.
-- `DR-P1-002` active: no live Serena/tunnel/A-Worker 3 mutation before dedicated isolated Stage B preflight.
+- GitHub connector currently blocked by platform; no remote/push.
+- `DR-P1-002`: no live Serena/tunnel/A-Worker 3 mutation in P1-018.
 
 ## Next safe action
 
-Commit P1-017 close checkpoint, then open `WO-P1-018` for concrete Serena runtime materialization/profile/spec construction with fake/dummy tests only.
+Claim/commit P1-018, then write failing materializer tests before implementation.
