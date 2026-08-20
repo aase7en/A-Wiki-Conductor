@@ -1,6 +1,6 @@
 # WO-P1-034: Durable Job State + Checkpoint Store
 
-Status: in_progress
+Status: completed
 Lane/files: `src/a_conductor/job_state.py`, `src/a_conductor/job_store.py`, `src/a_conductor/__init__.py`, `tests/test_job_state.py`, `tests/test_job_store.py`, `docs/contracts/durable-job-state.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-034-durable-job-state.md`
 Branch: main
 Model tier: high
@@ -45,3 +45,6 @@ Persist A-Conductor runtime job state around A-Wiki work-order references withou
 
 - [2026-08-20] Opened from clean Native Execution/Git foundation at `23443fe`.
 - [2026-08-20] Reuse gate complete: `WRAP + EXTEND`; durable contract defined and local claim opened from baseline `23443fe`.
+- [2026-08-20] Pure transition policy GREEN: 18/18 tests.
+- [2026-08-20] SQLite store GREEN: targeted 31/31; full suite 492 passed; compileall/diff checks passed.
+- [2026-08-20] Schema safety verified: `job_records`/`job_events` contain metadata/ref columns only; no prompt/payload/transcript/command/stdout/stderr/message/content/secret/token columns. Active Conductor listener preserved at PID 25396.

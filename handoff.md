@@ -4,32 +4,26 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Build the durable runtime layer needed for Work-class resumable execution while keeping A-Wiki authoritative for planning, work-order content, memory, and orchestration policy.
+Continue building the Work-class durable runtime above the native execution foundation while A-Wiki remains authoritative for planning/memory/orchestration policy.
 
 ## Current task
 
-`WO-P1-034 — Durable Job State + Checkpoint Store`
+No active work order. Most recently completed: `WO-P1-034 — Durable Job State + Checkpoint Store`.
 
-Status: `IN_PROGRESS`
+## P1-034 evidence
 
-## Baseline
-
-- Native execution foundation complete through transactional Git mutations.
-- Latest completed feature commit before this work order: `23443fe`.
-- Full suite at that checkpoint: 461 passed.
-- Active Conductor listener remained `127.0.0.1:18011`, PID `25396`.
-
-## P1-034 boundary
-
-- A-Wiki work orders are referenced opaquely; their prompt/spec content is not copied into the job DB.
-- A-Conductor stores operational state: TaskState, worker claim, attempt budget, recovery classification, optimistic version, append-only checkpoint/evidence metadata.
-- No planner/router/scheduler/background loop in this work order.
-- No A-Wiki repo mutation.
+- Pure state policy: 18 tests passed.
+- Durable store targeted suite: 31 tests passed.
+- Full suite: 492 passed.
+- compileall + git diff check: PASS.
+- SQLite schema safety: PASS; no prompt/payload/transcript/command/stdout/stderr/message/content/secret/token columns in `job_records`/`job_events`.
+- Active Conductor listener preserved at `127.0.0.1:18011`, PID `25396`.
+- Job state references A-Wiki work orders opaquely and stores operational metadata only.
 
 ## Next safe action
 
-Commit the P1-034 coordination/contract checkpoint, then write RED transition-policy tests before implementing `job_state.py`; persistence tests and `job_store.py` come after the pure policy is green.
+Open a bounded job-execution service work order that consumes durable jobs and fixed execution adapters through explicit state/checkpoint transitions. Do not add a planner/model router/background scheduler yet.
 
 ## Resume order
 
-`AGENTS.md -> PROJECT-PLAN.md -> docs/contracts/a-wiki-a-conductor-integration.md -> docs/contracts/durable-job-state.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active work order -> git status/HEAD`.
+`AGENTS.md -> PROJECT-PLAN.md -> docs/contracts/a-wiki-a-conductor-integration.md -> docs/contracts/durable-job-state.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> git status/HEAD`.

@@ -40,6 +40,20 @@ from .domain import (
     Worker,
     WorkerState,
 )
+from .job_state import (
+    JobRuntimeState,
+    JobStateError,
+    JobTransitionPlan,
+    new_job_state,
+    plan_job_transition,
+)
+from .job_store import (
+    JOB_STORE_SCHEMA_VERSION,
+    JobEvent,
+    JobEventType,
+    JobStoreError,
+    SQLiteJobStore,
+)
 from .lifecycle import (
     LifecycleAction,
     LifecycleContext,
@@ -233,6 +247,16 @@ __all__ = [
     "TaskState",
     "Worker",
     "WorkerState",
+    "JobRuntimeState",
+    "JobStateError",
+    "JobTransitionPlan",
+    "new_job_state",
+    "plan_job_transition",
+    "JOB_STORE_SCHEMA_VERSION",
+    "JobEvent",
+    "JobEventType",
+    "JobStoreError",
+    "SQLiteJobStore",
     "LifecycleAction",
     "LifecycleContext",
     "LifecycleDecision",
