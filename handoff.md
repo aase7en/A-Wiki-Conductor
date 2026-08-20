@@ -4,51 +4,42 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Compose Serena-specific lifecycle steps onto the already-built planner/executor/checkpoint and exact-owned process safety boundaries without introducing direct live Serena/tunnel mutation yet.
+Continue Phase 1 from completed Serena lifecycle composition into concrete runtime materialization while preserving all existing safety gates.
 
 ## Current task
 
-`WO-P1-017 — Serena Lifecycle Backend Composition`
-
-Status: `IN_PROGRESS`
+No active work order. `WO-P1-017 — Serena Lifecycle Backend Composition` is completed and awaiting close commit.
 
 ## Completed
 
-- Contracts/local Git/runtime safety/read-only layers complete.
-- Registry + SQLite persistence complete.
-- Lifecycle planner/executor/journal/recovery stack complete.
+- Core contracts/runtime safety/registry/persistence complete.
+- Lifecycle planner/executor/journal/recovery complete.
 - Stage A dummy runtime integration complete.
-- Exact-owned Windows process controller complete; commit `8c4cb8c`.
-- Full suite at previous checkpoint: 250 passed.
+- Exact-owned Windows process controller complete (`8c4cb8c`).
+- Serena lifecycle backend composition complete: targeted 24/24, full suite 274/274, static I/O scan clean.
 
-## Current repository state
+## Repository state
 
 - branch: `main`
-- HEAD before P1-017 coordination commit: `8c4cb8c`
+- HEAD before P1-017 close commit: `ab9d757`
 - no Git remote
-- exact safe-directory override remains required; global Git config unchanged.
+- safe-directory override required per Git command.
 
 ## GitHub state
 
-User requested `@GitHub`; connector access was attempted but platform returned `FORBIDDEN: This conversation is restricted to developer MCPs`. No GitHub mutation was performed.
+User requested `@GitHub`; connector calls were attempted but the platform returned `FORBIDDEN: This conversation is restricted to developer MCPs`. No GitHub mutation was performed.
 
-## DECISION_REQUIRED
+## Decision gates
 
-`DR-C1-001`: GitHub publication destination/visibility unresolved.
-
-`DR-P1-002`: first live Serena/tunnel lifecycle integration must use a dedicated isolated worker, never Sunday-Conducter or Phase6.
-
-## Do not do
-
-- No direct live Serena/tunnel/A-Worker 3 mutation in WO-P1-017.
-- No broad process termination or `shell=True`.
-- No secret resolution/logging in the composition backend.
-- No direct journal persistence from the backend.
+- `DR-C1-001`: GitHub publication destination/visibility unresolved.
+- `DR-P1-002`: first live Serena/tunnel integration must use a dedicated isolated worker, never Sunday-Conducter or Phase6.
 
 ## Next safe action
 
-Claim/commit P1-017 coordination state, write failing backend mapping tests, then implement only the injected collaborator composition layer.
+1. Commit P1-017 close checkpoint.
+2. Open/claim P1-018 for Serena runtime materialization/profile/spec construction.
+3. Keep P1-018 fake/dummy only; no live A-Worker 3 mutation.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Verify Git HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Verify HEAD/status before mutation.

@@ -78,6 +78,11 @@ from .runtime_safety import (
     classify_tunnel_binding,
     classify_worktree_binding,
 )
+from .serena_lifecycle_backend import (
+    SerenaLifecycleBackend,
+    SerenaLifecycleOperations,
+    SerenaOperationResult,
+)
 from .serena_runtime import (
     ProjectIdentityPolicy,
     SerenaProjectBinding,
@@ -162,6 +167,9 @@ __all__ = [
     "classify_process_ownership",
     "classify_tunnel_binding",
     "classify_worktree_binding",
+    "SerenaLifecycleBackend",
+    "SerenaLifecycleOperations",
+    "SerenaOperationResult",
     "ProjectIdentityPolicy",
     "SerenaProjectBinding",
     "SerenaWorkerConfig",
