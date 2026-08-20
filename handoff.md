@@ -4,29 +4,31 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Wire persisted Serena runtime configuration into a safe lifecycle coordinator, then enable desktop Start/Stop/Restart actions.
+Implement the application-level lifecycle coordinator that safely connects UI commands to the pure lifecycle planner and checkpointed executor.
 
 ## Current task
 
-No active work order. `WO-P1-026 — Durable Serena Runtime Configuration Store` completed; awaiting close commit.
+`WO-P1-027 — Lifecycle Coordinator`
+
+Status: `IN_PROGRESS`
 
 ## Completed
 
 - Local process-manager/runtime safety stack complete.
-- Control Center service + CLI-inspired desktop shell complete.
-- Durable non-secret Serena config store complete: targeted 12/12, full suite 375/375.
-- Stage B external transport provisioning remains `DR-P1-003 / BLOCKED_EXTERNAL`.
+- Control Center service + desktop shell complete.
+- Durable non-secret Serena configuration store complete (`95ceb5d`), full suite 375 passed.
+- Stage B live transport remains `DR-P1-003 / BLOCKED_EXTERNAL`.
 
 ## Repository state
 
 - branch: `main`
-- HEAD before P1-026 close commit: `41eb5b2`
+- HEAD before P1-027 coordination commit: `95ceb5d`
 - no Git remote
 
 ## Next safe action
 
-Commit P1-026. Implement lifecycle coordinator/factory using persisted worker/project/ref metadata and existing safety components. Keep live Worker 3 transport blocked until DR-P1-003 is resolved.
+Claim/commit P1-027; write RED tests for planner/executor delegation and worker state transitions before implementation.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file; verify HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO; verify HEAD/status before mutation.
