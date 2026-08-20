@@ -57,6 +57,12 @@ from .persistence import (
     PersistenceError,
     SQLiteRegistryStore,
 )
+from .project_identity import (
+    GitProjectIdentityVerifier,
+    GitReadOnlyRunner,
+    GitReadResult,
+    StrictReadOnlyGitRunner,
+)
 from .registry import (
     AssignmentConflictError,
     AssignmentRecord,
@@ -164,6 +170,10 @@ __all__ = [
     "WindowsExactPidTerminator",
     "WindowsOwnedProcessController",
     "WindowsProcessSpawner",
+    "GitProjectIdentityVerifier",
+    "GitReadOnlyRunner",
+    "GitReadResult",
+    "StrictReadOnlyGitRunner",
     "AssignmentConflictError",
     "AssignmentRecord",
     "ControlPlaneRegistry",

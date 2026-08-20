@@ -7,7 +7,6 @@
 
 | Lane | Theme | Owned scope | Must not touch without a separate claim |
 |---|---|---|---|
-| `WO-P1-021` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/project_identity.py`, `src/a_conductor/__init__.py`, `tests/test_project_identity.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-021-git-project-identity.md` |
 | ARCH | architecture, contracts, ADRs, plans | `PROJECT-PLAN.md`, `docs/contracts/**`, `schemas/**`, architecture ADRs | runtime/UI implementation |
 | RUNTIME | worker/runtime/process/Serena adapters | future runtime/process source + runtime tests | UI and architecture hotspot files |
 | VERIFY | deterministic verification, evidence, recovery tests | future verifier/test/evidence tooling | product UI and unrelated runtime internals |

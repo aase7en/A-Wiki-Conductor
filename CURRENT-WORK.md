@@ -8,9 +8,7 @@ Last updated: 2026-08-20
 
 ## Active work order
 
-`docs/work-orders/WO-P1-021-git-project-identity.md`
-
-Status: `IN_PROGRESS`
+None — `WO-P1-021` completed; awaiting close commit.
 
 ## Completed
 
@@ -18,30 +16,20 @@ Status: `IN_PROGRESS`
 - [x] Read-only Windows observer + strict inspection.
 - [x] Stage A dummy lifecycle integration.
 - [x] Exact-owned process controller (`8c4cb8c`).
-- [x] Serena lifecycle backend/materializer/environment/operations through commit `5ea47c4`.
-- [x] Full suite at P1-020 close: 313 passed.
-
-## Active checklist — WO-P1-021
-
-- [x] Open work order.
-- [ ] Claim + commit coordination checkpoint.
-- [ ] Write RED project-identity tests.
-- [ ] Implement strict read-only Git verifier.
-- [ ] Run targeted/full verification.
-- [ ] Close/commit work order.
+- [x] Serena lifecycle backend/materializer/environment/operations through `5ea47c4`.
+- [x] Read-only Git project identity verifier; targeted 13 passed; full suite 326 passed; live read-only smoke passed.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before coordination commit: `5ea47c4`
+- HEAD before P1-021 close commit: `8616381`
 - Git remote: none
 
 ## Gates
 
 - GitHub connector platform-blocked in this conversation; no remote/push.
-- No Git mutation in P1-021.
-- No live Serena/tunnel/A-Worker 3 mutation.
+- `DR-P1-002`: live Serena/tunnel integration remains dedicated-worker-only.
 
 ## Next safe action
 
-Claim/commit P1-021, then write failing identity-policy tests before implementation.
+Commit P1-021, then implement strict tunnel-client preflight + opaque local reference/token/tunnel ownership boundaries before Stage B.
