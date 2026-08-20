@@ -34,6 +34,13 @@ from .lifecycle import (
     LifecycleStep,
     plan_lifecycle,
 )
+from .lifecycle_coordinator import (
+    LifecycleBackendFactory,
+    LifecycleContextProvider,
+    LifecycleCoordinator,
+    LifecycleCoordinatorError,
+    WorkerStateService,
+)
 from .lifecycle_executor import (
     LifecycleCheckpoint,
     LifecycleExecutionResult,
@@ -178,6 +185,11 @@ __all__ = [
     "LifecyclePlan",
     "LifecycleStep",
     "plan_lifecycle",
+    "LifecycleBackendFactory",
+    "LifecycleContextProvider",
+    "LifecycleCoordinator",
+    "LifecycleCoordinatorError",
+    "WorkerStateService",
     "LifecycleCheckpoint",
     "LifecycleExecutionResult",
     "LifecycleExecutionState",

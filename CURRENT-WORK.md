@@ -4,36 +4,26 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / lifecycle coordinator**
+**Phase 1 — Multi-Serena Control Center / local lifecycle assembly**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-027-lifecycle-coordinator.md`
-
-Status: `IN_PROGRESS`
+None — `WO-P1-027` completed; awaiting close commit.
 
 ## Completed
 
 - [x] Local process-manager/runtime safety stack through tunnel/preflight boundaries.
 - [x] Control Center service + desktop shell.
-- [x] Durable Serena config store (`95ceb5d`), full suite 375 passed.
-- [x] Stage B transport gate `DR-P1-003` isolated from local MVP work.
-
-## Active checklist — WO-P1-027
-
-- [x] Open work order.
-- [ ] Claim + commit coordination checkpoint.
-- [ ] Write RED coordinator tests.
-- [ ] Implement plan/executor/state-transition coordinator.
-- [ ] Run targeted/full verification.
-- [ ] Close/commit work order.
+- [x] Durable non-secret Serena config store (`95ceb5d`).
+- [x] Lifecycle coordinator; targeted 12 passed, full suite 386 passed + 1 known Tk environment skip.
+- [x] Stage B transport gate `DR-P1-003` remains isolated.
 
 ## Repository state
 
 - Branch: `main`
-- HEAD before P1-027 coordination commit: `95ceb5d`
+- HEAD before P1-027 close commit: `e0f0d8e`
 - Git remote: none
 
 ## Next safe action
 
-Claim/commit P1-027, then write failing coordinator state-machine tests before implementation.
+Commit P1-027, then implement the local Serena lifecycle context provider/backend factory assembly over persisted config + existing observer/materializer/process/preflight/identity boundaries.
