@@ -7,7 +7,6 @@
 
 | Lane | Theme | Owned scope | Must not touch without a separate claim |
 |---|---|---|---|
-| `WO-P1-019` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/owned_process.py`, `src/a_conductor/serena_materializer.py`, `src/a_conductor/__init__.py`, `tests/test_owned_process.py`, `tests/test_serena_materializer.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-019-owned-process-environment.md` |
 | ARCH | architecture, contracts, ADRs, plans | `PROJECT-PLAN.md`, `docs/contracts/**`, `schemas/**`, architecture ADRs | runtime/UI implementation |
 | RUNTIME | worker/runtime/process/Serena adapters | future runtime/process source + runtime tests | UI and architecture hotspot files |
 | VERIFY | deterministic verification, evidence, recovery tests | future verifier/test/evidence tooling | product UI and unrelated runtime internals |

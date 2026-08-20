@@ -14,10 +14,22 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path, PureWindowsPath
-from typing import Protocol
+from typing import Mapping, Protocol
 
 from .runtime_safety import ProcessObservation, ProcessOwnership, classify_process_ownership
 from .windows_observer import PidMetadataObservation, PidMetadataStatus
+
+
+_ALLOWED_ENVIRONMENT_OVERRIDES = frozenset({"SERENA_HOME"})
+_SAFE_INHERITED_ENVIRONMENT_KEYS = frozenset(
+    key.casefold()
+    for key in {
+        "PATH", "PATHEXT", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR",
+        "COMSPEC", "TEMP", "TMP", "USERPROFILE", "HOMEDRIVE",
+        "HOMEPATH", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA",
+        "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMW6432",
+    }
+)
 
 
 class OwnedProcessMutationState(str, Enum):
@@ -81,6 +93,7 @@ class OwnedProcessSpec:
     expected_executable_name: str
     expected_profile_marker: str
     stop_timeout_seconds: int = 5
+    environment_overrides: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         root = _resolved(Path(self.allowed_root))
@@ -112,6 +125,27 @@ class OwnedProcessSpec:
             raise ValueError("profile marker is not present in command")
         _require_timeout(self.stop_timeout_seconds)
 
+        if not isinstance(self.environment_overrides, tuple):
+            raise ValueError("environment_overrides must be a tuple")
+        normalized_overrides: list[tuple[str, str]] = []
+        seen_environment_keys: set[str] = set()
+        for item in self.environment_overrides:
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise ValueError("environment override must be a key/value tuple")
+            key, value = item
+            if not isinstance(key, str) or key not in _ALLOWED_ENVIRONMENT_OVERRIDES:
+                raise ValueError("environment override key is not allowed")
+            folded_key = key.casefold()
+            if folded_key in seen_environment_keys:
+                raise ValueError("duplicate environment override key")
+            seen_environment_keys.add(folded_key)
+            if not isinstance(value, str) or not value or "\x00" in value:
+                raise ValueError("environment override value is invalid")
+            if key == "SERENA_HOME":
+                home = _require_under_root(Path(value), root, "SERENA_HOME")
+                value = str(home)
+            normalized_overrides.append((key, value))
+
         object.__setattr__(self, "allowed_root", root)
         object.__setattr__(self, "cwd", cwd)
         object.__setattr__(self, "pid_path", pid_path)
@@ -119,6 +153,7 @@ class OwnedProcessSpec:
         object.__setattr__(self, "stderr_path", stderr_path)
         object.__setattr__(self, "expected_executable_name", executable_name)
         object.__setattr__(self, "expected_profile_marker", profile_marker)
+        object.__setattr__(self, "environment_overrides", tuple(normalized_overrides))
 
 
 class ProcessObserver(Protocol):
@@ -154,6 +189,27 @@ class ExactPidTerminator(Protocol):
 
 
 class WindowsProcessSpawner:
+    def __init__(self, environment_source: Mapping[str, str] | None = None) -> None:
+        source = os.environ if environment_source is None else environment_source
+        self._environment_source = dict(source)
+
+    def _child_environment(self, spec: OwnedProcessSpec) -> dict[str, str]:
+        environment: dict[str, str] = {}
+        for key, value in self._environment_source.items():
+            if (
+                isinstance(key, str)
+                and isinstance(value, str)
+                and key.casefold() in _SAFE_INHERITED_ENVIRONMENT_KEYS
+            ):
+                environment[key] = value
+
+        for override_key, override_value in spec.environment_overrides:
+            for existing_key in tuple(environment):
+                if existing_key.casefold() == override_key.casefold():
+                    del environment[existing_key]
+            environment[override_key] = override_value
+        return environment
+
     def spawn(self, spec: OwnedProcessSpec) -> subprocess.Popen[bytes]:
         spec.cwd.mkdir(parents=True, exist_ok=True)
         spec.stdout_path.parent.mkdir(parents=True, exist_ok=True)
@@ -168,6 +224,7 @@ class WindowsProcessSpawner:
                 stdin=subprocess.DEVNULL,
                 stdout=stdout_handle,
                 stderr=stderr_handle,
+                env=self._child_environment(spec),
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         finally:

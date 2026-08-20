@@ -228,6 +228,7 @@ class SerenaRuntimeMaterializer:
                 expected_executable_name=PureWindowsPath(executable_path).name,
                 expected_profile_marker=str(profile_path),
                 stop_timeout_seconds=worker.stop_timeout_seconds,
+                environment_overrides=(("SERENA_HOME", str(serena_home)),),
             )
         except ValueError as exc:
             raise SerenaMaterializationError("OWNED_PROCESS_SPEC_INVALID") from exc

@@ -94,6 +94,7 @@ def test_materialize_renders_profile_and_builds_owned_process_spec(tmp_path: Pat
     assert spec.expected_executable_name == "tunnel-client.exe"
     assert spec.expected_profile_marker == str(result.profile_path)
     assert spec.stop_timeout_seconds == config.stop_timeout_seconds
+    assert spec.environment_overrides == (("SERENA_HOME", str(result.serena_home)),)
 
 
 def test_public_result_does_not_store_token_values(tmp_path: Path) -> None:

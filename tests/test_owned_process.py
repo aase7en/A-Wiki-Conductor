@@ -16,6 +16,7 @@ from a_conductor.owned_process import (
     OwnedProcessSpec,
     WindowsExactPidTerminator,
     WindowsOwnedProcessController,
+    WindowsProcessSpawner,
 )
 from a_conductor.runtime_safety import (
     ProcessObservation,
@@ -469,3 +470,103 @@ def test_stop_detects_pid_metadata_change_before_cleanup(tmp_path: Path) -> None
     assert result.state is OwnedProcessMutationState.RECOVERY_REQUIRED
     assert result.reason_code == "PID_METADATA_CHANGED"
     assert runtime.pid_path.exists()
+
+
+def test_spec_accepts_allowlisted_serena_home_override(tmp_path: Path) -> None:
+    root = tmp_path / "owned"
+    runtime = OwnedProcessSpec(
+        allowed_root=root,
+        cwd=root,
+        pid_path=root / "run" / "runtime.pid",
+        stdout_path=root / "logs" / "stdout.log",
+        stderr_path=root / "logs" / "stderr.log",
+        command=(sys.executable, "--marker", "owned-marker"),
+        expected_executable_name=Path(sys.executable).name,
+        expected_profile_marker="owned-marker",
+        environment_overrides=(("SERENA_HOME", str(root / "serena-home")),),
+    )
+    assert runtime.environment_overrides == (("SERENA_HOME", str((root / "serena-home").resolve())),)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        (("OPENAI_API_KEY", "secret"),),
+        (("SERENA_HOME", ""),),
+        (("SERENA_HOME", "bad\x00value"),),
+        (("SERENA_HOME", "one"), ("SERENA_HOME", "two")),
+    ],
+)
+def test_spec_rejects_invalid_environment_overrides(tmp_path: Path, overrides) -> None:
+    root = tmp_path / "owned"
+    with pytest.raises(ValueError):
+        OwnedProcessSpec(
+            allowed_root=root,
+            cwd=root,
+            pid_path=root / "run" / "runtime.pid",
+            stdout_path=root / "logs" / "stdout.log",
+            stderr_path=root / "logs" / "stderr.log",
+            command=(sys.executable, "--marker", "owned-marker"),
+            expected_executable_name=Path(sys.executable).name,
+            expected_profile_marker="owned-marker",
+            environment_overrides=overrides,
+        )
+
+
+def test_spec_rejects_serena_home_outside_allowed_root(tmp_path: Path) -> None:
+    root = tmp_path / "owned"
+    with pytest.raises(ValueError, match="SERENA_HOME"):
+        OwnedProcessSpec(
+            allowed_root=root,
+            cwd=root,
+            pid_path=root / "run" / "runtime.pid",
+            stdout_path=root / "logs" / "stdout.log",
+            stderr_path=root / "logs" / "stderr.log",
+            command=(sys.executable, "--marker", "owned-marker"),
+            expected_executable_name=Path(sys.executable).name,
+            expected_profile_marker="owned-marker",
+            environment_overrides=(("SERENA_HOME", str(tmp_path / "outside")),),
+        )
+
+
+def test_spawner_uses_safe_inherited_environment_plus_overrides(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "owned"
+    runtime = OwnedProcessSpec(
+        allowed_root=root,
+        cwd=root,
+        pid_path=root / "run" / "runtime.pid",
+        stdout_path=root / "logs" / "stdout.log",
+        stderr_path=root / "logs" / "stderr.log",
+        command=(sys.executable, "--marker", "owned-marker"),
+        expected_executable_name=Path(sys.executable).name,
+        expected_profile_marker="owned-marker",
+        environment_overrides=(("SERENA_HOME", str(root / "serena-home")),),
+    )
+    captured = {}
+
+    def fake_popen(argv, **kwargs):
+        captured["argv"] = argv
+        captured.update(kwargs)
+        return FakeChild(pid=45678)
+
+    monkeypatch.setattr("a_conductor.owned_process.subprocess.Popen", fake_popen)
+    source = {
+        "Path": r"C:\\Tools",
+        "SYSTEMROOT": r"C:\\Windows",
+        "TEMP": r"C:\\Temp",
+        "OPENAI_API_KEY": "parent-secret",
+        "CUSTOM_SECRET": "also-secret",
+        "SERENA_HOME": "wrong-parent-home",
+    }
+
+    child = WindowsProcessSpawner(environment_source=source).spawn(runtime)
+
+    assert child.pid == 45678
+    env = captured["env"]
+    assert env["Path"] == source["Path"]
+    assert env["SYSTEMROOT"] == source["SYSTEMROOT"]
+    assert env["TEMP"] == source["TEMP"]
+    assert env["SERENA_HOME"] == str((root / "serena-home").resolve())
+    assert "OPENAI_API_KEY" not in env
+    assert "CUSTOM_SECRET" not in env
+    assert captured["shell"] is False
