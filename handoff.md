@@ -4,29 +4,31 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Build the minimal CLI-inspired desktop shell over the completed local Control Center service while Worker 3 live transport validation remains externally gated.
+Build the first usable CLI-inspired A-Conductor desktop shell over the completed Control Center service.
 
 ## Current task
 
-No active work order. `WO-P1-024 — Control Center Application Service` completed; awaiting close commit.
+`WO-P1-025 — CLI-Inspired Desktop Shell + Projects/Workers Screen`
+
+Status: `IN_PROGRESS`
 
 ## Completed
 
-- Core local process-manager/runtime safety stack complete through tunnel/preflight boundaries.
-- Read-only Git identity complete.
-- Control Center service complete: targeted 10/10, full suite 353/353, no repo/process/network mutation.
-- Stage B transport provisioning recorded as `DR-P1-003 / BLOCKED_EXTERNAL`.
+- Local process-manager/runtime safety stack complete through tunnel/preflight boundaries.
+- Control Center application service complete (`3326bcb`), full suite 353 passed.
+- Tkinter 8.6 verified available.
+- Stage B Worker 3 transport validation remains separate `DR-P1-003 / BLOCKED_EXTERNAL`.
 
 ## Repository state
 
 - branch: `main`
-- HEAD before P1-024 close commit: `b322655`
+- HEAD before P1-025 coordination commit: `3326bcb`
 - no Git remote
 
 ## Next safe action
 
-Commit P1-024. Verify Tkinter availability and build a replaceable dark CLI-inspired Projects/Workers desktop adapter over `ControlCenterService`.
+Claim/commit P1-025. Write RED tests for theme/view refresh/smoke/default database path, then implement desktop UI + `python -m a_conductor` entrypoint. Keep lifecycle buttons disabled until next work order.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file; verify HEAD/status before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO; verify HEAD/status before mutation.
