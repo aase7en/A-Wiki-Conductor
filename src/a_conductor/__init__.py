@@ -42,6 +42,11 @@ from .windows_observer import (
     PidMetadataStatus,
     WindowsRuntimeObserver,
 )
+from .worker_status import (
+    WorkerStatus,
+    WorkerStatusObservation,
+    evaluate_worker_status,
+)
 
 __all__ = [
     "Agent",
@@ -78,4 +83,7 @@ __all__ = [
     "PidMetadataObservation",
     "PidMetadataStatus",
     "WindowsRuntimeObserver",
+    "WorkerStatus",
+    "WorkerStatusObservation",
+    "evaluate_worker_status",
 ]

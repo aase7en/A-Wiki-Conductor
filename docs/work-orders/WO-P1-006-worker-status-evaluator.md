@@ -1,6 +1,6 @@
 # WO-P1-006: Normalized A-Worker Status Evaluator
 
-Status: in_progress
+Status: done
 Lane/files: `src/a_conductor/worker_status.py`, `src/a_conductor/__init__.py`, `tests/test_worker_status.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-006-worker-status-evaluator.md`
 Branch: main
 Model tier: mid
@@ -53,3 +53,7 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after read-only Windows observer commit `af1979e`. Scope is pure normalized status evaluation only.
+
+- [2026-08-20] RED checkpoint: targeted `python -m pytest tests/test_worker_status.py -q --basetemp=runtime/pytest-temp` failed during collection with `ModuleNotFoundError: a_conductor.worker_status` as expected; no evaluator implementation existed yet.
+
+- [2026-08-20] GREEN checkpoint: implemented pure `WorkerStatusObservation` -> `WorkerStatus` evaluator with deterministic precedence for missing project, PID mismatch, tunnel/port collisions, unknown ownership, stopped/stale process, startup/stopping, readiness, project identity, READY/BUSY. Verification: targeted evaluator tests 24 passed; full suite 113 passed; compileall PASS; `git diff --check` PASS; I/O/mutation scan clean. No cleanup or runtime side effects added.
