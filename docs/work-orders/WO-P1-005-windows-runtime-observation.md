@@ -1,6 +1,6 @@
 # WO-P1-005: Read-Only Windows Runtime Observation Adapter
 
-Status: in_progress
+Status: done
 Lane/files: `src/a_conductor/windows_observer.py`, `src/a_conductor/__init__.py`, `tests/test_windows_observer.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-005-windows-runtime-observation.md`
 Branch: main
 Model tier: mid
@@ -54,3 +54,6 @@ Acceptance:
 ## Checkpoint log
 
 - [2026-08-20] ChatGPT/Sunday-Conducter: opened after reusable Serena worker-profile commit `4e36681`. Scope is read-only observation only; lifecycle mutation remains forbidden.
+- [2026-08-20] RED checkpoint: `pytest -q` failed during collection with `ModuleNotFoundError: a_conductor.windows_observer` as expected; no Windows observer implementation existed yet.
+- [2026-08-20] Environment note: default pytest temporary-directory cleanup under the Hermes environment raised a Windows permission error unrelated to test logic. A first local basetemp retry also failed because the ignored `runtime/` parent did not yet exist. After creating the ignored parent, the controlled basetemp run completed normally.
+- [2026-08-20] GREEN checkpoint: implemented injected read-only PowerShell/HTTP observation boundary, read-only PID metadata parsing, exact PID/process observation with command-line redaction, exact health-port ownership observation, loopback-only readiness target construction, and integer validation before command generation. Verification: `pytest -q --basetemp=runtime/pytest-temp` = 89 passed; compileall PASS; `git diff --check` PASS; mutation-primitive scan clean. No target lifecycle mutation or real PowerShell/HTTP execution backend added.

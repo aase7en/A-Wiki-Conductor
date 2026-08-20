@@ -34,6 +34,14 @@ from .serena_runtime import (
     SerenaProjectBinding,
     SerenaWorkerConfig,
 )
+from .windows_observer import (
+    CommandResult,
+    HealthProbeObservation,
+    HealthProbeState,
+    PidMetadataObservation,
+    PidMetadataStatus,
+    WindowsRuntimeObserver,
+)
 
 __all__ = [
     "Agent",
@@ -64,4 +72,10 @@ __all__ = [
     "ProjectIdentityPolicy",
     "SerenaProjectBinding",
     "SerenaWorkerConfig",
+    "CommandResult",
+    "HealthProbeObservation",
+    "HealthProbeState",
+    "PidMetadataObservation",
+    "PidMetadataStatus",
+    "WindowsRuntimeObserver",
 ]
