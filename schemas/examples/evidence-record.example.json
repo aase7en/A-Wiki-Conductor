@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "EVID-C1-SCHEMA-VALIDATION",
+  "task_id": "TASK-C1-EXAMPLE",
+  "attempt_id": "ATTEMPT-C1-001",
+  "recorded_at": "2026-08-20T02:31:00+07:00",
+  "producer": {
+    "kind": "DETERMINISTIC_TOOL",
+    "id": "python-jsonschema",
+    "provider": null,
+    "model": null,
+    "tool_version": null
+  },
+  "phase": "VERIFY",
+  "evidence_type": "SCHEMA_VALIDATION",
+  "result": "PASS",
+  "summary": "All C1 schemas passed Draft 2020-12 check_schema validation.",
+  "command": {
+    "argv": [
+      "python",
+      "-c",
+      "jsonschema.Draft202012Validator.check_schema(...)"
+    ],
+    "cwd": "C:/projects/A-Wiki-Conductor",
+    "exit_code": 0,
+    "duration_ms": null,
+    "stdout_artifact_ref": null,
+    "stderr_artifact_ref": null
+  },
+  "repository": null,
+  "test": null,
+  "review": null,
+  "artifacts": [
+    {
+      "ref": "schemas/task-contract.schema.json",
+      "kind": "json-schema",
+      "sha256": null
+    },
+    {
+      "ref": "schemas/repository-identity.schema.json",
+      "kind": "json-schema",
+      "sha256": null
+    },
+    {
+      "ref": "schemas/evidence-record.schema.json",
+      "kind": "json-schema",
+      "sha256": null
+    }
+  ],
+  "details": {
+    "draft": "2020-12",
+    "example": true
+  }
+}

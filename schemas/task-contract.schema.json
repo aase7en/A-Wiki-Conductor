@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a-conductor:schema:task-contract:1.0.0",
+  "title": "A-Conductor Task Contract",
+  "description": "Versioned authority contract for one bounded A-Conductor task.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "goal",
+    "risk_class",
+    "authority",
+    "target",
+    "scope",
+    "acceptance",
+    "security",
+    "budget",
+    "retry_policy",
+    "escalation",
+    "required_evidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "work_order_ref": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000
+    },
+    "task_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "risk_class": {
+      "enum": ["LOW", "NORMAL", "HIGH", "HUMAN_REQUIRED"]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requested_by", "mutation_allowed", "human_approval_required"],
+      "properties": {
+        "requested_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approved_by": {
+          "type": ["string", "null"]
+        },
+        "approval_ref": {
+          "type": ["string", "null"]
+        },
+        "mutation_allowed": {
+          "type": "boolean"
+        },
+        "human_approval_required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "identity_policy"],
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_identity_ref": {
+          "type": ["string", "null"]
+        },
+        "expected_worktree_path": {
+          "type": ["string", "null"]
+        },
+        "expected_branch": {
+          "type": ["string", "null"]
+        },
+        "expected_head": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-fA-F]{7,64}$"
+        },
+        "identity_policy": {
+          "enum": ["EXACT", "AUTHORIZED_SUCCESSOR", "NO_GIT", "READ_ONLY_DISCOVERY"]
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_files", "forbidden_files", "allowed_commands", "forbidden_commands"],
+      "properties": {
+        "allowed_files": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "forbidden_files": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "allowed_commands": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "forbidden_commands": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "max_changed_files": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "max_diff_bytes": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "scope_growth": {
+          "enum": ["FORBIDDEN", "AMENDMENT_REQUIRED"]
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criteria", "verify_commands", "review_required"],
+      "properties": {
+        "criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "verify_commands": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "review_required": {
+          "type": "boolean"
+        },
+        "required_review_class": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["privacy_class", "network_policy", "secret_access"],
+      "properties": {
+        "privacy_class": {
+          "enum": ["PUBLIC", "INTERNAL", "SENSITIVE", "SECRET"]
+        },
+        "network_policy": {
+          "enum": ["DENIED", "ALLOWLISTED", "INHERIT"]
+        },
+        "network_allowlist": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "secret_access": {
+          "type": "boolean"
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required_capabilities": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "preferred_surface_traits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "supports_long_running": {"type": "boolean"},
+            "supports_resume": {"type": "boolean"},
+            "supports_background_execution": {"type": "boolean"},
+            "supports_repo_tools": {"type": "boolean"},
+            "requires_human_presence": {"type": "boolean"},
+            "max_safe_transaction_scope": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_elapsed_seconds"],
+      "properties": {
+        "max_elapsed_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_input_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "max_output_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "max_estimated_cost_usd": {
+          "type": ["number", "null"],
+          "minimum": 0
+        }
+      }
+    },
+    "retry_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_attempts", "max_identical_failures", "on_lease_expiry"],
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_identical_failures": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "on_lease_expiry": {
+          "const": "RECOVERY_REQUIRED"
+        }
+      }
+    },
+    "escalation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conditions"],
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "ARCHITECTURE_DECISION",
+              "SECURITY_BOUNDARY_CHANGE",
+              "DESTRUCTIVE_OPERATION",
+              "CREDENTIALS_REQUIRED",
+              "MERGE_CONFLICT",
+              "BASELINE_INVALID",
+              "REPEATED_FAILURE",
+              "SCOPE_EXPANSION",
+              "PROVIDER_BEHAVIOR_DRIFT",
+              "PRIVACY_RISK",
+              "IDENTITY_MISMATCH",
+              "UNKNOWN_RECOVERY_STATE"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "required_evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "enum": [
+          "REPOSITORY_IDENTITY",
+          "CHANGED_FILES",
+          "DIFF_SUMMARY",
+          "COMMAND_RESULT",
+          "TEST_RESULT",
+          "LINT_RESULT",
+          "TYPECHECK_RESULT",
+          "CHECKSUM",
+          "HEALTH_CHECK",
+          "REVIEW_RESULT",
+          "SCOPE_DEVIATION_REPORT"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

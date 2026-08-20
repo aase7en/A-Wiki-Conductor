@@ -1,0 +1,65 @@
+# COLLAB — A-Conductor Multi-Agent Coordination
+
+> Binding coordination standard: A-Wiki `docs/protocols/cross-agent-work-orders.md`.
+> Every ChatGPT/GPT Work/A-Worker/Serena/Codex/external agent must read this file before non-trivial work.
+
+## Lanes
+
+| Lane | Theme | Owned scope | Must not touch without a separate claim |
+|---|---|---|---|
+| ARCH | architecture, contracts, ADRs, plans | `PROJECT-PLAN.md`, `docs/contracts/**`, `schemas/**`, architecture ADRs | runtime/UI implementation |
+| RUNTIME | worker/runtime/process/Serena adapters | future runtime/process source + runtime tests | UI and architecture hotspot files |
+| VERIFY | deterministic verification, evidence, recovery tests | future verifier/test/evidence tooling | product UI and unrelated runtime internals |
+| UI | desktop control center | future UI source/assets | runtime/process internals |
+| DOCS | continuity, handoff, operator docs | `AGENTS.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/**`, operator docs | architecture decisions unless explicitly claimed |
+
+A single work order may claim multiple lanes only when the scope is explicit and small. Prefer additive/new files over shared-file edits.
+
+## Hotspot files
+
+These are shared coordination surfaces and must be changed by only one active work order at a time:
+
+- `PROJECT-PLAN.md`
+- `AGENTS.md`
+- `COLLAB.md`
+- `CURRENT-WORK.md`
+- `handoff.md`
+- future dependency manifests / lockfiles
+- future central worker/project registries
+- future task-state transition tables
+- future shared schema index/version registry
+
+## In-progress claims
+
+| Chunk/WO | Agent | Claimed | Scope (files) |
+|---|---|---|---|
+| `WO-P1-000` | ChatGPT / Sunday-Conducter | 2026-08-20 | `.gitignore`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-000-repository-baseline.md`, initial baseline files |
+
+> Current limitation: this project is not yet Git-initialized, so this claim is durable only on the local project filesystem. Cross-machine claim/commit/push semantics become fully enforceable after the GitHub repository decision is resolved.
+
+## Rules
+
+1. **Claim before work.** A chunk must have a work order and claim before touching shared scope.
+2. Before significant work, run the **A-Wiki reuse-before-build gate** in `AGENTS.md`/`PROJECT-PLAN.md`; inspect GitHub/work orders/live claims when duplicate-work risk exists.
+3. Once Git is initialized, pull/reconcile before commit/push and record branch/HEAD in checkpoints.
+4. Never edit a file owned by another live claim.
+5. Never use destructive Git (`reset --hard`, `checkout -- .`, `clean`) on shared user work; never delete another worktree/branch.
+6. Every chunk uses `docs/work-orders/<id>.md`; append a checkpoint whenever stopping, delegating, or changing execution surface.
+7. Scope belongs to the work order, not to a vendor/model. Another agent may resume the same WO after verifying state.
+8. Additive-first: prefer new bounded files; shared hotspots require explicit ownership.
+
+## Pause → Resume
+
+Before pausing or delegating:
+
+1. record actual state/evidence;
+2. update active WO checkpoint;
+3. update `CURRENT-WORK.md`;
+4. update `handoff.md`;
+5. release/transfer claim when the coordination backend supports it.
+
+Resume sequence:
+
+`AGENTS.md -> PROJECT-PLAN.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active work order -> actual repository/runtime reconciliation`
+
+Never blindly repeat a mutation merely because the previous agent/session disappeared.

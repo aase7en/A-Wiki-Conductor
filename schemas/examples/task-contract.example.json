@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "TASK-C1-EXAMPLE",
+  "work_order_ref": "WO-C1-001",
+  "goal": "Define and mechanically validate provider-neutral core contracts before runtime implementation.",
+  "task_type": "architecture-contract",
+  "risk_class": "HIGH",
+  "authority": {
+    "requested_by": "user",
+    "approved_by": "user",
+    "approval_ref": null,
+    "mutation_allowed": true,
+    "human_approval_required": false
+  },
+  "target": {
+    "project_id": "A-Wiki-Conductor",
+    "repository_identity_ref": null,
+    "expected_worktree_path": null,
+    "expected_branch": null,
+    "expected_head": null,
+    "identity_policy": "NO_GIT"
+  },
+  "scope": {
+    "allowed_files": [
+      "docs/contracts/**",
+      "schemas/**",
+      "CURRENT-WORK.md",
+      "handoff.md",
+      "docs/work-orders/WO-C1-001-core-contracts.md"
+    ],
+    "forbidden_files": [
+      "../A-Wiki/**",
+      "../A-Wiki-vnext-clean/**"
+    ],
+    "allowed_commands": [
+      "python schema validation"
+    ],
+    "forbidden_commands": [
+      "git reset --hard",
+      "git clean",
+      "force push"
+    ],
+    "max_changed_files": 20,
+    "max_diff_bytes": 250000,
+    "scope_growth": "AMENDMENT_REQUIRED"
+  },
+  "acceptance": {
+    "criteria": [
+      "Core vocabulary and invariants are documented.",
+      "All C1 schemas pass Draft 2020-12 schema validation."
+    ],
+    "verify_commands": [
+      "python -m json.tool schemas/task-contract.schema.json"
+    ],
+    "review_required": true,
+    "required_review_class": "architecture"
+  },
+  "security": {
+    "privacy_class": "INTERNAL",
+    "network_policy": "DENIED",
+    "network_allowlist": [],
+    "secret_access": false
+  },
+  "routing": {
+    "required_capabilities": [
+      "architecture_reasoning",
+      "filesystem_write",
+      "schema_validation"
+    ],
+    "preferred_surface_traits": {
+      "supports_long_running": true,
+      "supports_resume": true,
+      "supports_background_execution": false,
+      "supports_repo_tools": true,
+      "requires_human_presence": false,
+      "max_safe_transaction_scope": "one work order"
+    }
+  },
+  "budget": {
+    "max_elapsed_seconds": 14400,
+    "max_input_tokens": null,
+    "max_output_tokens": null,
+    "max_estimated_cost_usd": null
+  },
+  "retry_policy": {
+    "max_attempts": 3,
+    "max_identical_failures": 2,
+    "on_lease_expiry": "RECOVERY_REQUIRED"
+  },
+  "escalation": {
+    "conditions": [
+      "ARCHITECTURE_DECISION",
+      "SCOPE_EXPANSION",
+      "IDENTITY_MISMATCH",
+      "UNKNOWN_RECOVERY_STATE"
+    ]
+  },
+  "required_evidence": [
+    "CHANGED_FILES",
+    "COMMAND_RESULT",
+    "REVIEW_RESULT"
+  ],
+  "metadata": {
+    "example": true
+  }
+}

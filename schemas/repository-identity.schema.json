@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a-conductor:schema:repository-identity:1.0.0",
+  "title": "A-Conductor Repository Identity Gate",
+  "description": "Expected vs observed repository/worktree identity used before mutation and during recovery.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "identity_id",
+    "project_id",
+    "observed_at",
+    "expected",
+    "observed",
+    "gate"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "identity_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_id": {
+      "type": ["string", "null"]
+    },
+    "attempt_id": {
+      "type": ["string", "null"]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["worktree_path", "git_policy", "allow_dirty"],
+      "properties": {
+        "worktree_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git_policy": {
+          "enum": ["REQUIRED", "OPTIONAL", "FORBIDDEN"]
+        },
+        "branch": {
+          "type": ["string", "null"]
+        },
+        "head": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-fA-F]{7,64}$"
+        },
+        "head_policy": {
+          "enum": ["EXACT", "AUTHORIZED_SUCCESSOR", "ANY", "NOT_APPLICABLE"]
+        },
+        "allow_dirty": {
+          "type": "boolean"
+        },
+        "allowed_dirty_paths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "observed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["worktree_path", "exists", "is_git_repository"],
+      "properties": {
+        "worktree_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exists": {
+          "type": "boolean"
+        },
+        "is_git_repository": {
+          "type": "boolean"
+        },
+        "repository_root": {
+          "type": ["string", "null"]
+        },
+        "branch": {
+          "type": ["string", "null"]
+        },
+        "head": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-fA-F]{7,64}$"
+        },
+        "dirty": {
+          "type": ["boolean", "null"]
+        },
+        "status_short": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "worktree_list_entry": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "checks", "failures"],
+      "properties": {
+        "result": {
+          "enum": ["PASS", "FAIL", "UNKNOWN"]
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path_match", "git_policy_match", "branch_match", "head_match", "dirty_policy_match"],
+          "properties": {
+            "path_match": {"enum": ["PASS", "FAIL", "NOT_APPLICABLE", "UNKNOWN"]},
+            "git_policy_match": {"enum": ["PASS", "FAIL", "NOT_APPLICABLE", "UNKNOWN"]},
+            "branch_match": {"enum": ["PASS", "FAIL", "NOT_APPLICABLE", "UNKNOWN"]},
+            "head_match": {"enum": ["PASS", "FAIL", "NOT_APPLICABLE", "UNKNOWN"]},
+            "dirty_policy_match": {"enum": ["PASS", "FAIL", "NOT_APPLICABLE", "UNKNOWN"]}
+          }
+        },
+        "failures": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "warnings": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "hashes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "algorithm", "digest"],
+        "properties": {
+          "path": {"type": "string"},
+          "algorithm": {"enum": ["sha256"]},
+          "digest": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
+        }
+      }
+    }
+  }
+}

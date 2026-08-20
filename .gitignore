@@ -1,0 +1,41 @@
+# Serena / local agent state
+.serena/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime state / logs / process metadata
+logs/
+run/
+runtime/
+*.log
+*.pid
+
+# Local databases (schema/migrations remain tracked separately)
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / build output
+node_modules/
+dist/
+build/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

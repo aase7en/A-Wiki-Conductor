@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "identity_id": "RID-C1-EXAMPLE",
+  "project_id": "A-Wiki-Conductor",
+  "task_id": "TASK-C1-EXAMPLE",
+  "attempt_id": "ATTEMPT-C1-001",
+  "observed_at": "2026-08-20T02:30:00+07:00",
+  "expected": {
+    "worktree_path": "C:/projects/A-Wiki-Conductor",
+    "git_policy": "OPTIONAL",
+    "branch": null,
+    "head": null,
+    "head_policy": "NOT_APPLICABLE",
+    "allow_dirty": true,
+    "allowed_dirty_paths": []
+  },
+  "observed": {
+    "worktree_path": "C:/projects/A-Wiki-Conductor",
+    "exists": true,
+    "is_git_repository": false,
+    "repository_root": null,
+    "branch": null,
+    "head": null,
+    "dirty": null,
+    "status_short": [],
+    "worktree_list_entry": null
+  },
+  "gate": {
+    "result": "PASS",
+    "checks": {
+      "path_match": "PASS",
+      "git_policy_match": "PASS",
+      "branch_match": "NOT_APPLICABLE",
+      "head_match": "NOT_APPLICABLE",
+      "dirty_policy_match": "NOT_APPLICABLE"
+    },
+    "failures": [],
+    "warnings": [
+      "Git identity checks are not available until repository initialization."
+    ]
+  },
+  "hashes": []
+}

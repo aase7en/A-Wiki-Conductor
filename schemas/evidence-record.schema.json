@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a-conductor:schema:evidence-record:1.0.0",
+  "title": "A-Conductor Evidence Record",
+  "description": "Append-only evidence emitted by deterministic tools, workers, reviewers, A-Conductor, or humans.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_id",
+    "task_id",
+    "attempt_id",
+    "recorded_at",
+    "producer",
+    "phase",
+    "evidence_type",
+    "result"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {
+          "enum": ["DETERMINISTIC_TOOL", "WORKER", "REVIEWER", "CONDUCTOR", "HUMAN"]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider": {
+          "type": ["string", "null"]
+        },
+        "model": {
+          "type": ["string", "null"]
+        },
+        "tool_version": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "phase": {
+      "enum": ["GATE", "READ", "EDIT", "VERIFY", "REVIEW", "COMMIT", "RECOVERY", "ROUTING", "HEALTH"]
+    },
+    "evidence_type": {
+      "enum": [
+        "REPOSITORY_IDENTITY",
+        "COMMAND_RESULT",
+        "TEST_RESULT",
+        "LINT_RESULT",
+        "TYPECHECK_RESULT",
+        "SCHEMA_VALIDATION",
+        "CHANGED_FILES",
+        "DIFF_SUMMARY",
+        "CHECKSUM",
+        "HEALTH_CHECK",
+        "REVIEW_RESULT",
+        "SCOPE_DEVIATION_REPORT",
+        "ARTIFACT",
+        "WARNING"
+      ]
+    },
+    "result": {
+      "enum": ["PASS", "FAIL", "INFO", "WARN", "UNKNOWN"]
+    },
+    "summary": {
+      "type": ["string", "null"],
+      "maxLength": 20000
+    },
+    "command": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["argv", "exit_code"],
+      "properties": {
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"}
+        },
+        "cwd": {
+          "type": ["string", "null"]
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "duration_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "stdout_artifact_ref": {
+          "type": ["string", "null"]
+        },
+        "stderr_artifact_ref": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "repository": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"type": ["string", "null"]},
+        "worktree_path": {"type": ["string", "null"]},
+        "branch": {"type": ["string", "null"]},
+        "head_before": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-fA-F]{7,64}$"
+        },
+        "head_after": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-fA-F]{7,64}$"
+        },
+        "dirty_before": {"type": ["boolean", "null"]},
+        "dirty_after": {"type": ["boolean", "null"]},
+        "changed_files": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "diff_hash_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-fA-F]{64}$"
+        }
+      }
+    },
+    "test": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "suite": {"type": ["string", "null"]},
+        "passed": {"type": ["integer", "null"], "minimum": 0},
+        "failed": {"type": ["integer", "null"], "minimum": 0},
+        "skipped": {"type": ["integer", "null"], "minimum": 0},
+        "errors": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "review": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "enum": ["PASS", "CHANGES_REQUIRED", "BLOCKED", "ESCALATE", null]
+        },
+        "reviewer_class": {"type": ["string", "null"]},
+        "finding_refs": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref", "kind"],
+        "properties": {
+          "ref": {"type": "string", "minLength": 1},
+          "kind": {"type": "string", "minLength": 1},
+          "sha256": {
+            "type": ["string", "null"],
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        }
+      }
+    },
+    "details": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}
