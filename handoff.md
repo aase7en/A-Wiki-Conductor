@@ -8,87 +8,73 @@ A-Wiki Conductor / product name **A-Conductor**.
 
 ## Current objective
 
-Begin Phase 1 implementation with the smallest provider-neutral typed domain layer, test-first, before process/runtime/UI work.
+Extract a product-grade Serena runtime-manager contract from the validated manual multi-instance deployment before implementing any process manager.
 
 ## Current phase
 
-`Phase 1 — Multi-Serena Control Center / typed domain foundation`
+`Phase 1 — Multi-Serena Control Center / runtime-manager contract extraction`
 
 ## Current task
 
-`WO-P1-001 — Typed Core Domain Models`
+`WO-P1-002 — Serena Runtime Manager Contract from Validated Prototype`
 
 Status: `IN_PROGRESS`
 
 ## Completed
 
-- A-Wiki reuse-before-build/duplicate-work gate checked.
-- A-Wiki work-order scaffolding reused and bootstrapped.
-- C1 core domain contract and three JSON Schemas completed and validated.
-- Local Git initialized on `main`.
-- `.serena/` is ignored.
-- Initial local architecture baseline committed.
-- `WO-P1-000` local repository safety baseline completed.
-- Python 3.11.15 and pytest 9.1.1 confirmed available.
-- `WO-P1-001` opened and claimed for typed domain models.
+- C1 provider-neutral domain/invariant contract complete.
+- Task/RepositoryIdentity/Evidence JSON Schemas complete and mechanically validated.
+- Local Git safety baseline complete on `main`.
+- WO-P1-001 typed core domain implemented test-first; `17 passed`.
+- Implementation commit: `dbf5b34c44a3a10d70bf994a78739324c43bfe7a`.
+- WO-P1-002 opened and claimed for docs-only/read-only runtime contract extraction.
 
 ## Evidence
 
-C1:
-- Draft 2020-12 schema check: PASS (3)
-- example validation: PASS (3/3)
-- baseline contract SHA256 recorded in `CURRENT-WORK.md`/WO-C1-001.
+- `pytest -q`: 17 passed for typed domain.
+- `python -m compileall -q src`: PASS.
+- provider/product leakage scan in `src/a_conductor/domain.py`: clean.
+- Git current HEAD before WO-P1-002 coordination commit: `dbf5b34c44a3a10d70bf994a78739324c43bfe7a`.
 
-Repository baseline:
+## Repository state
+
 - branch: `main`
-- baseline content commit: `3ed22df0d884cf15729167d923ec4a0e32593662`
-- no remote configured
-- worktree was clean immediately after baseline commit
-- `.serena/project.local.yml` confirmed ignored
-
-## Current repository state
-
-Git is initialized locally. Current checkpoint is based on `main` from baseline commit `3ed22df0d884cf15729167d923ec4a0e32593662`; WO-P1-001 coordination docs are being prepared as the next coherent commit.
-
-Git ownership warning: this filesystem reports the directory owner as `Administrators`, so ordinary Git commands trigger dubious-ownership protection. This session uses exact per-command `git -c safe.directory=A:/GitHub/A-Wiki-Conductor ...`. Global Git config was intentionally not modified.
+- Git remote: none
+- Git safe-directory guard is handled per-command only; global Git config was not modified.
 
 ## Decisions made
 
-- Product: `A-Conductor`.
-- Initial slots: `A-Worker 1..3` / `a-worker-01..03`.
-- Worker is runtime-neutral; Serena is the first runtime implementation only.
-- Reuse A-Wiki work-order/claim/handoff primitives.
-- Core implementation starts with Python 3.11 stdlib dataclasses/enums; no third-party runtime framework is introduced by WO-P1-001.
-- Tests precede behavior/source implementation.
+- Worker remains runtime-neutral; Serena is first runtime implementation only.
+- External multi-Serena launcher/runbook is implementation evidence, not product source to copy blindly.
+- WO-P1-002 is docs-only/read-only; process code begins only after this contract is reviewed.
 
 ## DECISION_REQUIRED
 
 ### DR-C1-001 — GitHub repository publication
 
-Need explicit visibility/public-safety decision before creating/configuring a GitHub remote. Recommended default remains private-first.
+Need explicit visibility/public-safety decision before creating/configuring a GitHub remote. Recommended default: private-first.
 
 ## Known problems / warnings
 
-- No cross-machine GitHub visibility for A-Conductor yet because no remote exists.
-- Prior GitHub connector path returned `FORBIDDEN`; public A-Wiki GitHub was still checked read-only via web.
-- Local A-Wiki contains unrelated dirty work and must remain read-only for this project.
-- Git dubious-ownership warning must be handled per-command until a separate machine-level decision changes protected Git config.
+- No GitHub remote/cross-machine A-Conductor claim visibility yet.
+- External runtime prototype may contain machine-specific or secret-adjacent configuration. Only stable concepts may be recorded; credentials/tunnel IDs must not be copied.
+- Local A-Wiki has unrelated dirty work and remains read-only.
 
 ## Do not do
 
+- Do not modify `C:/AI/serena-instances/` during WO-P1-002.
+- Do not start/stop runtime processes or tunnels.
 - Do not modify A-Wiki/Phase6.
-- Do not configure/push a Git remote yet.
-- Do not start Serena/tunnel/process manager, broker, UI, network, or provider integration during WO-P1-001.
-- Do not write source implementation before the failing domain tests exist.
+- Do not create Git remote/push.
 
 ## TODO
 
-See `CURRENT-WORK.md` and `docs/work-orders/WO-P1-001-domain-models.md`.
+See `CURRENT-WORK.md` and `docs/work-orders/WO-P1-002-serena-runtime-contract.md`.
 
 ## Next safe action
 
-Commit the WO-P1-001 coordination checkpoint, then create minimal pytest configuration and failing domain contract tests.
+Commit the WO-P1-002 coordination checkpoint, then inspect the external runbook and representative runtime scripts read-only.
 
 ## Resume instructions
 
-Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> `docs/work-orders/WO-P1-001-domain-models.md`. Reconcile actual Git state using the exact safe-directory override before mutation.
+Read `AGENTS.md` -> `PROJECT-PLAN.md` -> `COLLAB.md` -> `CURRENT-WORK.md` -> this file -> active WO. Re-run duplicate-work/claim checks when resuming in a new session or after significant time.

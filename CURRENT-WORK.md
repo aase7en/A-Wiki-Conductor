@@ -4,71 +4,60 @@ Last updated: 2026-08-20
 
 ## Current phase
 
-**Phase 1 — Multi-Serena Control Center / typed domain foundation**
-
-C1 contracts and the local Git safety baseline are complete. Production implementation begins with a dependency-light typed domain layer only.
+**Phase 1 — Multi-Serena Control Center / runtime-manager contract extraction**
 
 ## Active work order
 
-`docs/work-orders/WO-P1-001-domain-models.md`
+`docs/work-orders/WO-P1-002-serena-runtime-contract.md`
 
 Status: `IN_PROGRESS`
 
 ## Completed foundation
 
-- [x] A-Wiki reuse-before-build gate checked.
-- [x] A-Wiki work-order/claim/handoff primitives reused and bootstrapped.
-- [x] C1 canonical vocabulary/invariants completed.
-- [x] Task/RepositoryIdentity/Evidence schemas created and mechanically validated.
-- [x] Local Git repository initialized on `main`.
-- [x] `.serena/` and local runtime/secrets artifacts ignored.
-- [x] Local architecture baseline commit created: `3ed22df0d884cf15729167d923ec4a0e32593662`.
-- [x] No Git remote configured; no push performed.
+- [x] A-Wiki reuse/work-order/claim gate checked and reused.
+- [x] C1 domain contract + Task/RepositoryIdentity/Evidence schemas complete and validated.
+- [x] Local Git safety baseline complete on `main`.
+- [x] Typed provider-neutral core domain implemented test-first.
+- [x] `pytest -q`: 17 passed for WO-P1-001.
+- [x] Typed domain implementation commit: `dbf5b34c44a3a10d70bf994a78739324c43bfe7a`.
 
-## Active checklist — WO-P1-001
+## Active checklist — WO-P1-002
 
-- [x] Confirm Python 3.11+ and pytest availability.
-- [x] Define stdlib-first implementation strategy; no runtime framework lock-in.
-- [x] Open/claim WO-P1-001.
-- [ ] Commit work-order/claim checkpoint before source changes.
-- [ ] Add minimal pytest config for `src/` layout.
-- [ ] Write failing domain contract tests first.
-- [ ] Capture expected red test result.
-- [ ] Implement minimal typed domain models.
-- [ ] Run pytest green.
-- [ ] Run compileall + provider/runtime leakage review.
-- [ ] Update checkpoint + handoff and commit coherent implementation batch.
-
-## C1 verification evidence
-
-- JSON parse: PASS (3 schemas).
-- Draft 2020-12 `check_schema`: PASS (3 schemas).
-- Example validation: PASS (3/3).
-- Placeholder scan: clean.
+- [x] Open/claim runtime-contract work order.
+- [ ] Commit the WO-P1-002 coordination checkpoint.
+- [ ] Inspect external multi-Serena runbook read-only.
+- [ ] Inspect representative instance/start/stop/status scripts read-only.
+- [ ] Extract stable product concepts vs machine-specific/private details.
+- [ ] Define runtime profile + ownership + health + tunnel binding contract.
+- [ ] Define lifecycle, collision, stale PID, identity-failure, and recovery semantics.
+- [ ] Secret/tunnel-credential leakage scan.
+- [ ] `git diff --check`.
+- [ ] Update checkpoint + handoff and commit docs batch.
 
 ## Repository state
 
 - Branch: `main`
-- Baseline content commit: `3ed22df0d884cf15729167d923ec4a0e32593662`
+- Current HEAD before WO-P1-002 docs checkpoint: `dbf5b34c44a3a10d70bf994a78739324c43bfe7a`
 - Git remote: none
-- Git ownership note: this filesystem triggers Git's dubious-ownership guard; commands in this session use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`. Global Git config has not been modified.
+- Git dubious-ownership guard: use exact per-command `-c safe.directory=A:/GitHub/A-Wiki-Conductor`; global config remains untouched.
 
 ## DECISION_REQUIRED
 
 ### DR-C1-001 — GitHub repository publication
 
-Need explicit visibility/public-safety decision before GitHub repo creation/remote configuration. Recommended default: **private-first** because planning material contains machine-specific deployment evidence.
+Need explicit visibility/public-safety decision before GitHub repo creation/remote configuration. Recommended default: **private-first** because current planning material contains machine-specific deployment evidence.
 
-This does not block local Phase 1 implementation.
+This does not block local Phase 1 work.
 
 ## Constraints
 
-- No GitHub remote/push until DR-C1-001 is resolved.
+- External prototype under `C:/AI/serena-instances/` is read-only evidence.
+- No process start/stop/tunnel provisioning in WO-P1-002.
+- No process-manager source code yet.
+- No secrets/tunnel credentials copied into tracked files.
 - No A-Wiki or Phase 6 mutation.
-- No Serena/tunnel/process-manager implementation in WO-P1-001.
-- No UI, broker, network, or provider SDK integration in WO-P1-001.
-- No duplicate A-Wiki coordination engine.
+- No Git remote/push.
 
 ## Next safe action
 
-Commit the WO-P1-001 claim/checkpoint, then create the failing domain-model tests before writing `src/a_conductor/domain.py`.
+Commit the WO-P1-002 claim/checkpoint, then inspect the external validated multi-Serena runbook and scripts read-only.
