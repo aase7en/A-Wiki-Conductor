@@ -16,6 +16,10 @@ Do not rely on chat/session memory as the source of truth. Durable project files
 
 Before stopping or delegating non-trivial work, update the active work order checkpoint, `CURRENT-WORK.md`, and `handoff.md` so another agent with no access to the previous conversation can continue safely.
 
+### Context-window rollover
+
+If the active chat/session context becomes crowded or near its practical limit, do not continue until continuity becomes unreliable. First checkpoint the active work order, branch/HEAD/worktree state, completed evidence, blocker/decision state, exact next safe action, and forbidden/ownership constraints in repository continuity artifacts. Only then recommend opening a new session. The new session must be able to resume from the repository entry sequence above without requiring the user to reconstruct or paste the prior chat history.
+
 ## A-Wiki reuse-before-build gate
 
 Before creating or redesigning handoff, work-order, claim/lease, scheduler, task-router, model-router, memory, long-horizon orchestration, or other coordination primitives:
