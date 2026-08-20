@@ -52,6 +52,13 @@ from .execution_store import (
     ExecutionStoreError,
     SQLiteExecutionStore,
 )
+from .execution_deduplication import (
+    DuplicateExecutionAssessment,
+    DuplicateExecutionDecision,
+    DuplicateExecutionGuard,
+    ExecutionFingerprintSpec,
+    compute_execution_fingerprint,
+)
 from .supervised_execution import (
     SupervisedCollectOutcome,
     SupervisedExecutionError,
@@ -315,6 +322,11 @@ __all__ = [
     "ExecutionEventType",
     "ExecutionStoreError",
     "SQLiteExecutionStore",
+    "DuplicateExecutionAssessment",
+    "DuplicateExecutionDecision",
+    "DuplicateExecutionGuard",
+    "ExecutionFingerprintSpec",
+    "compute_execution_fingerprint",
     "SupervisedCollectOutcome",
     "SupervisedExecutionError",
     "SupervisedExecutionService",

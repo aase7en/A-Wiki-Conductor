@@ -6,6 +6,7 @@ inspect, collect, retry, reconnect, cancel, route, or deduplicate processes.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -22,6 +23,7 @@ from .execution_record import (
 
 
 EXECUTION_STORE_SCHEMA_VERSION = "1"
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class ExecutionStoreError(RuntimeError):
@@ -170,6 +172,9 @@ class SQLiteExecutionStore:
                             strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                         )
                     );
+
+                    CREATE INDEX IF NOT EXISTS idx_execution_records_fingerprint_created
+                    ON execution_records(command_fingerprint, created_at DESC, execution_id DESC);
 
                     CREATE TABLE IF NOT EXISTS execution_events (
                         event_id TEXT PRIMARY KEY CHECK (trim(event_id) <> ''),
@@ -371,6 +376,30 @@ class SQLiteExecutionStore:
         with self._connect() as connection:
             try:
                 return self._row_to_record(self._select_record(connection, execution_id))
+            except ExecutionStoreError:
+                raise
+            except sqlite3.Error as exc:
+                raise ExecutionStoreError("EXECUTION_STORE_READ_FAILED") from exc
+
+    def find_by_fingerprint(
+        self, fingerprint: str
+    ) -> tuple[DurableExecutionRecord, ...]:
+        if not isinstance(fingerprint, str) or not _SHA256_RE.fullmatch(fingerprint):
+            raise ValueError("fingerprint must be lowercase SHA-256 hex")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                rows = connection.execute(
+                    "SELECT execution_id, job_id, work_order_ref, project_id, worker_id, "
+                    "backend_id, agent_ref, repo_root, branch, head_before, operation_ref, "
+                    "command_fingerprint, command_summary, runtime_profile_ref, run_dir_ref, "
+                    "stdout_ref, stderr_ref, result_ref, report_ref, transport_state, "
+                    "execution_state, pid, exit_code, started_at, finished_at, version "
+                    "FROM execution_records WHERE command_fingerprint = ? "
+                    "ORDER BY created_at DESC, execution_id DESC",
+                    (fingerprint,),
+                ).fetchall()
+                return tuple(self._row_to_record(row) for row in rows)
             except ExecutionStoreError:
                 raise
             except sqlite3.Error as exc:

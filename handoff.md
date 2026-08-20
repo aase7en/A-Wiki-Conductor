@@ -4,33 +4,26 @@ Last updated: 2026-08-20
 
 ## Current objective
 
-Implement AC-RES-005 duplicate execution protection so repeated transport/session requests cannot silently spawn an equivalent long-running operation twice.
+Continue Resilient Execution Supervisor after duplicate-execution protection is verified.
 
 ## Current task
 
-`WO-AC-RES-005 — Duplicate Execution Protection`
+No active work order after AC-RES-005 completion commit.
 
-Status: `IN_PROGRESS`
+## Latest verified state
 
-## Baseline
-
-- branch `main`
-- HEAD before coordination checkpoint: `bb5dab0`
-- AC-RES-004: 59 focused/regression tests passed
-- active Conductor listener remains PID `25396`
-
-## Design boundary
-
-- canonical in-memory SHA-256 fingerprint builder
-- read-only newest-first SQLite fingerprint lookup
-- exact durable identity recheck after hash match
-- decisions only: `SAFE_TO_LAUNCH`, `ATTACH_RUNNING`, `REUSE_COMPLETED`, `BLOCKED_UNKNOWN`
-- no launch/retry/failover/Git/filesystem/network mutation
+- AC-RES-001: durable execution records
+- AC-RES-002: supervised subprocess
+- AC-RES-003: transport loss preserves ownership
+- AC-RES-004: recovery reconciliation/identity gate
+- AC-RES-005: canonical fingerprint + read-only duplicate lookup + attach/reuse/block/no-match decision
+- focused regression: 70 passed
+- active Conductor listener: PID `25396`
 
 ## Context rollover rule
 
-If chat context becomes crowded, checkpoint active WO/HEAD/worktree/evidence/next-safe-action/ownership constraints before recommending a new session. The new session resumes from repository continuity artifacts, not copied chat history.
+If context becomes crowded, checkpoint repository continuity first and only then recommend opening a new session. New sessions resume from `AGENTS.md -> PROJECT-PLAN.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active WO`.
 
 ## Next safe action
 
-Write RED AC-RES-005 tests, then implement the smallest fingerprint/query/decision layer without touching AC-RES-002 process launch behavior.
+Commit AC-RES-005, then open AC-RES-006 output backpressure/durable reports. Reuse AC-RES-002 stdout/stderr/result refs; add bounded read/summary behavior rather than another logging engine.
