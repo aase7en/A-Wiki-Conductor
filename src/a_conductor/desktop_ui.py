@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Callable, Protocol
 
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 import webbrowser
 
 from .control_center import ControlCenterError, ControlCenterSnapshot
@@ -66,6 +66,218 @@ def find_icon_path() -> Path | None:
         if candidate.is_file():
             return candidate
     return None
+
+
+ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "SELECT_WORKER": (
+        "ยังไม่ได้เลือก Worker",
+        (
+            "ขาด: การคลิกเลือกแถวในตาราง WORKERS (ฝั่งขวา)",
+            "ทำอย่างไร: คลิกแถว Worker หนึ่งครั้งก่อนกดปุ่มนี้",
+        ),
+    ),
+    "SELECT_PROJECT": (
+        "ยังไม่ได้เลือกโปรเจกต์",
+        (
+            "ขาด: การคลิกรายการในกล่อง PROJECTS (ฝั่งซ้าย)",
+            "ทำอย่างไร: เลือกโปรเจกต์ แล้วเลือก Worker ปลายทาง แล้วกด Assign",
+        ),
+    ),
+    "SELECT_INSTANCE": (
+        "ยังไม่ได้เลือกตัวเชื่อม (Connector)",
+        (
+            "ขาด: การคลิกแถวในแถบ CONNECTORS",
+            "ทำอย่างไร: คลิกตัวเชื่อมที่ต้องการก่อนกดปุ่ม",
+        ),
+    ),
+    "INSTANCES_NOT_AVAILABLE": (
+        "ยังไม่พบตัวเชื่อมในเครื่องนี้",
+        (
+            "ขาด: โฟลเดอร์ตัวเชื่อมตามโครงสร้างมาตรฐาน (C:/AI/serena-instances)",
+            "ทำอย่างไร: อ่านคู่มือหมวด 7 หรือกด Rescan หลังสร้างตัวเชื่อมใหม่",
+        ),
+    ),
+    "INSTANCE_REFRESH_FAILED": (
+        "โหลดสถานะตัวเชื่อมไม่สำเร็จ",
+        (
+            "สาเหตุที่พบบ่อย: โฟลเดอร์ตัวเชื่อมถูกย้ายหรือลบระหว่างทาง",
+            "ทำอย่างไร: กด Rescan ถ้ายังไม่หาย ลองปิด-เปิดโปรแกรม",
+        ),
+    ),
+    "INSTANCE_ACTION_FAILED": (
+        "สั่งงานตัวเชื่อมไม่สำเร็จ",
+        (
+            "ดูรายละเอียดล่าสุดในแถบ ACTIVITY / LOG",
+            "ทำอย่างไร: ลองอีกครั้ง ถ้าซ้ำให้ตรวจ log ของตัวเชื่อมนั้นในโฟลเดอร์ logs",
+        ),
+    ),
+    "INSTANCE_START_ALL_FAILED": (
+        "เปิดทั้งหมดไม่สำเร็จบางตัว",
+        (
+            "ดูว่าตัวไหน fail ในแถบ ACTIVITY / LOG",
+            "ทำอย่างไร: เริ่มเฉพาะตัวนั้นใหม่",
+        ),
+    ),
+    "INSTANCE_FLAG_FAILED": (
+        "บันทึกค่า Auto ไม่สำเร็จ",
+        (
+            "สาเหตุที่พบบ่อย: ฐานข้อมูลถูกเปิดค้างด้วยอีกโปรแกรม",
+            "ทำอย่างไร: ปิดโปรแกรมซ้ำแล้วลองใหม่",
+        ),
+    ),
+    "TUNNEL_SETUP_NOT_AVAILABLE": (
+        "ระบบตั้ง Tunnel ID ยังไม่พร้อม",
+        (
+            "เกิดเมื่อ service ภายในยังไม่ถูกเชื่อม (กรณีทดสอบ)",
+            "ในโปรแกรมปกติไม่ควรเจอ",
+        ),
+    ),
+    "TUNNEL_ID_INVALID": (
+        "รูปแบบ Tunnel ID ไม่ถูกต้อง",
+        (
+            "ขาด: ID ที่ถูกต้อง - ต้องขึ้นต้นด้วย tunnel_ ตามด้วย 32 ตัวอักษร",
+            "ทำอย่างไร: ก๊อปใหม่จาก OpenAI Platform (ดูวิธีใน คู่มือ - เชื่อมต่อ AI แต่ละค่าย)",
+        ),
+    ),
+    "CONNECTOR_MATCH_MISSING": (
+        "หาตัวเชื่อมที่ตรงกับโปรเจกต์ไม่เจอ",
+        (
+            "ขาด: ตัวเชื่อมที่ผูกกับ path โปรเจกต์เดียวกัน",
+            "ทำอย่างไร: ดูคอลัมน์ CONNECTOR ในตาราง WORKERS ว่าเป็น '-' หรือไม่",
+        ),
+    ),
+    "SETTINGS_NOT_AVAILABLE": (
+        "ระบบตั้งค่ายังไม่พร้อม",
+        (
+            "เกิดเมื่อ service ตั้งค่ายังไม่ถูกเชื่อม (กรณีทดสอบ)",
+            "ในโปรแกรมปกติไม่ควรเจอ",
+        ),
+    ),
+    "SETTINGS_INVALID": (
+        "ค่าที่กรอกยังไม่ถูกต้อง",
+        (
+            "ขาดหรือผิด: อย่างน้อยหนึ่งช่อง เช่น Fixed tools ห้ามใช้ร่วมกับช่องอื่น หรือชื่อ tool มีช่องว่าง",
+            "ดูข้อความ ERROR สีแดงในหน้าต่างตั้งค่าปัจจุบัน",
+        ),
+    ),
+    "SETTINGS_LANGUAGE_BACKEND_INVALID": (
+        "ค่า Language backend ไม่ถูก",
+        (
+            "เลือกได้แค่ LSP หรือ JetBrains จากรายการ",
+        ),
+    ),
+    "SETTINGS_TOOL_TIMEOUT_INVALID": (
+        "ค่า Tool timeout ไม่ใช่ตัวเลข",
+        (
+            "กรอกเป็นตัวเลขวินาที 1-86400",
+        ),
+    ),
+    "SETTINGS_LOAD_FAILED": (
+        "โหลดค่าตั้งเข้าไม่ได้",
+        (
+            "ลองปิด-เปิดหน้าต่างตั้งค่าใหม่",
+            "ถ้าซ้ำให้ตรวจฐานข้อมูล",
+        ),
+    ),
+    "SETTINGS_SAVE_FAILED": (
+        "บันทึกค่าตั้งไม่สำเร็จ",
+        (
+            "สาเหตุที่พบบ่อย: ฐานข้อมูลถูกล็อก",
+            "ทำอย่างไร: ปิดโปรแกรมซ้ำแล้วลองใหม่",
+        ),
+    ),
+    "SETTINGS_RESULT_INVALID": (
+        "ผลลัพธ์จากระบบผิดรูปแบบ",
+        (
+            "กรณีภายใน",
+            "ลองใหม่อีกครั้ง",
+        ),
+    ),
+    "GUIDE_NOT_FOUND": (
+        "ไม่พบไฟล์คู่มือ",
+        (
+            "ขาด: docs/USER-GUIDE.md ในตำแหน่งติดตั้ง",
+            "ทำอย่างไร: ติดตั้งแอปใหม่ด้วย setup.exe",
+        ),
+    ),
+    "GUIDE_OPEN_FAILED": (
+        "เปิดคู่มือไม่สำเร็จ",
+        (
+            "ลองปิด-เปิดโปรแกรมแล้วกด คู่มือ อีกครั้ง",
+        ),
+    ),
+    "LIFECYCLE_NOT_WIRED": (
+        "ระบบสั่ง Worker ยังไม่ถูกเชื่อม",
+        (
+            "ปกติไม่ควรเจอ",
+            "รีสตาร์ทโปรแกรม",
+        ),
+    ),
+    "LIFECYCLE_COMMAND_FAILED": (
+        "สั่งงาน Worker ล้มเหลว",
+        (
+            "ดู log ล่าสุดใน ACTIVITY / LOG",
+        ),
+    ),
+    "LIFECYCLE_RESULT_INVALID": (
+        "ผลลัพธ์ Worker ผิดรูปแบบ",
+        (
+            "ลองสั่งใหม่อีกครั้ง",
+        ),
+    ),
+    "RUNTIME_SETUP_NOT_AVAILABLE": (
+        "ระบบ Setup ยังไม่พร้อม",
+        (
+            "ปกติไม่ควรเจอ",
+            "รีสตาร์ทโปรแกรม",
+        ),
+    ),
+    "RUNTIME_SETUP_FAILED": (
+        "เปิดหน้า Setup ไม่สำเร็จ",
+        (
+            "ลองเลือก Worker ใหม่แล้วกด Setup อีกครั้ง",
+        ),
+    ),
+    "RUNTIME_SETUP_RESULT_INVALID": (
+        "ข้อมูล Setup ผิดรูปแบบ",
+        (
+            "ลองเปิดหน้า Setup ใหม่",
+        ),
+    ),
+    "RUNTIME_SETUP_SAVE_FAILED": (
+        "บันทึก Setup ไม่สำเร็จ",
+        (
+            "ตรวจว่า path ที่กรอกมีจริงและเขียนได้",
+        ),
+    ),
+    "HEALTH_PORT_INVALID": (
+        "Port ไม่ถูกต้อง",
+        (
+            "กรอกเป็นตัวเลข 1-65535 และไม่ชนกับตัวอื่น",
+        ),
+    ),
+    "PROJECT_IDENTITY_SAVE_FAILED": (
+        "บันทึก identity โปรเจกต์ไม่สำเร็จ",
+        (
+            "ลองกด Capture อีกครั้ง",
+            "ถ้าซ้ำตรวจสิทธิ์โฟลเดอร์",
+        ),
+    ),
+    "CONTROL_CENTER_START_FAILED": (
+        "เปิดระบบไม่สำเร็จ",
+        (
+            "ตรวจสิทธิ์เขียนฐานข้อมูล",
+            "ดูคู่มือหมวด 8",
+        ),
+    ),
+    "GENERIC": (
+        "เกิดข้อผิดพลาด",
+        (
+            "ดูโค้ดด้านบนและ log ใน ACTIVITY / LOG",
+            "ถ้าซ้ำๆ ให้ปิด-เปิดโปรแกรม",
+        ),
+    ),
+}
 
 
 class ToolTip:
@@ -149,6 +361,7 @@ class DesktopTheme:
     muted: str = "#7f8c9a"
     accent: str = "#5cc8d7"
     ready: str = "#62d394"
+    ready_dim: str = "#2f6b4a"
     warning: str = "#e6b85c"
     error: str = "#ee6b73"
     idle: str = "#87929d"
@@ -506,6 +719,7 @@ class AConductorDesktopApp:
         self.activity_text.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 9))
         activity_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 9))
         self.log_activity("Control Center ready")
+        self.root.after(1200, self._start_status_pulse)
 
     def _panel(self, parent, title: str) -> tk.Frame:
         frame = tk.Frame(
@@ -993,8 +1207,67 @@ class AConductorDesktopApp:
         self.log_activity(f"ERROR        {code}")
         self._error_handler(code)
 
-    def _show_error(self, code: str) -> None:
-        messagebox.showerror("A-Conductor", code, parent=self.root)
+    def _show_error(self, code: str) -> tk.Toplevel | None:
+        """Themed, teaching error popup (minimal CLI look)."""
+        title, detail_parts = ERROR_EXPLANATIONS.get(code, ERROR_EXPLANATIONS["GENERIC"])
+        detail = chr(10).join(detail_parts)
+        window = tk.Toplevel(self.root)
+        window.title("A-Conductor — แจ้งเตือน")
+        window.configure(bg=self.theme.panel)
+        window.transient(self.root)
+        window.resizable(True, False)
+        frame = tk.Frame(window, bg=self.theme.panel, padx=16, pady=14)
+        frame.pack(fill="both", expand=True)
+        tk.Label(
+            frame,
+            text=f"! {title}",
+            bg=self.theme.panel,
+            fg=self.theme.error,
+            font=(self.theme.monospace_font, 11, "bold"),
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        tk.Label(
+            frame,
+            text=code,
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+            anchor="w",
+        ).grid(row=1, column=0, sticky="w", pady=(0, 8))
+        tk.Label(
+            frame,
+            text=detail,
+            bg=self.theme.panel,
+            fg=self.theme.foreground,
+            font=(self.theme.monospace_font, 9),
+            justify="left",
+            anchor="w",
+        ).grid(row=2, column=0, sticky="w", pady=(0, 10))
+        tk.Label(
+            frame,
+            text="อ่านเพิ่ม: ปุ่ม คู่มือ มุมขวาบนของโปรแกรม",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8),
+            anchor="w",
+        ).grid(row=3, column=0, sticky="w", pady=(0, 4))
+        self._button(
+            frame, "ปิด", lambda: window.destroy() if window.winfo_exists() else None
+        ).grid(row=4, column=0, sticky="w")
+        return window
+
+    def _start_status_pulse(self) -> None:
+        """Slow, gentle pulse for the ONLINE dot (minimal theme, ~1.2s cycle)."""
+        self._pulse_on = not getattr(self, "_pulse_on", False)
+        text = str(self.connection_label.cget("text"))
+        if "ONLINE" in text:
+            color = self.theme.ready if self._pulse_on else self.theme.ready_dim
+            try:
+                self.connection_label.configure(fg=color)
+            except tk.TclError:
+                return
+        if self.root.winfo_exists():
+            self.root.after(1200, self._start_status_pulse)
 
     def log_activity(self, text: str) -> None:
         stamp = datetime.now().strftime("%H:%M:%S")

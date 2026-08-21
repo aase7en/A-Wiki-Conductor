@@ -955,3 +955,47 @@ def test_guide_viewer_marks_urls_as_links(root) -> None:
     assert "เชื่อมต่อ AI แต่ละค่าย" in content
     assert text_widget.tag_ranges("link")
     window.destroy()
+
+
+def test_error_popup_is_themed_and_teaches(root) -> None:
+    from a_conductor.desktop_ui import ERROR_EXPLANATIONS
+
+    window = None
+    app = AConductorDesktopApp(
+        root,
+        service=FakeService(sample_snapshot()),
+        background_executor=ImmediateExecutor(),
+    )
+
+    # every code the UI raises must have a Thai teaching entry
+    import re as _re
+    from pathlib import Path as _Path
+    source = _Path("src/a_conductor/desktop_ui.py").read_text(encoding="utf-8")
+    used = set(_re.findall(r'_handle_error\("([A-Z_]+)"', source))
+    missing = sorted(used - set(ERROR_EXPLANATIONS))
+    assert not missing, missing
+
+    # the default handler (bypass injected capture) shows the themed window
+    app._error_handler = app._show_error
+    window = app._show_error("SELECT_WORKER")
+    assert window is not None
+    labels = [w for w in window.winfo_children()[0].winfo_children() if isinstance(w, tk.Label)]
+    texts = [str(l.cget("text")) for l in labels]
+    assert any("ยังไม่ได้เลือก Worker" in t for t in texts)
+    assert any("SELECT_WORKER" in t for t in texts)
+    assert any("คู่มือ" in t for t in texts)
+    window.destroy()
+
+
+def test_status_pulse_toggles_online_color(root) -> None:
+    app = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+    first = str(app.connection_label.cget("fg"))
+    app._start_status_pulse()
+    second = str(app.connection_label.cget("fg"))
+    app._start_status_pulse()
+    third = str(app.connection_label.cget("fg"))
+    assert {second, third} == {app.theme.ready, app.theme.ready_dim}
+    assert first in (second, third)
+    assert second != third
