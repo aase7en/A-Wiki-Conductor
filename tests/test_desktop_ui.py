@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tkinter as tk
+from tkinter import ttk
 from concurrent.futures import Future
 from dataclasses import replace
 from pathlib import Path
@@ -633,7 +634,8 @@ def test_instance_panel_lists_states_and_autostarts_flagged(root) -> None:
     assert "READY" in alpha_values[2]
     assert alpha_values[4] == "-"
     assert "STOPPED" in beta_values[2]
-    assert beta_values[4] == "ON"
+    assert beta_values[4] == "-"   # TUNNEL column (fake: not configured)
+    assert beta_values[5] == "ON"  # AUTO column
 
     assert ("Serena-Beta", "start") in service.instance_actions
     assert app.instance_start_button.instate(["!disabled"])
@@ -843,3 +845,113 @@ def test_worker_start_blocked_without_connector_or_setup(root) -> None:
 
     assert app.start_button.instate(["disabled"])
     assert app.worker_tree.item(worker_item, "values")[4] == "-"
+
+
+class TunnelFakeService(FakeInstanceService):
+    def __init__(self, snapshot: ControlCenterSnapshot) -> None:
+        super().__init__(snapshot)
+        self.tunnel_writes: list[tuple[str, str]] = []
+        self._tunnel_flags = {"Serena-Alpha": True, "Serena-Beta": False}
+        for item in self._instances:
+            object.__setattr__(
+                item, "tunnel_configured", self._tunnel_flags.get(item.name, False)
+            )
+
+    def set_instance_tunnel_id(self, instance_name, tunnel_id):
+        from a_conductor.serena_config_store import SerenaConfigStoreError
+        import re as _re
+
+        if not _re.fullmatch(r"tunnel_[0-9a-f]{32}", (tunnel_id or "").strip()):
+            raise SerenaConfigStoreError("TUNNEL_ID_INVALID")
+        self.tunnel_writes.append((instance_name, tunnel_id.strip()))
+        return Path("C:/nowhere") / f"{instance_name}.txt"
+
+
+def test_tunnel_column_reflects_configuration(root) -> None:
+    service = TunnelFakeService(sample_snapshot())
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+    app.refresh_instances()
+    root.update()
+
+    values = {
+        app.instance_tree.item(item, "values")[0]: app.instance_tree.item(item, "values")[4]
+        for item in app.instance_tree.get_children()
+    }
+    assert values["Serena-Alpha"] == "Y"
+    assert values["Serena-Beta"] == "-"
+
+
+def test_tunnel_dialog_validates_and_saves(root) -> None:
+    service = TunnelFakeService(sample_snapshot())
+    codes: list[str] = []
+    app = AConductorDesktopApp(
+        root,
+        service=service,
+        background_executor=ImmediateExecutor(),
+        error_handler=codes.append,
+    )
+    app.refresh_instances()
+    root.update()
+    beta_row = app._instance_rows["Serena-Beta"]
+    app.instance_tree.selection_set(beta_row)
+    app.instance_tree.focus(beta_row)
+
+    dialog = app.open_tunnel_id_dialog()
+    assert dialog is not None
+
+    valid_id = "tunnel_" + "9f8e7d6c" * 4
+    app._tunnel_entry.delete(0, "end")
+    app._tunnel_entry.insert(0, valid_id)
+    app._validate_tunnel_entry()
+    assert "ถูกต้อง" in app._tunnel_status.cget("text")
+
+    # click save via invoking the button command
+    def find_button(parent, label):
+        for child in parent.winfo_children():
+            if isinstance(child, ttk.Button) and child.cget("text") == label:
+                return child
+            nested = find_button(child, label)
+            if nested is not None:
+                return nested
+        return None
+
+    save_button = find_button(dialog, "บันทึก")
+    assert save_button is not None
+    save_button.invoke()
+
+    assert ("Serena-Beta", valid_id) in service.tunnel_writes
+    assert not dialog.winfo_exists()
+
+    # invalid input path: reopen and try bad id
+    dialog2 = app.open_tunnel_id_dialog()
+    app._tunnel_entry.delete(0, "end")
+    app._tunnel_entry.insert(0, "bad-id")
+    find_button(dialog2, "บันทึก").invoke()
+    assert codes == ["TUNNEL_ID_INVALID"]
+    assert not any(name == "Serena-Beta" and value == "bad-id" for name, value in service.tunnel_writes)
+    if dialog2.winfo_exists():
+        dialog2.destroy()
+
+
+def test_guide_viewer_marks_urls_as_links(root) -> None:
+    from a_conductor.desktop_ui import link_url_spans
+
+    spans = link_url_spans("อ่าน https://oraios.github.io/serena/ และ https://a.b/c)")
+    assert (spans[0][1] - spans[0][0]) == len("https://oraios.github.io/serena/")
+    assert spans[1][1] - spans[1][0] == len("https://a.b/c")
+
+    app = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+    window = app.open_guide()
+    assert window is not None
+    text_widget = None
+    for child in window.grid_slaves(row=0, column=0):
+        text_widget = child
+    assert isinstance(text_widget, tk.Text)
+    content = text_widget.get("1.0", "end")
+    assert "เชื่อมต่อ AI แต่ละค่าย" in content
+    assert text_widget.tag_ranges("link")
+    window.destroy()

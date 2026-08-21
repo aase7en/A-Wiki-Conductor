@@ -341,3 +341,52 @@ def test_orchestrator_start_without_provider_skips_brain(tmp_path: Path) -> None
 
     assert outcome.result_code is InstanceResultCode.RUNNING
     assert calls == ["launch"]
+
+
+def test_discovery_reports_tunnel_configured_flag(tmp_path: Path) -> None:
+    make_instance_dir(tmp_path, "demo")
+    (tmp_path / "demo" / "config").mkdir()
+    (tmp_path / "demo" / "config" / "tunnel-id.txt").write_text(
+        "tunnel_" + "a1b2c3d4" * 4 + "\n", encoding="utf-8"
+    )
+    make_instance_dir(tmp_path, "other", name="Serena-Other")
+
+    instances = {item.name: item for item in discover_local_instances(tmp_path)}
+
+    assert instances["Serena-Demo"].tunnel_configured is True
+    assert instances["Serena-Other"].tunnel_configured is False
+
+
+def test_facade_set_instance_tunnel_id_validates_and_writes(tmp_path: Path) -> None:
+    from a_conductor.desktop_control import DesktopControlService
+    from a_conductor.serena_config_store import SerenaConfigStoreError
+
+    make_instance_dir(tmp_path, "demo")
+    service = DesktopControlService(
+        control_center=object(),
+        lifecycle=object(),
+        instances_root=tmp_path,
+    )
+    valid = "tunnel_" + "0123abcd" * 4
+
+    written = service.set_instance_tunnel_id("Serena-Demo", valid)
+    assert written == (tmp_path / "demo" / "config" / "tunnel-id.txt").resolve()
+    assert written.read_text(encoding="utf-8").strip() == valid
+
+    instances = {item.name: item for item in service.instances()}
+    assert instances["Serena-Demo"].tunnel_configured is True
+
+    for bad in ("not-a-tunnel", "tunnel_xyz", "", "tunnel_" + "z" * 32):
+        try:
+            service.set_instance_tunnel_id("Serena-Demo", bad)
+        except SerenaConfigStoreError as exc:
+            assert "TUNNEL_ID_INVALID" in str(exc)
+        else:
+            raise AssertionError(f"invalid id accepted: {bad!r}")
+
+    try:
+        service.set_instance_tunnel_id("Serena-Missing", valid)
+    except SerenaConfigStoreError as exc:
+        assert "INSTANCE_NOT_FOUND" in str(exc)
+    else:
+        raise AssertionError("missing instance accepted")

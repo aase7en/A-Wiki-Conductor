@@ -7,6 +7,7 @@ contains no process, tunnel, Git, or persistence implementation.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from dataclasses import dataclass, replace
@@ -16,6 +17,7 @@ from typing import Callable, Protocol
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+import webbrowser
 
 from .control_center import ControlCenterError, ControlCenterSnapshot
 from .domain import WorkerState
@@ -31,6 +33,7 @@ from .worker_serena_settings import (
 from .local_instances import (
     InstanceHealthState,
     InstanceResultCode,
+    _TUNNEL_ID_RE,
     connector_name_for_project,
 )
 
@@ -99,6 +102,14 @@ class ToolTip:
         if self.tip is not None:
             self.tip.destroy()
             self.tip = None
+
+
+_URL_RE = re.compile(r"https?://[^\s)]+")
+
+
+def link_url_spans(text: str) -> tuple[tuple[int, int], ...]:
+    """Return (start, end) character spans of http(s) URLs inside text."""
+    return tuple((m.start(), m.end()) for m in _URL_RE.finditer(text))
 
 
 def _attach_tip(widget, text: str, theme: "DesktopTheme"):
@@ -397,7 +408,7 @@ class AConductorDesktopApp:
         instances_panel = self._panel(self.root, "CONNECTORS")
         instances_panel.grid(row=3, column=0, sticky="ew", padx=10, pady=(6, 0))
         instances_panel.grid_columnconfigure(0, weight=1)
-        instance_columns = ("name", "port", "state", "project", "auto")
+        instance_columns = ("name", "port", "state", "project", "tunnel", "auto")
         self.instance_tree = ttk.Treeview(
             instances_panel,
             columns=instance_columns,
@@ -407,10 +418,11 @@ class AConductorDesktopApp:
             height=3,
         )
         instance_headings = {
-            "name": ("INSTANCE", 160),
-            "port": ("PORT", 90),
-            "state": ("STATE", 90),
-            "project": ("PROJECT", 300),
+            "name": ("INSTANCE", 150),
+            "port": ("PORT", 80),
+            "state": ("STATE", 80),
+            "project": ("PROJECT", 280),
+            "tunnel": ("TUNNEL", 70),
             "auto": ("AUTO", 60),
         }
         for name, (label, width) in instance_headings.items():
@@ -451,6 +463,14 @@ class AConductorDesktopApp:
             "Second Brain: เลือก folder สมอง (เช่น A-Wiki) 1-2 อัน\nทุก agent ที่เชื่อมเข้ามาต้องอ่านกฎเหล่านี้ก่อนทำงาน (Index เท่านั้น ประหยัด token)",
             self.theme,
         )
+        self.tunnel_button = self._button(
+            instance_actions, "ตั้ง Tunnel ID", self.open_tunnel_id_dialog
+        )
+        _attach_tip(
+            self.tunnel_button,
+            "วาง Tunnel ID (tunnel_...) ของตัวเชื่อมที่เลือก — สำหรับผู้ใช้ใหม่\nดูวิธีขอ ID ได้ในปุ่ม คู่มือ หมวด 'เชื่อมต่อ AI แต่ละค่าย'",
+            self.theme,
+        )
         for index, button in enumerate(
             (
                 self.instance_start_button,
@@ -459,9 +479,10 @@ class AConductorDesktopApp:
                 self.instance_auto_button,
                 self.instance_rescan_button,
                 self.brain_button,
+                self.tunnel_button,
             )
         ):
-            button.grid(row=index // 3, column=index % 3, padx=(0, 6), pady=(0, 3), sticky="w")
+            button.grid(row=index // 4, column=index % 4, padx=(0, 6), pady=(0, 3), sticky="w")
             button.state(["disabled"])
 
         activity_panel = self._panel(self.root, "ACTIVITY / LOG")
@@ -985,6 +1006,15 @@ class AConductorDesktopApp:
     def _on_palette_shortcut(self, _event=None):
         return None
 
+    def _open_guide_link(self, widget, index: str) -> None:
+        for tag in widget.tag_names(index):
+            if tag == "link":
+                start = widget.tag_prevrange("link", index + "+1c")
+                if start:
+                    url = widget.get(start[0], start[1])
+                    webbrowser.open(url)
+                    return
+
     def open_guide(self) -> None:
         path = find_user_guide_path()
         if path is None:
@@ -1019,7 +1049,20 @@ class AConductorDesktopApp:
         )
         scroll = ttk.Scrollbar(window, orient="vertical", command=text.yview)
         text.configure(yscrollcommand=scroll.set)
-        text.insert("1.0", path.read_text(encoding="utf-8", errors="replace"))
+        content = path.read_text(encoding="utf-8", errors="replace")
+        text.insert("1.0", content)
+        text.tag_configure(
+            "link", foreground=self.theme.accent, underline=True,
+        )
+        for start, end in link_url_spans(content):
+            text.tag_add("link", f"1.0+{start}c", f"1.0+{end}c")
+        text.tag_bind(
+            "link",
+            "<Button-1>",
+            lambda event: self._open_guide_link(
+                event.widget, event.widget.index(f"@{event.x},{event.y}")
+            ),
+        )
         text.configure(state="disabled")
         text.grid(row=0, column=0, sticky="nsew")
         scroll.grid(row=0, column=1, sticky="ns")
@@ -1317,6 +1360,7 @@ class AConductorDesktopApp:
                     instance.health_address.split(":")[-1],
                     state.value,
                     instance.project_path,
+                    "Y" if instance.tunnel_configured else "-",
                     "ON" if auto else "-",
                 ),
                 tags=(tag,),
@@ -1597,3 +1641,79 @@ class AConductorDesktopApp:
             self.log_activity(f"AUTO-START   {name} {code}")
         if results:
             self.refresh_instances()
+
+    def _validate_tunnel_entry(self) -> None:
+        value = self._tunnel_entry.get().strip()
+        if not value:
+            self._tunnel_status.configure(text="", fg=self.theme.muted)
+        elif _TUNNEL_ID_RE.fullmatch(value):
+            self._tunnel_status.configure(text="รูปแบบถูกต้อง", fg=self.theme.ready)
+        else:
+            self._tunnel_status.configure(
+                text="รูปแบบยังไม่ถูก (tunnel_ + 32 ตัวอักษร)", fg=self.theme.error
+            )
+
+    def open_tunnel_id_dialog(self) -> tk.Toplevel | None:
+        name = self._selected_instance_name()
+        if name is None:
+            self._handle_error("SELECT_INSTANCE")
+            return None
+        writer = getattr(self.service, "set_instance_tunnel_id", None)
+        if not callable(writer):
+            self._handle_error("TUNNEL_SETUP_NOT_AVAILABLE")
+            return None
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"A-Conductor — ตั้ง Tunnel ID — {name}")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=14)
+        frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            frame,
+            text=f"> TUNNEL ID  {name}",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        tk.Label(
+            frame,
+            text="วาง Tunnel ID (ขึ้นต้นด้วย tunnel_ ตามด้วย 32 ตัวอักษร)\nวิธีขอ ID: กดปุ่ม คู่มือ → หมวด 'เชื่อมต่อ AI แต่ละค่าย'",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        self._tunnel_entry = ttk.Entry(frame, width=52)
+        self._tunnel_entry.grid(row=2, column=0, sticky="ew", pady=2)
+        self._tunnel_entry.focus_set()
+        self._tunnel_status = tk.Label(
+            frame,
+            text="",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        )
+        self._tunnel_status.grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+        self._tunnel_entry.bind("<KeyRelease>", lambda _e: self._validate_tunnel_entry())
+
+        def save():
+            value = self._tunnel_entry.get().strip()
+            try:
+                writer(name, value)
+            except Exception:
+                self._handle_error("TUNNEL_ID_INVALID")
+                return
+            self.log_activity(f"Tunnel       {name} ID SAVED")
+            if dialog.winfo_exists():
+                dialog.destroy()
+            self.refresh_instances()
+
+        self._button(frame, "บันทึก", save).grid(row=4, column=0, sticky="w", pady=(12, 0))
+        self._button(
+            frame, "ยกเลิก", lambda: dialog.destroy() if dialog.winfo_exists() else None
+        ).grid(row=4, column=1, sticky="w", pady=(12, 0))
+        return dialog
