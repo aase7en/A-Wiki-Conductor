@@ -61,6 +61,47 @@ def find_icon_path() -> Path | None:
     return None
 
 
+class ToolTip:
+    """Minimal hover tooltip (no shortcuts, works for every widget)."""
+
+    def __init__(self, widget, text: str, theme: "DesktopTheme") -> None:
+        self.widget = widget
+        self.text = text
+        self.theme = theme
+        self.tip: tk.Toplevel | None = None
+        widget.bind("<Enter>", self._show, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+
+    def _show(self, _event=None) -> None:
+        if self.tip is not None or not self.text or not self.text.strip():
+            return
+        x = self.widget.winfo_rootx() + 12
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
+        self.tip = window = tk.Toplevel(self.widget)
+        window.wm_overrideredirect(True)
+        window.wm_geometry(f"+{x}+{y}")
+        tk.Label(
+            window,
+            text=self.text,
+            bg="#1c1f26",
+            fg="#e6e6e6",
+            justify="left",
+            font=(self.theme.monospace_font, 9),
+            padx=8,
+            pady=5,
+        ).pack()
+
+    def _hide(self, _event=None) -> None:
+        if self.tip is not None:
+            self.tip.destroy()
+            self.tip = None
+
+
+def _attach_tip(widget, text: str, theme: "DesktopTheme"):
+    widget._acond_tooltip = ToolTip(widget, text, theme)
+    return widget
+
+
 class ControlCenterUIService(Protocol):
     def snapshot(self) -> ControlCenterSnapshot: ...
 
@@ -119,7 +160,7 @@ class AConductorDesktopApp:
         self.theme = theme or DesktopTheme()
         self._directory_picker = directory_picker or filedialog.askdirectory
         self._error_handler = error_handler or self._show_error
-        self._guide_opener = guide_opener or _default_guide_opener
+        self._guide_opener = guide_opener
         self._background_executor = background_executor or ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="a-conductor-ui"
         )
@@ -139,7 +180,7 @@ class AConductorDesktopApp:
         self.root.title("A-Conductor")
         self.root.configure(background=self.theme.background)
         self.root.geometry("1080x680")
-        self.root.minsize(860, 520)
+        self.root.minsize(980, 640)
         icon = find_icon_path()
         if icon is not None:
             try:
@@ -192,8 +233,8 @@ class AConductorDesktopApp:
 
     def _build_layout(self) -> None:
         self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(1, weight=3)
-        self.root.grid_rowconfigure(3, weight=2)
+        self.root.grid_rowconfigure(2, weight=3)
+        self.root.grid_rowconfigure(4, weight=2)
 
         top = tk.Frame(
             self.root,
@@ -228,11 +269,27 @@ class AConductorDesktopApp:
             padx=12,
         )
         self.connection_label.grid(row=0, column=2, sticky="e")
+        _attach_tip(
+            self.connection_label,
+            "ONLINE = ฐานข้อมูลควบคุมเชื่อมถึงได้ (local)\nOFFLINE (สีแดง) = service ตอบสนองไม่ได้",
+            self.theme,
+        )
         self.help_button = self._button(top, "คู่มือ", self.open_guide)
         self.help_button.grid(row=0, column=3, sticky="e", padx=(0, 8), pady=6)
+        _attach_tip(self.help_button, "เปิดคู่มือการใช้งาน (ในหน้าต่างโปรแกรม)", self.theme)
+
+        hint = tk.Label(
+            self.root,
+            text="เริ่มต้นใช้งาน 3 ขั้น  ① Add Project เพิ่มโปรเจกต์  ② เลือกโปรเจกต์แล้วกด Assign ไปยัง Worker  ③ กด Start (โปรเจกต์ที่มี Connector จะเริ่ม tunnel ให้ทันที)",
+            bg=self.theme.background,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+            anchor="w",
+        )
+        hint.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 2))
 
         body = tk.Frame(self.root, bg=self.theme.background)
-        body.grid(row=1, column=0, sticky="nsew", padx=10, pady=0)
+        body.grid(row=2, column=0, sticky="nsew", padx=10, pady=0)
         body.grid_columnconfigure(0, weight=0, minsize=280)
         body.grid_columnconfigure(1, weight=1)
         body.grid_rowconfigure(0, weight=1)
@@ -253,7 +310,19 @@ class AConductorDesktopApp:
             exportselection=False,
             font=(self.theme.monospace_font, self.theme.base_font_size),
         )
-        self.project_list.grid(row=1, column=0, sticky="nsew", padx=9, pady=(0, 9))
+        project_scroll = ttk.Scrollbar(project_panel, orient="vertical", command=self.project_list.yview)
+        self.project_list.configure(yscrollcommand=project_scroll.set)
+        self.project_list.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 4))
+        project_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 4))
+
+        project_actions = tk.Frame(project_panel, bg=self.theme.panel)
+        project_actions.grid(row=2, column=0, columnspan=2, sticky="ew", padx=9, pady=(0, 9))
+        self.add_button = self._button(project_actions, "Add Project", self.add_project)
+        _attach_tip(self.add_button, "เพิ่มโปรเจกต์จากโฟลเดอร์ในเครื่อง (ไม่แตะไฟล์ในโปรเจกต์)", self.theme)
+        self.assign_button = self._button(project_actions, "Assign", self.assign_selected)
+        _attach_tip(self.assign_button, "ย้ายโปรเจกต์ที่เลือกไปยัง Worker ที่เลือก (เลือก Worker ทางขวาก่อน)", self.theme)
+        for index, button in enumerate((self.add_button, self.assign_button)):
+            button.grid(row=0, column=index, padx=(0, 6), sticky="w")
 
         worker_panel = self._panel(body, "WORKERS")
         worker_panel.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
@@ -276,7 +345,10 @@ class AConductorDesktopApp:
         for name, (label, width) in headings.items():
             self.worker_tree.heading(name, text=label, anchor="w")
             self.worker_tree.column(name, width=width, minwidth=80, anchor="w")
-        self.worker_tree.grid(row=1, column=0, sticky="nsew", padx=9, pady=(0, 5))
+        worker_scroll = ttk.Scrollbar(worker_panel, orient="vertical", command=self.worker_tree.yview)
+        self.worker_tree.configure(yscrollcommand=worker_scroll.set)
+        self.worker_tree.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 5))
+        worker_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 5))
         self.worker_tree.bind("<<TreeviewSelect>>", lambda _event: self._update_lifecycle_buttons())
         self.worker_tree.tag_configure("ready", foreground=self.theme.ready)
         self.worker_tree.tag_configure("warning", foreground=self.theme.warning)
@@ -284,20 +356,23 @@ class AConductorDesktopApp:
         self.worker_tree.tag_configure("idle", foreground=self.theme.idle)
 
         actions = tk.Frame(worker_panel, bg=self.theme.panel)
-        actions.grid(row=2, column=0, sticky="ew", padx=9, pady=(4, 9))
-        self.add_button = self._button(actions, "Add Project", self.add_project)
-        self.assign_button = self._button(actions, "Assign", self.assign_selected)
+        actions.grid(row=2, column=0, columnspan=2, sticky="ew", padx=9, pady=(4, 9))
         self.release_button = self._button(actions, "Release", self.release_selected)
+        _attach_tip(self.release_button, "ปล่อย Worker คืน (ถอดโปรเจกต์ออกจาก Worker ที่เลือก)", self.theme)
         self.refresh_button = self._button(actions, "Refresh", self.refresh)
+        _attach_tip(self.refresh_button, "โหลดสถานะล่าสุดใหม่", self.theme)
         self.start_button = self._button(actions, "Start", self.start_selected)
+        _attach_tip(self.start_button, "เริ่มงานของ Worker ที่เลือก — ถ้าโปรเจกต์มี Connector จะเริ่ม tunnel ให้อัตโนมัติ", self.theme)
         self.stop_button = self._button(actions, "Stop", self.stop_selected)
+        _attach_tip(self.stop_button, "หยุด Worker ที่เลือก", self.theme)
         self.restart_button = self._button(actions, "Restart", self.restart_selected)
+        _attach_tip(self.restart_button, "หยุดแล้วเริ่มใหม่", self.theme)
         self.setup_button = self._button(actions, "Setup", self.open_runtime_setup)
+        _attach_tip(self.setup_button, "ตั้งค่า runtime ของ Worker (จำเป็นสำหรับโปรเจกต์ที่ไม่มี Connector)", self.theme)
         self.config_button = self._button(actions, "Config", self.open_worker_config)
+        _attach_tip(self.config_button, "ตั้งค่า engine ของ Worker: ภาษา / เปิด-ปิด tools / project", self.theme)
         for index, button in enumerate(
             (
-                self.add_button,
-                self.assign_button,
                 self.release_button,
                 self.refresh_button,
                 self.start_button,
@@ -307,7 +382,7 @@ class AConductorDesktopApp:
                 self.config_button,
             )
         ):
-            button.grid(row=0, column=index, padx=(0, 6))
+            button.grid(row=index // 4, column=index % 4, padx=(0, 6), pady=(0, 3), sticky="w")
         self.start_button.state(["disabled"])
         self.stop_button.state(["disabled"])
         self.restart_button.state(["disabled"])
@@ -315,7 +390,7 @@ class AConductorDesktopApp:
         self.config_button.state(["disabled"])
 
         instances_panel = self._panel(self.root, "CONNECTORS")
-        instances_panel.grid(row=2, column=0, sticky="ew", padx=10, pady=(6, 0))
+        instances_panel.grid(row=3, column=0, sticky="ew", padx=10, pady=(6, 0))
         instances_panel.grid_columnconfigure(0, weight=1)
         instance_columns = ("name", "port", "state", "project", "auto")
         self.instance_tree = ttk.Treeview(
@@ -346,20 +421,30 @@ class AConductorDesktopApp:
         self.instance_start_button = self._button(
             instance_actions, "Start", self.start_selected_instance
         )
+        _attach_tip(self.instance_start_button, "เริ่มตัวเชื่อม (tunnel) ที่เลือก — agent ใน ChatGPT จะเชื่อมเข้ามาทางนี้", self.theme)
         self.instance_stop_button = self._button(
             instance_actions, "Stop", self.stop_selected_instance
         )
+        _attach_tip(self.instance_stop_button, "หยุดตัวเชื่อมที่เลือก (ปลอดภัย — ตรวจ PID ก่อนหยุดเสมอ)", self.theme)
         self.instance_startall_button = self._button(
             instance_actions, "Start All", self.start_all_instances
         )
+        _attach_tip(self.instance_startall_button, "เปิดทุกตัวเชื่อมที่ยังไม่ READY ในคลิกเดียว", self.theme)
         self.instance_auto_button = self._button(
             instance_actions, "Toggle Auto", self.toggle_instance_autostart
         )
+        _attach_tip(self.instance_auto_button, "ตั้งให้ตัวเชื่อมนี้เปิดเองทุกครั้งที่เปิดโปรแกรม", self.theme)
         self.instance_rescan_button = self._button(
             instance_actions, "Rescan", self.rescan_instances
         )
+        _attach_tip(self.instance_rescan_button, "ค้นหาตัวเชื่อมที่เพิ่มเข้ามาใหม่", self.theme)
         self.brain_button = self._button(
-            instance_actions, "Second Brain", self.open_brain_config
+            instance_actions, "สมอง + folder", self.open_brain_config
+        )
+        _attach_tip(
+            self.brain_button,
+            "Second Brain: เลือก folder สมอง (เช่น A-Wiki) 1-2 อัน\nทุก agent ที่เชื่อมเข้ามาต้องอ่านกฎเหล่านี้ก่อนทำงาน (Index เท่านั้น ประหยัด token)",
+            self.theme,
         )
         for index, button in enumerate(
             (
@@ -371,11 +456,11 @@ class AConductorDesktopApp:
                 self.brain_button,
             )
         ):
-            button.grid(row=0, column=index, padx=(0, 6), sticky="w")
+            button.grid(row=index // 3, column=index % 3, padx=(0, 6), pady=(0, 3), sticky="w")
             button.state(["disabled"])
 
         activity_panel = self._panel(self.root, "ACTIVITY / LOG")
-        activity_panel.grid(row=3, column=0, sticky="nsew", padx=10, pady=(6, 10))
+        activity_panel.grid(row=4, column=0, sticky="nsew", padx=10, pady=(6, 10))
         activity_panel.grid_rowconfigure(1, weight=1)
         activity_panel.grid_columnconfigure(0, weight=1)
         self.activity_text = tk.Text(
@@ -390,7 +475,10 @@ class AConductorDesktopApp:
             state="disabled",
             font=(self.theme.monospace_font, self.theme.base_font_size),
         )
-        self.activity_text.grid(row=1, column=0, sticky="nsew", padx=9, pady=(0, 9))
+        activity_scroll = ttk.Scrollbar(activity_panel, orient="vertical", command=self.activity_text.yview)
+        self.activity_text.configure(yscrollcommand=activity_scroll.set)
+        self.activity_text.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 9))
+        activity_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 9))
         self.log_activity("Control Center ready")
 
     def _panel(self, parent, title: str) -> tk.Frame:
@@ -832,11 +920,49 @@ class AConductorDesktopApp:
             self._handle_error("GUIDE_NOT_FOUND")
             return
         try:
-            self._guide_opener(path)
+            if self._guide_opener is not None:
+                self._guide_opener(path)
+                return None
+            return self._show_guide_window(path)
         except Exception:
             self._handle_error("GUIDE_OPEN_FAILED")
-            return
+            return None
         self.log_activity("Guide        opened")
+
+    def _show_guide_window(self, path: Path) -> tk.Toplevel:
+        window = tk.Toplevel(self.root)
+        window.title("A-Conductor — คู่มือการใช้งาน")
+        window.configure(bg=self.theme.background)
+        window.geometry("900x640")
+        text = tk.Text(
+            window,
+            bg=self.theme.background,
+            fg=self.theme.foreground,
+            insertbackground=self.theme.accent,
+            wrap="word",
+            borderwidth=0,
+            highlightthickness=0,
+            font=(self.theme.monospace_font, 10),
+            padx=14,
+            pady=10,
+        )
+        scroll = ttk.Scrollbar(window, orient="vertical", command=text.yview)
+        text.configure(yscrollcommand=scroll.set)
+        text.insert("1.0", path.read_text(encoding="utf-8", errors="replace"))
+        text.configure(state="disabled")
+        text.grid(row=0, column=0, sticky="nsew")
+        scroll.grid(row=0, column=1, sticky="ns")
+        window.grid_rowconfigure(0, weight=1)
+        window.grid_columnconfigure(0, weight=1)
+        bar = tk.Frame(window, bg=self.theme.panel)
+        bar.grid(row=1, column=0, columnspan=2, sticky="ew")
+        self._button(bar, "เปิดไฟล์ภายนอก", lambda: _default_guide_opener(path)).grid(
+            row=0, column=0, sticky="w", padx=10, pady=8
+        )
+        self._button(bar, "ปิด", lambda: window.destroy() if window.winfo_exists() else None).grid(
+            row=0, column=1, sticky="w", pady=8
+        )
+        return window
 
     def open_worker_config(self) -> tk.Toplevel | None:
         worker_id = self.selected_worker_id()
