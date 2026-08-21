@@ -1,36 +1,30 @@
 # A-Conductor — Current Work
 
-Last updated: 2026-08-21 (session 3)
+Last updated: 2026-08-21 (session 4 end)
 
 ## Current phase
 
-**One-app orchestration delivered: open `a-conductor`, see and control every Serena tunnel instance.**
+**Own-brand product shipped: setup.exe installer, icon, Start Menu, minimal no-shortcut UI, toggle settings (tools/languages/project) — installed and verified on this machine.**
 
-## Session 3 summary (GLM 5.3/ZCode under user authorization)
+## Session 4 summary (WO-P1-051, PRs #13-#17, all CI-green, main `ec16587`)
 
-PRs #9-#11 (WO-P1-050), CI-green before every merge:
+- **PR #13**: work order + recorded design decisions (brainstorm discipline; requirements user-specified).
+- **PR #14**: user-facing "Serena" removed (panel → CONNECTORS etc.), credits + engine link only (README/USER-GUIDE); Ctrl+K palette + all shortcuts removed; **คู่มือ button** opens the bundled guide (dev + frozen resolution).
+- **PR #15**: settings v2 — `project_path` pin + `enabled_languages` (24-language catalog incl. html/markdown; renders `ls_priorities`), PRAGMA-guarded additive store migration.
+- **PR #16**: Config dialog v2 — CLI-styled toggle checklists: 21 tools ON/OFF, 24 languages ON/OFF, editable project path; advanced fields kept.
+- **PR #17**: generated app icon (window + exe + installer), hardened `scripts/build_portable.py` (Defender-race-proof, exit-0 deterministic), `scripts/installer_main.py` → **A-Conductor-Setup.exe** per-user installer.
 
-- **PR #9** (`docs`): design doc with alternatives — MCP multiplexer gateway explicitly deferred (needs protocol proxy subsystem; risks second orchestration universe; Serena already supports multi-project activation); script-wrapping orchestration chosen per the user's fallback clause.
-- **PR #10**: `local_instances.py` — zero-config discovery (parses validated `instance.ps1`), health via existing readyz probe, orchestrator that starts instances detached+polls and stops via the validated scripts (never kills, never waits on the blocking start script).
-- **PR #11**: `instance_flags` autostart persistence + facade + **INSTANCES panel** in the app (READY/STOPPED/UNKNOWN semantic colors, Start/Stop/Start-All/Toggle-Auto/Rescan, palette entry); autostart honored at real app launch via `start_background_operations()`.
+## Real-machine evidence
 
-## Evidence
+- Portable exe (13 MB, icon+guide bundled) `--smoke` PASS.
+- Sandbox install → files/shortcuts/registry verified → sandbox uninstall clean.
+- **Real install** at `%LOCALAPPDATA%\Programs\A-Conductor`: Start Menu ✓ Desktop ✓ Add/Remove "A-Conductor" ✓ → installed app `--smoke` PASS (exit 0).
+- Known environment notes: automated runs of fresh unsigned exes are Defender-policy-blocked (interactive SmartScreen click-through works; documented in USER-GUIDE); one load-dependent local timing flake (never on CI).
 
-- Full suite 780 passed, 2 skipped (display-dependent), 0 failed; smoke OK.
-- Real-machine read-only: discovery found all 3 real instances; health states correct (Wastewater READY live).
-- **Real-app check**: actual application launched (withdrawn root, real DB/service) — INSTANCES panel auto-populated with correct live states; exit 0.
-- Debug loops this session (root-caused): fake-probe observation contract; clock injection for poll loops; `Tcl_AsyncDelete wrong thread` teardown crash (bisected to construction-time hooks + smoke's real service → moved to explicit `start_background_operations()`).
+## Final suite
 
-## User-facing workflow now
+787 passed, 0 failed (local); CI green on all PRs.
 
-Open `a-conductor` → see Projects/Workers + INSTANCES with health → select instance → Start/Stop; flag Auto for launch-time autostart; Config dialog per worker; Start All for one-click bring-up. No more opening each `Start-*.cmd` by hand.
+## Next safe action (user picks)
 
-## DECISION_REQUIRED / future
-
-- MCP gateway (one server, any provider's plugin, dynamic project routing) — deferred with rationale in `docs/superpowers/specs/2026-08-21-one-app-orchestration-design.md`; needs its own ADR + A-Wiki gate.
-- Changing an instance's bound project from the UI (instance project pinning currently comes from the validated `instance.ps1`).
-- Flipping `supervised=True` default (static identity noted in WO-P1-049).
-
-## Next safe action
-
-User tries the real app (`a-conductor`) and reports friction; natural next chunks: materialize `WorkerSerenaSettings` into SERENA_HOME on start, or instance-project rebinding UI. Open a new work order first.
+(a) Try the real app from Start Menu → feedback loop; (b) sign the exes (cert) to remove SmartScreen friction; (c) continue Phase 1 roadmap (materialize settings into worker SERENA_HOME at start; CONNECTORS project rebind UI). New work order + reuse gate first.

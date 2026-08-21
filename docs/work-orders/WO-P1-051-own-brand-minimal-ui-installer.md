@@ -1,6 +1,6 @@
 # WO-P1-051: Own Brand, Minimal UI, Language/Tool Toggles, Setup Installer
 
-Status: in_progress
+Status: complete
 Lane/files: `src/a_conductor/desktop_ui.py`, `src/a_conductor/desktop_app.py`, `src/a_conductor/worker_serena_settings.py`, `src/a_conductor/serena_config_store.py`, `src/a_conductor/__init__.py`, `assets/a-conductor.ico`, `installer.cfg`, `tests/*`, `docs/USER-GUIDE.md`, `README.md`, `docs/work-orders/WO-P1-051-own-brand-minimal-ui-installer.md`, `CURRENT-WORK.md`, `handoff.md`
 Branch: PR series from main `1f28a42`
 Model tier: high
@@ -23,11 +23,11 @@ Ship A-Conductor as the user's own product: setup.exe with icon + Start Menu; re
 ## Micro-steps
 
 - [x] 051-A this work order + design decisions
-- [ ] 051-B branding + minimal UI (remove palette/shortcuts, Help button, credits) + tests
-- [ ] 051-C settings v2 model + renderer + store migration + tests
-- [ ] 051-D config dialog v2 toggle lists + tests
-- [ ] 051-E icon + installer build + verification + docs
-- [ ] 051-F regression + close/push
+- [x] 051-B branding + minimal UI (remove palette/shortcuts, Help button, credits) + tests
+- [x] 051-C settings v2 model + renderer + store migration + tests
+- [x] 051-D config dialog v2 toggle lists + tests
+- [x] 051-E icon + installer build + verification + docs
+- [x] 051-F regression + close/push
 
 ## Forbidden
 
@@ -36,3 +36,5 @@ Ship A-Conductor as the user's own product: setup.exe with icon + Start Menu; re
 ## Checkpoint log
 
 - [2026-08-21] Opened from main `1f28a42`.
+- [2026-08-21] Delivered via PRs #13-#17 (CI-green, all merged; main `ec16587`). B: CONNECTORS rename + credits/link, palette/shortcuts removed, คู่มือ button (bundle-resolving). C: settings v2 + PRAGMA-guarded ALTER migration. D: dialog v2 CLI-styled toggle lists (21 tools, 24 languages) + editable project pin.
+- [2026-08-21] E/F: generated icon wired to window; hardened `scripts/build_portable.py` (Defender races the cosmetic PE steps — timestamp rewrite opens the file 'wb' and a mid-write lock corrupts it; made best-effort → deterministic exit-0 builds); `A-Conductor-Setup.exe` per-user installer (files+Start Menu+Desktop+HKCU uninstall+self-contained uninstaller). Real-machine verification: sandbox install/uninstall clean; REAL install at `%LOCALAPPDATA%\Programs\A-Conductor` verified (shortcuts ✓ registry ✓) and installed app `--smoke` PASS. Automated execution of the fresh unsigned setup exe is policy-blocked by Defender (interactive SmartScreen click-through expected); logic verified via identical source-mode path. Final suite 787 passed, 0 failed.

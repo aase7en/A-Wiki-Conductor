@@ -1,31 +1,33 @@
 # HANDOFF — A-Conductor
 
-Last updated: 2026-08-21 (session 3 end)
+Last updated: 2026-08-21 (session 4 end)
 
 ## Current objective
 
-One-app orchestration delivered end-to-end. Awaiting user trial feedback and next milestone pick.
+Own-brand product delivered and installed on this machine. Awaiting user trial + next milestone.
 
 ## Status
 
-`COMPLETE` for the authorized scope (one program to see/control all Serena tunnel instances, autostart, UI config fallback per user requirement).
+`COMPLETE` for the authorized scope (setup.exe + icon + Start Menu; de-brand with credits-only reference; minimal no-shortcut UI with guide button; toggle settings for project/tools/languages; CLI-styled).
 
 ## Baseline
 
-- branch `main` at merge `a91a2a3` (PR #11); PRs #9-#11 CI-green
-- full suite 780 passed, 2 skipped (display-dependent); real-app check passed (INSTANCES panel populated with live states, exit 0)
+- branch `main` at merge `ec16587` (PR #17); PRs #13-#17 CI-green
+- installed app at `%LOCALAPPDATA%\Programs\A-Conductor` (Start Menu + Desktop shortcuts, HKCU uninstall entry); installed `--smoke` PASS
+- artifacts in repo (gitignored dist/): `dist\A-Conductor.exe`, `dist\A-Conductor-Setup.exe`
+- final suite 787 passed, 0 failed
 
 ## What the next agent must know
 
-- WO-P1-050 closed with evidence; design alternatives recorded in `docs/superpowers/specs/2026-08-21-one-app-orchestration-design.md` (MCP gateway deferred — future ADR).
-- Instance lifecycle stays inside the validated scripts; the orchestrator only launches them detached and polls health (`local_instances.py`).
-- `AConductorDesktopApp.start_background_operations()` must be called by real entrypoints (construction-time hooks caused a Tcl cross-thread teardown crash — see WO-P1-050 checkpoint).
-- Real instances on this machine: Serena-Conductor (18011, STOPPED), Serena-Phase6 (18012, STOPPED), Serena-Wastewater (18013, READY/live).
+- WO-P1-051 closed with evidence; build entry points: `scripts/build_portable.py` (hardened vs Defender PE races), `scripts/installer_main.py` (per-user install/uninstall).
+- Settings v2 fields (`project_path`, `enabled_languages`) round-trip through the store and render into engine config; dialog v2 exposes them as toggles.
+- Unsigned-exe reality: automated execution of fresh builds may be Defender-blocked; interactive SmartScreen click-through is the expected first-run flow (documented in USER-GUIDE).
+- Wastewater connector instance remains live (port 18013).
 
 ## Safety state
 
-- No real instance was started/stopped by automated work tonight (real checks were read-only: discovery + health GET).
-- Wastewater instance remains live (user-created tunnel; watchdog available, not running unless the user starts it).
+- No admin actions taken; install is per-user only (HKCU + user profile paths). Uninstaller registered.
+- No real connector instance start/stop by automated tests tonight; the one real install was the user-requested deliverable and is reversible via Add or remove programs.
 
 ## Next safe action
 
