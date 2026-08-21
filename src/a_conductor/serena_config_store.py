@@ -168,6 +168,7 @@ class SQLiteSerenaConfigStore:
                     )
                 elif row["value"] != _SCHEMA_VERSION:
                     raise SerenaConfigStoreError("CONFIG_SCHEMA_UNSUPPORTED")
+                self._migrate_settings_columns(connection)
                 connection.commit()
             except SerenaConfigStoreError:
                 connection.rollback()
@@ -396,6 +397,23 @@ class SQLiteSerenaConfigStore:
             ).fetchall()
         return tuple(self._reference_from_row(row) for row in rows)
 
+    @staticmethod
+    def _migrate_settings_columns(connection: sqlite3.Connection) -> None:
+        columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(serena_worker_settings)"
+            ).fetchall()
+        }
+        if "project_path" not in columns:
+            connection.execute(
+                "ALTER TABLE serena_worker_settings ADD COLUMN project_path TEXT"
+            )
+        if "enabled_languages" not in columns:
+            connection.execute(
+                "ALTER TABLE serena_worker_settings ADD COLUMN enabled_languages TEXT"
+            )
+
     def save_worker_settings(self, settings: WorkerSerenaSettings) -> None:
         if not isinstance(settings, WorkerSerenaSettings):
             raise SerenaConfigStoreError("SETTINGS_INVALID")
@@ -406,15 +424,18 @@ class SQLiteSerenaConfigStore:
                     """
                     INSERT INTO serena_worker_settings(
                         worker_id, language_backend, excluded_tools,
-                        included_optional_tools, fixed_tools, base_modes, tool_timeout
-                    ) VALUES(?, ?, ?, ?, ?, ?, ?)
+                        included_optional_tools, fixed_tools, base_modes, tool_timeout,
+                        project_path, enabled_languages
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(worker_id) DO UPDATE SET
                         language_backend=excluded.language_backend,
                         excluded_tools=excluded.excluded_tools,
                         included_optional_tools=excluded.included_optional_tools,
                         fixed_tools=excluded.fixed_tools,
                         base_modes=excluded.base_modes,
-                        tool_timeout=excluded.tool_timeout
+                        tool_timeout=excluded.tool_timeout,
+                        project_path=excluded.project_path,
+                        enabled_languages=excluded.enabled_languages
                     """,
                     (
                         settings.worker_id,
@@ -424,6 +445,8 @@ class SQLiteSerenaConfigStore:
                         json.dumps(list(settings.fixed_tools)),
                         json.dumps(list(settings.base_modes)),
                         settings.tool_timeout,
+                        settings.project_path,
+                        json.dumps(list(settings.enabled_languages)),
                     ),
                 )
                 connection.commit()
@@ -439,7 +462,8 @@ class SQLiteSerenaConfigStore:
             row = connection.execute(
                 """
                 SELECT worker_id, language_backend, excluded_tools,
-                       included_optional_tools, fixed_tools, base_modes, tool_timeout
+                       included_optional_tools, fixed_tools, base_modes, tool_timeout,
+                       project_path, enabled_languages
                 FROM serena_worker_settings WHERE worker_id = ?
                 """,
                 (worker_id,),
@@ -455,6 +479,8 @@ class SQLiteSerenaConfigStore:
                 fixed_tools=tuple(json.loads(row["fixed_tools"])),
                 base_modes=tuple(json.loads(row["base_modes"])),
                 tool_timeout=int(row["tool_timeout"]),
+                project_path=row["project_path"],
+                enabled_languages=tuple(json.loads(row["enabled_languages"] or "[]")),
             )
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             raise SerenaConfigStoreError("SETTINGS_ROW_CORRUPT") from exc
