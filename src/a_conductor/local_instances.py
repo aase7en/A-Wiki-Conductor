@@ -311,3 +311,22 @@ class LocalInstanceOrchestrator:
             exit_code=exit_code,
             output_tail=output[-500:],
         )
+
+
+def connector_name_for_project(
+    instances: tuple[LocalInstance, ...], project_root: str | Path | None
+) -> str | None:
+    """Return the connector instance bound to the same project root, if any."""
+    if project_root is None:
+        return None
+    try:
+        target = Path(project_root).expanduser().resolve(strict=False)
+    except (OSError, ValueError):
+        return None
+    for instance in instances:
+        try:
+            if Path(instance.project_path).expanduser().resolve(strict=False) == target:
+                return instance.name
+        except (OSError, ValueError):
+            continue
+    return None

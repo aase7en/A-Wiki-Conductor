@@ -28,7 +28,11 @@ from .worker_serena_settings import (
     LanguageBackend,
     WorkerSerenaSettings,
 )
-from .local_instances import InstanceHealthState, InstanceResultCode
+from .local_instances import (
+    InstanceHealthState,
+    InstanceResultCode,
+    connector_name_for_project,
+)
 
 
 def find_user_guide_path() -> Path | None:
@@ -328,7 +332,7 @@ class AConductorDesktopApp:
         worker_panel.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
         worker_panel.grid_rowconfigure(1, weight=1)
         worker_panel.grid_columnconfigure(0, weight=1)
-        columns = ("worker", "state", "project", "path")
+        columns = ("worker", "state", "project", "path", "connector")
         self.worker_tree = ttk.Treeview(
             worker_panel,
             columns=columns,
@@ -337,10 +341,11 @@ class AConductorDesktopApp:
             style="Workers.Treeview",
         )
         headings = {
-            "worker": ("WORKER", 130),
-            "state": ("STATE", 100),
-            "project": ("PROJECT", 180),
-            "path": ("PATH", 320),
+            "worker": ("WORKER", 120),
+            "state": ("STATE", 90),
+            "project": ("PROJECT", 170),
+            "path": ("PATH", 260),
+            "connector": ("CONNECTOR", 150),
         }
         for name, (label, width) in headings.items():
             self.worker_tree.heading(name, text=label, anchor="w")
@@ -539,9 +544,29 @@ class AConductorDesktopApp:
         for item in self.worker_tree.get_children():
             self.worker_tree.delete(item)
         self._worker_ids.clear()
+        instances = ()
+        instances_fn = getattr(self.service, "instances", None)
+        if callable(instances_fn):
+            try:
+                instances = tuple(instances_fn())
+            except Exception:
+                instances = ()
+        path_fn = getattr(self.service, "worker_start_path", None)
         for worker in snapshot.workers:
             project_name = worker.project_display_name or "—"
             project_path = worker.project_root_path or "—"
+            connector = "-"
+            if callable(path_fn):
+                try:
+                    kind, detail = path_fn(worker.worker_id)
+                    connector = detail if kind == "connector" and detail else "-"
+                except Exception:
+                    connector = "-"
+            else:
+                connector = (
+                    connector_name_for_project(instances, worker.project_root_path)
+                    or "-"
+                )
             item = self.worker_tree.insert(
                 "",
                 "end",
@@ -550,6 +575,7 @@ class AConductorDesktopApp:
                     worker.state.value,
                     project_name,
                     project_path,
+                    connector,
                 ),
                 tags=(self._state_tag(worker.state),),
             )
@@ -665,16 +691,24 @@ class AConductorDesktopApp:
         self._set_enabled(
             self.config_button, row is not None and self._has_settings_service()
         )
-        if row is None or not has_lifecycle or row.assignment_id is None:
+        if row is None or row.assignment_id is None:
+            self._set_enabled(self.start_button, False)
+            self._set_enabled(self.stop_button, False)
+            self._set_enabled(self.restart_button, False)
+            return
+        if not has_lifecycle and self._worker_start_kind(row.worker_id) != "connector":
             self._set_enabled(self.start_button, False)
             self._set_enabled(self.stop_button, False)
             self._set_enabled(self.restart_button, False)
             return
 
-        ready = self._readiness(row.worker_id).ready
+        kind = self._worker_start_kind(row.worker_id)
+        startable = kind != "blocked"
+        ready = self._readiness(row.worker_id).ready if has_lifecycle else False
+        connector_mode = kind == "connector"
         self._set_enabled(
             self.start_button,
-            row.state is WorkerState.STOPPED and ready,
+            startable and (connector_mode or row.state is WorkerState.STOPPED),
         )
         self._set_enabled(
             self.stop_button,
@@ -682,8 +716,28 @@ class AConductorDesktopApp:
         )
         self._set_enabled(
             self.restart_button,
-            row.state is WorkerState.READY and ready,
+            row.state is WorkerState.READY and startable,
         )
+
+    def _worker_start_kind(self, worker_id: str) -> str:
+        """'connector' | 'lifecycle' | 'blocked' — how Start would run."""
+        path_fn = getattr(self.service, "worker_start_path", None)
+        if callable(path_fn):
+            try:
+                kind, _detail = path_fn(worker_id)
+                return kind
+            except Exception:
+                return "blocked"
+        instances_fn = getattr(self.service, "instances", None)
+        if callable(instances_fn):
+            row = self._selected_worker_row()
+            root = row.project_root_path if row is not None else None
+            try:
+                if connector_name_for_project(tuple(instances_fn()), root):
+                    return "connector"
+            except Exception:
+                pass
+        return "lifecycle" if self._readiness(worker_id).ready else "blocked"
 
     def _submit_lifecycle(self, action: str, worker_id: str, command) -> None:
         self.log_activity(f"{action:<12} {worker_id} QUEUED")
@@ -734,6 +788,23 @@ class AConductorDesktopApp:
         self._submit_lifecycle(action, worker_id, command)
 
     def start_selected(self) -> None:
+        worker_id = self.selected_worker_id()
+        if worker_id is None:
+            self._handle_error("SELECT_WORKER")
+            return
+        if self._worker_start_kind(worker_id) == "connector":
+            path_fn = getattr(self.service, "worker_start_path", None)
+            name = None
+            if callable(path_fn):
+                try:
+                    _kind, name = path_fn(worker_id)
+                except Exception:
+                    name = None
+            if name:
+                self._submit_instance_action("START-W", name)
+                return
+            self._handle_error("CONNECTOR_MATCH_MISSING")
+            return
         self._run_selected_lifecycle("START", "start_worker")
 
     def stop_selected(self) -> None:
