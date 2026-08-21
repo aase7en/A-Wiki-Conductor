@@ -104,6 +104,30 @@ class DesktopControlService:
     def release_worker(self, worker_id: str):
         return self.control_center.release_worker(worker_id)
 
+    def open_job_control(
+        self,
+        database_path: str | Path,
+        operations,
+    ):
+        """Open a durable job-control service honoring the supervised preference.
+
+        The `supervised` preference defaults to ON (user decision 2026-08-22):
+        native commands run under durable records, duplicate protection, and
+        bounded collection. Flipping it off trades durability for raw speed.
+        """
+        store = self._require_settings_store()
+        supervised = store.get_preference("supervised")
+        if supervised is None:
+            supervised = True
+        from .job_control import DurableJobControlService
+
+        return DurableJobControlService.open(
+            database_path,
+            operations=operations,
+            control_center=self.control_center,
+            supervised=supervised,
+        )
+
     def start_worker(self, worker_id: str):
         self.apply_worker_settings_to_home(worker_id)
         return self.lifecycle.execute(worker_id, LifecycleAction.START)
