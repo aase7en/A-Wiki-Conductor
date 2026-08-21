@@ -1032,3 +1032,40 @@ def test_status_pulse_toggles_online_color(root) -> None:
     assert {second, third} == {app.theme.ready, app.theme.ready_dim}
     assert first in (second, third)
     assert second != third
+
+
+def test_memory_status_reflects_selected_project(root, tmp_path) -> None:
+    snapshot = sample_snapshot()
+    has_memories = tmp_path / "with-memories"
+    (has_memories / ".serena" / "memories").mkdir(parents=True)
+    (has_memories / ".serena" / "memories" / "notes.md").write_text("x", encoding="utf-8")
+    no_memories = tmp_path / "fresh"
+    no_memories.mkdir()
+    from dataclasses import replace as _replace
+
+    projects = (
+        Project("project-mem", "WithMem", str(has_memories)),
+        Project("project-fresh", "Fresh", str(no_memories)),
+    )
+    service = FakeService(_replace(snapshot, projects=projects))
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+
+    # nothing selected -> neutral
+    app.project_list.selection_clear(0, "end")
+    app._refresh_memory_status()
+    assert "เลือกโปรเจกต์" in app.memory_status_label.cget("text")
+
+    # select project with memories
+    app.project_list.selection_set(0)
+    app._refresh_memory_status()
+    assert "พร้อม (1 ไฟล์)" in app.memory_status_label.cget("text")
+
+    # select fresh project -> onboarding nudge (click replaces selection)
+    app.project_list.selection_clear(0, "end")
+    app.project_list.selection_set(1)
+    app._refresh_memory_status()
+    text = app.memory_status_label.cget("text")
+    assert "ยังไม่มีความจำ" in text
+    assert "เริ่มบทสนทนาใหม่" in text

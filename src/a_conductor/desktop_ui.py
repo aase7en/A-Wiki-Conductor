@@ -36,6 +36,7 @@ from .local_instances import (
     _TUNNEL_ID_RE,
     connector_name_for_project,
 )
+from .memory_presence import MemoryPresenceState, inspect_memory_presence
 
 
 def find_user_guide_path() -> Path | None:
@@ -569,6 +570,28 @@ class AConductorDesktopApp:
         for index, button in enumerate((self.add_button, self.assign_button, self.activate_button)):
             button.grid(row=0, column=index, padx=(0, 6), sticky="w")
 
+        self.memory_status_label = tk.Label(
+            project_panel,
+            text="สมองโปรเจกต์: เลือกโปรเจกต์เพื่อดูสถานะ",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8),
+            anchor="w",
+            justify="left",
+            wraplength=250,
+        )
+        self.memory_status_label.grid(
+            row=3, column=0, columnspan=2, sticky="ew", padx=9, pady=(0, 8)
+        )
+        _attach_tip(
+            self.memory_status_label,
+            "ตรวจสอบแบบอ่านอย่างเดียว: มีความจำ Serena ในโปรเจกต์นี้หรือไม่\nถ้ายังไม่มี onboarding จะทำงานเมื่อ agent เข้าโปรเจกต์ครั้งแรก\nและควรเริ่มบทสนทนาใหม่หลัง onboarding จบ",
+            self.theme,
+        )
+        self.project_list.bind(
+            "<<ListboxSelect>>", lambda _event: self._refresh_memory_status()
+        )
+
         worker_panel = self._panel(body, "WORKERS")
         worker_panel.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
         worker_panel.grid_rowconfigure(1, weight=1)
@@ -838,6 +861,40 @@ class AConductorDesktopApp:
                 self.worker_tree.selection_set(item)
                 self.worker_tree.focus(item)
         self._update_lifecycle_buttons()
+        self._refresh_memory_status()
+
+    def _refresh_memory_status(self) -> None:
+        """Read-only memory-presence line for the selected project (WO-P1-057)."""
+        label = getattr(self, "memory_status_label", None)
+        if label is None:
+            return
+        project_id = self.selected_project_id()
+        if project_id is None:
+            label.configure(
+                text="สมองโปรเจกต์: เลือกโปรเจกต์เพื่อดูสถานะ",
+                fg=self.theme.muted,
+            )
+            return
+        root_path = self._project_paths.get(project_id)
+        if not root_path:
+            label.configure(text="สมองโปรเจกต์: —", fg=self.theme.muted)
+            return
+        presence = inspect_memory_presence(root_path)
+        if presence.state is MemoryPresenceState.HAS_MEMORIES:
+            label.configure(
+                text=f"สมองโปรเจกต์: พร้อม ({presence.total_files} ไฟล์)",
+                fg=self.theme.ready,
+            )
+        elif presence.state is MemoryPresenceState.NO_PROJECT:
+            label.configure(
+                text="สมองโปรเจกต์: ไม่พบ path โปรเจกต์",
+                fg=self.theme.error,
+            )
+        else:
+            label.configure(
+                text="สมองโปรเจกต์: ยังไม่มีความจำ — onboarding จะทำงานเมื่อ agent เข้าครั้งแรก · หลังจบเริ่มบทสนทนาใหม่",
+                fg=self.theme.warning,
+            )
 
     def selected_project_id(self) -> str | None:
         selected = self.project_list.curselection()
