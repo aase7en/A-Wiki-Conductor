@@ -235,3 +235,85 @@ def test_desktop_control_settings_facade_defaults_and_save(tmp_path: Path) -> No
         assert "SETTINGS_STORE_NOT_AVAILABLE" in str(exc)
     else:
         raise AssertionError("missing store was not reported")
+
+
+def test_settings_v2_languages_and_project_validation() -> None:
+    ok = base_settings(
+        enabled_languages=("python", "html", "markdown"),
+        project_path=r"A:\GitHub\demo",
+    )
+    text = ok.render_serena_config()
+    assert "  typescript: 0" in text
+    assert "  rust: 0" in text
+    assert "  python: 0" not in text
+    assert r"'A:\GitHub\demo'" in text
+
+    with pytest.raises(ValueError):
+        base_settings(enabled_languages=("python", "python"))
+    with pytest.raises(ValueError):
+        base_settings(enabled_languages=("klingon",))
+    with pytest.raises(ValueError):
+        base_settings(project_path="   ")
+
+
+def test_settings_v2_empty_languages_render_plain_priorities() -> None:
+    text = base_settings().render_serena_config(project_path="A:/x")
+    assert "ls_priorities:" in text
+    assert ": 0" not in text
+
+
+def test_settings_v2_no_project_renders_empty_projects() -> None:
+    text = WorkerSerenaSettings(worker_id="a-worker-01").render_serena_config()
+    assert "projects: []" in text
+
+
+def test_settings_v2_param_overrides_project_field() -> None:
+    settings = base_settings(project_path=r"A:\GitHub\field")
+    text = settings.render_serena_config(project_path=r"A:\GitHub\param")
+    assert r"'A:\GitHub\param'" in text
+    assert r"'A:\GitHub\field'" not in text
+
+
+def test_store_migration_adds_v2_columns(tmp_path: Path) -> None:
+    import sqlite3
+
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+
+    database = tmp_path / "legacy.sqlite"
+    connection = sqlite3.connect(database)
+    connection.executescript(
+        """
+        CREATE TABLE serena_config_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE serena_worker_settings (
+            worker_id TEXT PRIMARY KEY,
+            language_backend TEXT NOT NULL,
+            excluded_tools TEXT NOT NULL,
+            included_optional_tools TEXT NOT NULL,
+            fixed_tools TEXT NOT NULL,
+            base_modes TEXT NOT NULL,
+            tool_timeout INTEGER NOT NULL
+        );
+        INSERT INTO serena_worker_settings VALUES(
+            'a-worker-01', 'LSP', '[]', '[]', '[]', '[]', 240
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    store = SQLiteSerenaConfigStore(database)
+    store.initialize()
+    migrated = store.get_worker_settings("a-worker-01")
+    assert migrated is not None
+    assert migrated.tool_timeout == 240
+    assert migrated.project_path is None
+    assert migrated.enabled_languages == ()
+
+    updated = base_settings(
+        enabled_languages=("python", "markdown"),
+        project_path=r"A:\GitHub\demo",
+    )
+    store.save_worker_settings(updated)
+    reloaded = store.get_worker_settings("a-worker-01")
+    assert reloaded == updated
+    assert reloaded.enabled_languages == ("python", "markdown")
