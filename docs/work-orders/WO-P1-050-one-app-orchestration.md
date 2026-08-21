@@ -1,0 +1,39 @@
+# WO-P1-050: One-App Instance Orchestration
+
+Status: in_progress
+Lane/files: `src/a_conductor/local_instances.py`, `src/a_conductor/serena_config_store.py`, `src/a_conductor/desktop_control.py`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/__init__.py`, `tests/test_local_instances.py`, `tests/test_desktop_ui.py`, `docs/superpowers/specs/2026-08-21-one-app-orchestration-design.md`, `docs/work-orders/WO-P1-050-one-app-orchestration.md`, `PROJECT-PLAN.md`, `CURRENT-WORK.md`, `handoff.md`
+Branch: chunk/p1-050-one-app-orchestration-docs (PR series)
+Model tier: high
+
+## Goal
+
+Open one program and work: the Control Center auto-discovers validated Serena tunnel instances, shows health, starts/stops them through their validated scripts, and auto-starts flagged instances on launch — removing the "open each cmd one by one" workflow (user requirement 2026-08-21).
+
+## Reuse classification
+
+`WRAP`: validated instance scripts own all credential/preflight/PID logic; the app only discovers, probes health (`LoopbackReadyzHttpProbe`), invokes scripts hidden, and parses results. The MCP-gateway alternative is explicitly deferred to a future ADR (design doc records trade-offs).
+
+## Acceptance
+
+- Discovery finds instances under the configured root by parsing `instance.ps1` (name/project/health address); no mutation.
+- Health states READY/STOPPED/UNKNOWN via injectable probe.
+- Start/stop return structured outcomes (`RUNNING`, `ALREADY_RUNNING`, `PORT_IN_USE`, `FAILED:<code>` + output tail); scripts run hidden, no shell, bounded timeout; orchestrator never kills processes.
+- Autostart flags persist per instance and drive launch-time start (background executor).
+- UI INSTANCES panel: list + states + Start/Stop/Start-All/Rescan + Auto checkboxes; CLI-minimal style.
+- Full suite + CI green per PR; real-machine check is read-only (discovery + health only).
+
+## Micro-steps
+
+- [x] 050-A design doc (alternatives + trade-offs) + this work order
+- [ ] 050-B RED core service tests (discovery/probe/orchestrator)
+- [ ] 050-C implement `local_instances.py`
+- [ ] 050-D persistence + facade + UI panel + tests
+- [ ] 050-E regression + close/push
+
+## Forbidden
+
+- No MCP gateway implementation; no edits to validated instance scripts; no real instance start/stop in automated tests; no broad process kills.
+
+## Checkpoint log
+
+- [2026-08-21] Opened; design doc records why the multiplexer gateway is deferred (user fallback clause sanctions the UI-orchestration path).
