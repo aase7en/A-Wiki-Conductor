@@ -1185,3 +1185,58 @@ def test_rebind_dialog_success_and_blocked(root, tmp_path) -> None:
     assert "SKIPPED_SAME_PROJECT" in app._rebind_status.cget("text")
     assert dialog2.winfo_exists()
     dialog2.destroy()
+
+
+def test_config_dialog_every_surface_has_explanation(root) -> None:
+    from a_conductor.config_blurbs import (
+        FIELD_BLURBS,
+        LANGUAGE_BACKEND_BLURBS,
+        LANGUAGE_BLURBS,
+        MODE_BLURBS,
+        TOOL_BLURBS,
+    )
+    from a_conductor.worker_serena_settings import (
+        ENGINE_TOOLS,
+        KNOWN_LANGUAGES,
+        LanguageBackend,
+    )
+
+    # blurb catalogs cover every catalogued surface
+    for tool in ENGINE_TOOLS:
+        assert tool in TOOL_BLURBS, tool
+    for language in KNOWN_LANGUAGES:
+        assert language in LANGUAGE_BLURBS, language
+    for backend in LanguageBackend:
+        assert backend.value in LANGUAGE_BACKEND_BLURBS, backend.value
+    for field in ("tool_timeout", "project_path", "included_optional_tools", "fixed_tools", "base_modes"):
+        assert field in FIELD_BLURBS, field
+    assert "interactive" in MODE_BLURBS
+
+    # dialog actually attaches tooltips to toggle checkboxes and field blurbs render
+    service = SettingsFakeService(sample_snapshot())
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+    worker_item = app.worker_tree.get_children()[0]
+    app.worker_tree.selection_set(worker_item)
+    app.worker_tree.focus(worker_item)
+
+    dialog = app.open_worker_config()
+    assert dialog is not None
+    boxes = []
+
+    def collect(parent):
+        for c in parent.winfo_children():
+            if isinstance(c, tk.Checkbutton):
+                boxes.append(c)
+            collect(c)
+
+    collect(dialog)
+    with_tip = [b for b in boxes if hasattr(b, "_acond_tooltip")]
+    assert len(boxes) > 40          # tools + languages grids
+    assert len(with_tip) == len(boxes)  # every checkbox has a tooltip
+
+    # backend blurb shows on open
+    assert "LSP" in str(app._backend_blurb.cget("text")) or app._backend_blurb.cget("text")
+    assert app._backend_blurb.cget("text")
+    dialog.destroy()

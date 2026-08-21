@@ -36,6 +36,13 @@ from .local_instances import (
     _TUNNEL_ID_RE,
     connector_name_for_project,
 )
+from .config_blurbs import (
+    FIELD_BLURBS,
+    LANGUAGE_BACKEND_BLURBS,
+    LANGUAGE_BLURBS,
+    MODE_BLURBS,
+    TOOL_BLURBS,
+)
 from .memory_presence import MemoryPresenceState, inspect_memory_presence
 
 
@@ -1614,13 +1621,33 @@ class AConductorDesktopApp:
         backend_box.set(settings.language_backend.value)
         backend_box.grid(row=1, column=1, sticky="ew", pady=2)
         self._config_entries["language_backend"] = backend_box
-        tk.Label(
+        backend_label = tk.Label(
             frame,
             text="Language backend",
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
-        ).grid(row=1, column=0, sticky="w", padx=(0, 10))
+        )
+        backend_label.grid(row=1, column=0, sticky="w", padx=(0, 10))
+        _attach_tip(backend_box, LANGUAGE_BACKEND_BLURBS.get("LSP", ""), self.theme)
+        self._backend_blurb = tk.Label(
+            frame,
+            text="",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8),
+            anchor="w",
+        )
+        self._backend_blurb.grid(row=2, column=1, sticky="w", pady=(0, 4))
+
+        def update_backend_blurb(*_args):
+            value = backend_box.get()
+            self._backend_blurb.configure(
+                text=LANGUAGE_BACKEND_BLURBS.get(value, "")
+            )
+
+        backend_box.bind("<<ComboboxSelected>>", update_backend_blurb)
+        update_backend_blurb()
 
         fields = (
             ("tool_timeout", "Tool timeout (s)", str(settings.tool_timeout)),
@@ -1629,22 +1656,40 @@ class AConductorDesktopApp:
             ("fixed_tools", "Fixed tools (exclusive)", ",".join(settings.fixed_tools)),
             ("base_modes", "Base modes (comma)", ",".join(settings.base_modes)),
         )
-        for row_index, (key, label, value) in enumerate(fields, start=2):
-            tk.Label(
+        for row_index, (key, label, value) in enumerate(fields, start=3):
+            label_widget = tk.Label(
                 frame,
                 text=label,
                 bg=self.theme.panel,
                 fg=self.theme.muted,
                 font=(self.theme.monospace_font, 9),
-            ).grid(row=row_index, column=0, sticky="w", padx=(0, 10), pady=2)
+            )
+            label_widget.grid(row=row_index, column=0, sticky="w", padx=(0, 10), pady=2)
             entry = ttk.Entry(frame, width=56)
             entry.insert(0, value)
             entry.grid(row=row_index, column=1, sticky="ew", pady=2)
             self._config_entries[key] = entry
+            blurb = FIELD_BLURBS.get(key, "")
+            if blurb:
+                _attach_tip(entry, blurb, self.theme)
+                _attach_tip(label_widget, blurb, self.theme)
+                tk.Label(
+                    frame,
+                    text=blurb,
+                    bg=self.theme.panel,
+                    fg=self.theme.muted,
+                    font=(self.theme.monospace_font, 8),
+                    anchor="w",
+                ).grid(row=row_index, column=1, sticky="w", pady=(0, 2))
 
-        next_row = len(fields) + 2
+        next_row = len(fields) + 3
 
-        def toggle_section(title: str, names: tuple[str, ...], initial_on) -> dict[str, tk.BooleanVar]:
+        def toggle_section(
+            title: str,
+            names: tuple[str, ...],
+            initial_on,
+            blurbs: dict[str, str] | None = None,
+        ) -> dict[str, tk.BooleanVar]:
             nonlocal next_row
             tk.Label(
                 frame,
@@ -1661,7 +1706,7 @@ class AConductorDesktopApp:
                 vars_by_name[name] = var
                 row = next_row + index // columns
                 column = index % columns
-                tk.Checkbutton(
+                box = tk.Checkbutton(
                     frame,
                     text=name,
                     variable=var,
@@ -1673,7 +1718,11 @@ class AConductorDesktopApp:
                     highlightthickness=0,
                     font=(self.theme.monospace_font, 9),
                     anchor="w",
-                ).grid(row=row, column=column, sticky="w", padx=(0, 18), pady=0)
+                )
+                box.grid(row=row, column=column, sticky="w", padx=(0, 18), pady=0)
+                blurb = (blurbs or {}).get(name)
+                if blurb:
+                    _attach_tip(box, f"{name}: {blurb}", self.theme)
             next_row += (len(names) + columns - 1) // columns + 1
             return vars_by_name
 
@@ -1684,15 +1733,17 @@ class AConductorDesktopApp:
         )
         excluded_set = set(settings.excluded_tools)
         self._config_tool_vars = toggle_section(
-            "TOOLS   ON = enabled, OFF = excluded",
+            "TOOLS   ON = enabled, OFF = excluded  (hover ดูคำอธิบายแต่ละตัว)",
             tool_catalog,
             lambda name: name not in excluded_set,
+            blurbs=TOOL_BLURBS,
         )
         enabled_langs = set(settings.enabled_languages)
         self._config_lang_vars = toggle_section(
-            "LANGUAGES   ON = supported for this project",
+            "LANGUAGES   ON = supported for this project  (hover ดูคำอธิบาย)",
             KNOWN_LANGUAGES,
             lambda name: name in enabled_langs if enabled_langs else True,
+            blurbs=LANGUAGE_BLURBS,
         )
 
         self._config_status = tk.Label(
