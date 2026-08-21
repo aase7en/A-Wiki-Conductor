@@ -25,6 +25,15 @@ KNOWN_LANGUAGES: tuple[str, ...] = (
     "kotlin", "php", "ruby", "swift", "vue", "svelte", "solidity", "bash",
 )
 
+ENGINE_TOOLS: tuple[str, ...] = (
+    "read_file", "write_file", "open_file", "get_dir_tree", "find_file",
+    "search_for_pattern", "find_symbol", "get_symbols_overview",
+    "get_references_overview", "find_referencing_symbols", "replace_regex",
+    "insert_after_symbol", "replace_symbol_body", "execute_shell",
+    "read_memory", "write_memory", "create_memory", "list_memories",
+    "activate_project", "get_current_config", "restart_language_server",
+)
+
 _MIN_TOOL_TIMEOUT = 1
 _MAX_TOOL_TIMEOUT = 86400
 

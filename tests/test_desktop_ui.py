@@ -514,11 +514,19 @@ def test_worker_config_dialog_prefills_and_saves(root) -> None:
     assert dialog is not None
     assert app._config_entries["tool_timeout"].get() == "240"
     assert app._config_entries["language_backend"].get() == "LSP"
-    assert app._config_entries["bound_project"].get().endswith("A-Wiki")
-    app._config_entries["excluded_tools"].insert(0, "find_file")
+    assert app._config_entries["project_path"].get().endswith("A-Wiki")
+    assert app._config_tool_vars["find_file"].get() is True
+    assert len(app._config_tool_vars) >= 20
+    assert len(app._config_lang_vars) >= 20
+    assert app._config_lang_vars["python"].get() is True
+    app._config_tool_vars["find_file"].set(False)
+    app._config_lang_vars["rust"].set(False)
+    app._config_lang_vars["go"].set(False)
     app._config_entries["tool_timeout"].delete(0, "end")
     app._config_entries["tool_timeout"].insert(0, "300")
     app._config_entries["base_modes"].insert(0, "editing")
+    app._config_entries["project_path"].delete(0, "end")
+    app._config_entries["project_path"].insert(0, r"A:\GitHub\env-wastewater-webapp")
 
     app.save_worker_config(dialog)
 
@@ -529,6 +537,11 @@ def test_worker_config_dialog_prefills_and_saves(root) -> None:
     assert saved.excluded_tools == ("find_file",)
     assert saved.base_modes == ("editing",)
     assert saved.tool_timeout == 300
+    assert saved.project_path == r"A:\GitHub\env-wastewater-webapp"
+    assert "python" in saved.enabled_languages
+    assert "html" in saved.enabled_languages
+    assert "rust" not in saved.enabled_languages
+    assert "go" not in saved.enabled_languages
     assert not dialog.winfo_exists()
 
 
@@ -540,7 +553,7 @@ def test_worker_config_invalid_combination_blocks_save(root) -> None:
     dialog = app.open_worker_config()
     assert dialog is not None
     app._config_entries["fixed_tools"].insert(0, "read_file")
-    app._config_entries["excluded_tools"].insert(0, "find_file")
+    app._config_tool_vars["find_file"].set(False)
 
     app.save_worker_config(dialog)
 
