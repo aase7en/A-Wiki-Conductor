@@ -317,3 +317,88 @@ def test_store_migration_adds_v2_columns(tmp_path: Path) -> None:
     reloaded = store.get_worker_settings("a-worker-01")
     assert reloaded == updated
     assert reloaded.enabled_languages == ("python", "markdown")
+
+
+def test_brain_settings_validation() -> None:
+    ok = base_settings(
+        brain_folders=(r"A:\GitHub\A-Wiki",),
+        brain_entry_files=(r"A:\GitHub\A-Wiki\AGENTS.md", r"A:\GitHub\A-Wiki\wiki\context\wiki-overview.md"),
+    )
+    assert ok.brain_folders == (r"A:\GitHub\A-Wiki",)
+
+    with pytest.raises(ValueError):
+        base_settings(brain_folders=(r"A:\GitHub\A", r"A:\GitHub\B", r"A:\GitHub\C"))
+    with pytest.raises(ValueError):
+        base_settings(brain_folders=("relative/path",))
+    with pytest.raises(ValueError):
+        base_settings(brain_folders=("",))
+    with pytest.raises(ValueError):
+        base_settings(brain_folders=(r"A:\X", r"A:\X"))
+    with pytest.raises(ValueError):
+        base_settings(brain_entry_files=("not/absolute.md",))
+    with pytest.raises(ValueError):
+        base_settings(brain_entry_files=(r"A:\X\a.md", r"A:\X\b.md", r"A:\X\c.md"))
+
+
+def test_brain_render_injects_system_prompt_index_only() -> None:
+    settings = base_settings(
+        brain_folders=(r"A:\GitHub\A-Wiki",),
+        brain_entry_files=(r"A:\GitHub\A-Wiki\AGENTS.md",),
+    )
+    text = settings.render_serena_config(project_path="A:/x")
+
+    assert "system_prompt: |" in text
+    assert "[A-CONDUCTOR SECOND BRAIN]" in text
+    assert r"A:\GitHub\A-Wiki" in text
+    assert r"A:\GitHub\A-Wiki\AGENTS.md" in text
+    assert "BEFORE starting the task" in text
+    assert "read_file" in text
+    # Index-only mandate: the brain block stays compact (no file contents).
+    start = text.index("system_prompt: |")
+    end = text.index("language_backend:")
+    block = text[start:end] if start < end else text[start : start + 2000]
+    assert len(block) < 1600
+
+
+def test_brain_absent_renders_no_system_prompt() -> None:
+    text = base_settings().render_serena_config(project_path="A:/x")
+    assert "system_prompt" not in text
+
+
+def test_brain_store_migration_and_round_trip(tmp_path: Path) -> None:
+    import sqlite3
+
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+
+    database = tmp_path / "legacy2.sqlite"
+    connection = sqlite3.connect(database)
+    connection.executescript(
+        """
+        CREATE TABLE serena_config_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE serena_worker_settings (
+            worker_id TEXT PRIMARY KEY,
+            language_backend TEXT NOT NULL,
+            excluded_tools TEXT NOT NULL,
+            included_optional_tools TEXT NOT NULL,
+            fixed_tools TEXT NOT NULL,
+            base_modes TEXT NOT NULL,
+            tool_timeout INTEGER NOT NULL,
+            project_path TEXT,
+            enabled_languages TEXT
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    store = SQLiteSerenaConfigStore(database)
+    store.initialize()
+
+    settings = base_settings(
+        brain_folders=(r"A:\GitHub\A-Wiki",),
+        brain_entry_files=(r"A:\GitHub\A-Wiki\AGENTS.md",),
+    )
+    store.save_worker_settings(settings)
+    loaded = store.get_worker_settings(settings.worker_id)
+    assert loaded == settings
+    assert loaded.brain_folders == (r"A:\GitHub\A-Wiki",)

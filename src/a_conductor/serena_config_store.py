@@ -413,6 +413,14 @@ class SQLiteSerenaConfigStore:
             connection.execute(
                 "ALTER TABLE serena_worker_settings ADD COLUMN enabled_languages TEXT"
             )
+        if "brain_folders" not in columns:
+            connection.execute(
+                "ALTER TABLE serena_worker_settings ADD COLUMN brain_folders TEXT"
+            )
+        if "brain_entry_files" not in columns:
+            connection.execute(
+                "ALTER TABLE serena_worker_settings ADD COLUMN brain_entry_files TEXT"
+            )
 
     def save_worker_settings(self, settings: WorkerSerenaSettings) -> None:
         if not isinstance(settings, WorkerSerenaSettings):
@@ -425,8 +433,8 @@ class SQLiteSerenaConfigStore:
                     INSERT INTO serena_worker_settings(
                         worker_id, language_backend, excluded_tools,
                         included_optional_tools, fixed_tools, base_modes, tool_timeout,
-                        project_path, enabled_languages
-                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        project_path, enabled_languages, brain_folders, brain_entry_files
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(worker_id) DO UPDATE SET
                         language_backend=excluded.language_backend,
                         excluded_tools=excluded.excluded_tools,
@@ -435,7 +443,9 @@ class SQLiteSerenaConfigStore:
                         base_modes=excluded.base_modes,
                         tool_timeout=excluded.tool_timeout,
                         project_path=excluded.project_path,
-                        enabled_languages=excluded.enabled_languages
+                        enabled_languages=excluded.enabled_languages,
+                        brain_folders=excluded.brain_folders,
+                        brain_entry_files=excluded.brain_entry_files
                     """,
                     (
                         settings.worker_id,
@@ -447,6 +457,8 @@ class SQLiteSerenaConfigStore:
                         settings.tool_timeout,
                         settings.project_path,
                         json.dumps(list(settings.enabled_languages)),
+                        json.dumps(list(settings.brain_folders)) if settings.brain_folders else None,
+                        json.dumps(list(settings.brain_entry_files)) if settings.brain_entry_files else None,
                     ),
                 )
                 connection.commit()
@@ -463,7 +475,7 @@ class SQLiteSerenaConfigStore:
                 """
                 SELECT worker_id, language_backend, excluded_tools,
                        included_optional_tools, fixed_tools, base_modes, tool_timeout,
-                       project_path, enabled_languages
+                       project_path, enabled_languages, brain_folders, brain_entry_files
                 FROM serena_worker_settings WHERE worker_id = ?
                 """,
                 (worker_id,),
@@ -481,6 +493,8 @@ class SQLiteSerenaConfigStore:
                 tool_timeout=int(row["tool_timeout"]),
                 project_path=row["project_path"],
                 enabled_languages=tuple(json.loads(row["enabled_languages"] or "[]")),
+                brain_folders=tuple(json.loads(row["brain_folders"] or "[]")),
+                brain_entry_files=tuple(json.loads(row["brain_entry_files"] or "[]")),
             )
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             raise SerenaConfigStoreError("SETTINGS_ROW_CORRUPT") from exc
