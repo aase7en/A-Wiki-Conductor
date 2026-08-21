@@ -1,30 +1,22 @@
 # A-Conductor — Current Work
 
-Last updated: 2026-08-21 (session 4 end)
+Last updated: 2026-08-21 (session 5 end)
 
 ## Current phase
 
-**Own-brand product shipped: setup.exe installer, icon, Start Menu, minimal no-shortcut UI, toggle settings (tools/languages/project) — installed and verified on this machine.**
+**Second Brain Phase 1 delivered + usability overhaul from real user trial. Awaiting next user trial.**
 
-## Session 4 summary (WO-P1-051, PRs #13-#17, all CI-green, main `ec16587`)
+## Session 5 summary (WO-P1-052 + WO-P1-053, PRs #18-#24, all CI-green, main `c40c1d8`)
 
-- **PR #13**: work order + recorded design decisions (brainstorm discipline; requirements user-specified).
-- **PR #14**: user-facing "Serena" removed (panel → CONNECTORS etc.), credits + engine link only (README/USER-GUIDE); Ctrl+K palette + all shortcuts removed; **คู่มือ button** opens the bundled guide (dev + frozen resolution).
-- **PR #15**: settings v2 — `project_path` pin + `enabled_languages` (24-language catalog incl. html/markdown; renders `ls_priorities`), PRAGMA-guarded additive store migration.
-- **PR #16**: Config dialog v2 — CLI-styled toggle checklists: 21 tools ON/OFF, 24 languages ON/OFF, editable project path; advanced fields kept.
-- **PR #17**: generated app icon (window + exe + installer), hardened `scripts/build_portable.py` (Defender-race-proof, exit-0 deterministic), `scripts/installer_main.py` → **A-Conductor-Setup.exe** per-user installer.
+- **Second Brain (WO-P1-052)**: plan file (SSoT) → settings `brain_folders`/`brain_entry_files` → renderer `system_prompt` index injection (Index+Pull, no contents) → **Second Brain dialog** (global profile, A-Wiki defaults) → **materialize-on-start** (append-only, safe for validated configs; verified on a temp copy of the live instance).
+- **SerenaDoc**: all 34 files read; durable implications in `docs/references/serena-fulldoc-implications.md` (chatgpt context = multi-project switching via activation prompt; onboarding context cost; dashboard port instability; serena-hooks; trusted-projects gate; slow per-language readiness; git staging side effects).
+- **Usability overhaul (WO-P1-053)** from the user's 8 trial issues: tooltips everywhere + ONLINE/OFFLINE explained; quick-start 3-step hint bar; **in-app guide viewer**; Add/Assign in PROJECTS panel; scrollbars + wrapping rows + larger minsize; brain button สมอง + folder; **connector-aware Start** (root-caused: Start needed runtime setup; now the worker's Start routes to the matching CONNECTOR — works out of the box) + CONNECTOR column linking workers↔instances.
 
-## Real-machine evidence
+## Evidence
 
-- Portable exe (13 MB, icon+guide bundled) `--smoke` PASS.
-- Sandbox install → files/shortcuts/registry verified → sandbox uninstall clean.
-- **Real install** at `%LOCALAPPDATA%\Programs\A-Conductor`: Start Menu ✓ Desktop ✓ Add/Remove "A-Conductor" ✓ → installed app `--smoke` PASS (exit 0).
-- Known environment notes: automated runs of fresh unsigned exes are Defender-policy-blocked (interactive SmartScreen click-through works; documented in USER-GUIDE); one load-dependent local timing flake (never on CI).
-
-## Final suite
-
-787 passed, 0 failed (local); CI green on all PRs.
+- Full suite **801 passed**; smoke `A-CONDUCTOR_SMOKE_OK projects=0 workers=3` on merged main.
+- Real-machine: brain injection verified on temp copy (live untouched, idempotent).
 
 ## Next safe action (user picks)
 
-(a) Try the real app from Start Menu → feedback loop; (b) sign the exes (cert) to remove SmartScreen friction; (c) continue Phase 1 roadmap (materialize settings into worker SERENA_HOME at start; CONNECTORS project rebind UI). New work order + reuse gate first.
+(a) Retrial the app (`a-conductor` / installed Start Menu entry) — feedback loop; (b) rebuild+reinstall the exe with `scripts/build_portable.py` to refresh the installed copy; (c) Phase 2 backlog: MCP gateway enforcement, CONNECTORS rebind UI, onboarding warnings (memory presence), activation-prompt helper. New work order + reuse gate first.

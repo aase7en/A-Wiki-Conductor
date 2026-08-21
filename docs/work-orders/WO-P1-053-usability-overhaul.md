@@ -1,6 +1,6 @@
 # WO-P1-053: Usability Overhaul (user trial feedback, 8 items)
 
-Status: in_progress
+Status: complete
 Lane/files: `src/a_conductor/desktop_ui.py`, `src/a_conductor/desktop_control.py`, `src/a_conductor/desktop_app.py`, `src/a_conductor/__init__.py`, `tests/test_desktop_ui.py`, `docs/references/serena-fulldoc-implications.md`, `docs/USER-GUIDE.md`, `docs/work-orders/WO-P1-053-usability-overhaul.md`, `CURRENT-WORK.md`, `handoff.md`
 Branch: chunk/p1-053-ux-overhaul-docs (PR series)
 Model tier: high
@@ -37,9 +37,9 @@ Model tier: high
 ## Micro-steps
 
 - [x] 053-A SerenaDoc implications reference + this work order
-- [ ] 053-B UI pass 1: tooltips + hint bar + in-app guide + button placement + scrollbars + wrapping
-- [ ] 053-C UI pass 2: connector-aware Start + CONNECTOR column (+ facade support) 
-- [ ] 053-D regression + real smoke + close/push
+- [x] 053-B UI pass 1: tooltips + hint bar + in-app guide + button placement + scrollbars + wrapping
+- [x] 053-C UI pass 2: connector-aware Start + CONNECTOR column (+ facade support)
+- [x] 053-D regression + real smoke + close/push
 
 ## Forbidden
 
@@ -48,3 +48,4 @@ Model tier: high
 ## Checkpoint log
 
 - [2026-08-21] Opened from main `cf28606` (WO-P1-052 complete: brain settings → renderer → UI → materialize-on-start, all merged PRs #18-#21).
+- [2026-08-21] Delivered via PRs #22-#24 (CI-green, merged; main `c40c1d8`). B: tooltips on all primary controls + ONLINE/OFFLINE meaning, quick-start hint bar, **in-app guide viewer** (เปิดไฟล์ภายนอก demoted to a button inside), Add/Assign moved into PROJECTS panel, scrollbars (projects/workers/activity), wrapping button rows (4/row workers, 3/row connectors), minsize 980x640, brain button relabeled สมอง + folder. C: `worker_start_path` connector-first routing (fixes 'assign แล้วกด Start ไม่ได้' — connector path needs no runtime setup), CONNECTOR column in the worker table. Full suite 801 passed; smoke OK. Loop notes: guide window return value, tooltip-driven test assertions, connector column sourced from the same routing decision, READY-state workers start connectors by design.
