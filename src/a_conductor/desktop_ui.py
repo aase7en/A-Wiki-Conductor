@@ -44,6 +44,7 @@ from .config_blurbs import (
     TOOL_BLURBS,
 )
 from .memory_presence import MemoryPresenceState, inspect_memory_presence
+from .upstream_check import fetch_upstream_status
 
 
 def find_user_guide_path() -> Path | None:
@@ -135,6 +136,10 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "สาเหตุที่พบบ่อย: ฐานข้อมูลถูกเปิดค้างด้วยอีกโปรแกรม",
             "ทำอย่างไร: ปิดโปรแกรมซ้ำแล้วลองใหม่",
         ),
+    ),
+    "UPSTREAM_CHECK_FAILED": (
+        "เช็คอัปเดทไม่สำเร็จ",
+        ("สาเหตุที่พบบ่อย: ไม่มีอินเทอร์เน็ต หรือ GitHub ไม่ตอบ", "ทำอย่างไร: ลองใหม่อีกครั้ง หรือเปิดลิงก์ในคู่มือด้วยตัวเอง"),
     ),
     "REBIND_NOT_AVAILABLE": (
         "ระบบเปลี่ยนโปรเจกต์ยังไม่พร้อม",
@@ -767,6 +772,14 @@ class AConductorDesktopApp:
             "เปลี่ยนโปรเจกต์ที่ตัวเชื่อมที่เลือกทำงานด้วย\nสำรองไฟล์เดิมเป็น .bak อัตโนมัติ · มีผลหลัง restart ตัวเชื่อม",
             self.theme,
         )
+        self.upstream_button = self._button(
+            instance_actions, "เช็คอัปเดท engine", self.check_upstream
+        )
+        _attach_tip(
+            self.upstream_button,
+            "ดูเวอร์ชันล่าสุดของ engine ต้นแบบ (Serena) จาก GitHub\nอ่านอย่างเดียว — ถ้ามีอัปเดท ค่อยให้ AI agent ช่วยตามทีหลัง",
+            self.theme,
+        )
         for index, button in enumerate(
             (
                 self.instance_start_button,
@@ -777,10 +790,12 @@ class AConductorDesktopApp:
                 self.brain_button,
                 self.tunnel_button,
                 self.rebind_button,
+                self.upstream_button,
             )
         ):
             button.grid(row=index // 4, column=index % 4, padx=(0, 6), pady=(0, 3), sticky="w")
             button.state(["disabled"])
+        self._set_enabled(self.upstream_button, True)  # read-only, always available
 
         activity_panel = self._panel(self.root, "ACTIVITY / LOG")
         activity_panel.grid(row=4, column=0, sticky="nsew", padx=10, pady=(6, 10))
@@ -2323,3 +2338,94 @@ class AConductorDesktopApp:
             frame, "ยกเลิก", lambda: dialog.destroy() if dialog.winfo_exists() else None
         ).grid(row=4, column=1, sticky="w", pady=(12, 0))
         return dialog
+
+    def check_upstream(self) -> None:
+        """Read-only upstream engine update check (first network egress)."""
+        self.log_activity("Upstream     checking engine (GitHub)...")
+        self._set_enabled(self.upstream_button, False)
+
+        def worker():
+            return fetch_upstream_status()
+
+        def present(status):
+            self._set_enabled(self.upstream_button, True)
+            window = tk.Toplevel(self.root)
+            window.title("A-Conductor — เช็คอัปเดท engine")
+            window.configure(bg=self.theme.panel)
+            window.transient(self.root)
+            window.resizable(True, False)
+            frame = tk.Frame(window, bg=self.theme.panel, padx=16, pady=14)
+            frame.pack(fill="both", expand=True)
+            frame.grid_columnconfigure(0, weight=1)
+            tk.Label(
+                frame,
+                text="> ENGINE UPSTREAM (Serena)",
+                bg=self.theme.panel,
+                fg=self.theme.accent,
+                font=(self.theme.monospace_font, 10, "bold"),
+            ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+
+            lines = []
+            if status.error_code:
+                lines.append(f"เชื่อมต่อไม่สำเร็จ ({status.error_code}) — เช็คเน็ต/ลองใหม่")
+                self.log_activity(f"Upstream     {status.error_code}")
+            else:
+                if status.latest_release_tag:
+                    lines.append(f"Release ล่าสุด:  {status.latest_release_tag}")
+                if status.latest_commit_sha:
+                    lines.append(f"Commit ล่าสุด:   {status.latest_commit_sha}  ({status.latest_commit_date or ''})")
+                lines.append("ถ้ามีเวอร์ชันใหม่ ให้ AI agent อ่าน release notes แล้วช่วยอัปเดทตาม")
+                self.log_activity(
+                    f"Upstream     release={status.latest_release_tag} commit={status.latest_commit_sha}"
+                )
+            text = tk.Text(
+                frame,
+                bg=self.theme.background,
+                fg=self.theme.foreground,
+                insertbackground=self.theme.accent,
+                wrap="word",
+                borderwidth=0,
+                highlightthickness=0,
+                font=(self.theme.monospace_font, 10),
+                padx=12,
+                pady=8,
+                height=max(4, len(lines) + 1),
+                width=60,
+            )
+            content = chr(10).join(lines)
+            if status.repo_url:
+                content += chr(10) + status.repo_url
+            text.insert("1.0", content)
+            text.tag_configure("link", foreground=self.theme.accent, underline=True)
+            for start, end in link_url_spans(content):
+                text.tag_add("link", f"1.0+{start}c", f"1.0+{end}c")
+            text.tag_bind(
+                "link",
+                "<Button-1>",
+                lambda event: self._open_guide_link(
+                    event.widget, event.widget.index(f"@{event.x},{event.y}")
+                ),
+            )
+            text.configure(state="disabled")
+            text.grid(row=1, column=0, sticky="ew")
+            self._button(
+                frame, "ปิด", lambda: window.destroy() if window.winfo_exists() else None
+            ).grid(row=2, column=0, sticky="w", pady=(10, 0))
+
+        future = self._background_executor.submit(worker)
+        self.root.after(
+            0,
+            lambda: self._poll_upstream(future, present),
+        )
+
+    def _poll_upstream(self, future: Future, present) -> None:
+        if not future.done():
+            self.root.after(25, lambda: self._poll_upstream(future, present))
+            return
+        try:
+            status = future.result()
+        except Exception:
+            self._set_enabled(self.upstream_button, True)
+            self._handle_error("UPSTREAM_CHECK_FAILED")
+            return
+        present(status)

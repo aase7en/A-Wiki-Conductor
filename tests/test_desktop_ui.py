@@ -1240,3 +1240,44 @@ def test_config_dialog_every_surface_has_explanation(root) -> None:
     assert "LSP" in str(app._backend_blurb.cget("text")) or app._backend_blurb.cget("text")
     assert app._backend_blurb.cget("text")
     dialog.destroy()
+
+
+def test_upstream_button_opens_dialog_with_data(root, monkeypatch) -> None:
+    from a_conductor.upstream_check import UpstreamStatus
+
+    app = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+    assert not app.upstream_button.instate(["disabled"])
+    assert hasattr(app.upstream_button, "_acond_tooltip")
+
+    captured = []
+
+    monkeypatch.setattr(
+        "a_conductor.desktop_ui.fetch_upstream_status",
+        lambda: captured.append(1)
+        or UpstreamStatus(
+            latest_release_tag="v9.9.9",
+            latest_release_url="https://github.com/oraios/serena/releases/v9.9.9",
+            latest_commit_sha="abc123def456",
+            latest_commit_date="2026-08-22T00:00:00Z",
+            repo_url="https://github.com/oraios/serena",
+        ),
+    )
+
+    app.check_upstream()
+    root.update()
+
+    # a themed dialog exists and contains the fetched data + clickable repo link
+    tops = [w for w in app.root.winfo_children() if isinstance(w, tk.Toplevel) and w.winfo_exists()]
+    assert tops, "upstream dialog did not open"
+    dialog = tops[-1]
+    texts = []
+    for w in dialog.winfo_children():
+        for c in w.winfo_children():
+            if isinstance(c, tk.Text):
+                texts.append(c.get("1.0", "end"))
+    assert texts and "v9.9.9" in texts[0]
+    assert "https://github.com/oraios/serena" in texts[0]
+    assert not app.upstream_button.instate(["disabled"])
+    dialog.destroy()
