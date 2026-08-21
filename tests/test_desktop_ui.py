@@ -682,3 +682,68 @@ def test_instance_panel_disabled_without_instance_service(root) -> None:
 
     assert app.instance_start_button.instate(["disabled"])
     assert len(app.instance_tree.get_children()) == 0
+
+
+def test_second_brain_dialog_saves_global_profile(root) -> None:
+    service = SettingsFakeService(sample_snapshot())
+    codes: list[str] = []
+    app = AConductorDesktopApp(
+        root,
+        service=service,
+        background_executor=ImmediateExecutor(),
+        error_handler=codes.append,
+        directory_picker=lambda: r"C:\picked\brain",
+    )
+
+    dialog = app.open_brain_config()
+    assert dialog is not None
+    app._brain_entries["brain_folder_1"].insert(0, r"A:\GitHub\A-Wiki")
+    app._brain_entries["brain_entry_1"].insert(0, r"A:\GitHub\A-Wiki\AGENTS.md")
+
+    app.save_brain_config(dialog)
+
+    assert codes == []
+    saved = [s for s in service.saved if s.worker_id == "global-brain"]
+    assert len(saved) == 1
+    assert saved[0].brain_folders == (r"A:\GitHub\A-Wiki",)
+    assert saved[0].brain_entry_files == (r"A:\GitHub\A-Wiki\AGENTS.md",)
+    assert not dialog.winfo_exists()
+
+
+def test_second_brain_defaults_button_fills_awiki(root) -> None:
+    service = SettingsFakeService(sample_snapshot())
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+    dialog = app.open_brain_config()
+    assert dialog is not None
+
+    app._fill_brain_defaults()
+    app.save_brain_config(dialog)
+
+    saved = [s for s in service.saved if s.worker_id == "global-brain"][0]
+    assert saved.brain_folders == (r"A:\GitHub\A-Wiki",)
+    assert saved.brain_entry_files == (
+        r"A:\GitHub\A-Wiki\AGENTS.md",
+        r"A:\GitHub\A-Wiki\wiki\context\wiki-overview.md",
+    )
+
+
+def test_second_brain_invalid_path_blocked(root) -> None:
+    service = SettingsFakeService(sample_snapshot())
+    codes: list[str] = []
+    app = AConductorDesktopApp(
+        root,
+        service=service,
+        background_executor=ImmediateExecutor(),
+        error_handler=codes.append,
+    )
+    dialog = app.open_brain_config()
+    app._brain_entries["brain_folder_1"].insert(0, "relative/not/absolute")
+
+    app.save_brain_config(dialog)
+
+    assert codes == ["SETTINGS_INVALID"]
+    assert not [s for s in service.saved if s.worker_id == "global-brain"]
+    assert dialog.winfo_exists()
+    dialog.destroy()
