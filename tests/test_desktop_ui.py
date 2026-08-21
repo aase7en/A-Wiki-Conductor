@@ -189,13 +189,22 @@ def test_add_project_uses_injected_directory_picker(root, tmp_path: Path) -> Non
     assert service.register_calls == [(project, None)]
 
 
-def test_ctrl_k_command_palette_opens_and_can_close(root) -> None:
-    app = AConductorDesktopApp(root, service=FakeService(sample_snapshot()))
-    palette = app.open_command_palette()
-    root.update_idletasks()
-    assert isinstance(palette, tk.Toplevel)
-    assert palette.winfo_exists() == 1
-    palette.destroy()
+def test_guide_button_opens_bundled_user_guide(root) -> None:
+    from a_conductor.desktop_ui import find_user_guide_path
+
+    opened: list[Path] = []
+    app = AConductorDesktopApp(
+        root,
+        service=FakeService(sample_snapshot()),
+        background_executor=ImmediateExecutor(),
+        guide_opener=opened.append,
+    )
+
+    assert find_user_guide_path() is not None
+    app.open_guide()
+
+    assert len(opened) == 1
+    assert opened[0].name == "USER-GUIDE.md"
 
 
 def test_smoke_constructs_real_service_ui_without_mainloop(tmp_path: Path) -> None:

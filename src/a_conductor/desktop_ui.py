@@ -6,6 +6,8 @@ contains no process, tunnel, Git, or persistence implementation.
 
 from __future__ import annotations
 
+import os
+import sys
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
@@ -22,6 +24,23 @@ from .lifecycle_executor import LifecycleExecutionResult
 from .runtime_setup import RuntimeSetupError, SetupReadiness, WorkerSetupDraft
 from .worker_serena_settings import LanguageBackend, WorkerSerenaSettings
 from .local_instances import InstanceHealthState, InstanceResultCode
+
+
+def find_user_guide_path() -> Path | None:
+    """Locate the bundled user guide (repo layout in dev, bundle dir frozen)."""
+    candidates = []
+    bundle = getattr(sys, "_MEIPASS", None)
+    if bundle:
+        candidates.append(Path(bundle) / "docs" / "USER-GUIDE.md")
+    candidates.append(Path(__file__).resolve().parents[2] / "docs" / "USER-GUIDE.md")
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _default_guide_opener(path: Path) -> None:
+    os.startfile(str(path))  # noqa: S606 - opens the bundled guide in the default viewer
 
 
 class ControlCenterUIService(Protocol):
@@ -75,12 +94,14 @@ class AConductorDesktopApp:
         directory_picker: Callable[[], str] | None = None,
         error_handler: Callable[[str], None] | None = None,
         background_executor: Executor | None = None,
+        guide_opener: Callable[[Path], None] | None = None,
     ) -> None:
         self.root = root
         self.service = service
         self.theme = theme or DesktopTheme()
         self._directory_picker = directory_picker or filedialog.askdirectory
         self._error_handler = error_handler or self._show_error
+        self._guide_opener = guide_opener or _default_guide_opener
         self._background_executor = background_executor or ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="a-conductor-ui"
         )
@@ -94,8 +115,6 @@ class AConductorDesktopApp:
         self._configure_root()
         self._configure_styles()
         self._build_layout()
-        self.root.bind_all("<Control-k>", self._on_palette_shortcut)
-        self.root.bind_all("<Control-K>", self._on_palette_shortcut)
         self.refresh()
 
     def _configure_root(self) -> None:
@@ -171,7 +190,7 @@ class AConductorDesktopApp:
         ).grid(row=0, column=0, sticky="w")
         tk.Label(
             top,
-            text="Ctrl+K  COMMAND PALETTE",
+            text="",
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
@@ -185,6 +204,8 @@ class AConductorDesktopApp:
             padx=12,
         )
         self.connection_label.grid(row=0, column=2, sticky="e")
+        self.help_button = self._button(top, "คู่มือ", self.open_guide)
+        self.help_button.grid(row=0, column=3, sticky="e", padx=(0, 8), pady=6)
 
         body = tk.Frame(self.root, bg=self.theme.background)
         body.grid(row=1, column=0, sticky="nsew", padx=10, pady=0)
@@ -269,7 +290,7 @@ class AConductorDesktopApp:
         self.setup_button.state(["disabled"])
         self.config_button.state(["disabled"])
 
-        instances_panel = self._panel(self.root, "SERENA TUNNEL INSTANCES")
+        instances_panel = self._panel(self.root, "CONNECTORS")
         instances_panel.grid(row=2, column=0, sticky="ew", padx=10, pady=(6, 0))
         instances_panel.grid_columnconfigure(0, weight=1)
         instance_columns = ("name", "port", "state", "project", "auto")
@@ -775,53 +796,19 @@ class AConductorDesktopApp:
         self.activity_text.configure(state="disabled")
 
     def _on_palette_shortcut(self, _event=None):
-        self.open_command_palette()
-        return "break"
+        return None
 
-    def open_command_palette(self) -> tk.Toplevel:
-        palette = tk.Toplevel(self.root)
-        palette.title("A-Conductor — Command Palette")
-        palette.configure(bg=self.theme.panel)
-        palette.transient(self.root)
-        palette.resizable(False, False)
-        frame = tk.Frame(palette, bg=self.theme.panel, padx=14, pady=14)
-        frame.pack(fill="both", expand=True)
-        tk.Label(
-            frame,
-            text="> COMMAND PALETTE",
-            bg=self.theme.panel,
-            fg=self.theme.accent,
-            font=(self.theme.monospace_font, 11, "bold"),
-        ).pack(anchor="w", pady=(0, 10))
-
-        commands = (
-            ("Add Project", self.add_project),
-            ("Assign Selected", self.assign_selected),
-            ("Release Worker", self.release_selected),
-            ("Runtime Setup", self.open_runtime_setup),
-            ("Worker Config", self.open_worker_config),
-            ("Start All Instances", self.start_all_instances),
-            ("Start Worker", self.start_selected),
-            ("Stop Worker", self.stop_selected),
-            ("Restart Worker", self.restart_selected),
-            ("Refresh", self.refresh),
-        )
-        for label, command in commands:
-            button = ttk.Button(
-                frame,
-                text=label,
-                style="AConductor.TButton",
-                command=lambda fn=command: self._run_palette_command(palette, fn),
-            )
-            button.pack(fill="x", pady=2)
-        palette.bind("<Escape>", lambda _event: palette.destroy())
-        palette.grab_set()
-        return palette
-
-    @staticmethod
-    def _run_palette_command(palette: tk.Toplevel, command) -> None:
-        palette.destroy()
-        command()
+    def open_guide(self) -> None:
+        path = find_user_guide_path()
+        if path is None:
+            self._handle_error("GUIDE_NOT_FOUND")
+            return
+        try:
+            self._guide_opener(path)
+        except Exception:
+            self._handle_error("GUIDE_OPEN_FAILED")
+            return
+        self.log_activity("Guide        opened")
 
     def open_worker_config(self) -> tk.Toplevel | None:
         worker_id = self.selected_worker_id()

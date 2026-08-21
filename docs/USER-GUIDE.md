@@ -27,11 +27,11 @@ a-conductor          # เปิดโปรแกรม
 ## 3. หน้าจอหลักมีอะไร
 
 ```
-┌ A-CONDUCTOR                Ctrl+K พาเล็ตคำสั่ง        ● ONLINE ┐
+┌ A-CONDUCTOR                                [คู่มือ]     ● ONLINE ┐
 ├ PROJECTS (ซ้าย)  │  WORKERS (ขวา) — ตาราง WORKER/STATE/PROJECT/PATH
 │                  │  ปุ่ม: Add Project / Assign / Release / Refresh
 │                  │        Start / Stop / Restart / Setup / Config
-├ SERENA TUNNEL INSTANCES — INSTANCE / PORT / STATE / PROJECT / AUTO
+├ CONNECTORS — INSTANCE / PORT / STATE / PROJECT / AUTO
 │  ปุ่ม: Start / Stop / Start All / Toggle Auto / Rescan
 └ ACTIVITY / LOG — บันทึกเหตุการณ์ทุกคำสั่ง
 ```
@@ -45,7 +45,7 @@ a-conductor          # เปิดโปรแกรม
 2. คลิกโปรเจ็คซ้าย + คลิก worker ขวา → **Assign**
 3. **Start/Stop/Restart** ควบคุม lifecycle ของ worker
 
-### 4.2 ตั้งค่า Serena ของแต่ละ worker (ปุ่ม Config)
+### 4.2 ตั้งค่า engine อ่านโค้ดของแต่ละ worker (ปุ่ม Config)
 เลือก worker → **Config** → แก้ได้:
 - **Language backend**: LSP หรือ JetBrains
 - **Tool timeout**: เวลาเบติด tool (วินาที)
@@ -53,7 +53,7 @@ a-conductor          # เปิดโปรแกรม
 - **Base modes**: เช่น interactive, editing
 - ค่าที่เซฟจะ*มีผลตอน worker start ครั้งถัดไป* (โปรแกรมจะเตือนไว้ในหน้าจอ)
 
-### 4.3 จัดการ Serena tunnel instances (แถบ SERENA TUNNEL INSTANCES)
+### 4.3 จัดการตัวเชื่อม ChatGPT (แถบ CONNECTORS)
 - โปรแกรม**ค้นหาอัตโนมัติ**จาก `C:\AI\serena-instances\*` (อ่านไฟล์ `instance.ps1` ของแต่ละตัว)
 - **Start / Stop**: สั่งผ่านสคริปต์มาตรฐานของ instance นั้น (ปลอดภัย — ตรวจ PID/tunnel ตามที่ validated ไว้)
 - **Start All**: เปิดทุกตัวที่ยังไม่ READY ในคลิกเดียว
@@ -62,8 +62,8 @@ a-conductor          # เปิดโปรแกรม
 
 > ถ้าแถบนี้ว่างเปล่า = เครื่องยังไม่มี instance ตามโครงสร้าง `C:\AI\serena-instances\` — ดูหัวข้อ 7
 
-### 4.4 คีย์ลัด
-`Ctrl+K` — command palette (เรียกทุกคำสั่งจากที่เดียว)
+### 4.4 ปุ่มคู่มือ
+มุมขวาบนมีปุ่ม **คู่มือ** — เปิดคู่มือฉบับนี้ได้ทันทีจากในโปรแกรม (ไม่มีคีย์ลัดที่ต้องจำ ทุกอย่างกดปุ่มได้เลย)
 
 ## 5. ฐานข้อมูล/ไฟล์ของโปรแกรมอยู่ไหน
 
@@ -92,11 +92,11 @@ python -m venv .build-venv
 
 ## 7. ของอะไรที่มากับเครื่องผู้ใช้เอง (ต้องเตรียมเอง)
 
-ฟีเจอร์ INSTANCES ทำงานกับ "instance ของ Serena+tunnel ที่สร้างตามแบบแผน" เท่านั้น:
+แถบ CONNECTORS ทำงานกับ "ตัวเชื่อม (connector instance) ที่สร้างตามแบบแผน" เท่านั้น:
 - โฟลเดอร์ instance ตามรูปแบบ `C:\AI\serena-instances\<ชื่อ>\` ที่มี `instance.ps1`, `Start-*.cmd`, `Stop-*.cmd`
 - tunnel/connector ของ OpenAI (การสร้าง tunnel ใหม่ต้องทำใน OpenAI Platform — เป็นบัญชีส่วนตัวของผู้ใช้แต่ละคน)
 
-ผู้ใช้ใหม่ที่ยังไม่มีส่วนนี้ ยังใช้ได้ครบส่วน: Projects/Workers registry, Config dialog, durable job control — แถบ INSTANCES จะว่างจนกว่าจะมี instance
+ผู้ใช้ใหม่ที่ยังไม่มีส่วนนี้ ยังใช้ได้ครบส่วน: Projects/Workers registry, Config dialog, durable job control — แถบ CONNECTORS จะว่างจนกว่าจะมีตัวเชื่อม
 
 ## 8. แก้ปัญหาเบื้องต้น
 
@@ -105,10 +105,15 @@ python -m venv .build-venv
 | เปิดแล้วขึ้น `A-CONDUCTOR_START_FAILED ...` | ดูว่า path `--database` เขียนได้ไหม |
 | กด Start instance แล้วเป็น `STARTED_NOT_READY` | ดู log ของ instance นั้นที่ `C:\AI\serena-instances\<ชื่อ>\logs\` |
 | กด Start เจอ `PORT_IN_USE` | มีอะไรแชร์ port อยู่ — หา PID เจ้าของ port ก่อนเสมอ อย่า kill มั่ว |
-| แถบ INSTANCES ว่าง | ยังไม่มี instance ตามโครงสร้างมาตรฐาน (หัวข้อ 7) หรือกด Rescan |
+| แถบ CONNECTORS ว่าง | ยังไม่มี instance ตามโครงสร้างมาตรฐาน (หัวข้อ 7) หรือกด Rescan |
 
 ## 9. สำหรับผู้พัฒนาที่ fork มาต่อ
 
 - รันเทส: `python -m pytest tests/ -q` (ครบทุกครั้งก่อน PR — CI บน GitHub ตรวจให้อัตโนมัติ)
 - อ่าน `AGENTS.md` → `PROJECT-PLAN.md` → `COLLAB.md` → `CURRENT-WORK.md` → `handoff.md` ตามลำดับก่อนเริ่มงาน
 - ทุกงานทำเป็น work order ใน `docs/work-orders/` + PR แยกตาม chunk
+
+
+## เครดิต (Credits)
+
+A-Conductor ใช้ [Serena](https://github.com/oraios/serena) เป็น semantic code engine ภายใน (MIT License) — ขอบคุณทีมพัฒนา Serena สำหรับ engine อันยอดเยี่ยม
