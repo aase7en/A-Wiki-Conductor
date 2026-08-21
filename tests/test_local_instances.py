@@ -289,3 +289,55 @@ def test_orchestrator_stop_failure_reports_output(tmp_path: Path) -> None:
     assert outcome.result_code is InstanceResultCode.STOP_FAILED
     assert outcome.exit_code == 2
     assert "PID_MISMATCH" in outcome.output_tail
+
+
+def test_orchestrator_start_applies_brain_before_launch(tmp_path: Path) -> None:
+    from a_conductor.worker_serena_settings import WorkerSerenaSettings
+
+    make_instance_dir(tmp_path, "demo")
+    instance = discover_local_instances(tmp_path)[0]
+    calls: list[str] = []
+    poll_states = [
+        InstanceHealthState.STOPPED,   # pre-check
+        InstanceHealthState.READY,     # first poll after launch
+    ]
+    probe = FakeProbe(poll_states)
+    profile = WorkerSerenaSettings(
+        worker_id="global-brain",
+        brain_folders=(r"A:\GitHub\A-Wiki",),
+    )
+
+    orchestrator = LocalInstanceOrchestrator(
+        instances_root=tmp_path,
+        probe=probe,
+        launcher=lambda script, cwd: calls.append("launch"),
+        sleep_fn=lambda _s: None,
+        clock_fn=lambda: 0.0,
+        brain_settings_provider=lambda: profile,
+        brain_applier=lambda inst, prof: calls.append("brain") or "APPLIED",
+    )
+
+    outcome = orchestrator.start(instance)
+
+    assert outcome.result_code is InstanceResultCode.RUNNING
+    assert calls == ["brain", "launch"]
+
+
+def test_orchestrator_start_without_provider_skips_brain(tmp_path: Path) -> None:
+    make_instance_dir(tmp_path, "demo")
+    instance = discover_local_instances(tmp_path)[0]
+    calls: list[str] = []
+
+    orchestrator = LocalInstanceOrchestrator(
+        instances_root=tmp_path,
+        probe=FakeProbe([InstanceHealthState.STOPPED, InstanceHealthState.READY]),
+        launcher=lambda script, cwd: calls.append("launch"),
+        sleep_fn=lambda _s: None,
+        clock_fn=lambda: 0.0,
+        brain_applier=lambda inst, prof: calls.append("brain") or "APPLIED",
+    )
+
+    outcome = orchestrator.start(instance)
+
+    assert outcome.result_code is InstanceResultCode.RUNNING
+    assert calls == ["launch"]

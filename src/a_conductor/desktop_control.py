@@ -175,9 +175,19 @@ class DesktopControlService:
     def _orchestrator(self) -> LocalInstanceOrchestrator:
         if self._instance_orchestrator is None:
             self._instance_orchestrator = LocalInstanceOrchestrator(
-                instances_root=self.instances_root
+                instances_root=self.instances_root,
+                brain_settings_provider=self._global_brain_provider,
             )
         return self._instance_orchestrator
+
+    def _global_brain_provider(self):
+        store = self.settings_store
+        if store is None:
+            return None
+        try:
+            return store.get_worker_settings("global-brain")
+        except Exception:
+            return None
 
     def instance_action(
         self, instance_name: str, action: str

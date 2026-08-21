@@ -117,6 +117,8 @@ def instance_health_state(
 Launcher = Callable[[Path, Path], None]
 Waiter = Callable[[list[str], int], tuple[int, str]]
 SleepFn = Callable[[float], None]
+BrainSettingsProvider = Callable[[], "object | None"]
+BrainApplier = Callable[[object, object], str]
 
 
 def _default_launcher(script: Path, cwd: Path) -> None:
@@ -176,6 +178,8 @@ class LocalInstanceOrchestrator:
         stop_timeout_seconds: int = 60,
         poll_interval_seconds: float = 0.5,
         health_timeout_seconds: int = 3,
+        brain_settings_provider: BrainSettingsProvider | None = None,
+        brain_applier: BrainApplier | None = None,
     ) -> None:
         if startup_timeout_seconds < 1 or stop_timeout_seconds < 1:
             raise ValueError("timeouts must be >= 1")
@@ -191,6 +195,8 @@ class LocalInstanceOrchestrator:
         self._stop_timeout_seconds = stop_timeout_seconds
         self._poll_interval_seconds = poll_interval_seconds
         self._health_timeout_seconds = health_timeout_seconds
+        self._brain_settings_provider = brain_settings_provider
+        self._brain_applier = brain_applier
 
     def _require_inside_root(self, instance: LocalInstance) -> None:
         if not isinstance(instance, LocalInstance):
@@ -206,6 +212,36 @@ class LocalInstanceOrchestrator:
             timeout_seconds=self._health_timeout_seconds,
         )
 
+    def _apply_brain(self, instance: LocalInstance) -> str:
+        """Materialize the global brain into the instance serena-home (best-effort).
+
+        The brain is an advisory layer: apply failures never block the start;
+        they are surfaced in the outcome output tail instead.
+        """
+        if self._brain_settings_provider is None:
+            return ""
+        try:
+            profile = self._brain_settings_provider()
+        except Exception:
+            return "brain:PROVIDER_FAILED"
+        if profile is None:
+            return ""
+        if self._brain_applier is None:
+            from .worker_serena_settings import apply_brain_to_serena_home
+
+            def default_applier(inst, prof) -> str:
+                return apply_brain_to_serena_home(
+                    prof, inst.instance_root / "serena-home"
+                )
+
+            applier = default_applier
+        else:
+            applier = self._brain_applier
+        try:
+            return f"brain:{applier(instance, profile)}"
+        except Exception:
+            return "brain:APPLY_FAILED"
+
     def start(self, instance: LocalInstance) -> InstanceOrchestrationOutcome:
         self._require_inside_root(instance)
         if self._state(instance) is InstanceHealthState.READY:
@@ -217,23 +253,28 @@ class LocalInstanceOrchestrator:
             return InstanceOrchestrationOutcome(
                 action="start", result_code=InstanceResultCode.SCRIPT_MISSING
             )
+        brain_note = self._apply_brain(instance)
         try:
             self._launcher(script, instance.instance_root)
         except OSError as exc:
             return InstanceOrchestrationOutcome(
                 action="start",
                 result_code=InstanceResultCode.LAUNCH_FAILED,
-                output_tail=str(exc)[-500:],
+                output_tail=(brain_note + " " + str(exc))[-500:],
             )
         deadline = self._clock_fn() + self._startup_timeout_seconds
         while self._clock_fn() < deadline:
             self._sleep_fn(self._poll_interval_seconds)
             if self._state(instance) is InstanceHealthState.READY:
                 return InstanceOrchestrationOutcome(
-                    action="start", result_code=InstanceResultCode.RUNNING
+                    action="start",
+                    result_code=InstanceResultCode.RUNNING,
+                    output_tail=brain_note,
                 )
         return InstanceOrchestrationOutcome(
-            action="start", result_code=InstanceResultCode.STARTED_NOT_READY
+            action="start",
+            result_code=InstanceResultCode.STARTED_NOT_READY,
+            output_tail=brain_note,
         )
 
     def stop(self, instance: LocalInstance) -> InstanceOrchestrationOutcome:

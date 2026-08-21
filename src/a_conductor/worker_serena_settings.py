@@ -273,3 +273,67 @@ def apply_worker_serena_settings(
     temp_path.write_text(rendered, encoding="utf-8", newline="\n")
     os.replace(temp_path, target)
     return target
+
+
+_BRAIN_MARKER = "# A-CONDUCTOR SECOND BRAIN (managed by A-Conductor — do not edit by hand)"
+
+
+def _brain_block_text(settings: WorkerSerenaSettings) -> str:
+    lines = [
+        _BRAIN_MARKER,
+        "system_prompt: |",
+        "  [A-CONDUCTOR SECOND BRAIN]",
+        "  Brain folders (source of truth; session memory is not):",
+    ]
+    for index, folder in enumerate(settings.brain_folders, start=1):
+        lines.append(f"  {index}) {folder}")
+    if settings.brain_entry_files:
+        lines.append("  Must-read BEFORE starting the task (use read_file):")
+        for entry in settings.brain_entry_files:
+            lines.append(f"  - {entry}")
+    lines.extend(
+        [
+            "  Rules:",
+            "  - Read every must-read file BEFORE starting the task.",
+            "  - Before write_file/execute_shell or any mutation, state which rule or protocol you are following.",
+            "  - Pull further brain content on demand (get_dir_tree/read_file); do not assume memory.",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def apply_brain_to_serena_home(
+    settings: WorkerSerenaSettings, serena_home: Path | str
+) -> str:
+    """Append-only brain injection into an existing validated serena_config.yml.
+
+    Never rewrites the whole file: strips a previously managed brain block
+    (marker to EOF) and appends the current one. Refuses when the file is
+    missing, when the profile has no brain configured, or when a foreign
+    ``system_prompt`` already exists.
+    """
+    if not isinstance(settings, WorkerSerenaSettings):
+        raise ValueError("settings must be a WorkerSerenaSettings")
+    home = Path(serena_home).expanduser().resolve(strict=False)
+    config_path = home / "serena_config.yml"
+    if not config_path.is_file():
+        return "SKIPPED_NO_CONFIG"
+    if not settings.brain_folders and not settings.brain_entry_files:
+        return "SKIPPED_NO_BRAIN"
+    text = config_path.read_text(encoding="utf-8", errors="strict")
+
+    marker_index = text.find(_BRAIN_MARKER)
+    if marker_index != -1:
+        text = text[:marker_index].rstrip("\r\n") + "\n"
+    probe = text.split(_BRAIN_MARKER)[0]
+    for line in probe.splitlines():
+        if line.strip().startswith("system_prompt:"):
+            return "SKIPPED_SYSTEM_PROMPT_PRESENT"
+
+    if not text.endswith("\n"):
+        text += "\n"
+    text += "\n" + _brain_block_text(settings)
+    temp_path = home / ".serena_config.brain.tmp"
+    temp_path.write_text(text, encoding="utf-8", newline="\n")
+    os.replace(temp_path, config_path)
+    return "APPLIED"
