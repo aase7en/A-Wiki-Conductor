@@ -1,6 +1,6 @@
 # WO-P1-050: One-App Instance Orchestration
 
-Status: in_progress
+Status: complete
 Lane/files: `src/a_conductor/local_instances.py`, `src/a_conductor/serena_config_store.py`, `src/a_conductor/desktop_control.py`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/__init__.py`, `tests/test_local_instances.py`, `tests/test_desktop_ui.py`, `docs/superpowers/specs/2026-08-21-one-app-orchestration-design.md`, `docs/work-orders/WO-P1-050-one-app-orchestration.md`, `PROJECT-PLAN.md`, `CURRENT-WORK.md`, `handoff.md`
 Branch: chunk/p1-050-one-app-orchestration-docs (PR series)
 Model tier: high
@@ -28,7 +28,7 @@ Open one program and work: the Control Center auto-discovers validated Serena tu
 - [x] 050-B RED core service tests (discovery/probe/orchestrator)
 - [x] 050-C implement `local_instances.py`
 - [x] 050-D persistence + facade + UI panel + tests
-- [ ] 050-E regression + close/push
+- [x] 050-E regression + close/push
 
 ## Forbidden
 
@@ -39,3 +39,4 @@ Open one program and work: the Control Center auto-discovers validated Serena tu
 - [2026-08-21] Opened; design doc records why the multiplexer gateway is deferred (user fallback clause sanctions the UI-orchestration path).
 - [2026-08-21] 050-B/C complete: 12/12 tests green (RED first). Bugfix loop (2 rounds): fake probes now mimic real observation contract (`.state`/`.error_code` — STOPPED is only inferable from TRANSPORT_ERROR), and `clock_fn` injection replaced real `time.monotonic` so poll loops are deterministic (test time 61.75s → 0.39s). Start = detached launch + health poll (script owns lifecycle; orchestrator never waits on the blocking Start script and never kills). Real-machine read-only check: discovery found Serena-Conductor/Phase6/Wastewater with correct ports/projects; health = Wastewater READY (live), others STOPPED. Full suite 777 passed, 1 skipped.
 - [2026-08-21] 050-D complete: `instance_flags` store table + facade (`instances`/`instance_states`/`instance_action`/autostart flags) + INSTANCES UI panel (states with semantic colors, Start/Stop/Start-All/Toggle-Auto/Rescan, palette entry). **Debug loop (root-caused via bisection)**: construction-time instance hooks made `run_smoke` (real service) submit real discovery/probe work to a pool thread and schedule timer callbacks on a root destroyed milliseconds later → `Tcl_AsyncDelete ... wrong thread` crash at pytest teardown. Fix: hooks moved to explicit `start_background_operations()` called only by the real entrypoint before mainloop; instance buttons start disabled. 24/24 UI tests + full suite 780 passed, 2 skipped (display-dependent), smoke OK.
+- [2026-08-21] 050-E closed (PRs #9-#11 CI-green, merged `a91a2a3`). **Real-app check**: launched the actual application (withdrawn root, real database, real service, `start_background_operations`) — INSTANCES panel auto-populated with Serena-Conductor/Phase6 (STOPPED) and Serena-Wastewater (READY) with correct ports/projects; exit 0. The one-program workflow is real: open `a-conductor`, see every instance, start/stop from the UI, flag instances for autostart.
