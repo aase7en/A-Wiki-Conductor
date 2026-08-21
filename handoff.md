@@ -1,45 +1,40 @@
 # HANDOFF — A-Conductor
 
-Last updated: 2026-08-22 (GLM 5.3, post WO-058)
+Last updated: 2026-08-22 (GLM 5.3, post WO-P1-059)
 
 ## Current objective
 
-WO-P1-056 and WO-P1-057 shipped. Awaiting user's next milestone pick or a DECISION_REQUIRED resolution.
+WO-P1-059 shipped in full. Awaiting user trial or next milestone pick.
 
 ## Status
 
-`COMPLETE` for the authorized resume scope (merge #27 safely → deliver WO-057 onboarding/memory-presence warning → merge #28 → checkpoint).
+`COMPLETE` for the authorized scope (3 decisions + toggle-ification + upstream check).
 
 ## Resume authority
 
-Do not trust chat memory as the task source of truth.
-
-Use: `actual repo/GitHub state -> CURRENT-WORK.md -> handoff.md -> active work order -> PROJECT-PLAN/contracts`
+Do not trust chat memory as the task source of truth. Use: `actual repo/GitHub state -> CURRENT-WORK.md -> handoff.md -> active work order -> PROJECT-PLAN/contracts`
 
 ## Current repository state
 
-- Project: `A-Wiki-Conductor`, worktree `A:\GitHub\A-Wiki-Conductor`
-- Branch: `main`, HEAD `f45e1cc` (merge of PR #29); PRs #27-#29 all merged
-- PRs #27 (activation prompt helper) and #28 (memory presence warning) merged, both CI-green and re-verified before merge
-- Full suite at merge time: 822 passed, 0 failed. Exe rebuilt+reinstalled; automated smoke of fresh builds is blocked by ESET (AV) — interactive allow expected.
+- Branch: `main`, HEAD `b914dfd` (merge of PR #34); PRs #30-#34 all merged CI-green
+- Full suite at close: 838 passed, 0 failed
+- Working tree clean apart from this SSoT commit
 
 ## Completed this session
 
-- PR #27 merge with double verification; WO-056 COMPLETE with evidence.
-- WO-057: `memory_presence.py` (read-only 5-state inspection), PROJECTS-panel memory status line + tooltip, tests (6 pure + UI selection), PR #28 merged.
-- Tk gotcha recorded: `Listbox.selection_set` adds; clear first to model a click.
+- WO-P1-059 PR-A through PR-E (see CURRENT-WORK for the full list).
+- Key Tk/debug lessons recorded: `selection_set` adds (clear first); `Checkbutton.toggle()` doesn't fire `command` (use `invoke`); Git Bash heredocs mangle backslashes and dollar signs (use `chr(92)` / avoid `$` in PR bodies).
 
 ## Next safe action
 
-Read CURRENT-WORK.md "Next safe action": (a) rebuild/reinstall exe to match main, (b) resolve a DECISION_REQUIRED item, or (c) pick next §13 milestone (remaining gap: per-worker settings materialization on worker start). New work order + reuse gate first.
+Read CURRENT-WORK.md "Next safe action": (a) rebuild+reinstall exe, (b) trial new UI, (c) next milestone. New work order + reuse gate first.
 
 ## Do Not Do
 
-- No MCP gateway hard enforcement (`DECISION_REQUIRED`).
-- No CONNECTORS rebind until user-gated decision.
+- No MCP gateway hard enforcement (backlog / DECISION_REQUIRED).
 - No A-Wiki primitive duplication; no target-project mutation for read-only features.
-- No machine-wide env changes for the inherited Tcl/Tk test quirk (known workaround documented in git history).
+- No machine-wide env changes.
 
 ## Escalation
 
-GLM 5.3 owns routine implementation, TDD, regression, docs, PR/CI, merge. Escalate to **GPT-5.6 Sol UltraHigh** only for genuinely hard cross-cutting defects/architecture ambiguity, after checkpointing state.
+GLM 5.3 owns routine work. Escalate to **GPT-5.6 Sol UltraHigh** only for genuinely hard cross-cutting defects/architecture ambiguity, after checkpointing state.
