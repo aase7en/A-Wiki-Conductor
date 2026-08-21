@@ -48,6 +48,19 @@ def _default_guide_opener(path: Path) -> None:
     os.startfile(str(path))  # noqa: S606 - opens the bundled guide in the default viewer
 
 
+def find_icon_path() -> Path | None:
+    """Locate the application icon (repo layout in dev, bundle dir frozen)."""
+    candidates = []
+    bundle = getattr(sys, "_MEIPASS", None)
+    if bundle:
+        candidates.append(Path(bundle) / "assets" / "a-conductor.ico")
+    candidates.append(Path(__file__).resolve().parents[2] / "assets" / "a-conductor.ico")
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 class ControlCenterUIService(Protocol):
     def snapshot(self) -> ControlCenterSnapshot: ...
 
@@ -127,6 +140,12 @@ class AConductorDesktopApp:
         self.root.configure(background=self.theme.background)
         self.root.geometry("1080x680")
         self.root.minsize(860, 520)
+        icon = find_icon_path()
+        if icon is not None:
+            try:
+                self.root.iconbitmap(str(icon))
+            except tk.TclError:
+                pass
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self.root)

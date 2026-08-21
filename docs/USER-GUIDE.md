@@ -75,8 +75,8 @@ a-conductor          # เปิดโปรแกรม
 | แบบ | เหมาะกับ | วิธี |
 |---|---|---|
 | **pip (นักพัฒนา)** | คนที่มี Python | `python -m pip install -e .[test]` แล้วใช้คำสั่ง `a-conductor` |
-| **PyInstaller (portable exe)** | ผู้ใช้ทั่วไป ไม่ต้องมี Python | สร้างไฟล์ `.exe` วิ่งได้เดี่ยวๆ (ดืองเบาลงของ dev) |
-| **Installer (setup .exe/.msi)** | เผยแพร่สาธารณะ | เอาผลจาก PyInstaller ไปทำ setup ด้วย Inno Setup / WiX (ขั้นถัดไป) |
+| **PyInstaller (portable exe)** | ผู้ใช้ทั่วไป ไม่ต้องมี Python | สร้างไฟล์ `.exe` วิ่งได้เดี่ยวๆ — build ด้วย `python scripts/build_portable.py` |
+| **Setup installer (A-Conductor-Setup.exe)** | เผยแพร่สาธารณะ | ติดตั้งแบบผู้ใช้เดียว (ไม่ต้อง admin): ไปที่ `%LOCALAPPDATA%\Programs\A-Conductor` + Start Menu + Desktop + ลงทะเบียนถอนการติดตั้งใน "Add or remove programs" |
 | เว็บเวอร์ชัน | — | ไม่จำเป็นสำหรับโปรแกรมนี้ (เป็น local desktop app ตามดีไซน์) |
 
 สร้าง exe เอง:
@@ -88,7 +88,9 @@ python -m venv .build-venv
 # ได้ไฟล์ที่ dist\A-Conductor.exe
 ```
 
-(ไฟล์ `entry.py` ตัวอย่างอยู่ใน repo — 2 บรรทัดเรียก main ของแอป)
+คำสั่งสร้าง installer: `python scripts/build_portable.py` สำหรับ exe หลัก แล้วสร้าง setup ด้วย `scripts/installer_main.py` (คู่มือนี้ถูกฝังใน setup.exe อัตโนมัติ)
+
+> หมายเหตุ SmartScreen: setup.exe ยังไม่ได้เซ็นลายเซ็นดิจิทัล ครั้งแรกที่เปิด Windows อาจเตือน — กด **More info → Run anyway** ได้ (ปกติของแอปที่ยังไม่ sign) การถอนการติดตั้ง: ใช้ Add or remove programs หรือไฟล์ Uninstall ในโฟลเดอร์ที่ติดตั้ง
 
 ## 7. ของอะไรที่มากับเครื่องผู้ใช้เอง (ต้องเตรียมเอง)
 
