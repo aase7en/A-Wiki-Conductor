@@ -36,6 +36,18 @@ a-conductor --smoke    # construct, refresh, and destroy the UI without mainloop
 
 The control database defaults to `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` and can be overridden with `--database <path>`.
 
+**คู่มือภาษาไทยฉบับเต็ม: [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md)** — ติดตั้ง, ใช้งานทุกหน้าจอ, ตั้งค่า Serena ต่อ worker, จัดการ tunnel instances, แก้ปัญหาเบื้องต้น
+
+## Distribution / fork-and-run
+
+The app is a **pure local desktop program** (Windows 10/11, Python 3.11+, standard library only — no server, no web deployment):
+
+1. Clone/fork this repository.
+2. `python -m pip install -e .[test]` then run `a-conductor` (see the User Guide).
+3. For non-developer machines, build a portable single-file executable with PyInstaller: `pyinstaller --windowed --onefile --name A-Conductor --paths src entry.py` → `dist/A-Conductor.exe`.
+
+Out of the box, every user gets: project/worker registry, per-worker Serena config dialog, durable job control with the optional supervised mode, and CI via GitHub Actions. The **SERENA TUNNEL INSTANCES** panel manages local instances that follow the validated layout (`C:\AI\serena-instances\<name>\` with `instance.ps1` + Start/Stop scripts) — users without that infrastructure simply see an empty instances panel; creating instances/tunnels is a per-user setup documented in the User Guide §7.
+
 ## Develop
 
 ```bash

@@ -35,6 +35,8 @@ htmlcov/
 node_modules/
 dist/
 build/
+.build-venv/
+*.spec
 
 # OS/editor noise
 .DS_Store
