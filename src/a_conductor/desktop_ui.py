@@ -129,6 +129,18 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "ทำอย่างไร: ปิดโปรแกรมซ้ำแล้วลองใหม่",
         ),
     ),
+    "PREFERENCES_NOT_AVAILABLE": (
+        "ระบบการตั้งค่ารวมยังไม่พร้อม",
+        ("เกิดเมื่อ service ตั้งค่ายังไม่ถูกเชื่อม (กรณีทดสอบ)", "ในโปรแกรมปกติไม่ควรเจอ"),
+    ),
+    "PREFERENCES_LOAD_FAILED": (
+        "โหลดค่าตั้งรวมไม่ได้",
+        ("ลองปิด-เปิดหน้าต่างตั้งค่าใหม่", "ถ้าซ้ำให้ตรวจฐานข้อมูล"),
+    ),
+    "PREFERENCE_SAVE_FAILED": (
+        "บันทึกค่าตั้งรวมไม่สำเร็จ",
+        ("สาเหตุที่พบบ่อย: ฐานข้อมูลถูกล็อก", "ทำอย่างไร: ปิดโปรแกรมซ้ำแล้วลองใหม่"),
+    ),
     "TUNNEL_SETUP_NOT_AVAILABLE": (
         "ระบบตั้ง Tunnel ID ยังไม่พร้อม",
         (
@@ -515,8 +527,16 @@ class AConductorDesktopApp:
             self.theme,
         )
         self.help_button = self._button(top, "คู่มือ", self.open_guide)
-        self.help_button.grid(row=0, column=3, sticky="e", padx=(0, 8), pady=6)
+        self.help_button.grid(row=0, column=3, sticky="e", padx=(0, 4), pady=6)
         _attach_tip(self.help_button, "เปิดคู่มือการใช้งาน (ในหน้าต่างโปรแกรม)", self.theme)
+        self.prefs_button = self._button(top, "ตั้งค่า", self.open_preferences)
+        self.prefs_button.grid(row=0, column=4, sticky="e", padx=(0, 8), pady=6)
+        _attach_tip(self.prefs_button, "การตั้งค่ารวมของโปรแกรม (สวิตช์เปิด/ปิด)", self.theme)
+        if not all(
+            callable(getattr(self.service, name, None))
+            for name in ("get_preference", "set_preference")
+        ):
+            self.prefs_button.state(["disabled"])
 
         hint = tk.Label(
             self.root,
@@ -1383,6 +1403,86 @@ class AConductorDesktopApp:
                     url = widget.get(start[0], start[1])
                     webbrowser.open(url)
                     return
+
+    def open_preferences(self) -> tk.Toplevel | None:
+        """Global preferences dialog — CLI-styled switches with explanations."""
+        getter = getattr(self.service, "get_preference", None)
+        setter = getattr(self.service, "set_preference", None)
+        if not callable(getter) or not callable(setter):
+            self._handle_error("PREFERENCES_NOT_AVAILABLE")
+            return None
+
+        window = tk.Toplevel(self.root)
+        window.title("A-Conductor — ตั้งค่า")
+        window.configure(bg=self.theme.panel)
+        window.transient(self.root)
+        window.resizable(True, False)
+        frame = tk.Frame(window, bg=self.theme.panel, padx=16, pady=14)
+        frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(0, weight=1)
+        tk.Label(
+            frame,
+            text="> การตั้งค่ารวม  (เปลี่ยนแล้วมีผลทันที)",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+
+        try:
+            supervised = getter("supervised")
+        except Exception:
+            self._handle_error("PREFERENCES_LOAD_FAILED")
+            return None
+        if supervised is None:
+            supervised = True
+
+        supervised_var = tk.BooleanVar(value=supervised)
+
+        checkbox = tk.Checkbutton(
+            frame,
+            text="โหมด Supervised  (คุมงานเบื้องหลัง: บันทึกทุกคำสั่ง · กันสั่งซ้ำ · เก็บผลแม้ timeout)",
+            variable=supervised_var,
+            bg=self.theme.panel,
+            fg=self.theme.foreground,
+            selectcolor=self.theme.background,
+            activebackground=self.theme.panel,
+            activeforeground=self.theme.foreground,
+            highlightthickness=0,
+            font=(self.theme.monospace_font, 9),
+            anchor="w",
+            justify="left",
+            wraplength=460,
+            command=lambda: self._save_supervised_preference(setter, supervised_var),
+        )
+        checkbox.grid(row=1, column=0, sticky="w")
+        _attach_tip(
+            checkbox,
+            "ON = ทุกคำสั่ง native (git/pytest/compileall) ถูกคุมตั้งแต่เกิดจนจบ:\nบันทึกลงฐานข้อมูล + กันงานซ้ำ + เก็บ output ครบ\nOFF = รันเร็วขึ้นเล็กน้อย แต่ไม่มีการบันทึก/กันซ้ำ\n(แนะนำ: ON)",
+            self.theme,
+        )
+        tk.Label(
+            frame,
+            text="ON: ปลอดภัยกว่า บันทึกทุกงาน กันสั่งซ้ำอัตโนมัติ · OFF: เร็วกว่า เหมาะกับงานสั้นๆ ไม่สำคัญ",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8),
+            anchor="w",
+            wraplength=460,
+            justify="left",
+        ).grid(row=2, column=0, sticky="w", pady=(2, 8))
+
+        self._button(frame, "ปิด", lambda: window.destroy() if window.winfo_exists() else None).grid(
+            row=3, column=0, sticky="w"
+        )
+        return window
+
+    def _save_supervised_preference(self, setter, var: tk.BooleanVar) -> None:
+        try:
+            setter("supervised", var.get())
+        except Exception:
+            self._handle_error("PREFERENCE_SAVE_FAILED")
+            return
+        self.log_activity(f"Settings     supervised={'ON' if var.get() else 'OFF'}")
 
     def open_guide(self) -> None:
         path = find_user_guide_path()

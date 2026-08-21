@@ -1069,3 +1069,66 @@ def test_memory_status_reflects_selected_project(root, tmp_path) -> None:
     text = app.memory_status_label.cget("text")
     assert "ยังไม่มีความจำ" in text
     assert "เริ่มบทสนทนาใหม่" in text
+
+
+class PrefsFakeService(FakeService):
+    def __init__(self, snapshot: ControlCenterSnapshot) -> None:
+        super().__init__(snapshot)
+        self.preferences: dict[str, bool] = {}
+
+    def get_preference(self, key):
+        return self.preferences.get(key)
+
+    def set_preference(self, key, value):
+        self.preferences[key] = value
+
+
+def test_preferences_dialog_toggle_persists_immediately(root) -> None:
+    service = PrefsFakeService(sample_snapshot())
+    codes: list[str] = []
+    app = AConductorDesktopApp(
+        root,
+        service=service,
+        background_executor=ImmediateExecutor(),
+        error_handler=codes.append,
+    )
+
+    window = app.open_preferences()
+    assert window is not None
+
+    # find the supervised checkbox and flip it off then on
+    def find_checkbutton(parent):
+        for child in parent.winfo_children():
+            if isinstance(child, tk.Checkbutton):
+                return child
+            nested = find_checkbutton(child)
+            if nested is not None:
+                return nested
+        return None
+
+    box = find_checkbutton(window)
+    assert box is not None
+    assert hasattr(box, "_acond_tooltip")
+
+    box.invoke()
+    root.update()
+    assert service.preferences["supervised"] is False
+    box.invoke()
+    root.update()
+    assert service.preferences["supervised"] is True
+    assert codes == []
+    window.destroy()
+
+
+def test_preferences_button_in_header_gated(root) -> None:
+    plain = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+    assert plain.prefs_button.instate(["disabled"])
+
+    wired = AConductorDesktopApp(
+        root,
+        service=PrefsFakeService(sample_snapshot()),
+        background_executor=ImmediateExecutor(),
+    )
+    assert not wired.prefs_button.instate(["disabled"])
