@@ -21,6 +21,9 @@ from .windows_io import LoopbackReadyzHttpProbe
 
 DEFAULT_INSTANCES_ROOT = Path("C:/AI/serena-instances")
 
+_TUNNEL_ID_RE = re.compile(r"^tunnel_[0-9a-f]{32}$")
+
+
 _INSTANCE_LINE_RE = re.compile(
     r"^\s*\$(InstanceName|ProjectPath|HealthListenAddress)\s*=\s*'([^']*)'\s*$",
     re.MULTILINE,
@@ -50,6 +53,7 @@ class LocalInstance:
     project_path: str
     health_address: str
     instance_root: Path
+    tunnel_configured: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,12 +86,23 @@ def discover_local_instances(
         address = fields.get("HealthListenAddress", "").strip()
         if not name or not project or not address:
             continue
+        tunnel_id_path = child / "config" / "tunnel-id.txt"
+        tunnel_configured = False
+        if tunnel_id_path.is_file():
+            try:
+                candidate = tunnel_id_path.read_text(
+                    encoding="utf-8", errors="replace"
+                ).strip()
+            except OSError:
+                candidate = ""
+            tunnel_configured = _TUNNEL_ID_RE.fullmatch(candidate) is not None
         found.append(
             LocalInstance(
                 name=name,
                 project_path=project,
                 health_address=address,
                 instance_root=child.resolve(strict=False),
+                tunnel_configured=tunnel_configured,
             )
         )
     return tuple(found)

@@ -140,6 +140,30 @@ class DesktopControlService:
     def lifecycle_readiness(self, worker_id: str) -> SetupReadiness:
         return self._require_runtime_setup().lifecycle_readiness(worker_id)
 
+    def set_instance_tunnel_id(self, instance_name: str, tunnel_id: str) -> Path:
+        """Write a validated Tunnel ID into the instance's config dir (in-app setup)."""
+        from .local_instances import _TUNNEL_ID_RE
+
+        if not isinstance(instance_name, str) or not instance_name.strip():
+            raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
+        candidate = (tunnel_id or "").strip() if isinstance(tunnel_id, str) else ""
+        if _TUNNEL_ID_RE.fullmatch(candidate) is None:
+            raise SerenaConfigStoreError("TUNNEL_ID_INVALID")
+        target = next(
+            (item for item in self.instances() if item.name == instance_name), None
+        )
+        if target is None:
+            raise SerenaConfigStoreError("INSTANCE_NOT_FOUND")
+        root = Path(self.instances_root).expanduser().resolve(strict=False)
+        instance_root = target.instance_root.resolve(strict=False)
+        if root not in instance_root.parents:
+            raise SerenaConfigStoreError("INSTANCE_OUTSIDE_ROOT")
+        config_dir = instance_root / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        tunnel_path = config_dir / "tunnel-id.txt"
+        tunnel_path.write_text(candidate + "\n", encoding="utf-8", newline="\n")
+        return tunnel_path
+
     def worker_start_path(self, worker_id: str) -> tuple[str, str | None]:
         """Decide how Start should run for a worker.
 

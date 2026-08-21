@@ -116,6 +116,32 @@ python -m venv .build-venv
 - ทุกงานทำเป็น work order ใน `docs/work-orders/` + PR แยกตาม chunk
 
 
+## เชื่อมต่อ AI แต่ละค่าย (สำหรับผู้ใช้ใหม่)
+
+ก่อนเชื่อม ให้เปิดโปรแกรม → แถบ CONNECTORS → เลือกตัวเชื่อม → กด **ตั้ง Tunnel ID** แล้ววาง ID ที่ได้จากขั้นตอนของค่ายนั้นๆ
+
+### ChatGPT / OpenAI (ระบบ tunnel)
+1. เข้า OpenAI Platform → เมนู Tunnels → สร้าง tunnel ใหม่ (ตั้งชื่ออะไรก็ได้)
+2. คัดลอก **Tunnel ID** (`tunnel_` ตามด้วย 32 ตัวอักษร) มาวางในโปรแกรม
+3. วิธีเดิมแบบเปิดเผย (MCPO + Cloudflare): รัน `uvx mcpo --port 8000 --api-key <KEY> -- serena start-mcp-server --context chatgpt` แล้ว `cloudflared tunnel --url http://localhost:8000` → ใส่ URL ใน Custom GPT แบบ Bearer — อ่านละเอียด: https://oraios.github.io/serena/02-usage/030_chatgpt_connection.html (ปรับตามหน้าเอกสารจริง https://oraios.github.io/serena/ )
+
+### Claude (Claude Code / Claude Desktop)
+- คำสั่งเดียวจบ: `serena setup claude-code`
+- หรือเพิ่มเอง: `claude mcp add --scope user serena -- serena start-mcp-server --context claude-code --project-from-cwd`
+- Claude Desktop (แบบ global): ต้องใช้ tool `activate_project` — พิมพ์กับ agent ว่า "Activate the current dir as project using serena"
+- เอกสาร: https://oraios.github.io/serena/02-usage/010_connecting_an_mcp_client.html
+
+### Codex
+- `~/.codex/config.toml` เพิ่ม entry พร้อม `startup_timeout_sec = 15` หรือรัน `serena setup codex`
+
+### Grok / อื่นๆ
+- `serena setup grok` · context ของแต่ละแอปฝังมากับ engine แล้ว (`--context grok`, `--context ide`, ...)
+
+### Antigravity
+- ใช้ได้ผ่าน MCP ปกติ (ใน dashboard จะแสดงเป็น client `none`)
+
+> ความปลอดภัย: การเปิด tunnel = เปิด shell/ไฟล์สู่ภายนอก — พิจารณาปิด `execute_shell_command` หรือตั้ง `read_only: true` ใน Config ของ worker ถ้าไม่จำเป็น
+
 ## เครดิต (Credits)
 
 A-Conductor ใช้ [Serena](https://github.com/oraios/serena) เป็น semantic code engine ภายใน (MIT License) — ขอบคุณทีมพัฒนา Serena สำหรับ engine อันยอดเยี่ยม
