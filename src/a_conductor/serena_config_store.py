@@ -8,6 +8,7 @@ credential values.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -155,6 +156,11 @@ class SQLiteSerenaConfigStore:
                     CREATE TABLE IF NOT EXISTS instance_flags (
                         instance_name TEXT PRIMARY KEY,
                         autostart INTEGER NOT NULL CHECK (autostart IN (0, 1))
+                    );
+
+                    CREATE TABLE IF NOT EXISTS app_preferences (
+                        key TEXT PRIMARY KEY,
+                        value INTEGER NOT NULL CHECK (value IN (0, 1))
                     );
                     """
                 )
@@ -539,3 +545,37 @@ class SQLiteSerenaConfigStore:
                 "SELECT instance_name FROM instance_flags WHERE autostart = 1 ORDER BY instance_name"
             ).fetchall()
         return tuple(row["instance_name"] for row in rows)
+
+    _PREF_KEY_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+
+    def set_preference(self, key: str, value: bool) -> None:
+        if not isinstance(key, str) or self._PREF_KEY_RE.fullmatch(key) is None or "\x00" in key:
+            raise SerenaConfigStoreError("PREFERENCE_KEY_INVALID")
+        if not isinstance(value, bool):
+            raise SerenaConfigStoreError("PREFERENCE_VALUE_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute(
+                    """
+                    INSERT INTO app_preferences(key, value)
+                    VALUES(?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value=excluded.value
+                    """,
+                    (key.strip(), 1 if value else 0),
+                )
+                connection.commit()
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise SerenaConfigStoreError("PREFERENCE_WRITE_FAILED") from exc
+
+    def get_preference(self, key: str) -> bool | None:
+        if not isinstance(key, str) or self._PREF_KEY_RE.fullmatch(key) is None or "\x00" in key:
+            raise SerenaConfigStoreError("PREFERENCE_KEY_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT value FROM app_preferences WHERE key = ?",
+                (key.strip(),),
+            ).fetchone()
+        return None if row is None else bool(row["value"])

@@ -216,3 +216,46 @@ def test_schema_has_no_secret_or_token_value_columns(tmp_path: Path) -> None:
     assert "secret_value" not in flattened
     assert "token_value" not in flattened
     assert "file_contents" not in flattened
+
+
+def test_app_preferences_round_trip_and_default(tmp_path):
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+
+    store = SQLiteSerenaConfigStore(tmp_path / "pref.sqlite")
+    store.initialize()
+
+    assert store.get_preference("supervised") is None
+    store.set_preference("supervised", True)
+    assert store.get_preference("supervised") is True
+    store.set_preference("supervised", False)
+    assert store.get_preference("supervised") is False
+    store.set_preference("theme_note", True)
+    assert store.get_preference("theme_note") is True
+    assert store.get_preference("missing") is None
+
+    reopened = SQLiteSerenaConfigStore(tmp_path / "pref.sqlite")
+    reopened.initialize()
+    assert reopened.get_preference("supervised") is False
+
+
+def test_app_preferences_reject_invalid(tmp_path):
+    from a_conductor.serena_config_store import (
+        SerenaConfigStoreError,
+        SQLiteSerenaConfigStore,
+    )
+
+    store = SQLiteSerenaConfigStore(tmp_path / "pref2.sqlite")
+    store.initialize()
+    for bad in ("", "   ", "key with spaces"):
+        try:
+            store.set_preference(bad, True)
+        except SerenaConfigStoreError as exc:
+            assert "PREFERENCE_KEY_INVALID" in str(exc)
+        else:
+            raise AssertionError(f"invalid key accepted: {bad!r}")
+    try:
+        store.set_preference("ok", "not-a-bool")
+    except SerenaConfigStoreError as exc:
+        assert "PREFERENCE_VALUE_INVALID" in str(exc)
+    else:
+        raise AssertionError("non-bool value accepted")

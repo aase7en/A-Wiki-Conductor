@@ -248,3 +248,61 @@ def test_start_worker_applies_settings_before_lifecycle(tmp_path):
     assert lifecycle.calls == [("a-worker-01", "START")]
     text = (tmp_path / "instance" / "serena-home" / "serena_config.yml").read_text(encoding="utf-8")
     assert "tool_timeout: 555" in text
+
+
+def test_open_job_control_honors_supervised_preference(tmp_path, monkeypatch):
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+    from a_conductor.native_operations import NativeOperationDefinition, NativeOperationKind
+
+    config_store = SQLiteSerenaConfigStore(tmp_path / "jc.sqlite")
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        settings_store=config_store,
+    )
+    operations = (
+        NativeOperationDefinition(
+            operation_ref="op:pytest",
+            kind=NativeOperationKind.PYTEST,
+            paths=("tests",),
+            timeout_seconds=60,
+        ),
+    )
+
+    captured = {}
+    import a_conductor.desktop_control as dc
+
+    class _RecordingJobControl:
+        def __init__(self, *, supervised, **kwargs):
+            captured["supervised"] = supervised
+
+        @classmethod
+        def open(cls, *args, **kwargs):
+            return cls(**kwargs)
+
+    import a_conductor.job_control as jc
+
+    monkeypatch.setattr(jc, "DurableJobControlService", _RecordingJobControl)
+
+    jobs = service.open_job_control(tmp_path / "jc.sqlite", operations)
+    assert isinstance(jobs, _RecordingJobControl)
+    assert captured["supervised"] is True  # default ON per user decision
+
+    config_store.set_preference("supervised", False)
+    service.open_job_control(tmp_path / "jc.sqlite", operations)
+    assert captured["supervised"] is False
+
+
+def test_open_job_control_requires_settings_store(tmp_path):
+    from a_conductor.serena_config_store import SerenaConfigStoreError
+
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+    )
+    try:
+        service.open_job_control(tmp_path / "x.sqlite", ())
+    except SerenaConfigStoreError as exc:
+        assert "SETTINGS_STORE_NOT_AVAILABLE" in str(exc)
+    else:
+        raise AssertionError("missing store accepted")
