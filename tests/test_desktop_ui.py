@@ -747,3 +747,54 @@ def test_second_brain_invalid_path_blocked(root) -> None:
     assert not [s for s in service.saved if s.worker_id == "global-brain"]
     assert dialog.winfo_exists()
     dialog.destroy()
+
+
+def test_guide_opens_in_app_window_by_default(root) -> None:
+    app = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+
+    window = app.open_guide()
+
+    assert window is not None
+    assert "คู่มือ" in window.title()
+    text_widget = None
+    for child in window.grid_slaves(row=0, column=0):
+        text_widget = child
+    assert isinstance(text_widget, tk.Text)
+    content = text_widget.get("1.0", "end")
+    assert "A-Conductor" in content
+    assert "เริ่มต้น" in content or "คู่มือ" in content
+    window.destroy()
+
+
+def test_all_primary_buttons_have_tooltips(root) -> None:
+    app = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+    for name in (
+        "add_button", "assign_button", "release_button", "refresh_button",
+        "start_button", "stop_button", "restart_button", "setup_button",
+        "config_button", "help_button",
+    ):
+        button = getattr(app, name)
+        tip = getattr(button, "_acond_tooltip", None)
+        assert tip is not None, name
+        assert tip.text.strip(), name
+
+
+def test_add_and_assign_live_in_projects_panel(root) -> None:
+    app = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+
+    def panel_of(widget):
+        parent = widget.nametowidget(widget.winfo_parent())
+        return parent
+
+    add_panel = panel_of(panel_of(app.add_button))   # project_actions -> PROJECTS panel
+    list_panel = panel_of(app.project_list)
+    release_panel = panel_of(panel_of(app.release_button))
+
+    assert add_panel is list_panel
+    assert release_panel is not list_panel
