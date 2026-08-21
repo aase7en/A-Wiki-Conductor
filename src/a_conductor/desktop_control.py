@@ -21,6 +21,7 @@ from .local_instances import (
     InstanceResultCode,
     LocalInstance,
     LocalInstanceOrchestrator,
+    connector_name_for_project,
     discover_local_instances,
     instance_health_state,
 )
@@ -138,6 +139,38 @@ class DesktopControlService:
 
     def lifecycle_readiness(self, worker_id: str) -> SetupReadiness:
         return self._require_runtime_setup().lifecycle_readiness(worker_id)
+
+    def worker_start_path(self, worker_id: str) -> tuple[str, str | None]:
+        """Decide how Start should run for a worker.
+
+        Returns ("connector", <instance name>) when the assigned project has a
+        matching connector instance — the user's real tunnel path that works
+        without runtime setup — else ("lifecycle", None) when setup is ready,
+        else ("blocked", "SETUP_REQUIRED").
+        """
+        row = next(
+            (
+                candidate
+                for candidate in self.control_center.snapshot().workers
+                if candidate.worker_id == worker_id
+            ),
+            None,
+        )
+        if row is None or row.project_root_path is None:
+            return ("blocked", "NO_ASSIGNMENT")
+        try:
+            instances = self.instances()
+        except Exception:
+            instances = ()
+        connector = connector_name_for_project(instances, row.project_root_path)
+        if connector is not None:
+            return ("connector", connector)
+        try:
+            if self.lifecycle_readiness(worker_id).ready:
+                return ("lifecycle", None)
+        except Exception:
+            pass
+        return ("blocked", "SETUP_REQUIRED")
 
     def _require_settings_store(self) -> SQLiteSerenaConfigStore:
         if self.settings_store is None:

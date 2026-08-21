@@ -798,3 +798,48 @@ def test_add_and_assign_live_in_projects_panel(root) -> None:
 
     assert add_panel is list_panel
     assert release_panel is not list_panel
+
+
+def test_worker_start_routes_to_matching_connector(root) -> None:
+    service = FakeInstanceService(sample_snapshot())
+    service.worker_start_path = lambda worker_id: (
+        "connector",
+        "Serena-Alpha" if worker_id == "a-worker-01" else None,
+    )
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+    root.update()
+    app.refresh()
+    root.update()
+    worker_item = app.worker_tree.get_children()[0]
+    app.worker_tree.selection_set(worker_item)
+    app.worker_tree.focus(worker_item)
+    app._update_lifecycle_buttons()
+
+    # CONNECTOR column shows the matching instance name
+    assert "Serena-Alpha" in app.worker_tree.item(worker_item, "values")
+
+    # Start is enabled WITHOUT any lifecycle service (connector path)
+    assert not app.start_button.instate(["disabled"])
+
+    app.start_selected()
+    root.update()
+
+    assert ("Serena-Alpha", "start-w") in service.instance_actions
+
+
+def test_worker_start_blocked_without_connector_or_setup(root) -> None:
+    service = FakeInstanceService(sample_snapshot())
+    service.worker_start_path = lambda worker_id: ("blocked", "SETUP_REQUIRED")
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+    root.update()
+    worker_item = app.worker_tree.get_children()[0]
+    app.worker_tree.selection_set(worker_item)
+    app.worker_tree.focus(worker_item)
+    app._update_lifecycle_buttons()
+
+    assert app.start_button.instate(["disabled"])
+    assert app.worker_tree.item(worker_item, "values")[4] == "-"
