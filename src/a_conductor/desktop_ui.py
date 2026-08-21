@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import sys
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Protocol
@@ -358,6 +358,9 @@ class AConductorDesktopApp:
         self.instance_rescan_button = self._button(
             instance_actions, "Rescan", self.rescan_instances
         )
+        self.brain_button = self._button(
+            instance_actions, "Second Brain", self.open_brain_config
+        )
         for index, button in enumerate(
             (
                 self.instance_start_button,
@@ -365,6 +368,7 @@ class AConductorDesktopApp:
                 self.instance_startall_button,
                 self.instance_auto_button,
                 self.instance_rescan_button,
+                self.brain_button,
             )
         ):
             button.grid(row=0, column=index, padx=(0, 6), sticky="w")
@@ -1070,6 +1074,7 @@ class AConductorDesktopApp:
         )
 
     def refresh_instances(self) -> None:
+        self._set_enabled(self.brain_button, self._has_settings_service())
         if not self._has_instance_service():
             for button in (
                 self.instance_start_button,
@@ -1128,6 +1133,7 @@ class AConductorDesktopApp:
             self.instance_rescan_button,
         ):
             self._set_enabled(button, True)
+        self._set_enabled(self.brain_button, self._has_settings_service())
 
     def _selected_instance_name(self) -> str | None:
         selection = self.instance_tree.selection()
@@ -1228,6 +1234,141 @@ class AConductorDesktopApp:
     def rescan_instances(self) -> None:
         self.log_activity("RESCAN       instances")
         self.refresh_instances()
+
+    def open_brain_config(self) -> tk.Toplevel | None:
+        load = getattr(self.service, "worker_settings", None)
+        save = getattr(self.service, "save_worker_settings", None)
+        if not callable(load) or not callable(save):
+            self._handle_error("SETTINGS_NOT_AVAILABLE")
+            return None
+        try:
+            profile = load("global-brain")
+        except Exception:
+            self._handle_error("SETTINGS_LOAD_FAILED")
+            return None
+        if not isinstance(profile, WorkerSerenaSettings):
+            self._handle_error("SETTINGS_RESULT_INVALID")
+            return None
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("A-Conductor — Second Brain")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=14)
+        frame.pack(fill="both", expand=True)
+        tk.Label(
+            frame,
+            text="> SECOND BRAIN  (ทุก agent ที่เชื่อมเข้ามาต้องอ่านสมองนี้ก่อน)",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 10))
+        frame.grid_columnconfigure(1, weight=1)
+
+        folders = list(profile.brain_folders) + ["", ""]
+        entries = list(profile.brain_entry_files) + ["", ""]
+        self._brain_entries: dict[str, ttk.Entry] = {}
+        rows = (
+            ("brain_folder_1", "Brain folder 1", folders[0]),
+            ("brain_folder_2", "Brain folder 2", folders[1]),
+            ("brain_entry_1", "ต้องอ่านไฟล์ 1", entries[0]),
+            ("brain_entry_2", "ต้องอ่านไฟล์ 2", entries[1]),
+        )
+        for row_index, (key, label, value) in enumerate(rows, start=1):
+            tk.Label(
+                frame,
+                text=label,
+                bg=self.theme.panel,
+                fg=self.theme.muted,
+                font=(self.theme.monospace_font, 9),
+            ).grid(row=row_index, column=0, sticky="w", padx=(0, 10), pady=2)
+            entry = ttk.Entry(frame, width=64)
+            entry.insert(0, value)
+            entry.grid(row=row_index, column=1, sticky="ew", pady=2)
+            self._brain_entries[key] = entry
+            if key.startswith("brain_folder"):
+                self._button(
+                    frame,
+                    "เลือก...",
+                    lambda k=key: self._brain_entries[k].insert(
+                        0, self._directory_picker()
+                    ),
+                ).grid(row=row_index, column=2, sticky="w", padx=(6, 0))
+
+        self._brain_profile_base = profile
+        self._brain_status = tk.Label(
+            frame,
+            text="Index เท่านั้น (ประหยัด token) — agents จะ read_file เพิ่มเมื่อจำเป็น",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        )
+        self._brain_status.grid(row=5, column=0, columnspan=3, sticky="w", pady=(8, 0))
+
+        button_row = 6
+        self._button(frame, "ใช้ค่า default (A-Wiki)", self._fill_brain_defaults).grid(
+            row=button_row, column=0, sticky="w", pady=(12, 0)
+        )
+        self._button(frame, "Save", lambda: self.save_brain_config(dialog)).grid(
+            row=button_row, column=1, sticky="w", pady=(12, 0)
+        )
+        self._button(frame, "Cancel", lambda: dialog.destroy() if dialog.winfo_exists() else None).grid(
+            row=button_row, column=2, sticky="w", pady=(12, 0)
+        )
+        return dialog
+
+    def _fill_brain_defaults(self) -> None:
+        self._brain_entries["brain_folder_1"].delete(0, "end")
+        self._brain_entries["brain_folder_1"].insert(0, r"A:\GitHub\A-Wiki")
+        self._brain_entries["brain_folder_2"].delete(0, "end")
+        self._brain_entries["brain_entry_1"].delete(0, "end")
+        self._brain_entries["brain_entry_1"].insert(0, r"A:\GitHub\A-Wiki\AGENTS.md")
+        self._brain_entries["brain_entry_2"].delete(0, "end")
+        self._brain_entries["brain_entry_2"].insert(
+            0, r"A:\GitHub\A-Wiki\wiki\context\wiki-overview.md"
+        )
+
+    def save_brain_config(self, dialog: tk.Toplevel | None = None) -> None:
+        save = getattr(self.service, "save_worker_settings", None)
+        base = getattr(self, "_brain_profile_base", None)
+        entries = getattr(self, "_brain_entries", None)
+        if base is None or entries is None or not callable(save):
+            self._handle_error("SETTINGS_NOT_AVAILABLE")
+            return
+
+        def value(key: str) -> str:
+            return str(entries[key].get()).strip()
+
+        folders = tuple(v for v in (value("brain_folder_1"), value("brain_folder_2")) if v)
+        entry_files = tuple(
+            v for v in (value("brain_entry_1"), value("brain_entry_2")) if v
+        )
+        try:
+            updated = replace(
+                base,
+                brain_folders=folders,
+                brain_entry_files=entry_files,
+            )
+        except ValueError as exc:
+            status = getattr(self, "_brain_status", None)
+            if status is not None and status.winfo_exists():
+                status.configure(text=f"ERROR  {exc}", fg=self.theme.error)
+            self._handle_error("SETTINGS_INVALID")
+            return
+        try:
+            saved = save(updated)
+        except Exception:
+            self._handle_error("SETTINGS_SAVE_FAILED")
+            return
+        if not isinstance(saved, WorkerSerenaSettings):
+            self._handle_error("SETTINGS_RESULT_INVALID")
+            return
+        self.log_activity(
+            f"Brain        {' -> '.join(saved.brain_folders) if saved.brain_folders else 'cleared'} SAVED"
+        )
+        if dialog is not None and dialog.winfo_exists():
+            dialog.destroy()
 
     def _autostart_flagged_instances(self) -> None:
         if not self._has_instance_service():
