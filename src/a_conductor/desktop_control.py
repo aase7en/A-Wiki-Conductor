@@ -60,6 +60,7 @@ class DesktopControlService:
         database_path: str | Path,
         *,
         coordinator_builder: Callable[..., LifecycleCoordinator] = build_local_lifecycle_coordinator,
+        instances_root: str | Path | None = None,
     ) -> "DesktopControlService":
         database = Path(database_path)
         control_center = ControlCenterService.open(SQLiteRegistryStore(database))
@@ -69,11 +70,15 @@ class DesktopControlService:
             control_center=control_center,
             config_store=config_store,
         )
+        resolved_root = (
+            Path(instances_root) if instances_root is not None else DEFAULT_INSTANCES_ROOT
+        )
         return cls(
             control_center=control_center,
             lifecycle=lifecycle,
             runtime_setup=runtime_setup,
             settings_store=config_store,
+            instances_root=resolved_root,
         )
 
     def snapshot(self):

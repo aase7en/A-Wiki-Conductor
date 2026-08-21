@@ -75,9 +75,9 @@ def _rewrite_serena_home(instance_root: Path, new_project: str) -> None:
     if not config.is_file():
         return
     text = config.read_text(encoding="utf-8")
-    updated = _PROJECTS_LINE_RE.sub(
-        "projects:\n- '" + new_project + "'", text, count=1
-    )
+    replacement = "projects:\n- '" + new_project + "'"
+    # Lambda replacement avoids regex escape interpretation of Windows backslash paths
+    updated = _PROJECTS_LINE_RE.sub(lambda _m: replacement, text, count=1)
     if updated != text:
         _backup(config)
         config.write_text(updated, encoding="utf-8", newline="\n")
