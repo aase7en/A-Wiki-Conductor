@@ -1,6 +1,6 @@
 # WO-P1-057: Serena Onboarding / Memory Presence Warning
 
-Status: in_progress
+Status: complete
 Lane/files: `src/a_conductor/memory_presence.py`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/__init__.py`, `tests/test_memory_presence.py`, `tests/test_desktop_ui.py`, `docs/work-orders/WO-P1-057-memory-presence-warning.md`, `CURRENT-WORK.md`, `handoff.md`
 Branch: chunk/p1-057-memory-presence
 Model tier: high
@@ -33,3 +33,4 @@ Read-only warning for the selected project: detect Serena memory presence under 
 ## Checkpoint log
 
 - [2026-08-22] Opened from main `2aca60c` (after PR #27 merge); WO-056 closed with evidence.
+- [2026-08-22] Delivered via PR #28 (CI SUCCESS re-verified, merged `d2d8970`): helper 6/6 tests, UI selection test, full suite 819 passed. Debug loop: Tk `selection_set` adds rather than replaces selection — test now clears first (matches real click semantics).

@@ -1,10 +1,10 @@
 # A-Conductor — Current Work
 
-Last updated: 2026-08-22 (GLM 5.3 resume checkpoint)
+Last updated: 2026-08-22 (GLM 5.3 resume session, post WO-057)
 
 ## Current phase
 
-**Phase 1 delivered. WO-P1-056 implementation is verified and PR #27 is CI-green but not merged yet. Merge #27 first, then start WO-P1-057.**
+**WO-P1-056 and WO-P1-057 both merged. Phase 1 backlog is clear of open implementation work; next steps are user-gated decisions or a fresh milestone pick.**
 
 ## Source-of-truth rule
 
@@ -17,74 +17,34 @@ For resume, use in this order:
 4. active `docs/work-orders/WO-*.md`,
 5. `PROJECT-PLAN.md` + binding contracts/ADRs.
 
-## Verified completed work
+## Verified completed work (this resume session)
 
-- WO-P1-052 — Second Brain Phase 1 shipped (Index+Pull brain profile, materialize-on-start).
-- WO-P1-053 — usability overhaul shipped.
-- WO-P1-054 — onboarding / Tunnel ID / AI connection guide shipped.
-- WO-P1-055 — ONLINE pulse + themed Thai teaching errors shipped via PR #26; merged main at `2d345eb`.
-- WO-P1-056 — Serena Activation Prompt Helper implementation verified locally:
-  - focused TDD: 4 RED -> 4 passed,
-  - desktop UI: 40 passed,
-  - full suite: 812 passed,
-  - no automatic Serena activation, no target-repo mutation.
+- WO-P1-056 — PR #27 re-verified (MERGEABLE + CI SUCCESS) then merged → main `2aca60c`; WO marked COMPLETE with merge evidence.
+- WO-P1-057 — Serena onboarding / memory presence warning:
+  - `inspect_memory_presence()` pure read-only helper (5 states incl. MAINTENANCE_ONLY),
+  - PROJECTS panel memory-status line for the selected project + teaching tooltip,
+  - PR #28 CI SUCCESS re-verified, merged → main `d2d8970`; full suite 819 passed, 0 failed.
+- Known debug note: Tk `Listbox.selection_set` *adds* to selection — tests must `selection_clear` first to model a real click.
 
-## Current verified repository / PR state
+## Current verified repository state
 
-Verified 2026-08-22 before this documentation checkpoint:
+- Branch: `main`, HEAD `d2d8970`, working tree clean (only this SSoT doc update pending commit).
+- All PRs #27/#28 merged; no open PRs.
 
-- Repo: `A:\GitHub\A-Wiki-Conductor`
-- Branch: `chunk/p1-056-activation-prompt-helper`
-- HEAD: `8571dbde8a13e34e3b8eadf29032c7a6655181ff`
-- Working tree: clean before this SSoT doc update
-- PR #27: `OPEN`
-- Merge state: `CLEAN`
-- CI `test`: `SUCCESS`
+## Next safe action (user picks)
 
-Because this file/handoff are being updated after that check, preserve any doc-only dirty changes you see and do not reset/clean/stash them blindly.
+1. (a) Rebuild + reinstall the shipped exe (`scripts/build_portable.py` + setup) so installed app matches main (current installed build predates PRs #16+).
+2. (b) Approve/decline one of the recorded `DECISION_REQUIRED` items: MCP gateway hard enforcement; CONNECTORS project rebind; supervised-mode default flip.
+3. (c) Pick the next bounded milestone from PROJECT-PLAN §13 (e.g., materializing per-worker engine settings into SERENA_HOME on worker start — brain already lands on connector start; the worker path is the remaining gap).
 
-## GLM 5.3 — exact next work
-
-### Step 1 — close WO-P1-056 safely
-
-1. Run identity gate:
-   - `git status --short`
-   - `git branch --show-current`
-   - `git rev-parse HEAD`
-2. Check current GitHub truth:
-   - `gh pr view 27`
-   - `gh pr checks 27`
-3. If PR #27 remains green + mergeable:
-   - preserve/commit this SSoT documentation checkpoint if needed,
-   - ensure PR #27 contains the intended docs/state,
-   - merge PR #27,
-   - switch/sync `main`,
-   - verify clean state.
-4. Mark WO-P1-056 `COMPLETE` only after merge evidence exists.
-
-### Step 2 — start WO-P1-057
-
-Create a bounded work order for **Serena Onboarding / Memory Presence Warning**.
-
-Approved scope:
-- selected project only,
-- read-only detection of `.serena/memories/` presence / usable memory,
-- explain that Serena onboarding triggers when no memories exist,
-- show a `start new conversation` nudge after onboarding,
-- reuse current project registry/path + existing UI,
-- no new memory store,
-- no mutation of target project,
-- TDD + targeted/full regression + PR/CI.
-
-Grounding: `docs/references/serena-fulldoc-implications.md`.
+Open a new work order + reuse gate before any implementation.
 
 ## Mandatory boundaries
 
 - A-Wiki remains brain/policy/memory authority; do not duplicate its memory/work-order/claim/orchestration systems.
-- MCP gateway hard enforcement remains **`DECISION_REQUIRED`** — do not implement it yet.
+- MCP gateway hard enforcement remains `DECISION_REQUIRED`.
 - CONNECTORS project rebind remains deferred behind its user-gated decision.
 - Do not restart workers/tunnels merely to fix test environment.
-- Keep work in resumable micro-steps and checkpoint `CURRENT-WORK.md` + `handoff.md` + active WO.
 
 ## Escalation rule
 
