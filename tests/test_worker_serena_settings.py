@@ -402,3 +402,59 @@ def test_brain_store_migration_and_round_trip(tmp_path: Path) -> None:
     loaded = store.get_worker_settings(settings.worker_id)
     assert loaded == settings
     assert loaded.brain_folders == (r"A:\GitHub\A-Wiki",)
+
+
+def test_apply_brain_to_serena_home_append_guard_idempotent(tmp_path: Path) -> None:
+    from a_conductor.worker_serena_settings import apply_brain_to_serena_home
+
+    home = tmp_path / "serena-home"
+    home.mkdir()
+    config = home / "serena_config.yml"
+    config.write_text(
+        "language_backend: LSP\ntool_timeout: 240\n", encoding="utf-8"
+    )
+    profile = base_settings(
+        brain_folders=(r"A:\GitHub\A-Wiki",),
+        brain_entry_files=(r"A:\GitHub\A-Wiki\AGENTS.md",),
+    )
+
+    first = apply_brain_to_serena_home(profile, home)
+    text_one = config.read_text(encoding="utf-8")
+
+    assert first == "APPLIED"
+    assert "language_backend: LSP" in text_one
+    assert "system_prompt: |" in text_one
+    assert "[A-CONDUCTOR SECOND BRAIN]" in text_one
+
+    updated_profile = base_settings(
+        brain_folders=(r"A:\GitHub\Other",),
+        brain_entry_files=(r"A:\GitHub\Other\rules.md",),
+    )
+    second = apply_brain_to_serena_home(updated_profile, home)
+    text_two = config.read_text(encoding="utf-8")
+
+    assert second == "APPLIED"
+    assert text_two.count("system_prompt: |") == 1
+    assert r"A:\GitHub\Other" in text_two
+    assert r"A:\GitHub\A-Wiki\AGENTS.md" not in text_two
+
+
+def test_apply_brain_skip_cases(tmp_path: Path) -> None:
+    from a_conductor.worker_serena_settings import apply_brain_to_serena_home
+
+    empty_home = tmp_path / "empty"
+    empty_home.mkdir()
+    assert apply_brain_to_serena_home(base_settings(), empty_home) == "SKIPPED_NO_CONFIG"
+
+    home = tmp_path / "home"
+    home.mkdir()
+    config = home / "serena_config.yml"
+    config.write_text("language_backend: LSP\n", encoding="utf-8")
+    assert apply_brain_to_serena_home(base_settings(), home) == "SKIPPED_NO_BRAIN"
+
+    config.write_text(
+        "system_prompt: |\n  pre-existing owner prompt\n", encoding="utf-8"
+    )
+    brainy = base_settings(brain_folders=(r"A:\GitHub\A-Wiki",))
+    assert apply_brain_to_serena_home(brainy, home) == "SKIPPED_SYSTEM_PROMPT_PRESENT"
+    assert "SECOND BRAIN" not in config.read_text(encoding="utf-8")
