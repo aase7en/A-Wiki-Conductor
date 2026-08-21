@@ -104,6 +104,12 @@ class DesktopControlService:
     def release_worker(self, worker_id: str):
         return self.control_center.release_worker(worker_id)
 
+    def get_preference(self, key: str) -> bool | None:
+        return self._require_settings_store().get_preference(key)
+
+    def set_preference(self, key: str, value: bool) -> None:
+        self._require_settings_store().set_preference(key, value)
+
     def open_job_control(
         self,
         database_path: str | Path,
