@@ -27,7 +27,7 @@ Open one program and work: the Control Center auto-discovers validated Serena tu
 - [x] 050-A design doc (alternatives + trade-offs) + this work order
 - [x] 050-B RED core service tests (discovery/probe/orchestrator)
 - [x] 050-C implement `local_instances.py`
-- [ ] 050-D persistence + facade + UI panel + tests
+- [x] 050-D persistence + facade + UI panel + tests
 - [ ] 050-E regression + close/push
 
 ## Forbidden
@@ -38,3 +38,4 @@ Open one program and work: the Control Center auto-discovers validated Serena tu
 
 - [2026-08-21] Opened; design doc records why the multiplexer gateway is deferred (user fallback clause sanctions the UI-orchestration path).
 - [2026-08-21] 050-B/C complete: 12/12 tests green (RED first). Bugfix loop (2 rounds): fake probes now mimic real observation contract (`.state`/`.error_code` — STOPPED is only inferable from TRANSPORT_ERROR), and `clock_fn` injection replaced real `time.monotonic` so poll loops are deterministic (test time 61.75s → 0.39s). Start = detached launch + health poll (script owns lifecycle; orchestrator never waits on the blocking Start script and never kills). Real-machine read-only check: discovery found Serena-Conductor/Phase6/Wastewater with correct ports/projects; health = Wastewater READY (live), others STOPPED. Full suite 777 passed, 1 skipped.
+- [2026-08-21] 050-D complete: `instance_flags` store table + facade (`instances`/`instance_states`/`instance_action`/autostart flags) + INSTANCES UI panel (states with semantic colors, Start/Stop/Start-All/Toggle-Auto/Rescan, palette entry). **Debug loop (root-caused via bisection)**: construction-time instance hooks made `run_smoke` (real service) submit real discovery/probe work to a pool thread and schedule timer callbacks on a root destroyed milliseconds later → `Tcl_AsyncDelete ... wrong thread` crash at pytest teardown. Fix: hooks moved to explicit `start_background_operations()` called only by the real entrypoint before mainloop; instance buttons start disabled. 24/24 UI tests + full suite 780 passed, 2 skipped (display-dependent), smoke OK.

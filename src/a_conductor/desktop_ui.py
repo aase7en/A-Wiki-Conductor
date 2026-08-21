@@ -21,6 +21,7 @@ from .lifecycle_coordinator import LifecycleCoordinatorError
 from .lifecycle_executor import LifecycleExecutionResult
 from .runtime_setup import RuntimeSetupError, SetupReadiness, WorkerSetupDraft
 from .worker_serena_settings import LanguageBackend, WorkerSerenaSettings
+from .local_instances import InstanceHealthState, InstanceResultCode
 
 
 class ControlCenterUIService(Protocol):
@@ -88,6 +89,7 @@ class AConductorDesktopApp:
         self._worker_ids: dict[str, str] = {}
         self._setup_entries: dict[str, ttk.Entry] = {}
         self._setup_draft: WorkerSetupDraft | None = None
+        self._instance_rows: dict[str, str] = {}
 
         self._configure_root()
         self._configure_styles()
@@ -147,8 +149,8 @@ class AConductorDesktopApp:
 
     def _build_layout(self) -> None:
         self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(1, weight=1)
-        self.root.grid_rowconfigure(2, weight=1)
+        self.root.grid_rowconfigure(1, weight=3)
+        self.root.grid_rowconfigure(3, weight=2)
 
         top = tk.Frame(
             self.root,
@@ -267,8 +269,64 @@ class AConductorDesktopApp:
         self.setup_button.state(["disabled"])
         self.config_button.state(["disabled"])
 
+        instances_panel = self._panel(self.root, "SERENA TUNNEL INSTANCES")
+        instances_panel.grid(row=2, column=0, sticky="ew", padx=10, pady=(6, 0))
+        instances_panel.grid_columnconfigure(0, weight=1)
+        instance_columns = ("name", "port", "state", "project", "auto")
+        self.instance_tree = ttk.Treeview(
+            instances_panel,
+            columns=instance_columns,
+            show="headings",
+            selectmode="browse",
+            style="Workers.Treeview",
+            height=3,
+        )
+        instance_headings = {
+            "name": ("INSTANCE", 160),
+            "port": ("PORT", 90),
+            "state": ("STATE", 90),
+            "project": ("PROJECT", 300),
+            "auto": ("AUTO", 60),
+        }
+        for name, (label, width) in instance_headings.items():
+            self.instance_tree.heading(name, text=label, anchor="w")
+            self.instance_tree.column(name, width=width, minwidth=50, anchor="w")
+        self.instance_tree.grid(row=0, column=0, sticky="ew", padx=9, pady=(9, 4))
+        self.instance_tree.tag_configure("ready", foreground=self.theme.ready)
+        self.instance_tree.tag_configure("warning", foreground=self.theme.warning)
+        self.instance_tree.tag_configure("idle", foreground=self.theme.idle)
+
+        instance_actions = tk.Frame(instances_panel, bg=self.theme.panel)
+        instance_actions.grid(row=1, column=0, sticky="ew", padx=9, pady=(0, 9))
+        self.instance_start_button = self._button(
+            instance_actions, "Start", self.start_selected_instance
+        )
+        self.instance_stop_button = self._button(
+            instance_actions, "Stop", self.stop_selected_instance
+        )
+        self.instance_startall_button = self._button(
+            instance_actions, "Start All", self.start_all_instances
+        )
+        self.instance_auto_button = self._button(
+            instance_actions, "Toggle Auto", self.toggle_instance_autostart
+        )
+        self.instance_rescan_button = self._button(
+            instance_actions, "Rescan", self.rescan_instances
+        )
+        for index, button in enumerate(
+            (
+                self.instance_start_button,
+                self.instance_stop_button,
+                self.instance_startall_button,
+                self.instance_auto_button,
+                self.instance_rescan_button,
+            )
+        ):
+            button.grid(row=0, column=index, padx=(0, 6), sticky="w")
+            button.state(["disabled"])
+
         activity_panel = self._panel(self.root, "ACTIVITY / LOG")
-        activity_panel.grid(row=2, column=0, sticky="nsew", padx=10, pady=(6, 10))
+        activity_panel.grid(row=3, column=0, sticky="nsew", padx=10, pady=(6, 10))
         activity_panel.grid_rowconfigure(1, weight=1)
         activity_panel.grid_columnconfigure(0, weight=1)
         self.activity_text = tk.Text(
@@ -742,6 +800,7 @@ class AConductorDesktopApp:
             ("Release Worker", self.release_selected),
             ("Runtime Setup", self.open_runtime_setup),
             ("Worker Config", self.open_worker_config),
+            ("Start All Instances", self.start_all_instances),
             ("Start Worker", self.start_selected),
             ("Stop Worker", self.stop_selected),
             ("Restart Worker", self.restart_selected),
@@ -914,3 +973,216 @@ class AConductorDesktopApp:
         self.log_activity(f"Config       {saved.worker_id} SAVED (applies on next start)")
         if dialog is not None and dialog.winfo_exists():
             dialog.destroy()
+
+    def start_background_operations(self) -> None:
+        """Kick instance discovery/health refresh and flagged autostarts.
+
+        Called by the real application entrypoint right before mainloop — not
+        during construction — so short-lived constructions (tests, smoke) never
+        schedule pool work or timer callbacks on a root that is about to be
+        destroyed.
+        """
+        self.refresh_instances()
+        self._autostart_flagged_instances()
+
+    def _has_instance_service(self) -> bool:
+        return all(
+            callable(getattr(self.service, name, None))
+            for name in (
+                "instances",
+                "instance_states",
+                "instance_action",
+                "set_instance_autostart",
+            )
+        )
+
+    def refresh_instances(self) -> None:
+        if not self._has_instance_service():
+            for button in (
+                self.instance_start_button,
+                self.instance_stop_button,
+                self.instance_startall_button,
+                self.instance_auto_button,
+                self.instance_rescan_button,
+            ):
+                self._set_enabled(button, False)
+            return
+        states_fn = getattr(self.service, "instance_states")
+        future = self._background_executor.submit(states_fn)
+        self.root.after(0, self._poll_instance_states, future)
+
+    def _poll_instance_states(self, future: Future) -> None:
+        if not future.done():
+            self.root.after(25, self._poll_instance_states, future)
+            return
+        try:
+            states = future.result()
+        except Exception:
+            self._handle_error("INSTANCE_REFRESH_FAILED")
+            return
+        self.instance_tree.delete(*self.instance_tree.get_children())
+        self._instance_rows.clear()
+        auto_fn = getattr(self.service, "instance_autostart", None)
+        for instance, state in states:
+            auto = False
+            if callable(auto_fn):
+                try:
+                    auto = bool(auto_fn(instance.name))
+                except Exception:
+                    auto = False
+            tag = {
+                InstanceHealthState.READY.value: "ready",
+                InstanceHealthState.STOPPED.value: "idle",
+            }.get(state.value, "warning")
+            item = self.instance_tree.insert(
+                "",
+                "end",
+                values=(
+                    instance.name,
+                    instance.health_address.split(":")[-1],
+                    state.value,
+                    instance.project_path,
+                    "ON" if auto else "-",
+                ),
+                tags=(tag,),
+            )
+            self._instance_rows[instance.name] = item
+        for button in (
+            self.instance_start_button,
+            self.instance_stop_button,
+            self.instance_startall_button,
+            self.instance_auto_button,
+            self.instance_rescan_button,
+        ):
+            self._set_enabled(button, True)
+
+    def _selected_instance_name(self) -> str | None:
+        selection = self.instance_tree.selection()
+        if not selection:
+            return None
+        for name, item in self._instance_rows.items():
+            if item == selection[0]:
+                return name
+        return None
+
+    def _submit_instance_action(self, action: str, name: str) -> None:
+        self.log_activity(f"{action:<12} {name} QUEUED")
+        action_fn = getattr(self.service, "instance_action")
+        future = self._background_executor.submit(action_fn, name, action.lower())
+        self.root.after(0, self._poll_instance_action, action, name, future)
+
+    def _poll_instance_action(self, action: str, name: str, future: Future) -> None:
+        if not future.done():
+            self.root.after(25, self._poll_instance_action, action, name, future)
+            return
+        try:
+            outcome = future.result()
+            code = outcome.result_code.value
+        except Exception:
+            self._handle_error("INSTANCE_ACTION_FAILED")
+            self.refresh_instances()
+            return
+        self.log_activity(f"{action:<12} {name} {code}")
+        self.refresh_instances()
+
+    def start_selected_instance(self) -> None:
+        name = self._selected_instance_name()
+        if name is None:
+            self._handle_error("SELECT_INSTANCE")
+            return
+        self._submit_instance_action("START-INST", name)
+
+    def stop_selected_instance(self) -> None:
+        name = self._selected_instance_name()
+        if name is None:
+            self._handle_error("SELECT_INSTANCE")
+            return
+        self._submit_instance_action("STOP-INST", name)
+
+    def start_all_instances(self) -> None:
+        if not self._has_instance_service():
+            self._handle_error("INSTANCES_NOT_AVAILABLE")
+            return
+        future = self._background_executor.submit(self._start_all_worker)
+        self.root.after(0, self._poll_start_all, future)
+
+    def _start_all_worker(self):
+        results: list[tuple[str, str]] = []
+        for instance, state in getattr(self.service, "instance_states")():
+            if state is InstanceHealthState.READY:
+                continue
+            try:
+                outcome = getattr(self.service, "instance_action")(instance.name, "start")
+                results.append((instance.name, outcome.result_code.value))
+            except Exception:
+                results.append((instance.name, "ERROR"))
+        return results
+
+    def _poll_start_all(self, future: Future) -> None:
+        if not future.done():
+            self.root.after(25, self._poll_start_all, future)
+            return
+        try:
+            results = future.result()
+        except Exception:
+            self._handle_error("INSTANCE_START_ALL_FAILED")
+            self.refresh_instances()
+            return
+        if not results:
+            self.log_activity("START-ALL    all instances already READY")
+        for name, code in results:
+            self.log_activity(f"START-ALL    {name} {code}")
+        self.refresh_instances()
+
+    def toggle_instance_autostart(self) -> None:
+        name = self._selected_instance_name()
+        if name is None:
+            self._handle_error("SELECT_INSTANCE")
+            return
+        try:
+            current = bool(getattr(self.service, "instance_autostart")(name))
+            getattr(self.service, "set_instance_autostart")(name, not current)
+        except Exception:
+            self._handle_error("INSTANCE_FLAG_FAILED")
+            return
+        item = self._instance_rows.get(name)
+        if item is not None and self.instance_tree.exists(item):
+            values = list(self.instance_tree.item(item, "values"))
+            values[4] = "ON" if not current else "-"
+            self.instance_tree.item(item, values=values)
+        self.log_activity(f"AUTO         {name} {'ON' if not current else 'OFF'}")
+
+    def rescan_instances(self) -> None:
+        self.log_activity("RESCAN       instances")
+        self.refresh_instances()
+
+    def _autostart_flagged_instances(self) -> None:
+        if not self._has_instance_service():
+            return
+        if not callable(getattr(self.service, "autostart_instance_names", None)):
+            return
+        future = self._background_executor.submit(self._autostart_worker)
+        self.root.after(0, self._poll_autostart, future)
+
+    def _autostart_worker(self):
+        results: list[tuple[str, str]] = []
+        for name in getattr(self.service, "autostart_instance_names")():
+            try:
+                outcome = getattr(self.service, "instance_action")(name, "start")
+                results.append((name, outcome.result_code.value))
+            except Exception:
+                results.append((name, "ERROR"))
+        return results
+
+    def _poll_autostart(self, future: Future) -> None:
+        if not future.done():
+            self.root.after(25, self._poll_autostart, future)
+            return
+        try:
+            results = future.result()
+        except Exception:
+            return
+        for name, code in results:
+            self.log_activity(f"AUTO-START   {name} {code}")
+        if results:
+            self.refresh_instances()
