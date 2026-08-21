@@ -1,9 +1,11 @@
 # WO-P1-056: Serena Activation Prompt Helper
 
-Status: COMPLETE
+Status: REVIEW_PENDING
 Lane/files: `src/a_conductor/desktop_ui.py`, `tests/test_desktop_ui.py`, `docs/USER-GUIDE.md`, `docs/work-orders/WO-P1-056-activation-prompt-helper.md`, `CURRENT-WORK.md`, `handoff.md`
 Branch: `chunk/p1-056-activation-prompt-helper`
 Baseline HEAD: `2d345eb` (main after PR #26)
+Implementation HEAD: `8571dbde8a13e34e3b8eadf29032c7a6655181ff`
+PR: `#27`
 Model tier: high
 
 ## Goal
@@ -43,7 +45,8 @@ This work does **not** create or modify task routing, claims, work-order semanti
 - [x] 056-A Reuse/A-Wiki gate + bounded UX contract.
 - [x] 056-B Add tests for prompt generation/copy behavior and button presence.
 - [x] 056-C Implement helper + guide wording.
-- [x] 056-D Targeted/full regression + review + continuity checkpoint.
+- [x] 056-D Targeted/full regression + continuity checkpoint.
+- [ ] 056-E Merge PR #27 + sync main + record merge evidence.
 
 ## Forbidden
 
@@ -53,12 +56,21 @@ This work does **not** create or modify task routing, claims, work-order semanti
 - No worker/tunnel restart.
 - No new orchestration or memory state.
 
-## Completion evidence
+## Verification evidence
 
 - RED contract: 4 focused tests failed before implementation because `activate_button` / `copy_activation_prompt` did not exist.
 - GREEN focused contract: **4 passed**.
 - Desktop UI regression: **40 passed**.
 - Full suite: **812 passed**.
-- `git diff --check`: clean.
+- `git diff --check`: clean at implementation checkpoint.
 - Python compile: desktop UI + desktop UI tests compiled successfully.
 - No worker/tunnel restart and no target-repository mutation.
+
+## Current review state
+
+Verified 2026-08-22:
+- PR #27: `OPEN`
+- merge state: `CLEAN`
+- CI workflow `test`: `SUCCESS`
+
+Do not mark this work order `COMPLETE` until PR #27 is merged and the resulting `main` state is recorded.
