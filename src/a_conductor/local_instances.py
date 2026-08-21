@@ -1,0 +1,272 @@
+"""One-app orchestration of validated local Serena tunnel instances.
+
+Discovery parses the validated ``instance.ps1`` format, health uses the
+existing loopback readyz probe, and start/stop only invoke the instance's own
+validated scripts (credential handling, preflight, and PID-ownership checks
+stay inside those scripts). The orchestrator never kills processes directly.
+"""
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Callable, Protocol
+
+from .windows_io import LoopbackReadyzHttpProbe
+
+DEFAULT_INSTANCES_ROOT = Path("C:/AI/serena-instances")
+
+_INSTANCE_LINE_RE = re.compile(
+    r"^\s*\$(InstanceName|ProjectPath|HealthListenAddress)\s*=\s*'([^']*)'\s*$",
+    re.MULTILINE,
+)
+
+
+class InstanceHealthState(str, Enum):
+    READY = "READY"
+    STOPPED = "STOPPED"
+    UNKNOWN = "UNKNOWN"
+
+
+class InstanceResultCode(str, Enum):
+    RUNNING = "RUNNING"
+    ALREADY_RUNNING = "ALREADY_RUNNING"
+    STARTED_NOT_READY = "STARTED_NOT_READY"
+    STOPPED = "STOPPED"
+    ALREADY_STOPPED = "ALREADY_STOPPED"
+    STOP_FAILED = "STOP_FAILED"
+    SCRIPT_MISSING = "SCRIPT_MISSING"
+    LAUNCH_FAILED = "LAUNCH_FAILED"
+
+
+@dataclass(frozen=True, slots=True)
+class LocalInstance:
+    name: str
+    project_path: str
+    health_address: str
+    instance_root: Path
+
+
+@dataclass(frozen=True, slots=True)
+class InstanceOrchestrationOutcome:
+    action: str
+    result_code: InstanceResultCode
+    exit_code: int | None = None
+    output_tail: str = ""
+
+
+class _HealthProbe(Protocol):
+    def get(self, url: str, timeout_seconds: int): ...
+
+
+def discover_local_instances(
+    instances_root: Path | str = DEFAULT_INSTANCES_ROOT,
+) -> tuple[LocalInstance, ...]:
+    root = Path(instances_root).expanduser().resolve(strict=False)
+    if not root.is_dir():
+        return ()
+    found: list[LocalInstance] = []
+    for child in sorted(root.iterdir()):
+        marker = child / "instance.ps1"
+        if not child.is_dir() or not marker.is_file():
+            continue
+        text = marker.read_text(encoding="utf-8", errors="replace")
+        fields = dict(_INSTANCE_LINE_RE.findall(text))
+        name = fields.get("InstanceName", "").strip()
+        project = fields.get("ProjectPath", "").strip()
+        address = fields.get("HealthListenAddress", "").strip()
+        if not name or not project or not address:
+            continue
+        found.append(
+            LocalInstance(
+                name=name,
+                project_path=project,
+                health_address=address,
+                instance_root=child.resolve(strict=False),
+            )
+        )
+    return tuple(found)
+
+
+def instance_health_state(
+    instance: LocalInstance,
+    *,
+    probe: _HealthProbe | None = None,
+    timeout_seconds: int = 3,
+) -> InstanceHealthState:
+    if not isinstance(instance, LocalInstance):
+        raise ValueError("instance must be a LocalInstance")
+    active_probe = probe or LoopbackReadyzHttpProbe()
+    observation = active_probe.get(
+        f"http://{instance.health_address}/readyz", timeout_seconds
+    )
+    state_name = getattr(observation, "state", None)
+    state_value = getattr(state_name, "value", state_name)
+    if state_value == "READY":
+        return InstanceHealthState.READY
+    if getattr(observation, "error_code", None) == "TRANSPORT_ERROR":
+        return InstanceHealthState.STOPPED
+    return InstanceHealthState.UNKNOWN
+
+
+Launcher = Callable[[Path, Path], None]
+Waiter = Callable[[list[str], int], tuple[int, str]]
+SleepFn = Callable[[float], None]
+
+
+def _default_launcher(script: Path, cwd: Path) -> None:
+    creationflags = 0
+    if sys.platform == "win32":
+        creationflags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
+            subprocess, "CREATE_NO_WINDOW", 0
+        )
+    subprocess.Popen(
+        ["cmd.exe", "/c", str(script)],
+        cwd=str(cwd),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        shell=False,
+        creationflags=creationflags,
+    )
+
+
+def _default_waiter(argv: list[str], timeout: int) -> tuple[int, str]:
+    creationflags = 0
+    if sys.platform == "win32":
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    completed = subprocess.run(
+        argv,
+        cwd=None,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        shell=False,
+        creationflags=creationflags,
+    )
+    output = (completed.stdout or "") + (completed.stderr or "")
+    return completed.returncode, output[-2000:]
+
+
+def _single_script(instance_root: Path, pattern: str) -> Path | None:
+    matches = sorted(instance_root.glob(pattern))
+    if len(matches) != 1:
+        return None
+    return matches[0]
+
+
+class LocalInstanceOrchestrator:
+    """Start/stop validated instances through their own scripts."""
+
+    def __init__(
+        self,
+        *,
+        instances_root: Path | str = DEFAULT_INSTANCES_ROOT,
+        probe: _HealthProbe | None = None,
+        launcher: Launcher | None = None,
+        waiter: Waiter | None = None,
+        sleep_fn: SleepFn = time.sleep,
+        clock_fn: Callable[[], float] = time.monotonic,
+        startup_timeout_seconds: int = 30,
+        stop_timeout_seconds: int = 60,
+        poll_interval_seconds: float = 0.5,
+        health_timeout_seconds: int = 3,
+    ) -> None:
+        if startup_timeout_seconds < 1 or stop_timeout_seconds < 1:
+            raise ValueError("timeouts must be >= 1")
+        if poll_interval_seconds <= 0:
+            raise ValueError("poll_interval_seconds must be > 0")
+        self._root = Path(instances_root).expanduser().resolve(strict=False)
+        self._probe = probe or LoopbackReadyzHttpProbe()
+        self._launcher = launcher or _default_launcher
+        self._waiter = waiter or _default_waiter
+        self._sleep_fn = sleep_fn
+        self._clock_fn = clock_fn
+        self._startup_timeout_seconds = startup_timeout_seconds
+        self._stop_timeout_seconds = stop_timeout_seconds
+        self._poll_interval_seconds = poll_interval_seconds
+        self._health_timeout_seconds = health_timeout_seconds
+
+    def _require_inside_root(self, instance: LocalInstance) -> None:
+        if not isinstance(instance, LocalInstance):
+            raise ValueError("instance must be a LocalInstance")
+        root = instance.instance_root.resolve(strict=False)
+        if self._root not in root.parents:
+            raise RuntimeError("INSTANCE_OUTSIDE_ROOT")
+
+    def _state(self, instance: LocalInstance) -> InstanceHealthState:
+        return instance_health_state(
+            instance,
+            probe=self._probe,
+            timeout_seconds=self._health_timeout_seconds,
+        )
+
+    def start(self, instance: LocalInstance) -> InstanceOrchestrationOutcome:
+        self._require_inside_root(instance)
+        if self._state(instance) is InstanceHealthState.READY:
+            return InstanceOrchestrationOutcome(
+                action="start", result_code=InstanceResultCode.ALREADY_RUNNING
+            )
+        script = _single_script(instance.instance_root, "Start-*.cmd")
+        if script is None:
+            return InstanceOrchestrationOutcome(
+                action="start", result_code=InstanceResultCode.SCRIPT_MISSING
+            )
+        try:
+            self._launcher(script, instance.instance_root)
+        except OSError as exc:
+            return InstanceOrchestrationOutcome(
+                action="start",
+                result_code=InstanceResultCode.LAUNCH_FAILED,
+                output_tail=str(exc)[-500:],
+            )
+        deadline = self._clock_fn() + self._startup_timeout_seconds
+        while self._clock_fn() < deadline:
+            self._sleep_fn(self._poll_interval_seconds)
+            if self._state(instance) is InstanceHealthState.READY:
+                return InstanceOrchestrationOutcome(
+                    action="start", result_code=InstanceResultCode.RUNNING
+                )
+        return InstanceOrchestrationOutcome(
+            action="start", result_code=InstanceResultCode.STARTED_NOT_READY
+        )
+
+    def stop(self, instance: LocalInstance) -> InstanceOrchestrationOutcome:
+        self._require_inside_root(instance)
+        if self._state(instance) is InstanceHealthState.STOPPED:
+            return InstanceOrchestrationOutcome(
+                action="stop", result_code=InstanceResultCode.ALREADY_STOPPED
+            )
+        script = _single_script(instance.instance_root, "Stop-*.cmd")
+        if script is None:
+            return InstanceOrchestrationOutcome(
+                action="stop", result_code=InstanceResultCode.SCRIPT_MISSING
+            )
+        try:
+            exit_code, output = self._waiter(
+                ["cmd.exe", "/c", str(script)], self._stop_timeout_seconds
+            )
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            return InstanceOrchestrationOutcome(
+                action="stop",
+                result_code=InstanceResultCode.STOP_FAILED,
+                output_tail=str(exc)[-500:],
+            )
+        if exit_code == 0 and self._state(instance) is InstanceHealthState.STOPPED:
+            return InstanceOrchestrationOutcome(
+                action="stop",
+                result_code=InstanceResultCode.STOPPED,
+                exit_code=exit_code,
+                output_tail=output[-500:],
+            )
+        return InstanceOrchestrationOutcome(
+            action="stop",
+            result_code=InstanceResultCode.STOP_FAILED,
+            exit_code=exit_code,
+            output_tail=output[-500:],
+        )

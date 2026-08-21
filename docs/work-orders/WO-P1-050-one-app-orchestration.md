@@ -25,8 +25,8 @@ Open one program and work: the Control Center auto-discovers validated Serena tu
 ## Micro-steps
 
 - [x] 050-A design doc (alternatives + trade-offs) + this work order
-- [ ] 050-B RED core service tests (discovery/probe/orchestrator)
-- [ ] 050-C implement `local_instances.py`
+- [x] 050-B RED core service tests (discovery/probe/orchestrator)
+- [x] 050-C implement `local_instances.py`
 - [ ] 050-D persistence + facade + UI panel + tests
 - [ ] 050-E regression + close/push
 
@@ -37,3 +37,4 @@ Open one program and work: the Control Center auto-discovers validated Serena tu
 ## Checkpoint log
 
 - [2026-08-21] Opened; design doc records why the multiplexer gateway is deferred (user fallback clause sanctions the UI-orchestration path).
+- [2026-08-21] 050-B/C complete: 12/12 tests green (RED first). Bugfix loop (2 rounds): fake probes now mimic real observation contract (`.state`/`.error_code` — STOPPED is only inferable from TRANSPORT_ERROR), and `clock_fn` injection replaced real `time.monotonic` so poll loops are deterministic (test time 61.75s → 0.39s). Start = detached launch + health poll (script owns lifecycle; orchestrator never waits on the blocking Start script and never kills). Real-machine read-only check: discovery found Serena-Conductor/Phase6/Wastewater with correct ports/projects; health = Wastewater READY (live), others STOPPED. Full suite 777 passed, 1 skipped.

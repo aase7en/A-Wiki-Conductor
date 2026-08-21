@@ -113,6 +113,16 @@ from .worker_serena_settings import (
     WorkerSettingsApplyError,
     apply_worker_serena_settings,
 )
+from .local_instances import (
+    DEFAULT_INSTANCES_ROOT,
+    InstanceHealthState,
+    InstanceOrchestrationOutcome,
+    InstanceResultCode,
+    LocalInstance,
+    LocalInstanceOrchestrator,
+    discover_local_instances,
+    instance_health_state,
+)
 from .job_control import DurableJobControlService
 from .job_execution import (
     DurableJobExecutionCoordinator,
@@ -398,6 +408,14 @@ __all__ = [
     "WorkerSerenaSettings",
     "WorkerSettingsApplyError",
     "apply_worker_serena_settings",
+    "DEFAULT_INSTANCES_ROOT",
+    "InstanceHealthState",
+    "InstanceOrchestrationOutcome",
+    "InstanceResultCode",
+    "LocalInstance",
+    "LocalInstanceOrchestrator",
+    "discover_local_instances",
+    "instance_health_state",
     "DurableJobControlService",
     "DurableJobExecutionCoordinator",
     "DurableJobStore",
