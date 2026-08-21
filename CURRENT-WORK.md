@@ -1,10 +1,10 @@
 # A-Conductor — Current Work
 
-Last updated: 2026-08-21 (session 6, WO-P1-055 verified)
+Last updated: 2026-08-21 (session 6b, WO-P1-056 verified)
 
 ## Current phase
 
-**Second Brain Phase 1 delivered + usability/onboarding polish. WO-P1-055 verified; Phase 2 backlog is next.**
+**Phase 1 delivered. Phase 2 usability bridge started: WO-P1-056 activation-prompt helper verified; onboarding memory warning is next.**
 
 ## Session 5 summary (WO-P1-052 + WO-P1-053, PRs #18-#24, all CI-green, main `c40c1d8`)
 
@@ -40,6 +40,10 @@ Verification:
 
 Environment note: Sunday-Conducter inherited stale PyInstaller `TCL_LIBRARY`/`TK_LIBRARY` values pointing to an expired `_MEI...` directory. Tk verification succeeded using Python 3.13 with command-scoped Tcl/Tk overrides and custom `--basetemp`; no machine-wide environment or tunnel/worker config was changed.
 
+## Session 6b — WO-P1-056 Activation Prompt Helper
+
+Reuse/A-Wiki gate completed before implementation: A-Wiki `main` at `1d784254...`, clean, no active claims, no active A-Wiki work-order conflict. Added project-scoped `Activate` helper in PROJECTS: copies the exact Serena canonical activation sentence plus selected project path to clipboard; no automatic activation or target-repo mutation. Added tooltip + guide wording. TDD evidence: 4 RED before implementation → 4 GREEN; desktop UI **40 passed**; full suite **812 passed**.
+
 ## Next safe action
 
-Phase 2 backlog triage + reuse gate, then open the next bounded work order before implementation. Existing candidates from the approved plan/handoff are: MCP gateway enforcement, CONNECTORS rebind UI, onboarding warnings for missing memory, and activation-prompt helper. Prefer deterministic/small-scope work first; escalate only genuinely cross-cutting architecture work.
+Open a bounded work order for the documented Serena onboarding warning: surface whether the selected project has `.serena/memories` and explain that onboarding triggers when no memories exist, with a `start new conversation` nudge after onboarding. Reuse existing project registry/UI; do not create a new memory store. MCP gateway remains `DECISION_REQUIRED`; CONNECTORS rebind remains deferred behind its user-gated decision.

@@ -1,14 +1,14 @@
 # HANDOFF — A-Conductor
 
-Last updated: 2026-08-21 (session 6, WO-P1-055 verified)
+Last updated: 2026-08-21 (session 6b, WO-P1-056 verified)
 
 ## Current objective
 
-Phase 1 Second Brain + usability/onboarding polish is delivered. WO-P1-055 UI status/error polish is verified. Next work should enter Phase 2 through a fresh reuse-gated work order.
+Phase 1 is delivered. WO-P1-056 starts the Phase 2 usability bridge by reducing Serena project-activation friction. Next bounded item is the documented onboarding memory warning.
 
 ## Status
 
-`COMPLETE` for WO-P1-055. Phase 2 backlog remains `NOT_STARTED`.
+`COMPLETE` for WO-P1-056. Phase 2 task-router architecture remains `NOT_STARTED`; small deterministic UI bridge work is proceeding separately.
 
 ## Current repository state
 
@@ -24,6 +24,7 @@ Phase 1 Second Brain + usability/onboarding polish is delivered. WO-P1-055 UI st
 - WO-P1-053 usability overhaul shipped.
 - WO-P1-054 onboarding/Tunnel ID/AI connection guide shipped.
 - WO-P1-055 completed: slow ONLINE pulse + themed Thai teaching error popup; cleanup of duplicate error logging, hard-coded pulse color, obsolete `messagebox` import, and stray debug marker.
+- WO-P1-056 completed: selected-project `Activate` helper copies the exact canonical Serena activation sentence plus project path; tooltip + user-guide instructions added; no automatic activation.
 
 ## Evidence
 
@@ -59,9 +60,16 @@ No machine-wide environment, live connector, worker, or tunnel configuration was
 - MCP gateway enforcement — `NOT_STARTED`
 - CONNECTORS rebind UI — `NOT_STARTED`
 - onboarding warning when expected memory is absent — `NOT_STARTED`
-- activation-prompt helper — `NOT_STARTED`
+- activation-prompt helper — `DONE` (WO-P1-056)
 - rebuild/reinstall installed A-Conductor executable after the desired feature checkpoint — `NOT_STARTED`
 
 ## Next safe action
 
-Read the Phase 2 section of `PROJECT-PLAN.md` plus `docs/contracts/a-wiki-a-conductor-integration.md`; classify the four backlog candidates as REUSE / WRAP / EXTEND / REPLACE / NEW, then open one bounded work order for the smallest deterministic item.
+Open WO-P1-057 for the Serena onboarding memory warning using existing project paths and `.serena/memories` presence only. Keep A-Wiki as memory authority; this is a UI/read-only status projection, not a new memory store. Preserve MCP gateway as `DECISION_REQUIRED` and do not start CONNECTORS rebind until its user-gated decision is resolved.
+
+## WO-P1-056 evidence
+
+- Focused TDD: 4 RED before implementation → **4 passed** after implementation.
+- Desktop UI regression: **40 passed**.
+- Full suite: **812 passed**.
+- A-Wiki gate: clean `main` `1d784254...`, no active claims/work-order conflicts.

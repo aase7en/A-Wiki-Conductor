@@ -777,7 +777,7 @@ def test_all_primary_buttons_have_tooltips(root) -> None:
     for name in (
         "add_button", "assign_button", "release_button", "refresh_button",
         "start_button", "stop_button", "restart_button", "setup_button",
-        "config_button", "help_button",
+        "config_button", "activate_button", "help_button",
     ):
         button = getattr(app, name)
         tip = getattr(button, "_acond_tooltip", None)
@@ -798,8 +798,41 @@ def test_add_and_assign_live_in_projects_panel(root) -> None:
     list_panel = panel_of(app.project_list)
     release_panel = panel_of(panel_of(app.release_button))
 
+    activate_panel = panel_of(panel_of(app.activate_button))
+
     assert add_panel is list_panel
+    assert activate_panel is list_panel
     assert release_panel is not list_panel
+
+
+def test_activate_helper_copies_selected_project_prompt(root) -> None:
+    app = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+    app.project_list.selection_set(0)
+
+    app.copy_activation_prompt()
+
+    copied = root.clipboard_get()
+    assert copied == (
+        "Activate the current dir as project using serena\n"
+        r"Project path: A:\GitHub\A-Wiki"
+    )
+    assert "Copy Activate" in app.activity_text.get("1.0", "end")
+
+
+def test_activate_helper_requires_selected_project(root) -> None:
+    captured: list[str] = []
+    app = AConductorDesktopApp(
+        root,
+        service=FakeService(sample_snapshot()),
+        background_executor=ImmediateExecutor(),
+        error_handler=captured.append,
+    )
+
+    app.copy_activation_prompt()
+
+    assert captured == ["SELECT_PROJECT"]
 
 
 def test_worker_start_routes_to_matching_connector(root) -> None:
