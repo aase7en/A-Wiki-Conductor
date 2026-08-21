@@ -129,6 +129,14 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "ทำอย่างไร: ปิดโปรแกรมซ้ำแล้วลองใหม่",
         ),
     ),
+    "REBIND_NOT_AVAILABLE": (
+        "ระบบเปลี่ยนโปรเจกต์ยังไม่พร้อม",
+        ("เกิดเมื่อ service ยังไม่ถูกเชื่อม (กรณีทดสอบ)",),
+    ),
+    "REBIND_FAILED": (
+        "เปลี่ยนโปรเจกต์ไม่สำเร็จ",
+        ("ดูรายละเอียดใน ACTIVITY / LOG", "ไฟล์เดิมถูกสำรองเป็น .bak ไว้แล้ว"),
+    ),
     "PREFERENCES_NOT_AVAILABLE": (
         "ระบบการตั้งค่ารวมยังไม่พร้อม",
         ("เกิดเมื่อ service ตั้งค่ายังไม่ถูกเชื่อม (กรณีทดสอบ)", "ในโปรแกรมปกติไม่ควรเจอ"),
@@ -744,6 +752,14 @@ class AConductorDesktopApp:
             "วาง Tunnel ID (tunnel_...) ของตัวเชื่อมที่เลือก — สำหรับผู้ใช้ใหม่\nดูวิธีขอ ID ได้ในปุ่ม คู่มือ หมวด 'เชื่อมต่อ AI แต่ละค่าย'",
             self.theme,
         )
+        self.rebind_button = self._button(
+            instance_actions, "เปลี่ยนโปรเจกต์", self.open_rebind_dialog
+        )
+        _attach_tip(
+            self.rebind_button,
+            "เปลี่ยนโปรเจกต์ที่ตัวเชื่อมที่เลือกทำงานด้วย\nสำรองไฟล์เดิมเป็น .bak อัตโนมัติ · มีผลหลัง restart ตัวเชื่อม",
+            self.theme,
+        )
         for index, button in enumerate(
             (
                 self.instance_start_button,
@@ -753,6 +769,7 @@ class AConductorDesktopApp:
                 self.instance_rescan_button,
                 self.brain_button,
                 self.tunnel_button,
+                self.rebind_button,
             )
         ):
             button.grid(row=index // 4, column=index % 4, padx=(0, 6), pady=(0, 3), sticky="w")
@@ -2121,6 +2138,75 @@ class AConductorDesktopApp:
             self._tunnel_status.configure(
                 text="รูปแบบยังไม่ถูก (tunnel_ + 32 ตัวอักษร)", fg=self.theme.error
             )
+
+    def open_rebind_dialog(self) -> tk.Toplevel | None:
+        name = self._selected_instance_name()
+        if name is None:
+            self._handle_error("SELECT_INSTANCE")
+            return None
+        rebind_fn = getattr(self.service, "rebind_instance", None)
+        if not callable(rebind_fn):
+            self._handle_error("REBIND_NOT_AVAILABLE")
+            return None
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"A-Conductor — เปลี่ยนโปรเจกต์ — {name}")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=16, pady=14)
+        frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            frame,
+            text=f"> เปลี่ยนโปรเจกต์ของ {name}",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        tk.Label(
+            frame,
+            text="พาธโปรเจกต์ใหม่ (ต้องมีอยู่จริงในเครื่อง)\nสำรองไฟล์เดิมเป็น .bak อัตโนมัติ · มีผลหลัง restart ตัวเชื่อม",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        self._rebind_entry = ttk.Entry(frame, width=64)
+        self._rebind_entry.grid(row=2, column=0, sticky="ew", pady=2)
+        self._button(
+            frame,
+            "เลือกโฟลเดอร์...",
+            lambda: self._rebind_entry.insert(0, self._directory_picker()),
+        ).grid(row=2, column=1, sticky="w", padx=(6, 0))
+        self._rebind_status = tk.Label(
+            frame, text="", bg=self.theme.panel, fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        )
+        self._rebind_status.grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+        def do_rebind():
+            value = self._rebind_entry.get().strip()
+            try:
+                result = rebind_fn(name, value)
+            except Exception:
+                self._handle_error("REBIND_FAILED")
+                return
+            if result != "REBOUND":
+                self._rebind_status.configure(
+                    text=f"ผลลัพธ์: {result} (ยังไม่ได้เปลี่ยน)", fg=self.theme.warning
+                )
+                return
+            self.log_activity(f"Rebind       {name} -> {value} (restart ตัวเชื่อมเพื่อให้มีผล)")
+            if dialog.winfo_exists():
+                dialog.destroy()
+            self.refresh_instances()
+
+        self._button(frame, "เปลี่ยนเลย", do_rebind).grid(row=4, column=0, sticky="w", pady=(12, 0))
+        self._button(
+            frame, "ยกเลิก", lambda: dialog.destroy() if dialog.winfo_exists() else None
+        ).grid(row=4, column=1, sticky="w", pady=(12, 0))
+        return dialog
 
     def open_tunnel_id_dialog(self) -> tk.Toplevel | None:
         name = self._selected_instance_name()

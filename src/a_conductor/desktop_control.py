@@ -217,6 +217,20 @@ class DesktopControlService:
     def lifecycle_readiness(self, worker_id: str) -> SetupReadiness:
         return self._require_runtime_setup().lifecycle_readiness(worker_id)
 
+    def rebind_instance(self, instance_name: str, new_project_root: str) -> str:
+        """Rebind a connector to a different project (backed up, confined)."""
+        from .instance_rebind import rebind_instance_project
+
+        target = next(
+            (item for item in self.instances() if item.name == instance_name), None
+        )
+        if target is None:
+            raise SerenaConfigStoreError("INSTANCE_NOT_FOUND")
+        try:
+            return rebind_instance_project(target, self.instances_root, new_project_root)
+        except RuntimeError as exc:
+            raise SerenaConfigStoreError(str(exc)) from exc
+
     def set_instance_tunnel_id(self, instance_name: str, tunnel_id: str) -> Path:
         """Write a validated Tunnel ID into the instance's config dir (in-app setup)."""
         from .local_instances import _TUNNEL_ID_RE

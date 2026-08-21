@@ -390,3 +390,88 @@ def test_facade_set_instance_tunnel_id_validates_and_writes(tmp_path: Path) -> N
         assert "INSTANCE_NOT_FOUND" in str(exc)
     else:
         raise AssertionError("missing instance accepted")
+
+
+def make_full_instance_dir(root: Path, folder: str, project: str) -> Path:
+    instance_root = make_instance_dir(root, folder, project=project)
+    template = instance_root / "profiles" / "serena-demo.yaml.template"
+    template.parent.mkdir(parents=True, exist_ok=True)
+    template.write_text(
+        "config_version: 1\n"
+        '  tunnel_id: "__TUNNEL_ID__"\n'
+        "mcp:\n"
+        "  commands:\n"
+        "    - channel: main\n"
+        f"      command: 'serena start-mcp-server --context chatgpt --project {project.replace(chr(92), '/')} --enable-web-dashboard false'\n",
+        encoding="utf-8",
+    )
+    return instance_root
+
+
+def _to_fwd(path: str) -> str:
+    return path.replace(chr(92), "/")
+
+
+def test_rebind_instance_project_rewrites_both_files(tmp_path: Path) -> None:
+    from a_conductor.instance_rebind import rebind_instance_project
+
+    real_new = tmp_path / "new-project"
+    real_new.mkdir()
+    make_full_instance_dir(tmp_path, "demo", r"A:\GitHub\old-project")
+    instances = {i.name: i for i in discover_local_instances(tmp_path)}
+    assert instances["Serena-Demo"].project_path == r"A:\GitHub\old-project"
+
+    result = rebind_instance_project(instances["Serena-Demo"], tmp_path, str(real_new))
+
+    assert result == "REBOUND"
+    ps1 = (tmp_path / "demo" / "instance.ps1").read_text(encoding="utf-8")
+    template = (tmp_path / "demo" / "profiles" / "serena-demo.yaml.template").read_text(encoding="utf-8")
+    assert f"$ProjectPath = '{real_new}'" in ps1
+    assert _to_fwd(str(real_new)) in template
+    assert r"A:\GitHub\old-project" not in ps1
+
+    # backups exist
+    assert (tmp_path / "demo" / "instance.ps1.bak").is_file()
+    assert (tmp_path / "demo" / "profiles" / "serena-demo.yaml.template.bak").is_file()
+
+    # discovery reflects the new binding
+    refreshed = {i.name: i for i in discover_local_instances(tmp_path)}
+    assert refreshed["Serena-Demo"].project_path == str(real_new)
+
+
+def test_rebind_idempotent_same_project(tmp_path: Path) -> None:
+    from a_conductor.instance_rebind import rebind_instance_project
+
+    same_dir = tmp_path / "same"
+    same_dir.mkdir()
+    make_full_instance_dir(tmp_path, "demo", str(same_dir))
+    instance = {i.name: i for i in discover_local_instances(tmp_path)}["Serena-Demo"]
+
+    result = rebind_instance_project(instance, tmp_path, str(same_dir))
+    assert result == "SKIPPED_SAME_PROJECT"
+    assert not (tmp_path / "demo" / "instance.ps1.bak").exists()
+
+
+def test_rebind_guards(tmp_path: Path) -> None:
+    from a_conductor.instance_rebind import rebind_instance_project
+
+    make_full_instance_dir(tmp_path, "demo", r"A:\GitHub\old")
+    instance = {i.name: i for i in discover_local_instances(tmp_path)}["Serena-Demo"]
+
+    # outside root
+    try:
+        rebind_instance_project(instance, tmp_path / "elsewhere", str(tmp_path))
+    except RuntimeError as exc:
+        assert "INSTANCE_OUTSIDE_ROOT" in str(exc)
+    else:
+        raise AssertionError("outside root accepted")
+
+    # non-absolute new path
+    assert rebind_instance_project(instance, tmp_path, "relative/path") == "SKIPPED_PATH_INVALID"
+
+    # nonexistent new path
+    assert rebind_instance_project(instance, tmp_path, str(tmp_path / "nope")) == "SKIPPED_PATH_NOT_FOUND"
+
+    # missing template file
+    (tmp_path / "demo" / "profiles" / "serena-demo.yaml.template").unlink()
+    assert rebind_instance_project(instance, tmp_path, str(tmp_path)) == "TEMPLATE_MISSING"

@@ -1132,3 +1132,56 @@ def test_preferences_button_in_header_gated(root) -> None:
         background_executor=ImmediateExecutor(),
     )
     assert not wired.prefs_button.instate(["disabled"])
+
+
+class RebindFakeService(FakeInstanceService):
+    def __init__(self, snapshot):
+        super().__init__(snapshot)
+        self.rebinds: list[tuple[str, str]] = []
+
+    def rebind_instance(self, name, new_root):
+        self.rebinds.append((name, new_root))
+        return "REBOUND"
+
+
+def test_rebind_dialog_success_and_blocked(root, tmp_path) -> None:
+    service = RebindFakeService(sample_snapshot())
+    codes: list[str] = []
+    app = AConductorDesktopApp(
+        root,
+        service=service,
+        background_executor=ImmediateExecutor(),
+        error_handler=codes.append,
+        directory_picker=lambda: str(tmp_path / "newp"),
+    )
+    app.refresh_instances()
+    root.update()
+    row = app._instance_rows["Serena-Alpha"]
+    app.instance_tree.selection_set(row)
+    app.instance_tree.focus(row)
+
+    dialog = app.open_rebind_dialog()
+    assert dialog is not None
+    app._rebind_entry.insert(0, str(tmp_path / "newp"))
+
+    def find_btn(parent, label):
+        for c in parent.winfo_children():
+            if isinstance(c, ttk.Button) and c.cget("text") == label:
+                return c
+            n = find_btn(c, label)
+            if n is not None:
+                return n
+        return None
+
+    find_btn(dialog, "เปลี่ยนเลย").invoke()
+    assert ("Serena-Alpha", str(tmp_path / "newp")) in service.rebinds
+    assert not dialog.winfo_exists()
+
+    # blocked case (same project)
+    service.rebind_instance = lambda n, r: "SKIPPED_SAME_PROJECT"
+    dialog2 = app.open_rebind_dialog()
+    app._rebind_entry.insert(0, str(tmp_path / "same"))
+    find_btn(dialog2, "เปลี่ยนเลย").invoke()
+    assert "SKIPPED_SAME_PROJECT" in app._rebind_status.cget("text")
+    assert dialog2.winfo_exists()
+    dialog2.destroy()
