@@ -29,7 +29,7 @@ a-conductor          # เปิดโปรแกรม
 ```
 ┌ A-CONDUCTOR                                [คู่มือ]     ● ONLINE ┐
 ├ PROJECTS (ซ้าย)  │  WORKERS (ขวา) — ตาราง WORKER/STATE/PROJECT/PATH
-│                  │  ปุ่ม: Add Project / Assign / Release / Refresh
+│                  │  ปุ่ม: Add Project / Assign / Activate / Release / Refresh
 │                  │        Start / Stop / Restart / Setup / Config
 ├ CONNECTORS — INSTANCE / PORT / STATE / PROJECT / AUTO
 │  ปุ่ม: Start / Stop / Start All / Toggle Auto / Rescan
@@ -62,7 +62,14 @@ a-conductor          # เปิดโปรแกรม
 
 > ถ้าแถบนี้ว่างเปล่า = เครื่องยังไม่มี instance ตามโครงสร้าง `C:\AI\serena-instances\` — ดูหัวข้อ 7
 
-### 4.4 ปุ่มคู่มือ
+### 4.4 Activate โปรเจกต์ใน AI chat
+1. คลิกเลือกโปรเจกต์ในกล่อง **PROJECTS**
+2. กด **Activate** → โปรแกรมจะคัดลอก prompt มาตรฐานของ Serena พร้อม path ของโปรเจกต์นั้น
+3. ไปที่ AI chat ที่เชื่อม Serena แล้ววางข้อความที่คัดลอก เช่นบรรทัดแรกจะเป็น `Activate the current dir as project using serena`
+
+> ปุ่มนี้ช่วยคัดลอกข้อความเท่านั้น — A-Conductor ไม่ activate Serena แทน agent และไม่แก้ไฟล์ในโปรเจกต์
+
+### 4.5 ปุ่มคู่มือ
 มุมขวาบนมีปุ่ม **คู่มือ** — เปิดคู่มือฉบับนี้ได้ทันทีจากในโปรแกรม (ไม่มีคีย์ลัดที่ต้องจำ ทุกอย่างกดปุ่มได้เลย)
 
 ## 5. ฐานข้อมูล/ไฟล์ของโปรแกรมอยู่ไหน

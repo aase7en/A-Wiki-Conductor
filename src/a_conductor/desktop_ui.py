@@ -68,6 +68,9 @@ def find_icon_path() -> Path | None:
     return None
 
 
+SERENA_ACTIVATION_PROMPT = "Activate the current dir as project using serena"
+
+
 ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
     "SELECT_WORKER": (
         "ยังไม่ได้เลือก Worker",
@@ -191,6 +194,13 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
         (
             "กรณีภายใน",
             "ลองใหม่อีกครั้ง",
+        ),
+    ),
+    "CLIPBOARD_COPY_FAILED": (
+        "คัดลอกข้อความไม่สำเร็จ",
+        (
+            "Clipboard ของ Windows ไม่พร้อมใช้งานในขณะนี้",
+            "ทำอย่างไร: ลองกด Activate ใหม่อีกครั้ง",
         ),
     ),
     "GUIDE_NOT_FOUND": (
@@ -394,6 +404,7 @@ class AConductorDesktopApp:
         )
         self._owns_background_executor = background_executor is None
         self._project_ids: list[str] = []
+        self._project_paths: dict[str, str] = {}
         self._worker_ids: dict[str, str] = {}
         self._setup_entries: dict[str, ttk.Entry] = {}
         self._setup_draft: WorkerSetupDraft | None = None
@@ -549,7 +560,13 @@ class AConductorDesktopApp:
         _attach_tip(self.add_button, "เพิ่มโปรเจกต์จากโฟลเดอร์ในเครื่อง (ไม่แตะไฟล์ในโปรเจกต์)", self.theme)
         self.assign_button = self._button(project_actions, "Assign", self.assign_selected)
         _attach_tip(self.assign_button, "ย้ายโปรเจกต์ที่เลือกไปยัง Worker ที่เลือก (เลือก Worker ทางขวาก่อน)", self.theme)
-        for index, button in enumerate((self.add_button, self.assign_button)):
+        self.activate_button = self._button(project_actions, "Activate", self.copy_activation_prompt)
+        _attach_tip(
+            self.activate_button,
+            "คัดลอก prompt สำหรับ activate โปรเจกต์ที่เลือก แล้วนำไปวางใน AI chat ที่เชื่อม Serena",
+            self.theme,
+        )
+        for index, button in enumerate((self.add_button, self.assign_button, self.activate_button)):
             button.grid(row=0, column=index, padx=(0, 6), sticky="w")
 
         worker_panel = self._panel(body, "WORKERS")
@@ -768,8 +785,10 @@ class AConductorDesktopApp:
         selected_project = self.selected_project_id()
         self.project_list.delete(0, "end")
         self._project_ids.clear()
+        self._project_paths.clear()
         for project in snapshot.projects:
             self._project_ids.append(project.project_id)
+            self._project_paths[project.project_id] = project.root_path
             self.project_list.insert("end", f"> {project.display_name}\n  {project.root_path}")
         if selected_project in self._project_ids:
             index = self._project_ids.index(selected_project)
@@ -826,6 +845,26 @@ class AConductorDesktopApp:
             return None
         index = int(selected[0])
         return self._project_ids[index] if index < len(self._project_ids) else None
+
+    def copy_activation_prompt(self) -> str | None:
+        project_id = self.selected_project_id()
+        if project_id is None:
+            self._handle_error("SELECT_PROJECT")
+            return None
+        root_path = self._project_paths.get(project_id)
+        if not root_path:
+            self._handle_error("SELECT_PROJECT")
+            return None
+        prompt = f"{SERENA_ACTIVATION_PROMPT}\nProject path: {root_path}"
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(prompt)
+            self.root.update_idletasks()
+        except tk.TclError:
+            self._handle_error("CLIPBOARD_COPY_FAILED")
+            return None
+        self.log_activity(f"Copy Activate {project_id}")
+        return prompt
 
     def selected_worker_id(self) -> str | None:
         selected = self.worker_tree.selection()

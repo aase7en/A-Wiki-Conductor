@@ -1,67 +1,106 @@
 # HANDOFF — A-Conductor
 
-Last updated: 2026-08-21 (session 6, WO-P1-055 verified)
+Last updated: 2026-08-22 (GLM 5.3 resume checkpoint)
 
 ## Current objective
 
-Phase 1 Second Brain + usability/onboarding polish is delivered. WO-P1-055 UI status/error polish is verified. Next work should enter Phase 2 through a fresh reuse-gated work order.
+Finish WO-P1-056 by safely merging PR #27, then continue with WO-P1-057 Serena onboarding / memory-presence warning.
 
 ## Status
 
-`COMPLETE` for WO-P1-055. Phase 2 backlog remains `NOT_STARTED`.
+`REVIEW_PENDING` for WO-P1-056 until PR #27 is actually merged.
+
+## Resume authority
+
+Do not trust chat memory as the task source of truth.
+
+Use:
+
+`actual repo/GitHub state -> CURRENT-WORK.md -> handoff.md -> active work order -> PROJECT-PLAN/contracts`
 
 ## Current repository state
 
+Verified before this doc-only checkpoint:
+
 - Project: `A-Wiki-Conductor`
 - Worktree: `A:\GitHub\A-Wiki-Conductor`
-- Branch during WO-P1-055: `chunk/p1-055-alive-status-themed-errors`
-- Baseline HEAD before WO-P1-055 edits: `2a24c5b5e59c2453add53ad2e957c3616e1327c6`
-- Pending WO-P1-055 files at handoff: `src/a_conductor/desktop_ui.py`, `tests/test_desktop_ui.py`, `docs/work-orders/WO-P1-055-alive-status-themed-errors.md`, `CURRENT-WORK.md`, `handoff.md`
+- Branch: `chunk/p1-056-activation-prompt-helper`
+- HEAD: `8571dbde8a13e34e3b8eadf29032c7a6655181ff`
+- Working tree: clean before this SSoT update
+- PR #27: `OPEN`
+- Merge state: `CLEAN`
+- CI `test`: `SUCCESS`
+
+Preserve any doc-only dirty state created by this checkpoint. Do not reset/clean/stash blindly.
 
 ## Completed
 
-- WO-P1-052 Second Brain Phase 1 shipped.
-- WO-P1-053 usability overhaul shipped.
-- WO-P1-054 onboarding/Tunnel ID/AI connection guide shipped.
-- WO-P1-055 completed: slow ONLINE pulse + themed Thai teaching error popup; cleanup of duplicate error logging, hard-coded pulse color, obsolete `messagebox` import, and stray debug marker.
-
-## Evidence
-
-- WO-P1-055 `git diff --check`: clean.
-- Desktop UI targeted suite: **38 passed**.
-- First full suite: 809 passed / 1 timing failure in `test_timeout_leaves_durable_running_execution_then_retry_attaches`; isolated rerun passed.
-- Verification full suite: **810 passed**.
-- 29 statically emitted `_handle_error("CODE")` values have explanation coverage.
-
-## Known environment issue
-
-Sunday-Conducter inherited stale PyInstaller `TCL_LIBRARY` and `TK_LIBRARY` values pointing to an expired `%LOCALAPPDATA%\Temp\_MEI...` directory. This made Tk tests skip and the default pytest temp cleanup had previously hit `WinError 5` on `pytest-current`.
-
-Safe verification workaround used only for test commands:
-
-- Python 3.13 at `C:\Users\aase7\AppData\Local\Programs\Python\Python313\python.exe`
-- command-scoped `TCL_LIBRARY=...\Python313\tcl\tcl8.6`
-- command-scoped `TK_LIBRARY=...\Python313\tcl\tk8.6`
-- custom `--basetemp=%LOCALAPPDATA%\A-Conductor\...`
-
-No machine-wide environment, live connector, worker, or tunnel configuration was changed.
-
-## Do Not Do
-
-- Do not treat the inherited `_MEI...` Tcl/Tk paths as valid persistent runtime configuration.
-- Do not modify Serena core merely to expose Phase 2 UI behavior.
-- Do not duplicate A-Wiki coordination/memory primitives; apply the reuse-before-build contract first.
-- Do not redesign unrelated orchestration while implementing a bounded Phase 2 item.
-
-## TODO
-
-- Phase 2 reuse/backlog triage — `NOT_STARTED`
-- MCP gateway enforcement — `NOT_STARTED`
-- CONNECTORS rebind UI — `NOT_STARTED`
-- onboarding warning when expected memory is absent — `NOT_STARTED`
-- activation-prompt helper — `NOT_STARTED`
-- rebuild/reinstall installed A-Conductor executable after the desired feature checkpoint — `NOT_STARTED`
+- WO-P1-052 — Second Brain Phase 1 shipped.
+- WO-P1-053 — usability overhaul shipped.
+- WO-P1-054 — onboarding/Tunnel ID/AI connection guide shipped.
+- WO-P1-055 — alive status + themed teaching errors shipped; PR #26 merged.
+- WO-P1-056 implementation complete and verified locally:
+  - focused TDD: 4 RED -> 4 passed,
+  - desktop UI: 40 passed,
+  - full suite: 812 passed.
 
 ## Next safe action
 
-Read the Phase 2 section of `PROJECT-PLAN.md` plus `docs/contracts/a-wiki-a-conductor-integration.md`; classify the four backlog candidates as REUSE / WRAP / EXTEND / REPLACE / NEW, then open one bounded work order for the smallest deterministic item.
+### 1. Resolve PR #27
+
+Re-run:
+- `git status --short`
+- `git branch --show-current`
+- `git rev-parse HEAD`
+- `gh pr view 27`
+- `gh pr checks 27`
+
+If still green + mergeable:
+1. preserve/commit this SSoT documentation checkpoint if needed,
+2. ensure intended docs/state are on PR #27,
+3. merge #27,
+4. sync `main`,
+5. verify clean state,
+6. mark WO-P1-056 `COMPLETE` with merge evidence.
+
+### 2. Open WO-P1-057
+
+Title intent: **Serena Onboarding / Memory Presence Warning**.
+
+Bounded scope:
+- use selected project path already known by A-Conductor,
+- read-only check of `.serena/memories/`,
+- indicate when no usable Serena memory is present,
+- explain onboarding is expected when memories are absent,
+- nudge user to start a new AI conversation after onboarding,
+- UI/read-only projection only,
+- no new memory DB/store,
+- no target-repository mutation,
+- TDD + targeted/full tests + PR/CI.
+
+Grounding: `docs/references/serena-fulldoc-implications.md`.
+
+## Do Not Do
+
+- Do not implement MCP gateway hard enforcement; it remains `DECISION_REQUIRED`.
+- Do not start CONNECTORS rebind until its user-gated decision is resolved.
+- Do not duplicate A-Wiki planner/work-order/claim/memory/orchestration primitives.
+- Do not modify Serena core for this UI feature.
+- Do not restart worker/tunnel just to work around inherited Tcl/Tk test environment.
+
+## Test-environment note
+
+A previous Sunday-Conducter process inherited stale PyInstaller `TCL_LIBRARY` / `TK_LIBRARY` pointing to an expired `_MEI...` path.
+
+Known safe verification approach:
+- Python 3.13: `C:\Users\aase7\AppData\Local\Programs\Python\Python313\python.exe`
+- command-scoped Tcl/Tk paths from that Python install,
+- custom `--basetemp=%LOCALAPPDATA%\A-Conductor\...`
+
+Do not alter machine-wide environment unless separately authorized.
+
+## Escalation
+
+GLM 5.3 owns routine implementation, TDD, regression, docs, PR/CI, and merge work.
+
+If a genuinely hard/cross-cutting defect or architecture ambiguity blocks safe progress, stop only that micro-step, checkpoint state, and produce a bounded prompt for **GPT-5.6 Sol UltraHigh**. Do not escalate routine work.

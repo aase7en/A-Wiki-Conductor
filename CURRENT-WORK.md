@@ -1,45 +1,93 @@
 # A-Conductor — Current Work
 
-Last updated: 2026-08-21 (session 6, WO-P1-055 verified)
+Last updated: 2026-08-22 (GLM 5.3 resume checkpoint)
 
 ## Current phase
 
-**Second Brain Phase 1 delivered + usability/onboarding polish. WO-P1-055 verified; Phase 2 backlog is next.**
+**Phase 1 delivered. WO-P1-056 implementation is verified and PR #27 is CI-green but not merged yet. Merge #27 first, then start WO-P1-057.**
 
-## Session 5 summary (WO-P1-052 + WO-P1-053, PRs #18-#24, all CI-green, main `c40c1d8`)
+## Source-of-truth rule
 
-- **Second Brain (WO-P1-052)**: plan file (SSoT) → settings `brain_folders`/`brain_entry_files` → renderer `system_prompt` index injection (Index+Pull, no contents) → **Second Brain dialog** (global profile, A-Wiki defaults) → **materialize-on-start** (append-only, safe for validated configs; verified on a temp copy of the live instance).
-- **SerenaDoc**: all 34 files read; durable implications in `docs/references/serena-fulldoc-implications.md` (chatgpt context = multi-project switching via activation prompt; onboarding context cost; dashboard port instability; serena-hooks; trusted-projects gate; slow per-language readiness; git staging side effects).
-- **Usability overhaul (WO-P1-053)** from the user's 8 trial issues: tooltips everywhere + ONLINE/OFFLINE explained; quick-start 3-step hint bar; **in-app guide viewer**; Add/Assign in PROJECTS panel; scrollbars + wrapping rows + larger minsize; brain button สมอง + folder; **connector-aware Start** (root-caused: Start needed runtime setup; now the worker's Start routes to the matching CONNECTOR — works out of the box) + CONNECTOR column linking workers↔instances.
+Do **not** reconstruct task state from chat memory.
 
-## Session 5 evidence
+For resume, use in this order:
+1. actual repository / GitHub state,
+2. `CURRENT-WORK.md`,
+3. `handoff.md`,
+4. active `docs/work-orders/WO-*.md`,
+5. `PROJECT-PLAN.md` + binding contracts/ADRs.
 
-- Full suite **801 passed**; smoke `A-CONDUCTOR_SMOKE_OK projects=0 workers=3` on merged main.
-- Real-machine: brain injection verified on temp copy (live untouched, idempotent).
+## Verified completed work
 
-## Session 5b addendum (WO-P1-054, PR #25)
+- WO-P1-052 — Second Brain Phase 1 shipped (Index+Pull brain profile, materialize-on-start).
+- WO-P1-053 — usability overhaul shipped.
+- WO-P1-054 — onboarding / Tunnel ID / AI connection guide shipped.
+- WO-P1-055 — ONLINE pulse + themed Thai teaching errors shipped via PR #26; merged main at `2d345eb`.
+- WO-P1-056 — Serena Activation Prompt Helper implementation verified locally:
+  - focused TDD: 4 RED -> 4 passed,
+  - desktop UI: 40 passed,
+  - full suite: 812 passed,
+  - no automatic Serena activation, no target-repo mutation.
 
-New-user onboarding shipped: in-app **ตั้ง Tunnel ID** (paste-validate-save, confined write), CONNECTORS **TUNNEL** column, USER-GUIDE **เชื่อมต่อ AI แต่ละค่าย** section (ChatGPT/OpenAI/Claude/Codex/Grok/Antigravity + security note), clickable links in the in-app guide viewer. Full suite 808 passed.
+## Current verified repository / PR state
 
-## Session 6 — WO-P1-055 Alive Status + Themed Teaching Errors
+Verified 2026-08-22 before this documentation checkpoint:
 
-Recovered a pre-existing partial working tree on branch `chunk/p1-055-alive-status-themed-errors` at baseline `2a24c5b5e59c2453add53ad2e957c3616e1327c6` and completed the bounded UI polish:
+- Repo: `A:\GitHub\A-Wiki-Conductor`
+- Branch: `chunk/p1-056-activation-prompt-helper`
+- HEAD: `8571dbde8a13e34e3b8eadf29032c7a6655181ff`
+- Working tree: clean before this SSoT doc update
+- PR #27: `OPEN`
+- Merge state: `CLEAN`
+- CI `test`: `SUCCESS`
 
-- slow semantic pulse for `ONLINE`; `OFFLINE` remains error-colored,
-- themed teaching error popup with Thai explanation + stable error code + next action,
-- 29 statically emitted `_handle_error("CODE")` values covered by the explanation table,
-- removed duplicate activity logging, moved dim-ready color into `DesktopTheme`, removed a stray debug marker,
-- removed obsolete `messagebox` import and tightened pulse assertions.
+Because this file/handoff are being updated after that check, preserve any doc-only dirty changes you see and do not reset/clean/stash them blindly.
 
-Verification:
+## GLM 5.3 — exact next work
 
-- `git diff --check`: clean,
-- targeted desktop UI: **38 passed**,
-- first full-suite run: 809 passed / 1 unrelated timing failure; isolated failing test passed,
-- verification full-suite rerun: **810 passed**.
+### Step 1 — close WO-P1-056 safely
 
-Environment note: Sunday-Conducter inherited stale PyInstaller `TCL_LIBRARY`/`TK_LIBRARY` values pointing to an expired `_MEI...` directory. Tk verification succeeded using Python 3.13 with command-scoped Tcl/Tk overrides and custom `--basetemp`; no machine-wide environment or tunnel/worker config was changed.
+1. Run identity gate:
+   - `git status --short`
+   - `git branch --show-current`
+   - `git rev-parse HEAD`
+2. Check current GitHub truth:
+   - `gh pr view 27`
+   - `gh pr checks 27`
+3. If PR #27 remains green + mergeable:
+   - preserve/commit this SSoT documentation checkpoint if needed,
+   - ensure PR #27 contains the intended docs/state,
+   - merge PR #27,
+   - switch/sync `main`,
+   - verify clean state.
+4. Mark WO-P1-056 `COMPLETE` only after merge evidence exists.
 
-## Next safe action
+### Step 2 — start WO-P1-057
 
-Phase 2 backlog triage + reuse gate, then open the next bounded work order before implementation. Existing candidates from the approved plan/handoff are: MCP gateway enforcement, CONNECTORS rebind UI, onboarding warnings for missing memory, and activation-prompt helper. Prefer deterministic/small-scope work first; escalate only genuinely cross-cutting architecture work.
+Create a bounded work order for **Serena Onboarding / Memory Presence Warning**.
+
+Approved scope:
+- selected project only,
+- read-only detection of `.serena/memories/` presence / usable memory,
+- explain that Serena onboarding triggers when no memories exist,
+- show a `start new conversation` nudge after onboarding,
+- reuse current project registry/path + existing UI,
+- no new memory store,
+- no mutation of target project,
+- TDD + targeted/full regression + PR/CI.
+
+Grounding: `docs/references/serena-fulldoc-implications.md`.
+
+## Mandatory boundaries
+
+- A-Wiki remains brain/policy/memory authority; do not duplicate its memory/work-order/claim/orchestration systems.
+- MCP gateway hard enforcement remains **`DECISION_REQUIRED`** — do not implement it yet.
+- CONNECTORS project rebind remains deferred behind its user-gated decision.
+- Do not restart workers/tunnels merely to fix test environment.
+- Keep work in resumable micro-steps and checkpoint `CURRENT-WORK.md` + `handoff.md` + active WO.
+
+## Escalation rule
+
+GLM 5.3 should do normal implementation/review itself.
+
+Only if a genuinely hard, cross-cutting bug or architecture ambiguity prevents a safe bounded decision, STOP that micro-step, preserve repo state, and write a focused escalation prompt for **GPT-5.6 Sol UltraHigh**. Do not escalate routine coding/tests/UI work.
