@@ -1,6 +1,6 @@
 # WO-P1-056: Serena Activation Prompt Helper
 
-Status: REVIEW_PENDING
+Status: complete
 Lane/files: `src/a_conductor/desktop_ui.py`, `tests/test_desktop_ui.py`, `docs/USER-GUIDE.md`, `docs/work-orders/WO-P1-056-activation-prompt-helper.md`, `CURRENT-WORK.md`, `handoff.md`
 Branch: `chunk/p1-056-activation-prompt-helper`
 Baseline HEAD: `2d345eb` (main after PR #26)
@@ -74,3 +74,5 @@ Verified 2026-08-22:
 - CI workflow `test`: `SUCCESS`
 
 Do not mark this work order `COMPLETE` until PR #27 is merged and the resulting `main` state is recorded.
+
+- [2026-08-22] CLOSED: PR #27 merged to main (`2aca60c`); CI SUCCESS and MERGEABLE re-verified immediately before merge.
