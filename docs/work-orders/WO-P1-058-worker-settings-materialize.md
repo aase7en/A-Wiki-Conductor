@@ -1,6 +1,6 @@
 # WO-P1-058: Materialize Per-Worker Engine Settings on Worker Start
 
-Status: in_progress
+Status: complete
 Lane/files: `src/a_conductor/desktop_control.py`, `tests/test_desktop_control.py`, `docs/work-orders/WO-P1-058-worker-settings-materialize.md`, `CURRENT-WORK.md`, `handoff.md`
 Branch: chunk/p1-058-worker-settings-materialize
 Model tier: high
@@ -30,5 +30,7 @@ The worker Config dialog's saved settings (language backend, tools, languages, t
 - No writes outside the configured serena_home. No blocking of worker start on settings failures. No A-Wiki duplication.
 
 ## Checkpoint log
+
+- [2026-08-22] Delivered via PR #29 (CI SUCCESS re-verified pre-merge, merged). Full suite 822 passed. Debug loop notes: missing os import; heredoc backslash-mangling on this Git Bash forced chr(92)-built test strings; store validation already rejects escaping configs so the fail-closed guard is covered by a rogue stub store.
 
 - [2026-08-22] Opened from main `cad4a32` (after WO-057 close + SSoT checkpoint).

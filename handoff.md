@@ -1,6 +1,6 @@
 # HANDOFF — A-Conductor
 
-Last updated: 2026-08-22 (GLM 5.3 resume session, post WO-057)
+Last updated: 2026-08-22 (GLM 5.3, post WO-058)
 
 ## Current objective
 
@@ -19,9 +19,9 @@ Use: `actual repo/GitHub state -> CURRENT-WORK.md -> handoff.md -> active work o
 ## Current repository state
 
 - Project: `A-Wiki-Conductor`, worktree `A:\GitHub\A-Wiki-Conductor`
-- Branch: `main`, HEAD `d2d8970` (merge of PR #28); tree clean apart from this SSoT commit
+- Branch: `main`, HEAD `f45e1cc` (merge of PR #29); PRs #27-#29 all merged
 - PRs #27 (activation prompt helper) and #28 (memory presence warning) merged, both CI-green and re-verified before merge
-- Full suite at merge time: 819 passed, 0 failed
+- Full suite at merge time: 822 passed, 0 failed. Exe rebuilt+reinstalled; automated smoke of fresh builds is blocked by ESET (AV) — interactive allow expected.
 
 ## Completed this session
 

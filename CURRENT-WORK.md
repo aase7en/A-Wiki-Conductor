@@ -1,10 +1,10 @@
 # A-Conductor — Current Work
 
-Last updated: 2026-08-22 (GLM 5.3 resume session, post WO-057)
+Last updated: 2026-08-22 (GLM 5.3, post WO-058)
 
 ## Current phase
 
-**WO-P1-056 and WO-P1-057 both merged. Phase 1 backlog is clear of open implementation work; next steps are user-gated decisions or a fresh milestone pick.**
+**User picks (a)+(k) delivered: exe rebuilt+reinstalled; WO-058 worker-settings materialization merged (PR #29 -> `f45e1cc`). Remaining: (b) DECISION_REQUIRED items — detailed explanations provided to the user in chat, awaiting their answers.**
 
 ## Source-of-truth rule
 
@@ -30,6 +30,11 @@ For resume, use in this order:
 
 - Branch: `main`, HEAD `d2d8970`, working tree clean (only this SSoT doc update pending commit).
 - All PRs #27/#28 merged; no open PRs.
+
+## Session addendum (post WO-058)
+
+- (a) Portable exe rebuilt from `cad4a32` (build exit 0, 13,056,554 bytes) and installed to `%LOCALAPPDATA%\Programs\A-Conductor`. **Constraint:** automated smoke blocked by ESET Security (the active AV; Defender is off) refusing fresh unsigned builds — interactive launch will prompt and the user can allow. Code itself verified by the full suite.
+- (k) WO-P1-058 merged via PR #29 (CI green, re-verified before merge): per-worker engine settings now materialize into SERENA_HOME on worker start (best-effort, fail-closed confinement). Full suite 822 passed.
 
 ## Next safe action (user picks)
 
