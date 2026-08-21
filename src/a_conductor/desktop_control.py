@@ -14,6 +14,16 @@ from .control_center import ControlCenterService
 from .lifecycle import LifecycleAction
 from .lifecycle_assembly import build_local_lifecycle_coordinator
 from .lifecycle_coordinator import LifecycleCoordinator
+from .local_instances import (
+    DEFAULT_INSTANCES_ROOT,
+    InstanceHealthState,
+    InstanceOrchestrationOutcome,
+    InstanceResultCode,
+    LocalInstance,
+    LocalInstanceOrchestrator,
+    discover_local_instances,
+    instance_health_state,
+)
 from .persistence import SQLiteRegistryStore
 from .runtime_setup import RuntimeSetupError, RuntimeSetupService, SetupReadiness, WorkerSetupDraft
 from .serena_config_store import SerenaConfigStoreError, SQLiteSerenaConfigStore
@@ -32,11 +42,15 @@ class DesktopControlService:
         lifecycle: LifecycleCommandService,
         runtime_setup: RuntimeSetupService | None = None,
         settings_store: SQLiteSerenaConfigStore | None = None,
+        instances_root: str | Path = DEFAULT_INSTANCES_ROOT,
+        instance_orchestrator: LocalInstanceOrchestrator | None = None,
     ) -> None:
         self.control_center = control_center
         self.lifecycle = lifecycle
         self.runtime_setup = runtime_setup
         self.settings_store = settings_store
+        self.instances_root = instances_root
+        self._instance_orchestrator = instance_orchestrator
 
     @classmethod
     def open(
@@ -148,3 +162,45 @@ class DesktopControlService:
         store = self._require_settings_store()
         store.save_worker_settings(settings)
         return settings
+
+    def instances(self) -> tuple[LocalInstance, ...]:
+        return discover_local_instances(self.instances_root)
+
+    def instance_states(self) -> tuple[tuple[LocalInstance, InstanceHealthState], ...]:
+        return tuple(
+            (instance, instance_health_state(instance))
+            for instance in self.instances()
+        )
+
+    def _orchestrator(self) -> LocalInstanceOrchestrator:
+        if self._instance_orchestrator is None:
+            self._instance_orchestrator = LocalInstanceOrchestrator(
+                instances_root=self.instances_root
+            )
+        return self._instance_orchestrator
+
+    def instance_action(
+        self, instance_name: str, action: str
+    ) -> InstanceOrchestrationOutcome:
+        if not isinstance(instance_name, str) or not instance_name.strip():
+            raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
+        if action not in ("start", "stop"):
+            raise SerenaConfigStoreError("INSTANCE_ACTION_INVALID")
+        target = next(
+            (item for item in self.instances() if item.name == instance_name), None
+        )
+        if target is None:
+            raise SerenaConfigStoreError("INSTANCE_NOT_FOUND")
+        orchestrator = self._orchestrator()
+        if action == "start":
+            return orchestrator.start(target)
+        return orchestrator.stop(target)
+
+    def set_instance_autostart(self, instance_name: str, enabled: bool) -> None:
+        self._require_settings_store().set_instance_autostart(instance_name, enabled)
+
+    def instance_autostart(self, instance_name: str) -> bool:
+        return self._require_settings_store().get_instance_autostart(instance_name)
+
+    def autostart_instance_names(self) -> tuple[str, ...]:
+        return self._require_settings_store().list_instance_autostart()

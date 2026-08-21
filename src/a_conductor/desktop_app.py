@@ -77,7 +77,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     root = tk.Tk()
-    AConductorDesktopApp(root, service=service)
+    app = AConductorDesktopApp(root, service=service)
+    app.start_background_operations()
     root.mainloop()
     return 0
 

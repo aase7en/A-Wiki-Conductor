@@ -151,6 +151,11 @@ class SQLiteSerenaConfigStore:
                         base_modes TEXT NOT NULL,
                         tool_timeout INTEGER NOT NULL CHECK (tool_timeout BETWEEN 1 AND 86400)
                     );
+
+                    CREATE TABLE IF NOT EXISTS instance_flags (
+                        instance_name TEXT PRIMARY KEY,
+                        autostart INTEGER NOT NULL CHECK (autostart IN (0, 1))
+                    );
                     """
                 )
                 row = connection.execute(
@@ -453,3 +458,44 @@ class SQLiteSerenaConfigStore:
             )
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             raise SerenaConfigStoreError("SETTINGS_ROW_CORRUPT") from exc
+
+    def set_instance_autostart(self, instance_name: str, enabled: bool) -> None:
+        if not isinstance(instance_name, str) or not instance_name.strip():
+            raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
+        if not isinstance(enabled, bool):
+            raise SerenaConfigStoreError("AUTOSTART_FLAG_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute(
+                    """
+                    INSERT INTO instance_flags(instance_name, autostart)
+                    VALUES(?, ?)
+                    ON CONFLICT(instance_name) DO UPDATE SET
+                        autostart=excluded.autostart
+                    """,
+                    (instance_name.strip(), 1 if enabled else 0),
+                )
+                connection.commit()
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise SerenaConfigStoreError("INSTANCE_FLAG_WRITE_FAILED") from exc
+
+    def get_instance_autostart(self, instance_name: str) -> bool:
+        if not isinstance(instance_name, str) or not instance_name.strip():
+            raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT autostart FROM instance_flags WHERE instance_name = ?",
+                (instance_name.strip(),),
+            ).fetchone()
+        return bool(row["autostart"]) if row is not None else False
+
+    def list_instance_autostart(self) -> tuple[str, ...]:
+        self.initialize()
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT instance_name FROM instance_flags WHERE autostart = 1 ORDER BY instance_name"
+            ).fetchall()
+        return tuple(row["instance_name"] for row in rows)

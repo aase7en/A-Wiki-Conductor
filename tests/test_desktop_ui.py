@@ -20,6 +20,11 @@ from a_conductor.lifecycle_coordinator import LifecycleCoordinatorError
 from a_conductor.lifecycle_executor import LifecycleExecutionResult, LifecycleExecutionState
 from a_conductor.runtime_setup import SetupReadiness, WorkerSetupDraft
 from a_conductor.worker_serena_settings import WorkerSerenaSettings
+from a_conductor.local_instances import (
+    InstanceHealthState,
+    InstanceResultCode,
+    LocalInstance,
+)
 
 
 class FakeService:
@@ -545,3 +550,113 @@ def test_config_button_requires_settings_service_and_selection(root) -> None:
     settings_app = AConductorDesktopApp(root, service=SettingsFakeService(sample_snapshot()))
     _select_first_worker(settings_app, root)
     assert not settings_app.config_button.instate(["disabled"])
+
+
+class FakeInstanceService(FakeService):
+    def __init__(self, snapshot: ControlCenterSnapshot) -> None:
+        super().__init__(snapshot)
+        from types import SimpleNamespace
+
+        self._simple = SimpleNamespace
+        self.instance_actions: list[tuple[str, str]] = []
+        self.autostart: dict[str, bool] = {"Serena-Beta": True}
+        self.states = {
+            "Serena-Alpha": InstanceHealthState.READY,
+            "Serena-Beta": InstanceHealthState.STOPPED,
+        }
+        self._instances = tuple(
+            LocalInstance(
+                name=name,
+                project_path=f"A:/GitHub/{name.lower()}",
+                health_address=f"127.0.0.1:{18010 + index}",
+                instance_root=Path("C:/AI/serena-instances") / name.lower(),
+            )
+            for index, name in enumerate(self.states)
+        )
+
+    def instances(self):
+        return self._instances
+
+    def instance_states(self):
+        return tuple((item, self.states[item.name]) for item in self._instances)
+
+    def instance_action(self, name, action):
+        self.instance_actions.append((name, action))
+        code = InstanceResultCode.RUNNING if action == "start" else InstanceResultCode.STOPPED
+        return self._simple(result_code=code)
+
+    def instance_autostart(self, name):
+        return self.autostart.get(name, False)
+
+    def set_instance_autostart(self, name, enabled):
+        self.autostart[name] = enabled
+
+    def autostart_instance_names(self):
+        return tuple(name for name, value in self.autostart.items() if value)
+
+
+def test_instance_panel_lists_states_and_autostarts_flagged(root) -> None:
+    service = FakeInstanceService(sample_snapshot())
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+    app.start_background_operations()
+    root.update()
+
+    rows = app.instance_tree.get_children()
+    assert len(rows) == 2
+    alpha_values = app.instance_tree.item(rows[0], "values")
+    beta_values = app.instance_tree.item(rows[1], "values")
+    assert alpha_values[0] == "Serena-Alpha"
+    assert "READY" in alpha_values[2]
+    assert alpha_values[4] == "-"
+    assert "STOPPED" in beta_values[2]
+    assert beta_values[4] == "ON"
+
+    assert ("Serena-Beta", "start") in service.instance_actions
+    assert app.instance_start_button.instate(["!disabled"])
+
+
+def test_instance_start_selected_delegates_to_service(root) -> None:
+    service = FakeInstanceService(sample_snapshot())
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+    app.start_background_operations()
+    root.update()
+    beta_row = app._instance_rows["Serena-Beta"]
+    app.instance_tree.selection_set(beta_row)
+    app.instance_tree.focus(beta_row)
+
+    app.start_selected_instance()
+    root.update()
+
+    assert ("Serena-Beta", "start") in service.instance_actions
+
+
+def test_instance_toggle_auto_persists_through_service(root) -> None:
+    service = FakeInstanceService(sample_snapshot())
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+    app.start_background_operations()
+    root.update()
+    alpha_row = app._instance_rows["Serena-Alpha"]
+    app.instance_tree.selection_set(alpha_row)
+    app.instance_tree.focus(alpha_row)
+
+    app.toggle_instance_autostart()
+    root.update()
+
+    assert service.autostart["Serena-Alpha"] is True
+    assert app.instance_tree.item(alpha_row, "values")[4] == "ON"
+
+
+def test_instance_panel_disabled_without_instance_service(root) -> None:
+    app = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+    root.update()
+
+    assert app.instance_start_button.instate(["disabled"])
+    assert len(app.instance_tree.get_children()) == 0
