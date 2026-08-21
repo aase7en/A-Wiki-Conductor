@@ -22,7 +22,12 @@ from .domain import WorkerState
 from .lifecycle_coordinator import LifecycleCoordinatorError
 from .lifecycle_executor import LifecycleExecutionResult
 from .runtime_setup import RuntimeSetupError, SetupReadiness, WorkerSetupDraft
-from .worker_serena_settings import LanguageBackend, WorkerSerenaSettings
+from .worker_serena_settings import (
+    ENGINE_TOOLS,
+    KNOWN_LANGUAGES,
+    LanguageBackend,
+    WorkerSerenaSettings,
+)
 from .local_instances import InstanceHealthState, InstanceResultCode
 
 
@@ -870,11 +875,10 @@ class AConductorDesktopApp:
 
         fields = (
             ("tool_timeout", "Tool timeout (s)", str(settings.tool_timeout)),
-            ("excluded_tools", "Excluded tools (comma)", ",".join(settings.excluded_tools)),
+            ("project_path", "Project path", settings.project_path or bound_project or ""),
             ("included_optional_tools", "Included optional tools", ",".join(settings.included_optional_tools)),
             ("fixed_tools", "Fixed tools (exclusive)", ",".join(settings.fixed_tools)),
             ("base_modes", "Base modes (comma)", ",".join(settings.base_modes)),
-            ("bound_project", "Bound project (via Assign)", bound_project or ""),
         )
         for row_index, (key, label, value) in enumerate(fields, start=2):
             tk.Label(
@@ -887,9 +891,60 @@ class AConductorDesktopApp:
             entry = ttk.Entry(frame, width=56)
             entry.insert(0, value)
             entry.grid(row=row_index, column=1, sticky="ew", pady=2)
-            if key == "bound_project":
-                entry.state(["disabled"])
             self._config_entries[key] = entry
+
+        next_row = len(fields) + 2
+
+        def toggle_section(title: str, names: tuple[str, ...], initial_on) -> dict[str, tk.BooleanVar]:
+            nonlocal next_row
+            tk.Label(
+                frame,
+                text=title,
+                bg=self.theme.panel,
+                fg=self.theme.accent,
+                font=(self.theme.monospace_font, 9, "bold"),
+            ).grid(row=next_row, column=0, columnspan=2, sticky="w", pady=(10, 2))
+            next_row += 1
+            vars_by_name: dict[str, tk.BooleanVar] = {}
+            columns = 3
+            for index, name in enumerate(names):
+                var = tk.BooleanVar(value=initial_on(name))
+                vars_by_name[name] = var
+                row = next_row + index // columns
+                column = index % columns
+                tk.Checkbutton(
+                    frame,
+                    text=name,
+                    variable=var,
+                    bg=self.theme.panel,
+                    fg=self.theme.foreground,
+                    selectcolor=self.theme.background,
+                    activebackground=self.theme.panel,
+                    activeforeground=self.theme.foreground,
+                    highlightthickness=0,
+                    font=(self.theme.monospace_font, 9),
+                    anchor="w",
+                ).grid(row=row, column=column, sticky="w", padx=(0, 18), pady=0)
+            next_row += (len(names) + columns - 1) // columns + 1
+            return vars_by_name
+
+        tool_catalog = ENGINE_TOOLS + tuple(
+            name
+            for name in settings.excluded_tools
+            if name not in set(ENGINE_TOOLS)
+        )
+        excluded_set = set(settings.excluded_tools)
+        self._config_tool_vars = toggle_section(
+            "TOOLS   ON = enabled, OFF = excluded",
+            tool_catalog,
+            lambda name: name not in excluded_set,
+        )
+        enabled_langs = set(settings.enabled_languages)
+        self._config_lang_vars = toggle_section(
+            "LANGUAGES   ON = supported for this project",
+            KNOWN_LANGUAGES,
+            lambda name: name in enabled_langs if enabled_langs else True,
+        )
 
         self._config_status = tk.Label(
             frame,
@@ -898,9 +953,9 @@ class AConductorDesktopApp:
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
         )
-        self._config_status.grid(row=len(fields) + 2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        self._config_status.grid(row=next_row, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
-        button_row = len(fields) + 3
+        button_row = next_row + 1
         self._button(frame, "Save", lambda: self.save_worker_config(dialog)).grid(
             row=button_row, column=0, sticky="w", pady=(12, 0)
         )
@@ -932,15 +987,27 @@ class AConductorDesktopApp:
             self._handle_error("SETTINGS_TOOL_TIMEOUT_INVALID")
             return
 
+        tool_vars = getattr(self, "_config_tool_vars", None) or {}
+        lang_vars = getattr(self, "_config_lang_vars", None) or {}
+        excluded_tools = tuple(
+            name for name, var in tool_vars.items() if not var.get()
+        )
+        enabled_languages = tuple(
+            name for name, var in lang_vars.items() if var.get()
+        )
+        project_path = str(entries["project_path"].get()).strip() or None
+
         try:
             settings = WorkerSerenaSettings(
                 worker_id=worker_id,
                 language_backend=backend,
-                excluded_tools=self._csv_field(entries["excluded_tools"]),
+                excluded_tools=excluded_tools,
                 included_optional_tools=self._csv_field(entries["included_optional_tools"]),
                 fixed_tools=self._csv_field(entries["fixed_tools"]),
                 base_modes=self._csv_field(entries["base_modes"]),
                 tool_timeout=timeout,
+                project_path=project_path,
+                enabled_languages=enabled_languages,
             )
         except ValueError as exc:
             status = getattr(self, "_config_status", None)
