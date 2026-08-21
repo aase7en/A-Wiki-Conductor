@@ -7,6 +7,7 @@ credential implementation.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Callable, Protocol
 
@@ -104,7 +105,53 @@ class DesktopControlService:
         return self.control_center.release_worker(worker_id)
 
     def start_worker(self, worker_id: str):
+        self.apply_worker_settings_to_home(worker_id)
         return self.lifecycle.execute(worker_id, LifecycleAction.START)
+
+    def apply_worker_settings_to_home(self, worker_id: str) -> str:
+        """Materialize saved engine settings into the worker's SERENA_HOME.
+
+        Best-effort advisory layer (like the connector brain): result codes are
+        returned for logging and never block the lifecycle start.
+        """
+        if not isinstance(worker_id, str) or not worker_id.strip():
+            return "SKIPPED_NO_SETTINGS"
+        store = self.settings_store
+        if store is None:
+            return "SKIPPED_NO_SETTINGS"
+        try:
+            settings = store.get_worker_settings(worker_id)
+        except Exception:
+            return "SKIPPED_NO_SETTINGS"
+        if settings is None:
+            return "SKIPPED_NO_SETTINGS"
+        try:
+            config = store.get_worker_config(worker_id)
+        except Exception:
+            config = None
+        if config is None:
+            return "SKIPPED_NOT_CONFIGURED"
+        instance_root = Path(config.instance_root).expanduser().resolve(strict=False)
+        serena_home = Path(config.serena_home).expanduser().resolve(strict=False)
+        if instance_root not in serena_home.parents:
+            return "SKIPPED_TARGET_UNSAFE"
+        project_path = settings.project_path
+        if project_path is None:
+            row = next(
+                (
+                    candidate
+                    for candidate in self.control_center.snapshot().workers
+                    if candidate.worker_id == worker_id
+                ),
+                None,
+            )
+            project_path = row.project_root_path if row is not None else None
+        rendered = settings.render_serena_config(project_path=project_path)
+        serena_home.mkdir(parents=True, exist_ok=True)
+        temp_path = serena_home / ".serena_config.materialize.tmp"
+        temp_path.write_text(rendered, encoding="utf-8", newline="\n")
+        os.replace(temp_path, serena_home / "serena_config.yml")
+        return "APPLIED"
 
     def stop_worker(self, worker_id: str):
         return self.lifecycle.execute(worker_id, LifecycleAction.STOP)

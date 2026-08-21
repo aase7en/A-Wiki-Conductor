@@ -68,3 +68,183 @@ def test_open_uses_same_control_center_instance_for_coordinator_builder(tmp_path
     assert captured["service"] is desktop.control_center
     assert desktop.lifecycle is coordinator
     assert len(desktop.snapshot().workers) == 3
+
+
+def _worker_config_for(root, worker_id="a-worker-01"):
+    from a_conductor.serena_runtime import SerenaWorkerConfig
+
+    return SerenaWorkerConfig(
+        worker_id=worker_id,
+        runtime_id="runtime-1",
+        instance_root=str(root / "instance"),
+        serena_home=str(root / "instance" / "serena-home"),
+        health_host="127.0.0.1",
+        health_port=18201,
+        tunnel_binding_ref=None,
+        credential_ref=None,
+        runtime_executable_ref=str(root / "engine.exe"),
+        profile_template_ref=str(root / "profile.yaml"),
+        run_dir=str(root / "instance" / "run"),
+        log_dir=str(root / "instance" / "logs"),
+    )
+
+
+class _FakeControlCenter:
+    def __init__(self, project_root=None):
+        self._project_root = project_root
+
+    def snapshot(self):
+        from a_conductor.control_center import ControlCenterSnapshot, WorkerScreenRow
+        from a_conductor.domain import WorkerState
+
+        return ControlCenterSnapshot(
+            projects=(),
+            workers=(
+                WorkerScreenRow(
+                    worker_id="a-worker-01",
+                    display_name="A-Worker 1",
+                    state=WorkerState.STOPPED,
+                    runtime_id="runtime-1",
+                    assignment_id="assignment-1" if self._project_root else None,
+                    project_id="project-1" if self._project_root else None,
+                    project_display_name="P" if self._project_root else None,
+                    project_root_path=self._project_root,
+                    mutation_allowed=True,
+                ),
+            ),
+            online=True,
+        )
+
+
+class _FakeLifecycle:
+    def __init__(self):
+        self.calls = []
+
+    def execute(self, worker_id, action):
+        self.calls.append((worker_id, action.value))
+        return object()
+
+
+def test_apply_worker_settings_to_home_applied(tmp_path):
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+    from a_conductor.worker_serena_settings import WorkerSerenaSettings
+
+    config_store = SQLiteSerenaConfigStore(tmp_path / "control.sqlite")
+    config_store.save_worker_config(_worker_config_for(tmp_path))
+    config_store.save_worker_settings(
+        WorkerSerenaSettings(
+            worker_id="a-worker-01",
+            tool_timeout=777,
+            project_path=r"A:\GitHub\demo",
+            brain_folders=(r"A:\GitHub\A-Wiki",),
+        )
+    )
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        settings_store=config_store,
+    )
+
+    result = service.apply_worker_settings_to_home("a-worker-01")
+
+    written = tmp_path / "instance" / "serena-home" / "serena_config.yml"
+    assert result == "APPLIED"
+    text = written.read_text(encoding="utf-8")
+    assert "tool_timeout: 777" in text
+    assert "A:\GitHub\demo" in text
+    assert "[A-CONDUCTOR SECOND BRAIN]" in text
+
+
+def test_apply_worker_settings_project_fallback_from_assignment(tmp_path):
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+    from a_conductor.worker_serena_settings import WorkerSerenaSettings
+
+    config_store = SQLiteSerenaConfigStore(tmp_path / "control.sqlite")
+    config_store.save_worker_config(_worker_config_for(tmp_path))
+    config_store.save_worker_settings(
+        WorkerSerenaSettings(worker_id="a-worker-01")
+    )
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(project_root=r"A:\GitHub\assigned"),
+        lifecycle=_FakeLifecycle(),
+        settings_store=config_store,
+    )
+
+    result = service.apply_worker_settings_to_home("a-worker-01")
+
+    assert result == "APPLIED"
+    text = (tmp_path / "instance" / "serena-home" / "serena_config.yml").read_text(encoding="utf-8")
+    assert r"A:\GitHub\assigned" in text
+
+
+def test_apply_worker_settings_skip_codes(tmp_path):
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+    from a_conductor.worker_serena_settings import WorkerSerenaSettings
+
+    empty_store = SQLiteSerenaConfigStore(tmp_path / "empty.sqlite")
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        settings_store=empty_store,
+    )
+    from a_conductor.worker_serena_settings import WorkerSerenaSettings as _W
+
+    empty_store.save_worker_settings(_W(worker_id="a-worker-01"))
+    assert service.apply_worker_settings_to_home("a-worker-01") == "SKIPPED_NOT_CONFIGURED"
+
+    config_store = SQLiteSerenaConfigStore(tmp_path / "cfg.sqlite")
+    config_store.save_worker_config(_worker_config_for(tmp_path / "c"))
+    service2 = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        settings_store=config_store,
+    )
+    assert service2.apply_worker_settings_to_home("a-worker-01") == "SKIPPED_NO_SETTINGS"
+
+    config_store.save_worker_settings(WorkerSerenaSettings(worker_id="a-worker-01"))
+
+    # A rogue config that escapes its instance root cannot even be persisted by
+    # the store (its own validation rejects it), so prove the facade guard with
+    # a stub store that hands out an unsafe config directly.
+    from dataclasses import replace as _replace
+
+    rogue_config = _replace(
+        _worker_config_for(tmp_path / "c"), serena_home=str(tmp_path / "elsewhere")
+    )
+
+    class _RogueStore:
+        def get_worker_settings(self, worker_id):
+            return WorkerSerenaSettings(worker_id=worker_id)
+
+        def get_worker_config(self, worker_id):
+            return rogue_config
+
+    service3 = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        settings_store=_RogueStore(),
+    )
+    assert service3.apply_worker_settings_to_home("a-worker-01") == "SKIPPED_TARGET_UNSAFE"
+
+
+def test_start_worker_applies_settings_before_lifecycle(tmp_path):
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+    from a_conductor.worker_serena_settings import WorkerSerenaSettings
+
+    config_store = SQLiteSerenaConfigStore(tmp_path / "control.sqlite")
+    config_store.save_worker_config(_worker_config_for(tmp_path))
+    config_store.save_worker_settings(
+        WorkerSerenaSettings(worker_id="a-worker-01", tool_timeout=555)
+    )
+    lifecycle = _FakeLifecycle()
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=lifecycle,
+        settings_store=config_store,
+    )
+
+    service.start_worker("a-worker-01")
+
+    assert lifecycle.calls == [("a-worker-01", "START")]
+    text = (tmp_path / "instance" / "serena-home" / "serena_config.yml").read_text(encoding="utf-8")
+    assert "tool_timeout: 555" in text
