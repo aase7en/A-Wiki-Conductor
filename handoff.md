@@ -1,6 +1,6 @@
 # HANDOFF — A-Conductor
 
-Last updated: 2026-08-21 (session 5 end)
+Last updated: 2026-08-21 (session 5b end)
 
 ## Current objective
 
@@ -12,8 +12,8 @@ Second Brain Phase 1 + first usability overhaul shipped. Awaiting the user's nex
 
 ## Baseline
 
-- branch `main` at merge `c40c1d8` (PR #24); PRs #18-#24 CI-green
-- full suite 801 passed; smoke OK
+- branch `main` at merge of PR #25 (onboarding); PRs #18-#25 CI-green
+- full suite 808 passed; smoke OK
 - installed copy at `%LOCALAPPDATA%\Programs\A-Conductor` predates this session — rebuild+reinstall via `scripts/build_portable.py` + setup to refresh it
 
 ## What the next agent must know

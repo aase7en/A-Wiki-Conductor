@@ -1,6 +1,6 @@
 # A-Conductor — Current Work
 
-Last updated: 2026-08-21 (session 5 end)
+Last updated: 2026-08-21 (session 5b end)
 
 ## Current phase
 
@@ -16,6 +16,10 @@ Last updated: 2026-08-21 (session 5 end)
 
 - Full suite **801 passed**; smoke `A-CONDUCTOR_SMOKE_OK projects=0 workers=3` on merged main.
 - Real-machine: brain injection verified on temp copy (live untouched, idempotent).
+
+## Session 5b addendum (WO-P1-054, PR #25)
+
+New-user onboarding shipped: in-app **ตั้ง Tunnel ID** (paste-validate-save, confined write), CONNECTORS **TUNNEL** column, USER-GUIDE **เชื่อมต่อ AI แต่ละค่าย** section (ChatGPT/OpenAI/Claude/Codex/Grok/Antigravity + security note), clickable links in the in-app guide viewer. Full suite 808 passed.
 
 ## Next safe action (user picks)
 
