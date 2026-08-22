@@ -39,5 +39,5 @@ Source-of-truth rule: this file is the plan of record; chat/session memory is tr
 
 ## Remaining backlog (separate WOs, not this plan)
 
-- MCP gateway Phase 2 — hard enforcement + brain-read evidence in execution records (DECISION_REQUIRED).
+- MCP gateway Phase 2 — deferred per docs/adr/ADR-0001-mcp-gateway-deferred.md (brain-read evidence may be pursued without a gateway).
 - CONNECTORS project rebind via UI; supervised default flip (user decision); DR-P1-003 (user-gated); code signing to remove SmartScreen friction.

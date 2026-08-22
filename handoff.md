@@ -43,7 +43,7 @@ Read CURRENT-WORK.md "Next safe action": (a) trial `+ Worker` / `+ ตัวเ�
 
 ## Do Not Do
 
-- No MCP gateway hard enforcement (backlog / DECISION_REQUIRED).
+- No MCP gateway work — deferred per ADR-0001 (docs/adr/).
 - No A-Wiki primitive duplication; no target-project mutation for read-only features.
 - No machine-wide env changes.
 - Do not rename internal package/CLI/data folder without an explicit migration decision.
