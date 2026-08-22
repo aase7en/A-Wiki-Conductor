@@ -90,6 +90,14 @@ STRINGS: dict[str, dict[str, str]] = {
     # copy menu
     "menu.copy.path": {"th": "คัดลอก path (Copy path)", "en": "Copy path"},
     "btn.close": {"th": "ปิด", "en": "Close"},
+    "prefs.shutdown": {
+        "th": "ปิดโปรแกรมแล้วหยุดทุกตัวเชื่อม (เครียร์เครื่อง)",
+        "en": "Stop all connectors when the app closes (clean machine)",
+    },
+    "prefs.shutdown.help": {
+        "th": "ON = ทุกครั้งที่ปิดโปรแกรม จะสั่งหยุดตัวเชื่อมทุกตัวที่กำลังรันและเก็บกวาด process ค้างให้\nOFF = ตัวเชื่อมที่รันอยู่จะเปิดต่อ (เหมาะถ้าอยากให้แชทใช้งานได้แม้ปิดโปรแกรม)",
+        "en": "ON = closing the app stops every running connector and reaps stale processes\nOFF = running connectors keep serving even after the app closes",
+    },
     # dialogs (worker)
     "dlg.add.worker.title": {"th": "เพิ่ม Worker", "en": "Add Worker"},
     "dlg.add.worker.header": {"th": "> เพิ่มช่อง Worker ใหม่", "en": "> Add a new Worker slot"},

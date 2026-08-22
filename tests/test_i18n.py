@@ -118,11 +118,11 @@ def test_preferences_language_switch_toggles_preference(root, tmp_path: Path) ->
             for child in window.winfo_children()[0].winfo_children()
             if isinstance(child, tk.Checkbutton)
         ]
-        assert len(boxes) == 2
-        boxes[1].invoke()
+        assert len(boxes) == 3  # supervised / shutdown-stops / language
+        boxes[2].invoke()
         assert app.service.get_preference("language") is True
         assert get_language() == "en"
-        boxes[1].invoke()
+        boxes[2].invoke()
         assert app.service.get_preference("language") is False
         assert get_language() == "th"
     finally:
