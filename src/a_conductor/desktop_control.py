@@ -36,6 +36,18 @@ class LifecycleCommandService(Protocol):
     def execute(self, worker_id: str, action: LifecycleAction): ...
 
 
+A_WIKI_DATA_BACKUP_DIR = Path("L:/My Drive/A-Wiki-Data/backups/a-conductor-instances")
+
+
+def default_backup_dir() -> Path:
+    """Prefer the A-Wiki-Data Drive layer; fall back to the local profile."""
+    if A_WIKI_DATA_BACKUP_DIR.is_dir():
+        return A_WIKI_DATA_BACKUP_DIR
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    base = Path(local_app_data) if local_app_data else Path.home()
+    return base / "A-Conductor" / "instance-backups"
+
+
 class DesktopControlService:
     def __init__(
         self,
@@ -460,9 +472,7 @@ class DesktopControlService:
             raise InstanceManageError("INSTANCE_OUTSIDE_ROOT")
 
         if backup_dir is None:
-            local_app_data = os.environ.get("LOCALAPPDATA")
-            base = Path(local_app_data) if local_app_data else Path.home()
-            backup_dir = base / "A-Conductor" / "instance-backups"
+            backup_dir = default_backup_dir()
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         zip_path = zip_directory(
             instance_root, Path(backup_dir) / f"{instance_root.name}-{stamp}.zip"
