@@ -39,13 +39,7 @@ from .local_instances import (
     _TUNNEL_ID_RE,
     connector_name_for_project,
 )
-from .config_blurbs import (
-    FIELD_BLURBS,
-    LANGUAGE_BACKEND_BLURBS,
-    LANGUAGE_BLURBS,
-    MODE_BLURBS,
-    TOOL_BLURBS,
-)
+from .config_blurbs import active_blurbs
 from .memory_presence import MemoryPresenceState, inspect_memory_presence
 from .upstream_check import fetch_upstream_status
 
@@ -2341,6 +2335,12 @@ class AConductorDesktopApp:
 
         self._config_worker_id = worker_id
         self._config_entries: dict[str, ttk.Entry | ttk.Combobox] = {}
+        blurbs = active_blurbs()
+        TOOL_BLURBS = blurbs.TOOL_BLURBS
+        LANGUAGE_BLURBS = blurbs.LANGUAGE_BLURBS
+        LANGUAGE_BACKEND_BLURBS = blurbs.LANGUAGE_BACKEND_BLURBS
+        FIELD_BLURBS = blurbs.FIELD_BLURBS
+        MODE_BLURBS = blurbs.MODE_BLURBS
 
         backend_box = ttk.Combobox(
             frame,
@@ -2384,7 +2384,6 @@ class AConductorDesktopApp:
             ("project_path", "Project path", settings.project_path or bound_project or ""),
             ("included_optional_tools", "Included optional tools", ",".join(settings.included_optional_tools)),
             ("fixed_tools", "Fixed tools (exclusive)", ",".join(settings.fixed_tools)),
-            ("base_modes", "Base modes (comma)", ",".join(settings.base_modes)),
         )
         for row_index, (key, label, value) in enumerate(fields, start=3):
             label_widget = tk.Label(
@@ -2475,6 +2474,13 @@ class AConductorDesktopApp:
             lambda name: name in enabled_langs if enabled_langs else True,
             blurbs=LANGUAGE_BLURBS,
         )
+        active_modes = set(settings.base_modes)
+        self._config_mode_vars = toggle_section(
+            "MODES   ON = base mode enabled  (hover ดูคำอธิบาย)",
+            tuple(MODE_BLURBS),
+            lambda name: name in active_modes,
+            blurbs=MODE_BLURBS,
+        )
 
         self._config_status = tk.Label(
             frame,
@@ -2534,7 +2540,9 @@ class AConductorDesktopApp:
                 excluded_tools=excluded_tools,
                 included_optional_tools=self._csv_field(entries["included_optional_tools"]),
                 fixed_tools=self._csv_field(entries["fixed_tools"]),
-                base_modes=self._csv_field(entries["base_modes"]),
+                base_modes=tuple(
+                    name for name, var in self._config_mode_vars.items() if var.get()
+                ),
                 tool_timeout=timeout,
                 project_path=project_path,
                 enabled_languages=enabled_languages,

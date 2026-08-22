@@ -525,7 +525,7 @@ def test_worker_config_dialog_prefills_and_saves(root) -> None:
     app._config_lang_vars["go"].set(False)
     app._config_entries["tool_timeout"].delete(0, "end")
     app._config_entries["tool_timeout"].insert(0, "300")
-    app._config_entries["base_modes"].insert(0, "editing")
+    app._config_mode_vars["editing"].set(True)
     app._config_entries["project_path"].delete(0, "end")
     app._config_entries["project_path"].insert(0, r"A:\GitHub\env-wastewater-webapp")
 
