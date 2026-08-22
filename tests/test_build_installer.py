@@ -137,3 +137,33 @@ def test_installer_install_files_copies_notices(tmp_path: Path, monkeypatch) -> 
     assert (target / "assets" / "a-conductor.ico").is_file()
     assert (target / "THIRD-PARTY-NOTICES.md").read_text(encoding="utf-8") == "notices"
     assert uninstaller.is_file()
+
+
+def test_do_install_uses_installed_icon_for_shortcuts(tmp_path: Path, monkeypatch) -> None:
+    module = _load_installer_main()
+
+    source = tmp_path / "payload"
+    source.mkdir()
+    (source / f"{APP_NAME}.exe").write_bytes(b"EXE")
+    (source / "docs").mkdir()
+    (source / "docs" / "USER-GUIDE.md").write_text("guide", encoding="utf-8")
+    (source / "assets").mkdir()
+    (source / "assets" / "a-conductor.ico").write_bytes(b"ICO")
+    (source / "THIRD-PARTY-NOTICES.md").write_text("notices", encoding="utf-8")
+    monkeypatch.setattr(module, "payload_dir", lambda: source)
+
+    calls: list[tuple] = []
+    monkeypatch.setattr(module, "create_shortcut", lambda *a: calls.append(("shortcut", *a)))
+    monkeypatch.setattr(module, "write_registry", lambda *a: calls.append(("registry", *a)))
+
+    target = tmp_path / "install-target"
+    code = module.do_install(target)
+
+    assert code == 0
+    shortcuts = [c for c in calls if c[0] == "shortcut"]
+    assert len(shortcuts) == 2
+    expected_icon = target / "assets" / "a-conductor.ico"
+    for call in shortcuts:
+        assert call[3] == expected_icon
+        assert call[2] == target / f"{APP_NAME}.exe"
+    assert any(c[0] == "registry" for c in calls)
