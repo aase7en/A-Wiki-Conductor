@@ -1,6 +1,20 @@
 # WO-P1-060 — Worker & Connector CRUD via UI
 
-Created: 2026-08-22 · Owner: GLM 5.3 · Status: IN_PROGRESS
+Created: 2026-08-22 · Owner: GLM 5.3 · Status: DONE (PRs #42 #43 #44, all CI-green)
+
+## Evidence
+
+- PR #42 worker CRUD: 18 tests; add = auto `a-worker-NN` (max+1), rename =
+  display name, delete guarded (unassigned + STOPPED).
+- PR #43 connector create: 9 tests; full layout materialized from a live
+  reference (shared paths parsed), `Sunday-works N` titles, port auto-allocation.
+- PR #44 connector manage: 11 tests; alias table + stop-first zip-backup delete.
+- Real-machine round trip (2026-08-22, main `f7911db`): created
+  `Serena-Smoketest` on port 18014 from the real `conductor` reference,
+  discovery picked it up, delete produced `smoketest-20260822-140647.zip`
+  (instance-backups) and the instances root returned to exactly the original
+  three. Lesson: instance names normalize to lowercase slug → Title case
+  (`smoketest` → `Serena-Smoketest`), matching the existing folder convention.
 
 ## Goal (user decisions 2026-08-22)
 

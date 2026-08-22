@@ -1,10 +1,10 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-22 (GLM 5.3, post v0.2.0 public release)
+Last updated: 2026-08-22 (GLM 5.3, post WO-P1-060)
 
 ## Current objective
 
-Console-window retitling + public v0.2.0 release shipped. Awaiting user trial (window titles, Start Menu app, plugin rename in ChatGPT) or next milestone pick.
+WO-P1-060 shipped: workers and connectors fully manageable from the UI (add/rename/delete both). Awaiting user trial or next milestone.
 
 ## Status
 
@@ -16,10 +16,10 @@ Do not trust chat memory as the task source of truth. Use: `actual repo/GitHub s
 
 ## Current repository state
 
-- Branch: `main`, HEAD `2da3d01`; PRs #35–#40 merged CI-green
+- Branch: `main`, HEAD `f7911db`; PRs #35–#44 merged CI-green
 - Repo visibility: **public** (explicit user decision 2026-08-22; recorded in COLLAB.md)
 - Release: https://github.com/aase7en/A-Wiki-Conductor/releases/tag/v0.2.0 (Setup + Portable + Notices; anonymous download verified)
-- Full suite at close: 872 passed
+- Full suite at close: 912 passed
 - Local machine: real Setup.exe installed to `%LOCALAPPDATA%\Programs\A-Sunday Conductor\` (smoke OK, user DB preserved); window titles applied to all 13 instance `.cmd` files + `watchdog.ps1` (`.bak` backups beside each)
 
 ## Completed this session
@@ -30,9 +30,16 @@ Do not trust chat memory as the task source of truth. Use: `actual repo/GitHub s
 - Version surface 0.2.0 (branding ↔ pyproject, test-enforced); tag `v0.2.0`.
 - Lessons: ESET holds fresh exes ~2 min (retry open loop); phase6 `.cmd` files have mixed CR/LF line endings — insert `title` using each file's own first-line terminator.
 
+## New this session (WO-P1-060)
+
+- Worker slots: add (auto `a-worker-NN`), rename (display), delete (guarded) — PR #42.
+- Connectors: create from a validated reference (port auto, `Sunday-works N` titles) — PR #43; alias rename + stop-first zip-backup delete — PR #44.
+- Real-machine round trip verified (Serena-Smoketest create → discover → delete with zip; root restored to the original three).
+- UI lesson: instance tree populates async (`refresh_instances` + `root.after`) — tests must call `refresh_instances()` then `root.update()` with an ImmediateExecutor.
+
 ## Next safe action
 
-Read CURRENT-WORK.md "Next safe action": (a) double-click `Start-Serena-Phase6.cmd` to see the new title, (b) rename the ChatGPT plugin + reconnect (user task), (c) next §13 milestone with new work order + reuse gate.
+Read CURRENT-WORK.md "Next safe action": (a) trial `+ Worker` / `+ ตัวเชื่อม` in the real app, (b) user renames the ChatGPT plugin + reconnects, (c) rebuild+reinstall Start Menu build, (d) next §13 milestone.
 
 ## Do Not Do
 

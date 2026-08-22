@@ -1,10 +1,10 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-22 (GLM 5.3, post v0.2.0 public release)
+Last updated: 2026-08-22 (GLM 5.3, post WO-P1-060 worker/connector CRUD)
 
 ## Current phase
 
-**No open work orders.** Latest: E2E suite (PR #35), rename (PR #36), installer/notices/version (PR #38–#39), public release **v0.2.0**, and console-window retitling are all complete.
+**No open work orders.** Latest: WO-P1-060 complete — workers and connectors are now fully manageable from the UI (PRs #42–#44, CI-green; real-machine create/delete round trip verified).
 
 ## Source-of-truth rule
 
@@ -19,13 +19,21 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 - **Local machine**: real `A-Sunday-Conductor-Setup.exe` ran end-to-end (files + shortcuts + HKCU + frozen uninstaller); smoke `A-CONDUCTOR_SMOKE_OK projects=4 workers=3` — user DB preserved.
 - **Console window retitling (local files outside repo, user-authorized, `.bak` backups)**: all 13 `.cmd` launchers under `C:\AI\serena-instances\{conductor,phase6,wastewater}\` now set `title` — `Sunday-works 1 - Conductor`, `Sunday-works 2 - Phase6`, `Sunday-works 3 - Wastewater` (+ `- Stop/Status/Configure/Provision`, watchdog = `Sunday-works 3 - Wastewater Watchdog`); `watchdog.ps1` embedded title aligned. `Start-*.cmd`/`Stop-*.cmd` glob uniqueness preserved; Status script re-run OK after edit.
 
+## Verified completed work (WO-P1-060, main `f7911db`)
+
+- **PR #42 Worker CRUD**: `+ Worker` / `Rename` / `Delete` buttons (WORKERS bar). Add auto-picks the next free `a-worker-NN` (max+1, no reuse), rename touches display name only, delete requires unassigned + STOPPED.
+- **PR #43 Connector create**: `+ ตัวเชื่อม` button + dialog (name / project / optional Tunnel ID). Materializes the validated layout from a live reference instance (shared tunnel paths parsed from its `instance.ps1`), port auto-allocated, Start/Stop windows titled `Sunday-works N - <Name>`.
+- **PR #44 Connector manage**: `แก้ชื่อ` (alias in `instance_display_names`, folder untouched) and `ลบ` (stop-first via orchestrator → zip to `%LOCALAPPDATA%\A-Conductor\instance-backups\` → remove → flags/alias cleanup; refuses while it cannot stop).
+- Real-machine evidence: `Serena-Smoketest` created from the real conductor reference on 18014, discovered, then deleted with `smoketest-20260822-140647.zip` — instances root returned to exactly the original three.
+- Note: instance names normalize to a lowercase slug (`SmokeTest` → `serena-smoketest` folder, `Serena-Smoketest` display), matching the existing conductor/phase6/wastewater convention.
+
 ## Full suite at close
 
-872 passed (test_build_installer grew to 9 after the icon regression test).
+912 passed (WO-P1-060 added 38 tests).
 
 ## Next safe action (user picks)
 
-(a) ทดลองเปิดหน้าต่างจริง: ดับเบิลคลิก `Start-Serena-Phase6.cmd` → หน้าต่างต้องขึ้นชื่อ "Sunday-works 2 - Phase6"; (b) ตั้งชื่อ plugin ใหม่ใน ChatGPT + reconnect (user's own task — tunnel IDs untouched); (c) next §13 milestone with new work order + reuse gate.
+(a) กด `+ Worker` / `+ ตัวเชื่อม` ในแอปจริงเพื่อเปิดแชทขนานเพิ่ม (Tunnel ID ยังต้องสร้างใน OpenAI Platform web); (b) ตั้งชื่อ plugin ใหม่ใน ChatGPT + reconnect (user's own task); (c) rebuild+reinstall เพื่อให้ Start Menu ได้ปุ่มใหม่; (d) next §13 milestone with new work order + reuse gate.
 
 ## Mandatory boundaries
 
