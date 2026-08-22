@@ -145,6 +145,41 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "ทำอย่างไร: สร้างตัวเชื่อมแรกตามคู่มือก่อน แล้วจึงใช้ปุ่มนี้เพิ่มตัวถัดไป",
         ),
     ),
+    "INSTANCE_RENAME_NOT_AVAILABLE": (
+        "การแก้ชื่อตัวเชื่อมไม่พร้อมใช้งาน",
+        (
+            "ขาด: บริการแก้ชื่อในเวอร์ชันที่รันอยู่",
+            "ทำอย่างไร: อัปเดตโปรแกรมเป็นเวอร์ชันล่าสุดแล้วลองใหม่",
+        ),
+    ),
+    "INSTANCE_DELETE_NOT_AVAILABLE": (
+        "การลบตัวเชื่อมไม่พร้อมใช้งาน",
+        (
+            "ขาด: บริการลบในเวอร์ชันที่รันอยู่",
+            "ทำอย่างไร: อัปเดตโปรแกรมเป็นเวอร์ชันล่าสุดแล้วลองใหม่",
+        ),
+    ),
+    "INSTANCE_STOP_REQUIRED": (
+        "ต้องหยุดตัวเชื่อมก่อนจึงจะลบได้",
+        (
+            "ขาด: ตัวเชื่อมยังหยุดไม่สำเร็จ (อาจกำลังทำงานอยู่)",
+            "ทำอย่างไร: กด Stop รอจนสถานะเป็น STOPPED แล้วลองลบใหม่ หรือดู log ของตัวเชื่อมนั้น",
+        ),
+    ),
+    "INSTANCE_BACKUP_FAILED": (
+        "สำรองข้อมูลก่อนลบไม่สำเร็จ",
+        (
+            "ขาด: ไฟล์ zip สำรองไม่ถูกสร้าง (ดิสก์เต็มหรือพาธเขียนไม่ได้)",
+            "ทำอย่างไร: ตรวจพื้นที่ดิสก์และโฟลเดอร์ instance-backups แล้วลองใหม่ — ยังไม่มีอะไรถูกลบ",
+        ),
+    ),
+    "INSTANCE_DELETE_FAILED": (
+        "ลบโฟลเดอร์ตัวเชื่อมไม่สำเร็จ",
+        (
+            "ขาด: สิทธิ์เขียน/ไฟล์ถูกโปรแกรมอื่นล็อกอยู่",
+            "ทำอย่างไร: ปิดหน้าต่างหรือโปรแกรมที่เปิดไฟล์ในโฟลเดอร์นั้นแล้วลองใหม่ (สำเนาสำรอง zip ถูกเก็บไว้แล้ว)",
+        ),
+    ),
     "SELECT_PROJECT": (
         "ยังไม่ได้เลือกโปรเจกต์",
         (
@@ -828,6 +863,22 @@ class AConductorDesktopApp:
         _attach_tip(
             self.add_instance_button,
             "สร้างตัวเชื่อมใหม่จากแม่แบบที่ผ่านการตรวจสอบ — ตั้งชื่อ + เลือกโปรเจกต์\n(พอร์ตจัดให้อัตโนมัติ / หน้าต่างจะชื่อ Sunday-works ถัดไป)\nจะได้แชท ChatGPT ทำงานขนานกันได้อีกช่อง",
+            self.theme,
+        )
+        self.rename_instance_button = self._button(
+            instance_actions, "แก้ชื่อ", self.open_rename_instance_dialog
+        )
+        _attach_tip(
+            self.rename_instance_button,
+            "เปลี่ยนชื่อที่แสดงของตัวเชื่อมที่เลือก (ชื่อโฟลเดอร์จริงไม่ถูกแตะ)",
+            self.theme,
+        )
+        self.delete_instance_button = self._button(
+            instance_actions, "ลบ", self.delete_selected_instance
+        )
+        _attach_tip(
+            self.delete_instance_button,
+            "ลบตัวเชื่อมที่เลือก — จะหยุดให้ก่อน บีบอัดสำรองเป็น zip แล้วจึงลบ\n(กู้คืนได้จากโฟลเดอร์ instance-backups)",
             self.theme,
         )
         self.brain_button = self._button(
@@ -2123,6 +2174,13 @@ class AConductorDesktopApp:
         self.instance_tree.delete(*self.instance_tree.get_children())
         self._instance_rows.clear()
         auto_fn = getattr(self.service, "instance_autostart", None)
+        aliases_fn = getattr(self.service, "instance_aliases", None)
+        aliases: dict[str, str] = {}
+        if callable(aliases_fn):
+            try:
+                aliases = aliases_fn() or {}
+            except Exception:
+                aliases = {}
         for instance, state in states:
             auto = False
             if callable(auto_fn):
@@ -2138,7 +2196,7 @@ class AConductorDesktopApp:
                 "",
                 "end",
                 values=(
-                    instance.name,
+                    aliases.get(instance.name, instance.name),
                     instance.health_address.split(":")[-1],
                     state.value,
                     instance.project_path,
@@ -2334,6 +2392,96 @@ class AConductorDesktopApp:
         project_entry.bind("<Return>", lambda _event: submit())
         self._button(frame, "สร้าง", submit).grid(row=7, column=1, sticky="e")
         name_entry.focus_set()
+
+    def rename_selected_instance(self, new_name: str) -> None:
+        name = self._selected_instance_name()
+        if name is None:
+            self._handle_error("SELECT_INSTANCE")
+            return
+        writer = getattr(self.service, "rename_instance", None)
+        if not callable(writer):
+            self._handle_error("INSTANCE_RENAME_NOT_AVAILABLE")
+            return
+        try:
+            display = writer(name, new_name)
+        except Exception as exc:
+            self._handle_error(getattr(exc, "code", "INSTANCE_RENAME_FAILED"))
+            return
+        self.log_activity(f"Rename       {name} -> {display}")
+        self.refresh_instances()
+
+    def open_rename_instance_dialog(self) -> None:
+        name = self._selected_instance_name()
+        if name is None:
+            self._handle_error("SELECT_INSTANCE")
+            return
+        aliases = {}
+        loader = getattr(self.service, "instance_aliases", None)
+        if callable(loader):
+            try:
+                aliases = loader() or {}
+            except Exception:
+                aliases = {}
+        current = aliases.get(name, name)
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"{APP_NAME} — แก้ชื่อตัวเชื่อม — {name}")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=14)
+        frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            frame,
+            text=f"> แก้ชื่อ  {name}",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        tk.Label(
+            frame,
+            text="ชื่อใหม่ที่จะแสดงในตาราง CONNECTORS (ชื่อโฟลเดอร์จริงไม่เปลี่ยน)",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        ).grid(row=1, column=0, columnspan=2, sticky="w")
+        name_entry = ttk.Entry(frame, font=(self.theme.monospace_font, 10))
+        name_entry.insert(0, current)
+        name_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 10))
+
+        def submit() -> None:
+            value = name_entry.get().strip()
+            if not value:
+                self._handle_error("INSTANCE_FIELDS_REQUIRED")
+                return
+            dialog.destroy()
+            self.rename_selected_instance(value)
+
+        name_entry.bind("<Return>", lambda _event: submit())
+        self._button(frame, "บันทึก", submit).grid(row=3, column=1, sticky="e")
+        name_entry.focus_set()
+
+    def delete_selected_instance(self, backup_dir=None) -> None:
+        name = self._selected_instance_name()
+        if name is None:
+            self._handle_error("SELECT_INSTANCE")
+            return
+        remover = getattr(self.service, "delete_instance", None)
+        if not callable(remover):
+            self._handle_error("INSTANCE_DELETE_NOT_AVAILABLE")
+            return
+        if not self._confirm(
+            f"ลบตัวเชื่อม {name}?\nจะหยุดตัวเชื่อมให้ก่อน บีบอัดสำรองเป็น zip แล้วจึงลบโฟลเดอร์\n(กู้คืนได้จากโฟลเดอร์ instance-backups)"
+        ):
+            return
+        try:
+            zip_path = remover(name, backup_dir=backup_dir)
+        except Exception as exc:
+            self._handle_error(getattr(exc, "code", "INSTANCE_DELETE_FAILED"))
+            return
+        self.log_activity(f"- Connector  {name}  backup={zip_path}")
+        self.refresh_instances()
 
     def open_brain_config(self) -> tk.Toplevel | None:
         load = getattr(self.service, "worker_settings", None)

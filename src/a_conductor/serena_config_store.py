@@ -158,6 +158,11 @@ class SQLiteSerenaConfigStore:
                         autostart INTEGER NOT NULL CHECK (autostart IN (0, 1))
                     );
 
+                    CREATE TABLE IF NOT EXISTS instance_display_names (
+                        instance_name TEXT PRIMARY KEY,
+                        display_name TEXT NOT NULL
+                    );
+
                     CREATE TABLE IF NOT EXISTS app_preferences (
                         key TEXT PRIMARY KEY,
                         value INTEGER NOT NULL CHECK (value IN (0, 1))
@@ -545,6 +550,63 @@ class SQLiteSerenaConfigStore:
                 "SELECT instance_name FROM instance_flags WHERE autostart = 1 ORDER BY instance_name"
             ).fetchall()
         return tuple(row["instance_name"] for row in rows)
+
+    def clear_instance_flags(self, instance_name: str) -> None:
+        if not isinstance(instance_name, str) or not instance_name.strip():
+            raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM instance_flags WHERE instance_name = ?",
+                (instance_name.strip(),),
+            )
+            connection.commit()
+
+    def get_instance_display_name(self, instance_name: str) -> str | None:
+        self.initialize()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT display_name FROM instance_display_names WHERE instance_name = ?",
+                (instance_name,),
+            ).fetchone()
+        return row["display_name"] if row is not None else None
+
+    def set_instance_display_name(self, instance_name: str, display_name: str) -> str:
+        if not isinstance(instance_name, str) or not instance_name.strip():
+            raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
+        if not isinstance(display_name, str) or not display_name.strip():
+            raise SerenaConfigStoreError("INSTANCE_DISPLAY_NAME_INVALID")
+        cleaned = display_name.strip()
+        self.initialize()
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO instance_display_names(instance_name, display_name)
+                VALUES(?, ?)
+                ON CONFLICT(instance_name) DO UPDATE SET
+                    display_name=excluded.display_name
+                """,
+                (instance_name.strip(), cleaned),
+            )
+            connection.commit()
+        return cleaned
+
+    def clear_instance_display_name(self, instance_name: str) -> None:
+        self.initialize()
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM instance_display_names WHERE instance_name = ?",
+                (instance_name,),
+            )
+            connection.commit()
+
+    def instance_display_names(self) -> dict[str, str]:
+        self.initialize()
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT instance_name, display_name FROM instance_display_names"
+            ).fetchall()
+        return {row["instance_name"]: row["display_name"] for row in rows}
 
     _PREF_KEY_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 
