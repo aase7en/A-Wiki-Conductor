@@ -32,7 +32,16 @@ from a_conductor.worker_serena_settings import (
 
 
 REAL_INSTANCES_ROOT = Path("C:/AI/serena-instances")
-SANDBOX_SOURCE = REAL_INSTANCES_ROOT / "wastewater"
+# The fleet was renamed to the sunday-worker-N pattern (2026-08-22); support
+# both layouts so the suite also runs on older machines.
+SANDBOX_SOURCE = next(
+    (
+        REAL_INSTANCES_ROOT / candidate
+        for candidate in ("sunday-worker-3", "wastewater")
+        if (REAL_INSTANCES_ROOT / candidate).is_dir()
+    ),
+    REAL_INSTANCES_ROOT / "wastewater",
+)
 
 # Projects on this machine that genuinely exist
 PROJECT_WASTEWATER = Path("A:/GitHub/env-wastewater-webapp")
@@ -57,7 +66,7 @@ def e2e(tmp_path_factory):
     if SANDBOX_SOURCE.is_dir():
         shutil.copytree(
             SANDBOX_SOURCE,
-            sandbox_root / "wastewater",
+            sandbox_root / SANDBOX_SOURCE.name,
             ignore=shutil.ignore_patterns("logs", "run", "__pycache__"),
         )
 
@@ -78,7 +87,9 @@ class TestProgramOpen:
         instances = e2e["service"].instances()
         assert len(instances) >= 1
         names = {i.name for i in instances}
-        assert "Serena-Wastewater" in names
+        # The live fleet was renamed to the sunday-worker-N pattern (2026-08-22):
+        # accept the current names or the legacy ones on older machines.
+        assert names & {"Sunday-Worker-3", "Serena-Wastewater"}
 
 
 class TestAddProjectAndAssign:
@@ -132,12 +143,19 @@ class TestConnectorAwareStart:
         assert isinstance(detail, (str, type(None)))
 
     def test_connector_health_state_real(self, e2e):
-        """Check the live wastewater instance health through our probe."""
+        """Check a live instance's health through our probe (current or legacy name)."""
         instances = discover_local_instances(REAL_INSTANCES_ROOT)
-        wastewater = next((i for i in instances if i.name == "Serena-Wastewater"), None)
-        if wastewater is None:
-            pytest.skip("Serena-Wastewater not on this machine")
-        state = instance_health_state(wastewater)
+        target = next(
+            (
+                item
+                for item in instances
+                if item.name in ("Sunday-Worker-3", "Serena-Wastewater")
+            ),
+            None,
+        )
+        if target is None:
+            pytest.skip("wastewater/worker-3 instance not on this machine")
+        state = instance_health_state(target)
         assert state in (InstanceHealthState.READY, InstanceHealthState.STOPPED, InstanceHealthState.UNKNOWN)
 
 

@@ -130,7 +130,7 @@ def test_app_renders_projects_workers_and_disabled_lifecycle_controls(root) -> N
     app = AConductorDesktopApp(root, service=service)
     root.update_idletasks()
 
-    assert root.title() == "A-Sunday Conductor"
+    assert root.title() == "A-Sunday Conductor v0.2.1"
     assert app.project_list.size() == 1
     assert len(app.worker_tree.get_children()) == 3
     assert app.start_button.instate(["disabled"])
