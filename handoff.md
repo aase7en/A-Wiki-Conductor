@@ -1,14 +1,14 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-22 (GLM 5.3, post E2E + rename + reinstall)
+Last updated: 2026-08-22 (GLM 5.3, post v0.2.0 public release)
 
 ## Current objective
 
-E2E real-system suite, product rename to A-Sunday Conductor, and the local reinstall all shipped. Awaiting user trial of the installed app or next milestone pick.
+Console-window retitling + public v0.2.0 release shipped. Awaiting user trial (window titles, Start Menu app, plugin rename in ChatGPT) or next milestone pick.
 
 ## Status
 
-`COMPLETE` for the authorized scope (E2E test per user request + naming + rebuild/reinstall).
+`COMPLETE` for the authorized scope (rename all CMD windows / installable + downloadable via GitHub / Serena credit).
 
 ## Resume authority
 
@@ -16,21 +16,23 @@ Do not trust chat memory as the task source of truth. Use: `actual repo/GitHub s
 
 ## Current repository state
 
-- Branch: `main`, HEAD `22bc0e6` (merge of PR #36); PRs #35–#36 merged CI-green
-- Full suite at close: 866 passed, 0 failed
-- Working tree clean apart from this SSoT commit
-- Local machine: fresh install at `%LOCALAPPDATA%\Programs\A-Sunday Conductor\` (Start Menu + Desktop + HKCU verified; smoke `A-CONDUCTOR_SMOKE_OK projects=4 workers=3`); user DB preserved at `%LOCALAPPDATA%\A-Conductor\control-center.sqlite`
+- Branch: `main`, HEAD `2da3d01`; PRs #35–#40 merged CI-green
+- Repo visibility: **public** (explicit user decision 2026-08-22; recorded in COLLAB.md)
+- Release: https://github.com/aase7en/A-Wiki-Conductor/releases/tag/v0.2.0 (Setup + Portable + Notices; anonymous download verified)
+- Full suite at close: 872 passed
+- Local machine: real Setup.exe installed to `%LOCALAPPDATA%\Programs\A-Sunday Conductor\` (smoke OK, user DB preserved); window titles applied to all 13 instance `.cmd` files + `watchdog.ps1` (`.bak` backups beside each)
 
 ## Completed this session
 
-- PR #35 E2E real-system suite (24 tests) + 2 bug fixes (rebind regex escape, `open(instances_root=...)`).
-- PR #36 rename: `a_conductor.branding.APP_NAME = "A-Sunday Conductor"` single-sources titles/installer/build; legacy names (package, CLI, data folder) intentionally kept for upgrade continuity.
-- Reinstall on this machine: old install removed cleanly; new build installed and smoke-verified.
-- New lessons: ESET can hold a freshly built exe read-locked for ~2 minutes (retry `shutil.copy2` in a loop); `py -V:Astral/CPython3.11.15 -m venv` works when the PATH `python` is itself a venv whose ensurepip fails.
+- Window retitling: `Sunday-works 1/2/3 - <project>` across Start/Stop/Status/Configure/Provision/Watch scripts of conductor/phase6/wastewater instances; `Start-*.cmd` glob uniqueness verified intact; Status script re-run OK.
+- Installer pipeline: `scripts/build_installer.py` (tested; shares AV-race hardening); real-run found + fixed the `icon` NameError with a regression test.
+- Serena credit: `THIRD-PARTY-NOTICES.md` (full MIT text) in repo, in every install, and attached to the release.
+- Version surface 0.2.0 (branding ↔ pyproject, test-enforced); tag `v0.2.0`.
+- Lessons: ESET holds fresh exes ~2 min (retry open loop); phase6 `.cmd` files have mixed CR/LF line endings — insert `title` using each file's own first-line terminator.
 
 ## Next safe action
 
-Read CURRENT-WORK.md "Next safe action": (a) trial installed app from Start Menu, (b) next §13 milestone with new work order + reuse gate, (c) MCP gateway backlog. 
+Read CURRENT-WORK.md "Next safe action": (a) double-click `Start-Serena-Phase6.cmd` to see the new title, (b) rename the ChatGPT plugin + reconnect (user task), (c) next §13 milestone with new work order + reuse gate.
 
 ## Do Not Do
 
@@ -38,6 +40,7 @@ Read CURRENT-WORK.md "Next safe action": (a) trial installed app from Start Menu
 - No A-Wiki primitive duplication; no target-project mutation for read-only features.
 - No machine-wide env changes.
 - Do not rename internal package/CLI/data folder without an explicit migration decision.
+- Do not modify `C:\AI\serena-instances` scripts beyond this authorized retitling; `.bak` files allow rollback.
 
 ## Escalation
 
