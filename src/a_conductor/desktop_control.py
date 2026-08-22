@@ -328,6 +328,28 @@ class DesktopControlService:
     def instances(self) -> tuple[LocalInstance, ...]:
         return discover_local_instances(self.instances_root)
 
+    def create_instance(
+        self, name: str, project_path: str | Path, tunnel_id: str | None = None
+    ):
+        """Materialize a new connector instance from a validated reference."""
+        from .instance_create import InstanceCreateError, create_instance, next_health_port
+
+        current = self.instances()
+        port = next_health_port(current)
+        reference = current[0].instance_root if current else None
+        created_root = create_instance(
+            self.instances_root,
+            name,
+            project_path,
+            health_port=port,
+            tunnel_id=tunnel_id,
+            reference_root=reference,
+        )
+        for instance in self.instances():
+            if instance.instance_root == created_root.resolve(strict=False):
+                return instance
+        raise InstanceCreateError("CREATE_VERIFY_FAILED")
+
     def instance_states(self) -> tuple[tuple[LocalInstance, InstanceHealthState], ...]:
         return tuple(
             (instance, instance_health_state(instance))
