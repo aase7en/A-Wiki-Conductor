@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-23 (GLM 5.3, v0.3.0 backlog loops)
+Last updated: 2026-08-23 (GLM 5.3, v0.3.0 COMPLETE — release published)
 
 ## Current phase
 
@@ -59,6 +59,23 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 - **Loop C (signing)**: SignPath pipeline ready (`scripts/sign.py` no-op until `SIGNPATH_API_TOKEN`; sign workflow on release publish); **user action pending**: apply per `docs/signing/SIGNPATH-APPLY.md` (free for OSS; consider switching the license to MIT/Apache first).
 - **Loop D**: ADR-0001 defers the MCP gateway with explicit reopen conditions; no DECISION_REQUIRED markers remain.
 - v0.3.0 installed on this machine (smoke OK, both guides bundled); bug-hunt suite stable ×2 (24/24).
+
+## v0.3.0 COMPLETE (2026-08-23, PRs #59-#65, GitHub Release published)
+
+**Everything from the approved backlog-loop plan is shipped:**
+
+- **Loop A (deep i18n)**: bilingual config blurbs + English user guide + MODE grid
+- **Loop B (cross-platform)**: platform layer (B-1) + POSIX .sh templates (B-2) + 3-OS CI matrix (B-3)
+- **Loop C (signing)**: SignPath pipeline ready; user applies per docs/signing/SIGNPATH-APPLY.md
+- **Loop D**: ADR-0001 gateway deferred with reopen conditions
+- **GitHub Release v0.3.0**: https://github.com/aase7en/A-Wiki-Conductor/releases/tag/v0.3.0 (Setup + Portable + both guides + notices)
+- **README rewritten** (capabilities, quick-start, architecture) + **INSTALL.md** (Thai step-by-step)
+- Bug-hunt stable ×2; no DECISION_REQUIRED markers remain anywhere
+
+**Remaining (next milestone, not blocking):**
+- macOS/Linux desktop builds (B-3 packaging — the groundwork + templates are in place)
+- RPi (P3) + Umbrel headless (P4) per docs/plans/cross-platform-plan.md
+- SignPath application (user action, guide provided)
 
 ## Live connector fleet (2026-08-22 night — backend renamed to one pattern, all READY)
 
