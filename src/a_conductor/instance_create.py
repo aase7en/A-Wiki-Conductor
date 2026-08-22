@@ -20,7 +20,7 @@ _SHARED_PATH_RES = (
     re.compile(r"^\$TunnelClientPath\s*=\s*'([^']*)'", re.MULTILINE),
     re.compile(r"^\$LegacySecretPath\s*=\s*'([^']*)'", re.MULTILINE),
 )
-_LISTEN_RE = re.compile(r"(?m)^(listen_addr:\s*127\.0\.0\.1:)\d+")
+_LISTEN_RE = re.compile(r"(?m)^(\s*listen_addr:\s*127\.0\.0\.1:)\d+")
 _TEMPLATE_PROJECT_RE = re.compile(r"(--project\s+)[^\s'\"]+")
 
 

@@ -54,7 +54,7 @@ def make_reference(root: Path) -> Path:
         encoding="utf-8",
     )
     (ref / "profiles" / "serena-wastewater.yaml.template").write_text(
-        "listen_addr: 127.0.0.1:18013\nargs:\n  - --project A:/GitHub/demo-old\ntunnel_id: __TUNNEL_ID__\n",
+        "server:\n  listen_addr: 127.0.0.1:18013\nargs:\n  - --project A:/GitHub/demo-old\ntunnel_id: __TUNNEL_ID__\n",
         encoding="utf-8",
     )
     (ref / "serena-home" / "serena_config.yml").write_text(
