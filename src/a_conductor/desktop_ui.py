@@ -19,7 +19,7 @@ import tkinter as tk
 from tkinter import filedialog, ttk
 import webbrowser
 
-from .branding import APP_NAME
+from .branding import APP_NAME, APP_VERSION
 from .control_center import ControlCenterError, ControlCenterSnapshot
 from .domain import WorkerState
 from .lifecycle_coordinator import LifecycleCoordinatorError
@@ -415,6 +415,54 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 
+class RowPathTip:
+    """Hover tooltip showing the full path of the tree row under the cursor."""
+
+    def __init__(self, tree, provider, theme: "DesktopTheme") -> None:
+        self.tree = tree
+        self.provider = provider
+        self.theme = theme
+        self.tip: tk.Toplevel | None = None
+        self._after = None
+        tree.bind("<Motion>", self._on_motion, add="+")
+        tree.bind("<Leave>", self._hide, add="+")
+
+    def _on_motion(self, event) -> None:
+        row = self.tree.identify_row(event.y)
+        if not row:
+            return
+        self._hide()
+        path = self.provider(row)
+        if not path:
+            return
+        self._after = self.tree.after(
+            450, lambda: self._show(event.x_root, event.y_root, path)
+        )
+
+    def _show(self, x: int, y: int, path: str) -> None:
+        self.tip = window = tk.Toplevel(self.tree)
+        window.wm_overrideredirect(True)
+        window.wm_geometry(f"+{x + 14}+{y + 16}")
+        tk.Label(
+            window,
+            text=path,
+            bg="#1c1f26",
+            fg="#e6e6e6",
+            justify="left",
+            font=(self.theme.monospace_font, 9),
+            padx=8,
+            pady=5,
+        ).pack()
+
+    def _hide(self, _event=None) -> None:
+        if self._after is not None:
+            self.tree.after_cancel(self._after)
+            self._after = None
+        if self.tip is not None:
+            self.tip.destroy()
+            self.tip = None
+
+
 class ToolTip:
     """Minimal hover tooltip (no shortcuts, works for every widget)."""
 
@@ -534,6 +582,7 @@ class AConductorDesktopApp:
         self._setup_entries: dict[str, ttk.Entry] = {}
         self._setup_draft: WorkerSetupDraft | None = None
         self._instance_rows: dict[str, str] = {}
+        self._row_path_tip_providers: dict = {}
 
         self._configure_root()
         self._configure_styles()
@@ -541,7 +590,7 @@ class AConductorDesktopApp:
         self.refresh()
 
     def _configure_root(self) -> None:
-        self.root.title(APP_NAME)
+        self.root.title(f"{APP_NAME} v{APP_VERSION}")
         self.root.configure(background=self.theme.background)
         self.root.geometry("1080x680")
         self.root.minsize(980, 640)
@@ -750,14 +799,20 @@ class AConductorDesktopApp:
         self.worker_tree.configure(yscrollcommand=worker_scroll.set)
         self.worker_tree.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 5))
         worker_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 5))
+        self.worker_xscroll = ttk.Scrollbar(
+            worker_panel, orient="horizontal", command=self.worker_tree.xview
+        )
+        self.worker_tree.configure(xscrollcommand=self.worker_xscroll.set)
+        self.worker_xscroll.grid(row=2, column=0, sticky="ew", padx=(9, 0), pady=(0, 4))
         self.worker_tree.bind("<<TreeviewSelect>>", lambda _event: self._update_lifecycle_buttons())
         self.worker_tree.tag_configure("ready", foreground=self.theme.ready)
         self.worker_tree.tag_configure("warning", foreground=self.theme.warning)
         self.worker_tree.tag_configure("error", foreground=self.theme.error)
         self.worker_tree.tag_configure("idle", foreground=self.theme.idle)
+        self._attach_row_path_tip(self.worker_tree, column=3, label="คัดลอก path (Copy path)")
 
         actions = tk.Frame(worker_panel, bg=self.theme.panel)
-        actions.grid(row=2, column=0, columnspan=2, sticky="ew", padx=9, pady=(4, 9))
+        actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=9, pady=(4, 9))
         self.release_button = self._button(actions, "Release", self.release_selected)
         _attach_tip(self.release_button, "ปล่อย Worker คืน (ถอดโปรเจกต์ออกจาก Worker ที่เลือก)", self.theme)
         self.refresh_button = self._button(actions, "Refresh", self.refresh)
@@ -831,12 +886,18 @@ class AConductorDesktopApp:
             self.instance_tree.heading(name, text=label, anchor="w")
             self.instance_tree.column(name, width=width, minwidth=50, anchor="w")
         self.instance_tree.grid(row=0, column=0, sticky="ew", padx=9, pady=(9, 4))
+        self.instance_xscroll = ttk.Scrollbar(
+            instances_panel, orient="horizontal", command=self.instance_tree.xview
+        )
+        self.instance_tree.configure(xscrollcommand=self.instance_xscroll.set)
+        self.instance_xscroll.grid(row=1, column=0, sticky="ew", padx=9, pady=(0, 4))
         self.instance_tree.tag_configure("ready", foreground=self.theme.ready)
         self.instance_tree.tag_configure("warning", foreground=self.theme.warning)
         self.instance_tree.tag_configure("idle", foreground=self.theme.idle)
+        self._attach_row_path_tip(self.instance_tree, column=3, label="คัดลอก path (Copy path)")
 
         instance_actions = tk.Frame(instances_panel, bg=self.theme.panel)
-        instance_actions.grid(row=1, column=0, sticky="ew", padx=9, pady=(0, 9))
+        instance_actions.grid(row=2, column=0, sticky="ew", padx=9, pady=(0, 9))
         self.instance_start_button = self._button(
             instance_actions, "Start", self.start_selected_instance
         )
@@ -1199,6 +1260,47 @@ class AConductorDesktopApp:
             return
         self.log_activity(f"- Worker     {removed.worker_id}")
         self.refresh()
+
+    def _tree_row_path(self, tree, item, *, column: int) -> str | None:
+        try:
+            values = tree.item(item, "values")
+        except tk.TclError:
+            return None
+        if not values or len(values) <= column:
+            return None
+        return str(values[column]) or None
+
+    def _copy_path_to_clipboard(self, path: str) -> None:
+        self.root.clipboard_clear()
+        self.root.clipboard_append(path)
+        self.log_activity(f"Copy path    {path}")
+
+    def _attach_row_path_tip(self, tree, *, column: int, label: str) -> None:
+        def provider(item) -> str | None:
+            return self._tree_row_path(tree, item, column=column)
+
+        self._row_path_tip_providers[tree] = provider
+        RowPathTip(tree, provider, self.theme)
+
+        def on_context(event) -> None:
+            row = tree.identify_row(event.y)
+            if not row:
+                return
+            tree.selection_clear()
+            tree.selection_set(row)
+            path = provider(row)
+            if not path:
+                return
+            menu = tk.Menu(tree, tearoff=0, bg=self.theme.panel, fg=self.theme.muted)
+            menu.add_command(
+                label=label, command=lambda bound=path: self._copy_path_to_clipboard(bound)
+            )
+            try:
+                menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                menu.grab_release()
+
+        tree.bind("<Button-3>", on_context, add="+")
 
     def _confirm(self, message: str) -> bool:
         answer = {"ok": False}
