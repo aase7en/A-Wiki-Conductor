@@ -81,11 +81,15 @@ class RuntimeSetupService:
         control_center: ControlCenterService,
         config_store: SQLiteSerenaConfigStore,
         git_runner: GitReadOnlyRunner | None = None,
-        instance_base: str | Path = r"C:\AI\serena-instances",
+        instance_base: str | Path | None = None,
     ) -> None:
         self._control_center = control_center
         self._config_store = config_store
         self._git = git_runner or StrictReadOnlyGitRunner()
+        if instance_base is None:
+            from .platform_support import default_instances_root
+
+            instance_base = default_instances_root()
         self._instance_base = _absolute(instance_base)
 
     def _worker_row(self, worker_id: str):

@@ -19,7 +19,9 @@ from typing import Callable, Protocol
 
 from .windows_io import LoopbackReadyzHttpProbe
 
-DEFAULT_INSTANCES_ROOT = Path("C:/AI/serena-instances")
+from .platform_support import default_instances_root
+
+DEFAULT_INSTANCES_ROOT = default_instances_root()  # import-time snapshot; runtime calls resolve lazily
 
 _TUNNEL_ID_RE = re.compile(r"^tunnel_[0-9a-f]{32}$")
 
@@ -69,9 +71,11 @@ class _HealthProbe(Protocol):
 
 
 def discover_local_instances(
-    instances_root: Path | str = DEFAULT_INSTANCES_ROOT,
+    instances_root: Path | str | None = None,
 ) -> tuple[LocalInstance, ...]:
-    root = Path(instances_root).expanduser().resolve(strict=False)
+    root = Path(
+        instances_root if instances_root is not None else default_instances_root()
+    ).expanduser().resolve(strict=False)
     if not root.is_dir():
         return ()
     found: list[LocalInstance] = []
@@ -140,11 +144,21 @@ BrainApplier = Callable[[object, object], str]
 
 
 def _default_launcher(script: Path, cwd: Path) -> None:
-    creationflags = 0
-    if sys.platform == "win32":
-        creationflags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
-            subprocess, "CREATE_NO_WINDOW", 0
+    if sys.platform != "win32":
+        # POSIX: run the instance's .sh entry directly in its own session.
+        subprocess.Popen(
+            ["/bin/sh", str(script)],
+            cwd=str(cwd),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            shell=False,
+            start_new_session=True,
         )
+        return
+    creationflags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
+        subprocess, "CREATE_NO_WINDOW", 0
+    )
     subprocess.Popen(
         ["cmd.exe", "/c", str(script)],
         cwd=str(cwd),
@@ -186,7 +200,7 @@ class LocalInstanceOrchestrator:
     def __init__(
         self,
         *,
-        instances_root: Path | str = DEFAULT_INSTANCES_ROOT,
+        instances_root: Path | str | None = None,
         probe: _HealthProbe | None = None,
         launcher: Launcher | None = None,
         waiter: Waiter | None = None,
@@ -203,7 +217,9 @@ class LocalInstanceOrchestrator:
             raise ValueError("timeouts must be >= 1")
         if poll_interval_seconds <= 0:
             raise ValueError("poll_interval_seconds must be > 0")
-        self._root = Path(instances_root).expanduser().resolve(strict=False)
+        self._root = Path(
+            instances_root if instances_root is not None else default_instances_root()
+        ).expanduser().resolve(strict=False)
         self._probe = probe or LoopbackReadyzHttpProbe()
         self._launcher = launcher or _default_launcher
         self._waiter = waiter or _default_waiter
