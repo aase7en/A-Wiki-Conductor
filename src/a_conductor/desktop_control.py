@@ -398,3 +398,71 @@ class DesktopControlService:
 
     def autostart_instance_names(self) -> tuple[str, ...]:
         return self._require_settings_store().list_instance_autostart()
+
+    def rename_instance(self, instance_name: str, display_name: str) -> str:
+        """Store a UI display alias for a connector (folder identity unchanged)."""
+        return self._require_settings_store().set_instance_display_name(
+            instance_name, display_name
+        )
+
+    def instance_aliases(self) -> dict[str, str]:
+        store = self._require_settings_store()
+        return store.instance_display_names()
+
+    def delete_instance(
+        self, instance_name: str, *, backup_dir: str | Path | None = None
+    ) -> Path:
+        """Stop (if needed), zip-backup, and remove a connector instance."""
+        from datetime import datetime
+
+        from .instance_delete import InstanceManageError, zip_directory
+        from .local_instances import instance_health_state
+
+        target = next(
+            (item for item in self.instances() if item.name == instance_name), None
+        )
+        if target is None:
+            raise InstanceManageError("INSTANCE_NOT_FOUND")
+
+        state = instance_health_state(target)
+        if state is not InstanceHealthState.STOPPED:
+            try:
+                outcome = self.instance_action(instance_name, "stop")
+            except Exception as exc:
+                raise InstanceManageError("INSTANCE_STOP_REQUIRED") from exc
+            if getattr(outcome, "state", None) is not InstanceHealthState.STOPPED:
+                after = instance_health_state(target)
+                if after is not InstanceHealthState.STOPPED:
+                    raise InstanceManageError("INSTANCE_STOP_REQUIRED")
+
+        instance_root = target.instance_root.resolve(strict=False)
+        root = Path(self.instances_root).resolve(strict=False)
+        if root not in instance_root.parents:
+            raise InstanceManageError("INSTANCE_OUTSIDE_ROOT")
+
+        if backup_dir is None:
+            local_app_data = os.environ.get("LOCALAPPDATA")
+            base = Path(local_app_data) if local_app_data else Path.home()
+            backup_dir = base / "A-Conductor" / "instance-backups"
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        zip_path = zip_directory(
+            instance_root, Path(backup_dir) / f"{instance_root.name}-{stamp}.zip"
+        )
+        if not zip_path.is_file():
+            raise InstanceManageError("INSTANCE_BACKUP_FAILED")
+
+        import shutil
+
+        try:
+            shutil.rmtree(instance_root)
+        except OSError as exc:
+            raise InstanceManageError("INSTANCE_DELETE_FAILED") from exc
+
+        store = self.settings_store
+        if store is not None:
+            try:
+                store.clear_instance_flags(instance_name)
+                store.clear_instance_display_name(instance_name)
+            except Exception:
+                pass  # rows are inert once the folder is gone
+        return zip_path
