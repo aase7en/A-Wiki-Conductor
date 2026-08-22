@@ -1,18 +1,18 @@
-"""A-Conductor per-user installer / uninstaller (no admin required).
+"""A-Sunday Conductor per-user installer / uninstaller (no admin required).
 
 Bundled payload (via PyInstaller --add-data):
-    payload/A-Conductor.exe     the portable app
+    payload/A-Sunday Conductor.exe  the portable app
     payload/docs/USER-GUIDE.md  the user guide
     payload/assets/a-conductor.ico
 
 Install (default):
-    A-Conductor-Setup.exe [--target DIR]
+    A-Sunday-Conductor-Setup.exe [--target DIR]
 Uninstall:
-    A-Conductor-Setup.exe --uninstall [--target DIR]
+    A-Sunday-Conductor-Setup.exe --uninstall [--target DIR]
 
 Writes only inside the per-user profile: target dir (default
-%LOCALAPPDATA%\\Programs\\A-Conductor), Start Menu shortcut, Desktop shortcut,
-and an HKCU Add/Remove-Programs entry. No admin, no system paths.
+%LOCALAPPDATA%\\Programs\\A-Sunday Conductor), Start Menu shortcut, Desktop
+shortcut, and an HKCU Add/Remove-Programs entry. No admin, no system paths.
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-APP_NAME = "A-Conductor"
-REG_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\A-Conductor"
+APP_NAME = "A-Sunday Conductor"
+REG_KEY = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}"
 CREDIT = "Uses the Serena engine (https://github.com/oraios/serena) internally."
 
 
@@ -100,7 +100,7 @@ def remove_registry() -> None:
 
 def do_install(target: Path) -> int:
     source = payload_dir()
-    app_exe = source / "A-Conductor.exe"
+    app_exe = source / f"{APP_NAME}.exe"
     guide = source / "docs" / "USER-GUIDE.md"
     icon = source / "assets" / "a-conductor.ico"
     for required in (app_exe, guide, icon):
@@ -110,18 +110,18 @@ def do_install(target: Path) -> int:
 
     target.mkdir(parents=True, exist_ok=True)
     print(f"[1/4] Installing to {target}")
-    shutil.copy2(app_exe, target / "A-Conductor.exe")
+    shutil.copy2(app_exe, target / f"{APP_NAME}.exe")
     (target / "docs").mkdir(exist_ok=True)
     shutil.copy2(guide, target / "docs" / "USER-GUIDE.md")
     (target / "assets").mkdir(exist_ok=True)
     shutil.copy2(icon, target / "assets" / "a-conductor.ico")
     if getattr(sys, "frozen", False):
-        shutil.copy2(Path(sys.executable), target / "Uninstall-A-Conductor.exe")
-        uninstaller = target / "Uninstall-A-Conductor.exe"
+        shutil.copy2(Path(sys.executable), target / f"Uninstall-{APP_NAME}.exe")
+        uninstaller = target / f"Uninstall-{APP_NAME}.exe"
     else:
         # Source mode: generate a repo-backed uninstall command for local installs.
         script = Path(__file__).resolve()
-        cmd = target / "Uninstall-A-Conductor.cmd"
+        cmd = target / f"Uninstall-{APP_NAME}.cmd"
         cmd.write_text(
             f'@echo off\r\n"{sys.executable}" "{script}" --uninstall --target "{target}"\r\n',
             encoding="utf-8",
@@ -130,17 +130,17 @@ def do_install(target: Path) -> int:
 
     print("[2/4] Creating Start Menu shortcut")
     start_link, desktop_link = shortcut_paths()
-    create_shortcut(start_link, target / "A-Conductor.exe", icon)
+    create_shortcut(start_link, target / f"{APP_NAME}.exe", icon)
 
     print("[3/4] Creating Desktop shortcut")
-    create_shortcut(desktop_link, target / "A-Conductor.exe", icon)
+    create_shortcut(desktop_link, target / f"{APP_NAME}.exe", icon)
 
     print("[4/4] Registering uninstall entry")
     write_registry(target, uninstaller)
 
     print("DONE")
     print(f"  Start Menu : {start_link}")
-    print(f"  Installed  : {target / 'A-Conductor.exe'}")
+    print(f"  Installed  : {target / (APP_NAME + '.exe')}")
     print(f"  Uninstall  : {uninstaller}")
     print(f"  {CREDIT}")
     return 0
@@ -169,7 +169,7 @@ def do_uninstall(target: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="A-Conductor-Setup")
+    parser = argparse.ArgumentParser(prog=f"{APP_NAME}-Setup")
     parser.add_argument("--target", type=Path, default=None)
     parser.add_argument("--uninstall", action="store_true")
     args = parser.parse_args(argv)

@@ -1,4 +1,4 @@
-# คู่มือการใช้งาน A-Conductor (User Guide)
+# คู่มือการใช้งาน A-Sunday Conductor (User Guide)
 
 เวอร์ชันล่าสุด: 2026-08-21 · ระบบปฏิบัติการที่รองรับ: **Windows 10/11** (ฟีเจอร์เต็ม) · Python 3.11+ (ถ้าติดตั้งแบบนักพัฒนา)
 
@@ -11,7 +11,7 @@
 | รูปแบบ | วิธีเปิด |
 |---|---|
 | ติดตั้งแบบนักพัฒนา (แนะนำตอนนี้) | เปิด terminal ที่โฟลเดอร์ repo แล้วพิมพ์ `a-conductor` |
-| แบบไฟล์เดียว (portable) | รันไฟล์ `A-Conductor.exe` ที่ build ด้วย PyInstaller (ดูหัวข้อ 6) |
+| แบบไฟล์เดียว (portable) | รันไฟล์ `A-Sunday Conductor.exe` ที่ build ด้วย PyInstaller (ดูหัวข้อ 6) |
 
 ## 2. ติดตั้งครั้งแรก (สำหรับคนที่ fork/clone มา)
 
@@ -27,7 +27,7 @@ a-conductor          # เปิดโปรแกรม
 ## 3. หน้าจอหลักมีอะไร
 
 ```
-┌ A-CONDUCTOR                                [คู่มือ]     ● ONLINE ┐
+┌ A-SUNDAY CONDUCTOR                         [คู่มือ]     ● ONLINE ┐
 ├ PROJECTS (ซ้าย)  │  WORKERS (ขวา) — ตาราง WORKER/STATE/PROJECT/PATH
 │                  │  ปุ่ม: Add Project / Assign / Activate / Release / Refresh
 │                  │        Start / Stop / Restart / Setup / Config
@@ -67,14 +67,14 @@ a-conductor          # เปิดโปรแกรม
 2. กด **Activate** → โปรแกรมจะคัดลอก prompt มาตรฐานของ Serena พร้อม path ของโปรเจกต์นั้น
 3. ไปที่ AI chat ที่เชื่อม Serena แล้ววางข้อความที่คัดลอก เช่นบรรทัดแรกจะเป็น `Activate the current dir as project using serena`
 
-> ปุ่มนี้ช่วยคัดลอกข้อความเท่านั้น — A-Conductor ไม่ activate Serena แทน agent และไม่แก้ไฟล์ในโปรเจกต์
+> ปุ่มนี้ช่วยคัดลอกข้อความเท่านั้น — A-Sunday Conductor ไม่ activate Serena แทน agent และไม่แก้ไฟล์ในโปรเจกต์
 
 ### 4.5 ปุ่มคู่มือ
 มุมขวาบนมีปุ่ม **คู่มือ** — เปิดคู่มือฉบับนี้ได้ทันทีจากในโปรแกรม (ไม่มีคีย์ลัดที่ต้องจำ ทุกอย่างกดปุ่มได้เลย)
 
 ## 5. ฐานข้อมูล/ไฟล์ของโปรแกรมอยู่ไหน
 
-- ค่าเริ่มต้น: `%LOCALAPPDATA%\A-Conductor\control-center.sqlite`
+- ค่าเริ่มต้น: `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` (โฟลเดอร์ข้อมูลคงชื่อเดิมจากก่อนเปลี่ยนชื่อโปรแกรม เพื่อให้อัปเกรดแล้วข้อมูลเดิมใช้ต่อได้)
 - ระบุเองได้: `a-conductor --database D:\path\my.sqlite`
 
 ## 6. แจกจ่าย/ติดตั้งแบบไหนได้บ้าง (ทั้งหมดทำได้ — ไม่ต้องทำผ่านเว็บ)
@@ -83,7 +83,7 @@ a-conductor          # เปิดโปรแกรม
 |---|---|---|
 | **pip (นักพัฒนา)** | คนที่มี Python | `python -m pip install -e .[test]` แล้วใช้คำสั่ง `a-conductor` |
 | **PyInstaller (portable exe)** | ผู้ใช้ทั่วไป ไม่ต้องมี Python | สร้างไฟล์ `.exe` วิ่งได้เดี่ยวๆ — build ด้วย `python scripts/build_portable.py` |
-| **Setup installer (A-Conductor-Setup.exe)** | เผยแพร่สาธารณะ | ติดตั้งแบบผู้ใช้เดียว (ไม่ต้อง admin): ไปที่ `%LOCALAPPDATA%\Programs\A-Conductor` + Start Menu + Desktop + ลงทะเบียนถอนการติดตั้งใน "Add or remove programs" |
+| **Setup installer (A-Sunday-Conductor-Setup.exe)** | เผยแพร่สาธารณะ | ติดตั้งแบบผู้ใช้เดียว (ไม่ต้อง admin): ไปที่ `%LOCALAPPDATA%\Programs\A-Sunday Conductor` + Start Menu + Desktop + ลงทะเบียนถอนการติดตั้งใน "Add or remove programs" |
 | เว็บเวอร์ชัน | — | ไม่จำเป็นสำหรับโปรแกรมนี้ (เป็น local desktop app ตามดีไซน์) |
 
 สร้าง exe เอง:
@@ -91,8 +91,8 @@ a-conductor          # เปิดโปรแกรม
 ```powershell
 python -m venv .build-venv
 .build-venv\Scripts\pip install pyinstaller
-.build-venv\Scripts\pyinstaller --noconfirm --windowed --onefile --name A-Conductor --paths src entry.py
-# ได้ไฟล์ที่ dist\A-Conductor.exe
+.build-venv\Scripts\pyinstaller --noconfirm --windowed --onefile --name "A-Sunday Conductor" --paths src entry.py
+# ได้ไฟล์ที่ dist\A-Sunday Conductor.exe
 ```
 
 คำสั่งสร้าง installer: `python scripts/build_portable.py` สำหรับ exe หลัก แล้วสร้าง setup ด้วย `scripts/installer_main.py` (คู่มือนี้ถูกฝังใน setup.exe อัตโนมัติ)
@@ -151,4 +151,4 @@ python -m venv .build-venv
 
 ## เครดิต (Credits)
 
-A-Conductor ใช้ [Serena](https://github.com/oraios/serena) เป็น semantic code engine ภายใน (MIT License) — ขอบคุณทีมพัฒนา Serena สำหรับ engine อันยอดเยี่ยม
+A-Sunday Conductor ใช้ [Serena](https://github.com/oraios/serena) เป็น semantic code engine ภายใน (MIT License) — ขอบคุณทีมพัฒนา Serena สำหรับ engine อันยอดเยี่ยม

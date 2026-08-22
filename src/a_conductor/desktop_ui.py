@@ -1,4 +1,4 @@
-"""Tkinter desktop adapter for the A-Conductor Control Center.
+"""Tkinter desktop adapter for the A-Sunday Conductor control center.
 
 The desktop layer consumes only the application-service snapshot/actions. It
 contains no process, tunnel, Git, or persistence implementation.
@@ -19,6 +19,7 @@ import tkinter as tk
 from tkinter import filedialog, ttk
 import webbrowser
 
+from .branding import APP_NAME
 from .control_center import ControlCenterError, ControlCenterSnapshot
 from .domain import WorkerState
 from .lifecycle_coordinator import LifecycleCoordinatorError
@@ -449,7 +450,7 @@ class AConductorDesktopApp:
         self.refresh()
 
     def _configure_root(self) -> None:
-        self.root.title("A-Conductor")
+        self.root.title(APP_NAME)
         self.root.configure(background=self.theme.background)
         self.root.geometry("1080x680")
         self.root.minsize(980, 640)
@@ -1226,7 +1227,7 @@ class AConductorDesktopApp:
 
         self._setup_draft = draft
         dialog = tk.Toplevel(self.root)
-        dialog.title(f"A-Conductor — Runtime Setup — {worker_id}")
+        dialog.title(f"{APP_NAME} — Runtime Setup — {worker_id}")
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
         dialog.resizable(True, False)
@@ -1367,7 +1368,7 @@ class AConductorDesktopApp:
         title, detail_parts = ERROR_EXPLANATIONS.get(code, ERROR_EXPLANATIONS["GENERIC"])
         detail = chr(10).join(detail_parts)
         window = tk.Toplevel(self.root)
-        window.title("A-Conductor — แจ้งเตือน")
+        window.title(APP_NAME + " — แจ้งเตือน")
         window.configure(bg=self.theme.panel)
         window.transient(self.root)
         window.resizable(True, False)
@@ -1452,7 +1453,7 @@ class AConductorDesktopApp:
             return None
 
         window = tk.Toplevel(self.root)
-        window.title("A-Conductor — ตั้งค่า")
+        window.title(APP_NAME + " — ตั้งค่า")
         window.configure(bg=self.theme.panel)
         window.transient(self.root)
         window.resizable(True, False)
@@ -1540,7 +1541,7 @@ class AConductorDesktopApp:
 
     def _show_guide_window(self, path: Path) -> tk.Toplevel:
         window = tk.Toplevel(self.root)
-        window.title("A-Conductor — คู่มือการใช้งาน")
+        window.title(APP_NAME + " — คู่มือการใช้งาน")
         window.configure(bg=self.theme.background)
         window.geometry("900x640")
         text = tk.Text(
@@ -1609,7 +1610,7 @@ class AConductorDesktopApp:
         bound_project = row.project_root_path if row is not None else ""
 
         dialog = tk.Toplevel(self.root)
-        dialog.title(f"A-Conductor — Worker Config — {worker_id}")
+        dialog.title(f"{APP_NAME} — Worker Config — {worker_id}")
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
         dialog.resizable(True, False)
@@ -2044,7 +2045,7 @@ class AConductorDesktopApp:
             return None
 
         dialog = tk.Toplevel(self.root)
-        dialog.title("A-Conductor — Second Brain")
+        dialog.title(APP_NAME + " — Second Brain")
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
         dialog.resizable(True, False)
@@ -2216,7 +2217,7 @@ class AConductorDesktopApp:
             return None
 
         dialog = tk.Toplevel(self.root)
-        dialog.title(f"A-Conductor — เปลี่ยนโปรเจกต์ — {name}")
+        dialog.title(f"{APP_NAME} — เปลี่ยนโปรเจกต์ — {name}")
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
         dialog.resizable(True, False)
@@ -2285,7 +2286,7 @@ class AConductorDesktopApp:
             return None
 
         dialog = tk.Toplevel(self.root)
-        dialog.title(f"A-Conductor — ตั้ง Tunnel ID — {name}")
+        dialog.title(f"{APP_NAME} — ตั้ง Tunnel ID — {name}")
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
         dialog.resizable(True, False)
@@ -2350,7 +2351,7 @@ class AConductorDesktopApp:
         def present(status):
             self._set_enabled(self.upstream_button, True)
             window = tk.Toplevel(self.root)
-            window.title("A-Conductor — เช็คอัปเดท engine")
+            window.title(APP_NAME + " — เช็คอัปเดท engine")
             window.configure(bg=self.theme.panel)
             window.transient(self.root)
             window.resizable(True, False)

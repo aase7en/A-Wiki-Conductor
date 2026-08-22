@@ -1,5 +1,7 @@
 # A-Wiki Conductor — Project Plan
 
+> **Naming decision (2026-08-22):** the product display name is **A-Sunday Conductor** (window titles, installer, Start Menu, public docs). It supersedes "A-Conductor" as the public name. This plan and the contracts under `docs/contracts/` continue to use "A-Conductor" as the internal codename; the Python package remains `a_conductor` and the data folder remains `%LOCALAPPDATA%\A-Conductor\`.
+
 ## 1. Project Vision
 
 A-Wiki Conductor is a local autonomous control plane for coordinating multiple AI agents, coding agents, MCP servers, local models, cloud models, and A-Wiki memory.

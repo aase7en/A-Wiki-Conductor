@@ -130,7 +130,7 @@ def test_app_renders_projects_workers_and_disabled_lifecycle_controls(root) -> N
     app = AConductorDesktopApp(root, service=service)
     root.update_idletasks()
 
-    assert root.title() == "A-Conductor"
+    assert root.title() == "A-Sunday Conductor"
     assert app.project_list.size() == 1
     assert len(app.worker_tree.get_children()) == 3
     assert app.start_button.instate(["disabled"])
@@ -765,7 +765,7 @@ def test_guide_opens_in_app_window_by_default(root) -> None:
         text_widget = child
     assert isinstance(text_widget, tk.Text)
     content = text_widget.get("1.0", "end")
-    assert "A-Conductor" in content
+    assert "A-Sunday Conductor" in content
     assert "เริ่มต้น" in content or "คู่มือ" in content
     window.destroy()
 
