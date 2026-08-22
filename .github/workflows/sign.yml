@@ -1,0 +1,24 @@
+name: Sign release artifacts (SignPath)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      artifact:
+        description: "Path under dist/ to sign (e.g. A-Sunday-Conductor-Setup.exe)"
+        required: false
+
+jobs:
+  sign:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Sign artifacts (no-op until SIGNPATH_API_TOKEN exists)
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          python scripts/sign.py dist/A-Sunday-Conductor-Setup.exe
