@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-22 (GLM 5.3, v0.2.4 A-Doctor audit fixes)
+Last updated: 2026-08-23 (GLM 5.3, v0.3.0 backlog loops)
 
 ## Current phase
 
@@ -51,6 +51,14 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 - **P1 fixes**: Toggle Auto wrote the wrong column (clobbered TUNNEL, left AUTO stale); reaper used substring matching (could kill sibling instances' wrappers — now path-boundary + apostrophe-escaped); project paths with apostrophes broke PowerShell single-quoted lines (now escaped via `_ps_quote` in create/rename/rebind); MONITOR froze the UI thread every 5s (async + cached instances + 64KB tail reads).
 - **P2 fixes**: create validates the whole reference before touching disk (no skeleton folders); delete uses the real stop result code; backup zips include empty dirs; rename rollback covers read/write IO; stop-failures at close surface via confirm; error tables extended + made symmetric (Thai/EN) with the duplicate TUNNEL_ID_INVALID removed; CI GUI list completed (test_instance_create, test_doctor_fixes).
 - WO-P1-052 closed (code shipped long ago); WO-P1-023 marked superseded. Guide §3 diagram/§4.5 refreshed for the current toolbars + MONITOR + shutdown switch.
+
+## v0.3.0: backlog loops shipped (2026-08-23, PRs #59-#63)
+
+- **Loop A (deep i18n)**: all 64 config blurbs bilingual (PR #60) + full English user guide bundled with every install; Guide button follows the language; MODE_BLURBS finally wired as a checkbox grid.
+- **Loop B-1 (cross-platform P1)**: `platform_support` (env-override roots, Win32 constant flags), POSIX launcher (`/bin/sh` + start_new_session), headless smoke fallback; **CI now runs on Windows + Ubuntu + macOS** — the matrix caught 3 real POSIX bugs (subprocess attr, hardcoded instance base, Tk-no-display) before any user ever hit them. Remaining: B-2 (.sh instance templates) + B-3 (mac/Linux packaging).
+- **Loop C (signing)**: SignPath pipeline ready (`scripts/sign.py` no-op until `SIGNPATH_API_TOKEN`; sign workflow on release publish); **user action pending**: apply per `docs/signing/SIGNPATH-APPLY.md` (free for OSS; consider switching the license to MIT/Apache first).
+- **Loop D**: ADR-0001 defers the MCP gateway with explicit reopen conditions; no DECISION_REQUIRED markers remain.
+- v0.3.0 installed on this machine (smoke OK, both guides bundled); bug-hunt suite stable ×2 (24/24).
 
 ## Live connector fleet (2026-08-22 night — backend renamed to one pattern, all READY)
 
