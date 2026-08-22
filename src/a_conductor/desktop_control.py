@@ -328,6 +328,25 @@ class DesktopControlService:
     def instances(self) -> tuple[LocalInstance, ...]:
         return discover_local_instances(self.instances_root)
 
+    def stop_all_instances(self) -> list[tuple[str, bool]]:
+        """Stop every running connector; one failure never blocks the rest."""
+        from .local_instances import instance_health_state
+
+        results: list[tuple[str, bool]] = []
+        for instance in self.instances():
+            try:
+                state = instance_health_state(instance)
+            except Exception:
+                state = None
+            if state is InstanceHealthState.STOPPED:
+                continue
+            try:
+                self.instance_action(instance.name, "stop")
+                results.append((instance.name, True))
+            except Exception:
+                results.append((instance.name, False))
+        return results
+
     def create_instance(
         self, name: str, project_path: str | Path, tunnel_id: str | None = None
     ):

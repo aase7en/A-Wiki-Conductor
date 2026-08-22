@@ -600,6 +600,7 @@ class AConductorDesktopApp:
             except Exception:
                 pass
         self.root.title(f"{APP_NAME} v{APP_VERSION}")
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close_request)
         self.root.configure(background=self.theme.background)
         self.root.geometry("1080x680")
         self.root.minsize(980, 640)
@@ -1266,6 +1267,32 @@ class AConductorDesktopApp:
         self.log_activity(f"- Worker     {removed.worker_id}")
         self.refresh()
 
+    def _on_close_request(self) -> None:
+        """Window close: optionally stop every connector, reap wrappers, exit."""
+        stop_all = True
+        getter = getattr(self.service, "get_preference", None)
+        if callable(getter):
+            try:
+                pref = getter("shutdown_stops_instances")
+                stop_all = True if pref is None else bool(pref)
+            except Exception:
+                stop_all = True
+        if stop_all:
+            try:
+                self.log_activity("Closing       stopping all connectors ...")
+                for name, ok in self.service.stop_all_instances():
+                    self.log_activity(f"Close-stop    {name} {'OK' if ok else 'FAILED'}")
+            except Exception:
+                pass
+            try:
+                from .instance_runtime import reap_instance_wrappers
+
+                for instance in self.service.instances():
+                    reap_instance_wrappers(instance.instance_root)
+            except Exception:
+                pass
+        self.root.destroy()
+
     def _tree_row_path(self, tree, item, *, column: int) -> str | None:
         try:
             values = tree.item(item, "values")
@@ -1882,7 +1909,7 @@ class AConductorDesktopApp:
             wraplength=460,
             command=lambda: self._save_supervised_preference(setter, supervised_var),
         )
-        checkbox.grid(row=1, column=0, sticky="w")
+        checkbox.grid(row=2, column=0, sticky="w")
         _attach_tip(
             checkbox,
             "ON = ทุกคำสั่ง native (git/pytest/compileall) ถูกคุมตั้งแต่เกิดจนจบ:\nบันทึกลงฐานข้อมูล + กันงานซ้ำ + เก็บ output ครบ\nOFF = รันเร็วขึ้นเล็กน้อย แต่ไม่มีการบันทึก/กันซ้ำ\n(แนะนำ: ON)",
@@ -1897,9 +1924,34 @@ class AConductorDesktopApp:
             anchor="w",
             wraplength=460,
             justify="left",
-        ).grid(row=2, column=0, sticky="w", pady=(2, 8))
+        ).grid(row=3, column=0, sticky="w", pady=(2, 8))
 
         language_var = tk.BooleanVar(value=(get_language() == "en"))
+
+        try:
+            shutdown_pref = getter("shutdown_stops_instances")
+        except Exception:
+            shutdown_pref = None
+        shutdown_var = tk.BooleanVar(value=True if shutdown_pref is None else bool(shutdown_pref))
+        shutdown_box = tk.Checkbutton(
+            frame,
+            text=tr("prefs.shutdown"),
+            variable=shutdown_var,
+            bg=self.theme.panel,
+            fg=self.theme.foreground,
+            selectcolor=self.theme.background,
+            activebackground=self.theme.panel,
+            activeforeground=self.theme.foreground,
+            highlightthickness=0,
+            font=(self.theme.monospace_font, 9),
+            anchor="w",
+            justify="left",
+            wraplength=460,
+            command=lambda: self._save_shutdown_preference(setter, shutdown_var),
+        )
+        shutdown_box.grid(row=1, column=0, sticky="w", pady=(0, 2))
+        _attach_tip(shutdown_box, tr("prefs.shutdown.help"), self.theme)
+
         language_box = tk.Checkbutton(
             frame,
             text=tr("prefs.language") + ("  ✓ English" if language_var.get() else "  ✓ ไทย"),
@@ -1916,7 +1968,7 @@ class AConductorDesktopApp:
             wraplength=460,
             command=lambda: self._save_language_preference(setter, language_var),
         )
-        language_box.grid(row=3, column=0, sticky="w")
+        language_box.grid(row=4, column=0, sticky="w")
         _attach_tip(language_box, tr("prefs.language.help"), self.theme)
         tk.Label(
             frame,
@@ -1927,12 +1979,20 @@ class AConductorDesktopApp:
             anchor="w",
             wraplength=460,
             justify="left",
-        ).grid(row=4, column=0, sticky="w", pady=(2, 8))
+        ).grid(row=5, column=0, sticky="w", pady=(2, 8))
 
         self._button(frame, tr("btn.close"), lambda: window.destroy() if window.winfo_exists() else None).grid(
-            row=5, column=0, sticky="w"
+            row=6, column=0, sticky="w"
         )
         return window
+
+    def _save_shutdown_preference(self, setter, var: tk.BooleanVar) -> None:
+        try:
+            setter("shutdown_stops_instances", var.get())
+        except Exception:
+            self._handle_error("PREFERENCE_SAVE_FAILED")
+            return
+        self.log_activity(f"Settings     shutdown_stops={'ON' if var.get() else 'OFF'}")
 
     def _save_language_preference(self, setter, var: tk.BooleanVar) -> None:
         try:
