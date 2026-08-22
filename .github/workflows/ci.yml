@@ -54,9 +54,9 @@ jobs:
       - name: Install package with test extra
         run: python -m pip install -e .[test]
       # Platform-neutral suites first (Tk-dependent tests skip without a display)
-      - name: Run platform-neutral suites
+      - name: Run platform-neutral suites (no Tk on headless runners)
         run: >-
           python -m pytest tests/test_platform_support.py
-          tests/test_i18n.py tests/test_branding.py -q
+          tests/test_branding.py -q
       - name: Smoke test (headless)
         run: python -m a_conductor --smoke --database ${{ runner.temp }}/acond-smoke.sqlite
