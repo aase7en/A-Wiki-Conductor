@@ -461,7 +461,10 @@ class DesktopControlService:
                 outcome = self.instance_action(instance_name, "stop")
             except Exception as exc:
                 raise InstanceManageError("INSTANCE_STOP_REQUIRED") from exc
-            if getattr(outcome, "state", None) is not InstanceHealthState.STOPPED:
+            if getattr(outcome, "result_code", None) not in (
+                InstanceResultCode.STOPPED,
+                InstanceResultCode.ALREADY_STOPPED,
+            ):
                 after = instance_health_state(target)
                 if after is not InstanceHealthState.STOPPED:
                     raise InstanceManageError("INSTANCE_STOP_REQUIRED")

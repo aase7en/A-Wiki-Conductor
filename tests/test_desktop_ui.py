@@ -130,7 +130,7 @@ def test_app_renders_projects_workers_and_disabled_lifecycle_controls(root) -> N
     app = AConductorDesktopApp(root, service=service)
     root.update_idletasks()
 
-    assert root.title() == "A-Sunday Conductor v0.2.3"
+    assert root.title() == "A-Sunday Conductor v0.2.4"
     assert app.project_list.size() == 1
     assert len(app.worker_tree.get_children()) == 3
     assert app.start_button.instate(["disabled"])
@@ -673,7 +673,9 @@ def test_instance_toggle_auto_persists_through_service(root) -> None:
     root.update()
 
     assert service.autostart["Serena-Alpha"] is True
-    assert app.instance_tree.item(alpha_row, "values")[4] == "ON"
+    values = app.instance_tree.item(alpha_row, "values")
+    assert values[5] == "ON"   # AUTO column updated
+    assert values[4] in ("Y", "-")  # TUNNEL column untouched by the toggle
 
 
 def test_instance_panel_disabled_without_instance_service(root) -> None:

@@ -28,14 +28,20 @@ def latest_log_path(instance_root: Path | str) -> Path | None:
     return candidates[-1] if candidates else None
 
 
-def tail_lines(path: Path | None, count: int = 12) -> list[str]:
+def tail_lines(path: Path | None, count: int = 12, max_bytes: int = 65536) -> list[str]:
+    """Tail the last lines without loading the whole file into memory."""
     if path is None or not path.is_file():
         return []
     try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        size = path.stat().st_size
+        with path.open("rb") as handle:
+            if size > max_bytes:
+                handle.seek(size - max_bytes)
+                handle.readline()  # drop the partial first line
+            chunk = handle.read(max_bytes)
     except OSError:
         return []
-    return lines[-count:]
+    return chunk.decode("utf-8", errors="replace").splitlines()[-count:]
 
 
 def scan_errors(lines: list[str]) -> list[str]:

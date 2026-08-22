@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 
 from .instance_rebind import _PROJECTS_LINE_RE
+from .instance_runtime import _ps_quote
 from .local_instances import LocalInstance, _TUNNEL_ID_RE
 
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -106,6 +107,21 @@ def create_instance(
     tunnel_client, legacy_secret = _shared_paths(reference)
     reference_slug = reference.name
 
+    # Validate every reference artifact BEFORE creating anything, so a bad
+    # reference never leaves a half-built skeleton folder behind.
+    for script in ("start.ps1", "stop.ps1"):
+        if not (reference / script).is_file():
+            raise InstanceCreateError("REFERENCE_SCRIPT_MISSING")
+    for pattern, code in (
+        ("Start-*.cmd", "REFERENCE_CMD_MISSING"),
+        ("Stop-*.cmd", "REFERENCE_CMD_MISSING"),
+        ("profiles/*.template", "REFERENCE_TEMPLATE_MISSING"),
+    ):
+        if not list(reference.glob(pattern)):
+            raise InstanceCreateError(code)
+    if not (reference / "serena-home" / "serena_config.yml").is_file():
+        raise InstanceCreateError("REFERENCE_TEMPLATE_MISSING")
+
     clean_tunnel = (tunnel_id or "").strip()
     if tunnel_id is not None and not _TUNNEL_ID_RE.match(clean_tunnel):
         raise InstanceCreateError("TUNNEL_ID_INVALID")
@@ -121,13 +137,13 @@ def create_instance(
     instance_ps1 = "\n".join(
         [
             f"# {instance_name} instance configuration",
-            f"$InstanceName = '{instance_name}'",
-            f"$ProjectPath = '{project}'",
-            f"$SerenaHome = '{(target / 'serena-home')}'",
+            f"$InstanceName = '{_ps_quote(instance_name)}'",
+            f"$ProjectPath = '{_ps_quote(str(project))}'",
+            f"$SerenaHome = '{_ps_quote(str(target / 'serena-home'))}'",
             f"$HealthListenAddress = '127.0.0.1:{health_port}'",
-            f"$TunnelProfileName = '{profile}'",
-            f"$TunnelClientPath = '{tunnel_client}'",
-            f"$LegacySecretPath = '{legacy_secret}'",
+            f"$TunnelProfileName = '{_ps_quote(profile)}'",
+            f"$TunnelClientPath = '{_ps_quote(tunnel_client)}'",
+            f"$LegacySecretPath = '{_ps_quote(legacy_secret)}'",
         ]
     )
     (target / "instance.ps1").write_text(instance_ps1 + "\n", encoding="utf-8", newline="\r\n")
@@ -171,7 +187,7 @@ def create_instance(
     reference_config = reference / "serena-home" / "serena_config.yml"
     if reference_config.is_file():
         config_text = reference_config.read_text(encoding="utf-8")
-        replacement = "projects:\n- '" + str(project) + "'"
+        replacement = "projects:\n- '" + _ps_quote(str(project)) + "'"
         config_text = _PROJECTS_LINE_RE.sub(
             lambda _m: replacement, config_text, count=1
         )

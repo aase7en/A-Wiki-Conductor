@@ -89,6 +89,12 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     # copy menu
     "menu.copy.path": {"th": "คัดลอก path (Copy path)", "en": "Copy path"},
+    "err.footer": {
+        "th": "อ่านเพิ่ม: ปุ่ม คู่มือ มุมขวาบนของโปรแกรม",
+        "en": "Learn more: the Guide button, top-right of the app",
+    },
+    "dlg.rename.connector.title": {"th": "แก้ชื่อตัวเชื่อม", "en": "Rename connector"},
+    "dlg.rename.header": {"th": "แก้ชื่อ", "en": "Rename"},
     "btn.close": {"th": "ปิด", "en": "Close"},
     "prefs.shutdown": {
         "th": "ปิดโปรแกรมแล้วหยุดทุกตัวเชื่อม (เครียร์เครื่อง)",
