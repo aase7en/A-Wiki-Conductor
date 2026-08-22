@@ -109,6 +109,15 @@ class DesktopControlService:
     def release_worker(self, worker_id: str):
         return self.control_center.release_worker(worker_id)
 
+    def add_worker(self, display_name: str | None = None):
+        return self.control_center.add_worker(display_name)
+
+    def rename_worker(self, worker_id: str, display_name: str):
+        return self.control_center.rename_worker(worker_id, display_name)
+
+    def delete_worker(self, worker_id: str):
+        return self.control_center.delete_worker(worker_id)
+
     def get_preference(self, key: str) -> bool | None:
         return self._require_settings_store().get_preference(key)
 

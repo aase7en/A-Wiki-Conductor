@@ -89,6 +89,13 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "ทำอย่างไร: คลิกแถว Worker หนึ่งครั้งก่อนกดปุ่มนี้",
         ),
     ),
+    "WORKER_NAME_INVALID": (
+        "ชื่อ Worker ห้ามว่าง",
+        (
+            "ขาด: ข้อความในช่องชื่อ (กรอกช่องว่างหรือช่องว่างล้วน)",
+            "ทำอย่างไร: พิมพ์ชื่อที่ต้องการแสดงอย่างน้อย 1 ตัวอักษร แล้วกด บันทึก",
+        ),
+    ),
     "SELECT_PROJECT": (
         "ยังไม่ได้เลือกโปรเจกต์",
         (
@@ -681,6 +688,20 @@ class AConductorDesktopApp:
         _attach_tip(self.setup_button, "ตั้งค่า runtime ของ Worker (จำเป็นสำหรับโปรเจกต์ที่ไม่มี Connector)", self.theme)
         self.config_button = self._button(actions, "Config", self.open_worker_config)
         _attach_tip(self.config_button, "ตั้งค่า engine ของ Worker: ภาษา / เปิด-ปิด tools / project", self.theme)
+        self.add_worker_button = self._button(actions, "+ Worker", self.open_add_worker_dialog)
+        _attach_tip(
+            self.add_worker_button,
+            "เพิ่มช่อง Worker ใหม่ (a-worker-04, 05, ...) — สำหรับงานขนานหรือ sub-agent ที่ซ้อนกัน",
+            self.theme,
+        )
+        self.rename_worker_button = self._button(actions, "Rename", self.open_rename_worker_dialog)
+        _attach_tip(self.rename_worker_button, "เปลี่ยนชื่อที่แสดงของ Worker ที่เลือก", self.theme)
+        self.delete_worker_button = self._button(actions, "Delete", self.delete_selected_worker)
+        _attach_tip(
+            self.delete_worker_button,
+            "ลบช่อง Worker ที่เลือก — ทำได้เฉพาะ Worker ที่หยุดและไม่มีโปรเจกต์แล้วเท่านั้น",
+            self.theme,
+        )
         for index, button in enumerate(
             (
                 self.release_button,
@@ -690,6 +711,9 @@ class AConductorDesktopApp:
                 self.restart_button,
                 self.setup_button,
                 self.config_button,
+                self.add_worker_button,
+                self.rename_worker_button,
+                self.delete_worker_button,
             )
         ):
             button.grid(row=index // 4, column=index % 4, padx=(0, 6), pady=(0, 3), sticky="w")
@@ -1030,6 +1054,154 @@ class AConductorDesktopApp:
             return
         self.log_activity(f"Release      {worker_id}")
         self.refresh()
+
+    def add_worker_slot(self, display_name: str | None = None) -> None:
+        try:
+            worker = self.service.add_worker(display_name)
+        except ControlCenterError as exc:
+            self._handle_error(exc.code)
+            return
+        self.log_activity(f"+ Worker     {worker.worker_id}  {worker.display_name}")
+        self.refresh()
+
+    def rename_selected_worker(self, new_name: str) -> None:
+        worker_id = self.selected_worker_id()
+        if worker_id is None:
+            self._handle_error("SELECT_WORKER")
+            return
+        try:
+            worker = self.service.rename_worker(worker_id, new_name)
+        except ControlCenterError as exc:
+            self._handle_error(exc.code)
+            return
+        self.log_activity(f"Rename       {worker_id} -> {worker.display_name}")
+        self.refresh()
+
+    def delete_selected_worker(self) -> None:
+        worker_id = self.selected_worker_id()
+        if worker_id is None:
+            self._handle_error("SELECT_WORKER")
+            return
+        if not self._confirm(f"ลบช่อง Worker {worker_id} ออกจากระบบ?\n(ทำได้เฉพาะ Worker ที่หยุดและไม่มีโปรเจกต์)"):
+            return
+        try:
+            removed = self.service.delete_worker(worker_id)
+        except ControlCenterError as exc:
+            self._handle_error(exc.code)
+            return
+        self.log_activity(f"- Worker     {removed.worker_id}")
+        self.refresh()
+
+    def _confirm(self, message: str) -> bool:
+        answer = {"ok": False}
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"{APP_NAME} — ยืนยัน")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=14)
+        frame.pack(fill="both", expand=True)
+        tk.Label(
+            frame,
+            text=message,
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 10),
+            wraplength=340,
+            justify="left",
+        ).pack(pady=(0, 10))
+        buttons = tk.Frame(frame, bg=self.theme.panel)
+        buttons.pack(fill="x")
+
+        def close(ok: bool) -> None:
+            answer["ok"] = ok
+            dialog.destroy()
+
+        self._button(buttons, "ยืนยัน", lambda: close(True)).pack(side="right", padx=(6, 0))
+        self._button(buttons, "ยกเลิก", lambda: close(False)).pack(side="right")
+        dialog.protocol("WM_DELETE_WINDOW", lambda: close(False))
+        dialog.grab_set()
+        dialog.wait_window()
+        return answer["ok"]
+
+    def open_add_worker_dialog(self) -> None:
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"{APP_NAME} — เพิ่ม Worker")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=14)
+        frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            frame,
+            text="> เพิ่มช่อง Worker ใหม่",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        tk.Label(
+            frame,
+            text="ชื่อที่แสดง (ไม่กรอก = ตั้งอัตโนมัติ เช่น A-Worker 4)",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        ).grid(row=1, column=0, columnspan=2, sticky="w")
+        name_entry = ttk.Entry(frame, font=(self.theme.monospace_font, 10))
+        name_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 10))
+
+        def submit() -> None:
+            dialog.destroy()
+            self.add_worker_slot(name_entry.get().strip() or None)
+
+        name_entry.bind("<Return>", lambda _event: submit())
+        self._button(frame, "เพิ่ม", submit).grid(row=3, column=1, sticky="e")
+        name_entry.focus_set()
+
+    def open_rename_worker_dialog(self) -> None:
+        worker_id = self.selected_worker_id()
+        if worker_id is None:
+            self._handle_error("SELECT_WORKER")
+            return
+        row = self._selected_worker_row()
+        current = row.display_name if row is not None else worker_id
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"{APP_NAME} — แก้ชื่อ Worker — {worker_id}")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=14)
+        frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            frame,
+            text=f"> แก้ชื่อ  {worker_id}",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        tk.Label(
+            frame,
+            text="ชื่อใหม่ที่จะแสดงในตาราง WORKERS",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        ).grid(row=1, column=0, columnspan=2, sticky="w")
+        name_entry = ttk.Entry(frame, font=(self.theme.monospace_font, 10))
+        name_entry.insert(0, current)
+        name_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 10))
+
+        def submit() -> None:
+            new_name = name_entry.get().strip()
+            if not new_name:
+                self._handle_error("WORKER_NAME_INVALID")
+                return
+            dialog.destroy()
+            self.rename_selected_worker(new_name)
+
+        name_entry.bind("<Return>", lambda _event: submit())
+        self._button(frame, "บันทึก", submit).grid(row=3, column=1, sticky="e")
+        name_entry.focus_set()
 
     @staticmethod
     def _set_enabled(button: ttk.Button, enabled: bool) -> None:

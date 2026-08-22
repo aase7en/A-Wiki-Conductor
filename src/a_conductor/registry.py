@@ -185,6 +185,27 @@ class ControlPlaneRegistry:
         self._workers[worker_id] = updated
         return updated
 
+    def rename_worker(self, worker_id: str, display_name: str) -> Worker:
+        worker = self.get_worker(worker_id)
+        if not isinstance(display_name, str) or not display_name.strip():
+            raise ValueError("display_name must not be blank")
+        updated = replace(worker, display_name=display_name.strip())
+        self._workers[worker_id] = updated
+        return updated
+
+    def unregister_worker(self, worker_id: str) -> Worker:
+        worker = self.get_worker(worker_id)
+        if worker.assignment_id is not None:
+            raise WorkerBusyError(
+                f"assigned worker cannot be deleted: {worker_id}"
+            )
+        if worker.state is not WorkerState.STOPPED:
+            raise WorkerBusyError(
+                f"busy worker cannot be deleted until STOPPED: {worker_id}"
+            )
+        del self._workers[worker_id]
+        return worker
+
     def snapshot(self) -> RegistrySnapshot:
         return RegistrySnapshot(
             projects=tuple(

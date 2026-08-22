@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
 
-from .domain import Assignment, Project, WorkerState
+from .domain import Assignment, Project, Worker, WorkerState
 from .persistence import PersistenceError
 from .registry import (
     AssignmentConflictError,
@@ -192,6 +193,52 @@ class ControlCenterService:
             raise ControlCenterError("WORKER_BUSY") from exc
         except RegistryNotFoundError as exc:
             raise ControlCenterError("REGISTRY_NOT_FOUND") from exc
+        self._save()
+        return worker
+
+    def add_worker(self, display_name: str | None = None) -> Worker:
+        """Register a new worker slot with the next free a-worker-NN id."""
+        numbers = []
+        for worker in self._registry.snapshot().workers:
+            suffix = re.search(r"-(\d+)$", worker.worker_id)
+            if suffix:
+                numbers.append(int(suffix.group(1)))
+        number = max(numbers, default=0) + 1
+        name = (
+            display_name.strip()
+            if isinstance(display_name, str) and display_name.strip()
+            else f"A-Worker {number}"
+        )
+        worker = Worker(
+            worker_id=f"a-worker-{number:02d}",
+            display_name=name,
+        )
+        try:
+            registered = self._registry.register_worker(worker)
+        except DuplicateRegistrationError as exc:
+            raise ControlCenterError("DUPLICATE_REGISTRATION") from exc
+        self._save()
+        return registered
+
+    def rename_worker(self, worker_id: str, display_name: str) -> Worker:
+        """Rename a worker's display name (worker_id stays stable)."""
+        try:
+            worker = self._registry.rename_worker(worker_id, display_name)
+        except RegistryNotFoundError as exc:
+            raise ControlCenterError("REGISTRY_NOT_FOUND") from exc
+        except ValueError as exc:
+            raise ControlCenterError("WORKER_NAME_INVALID") from exc
+        self._save()
+        return worker
+
+    def delete_worker(self, worker_id: str) -> Worker:
+        """Remove a worker slot; only unassigned STOPPED workers may go."""
+        try:
+            worker = self._registry.unregister_worker(worker_id)
+        except RegistryNotFoundError as exc:
+            raise ControlCenterError("REGISTRY_NOT_FOUND") from exc
+        except WorkerBusyError as exc:
+            raise ControlCenterError("WORKER_BUSY") from exc
         self._save()
         return worker
 
