@@ -68,11 +68,11 @@ def _default_work_number(instances_root: Path, reference: Path) -> int:
 
 
 def _retitle_cmd_text(text: str, title: str) -> str:
-    updated = re.sub(r"(?m)^title .*$", lambda _m: title, text, count=1)
-    if "title " not in updated:
-        updated = updated.replace(
-            "@echo off", f"@echo off\ntitle {title}", 1
-        )
+    updated, count = re.subn(
+        r"(?m)^title .*$", lambda _m: "title " + title, text, count=1
+    )
+    if count == 0:
+        updated = text.replace("@echo off", f"@echo off\ntitle {title}", 1)
     return updated
 
 
