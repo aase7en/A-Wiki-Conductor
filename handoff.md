@@ -1,6 +1,6 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-22 (GLM 5.3, post WO-P1-060)
+Last updated: 2026-08-22 (GLM 5.3, post 5-connector rollout)
 
 ## Current objective
 
@@ -16,7 +16,7 @@ Do not trust chat memory as the task source of truth. Use: `actual repo/GitHub s
 
 ## Current repository state
 
-- Branch: `main`, HEAD `f7911db`; PRs #35–#44 merged CI-green
+- Branch: `main` (PRs #35–#46 merged CI-green); 5 connector instances all READY (see CURRENT-WORK fleet table)
 - Repo visibility: **public** (explicit user decision 2026-08-22; recorded in COLLAB.md)
 - Release: https://github.com/aase7en/A-Wiki-Conductor/releases/tag/v0.2.0 (Setup + Portable + Notices; anonymous download verified)
 - Full suite at close: 912 passed

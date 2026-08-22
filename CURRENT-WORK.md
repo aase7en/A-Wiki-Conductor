@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-22 (GLM 5.3, post WO-P1-060 worker/connector CRUD)
+Last updated: 2026-08-22 (GLM 5.3, post 5-connector rollout)
 
 ## Current phase
 
