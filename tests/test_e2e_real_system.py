@@ -39,6 +39,12 @@ PROJECT_WASTEWATER = Path("A:/GitHub/env-wastewater-webapp")
 PROJECT_CONDUCTOR = Path("A:/GitHub/A-Wiki-Conductor")
 PROJECT_AWIKI = Path("A:/GitHub/A-Wiki")
 
+# Skip the entire module on CI runners (no local instances/projects/network)
+pytestmark = pytest.mark.skipif(
+    not REAL_INSTANCES_ROOT.is_dir() or not PROJECT_WASTEWATER.is_dir(),
+    reason="requires this machine's real instances and projects",
+)
+
 
 @pytest.fixture(scope="module")
 def e2e(tmp_path_factory):
