@@ -35,7 +35,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
 
-> Git remote `origin` = `https://github.com/aase7en/A-Wiki-Conductor.git` (private, created 2026-08-20 by explicit user decision). Pull/reconcile before commit/push; record branch/HEAD in checkpoints.
+> Git remote `origin` = `https://github.com/aase7en/A-Wiki-Conductor.git` (public since 2026-08-22 by explicit user decision — originally created private 2026-08-20). Pull/reconcile before commit/push; record branch/HEAD in checkpoints.
 
 ## Rules
 
