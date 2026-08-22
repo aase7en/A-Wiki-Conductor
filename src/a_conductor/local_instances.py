@@ -25,7 +25,7 @@ _TUNNEL_ID_RE = re.compile(r"^tunnel_[0-9a-f]{32}$")
 
 
 _INSTANCE_LINE_RE = re.compile(
-    r"^\s*\$(InstanceName|ProjectPath|HealthListenAddress)\s*=\s*'([^']*)'\s*$",
+    r"^\s*\$(InstanceName|ProjectPath|HealthListenAddress)\s*=\s*'((?:[^']|'')*)'\s*$",
     re.MULTILINE,
 )
 
@@ -80,7 +80,10 @@ def discover_local_instances(
         if not child.is_dir() or not marker.is_file():
             continue
         text = marker.read_text(encoding="utf-8", errors="replace")
-        fields = dict(_INSTANCE_LINE_RE.findall(text))
+        fields = {
+            key: value.replace("''", "'")
+            for key, value in _INSTANCE_LINE_RE.findall(text)
+        }
         name = fields.get("InstanceName", "").strip()
         project = fields.get("ProjectPath", "").strip()
         address = fields.get("HealthListenAddress", "").strip()

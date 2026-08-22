@@ -20,7 +20,7 @@ def reap_instance_wrappers(instance_root: Path | str) -> list[int]:
     if sys.platform != "win32":
         return []
     needle = str(Path(instance_root))
-    if not needle.strip():
+    if not needle.strip() or needle.strip() in (".", ".."):
         return []
     quoted = _ps_quote(needle)
     script = (
