@@ -106,9 +106,10 @@ def _install_files(source: Path, target: Path) -> Path:
     """Copy payload files into the target dir and create the uninstaller."""
     app_exe = source / f"{APP_NAME}.exe"
     guide = source / "docs" / "USER-GUIDE.md"
+    guide_en = source / "docs" / "USER-GUIDE-EN.md"
     notices = source / NOTICES_NAME
     icon = source / "assets" / "a-conductor.ico"
-    for required in (app_exe, guide, notices, icon):
+    for required in (app_exe, guide, guide_en, notices, icon):
         if not required.is_file():
             raise FileNotFoundError(f"INSTALL_PAYLOAD_MISSING: {required}")
 
@@ -116,6 +117,7 @@ def _install_files(source: Path, target: Path) -> Path:
     shutil.copy2(app_exe, target / f"{APP_NAME}.exe")
     (target / "docs").mkdir(exist_ok=True)
     shutil.copy2(guide, target / "docs" / "USER-GUIDE.md")
+    shutil.copy2(guide_en, target / "docs" / "USER-GUIDE-EN.md")
     (target / "assets").mkdir(exist_ok=True)
     shutil.copy2(icon, target / "assets" / "a-conductor.ico")
     shutil.copy2(notices, target / NOTICES_NAME)

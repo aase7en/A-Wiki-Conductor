@@ -45,12 +45,22 @@ from .upstream_check import fetch_upstream_status
 
 
 def find_user_guide_path() -> Path | None:
-    """Locate the bundled user guide (repo layout in dev, bundle dir frozen)."""
-    candidates = []
+    """Locate the bundled user guide (repo layout in dev, bundle dir frozen).
+
+    Follows the UI language: USER-GUIDE-EN.md when English is active and
+    available, otherwise the Thai USER-GUIDE.md.
+    """
+    from .i18n import get_language
+
+    names = ["USER-GUIDE.md"]
+    if get_language() == "en":
+        names = ["USER-GUIDE-EN.md", "USER-GUIDE.md"]
+    candidates: list[Path] = []
     bundle = getattr(sys, "_MEIPASS", None)
     if bundle:
-        candidates.append(Path(bundle) / "docs" / "USER-GUIDE.md")
-    candidates.append(Path(__file__).resolve().parents[2] / "docs" / "USER-GUIDE.md")
+        candidates.extend(Path(bundle) / "docs" / name for name in names)
+    repo_docs = Path(__file__).resolve().parents[2] / "docs"
+    candidates.extend(repo_docs / name for name in names)
     for candidate in candidates:
         if candidate.is_file():
             return candidate

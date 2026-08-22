@@ -66,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
             "--add-data",
             f"{root / 'docs' / 'USER-GUIDE.md'};docs",
             "--add-data",
+            f"{root / 'docs' / 'USER-GUIDE-EN.md'};docs",
+            "--add-data",
             f"{root / 'assets'};assets",
             "--distpath",
             distpath,

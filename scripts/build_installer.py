@@ -32,9 +32,10 @@ def setup_exe_name() -> str:
 def assemble_payload(root: Path, dist_dir: Path, payload_dir: Path) -> Path:
     app_exe = dist_dir / f"{APP_NAME}.exe"
     guide = root / "docs" / "USER-GUIDE.md"
+    guide_en = root / "docs" / "USER-GUIDE-EN.md"
     notices = root / "THIRD-PARTY-NOTICES.md"
     icon = root / "assets" / "a-conductor.ico"
-    missing = [str(p) for p in (app_exe, guide, notices, icon) if not p.is_file()]
+    missing = [str(p) for p in (app_exe, guide, guide_en, notices, icon) if not p.is_file()]
     if missing:
         print("INSTALLER_INPUT_MISSING:")
         for item in missing:
@@ -48,6 +49,7 @@ def assemble_payload(root: Path, dist_dir: Path, payload_dir: Path) -> Path:
     (payload_dir / "assets").mkdir(exist_ok=True)
     shutil.copy2(app_exe, payload_dir / f"{APP_NAME}.exe")
     shutil.copy2(guide, payload_dir / "docs" / "USER-GUIDE.md")
+    shutil.copy2(guide_en, payload_dir / "docs" / "USER-GUIDE-EN.md")
     shutil.copy2(notices, payload_dir / "THIRD-PARTY-NOTICES.md")
     shutil.copy2(icon, payload_dir / "assets" / "a-conductor.ico")
     return payload_dir
