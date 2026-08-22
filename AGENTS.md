@@ -1,6 +1,6 @@
-# A-Conductor — Agent Entry Contract
+# A-Sunday Conductor — Agent Entry Contract
 
-A-Wiki Conductor is the project/repository name. **A-Conductor** is the product name.
+A-Wiki Conductor is the project/repository name. **A-Sunday Conductor** is the product display name (chosen 2026-08-22; supersedes "A-Conductor" as the public name). The internal Python package remains `a_conductor` and the data folder remains `%LOCALAPPDATA%\A-Conductor\` — do not rename those without an explicit migration decision.
 
 Before any non-trivial work, every ChatGPT session, GPT Work task, A-Worker, Serena session, Codex task, or external AI/coding agent must read, in order:
 
@@ -54,7 +54,7 @@ A local worktree alone is never sufficient evidence that equivalent work does no
 
 ## Product vocabulary
 
-- **A-Conductor** — local autonomous control plane / manager.
+- **A-Sunday Conductor** (display name; formerly "A-Conductor") — local autonomous control plane / manager.
 - **A-Worker 1 / 2 / 3** — initial reusable execution slots; internal IDs `a-worker-01`, `a-worker-02`, `a-worker-03`.
 - **Worker** is runtime-neutral; Serena is the first runtime implementation, not the definition of Worker.
 - **A-Wiki** — brain, policies, reusable protocols, memory/knowledge.

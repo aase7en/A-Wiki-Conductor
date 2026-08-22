@@ -1,8 +1,8 @@
-# A-Wiki Conductor (A-Conductor)
+# A-Sunday Conductor
 
 A local autonomous control plane for coordinating AI agents, coding agents, MCP servers, local/cloud models, and A-Wiki memory.
 
-A-Conductor is the product name; `A-Wiki-Conductor` is the repository/project name.
+**A-Sunday Conductor** is the product display name; `A-Wiki-Conductor` is the repository/project name, and `a_conductor` is the internal Python package.
 
 ## What it is
 
@@ -11,7 +11,7 @@ A-Conductor is the product name; `A-Wiki-Conductor` is the repository/project na
 - an **operator protocol** (command/response) with a Telegram gateway mapping;
 - the foundation for the long-term autonomous loop: `PLAN -> DECOMPOSE -> ROUTE -> EXECUTE -> VERIFY -> REVIEW -> REPAIR -> CONTINUE -> COMPLETE`.
 
-The first worker runtime is a semantic coding engine used as the MCP execution hand (see Credits) — not the whole orchestrator. A-Wiki remains the brain: policies, memory, and orchestration intelligence. A-Conductor is the execution fabric and control plane.
+The first worker runtime is a semantic coding engine used as the MCP execution hand (see Credits) — not the whole orchestrator. A-Wiki remains the brain: policies, memory, and orchestration intelligence. A-Sunday Conductor is the execution fabric and control plane.
 
 ## Requirements
 
@@ -34,7 +34,7 @@ a-conductor            # launch the Control Center desktop app
 a-conductor --smoke    # construct, refresh, and destroy the UI without mainloop
 ```
 
-The control database defaults to `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` and can be overridden with `--database <path>`.
+The control database defaults to `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` (the data folder keeps its pre-rename name so upgrades preserve existing data) and can be overridden with `--database <path>`.
 
 **คู่มือภาษาไทยฉบับเต็ม: [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md)** — ติดตั้ง, ใช้งานทุกหน้าจอ, ตั้งค่า engine ต่อ worker, จัดการ tunnel instances, แก้ปัญหาเบื้องต้น
 
@@ -44,7 +44,7 @@ The app is a **pure local desktop program** (Windows 10/11, Python 3.11+, standa
 
 1. Clone/fork this repository.
 2. `python -m pip install -e .[test]` then run `a-conductor` (see the User Guide).
-3. For non-developer machines, build a portable single-file executable with PyInstaller: `pyinstaller --windowed --onefile --name A-Conductor --paths src entry.py` → `dist/A-Conductor.exe`.
+3. For non-developer machines, build a portable single-file executable with PyInstaller: `pyinstaller --windowed --onefile --name "A-Sunday Conductor" --paths src entry.py` → `dist/A-Sunday Conductor.exe`.
 
 Out of the box, every user gets: project/worker registry, per-worker engine config dialog, durable job control with the optional supervised mode, and CI via GitHub Actions. The **CONNECTORS** panel manages local connector instances that follow the validated layout (`C:\AI\serena-instances\<name>\` with `instance.ps1` + Start/Stop scripts) — users without that infrastructure simply see an empty instances panel; creating instances/tunnels is a per-user setup documented in the User Guide §7.
 
@@ -65,7 +65,7 @@ python -m pytest tests/ -q
 
 ## Credits
 
-A-Conductor uses [Serena](https://github.com/oraios/serena) (MIT) as its internal semantic code engine. All user-facing tooling and branding are A-Conductor's own.
+A-Sunday Conductor uses [Serena](https://github.com/oraios/serena) (MIT) as its internal semantic code engine. All user-facing tooling and branding are A-Sunday Conductor's own.
 
 ## Agent entry contract
 

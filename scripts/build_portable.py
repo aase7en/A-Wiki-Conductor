@@ -1,4 +1,4 @@
-"""Build the portable A-Conductor.exe (single file, icon + bundled docs).
+"""Build the portable A-Sunday Conductor.exe (single file, icon + docs).
 
 Usage (from the repository root, any Python 3.11+ with PyInstaller installed):
 
@@ -58,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
             "--windowed",
             "--onefile",
             "--name",
-            "A-Conductor",
+            "A-Sunday Conductor",
             "--paths",
             str(root / "src"),
             "--icon",

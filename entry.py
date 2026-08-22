@@ -1,4 +1,4 @@
-"""PyInstaller entry point for the A-Conductor desktop app."""
+"""PyInstaller entry point for the A-Sunday Conductor desktop app."""
 
 from a_conductor.desktop_app import main
 
