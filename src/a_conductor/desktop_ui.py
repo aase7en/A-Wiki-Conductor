@@ -997,8 +997,28 @@ class AConductorDesktopApp:
             button.state(["disabled"])
         self._set_enabled(self.upstream_button, True)  # read-only, always available
 
+        monitor_panel = self._panel(self.root, "MONITOR")
+        monitor_panel.grid(row=4, column=0, sticky="ew", padx=10, pady=(6, 0))
+        monitor_panel.grid_columnconfigure(0, weight=1)
+        self.monitor_text = tk.Text(
+            monitor_panel,
+            height=9,
+            bg=self.theme.background,
+            fg=self.theme.foreground,
+            borderwidth=0,
+            highlightthickness=0,
+            wrap="none",
+            state="disabled",
+            font=(self.theme.monospace_font, self.theme.base_font_size),
+        )
+        self.monitor_text.grid(row=0, column=0, sticky="ew", padx=(9, 0), pady=(9, 4))
+        self.instance_tree.bind(
+            "<<TreeviewSelect>>", lambda _event: self._update_monitor_now(), add="+"
+        )
+        self._update_monitor_now()
+
         activity_panel = self._panel(self.root, "ACTIVITY / LOG")
-        activity_panel.grid(row=4, column=0, sticky="nsew", padx=10, pady=(6, 10))
+        activity_panel.grid(row=5, column=0, sticky="nsew", padx=10, pady=(6, 10))
         activity_panel.grid_rowconfigure(1, weight=1)
         activity_panel.grid_columnconfigure(0, weight=1)
         self.activity_text = tk.Text(
@@ -1019,6 +1039,67 @@ class AConductorDesktopApp:
         activity_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 9))
         self.log_activity("Control Center ready")
         self.root.after(1200, self._start_status_pulse)
+
+    def _update_monitor_now(self) -> None:
+        """Render the MONITOR panel for the selected connector (or a hint)."""
+        from .instance_monitor import monitor_report
+        from .local_instances import instance_health_state
+
+        if not self.monitor_text.winfo_exists():
+            return
+        name = self._selected_instance_name()
+        lines: list[str] = ["MONITOR"]
+        if name is None:
+            lines.append(
+                "  เลือกตัวเชื่อมในตาราง CONNECTORS เพื่อดูสถานะ · PID · หน่วยความจำ · log ล่าสุด"
+            )
+            lines.append("  (เปิด/ปิดผ่านปุ่มในแอปได้เลย — start จากแอปไม่มีหน้าต่าง CMD)")
+        else:
+            target = next(
+                (item for item in self.service.instances() if item.name == name), None
+            )
+            if target is None:
+                lines.append(f"  {name}: ไม่พบ instance")
+            else:
+                try:
+                    state = instance_health_state(target).value
+                except Exception:
+                    state = "UNKNOWN"
+                report = monitor_report(target.instance_root, state=state)
+                alias = ""
+                aliases_fn = getattr(self.service, "instance_aliases", None)
+                if callable(aliases_fn):
+                    try:
+                        alias = aliases_fn().get(name, "") or ""
+                    except Exception:
+                        alias = ""
+                header = f"  {name}" + (f"  ({alias})" if alias else "")
+                pid_text = str(report["pid"]) if report["pid"] else "-"
+                mem_text = f"{report['memory_mb']} MB" if report["memory_mb"] else "-"
+                lines.append(f"{header}   {state}   PID {pid_text}   MEM {mem_text}")
+                lines.append(f"  log: {report['log_file'] or '-'}")
+                errors = report["errors"]
+                lines.append(f"  errors ล่าสุด: {len(errors)}")
+                lines.append("  --- tail ---")
+                lines.extend(f"  {line}" for line in report["tail"])
+        try:
+            self.monitor_text.configure(state="normal")
+            self.monitor_text.delete("1.0", "end")
+            self.monitor_text.insert("1.0", "\n".join(lines))
+            self.monitor_text.configure(state="disabled")
+        except tk.TclError:
+            pass
+
+    def _monitor_tick(self) -> None:
+        """Auto-refresh the MONITOR panel every 5s (real entrypoint only)."""
+        try:
+            self._update_monitor_now()
+        except tk.TclError:
+            return
+        try:
+            self.root.after(5000, self._monitor_tick)
+        except tk.TclError:
+            pass
 
     def _panel(self, parent, title: str) -> tk.Frame:
         frame = tk.Frame(
@@ -2347,6 +2428,7 @@ class AConductorDesktopApp:
         destroyed.
         """
         self.refresh_instances()
+        self._monitor_tick()
         self._autostart_flagged_instances()
 
     def _has_instance_service(self) -> bool:
