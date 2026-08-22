@@ -96,6 +96,55 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "ทำอย่างไร: พิมพ์ชื่อที่ต้องการแสดงอย่างน้อย 1 ตัวอักษร แล้วกด บันทึก",
         ),
     ),
+    "INSTANCE_CREATE_NOT_AVAILABLE": (
+        "ฟีเจอร์สร้างตัวเชื่อมไม่พร้อมใช้งาน",
+        (
+            "ขาด: บริการสร้างตัวเชื่อมในเวอร์ชันที่รันอยู่",
+            "ทำอย่างไร: อัปเดตโปรแกรมเป็นเวอร์ชันล่าสุดแล้วลองใหม่",
+        ),
+    ),
+    "INSTANCE_FIELDS_REQUIRED": (
+        "กรอกข้อมูลไม่ครบ",
+        (
+            "ขาด: ชื่อตัวเชื่อม หรือ พาธโปรเจกต์",
+            "ทำอย่างไร: กรอกทั้งสองช่อง (ชื่อภาษาอังกฤษ + พาธโฟลเดอร์โปรเจกต์เต็ม)",
+        ),
+    ),
+    "NAME_INVALID": (
+        "ชื่อตัวเชื่อมไม่ถูกต้อง",
+        (
+            "ขาด: ชื่อต้องเป็นภาษาอังกฤษตัวพิมพ์เล็ก/ตัวเลข/ขีดกลาง เช่น research",
+            "ทำอย่างไร: ห้ามมีช่องว่างหรืออักขระพิเศษ — ใช้คำเดียวเช่น research หรือ chat-beta",
+        ),
+    ),
+    "NAME_ALREADY_EXISTS": (
+        "ชื่อนี้ถูกใช้แล้ว",
+        (
+            "ขาด: ชื่อที่ไม่ซ้ำกับตัวเชื่อมที่มีอยู่",
+            "ทำอย่างไร: เลือกชื่ออื่น หรือกด Rescan เพื่อดูรายชื่อปัจจุบันก่อน",
+        ),
+    ),
+    "PROJECT_NOT_FOUND": (
+        "ไม่พบโฟลเดอร์โปรเจกต์",
+        (
+            "ขาด: พาธโปรเจกต์ที่มีอยู่จริงในเครื่อง",
+            "ทำอย่างไร: ตรวจพาธให้ครบ เช่น A:\\GitHub\\my-project (ต้องเป็นโฟลเดอร์จริง)",
+        ),
+    ),
+    "TUNNEL_ID_INVALID": (
+        "รูปแบบ Tunnel ID ไม่ถูกต้อง",
+        (
+            "ขาด: ID ขึ้นต้นด้วย tunnel_ ตามด้วยตัวเลข/อักษร 32 ตัว",
+            "ทำอย่างไร: คัดลอกใหม่จาก OpenAI Platform หรือเว้นว่างไว้แล้วใส่ทีหลัง",
+        ),
+    ),
+    "REFERENCE_MISSING": (
+        "ไม่พบตัวเชื่อมต้นแบบ",
+        (
+            "ขาด: อย่างน้อย 1 ตัวเชื่อมที่ผ่านการตรวจสอบใน C:\\AI\\serena-instances",
+            "ทำอย่างไร: สร้างตัวเชื่อมแรกตามคู่มือก่อน แล้วจึงใช้ปุ่มนี้เพิ่มตัวถัดไป",
+        ),
+    ),
     "SELECT_PROJECT": (
         "ยังไม่ได้เลือกโปรเจกต์",
         (
@@ -773,6 +822,14 @@ class AConductorDesktopApp:
             instance_actions, "Rescan", self.rescan_instances
         )
         _attach_tip(self.instance_rescan_button, "ค้นหาตัวเชื่อมที่เพิ่มเข้ามาใหม่", self.theme)
+        self.add_instance_button = self._button(
+            instance_actions, "+ ตัวเชื่อม", self.open_add_instance_dialog
+        )
+        _attach_tip(
+            self.add_instance_button,
+            "สร้างตัวเชื่อมใหม่จากแม่แบบที่ผ่านการตรวจสอบ — ตั้งชื่อ + เลือกโปรเจกต์\n(พอร์ตจัดให้อัตโนมัติ / หน้าต่างจะชื่อ Sunday-works ถัดไป)\nจะได้แชท ChatGPT ทำงานขนานกันได้อีกช่อง",
+            self.theme,
+        )
         self.brain_button = self._button(
             instance_actions, "สมอง + folder", self.open_brain_config
         )
@@ -2200,6 +2257,83 @@ class AConductorDesktopApp:
     def rescan_instances(self) -> None:
         self.log_activity("RESCAN       instances")
         self.refresh_instances()
+
+    def add_instance(self, name: str, project_path: str, tunnel_id: str | None = None) -> None:
+        creator = getattr(self.service, "create_instance", None)
+        if not callable(creator):
+            self._handle_error("INSTANCE_CREATE_NOT_AVAILABLE")
+            return
+        try:
+            instance = creator(name, project_path, tunnel_id)
+        except Exception as exc:  # InstanceCreateError carries a machine code
+            self._handle_error(getattr(exc, "code", "INSTANCE_CREATE_FAILED"))
+            return
+        self.log_activity(f"+ Connector  {instance.name}  port={instance.health_address.rsplit(':', 1)[-1]}")
+        self.refresh_instances()
+
+    def open_add_instance_dialog(self) -> None:
+        creator = getattr(self.service, "create_instance", None)
+        if not callable(creator):
+            self._handle_error("INSTANCE_CREATE_NOT_AVAILABLE")
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"{APP_NAME} — เพิ่มตัวเชื่อม")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=14)
+        frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            frame,
+            text="> เพิ่มตัวเชื่อมใหม่ (แชท ChatGPT ช่องเพิ่ม)",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        tk.Label(
+            frame,
+            text="ชื่อ (ภาษาอังกฤษคำเดียว เช่น Research)",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        ).grid(row=1, column=0, columnspan=2, sticky="w")
+        name_entry = ttk.Entry(frame, font=(self.theme.monospace_font, 10))
+        name_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 8))
+        tk.Label(
+            frame,
+            text="พาธโปรเจกต์เต็ม (เช่น A:\\GitHub\\my-project)",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        ).grid(row=3, column=0, columnspan=2, sticky="w")
+        project_entry = ttk.Entry(frame, font=(self.theme.monospace_font, 10))
+        project_entry.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 8))
+        tk.Label(
+            frame,
+            text="Tunnel ID (ไม่บังคับ — ข้ามได้แล้วใส่ภายหลังด้วยปุ่ม Tunnel ID)",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        ).grid(row=5, column=0, columnspan=2, sticky="w")
+        tunnel_entry = ttk.Entry(frame, font=(self.theme.monospace_font, 10))
+        tunnel_entry.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(4, 10))
+
+        def submit() -> None:
+            name = name_entry.get().strip()
+            project = project_entry.get().strip()
+            tunnel = tunnel_entry.get().strip()
+            if not name or not project:
+                self._handle_error("INSTANCE_FIELDS_REQUIRED")
+                return
+            dialog.destroy()
+            self.add_instance(name, project, tunnel or None)
+
+        name_entry.bind("<Return>", lambda _event: submit())
+        project_entry.bind("<Return>", lambda _event: submit())
+        self._button(frame, "สร้าง", submit).grid(row=7, column=1, sticky="e")
+        name_entry.focus_set()
 
     def open_brain_config(self) -> tk.Toplevel | None:
         load = getattr(self.service, "worker_settings", None)
