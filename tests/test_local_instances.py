@@ -105,7 +105,9 @@ def test_discovery_skips_incomplete_instance_files(tmp_path: Path) -> None:
 
 
 def test_default_instances_root_is_configured() -> None:
-    assert "serena-instances" in str(DEFAULT_INSTANCES_ROOT)
+    from a_conductor.platform_support import default_instances_root
+
+    assert "serena-instances" in str(default_instances_root())
 
 
 def test_health_state_maps_probe_results(tmp_path: Path) -> None:

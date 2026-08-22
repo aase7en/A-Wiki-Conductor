@@ -39,3 +39,24 @@ jobs:
           --ignore=tests/test_doctor_fixes.py
       - name: Smoke test
         run: python -m a_conductor --smoke --database ${{ runner.temp }}\acond-ci-smoke.sqlite
+
+  cross-platform-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package with test extra
+        run: python -m pip install -e .[test]
+      # Platform-neutral suites first (Tk-dependent tests skip without a display)
+      - name: Run platform-neutral suites
+        run: >-
+          python -m pytest tests/test_platform_support.py
+          tests/test_i18n.py tests/test_branding.py -q
+      - name: Smoke test (headless)
+        run: python -m a_conductor --smoke --database ${{ runner.temp }}/acond-smoke.sqlite
