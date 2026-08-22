@@ -76,7 +76,7 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 
 ## Mandatory boundaries
 
-- MCP gateway enforcement stays `DECISION_REQUIRED` (backlog).
+- MCP gateway: deferred per `docs/adr/ADR-0001-mcp-gateway-deferred.md` (reopen conditions listed there).
 - A-Wiki remains brain authority. No machine-wide env changes.
 - Do not rename internal package/CLI/data folder without an explicit migration decision.
 - Do not modify `C:\AI\serena-instances` scripts further without user authority (this session's retitling was explicitly authorized; `.bak` files allow rollback).
