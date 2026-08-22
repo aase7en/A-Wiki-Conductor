@@ -1107,8 +1107,32 @@ class AConductorDesktopApp:
         )
         self._update_monitor_now()
 
+        # Status bar (bottom, full-width) — brand watermark + update button
+        status_bar = tk.Frame(self.root, bg=self.theme.background, height=24)
+        status_bar.grid(row=6, column=0, sticky="ew", padx=0, pady=(0, 0))
+        self._update_button = self._button(status_bar, "Check Update", self.check_for_updates)
+        self._update_button.pack(side="right", padx=(4, 10), pady=2)
+        _attach_tip(
+            self._update_button,
+            "ตรวจสอบเวอร์ชั่นใหม่จาก GitHub (กดแล้วเปิดหน้าดาวน์โหลด)\nCheck for a newer version on GitHub",
+            self.theme,
+        )
+        self.brand_label = tk.Label(
+            status_bar,
+            text=f"  A·SUNDAY CONDUCTOR v{APP_VERSION} · by Human + AI 'A'",
+            bg=self.theme.background,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8),
+            anchor="e",
+        )
+        self.brand_label.pack(side="right", padx=(0, 4))
+        self.brand_label.bind(
+            "<Button-1>",
+            lambda _e: webbrowser.open("https://github.com/aase7en/A-Wiki-Conductor"),
+        )
+
         activity_panel = self._panel(self.root, "ACTIVITY / LOG")
-        activity_panel.grid(row=5, column=0, sticky="nsew", padx=10, pady=(6, 10))
+        activity_panel.grid(row=5, column=0, sticky="nsew", padx=10, pady=(6, 4))
         activity_panel.grid_rowconfigure(1, weight=1)
         activity_panel.grid_columnconfigure(0, weight=1)
         self.activity_text = tk.Text(
@@ -1490,6 +1514,37 @@ class AConductorDesktopApp:
             return
         self.log_activity(f"- Worker     {removed.worker_id}")
         self.refresh()
+
+    def check_for_updates(self) -> None:
+        """Check GitHub Releases for a newer version; show result; open browser if newer."""
+        from .update_checker import check_for_update
+
+        self.log_activity("Update check  ...")
+        try:
+            result = check_for_update(APP_VERSION)
+        except Exception:
+            self._handle_error("UPSTREAM_CHECK_FAILED")
+            return
+        if result.error:
+            self._handle_error("UPSTREAM_CHECK_FAILED")
+            return
+        if result.is_newer and result.download_url:
+            self.log_activity(
+                f"Update        v{APP_VERSION} -> v{result.latest_version} available"
+            )
+            if self._confirm(
+                "มีเวอร์ชั่นใหม่ v"
+                + str(result.latest_version)
+                + " (ปัจจุบัน v"
+                + APP_VERSION
+                + ")\n\nกด ยืนยัน เพื่อเปิดหน้าดาวน์โหลด\n(A new version is available — open the download page?)"
+            ):
+                webbrowser.open(result.download_url)
+        else:
+            self.log_activity(f"Update        up to date (v{APP_VERSION})")
+            self._confirm(
+                "ใช้เวอร์ชั่นล่าสุดแล้ว (v" + APP_VERSION + ")\nYou are up to date."
+            )
 
     def _on_close_request(self) -> None:
         """Window close: optionally stop every connector, reap wrappers, exit."""
