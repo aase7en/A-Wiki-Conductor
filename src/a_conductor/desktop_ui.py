@@ -1269,6 +1269,9 @@ class AConductorDesktopApp:
 
     def _on_close_request(self) -> None:
         """Window close: optionally stop every connector, reap wrappers, exit."""
+        if getattr(self, "_closing", False):
+            return
+        self._closing = True
         stop_all = True
         getter = getattr(self.service, "get_preference", None)
         if callable(getter):
@@ -1277,13 +1280,17 @@ class AConductorDesktopApp:
                 stop_all = True if pref is None else bool(pref)
             except Exception:
                 stop_all = True
+        stopped: list[tuple[str, bool]] = []
         if stop_all:
             try:
                 self.log_activity("Closing       stopping all connectors ...")
-                for name, ok in self.service.stop_all_instances():
+                stopped = self.service.stop_all_instances()
+                for name, ok in stopped:
                     self.log_activity(f"Close-stop    {name} {'OK' if ok else 'FAILED'}")
             except Exception:
-                pass
+                stopped = []
+        if stopped:
+            # Only shell out to the reaper when something was actually running.
             try:
                 from .instance_runtime import reap_instance_wrappers
 
