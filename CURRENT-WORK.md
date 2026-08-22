@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-22 (GLM 5.3, post WO-P1-060 worker/connector CRUD)
+Last updated: 2026-08-22 (GLM 5.3, post 5-connector rollout)
 
 ## Current phase
 
@@ -26,6 +26,18 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 - **PR #44 Connector manage**: `แก้ชื่อ` (alias in `instance_display_names`, folder untouched) and `ลบ` (stop-first via orchestrator → zip to `%LOCALAPPDATA%\A-Conductor\instance-backups\` → remove → flags/alias cleanup; refuses while it cannot stop).
 - Real-machine evidence: `Serena-Smoketest` created from the real conductor reference on 18014, discovered, then deleted with `smoketest-20260822-140647.zip` — instances root returned to exactly the original three.
 - Note: instance names normalize to a lowercase slug (`SmokeTest` → `serena-smoketest` folder, `Serena-Smoketest` display), matching the existing conductor/phase6/wastewater convention.
+
+## Live connector fleet (2026-08-22 evening, all READY, tunnels rotated per user decision — IDs never logged)
+
+| Instance | Port | Project | Plugin/tunnel name |
+|---|---|---|---|
+| Serena-Conductor | 18011 | A-Wiki-Conductor | SunDay-Worker 1-Conduct |
+| Serena-Phase6 | 18012 | L:\My Drive\A-Wiki-Data\personal-business\pharmacy (rebound; the old A-Wiki-vnext-clean folder was gone) | SunDay-Worker 2-Conduct |
+| Serena-Wastewater | 18013 | env-wastewater-webapp | SunDay-Worker 3-Conduct |
+| Serena-Worker-4 | 18014 | A-Wiki-Conductor | SunDay-Worker 4-Conduct |
+| Serena-Worker-5 | 18015 | A:\GitHub\sunday-estate-webapp | SunDay-Worker 5-Conduct |
+
+- Rollout root causes: ChatGPT plugin creation requires the local instance READY first (why worker 4/5 failed); instance-create missed the indented `listen_addr:` line (fixed PR #46; worker-4 template corrected in place).
 
 ## Full suite at close
 
