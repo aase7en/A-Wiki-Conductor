@@ -38,13 +38,20 @@ The control database defaults to `%LOCALAPPDATA%\A-Conductor\control-center.sqli
 
 **คู่มือภาษาไทยฉบับเต็ม: [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md)** — ติดตั้ง, ใช้งานทุกหน้าจอ, ตั้งค่า engine ต่อ worker, จัดการ tunnel instances, แก้ปัญหาเบื้องต้น
 
+## Download / install
+
+Grab **`A-Sunday-Conductor-Setup.exe`** from the latest [GitHub Release](https://github.com/aase7en/A-Wiki-Conductor/releases) — a per-user installer (no admin): Start Menu + Desktop shortcuts, and a standard "Add or remove programs" entry. The portable single-file exe is available in the same release. Attribution for the bundled engine is in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) (Serena, MIT).
+
+> SmartScreen note: the executables are not digitally signed yet, so Windows may show "Windows protected your PC" on first run — choose **More info → Run anyway**.
+
 ## Distribution / fork-and-run
 
 The app is a **pure local desktop program** (Windows 10/11, Python 3.11+, standard library only — no server, no web deployment):
 
 1. Clone/fork this repository.
 2. `python -m pip install -e .[test]` then run `a-conductor` (see the User Guide).
-3. For non-developer machines, build a portable single-file executable with PyInstaller: `pyinstaller --windowed --onefile --name "A-Sunday Conductor" --paths src entry.py` → `dist/A-Sunday Conductor.exe`.
+3. For non-developer machines, build a portable single-file executable with PyInstaller: `python scripts/build_portable.py` → `dist/A-Sunday Conductor.exe`.
+4. Build the Setup installer on top of that: `python scripts/build_installer.py` → `dist/A-Sunday-Conductor-Setup.exe` (bundles the portable exe, this README's guide, and the third-party notices).
 
 Out of the box, every user gets: project/worker registry, per-worker engine config dialog, durable job control with the optional supervised mode, and CI via GitHub Actions. The **CONNECTORS** panel manages local connector instances that follow the validated layout (`C:\AI\serena-instances\<name>\` with `instance.ps1` + Start/Stop scripts) — users without that infrastructure simply see an empty instances panel; creating instances/tunnels is a per-user setup documented in the User Guide §7.
 
