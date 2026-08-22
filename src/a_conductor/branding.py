@@ -9,3 +9,7 @@ from __future__ import annotations
 # (a_conductor), the repo name (A-Wiki-Conductor), and the on-disk data
 # directory are unchanged so upgrades preserve existing user data.
 APP_NAME = "A-Sunday Conductor"
+
+# Product version. Kept in sync with pyproject.toml by
+# tests/test_build_installer.py::test_pyproject_version_matches_branding.
+APP_VERSION = "0.2.0"

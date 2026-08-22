@@ -95,7 +95,12 @@ python -m venv .build-venv
 # ได้ไฟล์ที่ dist\A-Sunday Conductor.exe
 ```
 
-คำสั่งสร้าง installer: `python scripts/build_portable.py` สำหรับ exe หลัก แล้วสร้าง setup ด้วย `scripts/installer_main.py` (คู่มือนี้ถูกฝังใน setup.exe อัตโนมัติ)
+สร้างตัวติดตั้ง (Setup) เอง — 2 คำสั่งเรียงกัน:
+
+```powershell
+python scripts/build_portable.py     # ได้ dist\A-Sunday Conductor.exe
+python scripts/build_installer.py    # ได้ dist\A-Sunday-Conductor-Setup.exe (ฝังคู่มือ + ประกาศเครดิต Serena อัตโนมัติ)
+```
 
 > หมายเหตุ SmartScreen: setup.exe ยังไม่ได้เซ็นลายเซ็นดิจิทัล ครั้งแรกที่เปิด Windows อาจเตือน — กด **More info → Run anyway** ได้ (ปกติของแอปที่ยังไม่ sign) การถอนการติดตั้ง: ใช้ Add or remove programs หรือไฟล์ Uninstall ในโฟลเดอร์ที่ติดตั้ง
 

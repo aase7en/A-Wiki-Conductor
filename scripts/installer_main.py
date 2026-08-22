@@ -3,6 +3,7 @@
 Bundled payload (via PyInstaller --add-data):
     payload/A-Sunday Conductor.exe  the portable app
     payload/docs/USER-GUIDE.md  the user guide
+    payload/THIRD-PARTY-NOTICES.md  Serena (MIT) attribution
     payload/assets/a-conductor.ico
 
 Install (default):
@@ -98,26 +99,29 @@ def remove_registry() -> None:
     _run_ps(f"Remove-Item -Path 'HKCU:\\{REG_KEY}' -Force -ErrorAction SilentlyContinue")
 
 
-def do_install(target: Path) -> int:
-    source = payload_dir()
+NOTICES_NAME = "THIRD-PARTY-NOTICES.md"
+
+
+def _install_files(source: Path, target: Path) -> Path:
+    """Copy payload files into the target dir and create the uninstaller."""
     app_exe = source / f"{APP_NAME}.exe"
     guide = source / "docs" / "USER-GUIDE.md"
+    notices = source / NOTICES_NAME
     icon = source / "assets" / "a-conductor.ico"
-    for required in (app_exe, guide, icon):
+    for required in (app_exe, guide, notices, icon):
         if not required.is_file():
-            print(f"INSTALL_PAYLOAD_MISSING: {required}")
-            return 2
+            raise FileNotFoundError(f"INSTALL_PAYLOAD_MISSING: {required}")
 
     target.mkdir(parents=True, exist_ok=True)
-    print(f"[1/4] Installing to {target}")
     shutil.copy2(app_exe, target / f"{APP_NAME}.exe")
     (target / "docs").mkdir(exist_ok=True)
     shutil.copy2(guide, target / "docs" / "USER-GUIDE.md")
     (target / "assets").mkdir(exist_ok=True)
     shutil.copy2(icon, target / "assets" / "a-conductor.ico")
+    shutil.copy2(notices, target / NOTICES_NAME)
     if getattr(sys, "frozen", False):
-        shutil.copy2(Path(sys.executable), target / f"Uninstall-{APP_NAME}.exe")
         uninstaller = target / f"Uninstall-{APP_NAME}.exe"
+        shutil.copy2(Path(sys.executable), uninstaller)
     else:
         # Source mode: generate a repo-backed uninstall command for local installs.
         script = Path(__file__).resolve()
@@ -127,6 +131,17 @@ def do_install(target: Path) -> int:
             encoding="utf-8",
         )
         uninstaller = cmd
+    return uninstaller
+
+
+def do_install(target: Path) -> int:
+    source = payload_dir()
+    print(f"[1/4] Installing to {target}")
+    try:
+        uninstaller = _install_files(source, target)
+    except FileNotFoundError as exc:
+        print(exc)
+        return 2
 
     print("[2/4] Creating Start Menu shortcut")
     start_link, desktop_link = shortcut_paths()
