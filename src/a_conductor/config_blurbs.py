@@ -2,9 +2,12 @@
 
 Single source of truth so the UI never requires the user to read the engine's
 own documentation: each blurb states what the setting does and its effect.
+English variants live in config_blurbs_en; active_blurbs() picks by language.
 """
 
 from __future__ import annotations
+
+import sys
 
 LANGUAGE_BACKEND_BLURBS: dict[str, str] = {
     "LSP": "ฟรี · ติดตั้งอัตโนมัติ · ครอบคลุมภาษาส่วนใหญ่ (แนะนำ)",
@@ -84,3 +87,14 @@ FIELD_BLURBS: dict[str, str] = {
     "brain_entry_1": "ไฟล์แรกที่ต้องอ่าน — เช่น AGENTS.md",
     "brain_entry_2": "ไฟล์ที่สองที่ต้องอ่าน — เช่น wiki-overview.md",
 }
+
+
+def active_blurbs():
+    """Return the blurbs module for the current UI language."""
+    from .i18n import get_language
+
+    if get_language() == "en":
+        from . import config_blurbs_en
+
+        return config_blurbs_en
+    return sys.modules[__name__]
