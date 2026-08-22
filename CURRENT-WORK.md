@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-22 (GLM 5.3, v0.2.2 monitor + shutdown + cross-platform plan)
+Last updated: 2026-08-22 (GLM 5.3, v0.2.3 Drive data layer)
 
 ## Current phase
 
@@ -39,6 +39,12 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 - **Thai/English switch (PR #51)**: `i18n.py` string table + English variants for all 50 teaching error codes; `language` preference (Settings switch) applied at startup; known gap: config blurbs + Thai guide stay Thai (backlog).
 - **Guide (PR #52)**: §4.3 refreshed for the new toolbar; §4.3.1 documents that ONE API key can own MANY tunnels (each = one parallel chat) with steps; §4.3.2 documents one chat using several workers (with trade-offs); §4.5 language switch + version note.
 - Full suite at close: 932 passed. Installed build reinstalled + smoke OK (projects=4 workers=3 preserved).
+
+## v0.2.3: private Drive data layer (2026-08-22)
+
+- Secrets now live in the A-Wiki-Data Drive layer: `L:\My Drive\A-Wiki-Data\secrets-conductor-tunnels.md` holds all five Tunnel IDs (mapping worker/port/plugin); the Drive layer's `LAYOUT.md` records the two new roles.
+- Connector-deletion zip backups automatically target `L:\My Drive\A-Wiki-Dataackups-conductor-instances\` when it exists (`default_backup_dir()` in desktop_control, Drive-first with LOCALAPPDATA fallback); the existing smoketest zip was moved there.
+- Repo AGENTS.md now points every agent at the Drive layer + its AGENTS/LAYOUT rules before touching important/secret files.
 
 ## Live connector fleet (2026-08-22 night — backend renamed to one pattern, all READY)
 

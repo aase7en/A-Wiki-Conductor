@@ -2,6 +2,8 @@
 
 A-Wiki Conductor is the project/repository name. **A-Sunday Conductor** is the product display name (chosen 2026-08-22; supersedes "A-Conductor" as the public name). The internal Python package remains `a_conductor` and the data folder remains `%LOCALAPPDATA%\A-Conductor\` — do not rename those without an explicit migration decision.
 
+**Important/secret files live in the private Drive layer** `L:\My Drive\A-Wiki-Data` (junction `drive/` from A-Wiki): Tunnel IDs → `secrets/a-conductor-tunnels.md`, connector-deletion zip backups → `backups/a-conductor-instances/` (the app writes there automatically when the folder exists). Read that layer's `AGENTS.md` + `LAYOUT.md` before touching it; never copy secrets into this repo.
+
 Before any non-trivial work, every ChatGPT session, GPT Work task, A-Worker, Serena session, Codex task, or external AI/coding agent must read, in order:
 
 1. `PROJECT-PLAN.md` — authoritative product vision, architecture, roadmap, constraints.
