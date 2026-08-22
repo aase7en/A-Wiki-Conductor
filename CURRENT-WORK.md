@@ -27,17 +27,19 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 - Real-machine evidence: `Serena-Smoketest` created from the real conductor reference on 18014, discovered, then deleted with `smoketest-20260822-140647.zip` — instances root returned to exactly the original three.
 - Note: instance names normalize to a lowercase slug (`SmokeTest` → `serena-smoketest` folder, `Serena-Smoketest` display), matching the existing conductor/phase6/wastewater convention.
 
-## Live connector fleet (2026-08-22 evening, all READY, tunnels rotated per user decision — IDs never logged)
+## Live connector fleet (2026-08-22 night — backend renamed to one pattern, all READY)
 
-| Instance | Port | Project | Plugin/tunnel name |
+| Folder / $InstanceName | Port | Display alias (matches ChatGPT plugin) | Project |
 |---|---|---|---|
-| Serena-Conductor | 18011 | A-Wiki-Conductor | SunDay-Worker 1-Conduct |
-| Serena-Phase6 | 18012 | L:\My Drive\A-Wiki-Data\personal-business\pharmacy (rebound; the old A-Wiki-vnext-clean folder was gone) | SunDay-Worker 2-Conduct |
-| Serena-Wastewater | 18013 | env-wastewater-webapp | SunDay-Worker 3-Conduct |
-| Serena-Worker-4 | 18014 | A-Wiki-Conductor | SunDay-Worker 4-Conduct |
-| Serena-Worker-5 | 18015 | A:\GitHub\sunday-estate-webapp | SunDay-Worker 5-Conduct |
+| sunday-worker-1 / Sunday-Worker-1 | 18011 | SunDay-Worker 1-Conduct (18011) | A-Wiki-Conductor |
+| sunday-worker-2 / Sunday-Worker-2 | 18012 | SunDay-Worker 2-Conduct (18012) | L:\My Drive\A-Wiki-Data\personal-business\pharmacy |
+| sunday-worker-3 / Sunday-Worker-3 | 18013 | SunDay-Worker 3-Conduct (18013) | env-wastewater-webapp |
+| sunday-worker-4 / Sunday-Worker-4 | 18014 | SunDay-Worker 4-Conduct (18014) | A-Wiki-Conductor |
+| sunday-worker-5 / Sunday-Worker-5 | 18015 | SunDay-Worker 5-Conduct (18015) | A:\GitHub\sunday-estate-webapp |
 
-- Rollout root causes: ChatGPT plugin creation requires the local instance READY first (why worker 4/5 failed); instance-create missed the indented `listen_addr:` line (fixed PR #46; worker-4 template corrected in place).
+- Backend rename executed via `instance_rename.rename_instance_backend` (PR #48): folders, identity lines, profile/log literals, template filenames, and every cmd wrapper renamed; window titles now `Sunday-works N - <Action>`.
+- Migration lesson: an app-started instance keeps a detached `cmd.exe` wrapper whose CWD is the instance folder — folder renames require stopping the instance AND reaping that wrapper by exact PID (command-line match) first.
+- Projects are NOT locked to names: any connector can switch projects via the เปลี่ยนโปรเจกต์ button (this rename was done precisely to stop implying otherwise).
 
 ## Full suite at close
 
