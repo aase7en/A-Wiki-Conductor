@@ -144,11 +144,12 @@ def do_install(target: Path) -> int:
         return 2
 
     print("[2/4] Creating Start Menu shortcut")
+    installed_icon = target / "assets" / "a-conductor.ico"
     start_link, desktop_link = shortcut_paths()
-    create_shortcut(start_link, target / f"{APP_NAME}.exe", icon)
+    create_shortcut(start_link, target / f"{APP_NAME}.exe", installed_icon)
 
     print("[3/4] Creating Desktop shortcut")
-    create_shortcut(desktop_link, target / f"{APP_NAME}.exe", icon)
+    create_shortcut(desktop_link, target / f"{APP_NAME}.exe", installed_icon)
 
     print("[4/4] Registering uninstall entry")
     write_registry(target, uninstaller)

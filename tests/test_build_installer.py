@@ -90,6 +90,31 @@ def _load_installer_main():
     return module
 
 
+def test_main_hardens_pe_steps_before_running_pyinstaller(build_installer, tmp_path: Path) -> None:
+    events: list[str] = []
+
+    def fake_harden() -> None:
+        events.append("harden")
+
+    def fake_run(args) -> None:
+        events.append("run")
+
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / f"{APP_NAME}.exe").write_bytes(b"FAKE-EXE")
+
+    code = build_installer.main(
+        [],
+        pyinstaller_run=fake_run,
+        harden=fake_harden,
+        dist_dir=dist,
+        payload_dir=tmp_path / "payload",
+    )
+
+    assert code == 0
+    assert events == ["harden", "run"]
+
+
 def test_installer_install_files_copies_notices(tmp_path: Path, monkeypatch) -> None:
     module = _load_installer_main()
 
@@ -112,3 +137,33 @@ def test_installer_install_files_copies_notices(tmp_path: Path, monkeypatch) -> 
     assert (target / "assets" / "a-conductor.ico").is_file()
     assert (target / "THIRD-PARTY-NOTICES.md").read_text(encoding="utf-8") == "notices"
     assert uninstaller.is_file()
+
+
+def test_do_install_uses_installed_icon_for_shortcuts(tmp_path: Path, monkeypatch) -> None:
+    module = _load_installer_main()
+
+    source = tmp_path / "payload"
+    source.mkdir()
+    (source / f"{APP_NAME}.exe").write_bytes(b"EXE")
+    (source / "docs").mkdir()
+    (source / "docs" / "USER-GUIDE.md").write_text("guide", encoding="utf-8")
+    (source / "assets").mkdir()
+    (source / "assets" / "a-conductor.ico").write_bytes(b"ICO")
+    (source / "THIRD-PARTY-NOTICES.md").write_text("notices", encoding="utf-8")
+    monkeypatch.setattr(module, "payload_dir", lambda: source)
+
+    calls: list[tuple] = []
+    monkeypatch.setattr(module, "create_shortcut", lambda *a: calls.append(("shortcut", *a)))
+    monkeypatch.setattr(module, "write_registry", lambda *a: calls.append(("registry", *a)))
+
+    target = tmp_path / "install-target"
+    code = module.do_install(target)
+
+    assert code == 0
+    shortcuts = [c for c in calls if c[0] == "shortcut"]
+    assert len(shortcuts) == 2
+    expected_icon = target / "assets" / "a-conductor.ico"
+    for call in shortcuts:
+        assert call[3] == expected_icon
+        assert call[2] == target / f"{APP_NAME}.exe"
+    assert any(c[0] == "registry" for c in calls)
