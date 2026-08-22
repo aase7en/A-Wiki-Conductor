@@ -9,6 +9,7 @@ from typing import Mapping, Sequence
 
 import tkinter as tk
 
+from .branding import APP_NAME, APP_VERSION
 from .control_center import ControlCenterError
 from .desktop_control import DesktopControlService
 from .desktop_ui import AConductorDesktopApp
@@ -87,6 +88,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     root = tk.Tk()
+    root.withdraw()
+
+    # Splash screen (3s) with pixel logo, version, and credits — then main UI
+    try:
+        from .splash import show_splash
+
+        show_splash(APP_NAME, APP_VERSION)
+    except Exception:
+        pass  # never block startup on the splash
+
+    root.deiconify()
     app = AConductorDesktopApp(root, service=service)
     app.start_background_operations()
     root.mainloop()
