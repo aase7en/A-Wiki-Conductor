@@ -26,6 +26,10 @@ def default_instances_root() -> Path:
     return Path.home() / "AI" / "serena-instances"
 
 
+_WIN_CREATE_NO_WINDOW = 0x08000000  # Windows process creation flag (subprocess
+# exposes it only on Windows; the value is part of the Win32 API contract)
+
+
 def process_creation_flags() -> int:
     """Flags for spawning owned processes without console windows.
 
@@ -33,5 +37,5 @@ def process_creation_flags() -> int:
     use start_new_session in Popen for process-group control instead.
     """
     if is_windows():
-        return getattr(__import__("subprocess"), "CREATE_NO_WINDOW", 0)
+        return _WIN_CREATE_NO_WINDOW
     return 0
