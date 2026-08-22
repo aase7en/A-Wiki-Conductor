@@ -262,13 +262,6 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "ในโปรแกรมปกติไม่ควรเจอ",
         ),
     ),
-    "TUNNEL_ID_INVALID": (
-        "รูปแบบ Tunnel ID ไม่ถูกต้อง",
-        (
-            "ขาด: ID ที่ถูกต้อง - ต้องขึ้นต้นด้วย tunnel_ ตามด้วย 32 ตัวอักษร",
-            "ทำอย่างไร: ก๊อปใหม่จาก OpenAI Platform (ดูวิธีใน คู่มือ - เชื่อมต่อ AI แต่ละค่าย)",
-        ),
-    ),
     "CONNECTOR_MATCH_MISSING": (
         "หาตัวเชื่อมที่ตรงกับโปรเจกต์ไม่เจอ",
         (
@@ -407,6 +400,97 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "ดูคู่มือหมวด 8",
         ),
     ),
+    "WORKER_BUSY": (
+        "Worker กำลังทำงานอยู่",
+        (
+            "ขาด: Worker ต้องหยุดและไม่มีโปรเจกต์แล้วเท่านั้น",
+            "ทำอย่างไร: กด Stop แล้ว Release โปรเจกต์ออกก่อน แล้วลองใหม่",
+        ),
+    ),
+    "PORT_INVALID": (
+        "พอร์ตไม่ถูกต้อง",
+        (
+            "ขาด: พอร์ตต้องเป็นเลข 1-65535 และไม่ชนกับตัวอื่น",
+            "ทำอย่างไร: เลือกพอร์ตว่างถัดไป (ค่าเริ่มต้นคือ 18010 + หมายเลข worker)",
+        ),
+    ),
+    "INSTANCE_NOT_FOUND": (
+        "ไม่พบตัวเชื่อมนี้",
+        (
+            "ขาด: ตัวเชื่อมอาจถูกลบหรือย้ายไปแล้ว",
+            "ทำอย่างไร: กด Rescan เพื่อค้นหาใหม่ แล้วเลือกรายการใหม่",
+        ),
+    ),
+    "INSTANCE_OUTSIDE_ROOT": (
+        "ตัวเชื่อมอยู่นอกพื้นที่ควบคุม",
+        (
+            "ขาด: โฟลเดอร์ตัวเชื่อมต้องอยู่ใต้ C:\\AI\\serena-instances เท่านั้น",
+            "ทำอย่างไร: ย้ายกลับเข้าโฟลเดอร์หลักก่อนดำเนินการ",
+        ),
+    ),
+    "INSTANCE_NAME_INVALID": (
+        "ชื่อตัวเชื่อมไม่ถูกต้อง",
+        (
+            "ขาด: ชื่อต้องเป็นอังกฤษพิมพ์เล็ก/ตัวเลข/ขีดกลางเท่านั้น",
+            "ทำอย่างไร: ตรวจชื่อที่กรอกแล้วลองใหม่",
+        ),
+    ),
+    "INSTANCE_DISPLAY_NAME_INVALID": (
+        "ชื่อที่แสดงห้ามว่าง",
+        (
+            "ขาด: ข้อความในช่องชื่อ",
+            "ทำอย่างไร: พิมพ์ชื่ออย่างน้อย 1 ตัวอักษรแล้วบันทึกใหม่",
+        ),
+    ),
+    "REFERENCE_PS1_INVALID": (
+        "ไฟล์ instance.ps1 ของต้นแบบไม่ถูกต้อง",
+        (
+            "ขาด: บรรทัด $TunnelClientPath / $LegacySecretPath ในต้นแบบ",
+            "ทำอย่างไร: เลือกต้นแบบตัวอื่น หรือซ่อม instance.ps1 ของต้นแบบก่อน",
+        ),
+    ),
+    "REFERENCE_SCRIPT_MISSING": (
+        "สคริปต์ของต้นแบบไม่ครบ",
+        (
+            "ขาด: start.ps1 หรือ stop.ps1 ในโฟลเดอร์ต้นแบบ",
+            "ทำอย่างไร: ใช้ตัวเชื่อมที่สมบูรณ์เป็นต้นแบบ",
+        ),
+    ),
+    "REFERENCE_CMD_MISSING": (
+        "ไฟล์ Start/Stop .cmd ของต้นแบบไม่ครบ",
+        (
+            "ขาด: Start-*.cmd หรือ Stop-*.cmd ในโฟลเดอร์ต้นแบบ",
+            "ทำอย่างไร: ใช้ตัวเชื่อมที่สมบูรณ์เป็นต้นแบบ",
+        ),
+    ),
+    "REFERENCE_TEMPLATE_MISSING": (
+        "แม่แบบ profile ของต้นแบบไม่ครบ",
+        (
+            "ขาด: ไฟล์ profiles/*.yaml.template หรือ serena_config.yml",
+            "ทำอย่างไร: ใช้ตัวเชื่อมที่สมบูรณ์เป็นต้นแบบ",
+        ),
+    ),
+    "CREATE_VERIFY_FAILED": (
+        "สร้างแล้วแต่ตรวจไม่พบตัวใหม่",
+        (
+            "ขาด: ผลการค้นหาหลังสร้างไม่ตรงกับที่คาด",
+            "ทำอย่างไร: กด Rescan ดูรายการใหม่ หรือลองสร้างใหม่ด้วยชื่ออื่น",
+        ),
+    ),
+    "INSTANCE_CREATE_FAILED": (
+        "สร้างตัวเชื่อมไม่สำเร็จ",
+        (
+            "ขาด: สาเหตุเชิงระบบไฟล์ (ดิสก์/สิทธิ์)",
+            "ทำอย่างไร: ดูข้อความใน ACTIVITY / LOG แล้วลองใหม่",
+        ),
+    ),
+    "INSTANCE_RENAME_FAILED": (
+        "เปลี่ยนชื่อที่แสดงไม่สำเร็จ",
+        (
+            "ขาด: การเขียนลงฐานข้อมูลล้มเหลว",
+            "ทำอย่างไร: ลองใหม่อีกครั้ง หรือรีสตาร์ตโปรแกรมแล้วลอง",
+        ),
+    ),
     "GENERIC": (
         "เกิดข้อผิดพลาด",
         (
@@ -432,6 +516,7 @@ class RowPathTip:
     def _on_motion(self, event) -> None:
         row = self.tree.identify_row(event.y)
         if not row:
+            self._hide()
             return
         self._hide()
         path = self.provider(row)
@@ -585,6 +670,7 @@ class AConductorDesktopApp:
         self._setup_draft: WorkerSetupDraft | None = None
         self._instance_rows: dict[str, str] = {}
         self._row_path_tip_providers: dict = {}
+        self._monitor_instances: dict = {}
 
         self._configure_root()
         self._configure_styles()
@@ -1013,7 +1099,7 @@ class AConductorDesktopApp:
         )
         self.monitor_text.grid(row=0, column=0, sticky="ew", padx=(9, 0), pady=(9, 4))
         self.instance_tree.bind(
-            "<<TreeviewSelect>>", lambda _event: self._update_monitor_now(), add="+"
+            "<<TreeviewSelect>>", lambda _event: self._refresh_monitor_async(), add="+"
         )
         self._update_monitor_now()
 
@@ -1041,51 +1127,58 @@ class AConductorDesktopApp:
         self.root.after(1200, self._start_status_pulse)
 
     def _update_monitor_now(self) -> None:
-        """Render the MONITOR panel for the selected connector (or a hint)."""
+        """Sync render (tests / no-selection hint path)."""
         from .instance_monitor import monitor_report
         from .local_instances import instance_health_state
 
+        name = self._selected_instance_name()
+        if name is None:
+            self._render_monitor(None, None)
+            return
+        target = self._monitor_target(name)
+        if target is None:
+            self._render_monitor(name, None)
+            return
+        try:
+            state = instance_health_state(target).value
+        except Exception:
+            state = "UNKNOWN"
+        self._render_monitor(name, monitor_report(target.instance_root, state=state))
+
+    def _render_monitor(self, name, report) -> None:
+        """Paint the MONITOR panel; report=None means unknown/none."""
         if not self.monitor_text.winfo_exists():
             return
-        name = self._selected_instance_name()
+        state = report.get("state", "-") if report else "-"
         lines: list[str] = ["MONITOR"]
         if name is None:
             lines.append(
                 "  เลือกตัวเชื่อมในตาราง CONNECTORS เพื่อดูสถานะ · PID · หน่วยความจำ · log ล่าสุด"
             )
             lines.append("  (เปิด/ปิดผ่านปุ่มในแอปได้เลย — start จากแอปไม่มีหน้าต่าง CMD)")
+        elif report is None:
+            lines.append(f"  {name}: ไม่พบ instance")
         else:
-            target = next(
-                (item for item in self.service.instances() if item.name == name), None
-            )
-            if target is None:
-                lines.append(f"  {name}: ไม่พบ instance")
-            else:
+            alias = ""
+            aliases_fn = getattr(self.service, "instance_aliases", None)
+            if callable(aliases_fn):
                 try:
-                    state = instance_health_state(target).value
+                    alias = aliases_fn().get(name, "") or ""
                 except Exception:
-                    state = "UNKNOWN"
-                report = monitor_report(target.instance_root, state=state)
-                alias = ""
-                aliases_fn = getattr(self.service, "instance_aliases", None)
-                if callable(aliases_fn):
-                    try:
-                        alias = aliases_fn().get(name, "") or ""
-                    except Exception:
-                        alias = ""
-                header = f"  {name}" + (f"  ({alias})" if alias else "")
-                pid_text = str(report["pid"]) if report["pid"] else "-"
-                mem_text = f"{report['memory_mb']} MB" if report["memory_mb"] else "-"
-                lines.append(f"{header}   {state}   PID {pid_text}   MEM {mem_text}")
-                lines.append(f"  log: {report['log_file'] or '-'}")
-                errors = report["errors"]
-                lines.append(f"  errors ล่าสุด: {len(errors)}")
-                lines.append("  --- tail ---")
-                lines.extend(f"  {line}" for line in report["tail"])
+                    alias = ""
+            header = f"  {name}" + (f"  ({alias})" if alias else "")
+            pid_text = str(report["pid"]) if report["pid"] else "-"
+            mem_text = f"{report['memory_mb']} MB" if report["memory_mb"] else "-"
+            lines.append(f"{header}   {state}   PID {pid_text}   MEM {mem_text}")
+            lines.append(f"  log: {report['log_file'] or '-'}")
+            errors = report["errors"]
+            lines.append(f"  errors ล่าสุด: {len(errors)}")
+            lines.append("  --- tail ---")
+            lines.extend(f"  {line}" for line in report["tail"])
         try:
             self.monitor_text.configure(state="normal")
             self.monitor_text.delete("1.0", "end")
-            self.monitor_text.insert("1.0", "\n".join(lines))
+            self.monitor_text.insert("1.0", chr(10).join(lines))
             self.monitor_text.configure(state="disabled")
         except tk.TclError:
             pass
@@ -1093,13 +1186,59 @@ class AConductorDesktopApp:
     def _monitor_tick(self) -> None:
         """Auto-refresh the MONITOR panel every 5s (real entrypoint only)."""
         try:
-            self._update_monitor_now()
+            self._refresh_monitor_async()
         except tk.TclError:
             return
         try:
             self.root.after(5000, self._monitor_tick)
         except tk.TclError:
             pass
+
+    def _monitor_target(self, name: str):
+        cached = self._monitor_instances.get(name)
+        if cached is not None:
+            return cached
+        return next(
+            (item for item in self.service.instances() if item.name == name), None
+        )
+
+    def _refresh_monitor_async(self) -> None:
+        """Fetch the monitor report off the UI thread, then render."""
+        from .instance_monitor import monitor_report
+        from .local_instances import instance_health_state
+
+        name = self._selected_instance_name()
+        if name is None:
+            self._update_monitor_now()
+            return
+        target = self._monitor_target(name)
+        if target is None:
+            self._update_monitor_now()
+            return
+
+        def work():
+            try:
+                state = instance_health_state(target).value
+            except Exception:
+                state = "UNKNOWN"
+            return monitor_report(target.instance_root, state=state)
+
+        try:
+            future = self._background_executor.submit(work)
+        except Exception:
+            self._update_monitor_now()
+            return
+        self._poll_monitor(future, name)
+
+    def _poll_monitor(self, future, name: str) -> None:
+        if not future.done():
+            self.root.after(25, self._poll_monitor, future, name)
+            return
+        try:
+            report = future.result()
+        except Exception:
+            return
+        self._render_monitor(name, report)
 
     def _panel(self, parent, title: str) -> tk.Frame:
         frame = tk.Frame(
@@ -1904,7 +2043,7 @@ class AConductorDesktopApp:
         ).grid(row=2, column=0, sticky="w", pady=(0, 10))
         tk.Label(
             frame,
-            text="อ่านเพิ่ม: ปุ่ม คู่มือ มุมขวาบนของโปรแกรม",
+            text=tr("err.footer"),
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 8),
@@ -2502,6 +2641,7 @@ class AConductorDesktopApp:
                 tags=(tag,),
             )
             self._instance_rows[instance.name] = item
+            self._monitor_instances[instance.name] = instance
         for button in (
             self.instance_start_button,
             self.instance_stop_button,
@@ -2604,8 +2744,9 @@ class AConductorDesktopApp:
         item = self._instance_rows.get(name)
         if item is not None and self.instance_tree.exists(item):
             values = list(self.instance_tree.item(item, "values"))
-            values[4] = "ON" if not current else "-"
-            self.instance_tree.item(item, values=values)
+            if len(values) > 5:
+                values[5] = "ON" if not current else "-"  # AUTO column (5), not TUNNEL (4)
+                self.instance_tree.item(item, values=values)
         self.log_activity(f"AUTO         {name} {'ON' if not current else 'OFF'}")
 
     def rescan_instances(self) -> None:
@@ -2721,7 +2862,7 @@ class AConductorDesktopApp:
         current = aliases.get(name, name)
 
         dialog = tk.Toplevel(self.root)
-        dialog.title(f"{APP_NAME} — แก้ชื่อตัวเชื่อม — {name}")
+        dialog.title(f'{APP_NAME} — {tr("dlg.rename.connector.title")} — {name}')
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
         dialog.resizable(True, False)
@@ -2730,7 +2871,7 @@ class AConductorDesktopApp:
         frame.grid_columnconfigure(1, weight=1)
         tk.Label(
             frame,
-            text=f"> แก้ชื่อ  {name}",
+            text="> " + tr("dlg.rename.header") + f"  {name}",
             bg=self.theme.panel,
             fg=self.theme.accent,
             font=(self.theme.monospace_font, 10, "bold"),

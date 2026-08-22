@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-22 (GLM 5.3, v0.2.3 Drive data layer)
+Last updated: 2026-08-22 (GLM 5.3, v0.2.4 A-Doctor audit fixes)
 
 ## Current phase
 
@@ -46,6 +46,12 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 - Connector-deletion zip backups automatically target `L:\My Drive\A-Wiki-Dataackups-conductor-instances\` when it exists (`default_backup_dir()` in desktop_control, Drive-first with LOCALAPPDATA fallback); the existing smoketest zip was moved there.
 - Repo AGENTS.md now points every agent at the Drive layer + its AGENTS/LAYOUT rules before touching important/secret files.
 
+## v0.2.4: A-Doctor deep-audit fixes (2026-08-22)
+
+- **P1 fixes**: Toggle Auto wrote the wrong column (clobbered TUNNEL, left AUTO stale); reaper used substring matching (could kill sibling instances' wrappers — now path-boundary + apostrophe-escaped); project paths with apostrophes broke PowerShell single-quoted lines (now escaped via `_ps_quote` in create/rename/rebind); MONITOR froze the UI thread every 5s (async + cached instances + 64KB tail reads).
+- **P2 fixes**: create validates the whole reference before touching disk (no skeleton folders); delete uses the real stop result code; backup zips include empty dirs; rename rollback covers read/write IO; stop-failures at close surface via confirm; error tables extended + made symmetric (Thai/EN) with the duplicate TUNNEL_ID_INVALID removed; CI GUI list completed (test_instance_create, test_doctor_fixes).
+- WO-P1-052 closed (code shipped long ago); WO-P1-023 marked superseded. Guide §3 diagram/§4.5 refreshed for the current toolbars + MONITOR + shutdown switch.
+
 ## Live connector fleet (2026-08-22 night — backend renamed to one pattern, all READY)
 
 | Folder / $InstanceName | Port | Display alias (matches ChatGPT plugin) | Project |
@@ -62,7 +68,7 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 
 ## Full suite at close
 
-912 passed (WO-P1-060 added 38 tests).
+957 passed (v0.2.4 A-Doctor fixes included).
 
 ## Next safe action (user picks)
 

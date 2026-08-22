@@ -4,7 +4,7 @@ Last updated: 2026-08-22 (GLM 5.3, post 5-connector rollout)
 
 ## Current objective
 
-WO-P1-060 shipped: workers and connectors fully manageable from the UI (add/rename/delete both). Awaiting user trial or next milestone.
+v0.2.4: A-Doctor deep audit fixed (AUTO column, reaper boundary, PS quoting, async MONITOR, symmetric error tables). Ready for the next A-Wiki session to plug in.
 
 ## Status
 
@@ -16,7 +16,7 @@ Do not trust chat memory as the task source of truth. Use: `actual repo/GitHub s
 
 ## Current repository state
 
-- Branch: `main` (PRs #35–#46 merged CI-green); 5 connector instances all READY (see CURRENT-WORK fleet table)
+- Branch: `main` (PRs #35–#58 merged CI-green); 5 connector instances all READY (see CURRENT-WORK fleet table); secrets + backups live in the A-Wiki-Data Drive layer
 - Repo visibility: **public** (explicit user decision 2026-08-22; recorded in COLLAB.md)
 - Release: https://github.com/aase7en/A-Wiki-Conductor/releases/tag/v0.2.0 (Setup + Portable + Notices; anonymous download verified)
 - Full suite at close: 912 passed

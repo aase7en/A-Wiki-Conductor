@@ -13,10 +13,12 @@ class InstanceManageError(RuntimeError):
 
 
 def zip_directory(source: Path, dest_zip: Path) -> Path:
-    """Zip the whole instance tree (relative paths preserved)."""
+    """Zip the whole instance tree (relative paths preserved, dirs included)."""
     dest_zip.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED) as archive:
         for item in sorted(source.rglob("*")):
             if item.is_file():
                 archive.write(item, item.relative_to(source).as_posix())
+            elif item.is_dir():
+                archive.writestr(item.relative_to(source).as_posix() + "/", "")
     return dest_zip

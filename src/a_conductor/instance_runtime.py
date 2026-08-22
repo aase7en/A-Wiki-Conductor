@@ -7,18 +7,25 @@ import sys
 from pathlib import Path
 
 
+def _ps_quote(value: str) -> str:
+    """Escape a value for a PowerShell single-quoted string."""
+    return value.replace("'", "''")
+
+
 def reap_instance_wrappers(instance_root: Path | str) -> list[int]:
     """Kill stale detached cmd/powershell wrappers whose command line points
-    into the given instance folder (exact path match). No-op outside Windows.
-    Returns the PIDs it terminated."""
+    into the given instance folder (path-boundary match: the needle must be
+    followed by a path separator, so sibling folders sharing a prefix are
+    never matched). No-op outside Windows. Returns the PIDs it terminated."""
     if sys.platform != "win32":
         return []
     needle = str(Path(instance_root))
     if not needle.strip():
         return []
+    quoted = _ps_quote(needle)
     script = (
         "Get-CimInstance Win32_Process -Filter \"Name='powershell.exe' or Name='cmd.exe'\" | "
-        "Where-Object { $_.CommandLine -like '*" + needle + "*' } | "
+        "Where-Object { $_.CommandLine -like ('*' + '" + quoted + "' + '\\*') } | "
         "ForEach-Object { $_.ProcessId }"
     )
     try:

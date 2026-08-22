@@ -13,6 +13,8 @@ import re
 import shutil
 from pathlib import Path
 
+from .instance_runtime import _ps_quote
+
 _PS1_PROJECT_RE = re.compile(
     r"^(\s*\$ProjectPath\s*=\s*')(?P<path>[^']*)(')\s*$", re.MULTILINE
 )
@@ -42,7 +44,7 @@ def _rewrite_ps1(instance_root: Path, new_project: str) -> None:
     _backup(ps1)
     ps1.write_text(
         _PS1_PROJECT_RE.sub(
-            lambda m: m.group(1) + new_project + m.group(3), text, count=1
+            lambda m: m.group(1) + _ps_quote(new_project) + m.group(3), text, count=1
         ),
         encoding="utf-8",
         newline="\n",
@@ -75,7 +77,7 @@ def _rewrite_serena_home(instance_root: Path, new_project: str) -> None:
     if not config.is_file():
         return
     text = config.read_text(encoding="utf-8")
-    replacement = "projects:\n- '" + new_project + "'"
+    replacement = "projects:\n- '" + _ps_quote(new_project) + "'"
     # Lambda replacement avoids regex escape interpretation of Windows backslash paths
     updated = _PROJECTS_LINE_RE.sub(lambda _m: replacement, text, count=1)
     if updated != text:

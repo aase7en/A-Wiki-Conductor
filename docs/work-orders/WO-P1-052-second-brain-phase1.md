@@ -1,6 +1,6 @@
 # WO-P1-052: Second Brain Phase 1 (Index+Pull Brain Gate)
 
-Status: in_progress
+Status: complete (closed 2026-08-22: all sub-steps shipped to main — brain_folders/global-brain UI live; see CURRENT-WORK history)
 Lane/files: `src/a_conductor/worker_serena_settings.py`, `src/a_conductor/serena_config_store.py`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/desktop_control.py`, `src/a_conductor/local_instances.py`, `src/a_conductor/__init__.py`, `tests/test_worker_serena_settings.py`, `tests/test_local_instances.py`, `tests/test_desktop_ui.py`, `docs/plans/2026-08-21-second-brain-phase1.md`, `docs/work-orders/WO-P1-052-second-brain-phase1.md`, `CURRENT-WORK.md`, `handoff.md`
 Branch: chunk/p1-052-second-brain-docs (PR series)
 Model tier: high

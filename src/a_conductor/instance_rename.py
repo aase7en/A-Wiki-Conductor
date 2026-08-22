@@ -14,6 +14,8 @@ import re
 import shutil
 from pathlib import Path
 
+from .instance_runtime import _ps_quote
+
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _INSTANCE_LINE_RES = {
     "InstanceName": re.compile(r"^(\s*\$InstanceName\s*=\s*')(?P<value>[^']*)(')", re.M),
@@ -36,7 +38,9 @@ def _set_ps1_value(text: str, key: str, value: str) -> str:
     pattern = _INSTANCE_LINE_RES[key]
     if pattern.search(text) is None:
         raise InstanceRenameError(f"PS1_{key.upper()}_LINE_NOT_FOUND")
-    return pattern.sub(lambda m: m.group(1) + value + m.group(3), text, count=1)
+    return pattern.sub(
+        lambda m: m.group(1) + _ps_quote(value) + m.group(3), text, count=1
+    )
 
 
 def rename_instance_backend(
@@ -65,15 +69,15 @@ def rename_instance_backend(
     shutil.move(str(old), str(target))
 
     ps1_path = target / "instance.ps1"
-    ps1 = ps1_path.read_text(encoding="utf-8")
     try:
+        ps1 = ps1_path.read_text(encoding="utf-8")
         ps1 = _set_ps1_value(ps1, "InstanceName", display)
         ps1 = _set_ps1_value(ps1, "SerenaHome", str(target / "serena-home"))
         ps1 = _set_ps1_value(ps1, "TunnelProfileName", new_profile)
-    except InstanceRenameError:
+        ps1_path.write_text(ps1, encoding="utf-8", newline="\r\n")
+    except Exception:
         shutil.move(str(target), str(old))
         raise
-    ps1_path.write_text(ps1, encoding="utf-8", newline="\r\n")
 
     for script in ("start.ps1", "stop.ps1"):
         path = target / script

@@ -1,6 +1,18 @@
 """English variants of the teaching error popups (mirrors ERROR_EXPLANATIONS)."""
 
 ERROR_EXPLANATIONS_EN: dict[str, tuple[str, tuple[str, ...]]] = {
+    "PORT_INVALID": ("Invalid port", ("Ports must be 1-65535 and not collide with another instance", "How: pick the next free port (default is 18010 + worker number)")),
+    "INSTANCE_NOT_FOUND": ("Connector not found", ("Missing: it may have been deleted or moved", "How: press Rescan and pick from the fresh list")),
+    "INSTANCE_OUTSIDE_ROOT": ("Connector is outside the managed root", ("The instance folder must live under C:\\AI\\serena-instances", "How: move it back under the root before acting on it")),
+    "INSTANCE_NAME_INVALID": ("Invalid connector name", ("Names must be lowercase English letters/digits/hyphens", "How: check the name you typed and retry")),
+    "INSTANCE_DISPLAY_NAME_INVALID": ("Display name cannot be blank", ("Missing: text in the name field", "How: type at least one character and save again")),
+    "REFERENCE_PS1_INVALID": ("Reference instance.ps1 is invalid", ("Missing: the $TunnelClientPath / $LegacySecretPath lines in the reference", "How: pick a different reference or repair its instance.ps1 first")),
+    "REFERENCE_SCRIPT_MISSING": ("Reference scripts incomplete", ("Missing: start.ps1 or stop.ps1 in the reference folder", "How: use a complete connector as the reference")),
+    "REFERENCE_CMD_MISSING": ("Reference cmd wrappers incomplete", ("Missing: Start-*.cmd or Stop-*.cmd in the reference folder", "How: use a complete connector as the reference")),
+    "REFERENCE_TEMPLATE_MISSING": ("Reference profile template incomplete", ("Missing: profiles/*.yaml.template or serena_config.yml", "How: use a complete connector as the reference")),
+    "CREATE_VERIFY_FAILED": ("Created but not discovered afterwards", ("The post-create discovery did not find the new instance", "How: press Rescan, or recreate with another name")),
+    "INSTANCE_CREATE_FAILED": ("Connector creation failed", ("What: a filesystem-level failure (disk/permissions)", "How: check the ACTIVITY / LOG panel and retry")),
+    "INSTANCE_RENAME_FAILED": ("Rename failed", ("What: writing to the database failed", "How: retry, or restart the app and try again")),
     "GENERIC": ("Something went wrong", ("What: an unexpected error occurred", "Try: press Refresh; if it repeats, check the log panel")),
     "SELECT_WORKER": ("No Worker selected", ("Missing: a click on a row in the WORKERS table (right side)", "How: click a Worker row once, then press the button")),
     "SELECT_PROJECT": ("No project selected", ("Missing: a selection in the PROJECTS list (left side)", "How: pick a project, then a target Worker, then press Assign")),
@@ -48,7 +60,6 @@ ERROR_EXPLANATIONS_EN: dict[str, tuple[str, tuple[str, ...]]] = {
     "SETTINGS_LANGUAGE_BACKEND_INVALID": ("Invalid language backend", ("Backend must be LSP or JetBrains", "How: choose one of the two options")),
     "SETTINGS_TOOL_TIMEOUT_INVALID": ("Invalid tool timeout", ("Timeout must be 1-86400 seconds", "How: enter a number in that range")),
     "PROJECT_IDENTITY_SAVE_FAILED": ("Could not save the project identity", ("What: writing the identity file failed", "How: check disk space and folder permissions")),
-    "PROJECT_NOT_FOUND_REGISTER": ("Project folder not found", ("Missing: a path that exists on this machine", "How: check the full folder path and retry")),
     "GUIDE_NOT_FOUND": ("User guide file not found", ("Missing: docs/USER-GUIDE.md next to the app", "How: reinstall or clone the full repository")),
     "GUIDE_OPEN_FAILED": ("Could not open the guide", ("What: opening the guide window failed", "How: retry; if it repeats, open docs/USER-GUIDE.md directly")),
     "CLIPBOARD_COPY_FAILED": ("Copy failed", ("What: writing to the clipboard failed", "How: retry, or select the text manually")),

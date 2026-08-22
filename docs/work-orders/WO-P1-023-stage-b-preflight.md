@@ -1,6 +1,6 @@
 # WO-P1-023: Stage B Dedicated Worker Preflight
 
-Status: blocked_external
+Status: superseded (2026-08-22: folded into the cross-platform plan GATE-0, docs/plans/cross-platform-plan.md)
 Lane/files: `PROJECT-PLAN.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-023-stage-b-preflight.md`
 Branch: main
 Model tier: mid
