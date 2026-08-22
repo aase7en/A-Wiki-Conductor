@@ -90,6 +90,31 @@ def _load_installer_main():
     return module
 
 
+def test_main_hardens_pe_steps_before_running_pyinstaller(build_installer, tmp_path: Path) -> None:
+    events: list[str] = []
+
+    def fake_harden() -> None:
+        events.append("harden")
+
+    def fake_run(args) -> None:
+        events.append("run")
+
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / f"{APP_NAME}.exe").write_bytes(b"FAKE-EXE")
+
+    code = build_installer.main(
+        [],
+        pyinstaller_run=fake_run,
+        harden=fake_harden,
+        dist_dir=dist,
+        payload_dir=tmp_path / "payload",
+    )
+
+    assert code == 0
+    assert events == ["harden", "run"]
+
+
 def test_installer_install_files_copies_notices(tmp_path: Path, monkeypatch) -> None:
     module = _load_installer_main()
 

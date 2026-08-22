@@ -17,9 +17,12 @@ import shutil
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from a_conductor.branding import APP_NAME  # noqa: E402
+from build_portable import _harden_cosmetic_pe_steps  # noqa: E402
 
 
 def setup_exe_name() -> str:
@@ -64,7 +67,14 @@ def pyinstaller_args(root: Path, payload_dir: Path, dist_dir: Path) -> list[str]
     ]
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    pyinstaller_run=None,
+    harden: "callable | None" = None,
+    dist_dir: Path | None = None,
+    payload_dir: Path | None = None,
+) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     distpath = "dist"
     if "--distpath" in argv:
@@ -72,13 +82,18 @@ def main(argv: list[str] | None = None) -> int:
         distpath = argv[index + 1]
         del argv[index : index + 2]
 
-    root = Path(__file__).resolve().parents[1]
-    dist_dir = root / distpath
-    payload_dir = root / "build" / "payload"
+    root = REPO_ROOT
+    dist_dir = dist_dir or root / distpath
+    payload_dir = payload_dir or root / "build" / "payload"
 
     assemble_payload(root=root, dist_dir=dist_dir, payload_dir=payload_dir)
 
-    from PyInstaller.__main__ import run as pyinstaller_run
+    if harden is None:
+        harden = _harden_cosmetic_pe_steps
+    harden()
+
+    if pyinstaller_run is None:
+        from PyInstaller.__main__ import run as pyinstaller_run
 
     pyinstaller_run(pyinstaller_args(root=root, payload_dir=payload_dir, dist_dir=dist_dir))
     return 0
