@@ -10,6 +10,7 @@ new instance always follows the same validated source of truth.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 from .instance_rebind import _PROJECTS_LINE_RE
@@ -194,6 +195,24 @@ def create_instance(
         (target / "serena-home" / "serena_config.yml").write_text(
             config_text, encoding="utf-8", newline="\n"
         )
+
+    if sys.platform != "win32":
+        from .instance_templates_sh import render_sh_scripts
+
+        sh_scripts = render_sh_scripts(
+            instance_name=instance_name,
+            project=str(project),
+            serena_home=str(target / "serena-home"),
+            health_port=health_port,
+            profile=profile,
+            slug=slug,
+            tunnel_client=tunnel_client,
+            api_key_file="config/api-key",
+        )
+        for filename, content in sh_scripts.items():
+            script = target / filename
+            script.write_text(content, encoding="utf-8", newline="\n")
+            script.chmod(0o755)
 
     if tunnel_id is not None:
         (target / "config" / "tunnel-id.txt").write_text(

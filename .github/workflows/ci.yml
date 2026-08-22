@@ -57,6 +57,6 @@ jobs:
       - name: Run platform-neutral suites (no Tk on headless runners)
         run: >-
           python -m pytest tests/test_platform_support.py
-          tests/test_branding.py -q
+          tests/test_branding.py tests/test_sh_templates.py -q
       - name: Smoke test (headless)
         run: python -m a_conductor --smoke --database ${{ runner.temp }}/acond-smoke.sqlite
