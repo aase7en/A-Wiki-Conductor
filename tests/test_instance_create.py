@@ -26,7 +26,7 @@ def make_reference(root: Path) -> Path:
                 "$InstanceName = 'Serena-Wastewater'",
                 "$ProjectPath = 'A:\\GitHub\\demo-old'",
                 "$SerenaHome = 'C:\\AI\\serena-instances\\wastewater\\serena-home'",
-                "$HealthListenAddress = '127.0.0.1:18013'",
+                "$HealthListenAddress = '127.0.0.1:48113'",
                 "$TunnelProfileName = 'serena-wastewater'",
                 "$TunnelClientPath = 'C:\\AI\\tunnel\\tunnel-client.exe'",
                 "$LegacySecretPath = 'C:\\AI\\tunnel\\secret.dpapi'",
@@ -54,7 +54,7 @@ def make_reference(root: Path) -> Path:
         encoding="utf-8",
     )
     (ref / "profiles" / "serena-wastewater.yaml.template").write_text(
-        "server:\n  listen_addr: 127.0.0.1:18013\nargs:\n  - --project A:/GitHub/demo-old\ntunnel_id: __TUNNEL_ID__\n",
+        "server:\n  listen_addr: 127.0.0.1:48113\nargs:\n  - --project A:/GitHub/demo-old\ntunnel_id: __TUNNEL_ID__\n",
         encoding="utf-8",
     )
     (ref / "serena-home" / "serena_config.yml").write_text(
@@ -79,7 +79,7 @@ def test_create_instance_materializes_full_layout(sandbox) -> None:
         instances_root,
         "Research",
         project,
-        health_port=18014,
+        health_port=48114,
         reference_root=ref,
         work_number=4,
     )
@@ -87,7 +87,7 @@ def test_create_instance_materializes_full_layout(sandbox) -> None:
     assert (created / "instance.ps1").is_file()
     ps1 = (created / "instance.ps1").read_text(encoding="utf-8")
     assert "$InstanceName = 'Serena-Research'" in ps1
-    assert "$HealthListenAddress = '127.0.0.1:18014'" in ps1
+    assert "$HealthListenAddress = '127.0.0.1:48114'" in ps1
     assert str(project) in ps1
     assert "tunnel-client.exe" in ps1  # shared paths carried from reference
 
@@ -99,11 +99,12 @@ def test_create_instance_materializes_full_layout(sandbox) -> None:
 
     start_cmd = (created / "Start-Serena-Research.cmd").read_text(encoding="utf-8")
     assert "title Sunday-works 4 - Research" in start_cmd
+    assert sum(1 for line in start_cmd.splitlines() if line.lower().startswith("title ")) == 1
 
     template = (created / "profiles" / "serena-research.yaml.template").read_text(
         encoding="utf-8"
     )
-    assert "127.0.0.1:18014" in template
+    assert "127.0.0.1:48114" in template
     assert f"--project {project.as_posix()}" in template
     assert "__TUNNEL_ID__" in template
 
@@ -117,7 +118,7 @@ def test_create_instance_materializes_full_layout(sandbox) -> None:
 def test_created_instance_is_discoverable(sandbox) -> None:
     instances_root, ref, project = sandbox
     create_instance(
-        instances_root, "Research", project, health_port=18014, reference_root=ref
+        instances_root, "Research", project, health_port=48114, reference_root=ref
     )
     instances = discover_local_instances(instances_root)
     names = {instance.name for instance in instances}
@@ -132,7 +133,7 @@ def test_create_instance_with_tunnel_id_writes_config(sandbox) -> None:
         instances_root,
         "Research",
         project,
-        health_port=18014,
+        health_port=48114,
         tunnel_id=tunnel,
         reference_root=ref,
     )
@@ -142,17 +143,17 @@ def test_create_instance_with_tunnel_id_writes_config(sandbox) -> None:
 def test_create_instance_guards(sandbox) -> None:
     instances_root, ref, project = sandbox
     create_instance(
-        instances_root, "Research", project, health_port=18014, reference_root=ref
+        instances_root, "Research", project, health_port=48114, reference_root=ref
     )
     with pytest.raises(InstanceCreateError) as exc:
         create_instance(
-            instances_root, "research", project, health_port=18015, reference_root=ref
+            instances_root, "research", project, health_port=48115, reference_root=ref
         )
     assert exc.value.code == "NAME_ALREADY_EXISTS"
 
     with pytest.raises(InstanceCreateError) as exc:
         create_instance(
-            instances_root, "Bad Name!", project, health_port=18015, reference_root=ref
+            instances_root, "Bad Name!", project, health_port=48115, reference_root=ref
         )
     assert exc.value.code == "NAME_INVALID"
 
@@ -161,7 +162,7 @@ def test_create_instance_guards(sandbox) -> None:
             instances_root,
             "Other",
             instances_root / "missing",
-            health_port=18015,
+            health_port=48115,
             reference_root=ref,
         )
     assert exc.value.code == "PROJECT_NOT_FOUND"
@@ -171,7 +172,7 @@ def test_create_instance_guards(sandbox) -> None:
             instances_root,
             "Other",
             project,
-            health_port=18015,
+            health_port=48115,
             tunnel_id="nope",
             reference_root=ref,
         )
@@ -180,13 +181,13 @@ def test_create_instance_guards(sandbox) -> None:
     empty_root = instances_root.parent / "empty-instances"
     empty_root.mkdir()
     with pytest.raises(InstanceCreateError) as exc:
-        create_instance(empty_root, "Other", project, health_port=18015)
+        create_instance(empty_root, "Other", project, health_port=48115)
     assert exc.value.code == "REFERENCE_MISSING"
 
 
 def test_create_instance_auto_reference_and_work_number(sandbox) -> None:
     instances_root, _ref, project = sandbox
-    created = create_instance(instances_root, "Research", project, health_port=18014)
+    created = create_instance(instances_root, "Research", project, health_port=48114)
     cmd = (created / "Start-Serena-Research.cmd").read_text(encoding="utf-8")
     # sandbox has exactly one reference instance -> next window number is 2
     assert "title Sunday-works 2 - Research" in cmd
@@ -195,10 +196,10 @@ def test_create_instance_auto_reference_and_work_number(sandbox) -> None:
 def test_next_health_port_is_max_plus_one(sandbox) -> None:
     instances_root, ref, project = sandbox
     create_instance(
-        instances_root, "Research", project, health_port=18100, reference_root=ref
+        instances_root, "Research", project, health_port=48200, reference_root=ref
     )
     instances = discover_local_instances(instances_root)
-    assert next_health_port(instances) == 18101
+    assert next_health_port(instances) == 48201
 
 
 # --- facade --------------------------------------------------------------
