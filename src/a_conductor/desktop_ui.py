@@ -20,6 +20,8 @@ from tkinter import filedialog, ttk
 import webbrowser
 
 from .branding import APP_NAME, APP_VERSION
+from .error_explanations_en import ERROR_EXPLANATIONS_EN
+from .i18n import get_language, set_language, tr
 from .control_center import ControlCenterError, ControlCenterSnapshot
 from .domain import WorkerState
 from .lifecycle_coordinator import LifecycleCoordinatorError
@@ -590,6 +592,13 @@ class AConductorDesktopApp:
         self.refresh()
 
     def _configure_root(self) -> None:
+        pref_getter = getattr(self.service, "get_preference", None)
+        if callable(pref_getter):
+            try:
+                if pref_getter("language"):
+                    set_language("en")
+            except Exception:
+                pass
         self.root.title(f"{APP_NAME} v{APP_VERSION}")
         self.root.configure(background=self.theme.background)
         self.root.geometry("1080x680")
@@ -687,12 +696,12 @@ class AConductorDesktopApp:
             "ONLINE = ฐานข้อมูลควบคุมเชื่อมถึงได้ (local)\nOFFLINE (สีแดง) = service ตอบสนองไม่ได้",
             self.theme,
         )
-        self.help_button = self._button(top, "คู่มือ", self.open_guide)
+        self.help_button = self._button(top, tr("btn.guide"), self.open_guide)
         self.help_button.grid(row=0, column=3, sticky="e", padx=(0, 4), pady=6)
-        _attach_tip(self.help_button, "เปิดคู่มือการใช้งาน (ในหน้าต่างโปรแกรม)", self.theme)
-        self.prefs_button = self._button(top, "ตั้งค่า", self.open_preferences)
+        _attach_tip(self.help_button, tr("tip.guide"), self.theme)
+        self.prefs_button = self._button(top, tr("btn.settings"), self.open_preferences)
         self.prefs_button.grid(row=0, column=4, sticky="e", padx=(0, 8), pady=6)
-        _attach_tip(self.prefs_button, "การตั้งค่ารวมของโปรแกรม (สวิตช์เปิด/ปิด)", self.theme)
+        _attach_tip(self.prefs_button, tr("tip.settings"), self.theme)
         if not all(
             callable(getattr(self.service, name, None))
             for name in ("get_preference", "set_preference")
@@ -701,7 +710,7 @@ class AConductorDesktopApp:
 
         hint = tk.Label(
             self.root,
-            text="เริ่มต้นใช้งาน 3 ขั้น  ① Add Project เพิ่มโปรเจกต์  ② เลือกโปรเจกต์แล้วกด Assign ไปยัง Worker  ③ กด Start (โปรเจกต์ที่มี Connector จะเริ่ม tunnel ให้ทันที)",
+            text=tr("hint.three.steps"),
             bg=self.theme.background,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
@@ -809,36 +818,36 @@ class AConductorDesktopApp:
         self.worker_tree.tag_configure("warning", foreground=self.theme.warning)
         self.worker_tree.tag_configure("error", foreground=self.theme.error)
         self.worker_tree.tag_configure("idle", foreground=self.theme.idle)
-        self._attach_row_path_tip(self.worker_tree, column=3, label="คัดลอก path (Copy path)")
+        self._attach_row_path_tip(self.worker_tree, column=3, label=tr("menu.copy.path"))
 
         actions = tk.Frame(worker_panel, bg=self.theme.panel)
         actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=9, pady=(4, 9))
         self.release_button = self._button(actions, "Release", self.release_selected)
-        _attach_tip(self.release_button, "ปล่อย Worker คืน (ถอดโปรเจกต์ออกจาก Worker ที่เลือก)", self.theme)
+        _attach_tip(self.release_button, tr("tip.release"), self.theme)
         self.refresh_button = self._button(actions, "Refresh", self.refresh)
-        _attach_tip(self.refresh_button, "โหลดสถานะล่าสุดใหม่", self.theme)
+        _attach_tip(self.refresh_button, tr("tip.refresh"), self.theme)
         self.start_button = self._button(actions, "Start", self.start_selected)
-        _attach_tip(self.start_button, "เริ่มงานของ Worker ที่เลือก — ถ้าโปรเจกต์มี Connector จะเริ่ม tunnel ให้อัตโนมัติ", self.theme)
+        _attach_tip(self.start_button, tr("tip.start"), self.theme)
         self.stop_button = self._button(actions, "Stop", self.stop_selected)
-        _attach_tip(self.stop_button, "หยุด Worker ที่เลือก", self.theme)
+        _attach_tip(self.stop_button, tr("tip.stop"), self.theme)
         self.restart_button = self._button(actions, "Restart", self.restart_selected)
-        _attach_tip(self.restart_button, "หยุดแล้วเริ่มใหม่", self.theme)
+        _attach_tip(self.restart_button, tr("tip.restart"), self.theme)
         self.setup_button = self._button(actions, "Setup", self.open_runtime_setup)
-        _attach_tip(self.setup_button, "ตั้งค่า runtime ของ Worker (จำเป็นสำหรับโปรเจกต์ที่ไม่มี Connector)", self.theme)
+        _attach_tip(self.setup_button, tr("tip.setup"), self.theme)
         self.config_button = self._button(actions, "Config", self.open_worker_config)
-        _attach_tip(self.config_button, "ตั้งค่า engine ของ Worker: ภาษา / เปิด-ปิด tools / project", self.theme)
+        _attach_tip(self.config_button, tr("tip.config"), self.theme)
         self.add_worker_button = self._button(actions, "+ Worker", self.open_add_worker_dialog)
         _attach_tip(
             self.add_worker_button,
-            "เพิ่มช่อง Worker ใหม่ (a-worker-04, 05, ...) — สำหรับงานขนานหรือ sub-agent ที่ซ้อนกัน",
+            tr("tip.add.worker"),
             self.theme,
         )
         self.rename_worker_button = self._button(actions, "Rename", self.open_rename_worker_dialog)
-        _attach_tip(self.rename_worker_button, "เปลี่ยนชื่อที่แสดงของ Worker ที่เลือก", self.theme)
+        _attach_tip(self.rename_worker_button, tr("tip.rename.worker"), self.theme)
         self.delete_worker_button = self._button(actions, "Delete", self.delete_selected_worker)
         _attach_tip(
             self.delete_worker_button,
-            "ลบช่อง Worker ที่เลือก — ทำได้เฉพาะ Worker ที่หยุดและไม่มีโปรเจกต์แล้วเท่านั้น",
+            tr("tip.delete.worker"),
             self.theme,
         )
         for index, button in enumerate(
@@ -894,56 +903,52 @@ class AConductorDesktopApp:
         self.instance_tree.tag_configure("ready", foreground=self.theme.ready)
         self.instance_tree.tag_configure("warning", foreground=self.theme.warning)
         self.instance_tree.tag_configure("idle", foreground=self.theme.idle)
-        self._attach_row_path_tip(self.instance_tree, column=3, label="คัดลอก path (Copy path)")
+        self._attach_row_path_tip(self.instance_tree, column=3, label=tr("menu.copy.path"))
 
         instance_actions = tk.Frame(instances_panel, bg=self.theme.panel)
         instance_actions.grid(row=2, column=0, sticky="ew", padx=9, pady=(0, 9))
         self.instance_start_button = self._button(
             instance_actions, "Start", self.start_selected_instance
         )
-        _attach_tip(self.instance_start_button, "เริ่มตัวเชื่อม (tunnel) ที่เลือก — agent ใน ChatGPT จะเชื่อมเข้ามาทางนี้", self.theme)
+        _attach_tip(self.instance_start_button, tr("tip.instance.start"), self.theme)
         self.instance_stop_button = self._button(
             instance_actions, "Stop", self.stop_selected_instance
         )
-        _attach_tip(self.instance_stop_button, "หยุดตัวเชื่อมที่เลือก (ปลอดภัย — ตรวจ PID ก่อนหยุดเสมอ)", self.theme)
+        _attach_tip(self.instance_stop_button, tr("tip.instance.stop"), self.theme)
         self.instance_startall_button = self._button(
             instance_actions, "Start All", self.start_all_instances
         )
-        _attach_tip(self.instance_startall_button, "เปิดทุกตัวเชื่อมที่ยังไม่ READY ในคลิกเดียว", self.theme)
+        _attach_tip(self.instance_startall_button, tr("tip.instance.startall"), self.theme)
         self.instance_auto_button = self._button(
             instance_actions, "Toggle Auto", self.toggle_instance_autostart
         )
-        _attach_tip(self.instance_auto_button, "ตั้งให้ตัวเชื่อมนี้เปิดเองทุกครั้งที่เปิดโปรแกรม", self.theme)
+        _attach_tip(self.instance_auto_button, tr("tip.instance.auto"), self.theme)
         self.instance_rescan_button = self._button(
             instance_actions, "Rescan", self.rescan_instances
         )
-        _attach_tip(self.instance_rescan_button, "ค้นหาตัวเชื่อมที่เพิ่มเข้ามาใหม่", self.theme)
+        _attach_tip(self.instance_rescan_button, tr("tip.instance.rescan"), self.theme)
         self.add_instance_button = self._button(
-            instance_actions, "+ ตัวเชื่อม", self.open_add_instance_dialog
+            instance_actions, tr("btn.add.connector"), self.open_add_instance_dialog
         )
         _attach_tip(
             self.add_instance_button,
-            "สร้างตัวเชื่อมใหม่จากแม่แบบที่ผ่านการตรวจสอบ — ตั้งชื่อ + เลือกโปรเจกต์\n(พอร์ตจัดให้อัตโนมัติ / หน้าต่างจะชื่อ Sunday-works ถัดไป)\nจะได้แชท ChatGPT ทำงานขนานกันได้อีกช่อง",
+            tr("tip.add.connector"),
             self.theme,
         )
         self.rename_instance_button = self._button(
-            instance_actions, "แก้ชื่อ", self.open_rename_instance_dialog
+            instance_actions, tr("btn.rename.connector"), self.open_rename_instance_dialog
         )
-        _attach_tip(
-            self.rename_instance_button,
-            "เปลี่ยนชื่อที่แสดงของตัวเชื่อมที่เลือก (ชื่อโฟลเดอร์จริงไม่ถูกแตะ)",
-            self.theme,
-        )
+        _attach_tip(self.rename_instance_button, tr("tip.rename.connector"), self.theme)
         self.delete_instance_button = self._button(
-            instance_actions, "ลบ", self.delete_selected_instance
+            instance_actions, tr("btn.delete.connector"), self.delete_selected_instance
         )
         _attach_tip(
             self.delete_instance_button,
-            "ลบตัวเชื่อมที่เลือก — จะหยุดให้ก่อน บีบอัดสำรองเป็น zip แล้วจึงลบ\n(กู้คืนได้จากโฟลเดอร์ instance-backups)",
+            tr("tip.delete.connector"),
             self.theme,
         )
         self.brain_button = self._button(
-            instance_actions, "สมอง + folder", self.open_brain_config
+            instance_actions, tr("btn.brain"), self.open_brain_config
         )
         _attach_tip(
             self.brain_button,
@@ -1251,7 +1256,7 @@ class AConductorDesktopApp:
         if worker_id is None:
             self._handle_error("SELECT_WORKER")
             return
-        if not self._confirm(f"ลบช่อง Worker {worker_id} ออกจากระบบ?\n(ทำได้เฉพาะ Worker ที่หยุดและไม่มีโปรเจกต์)"):
+        if not self._confirm(tr("dlg.delete.worker.message").format(worker_id=worker_id)):
             return
         try:
             removed = self.service.delete_worker(worker_id)
@@ -1305,7 +1310,7 @@ class AConductorDesktopApp:
     def _confirm(self, message: str) -> bool:
         answer = {"ok": False}
         dialog = tk.Toplevel(self.root)
-        dialog.title(f"{APP_NAME} — ยืนยัน")
+        dialog.title(f'{APP_NAME} — {tr("dlg.confirm.title")}')
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
         dialog.resizable(False, False)
@@ -1327,8 +1332,8 @@ class AConductorDesktopApp:
             answer["ok"] = ok
             dialog.destroy()
 
-        self._button(buttons, "ยืนยัน", lambda: close(True)).pack(side="right", padx=(6, 0))
-        self._button(buttons, "ยกเลิก", lambda: close(False)).pack(side="right")
+        self._button(buttons, tr("dlg.confirm.ok"), lambda: close(True)).pack(side="right", padx=(6, 0))
+        self._button(buttons, tr("dlg.confirm.cancel"), lambda: close(False)).pack(side="right")
         dialog.protocol("WM_DELETE_WINDOW", lambda: close(False))
         dialog.grab_set()
         dialog.wait_window()
@@ -1336,7 +1341,7 @@ class AConductorDesktopApp:
 
     def open_add_worker_dialog(self) -> None:
         dialog = tk.Toplevel(self.root)
-        dialog.title(f"{APP_NAME} — เพิ่ม Worker")
+        dialog.title(f'{APP_NAME} — {tr("dlg.add.worker.title")}')
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
         dialog.resizable(True, False)
@@ -1345,14 +1350,14 @@ class AConductorDesktopApp:
         frame.grid_columnconfigure(1, weight=1)
         tk.Label(
             frame,
-            text="> เพิ่มช่อง Worker ใหม่",
+            text="> " + tr("dlg.add.worker.header"),
             bg=self.theme.panel,
             fg=self.theme.accent,
             font=(self.theme.monospace_font, 10, "bold"),
         ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
         tk.Label(
             frame,
-            text="ชื่อที่แสดง (ไม่กรอก = ตั้งอัตโนมัติ เช่น A-Worker 4)",
+            text=tr("dlg.add.worker.name"),
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
@@ -1365,7 +1370,7 @@ class AConductorDesktopApp:
             self.add_worker_slot(name_entry.get().strip() or None)
 
         name_entry.bind("<Return>", lambda _event: submit())
-        self._button(frame, "เพิ่ม", submit).grid(row=3, column=1, sticky="e")
+        self._button(frame, tr("dlg.add.worker.submit"), submit).grid(row=3, column=1, sticky="e")
         name_entry.focus_set()
 
     def open_rename_worker_dialog(self) -> None:
@@ -1392,7 +1397,7 @@ class AConductorDesktopApp:
         ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
         tk.Label(
             frame,
-            text="ชื่อใหม่ที่จะแสดงในตาราง WORKERS",
+            text=tr("dlg.rename.worker.name"),
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
@@ -1410,7 +1415,7 @@ class AConductorDesktopApp:
             self.rename_selected_worker(new_name)
 
         name_entry.bind("<Return>", lambda _event: submit())
-        self._button(frame, "บันทึก", submit).grid(row=3, column=1, sticky="e")
+        self._button(frame, tr("dlg.rename.worker.submit"), submit).grid(row=3, column=1, sticky="e")
         name_entry.focus_set()
 
     @staticmethod
@@ -1747,10 +1752,11 @@ class AConductorDesktopApp:
 
     def _show_error(self, code: str) -> tk.Toplevel | None:
         """Themed, teaching error popup (minimal CLI look)."""
-        title, detail_parts = ERROR_EXPLANATIONS.get(code, ERROR_EXPLANATIONS["GENERIC"])
+        table = ERROR_EXPLANATIONS_EN if get_language() == "en" else ERROR_EXPLANATIONS
+        title, detail_parts = table.get(code, table["GENERIC"])
         detail = chr(10).join(detail_parts)
         window = tk.Toplevel(self.root)
-        window.title(APP_NAME + " — แจ้งเตือน")
+        window.title(APP_NAME + " — " + tr("win.error"))
         window.configure(bg=self.theme.panel)
         window.transient(self.root)
         window.resizable(True, False)
@@ -1835,7 +1841,7 @@ class AConductorDesktopApp:
             return None
 
         window = tk.Toplevel(self.root)
-        window.title(APP_NAME + " — ตั้งค่า")
+        window.title(APP_NAME + " — " + tr("win.settings"))
         window.configure(bg=self.theme.panel)
         window.transient(self.root)
         window.resizable(True, False)
@@ -1893,10 +1899,49 @@ class AConductorDesktopApp:
             justify="left",
         ).grid(row=2, column=0, sticky="w", pady=(2, 8))
 
-        self._button(frame, "ปิด", lambda: window.destroy() if window.winfo_exists() else None).grid(
-            row=3, column=0, sticky="w"
+        language_var = tk.BooleanVar(value=(get_language() == "en"))
+        language_box = tk.Checkbutton(
+            frame,
+            text=tr("prefs.language") + ("  ✓ English" if language_var.get() else "  ✓ ไทย"),
+            variable=language_var,
+            bg=self.theme.panel,
+            fg=self.theme.foreground,
+            selectcolor=self.theme.background,
+            activebackground=self.theme.panel,
+            activeforeground=self.theme.foreground,
+            highlightthickness=0,
+            font=(self.theme.monospace_font, 9),
+            anchor="w",
+            justify="left",
+            wraplength=460,
+            command=lambda: self._save_language_preference(setter, language_var),
+        )
+        language_box.grid(row=3, column=0, sticky="w")
+        _attach_tip(language_box, tr("prefs.language.help"), self.theme)
+        tk.Label(
+            frame,
+            text=tr("prefs.language.restart"),
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8),
+            anchor="w",
+            wraplength=460,
+            justify="left",
+        ).grid(row=4, column=0, sticky="w", pady=(2, 8))
+
+        self._button(frame, tr("btn.close"), lambda: window.destroy() if window.winfo_exists() else None).grid(
+            row=5, column=0, sticky="w"
         )
         return window
+
+    def _save_language_preference(self, setter, var: tk.BooleanVar) -> None:
+        try:
+            setter("language", var.get())
+        except Exception:
+            self._handle_error("PREFERENCE_SAVE_FAILED")
+            return
+        set_language("en" if var.get() else "th")
+        self.log_activity(f"Settings     language={'en' if var.get() else 'th'}")
 
     def _save_supervised_preference(self, setter, var: tk.BooleanVar) -> None:
         try:
@@ -1923,7 +1968,7 @@ class AConductorDesktopApp:
 
     def _show_guide_window(self, path: Path) -> tk.Toplevel:
         window = tk.Toplevel(self.root)
-        window.title(APP_NAME + " — คู่มือการใช้งาน")
+        window.title(APP_NAME + " — " + tr("win.guide"))
         window.configure(bg=self.theme.background)
         window.geometry("900x640")
         text = tk.Text(
@@ -2438,7 +2483,7 @@ class AConductorDesktopApp:
             return
 
         dialog = tk.Toplevel(self.root)
-        dialog.title(f"{APP_NAME} — เพิ่มตัวเชื่อม")
+        dialog.title(f'{APP_NAME} — {tr("dlg.add.connector.title")}')
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
         dialog.resizable(True, False)
@@ -2447,14 +2492,14 @@ class AConductorDesktopApp:
         frame.grid_columnconfigure(1, weight=1)
         tk.Label(
             frame,
-            text="> เพิ่มตัวเชื่อมใหม่ (แชท ChatGPT ช่องเพิ่ม)",
+            text="> " + tr("dlg.add.connector.header"),
             bg=self.theme.panel,
             fg=self.theme.accent,
             font=(self.theme.monospace_font, 10, "bold"),
         ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
         tk.Label(
             frame,
-            text="ชื่อ (ภาษาอังกฤษคำเดียว เช่น Research)",
+            text=tr("dlg.add.connector.name"),
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
@@ -2463,7 +2508,7 @@ class AConductorDesktopApp:
         name_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 8))
         tk.Label(
             frame,
-            text="พาธโปรเจกต์เต็ม (เช่น A:\\GitHub\\my-project)",
+            text=tr("dlg.add.connector.project"),
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
@@ -2472,7 +2517,7 @@ class AConductorDesktopApp:
         project_entry.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 8))
         tk.Label(
             frame,
-            text="Tunnel ID (ไม่บังคับ — ข้ามได้แล้วใส่ภายหลังด้วยปุ่ม Tunnel ID)",
+            text=tr("dlg.add.connector.tunnel"),
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
@@ -2492,7 +2537,7 @@ class AConductorDesktopApp:
 
         name_entry.bind("<Return>", lambda _event: submit())
         project_entry.bind("<Return>", lambda _event: submit())
-        self._button(frame, "สร้าง", submit).grid(row=7, column=1, sticky="e")
+        self._button(frame, tr("dlg.add.connector.submit"), submit).grid(row=7, column=1, sticky="e")
         name_entry.focus_set()
 
     def rename_selected_instance(self, new_name: str) -> None:
@@ -2543,7 +2588,7 @@ class AConductorDesktopApp:
         ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
         tk.Label(
             frame,
-            text="ชื่อใหม่ที่จะแสดงในตาราง CONNECTORS (ชื่อโฟลเดอร์จริงไม่เปลี่ยน)",
+            text=tr("dlg.rename.worker.name").replace("WORKERS", "CONNECTORS"),
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
@@ -2561,7 +2606,7 @@ class AConductorDesktopApp:
             self.rename_selected_instance(value)
 
         name_entry.bind("<Return>", lambda _event: submit())
-        self._button(frame, "บันทึก", submit).grid(row=3, column=1, sticky="e")
+        self._button(frame, tr("dlg.rename.worker.submit"), submit).grid(row=3, column=1, sticky="e")
         name_entry.focus_set()
 
     def delete_selected_instance(self, backup_dir=None) -> None:
@@ -2573,9 +2618,7 @@ class AConductorDesktopApp:
         if not callable(remover):
             self._handle_error("INSTANCE_DELETE_NOT_AVAILABLE")
             return
-        if not self._confirm(
-            f"ลบตัวเชื่อม {name}?\nจะหยุดตัวเชื่อมให้ก่อน บีบอัดสำรองเป็น zip แล้วจึงลบโฟลเดอร์\n(กู้คืนได้จากโฟลเดอร์ instance-backups)"
-        ):
+        if not self._confirm(tr("dlg.delete.connector.message").format(name=name)):
             return
         try:
             zip_path = remover(name, backup_dir=backup_dir)
