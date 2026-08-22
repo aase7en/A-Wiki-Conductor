@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-22 (GLM 5.3, post 5-connector rollout)
+Last updated: 2026-08-22 (GLM 5.3, v0.2.1 usability + i18n + guide)
 
 ## Current phase
 
@@ -26,6 +26,13 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 - **PR #44 Connector manage**: `แก้ชื่อ` (alias in `instance_display_names`, folder untouched) and `ลบ` (stop-first via orchestrator → zip to `%LOCALAPPDATA%\A-Conductor\instance-backups\` → remove → flags/alias cleanup; refuses while it cannot stop).
 - Real-machine evidence: `Serena-Smoketest` created from the real conductor reference on 18014, discovered, then deleted with `smoketest-20260822-140647.zip` — instances root returned to exactly the original three.
 - Note: instance names normalize to a lowercase slug (`SmokeTest` → `serena-smoketest` folder, `Serena-Smoketest` display), matching the existing conductor/phase6/wastewater convention.
+
+## v0.2.1 shipped (PRs #50-#52, all CI-green; installed on this machine)
+
+- **Usability (PR #50)**: horizontal scrollbars on WORKERS/CONNECTORS; hover any row -> dark floating tooltip with the FULL path; right-click -> Copy path (logged); window title carries the version (`A-Sunday Conductor v0.2.1`).
+- **Thai/English switch (PR #51)**: `i18n.py` string table + English variants for all 50 teaching error codes; `language` preference (Settings switch) applied at startup; known gap: config blurbs + Thai guide stay Thai (backlog).
+- **Guide (PR #52)**: §4.3 refreshed for the new toolbar; §4.3.1 documents that ONE API key can own MANY tunnels (each = one parallel chat) with steps; §4.3.2 documents one chat using several workers (with trade-offs); §4.5 language switch + version note.
+- Full suite at close: 932 passed. Installed build reinstalled + smoke OK (projects=4 workers=3 preserved).
 
 ## Live connector fleet (2026-08-22 night — backend renamed to one pattern, all READY)
 
