@@ -23,7 +23,7 @@ jobs:
           python -m pytest tests/test_desktop_ui.py tests/test_i18n.py
           tests/test_ui_usability.py tests/test_worker_crud.py
           tests/test_instance_manage.py tests/test_graceful_shutdown.py
-          tests/test_worker_serena_settings.py tests/test_instance_monitor.py tests/test_instance_create.py tests/test_doctor_fixes.py -q
+          tests/test_worker_serena_settings.py tests/test_instance_monitor.py tests/test_instance_create.py tests/test_doctor_fixes.py tests/test_wizard_ui.py tests/test_setup_wizard.py -q
       - name: Run core test suite
         run: >-
           python -m pytest tests/ -q
@@ -37,6 +37,8 @@ jobs:
           --ignore=tests/test_instance_monitor.py
           --ignore=tests/test_instance_create.py
           --ignore=tests/test_doctor_fixes.py
+          --ignore=tests/test_wizard_ui.py
+          --ignore=tests/test_setup_wizard.py
       - name: Smoke test
         run: python -m a_conductor --smoke --database ${{ runner.temp }}\acond-ci-smoke.sqlite
 
