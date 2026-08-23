@@ -141,6 +141,7 @@ def test_install_serena_runs_uv_subprocess(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_install_tunnel_client_downloads_and_extracts(tmp_path: Path, monkeypatch) -> None:
+    import json as fake_json
     import zipfile
 
     from a_conductor.setup_wizard import Installer
@@ -153,6 +154,29 @@ def test_install_tunnel_client_downloads_and_extracts(tmp_path: Path, monkeypatc
 
     def fake_download(url, dest):
         Path(dest).write_bytes(fake_zip.read_bytes())
+
+    # Mock the GitHub API response to avoid rate limits on CI
+    def fake_urlopen(req, timeout=None):
+        class FakeResponse:
+            def read(self):
+                return fake_json.dumps({
+                    "assets": [{
+                        "name": "tunnel-client-v0.0.12-windows-amd64.zip",
+                        "browser_download_url": "https://example.com/tc.zip",
+                    }]
+                }).encode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        return FakeResponse()
+
+    import urllib.request
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
     installer = Installer(download_fn=fake_download)
     tc_path = installer.install_tunnel_client(target_dir=tmp_path / "tc")
