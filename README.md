@@ -1,136 +1,144 @@
 <div align="center">
 
-# A-Sunday Conductor
-
-**Local autonomous control plane for coordinating AI agents, coding agents, MCP servers, and A-Wiki memory.**
-
-Pure desktop app · Python stdlib only · No server · No cloud · [Download](#-download--install)
+[![Release](https://img.shields.io/github/v/release/aase7en/A-Wiki-Conductor?style=flat-square&color=blue)](https://github.com/aase7en/A-Wiki-Conductor/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-1010%20passed-brightgreen?style=flat-square)]()
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)]()
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square)]()
+[![Sponsor](https://img.shields.io/badge/sponsor-GitHub-ea4aaa?style=flat-square&logo=github)](https://github.com/sponsors/aase7en)
 
 </div>
 
+# A-Sunday Conductor
+
+**A local autonomous control plane for coordinating AI agents, coding agents, MCP servers, and memory.**
+
+Pure desktop application. Python standard library only. No server. No cloud required.
+
 ---
 
-## What it does
+## Overview
 
-A-Sunday Conductor is a **Windows desktop app** (macOS/Linux groundwork in progress) that manages your AI coding agents through **Serena MCP connectors**:
+A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. Each connector is a tunnel between ChatGPT and a local Serena instance bound to a specific project. One OpenAI API key supports multiple tunnels, enabling parallel chat sessions across different codebases.
 
-| Capability | Description |
-|---|---|
-| 🔌 **Connector fleet** | Auto-discovers and manages Serena tunnel instances — start/stop/restart, health monitoring, auto-start on app open |
-| ➕ **Create connectors** | One click to create a new ChatGPT connector (name + project + Tunnel ID) — port auto-assigned, template-generated |
-| 📊 **Live MONITOR** | Per-connector state, PID, memory, log tail — auto-refresh every 5s, no CMD windows needed |
-| 👥 **Worker slots** | Add / rename / delete worker slots dynamically (no fixed 3-slot limit) |
-| ⚙️ **Engine config** | Per-worker language backend, tool toggles, base modes, timeouts — every checkbox has a hover explanation |
-| 🧠 **Second Brain** | Inject brain rules (A-Wiki) into every connector's system prompt |
-| 🔀 **Project rebind** | Switch a connector's project without recreating it |
-| 🌐 **Bilingual UI** | Thai ↔ English, including error popups, config tooltips, and the user guide |
-| 🚪 **Clean exit** | Closing the app stops all connectors and reaps stale processes |
-| 💾 **Drive backups** | Connector deletion zips a backup to the A-Wiki-Data Google Drive layer |
+## Key Features
 
-## Download & Install
+| Feature | Description |
+|---------|-------------|
+| Connector fleet | Auto-discovers and manages Serena tunnel instances with health monitoring |
+| One-click creation | Create new ChatGPT connectors with auto-assigned ports from validated templates |
+| Live monitoring | Per-connector state, PID, memory usage, and log tail with 5-second refresh |
+| Worker management | Dynamic worker slots (add, rename, delete) with no fixed limit |
+| Engine configuration | Per-worker language backend, tool toggles, base modes, and timeouts |
+| Second Brain | Inject brain rules from A-Wiki into every connector's system prompt |
+| Project rebinding | Switch any connector's project without recreating it |
+| Bilingual interface | Full Thai and English UI including tooltips and error messages |
+| Clean shutdown | Closing the app stops all connectors and reaps stale processes |
+| Drive backups | Connector deletion zips a backup to the A-Wiki-Data Google Drive layer |
+| Update checking | In-app GitHub release checker with one-click download |
 
-### For most users (Windows 10/11)
+## Install
 
-1. Go to **[Releases](https://github.com/aase7en/A-Wiki-Conductor/releases)**
-2. Download `A-Sunday-Conductor-Setup.exe`
-3. Run it — if SmartScreen warns, click **More info → Run anyway** (normal for unsigned apps)
-4. The app appears in your Start Menu as **A-Sunday Conductor**
+### Windows (recommended)
 
-> No admin rights needed — installs to `%LOCALAPPDATA%\Programs\A-Sunday Conductor\`
+Download `A-Sunday-Conductor-Setup.exe` from [Releases](https://github.com/aase7en/A-Wiki-Conductor/releases) and run it. No admin rights required.
 
-### Portable (no install)
+> If SmartScreen warns, click **More info > Run anyway**. This is normal for unsigned applications; code signing is pending.
 
-Download `A-Sunday-Conductor-Portable.exe` and run it from anywhere.
+### Portable
 
-### For developers (pip)
+Download `A-Sunday-Conductor-Portable.exe` and run from anywhere.
+
+### From source
 
 ```bash
 git clone https://github.com/aase7en/A-Wiki-Conductor.git
 cd A-Wiki-Conductor
 python -m pip install -e .[test]
-a-conductor        # opens the app
+a-conductor
 ```
 
-## Quick start (3 steps)
+## Quick Start
 
 ```
-① Add Project → ② select + Assign to a Worker → ③ press Start
+1. Add Project        -> select a folder
+2. Assign to Worker   -> click project (left) + worker (right) + Assign
+3. Start              -> connector tunnel starts automatically
 ```
 
 For ChatGPT connectors:
+
 ```
-① Create tunnel in OpenAI Platform → ② press + Connector in the app → ③ Start → ④ create plugin in ChatGPT
+1. Create tunnel      -> OpenAI Platform > Settings > Tunnels
+2. + Connector        -> name + project path + Tunnel ID
+3. Start              -> wait for READY status
+4. Create plugin      -> ChatGPT > create connector pointing to your tunnel
 ```
 
-Full walkthrough: the **Guide** button inside the app (Thai or English).
-
-## The connector fleet
-
-Each connector = one tunnel = one parallel ChatGPT chat lane. One OpenAI API key can own multiple tunnels.
-
-| Convention | Meaning |
-|---|---|
-| `Sunday-Worker-N` / port `1801N` | System name (N = 1, 2, 3, …) |
-| `Sunday-works N - <Name>` | CMD window title |
-| `SunDay-Worker N-Conduct` | Display name (matches your ChatGPT plugin) |
-
-Connectors are **not locked to projects** — use the **เปลี่ยนโปรเจกต์ / Change Project** button to rebind any connector to a different project.
+See the in-app Guide button for the full walkthrough (Thai or English).
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│ A-Sunday Conductor (desktop app, Tk)             │
-│  ├── PROJECTS / WORKERS / CONNECTORS / MONITOR  │
-│  └── SQLite (registry, settings, preferences)   │
-├─────────────────────────────────────────────────┤
-│ Connector instances (validated per-folder)       │
-│  sunday-worker-N/  →  instance.ps1 + scripts   │
-│  └── Serena engine (MCP server per connector)  │
-├─────────────────────────────────────────────────┤
-│ OpenAI Secure MCP Tunnels (one per connector)    │
-│  tunnel_XXXX → ChatGPT connector/plugin        │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|  A-Sunday Conductor (desktop app, Tk)              |
+|    Projects / Workers / Connectors / Monitor       |
+|    SQLite (registry, settings, preferences)        |
++---------------------------------------------------+
+|  Connector instances (one per tunnel)              |
+|    sunday-worker-N/ -> instance.ps1 + scripts     |
+|    Serena engine (MCP server per connector)       |
++---------------------------------------------------+
+|  OpenAI Secure MCP Tunnels                         |
+|    tunnel_XXXX -> ChatGPT connector/plugin        |
++---------------------------------------------------+
 ```
 
-- **Python stdlib only** — zero external dependencies
-- **~1000 tests** — unit, integration, E2E, adversarial bug-hunt
-- **CI on 3 OS** — Windows, Ubuntu, macOS
+- Python standard library only (zero external dependencies)
+- 1010 tests (unit, integration, E2E, adversarial)
+- CI on Windows, Ubuntu, and macOS
 
 ## Documentation
 
-- [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md) — คู่มือภาษาไทย (also bundled in the app)
-- [`docs/USER-GUIDE-EN.md`](docs/USER-GUIDE-EN.md) — English user guide
-- [`PROJECT-PLAN.md`](PROJECT-PLAN.md) — authoritative product vision & architecture
-- [`docs/plans/cross-platform-plan.md`](docs/plans/cross-platform-plan.md) — macOS/Linux/RPi/Umbrel roadmap
-- [`docs/adr/ADR-0001-mcp-gateway-deferred.md`](docs/adr/ADR-0001-mcp-gateway-deferred.md) — MCP gateway decision record
+| Document | Description |
+|----------|-------------|
+| [User Guide (Thai)](docs/USER-GUIDE.md) | Full walkthrough in Thai |
+| [User Guide (English)](docs/USER-GUIDE-EN.md) | Full walkthrough in English |
+| [Install Guide](INSTALL.md) | Step-by-step installation |
+| [Project Plan](PROJECT-PLAN.md) | Product vision and architecture |
+| [Cross-Platform Plan](docs/plans/cross-platform-plan.md) | macOS/Linux/RPi/Umbrel roadmap |
+| [Privacy Policy](PRIVACY.md) | Data handling (local-only) |
+| [Security Policy](SECURITY.md) | Vulnerability reporting |
+| [License](LICENSE) | MIT |
 
-## Data & secrets
+## Data and Secrets
 
-| What | Where |
-|---|---|
-| App database | `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` |
-| Tunnel IDs (secrets) | `L:\My Drive\A-Wiki-Data\secrets\a-conductor-tunnels.md` (private Drive layer) |
-| Connector backups | `L:\My Drive\A-Wiki-Data\backups\a-conductor-instances\` (auto-synced) |
+| Data | Location |
+|------|----------|
+| Application database | `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` |
+| Tunnel IDs | Private Drive layer (`secrets/a-conductor-tunnels.md`) |
+| Connector backups | Private Drive layer (`backups/a-conductor-instances/`) |
 
 ## Development
 
 ```bash
 python -m pip install -e .[test]
-python -m pytest tests/ -q        # ~1000 tests
-python -m a_conductor --smoke     # headless smoke
-python scripts/build_portable.py  # portable exe
-python scripts/build_installer.py # setup installer
+python -m pytest tests/ -q
+python -m a_conductor --smoke
+python scripts/build_portable.py
+python scripts/build_installer.py
 ```
 
 ## Credits
 
-A-Sunday Conductor uses [Serena](https://github.com/oraios/serena) (MIT License, Copyright (c) 2025 Oraios AI) as its internal semantic code engine. All user-facing tooling and branding are A-Sunday Conductor's own.
+A-Sunday Conductor uses [Serena](https://github.com/oraios/serena) (MIT License) as its internal semantic code engine. The management interface, installer, and control plane are A-Sunday Conductor's own.
 
 ---
 
 <div align="center">
 
-**"A"** = the AI co-developer · **"Sunday"** = น้องซันเดย์ · **"Conductor"** = the founding codename
+**A** — the AI co-developer | **Sunday** — dedicated to the family | **Conductor** — the founding codename
+
+[Report Bug](https://github.com/aase7en/A-Wiki-Conductor/issues) | [Request Feature](https://github.com/aase7en/A-Wiki-Conductor/issues) | [Sponsor](https://github.com/sponsors/aase7en)
 
 </div>
