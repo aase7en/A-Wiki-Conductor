@@ -184,6 +184,81 @@ class Installer:
         result = self._run([str(uv), "tool", "install", "-p", "3.13", "serena-agent"])
         return result.returncode == 0
 
+    def install_nodejs(self) -> Path | None:
+        """Install Node.js LTS portable (ZIP, no admin) if not already present.
+
+        Downloads the Windows x64 ZIP from nodejs.org, extracts to
+        %LOCALAPPDATA%/Programs/nodejs/, and returns the node.exe path.
+        Returns None if Node.js is already on PATH.
+        """
+        # Check if node is already available
+        existing = shutil.which("node")
+        if existing:
+            return Path(existing)
+
+        install_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "nodejs"
+        if not install_dir.parent.exists():
+            install_dir = Path.home() / ".local" / "nodejs"
+
+        node_exe = install_dir / "node.exe"
+        if node_exe.is_file():
+            return node_exe
+
+        # Download the latest LTS Windows x64 ZIP
+        # Use the stable URL pattern from nodejs.org
+        url = "https://nodejs.org/dist/v22.14.0/node-v22.14.0-win-x64.zip"
+        zip_path = install_dir / "node-download.zip"
+        install_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            self._download(url, str(zip_path))
+        except SetupWizardError:
+            raise
+        except Exception as exc:
+            raise SetupWizardError("NODEJS_DOWNLOAD_FAILED", str(exc)[:100])
+
+        # Extract and find node.exe
+        try:
+            import zipfile
+
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                for member in zf.namelist():
+                    if member.endswith("node.exe"):
+                        # Extract the entire tree preserving relative paths
+                        zf.extractall(install_dir)
+                        # node.exe is inside a versioned subfolder
+                        for candidate in install_dir.rglob("node.exe"):
+                            if candidate != node_exe:
+                                # Move the whole versioned dir contents up
+                                versioned_dir = candidate.parent
+                                for item in versioned_dir.iterdir():
+                                    target = install_dir / item.name
+                                    if not target.exists():
+                                        shutil.move(str(item), str(target))
+                                versioned_dir.rmdir()
+                                break
+                        break
+        except zipfile.BadZipFile:
+            raise SetupWizardError("NODEJS_ZIP_INVALID")
+
+        zip_path.unlink(missing_ok=True)
+
+        if not node_exe.is_file():
+            raise SetupWizardError("NODEJS_INSTALL_FAILED", "node.exe not found")
+        return node_exe
+
+    def check_nodejs(self) -> bool:
+        """Quick check: is Node.js available?"""
+        return shutil.which("node") is not None or self._find_nodejs() is not None
+
+    def _find_nodejs(self) -> Path | None:
+        install_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "nodejs"
+        candidate = install_dir / "node.exe"
+        if candidate.is_file():
+            return candidate
+        return None
+        return result.returncode == 0
+
     def install_tunnel_client(
         self, *, target_dir: Path | None = None
     ) -> Path:
@@ -293,6 +368,7 @@ class FirstInstanceCreator:
         health_port: int = 18011,
         tunnel_client_path: Path | str,
         api_key_file: Path | str,
+        backend: str = "serena",
     ) -> Path:
         slug = name.strip().lower()
         if not re.match(r"^[a-z0-9][a-z0-9-]*$", slug):
@@ -445,10 +521,20 @@ Write-Host "STOPPED"
         )
         (target / f"Stop-{instance_name}.cmd").write_text(stop_cmd, encoding="utf-8", newline="")
 
-        # profile template
+        # profile template — backend-aware
         project_fwd = str(project).replace("\\", "/")
+        if backend == "filesystem":
+            mcp_command = f"npx -y @modelcontextprotocol/server-filesystem {project_fwd}"
+        else:
+            mcp_command = (
+                f"serena start-mcp-server --context chatgpt\n"
+                f"      --project {project_fwd}\n"
+                f"      --enable-web-dashboard false\n"
+                f"      --open-web-dashboard false\n"
+                f"      --enable-gui-log-window false"
+            )
         template = (
-            f"# {instance_name} tunnel profile\n"
+            f"# {instance_name} tunnel profile (backend: {backend})\n"
             f"tunnel_id: __TUNNEL_ID__\n"
             f"api_key: env:CONTROL_PLANE_API_KEY\n"
             f"server:\n"
@@ -456,11 +542,7 @@ Write-Host "STOPPED"
             f"mcp:\n"
             f"  commands:\n"
             f"    - >-\n"
-            f"      serena start-mcp-server --context chatgpt\n"
-            f"      --project {project_fwd}\n"
-            f"      --enable-web-dashboard false\n"
-            f"      --open-web-dashboard false\n"
-            f"      --enable-gui-log-window false\n"
+            f"      {mcp_command}\n"
         )
         (target / "profiles" / f"{profile}.yaml.template").write_text(
             template, encoding="utf-8", newline="\n"

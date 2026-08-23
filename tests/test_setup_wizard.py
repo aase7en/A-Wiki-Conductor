@@ -217,3 +217,46 @@ def test_create_first_instance_full_layout(tmp_path: Path) -> None:
     ps1 = (created / "instance.ps1").read_text(encoding="utf-8")
     assert "$InstanceName = 'Sunday-Worker-1'" in ps1
     assert "18011" in ps1
+
+
+def test_create_filesystem_backend_uses_npx(tmp_path: Path) -> None:
+    from a_conductor.setup_wizard import FirstInstanceCreator
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    creator = FirstInstanceCreator(instances_root=tmp_path / "inst")
+    created = creator.create(
+        name="fs-worker",
+        project_path=project,
+        tunnel_client_path=tmp_path / "tc.exe",
+        api_key_file=tmp_path / "key.dpapi",
+        backend="filesystem",
+    )
+    template = (created / "profiles" / "serena-fs-worker.yaml.template").read_text(encoding="utf-8")
+    assert "npx" in template
+    assert "@modelcontextprotocol/server-filesystem" in template
+
+
+def test_create_serena_backend_uses_serena_command(tmp_path: Path) -> None:
+    from a_conductor.setup_wizard import FirstInstanceCreator
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    creator = FirstInstanceCreator(instances_root=tmp_path / "inst")
+    created = creator.create(
+        name="ser-worker",
+        project_path=project,
+        tunnel_client_path=tmp_path / "tc.exe",
+        api_key_file=tmp_path / "key.dpapi",
+        backend="serena",
+    )
+    template = (created / "profiles" / "serena-ser-worker.yaml.template").read_text(encoding="utf-8")
+    assert "serena start-mcp-server" in template
+
+
+def test_check_nodejs_returns_bool() -> None:
+    from a_conductor.setup_wizard import Installer
+
+    installer = Installer()
+    result = installer.check_nodejs()
+    assert isinstance(result, bool)

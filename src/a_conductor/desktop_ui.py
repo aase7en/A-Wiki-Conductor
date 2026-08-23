@@ -1604,7 +1604,19 @@ class AConductorDesktopApp:
             self._wiz_name.pack(fill="x", pady=(0, 8))
             label("พาธโปรเจกต์ (เช่น A:\\GitHub\\my-project):").pack(anchor="w", pady=(0, 4))
             self._wiz_project = ttk.Entry(frame, font=(theme.monospace_font, 10), width=50)
-            self._wiz_project.pack(fill="x", pady=(0, 8))
+            self._wiz_project.pack(fill="x", pady=(0, 12))
+
+            label("เลือก Backend:").pack(anchor="w", pady=(0, 4))
+            self._wiz_backend = tk.StringVar(value="serena")
+            tk.Radiobutton(frame, text="Filesystem (ง่าย — อ่าน/เขียนไฟล์ ผ่าน Node.js)",
+                variable=self._wiz_backend, value="filesystem",
+                bg=theme.panel, fg=theme.foreground, selectcolor=theme.background,
+                font=(theme.monospace_font, 9), anchor="w").pack(anchor="w", pady=2)
+            tk.Radiobutton(frame, text="Serena (เต็มรูปแบบ — วิเคราะห์โค้ด ต้องติดตั้ง Python)",
+                variable=self._wiz_backend, value="serena",
+                bg=theme.panel, fg=theme.foreground, selectcolor=theme.background,
+                font=(theme.monospace_font, 9), anchor="w").pack(anchor="w", pady=2)
+
             button_bar(back=lambda: self._wizard_back(), nxt=lambda: self._wizard_create_instance())
 
         elif step == 4:
@@ -1677,6 +1689,13 @@ class AConductorDesktopApp:
         except Exception as exc:
             self._wizard_log_write(f"  SKIP: {exc}")
 
+        try:
+            self._wizard_log_write("Installing Node.js...")
+            installer.install_nodejs()
+            self._wizard_log_write("  OK")
+        except Exception as exc:
+            self._wizard_log_write(f"  SKIP: {exc}")
+
         self._wizard_log_write("\nDone! Press Next to create your first connector.")
         self._button(self._wiz_button_bar, tr("wiz.next"), lambda: self._wizard_advance()).pack(side="right")
 
@@ -1701,6 +1720,7 @@ class AConductorDesktopApp:
                 project_path=project,
                 tunnel_client_path=tc_dir / "tunnel-client.exe",
                 api_key_file=tc_dir / "config" / "api-key.dpapi",
+                backend=getattr(self, "_wiz_backend", None) and self._wiz_backend.get() or "serena",
             )
             self.log_activity(f"Wizard       created {name}")
             self._wizard_advance()
