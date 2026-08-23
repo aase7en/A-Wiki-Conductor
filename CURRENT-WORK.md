@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-23 (GLM 5.3, v0.4.0 Setup Wizard)
+Last updated: 2026-08-24 (GLM 5.3, v0.4.3 final audit)
 
 ## Current phase
 
@@ -83,6 +83,13 @@ One-stop installer: new users download Setup.exe → open → wizard auto-opens 
 
 - **PR-A (engine)**: setup_wizard.py — check_system, Installer (uv/Python/Serena/tunnel-client with injectable download/subprocess), FirstInstanceCreator (generates complete instance from embedded templates, no reference needed)
 - **PR-B (UI)**: 7-step wizard dialog with first-run auto-open; i18n TH/EN; real-time install log; OpenAI Platform link
+
+## v0.4.1-0.4.3: wizard backends + donate (2026-08-24, PRs #71-#73)
+
+- v0.4.1: Node.js auto-install + backend selection (Filesystem / Serena)
+- v0.4.2: Google Stitch backend (4th option)
+- v0.4.3: Donate dialog (GitHub Sponsors + PromptPay QR) + DPAPI fix
+- Final audit: repo health 100%, 1031 tests, zero DECISION_REQUIRED
 
 ## Live connector fleet (2026-08-22 night — backend renamed to one pattern, all READY)
 

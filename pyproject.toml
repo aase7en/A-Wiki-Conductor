@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "a-wiki-conductor"
 version = "0.4.3"
-description = "A-Conductor — local autonomous control plane for coordinating AI agents, workers, and runtimes"
+description = "A-Sunday Conductor — local autonomous control plane for coordinating AI agents, workers, and runtimes"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

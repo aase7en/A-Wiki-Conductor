@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/aase7en/A-Wiki-Conductor?style=flat-square&color=blue)](https://github.com/aase7en/A-Wiki-Conductor/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-1010%20passed-brightgreen?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/tests-1031%20passed-brightgreen?style=flat-square)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)]()
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square)]()
 [![Sponsor](https://img.shields.io/badge/sponsor-GitHub-ea4aaa?style=flat-square&logo=github)](https://github.com/sponsors/aase7en)

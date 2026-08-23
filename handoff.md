@@ -16,7 +16,7 @@ Do not trust chat memory as the task source of truth. Use: `actual repo/GitHub s
 
 ## Current repository state
 
-- Branch: `main` (PRs #35–#63 merged CI-green on Windows+Ubuntu+macOS); v0.3.0 installed; 5 connector instances all READY (see CURRENT-WORK fleet table); secrets + backups live in the A-Wiki-Data Drive layer
+- Branch: `main` (PRs #35–#73 merged CI-green on 3 OS); v0.4.3 installed; repo health 100%; 5 connector instances all READY (see CURRENT-WORK fleet table); secrets + backups live in the A-Wiki-Data Drive layer
 - Repo visibility: **public** (explicit user decision 2026-08-22; recorded in COLLAB.md)
 - Release: https://github.com/aase7en/A-Wiki-Conductor/releases/tag/v0.2.0 (Setup + Portable + Notices; anonymous download verified)
 - Full suite at close: 912 passed

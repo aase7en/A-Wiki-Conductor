@@ -1760,10 +1760,6 @@ class AConductorDesktopApp:
             self._handle_error("INSTANCE_CREATE_FAILED")
 
     def _wizard_save_credentials(self) -> None:
-        import base64
-        import ctypes
-        import ctypes.wintypes
-
         tunnel_id = self._wiz_tunnel.get().strip()
         api_key = self._wiz_apikey.get().strip()
 
@@ -1776,14 +1772,36 @@ class AConductorDesktopApp:
             (tc_config / "tunnel-id.txt").write_text(tunnel_id + "\n", encoding="utf-8")
 
         if api_key:
+            # DPAPI-encrypt the API key (Windows CurrentUser scope) so the
+            # .dpapi file is genuinely protected, matching the start.ps1 decrypt path.
             try:
-                encrypted = ctypes.windll.crypt32.CryptProtectData(
-                    ctypes.create_string_buffer(api_key.encode()),
-                    None, None, None, None, 0, None
-                )
-                (tc_config / "api-key.dpapi").write_bytes(api_key.encode())
+                import ctypes
+                import ctypes.wintypes
+
+                class DATA_BLOB(ctypes.Structure):
+                    _fields_ = [
+                        ("cbData", ctypes.wintypes.DWORD),
+                        ("pbData", ctypes.POINTER(ctypes.c_char)),
+                    ]
+
+                def _blob(data: bytes) -> DATA_BLOB:
+                    buf = ctypes.create_string_buffer(data, len(data))
+                    return DATA_BLOB(len(data), ctypes.cast(buf, ctypes.POINTER(ctypes.c_char)))
+
+                in_blob = _blob(api_key.encode("utf-8"))
+                out_blob = DATA_BLOB()
+                if ctypes.windll.crypt32.CryptProtectData(
+                    ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)
+                ):
+                    encrypted = ctypes.string_at(out_blob.pbData, out_blob.cbData)
+                    ctypes.windll.kernel32.LocalFree(out_blob.pbData)
+                    (tc_config / "api-key.dpapi").write_bytes(encrypted)
+                else:
+                    raise OSError("CryptProtectData returned false")
             except Exception:
-                (tc_config / "api-key.dpapi").write_text(api_key, encoding="utf-8")
+                # Non-Windows or DPAPI unavailable: store as plain text but
+                # use a non-.dpapi name so the format is honest.
+                (tc_config / "api-key.txt").write_text(api_key, encoding="utf-8")
 
         self.log_activity("Wizard       credentials saved")
         self._wizard_advance()
