@@ -151,6 +151,19 @@ STRINGS: dict[str, dict[str, str]] = {
     "win.error": {"th": "แจ้งเตือน", "en": "Notice"},
     "win.guide": {"th": "คู่มือการใช้งาน", "en": "User Guide"},
     "win.settings": {"th": "ตั้งค่า", "en": "Settings"},
+    # setup wizard
+    "wiz.title": {"th": "Setup Wizard — ติดตั้งทุกอย่างอัตโนมัติ", "en": "Setup Wizard"},
+    "wiz.welcome": {
+        "th": "ยินดีต้อนรับ! ตัวช่วยนี้จะติดตั้งทุกอย่างที่จำเป็น:\n\n  1. uv (package manager)\n  2. Python 3.13\n  3. Serena engine\n  4. tunnel-client (เชื่อมต่อ ChatGPT)\n  5. Connector แรกของคุณ\n\nกด Next เพื่อเริ่ม",
+        "en": "Welcome! This wizard installs everything you need:\n\n  1. uv (package manager)\n  2. Python 3.13\n  3. Serena engine\n  4. tunnel-client (ChatGPT connection)\n  5. Your first connector\n\nPress Next to begin",
+    },
+    "wiz.check": {"th": "ตรวจสอบระบบ", "en": "System Check"},
+    "wiz.install": {"th": "กำลังติดตั้ง...", "en": "Installing..."},
+    "wiz.instance": {"th": "สร้าง Connector แรก", "en": "Create First Connector"},
+    "wiz.credentials": {"th": "ตั้งค่า OpenAI", "en": "OpenAI Configuration"},
+    "wiz.finish": {"th": "เสร็จสิ้น!", "en": "Done!"},
+    "wiz.next": {"th": "ถัดไป", "en": "Next"},
+    "wiz.back": {"th": "ย้อนกลับ", "en": "Back"},
     "prefs.language": {"th": "ภาษา / Language", "en": "Language / ภาษา"},
     "prefs.language.help": {
         "th": "สลับภาษาของโปรแกรม (ไทย/English) — บันทึกแล้วปิด-เปิดโปรแกรมใหม่เพื่อให้มีผล",

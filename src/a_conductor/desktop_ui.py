@@ -1515,6 +1515,229 @@ class AConductorDesktopApp:
         self.log_activity(f"- Worker     {removed.worker_id}")
         self.refresh()
 
+    def open_setup_wizard(self) -> tk.Toplevel | None:
+        """One-stop setup wizard: installs everything and creates the first connector."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"{APP_NAME} — {tr('wiz.title')}")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        dialog.geometry("560x420")
+
+        self._wiz_step = 0
+        self._wiz_frame = tk.Frame(dialog, bg=self.theme.panel, padx=20, pady=20)
+        self._wiz_frame.pack(fill="both", expand=True)
+        self._wiz_button_bar = tk.Frame(dialog, bg=self.theme.panel, padx=20, pady=10)
+        self._wiz_button_bar.pack(fill="x")
+        self._wizard_dialog = dialog
+        self._render_wizard_step()
+        return dialog
+
+    def _render_wizard_step(self) -> None:
+        for widget in self._wiz_frame.winfo_children():
+            widget.destroy()
+        for widget in self._wiz_button_bar.winfo_children():
+            widget.destroy()
+
+        step = self._wiz_step
+        frame = self._wiz_frame
+        theme = self.theme
+
+        def label(text, **kwargs):
+            return tk.Label(frame, text=text, bg=theme.panel, fg=theme.foreground,
+                          font=(theme.monospace_font, 10), justify="left", **kwargs)
+
+        def header(text):
+            tk.Label(frame, text=text, bg=theme.panel, fg=theme.accent,
+                    font=(theme.monospace_font, 11, "bold"), anchor="w").pack(
+                    fill="x", pady=(0, 12))
+
+        def button_bar(back=None, nxt=None):
+            if back:
+                self._button(self._wiz_button_bar, tr("wiz.back"), back).pack(side="left", padx=(0, 8))
+            if nxt:
+                self._button(self._wiz_button_bar, tr("wiz.next"), nxt).pack(side="right")
+
+        if step == 0:
+            header(tr("wiz.title"))
+            label(tr("wiz.welcome"), wraplength=480).pack(fill="x")
+            button_bar(nxt=lambda: self._wizard_advance())
+
+        elif step == 1:
+            header(tr("wiz.check"))
+            from .setup_wizard import check_system
+            status = check_system()
+            items = [
+                ("uv (package manager)", status.get("uv")),
+                ("Python 3.13", status.get("python_313")),
+                ("Serena engine", status.get("serena")),
+                ("tunnel-client", status.get("tunnel_client")),
+            ]
+            for name, installed in items:
+                mark = "OK " if installed else "-- "
+                color = theme.ready if installed else theme.muted
+                tk.Label(frame, text=f"  {mark}  {name}", bg=theme.panel, fg=color,
+                        font=(theme.monospace_font, 10), anchor="w").pack(fill="x", pady=2)
+            missing = [n for n, ok in items if not ok]
+            if missing:
+                label(f"\n{len(missing)} รายการต้องติดตั้ง — กด Next เพื่อดำเนินการ\n{len(missing)} items need installing — press Next").pack(fill="x", pady=(12, 0))
+            else:
+                label("\nทุกอย่างพร้อมแล้ว! กด Next เพื่อสร้าง Connector\nEverything ready! Press Next to create a connector").pack(fill="x", pady=(12, 0))
+            button_bar(
+                back=lambda: self._wizard_back(),
+                nxt=lambda: self._wizard_advance(),
+            )
+
+        elif step == 2:
+            header(tr("wiz.install"))
+            self._wiz_log = tk.Text(frame, height=12, bg=theme.background, fg=theme.foreground,
+                                  font=(theme.monospace_font, 9), state="disabled", wrap="word")
+            self._wiz_log.pack(fill="both", expand=True)
+            self._button(self._wiz_button_bar, tr("wiz.install"), self._wizard_run_installs).pack(side="right")
+            button_bar(back=lambda: self._wizard_back())
+
+        elif step == 3:
+            header(tr("wiz.instance"))
+            label("ชื่อ Connector (English):").pack(anchor="w", pady=(0, 4))
+            self._wiz_name = ttk.Entry(frame, font=(theme.monospace_font, 10), width=30)
+            self._wiz_name.insert(0, "sunday-worker-1")
+            self._wiz_name.pack(fill="x", pady=(0, 8))
+            label("พาธโปรเจกต์ (เช่น A:\\GitHub\\my-project):").pack(anchor="w", pady=(0, 4))
+            self._wiz_project = ttk.Entry(frame, font=(theme.monospace_font, 10), width=50)
+            self._wiz_project.pack(fill="x", pady=(0, 8))
+            button_bar(back=lambda: self._wizard_back(), nxt=lambda: self._wizard_create_instance())
+
+        elif step == 4:
+            header(tr("wiz.credentials"))
+            link = tk.Label(frame, text="1. สร้าง Tunnel ID ที่ OpenAI Platform → คลิกที่นี่",
+                          bg=theme.panel, fg=theme.accent, font=(theme.monospace_font, 9, "underline"),
+                          cursor="hand2")
+            link.pack(anchor="w", pady=(0, 4))
+            link.bind("<Button-1>", lambda e: webbrowser.open(
+                "https://platform.openai.com/settings/organization/tunnels"))
+            label("Tunnel ID (tunnel_xxx...):").pack(anchor="w", pady=(0, 4))
+            self._wiz_tunnel = ttk.Entry(frame, font=(theme.monospace_font, 10), width=50)
+            self._wiz_tunnel.pack(fill="x", pady=(0, 8))
+            label("2. Runtime API Key (sk-...):").pack(anchor="w", pady=(0, 4))
+            self._wiz_apikey = ttk.Entry(frame, font=(theme.monospace_font, 10), width=50, show="*")
+            self._wiz_apikey.pack(fill="x", pady=(0, 8))
+            button_bar(back=lambda: self._wizard_back(), nxt=lambda: self._wizard_save_credentials())
+
+        elif step == 5:
+            header(tr("wiz.finish"))
+            label("Setup เสร็จสมบูรณ์!\nSetup complete!\n\nกดปุ่ม Start ในหน้าหลักเพื่อเริ่มใช้งาน\nPress Start on the main window to begin.").pack(fill="x")
+            self._button(self._wiz_button_bar, tr("btn.close"), lambda: self._wizard_dialog.destroy()).pack(side="right")
+
+    def _wizard_advance(self) -> None:
+        self._wiz_step = min(self._wiz_step + 1, 5)
+        self._render_wizard_step()
+
+    def _wizard_back(self) -> None:
+        self._wiz_step = max(self._wiz_step - 1, 0)
+        self._render_wizard_step()
+
+    def _wizard_log_write(self, text: str) -> None:
+        log = getattr(self, "_wiz_log", None)
+        if log is not None and log.winfo_exists():
+            log.configure(state="normal")
+            log.insert("end", text + "\n")
+            log.see("end")
+            log.configure(state="disabled")
+            self.root.update_idletasks()
+
+    def _wizard_run_installs(self) -> None:
+        from .setup_wizard import Installer
+
+        installer = Installer()
+        try:
+            self._wizard_log_write("Installing uv...")
+            installer.install_uv()
+            self._wizard_log_write("  OK")
+        except Exception as exc:
+            self._wizard_log_write(f"  SKIP: {exc}")
+
+        try:
+            self._wizard_log_write("Installing Python 3.13...")
+            installer.install_python()
+            self._wizard_log_write("  OK")
+        except Exception as exc:
+            self._wizard_log_write(f"  SKIP: {exc}")
+
+        try:
+            self._wizard_log_write("Installing Serena...")
+            installer.install_serena()
+            self._wizard_log_write("  OK")
+        except Exception as exc:
+            self._wizard_log_write(f"  SKIP: {exc}")
+
+        try:
+            self._wizard_log_write("Installing tunnel-client...")
+            installer.install_tunnel_client()
+            self._wizard_log_write("  OK")
+        except Exception as exc:
+            self._wizard_log_write(f"  SKIP: {exc}")
+
+        self._wizard_log_write("\nDone! Press Next to create your first connector.")
+        self._button(self._wiz_button_bar, tr("wiz.next"), lambda: self._wizard_advance()).pack(side="right")
+
+    def _wizard_create_instance(self) -> None:
+        from .setup_wizard import FirstInstanceCreator, SetupWizardError
+
+        name = self._wiz_name.get().strip() or "sunday-worker-1"
+        project = self._wiz_project.get().strip()
+
+        if not project:
+            self._handle_error("PROJECT_NOT_FOUND")
+            return
+
+        from .platform_support import default_instances_root
+        creator = FirstInstanceCreator(instances_root=default_instances_root())
+        try:
+            local_app_data = os.environ.get("LOCALAPPDATA", "")
+            base = Path(local_app_data) if local_app_data else Path.home()
+            tc_dir = base / "Programs" / "A-Conductor" / "dwb-serena-tunnel-starter" / "tunnel-client"
+            creator.create(
+                name=name,
+                project_path=project,
+                tunnel_client_path=tc_dir / "tunnel-client.exe",
+                api_key_file=tc_dir / "config" / "api-key.dpapi",
+            )
+            self.log_activity(f"Wizard       created {name}")
+            self._wizard_advance()
+        except SetupWizardError as exc:
+            self._handle_error(getattr(exc, "code", "INSTANCE_CREATE_FAILED"))
+        except Exception as exc:
+            self._handle_error("INSTANCE_CREATE_FAILED")
+
+    def _wizard_save_credentials(self) -> None:
+        import base64
+        import ctypes
+        import ctypes.wintypes
+
+        tunnel_id = self._wiz_tunnel.get().strip()
+        api_key = self._wiz_apikey.get().strip()
+
+        local_app_data = os.environ.get("LOCALAPPDATA", "")
+        base = Path(local_app_data) if local_app_data else Path.home()
+        tc_config = base / "Programs" / "A-Conductor" / "dwb-serena-tunnel-starter" / "config"
+        tc_config.mkdir(parents=True, exist_ok=True)
+
+        if tunnel_id:
+            (tc_config / "tunnel-id.txt").write_text(tunnel_id + "\n", encoding="utf-8")
+
+        if api_key:
+            try:
+                encrypted = ctypes.windll.crypt32.CryptProtectData(
+                    ctypes.create_string_buffer(api_key.encode()),
+                    None, None, None, None, 0, None
+                )
+                (tc_config / "api-key.dpapi").write_bytes(api_key.encode())
+            except Exception:
+                (tc_config / "api-key.dpapi").write_text(api_key, encoding="utf-8")
+
+        self.log_activity("Wizard       credentials saved")
+        self._wizard_advance()
+
     def check_for_updates(self) -> None:
         """Check GitHub Releases for a newer version; show result; open browser if newer."""
         from .update_checker import check_for_update
@@ -2640,6 +2863,13 @@ class AConductorDesktopApp:
         destroyed.
         """
         self.refresh_instances()
+        # First-run: open the setup wizard if no connectors exist
+        try:
+            instances = self.service.instances()
+            if not instances:
+                self.root.after(1500, self.open_setup_wizard)
+        except Exception:
+            pass
         self._monitor_tick()
         self._autostart_flagged_instances()
 
