@@ -133,12 +133,20 @@ python scripts/build_installer.py
 
 A-Sunday Conductor uses [Serena](https://github.com/oraios/serena) (MIT License) as its internal semantic code engine. The management interface, installer, and control plane are A-Sunday Conductor's own.
 
+## Support This Project
+
+If this tool is useful to you, consider supporting its development:
+
+[![Sponsor on GitHub](https://img.shields.io/badge/sponsor-GitHub-ea4aaa?style=for-the-badge&logo=github)](https://github.com/sponsors/aase7en)
+
+**Thai residents:** PromptPay and TrueWallet accepted — see [DONATE.md](.github/DONATE.md) for details.
+
 ---
 
 <div align="center">
 
 **A** — the AI co-developer | **Sunday** — dedicated to the family | **Conductor** — the founding codename
 
-[Report Bug](https://github.com/aase7en/A-Wiki-Conductor/issues) | [Request Feature](https://github.com/aase7en/A-Wiki-Conductor/issues) | [Sponsor](https://github.com/sponsors/aase7en)
+[Report Bug](https://github.com/aase7en/A-Wiki-Conductor/issues) | [Request Feature](https://github.com/aase7en/A-Wiki-Conductor/issues) | [Sponsor](https://github.com/sponsors/aase7en) | [Donate (TH)](.github/DONATE.md)
 
 </div>
