@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-23 (GLM 5.3, v0.3.0 COMPLETE — release published)
+Last updated: 2026-08-23 (GLM 5.3, v0.4.0 Setup Wizard)
 
 ## Current phase
 
@@ -76,6 +76,13 @@ Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub stat
 - macOS/Linux desktop builds (B-3 packaging — the groundwork + templates are in place)
 - RPi (P3) + Umbrel headless (P4) per docs/plans/cross-platform-plan.md
 - SignPath application (user action, guide provided)
+
+## v0.4.0: Setup Wizard (2026-08-23, PRs #69-#70)
+
+One-stop installer: new users download Setup.exe → open → wizard auto-opens → installs everything (uv, Python 3.13, Serena, tunnel-client) → creates first connector → saves credentials. No manual prerequisites.
+
+- **PR-A (engine)**: setup_wizard.py — check_system, Installer (uv/Python/Serena/tunnel-client with injectable download/subprocess), FirstInstanceCreator (generates complete instance from embedded templates, no reference needed)
+- **PR-B (UI)**: 7-step wizard dialog with first-run auto-open; i18n TH/EN; real-time install log; OpenAI Platform link
 
 ## Live connector fleet (2026-08-22 night — backend renamed to one pattern, all READY)
 
