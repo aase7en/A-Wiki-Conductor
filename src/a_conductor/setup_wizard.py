@@ -369,6 +369,8 @@ class FirstInstanceCreator:
         tunnel_client_path: Path | str,
         api_key_file: Path | str,
         backend: str = "serena",
+        stitch_mcp_path: Path | str = "",
+        stitch_api_key: str = "",
     ) -> Path:
         slug = name.strip().lower()
         if not re.match(r"^[a-z0-9][a-z0-9-]*$", slug):
@@ -384,9 +386,16 @@ class FirstInstanceCreator:
         display = slug.title()
         instance_name = f"Sunday-Worker-1"
         profile = f"serena-{slug}"
+        self._stitch_mcp_path = stitch_mcp_path
 
         for folder in ("profiles", "config", "run", "logs", "serena-home"):
             (target / folder).mkdir(parents=True, exist_ok=True)
+
+        # Save Stitch API key if provided
+        if backend == "stitch" and stitch_api_key:
+            (target / "config" / "sti-key.txt").write_text(
+                stitch_api_key + "\n", encoding="utf-8"
+            )
 
         # instance.ps1
         ps1 = "\n".join([
@@ -525,6 +534,12 @@ Write-Host "STOPPED"
         project_fwd = str(project).replace("\\", "/")
         if backend == "filesystem":
             mcp_command = f"npx -y @modelcontextprotocol/server-filesystem {project_fwd}"
+        elif backend == "stitch":
+            # Google Stitch: runs artifact-keyserver.mjs via Node.js
+            stitch_path = Path(
+                getattr(self, "_stitch_mcp_path", "") or "C:/AI/stitch-mcp"
+            )
+            mcp_command = f"node {stitch_path / 'artifact-keyserver.mjs'}"
         else:
             mcp_command = (
                 f"serena start-mcp-server --context chatgpt\n"

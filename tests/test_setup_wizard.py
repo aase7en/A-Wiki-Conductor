@@ -260,3 +260,53 @@ def test_check_nodejs_returns_bool() -> None:
     installer = Installer()
     result = installer.check_nodejs()
     assert isinstance(result, bool)
+
+
+def test_create_stitch_backend_generates_node_command(tmp_path: Path) -> None:
+    from a_conductor.setup_wizard import FirstInstanceCreator
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    stitch_dir = tmp_path / "stitch-mcp"
+    stitch_dir.mkdir()
+    (stitch_dir / "artifact-keyserver.mjs").write_text("// mcp", encoding="utf-8")
+
+    creator = FirstInstanceCreator(instances_root=tmp_path / "inst")
+    created = creator.create(
+        name="st-worker",
+        project_path=project,
+        tunnel_client_path=tmp_path / "tc.exe",
+        api_key_file=tmp_path / "key.dpapi",
+        backend="stitch",
+        stitch_mcp_path=str(stitch_dir),
+        stitch_api_key="test-stitch-key-123",
+    )
+
+    # YAML uses node + artifact-keyserver.mjs
+    template = (created / "profiles" / "serena-st-worker.yaml.template").read_text(encoding="utf-8")
+    assert "node" in template
+    assert "artifact-keyserver.mjs" in template
+    assert str(stitch_dir) in template
+
+    # API key saved to sti-key.txt
+    sti_key = (created / "config" / "sti-key.txt").read_text(encoding="utf-8").strip()
+    assert sti_key == "test-stitch-key-123"
+
+
+def test_stitch_backend_no_api_key_still_works(tmp_path: Path) -> None:
+    from a_conductor.setup_wizard import FirstInstanceCreator
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    creator = FirstInstanceCreator(instances_root=tmp_path / "inst")
+    created = creator.create(
+        name="st2",
+        project_path=project,
+        tunnel_client_path=tmp_path / "tc.exe",
+        api_key_file=tmp_path / "key.dpapi",
+        backend="stitch",
+        stitch_mcp_path="C:/AI/stitch-mcp",
+        stitch_api_key="",  # no key
+    )
+    # sti-key.txt should not be created when no key
+    assert not (created / "config" / "sti-key.txt").exists()

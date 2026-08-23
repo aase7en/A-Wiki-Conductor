@@ -1616,6 +1616,33 @@ class AConductorDesktopApp:
                 variable=self._wiz_backend, value="serena",
                 bg=theme.panel, fg=theme.foreground, selectcolor=theme.background,
                 font=(theme.monospace_font, 9), anchor="w").pack(anchor="w", pady=2)
+            tk.Radiobutton(frame, text="Google Stitch (design/prototyping — ต้องมี Stitch MCP)",
+                variable=self._wiz_backend, value="stitch",
+                bg=theme.panel, fg=theme.foreground, selectcolor=theme.background,
+                font=(theme.monospace_font, 9), anchor="w").pack(anchor="w", pady=2)
+
+            # Stitch-specific fields (visible only when stitch is selected)
+            self._wiz_stitch_frame = tk.Frame(frame, bg=theme.panel)
+            label("Stitch MCP folder (ที่มี artifact-keyserver.mjs):").pack(
+                in_=self._wiz_stitch_frame, anchor="w", pady=(8, 2))
+            self._wiz_stitch_path = ttk.Entry(
+                self._wiz_stitch_frame, font=(theme.monospace_font, 10), width=50)
+            self._wiz_stitch_path.insert(0, "C:\AI\stitch-mcp")
+            self._wiz_stitch_path.pack(in_=self._wiz_stitch_frame, fill="x", pady=(0, 4))
+            label("Stitch API Key (บันทึกเป็น sti-key.txt):").pack(
+                in_=self._wiz_stitch_frame, anchor="w", pady=(0, 2))
+            self._wiz_stitch_key = ttk.Entry(
+                self._wiz_stitch_frame, font=(theme.monospace_font, 10), width=50, show="*")
+            self._wiz_stitch_key.pack(in_=self._wiz_stitch_frame, fill="x")
+
+            def toggle_stitch_fields(*_args):
+                if self._wiz_backend.get() == "stitch":
+                    self._wiz_stitch_frame.pack(fill="x", pady=(4, 0))
+                else:
+                    self._wiz_stitch_frame.pack_forget()
+
+            self._wiz_backend.trace_add("write", toggle_stitch_fields)
+            toggle_stitch_fields()
 
             button_bar(back=lambda: self._wizard_back(), nxt=lambda: self._wizard_create_instance())
 
@@ -1721,6 +1748,8 @@ class AConductorDesktopApp:
                 tunnel_client_path=tc_dir / "tunnel-client.exe",
                 api_key_file=tc_dir / "config" / "api-key.dpapi",
                 backend=getattr(self, "_wiz_backend", None) and self._wiz_backend.get() or "serena",
+                stitch_mcp_path=getattr(self, "_wiz_stitch_path", None) and self._wiz_stitch_path.get() or "",
+                stitch_api_key=getattr(self, "_wiz_stitch_key", None) and self._wiz_stitch_key.get() or "",
             )
             self.log_activity(f"Wizard       created {name}")
             self._wizard_advance()
