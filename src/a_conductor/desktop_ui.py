@@ -1111,6 +1111,7 @@ class AConductorDesktopApp:
         status_bar = tk.Frame(self.root, bg=self.theme.background, height=24)
         status_bar.grid(row=6, column=0, sticky="ew", padx=0, pady=(0, 0))
         self._update_button = self._button(status_bar, "Check Update", self.check_for_updates)
+        self._donate_button = self._button(status_bar, "Donate", self.open_donate_dialog)
         self._update_button.pack(side="right", padx=(4, 10), pady=2)
         _attach_tip(
             self._update_button,
@@ -1786,6 +1787,104 @@ class AConductorDesktopApp:
 
         self.log_activity("Wizard       credentials saved")
         self._wizard_advance()
+
+    def open_donate_dialog(self) -> tk.Toplevel | None:
+        """Support dialog: GitHub Sponsors + PromptPay QR + TrueWallet."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"{APP_NAME} — Support / สนับสนุน")
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=20, pady=20)
+        frame.pack(fill="both", expand=True)
+
+        tk.Label(
+            frame,
+            text="💝 สนับสนุนการพัฒนา / Support This Project",
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 12, "bold"),
+        ).pack(pady=(0, 12))
+
+        # GitHub Sponsors button
+        sponsor_label = tk.Label(
+            frame,
+            text="⭐ GitHub Sponsors (International)",
+            bg=self.theme.panel,
+            fg=self.theme.ready,
+            font=(self.theme.monospace_font, 10, "underline"),
+            cursor="hand2",
+        )
+        sponsor_label.pack(pady=(0, 4))
+        sponsor_label.bind(
+            "<Button-1>",
+            lambda _e: webbrowser.open("https://github.com/sponsors/aase7en"),
+        )
+        tk.Label(
+            frame,
+            text="github.com/sponsors/aase7en",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8),
+        ).pack(pady=(0, 12))
+
+        # PromptPay QR (if image exists)
+        qr_path = self._find_donate_qr()
+        if qr_path is not None:
+            tk.Label(
+                frame,
+                text="📱 PromptPay / TrueWallet",
+                bg=self.theme.panel,
+                fg=self.theme.foreground,
+                font=(self.theme.monospace_font, 10, "bold"),
+            ).pack(pady=(4, 4))
+            try:
+                photo = tk.PhotoImage(file=str(qr_path))
+                # Scale down if too large
+                if photo.width() > 240:
+                    ratio = 240 / photo.width()
+                    photo = photo.subsample(int(1 / ratio), int(1 / ratio))
+                qr_label = tk.Label(frame, image=photo, bg=self.theme.panel)
+                qr_label.image = photo  # keep reference
+                qr_label.pack(pady=(0, 8))
+            except tk.TclError:
+                pass  # image format not supported, skip
+        else:
+            tk.Label(
+                frame,
+                text="📱 PromptPay / TrueWallet\n\nเพิ่ม QR Code ได้ที่:\nassets/donate-promptpay-qr.png\n\n(Generate QR from your bank app,\nsave as PNG, place in assets/ folder)",
+                bg=self.theme.panel,
+                fg=self.theme.muted,
+                font=(self.theme.monospace_font, 9),
+                justify="center",
+            ).pack(pady=(4, 12))
+
+        tk.Label(
+            frame,
+            text="ทุกจำนวนช่วยให้โปรเจกต์พัฒนาต่อได้ ขอบคุณครับ 🙏\nEvery amount helps keep this project going. Thank you!",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8),
+            justify="center",
+        ).pack(pady=(8, 0))
+
+        self._button(frame, "Close", lambda: dialog.destroy()).pack(pady=(12, 0))
+        return dialog
+
+    def _find_donate_qr(self) -> Path | None:
+        """Locate the donate QR code image (dev layout or frozen bundle)."""
+        import sys as _sys
+
+        candidates = []
+        bundle = getattr(_sys, "_MEIPASS", None)
+        if bundle:
+            candidates.append(Path(bundle) / "assets" / "donate-promptpay-qr.png")
+        candidates.append(Path(__file__).resolve().parents[2] / "assets" / "donate-promptpay-qr.png")
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+        return None
 
     def check_for_updates(self) -> None:
         """Check GitHub Releases for a newer version; show result; open browser if newer."""

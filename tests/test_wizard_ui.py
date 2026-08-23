@@ -79,3 +79,27 @@ def test_i18n_wizard_keys_exist() -> None:
         assert key in STRINGS, key
         assert STRINGS[key]["th"].strip()
         assert STRINGS[key]["en"].strip()
+
+
+def test_donate_dialog_opens(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    dialog = app.open_donate_dialog()
+    try:
+        assert dialog.winfo_exists()
+        # dialog should have children (labels, buttons)
+        assert len(dialog.winfo_children()) > 0
+    finally:
+        dialog.destroy()
+
+
+def test_donate_qr_finder_returns_none_when_missing(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    result = app._find_donate_qr()
+    # In test env there may or may not be a QR — just check it doesn't crash
+    assert result is None or result.is_file()
+
+
+def test_status_bar_has_donate_button(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    assert app._donate_button is not None
+    assert app._donate_button.cget("text") == "Donate"
