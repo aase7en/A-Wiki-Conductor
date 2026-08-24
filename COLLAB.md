@@ -34,6 +34,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
+| `WO-P1-061` | GPT-5.6 Sol + SunDay-Worker 2 | 2026-08-24 | `pyproject.toml`, `assets/sunday-family-particle.png`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/interactive_logo.py`, `src/a_conductor/gpu_particle_logo.py`, `tests/test_interactive_logo.py`, `tests/test_gpu_particle_logo.py`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-061-gpu-sunday-family-particles.md` |
 
 > Git remote `origin` = `https://github.com/aase7en/A-Wiki-Conductor.git` (public since 2026-08-22 by explicit user decision — originally created private 2026-08-20). Pull/reconcile before commit/push; record branch/HEAD in checkpoints.
 

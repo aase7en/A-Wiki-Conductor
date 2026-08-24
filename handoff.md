@@ -1,14 +1,20 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-22 (GLM 5.3, post 5-connector rollout)
+Last updated: 2026-08-24 (GPT-5.6 Sol + SunDay-Worker 2, WO-P1-061/062)
 
 ## Current objective
 
-v0.2.4: A-Doctor deep audit fixed (AUTO column, reaper boundary, PS quoting, async MONITOR, symmetric error tables). Ready for the next A-Wiki session to plug in.
+Finish `WO-P1-061` Sunday Family native GPU particle portrait with strict grayscale fidelity, then execute `WO-P1-062` responsive/global UI refresh. The repo plan was updated before WO-P1-062 implementation as explicitly required by the user.
 
 ## Status
 
-`COMPLETE` for the authorized scope (rename all CMD windows / installable + downloadable via GitHub / Serena credit).
+`IN_PROGRESS` on branch `feat/gpu-sunday-family-particles-clean`.
+
+- WO-P1-061 GPU path real smoke: previously PASS (`gpu-opengl`, ~9,360 particles, no GPU error).
+- WO-P1-061 local implementation is verified: GPU + forced fallback E2E pass, grayscale-only contract enforced, portable build succeeds and bundles GPU/asset. Final frozen/full regression is deferred to GitHub CI because this workstation security layer returns `Access is denied` for freshly built PE files.
+- Local Windows security/AV currently denies immediate reads of newly-created `.ps1` fixtures, so affected unrelated instance-management tests require CI confirmation rather than production-code changes.
+- WO-P1-062 is PLANNED in `docs/work-orders/WO-P1-062-responsive-global-ui.md`; no production implementation should precede that plan.
+- Model-routing research is durable at `docs/research/model-routing-2026-08-24.md`.
 
 ## Resume authority
 

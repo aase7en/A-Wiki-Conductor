@@ -728,3 +728,22 @@ MVP sequence:
 8. `AC-RES-008` — Serena adapter integration.
 
 Advanced backend failover/routing should begin only after these primitives pass deterministic recovery tests. A-Conductor may enforce operational scheduling/routing/recovery, but A-Wiki remains owner of orchestration intelligence, policy, durable knowledge and cross-project memory.
+
+## 20. Responsive Global UI + Multilingual Guidance (2026-08-24)
+
+**Active planning work order:** `docs/work-orders/WO-P1-062-responsive-global-ui.md`
+**Model-routing evidence:** `docs/research/model-routing-2026-08-24.md`
+
+Approved UI direction:
+- responsive controls react to available window width: compact/wrapped at narrow widths, horizontal action flow on wide/maximized windows;
+- user-facing action button labels are canonical English globally;
+- Thai, Simplified Chinese, and English preferences localize tooltips/help/teaching/status prose while button labels remain English;
+- normal product guidance uses A-Conductor domain terms (`Conductor`, `Worker`, `Runtime`, `Connector`) rather than presenting Serena as the product identity; Serena remains visible only where runtime-specific diagnostics require it;
+- primary actions follow operator order (`Add Project -> Assign -> Add Worker -> Start -> Stop/Restart -> Open/Logs/Advanced`);
+- `Donate` sits beside `Check Update` at the lower-right;
+- `Add Brain` moves to the upper-left near the product name;
+- persistent multi-line Step 1/2/3 guidance is replaced by a compact typewriter-style teaching line that types, pauses, erases, and advances without spawning subprocesses or stealing focus;
+- MONITOR and ACTIVITY LOG use an approximately 50/50 horizontal split on normal/wide windows, with narrow-window stacking only when needed;
+- Sunday Family particle rendering is grayscale-only (white/gray on black), with very small/fine dots and maximum visual fidelity to `assets/sunday-family-particle.png`; eye tracking changes geometry, not color.
+
+Implementation must EXTEND existing Tk layout/i18n/PanedWindow seams rather than introduce a parallel UI or i18n system. Model/agent work is divided by bounded ownership: GPT-5.6 Sol MAX owns hard architecture/integration/visual judgment/review; GLM-5.3 MAX is preferred for well-specified bulk implementation/refactor/test tickets; deterministic tools are preferred whenever judgment is unnecessary. Repository SSoT and one-owner-per-work-order prevent duplicate implementations.

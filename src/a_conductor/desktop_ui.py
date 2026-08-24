@@ -84,6 +84,23 @@ def find_icon_path() -> Path | None:
     return None
 
 
+def find_particle_image_path() -> Path | None:
+    """Prefer the user-facing family particle portrait, then the legacy logo."""
+    asset_dirs: list[Path] = []
+    if getattr(sys, "frozen", False):
+        asset_dirs.append(Path(sys.executable).resolve().parent / "assets")
+    bundle = getattr(sys, "_MEIPASS", None)
+    if bundle:
+        asset_dirs.append(Path(bundle) / "assets")
+    asset_dirs.append(Path(__file__).resolve().parents[2] / "assets")
+    for asset_dir in asset_dirs:
+        for name in ("sunday-family-particle.png", "logo-face.png"):
+            candidate = asset_dir / name
+            if candidate.is_file():
+                return candidate
+    return None
+
+
 SERENA_ACTIVATION_PROMPT = "Activate the current dir as project using serena"
 
 
@@ -795,16 +812,15 @@ class AConductorDesktopApp:
 
         # Interactive particle-face logo (top-right, after buttons)
         try:
-            from .interactive_logo import InteractiveLogo
+            from .gpu_particle_logo import GPUParticleLogo
 
-            self._logo = InteractiveLogo(top, size=120)
+            self._logo = GPUParticleLogo(top, size=120)
             self._logo.grid(row=0, column=5, sticky="e", padx=(0, 6), pady=4)
 
-            # Try to load the custom face image; fall back to placeholder
-            logo_path = find_icon_path().parent / "logo-face.png" if find_icon_path() else None
-            if logo_path is None:
-                logo_path = Path(__file__).resolve().parents[2] / "assets" / "logo-face.png"
-            if logo_path and logo_path.is_file():
+            # Prefer the high-detail family portrait when present; otherwise keep
+            # the legacy logo-face.png as a safe fallback.
+            logo_path = find_particle_image_path()
+            if logo_path is not None:
                 self._logo.load_image(logo_path)
 
             self._logo.start()
@@ -1240,7 +1256,7 @@ class AConductorDesktopApp:
         except tk.TclError:
             return
         try:
-            self.root.after(5000, self._monitor_tick)
+            self.root.after(15000, self._monitor_tick)
         except tk.TclError:
             pass
 

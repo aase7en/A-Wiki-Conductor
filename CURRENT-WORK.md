@@ -1,10 +1,16 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-24 (GLM 5.3, v0.4.3 final audit)
+Last updated: 2026-08-24 (GPT-5.6 Sol + SunDay-Worker 2, WO-P1-061/062 planning checkpoint)
 
 ## Current phase
 
-**No open work orders.** Latest: WO-P1-060 complete — workers and connectors are now fully manageable from the UI (PRs #42–#44, CI-green; real-machine create/delete round trip verified).
+**WO-P1-061 IN_PROGRESS — GPU Sunday Family particle portrait.** Current execution surface: GPT-5.6 Sol + SunDay-Worker 2 after Worker 4/5 transport loss. Branch: `feat/gpu-sunday-family-particles-clean` from main `5b77d11`. Visual contract is now explicit: Sunday Family particles are white/gray only on black, very small/fine, and should preserve maximum fidelity to `assets/sunday-family-particle.png`; eye tracking must not introduce color.
+
+Checklist: GPU/native implementation = DONE; source asset = DONE; clean-scope recovery = DONE; grayscale/fidelity regression = DONE; native GPU + forced fallback E2E = DONE; portable build/package graph = DONE; fresh frozen smoke = BLOCKED_LOCAL_SECURITY (ESET/PE lock; GitHub CI is final authority); combined final review/PR/merge = NOT_STARTED.
+
+**WO-P1-062 PLANNED — Responsive Global UI + Multilingual Guidance.** Planning recorded before implementation per user instruction. Scope includes responsive button flow, global English action labels, Thai/Chinese/English localized help, A-Conductor terminology, Donate footer placement, Add Brain relocation, typewriter guidance, and MONITOR/ACTIVITY 50/50 layout. Work order: `docs/work-orders/WO-P1-062-responsive-global-ui.md`. Routing evidence: `docs/research/model-routing-2026-08-24.md`.
+
+Execution order: finish/reconcile WO-P1-061 first, then implement WO-P1-062. Repository SSoT remains authoritative; one active implementation owner per WO prevents duplicate GLM/GPT work.
 
 ## Source-of-truth rule
 
