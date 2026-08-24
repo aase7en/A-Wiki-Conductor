@@ -8,6 +8,12 @@ on:
 jobs:
   test:
     runs-on: windows-latest
+    # Hosted runners expose a virtual WGL context that can access-violate
+    # inside ModernGL before Python can activate the safe fallback.  Generic
+    # CI therefore verifies the deterministic Canvas path; real WGL rendering
+    # remains a workstation/installed-app E2E gate.
+    env:
+      A_CONDUCTOR_GPU_PARTICLES: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

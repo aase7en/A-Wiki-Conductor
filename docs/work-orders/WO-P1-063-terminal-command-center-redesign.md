@@ -168,4 +168,5 @@ Implementation checkpoint committed as `c42d174` (`feat(ui): build terminal comm
 - fresh Portable: 24,282,484 bytes, SHA-256 `DB4921146FABA1E774B56F342EDE8178EADA3782DC59F669BB513D570206B0CA`;
 - fresh Setup: 31,219,212 bytes, SHA-256 `F5C676406C36E265EE293721FB977DFB8C740B52E076BD58AC71A0A851D67574`;
 - frozen smoke exit 0; recursive archive check contains Sunday master/compact assets, GPU/metrics, ModernGL/OpenGL, Pillow, and Tcl/Tk; a Windows path-separator false-failure in the new archive CI gate was found locally, covered by test, and fixed before final CI;
+- first PR #79 run `32783280486`: Ubuntu/macOS green; Windows failed when the hosted virtual WGL driver access-violated inside `moderngl.create_context()` before Python could activate fallback. Classified as platform/test-environment incompatibility. Generic Windows CI now forces the deterministic Canvas path; real WGL remains a workstation/installed-app gate;
 - Draft PR #79 is the sole forward completion PR. Remaining gates are current-HEAD CI, safe installed upgrade/E2E, ready review, merge, fetch main, rebuild/reinstall from main, and final COMPLETE continuity update.

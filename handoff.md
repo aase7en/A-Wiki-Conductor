@@ -38,6 +38,7 @@ Finish WO-P1-063 through current-HEAD CI, safe installed upgrade, installed visu
 - Recursive archive inspection includes both Sunday assets, `a_conductor.gpu_particle_logo`, `a_conductor.system_metrics`, ModernGL/WGL, pyopengltk/PyOpenGL, Pillow imaging, `_tkinter`, Tcl, and Tk.
 - Setup archive contains payload branding v0.6.0, Portable executable, guides, notices, and icon without duplicating the full UI/OpenGL graph.
 - Windows CI now builds, inspects, smokes, and uploads Portable + Setup. A path-separator false-failure was found locally and fixed by normalizing archive member names before comparison.
+- PR #79 run `32783280486`: Ubuntu/macOS passed; Windows generic GUI tests access-violated inside ModernGL while creating the hosted runner's virtual WGL context. This is a runner/platform incompatibility before Python fallback, not a product assertion. The Windows CI job now explicitly exercises Canvas fallback; real WGL remains covered by workstation and installed-app E2E.
 
 ## Staff-review result
 

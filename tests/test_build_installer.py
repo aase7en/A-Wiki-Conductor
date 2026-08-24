@@ -288,6 +288,10 @@ def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
     # ``pyi-archive_viewer`` emits Windows member names with backslashes.  CI
     # normalises both archives before comparing them with portable '/' paths.
     assert workflow.count("-replace '\\\\', '/'") == 2
+    # Hosted Windows runners expose an unstable virtual GL context that can
+    # terminate the process before Python's fallback handler runs.  Generic CI
+    # exercises the deterministic Canvas path; real WGL is an explicit local E2E.
+    assert 'A_CONDUCTOR_GPU_PARTICLES: "0"' in workflow
 
 
 def test_install_guide_matches_current_release_and_hkcu_contract() -> None:
