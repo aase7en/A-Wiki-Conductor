@@ -75,6 +75,33 @@ frame-verified state และ destroy context/callback ได้สะอาด
 
 ---
 
+## #5: หน้าต่างปิดแล้วแต่ EXE ค้างระหว่าง connector autostart (2026-08-25)
+
+**อาการ:** ปิดหน้าต่างแล้ว แต่ frozen parent/child process ยังอยู่ต่ออีกหลายสิบวินาที
+ถ้าปิดระหว่าง start อาจมี connector ที่ launcher เริ่มแล้วแต่ health ยังตอบ `STOPPED`;
+ผล stop ที่ล้มเหลวยังเคยถูก log ว่า `OK` และบางเส้นทางส่งคำสั่ง `start-w` /
+`start-inst` ไปยัง service ที่รับเฉพาะ `start` / `stop`
+
+**Root cause:** `Future.cancel()` และ `ThreadPoolExecutor.shutdown(wait=False)` หยุดงานที่
+กำลังรันไม่ได้ ขณะที่ Python รอ worker thread ตอน process exit; readiness แบบ transport
+ยังแยก “ไม่เคย launch” ออกจาก “launch แล้วแต่ยังไม่ ready” ไม่ได้ และ UI log label
+รั่วข้าม boundary ไปเป็น command
+
+**แก้:** ส่ง cooperative cancellation ถึง orchestrator, ตรวจ cancel ก่อน launcher,
+serialize launcher handoff กับ forced stop ต่อ instance, จำ launch ที่ cancelled/not-ready,
+รอ handoff แบบ bounded ก่อน stop-all, ตรวจ `result_code` ก่อนรายงาน `OK`, normalize
+command เป็น `start` / `stop` และล้าง completed Future references
+
+**Lesson:** shutdown ของงาน async ต้อง cancel ถึง operation จริง ไม่ใช่แค่ Future;
+state ที่ยังไม่ ready ไม่ได้พิสูจน์ว่าไม่มี process ถูก launch และ display label ห้ามใช้เป็น
+service command โดยตรง
+
+**ตรวจสอบ:** ใช้ concurrent regression ที่ block อยู่ใน launcher แล้วสั่ง close/forced stop;
+stop script ต้องเกิดหลัง launcher handoff, process ต้องออกแบบ bounded, failed stop ต้องเป็น
+`False`, และ repeated starts ต้องไม่สะสม Future
+
+---
+
 ## กติกาการเพิ่ม lesson ใหม่:
 
 1. บันทึกเมื่อ: พบ defect ที่ผู้ใช้จริงรายงาน (ไม่ใช่แค่ test fail)

@@ -9,10 +9,11 @@ from __future__ import annotations
 import os
 import re
 import sys
-from concurrent.futures import Executor, Future, ThreadPoolExecutor
+from concurrent.futures import Executor, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
+from threading import Event
 from typing import Callable, Protocol
 
 import tkinter as tk
@@ -723,6 +724,8 @@ class AConductorDesktopApp:
             max_workers=1, thread_name_prefix="a-conductor-ui"
         )
         self._owns_background_executor = background_executor is None
+        self._background_cancel_event = Event()
+        self._instance_start_futures: set[Future] = set()
         self._project_ids: list[str] = []
         self._project_paths: dict[str, str] = {}
         self._worker_ids: dict[str, str] = {}
@@ -823,6 +826,7 @@ class AConductorDesktopApp:
         if self._ui_resources_stopped:
             return
         self._ui_resources_stopped = True
+        self._background_cancel_event.set()
         self._stop_teaching_animation()
         self._stop_system_monitor()
         self._stop_status_pulse()
@@ -2492,6 +2496,7 @@ class AConductorDesktopApp:
             return
         self._closing = True
         self._shutdown_ui_resources()
+        self._wait_for_instance_starts()
         stop_all = True
         getter = getattr(self.service, "get_preference", None)
         if callable(getter):
@@ -3799,9 +3804,25 @@ class AConductorDesktopApp:
             ):
                 self._set_enabled(button, False)
             return
-        states_fn = getattr(self.service, "instance_states")
-        future = self._background_executor.submit(states_fn)
+        future = self._background_executor.submit(self._instance_states_with_cancel)
         self._schedule_after(0, self._poll_instance_states, future)
+
+    def _instance_states_with_cancel(self):
+        states_fn = getattr(self.service, "instance_states_cancellable", None)
+        if callable(states_fn):
+            return states_fn(cancel_check=self._background_cancel_event.is_set)
+        return getattr(self.service, "instance_states")()
+
+    def _instance_action_with_cancel(self, name: str, action: str):
+        if action == "start":
+            action_fn = getattr(self.service, "instance_action_cancellable", None)
+            if callable(action_fn):
+                return action_fn(
+                    name,
+                    action,
+                    cancel_check=self._background_cancel_event.is_set,
+                )
+        return getattr(self.service, "instance_action")(name, action)
 
     def _poll_instance_states(self, future: Future) -> None:
         if not future.done():
@@ -3874,14 +3895,19 @@ class AConductorDesktopApp:
 
     def _submit_instance_action(self, action: str, name: str) -> None:
         self.log_activity(f"{action:<12} {name} QUEUED")
-        action_fn = getattr(self.service, "instance_action")
-        future = self._background_executor.submit(action_fn, name, action.lower())
+        command = action.split("-", 1)[0].lower()
+        future = self._background_executor.submit(
+            self._instance_action_with_cancel, name, command
+        )
+        if command == "start":
+            self._instance_start_futures.add(future)
         self._schedule_after(0, self._poll_instance_action, action, name, future)
 
     def _poll_instance_action(self, action: str, name: str, future: Future) -> None:
         if not future.done():
             self._schedule_after(25, self._poll_instance_action, action, name, future)
             return
+        self._instance_start_futures.discard(future)
         try:
             outcome = future.result()
             code = outcome.result_code.value
@@ -3911,15 +3937,25 @@ class AConductorDesktopApp:
             self._handle_error("INSTANCES_NOT_AVAILABLE")
             return
         future = self._background_executor.submit(self._start_all_worker)
+        self._instance_start_futures.add(future)
         self._schedule_after(0, self._poll_start_all, future)
+
+    def _wait_for_instance_starts(self) -> None:
+        """Give cooperative start cancellation a bounded handoff before stop-all."""
+        pending = tuple(self._instance_start_futures)
+        if pending:
+            completed, _unfinished = wait(pending, timeout=4.0)
+            self._instance_start_futures.difference_update(completed)
 
     def _start_all_worker(self):
         results: list[tuple[str, str]] = []
-        for instance, state in getattr(self.service, "instance_states")():
+        for instance, state in self._instance_states_with_cancel():
+            if self._background_cancel_event.is_set():
+                break
             if state is InstanceHealthState.READY:
                 continue
             try:
-                outcome = getattr(self.service, "instance_action")(instance.name, "start")
+                outcome = self._instance_action_with_cancel(instance.name, "start")
                 results.append((instance.name, outcome.result_code.value))
             except Exception:
                 results.append((instance.name, "ERROR"))
@@ -3929,6 +3965,7 @@ class AConductorDesktopApp:
         if not future.done():
             self._schedule_after(25, self._poll_start_all, future)
             return
+        self._instance_start_futures.discard(future)
         try:
             results = future.result()
         except Exception:
@@ -4270,13 +4307,16 @@ class AConductorDesktopApp:
         if not callable(getattr(self.service, "autostart_instance_names", None)):
             return
         future = self._background_executor.submit(self._autostart_worker)
+        self._instance_start_futures.add(future)
         self._schedule_after(0, self._poll_autostart, future)
 
     def _autostart_worker(self):
         results: list[tuple[str, str]] = []
         for name in getattr(self.service, "autostart_instance_names")():
+            if self._background_cancel_event.is_set():
+                break
             try:
-                outcome = getattr(self.service, "instance_action")(name, "start")
+                outcome = self._instance_action_with_cancel(name, "start")
                 results.append((name, outcome.result_code.value))
             except Exception:
                 results.append((name, "ERROR"))
@@ -4286,6 +4326,7 @@ class AConductorDesktopApp:
         if not future.done():
             self._schedule_after(25, self._poll_autostart, future)
             return
+        self._instance_start_futures.discard(future)
         try:
             results = future.result()
         except Exception:

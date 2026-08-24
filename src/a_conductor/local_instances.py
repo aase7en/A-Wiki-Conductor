@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from threading import Lock
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -42,6 +43,7 @@ class InstanceResultCode(str, Enum):
     RUNNING = "RUNNING"
     ALREADY_RUNNING = "ALREADY_RUNNING"
     STARTED_NOT_READY = "STARTED_NOT_READY"
+    START_CANCELLED = "START_CANCELLED"
     STOPPED = "STOPPED"
     ALREADY_STOPPED = "ALREADY_STOPPED"
     STOP_FAILED = "STOP_FAILED"
@@ -64,6 +66,7 @@ class InstanceOrchestrationOutcome:
     result_code: InstanceResultCode
     exit_code: int | None = None
     output_tail: str = ""
+    process_launched: bool = False
 
 
 class _HealthProbe(Protocol):
@@ -231,6 +234,17 @@ class LocalInstanceOrchestrator:
         self._health_timeout_seconds = health_timeout_seconds
         self._brain_settings_provider = brain_settings_provider
         self._brain_applier = brain_applier
+        self._action_locks_guard = Lock()
+        self._action_locks: dict[Path, object] = {}
+
+    def _action_lock(self, instance: LocalInstance):
+        key = instance.instance_root.resolve(strict=False)
+        with self._action_locks_guard:
+            lock = self._action_locks.get(key)
+            if lock is None:
+                lock = Lock()
+                self._action_locks[key] = lock
+            return lock
 
     def _require_inside_root(self, instance: LocalInstance) -> None:
         if not isinstance(instance, LocalInstance):
@@ -276,11 +290,25 @@ class LocalInstanceOrchestrator:
         except Exception:
             return "brain:APPLY_FAILED"
 
-    def start(self, instance: LocalInstance) -> InstanceOrchestrationOutcome:
+    def start(
+        self,
+        instance: LocalInstance,
+        *,
+        cancel_check: Callable[[], bool] | None = None,
+    ) -> InstanceOrchestrationOutcome:
         self._require_inside_root(instance)
+        cancelled = cancel_check or (lambda: False)
+        if cancelled():
+            return InstanceOrchestrationOutcome(
+                action="start", result_code=InstanceResultCode.START_CANCELLED
+            )
         if self._state(instance) is InstanceHealthState.READY:
             return InstanceOrchestrationOutcome(
                 action="start", result_code=InstanceResultCode.ALREADY_RUNNING
+            )
+        if cancelled():
+            return InstanceOrchestrationOutcome(
+                action="start", result_code=InstanceResultCode.START_CANCELLED
             )
         script = _single_script(instance.instance_root, "Start-*.cmd")
         if script is None:
@@ -288,32 +316,63 @@ class LocalInstanceOrchestrator:
                 action="start", result_code=InstanceResultCode.SCRIPT_MISSING
             )
         brain_note = self._apply_brain(instance)
-        try:
-            self._launcher(script, instance.instance_root)
-        except OSError as exc:
+        if cancelled():
             return InstanceOrchestrationOutcome(
-                action="start",
-                result_code=InstanceResultCode.LAUNCH_FAILED,
-                output_tail=(brain_note + " " + str(exc))[-500:],
+                action="start", result_code=InstanceResultCode.START_CANCELLED
             )
+        with self._action_lock(instance):
+            if cancelled():
+                return InstanceOrchestrationOutcome(
+                    action="start", result_code=InstanceResultCode.START_CANCELLED
+                )
+            try:
+                self._launcher(script, instance.instance_root)
+            except OSError as exc:
+                return InstanceOrchestrationOutcome(
+                    action="start",
+                    result_code=InstanceResultCode.LAUNCH_FAILED,
+                    output_tail=(brain_note + " " + str(exc))[-500:],
+                )
         deadline = self._clock_fn() + self._startup_timeout_seconds
         while self._clock_fn() < deadline:
+            if cancelled():
+                return InstanceOrchestrationOutcome(
+                    action="start",
+                    result_code=InstanceResultCode.START_CANCELLED,
+                    process_launched=True,
+                )
             self._sleep_fn(self._poll_interval_seconds)
+            if cancelled():
+                return InstanceOrchestrationOutcome(
+                    action="start",
+                    result_code=InstanceResultCode.START_CANCELLED,
+                    process_launched=True,
+                )
             if self._state(instance) is InstanceHealthState.READY:
                 return InstanceOrchestrationOutcome(
                     action="start",
                     result_code=InstanceResultCode.RUNNING,
                     output_tail=brain_note,
+                    process_launched=True,
                 )
         return InstanceOrchestrationOutcome(
             action="start",
             result_code=InstanceResultCode.STARTED_NOT_READY,
             output_tail=brain_note,
+            process_launched=True,
         )
 
-    def stop(self, instance: LocalInstance) -> InstanceOrchestrationOutcome:
+    def stop(
+        self, instance: LocalInstance, *, force: bool = False
+    ) -> InstanceOrchestrationOutcome:
         self._require_inside_root(instance)
-        if self._state(instance) is InstanceHealthState.STOPPED:
+        with self._action_lock(instance):
+            return self._stop_locked(instance, force=force)
+
+    def _stop_locked(
+        self, instance: LocalInstance, *, force: bool
+    ) -> InstanceOrchestrationOutcome:
+        if not force and self._state(instance) is InstanceHealthState.STOPPED:
             return InstanceOrchestrationOutcome(
                 action="stop", result_code=InstanceResultCode.ALREADY_STOPPED
             )

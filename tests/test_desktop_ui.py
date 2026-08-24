@@ -648,14 +648,38 @@ def test_instance_start_selected_delegates_to_service(root) -> None:
     )
     app.start_background_operations()
     root.update()
+    service.instance_actions.clear()
     beta_row = app._instance_rows["Serena-Beta"]
     app.instance_tree.selection_set(beta_row)
     app.instance_tree.focus(beta_row)
 
-    app.start_selected_instance()
+    for _ in range(5):
+        beta_row = app._instance_rows["Serena-Beta"]
+        app.instance_tree.selection_set(beta_row)
+        app.instance_tree.focus(beta_row)
+        app.start_selected_instance()
+        root.update()
+
+    assert service.instance_actions == [("Serena-Beta", "start")] * 5
+    assert app._instance_start_futures == set()
+
+
+def test_instance_stop_selected_delegates_canonical_stop_to_service(root) -> None:
+    service = FakeInstanceService(sample_snapshot())
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+    app.start_background_operations()
+    root.update()
+    service.instance_actions.clear()
+    alpha_row = app._instance_rows["Serena-Alpha"]
+    app.instance_tree.selection_set(alpha_row)
+    app.instance_tree.focus(alpha_row)
+
+    app.stop_selected_instance()
     root.update()
 
-    assert ("Serena-Beta", "start") in service.instance_actions
+    assert service.instance_actions == [("Serena-Alpha", "stop")]
 
 
 def test_instance_toggle_auto_persists_through_service(root) -> None:
@@ -863,7 +887,7 @@ def test_worker_start_routes_to_matching_connector(root) -> None:
     app.start_selected()
     root.update()
 
-    assert ("Serena-Alpha", "start-w") in service.instance_actions
+    assert ("Serena-Alpha", "start") in service.instance_actions
 
 
 def test_worker_start_blocked_without_connector_or_setup(root) -> None:

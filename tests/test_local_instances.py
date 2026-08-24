@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Event, Thread
+import time
 
 import pytest
 
@@ -197,6 +199,139 @@ def test_orchestrator_start_timeout_reports_not_ready(tmp_path: Path) -> None:
     outcome = orchestrator.start(instance)
 
     assert outcome.result_code is InstanceResultCode.STARTED_NOT_READY
+
+
+def test_orchestrator_start_cancels_without_waiting_for_startup_timeout(
+    tmp_path: Path,
+) -> None:
+    make_instance_dir(tmp_path, "demo")
+    instance = discover_local_instances(tmp_path)[0]
+    cancelled = {"value": False}
+    sleeps: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        cancelled["value"] = True
+
+    orchestrator = LocalInstanceOrchestrator(
+        instances_root=tmp_path,
+        probe=probe_returning(InstanceHealthState.STOPPED),
+        launcher=lambda script, cwd: None,
+        sleep_fn=fake_sleep,
+        startup_timeout_seconds=30,
+    )
+
+    outcome = orchestrator.start(
+        instance,
+        cancel_check=lambda: cancelled["value"],
+    )
+
+    assert outcome.result_code is InstanceResultCode.START_CANCELLED
+    assert outcome.process_launched is True
+    assert sleeps == [0.5]
+
+
+def test_orchestrator_cancellation_after_brain_apply_prevents_launch(
+    tmp_path: Path,
+) -> None:
+    make_instance_dir(tmp_path, "demo")
+    instance = discover_local_instances(tmp_path)[0]
+    cancelled = {"value": False}
+    launched: list[Path] = []
+
+    def apply_brain(_instance, _profile) -> str:
+        cancelled["value"] = True
+        return "APPLIED"
+
+    orchestrator = LocalInstanceOrchestrator(
+        instances_root=tmp_path,
+        probe=probe_returning(InstanceHealthState.STOPPED),
+        launcher=lambda script, cwd: launched.append(script),
+        brain_settings_provider=lambda: object(),
+        brain_applier=apply_brain,
+    )
+
+    outcome = orchestrator.start(
+        instance,
+        cancel_check=lambda: cancelled["value"],
+    )
+
+    assert outcome.result_code is InstanceResultCode.START_CANCELLED
+    assert outcome.process_launched is False
+    assert launched == []
+
+
+def test_orchestrator_force_stop_runs_script_for_pending_start(tmp_path: Path) -> None:
+    make_instance_dir(tmp_path, "demo")
+    instance = discover_local_instances(tmp_path)[0]
+    waited: list[tuple[list[str], int]] = []
+
+    def waiter(command: list[str], timeout: int) -> tuple[int, str]:
+        waited.append((command, timeout))
+        return (0, "stopped")
+
+    orchestrator = LocalInstanceOrchestrator(
+        instances_root=tmp_path,
+        probe=probe_returning(InstanceHealthState.STOPPED),
+        waiter=waiter,
+    )
+
+    outcome = orchestrator.stop(instance, force=True)
+
+    assert outcome.result_code is InstanceResultCode.STOPPED
+    assert len(waited) == 1
+
+
+def test_force_stop_waits_for_launcher_handoff(tmp_path: Path) -> None:
+    make_instance_dir(tmp_path, "demo")
+    instance = discover_local_instances(tmp_path)[0]
+    launcher_entered = Event()
+    release_launcher = Event()
+    cancelled = Event()
+    stop_finished = Event()
+    order: list[str] = []
+
+    def launcher(_script: Path, _cwd: Path) -> None:
+        order.append("launcher-enter")
+        launcher_entered.set()
+        assert release_launcher.wait(1.0)
+        order.append("launcher-exit")
+
+    def waiter(_command: list[str], _timeout: int) -> tuple[int, str]:
+        order.append("stop-script")
+        return (0, "stopped")
+
+    orchestrator = LocalInstanceOrchestrator(
+        instances_root=tmp_path,
+        probe=probe_returning(InstanceHealthState.STOPPED),
+        launcher=launcher,
+        waiter=waiter,
+        sleep_fn=lambda _seconds: None,
+    )
+    start_thread = Thread(
+        target=lambda: orchestrator.start(
+            instance, cancel_check=cancelled.is_set
+        )
+    )
+    stop_thread = Thread(
+        target=lambda: (
+            orchestrator.stop(instance, force=True),
+            stop_finished.set(),
+        )
+    )
+
+    start_thread.start()
+    assert launcher_entered.wait(1.0)
+    cancelled.set()
+    stop_thread.start()
+    time.sleep(0.05)
+    assert not stop_finished.is_set()
+    release_launcher.set()
+    start_thread.join(1.0)
+    stop_thread.join(1.0)
+
+    assert stop_finished.is_set()
+    assert order == ["launcher-enter", "launcher-exit", "stop-script"]
 
 
 def test_orchestrator_start_rejects_instance_outside_root(tmp_path: Path) -> None:
