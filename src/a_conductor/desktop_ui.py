@@ -792,6 +792,21 @@ class AConductorDesktopApp:
         self.prefs_button = self._button(top, tr("btn.settings"), self.open_preferences)
         self.prefs_button.grid(row=0, column=4, sticky="e", padx=(0, 8), pady=6)
         _attach_tip(self.prefs_button, tr("tip.settings"), self.theme)
+
+        # Interactive particle-face logo (top-right, after buttons)
+        try:
+            from .interactive_logo import InteractiveLogo
+
+            self._logo = InteractiveLogo(top, size=48)
+            self._logo.grid(row=0, column=5, sticky="e", padx=(0, 6), pady=4)
+            self._logo.start()
+            _attach_tip(
+                self._logo.canvas,
+                "A-Sunday Conductor — ขยับเมาส์ดูสายตาตามเมาส์\nMove your mouse — the eyes follow you!",
+                self.theme,
+            )
+        except Exception:
+            self._logo = None
         if not all(
             callable(getattr(self.service, name, None))
             for name in ("get_preference", "set_preference")
