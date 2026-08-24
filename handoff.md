@@ -82,3 +82,7 @@ WO-P1-063 real-monitor extension: after the terminal-command-center visual slice
 ## Resume checkpoint — WO-P1-063 real monitor implemented
 
 Branch: `feat/terminal-command-center-redesign`. The native terminal-command-center redesign is implemented in the working tree and real CPU/RAM/app-uptime monitoring is now wired into SYSTEM OVERVIEW. New files: `src/a_conductor/system_metrics.py`, `tests/test_system_metrics.py`. Real UI smoke measured CPU 5%, RAM 9.2 / 15.9 GB, uptime 00:00:03; monitor timer cancelled cleanly. Focused redesign/GPU/monitor suite: 37 passed, 1 environment skip. Known local ESET fresh `.ps1` / fresh PE locks remain environment blockers; rely on GitHub CI for authoritative regression. Next safe action: commit implementation checkpoint, push/open PR, run 3-OS CI, fix real failures only, merge/fetch, rebuild/reinstall and visually compare with `DESIGN.md`.
+
+## PR #77 handoff
+
+Remote checkpoint exists: commit `c42d174` on `origin/feat/terminal-command-center-redesign`, Draft PR #77. Initial GitHub checks are pending (Windows test, Ubuntu smoke, macOS smoke). Resume by reading PR #77/check results, not by reimplementing the feature. Finish staff review -> CI repair if needed -> Portable/Setup -> fresh install/relaunch -> visual/interaction acceptance -> SSoT COMPLETE -> merge/fetch main.

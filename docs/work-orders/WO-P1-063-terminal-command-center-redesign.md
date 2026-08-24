@@ -152,3 +152,7 @@ Implemented factual system monitoring as part of the command-center overview:
 - Portable build previously completed at ~24.3 MB and included Sunday Family/GPU assets, but fresh-PE ESET lock still blocks immediate frozen/Setup continuation locally.
 
 Next release loop: final staff review -> broader CI-equivalent regression -> commit/push -> PR -> GitHub 3-OS CI -> fix real failures only -> merge -> fetch main -> rebuild Setup/Portable -> fresh install/relaunch -> visual acceptance against `DESIGN.md`.
+
+## Checkpoint — 2026-08-24 / Draft PR #77
+
+Implementation checkpoint committed as `c42d174` (`feat(ui): build terminal command center monitor`) and pushed to `origin/feat/terminal-command-center-redesign`. Draft PR: #77 `feat(ui): terminal command-center redesign with real monitor`. Initial CI state: Windows `test`, Ubuntu `cross-platform-smoke`, and macOS `cross-platform-smoke` all pending. Do not merge until CI is green and final installer/fresh-install visual acceptance against `DESIGN.md` is complete.
