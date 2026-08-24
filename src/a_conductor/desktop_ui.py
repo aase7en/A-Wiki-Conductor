@@ -799,6 +799,14 @@ class AConductorDesktopApp:
 
             self._logo = InteractiveLogo(top, size=48)
             self._logo.grid(row=0, column=5, sticky="e", padx=(0, 6), pady=4)
+
+            # Try to load the custom face image; fall back to placeholder
+            logo_path = find_icon_path().parent / "logo-face.png" if find_icon_path() else None
+            if logo_path is None:
+                logo_path = Path(__file__).resolve().parents[2] / "assets" / "logo-face.png"
+            if logo_path and logo_path.is_file():
+                self._logo.load_image(logo_path)
+
             self._logo.start()
             _attach_tip(
                 self._logo.canvas,
