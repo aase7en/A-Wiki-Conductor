@@ -90,17 +90,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     root = tk.Tk()
     root.withdraw()
 
-    # Splash screen (3s) with pixel logo, version, and credits — then main UI
+    # Build the app immediately (hidden), then show splash → reveal
+    app = AConductorDesktopApp(root, service=service)
+
+    def reveal_main_window():
+        if root.winfo_exists():
+            root.deiconify()
+            app.start_background_operations()
+
     try:
         from .splash import show_splash
 
-        show_splash(APP_NAME, APP_VERSION)
+        show_splash(root, APP_NAME, APP_VERSION, on_done=reveal_main_window)
     except Exception:
-        pass  # never block startup on the splash
+        reveal_main_window()
 
-    root.deiconify()
-    app = AConductorDesktopApp(root, service=service)
-    app.start_background_operations()
     root.mainloop()
     return 0
 

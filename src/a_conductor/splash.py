@@ -39,14 +39,19 @@ HEIGHT = ROWS * PIXEL_SIZE + 120
 
 
 class SplashScreen:
-    """Animated pixel-particle splash with version and credits."""
+    """Animated pixel-particle splash with version and credits.
 
-    def __init__(self, app_name: str, version: str, developer: str = "Human + AI 'A'") -> None:
-        self.root = tk.Tk()
+    Uses a Toplevel of the parent window — never creates its own Tk()
+    instance (two Tk instances on Windows breaks the parent's event loop).
+    """
+
+    def __init__(self, parent: tk.Tk, app_name: str, version: str, developer: str = "Human + AI 'A'") -> None:
+        self.root = tk.Toplevel(parent)
         self.root.title("A-Sunday Conductor")
         self.root.overrideredirect(True)
         self.root.configure(bg="#0A0E1A")
         self.root.geometry(f"{WIDTH}x{HEIGHT}+{self._center_x()}+{self._center_y()}")
+        self.root.attributes("-topmost", True)
 
         self.canvas = tk.Canvas(
             self.root, width=WIDTH, height=HEIGHT, bg="#0A0E1A",
@@ -59,7 +64,6 @@ class SplashScreen:
         self._draw_pixel_logo()
         self._init_particles()
         self._draw_text(app_name, version, developer)
-        self.root.after(3000, self._close)
 
     def _center_x(self) -> int:
         return (self.root.winfo_screenwidth() - WIDTH) // 2
@@ -145,15 +149,19 @@ class SplashScreen:
         except tk.TclError:
             pass
 
-    def show(self) -> None:
-        self._animate_particles()
-        self.root.mainloop()
 
-
-def show_splash(app_name: str, version: str, developer: str = "Human + AI 'A'") -> None:
-    """Display the splash for ~3 seconds, then close."""
+def show_splash(parent: tk.Tk, app_name: str, version: str, developer: str = "Human + AI 'A'", on_done=None) -> None:
+    """Display the splash for ~3 seconds as a Toplevel, then call on_done."""
     try:
-        splash = SplashScreen(app_name, version, developer)
-        splash.show()
+        splash = SplashScreen(parent, app_name, version, developer)
+
+        def finish():
+            splash._close()
+            if on_done:
+                on_done()
+
+        splash._animate_particles()
+        parent.after(3000, finish)
     except tk.TclError:
-        pass
+        if on_done:
+            on_done()
