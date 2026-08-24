@@ -12,4 +12,4 @@ APP_NAME = "A-Sunday Conductor"
 
 # Product version. Kept in sync with pyproject.toml by
 # tests/test_build_installer.py::test_pyproject_version_matches_branding.
-APP_VERSION = "0.4.3"
+APP_VERSION = "0.5.0"
