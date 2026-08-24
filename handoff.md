@@ -4,6 +4,20 @@ Last updated: 2026-08-24 (GLM 5.3, v0.5.0 compact-ready) (GPT-5.6 Sol + SunDay-W
 
 ## Current objective
 
+Execute `WO-P1-063` from the clean v0.5.0 baseline: restyle/reorganize the native desktop application to the user-approved minimal terminal command-center design while preserving all existing control-plane behavior. Visual authority: `DESIGN.md`.
+
+## WO-P1-063 resume state
+
+- Branch: `feat/terminal-command-center-redesign`; base `main`/`origin/main` = `e131b8baffcd160d96b95db9e9380e6e2b4346c0`.
+- Initial working tree was clean.
+- SSoT/design gate complete; production source not yet changed at this checkpoint.
+- Master brand asset: `assets/sunday-family-particle.png` (1448×1086).
+- Preserve Add Brain, Add Connector, English buttons + localized help, copy logs, atomic assignment replacement, Donate, and lifecycle safety.
+- Pointer motion must remain subtle: eyes ~2–3 px target; face/head parallax lower (~1–2 px), smooth return, no uncanny motion.
+- Do not reintroduce periodic PowerShell/cmd subprocesses; read `DEFECT_LESSONS.md` before src edits.
+
+## Previous objective (historical)
+
 Finish `WO-P1-061` Sunday Family native GPU particle portrait with strict grayscale fidelity, then execute `WO-P1-062` responsive/global UI refresh. The repo plan was updated before WO-P1-062 implementation as explicitly required by the user.
 
 ## Status

@@ -4,6 +4,10 @@ Last updated: 2026-08-24 (GLM 5.3, v0.5.0 UI redesign + compact) (GPT-5.6 Sol + 
 
 ## Current phase
 
+**WO-P1-063 IN_PROGRESS — Terminal Command-Center Redesign.** Owner: GPT-5.6 Sol + SunDay-Worker 1. Branch: `feat/terminal-command-center-redesign`, based on clean `main`/`origin/main` `e131b8b`. User-approved direction is recorded in `DESIGN.md`: lightweight native Tk/Ttk command-center UI, Sunday Family master portrait, Add Brain primary header action, gentle eye/face pointer motion, and preservation of all v0.5.0 safety/UX capabilities. Planning/claim gate is active; production code mutation starts only after this SSoT checkpoint.
+
+**Reconciled baseline:** v0.5.0 capabilities from WO-P1-061/062 are already present on `main`; WO-P1-062 is closed as baseline rather than reimplemented. Targeted UI/i18n/control-center assertions pass, with the known Windows pytest cleanup WinError 5 occurring after assertions in the local Hermes environment.
+
 **WO-P1-061 IN_PROGRESS — GPU Sunday Family particle portrait.** Current execution surface: GPT-5.6 Sol + SunDay-Worker 2 after Worker 4/5 transport loss. Branch: `feat/gpu-sunday-family-particles-clean` from main `5b77d11`. Visual contract is now explicit: Sunday Family particles are white/gray only on black, very small/fine, and should preserve maximum fidelity to `assets/sunday-family-particle.png`; eye tracking must not introduce color.
 
 Checklist: GPU/native implementation = DONE; source asset = DONE; clean-scope recovery = DONE; grayscale/fidelity regression = DONE; native GPU + forced fallback E2E = DONE; portable build/package graph = DONE; fresh frozen smoke = BLOCKED_LOCAL_SECURITY (ESET/PE lock; GitHub CI is final authority); combined final review/PR/merge = NOT_STARTED.

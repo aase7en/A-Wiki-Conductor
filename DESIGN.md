@@ -1,0 +1,135 @@
+# A-Sunday Conductor — Product UI / Interaction Design SSoT
+
+Last updated: 2026-08-24
+Status: APPROVED DIRECTION — implementation authority for WO-P1-063
+
+## 1. Design intent
+
+A-Sunday Conductor should look and behave like a lightweight professional command-center application: minimal, dark, terminal/CMD/CLI-inspired, information-dense, and calm. It is a Windows desktop application, not a web app. Preserve the existing Tk desktop architecture and only use GPU/OpenGL inside the bounded Sunday Family particle logo where it materially improves the effect.
+
+Primary visual reference approved by the user on 2026-08-24: the dark A-Conductor command-center mockup with a compact Sunday Family portrait in the header, restrained borders, monospaced data, small status accents, a Projects sidebar, system overview, worker/connector tables, recent events, and a large terminal/log area.
+
+## 2. Non-negotiable visual rules
+
+- Dark near-black / charcoal / subtle navy surfaces.
+- Thin borders; no glossy cards, gradients, glass, large shadows, or decorative chrome.
+- Monospaced typography for IDs, paths, state, logs, metrics, and command-like text.
+- White / gray text first. Small semantic accents only: green healthy, amber warning, red destructive/error, muted blue informational/selection.
+- Color communicates state; it is not decoration.
+- Dense but readable spacing; wide windows use horizontal space rather than stacking controls unnecessarily.
+- Animation is subtle and optional-looking. No large movement and no animation that steals focus or changes layout geometry.
+- Graphs, when useful, use thin low-cost lines / tiny particle-like marks and update at a low frequency. Never spawn PowerShell/cmd/subprocesses from periodic render/monitor paths.
+
+## 3. Sunday Family logo authority
+
+Master source: `assets/sunday-family-particle.png` (1448×1086). This detailed portrait is the visual source of truth. `assets/logo-face.png` is legacy/compact fallback only and must not replace the master portrait.
+
+### Rendering
+
+- Background black.
+- Portrait points are white / neutral gray only.
+- Eyes may use a very small amber accent only when rendering the interactive logo state. The underlying portrait remains grayscale.
+- At small sizes, preserve recognisable face landmarks and silhouette by adaptive sampling rather than by switching to a different family illustration.
+- Particle points should be very fine. Prefer many small points over fewer large dots, within the performance budget.
+- `Sunday Family` framed badge remains part of the master image when the display size permits it; at very small sizes it may visually simplify naturally through sampling, but the source is never replaced.
+
+### Pointer motion
+
+The logo may react gently to the pointer:
+- eye-centre movement: target maximum about 2–3 px at the normal header size;
+- face/head parallax: target maximum about 1–2 px, lower than eye movement;
+- use smooth easing / spring return; no snapping;
+- no strong head turn, no exaggerated gaze, no uncanny effect;
+- movement should decay to neutral when the pointer leaves the application;
+- motion must not cause layout movement;
+- GPU renderer is preferred when available; Tk/Canvas fallback must remain safe and lightweight.
+
+## 4. Main-screen information architecture
+
+### Header
+
+Left cluster:
+1. compact Sunday Family particle portrait;
+2. `A-Sunday Conductor` / `A-CONDUCTOR` product title;
+3. short tagline: `Orchestrate. Execute. Observe.`;
+4. compact status chips (controller/online, workers/connectors, uptime only when real data exists);
+5. `Add Brain` is a first-class primary action near the product identity.
+
+Right cluster:
+- context-appropriate primary actions, English labels only;
+- Guide / Settings remain easy to reach;
+- actions should wrap only when width requires it.
+
+### Main workspace
+
+Wide / normal target:
+- left: PROJECTS sidebar/list with filter/search seam;
+- right/top: SYSTEM OVERVIEW with small factual counters/status, no invented metrics;
+- right/middle: WORKERS and CONNECTORS/INSTANCES in horizontally efficient tables;
+- optional RECENT EVENTS region where space permits;
+- bottom: command-console-like diagnostics area with tabs or compact sections for Terminal/Status, Logs, Events/Monitor. Existing copyable log behavior must be preserved.
+
+Compact target:
+- keep all controls reachable;
+- panels may stack vertically;
+- primary workflow remains ordered;
+- no horizontal clipping of critical actions.
+
+## 5. Existing behavior that must survive redesign
+
+- Add Brain primary entry.
+- Add Project / Assign / Add Worker / Start action flow.
+- Add Connector discoverability.
+- English action buttons globally.
+- Thai / Simplified Chinese / English localized help/tooltips while button labels stay English.
+- confirmed atomic assignment replacement.
+- copyable MONITOR and ACTIVITY / LOG while read-only.
+- Donate beside Check Update.
+- safe worker/connector lifecycle behavior and existing invariants.
+- GPU failure fallback.
+
+## 6. Performance budget / lightweight contract
+
+- UI framework remains Tk/Ttk; no Electron, browser, embedded web app, or framework rewrite.
+- No new periodic subprocess spawning.
+- Default UI update interval should be event-driven or low frequency where practical.
+- Particle animation is bounded to the logo region.
+- Header particle count adapts to rendered size; do not render the full source-resolution point count.
+- Target normal header logo animation >= 30 FPS on ordinary integrated graphics when GPU is available; fallback should remain responsive even if it renders fewer points.
+- Resize handlers must be debounced/stable and must not create configure loops.
+- Monitoring reads must stay native/file-based and follow `DEFECT_LESSONS.md`.
+
+## 7. Responsive rules
+
+- COMPACT `< 900px`: wrap controls, stack secondary regions if necessary.
+- STANDARD `900–1279px`: horizontal primary workflow; compact panels.
+- WIDE `>= 1280px`: use width aggressively; primary actions in one row where practical; major monitoring/log regions side-by-side or tabbed without wasted vertical stacking.
+- Layout is based on actual available widget width, not screen resolution.
+
+## 8. Accessibility / interaction
+
+- keyboard focus order follows operator workflow;
+- selected/active state must not rely on color alone;
+- all diagnostics remain selectable/copyable;
+- destructive actions remain visually distinct and confirmed where appropriate;
+- pointer animation is decorative/assistive only; it never blocks clicking or keyboard operation;
+- future reduced-motion preference must be possible without redesigning the renderer.
+
+## 9. Design verification
+
+A redesign is not accepted from screenshots alone. Verify:
+- 700-ish compact, 900-ish standard, 1280+, and maximized layouts;
+- all primary actions reachable;
+- no unintended button-language change after TH/zh-CN/EN switching;
+- Add Brain and Add Connector visible/discoverable;
+- Sunday Family portrait recognisable at actual header size;
+- eye/face motion subtle under real pointer movement;
+- app close cleans animation callbacks/context;
+- GPU-disabled fallback remains usable;
+- copy logs, assignment replacement, worker/connector operations still work;
+- build/package contains all assets and renderer dependencies;
+- fresh installed application is visually verified, preventing source-vs-installed drift.
+
+## 10. Cross-agent rule
+
+This file is the visual/interaction authority for the redesign. Agents must not independently invent a second visual direction. Implementation details may change after test/review evidence, but changes to the approved design intent must be recorded here and in the active work order before code diverges.
