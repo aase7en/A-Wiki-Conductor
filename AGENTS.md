@@ -7,11 +7,12 @@ A-Wiki Conductor is the project/repository name. **A-Sunday Conductor** is the p
 Before any non-trivial work, every ChatGPT session, GPT Work task, A-Worker, Serena session, Codex task, or external AI/coding agent must read, in order:
 
 1. `PROJECT-PLAN.md` — authoritative product vision, architecture, roadmap, constraints.
-2. `COLLAB.md` — A-Wiki cross-agent lanes, claims, work-order rules, pause/resume.
-3. `CURRENT-WORK.md` — current phase, active work order, checklist, blockers.
-4. `handoff.md` — latest verified resume state.
-5. The active `docs/work-orders/<id>.md`.
-6. `DEFECT_LESSONS.md` — บทเรียนจากข้อผิดพลาดที่เคยเกิดจริง (อ่านก่อนแก้โค้ดใน src/)
+2. `DESIGN.md` — authoritative product UI/interaction direction, responsive rules, Sunday Family logo/motion, and performance contract.
+3. `COLLAB.md` — A-Wiki cross-agent lanes, claims, work-order rules, pause/resume.
+4. `CURRENT-WORK.md` — current phase, active work order, checklist, blockers.
+5. `handoff.md` — latest verified resume state.
+6. The active `docs/work-orders/<id>.md`.
+7. `DEFECT_LESSONS.md` — บทเรียนจากข้อผิดพลาดที่เคยเกิดจริง (อ่านก่อนแก้โค้ดใน src/)
 
 ## Core continuity rule
 

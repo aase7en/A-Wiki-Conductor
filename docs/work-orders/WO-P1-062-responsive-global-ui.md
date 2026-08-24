@@ -1,6 +1,6 @@
 # WO-P1-062 — Responsive Global UI + Multilingual Guidance
 
-Created: 2026-08-24 · Owner: GPT-5.6 Sol + SunDay-Worker 1 · Status: DESIGN_REVIEW / PARTIAL_IMPLEMENTATION
+Created: 2026-08-24 · Owner: GPT-5.6 Sol + SunDay-Worker 1 · Status: COMPLETE / ABSORBED INTO v0.5.0 BASELINE
 Depends on: WO-P1-061 GPU Sunday Family particle portrait integration
 
 ## Goal
@@ -244,3 +244,7 @@ L. Defect memory, report, PR, CI/CD, fetch/merge.
 2026-08-24: requirements captured from user before implementation. No WO-P1-062 production
 code should be changed until this planning checkpoint and the linked routing research note are
 present in repo SSoT.
+
+## Closure — v0.5.0 baseline
+
+The responsive/global-language/copy-log/assignment/connector capabilities from this WO are present on `main` at the WO-P1-063 start gate. Further visual restructuring is owned by WO-P1-063 and `DESIGN.md`; do not reopen this WO to implement the same intent twice.

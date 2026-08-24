@@ -747,3 +747,19 @@ Approved UI direction:
 - Sunday Family particle rendering is grayscale-only (white/gray on black), with very small/fine dots and maximum visual fidelity to `assets/sunday-family-particle.png`; eye tracking changes geometry, not color.
 
 Implementation must EXTEND existing Tk layout/i18n/PanedWindow seams rather than introduce a parallel UI or i18n system. Model/agent work is divided by bounded ownership: GPT-5.6 Sol MAX owns hard architecture/integration/visual judgment/review; GLM-5.3 MAX is preferred for well-specified bulk implementation/refactor/test tickets; deterministic tools are preferred whenever judgment is unnecessary. Repository SSoT and one-owner-per-work-order prevent duplicate implementations.
+
+## 14. Approved Terminal Command-Center Redesign — 2026-08-24
+
+The user approved a new visual target for the native desktop app: a lightweight professional terminal/CMD/CLI command-center layout. `DESIGN.md` is the authoritative visual/interaction SSoT for this redesign.
+
+Key constraints:
+- keep Tk/Ttk as the desktop UI framework; no browser/web rewrite;
+- use the detailed `assets/sunday-family-particle.png` portrait as the brand master;
+- keep particle rendering bounded to the logo and use very fine white/gray points;
+- allow only gentle pointer-follow eye motion plus subtler face/head parallax;
+- keep `Add Brain` as a first-class header action;
+- preserve v0.5.0 behavior: responsive controls, English buttons, TH/zh-CN/EN help, Add Connector, copyable logs, atomic confirmed assignment replacement, Donate, lifecycle safety;
+- prefer thin borders, compact monospaced operational data, restrained semantic color, and low-cost/event-driven monitoring;
+- no periodic subprocess spawning in UI/monitor/render paths.
+
+Implementation and verification are tracked by `docs/work-orders/WO-P1-063-terminal-command-center-redesign.md`.

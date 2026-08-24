@@ -4,6 +4,20 @@ Last updated: 2026-08-24 (GLM 5.3, v0.5.0 compact-ready) (GPT-5.6 Sol + SunDay-W
 
 ## Current objective
 
+Execute `WO-P1-063` from the clean v0.5.0 baseline: restyle/reorganize the native desktop application to the user-approved minimal terminal command-center design while preserving all existing control-plane behavior. Visual authority: `DESIGN.md`.
+
+## WO-P1-063 resume state
+
+- Branch: `feat/terminal-command-center-redesign`; base `main`/`origin/main` = `e131b8baffcd160d96b95db9e9380e6e2b4346c0`.
+- Initial working tree was clean.
+- SSoT/design gate complete; production source not yet changed at this checkpoint.
+- Master brand asset: `assets/sunday-family-particle.png` (1448×1086).
+- Preserve Add Brain, Add Connector, English buttons + localized help, copy logs, atomic assignment replacement, Donate, and lifecycle safety.
+- Pointer motion must remain subtle: eyes ~2–3 px target; face/head parallax lower (~1–2 px), smooth return, no uncanny motion.
+- Do not reintroduce periodic PowerShell/cmd subprocesses; read `DEFECT_LESSONS.md` before src edits.
+
+## Previous objective (historical)
+
 Finish `WO-P1-061` Sunday Family native GPU particle portrait with strict grayscale fidelity, then execute `WO-P1-062` responsive/global UI refresh. The repo plan was updated before WO-P1-062 implementation as explicitly required by the user.
 
 ## Status
@@ -60,3 +74,15 @@ Read CURRENT-WORK.md "Next safe action": (a) trial `+ Worker` / `+ ตัวเ�
 ## Escalation
 
 GLM 5.3 owns routine work. Escalate to **GPT-5.6 Sol UltraHigh** only for genuinely hard cross-cutting defects/architecture ambiguity, after checkpointing state.
+
+## WO-P1-063 real-monitor extension
+
+WO-P1-063 real-monitor extension: after the terminal-command-center visual slice, add factual CPU/RAM/app-uptime monitoring to SYSTEM OVERVIEW. Use a lightweight sampler with Windows native APIs / non-subprocess platform fallbacks. UI refresh target 2–5 seconds, bounded CPU history, clean `after_cancel` during close. Never fabricate metrics to match the visual reference.
+
+## Resume checkpoint — WO-P1-063 real monitor implemented
+
+Branch: `feat/terminal-command-center-redesign`. The native terminal-command-center redesign is implemented in the working tree and real CPU/RAM/app-uptime monitoring is now wired into SYSTEM OVERVIEW. New files: `src/a_conductor/system_metrics.py`, `tests/test_system_metrics.py`. Real UI smoke measured CPU 5%, RAM 9.2 / 15.9 GB, uptime 00:00:03; monitor timer cancelled cleanly. Focused redesign/GPU/monitor suite: 37 passed, 1 environment skip. Known local ESET fresh `.ps1` / fresh PE locks remain environment blockers; rely on GitHub CI for authoritative regression. Next safe action: commit implementation checkpoint, push/open PR, run 3-OS CI, fix real failures only, merge/fetch, rebuild/reinstall and visually compare with `DESIGN.md`.
+
+## PR #77 handoff
+
+Remote checkpoint exists: commit `c42d174` on `origin/feat/terminal-command-center-redesign`, Draft PR #77. Initial GitHub checks are pending (Windows test, Ubuntu smoke, macOS smoke). Resume by reading PR #77/check results, not by reimplementing the feature. Finish staff review -> CI repair if needed -> Portable/Setup -> fresh install/relaunch -> visual/interaction acceptance -> SSoT COMPLETE -> merge/fetch main.

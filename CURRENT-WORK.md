@@ -4,6 +4,10 @@ Last updated: 2026-08-24 (GLM 5.3, v0.5.0 UI redesign + compact) (GPT-5.6 Sol + 
 
 ## Current phase
 
+**WO-P1-063 IN_PROGRESS — Terminal Command-Center Redesign.** Owner: GPT-5.6 Sol + SunDay-Worker 1. Branch: `feat/terminal-command-center-redesign`, based on clean `main`/`origin/main` `e131b8b`. User-approved direction is recorded in `DESIGN.md`: lightweight native Tk/Ttk command-center UI, Sunday Family master portrait, Add Brain primary header action, gentle eye/face pointer motion, and preservation of all v0.5.0 safety/UX capabilities. Planning/claim gate is active; production code mutation starts only after this SSoT checkpoint.
+
+**Reconciled baseline:** v0.5.0 capabilities from WO-P1-061/062 are already present on `main`; WO-P1-062 is closed as baseline rather than reimplemented. Targeted UI/i18n/control-center assertions pass, with the known Windows pytest cleanup WinError 5 occurring after assertions in the local Hermes environment.
+
 **WO-P1-061 IN_PROGRESS — GPU Sunday Family particle portrait.** Current execution surface: GPT-5.6 Sol + SunDay-Worker 2 after Worker 4/5 transport loss. Branch: `feat/gpu-sunday-family-particles-clean` from main `5b77d11`. Visual contract is now explicit: Sunday Family particles are white/gray only on black, very small/fine, and should preserve maximum fidelity to `assets/sunday-family-particle.png`; eye tracking must not introduce color.
 
 Checklist: GPU/native implementation = DONE; source asset = DONE; clean-scope recovery = DONE; grayscale/fidelity regression = DONE; native GPU + forced fallback E2E = DONE; portable build/package graph = DONE; fresh frozen smoke = BLOCKED_LOCAL_SECURITY (ESET/PE lock; GitHub CI is final authority); combined final review/PR/merge = NOT_STARTED.
@@ -164,3 +168,15 @@ One-stop installer: new users download Setup.exe → open → wizard auto-opens 
 ## Escalation rule
 
 GLM 5.3 owns routine implementation, TDD, regression, docs, PR/CI, merge. Escalate to GPT-5.6 Sol UltraHigh only for genuinely hard cross-cutting defects/architecture ambiguity, after checkpointing state.
+
+## WO-P1-063 real-monitor extension checkpoint
+
+Real-monitor extension checkpoint: user requested real CPU/RAM/app-uptime monitoring in the command-center overview. This extends WO-P1-063; it does not create a second dashboard. The implementation must use native/file-based sampling, no periodic subprocesses, bounded CPU history, and `—` for unavailable metrics. Claimed files include `src/a_conductor/system_metrics.py` and `tests/test_system_metrics.py` in addition to the existing WO-P1-063 UI scope.
+
+## WO-P1-063 implementation evidence — terminal command center + real monitor
+
+Current branch `feat/terminal-command-center-redesign` contains the implemented terminal command-center visual slice plus a real system-monitor extension. `SYSTEM OVERVIEW` now uses measured CPU/RAM/app uptime, not mockup numbers. New collector is `src/a_conductor/system_metrics.py`; it uses native Windows APIs / Linux `/proc`, no periodic subprocess. UI refresh = 2.5s, CPU history = max 60 points, callback cancels on close. Real UI smoke: CPU 5%, RAM 9.2 / 15.9 GB, uptime 00:00:03. Combined focused suite: 37 passed, 1 environment skip. Release loop is not complete until PR/CI/merge/fresh-install visual verification.
+
+## WO-P1-063 PR checkpoint
+
+Draft PR #77 is open from `feat/terminal-command-center-redesign`; implementation commit `c42d174` is pushed. CI started with Windows test + Ubuntu/macOS cross-platform smoke pending. Next owner must review actual PR diff and checks first, then fix only evidence-backed failures, finish packaging/fresh-install visual E2E, update SSoT, convert from draft/merge only after acceptance.
