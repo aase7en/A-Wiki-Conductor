@@ -285,6 +285,9 @@ def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
         "actions/upload-artifact@v4",
     ):
         assert required in workflow
+    # ``pyi-archive_viewer`` emits Windows member names with backslashes.  CI
+    # normalises both archives before comparing them with portable '/' paths.
+    assert workflow.count("-replace '\\\\', '/'") == 2
 
 
 def test_install_guide_matches_current_release_and_hkcu_contract() -> None:

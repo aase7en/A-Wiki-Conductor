@@ -71,6 +71,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "PORTABLE_ARCHIVE_READ_FAILED: exit $LASTEXITCODE"
           }
+          $archiveText = (Get-Content -LiteralPath $archive -Raw) -replace '\\', '/'
           $required = @(
             "assets/sunday-family-particle.png",
             "assets/logo-face.png",
@@ -86,7 +87,7 @@ jobs:
             "tk86t.dll"
           )
           foreach ($entry in $required) {
-            if (-not (Select-String -LiteralPath $archive -SimpleMatch $entry -Quiet)) {
+            if (-not $archiveText.Contains($entry)) {
               throw "PORTABLE_ARCHIVE_ENTRY_MISSING: $entry"
             }
           }
@@ -95,6 +96,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "SETUP_ARCHIVE_READ_FAILED: exit $LASTEXITCODE"
           }
+          $setupArchiveText = (Get-Content -LiteralPath $setupArchive -Raw) -replace '\\', '/'
           $setupRequired = @(
             "payload/installer-branding.json",
             "payload/A-Sunday Conductor.exe",
@@ -104,12 +106,12 @@ jobs:
             "payload/assets/a-conductor.ico"
           )
           foreach ($entry in $setupRequired) {
-            if (-not (Select-String -LiteralPath $setupArchive -SimpleMatch $entry -Quiet)) {
+            if (-not $setupArchiveText.Contains($entry)) {
               throw "SETUP_ARCHIVE_ENTRY_MISSING: $entry"
             }
           }
           foreach ($entry in @("a_conductor.desktop_ui", "PIL.Image", "OpenGL.GL")) {
-            if (Select-String -LiteralPath $setupArchive -SimpleMatch $entry -Quiet) {
+            if ($setupArchiveText.Contains($entry)) {
               throw "SETUP_ARCHIVE_UNEXPECTED_ENTRY: $entry"
             }
           }
