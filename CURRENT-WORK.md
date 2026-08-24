@@ -1,20 +1,18 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-24 (GLM 5.3, v0.5.0 UI redesign + compact) (GPT-5.6 Sol + SunDay-Worker 1, WO-P1-062 design review checkpoint)
+Last updated: 2026-08-25 (Codex / GPT-5.6 Sol, WO-P1-063 release-validation checkpoint)
 
 ## Current phase
 
-**WO-P1-063 IN_PROGRESS — Terminal Command-Center Redesign.** Owner: GPT-5.6 Sol + SunDay-Worker 1. Branch: `feat/terminal-command-center-redesign`, based on clean `main`/`origin/main` `e131b8b`. User-approved direction is recorded in `DESIGN.md`: lightweight native Tk/Ttk command-center UI, Sunday Family master portrait, Add Brain primary header action, gentle eye/face pointer motion, and preservation of all v0.5.0 safety/UX capabilities. Planning/claim gate is active; production code mutation starts only after this SSoT checkpoint.
+**WO-P1-063 RELEASE_VALIDATION — Terminal Command-Center completion.** One implementation owner: Codex / GPT-5.6 Sol. Branch: `fix/terminal-command-center-completion`; Draft PR **#79**. Current remote HEAD before this documentation checkpoint: `8abf2bfcb62dc435a39765d7c0e8552f50578290`, based on current `origin/main` `9782f933426bbd5970e9e571545da89402c6a9ed`.
 
-**Reconciled baseline:** v0.5.0 capabilities from WO-P1-061/062 are already present on `main`; WO-P1-062 is closed as baseline rather than reimplemented. Targeted UI/i18n/control-center assertions pass, with the known Windows pytest cleanup WinError 5 occurring after assertions in the local Hermes environment.
+**Repository/PR drift reconciled:** PR #77 was not waiting for review. GitHub marked it merged indirectly through PR #78 while it was still Draft, with no reviews; its original three CI jobs were green. The forward-only fixes and release evidence therefore live in PR #79. Do not reopen or recreate PR #77 work.
 
-**WO-P1-061 IN_PROGRESS — GPU Sunday Family particle portrait.** Current execution surface: GPT-5.6 Sol + SunDay-Worker 2 after Worker 4/5 transport loss. Branch: `feat/gpu-sunday-family-particles-clean` from main `5b77d11`. Visual contract is now explicit: Sunday Family particles are white/gray only on black, very small/fine, and should preserve maximum fidelity to `assets/sunday-family-particle.png`; eye tracking must not introduce color.
+**Verified on the PR #79 source tree:** exact Sunday Family master portrait visible through real `gpu-opengl` (~9,360 fine particles) and a seven-item lightweight Canvas raster fallback; real CPU/RAM/session uptime; subtle pointer return; deterministic callback/native-context cleanup; 700/900/1280/1600/maximized layouts; English actions and TH/zh-CN/EN guidance; Add Brain/Add Connector; copyable logs; atomic reassignment; sandbox connector flows. Full repository result: **1166 passed**. Real-system sandbox E2E: **23 passed** with the network-only test deselected.
 
-Checklist: GPU/native implementation = DONE; source asset = DONE; clean-scope recovery = DONE; grayscale/fidelity regression = DONE; native GPU + forced fallback E2E = DONE; portable build/package graph = DONE; fresh frozen smoke = BLOCKED_LOCAL_SECURITY (ESET/PE lock; GitHub CI is final authority); combined final review/PR/merge = NOT_STARTED.
+**Fresh package evidence:** Portable 24,282,484 bytes, SHA-256 `DB4921146FABA1E774B56F342EDE8178EADA3782DC59F669BB513D570206B0CA`; Setup 31,219,212 bytes, SHA-256 `F5C676406C36E265EE293721FB977DFB8C740B52E076BD58AC71A0A851D67574`. Frozen smoke exits 0. Recursive archive inspection contains both Sunday assets, GPU/metrics modules, ModernGL/OpenGL, Pillow, and Tcl/Tk. Windows CI now builds, inspects, smokes, and uploads both executables.
 
-**WO-P1-062 DESIGN_REVIEW / PARTIAL_IMPLEMENTATION — Responsive Global UI + Multilingual Guidance.** Actual working tree already contains partial implementation for requirements 1–10: responsive action-grid helper, ordered primary workflow, canonical English button labels, Thai/Chinese/English help preference, typewriter teaching line, Add Brain header placement, Donate footer placement, and horizontal MONITOR/ACTIVITY pane. Focused tests previously reached 25 passed. New requirements 11–13 are now in the WO: copyable diagnostics, confirmed assignment replacement, and Connector discoverability. GPT-5.6 Sol + SunDay-Worker 1 owns the current claim after Worker 2/3/5 transport failures.
-
-Brainstorming hard gate: Approach B (bounded domain + UI extension) is recommended and awaits user approval before new production implementation for requirements 11–13. Repository SSoT remains authoritative; do not let GLM later reimplement the same dirty intent—GLM should resume from the WO/diff or take a disjoint claimed slice. Routing evidence: `docs/research/model-routing-2026-08-24.md`.
+**Remaining release gates:** PR #79 current-HEAD CI; safe install preserving `%LOCALAPPDATA%\A-Conductor\control-center.sqlite`; real installed GPU/fallback/layout/language/copy/shutdown E2E; mark PR ready; final review/merge; fetch and rebuild/reinstall from main; then set WO/CURRENT-WORK/handoff to COMPLETE. WO-P1-061/062 are historical baseline capabilities, not active parallel implementation claims.
 
 ## Source-of-truth rule
 

@@ -1,8 +1,8 @@
 # WO-P1-063 — Terminal Command-Center Redesign
 
 Created: 2026-08-24
-Owner: GPT-5.6 Sol + SunDay-Worker 1
-Status: IN_PROGRESS — DESIGN/PLAN APPROVED, implementation pending gates
+Owner: Codex / GPT-5.6 Sol (one implementation owner; PR #79)
+Status: RELEASE_VALIDATION — Draft PR #79; source/package green, installed/CI/merge gates pending
 Depends on: v0.5.0 UI baseline; WO-P1-061/062 capabilities already present on `main`
 
 ## Goal
@@ -100,25 +100,25 @@ Preserve and test:
 
 ## Acceptance criteria
 
-- [ ] `DESIGN.md` is in the mandatory agent read path.
-- [ ] Main screen visually follows the approved minimal terminal command-center reference.
-- [ ] UI remains native Tk/Ttk; no browser/web rewrite.
-- [ ] Master family asset remains `assets/sunday-family-particle.png`.
-- [ ] Header logo is recognisable at actual small size using fine white/gray particles.
-- [ ] Interactive eyes use only restrained amber highlights; eye motion <= ~3 px target at normal header size.
-- [ ] Face/head parallax is subtler than eyes (<= ~2 px target) and smoothly returns to neutral.
-- [ ] Add Brain is clearly visible near product identity.
-- [ ] Wide window uses horizontal information hierarchy; compact window remains reachable.
-- [ ] Existing English buttons + tri-lingual help behavior remains intact.
-- [ ] Add Connector remains visible/discoverable.
-- [ ] MONITOR/ACTIVITY/diagnostics remain copyable and read-only.
-- [ ] Assign replacement still confirms and preserves atomic safety.
-- [ ] No new repeating subprocess-based monitor/render path.
-- [ ] Real CPU/RAM/app-uptime values are measured, never invented; unavailable values show `—`.
-- [ ] System metric refresh uses no subprocess and stops cleanly on app shutdown.
-- [ ] Tests cover design contracts and regressions.
-- [ ] Realistic E2E passes on source build.
-- [ ] Packaging includes the logo/GPU requirements and build succeeds.
+- [x] `DESIGN.md` is in the mandatory agent read path.
+- [x] Main screen visually follows the approved minimal terminal command-center reference.
+- [x] UI remains native Tk/Ttk; no browser/web rewrite.
+- [x] Master family asset remains `assets/sunday-family-particle.png`.
+- [x] Header logo is recognisable at actual small size using fine white/gray particles.
+- [x] Interactive eyes use only restrained amber highlights; eye motion <= ~3 px target at normal header size.
+- [x] Face/head parallax is subtler than eyes (<= ~2 px target) and smoothly returns to neutral.
+- [x] Add Brain is clearly visible near product identity.
+- [x] Wide window uses horizontal information hierarchy; compact window remains reachable.
+- [x] Existing English buttons + tri-lingual help behavior remains intact.
+- [x] Add Connector remains visible/discoverable.
+- [x] MONITOR/ACTIVITY/diagnostics remain copyable and read-only.
+- [x] Assign replacement still confirms and preserves atomic safety.
+- [x] No new repeating subprocess-based monitor/render path.
+- [x] Real CPU/RAM/app-uptime values are measured, never invented; unavailable values show `—`.
+- [x] System metric refresh uses no subprocess and stops cleanly on app shutdown.
+- [x] Tests cover design contracts and regressions.
+- [x] Realistic E2E passes on source build.
+- [x] Packaging includes the logo/GPU requirements and build succeeds.
 - [ ] Fresh installed/relaunched app is visually checked.
 - [ ] PR CI is green before merge.
 - [ ] Main is fetched after merge and continuity files say DONE with evidence.
@@ -153,6 +153,19 @@ Implemented factual system monitoring as part of the command-center overview:
 
 Next release loop: final staff review -> broader CI-equivalent regression -> commit/push -> PR -> GitHub 3-OS CI -> fix real failures only -> merge -> fetch main -> rebuild Setup/Portable -> fresh install/relaunch -> visual acceptance against `DESIGN.md`.
 
-## Checkpoint — 2026-08-24 / Draft PR #77
+## Historical checkpoint — 2026-08-24 / PR #77
 
-Implementation checkpoint committed as `c42d174` (`feat(ui): build terminal command center monitor`) and pushed to `origin/feat/terminal-command-center-redesign`. Draft PR: #77 `feat(ui): terminal command-center redesign with real monitor`. Initial CI state: Windows `test`, Ubuntu `cross-platform-smoke`, and macOS `cross-platform-smoke` all pending. Do not merge until CI is green and final installer/fresh-install visual acceptance against `DESIGN.md` is complete.
+Implementation checkpoint committed as `c42d174` (`feat(ui): build terminal command center monitor`) and pushed to `origin/feat/terminal-command-center-redesign`. GitHub later marked Draft PR #77 merged indirectly through PR #78 while it still had no reviews. Its Windows/Ubuntu/macOS checks were green, but those checks do not cover the forward-only completion fixes below. Do not resume work by mutating PR #77.
+
+## Checkpoint — 2026-08-25 / Draft PR #79 release validation
+
+- current branch: `fix/terminal-command-center-completion`; pushed source HEAD before this checkpoint: `8abf2bfcb62dc435a39765d7c0e8552f50578290`; base `origin/main`: `9782f933426bbd5970e9e571545da89402c6a9ed`;
+- exact master portrait renders through a real framebuffer-verified WGL path at ~9,360 particles; forced GPU-disabled fallback renders the same portrait as one raster plus six optional eye-core accents (seven Canvas items, zero particle ovals);
+- actual pointer sweep returns to neutral; 12 repeated real WGL create/destroy cycles reported successful native unbind/delete, stable GDI/USER resources after warm-up, zero callback errors;
+- responsive real windows verified at 700, 900, 1280, 1600, and maximized; the 700px System Overview uses compact one-row labels so no value or selectable Worker row is clipped;
+- real UI sample: CPU 29–30%, RAM 12.3 / 15.9 GB, uptime 00:00:03, bounded history populated; these are sample evidence only and are not hard-coded;
+- full repository regression: **1166 passed**; real-system sandbox E2E: **23 passed**, one network-only case deselected;
+- fresh Portable: 24,282,484 bytes, SHA-256 `DB4921146FABA1E774B56F342EDE8178EADA3782DC59F669BB513D570206B0CA`;
+- fresh Setup: 31,219,212 bytes, SHA-256 `F5C676406C36E265EE293721FB977DFB8C740B52E076BD58AC71A0A851D67574`;
+- frozen smoke exit 0; recursive archive check contains Sunday master/compact assets, GPU/metrics, ModernGL/OpenGL, Pillow, and Tcl/Tk; a Windows path-separator false-failure in the new archive CI gate was found locally, covered by test, and fixed before final CI;
+- Draft PR #79 is the sole forward completion PR. Remaining gates are current-HEAD CI, safe installed upgrade/E2E, ready review, merge, fetch main, rebuild/reinstall from main, and final COMPLETE continuity update.
