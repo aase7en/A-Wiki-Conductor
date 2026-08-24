@@ -1118,22 +1118,25 @@ class AConductorDesktopApp:
         def _overview_metric(column: int, label: str):
             cell = tk.Frame(metrics, bg=self.theme.panel)
             cell.grid(row=0, column=column, sticky="ew", padx=(0, 10 if column < 3 else 0))
-            tk.Label(
+            caption = tk.Label(
                 cell, text=label, bg=self.theme.panel, fg=self.theme.muted,
                 font=(self.theme.monospace_font, 8), anchor="w",
-            ).pack(side="left", anchor="w")
+            )
+            caption.pack(side="left", anchor="w")
             value = tk.Label(
                 cell, text="—", bg=self.theme.panel, fg=self.theme.foreground,
                 font=(self.theme.monospace_font, 12, "bold"), anchor="w",
             )
             value.pack(side="left", anchor="w", padx=(6, 0))
-            return value
+            return caption, value
 
-        self.overview_projects_value = _overview_metric(0, "PROJECTS")
-        self.overview_workers_value = _overview_metric(1, "WORKERS READY")
-        self.overview_connectors_value = _overview_metric(2, "CONNECTORS READY")
+        projects_caption, self.overview_projects_value = _overview_metric(0, "PROJECTS")
+        workers_caption, self.overview_workers_value = _overview_metric(1, "WORKERS READY")
+        connectors_caption, self.overview_connectors_value = _overview_metric(
+            2, "CONNECTORS READY"
+        )
         self.overview_connectors_value.configure(text="0 / 0")
-        self.overview_state_value = _overview_metric(3, "CONTROLLER")
+        state_caption, self.overview_state_value = _overview_metric(3, "CONTROLLER")
         self._make_responsive_metric_grid(
             metrics,
             tuple(
@@ -1145,6 +1148,14 @@ class AConductorDesktopApp:
                     self.overview_state_value,
                 )
             ),
+            captions=(
+                projects_caption,
+                workers_caption,
+                connectors_caption,
+                state_caption,
+            ),
+            full_labels=("PROJECTS", "WORKERS READY", "CONNECTORS READY", "CONTROLLER"),
+            compact_labels=("PROJECTS", "WORKERS", "CONNECTORS", "STATE"),
         )
 
         system_strip = tk.Frame(overview_panel, bg=self.theme.panel)
@@ -1616,31 +1627,48 @@ class AConductorDesktopApp:
         parent.bind("<Configure>", reflow, add="+")
         self._schedule_after(0, reflow)
 
-    def _make_responsive_metric_grid(self, parent: tk.Widget, cells) -> None:
+    def _make_responsive_metric_grid(
+        self,
+        parent: tk.Widget,
+        cells,
+        *,
+        captions,
+        full_labels,
+        compact_labels,
+    ) -> None:
         """Keep compact operational metrics complete instead of truncating text."""
         cells = tuple(cells)
-        state = {"columns": None}
+        captions = tuple(captions)
+        full_labels = tuple(full_labels)
+        compact_labels = tuple(compact_labels)
+        state = {"layout": None}
 
         def reflow(event=None) -> None:
             available = max(
                 1,
                 int(getattr(event, "width", None) or parent.winfo_width()),
             )
+            compact = available < 600
+            for caption, text in zip(
+                captions,
+                compact_labels if compact else full_labels,
+            ):
+                caption.configure(text=text)
             requested = [max(1, int(cell.winfo_reqwidth())) for cell in cells]
-            columns = 1
-            for candidate in (len(cells), 2, 1):
-                if candidate > len(cells):
-                    continue
-                column_widths = [0] * candidate
-                for index, width in enumerate(requested):
-                    column = index % candidate
-                    column_widths[column] = max(column_widths[column], width)
-                if sum(column_widths) + 10 * (candidate - 1) <= available:
-                    columns = candidate
-                    break
-            if state["columns"] == columns:
+            columns = len(cells) if compact else 1
+            if not compact:
+                for candidate in (len(cells), 2, 1):
+                    column_widths = [0] * candidate
+                    for index, width in enumerate(requested):
+                        column = index % candidate
+                        column_widths[column] = max(column_widths[column], width)
+                    if sum(column_widths) + 10 * (candidate - 1) <= available:
+                        columns = candidate
+                        break
+            layout = (columns, compact)
+            if state["layout"] == layout:
                 return
-            state["columns"] = columns
+            state["layout"] = layout
             for column in range(len(cells)):
                 parent.grid_columnconfigure(
                     column,

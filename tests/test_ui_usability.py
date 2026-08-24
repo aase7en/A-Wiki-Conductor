@@ -490,14 +490,26 @@ def test_system_overview_reflows_without_clipping_at_compact_width(
     metrics = cells[0].master
     right_edge = metrics.winfo_rootx() + metrics.winfo_width()
 
-    assert len({int(cell.grid_info()["row"]) for cell in cells}) > 1
+    assert {int(cell.grid_info()["row"]) for cell in cells} == {0}
     for cell in cells:
         assert cell.winfo_rootx() + cell.winfo_reqwidth() <= right_edge
+    assert [str(cell.winfo_children()[0].cget("text")) for cell in cells] == [
+        "PROJECTS",
+        "WORKERS",
+        "CONNECTORS",
+        "STATE",
+    ]
 
     root.geometry("900x680+20+20")
     root.update_idletasks()
     root.update()
     assert {int(cell.grid_info()["row"]) for cell in cells} == {0}
+    assert [str(cell.winfo_children()[0].cget("text")) for cell in cells] == [
+        "PROJECTS",
+        "WORKERS READY",
+        "CONNECTORS READY",
+        "CONTROLLER",
+    ]
 
 
 def test_real_system_metrics_render_in_overview(root, tmp_path: Path) -> None:
