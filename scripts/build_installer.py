@@ -13,6 +13,7 @@ Steps:
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -21,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from a_conductor.branding import APP_NAME  # noqa: E402
+from a_conductor.branding import APP_NAME, APP_VERSION  # noqa: E402
 from build_portable import _harden_cosmetic_pe_steps  # noqa: E402
 
 
@@ -44,6 +45,8 @@ def assemble_payload(root: Path, dist_dir: Path, payload_dir: Path) -> Path:
             print("  -> run scripts/build_portable.py first")
         raise SystemExit(1)
 
+    if payload_dir.exists():
+        shutil.rmtree(payload_dir)
     payload_dir.mkdir(parents=True, exist_ok=True)
     (payload_dir / "docs").mkdir(exist_ok=True)
     (payload_dir / "assets").mkdir(exist_ok=True)
@@ -52,15 +55,28 @@ def assemble_payload(root: Path, dist_dir: Path, payload_dir: Path) -> Path:
     shutil.copy2(guide_en, payload_dir / "docs" / "USER-GUIDE-EN.md")
     shutil.copy2(notices, payload_dir / "THIRD-PARTY-NOTICES.md")
     shutil.copy2(icon, payload_dir / "assets" / "a-conductor.ico")
+    (payload_dir / "installer-branding.json").write_text(
+        json.dumps(
+            {"app_name": APP_NAME, "app_version": APP_VERSION},
+            ensure_ascii=True,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     return payload_dir
 
 
 def pyinstaller_args(root: Path, payload_dir: Path, dist_dir: Path) -> list[str]:
     return [
         "--noconfirm",
+        "--clean",
         "--onefile",
         "--name",
         setup_exe_name(),
+        "--paths",
+        str(root / "src"),
+        "--icon",
+        str(root / "assets" / "a-conductor.ico"),
         "--add-data",
         f"{payload_dir};payload",
         "--distpath",

@@ -1,8 +1,8 @@
 # WO-P1-063 — Terminal Command-Center Redesign
 
 Created: 2026-08-24
-Owner: GPT-5.6 Sol + SunDay-Worker 1
-Status: IN_PROGRESS — DESIGN/PLAN APPROVED, implementation pending gates
+Owner: Codex / GPT-5.6 Sol (one implementation owner; PR #79)
+Status: RELEASE_VALIDATION — PR #79 candidate; source/package/installed green, final documentation CI/merge/main gates pending
 Depends on: v0.5.0 UI baseline; WO-P1-061/062 capabilities already present on `main`
 
 ## Goal
@@ -100,26 +100,26 @@ Preserve and test:
 
 ## Acceptance criteria
 
-- [ ] `DESIGN.md` is in the mandatory agent read path.
-- [ ] Main screen visually follows the approved minimal terminal command-center reference.
-- [ ] UI remains native Tk/Ttk; no browser/web rewrite.
-- [ ] Master family asset remains `assets/sunday-family-particle.png`.
-- [ ] Header logo is recognisable at actual small size using fine white/gray particles.
-- [ ] Interactive eyes use only restrained amber highlights; eye motion <= ~3 px target at normal header size.
-- [ ] Face/head parallax is subtler than eyes (<= ~2 px target) and smoothly returns to neutral.
-- [ ] Add Brain is clearly visible near product identity.
-- [ ] Wide window uses horizontal information hierarchy; compact window remains reachable.
-- [ ] Existing English buttons + tri-lingual help behavior remains intact.
-- [ ] Add Connector remains visible/discoverable.
-- [ ] MONITOR/ACTIVITY/diagnostics remain copyable and read-only.
-- [ ] Assign replacement still confirms and preserves atomic safety.
-- [ ] No new repeating subprocess-based monitor/render path.
-- [ ] Real CPU/RAM/app-uptime values are measured, never invented; unavailable values show `—`.
-- [ ] System metric refresh uses no subprocess and stops cleanly on app shutdown.
-- [ ] Tests cover design contracts and regressions.
-- [ ] Realistic E2E passes on source build.
-- [ ] Packaging includes the logo/GPU requirements and build succeeds.
-- [ ] Fresh installed/relaunched app is visually checked.
+- [x] `DESIGN.md` is in the mandatory agent read path.
+- [x] Main screen visually follows the approved minimal terminal command-center reference.
+- [x] UI remains native Tk/Ttk; no browser/web rewrite.
+- [x] Master family asset remains `assets/sunday-family-particle.png`.
+- [x] Header logo is recognisable at actual small size using fine white/gray particles.
+- [x] Interactive eyes use only restrained amber highlights; eye motion <= ~3 px target at normal header size.
+- [x] Face/head parallax is subtler than eyes (<= ~2 px target) and smoothly returns to neutral.
+- [x] Add Brain is clearly visible near product identity.
+- [x] Wide window uses horizontal information hierarchy; compact window remains reachable.
+- [x] Existing English buttons + tri-lingual help behavior remains intact.
+- [x] Add Connector remains visible/discoverable.
+- [x] MONITOR/ACTIVITY/diagnostics remain copyable and read-only.
+- [x] Assign replacement still confirms and preserves atomic safety.
+- [x] No new repeating subprocess-based monitor/render path.
+- [x] Real CPU/RAM/app-uptime values are measured, never invented; unavailable values show `—`.
+- [x] System metric refresh uses no subprocess and stops cleanly on app shutdown.
+- [x] Tests cover design contracts and regressions.
+- [x] Realistic E2E passes on source build.
+- [x] Packaging includes the logo/GPU requirements and build succeeds.
+- [x] Fresh installed/relaunched app is visually checked.
 - [ ] PR CI is green before merge.
 - [ ] Main is fetched after merge and continuity files say DONE with evidence.
 
@@ -153,6 +153,35 @@ Implemented factual system monitoring as part of the command-center overview:
 
 Next release loop: final staff review -> broader CI-equivalent regression -> commit/push -> PR -> GitHub 3-OS CI -> fix real failures only -> merge -> fetch main -> rebuild Setup/Portable -> fresh install/relaunch -> visual acceptance against `DESIGN.md`.
 
-## Checkpoint — 2026-08-24 / Draft PR #77
+## Historical checkpoint — 2026-08-24 / PR #77
 
-Implementation checkpoint committed as `c42d174` (`feat(ui): build terminal command center monitor`) and pushed to `origin/feat/terminal-command-center-redesign`. Draft PR: #77 `feat(ui): terminal command-center redesign with real monitor`. Initial CI state: Windows `test`, Ubuntu `cross-platform-smoke`, and macOS `cross-platform-smoke` all pending. Do not merge until CI is green and final installer/fresh-install visual acceptance against `DESIGN.md` is complete.
+Implementation checkpoint committed as `c42d174` (`feat(ui): build terminal command center monitor`) and pushed to `origin/feat/terminal-command-center-redesign`. GitHub later marked Draft PR #77 merged indirectly through PR #78 while it still had no reviews. Its Windows/Ubuntu/macOS checks were green, but those checks do not cover the forward-only completion fixes below. Do not resume work by mutating PR #77.
+
+## Checkpoint — 2026-08-25 / Draft PR #79 release validation
+
+- current branch: `fix/terminal-command-center-completion`; pushed source HEAD before this checkpoint: `8abf2bfcb62dc435a39765d7c0e8552f50578290`; base `origin/main`: `9782f933426bbd5970e9e571545da89402c6a9ed`;
+- exact master portrait renders through a real framebuffer-verified WGL path at ~9,360 particles; forced GPU-disabled fallback renders the same portrait as one raster plus six optional eye-core accents (seven Canvas items, zero particle ovals);
+- actual pointer sweep returns to neutral; 12 repeated real WGL create/destroy cycles reported successful native unbind/delete, stable GDI/USER resources after warm-up, zero callback errors;
+- responsive real windows verified at 700, 900, 1280, 1600, and maximized; the 700px System Overview uses compact one-row labels so no value or selectable Worker row is clipped;
+- real UI sample: CPU 29–30%, RAM 12.3 / 15.9 GB, uptime 00:00:03, bounded history populated; these are sample evidence only and are not hard-coded;
+- full repository regression: **1166 passed**; real-system sandbox E2E: **23 passed**, one network-only case deselected;
+- fresh Portable: 24,282,484 bytes, SHA-256 `DB4921146FABA1E774B56F342EDE8178EADA3782DC59F669BB513D570206B0CA`;
+- fresh Setup: 31,219,212 bytes, SHA-256 `F5C676406C36E265EE293721FB977DFB8C740B52E076BD58AC71A0A851D67574`;
+- frozen smoke exit 0; recursive archive check contains Sunday master/compact assets, GPU/metrics, ModernGL/OpenGL, Pillow, and Tcl/Tk; a Windows path-separator false-failure in the new archive CI gate was found locally, covered by test, and fixed before final CI;
+- first PR #79 run `32783280486`: Ubuntu/macOS green; Windows failed when the hosted virtual WGL driver access-violated inside `moderngl.create_context()` before Python could activate fallback. Classified as platform/test-environment incompatibility. Generic Windows CI now forces the deterministic Canvas path; real WGL remains a workstation/installed-app gate;
+- Draft PR #79 is the sole forward completion PR. Remaining gates are current-HEAD CI, safe installed upgrade/E2E, ready review, merge, fetch main, rebuild/reinstall from main, and final COMPLETE continuity update.
+
+## Checkpoint — 2026-08-25 / installed release candidate
+
+- pushed implementation HEAD `e3d4babb78859b9d5e218354b0ea0b5d14129484`; PR #79 run `32789507743` passed Windows test/package plus Ubuntu/macOS smoke;
+- full local repository regression before the bounded final shutdown optimization: **1175 passed**, with one transient local Tcl/Tk skip rerun successfully in focused coverage; final shutdown-focused regression passed and GitHub reran the full three-job matrix green;
+- a real installed close during connector autostart exposed redundant synchronous health polling. A failing regression proved the forced pending-launch path still probed once; the fix skips only that pre-force probe while retaining post-stop verification. Skeptical review verdict: GO;
+- source-process shutdown E2E improved from 8,091 ms to 4,361 ms in the same sandbox. The freshly installed one-file executable also created the stop marker and removed both frozen processes; the observed bounded close was 9,235 ms on the security-filtered workstation because cancellation, post-stop verification, wrapper reaping, and bootloader cleanup still complete before process exit;
+- final pre-merge Portable: 24,285,453 bytes, SHA-256 `FF55C476BF4FFA852CB78545EFA12EC69399F2E70D28432B303CB69EEE98BD15`;
+- final pre-merge Setup: 31,222,411 bytes, SHA-256 `26CEE072C2FFDAF934B11C47CB1D5D5D4CFE67D4CAD1032988E34BE2FA2D2D7D`;
+- recursive archive gate passed all 12 Portable requirements and all 6 Setup requirements, rejected duplicate full-app modules in Setup, and frozen smoke exited 0;
+- Setup exited 0 on its first attempt. Installed executable exactly matches the Portable hash; registered product is A-Sunday Conductor v0.6.0; the user database physical hash stayed unchanged and its logical contents remain identical to the consistent pre-test backup;
+- installed visual acceptance directly compared the real 1096×719 window with the user-reconfirmed wide near-black reference: detailed Sunday Family portrait visible, terminal hierarchy/density retained, Add Brain/Guide/Settings reachable, English actions preserved, and real CPU/RAM/uptime populated;
+- all five live connectors remained `STOPPED`; installed sandbox actions used only the temporary Sunday-Worker-Test instance.
+
+Remaining gates: commit this release evidence, require the resulting PR checks green, mark PR #79 ready, final diff review/merge, fetch merged `main`, rebuild/reinstall from `main`, repeat installed acceptance, and publish the final COMPLETE continuity checkpoint.

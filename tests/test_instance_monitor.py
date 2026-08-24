@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import Future
 from datetime import datetime
 from pathlib import Path
 
@@ -115,11 +116,27 @@ def make_app(root, tmp_path: Path):
 
     from a_conductor.desktop_control import DesktopControlService
     from a_conductor.desktop_ui import AConductorDesktopApp
+    from a_conductor.local_instances import InstanceHealthState, LocalInstance
 
     instances_root = tmp_path / "instances"
     instances_root.mkdir()
-    make_instance(instances_root)
+    instance_root = instances_root / "sunday-worker-1"
+    (instance_root / "logs").mkdir(parents=True)
+    (instance_root / "run").mkdir()
+    (instance_root / "config").mkdir()
+    (instance_root / "logs" / "sunday-worker-1-20260101.log").write_text(
+        "line1\nline2 ERROR boom\nline3\n", encoding="utf-8"
+    )
+    instance = LocalInstance(
+        name="Sunday-Worker-1",
+        project_path=str(tmp_path / "project"),
+        health_address="127.0.0.1:18011",
+        instance_root=instance_root,
+        tunnel_configured=False,
+    )
     service = DesktopControlService.open(tmp_path / "ui.sqlite", instances_root=instances_root)
+    service.instances = lambda: (instance,)
+    service.instance_states = lambda: ((instance, InstanceHealthState.STOPPED),)
     return AConductorDesktopApp(
         root, service=service, background_executor=ImmediateExecutor()
     )
@@ -143,3 +160,48 @@ def test_monitor_updates_on_selection(root, tmp_path: Path) -> None:
     app._update_monitor_now()
     content = app.monitor_text.get("1.0", "end")
     assert "Sunday-Worker-1" in content
+
+
+class PendingExecutor:
+    def __init__(self) -> None:
+        self.submissions: list[tuple] = []
+
+    def submit(self, fn, *args, **kwargs):
+        future = Future()
+        self.submissions.append((fn, args, kwargs, future))
+        return future
+
+    def shutdown(self, wait=False, cancel_futures=False):
+        return None
+
+
+def test_monitor_refresh_coalesces_while_one_sample_is_in_flight(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    app.refresh_instances()
+    root.update()
+    item = app.instance_tree.get_children()[0]
+    app.instance_tree.selection_set(item)
+    pending = PendingExecutor()
+    app._background_executor = pending
+
+    app._refresh_monitor_async()
+    app._refresh_monitor_async()
+    app._refresh_monitor_async()
+
+    assert len(pending.submissions) == 1
+    assert app._monitor_future is pending.submissions[0][3]
+    assert app._monitor_poll_after_id is not None
+
+
+def test_instance_refresh_replaces_monitor_cache_and_preserves_ready_total_header(
+    root, tmp_path: Path
+) -> None:
+    app = make_app(root, tmp_path)
+    app._monitor_instances["stale-instance"] = object()
+
+    app.refresh_instances()
+    root.update()
+    app.refresh()
+
+    assert set(app._monitor_instances) == {"Sunday-Worker-1"}
+    assert "CONNECTORS 0/1" in str(app.header_runtime_label.cget("text"))

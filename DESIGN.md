@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Product UI / Interaction Design SSoT
 
-Last updated: 2026-08-24
+Last updated: 2026-08-25
 Status: APPROVED DIRECTION — implementation authority for WO-P1-063
 
 ## 1. Design intent
@@ -8,6 +8,8 @@ Status: APPROVED DIRECTION — implementation authority for WO-P1-063
 A-Sunday Conductor should look and behave like a lightweight professional command-center application: minimal, dark, terminal/CMD/CLI-inspired, information-dense, and calm. It is a Windows desktop application, not a web app. Preserve the existing Tk desktop architecture and only use GPU/OpenGL inside the bounded Sunday Family particle logo where it materially improves the effect.
 
 Primary visual reference approved by the user on 2026-08-24: the dark A-Conductor command-center mockup with a compact Sunday Family portrait in the header, restrained borders, monospaced data, small status accents, a Projects sidebar, system overview, worker/connector tables, recent events, and a large terminal/log area.
+
+The user reconfirmed this exact visual direction on 2026-08-25 with the wide near-black command-center reference. Match its hierarchy, density, thin dividers, calm status accents, and horizontal use of space while retaining the product capabilities absent from the static mockup: Add Brain, Assign, Add Connector, Guide, copyable diagnostics, and lifecycle-safe controls.
 
 ## 2. Non-negotiable visual rules
 
@@ -32,6 +34,7 @@ Master source: `assets/sunday-family-particle.png` (1448×1086). This detailed p
 - At small sizes, preserve recognisable face landmarks and silhouette by adaptive sampling rather than by switching to a different family illustration.
 - Particle points should be very fine. Prefer many small points over fewer large dots, within the performance budget.
 - `Sunday Family` framed badge remains part of the master image when the display size permits it; at very small sizes it may visually simplify naturally through sampling, but the source is never replaced.
+- When GPU output cannot be proven visible, the Canvas fallback may resize the exact master portrait once and animate only a bounded image/eye-accent set. Do not approximate the family with thousands of per-frame Canvas ovals merely to preserve the word "particle."
 
 ### Pointer motion
 
@@ -98,6 +101,7 @@ Compact target:
 - Target normal header logo animation >= 30 FPS on ordinary integrated graphics when GPU is available; fallback should remain responsive even if it renders fewer points.
 - Resize handlers must be debounced/stable and must not create configure loops.
 - Monitoring reads must stay native/file-based and follow `DEFECT_LESSONS.md`.
+- GPU readiness requires observable framebuffer output, not merely a created context/buffer or a non-zero particle count. A blank or materially incomplete frame must fall back safely.
 
 ## 7. Responsive rules
 
@@ -105,6 +109,7 @@ Compact target:
 - STANDARD `900–1279px`: horizontal primary workflow; compact panels.
 - WIDE `>= 1280px`: use width aggressively; primary actions in one row where practical; major monitoring/log regions side-by-side or tabbed without wasted vertical stacking.
 - Layout is based on actual available widget width, not screen resolution.
+- At the minimum compact height, prefer shorter terminal captions such as `WORKERS`, `CONNECTORS`, and `STATE` over adding overview rows that hide selectable Worker rows. Values and meaning must remain complete and unambiguous.
 
 ## 8. Accessibility / interaction
 

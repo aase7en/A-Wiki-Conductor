@@ -9,10 +9,11 @@ from __future__ import annotations
 import os
 import re
 import sys
-from concurrent.futures import Executor, Future, ThreadPoolExecutor
+from concurrent.futures import Executor, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
+from threading import Event
 from typing import Callable, Protocol
 
 import tkinter as tk
@@ -54,7 +55,7 @@ def find_user_guide_path() -> Path | None:
     from .i18n import get_language
 
     names = ["USER-GUIDE.md"]
-    if get_language() == "en":
+    if get_language() in {"en", "zh-CN"}:
         names = ["USER-GUIDE-EN.md", "USER-GUIDE.md"]
     candidates: list[Path] = []
     bundle = getattr(sys, "_MEIPASS", None)
@@ -548,6 +549,7 @@ class RowPathTip:
         self._after = None
         tree.bind("<Motion>", self._on_motion, add="+")
         tree.bind("<Leave>", self._hide, add="+")
+        tree.bind("<Destroy>", self._hide, add="+")
 
     def _on_motion(self, event) -> None:
         row = self.tree.identify_row(event.y)
@@ -596,6 +598,8 @@ class ToolTip:
         self.tip: tk.Toplevel | None = None
         widget.bind("<Enter>", self._show, add="+")
         widget.bind("<Leave>", self._hide, add="+")
+        widget.bind("<FocusIn>", self._show, add="+")
+        widget.bind("<FocusOut>", self._hide, add="+")
 
     def _show(self, _event=None) -> None:
         text = self.text() if callable(self.text) else self.text
@@ -685,7 +689,7 @@ class DesktopTheme:
     muted: str = "#7d8794"
     accent: str = "#78a9e6"
     ready: str = "#66c985"
-    ready_dim: str = "#2f6743"
+    ready_dim: str = "#4f9a67"
     warning: str = "#ddb45f"
     error: str = "#df6b72"
     idle: str = "#808995"
@@ -720,6 +724,8 @@ class AConductorDesktopApp:
             max_workers=1, thread_name_prefix="a-conductor-ui"
         )
         self._owns_background_executor = background_executor is None
+        self._background_cancel_event = Event()
+        self._instance_start_futures: set[Future] = set()
         self._project_ids: list[str] = []
         self._project_paths: dict[str, str] = {}
         self._worker_ids: dict[str, str] = {}
@@ -727,10 +733,25 @@ class AConductorDesktopApp:
         self._setup_draft: WorkerSetupDraft | None = None
         self._instance_rows: dict[str, str] = {}
         self._row_path_tip_providers: dict = {}
+        self._row_path_menu_label_providers: dict = {}
         self._monitor_instances: dict = {}
         self._system_metrics_sampler = SystemMetricsSampler()
         self._system_metric_after_id = None
         self._cpu_history: list[float] = []
+        self._closing = False
+        self._ui_resources_stopped = False
+        self._scheduled_after_ids: set[str] = set()
+        self._status_pulse_after_id = None
+        self._monitor_tick_after_id = None
+        self._monitor_poll_after_id = None
+        self._monitor_future: Future | None = None
+        self._monitor_refresh_pending = False
+        self._pane_layout_after_id = None
+        self._activity_align_after_id = None
+        self._pane_layout_height = 0
+        self._worker_counts = (0, 0)
+        self._connector_counts = (0, 0)
+        self._preferences_window: tk.Toplevel | None = None
 
         self._configure_root()
         self._configure_styles()
@@ -751,15 +772,87 @@ class AConductorDesktopApp:
                 set_language("th")
         self.root.title(f"{APP_NAME} v{APP_VERSION}")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close_request)
+        self.root.bind("<Destroy>", self._on_root_destroy, add="+")
         self.root.configure(background=self.theme.background)
         self.root.geometry("1080x680")
-        self.root.minsize(700, 500)
+        # The three operational tiers (workers, connectors, monitor/log) cannot
+        # remain usable below this height without hiding controls.  Constrain
+        # the real window instead of allowing Tk's PanedWindow to collapse a
+        # tier to a few pixels.
+        self.root.minsize(700, 680)
         icon = find_icon_path()
         if icon is not None:
             try:
                 self.root.iconbitmap(str(icon))
             except tk.TclError:
                 pass
+
+    def _schedule_after(self, delay_ms: int, callback, *args) -> str | None:
+        """Schedule one owned Tk callback so shutdown can cancel it deterministically."""
+        if self._closing:
+            return None
+        holder: dict[str, str] = {}
+
+        def invoke() -> None:
+            callback_id = holder.get("id")
+            if callback_id is not None:
+                self._scheduled_after_ids.discard(callback_id)
+            if self._closing:
+                return
+            callback(*args)
+
+        try:
+            callback_id = self.root.after(max(0, int(delay_ms)), invoke)
+        except tk.TclError:
+            return None
+        holder["id"] = callback_id
+        self._scheduled_after_ids.add(callback_id)
+        return callback_id
+
+    def _cancel_after(self, callback_id: str | None) -> None:
+        if callback_id is None:
+            return
+        self._scheduled_after_ids.discard(callback_id)
+        try:
+            self.root.after_cancel(callback_id)
+        except (tk.TclError, ValueError):
+            pass
+
+    def _cancel_all_scheduled_callbacks(self) -> None:
+        for callback_id in tuple(self._scheduled_after_ids):
+            self._cancel_after(callback_id)
+
+    def _shutdown_ui_resources(self) -> None:
+        if self._ui_resources_stopped:
+            return
+        self._ui_resources_stopped = True
+        self._background_cancel_event.set()
+        self._stop_teaching_animation()
+        self._stop_system_monitor()
+        self._stop_status_pulse()
+        self._stop_instance_monitor()
+        self._cancel_after(self._pane_layout_after_id)
+        self._pane_layout_after_id = None
+        self._cancel_after(self._activity_align_after_id)
+        self._activity_align_after_id = None
+        self._cancel_all_scheduled_callbacks()
+        logo = getattr(self, "_logo", None)
+        if logo is not None:
+            try:
+                logo.destroy()
+            except Exception:
+                pass
+        if self._owns_background_executor:
+            try:
+                self._background_executor.shutdown(wait=False, cancel_futures=True)
+            except (RuntimeError, TypeError):
+                pass
+
+    def _on_root_destroy(self, event) -> None:
+        if event.widget is not self.root:
+            return
+        self._closing = True
+        self._shutdown_ui_resources()
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self.root)
@@ -774,8 +867,8 @@ class AConductorDesktopApp:
             bordercolor=self.theme.border,
             focusthickness=1,
             focuscolor=self.theme.accent,
-            padding=(8, 4),
-            font=(self.theme.monospace_font, max(8, self.theme.base_font_size - 1)),
+            padding=(2, 2),
+            font=(self.theme.monospace_font, max(8, self.theme.base_font_size - 2)),
         )
         style.map(
             "AConductor.TButton",
@@ -815,14 +908,14 @@ class AConductorDesktopApp:
             highlightbackground=self.theme.border,
         )
         self._header_frame = top
-        top.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 6))
+        top.grid(row=0, column=0, sticky="ew", padx=10, pady=(4, 2))
         top.grid_columnconfigure(3, weight=1)
 
         try:
             from .gpu_particle_logo import GPUParticleLogo
 
             self._logo = GPUParticleLogo(top, size=120)
-            self._logo.grid(row=0, column=0, sticky="w", padx=(10, 8), pady=5)
+            self._logo.grid(row=0, column=0, sticky="w", padx=(10, 8), pady=0)
             logo_path = find_particle_image_path()
             if logo_path is not None:
                 self._logo.load_image(logo_path)
@@ -912,7 +1005,7 @@ class AConductorDesktopApp:
             )
 
         top.bind("<Configure>", _reflow_header_actions, add="+")
-        top.after_idle(_reflow_header_actions)
+        self._schedule_after(0, _reflow_header_actions)
 
         if not all(
             callable(getattr(self.service, name, None))
@@ -929,11 +1022,11 @@ class AConductorDesktopApp:
             anchor="w",
             height=1,
         )
-        self._teaching_label.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 2))
+        self._teaching_label.grid(row=1, column=0, sticky="ew", padx=14, pady=0)
         self._restart_teaching_animation()
 
         workflow = tk.Frame(self.root, bg=self.theme.background)
-        workflow.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 4))
+        workflow.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 2))
         self._workflow_frame = workflow
         self.add_button = self._button(workflow, "Add Project", self.add_project)
         self.assign_button = self._button(workflow, "Assign", self.assign_selected)
@@ -991,7 +1084,7 @@ class AConductorDesktopApp:
 
         self.memory_status_label = tk.Label(
             project_panel,
-            text="สมองโปรเจกต์: เลือกโปรเจกต์เพื่อดูสถานะ",
+            text=tr("memory.select"),
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 8),
@@ -1022,54 +1115,77 @@ class AConductorDesktopApp:
         overview_panel.grid(row=0, column=0, sticky="ew", padx=(4, 0), pady=(0, 4))
         overview_panel.grid_columnconfigure(0, weight=1)
         metrics = tk.Frame(overview_panel, bg=self.theme.panel)
-        metrics.grid(row=1, column=0, sticky="ew", padx=9, pady=(0, 9))
+        metrics.grid(row=1, column=0, sticky="ew", padx=9, pady=(0, 4))
         for col in range(4):
             metrics.grid_columnconfigure(col, weight=1)
 
         def _overview_metric(column: int, label: str):
             cell = tk.Frame(metrics, bg=self.theme.panel)
-            cell.grid(row=0, column=column, sticky="ew", padx=(0, 14 if column < 3 else 0))
-            tk.Label(
+            cell.grid(row=0, column=column, sticky="ew", padx=(0, 10 if column < 3 else 0))
+            caption = tk.Label(
                 cell, text=label, bg=self.theme.panel, fg=self.theme.muted,
                 font=(self.theme.monospace_font, 8), anchor="w",
-            ).pack(anchor="w")
+            )
+            caption.pack(side="left", anchor="w")
             value = tk.Label(
                 cell, text="—", bg=self.theme.panel, fg=self.theme.foreground,
-                font=(self.theme.monospace_font, 15, "bold"), anchor="w",
+                font=(self.theme.monospace_font, 12, "bold"), anchor="w",
             )
-            value.pack(anchor="w", pady=(2, 0))
-            return value
+            value.pack(side="left", anchor="w", padx=(6, 0))
+            return caption, value
 
-        self.overview_projects_value = _overview_metric(0, "PROJECTS")
-        self.overview_workers_value = _overview_metric(1, "WORKERS READY")
-        self.overview_connectors_value = _overview_metric(2, "CONNECTORS READY")
+        projects_caption, self.overview_projects_value = _overview_metric(0, "PROJECTS")
+        workers_caption, self.overview_workers_value = _overview_metric(1, "WORKERS READY")
+        connectors_caption, self.overview_connectors_value = _overview_metric(
+            2, "CONNECTORS READY"
+        )
         self.overview_connectors_value.configure(text="0 / 0")
-        self.overview_state_value = _overview_metric(3, "CONTROLLER")
+        state_caption, self.overview_state_value = _overview_metric(3, "CONTROLLER")
+        self._make_responsive_metric_grid(
+            metrics,
+            tuple(
+                value.master
+                for value in (
+                    self.overview_projects_value,
+                    self.overview_workers_value,
+                    self.overview_connectors_value,
+                    self.overview_state_value,
+                )
+            ),
+            captions=(
+                projects_caption,
+                workers_caption,
+                connectors_caption,
+                state_caption,
+            ),
+            full_labels=("PROJECTS", "WORKERS READY", "CONNECTORS READY", "CONTROLLER"),
+            compact_labels=("PROJECTS", "WORKERS", "CONNECTORS", "STATE"),
+        )
 
         system_strip = tk.Frame(overview_panel, bg=self.theme.panel)
         self._system_metrics_frame = system_strip
-        system_strip.grid(row=2, column=0, sticky="ew", padx=9, pady=(0, 9))
+        system_strip.grid(row=2, column=0, sticky="ew", padx=9, pady=(0, 5))
         system_strip.grid_columnconfigure(3, weight=1)
 
         def _system_metric_cell(column: int, label: str, width: int):
             cell = tk.Frame(system_strip, bg=self.theme.panel)
-            cell.grid(row=0, column=column, sticky="w", padx=(0, 16))
+            cell.grid(row=0, column=column, sticky="w", padx=(0, 12))
             tk.Label(
                 cell, text=label, bg=self.theme.panel, fg=self.theme.muted,
                 font=(self.theme.monospace_font, 8), anchor="w",
-            ).pack(anchor="w")
+            ).pack(side="left", anchor="w")
             value = tk.Label(
                 cell, text="—", bg=self.theme.panel, fg=self.theme.foreground,
                 font=(self.theme.monospace_font, 10, "bold"), anchor="w", width=width,
             )
-            value.pack(anchor="w", pady=(1, 0))
+            value.pack(side="left", anchor="w", padx=(5, 0))
             return value
 
         self.overview_cpu_value = _system_metric_cell(0, "CPU", 6)
         self.overview_memory_value = _system_metric_cell(1, "MEMORY", 17)
         self.overview_uptime_value = _system_metric_cell(2, "UPTIME", 12)
         self._cpu_sparkline = tk.Canvas(
-            system_strip, width=150, height=30, bg=self.theme.panel,
+            system_strip, width=150, height=24, bg=self.theme.panel,
             highlightthickness=0, bd=0, takefocus=0,
         )
         self._cpu_sparkline.grid(row=0, column=3, sticky="ew", padx=(4, 0))
@@ -1085,6 +1201,10 @@ class AConductorDesktopApp:
             show="headings",
             selectmode="browse",
             style="Workers.Treeview",
+            # Keep PanedWindow's requested height compact. The pane expands
+            # with available space; a large Treeview default otherwise starves
+            # CONNECTORS and the console at the minimum supported window.
+            height=1,
         )
         headings = {
             "worker": ("WORKER", 120),
@@ -1098,23 +1218,25 @@ class AConductorDesktopApp:
             self.worker_tree.column(name, width=width, minwidth=80, anchor="w")
         worker_scroll = ttk.Scrollbar(worker_panel, orient="vertical", command=self.worker_tree.yview)
         self.worker_tree.configure(yscrollcommand=worker_scroll.set)
-        self.worker_tree.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 5))
-        worker_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 5))
+        self.worker_tree.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 2))
+        worker_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 2))
         self.worker_xscroll = ttk.Scrollbar(
             worker_panel, orient="horizontal", command=self.worker_tree.xview
         )
         self.worker_tree.configure(xscrollcommand=self.worker_xscroll.set)
-        self.worker_xscroll.grid(row=2, column=0, sticky="ew", padx=(9, 0), pady=(0, 4))
+        self.worker_xscroll.grid(row=2, column=0, sticky="ew", padx=(9, 0), pady=(0, 2))
         self.worker_tree.bind("<<TreeviewSelect>>", lambda _event: self._update_lifecycle_buttons())
         self.worker_tree.tag_configure("ready", foreground=self.theme.ready)
         self.worker_tree.tag_configure("warning", foreground=self.theme.warning)
         self.worker_tree.tag_configure("error", foreground=self.theme.error)
         self.worker_tree.tag_configure("idle", foreground=self.theme.idle)
-        self._attach_row_path_tip(self.worker_tree, column=3, label=tr("menu.copy.path"))
+        self._attach_row_path_tip(
+            self.worker_tree, column=3, label=lambda: tr("menu.copy.path")
+        )
         _attach_tip(self.worker_tree, lambda: self.connector_help_text(), self.theme)
 
         actions = tk.Frame(worker_panel, bg=self.theme.panel)
-        actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=9, pady=(4, 9))
+        actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=9, pady=(1, 3))
         self.setup_button = self._button(actions, "Setup", self.open_runtime_setup)
         self.config_button = self._button(actions, "Config", self.open_worker_config)
         self.rename_worker_button = self._button(actions, "Rename", self.open_rename_worker_dialog)
@@ -1140,6 +1262,7 @@ class AConductorDesktopApp:
         instances_panel = self._panel(self._main_pane, "CONNECTORS")
         self._main_pane.add(instances_panel, weight=1)
         instances_panel.grid_columnconfigure(0, weight=1)
+        instances_panel.grid_rowconfigure(1, weight=1)
         instance_columns = ("name", "port", "state", "project", "tunnel", "auto")
         self.instance_tree = ttk.Treeview(
             instances_panel,
@@ -1147,7 +1270,7 @@ class AConductorDesktopApp:
             show="headings",
             selectmode="browse",
             style="Workers.Treeview",
-            height=5,
+            height=1,
         )
         instance_headings = {
             "name": ("INSTANCE", 150),
@@ -1160,19 +1283,21 @@ class AConductorDesktopApp:
         for name, (label, width) in instance_headings.items():
             self.instance_tree.heading(name, text=label, anchor="w")
             self.instance_tree.column(name, width=width, minwidth=50, anchor="w")
-        self.instance_tree.grid(row=0, column=0, sticky="ew", padx=9, pady=(9, 4))
+        self.instance_tree.grid(row=1, column=0, sticky="nsew", padx=9, pady=(0, 1))
         self.instance_xscroll = ttk.Scrollbar(
             instances_panel, orient="horizontal", command=self.instance_tree.xview
         )
         self.instance_tree.configure(xscrollcommand=self.instance_xscroll.set)
-        self.instance_xscroll.grid(row=1, column=0, sticky="ew", padx=9, pady=(0, 4))
+        self.instance_xscroll.grid(row=2, column=0, sticky="ew", padx=9, pady=(0, 1))
         self.instance_tree.tag_configure("ready", foreground=self.theme.ready)
         self.instance_tree.tag_configure("warning", foreground=self.theme.warning)
         self.instance_tree.tag_configure("idle", foreground=self.theme.idle)
-        self._attach_row_path_tip(self.instance_tree, column=3, label=tr("menu.copy.path"))
+        self._attach_row_path_tip(
+            self.instance_tree, column=3, label=lambda: tr("menu.copy.path")
+        )
 
         instance_actions = tk.Frame(instances_panel, bg=self.theme.panel)
-        instance_actions.grid(row=2, column=0, sticky="ew", padx=9, pady=(0, 9))
+        instance_actions.grid(row=3, column=0, sticky="ew", padx=9, pady=(0, 2))
         self.instance_start_button = self._button(instance_actions, "Start", self.start_selected_instance)
         self.instance_stop_button = self._button(instance_actions, "Stop", self.stop_selected_instance)
         self.instance_startall_button = self._button(instance_actions, "Start All", self.start_all_instances)
@@ -1215,7 +1340,7 @@ class AConductorDesktopApp:
         monitor_panel.grid_rowconfigure(1, weight=1)
         self.monitor_text = tk.Text(
             monitor_panel,
-            height=4,
+            height=1,
             bg=self.theme.background,
             fg=self.theme.foreground,
             borderwidth=0,
@@ -1224,11 +1349,11 @@ class AConductorDesktopApp:
             state="disabled",
             font=(self.theme.monospace_font, self.theme.base_font_size),
         )
-        self.monitor_text.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 9))
+        self.monitor_text.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 1))
         self._enable_copyable_text(self.monitor_text)
         self._button(
             monitor_panel, "Copy All", lambda: self.copy_text_widget_all(self.monitor_text)
-        ).grid(row=0, column=1, sticky="e", padx=(4, 9), pady=4)
+        ).grid(row=0, column=1, sticky="e", padx=(4, 9), pady=1)
         self.instance_tree.bind(
             "<<TreeviewSelect>>", lambda _event: self._refresh_monitor_async(), add="+"
         )
@@ -1262,11 +1387,14 @@ class AConductorDesktopApp:
 
         activity_panel = self._panel(self._lower_pane, "ACTIVITY / LOG")
         self._lower_pane.add(activity_panel, weight=1)
+        self._main_pane.bind("<Map>", self._queue_main_pane_layout, add="+")
+        self._main_pane.bind("<Configure>", self._queue_main_pane_layout, add="+")
+        self._queue_main_pane_layout()
         activity_panel.grid_rowconfigure(1, weight=1)
         activity_panel.grid_columnconfigure(0, weight=1)
         self.activity_text = tk.Text(
             activity_panel,
-            height=5,
+            height=1,
             bg=self.theme.background,
             fg=self.theme.foreground,
             insertbackground=self.theme.accent,
@@ -1278,14 +1406,17 @@ class AConductorDesktopApp:
         )
         activity_scroll = ttk.Scrollbar(activity_panel, orient="vertical", command=self.activity_text.yview)
         self.activity_text.configure(yscrollcommand=activity_scroll.set)
-        self.activity_text.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 9))
+        self.activity_text.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 1))
+        self.activity_text.bind(
+            "<Configure>", self._queue_activity_alignment, add="+"
+        )
         self._enable_copyable_text(self.activity_text)
         self._button(
             activity_panel, "Copy All", lambda: self.copy_text_widget_all(self.activity_text)
-        ).grid(row=0, column=1, sticky="e", padx=(4, 9), pady=4)
-        activity_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 9))
+        ).grid(row=0, column=1, sticky="e", padx=(4, 9), pady=1)
+        activity_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 1))
         self.log_activity("Control Center ready")
-        self.root.after(1200, self._start_status_pulse)
+        self._status_pulse_after_id = self._schedule_after(1200, self._start_status_pulse)
 
     def _update_monitor_now(self) -> None:
         """Sync render (tests / no-selection hint path)."""
@@ -1313,12 +1444,10 @@ class AConductorDesktopApp:
         state = report.get("state", "-") if report else "-"
         lines: list[str] = ["MONITOR"]
         if name is None:
-            lines.append(
-                "  เลือกตัวเชื่อมในตาราง CONNECTORS เพื่อดูสถานะ · PID · หน่วยความจำ · log ล่าสุด"
-            )
-            lines.append("  (เปิด/ปิดผ่านปุ่มในแอปได้เลย — start จากแอปไม่มีหน้าต่าง CMD)")
+            lines.append(tr("monitor.select"))
+            lines.append(tr("monitor.select.detail"))
         elif report is None:
-            lines.append(f"  {name}: ไม่พบ instance")
+            lines.append(tr("monitor.missing").format(name=name))
         else:
             alias = ""
             aliases_fn = getattr(self.service, "instance_aliases", None)
@@ -1333,27 +1462,31 @@ class AConductorDesktopApp:
             lines.append(f"{header}   {state}   PID {pid_text}   MEM {mem_text}")
             lines.append(f"  log: {report['log_file'] or '-'}")
             errors = report["errors"]
-            lines.append(f"  errors ล่าสุด: {len(errors)}")
+            lines.append(tr("monitor.errors").format(count=len(errors)))
             lines.append("  --- tail ---")
             lines.extend(f"  {line}" for line in report["tail"])
         try:
             self.monitor_text.configure(state="normal")
             self.monitor_text.delete("1.0", "end")
             self.monitor_text.insert("1.0", chr(10).join(lines))
+            # Replacing a longer report can preserve Tk's previous fractional
+            # y-view and leave the new first line half above the viewport.
+            self.monitor_text.yview_moveto(0.0)
             self.monitor_text.configure(state="disabled")
         except tk.TclError:
             pass
 
     def _monitor_tick(self) -> None:
-        """Auto-refresh the MONITOR panel every 5s (real entrypoint only)."""
+        """Auto-refresh MONITOR while keeping one sampler and one timer in flight."""
+        self._cancel_after(self._monitor_tick_after_id)
+        self._monitor_tick_after_id = None
+        if self._closing:
+            return
         try:
             self._refresh_monitor_async()
         except tk.TclError:
             return
-        try:
-            self.root.after(15000, self._monitor_tick)
-        except tk.TclError:
-            pass
+        self._monitor_tick_after_id = self._schedule_after(15000, self._monitor_tick)
 
     def _monitor_target(self, name: str):
         cached = self._monitor_instances.get(name)
@@ -1368,6 +1501,11 @@ class AConductorDesktopApp:
         from .instance_monitor import monitor_report
         from .local_instances import instance_health_state
 
+        if self._closing:
+            return
+        if self._monitor_future is not None and not self._monitor_future.done():
+            self._monitor_refresh_pending = True
+            return
         name = self._selected_instance_name()
         if name is None:
             self._update_monitor_now()
@@ -1389,17 +1527,41 @@ class AConductorDesktopApp:
         except Exception:
             self._update_monitor_now()
             return
+        self._monitor_future = future
+        self._monitor_refresh_pending = False
         self._poll_monitor(future, name)
 
     def _poll_monitor(self, future, name: str) -> None:
-        if not future.done():
-            self.root.after(25, self._poll_monitor, future, name)
+        self._cancel_after(self._monitor_poll_after_id)
+        self._monitor_poll_after_id = None
+        if self._closing or future is not self._monitor_future:
             return
+        if not future.done():
+            self._monitor_poll_after_id = self._schedule_after(
+                25, self._poll_monitor, future, name
+            )
+            return
+        self._monitor_future = None
         try:
             report = future.result()
         except Exception:
-            return
-        self._render_monitor(name, report)
+            report = None
+        if not self._closing and self._selected_instance_name() == name:
+            self._render_monitor(name, report)
+        if self._monitor_refresh_pending and not self._closing:
+            self._monitor_refresh_pending = False
+            self._schedule_after(0, self._refresh_monitor_async)
+
+    def _stop_instance_monitor(self) -> None:
+        self._cancel_after(self._monitor_tick_after_id)
+        self._cancel_after(self._monitor_poll_after_id)
+        self._monitor_tick_after_id = None
+        self._monitor_poll_after_id = None
+        self._monitor_refresh_pending = False
+        future = self._monitor_future
+        self._monitor_future = None
+        if future is not None and not future.done():
+            future.cancel()
 
     def _panel(self, parent, title: str) -> tk.Frame:
         frame = tk.Frame(
@@ -1416,7 +1578,7 @@ class AConductorDesktopApp:
             font=(self.theme.monospace_font, 9, "bold"),
             anchor="w",
             padx=9,
-            pady=8,
+            pady=1,
         ).grid(row=0, column=0, sticky="ew")
         return frame
 
@@ -1432,22 +1594,141 @@ class AConductorDesktopApp:
         self, parent: tk.Widget, buttons, *, target_button_width: int = 110
     ) -> None:
         buttons = tuple(buttons)
-        state = {"columns": None}
+        state = {"layout": None}
 
         def reflow(event=None) -> None:
             width = getattr(event, "width", None) or parent.winfo_width()
-            columns = responsive_column_count(width, len(buttons), target_button_width)
-            if columns <= 0 or state["columns"] == columns:
+            available = max(1, int(width))
+            requested_widths: list[int] = []
+            for button in buttons:
+                requested = int(button.winfo_reqwidth())
+                if requested <= 1:
+                    requested = max(72, int(target_button_width))
+                requested_widths.append(requested)
+            columns = 1
+            for candidate in range(len(buttons), 0, -1):
+                column_widths = [0] * candidate
+                for index, requested in enumerate(requested_widths):
+                    column = index % candidate
+                    column_widths[column] = max(column_widths[column], requested)
+                if sum(column_widths) + 4 * candidate <= available:
+                    columns = candidate
+                    break
+            layout = [
+                (index // columns, index % columns)
+                for index in range(len(buttons))
+            ]
+            packed = tuple(layout)
+            if state["layout"] == packed:
                 return
-            state["columns"] = columns
-            for index, button in enumerate(buttons):
+            state["layout"] = packed
+            for button, (row, column) in zip(buttons, packed):
                 button.grid(
-                    row=index // columns, column=index % columns,
-                    padx=(0, 6), pady=(0, 3), sticky="w",
+                    row=row, column=column,
+                    padx=(0, 4), pady=(0, 1), sticky="w",
                 )
 
         parent.bind("<Configure>", reflow, add="+")
-        parent.after_idle(reflow)
+        self._schedule_after(0, reflow)
+
+    def _make_responsive_metric_grid(
+        self,
+        parent: tk.Widget,
+        cells,
+        *,
+        captions,
+        full_labels,
+        compact_labels,
+    ) -> None:
+        """Keep compact operational metrics complete instead of truncating text."""
+        cells = tuple(cells)
+        captions = tuple(captions)
+        full_labels = tuple(full_labels)
+        compact_labels = tuple(compact_labels)
+        state = {"layout": None}
+
+        def reflow(event=None) -> None:
+            available = max(
+                1,
+                int(getattr(event, "width", None) or parent.winfo_width()),
+            )
+            compact = available < 600
+            for caption, text in zip(
+                captions,
+                compact_labels if compact else full_labels,
+            ):
+                caption.configure(text=text)
+            requested = [max(1, int(cell.winfo_reqwidth())) for cell in cells]
+            columns = len(cells) if compact else 1
+            if not compact:
+                for candidate in (len(cells), 2, 1):
+                    column_widths = [0] * candidate
+                    for index, width in enumerate(requested):
+                        column = index % candidate
+                        column_widths[column] = max(column_widths[column], width)
+                    if sum(column_widths) + 10 * (candidate - 1) <= available:
+                        columns = candidate
+                        break
+            layout = (columns, compact)
+            if state["layout"] == layout:
+                return
+            state["layout"] = layout
+            for column in range(len(cells)):
+                parent.grid_columnconfigure(
+                    column,
+                    weight=1 if column < columns else 0,
+                )
+            last_row = (len(cells) - 1) // columns
+            for index, cell in enumerate(cells):
+                row, column = divmod(index, columns)
+                cell.grid(
+                    row=row,
+                    column=column,
+                    sticky="ew",
+                    padx=(0, 10 if column < columns - 1 else 0),
+                    pady=(0, 2 if row < last_row else 0),
+                )
+
+        parent.bind("<Configure>", reflow, add="+")
+        self._schedule_after(0, reflow)
+
+    def _queue_main_pane_layout(self, _event=None) -> None:
+        if self._closing or self._pane_layout_after_id is not None:
+            return
+        self._pane_layout_after_id = self._schedule_after(0, self._apply_main_pane_layout)
+
+    def _apply_main_pane_layout(self) -> None:
+        self._pane_layout_after_id = None
+        if self._closing:
+            return
+        try:
+            height = int(self._main_pane.winfo_height())
+            if height < 180 or len(self._main_pane.panes()) < 3:
+                return
+            if abs(height - self._pane_layout_height) < 2:
+                return
+            first = max(96, int(height * 0.49))
+            second = min(int(height * 0.84), height - 70)
+            self._main_pane.sashpos(0, first)
+            self._main_pane.sashpos(1, max(first + 120, second))
+            self._pane_layout_height = height
+            # Sash geometry settles on the next Tk turn. Re-align the log then
+            # so startup entries written while the pane was tiny remain whole.
+            if hasattr(self, "activity_text"):
+                self._queue_activity_alignment()
+        except tk.TclError:
+            return
+
+    def _queue_activity_alignment(self, _event=None) -> None:
+        if self._closing or self._activity_align_after_id is not None:
+            return
+        self._activity_align_after_id = self._schedule_after(
+            0, self._run_activity_alignment
+        )
+
+    def _run_activity_alignment(self) -> None:
+        self._activity_align_after_id = None
+        self._align_activity_view()
 
     @staticmethod
     def _state_tag(state: WorkerState) -> str:
@@ -1506,7 +1787,7 @@ class AConductorDesktopApp:
             return
         self._update_system_metrics_now()
         try:
-            self._system_metric_after_id = self.root.after(
+            self._system_metric_after_id = self._schedule_after(
                 self.SYSTEM_METRIC_INTERVAL_MS, self._system_monitor_tick
             )
         except tk.TclError:
@@ -1517,7 +1798,7 @@ class AConductorDesktopApp:
             return
         self._update_system_metrics_now()
         try:
-            self._system_metric_after_id = self.root.after(
+            self._system_metric_after_id = self._schedule_after(
                 self.SYSTEM_METRIC_INTERVAL_MS, self._system_monitor_tick
             )
         except tk.TclError:
@@ -1528,10 +1809,17 @@ class AConductorDesktopApp:
         self._system_metric_after_id = None
         if callback is None:
             return
-        try:
-            self.root.after_cancel(callback)
-        except (tk.TclError, ValueError):
-            pass
+        self._cancel_after(callback)
+
+    def _render_header_runtime_status(self) -> None:
+        ready_workers, total_workers = self._worker_counts
+        ready_connectors, total_connectors = self._connector_counts
+        self.header_runtime_label.configure(
+            text=(
+                f"WORKERS {ready_workers}/{total_workers} · "
+                f"CONNECTORS {ready_connectors}/{total_connectors}"
+            )
+        )
 
     def refresh(self) -> None:
         snapshot = self.service.snapshot()
@@ -1541,15 +1829,14 @@ class AConductorDesktopApp:
         )
         ready_workers = sum(1 for worker in snapshot.workers if worker.state is WorkerState.READY)
         total_workers = len(snapshot.workers)
+        self._worker_counts = (ready_workers, total_workers)
         self.overview_projects_value.configure(text=str(len(snapshot.projects)))
         self.overview_workers_value.configure(text=f"{ready_workers} / {total_workers}")
         self.overview_state_value.configure(
             text="ONLINE" if snapshot.online else "OFFLINE",
             fg=self.theme.ready if snapshot.online else self.theme.error,
         )
-        self.header_runtime_label.configure(
-            text=f"WORKERS {ready_workers}/{total_workers} · CONNECTORS {len(self._instance_rows)}"
-        )
+        self._render_header_runtime_status()
 
         selected_project = self.selected_project_id()
         self.project_list.delete(0, "end")
@@ -1617,28 +1904,28 @@ class AConductorDesktopApp:
         project_id = self.selected_project_id()
         if project_id is None:
             label.configure(
-                text="สมองโปรเจกต์: เลือกโปรเจกต์เพื่อดูสถานะ",
+                text=tr("memory.select"),
                 fg=self.theme.muted,
             )
             return
         root_path = self._project_paths.get(project_id)
         if not root_path:
-            label.configure(text="สมองโปรเจกต์: —", fg=self.theme.muted)
+            label.configure(text=tr("memory.unknown"), fg=self.theme.muted)
             return
         presence = inspect_memory_presence(root_path)
         if presence.state is MemoryPresenceState.HAS_MEMORIES:
             label.configure(
-                text=f"สมองโปรเจกต์: พร้อม ({presence.total_files} ไฟล์)",
+                text=tr("memory.ready").format(count=presence.total_files),
                 fg=self.theme.ready,
             )
         elif presence.state is MemoryPresenceState.NO_PROJECT:
             label.configure(
-                text="สมองโปรเจกต์: ไม่พบ path โปรเจกต์",
+                text=tr("memory.path.missing"),
                 fg=self.theme.error,
             )
         else:
             label.configure(
-                text="สมองโปรเจกต์: ยังไม่มีความจำ — onboarding จะทำงานเมื่อ agent เข้าครั้งแรก · หลังจบเริ่มบทสนทนาใหม่",
+                text=tr("memory.empty"),
                 fg=self.theme.warning,
             )
 
@@ -2208,8 +2495,8 @@ class AConductorDesktopApp:
         if getattr(self, "_closing", False):
             return
         self._closing = True
-        self._stop_teaching_animation()
-        self._stop_system_monitor()
+        self._shutdown_ui_resources()
+        self._wait_for_instance_starts()
         stop_all = True
         getter = getattr(self.service, "get_preference", None)
         if callable(getter):
@@ -2252,11 +2539,15 @@ class AConductorDesktopApp:
         self.root.clipboard_append(path)
         self.log_activity(f"Copy path    {path}")
 
-    def _attach_row_path_tip(self, tree, *, column: int, label: str) -> None:
+    def _attach_row_path_tip(
+        self, tree, *, column: int, label: str | Callable[[], str]
+    ) -> None:
         def provider(item) -> str | None:
             return self._tree_row_path(tree, item, column=column)
 
         self._row_path_tip_providers[tree] = provider
+        label_provider = label if callable(label) else lambda bound=label: bound
+        self._row_path_menu_label_providers[tree] = label_provider
         RowPathTip(tree, provider, self.theme)
 
         def on_context(event) -> None:
@@ -2270,7 +2561,8 @@ class AConductorDesktopApp:
                 return
             menu = tk.Menu(tree, tearoff=0, bg=self.theme.panel, fg=self.theme.muted)
             menu.add_command(
-                label=label, command=lambda bound=path: self._copy_path_to_clipboard(bound)
+                label=label_provider(),
+                command=lambda bound=path: self._copy_path_to_clipboard(bound),
             )
             try:
                 menu.tk_popup(event.x_root, event.y_root)
@@ -2301,13 +2593,20 @@ class AConductorDesktopApp:
         buttons.pack(fill="x")
 
         def close(ok: bool) -> None:
+            if not dialog.winfo_exists():
+                return
             answer["ok"] = ok
             dialog.destroy()
 
-        self._button(buttons, tr("dlg.confirm.ok"), lambda: close(True)).pack(side="right", padx=(6, 0))
-        self._button(buttons, tr("dlg.confirm.cancel"), lambda: close(False)).pack(side="right")
+        confirm_button = self._button(buttons, tr("dlg.confirm.ok"), lambda: close(True))
+        confirm_button.pack(side="right", padx=(6, 0))
+        cancel_button = self._button(buttons, tr("dlg.confirm.cancel"), lambda: close(False))
+        cancel_button.pack(side="right")
         dialog.protocol("WM_DELETE_WINDOW", lambda: close(False))
+        dialog.bind("<Escape>", lambda _event: close(False) or "break")
+        dialog.bind("<Return>", lambda _event: close(True) or "break")
         dialog.grab_set()
+        confirm_button.focus_set()
         dialog.wait_window()
         return answer["ok"]
 
@@ -2496,7 +2795,7 @@ class AConductorDesktopApp:
         self._set_enabled(self.stop_button, False)
         self._set_enabled(self.restart_button, False)
         future = self._background_executor.submit(command, worker_id)
-        self.root.after(0, self._poll_lifecycle_future, action, worker_id, future)
+        self._schedule_after(0, self._poll_lifecycle_future, action, worker_id, future)
 
     def _poll_lifecycle_future(
         self,
@@ -2505,7 +2804,7 @@ class AConductorDesktopApp:
         future: Future,
     ) -> None:
         if not future.done():
-            self.root.after(25, self._poll_lifecycle_future, action, worker_id, future)
+            self._schedule_after(25, self._poll_lifecycle_future, action, worker_id, future)
             return
         try:
             result = future.result()
@@ -2725,7 +3024,7 @@ class AConductorDesktopApp:
 
     def _show_error(self, code: str) -> tk.Toplevel | None:
         """Themed, teaching error popup (minimal CLI look)."""
-        table = ERROR_EXPLANATIONS_EN if get_language() == "en" else ERROR_EXPLANATIONS
+        table = ERROR_EXPLANATIONS if get_language() == "th" else ERROR_EXPLANATIONS_EN
         title, detail_parts = table.get(code, table["GENERIC"])
         detail = chr(10).join(detail_parts)
         window = tk.Toplevel(self.root)
@@ -2782,17 +3081,14 @@ class AConductorDesktopApp:
         self._teaching_pause_ticks = 0
         try:
             self._teaching_label.configure(text="▌")
-            self._teaching_after_id = self.root.after(180, self._typewriter_tick)
+            self._teaching_after_id = self._schedule_after(180, self._typewriter_tick)
         except tk.TclError:
             self._teaching_after_id = None
 
     def _stop_teaching_animation(self) -> None:
         callback = getattr(self, "_teaching_after_id", None)
         if callback is not None:
-            try:
-                self.root.after_cancel(callback)
-            except (tk.TclError, ValueError):
-                pass
+            self._cancel_after(callback)
         self._teaching_after_id = None
 
     def _typewriter_tick(self) -> None:
@@ -2827,12 +3123,16 @@ class AConductorDesktopApp:
         visible = message[: self._teaching_char_index]
         try:
             self._teaching_label.configure(text=f"{visible} ▌")
-            self._teaching_after_id = self.root.after(delay, self._typewriter_tick)
+            self._teaching_after_id = self._schedule_after(delay, self._typewriter_tick)
         except tk.TclError:
             self._teaching_after_id = None
 
     def _start_status_pulse(self) -> None:
         """Slow, gentle pulse for the ONLINE dot (minimal theme, ~1.2s cycle)."""
+        self._cancel_after(self._status_pulse_after_id)
+        self._status_pulse_after_id = None
+        if self._closing:
+            return
         self._pulse_on = not getattr(self, "_pulse_on", False)
         text = str(self.connection_label.cget("text"))
         if "ONLINE" in text:
@@ -2842,7 +3142,11 @@ class AConductorDesktopApp:
             except tk.TclError:
                 return
         if self.root.winfo_exists():
-            self.root.after(1200, self._start_status_pulse)
+            self._status_pulse_after_id = self._schedule_after(1200, self._start_status_pulse)
+
+    def _stop_status_pulse(self) -> None:
+        self._cancel_after(self._status_pulse_after_id)
+        self._status_pulse_after_id = None
 
     def copy_text_widget_all(self, widget: tk.Text) -> str:
         text = widget.get("1.0", "end-1c")
@@ -2887,11 +3191,33 @@ class AConductorDesktopApp:
     def connector_help_text(self) -> str:
         return tr("tip.connector.column")
 
+    def _align_activity_view(self) -> None:
+        """Show the newest activity entries on complete text rows."""
+        widget = getattr(self, "activity_text", None)
+        if widget is None:
+            return
+        try:
+            height = max(1, int(widget.winfo_height()))
+            linespace = max(
+                1,
+                int(widget.tk.call("font", "metrics", widget.cget("font"), "-linespace")),
+            )
+            visible_lines = max(1, (height - 2) // linespace)
+            last_line = int(widget.index("end-2c").split(".", 1)[0])
+            first_line = max(1, last_line - visible_lines + 1)
+            widget.yview(f"{first_line}.0")
+        except (tk.TclError, ValueError):
+            return
+
     def log_activity(self, text: str) -> None:
         stamp = datetime.now().strftime("%H:%M:%S")
         self.activity_text.configure(state="normal")
         self.activity_text.insert("end", f"{stamp}  {text}\n")
-        self.activity_text.see("end")
+        # Tk Text always keeps an implicit final newline.  Each log entry also
+        # has its own newline, so ``see('end')`` wastes a console row on a blank
+        # line and can clip the prior entry at the supported 680 px height.
+        self._align_activity_view()
+        self._queue_activity_alignment()
         self.activity_text.configure(state="disabled")
 
     def _on_palette_shortcut(self, _event=None):
@@ -2914,21 +3240,36 @@ class AConductorDesktopApp:
             self._handle_error("PREFERENCES_NOT_AVAILABLE")
             return None
 
+        existing = self._preferences_window
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.deiconify()
+                    existing.lift()
+                    existing.focus_set()
+                    return existing
+            except tk.TclError:
+                pass
+            self._preferences_window = None
+
         window = tk.Toplevel(self.root)
         window.title(APP_NAME + " — " + tr("win.settings"))
         window.configure(bg=self.theme.panel)
         window.transient(self.root)
         window.resizable(True, False)
+        self._preferences_window = window
+        window.bind("<Destroy>", self._on_preferences_destroy, add="+")
         frame = tk.Frame(window, bg=self.theme.panel, padx=16, pady=14)
         frame.pack(fill="both", expand=True)
         frame.grid_columnconfigure(0, weight=1)
-        tk.Label(
+        self._settings_header_label = tk.Label(
             frame,
-            text="> การตั้งค่ารวม  (เปลี่ยนแล้วมีผลทันที)",
+            text=tr("prefs.header"),
             bg=self.theme.panel,
             fg=self.theme.accent,
             font=(self.theme.monospace_font, 10, "bold"),
-        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+        )
+        self._settings_header_label.grid(row=0, column=0, sticky="w", pady=(0, 10))
 
         try:
             supervised = getter("supervised")
@@ -2942,7 +3283,7 @@ class AConductorDesktopApp:
 
         checkbox = tk.Checkbutton(
             frame,
-            text="โหมด Supervised  (คุมงานเบื้องหลัง: บันทึกทุกคำสั่ง · กันสั่งซ้ำ · เก็บผลแม้ timeout)",
+            text=tr("prefs.supervised"),
             variable=supervised_var,
             bg=self.theme.panel,
             fg=self.theme.foreground,
@@ -2956,22 +3297,24 @@ class AConductorDesktopApp:
             wraplength=460,
             command=lambda: self._save_supervised_preference(setter, supervised_var),
         )
+        self._supervised_checkbox = checkbox
         checkbox.grid(row=2, column=0, sticky="w")
         _attach_tip(
             checkbox,
-            "ON = ทุกคำสั่ง native (git/pytest/compileall) ถูกคุมตั้งแต่เกิดจนจบ:\nบันทึกลงฐานข้อมูล + กันงานซ้ำ + เก็บ output ครบ\nOFF = รันเร็วขึ้นเล็กน้อย แต่ไม่มีการบันทึก/กันซ้ำ\n(แนะนำ: ON)",
+            lambda: tr("prefs.supervised.help"),
             self.theme,
         )
-        tk.Label(
+        self._supervised_summary_label = tk.Label(
             frame,
-            text="ON: ปลอดภัยกว่า บันทึกทุกงาน กันสั่งซ้ำอัตโนมัติ · OFF: เร็วกว่า เหมาะกับงานสั้นๆ ไม่สำคัญ",
+            text=tr("prefs.supervised.summary"),
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 8),
             anchor="w",
             wraplength=460,
             justify="left",
-        ).grid(row=3, column=0, sticky="w", pady=(2, 8))
+        )
+        self._supervised_summary_label.grid(row=3, column=0, sticky="w", pady=(2, 8))
 
         language_display = {"th": "Thai", "zh-CN": "中文", "en": "English"}
         language_var = tk.StringVar(value=language_display.get(get_language(), "Thai"))
@@ -2997,15 +3340,17 @@ class AConductorDesktopApp:
             wraplength=460,
             command=lambda: self._save_shutdown_preference(setter, shutdown_var),
         )
+        self._shutdown_checkbox = shutdown_box
         shutdown_box.grid(row=1, column=0, sticky="w", pady=(0, 2))
         _attach_tip(shutdown_box, lambda: tr("prefs.shutdown.help"), self.theme)
 
         language_row = tk.Frame(frame, bg=self.theme.panel)
         language_row.grid(row=4, column=0, sticky="ew", pady=(2, 0))
-        tk.Label(
+        self._language_label = tk.Label(
             language_row, text=tr("prefs.language"), bg=self.theme.panel,
             fg=self.theme.foreground, font=(self.theme.monospace_font, 9),
-        ).pack(side="left", padx=(0, 8))
+        )
+        self._language_label.pack(side="left", padx=(0, 8))
         self._language_combo = ttk.Combobox(
             language_row, textvariable=language_var, values=("Thai", "中文", "English"),
             state="readonly", width=12,
@@ -3027,6 +3372,10 @@ class AConductorDesktopApp:
         )
         return window
 
+    def _on_preferences_destroy(self, event) -> None:
+        if event.widget is self._preferences_window:
+            self._preferences_window = None
+
     def _save_shutdown_preference(self, setter, var: tk.BooleanVar) -> None:
         try:
             setter("shutdown_stops_instances", var.get())
@@ -3045,10 +3394,28 @@ class AConductorDesktopApp:
             self._handle_error("PREFERENCE_SAVE_FAILED")
             return
         set_language(code)
-        if hasattr(self, "_language_status_label"):
-            self._language_status_label.configure(text=tr("prefs.language.restart"))
+        self._refresh_language_surfaces()
         self._restart_teaching_animation()
         self.log_activity(f"Settings     language={code}")
+
+    def _refresh_language_surfaces(self) -> None:
+        window = getattr(self, "_preferences_window", None)
+        if window is not None:
+            try:
+                if window.winfo_exists():
+                    window.title(APP_NAME + " — " + tr("win.settings"))
+                    self._settings_header_label.configure(text=tr("prefs.header"))
+                    self._supervised_checkbox.configure(text=tr("prefs.supervised"))
+                    self._supervised_summary_label.configure(
+                        text=tr("prefs.supervised.summary")
+                    )
+                    self._shutdown_checkbox.configure(text=tr("prefs.shutdown"))
+                    self._language_label.configure(text=tr("prefs.language"))
+                    self._language_status_label.configure(text=tr("prefs.language.restart"))
+            except tk.TclError:
+                pass
+        self._refresh_memory_status()
+        self._update_monitor_now()
 
     def _save_supervised_preference(self, setter, var: tk.BooleanVar) -> None:
         try:
@@ -3406,7 +3773,7 @@ class AConductorDesktopApp:
         try:
             instances = self.service.instances()
             if not instances:
-                self.root.after(1500, self.open_setup_wizard)
+                self._schedule_after(1500, self.open_setup_wizard)
         except Exception:
             pass
         self._monitor_tick()
@@ -3426,6 +3793,8 @@ class AConductorDesktopApp:
     def refresh_instances(self) -> None:
         self._set_enabled(self.brain_button, self._has_settings_service())
         if not self._has_instance_service():
+            self._connector_counts = (0, 0)
+            self._render_header_runtime_status()
             for button in (
                 self.instance_start_button,
                 self.instance_stop_button,
@@ -3435,13 +3804,29 @@ class AConductorDesktopApp:
             ):
                 self._set_enabled(button, False)
             return
-        states_fn = getattr(self.service, "instance_states")
-        future = self._background_executor.submit(states_fn)
-        self.root.after(0, self._poll_instance_states, future)
+        future = self._background_executor.submit(self._instance_states_with_cancel)
+        self._schedule_after(0, self._poll_instance_states, future)
+
+    def _instance_states_with_cancel(self):
+        states_fn = getattr(self.service, "instance_states_cancellable", None)
+        if callable(states_fn):
+            return states_fn(cancel_check=self._background_cancel_event.is_set)
+        return getattr(self.service, "instance_states")()
+
+    def _instance_action_with_cancel(self, name: str, action: str):
+        if action == "start":
+            action_fn = getattr(self.service, "instance_action_cancellable", None)
+            if callable(action_fn):
+                return action_fn(
+                    name,
+                    action,
+                    cancel_check=self._background_cancel_event.is_set,
+                )
+        return getattr(self.service, "instance_action")(name, action)
 
     def _poll_instance_states(self, future: Future) -> None:
         if not future.done():
-            self.root.after(25, self._poll_instance_states, future)
+            self._schedule_after(25, self._poll_instance_states, future)
             return
         try:
             states = future.result()
@@ -3450,6 +3835,7 @@ class AConductorDesktopApp:
             return
         self.instance_tree.delete(*self.instance_tree.get_children())
         self._instance_rows.clear()
+        self._monitor_instances.clear()
         auto_fn = getattr(self.service, "instance_autostart", None)
         aliases_fn = getattr(self.service, "instance_aliases", None)
         aliases: dict[str, str] = {}
@@ -3493,10 +3879,9 @@ class AConductorDesktopApp:
         ):
             self._set_enabled(button, True)
         ready_connectors = sum(1 for _instance, state in states if state.value == InstanceHealthState.READY.value)
+        self._connector_counts = (ready_connectors, len(states))
         self.overview_connectors_value.configure(text=f"{ready_connectors} / {len(states)}")
-        self.header_runtime_label.configure(
-            text=f"WORKERS {self.overview_workers_value.cget('text')} · CONNECTORS {ready_connectors}/{len(states)}"
-        )
+        self._render_header_runtime_status()
         self._set_enabled(self.brain_button, self._has_settings_service())
 
     def _selected_instance_name(self) -> str | None:
@@ -3510,14 +3895,19 @@ class AConductorDesktopApp:
 
     def _submit_instance_action(self, action: str, name: str) -> None:
         self.log_activity(f"{action:<12} {name} QUEUED")
-        action_fn = getattr(self.service, "instance_action")
-        future = self._background_executor.submit(action_fn, name, action.lower())
-        self.root.after(0, self._poll_instance_action, action, name, future)
+        command = action.split("-", 1)[0].lower()
+        future = self._background_executor.submit(
+            self._instance_action_with_cancel, name, command
+        )
+        if command == "start":
+            self._instance_start_futures.add(future)
+        self._schedule_after(0, self._poll_instance_action, action, name, future)
 
     def _poll_instance_action(self, action: str, name: str, future: Future) -> None:
         if not future.done():
-            self.root.after(25, self._poll_instance_action, action, name, future)
+            self._schedule_after(25, self._poll_instance_action, action, name, future)
             return
+        self._instance_start_futures.discard(future)
         try:
             outcome = future.result()
             code = outcome.result_code.value
@@ -3547,15 +3937,25 @@ class AConductorDesktopApp:
             self._handle_error("INSTANCES_NOT_AVAILABLE")
             return
         future = self._background_executor.submit(self._start_all_worker)
-        self.root.after(0, self._poll_start_all, future)
+        self._instance_start_futures.add(future)
+        self._schedule_after(0, self._poll_start_all, future)
+
+    def _wait_for_instance_starts(self) -> None:
+        """Give cooperative start cancellation a bounded handoff before stop-all."""
+        pending = tuple(self._instance_start_futures)
+        if pending:
+            completed, _unfinished = wait(pending, timeout=4.0)
+            self._instance_start_futures.difference_update(completed)
 
     def _start_all_worker(self):
         results: list[tuple[str, str]] = []
-        for instance, state in getattr(self.service, "instance_states")():
+        for instance, state in self._instance_states_with_cancel():
+            if self._background_cancel_event.is_set():
+                break
             if state is InstanceHealthState.READY:
                 continue
             try:
-                outcome = getattr(self.service, "instance_action")(instance.name, "start")
+                outcome = self._instance_action_with_cancel(instance.name, "start")
                 results.append((instance.name, outcome.result_code.value))
             except Exception:
                 results.append((instance.name, "ERROR"))
@@ -3563,8 +3963,9 @@ class AConductorDesktopApp:
 
     def _poll_start_all(self, future: Future) -> None:
         if not future.done():
-            self.root.after(25, self._poll_start_all, future)
+            self._schedule_after(25, self._poll_start_all, future)
             return
+        self._instance_start_futures.discard(future)
         try:
             results = future.result()
         except Exception:
@@ -3906,13 +4307,16 @@ class AConductorDesktopApp:
         if not callable(getattr(self.service, "autostart_instance_names", None)):
             return
         future = self._background_executor.submit(self._autostart_worker)
-        self.root.after(0, self._poll_autostart, future)
+        self._instance_start_futures.add(future)
+        self._schedule_after(0, self._poll_autostart, future)
 
     def _autostart_worker(self):
         results: list[tuple[str, str]] = []
         for name in getattr(self.service, "autostart_instance_names")():
+            if self._background_cancel_event.is_set():
+                break
             try:
-                outcome = getattr(self.service, "instance_action")(name, "start")
+                outcome = self._instance_action_with_cancel(name, "start")
                 results.append((name, outcome.result_code.value))
             except Exception:
                 results.append((name, "ERROR"))
@@ -3920,8 +4324,9 @@ class AConductorDesktopApp:
 
     def _poll_autostart(self, future: Future) -> None:
         if not future.done():
-            self.root.after(25, self._poll_autostart, future)
+            self._schedule_after(25, self._poll_autostart, future)
             return
+        self._instance_start_futures.discard(future)
         try:
             results = future.result()
         except Exception:
@@ -4150,14 +4555,15 @@ class AConductorDesktopApp:
             ).grid(row=2, column=0, sticky="w", pady=(10, 0))
 
         future = self._background_executor.submit(worker)
-        self.root.after(
+        self._schedule_after(
             0,
-            lambda: self._poll_upstream(future, present),
+            self._poll_upstream,
+            future,
+            present,
         )
-
     def _poll_upstream(self, future: Future, present) -> None:
         if not future.done():
-            self.root.after(25, lambda: self._poll_upstream(future, present))
+            self._schedule_after(25, self._poll_upstream, future, present)
             return
         try:
             status = future.result()

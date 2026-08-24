@@ -19,13 +19,55 @@ shortcut, and an HKCU Add/Remove-Programs entry. No admin, no system paths.
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import json
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-APP_NAME = "A-Sunday Conductor"
+BRANDING_PAYLOAD_NAME = "installer-branding.json"
+
+
+def _load_branding() -> tuple[str, str]:
+    if getattr(sys, "frozen", False):
+        bundle = getattr(sys, "_MEIPASS", None)
+        if bundle is None:
+            raise SystemExit("INSTALLER_BRANDING_MISSING")
+        metadata_path = Path(bundle) / "payload" / BRANDING_PAYLOAD_NAME
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            app_name = metadata["app_name"]
+            app_version = metadata["app_version"]
+        except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            raise SystemExit(f"INSTALLER_BRANDING_INVALID: {exc}") from exc
+    else:
+        branding_path = (
+            Path(__file__).resolve().parents[1]
+            / "src"
+            / "a_conductor"
+            / "branding.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "_a_conductor_installer_branding", branding_path
+        )
+        if spec is None or spec.loader is None:
+            raise SystemExit("INSTALLER_BRANDING_MISSING")
+        branding = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(branding)
+        app_name = branding.APP_NAME
+        app_version = branding.APP_VERSION
+
+    if not isinstance(app_name, str) or not app_name.strip():
+        raise SystemExit("INSTALLER_BRANDING_INVALID: app_name")
+    if not isinstance(app_version, str) or not app_version.strip():
+        raise SystemExit("INSTALLER_BRANDING_INVALID: app_version")
+    return app_name, app_version
+
+
+APP_NAME, APP_VERSION = _load_branding()
+
 REG_KEY = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}"
 CREDIT = "Uses the Serena engine (https://github.com/oraios/serena) internally."
 
@@ -45,11 +87,17 @@ def payload_dir() -> Path:
 
 
 def _run_ps(script: str) -> None:
-    subprocess.run(
+    completed = subprocess.run(
         ["powershell.exe", "-NoProfile", "-Command", script],
         check=False,
         capture_output=True,
+        text=True,
     )
+    if completed.returncode:
+        detail = (completed.stderr or completed.stdout or "no diagnostic output").strip()
+        raise RuntimeError(
+            f"POWERSHELL_COMMAND_FAILED (exit {completed.returncode}): {detail}"
+        )
 
 
 def create_shortcut(link_path: Path, target: Path, icon: Path) -> None:
@@ -85,6 +133,7 @@ def write_registry(target: Path, uninstaller: Path) -> None:
     ps = (
         f"New-Item -Path 'HKCU:\\{REG_KEY}' -Force | Out-Null; "
         f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name DisplayName -Value '{APP_NAME}'; "
+        f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name DisplayVersion -Value '{APP_VERSION}'; "
         f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name DisplayIcon -Value '{target / 'assets' / 'a-conductor.ico'}'; "
         f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name UninstallString -Value '\"{uninstaller}\" --uninstall --target \"{target}\"'; "
         f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name InstallLocation -Value '{target}'; "
@@ -96,7 +145,11 @@ def write_registry(target: Path, uninstaller: Path) -> None:
 
 
 def remove_registry() -> None:
-    _run_ps(f"Remove-Item -Path 'HKCU:\\{REG_KEY}' -Force -ErrorAction SilentlyContinue")
+    registry_path = f"HKCU:\\{REG_KEY}"
+    _run_ps(
+        f"if (Test-Path -LiteralPath '{registry_path}') {{ "
+        f"Remove-Item -LiteralPath '{registry_path}' -Force -ErrorAction Stop }}"
+    )
 
 
 NOTICES_NAME = "THIRD-PARTY-NOTICES.md"
@@ -148,13 +201,17 @@ def do_install(target: Path) -> int:
     print("[2/4] Creating Start Menu shortcut")
     installed_icon = target / "assets" / "a-conductor.ico"
     start_link, desktop_link = shortcut_paths()
-    create_shortcut(start_link, target / f"{APP_NAME}.exe", installed_icon)
+    try:
+        create_shortcut(start_link, target / f"{APP_NAME}.exe", installed_icon)
 
-    print("[3/4] Creating Desktop shortcut")
-    create_shortcut(desktop_link, target / f"{APP_NAME}.exe", installed_icon)
+        print("[3/4] Creating Desktop shortcut")
+        create_shortcut(desktop_link, target / f"{APP_NAME}.exe", installed_icon)
 
-    print("[4/4] Registering uninstall entry")
-    write_registry(target, uninstaller)
+        print("[4/4] Registering uninstall entry")
+        write_registry(target, uninstaller)
+    except RuntimeError as exc:
+        print(f"INSTALLER_INTEGRATION_FAILED: {exc}")
+        return 3
 
     print("DONE")
     print(f"  Start Menu : {start_link}")
@@ -167,20 +224,29 @@ def do_install(target: Path) -> int:
 def do_uninstall(target: Path) -> int:
     print(f"[1/3] Removing shortcuts")
     start_link, desktop_link = shortcut_paths()
+    partial = False
     for link in (start_link, desktop_link):
         try:
             link.unlink(missing_ok=True)
-            if link.parent.name == APP_NAME and link.parent != shortcut_paths()[0].parent:
+            if link == start_link and link.parent.name == APP_NAME:
                 link.parent.rmdir()
-        except OSError:
-            pass
+        except OSError as exc:
+            partial = True
+            print(f"UNINSTALL_SHORTCUT_FAILED: {link}: {exc}")
     print("[2/3] Removing registry entry")
-    remove_registry()
+    try:
+        remove_registry()
+    except RuntimeError as exc:
+        partial = True
+        print(f"UNINSTALL_REGISTRY_FAILED: {exc}")
     print(f"[3/3] Removing files: {target}")
     try:
         shutil.rmtree(target)
     except OSError as exc:
-        print(f"UNINSTALL_PARTIAL: {exc}")
+        partial = True
+        print(f"UNINSTALL_FILES_FAILED: {exc}")
+    if partial:
+        print("UNINSTALL_PARTIAL")
         return 1
     print("DONE")
     return 0

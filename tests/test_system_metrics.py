@@ -68,6 +68,26 @@ def test_collector_source_never_uses_subprocess() -> None:
     assert "cmd.exe" not in source.lower()
 
 
+def test_linux_cpu_total_excludes_guest_columns_already_counted_in_user_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import a_conductor.system_metrics as system_metrics
+
+    monkeypatch.setattr(system_metrics.sys, "platform", "linux")
+    monkeypatch.setattr(
+        system_metrics.Path,
+        "read_text",
+        lambda _path, *, encoding: (
+            "cpu  100 20 30 400 50 60 70 80 900 1000\n"
+            "cpu0 50 10 15 200 25 30 35 40 450 500\n"
+        ),
+    )
+
+    # Linux reports guest and guest_nice inside user and nice respectively.
+    # Only the first eight counters contribute to total: 100+20+30+400+50+60+70+80.
+    assert system_metrics._linux_cpu_times() == (450, 810)
+
+
 def test_real_sampler_is_safe_to_call_on_current_platform() -> None:
     from a_conductor.system_metrics import SystemMetricsSampler
 

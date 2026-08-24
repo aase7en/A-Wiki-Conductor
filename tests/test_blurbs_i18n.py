@@ -91,6 +91,10 @@ def test_guide_language_selection(root, tmp_path: Path, monkeypatch) -> None:
     th_path = find_user_guide_path()
     assert th_path is not None and th_path.name == "USER-GUIDE.md"
 
+    i18n.set_language("zh-CN")
+    zh_path = find_user_guide_path()
+    assert zh_path is not None and zh_path.name == "USER-GUIDE-EN.md"
+
 
 def test_build_scripts_bundle_both_guides() -> None:
     from pathlib import Path

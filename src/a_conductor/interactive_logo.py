@@ -30,13 +30,24 @@ TRAIL_FORCE = 2.2
 SPRING_K = 0.045
 DAMPING = 0.82
 ANIM_DELAY = 24  # ~42 fps
-EYE_TRACK_RANGE = 4.5
+DENSE_ANIM_DELAY = 48  # ~21 fps for image-mapped Canvas fallback
+EYE_TRACK_RANGE = 2.5
+FACE_INTERACTION_RANGE = 1.6
+FACE_TOTAL_DISPLACEMENT = 1.9
 IDLE_INTENSITY = 0.65
 IDLE_SPEED = 0.0018
 DEPTH_SCALE = 0.22
-MAX_IMAGE_PARTICLES = 2600
+MAX_IMAGE_PARTICLES = 1300
 FALLBACK_IDLE_PARTICLE_LIMIT = 600
+DENSE_FRAME_PARTICLE_LIMIT = 650
 BRIGHTNESS_THRESHOLD = 52
+RASTER_ACTIVE_DELAY = 48
+RASTER_IDLE_DELAY = 96
+RASTER_FACE_SHIFT = 0.7
+RASTER_EYE_SHIFT = 1.9
+RASTER_ACTIVE_EASE = 0.24
+RASTER_RETURN_EASE = 0.18
+RASTER_SETTLE_EPSILON = 0.015
 
 # Simple fallback face. E = eye particle, 1 = face particle, 0 = empty.
 FACE_MAP = [
@@ -131,6 +142,36 @@ def repulsion_impulse(
     return dx / distance * magnitude, dy / distance * magnitude
 
 
+def prepare_family_raster(image_path: str | Path, size: int):
+    """Return a square, contrast-preserving render of the master particle art.
+
+    A straight LANCZOS reduction averages many one-pixel particles into nearly
+    black gray at header size.  Autocontrast plus a fixed gamma curve preserves
+    their density and landmarks without inventing new shapes or per-frame work.
+    """
+    from PIL import Image, ImageOps
+
+    with Image.open(image_path) as source:
+        portrait = source.convert("L")
+        source_width, source_height = portrait.size
+        if source_width <= 0 or source_height <= 0:
+            raise ValueError(f"Invalid family portrait dimensions: {portrait.size!r}")
+        scale = min(size / source_width, size / source_height)
+        draw_width = max(1, round(source_width * scale))
+        draw_height = max(1, round(source_height * scale))
+        portrait = portrait.resize(
+            (draw_width, draw_height), Image.Resampling.LANCZOS
+        )
+        portrait = ImageOps.autocontrast(portrait, cutoff=0)
+        gamma_lut = [round((value / 255.0) ** 0.70 * 255.0) for value in range(256)]
+        portrait = portrait.point(gamma_lut)
+        fitted = Image.new("L", (size, size), 0)
+        offset_x = (size - draw_width) // 2
+        offset_y = (size - draw_height) // 2
+        fitted.paste(portrait, (offset_x, offset_y))
+    return fitted.convert("RGB"), (offset_x, offset_y, draw_width, draw_height)
+
+
 class Particle:
     __slots__ = (
         "home_x",
@@ -187,15 +228,28 @@ class InteractiveLogo:
             bd=0,
         )
         self.particles: list[Particle] = []
+        self._eye_particles: list[Particle] = []
+        self._face_particles: list[Particle] = []
+        self._dense_cursor = 0
         self.mouse_x = -1000.0
         self.mouse_y = -1000.0
         self.mouse_active = False
         self._running = False
+        self._after_id: str | None = None
         self._started_ms: int | None = None
         self._last_pointer: tuple[float, float] | None = None
         self._mouse_speed = 0.0
         self._trail: deque[list[float]] = deque(maxlen=12)
         self._monochrome_source = False
+        self._raster_photo = None
+        self._raster_item: int | None = None
+        self._raster_eye_items: list[int] = []
+        self._raster_eye_homes: list[tuple[float, float]] = []
+        self._raster_face_x = 0.0
+        self._raster_face_y = 0.0
+        self._raster_eye_x = 0.0
+        self._raster_eye_y = 0.0
+        self._raster_eye_visible = False
 
         self._build_face()
         self.canvas.bind("<Motion>", self._on_mouse)
@@ -221,6 +275,10 @@ class InteractiveLogo:
             outline="",
         )
         self.particles.append(p)
+        if is_eye:
+            self._eye_particles.append(p)
+        else:
+            self._face_particles.append(p)
         return p
 
     def _build_face(self) -> None:
@@ -265,6 +323,14 @@ class InteractiveLogo:
         treated as the family portrait: its particles stay white, six eye regions are
         tagged for gaze tracking, and ``Sunday-Family`` is added as particle text.
         """
+        asset_name = Path(image_path).name.lower()
+        family_asset = asset_name == "sunday-family-particle.png"
+        brand_asset = asset_name in {"sunday-family-particle.png", "logo-face.png"}
+        if brand_asset and self._load_family_raster(
+            Path(image_path), eye_accents=family_asset
+        ):
+            return True
+
         try:
             photo = tk.PhotoImage(file=str(image_path))
         except tk.TclError:
@@ -345,7 +411,11 @@ class InteractiveLogo:
             candidates = [candidates[int(i * stride)] for i in range(MAX_IMAGE_PARTICLES)]
 
         self.canvas.delete("all")
+        self._clear_raster_state()
         self.particles.clear()
+        self._eye_particles.clear()
+        self._face_particles.clear()
+        self._dense_cursor = 0
         for px, py, is_eye, color, radius, seed in candidates:
             self._new_particle(
                 px,
@@ -359,6 +429,144 @@ class InteractiveLogo:
         if self._monochrome_source and not family_asset:
             self._add_particle_label("Sunday-Family", y_ratio=0.72)
         return bool(self.particles)
+
+    def _load_family_raster(self, image_path: Path, *, eye_accents: bool = True) -> bool:
+        """Render the exact brand portrait as one high-quality Canvas image.
+
+        The source artwork already consists of fine white particles.  Rebuilding
+        it as more than a thousand Canvas ovals loses likeness and makes pointer
+        motion CPU-heavy, so the safe fallback resamples the master once and
+        moves only the portrait plus six tiny eye-core accents.
+        """
+        try:
+            from PIL import ImageTk
+
+            fitted, bounds = prepare_family_raster(image_path, self.size)
+            offset_x, offset_y, draw_width, draw_height = bounds
+            raster_photo = ImageTk.PhotoImage(fitted, master=self.canvas)
+        except Exception:
+            return False
+
+        # Commit the new representation only after decode/resize succeeds, so a
+        # damaged optional asset cannot erase the procedural fallback face.
+        self.canvas.delete("all")
+        self.particles.clear()
+        self._eye_particles.clear()
+        self._face_particles.clear()
+        self._dense_cursor = 0
+        self._clear_raster_state()
+        self._raster_photo = raster_photo
+        centre = self.size / 2.0
+        self._raster_item = self.canvas.create_image(
+            centre,
+            centre,
+            image=raster_photo,
+            anchor=tk.CENTER,
+        )
+        marker_radius = max(0.65, self.size / 180.0)
+        regions = FAMILY_EYE_REGIONS if eye_accents else ()
+        for nx, ny, _region_radius in regions:
+            home_x = offset_x + nx * draw_width
+            home_y = offset_y + ny * draw_height
+            item = self.canvas.create_oval(
+                home_x - marker_radius,
+                home_y - marker_radius,
+                home_x + marker_radius,
+                home_y + marker_radius,
+                fill=EYE_COLOR,
+                outline="",
+                state=tk.HIDDEN,
+            )
+            self._raster_eye_homes.append((home_x, home_y))
+            self._raster_eye_items.append(item)
+        self._monochrome_source = True
+        return True
+
+    def _clear_raster_state(self) -> None:
+        """Drop retained raster resources and reset motion to neutral."""
+        self._raster_photo = None
+        self._raster_item = None
+        self._raster_eye_items = []
+        self._raster_eye_homes = []
+        self._raster_face_x = 0.0
+        self._raster_face_y = 0.0
+        self._raster_eye_x = 0.0
+        self._raster_eye_y = 0.0
+        self._raster_eye_visible = False
+
+    def _raster_direction(self, distance: float) -> tuple[float, float]:
+        if not self.mouse_active:
+            return 0.0, 0.0
+        dx = self.mouse_x - self.size / 2.0
+        dy = self.mouse_y - self.size / 2.0
+        magnitude = math.hypot(dx, dy)
+        if magnitude <= 1e-9:
+            return 0.0, 0.0
+        return dx / magnitude * distance, dy / magnitude * distance
+
+    def _animate_family_raster(self) -> None:
+        """Ease seven bounded Canvas items without any particle iteration."""
+        self._refresh_pointer()
+        face_target_x, face_target_y = self._raster_direction(RASTER_FACE_SHIFT)
+        eye_target_x, eye_target_y = self._raster_direction(RASTER_EYE_SHIFT)
+        ease = RASTER_ACTIVE_EASE if self.mouse_active else RASTER_RETURN_EASE
+
+        previous = (
+            self._raster_face_x,
+            self._raster_face_y,
+            self._raster_eye_x,
+            self._raster_eye_y,
+        )
+        self._raster_face_x += (face_target_x - self._raster_face_x) * ease
+        self._raster_face_y += (face_target_y - self._raster_face_y) * ease
+        self._raster_eye_x += (eye_target_x - self._raster_eye_x) * ease
+        self._raster_eye_y += (eye_target_y - self._raster_eye_y) * ease
+
+        values = (
+            self._raster_face_x,
+            self._raster_face_y,
+            self._raster_eye_x,
+            self._raster_eye_y,
+        )
+        changed = any(
+            abs(current - prior) > RASTER_SETTLE_EPSILON
+            for current, prior in zip(values, previous)
+        )
+        displaced = any(abs(value) > RASTER_SETTLE_EPSILON for value in values)
+
+        if self.mouse_active and not self._raster_eye_visible:
+            for item in self._raster_eye_items:
+                self.canvas.itemconfigure(item, state=tk.NORMAL)
+            self._raster_eye_visible = True
+
+        if changed and self._raster_item is not None:
+            centre = self.size / 2.0
+            self.canvas.coords(
+                self._raster_item,
+                centre + self._raster_face_x,
+                centre + self._raster_face_y,
+            )
+            marker_radius = max(0.65, self.size / 180.0)
+            for item, (home_x, home_y) in zip(
+                self._raster_eye_items, self._raster_eye_homes
+            ):
+                x = home_x + self._raster_face_x + self._raster_eye_x
+                y = home_y + self._raster_face_y + self._raster_eye_y
+                self.canvas.coords(
+                    item,
+                    x - marker_radius,
+                    y - marker_radius,
+                    x + marker_radius,
+                    y + marker_radius,
+                )
+
+        if not self.mouse_active and not displaced and self._raster_eye_visible:
+            for item in self._raster_eye_items:
+                self.canvas.itemconfigure(item, state=tk.HIDDEN)
+            self._raster_eye_visible = False
+
+        delay = RASTER_ACTIVE_DELAY if changed or displaced else RASTER_IDLE_DELAY
+        self._after_id = self.canvas.after(delay, self._animate)
 
     def _add_particle_label(self, text: str, *, y_ratio: float) -> None:
         """Add a tiny mixed-case particle label centred over the portrait chest."""
@@ -408,6 +616,7 @@ class InteractiveLogo:
         """Map the OS pointer into logo coordinates while it is inside the app."""
         try:
             if not self.canvas.winfo_ismapped():
+                self.mouse_active = False
                 return
             top = self.canvas.winfo_toplevel()
             px = float(self.canvas.winfo_pointerx())
@@ -462,8 +671,30 @@ class InteractiveLogo:
             iy += dy / distance * magnitude
         return ix, iy
 
+    def _frame_particles(self, *, dense_fallback: bool) -> list[Particle]:
+        """Return a bounded dense-image batch while updating all eyes each frame."""
+        if not dense_fallback:
+            return self.particles
+        faces = self._face_particles
+        if not faces:
+            return self._eye_particles
+        limit = min(DENSE_FRAME_PARTICLE_LIMIT, len(faces))
+        start = self._dense_cursor % len(faces)
+        end = start + limit
+        if end <= len(faces):
+            batch = faces[start:end]
+        else:
+            batch = faces[start:] + faces[: end - len(faces)]
+        self._dense_cursor = end % len(faces)
+        return self._eye_particles + batch
+
     def _animate(self) -> None:
+        self._after_id = None
         if not self._running:
+            return
+
+        if getattr(self, "_raster_item", None) is not None:
+            self._animate_family_raster()
             return
 
         self._refresh_pointer()
@@ -479,8 +710,8 @@ class InteractiveLogo:
         # particles that are actually interacting or springing back.
         dense_fallback = len(self.particles) > FALLBACK_IDLE_PARTICLE_LIMIT
 
-        for p in self.particles:
-            if dense_fallback:
+        for p in self._frame_particles(dense_fallback=dense_fallback):
+            if dense_fallback or not self.mouse_active:
                 target_x = p.home_x
                 target_y = p.home_y
                 idle_phase = p.phase
@@ -503,23 +734,31 @@ class InteractiveLogo:
                     target_x += gaze_x - p.home_x
                     target_y += gaze_y - p.home_y
                     interaction = True
+                else:
+                    # Preserve eye landmarks: gaze is intentionally bounded,
+                    # while whole-face interaction uses a bounded target below.
+                    ix, iy = repulsion_impulse(
+                        p.home_x,
+                        p.home_y,
+                        self.mouse_x,
+                        self.mouse_y,
+                    )
+            else:
+                ix = iy = 0.0
 
-                ix, iy = repulsion_impulse(
-                    p.x,
-                    p.y,
-                    self.mouse_x,
-                    self.mouse_y,
-                )
-                if abs(ix) > 1e-9 or abs(iy) > 1e-9:
+            if not p.is_eye:
+                tx, ty = self._trail_impulse(p)
+                offset_x = ix + tx
+                offset_y = iy + ty
+                offset_length = math.hypot(offset_x, offset_y)
+                if offset_length > FACE_INTERACTION_RANGE:
+                    scale = FACE_INTERACTION_RANGE / offset_length
+                    offset_x *= scale
+                    offset_y *= scale
+                if abs(offset_x) > 1e-9 or abs(offset_y) > 1e-9:
                     interaction = True
-                    p.vx += ix
-                    p.vy += iy
-
-            tx, ty = self._trail_impulse(p)
-            if abs(tx) > 1e-9 or abs(ty) > 1e-9:
-                interaction = True
-                p.vx += tx
-                p.vy += ty
+                    target_x += offset_x
+                    target_y += offset_y
 
             displaced = (
                 abs(target_x - p.x) > 0.01
@@ -538,6 +777,20 @@ class InteractiveLogo:
             p.vy *= DAMPING
             p.x += p.vx
             p.y += p.vy
+            if not p.is_eye:
+                home_dx = p.x - p.home_x
+                home_dy = p.y - p.home_y
+                home_distance = math.hypot(home_dx, home_dy)
+                if home_distance > FACE_TOTAL_DISPLACEMENT:
+                    scale = FACE_TOTAL_DISPLACEMENT / home_distance
+                    p.x = p.home_x + home_dx * scale
+                    p.y = p.home_y + home_dy * scale
+                    # Remove outward momentum at the hard interaction boundary;
+                    # otherwise the spring repeatedly hammers the clamp.
+                    outward_velocity = p.vx * home_dx + p.vy * home_dy
+                    if outward_velocity > 0.0:
+                        p.vx = 0.0
+                        p.vy = 0.0
 
             if dense_fallback:
                 radius = p.base_radius
@@ -556,7 +809,8 @@ class InteractiveLogo:
                     p.y + radius,
                 )
 
-        self.canvas.after(ANIM_DELAY, self._animate)
+        delay = DENSE_ANIM_DELAY if dense_fallback else ANIM_DELAY
+        self._after_id = self.canvas.after(delay, self._animate)
 
     def start(self) -> None:
         if not self._running:
@@ -565,6 +819,22 @@ class InteractiveLogo:
 
     def stop(self) -> None:
         self._running = False
+        callback = self._after_id
+        self._after_id = None
+        if callback is not None:
+            try:
+                self.canvas.after_cancel(callback)
+            except (tk.TclError, ValueError):
+                pass
+
+    def destroy(self) -> None:
+        self.stop()
+        try:
+            self.canvas.delete("all")
+            self._clear_raster_state()
+            self.canvas.destroy()
+        except tk.TclError:
+            pass
 
     def pack(self, **kwargs) -> None:
         self.canvas.pack(**kwargs)

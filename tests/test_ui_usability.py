@@ -29,7 +29,11 @@ def make_app(root, tmp_path: Path):
     from a_conductor.desktop_control import DesktopControlService
     from a_conductor.desktop_ui import AConductorDesktopApp
 
-    service = DesktopControlService.open(tmp_path / "ui.sqlite")
+    instances_root = tmp_path / "instances"
+    instances_root.mkdir(exist_ok=True)
+    service = DesktopControlService.open(
+        tmp_path / "ui.sqlite", instances_root=instances_root
+    )
     project = service.register_project(tmp_path)
     service.assign_project("a-worker-01", project.project_id)
     return AConductorDesktopApp(root, service=service)
@@ -38,7 +42,7 @@ def make_app(root, tmp_path: Path):
 def test_window_title_shows_version(root, tmp_path: Path) -> None:
     app = make_app(root, tmp_path)
     assert root.title() == f"{APP_NAME} v{APP_VERSION}"
-    assert APP_VERSION == "0.5.0"
+    assert APP_VERSION == "0.6.0"
 
 
 def test_worker_tree_has_horizontal_scroll(root, tmp_path: Path) -> None:
@@ -92,7 +96,17 @@ def test_responsive_column_count_uses_available_width() -> None:
 def test_primary_workflow_buttons_follow_action_order(root, tmp_path: Path) -> None:
     app = make_app(root, tmp_path)
     texts = [button.cget("text") for button in app.workflow_buttons]
-    assert texts[:6] == ["Add Project", "Assign", "Add Worker", "Start", "Stop", "Restart"]
+    assert texts == [
+        "Add Project",
+        "Assign",
+        "Add Worker",
+        "Start",
+        "Stop",
+        "Restart",
+        "Release",
+        "Activate",
+        "Refresh",
+    ]
 
 
 def test_monitor_and_activity_share_horizontal_lower_pane(root, tmp_path: Path) -> None:
@@ -224,6 +238,156 @@ def test_responsive_action_grids_reflow_at_compact_and_wide_widths(root, tmp_pat
     )
 
 
+@pytest.mark.parametrize(
+    ("width", "height"),
+    ((700, 680), (900, 680), (700, 760), (900, 760), (1280, 820), (1600, 900)),
+)
+def test_real_window_action_controls_stay_inside_available_width(
+    root, tmp_path: Path, width: int, height: int
+) -> None:
+    app = make_app(root, tmp_path)
+    root.deiconify()
+    root.geometry(f"{width}x{height}+20+20")
+    root.update_idletasks()
+    root.update()
+
+    connector_buttons = (
+        app.instance_start_button,
+        app.instance_stop_button,
+        app.instance_startall_button,
+        app.instance_auto_button,
+        app.instance_rescan_button,
+        app.add_instance_button,
+        app.rename_instance_button,
+        app.delete_instance_button,
+        app.tunnel_button,
+        app.rebind_button,
+        app.upstream_button,
+    )
+    for parent, buttons in (
+        (app._workflow_frame, app.workflow_buttons),
+        (app.add_instance_button.master, connector_buttons),
+    ):
+        parent_right = parent.winfo_rootx() + parent.winfo_width()
+        clip_container = parent.master
+        parent_bottom = clip_container.winfo_rooty() + clip_container.winfo_height()
+        for button in buttons:
+            assert button.winfo_ismapped(), str(button.cget("text"))
+            assert (
+                button.winfo_rootx() + button.winfo_width() <= parent_right
+            ), f"{width}px clips {button.cget('text')}"
+            assert (
+                button.winfo_rooty() + button.winfo_height() <= parent_bottom
+            ), f"{width}px hides {button.cget('text')} below its action area"
+
+    workflow_rows = {int(button.grid_info()["row"]) for button in app.workflow_buttons}
+    if width < 900:
+        assert len(workflow_rows) > 1
+    else:
+        assert workflow_rows == {0}
+
+
+@pytest.mark.parametrize(
+    ("width", "height"),
+    (
+        (700, 680),
+        (900, 680),
+        (1080, 680),
+        (700, 760),
+        (900, 760),
+        (1280, 820),
+        (1600, 900),
+    ),
+)
+def test_real_window_keeps_all_operational_panes_visible(
+    root, tmp_path: Path, width: int, height: int
+) -> None:
+    app = make_app(root, tmp_path)
+    root.deiconify()
+    root.geometry(f"{width}x{height}+20+20")
+    root.update_idletasks()
+    root.update()
+
+    for widget in (
+        app.worker_tree,
+        app.instance_tree,
+        app.monitor_text,
+        app.activity_text,
+    ):
+        assert widget.winfo_ismapped(), f"{width}x{height}: {widget} is hidden"
+        assert widget.winfo_height() >= 24, (
+            f"{width}x{height}: {widget} collapsed to {widget.winfo_height()}px"
+        )
+
+
+def test_window_minimum_height_keeps_operational_surfaces_reachable(
+    root, tmp_path: Path
+) -> None:
+    app = make_app(root, tmp_path)
+    root.deiconify()
+    root.geometry("700x500+20+20")
+    root.update_idletasks()
+    root.update()
+
+    assert root.winfo_height() >= 680
+    for widget in (
+        app.worker_tree,
+        app.instance_tree,
+        app.monitor_text,
+        app.activity_text,
+    ):
+        assert widget.winfo_ismapped()
+        assert widget.winfo_height() >= 24
+
+
+@pytest.mark.parametrize("width", (700, 900, 1080))
+def test_default_height_exposes_selectable_rows_and_two_console_lines(
+    root, tmp_path: Path, width: int
+) -> None:
+    from test_instance_monitor import make_app as make_monitor_app
+
+    app = make_monitor_app(root, tmp_path)
+    app._logo.stop()
+    app.refresh_instances()
+    root.deiconify()
+    root.geometry(f"{width}x680+20+20")
+    # Startup work may log before the PanedWindow reaches its final height.
+    app.log_activity("Geometry probe second line")
+    root.update_idletasks()
+    root.update()
+
+    connector = app.instance_tree.get_children()[0]
+    app.instance_tree.selection_set(connector)
+    app._update_monitor_now()
+    root.update_idletasks()
+
+    for tree in (app.worker_tree, app.instance_tree):
+        item = tree.get_children()[0]
+        bbox = tree.bbox(item)
+        assert bbox, f"{width}px: first row has no visible bbox"
+        _x, y, _row_width, row_height = bbox
+        assert y + row_height <= tree.winfo_height(), (
+            f"{width}px: first row is clipped at {y + row_height}px "
+            f"inside {tree.winfo_height()}px"
+        )
+
+    for text_widget in (app.monitor_text, app.activity_text):
+        first_visible = text_widget.index("@0,0 linestart")
+        second_visible = text_widget.index(f"{first_visible} +1line linestart")
+        console_name = "MONITOR" if text_widget is app.monitor_text else "ACTIVITY"
+        for index in (first_visible, second_visible):
+            line = text_widget.dlineinfo(index)
+            assert line is not None, f"{width}px {console_name}: {index} is not visible"
+            _x, y, _line_width, line_height, _baseline = line
+            assert y >= 0, (
+                f"{width}px {console_name}: {index} begins {abs(y)}px above the visible console"
+            )
+            assert y + line_height <= text_widget.winfo_height(), (
+                f"{width}px: {index} is clipped at {y + line_height}px "
+                f"inside {text_widget.winfo_height()}px"
+            )
+
+
 def test_terminal_command_center_header_contract(root, tmp_path: Path) -> None:
     app = make_app(root, tmp_path)
     root.update_idletasks()
@@ -232,6 +396,31 @@ def test_terminal_command_center_header_contract(root, tmp_path: Path) -> None:
     assert app.brain_button.master is app._header_frame
     assert app._logo.frame.master is app._header_frame
     assert int(app._logo.frame.grid_info()["column"]) < int(app.title_label.master.grid_info()["column"])
+
+
+def test_activity_view_realigns_to_complete_recent_lines_after_resize(
+    root, tmp_path: Path
+) -> None:
+    app = make_app(root, tmp_path)
+    root.deiconify()
+    root.geometry("900x680+20+20")
+    root.update_idletasks()
+    root.update()
+    app.log_activity("Geometry probe second line")
+    app.activity_text.yview_moveto(1.0)
+
+    app.activity_text.event_generate("<Configure>")
+    root.update()
+    root.update_idletasks()
+
+    first = app.activity_text.index("@0,0 linestart")
+    second = app.activity_text.index(f"{first} +1line linestart")
+    for index in (first, second):
+        line = app.activity_text.dlineinfo(index)
+        assert line is not None
+        _x, y, _line_width, line_height, _baseline = line
+        assert y >= 0
+        assert y + line_height <= app.activity_text.winfo_height()
 
 
 def test_system_overview_uses_real_snapshot_counts(root, tmp_path: Path) -> None:
@@ -252,6 +441,18 @@ def test_terminal_theme_is_near_black_and_restrained() -> None:
     assert theme.panel.lower() == "#0d1117"
     assert theme.border.lower() == "#242b35"
 
+    def luminance(color: str) -> float:
+        channels = [int(color[index : index + 2], 16) / 255 for index in (1, 3, 5)]
+        linear = [
+            value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+            for value in channels
+        ]
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    bright = luminance(theme.ready_dim)
+    dark = luminance(theme.background)
+    assert (bright + 0.05) / (dark + 0.05) >= 4.5
+
 
 def test_master_family_asset_is_preferred() -> None:
     from a_conductor.desktop_ui import find_particle_image_path
@@ -268,6 +469,47 @@ def test_compact_header_actions_do_not_overflow(root, tmp_path: Path) -> None:
     assert app.prefs_button.winfo_x() + app.prefs_button.winfo_width() <= app._header_frame.winfo_width()
     assert app.help_button.winfo_manager() == "grid"
     assert app.prefs_button.winfo_manager() == "grid"
+
+
+def test_system_overview_reflows_without_clipping_at_compact_width(
+    root, tmp_path: Path
+) -> None:
+    app = make_app(root, tmp_path)
+    root.deiconify()
+    root.geometry("700x680+20+20")
+    root.update_idletasks()
+    root.update()
+
+    values = (
+        app.overview_projects_value,
+        app.overview_workers_value,
+        app.overview_connectors_value,
+        app.overview_state_value,
+    )
+    cells = tuple(value.master for value in values)
+    metrics = cells[0].master
+    right_edge = metrics.winfo_rootx() + metrics.winfo_width()
+
+    assert {int(cell.grid_info()["row"]) for cell in cells} == {0}
+    for cell in cells:
+        assert cell.winfo_rootx() + cell.winfo_reqwidth() <= right_edge
+    assert [str(cell.winfo_children()[0].cget("text")) for cell in cells] == [
+        "PROJECTS",
+        "WORKERS",
+        "CONNECTORS",
+        "STATE",
+    ]
+
+    root.geometry("900x680+20+20")
+    root.update_idletasks()
+    root.update()
+    assert {int(cell.grid_info()["row"]) for cell in cells} == {0}
+    assert [str(cell.winfo_children()[0].cget("text")) for cell in cells] == [
+        "PROJECTS",
+        "WORKERS READY",
+        "CONNECTORS READY",
+        "CONTROLLER",
+    ]
 
 
 def test_real_system_metrics_render_in_overview(root, tmp_path: Path) -> None:
@@ -316,3 +558,37 @@ def test_system_monitor_callback_is_cancelled_cleanly(root, tmp_path: Path) -> N
     assert app._system_metric_after_id is not None
     app._stop_system_monitor()
     assert app._system_metric_after_id is None
+
+
+def test_confirmation_dialog_supports_focus_escape_and_return(root, tmp_path: Path) -> None:
+    import tkinter as tk
+
+    app = make_app(root, tmp_path)
+    root.deiconify()
+    root.update()
+    observed: list[tuple[bool, bool]] = []
+
+    def dismiss_with_escape() -> None:
+        dialog = next(
+            child for child in root.winfo_children() if isinstance(child, tk.Toplevel)
+        )
+        focused = dialog.focus_get()
+        observed.append((bool(dialog.bind("<Escape>")), focused is not None))
+        dialog.event_generate("<Escape>")
+        dialog.after(20, lambda: dialog.destroy() if dialog.winfo_exists() else None)
+
+    root.after(40, dismiss_with_escape)
+    assert app._confirm("Keyboard-safe confirmation?") is False
+    assert observed == [(True, True)]
+
+    def accept_with_return() -> None:
+        dialog = next(
+            child for child in root.winfo_children() if isinstance(child, tk.Toplevel)
+        )
+        observed.append((bool(dialog.bind("<Return>")), dialog.focus_get() is not None))
+        dialog.event_generate("<Return>")
+        dialog.after(20, lambda: dialog.destroy() if dialog.winfo_exists() else None)
+
+    root.after(40, accept_with_return)
+    assert app._confirm("Keyboard-safe confirmation?") is True
+    assert observed[-1] == (True, True)

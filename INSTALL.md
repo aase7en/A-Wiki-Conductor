@@ -1,6 +1,6 @@
 # ติดตั้ง A-Sunday Conductor (Install Guide)
 
-> เวอร์ชันล่าสุด: v0.4.3 · รองรับ: Windows 10/11 · ไม่ต้องมีสิทธิ์ admin
+> เวอร์ชันล่าสุด: v0.6.0 · รองรับ: Windows 10/11 · ไม่ต้องมีสิทธิ์ admin
 
 ## วิธีที่ 1: Setup Installer (แนะนำสำหรับผู้ใช้ทั่วไป)
 
@@ -28,7 +28,7 @@
 %LOCALAPPDATA%\Programs\A-Sunday Conductor\
 ```
 
-(ไม่แตะ system32 / registry ของเครื่อง ปลอดภัย 100%)
+ตัวติดตั้งไม่แตะ `System32` และไม่เขียน system-wide registry; จะลงทะเบียนข้อมูลถอนการติดตั้งเฉพาะบัญชีผู้ใช้ที่ `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\A-Sunday Conductor`
 
 ---
 

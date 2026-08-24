@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from threading import Lock
 from typing import Callable, Protocol
 
 from .control_center import ControlCenterService
@@ -65,6 +66,8 @@ class DesktopControlService:
         self.settings_store = settings_store
         self.instances_root = instances_root
         self._instance_orchestrator = instance_orchestrator
+        self._pending_instance_starts: set[str] = set()
+        self._pending_instance_starts_lock = Lock()
 
     @classmethod
     def open(
@@ -359,19 +362,35 @@ class DesktopControlService:
         """Stop every running connector; one failure never blocks the rest."""
         from .local_instances import instance_health_state
 
+        with self._pending_instance_starts_lock:
+            pending_starts = set(self._pending_instance_starts)
         results: list[tuple[str, bool]] = []
         for instance in self.instances():
+            force = instance.name in pending_starts
+            if not force:
+                try:
+                    state = instance_health_state(instance)
+                except Exception:
+                    state = None
+                if state is InstanceHealthState.STOPPED:
+                    continue
             try:
-                state = instance_health_state(instance)
-            except Exception:
-                state = None
-            if state is InstanceHealthState.STOPPED:
-                continue
-            try:
-                self.instance_action(instance.name, "stop")
-                results.append((instance.name, True))
+                outcome = (
+                    self._orchestrator().stop(instance, force=True)
+                    if force
+                    else self.instance_action(instance.name, "stop")
+                )
+                ok = outcome.result_code in {
+                    InstanceResultCode.STOPPED,
+                    InstanceResultCode.ALREADY_STOPPED,
+                }
+                results.append((instance.name, ok))
             except Exception:
                 results.append((instance.name, False))
+            finally:
+                if force:
+                    with self._pending_instance_starts_lock:
+                        self._pending_instance_starts.discard(instance.name)
         return results
 
     def create_instance(
@@ -401,6 +420,17 @@ class DesktopControlService:
             (instance, instance_health_state(instance))
             for instance in self.instances()
         )
+
+    def instance_states_cancellable(
+        self, *, cancel_check: Callable[[], bool]
+    ) -> tuple[tuple[LocalInstance, InstanceHealthState], ...]:
+        """Read connector states while allowing app shutdown between probes."""
+        states: list[tuple[LocalInstance, InstanceHealthState]] = []
+        for instance in self.instances():
+            if cancel_check():
+                break
+            states.append((instance, instance_health_state(instance)))
+        return tuple(states)
 
     def _orchestrator(self) -> LocalInstanceOrchestrator:
         if self._instance_orchestrator is None:
@@ -434,6 +464,45 @@ class DesktopControlService:
         orchestrator = self._orchestrator()
         if action == "start":
             return orchestrator.start(target)
+        return orchestrator.stop(target)
+
+    def instance_action_cancellable(
+        self,
+        instance_name: str,
+        action: str,
+        *,
+        cancel_check: Callable[[], bool],
+    ) -> InstanceOrchestrationOutcome:
+        """Run a connector action with cooperative cancellation for startup."""
+        if not isinstance(instance_name, str) or not instance_name.strip():
+            raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
+        if action not in ("start", "stop"):
+            raise SerenaConfigStoreError("INSTANCE_ACTION_INVALID")
+        target = next(
+            (item for item in self.instances() if item.name == instance_name), None
+        )
+        if target is None:
+            raise SerenaConfigStoreError("INSTANCE_NOT_FOUND")
+        orchestrator = self._orchestrator()
+        if action == "start":
+            with self._pending_instance_starts_lock:
+                self._pending_instance_starts.add(instance_name)
+            keep_pending = False
+            try:
+                outcome = orchestrator.start(target, cancel_check=cancel_check)
+                keep_pending = (
+                    outcome.result_code
+                    in {
+                        InstanceResultCode.START_CANCELLED,
+                        InstanceResultCode.STARTED_NOT_READY,
+                    }
+                    and outcome.process_launched
+                )
+                return outcome
+            finally:
+                if not keep_pending:
+                    with self._pending_instance_starts_lock:
+                        self._pending_instance_starts.discard(instance_name)
         return orchestrator.stop(target)
 
     def set_instance_autostart(self, instance_name: str, enabled: bool) -> None:

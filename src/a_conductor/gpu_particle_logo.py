@@ -16,9 +16,9 @@ from array import array
 import math
 import os
 from pathlib import Path
+import sys
 import time
 import tkinter as tk
-from typing import Iterable
 
 from .interactive_logo import FAMILY_EYE_REGIONS
 
@@ -38,8 +38,72 @@ GPU_FRAME_MS = 24  # ~42 fps; enough for gentle logo motion with lower load
 GPU_MAX_PARTICLES = 40_000
 GPU_SOURCE_MAX_DIMENSION = 520
 GPU_BRIGHTNESS_THRESHOLD = 38
+GPU_LUMINANCE_SAMPLING_POWER = 1.4
 GPU_FACE_PARALLAX_CLIP = 0.012  # ~0.7 px at a 120 px logo
 GPU_GAZE_CLIP = 0.032  # ~1.9 px at a 120 px logo
+GPU_REPULSION_CLIP = 0.012  # ~0.7 px at a 120 px logo
+GPU_TRAIL_CLIP = 0.005  # ~0.3 px at a 120 px logo
+GPU_POINTER_POSITION_EASE = 0.24
+GPU_POINTER_RETURN_EASE = 0.18
+GPU_POINTER_STRENGTH_EASE = 0.18
+GPU_POINT_BASE_SIZE = 0.72
+GPU_POINT_LUMA_SIZE = 0.48
+GPU_POINT_INTERACTION_SIZE = 0.12
+GPU_MIN_VISIBLE_PIXEL_RATIO = 0.035
+GPU_IDLE_BASE_CLIP = 0.0015
+GPU_IDLE_LUMA_CLIP = 0.0022
+GPU_IDLE_DRIFT_CLIP = GPU_IDLE_BASE_CLIP + GPU_IDLE_LUMA_CLIP
+
+
+def _enable_compatibility_point_sprites() -> None:
+    """Enable ``gl_PointCoord`` support only for legacy-compatible contexts.
+
+    ``pyopengltk`` creates a compatibility-profile WGL context on Windows.  In
+    that profile, point-coordinate replacement stays disabled until the legacy
+    ``GL_POINT_SPRITE`` capability is enabled.  Core profiles provide point
+    coordinates unconditionally and reject that legacy capability, so leave
+    them untouched.
+    """
+    from OpenGL import GL
+
+    profile_mask = 0
+    try:
+        raw_mask = GL.glGetIntegerv(GL.GL_CONTEXT_PROFILE_MASK)
+        try:
+            profile_mask = int(raw_mask)
+        except (TypeError, ValueError):
+            profile_mask = int(raw_mask[0])
+    except Exception:
+        # Do not guess here.  A core profile rejects the legacy capability;
+        # unknown profiles therefore keep the modern default behaviour.
+        profile_mask = 0
+
+    compatibility_bit = int(
+        getattr(GL, "GL_CONTEXT_COMPATIBILITY_PROFILE_BIT", 0x00000002)
+    )
+    if profile_mask & compatibility_bit:
+        GL.glEnable(GL.GL_POINT_SPRITE)
+
+
+def _read_nonblack_back_buffer(width: int, height: int) -> int:
+    """Return the real non-black pixel count from the current back buffer."""
+    from OpenGL import GL
+
+    GL.glReadBuffer(GL.GL_BACK)
+    # RGBA rows are always four-byte aligned, including odd widget widths.
+    raw = bytes(
+        GL.glReadPixels(0, 0, width, height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE)
+    )
+    return sum(
+        1
+        for offset in range(0, len(raw), 4)
+        if raw[offset] or raw[offset + 1] or raw[offset + 2]
+    )
+
+
+def minimum_visible_pixels(width: int, height: int) -> int:
+    """Return meaningful portrait coverage for the one-time framebuffer gate."""
+    return max(32, math.ceil(width * height * GPU_MIN_VISIBLE_PIXEL_RATIO))
 
 
 def gpu_backend_available() -> bool:
@@ -47,6 +111,64 @@ def gpu_backend_available() -> bool:
     if os.environ.get("A_CONDUCTOR_GPU_PARTICLES", "").strip() == "0":
         return False
     return moderngl is not None and Image is not None and OpenGLFrame is not None
+
+
+def _release_pyopengltk_context(gl_frame: object) -> None:
+    """Release native handles that pyopengltk does not destroy itself.
+
+    pyopengltk 0.0.x creates a WGL/GLX context in private attributes but its
+    ``BaseOpenGLFrame`` has no teardown hook.  Keep this adapter deliberately
+    small and best-effort: optional GPU cleanup must never prevent Tk shutdown.
+    """
+    context_attr = "_OpenGLFrame__context"
+    window_attr = "_OpenGLFrame__window"
+    context = getattr(gl_frame, context_attr, None)
+    window = getattr(gl_frame, window_attr, None)
+
+    try:
+        if sys.platform.startswith("win32"):
+            if context is not None:
+                try:
+                    from OpenGL.WGL import wglDeleteContext, wglMakeCurrent
+
+                    wglMakeCurrent(None, None)
+                    wglDeleteContext(context)
+                except Exception:
+                    pass
+            if window is not None:
+                try:
+                    from ctypes import WinDLL, c_int, c_void_p
+                    from ctypes.wintypes import HDC, HWND
+
+                    release_dc = WinDLL("user32", use_last_error=True).ReleaseDC
+                    release_dc.argtypes = [HWND, HDC]
+                    release_dc.restype = c_int
+                    hwnd = c_void_p(int(gl_frame.winfo_id()))  # type: ignore[attr-defined]
+                    release_dc(hwnd, window)
+                except Exception:
+                    pass
+        elif sys.platform.startswith("linux") and window is not None:
+            try:
+                from ctypes import c_int
+                from OpenGL import GLX
+                from pyopengltk import linux as pyopengltk_linux
+
+                if context is not None:
+                    GLX.glXMakeCurrent(window, 0, None)
+                    GLX.glXDestroyContext(window, context)
+                close_display = pyopengltk_linux._x11lib.XCloseDisplay
+                close_display.argtypes = [type(window)]
+                close_display.restype = c_int
+                close_display(window)
+            except Exception:
+                pass
+    finally:
+        if hasattr(gl_frame, context_attr):
+            setattr(gl_frame, context_attr, None)
+        if hasattr(gl_frame, window_attr):
+            setattr(gl_frame, window_attr, None)
+        if hasattr(gl_frame, "context_created"):
+            setattr(gl_frame, "context_created", False)
 
 
 def _eye_weight(nx: float, ny: float) -> float:
@@ -107,6 +229,12 @@ def build_particle_vertices(
                 luminance = value / 255.0
                 # Deterministic hash-like seed avoids transferring per-frame CPU noise.
                 seed = (x * 0.7548776662466927 + y * 0.5698402909980532) % 1.0
+                # Preserve portrait contrast after downsampling: mid-gray areas
+                # receive proportionally fewer points than bright landmarks.
+                # Treating every above-threshold pixel equally flattens faces
+                # into an indistinct cloud even though the vertex count is high.
+                if seed >= luminance**GPU_LUMINANCE_SAMPLING_POWER:
+                    continue
                 candidates.append((nx, ny, luminance, seed, _eye_weight(nx, ny)))
 
     if not candidates:
@@ -154,7 +282,8 @@ void main() {
 
     // Very small breathing motion keeps the portrait alive even when idle.
     float phase = in_seed * 6.28318530718;
-    float drift = sin(u_time * 1.15 + phase) * (0.0015 + 0.0022 * in_luma);
+    float drift = sin(u_time * 1.15 + phase)
+        * (__IDLE_BASE__ + __IDLE_LUMA__ * in_luma);
     p += vec2(cos(phase * 1.73), sin(phase * 1.31)) * drift;
 
     // Whole-portrait parallax is deliberately smaller than eye motion.
@@ -173,23 +302,34 @@ void main() {
     vec2 delta = p - u_mouse;
     float distance_to_mouse = max(length(delta), 0.0001);
     float field = smoothstep(0.34, 0.0, distance_to_mouse) * u_mouse_active;
+    float local_field = field * (1.0 - in_eye);
     vec2 away = delta / distance_to_mouse;
     float velocity = clamp(length(u_mouse_velocity) * 4.0, 0.0, 1.0);
     vec2 tangent = vec2(-away.y, away.x);
-    p += away * field * 0.115;
-    p += tangent * field * velocity * 0.060;
+    p += away * local_field * __REPULSION__;
+    p += tangent * local_field * velocity * __TRAIL__;
 
     gl_Position = vec4(p, 0.0, 1.0);
     // Keep dots fine and separated; interaction changes position more than size.
-    gl_PointSize = 0.85 + 0.85 * in_luma + field * 0.45;
+    gl_PointSize = __POINT_BASE__ + __POINT_LUMA__ * in_luma
+        + local_field * __POINT_INTERACTION__;
     v_luma = in_luma;
-    v_force = field;
+    v_force = local_field;
     v_eye = in_eye;
 }
 """
 
 _VERTEX_SHADER = _VERTEX_SHADER.replace("__FACE_PARALLAX__", f"{GPU_FACE_PARALLAX_CLIP:.6f}")
 _VERTEX_SHADER = _VERTEX_SHADER.replace("__GAZE__", f"{GPU_GAZE_CLIP:.6f}")
+_VERTEX_SHADER = _VERTEX_SHADER.replace("__IDLE_BASE__", f"{GPU_IDLE_BASE_CLIP:.6f}")
+_VERTEX_SHADER = _VERTEX_SHADER.replace("__IDLE_LUMA__", f"{GPU_IDLE_LUMA_CLIP:.6f}")
+_VERTEX_SHADER = _VERTEX_SHADER.replace("__REPULSION__", f"{GPU_REPULSION_CLIP:.6f}")
+_VERTEX_SHADER = _VERTEX_SHADER.replace("__TRAIL__", f"{GPU_TRAIL_CLIP:.6f}")
+_VERTEX_SHADER = _VERTEX_SHADER.replace("__POINT_BASE__", f"{GPU_POINT_BASE_SIZE:.6f}")
+_VERTEX_SHADER = _VERTEX_SHADER.replace("__POINT_LUMA__", f"{GPU_POINT_LUMA_SIZE:.6f}")
+_VERTEX_SHADER = _VERTEX_SHADER.replace(
+    "__POINT_INTERACTION__", f"{GPU_POINT_INTERACTION_SIZE:.6f}"
+)
 
 
 _FRAGMENT_SHADER = r"""
@@ -262,6 +402,7 @@ class GPUParticleLogo:
 
         self._source_path: Path | None = None
         self._fallback = None
+        self._fallback_after_id: str | None = None
         self._gl_frame = None
         self._ctx = None
         self._program = None
@@ -270,16 +411,21 @@ class GPUParticleLogo:
         self._particle_count = 0
         self._image_aspect = 4.0 / 3.0
         self._gpu_ready = False
+        self._frame_verified = False
         self._gpu_error: str | None = None
         self._running = False
         self._started_at = time.perf_counter()
         self._mouse_x = 0.0
         self._mouse_y = 0.0
+        self._render_mouse_x = 0.0
+        self._render_mouse_y = 0.0
         self._mouse_vx = 0.0
         self._mouse_vy = 0.0
+        self._interaction_strength = 0.0
         self._last_mouse_time = time.perf_counter()
         self._mouse_active = False
         self._motion_binding: str | None = None
+        self._destroyed = False
 
         if gpu_backend_available():
             try:
@@ -292,7 +438,7 @@ class GPUParticleLogo:
 
     @property
     def renderer_name(self) -> str:
-        if self._gpu_ready:
+        if self._gpu_ready and self._frame_verified:
             return "gpu-opengl"
         if self._fallback is not None:
             return "tk-canvas-fallback"
@@ -309,6 +455,7 @@ class GPUParticleLogo:
             assert moderngl is not None
             gl_frame.tkMakeCurrent()
             self._ctx = moderngl.create_context(require=330)
+            _enable_compatibility_point_sprites()
             self._ctx.enable(moderngl.BLEND | moderngl.PROGRAM_POINT_SIZE)
             self._ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
             self._program = self._ctx.program(
@@ -333,7 +480,39 @@ class GPUParticleLogo:
                 pass
             setattr(self, resource_name, None)
 
+    def _release_gl_renderer(self, *, destroy_frame: bool) -> None:
+        """Release ModernGL objects, the wrapper context, then native handles."""
+        gl_frame = self._gl_frame
+        if gl_frame is not None and getattr(gl_frame, "context_created", False):
+            try:
+                gl_frame.tkMakeCurrent()
+            except Exception:
+                pass
+
+        self._release_gpu_resources()
+        context = self._ctx
+        self._ctx = None
+        if context is not None:
+            try:
+                context.release()
+            except Exception:
+                pass
+
+        if gl_frame is not None:
+            _release_pyopengltk_context(gl_frame)
+            if destroy_frame:
+                try:
+                    gl_frame.destroy()
+                except Exception:
+                    pass
+                self._gl_frame = None
+
+        self._particle_count = 0
+        self._gpu_ready = False
+        self._frame_verified = False
+
     def _rebuild_gpu_buffer(self) -> None:
+        self._frame_verified = False
         if not self._gpu_ready or self._ctx is None or self._program is None:
             return
         if self._source_path is None:
@@ -373,23 +552,34 @@ class GPUParticleLogo:
 
     def _schedule_fallback(self, exc: Exception) -> None:
         self._gpu_error = f"{type(exc).__name__}: {exc}"
+        self._gpu_ready = False
+        self._frame_verified = False
+        if self._destroyed or self._fallback_after_id is not None:
+            return
         try:
-            self.frame.after_idle(self._activate_fallback)
+            self._fallback_after_id = self.frame.after_idle(self._activate_fallback)
         except tk.TclError:
+            self._fallback_after_id = None
+
+    def _cancel_scheduled_fallback(self) -> None:
+        callback = self._fallback_after_id
+        self._fallback_after_id = None
+        if callback is None:
+            return
+        try:
+            self.frame.after_cancel(callback)
+        except (tk.TclError, ValueError):
             pass
 
     def _activate_fallback(self) -> None:
+        self._fallback_after_id = None
+        if self._destroyed:
+            return
         if self._fallback is not None:
             return
         if self._gl_frame is not None:
-            try:
-                self._stop_gl_animation()
-                self._gl_frame.destroy()
-            except Exception:
-                pass
-            self._gl_frame = None
-        self._release_gpu_resources()
-        self._ctx = None
+            self._stop_gl_animation()
+        self._release_gl_renderer(destroy_frame=True)
         from .interactive_logo import InteractiveLogo
 
         self._fallback = InteractiveLogo(self.frame, size=self.size)
@@ -439,6 +629,30 @@ class GPUParticleLogo:
         except tk.TclError:
             return False
 
+    def _advance_pointer_state(self, *, pointer_inside: bool) -> None:
+        """Ease the rendered pointer field and invalidate samples after leave."""
+        sample_active = pointer_inside and self._mouse_active
+        target_x = self._mouse_x if sample_active else 0.0
+        target_y = self._mouse_y if sample_active else 0.0
+        position_ease = (
+            GPU_POINTER_POSITION_EASE if sample_active else GPU_POINTER_RETURN_EASE
+        )
+        target_strength = 1.0 if sample_active else 0.0
+
+        self._render_mouse_x += (target_x - self._render_mouse_x) * position_ease
+        self._render_mouse_y += (target_y - self._render_mouse_y) * position_ease
+        self._interaction_strength += (
+            target_strength - self._interaction_strength
+        ) * GPU_POINTER_STRENGTH_EASE
+        velocity_decay = 0.86 if sample_active else 0.72
+        self._mouse_vx *= velocity_decay
+        self._mouse_vy *= velocity_decay
+
+        # Re-entry needs a fresh <Motion> sample; a stale off-window target must
+        # never reactivate merely because geometry becomes inside again.
+        if not pointer_inside:
+            self._mouse_active = False
+
     def _redraw_gl(self, gl_frame: _ParticleGLFrame) -> None:
         if not self._gpu_ready or self._ctx is None or self._program is None:
             return
@@ -450,18 +664,27 @@ class GPUParticleLogo:
             self._ctx.clear(0.0, 0.0, 0.0, 1.0)
             if self._vao is None or self._particle_count <= 0:
                 return
-            active = 1.0 if self._pointer_inside_app() and self._mouse_active else 0.0
+            self._advance_pointer_state(pointer_inside=self._pointer_inside_app())
             self._program["u_time"].value = time.perf_counter() - self._started_at
-            self._program["u_mouse"].value = (self._mouse_x, self._mouse_y)
+            self._program["u_mouse"].value = (
+                self._render_mouse_x,
+                self._render_mouse_y,
+            )
             self._program["u_mouse_velocity"].value = (self._mouse_vx, self._mouse_vy)
-            self._program["u_mouse_active"].value = active
+            self._program["u_mouse_active"].value = self._interaction_strength
             self._program["u_image_aspect"].value = float(self._image_aspect)
             self._program["u_view_aspect"].value = width / height
             self._vao.render(mode=moderngl.POINTS, vertices=self._particle_count)
-            self._mouse_vx *= 0.86
-            self._mouse_vy *= 0.86
+            if not self._frame_verified and width >= 32 and height >= 32:
+                self._ctx.finish()
+                nonblack = _read_nonblack_back_buffer(width, height)
+                minimum_visible = minimum_visible_pixels(width, height)
+                if nonblack < minimum_visible:
+                    raise RuntimeError("GPU_FRAMEBUFFER_BLANK")
+                self._frame_verified = True
         except Exception as exc:
             self._gpu_ready = False
+            self._frame_verified = False
             self._schedule_fallback(exc)
 
     def start(self) -> None:
@@ -492,6 +715,8 @@ class GPUParticleLogo:
         self._stop_gl_animation()
 
     def destroy(self) -> None:
+        self._destroyed = True
+        self._cancel_scheduled_fallback()
         self.stop()
         try:
             top = self.frame.winfo_toplevel()
@@ -500,7 +725,13 @@ class GPUParticleLogo:
         except tk.TclError:
             pass
         self._motion_binding = None
-        self._release_gpu_resources()
+        if self._fallback is not None:
+            try:
+                self._fallback.destroy()
+            except (AttributeError, tk.TclError):
+                pass
+            self._fallback = None
+        self._release_gl_renderer(destroy_frame=True)
         try:
             self.frame.destroy()
         except tk.TclError:

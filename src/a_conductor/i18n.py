@@ -179,6 +179,7 @@ STRINGS: dict[str, dict[str, str]] = {
 # without a Chinese translation fall back to English so the UI never falls back
 # to Thai unexpectedly for a Chinese-selected session.
 _ZH_CN: dict[str, str] = {
+    "menu.copy.path": "复制路径",
     "tip.add.project": "注册本机项目文件夹，不修改项目文件",
     "tip.assign": "把所选项目分配给所选 Worker",
     "btn.guide": "Guide",
@@ -303,6 +304,75 @@ STRINGS["tip.copy.log"] = {
     "zh-CN": "选择文本后按 Ctrl+C，或右键选择 Copy Selection / Copy All。",
     "en": "Select text and press Ctrl+C, or right-click for Copy Selection / Copy All.",
 }
+STRINGS.update(
+    {
+        "prefs.header": {
+            "th": "> การตั้งค่ารวม  (เปลี่ยนแล้วมีผลทันที)",
+            "zh-CN": "> 全局设置（更改立即生效）",
+            "en": "> Global settings  (changes apply immediately)",
+        },
+        "prefs.supervised": {
+            "th": "โหมด Supervised  (คุมงานเบื้องหลัง: บันทึกทุกคำสั่ง · กันสั่งซ้ำ · เก็บผลแม้ timeout)",
+            "zh-CN": "Supervised mode（记录命令、防止重复执行，并保留超时任务结果）",
+            "en": "Supervised mode  (record commands, prevent duplicates, preserve timed-out results)",
+        },
+        "prefs.supervised.help": {
+            "th": "ON = คุมคำสั่ง native ตั้งแต่เริ่มจนจบ พร้อมบันทึกและกันงานซ้ำ\nOFF = เร็วขึ้นเล็กน้อย แต่ไม่มีการบันทึก/กันซ้ำ\n(แนะนำ: ON)",
+            "zh-CN": "ON = 全程记录 native 命令并防止重复任务\nOFF = 略快，但不记录或去重\n（推荐：ON）",
+            "en": "ON = supervise native commands end to end, record them, and prevent duplicates\nOFF = slightly faster, without recording or duplicate protection\n(Recommended: ON)",
+        },
+        "prefs.supervised.summary": {
+            "th": "ON: ปลอดภัยกว่า บันทึกทุกงาน กันสั่งซ้ำอัตโนมัติ · OFF: เร็วกว่า เหมาะกับงานสั้นๆ ไม่สำคัญ",
+            "zh-CN": "ON：更安全、记录任务并自动去重 · OFF：更快，适合短期非关键任务",
+            "en": "ON: safer, records work and prevents duplicates · OFF: faster for short non-critical tasks",
+        },
+        "monitor.select": {
+            "th": "  เลือกตัวเชื่อมในตาราง CONNECTORS เพื่อดูสถานะ · PID · หน่วยความจำ · log ล่าสุด",
+            "zh-CN": "  在 CONNECTORS 表中选择连接，以查看状态、PID、内存和最新日志",
+            "en": "  Select a row in CONNECTORS to view state, PID, memory, and the latest log",
+        },
+        "monitor.select.detail": {
+            "th": "  (เปิด/ปิดผ่านปุ่มในแอปได้เลย — start จากแอปไม่มีหน้าต่าง CMD)",
+            "zh-CN": "  （可用应用内按钮启动或停止；启动不会打开 CMD 窗口）",
+            "en": "  (start or stop it with the app buttons; starting does not open a CMD window)",
+        },
+        "monitor.missing": {
+            "th": "  {name}: ไม่พบ instance",
+            "zh-CN": "  {name}：未找到 Connector instance",
+            "en": "  {name}: instance not found",
+        },
+        "monitor.errors": {
+            "th": "  errors ล่าสุด: {count}",
+            "zh-CN": "  最新 errors：{count}",
+            "en": "  recent errors: {count}",
+        },
+        "memory.select": {
+            "th": "สมองโปรเจกต์: เลือกโปรเจกต์เพื่อดูสถานะ",
+            "zh-CN": "项目记忆：选择项目以查看状态",
+            "en": "Project memory: select a project to view status",
+        },
+        "memory.unknown": {
+            "th": "สมองโปรเจกต์: —",
+            "zh-CN": "项目记忆：—",
+            "en": "Project memory: —",
+        },
+        "memory.ready": {
+            "th": "สมองโปรเจกต์: พร้อม ({count} ไฟล์)",
+            "zh-CN": "项目记忆：READY（{count} 个文件）",
+            "en": "Project memory: READY ({count} files)",
+        },
+        "memory.path.missing": {
+            "th": "สมองโปรเจกต์: ไม่พบ path โปรเจกต์",
+            "zh-CN": "项目记忆：未找到项目路径",
+            "en": "Project memory: project path not found",
+        },
+        "memory.empty": {
+            "th": "สมองโปรเจกต์: ยังไม่มีความจำ — onboarding จะทำงานเมื่อ agent เข้าครั้งแรก · หลังจบเริ่มบทสนทนาใหม่",
+            "zh-CN": "项目记忆：尚无记忆；Agent 首次进入时会执行 onboarding，完成后请开始新会话",
+            "en": "Project memory: none yet; onboarding runs when an agent first enters, then start a new conversation",
+        },
+    }
+)
 
 _language = "th"
 

@@ -120,7 +120,9 @@ def _linux_cpu_times() -> tuple[int, int] | None:
         if len(values) < 4:
             return None
         idle = values[3] + (values[4] if len(values) > 4 else 0)
-        total = sum(values)
+        # guest and guest_nice (fields 9-10) are already included in user and
+        # nice by the Linux kernel, so including them would double-count time.
+        total = sum(values[:8])
         return idle, total
     except (OSError, ValueError, IndexError):
         return None
