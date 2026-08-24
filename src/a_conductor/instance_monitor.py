@@ -85,6 +85,12 @@ def process_memory_mb(
 
 
 def monitor_report(instance_root: Path | str, *, state: str) -> dict:
+    """Build the monitor report for an instance.
+
+    GUARANTEE: NEVER spawns any process (no cmd.exe, no powershell.exe).
+    All data gathered via file reads and native Windows API (ctypes).
+    See DEFECT_LESSONS.md #1.
+    """
     root = Path(instance_root)
     log = latest_log_path(root)
     tail = tail_lines(log)

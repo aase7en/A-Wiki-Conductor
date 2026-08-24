@@ -11,6 +11,7 @@ Before any non-trivial work, every ChatGPT session, GPT Work task, A-Worker, Ser
 3. `CURRENT-WORK.md` — current phase, active work order, checklist, blockers.
 4. `handoff.md` — latest verified resume state.
 5. The active `docs/work-orders/<id>.md`.
+6. `DEFECT_LESSONS.md` — บทเรียนจากข้อผิดพลาดที่เคยเกิดจริง (อ่านก่อนแก้โค้ดใน src/)
 
 ## Core continuity rule
 
