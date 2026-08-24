@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -11,6 +13,99 @@ import pytest
 from a_conductor.branding import APP_NAME, APP_VERSION
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_build_portable():
+    spec = importlib.util.spec_from_file_location(
+        "build_portable", REPO_ROOT / "scripts" / "build_portable.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_fresh_pe_permission_lock_is_retried_with_a_finite_budget() -> None:
+    module = _load_build_portable()
+    attempts = 0
+    delays: list[float] = []
+
+    def temporarily_locked() -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise PermissionError("fresh executable is temporarily locked")
+        return "written"
+
+    result = module.run_with_permission_retry(
+        temporarily_locked,
+        retry_delays=(0.1, 0.2, 0.4),
+        sleep=delays.append,
+    )
+
+    assert result == "written"
+    assert attempts == 3
+    assert delays == [0.1, 0.2]
+
+
+def test_permission_retry_wrapper_is_idempotent() -> None:
+    module = _load_build_portable()
+
+    def write_pe() -> None:
+        return None
+
+    wrapped = module.with_permission_retry(write_pe)
+
+    assert module.with_permission_retry(wrapped) is wrapped
+
+
+def test_persistent_pe_permission_lock_is_raised_after_retry_budget() -> None:
+    module = _load_build_portable()
+    attempts = 0
+    delays: list[float] = []
+
+    def persistently_locked() -> None:
+        nonlocal attempts
+        attempts += 1
+        raise PermissionError("still locked")
+
+    with pytest.raises(PermissionError, match="still locked"):
+        module.run_with_permission_retry(
+            persistently_locked,
+            retry_delays=(0.1, 0.2),
+            sleep=delays.append,
+        )
+
+    assert attempts == 3
+    assert delays == [0.1, 0.2]
+
+
+def test_portable_build_is_clean_and_bundles_brand_runtime_inputs(tmp_path: Path) -> None:
+    module = _load_build_portable()
+
+    args = module.pyinstaller_args(root=REPO_ROOT, dist_dir=tmp_path / "dist")
+
+    assert "--clean" in args
+    assert args[args.index("--name") + 1] == APP_NAME
+    assert f"{REPO_ROOT / 'assets'};assets" in args
+    assert args[-1] == str(REPO_ROOT / "entry.py")
+
+
+def test_build_and_installer_metadata_use_branding_ssot() -> None:
+    portable_source = (REPO_ROOT / "scripts" / "build_portable.py").read_text(
+        encoding="utf-8"
+    )
+    build_installer_source = (
+        REPO_ROOT / "scripts" / "build_installer.py"
+    ).read_text(encoding="utf-8")
+    installer_source = (REPO_ROOT / "scripts" / "installer_main.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "from a_conductor.branding import APP_NAME" in portable_source
+    assert "from a_conductor.branding import APP_NAME, APP_VERSION" in build_installer_source
+    assert "installer-branding.json" in installer_source
+    assert 'APP_NAME = "A-Sunday Conductor"' not in installer_source
+    assert 'APP_VERSION = "0.6.0"' not in installer_source
 
 
 def _load_build_installer():
@@ -51,13 +146,20 @@ def test_assemble_payload_copies_everything(build_installer, tmp_path: Path) -> 
     dist.mkdir()
     (dist / f"{APP_NAME}.exe").write_bytes(b"FAKE-EXE")
     payload = tmp_path / "payload"
+    payload.mkdir()
+    (payload / "stale-file.txt").write_text("stale", encoding="utf-8")
 
     build_installer.assemble_payload(root=REPO_ROOT, dist_dir=dist, payload_dir=payload)
 
+    assert not (payload / "stale-file.txt").exists()
     assert (payload / f"{APP_NAME}.exe").read_bytes() == b"FAKE-EXE"
     assert (payload / "docs" / "USER-GUIDE.md").is_file()
     assert (payload / "THIRD-PARTY-NOTICES.md").is_file()
     assert (payload / "assets" / "a-conductor.ico").is_file()
+    assert json.loads((payload / "installer-branding.json").read_text(encoding="utf-8")) == {
+        "app_name": APP_NAME,
+        "app_version": APP_VERSION,
+    }
 
 
 def test_assemble_payload_fails_clearly_without_portable_exe(
@@ -75,8 +177,16 @@ def test_pyinstaller_args_carry_setup_name_and_payload(build_installer, tmp_path
         root=REPO_ROOT, payload_dir=tmp_path / "payload", dist_dir=tmp_path / "dist"
     )
     name_index = args.index("--name")
+    assert "--clean" in args
     assert args[name_index + 1] == "A-Sunday-Conductor-Setup"
-    data_index = next(i for i, a in enumerate(args) if str(a).startswith("payload;") or str(a).endswith(";payload"))
+    assert args[args.index("--icon") + 1] == str(
+        REPO_ROOT / "assets" / "a-conductor.ico"
+    )
+    data_index = next(
+        i
+        for i, arg in enumerate(args)
+        if str(arg).startswith("payload;") or str(arg).endswith(";payload")
+    )
     assert str(args[data_index]).startswith(str(tmp_path / "payload"))
     assert args[-1].endswith("installer_main.py")
 
@@ -90,7 +200,104 @@ def _load_installer_main():
     return module
 
 
-def test_main_hardens_pe_steps_before_running_pyinstaller(build_installer, tmp_path: Path) -> None:
+def _make_installer_payload(root: Path) -> Path:
+    source = root / "payload"
+    source.mkdir()
+    (source / f"{APP_NAME}.exe").write_bytes(b"EXE")
+    (source / "docs").mkdir()
+    (source / "docs" / "USER-GUIDE.md").write_text("guide", encoding="utf-8")
+    (source / "docs" / "USER-GUIDE-EN.md").write_text(
+        "guide-en", encoding="utf-8"
+    )
+    (source / "assets").mkdir()
+    (source / "assets" / "a-conductor.ico").write_bytes(b"ICO")
+    (source / "THIRD-PARTY-NOTICES.md").write_text(
+        "notices", encoding="utf-8"
+    )
+    return source
+
+
+def test_powershell_failure_is_reported_instead_of_silently_ignored(
+    monkeypatch,
+) -> None:
+    module = _load_installer_main()
+
+    def failed_run(*args, **kwargs):
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=5, stdout="", stderr="access denied"
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", failed_run)
+
+    with pytest.raises(RuntimeError, match="POWERSHELL_COMMAND_FAILED.*access denied"):
+        module._run_ps("Write-Output test")
+
+
+def test_registry_entry_records_current_display_version(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_installer_main()
+    target = tmp_path / "installed"
+    target.mkdir()
+    (target / f"{APP_NAME}.exe").write_bytes(b"EXE")
+    scripts: list[str] = []
+    monkeypatch.setattr(module, "_run_ps", scripts.append)
+
+    module.write_registry(target, target / f"Uninstall-{APP_NAME}.exe")
+
+    assert module.APP_VERSION == APP_VERSION == "0.6.0"
+    assert "-Name DisplayVersion -Value '0.6.0'" in scripts[0]
+
+
+def test_registry_removal_ignores_absence_but_surfaces_real_errors(monkeypatch) -> None:
+    module = _load_installer_main()
+    scripts: list[str] = []
+    monkeypatch.setattr(module, "_run_ps", scripts.append)
+
+    module.remove_registry()
+
+    assert "Test-Path" in scripts[0]
+    assert "-ErrorAction Stop" in scripts[0]
+    assert "SilentlyContinue" not in scripts[0]
+
+
+def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    for required in (
+        "python scripts/build_portable.py",
+        "pyinstaller==6.22.2",
+        "PORTABLE_BUILD_FAILED",
+        "SETUP_BUILD_FAILED",
+        "pyi-archive_viewer",
+        "assets/sunday-family-particle.png",
+        "a_conductor.gpu_particle_logo",
+        "a_conductor.system_metrics",
+        "moderngl\\mgl",
+        "PIL\\_imaging",
+        "tcl86t.dll",
+        "tk86t.dll",
+        "payload/installer-branding.json",
+        "SETUP_ARCHIVE_UNEXPECTED_ENTRY",
+        "Start-Process",
+        "actions/upload-artifact@v4",
+    ):
+        assert required in workflow
+
+
+def test_install_guide_matches_current_release_and_hkcu_contract() -> None:
+    guide = (REPO_ROOT / "INSTALL.md").read_text(encoding="utf-8")
+
+    assert f"v{APP_VERSION}" in guide
+    assert "HKCU" in guide
+    assert "ไม่แตะ system32 / registry" not in guide
+
+
+def test_main_hardens_pe_steps_before_running_pyinstaller(
+    build_installer, tmp_path: Path
+) -> None:
     events: list[str] = []
 
     def fake_harden() -> None:
@@ -117,16 +324,7 @@ def test_main_hardens_pe_steps_before_running_pyinstaller(build_installer, tmp_p
 
 def test_installer_install_files_copies_notices(tmp_path: Path, monkeypatch) -> None:
     module = _load_installer_main()
-
-    source = tmp_path / "payload"
-    source.mkdir()
-    (source / f"{APP_NAME}.exe").write_bytes(b"EXE")
-    (source / "docs").mkdir()
-    (source / "docs" / "USER-GUIDE.md").write_text("guide", encoding="utf-8")
-    (source / "docs" / "USER-GUIDE-EN.md").write_text("guide-en", encoding="utf-8")
-    (source / "assets").mkdir()
-    (source / "assets" / "a-conductor.ico").write_bytes(b"ICO")
-    (source / "THIRD-PARTY-NOTICES.md").write_text("notices", encoding="utf-8")
+    source = _make_installer_payload(tmp_path)
     monkeypatch.setattr(module, "payload_dir", lambda: source)
 
     target = tmp_path / "target"
@@ -142,16 +340,7 @@ def test_installer_install_files_copies_notices(tmp_path: Path, monkeypatch) -> 
 
 def test_do_install_uses_installed_icon_for_shortcuts(tmp_path: Path, monkeypatch) -> None:
     module = _load_installer_main()
-
-    source = tmp_path / "payload"
-    source.mkdir()
-    (source / f"{APP_NAME}.exe").write_bytes(b"EXE")
-    (source / "docs").mkdir()
-    (source / "docs" / "USER-GUIDE.md").write_text("guide", encoding="utf-8")
-    (source / "docs" / "USER-GUIDE-EN.md").write_text("guide-en", encoding="utf-8")
-    (source / "assets").mkdir()
-    (source / "assets" / "a-conductor.ico").write_bytes(b"ICO")
-    (source / "THIRD-PARTY-NOTICES.md").write_text("notices", encoding="utf-8")
+    source = _make_installer_payload(tmp_path)
     monkeypatch.setattr(module, "payload_dir", lambda: source)
 
     calls: list[tuple] = []
@@ -169,3 +358,74 @@ def test_do_install_uses_installed_icon_for_shortcuts(tmp_path: Path, monkeypatc
         assert call[3] == expected_icon
         assert call[2] == target / f"{APP_NAME}.exe"
     assert any(c[0] == "registry" for c in calls)
+
+
+def test_do_install_returns_failure_when_shortcut_creation_fails(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    module = _load_installer_main()
+    source = _make_installer_payload(tmp_path)
+    monkeypatch.setattr(module, "payload_dir", lambda: source)
+
+    def fail_shortcut(*args) -> None:
+        raise RuntimeError("POWERSHELL_COMMAND_FAILED (exit 5): access denied")
+
+    monkeypatch.setattr(module, "create_shortcut", fail_shortcut)
+    registry_calls: list[tuple] = []
+    monkeypatch.setattr(module, "write_registry", lambda *args: registry_calls.append(args))
+
+    code = module.do_install(tmp_path / "target")
+
+    assert code == 3
+    assert "INSTALLER_INTEGRATION_FAILED" in capsys.readouterr().out
+    assert registry_calls == []
+
+
+def test_do_uninstall_reports_shortcut_removal_failure(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    module = _load_installer_main()
+    start_link = tmp_path / "start.lnk"
+    desktop_link = tmp_path / "desktop.lnk"
+    monkeypatch.setattr(module, "shortcut_paths", lambda: (start_link, desktop_link))
+
+    def denied_unlink(self, *args, **kwargs):
+        raise PermissionError("shortcut is locked")
+
+    monkeypatch.setattr(Path, "unlink", denied_unlink)
+    monkeypatch.setattr(module, "remove_registry", lambda: None)
+    monkeypatch.setattr(module.shutil, "rmtree", lambda target: None)
+
+    code = module.do_uninstall(tmp_path / "target")
+
+    output = capsys.readouterr().out
+    assert code == 1
+    assert "UNINSTALL_SHORTCUT_FAILED" in output
+    assert "shortcut is locked" in output
+
+
+def test_do_uninstall_continues_file_cleanup_after_registry_failure(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    module = _load_installer_main()
+    monkeypatch.setattr(
+        module,
+        "shortcut_paths",
+        lambda: (tmp_path / "start.lnk", tmp_path / "desktop.lnk"),
+    )
+
+    def fail_registry() -> None:
+        raise RuntimeError("registry denied")
+
+    monkeypatch.setattr(module, "remove_registry", fail_registry)
+    removed: list[Path] = []
+    monkeypatch.setattr(module.shutil, "rmtree", removed.append)
+    target = tmp_path / "target"
+
+    code = module.do_uninstall(target)
+
+    output = capsys.readouterr().out
+    assert code == 1
+    assert removed == [target]
+    assert "UNINSTALL_REGISTRY_FAILED" in output
+    assert "registry denied" in output

@@ -4,16 +4,60 @@ Usage (from the repository root, any Python 3.11+ with PyInstaller installed):
 
     python scripts/build_portable.py [--distpath DIR]
 
-Windows Defender occasionally holds freshly built executables during the two
-PE post-processing steps (timestamp + manifest rewrite), which can corrupt or
-fail the build. Those steps are cosmetic for local use, so this wrapper runs
-PyInstaller with those two operations made best-effort (failures ignored).
+Windows security software can temporarily hold freshly built executables during
+PE post-processing. This wrapper retries only that transient PermissionError
+with a finite delay budget; persistent locks and unrelated failures still fail
+the build with their original error.
+
+Product display contract: "A-Sunday Conductor". The executable name is read
+from ``a_conductor.branding.APP_NAME`` rather than duplicated here.
 """
 
 from __future__ import annotations
 
 import sys
+import time
+from collections.abc import Callable, Sequence
+from functools import wraps
 from pathlib import Path
+from typing import TypeVar
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from a_conductor.branding import APP_NAME  # noqa: E402
+
+T = TypeVar("T")
+PE_RETRY_DELAYS = (0.25, 0.5, 1.0, 2.0, 4.0)
+_PERMISSION_RETRY_MARKER = "_a_conductor_permission_retry"
+
+
+def run_with_permission_retry(
+    operation: Callable[[], T],
+    *,
+    retry_delays: Sequence[float] = PE_RETRY_DELAYS,
+    sleep: Callable[[float], None] = time.sleep,
+) -> T:
+    """Run a PE write, retrying transient file locks within a finite budget."""
+    for delay in retry_delays:
+        try:
+            return operation()
+        except PermissionError:
+            sleep(delay)
+    return operation()
+
+
+def with_permission_retry(operation: Callable[..., T]) -> Callable[..., T]:
+    """Wrap a PE operation once, even when hardening is initialized repeatedly."""
+    if getattr(operation, _PERMISSION_RETRY_MARKER, False):
+        return operation
+
+    @wraps(operation)
+    def wrapper(*args, **kwargs):
+        return run_with_permission_retry(lambda: operation(*args, **kwargs))
+
+    setattr(wrapper, _PERMISSION_RETRY_MARKER, True)
+    return wrapper
 
 
 def _harden_cosmetic_pe_steps() -> None:
@@ -22,21 +66,41 @@ def _harden_cosmetic_pe_steps() -> None:
     except Exception:
         return
 
-    def _soft(fn):
-        def wrapper(*args, **kwargs):
-            try:
-                return fn(*args, **kwargs)
-            except Exception:
-                return None
-
-        return wrapper
-
-    winutils.set_exe_build_timestamp = _soft(winutils.set_exe_build_timestamp)
-    winmanifest.write_manifest_to_executable = _soft(
+    winutils.set_exe_build_timestamp = with_permission_retry(
+        winutils.set_exe_build_timestamp
+    )
+    winmanifest.write_manifest_to_executable = with_permission_retry(
         winmanifest.write_manifest_to_executable
     )
     if hasattr(winutils, "update_exe_pe_checksum"):
-        winutils.update_exe_pe_checksum = _soft(winutils.update_exe_pe_checksum)
+        winutils.update_exe_pe_checksum = with_permission_retry(
+            winutils.update_exe_pe_checksum
+        )
+
+
+def pyinstaller_args(root: Path, dist_dir: Path | str) -> list[str]:
+    """Return the deterministic portable build contract."""
+    return [
+        "--noconfirm",
+        "--clean",
+        "--windowed",
+        "--onefile",
+        "--name",
+        APP_NAME,
+        "--paths",
+        str(root / "src"),
+        "--icon",
+        str(root / "assets" / "a-conductor.ico"),
+        "--add-data",
+        f"{root / 'docs' / 'USER-GUIDE.md'};docs",
+        "--add-data",
+        f"{root / 'docs' / 'USER-GUIDE-EN.md'};docs",
+        "--add-data",
+        f"{root / 'assets'};assets",
+        "--distpath",
+        str(dist_dir),
+        str(root / "entry.py"),
+    ]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -47,33 +111,12 @@ def main(argv: list[str] | None = None) -> int:
         distpath = argv[index + 1]
         del argv[index : index + 2]
 
-    root = Path(__file__).resolve().parents[1]
+    root = REPO_ROOT
     _harden_cosmetic_pe_steps()
 
     from PyInstaller.__main__ import run as pyinstaller_run
 
-    pyinstaller_run(
-        [
-            "--noconfirm",
-            "--windowed",
-            "--onefile",
-            "--name",
-            "A-Sunday Conductor",
-            "--paths",
-            str(root / "src"),
-            "--icon",
-            str(root / "assets" / "a-conductor.ico"),
-            "--add-data",
-            f"{root / 'docs' / 'USER-GUIDE.md'};docs",
-            "--add-data",
-            f"{root / 'docs' / 'USER-GUIDE-EN.md'};docs",
-            "--add-data",
-            f"{root / 'assets'};assets",
-            "--distpath",
-            distpath,
-            str(root / "entry.py"),
-        ]
-    )
+    pyinstaller_run(pyinstaller_args(root=root, dist_dir=distpath))
     return 0
 
 

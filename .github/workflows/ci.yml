@@ -42,6 +42,106 @@ jobs:
           --ignore=tests/test_blurbs_i18n.py
       - name: Smoke test
         run: python -m a_conductor --smoke --database ${{ runner.temp }}\acond-ci-smoke.sqlite
+      - name: Install Windows packaging toolchain
+        run: python -m pip install pyinstaller==6.22.2
+      - name: Build clean Portable and Setup executables
+        shell: pwsh
+        run: |
+          python scripts/build_portable.py --distpath dist/ci
+          if ($LASTEXITCODE -ne 0) {
+            throw "PORTABLE_BUILD_FAILED: exit $LASTEXITCODE"
+          }
+          python scripts/build_installer.py --distpath dist/ci
+          if ($LASTEXITCODE -ne 0) {
+            throw "SETUP_BUILD_FAILED: exit $LASTEXITCODE"
+          }
+      - name: Verify frozen archive contents
+        shell: pwsh
+        run: |
+          $portable = Join-Path $PWD "dist/ci/A-Sunday Conductor.exe"
+          $setup = Join-Path $PWD "dist/ci/A-Sunday-Conductor-Setup.exe"
+          if (-not (Test-Path -LiteralPath $portable -PathType Leaf)) {
+            throw "PORTABLE_ARTIFACT_MISSING: $portable"
+          }
+          if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) {
+            throw "SETUP_ARTIFACT_MISSING: $setup"
+          }
+          $archive = Join-Path $env:RUNNER_TEMP "a-sunday-conductor-archive.txt"
+          pyi-archive_viewer -r -b $portable | Set-Content -LiteralPath $archive
+          if ($LASTEXITCODE -ne 0) {
+            throw "PORTABLE_ARCHIVE_READ_FAILED: exit $LASTEXITCODE"
+          }
+          $required = @(
+            "assets/sunday-family-particle.png",
+            "assets/logo-face.png",
+            "a_conductor.gpu_particle_logo",
+            "a_conductor.system_metrics",
+            "moderngl\mgl",
+            "glcontext\wgl",
+            "pyopengltk",
+            "OpenGL",
+            "PIL\_imaging",
+            "_tkinter",
+            "tcl86t.dll",
+            "tk86t.dll"
+          )
+          foreach ($entry in $required) {
+            if (-not (Select-String -LiteralPath $archive -SimpleMatch $entry -Quiet)) {
+              throw "PORTABLE_ARCHIVE_ENTRY_MISSING: $entry"
+            }
+          }
+          $setupArchive = Join-Path $env:RUNNER_TEMP "a-sunday-conductor-setup-archive.txt"
+          pyi-archive_viewer -r -b $setup | Set-Content -LiteralPath $setupArchive
+          if ($LASTEXITCODE -ne 0) {
+            throw "SETUP_ARCHIVE_READ_FAILED: exit $LASTEXITCODE"
+          }
+          $setupRequired = @(
+            "payload/installer-branding.json",
+            "payload/A-Sunday Conductor.exe",
+            "payload/docs/USER-GUIDE.md",
+            "payload/docs/USER-GUIDE-EN.md",
+            "payload/THIRD-PARTY-NOTICES.md",
+            "payload/assets/a-conductor.ico"
+          )
+          foreach ($entry in $setupRequired) {
+            if (-not (Select-String -LiteralPath $setupArchive -SimpleMatch $entry -Quiet)) {
+              throw "SETUP_ARCHIVE_ENTRY_MISSING: $entry"
+            }
+          }
+          foreach ($entry in @("a_conductor.desktop_ui", "PIL.Image", "OpenGL.GL")) {
+            if (Select-String -LiteralPath $setupArchive -SimpleMatch $entry -Quiet) {
+              throw "SETUP_ARCHIVE_UNEXPECTED_ENTRY: $entry"
+            }
+          }
+      - name: Smoke test Portable executable
+        shell: pwsh
+        run: |
+          $portable = Join-Path $PWD "dist/ci/A-Sunday Conductor.exe"
+          $database = Join-Path $env:RUNNER_TEMP "acond-frozen-smoke.sqlite"
+          $process = Start-Process -FilePath $portable -ArgumentList @(
+            "--smoke", "--database", $database
+          ) -PassThru
+          try {
+            $process | Wait-Process -Timeout 90 -ErrorAction Stop
+          } catch {
+            $process | Stop-Process -Force -ErrorAction SilentlyContinue
+            throw "PORTABLE_SMOKE_TIMEOUT: $portable"
+          }
+          $process.Refresh()
+          if ($process.ExitCode -ne 0) {
+            throw "PORTABLE_SMOKE_FAILED: exit $($process.ExitCode)"
+          }
+          if (-not (Test-Path -LiteralPath $database -PathType Leaf)) {
+            throw "PORTABLE_SMOKE_DATABASE_MISSING: $database"
+          }
+      - name: Archive Windows executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Sunday-Conductor-Windows-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            dist/ci/A-Sunday Conductor.exe
+            dist/ci/A-Sunday-Conductor-Setup.exe
 
   cross-platform-smoke:
     strategy:
