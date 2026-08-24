@@ -2,7 +2,7 @@
 
 Created: 2026-08-24
 Owner: Codex / GPT-5.6 Sol (one implementation owner; PR #79)
-Status: RELEASE_VALIDATION — Draft PR #79; source/package green, installed/CI/merge gates pending
+Status: RELEASE_VALIDATION — PR #79 candidate; source/package/installed green, final documentation CI/merge/main gates pending
 Depends on: v0.5.0 UI baseline; WO-P1-061/062 capabilities already present on `main`
 
 ## Goal
@@ -119,7 +119,7 @@ Preserve and test:
 - [x] Tests cover design contracts and regressions.
 - [x] Realistic E2E passes on source build.
 - [x] Packaging includes the logo/GPU requirements and build succeeds.
-- [ ] Fresh installed/relaunched app is visually checked.
+- [x] Fresh installed/relaunched app is visually checked.
 - [ ] PR CI is green before merge.
 - [ ] Main is fetched after merge and continuity files say DONE with evidence.
 
@@ -170,3 +170,18 @@ Implementation checkpoint committed as `c42d174` (`feat(ui): build terminal comm
 - frozen smoke exit 0; recursive archive check contains Sunday master/compact assets, GPU/metrics, ModernGL/OpenGL, Pillow, and Tcl/Tk; a Windows path-separator false-failure in the new archive CI gate was found locally, covered by test, and fixed before final CI;
 - first PR #79 run `32783280486`: Ubuntu/macOS green; Windows failed when the hosted virtual WGL driver access-violated inside `moderngl.create_context()` before Python could activate fallback. Classified as platform/test-environment incompatibility. Generic Windows CI now forces the deterministic Canvas path; real WGL remains a workstation/installed-app gate;
 - Draft PR #79 is the sole forward completion PR. Remaining gates are current-HEAD CI, safe installed upgrade/E2E, ready review, merge, fetch main, rebuild/reinstall from main, and final COMPLETE continuity update.
+
+## Checkpoint — 2026-08-25 / installed release candidate
+
+- pushed implementation HEAD `e3d4babb78859b9d5e218354b0ea0b5d14129484`; PR #79 run `32789507743` passed Windows test/package plus Ubuntu/macOS smoke;
+- full local repository regression before the bounded final shutdown optimization: **1175 passed**, with one transient local Tcl/Tk skip rerun successfully in focused coverage; final shutdown-focused regression passed and GitHub reran the full three-job matrix green;
+- a real installed close during connector autostart exposed redundant synchronous health polling. A failing regression proved the forced pending-launch path still probed once; the fix skips only that pre-force probe while retaining post-stop verification. Skeptical review verdict: GO;
+- source-process shutdown E2E improved from 8,091 ms to 4,361 ms in the same sandbox. The freshly installed one-file executable also created the stop marker and removed both frozen processes; the observed bounded close was 9,235 ms on the security-filtered workstation because cancellation, post-stop verification, wrapper reaping, and bootloader cleanup still complete before process exit;
+- final pre-merge Portable: 24,285,453 bytes, SHA-256 `FF55C476BF4FFA852CB78545EFA12EC69399F2E70D28432B303CB69EEE98BD15`;
+- final pre-merge Setup: 31,222,411 bytes, SHA-256 `26CEE072C2FFDAF934B11C47CB1D5D5D4CFE67D4CAD1032988E34BE2FA2D2D7D`;
+- recursive archive gate passed all 12 Portable requirements and all 6 Setup requirements, rejected duplicate full-app modules in Setup, and frozen smoke exited 0;
+- Setup exited 0 on its first attempt. Installed executable exactly matches the Portable hash; registered product is A-Sunday Conductor v0.6.0; the user database physical hash stayed unchanged and its logical contents remain identical to the consistent pre-test backup;
+- installed visual acceptance directly compared the real 1096×719 window with the user-reconfirmed wide near-black reference: detailed Sunday Family portrait visible, terminal hierarchy/density retained, Add Brain/Guide/Settings reachable, English actions preserved, and real CPU/RAM/uptime populated;
+- all five live connectors remained `STOPPED`; installed sandbox actions used only the temporary Sunday-Worker-Test instance.
+
+Remaining gates: commit this release evidence, require the resulting PR checks green, mark PR #79 ready, final diff review/merge, fetch merged `main`, rebuild/reinstall from `main`, repeat installed acceptance, and publish the final COMPLETE continuity checkpoint.

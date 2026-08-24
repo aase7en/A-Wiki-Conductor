@@ -1,18 +1,20 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-25 (Codex / GPT-5.6 Sol, WO-P1-063 release-validation checkpoint)
+Last updated: 2026-08-25 (Codex / GPT-5.6 Sol, WO-P1-063 installed release candidate)
 
 ## Current phase
 
-**WO-P1-063 RELEASE_VALIDATION — Terminal Command-Center completion.** One implementation owner: Codex / GPT-5.6 Sol. Branch: `fix/terminal-command-center-completion`; Draft PR **#79**. Current remote HEAD before this documentation checkpoint: `8abf2bfcb62dc435a39765d7c0e8552f50578290`, based on current `origin/main` `9782f933426bbd5970e9e571545da89402c6a9ed`.
+**WO-P1-063 RELEASE_VALIDATION — Terminal Command-Center completion.** One implementation owner: Codex / GPT-5.6 Sol. Branch: `fix/terminal-command-center-completion`; Draft PR **#79**. Installed-candidate implementation HEAD: `e3d4babb78859b9d5e218354b0ea0b5d14129484`, based on `origin/main` `9782f933426bbd5970e9e571545da89402c6a9ed`.
 
 **Repository/PR drift reconciled:** PR #77 was not waiting for review. GitHub marked it merged indirectly through PR #78 while it was still Draft, with no reviews; its original three CI jobs were green. The forward-only fixes and release evidence therefore live in PR #79. Do not reopen or recreate PR #77 work.
 
-**Verified on the PR #79 source tree:** exact Sunday Family master portrait visible through real `gpu-opengl` (~9,360 fine particles) and a seven-item lightweight Canvas raster fallback; real CPU/RAM/session uptime; subtle pointer return; deterministic callback/native-context cleanup; 700/900/1280/1600/maximized layouts; English actions and TH/zh-CN/EN guidance; Add Brain/Add Connector; copyable logs; atomic reassignment; sandbox connector flows. Full repository result: **1166 passed**. Real-system sandbox E2E: **23 passed** with the network-only test deselected.
+**Verified on the PR #79 source tree:** exact Sunday Family master portrait visible through real `gpu-opengl` (~9,360 fine particles) and a seven-item lightweight Canvas raster fallback; real CPU/RAM/session uptime; subtle pointer return; deterministic callback/native-context cleanup; 700/900/1280/1600/maximized layouts; English actions and TH/zh-CN/EN guidance; Add Brain/Add Connector; copyable logs; atomic reassignment; sandbox connector flows. Full repository result before the final bounded shutdown optimization: **1175 passed**; the focused regression and the subsequent GitHub full matrix are green. Real-system sandbox E2E: **23 passed** with the network-only test deselected.
 
-**Fresh package evidence:** Portable 24,282,484 bytes, SHA-256 `DB4921146FABA1E774B56F342EDE8178EADA3782DC59F669BB513D570206B0CA`; Setup 31,219,212 bytes, SHA-256 `F5C676406C36E265EE293721FB977DFB8C740B52E076BD58AC71A0A851D67574`. Frozen smoke exits 0. Recursive archive inspection contains both Sunday assets, GPU/metrics modules, ModernGL/OpenGL, Pillow, and Tcl/Tk. Windows CI now builds, inspects, smokes, and uploads both executables.
+**Fresh package/install evidence for `e3d4bab`:** Portable 24,285,453 bytes, SHA-256 `FF55C476BF4FFA852CB78545EFA12EC69399F2E70D28432B303CB69EEE98BD15`; Setup 31,222,411 bytes, SHA-256 `26CEE072C2FFDAF934B11C47CB1D5D5D4CFE67D4CAD1032988E34BE2FA2D2D7D`. Frozen smoke exits 0; archive checks pass 12/12 Portable and 6/6 Setup requirements. Setup exited 0, installed hash equals Portable, registry shows v0.6.0, and the user DB stayed physically and logically unchanged.
 
-**Remaining release gates:** PR #79 current-HEAD CI; safe install preserving `%LOCALAPPDATA%\A-Conductor\control-center.sqlite`; real installed GPU/fallback/layout/language/copy/shutdown E2E; mark PR ready; final review/merge; fetch and rebuild/reinstall from main; then set WO/CURRENT-WORK/handoff to COMPLETE. WO-P1-061/062 are historical baseline capabilities, not active parallel implementation claims.
+**Installed acceptance:** the real installed window was compared directly with the user-reconfirmed wide near-black command-center reference. The detailed Sunday Family portrait is visible; Add Brain/Guide/Settings and ordered English actions remain reachable; real CPU/RAM/uptime populate; prior GPU/fallback/layout/language/copy checks remain applicable. A real close during sandbox autostart created the stop marker and removed both frozen processes. The final forced-start optimization removes a redundant health probe; source close measured 4,361 ms and installed close remained bounded at 9,235 ms on this security-filtered host. All five live connectors stayed `STOPPED`.
+
+**Current CI:** run `32789507743` is green at implementation HEAD `e3d4bab` on Windows, Ubuntu, and macOS. **Remaining release gates:** commit the final evidence, require its PR checks green, mark PR #79 ready, final review/merge, fetch and rebuild/reinstall from main, repeat installed acceptance, then set WO/CURRENT-WORK/handoff/COLLAB to COMPLETE. WO-P1-061/062 are historical baseline capabilities, not active parallel implementation claims.
 
 ## Source-of-truth rule
 

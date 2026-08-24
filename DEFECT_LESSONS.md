@@ -90,7 +90,9 @@ frame-verified state และ destroy context/callback ได้สะอาด
 **แก้:** ส่ง cooperative cancellation ถึง orchestrator, ตรวจ cancel ก่อน launcher,
 serialize launcher handoff กับ forced stop ต่อ instance, จำ launch ที่ cancelled/not-ready,
 รอ handoff แบบ bounded ก่อน stop-all, ตรวจ `result_code` ก่อนรายงาน `OK`, normalize
-command เป็น `start` / `stop` และล้าง completed Future references
+command เป็น `start` / `stop`, ล้าง completed Future references และข้าม health probe
+ก่อน stop เมื่อ instance อยู่ใน pending-launched set อยู่แล้ว เพราะ forced stop เป็นผลลัพธ์
+ที่ต้องทำแน่นอน (ยังคง post-stop verification เพื่อยืนยันผลจริง)
 
 **Lesson:** shutdown ของงาน async ต้อง cancel ถึง operation จริง ไม่ใช่แค่ Future;
 state ที่ยังไม่ ready ไม่ได้พิสูจน์ว่าไม่มี process ถูก launch และ display label ห้ามใช้เป็น

@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Product UI / Interaction Design SSoT
 
-Last updated: 2026-08-24
+Last updated: 2026-08-25
 Status: APPROVED DIRECTION — implementation authority for WO-P1-063
 
 ## 1. Design intent
@@ -8,6 +8,8 @@ Status: APPROVED DIRECTION — implementation authority for WO-P1-063
 A-Sunday Conductor should look and behave like a lightweight professional command-center application: minimal, dark, terminal/CMD/CLI-inspired, information-dense, and calm. It is a Windows desktop application, not a web app. Preserve the existing Tk desktop architecture and only use GPU/OpenGL inside the bounded Sunday Family particle logo where it materially improves the effect.
 
 Primary visual reference approved by the user on 2026-08-24: the dark A-Conductor command-center mockup with a compact Sunday Family portrait in the header, restrained borders, monospaced data, small status accents, a Projects sidebar, system overview, worker/connector tables, recent events, and a large terminal/log area.
+
+The user reconfirmed this exact visual direction on 2026-08-25 with the wide near-black command-center reference. Match its hierarchy, density, thin dividers, calm status accents, and horizontal use of space while retaining the product capabilities absent from the static mockup: Add Brain, Assign, Add Connector, Guide, copyable diagnostics, and lifecycle-safe controls.
 
 ## 2. Non-negotiable visual rules
 
