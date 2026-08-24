@@ -15,23 +15,24 @@ CANVAS_SIZE = 80
 DOT_SIZE = 2
 DOT_COLOR = "#5cc8d7"
 EYE_COLOR = "#f59e0b"
-REPULSION_RADIUS = 18
-REPULSION_FORCE = 4.0
-SPRING_K = 0.02
+REPULSION_RADIUS = 25
+REPULSION_FORCE = 5.0
+SPRING_K = 0.03
 DAMPING = 0.85
 ANIM_DELAY = 30  # ms (~33fps)
+EYE_TRACK_RANGE = 8.0  # how far eyes shift toward the mouse (pixels)
 
 # Simple pixel-art face (placeholder until user provides a real image)
-# Each string = row; 1 = face dot, E = eye dot, 0 = empty
+# E = eye dot (amber, tracks mouse), 1 = face dot (teal), 0 = empty
 FACE_MAP = [
     "0000000000",
     "0111111110",
     "0111111110",
+    "01E1111E10",
+    "01E1111E10",
     "0111111110",
-    "0110110110",
-    "0110110110",
     "0111111110",
-    "0111001110",
+    "0110001110",
     "0110000110",
     "0000000000",
 ]
@@ -159,8 +160,8 @@ class InteractiveLogo:
             # Eye tracking: eyes shift toward mouse
             if p.is_eye:
                 angle = math.atan2(my - p.home_y, mx - p.home_x)
-                target_x = p.home_x + math.cos(angle) * 2.5
-                target_y = p.home_y + math.sin(angle) * 2.5
+                target_x = p.home_x + math.cos(angle) * EYE_TRACK_RANGE
+                target_y = p.home_y + math.sin(angle) * EYE_TRACK_RANGE
             else:
                 target_x = p.home_x
                 target_y = p.home_y

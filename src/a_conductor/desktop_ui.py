@@ -797,7 +797,7 @@ class AConductorDesktopApp:
         try:
             from .interactive_logo import InteractiveLogo
 
-            self._logo = InteractiveLogo(top, size=48)
+            self._logo = InteractiveLogo(top, size=120)
             self._logo.grid(row=0, column=5, sticky="e", padx=(0, 6), pady=4)
 
             # Try to load the custom face image; fall back to placeholder
@@ -993,7 +993,7 @@ class AConductorDesktopApp:
             show="headings",
             selectmode="browse",
             style="Workers.Treeview",
-            height=1,
+            height=5,
         )
         instance_headings = {
             "name": ("INSTANCE", 150),
@@ -1113,7 +1113,7 @@ class AConductorDesktopApp:
         monitor_panel.grid_columnconfigure(0, weight=1)
         self.monitor_text = tk.Text(
             monitor_panel,
-            height=1,
+            height=4,
             bg=self.theme.background,
             fg=self.theme.foreground,
             borderwidth=0,
@@ -1159,7 +1159,7 @@ class AConductorDesktopApp:
         activity_panel.grid_columnconfigure(0, weight=1)
         self.activity_text = tk.Text(
             activity_panel,
-            height=1,
+            height=5,
             bg=self.theme.background,
             fg=self.theme.foreground,
             insertbackground=self.theme.accent,
