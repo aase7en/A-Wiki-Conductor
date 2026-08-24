@@ -46,3 +46,4 @@ Thumbs.db
 
 # Local agent session artifacts
 .zcode/
+.pytest-gpu-full/
