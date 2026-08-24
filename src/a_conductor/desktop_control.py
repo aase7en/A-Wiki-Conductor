@@ -367,12 +367,13 @@ class DesktopControlService:
         results: list[tuple[str, bool]] = []
         for instance in self.instances():
             force = instance.name in pending_starts
-            try:
-                state = instance_health_state(instance)
-            except Exception:
-                state = None
-            if state is InstanceHealthState.STOPPED and not force:
-                continue
+            if not force:
+                try:
+                    state = instance_health_state(instance)
+                except Exception:
+                    state = None
+                if state is InstanceHealthState.STOPPED:
+                    continue
             try:
                 outcome = (
                     self._orchestrator().stop(instance, force=True)

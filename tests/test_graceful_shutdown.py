@@ -184,9 +184,13 @@ def test_stop_all_forces_stop_of_launched_unready_start(
         instance_root=tmp_path / "instances" / "sunday-worker-1",
     )
     monkeypatch.setattr(service, "instances", lambda: (instance,))
-    monkeypatch.setattr(
-        local_instances, "instance_health_state", lambda _i: InstanceHealthState.STOPPED
-    )
+    health_probes: list[str] = []
+
+    def health_state(target):
+        health_probes.append(target.name)
+        return InstanceHealthState.STOPPED
+
+    monkeypatch.setattr(local_instances, "instance_health_state", health_state)
     forced: list[bool] = []
 
     class Orchestrator:
@@ -211,6 +215,7 @@ def test_stop_all_forces_stop_of_launched_unready_start(
     results = service.stop_all_instances()
 
     assert forced == [True]
+    assert health_probes == []
     assert results == [(instance.name, True)]
 
 
