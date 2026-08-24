@@ -64,7 +64,11 @@ def make_app(root, tmp_path: Path, language: bool | None = None):
     from a_conductor.desktop_control import DesktopControlService
     from a_conductor.desktop_ui import AConductorDesktopApp
 
-    service = DesktopControlService.open(tmp_path / "ui.sqlite")
+    instances_root = tmp_path / "instances"
+    instances_root.mkdir(exist_ok=True)
+    service = DesktopControlService.open(
+        tmp_path / "ui.sqlite", instances_root=instances_root
+    )
     if language is not None:
         service.set_preference("language", language)
     app = AConductorDesktopApp(root, service=service)
@@ -89,6 +93,26 @@ def test_app_opens_in_thai_by_default(root, tmp_path: Path) -> None:
     assert "คู่มือ" in provider()
 
 
+def test_row_copy_menu_label_provider_changes_language_live(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    provider = app._row_path_menu_label_providers[app.worker_tree]
+
+    set_language("th")
+    thai = provider()
+    expected_thai = tr("menu.copy.path")
+    set_language("zh-CN")
+    chinese = provider()
+    expected_chinese = tr("menu.copy.path")
+    set_language("en")
+    expected_english = tr("menu.copy.path")
+
+    assert thai == expected_thai
+    assert chinese == expected_chinese
+    assert provider() == expected_english
+    assert thai != provider()
+    assert chinese != provider()
+
+
 def test_error_popup_uses_english_when_switched(root, tmp_path: Path) -> None:
     app = make_app(root, tmp_path, language=True)
     window = app._show_error("SELECT_WORKER")
@@ -100,6 +124,22 @@ def test_error_popup_uses_english_when_switched(root, tmp_path: Path) -> None:
             if hasattr(child, "cget")
         ]
         assert any("No Worker selected" in text for text in texts)
+    finally:
+        window.destroy()
+
+
+def test_chinese_session_uses_english_error_fallback_not_thai(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    set_language("zh-CN")
+    window = app._show_error("SELECT_WORKER")
+    try:
+        texts = [
+            str(child.cget("text"))
+            for child in window.winfo_children()[0].winfo_children()
+            if hasattr(child, "cget")
+        ]
+        assert any("No Worker selected" in text for text in texts)
+        assert not any(any("\u0e00" <= char <= "\u0e7f" for char in text) for text in texts)
     finally:
         window.destroy()
 
@@ -138,6 +178,51 @@ def test_preferences_language_switch_persists_three_languages(root, tmp_path: Pa
         assert app.service.get_preference("language") is False
     finally:
         window.destroy()
+
+
+def test_chinese_switch_refreshes_open_settings_and_monitor_without_thai(
+    root, tmp_path: Path
+) -> None:
+    app = make_app(root, tmp_path, language=False)
+    window = app.open_preferences()
+    try:
+        app._language_combo.set("中文")
+        app._language_combo.event_generate("<<ComboboxSelected>>")
+        app._render_monitor(None, None)
+        root.update()
+
+        def walk(widget):
+            for child in widget.winfo_children():
+                yield child
+                yield from walk(child)
+
+        visible_text = []
+        for widget in walk(window):
+            try:
+                text = str(widget.cget("text"))
+            except Exception:
+                continue
+            if text:
+                visible_text.append(text)
+        visible_text.append(app.monitor_text.get("1.0", "end"))
+        assert visible_text
+        assert not any(
+            any("\u0e00" <= char <= "\u0e7f" for char in text)
+            for text in visible_text
+        )
+    finally:
+        window.destroy()
+
+
+def test_preferences_dialog_is_single_instance(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+
+    first = app.open_preferences()
+    second = app.open_preferences()
+
+    assert first is not None
+    assert second is first
+    first.destroy()
 
 
 def test_switch_to_chinese_localized_help() -> None:

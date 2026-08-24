@@ -147,3 +147,50 @@ def test_close_request_without_stop_preference_skips_stopping(
     app._on_close_request()
 
     assert calls == ["destroy"]
+
+
+def test_close_request_stops_ui_callbacks_logo_and_owned_executor(
+    root, tmp_path: Path, monkeypatch
+) -> None:
+    service = make_service(tmp_path)
+    service.set_preference("shutdown_stops_instances", False)
+    app = make_app(root, service)
+    logo_calls: list[str] = []
+    shutdown_calls: list[tuple[bool, bool]] = []
+
+    class Logo:
+        def destroy(self) -> None:
+            logo_calls.append("destroy")
+
+    app._logo = Logo()
+    monkeypatch.setattr(
+        app._background_executor,
+        "shutdown",
+        lambda *, wait, cancel_futures: shutdown_calls.append((wait, cancel_futures)),
+    )
+    monkeypatch.setattr(app.root, "destroy", lambda: None)
+
+    app._on_close_request()
+
+    assert logo_calls == ["destroy"]
+    assert shutdown_calls == [(False, True)]
+    assert app._status_pulse_after_id is None
+    assert app._monitor_tick_after_id is None
+    assert app._monitor_poll_after_id is None
+    assert app._system_metric_after_id is None
+    assert not app._scheduled_after_ids
+
+
+def test_direct_root_destroy_cancels_every_scheduled_ui_callback(tmp_path: Path) -> None:
+    """Destroy-before-idle must not leave Tcl callbacks targeting dead widgets."""
+    import tkinter as tk
+
+    service = make_service(tmp_path)
+    root = tk.Tk()
+    root.withdraw()
+    app = make_app(root, service)
+
+    root.destroy()
+
+    assert app._scheduled_after_ids == set()
+    assert root.tk.call("after", "info") == ""

@@ -2,6 +2,19 @@
 
 All notable changes to A-Sunday Conductor are documented here.
 
+## [0.6.0] — 2026-08-24
+
+### Added
+- **Terminal command center** — native Tk/Ttk operational layout with the Sunday Family particle portrait, first-class Add Brain action, and responsive compact/standard/wide workflows
+- **Real system overview** — native CPU, RAM, and session-uptime sampling with bounded CPU history and no periodic subprocesses
+- **GPU Sunday Family renderer** — optional OpenGL particle portrait with subtle pointer gaze/parallax and an automatic Canvas fallback
+
+### Fixed
+- **Compact reachability** — action rows and Worker/Connector/Monitor/Activity surfaces remain selectable and readable at the supported minimum window size
+- **Deterministic shutdown** — Tk timers, monitor work, renderer callbacks, contexts, and the owned executor are released when the window closes or is destroyed directly
+- **Cross-platform metrics** — Linux CPU accounting excludes guest time and unavailable platform metrics remain explicitly unknown
+- **Live language surfaces** — Thai, Simplified Chinese, and English explanations refresh without translating canonical English action labels
+
 ## [0.4.3] — 2026-08-24
 
 ### Added
