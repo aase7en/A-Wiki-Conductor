@@ -471,6 +471,35 @@ def test_compact_header_actions_do_not_overflow(root, tmp_path: Path) -> None:
     assert app.prefs_button.winfo_manager() == "grid"
 
 
+def test_system_overview_reflows_without_clipping_at_compact_width(
+    root, tmp_path: Path
+) -> None:
+    app = make_app(root, tmp_path)
+    root.deiconify()
+    root.geometry("700x680+20+20")
+    root.update_idletasks()
+    root.update()
+
+    values = (
+        app.overview_projects_value,
+        app.overview_workers_value,
+        app.overview_connectors_value,
+        app.overview_state_value,
+    )
+    cells = tuple(value.master for value in values)
+    metrics = cells[0].master
+    right_edge = metrics.winfo_rootx() + metrics.winfo_width()
+
+    assert len({int(cell.grid_info()["row"]) for cell in cells}) > 1
+    for cell in cells:
+        assert cell.winfo_rootx() + cell.winfo_reqwidth() <= right_edge
+
+    root.geometry("900x680+20+20")
+    root.update_idletasks()
+    root.update()
+    assert {int(cell.grid_info()["row"]) for cell in cells} == {0}
+
+
 def test_real_system_metrics_render_in_overview(root, tmp_path: Path) -> None:
     from a_conductor.system_metrics import SystemMetrics
 

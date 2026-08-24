@@ -1134,6 +1134,18 @@ class AConductorDesktopApp:
         self.overview_connectors_value = _overview_metric(2, "CONNECTORS READY")
         self.overview_connectors_value.configure(text="0 / 0")
         self.overview_state_value = _overview_metric(3, "CONTROLLER")
+        self._make_responsive_metric_grid(
+            metrics,
+            tuple(
+                value.master
+                for value in (
+                    self.overview_projects_value,
+                    self.overview_workers_value,
+                    self.overview_connectors_value,
+                    self.overview_state_value,
+                )
+            ),
+        )
 
         system_strip = tk.Frame(overview_panel, bg=self.theme.panel)
         self._system_metrics_frame = system_strip
@@ -1599,6 +1611,50 @@ class AConductorDesktopApp:
                 button.grid(
                     row=row, column=column,
                     padx=(0, 4), pady=(0, 1), sticky="w",
+                )
+
+        parent.bind("<Configure>", reflow, add="+")
+        self._schedule_after(0, reflow)
+
+    def _make_responsive_metric_grid(self, parent: tk.Widget, cells) -> None:
+        """Keep compact operational metrics complete instead of truncating text."""
+        cells = tuple(cells)
+        state = {"columns": None}
+
+        def reflow(event=None) -> None:
+            available = max(
+                1,
+                int(getattr(event, "width", None) or parent.winfo_width()),
+            )
+            requested = [max(1, int(cell.winfo_reqwidth())) for cell in cells]
+            columns = 1
+            for candidate in (len(cells), 2, 1):
+                if candidate > len(cells):
+                    continue
+                column_widths = [0] * candidate
+                for index, width in enumerate(requested):
+                    column = index % candidate
+                    column_widths[column] = max(column_widths[column], width)
+                if sum(column_widths) + 10 * (candidate - 1) <= available:
+                    columns = candidate
+                    break
+            if state["columns"] == columns:
+                return
+            state["columns"] = columns
+            for column in range(len(cells)):
+                parent.grid_columnconfigure(
+                    column,
+                    weight=1 if column < columns else 0,
+                )
+            last_row = (len(cells) - 1) // columns
+            for index, cell in enumerate(cells):
+                row, column = divmod(index, columns)
+                cell.grid(
+                    row=row,
+                    column=column,
+                    sticky="ew",
+                    padx=(0, 10 if column < columns - 1 else 0),
+                    pady=(0, 2 if row < last_row else 0),
                 )
 
         parent.bind("<Configure>", reflow, add="+")
