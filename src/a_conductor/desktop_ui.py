@@ -2081,8 +2081,9 @@ class AConductorDesktopApp:
         name_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 10))
 
         def submit() -> None:
+            name = name_entry.get().strip() or None
             dialog.destroy()
-            self.add_worker_slot(name_entry.get().strip() or None)
+            self.add_worker_slot(name)
 
         name_entry.bind("<Return>", lambda _event: submit())
         self._button(frame, tr("dlg.add.worker.submit"), submit).grid(row=3, column=1, sticky="e")
