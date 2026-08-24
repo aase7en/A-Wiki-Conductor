@@ -118,6 +118,21 @@ class DesktopControlService:
             runtime_id=runtime_id,
         )
 
+    def replace_assignment(
+        self,
+        worker_id: str,
+        project_id: str,
+        *,
+        mutation_allowed: bool = True,
+        runtime_id: str | None = None,
+    ):
+        return self.control_center.replace_assignment(
+            worker_id,
+            project_id,
+            mutation_allowed=mutation_allowed,
+            runtime_id=runtime_id,
+        )
+
     def release_worker(self, worker_id: str):
         return self.control_center.release_worker(worker_id)
 

@@ -784,7 +784,8 @@ def test_all_primary_buttons_have_tooltips(root) -> None:
         button = getattr(app, name)
         tip = getattr(button, "_acond_tooltip", None)
         assert tip is not None, name
-        assert tip.text.strip(), name
+        text = tip.text() if callable(tip.text) else tip.text
+        assert text.strip(), name
 
 
 def test_add_and_assign_live_in_projects_panel(root) -> None:
@@ -796,15 +797,14 @@ def test_add_and_assign_live_in_projects_panel(root) -> None:
         parent = widget.nametowidget(widget.winfo_parent())
         return parent
 
-    add_panel = panel_of(panel_of(app.add_button))   # project_actions -> PROJECTS panel
+    workflow = panel_of(app.add_button)
     list_panel = panel_of(app.project_list)
-    release_panel = panel_of(panel_of(app.release_button))
 
-    activate_panel = panel_of(panel_of(app.activate_button))
-
-    assert add_panel is list_panel
-    assert activate_panel is list_panel
-    assert release_panel is not list_panel
+    assert panel_of(app.assign_button) is workflow
+    assert panel_of(app.activate_button) is workflow
+    assert panel_of(app.release_button) is workflow
+    assert workflow is not list_panel
+    assert workflow.winfo_parent() == str(root)
 
 
 def test_activate_helper_copies_selected_project_prompt(root) -> None:
@@ -952,7 +952,7 @@ def test_tunnel_dialog_validates_and_saves(root) -> None:
                 return nested
         return None
 
-    save_button = find_button(dialog, "บันทึก")
+    save_button = find_button(dialog, "Save")
     assert save_button is not None
     save_button.invoke()
 
@@ -963,7 +963,7 @@ def test_tunnel_dialog_validates_and_saves(root) -> None:
     dialog2 = app.open_tunnel_id_dialog()
     app._tunnel_entry.delete(0, "end")
     app._tunnel_entry.insert(0, "bad-id")
-    find_button(dialog2, "บันทึก").invoke()
+    find_button(dialog2, "Save").invoke()
     assert codes == ["TUNNEL_ID_INVALID"]
     assert not any(name == "Serena-Beta" and value == "bad-id" for name, value in service.tunnel_writes)
     if dialog2.winfo_exists():
@@ -1175,7 +1175,7 @@ def test_rebind_dialog_success_and_blocked(root, tmp_path) -> None:
                 return n
         return None
 
-    find_btn(dialog, "เปลี่ยนเลย").invoke()
+    find_btn(dialog, "Apply Change").invoke()
     assert ("Serena-Alpha", str(tmp_path / "newp")) in service.rebinds
     assert not dialog.winfo_exists()
 
@@ -1183,7 +1183,7 @@ def test_rebind_dialog_success_and_blocked(root, tmp_path) -> None:
     service.rebind_instance = lambda n, r: "SKIPPED_SAME_PROJECT"
     dialog2 = app.open_rebind_dialog()
     app._rebind_entry.insert(0, str(tmp_path / "same"))
-    find_btn(dialog2, "เปลี่ยนเลย").invoke()
+    find_btn(dialog2, "Apply Change").invoke()
     assert "SKIPPED_SAME_PROJECT" in app._rebind_status.cget("text")
     assert dialog2.winfo_exists()
     dialog2.destroy()

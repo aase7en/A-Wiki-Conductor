@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-24 (GPT-5.6 Sol + SunDay-Worker 2, WO-P1-061/062 planning checkpoint)
+Last updated: 2026-08-24 (GLM 5.3, v0.5.0 UI redesign + compact) (GPT-5.6 Sol + SunDay-Worker 1, WO-P1-062 design review checkpoint)
 
 ## Current phase
 
@@ -8,9 +8,9 @@ Last updated: 2026-08-24 (GPT-5.6 Sol + SunDay-Worker 2, WO-P1-061/062 planning 
 
 Checklist: GPU/native implementation = DONE; source asset = DONE; clean-scope recovery = DONE; grayscale/fidelity regression = DONE; native GPU + forced fallback E2E = DONE; portable build/package graph = DONE; fresh frozen smoke = BLOCKED_LOCAL_SECURITY (ESET/PE lock; GitHub CI is final authority); combined final review/PR/merge = NOT_STARTED.
 
-**WO-P1-062 PLANNED — Responsive Global UI + Multilingual Guidance.** Planning recorded before implementation per user instruction. Scope includes responsive button flow, global English action labels, Thai/Chinese/English localized help, A-Conductor terminology, Donate footer placement, Add Brain relocation, typewriter guidance, and MONITOR/ACTIVITY 50/50 layout. Work order: `docs/work-orders/WO-P1-062-responsive-global-ui.md`. Routing evidence: `docs/research/model-routing-2026-08-24.md`.
+**WO-P1-062 DESIGN_REVIEW / PARTIAL_IMPLEMENTATION — Responsive Global UI + Multilingual Guidance.** Actual working tree already contains partial implementation for requirements 1–10: responsive action-grid helper, ordered primary workflow, canonical English button labels, Thai/Chinese/English help preference, typewriter teaching line, Add Brain header placement, Donate footer placement, and horizontal MONITOR/ACTIVITY pane. Focused tests previously reached 25 passed. New requirements 11–13 are now in the WO: copyable diagnostics, confirmed assignment replacement, and Connector discoverability. GPT-5.6 Sol + SunDay-Worker 1 owns the current claim after Worker 2/3/5 transport failures.
 
-Execution order: finish/reconcile WO-P1-061 first, then implement WO-P1-062. Repository SSoT remains authoritative; one active implementation owner per WO prevents duplicate GLM/GPT work.
+Brainstorming hard gate: Approach B (bounded domain + UI extension) is recommended and awaits user approval before new production implementation for requirements 11–13. Repository SSoT remains authoritative; do not let GLM later reimplement the same dirty intent—GLM should resume from the WO/diff or take a disjoint claimed slice. Routing evidence: `docs/research/model-routing-2026-08-24.md`.
 
 ## Source-of-truth rule
 
@@ -96,6 +96,41 @@ One-stop installer: new users download Setup.exe → open → wizard auto-opens 
 - v0.4.2: Google Stitch backend (4th option)
 - v0.4.3: Donate dialog (GitHub Sponsors + PromptPay QR) + DPAPI fix
 - Final audit: repo health 100%, 1031 tests, zero DECISION_REQUIRED
+
+## v0.5.0 UI Redesign + Session Summary (2026-08-24, PRs #74-#76+)
+
+### Shipped this session:
+- **PanedWindow layout** — all panels drag-resizable, no more disappearing panels
+- **GPU particle logo** — 120px interactive canvas in header, eyes track mouse
+- **Responsive button grids** — buttons auto-wrap at wide widths, stack at narrow
+- **English button labels** — canonical_button_label forces English globally
+- **Tri-lingual i18n** — Thai / 中文 / English with per-language tooltips
+- **MONITOR + ACTIVITY side-by-side** — horizontal PanedWindow
+- **Copy log** — Ctrl+C, right-click menu, Copy All buttons
+- **Assign with confirmation** — popup when replacing existing assignment
+- **Setup Wizard** — 4 backends (Filesystem, Serena, Google Stitch, custom)
+- **Donate dialog** — GitHub Sponsors + PromptPay QR
+- **DEFECT_LESSONS.md** — 3 documented lessons (PowerShell spawn, dialog destroy, Tk instance)
+- **PowerShell spawn fix** — native ctypes API, 0 process spawns
+- **+Worker dialog fix** — read entry before destroy
+- **Splash screen fix** — Toplevel instead of second Tk()
+- **Community files** — CODE_OF_CONDUCT, CONTRIBUTING, templates, FUNDING
+- **CHANGELOG.md** — full version history
+- **MIT License** + GitHub Sponsors + Privacy + Security policies
+- **Repo health 100%**
+
+### Current state:
+- Version: v0.5.0
+- Tests: ~1092 collected
+- CI: Windows + Ubuntu + macOS
+- GitHub Releases: v0.5.0
+- Install: %LOCALAPPDATA%\Programs\A-Sunday Conductor
+### Pending (backlog, non-blocking):
+- GPT/GLM collaboration protocol (docs/agent-collab/)
+- Connector column UX tooltip improvement
+- macOS/Linux desktop packaging (B-3)
+- RPi + Umbrel (P3/P4)
+- SignPath application (user action)
 
 ## Live connector fleet (2026-08-22 night — backend renamed to one pattern, all READY)
 

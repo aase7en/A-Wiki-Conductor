@@ -73,7 +73,9 @@ class TestWorkerButtons:
         entry = find_widget(dialog, ttk.Entry)
         assert entry is not None, "Name entry not found"
         entry.insert(0, "E2E Worker")
-        btn = find_widget(dialog, ttk.Button, "เพิ่ม")
+        btn = find_widget(dialog, ttk.Button, "Add")
+        if btn is None:
+            btn = find_widget(dialog, ttk.Button, "เพิ่ม")
         assert btn is not None, "Submit button not found"
         btn.invoke()
         root.update()
@@ -96,7 +98,9 @@ class TestWorkerButtons:
         assert entry is not None
         entry.delete(0, "end")
         entry.insert(0, "Renamed Worker")
-        btn = find_widget(dialogs[-1], ttk.Button, "บันทึก")
+        btn = find_widget(dialogs[-1], ttk.Button, "Save")
+        if btn is None:
+            btn = find_widget(dialogs[-1], ttk.Button, "บันทึก")
         assert btn is not None
         btn.invoke()
         root.update()

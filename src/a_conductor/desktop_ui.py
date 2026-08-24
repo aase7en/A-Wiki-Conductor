@@ -21,7 +21,7 @@ import webbrowser
 
 from .branding import APP_NAME, APP_VERSION
 from .error_explanations_en import ERROR_EXPLANATIONS_EN
-from .i18n import get_language, set_language, tr
+from .i18n import canonical_button_label, get_language, set_language, tr
 from .control_center import ControlCenterError, ControlCenterSnapshot
 from .domain import WorkerState
 from .lifecycle_coordinator import LifecycleCoordinatorError
@@ -421,11 +421,25 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "ดูคู่มือหมวด 8",
         ),
     ),
+    "ASSIGNMENT_CONFLICT": (
+        "Assignment ชนกับงานที่มีอยู่",
+        (
+            "ขาด: โปรเจกต์หรือ worktree ใหม่นี้ถูก Worker อื่นถือสิทธิ์แก้ไขอยู่ หรือ assignment ใหม่ไม่เข้ากัน",
+            "ทำอย่างไร: เลือก Worker/โปรเจกต์ที่ไม่ชนกัน หรือหยุดงานเดิมก่อน แล้วลอง Assign ใหม่",
+        ),
+    ),
+    "REGISTRY_NOT_FOUND": (
+        "ไม่พบ Worker หรือ Project ในสถานะล่าสุด",
+        (
+            "ขาด: รายการที่เลือกไม่อยู่ใน registry ล่าสุดแล้ว",
+            "ทำอย่างไร: กด Refresh แล้วเลือก Project และ Worker ใหม่ก่อนลองอีกครั้ง",
+        ),
+    ),
     "WORKER_BUSY": (
         "Worker กำลังทำงานอยู่",
         (
-            "ขาด: Worker ต้องหยุดและไม่มีโปรเจกต์แล้วเท่านั้น",
-            "ทำอย่างไร: กด Stop แล้ว Release โปรเจกต์ออกก่อน แล้วลองใหม่",
+            "ขาด: Worker ต้องอยู่ในสถานะ STOPPED ก่อนเปลี่ยนโปรเจกต์",
+            "ทำอย่างไร: กด Stop แล้วกด Assign โปรเจกต์ใหม่อีกครั้ง ระบบจะถามยืนยันก่อนแทนที่",
         ),
     ),
     "PORT_INVALID": (
@@ -574,7 +588,7 @@ class RowPathTip:
 class ToolTip:
     """Minimal hover tooltip (no shortcuts, works for every widget)."""
 
-    def __init__(self, widget, text: str, theme: "DesktopTheme") -> None:
+    def __init__(self, widget, text: str | Callable[[], str], theme: "DesktopTheme") -> None:
         self.widget = widget
         self.text = text
         self.theme = theme
@@ -583,7 +597,8 @@ class ToolTip:
         widget.bind("<Leave>", self._hide, add="+")
 
     def _show(self, _event=None) -> None:
-        if self.tip is not None or not self.text or not self.text.strip():
+        text = self.text() if callable(self.text) else self.text
+        if self.tip is not None or not text or not text.strip():
             return
         x = self.widget.winfo_rootx() + 12
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
@@ -592,7 +607,7 @@ class ToolTip:
         window.wm_geometry(f"+{x}+{y}")
         tk.Label(
             window,
-            text=self.text,
+            text=text,
             bg="#1c1f26",
             fg="#e6e6e6",
             justify="left",
@@ -615,9 +630,18 @@ def link_url_spans(text: str) -> tuple[tuple[int, int], ...]:
     return tuple((m.start(), m.end()) for m in _URL_RE.finditer(text))
 
 
-def _attach_tip(widget, text: str, theme: "DesktopTheme"):
+def _attach_tip(widget, text: str | Callable[[], str], theme: "DesktopTheme"):
     widget._acond_tooltip = ToolTip(widget, text, theme)
     return widget
+
+
+def responsive_column_count(width: int, button_count: int, target_button_width: int = 110) -> int:
+    """Return a stable number of action columns from actual available width."""
+    if button_count <= 0:
+        return 0
+    usable = max(1, int(width))
+    target = max(72, int(target_button_width))
+    return max(1, min(button_count, usable // target))
 
 
 class ControlCenterUIService(Protocol):
@@ -632,6 +656,14 @@ class ControlCenterUIService(Protocol):
     ): ...
 
     def assign_project(
+        self,
+        worker_id: str,
+        project_id: str,
+        *,
+        mutation_allowed: bool = True,
+    ): ...
+
+    def replace_assignment(
         self,
         worker_id: str,
         project_id: str,
@@ -702,10 +734,14 @@ class AConductorDesktopApp:
         pref_getter = getattr(self.service, "get_preference", None)
         if callable(pref_getter):
             try:
-                if pref_getter("language"):
+                if pref_getter("language_zh"):
+                    set_language("zh-CN")
+                elif pref_getter("language"):
                     set_language("en")
+                else:
+                    set_language("th")
             except Exception:
-                pass
+                set_language("th")
         self.root.title(f"{APP_NAME} v{APP_VERSION}")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close_request)
         self.root.configure(background=self.theme.background)
@@ -763,7 +799,7 @@ class AConductorDesktopApp:
 
     def _build_layout(self) -> None:
         self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(2, weight=1)
+        self.root.grid_rowconfigure(3, weight=1)
 
         top = tk.Frame(
             self.root,
@@ -771,8 +807,9 @@ class AConductorDesktopApp:
             highlightthickness=1,
             highlightbackground=self.theme.border,
         )
+        self._header_frame = top
         top.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 6))
-        top.grid_columnconfigure(1, weight=1)
+        top.grid_columnconfigure(2, weight=1)
         tk.Label(
             top,
             text="A-CONDUCTOR",
@@ -782,13 +819,9 @@ class AConductorDesktopApp:
             padx=12,
             pady=9,
         ).grid(row=0, column=0, sticky="w")
-        tk.Label(
-            top,
-            text="",
-            bg=self.theme.panel,
-            fg=self.theme.muted,
-            font=(self.theme.monospace_font, 9),
-        ).grid(row=0, column=1, sticky="e", padx=12)
+        self.brain_button = self._button(top, "Add Brain", self.open_brain_config)
+        self.brain_button.grid(row=0, column=1, sticky="w", padx=(0, 8), pady=6)
+        _attach_tip(self.brain_button, lambda: tr("tip.brain"), self.theme)
         self.connection_label = tk.Label(
             top,
             text="● ONLINE",
@@ -797,38 +830,25 @@ class AConductorDesktopApp:
             font=(self.theme.monospace_font, 10, "bold"),
             padx=12,
         )
-        self.connection_label.grid(row=0, column=2, sticky="e")
-        _attach_tip(
-            self.connection_label,
-            "ONLINE = ฐานข้อมูลควบคุมเชื่อมถึงได้ (local)\nOFFLINE (สีแดง) = service ตอบสนองไม่ได้",
-            self.theme,
-        )
-        self.help_button = self._button(top, tr("btn.guide"), self.open_guide)
-        self.help_button.grid(row=0, column=3, sticky="e", padx=(0, 4), pady=6)
-        _attach_tip(self.help_button, tr("tip.guide"), self.theme)
-        self.prefs_button = self._button(top, tr("btn.settings"), self.open_preferences)
-        self.prefs_button.grid(row=0, column=4, sticky="e", padx=(0, 8), pady=6)
-        _attach_tip(self.prefs_button, tr("tip.settings"), self.theme)
+        self.connection_label.grid(row=0, column=3, sticky="e")
+        _attach_tip(self.connection_label, lambda: tr("tip.connection"), self.theme)
+        self.help_button = self._button(top, "Guide", self.open_guide)
+        self.help_button.grid(row=0, column=4, sticky="e", padx=(0, 4), pady=6)
+        _attach_tip(self.help_button, lambda: tr("tip.guide"), self.theme)
+        self.prefs_button = self._button(top, "Settings", self.open_preferences)
+        self.prefs_button.grid(row=0, column=5, sticky="e", padx=(0, 8), pady=6)
+        _attach_tip(self.prefs_button, lambda: tr("tip.settings"), self.theme)
 
-        # Interactive particle-face logo (top-right, after buttons)
         try:
             from .gpu_particle_logo import GPUParticleLogo
 
             self._logo = GPUParticleLogo(top, size=120)
-            self._logo.grid(row=0, column=5, sticky="e", padx=(0, 6), pady=4)
-
-            # Prefer the high-detail family portrait when present; otherwise keep
-            # the legacy logo-face.png as a safe fallback.
+            self._logo.grid(row=0, column=6, sticky="e", padx=(0, 6), pady=4)
             logo_path = find_particle_image_path()
             if logo_path is not None:
                 self._logo.load_image(logo_path)
-
             self._logo.start()
-            _attach_tip(
-                self._logo.canvas,
-                "A-Sunday Conductor — ขยับเมาส์ดูสายตาตามเมาส์\nMove your mouse — the eyes follow you!",
-                self.theme,
-            )
+            _attach_tip(self._logo.canvas, lambda: tr("tip.logo"), self.theme)
         except Exception:
             self._logo = None
         if not all(
@@ -837,18 +857,51 @@ class AConductorDesktopApp:
         ):
             self.prefs_button.state(["disabled"])
 
-        hint = tk.Label(
+        self._teaching_label = tk.Label(
             self.root,
-            text=tr("hint.three.steps"),
+            text="",
             bg=self.theme.background,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
             anchor="w",
+            height=1,
         )
-        hint.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 2))
+        self._teaching_label.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 2))
+        self._restart_teaching_animation()
+
+        workflow = tk.Frame(self.root, bg=self.theme.background)
+        workflow.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 4))
+        self._workflow_frame = workflow
+        self.add_button = self._button(workflow, "Add Project", self.add_project)
+        self.assign_button = self._button(workflow, "Assign", self.assign_selected)
+        self.add_worker_button = self._button(workflow, "Add Worker", self.open_add_worker_dialog)
+        self.start_button = self._button(workflow, "Start", self.start_selected)
+        self.stop_button = self._button(workflow, "Stop", self.stop_selected)
+        self.restart_button = self._button(workflow, "Restart", self.restart_selected)
+        self.release_button = self._button(workflow, "Release", self.release_selected)
+        self.activate_button = self._button(workflow, "Activate", self.copy_activation_prompt)
+        self.refresh_button = self._button(workflow, "Refresh", self.refresh)
+        self.workflow_buttons = (
+            self.add_button, self.assign_button, self.add_worker_button,
+            self.start_button, self.stop_button, self.restart_button,
+            self.release_button, self.activate_button, self.refresh_button,
+        )
+        for button, key in (
+            (self.add_button, "tip.add.project"),
+            (self.assign_button, "tip.assign"),
+            (self.add_worker_button, "tip.add.worker"),
+            (self.start_button, "tip.start"),
+            (self.stop_button, "tip.stop"),
+            (self.restart_button, "tip.restart"),
+            (self.release_button, "tip.release"),
+            (self.activate_button, "tip.activate"),
+            (self.refresh_button, "tip.refresh"),
+        ):
+            _attach_tip(button, lambda k=key: tr(k), self.theme)
+        self._make_responsive_action_grid(workflow, self.workflow_buttons, target_button_width=108)
 
         self._main_pane = ttk.PanedWindow(self.root, orient="vertical")
-        self._main_pane.grid(row=2, column=0, sticky="nsew", padx=6, pady=2)
+        self._main_pane.grid(row=3, column=0, sticky="nsew", padx=6, pady=2)
         self._body_pane = ttk.PanedWindow(self._main_pane, orient="horizontal")
         self._main_pane.add(self._body_pane, weight=3)
 
@@ -873,21 +926,6 @@ class AConductorDesktopApp:
         self.project_list.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 4))
         project_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 4))
 
-        project_actions = tk.Frame(project_panel, bg=self.theme.panel)
-        project_actions.grid(row=2, column=0, columnspan=2, sticky="ew", padx=9, pady=(0, 9))
-        self.add_button = self._button(project_actions, "Add Project", self.add_project)
-        _attach_tip(self.add_button, "เพิ่มโปรเจกต์จากโฟลเดอร์ในเครื่อง (ไม่แตะไฟล์ในโปรเจกต์)", self.theme)
-        self.assign_button = self._button(project_actions, "Assign", self.assign_selected)
-        _attach_tip(self.assign_button, "ย้ายโปรเจกต์ที่เลือกไปยัง Worker ที่เลือก (เลือก Worker ทางขวาก่อน)", self.theme)
-        self.activate_button = self._button(project_actions, "Activate", self.copy_activation_prompt)
-        _attach_tip(
-            self.activate_button,
-            "คัดลอก prompt สำหรับ activate โปรเจกต์ที่เลือก แล้วนำไปวางใน AI chat ที่เชื่อม Serena",
-            self.theme,
-        )
-        for index, button in enumerate((self.add_button, self.assign_button, self.activate_button)):
-            button.grid(row=0, column=index, padx=(0, 6), sticky="w")
-
         self.memory_status_label = tk.Label(
             project_panel,
             text="สมองโปรเจกต์: เลือกโปรเจกต์เพื่อดูสถานะ",
@@ -903,7 +941,7 @@ class AConductorDesktopApp:
         )
         _attach_tip(
             self.memory_status_label,
-            "ตรวจสอบแบบอ่านอย่างเดียว: มีความจำ Serena ในโปรเจกต์นี้หรือไม่\nถ้ายังไม่มี onboarding จะทำงานเมื่อ agent เข้าโปรเจกต์ครั้งแรก\nและควรเริ่มบทสนทนาใหม่หลัง onboarding จบ",
+            lambda: tr("tip.memory"),
             self.theme,
         )
         self.project_list.bind(
@@ -927,7 +965,7 @@ class AConductorDesktopApp:
             "state": ("STATE", 90),
             "project": ("PROJECT", 170),
             "path": ("PATH", 260),
-            "connector": ("CONNECTOR", 150),
+            "connector": ("CONNECTOR (?)", 150),
         }
         for name, (label, width) in headings.items():
             self.worker_tree.heading(name, text=label, anchor="w")
@@ -947,52 +985,26 @@ class AConductorDesktopApp:
         self.worker_tree.tag_configure("error", foreground=self.theme.error)
         self.worker_tree.tag_configure("idle", foreground=self.theme.idle)
         self._attach_row_path_tip(self.worker_tree, column=3, label=tr("menu.copy.path"))
+        _attach_tip(self.worker_tree, lambda: self.connector_help_text(), self.theme)
 
         actions = tk.Frame(worker_panel, bg=self.theme.panel)
         actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=9, pady=(4, 9))
-        self.release_button = self._button(actions, "Release", self.release_selected)
-        _attach_tip(self.release_button, tr("tip.release"), self.theme)
-        self.refresh_button = self._button(actions, "Refresh", self.refresh)
-        _attach_tip(self.refresh_button, tr("tip.refresh"), self.theme)
-        self.start_button = self._button(actions, "Start", self.start_selected)
-        _attach_tip(self.start_button, tr("tip.start"), self.theme)
-        self.stop_button = self._button(actions, "Stop", self.stop_selected)
-        _attach_tip(self.stop_button, tr("tip.stop"), self.theme)
-        self.restart_button = self._button(actions, "Restart", self.restart_selected)
-        _attach_tip(self.restart_button, tr("tip.restart"), self.theme)
         self.setup_button = self._button(actions, "Setup", self.open_runtime_setup)
-        _attach_tip(self.setup_button, tr("tip.setup"), self.theme)
         self.config_button = self._button(actions, "Config", self.open_worker_config)
-        _attach_tip(self.config_button, tr("tip.config"), self.theme)
-        self.add_worker_button = self._button(actions, "+ Worker", self.open_add_worker_dialog)
-        _attach_tip(
-            self.add_worker_button,
-            tr("tip.add.worker"),
-            self.theme,
-        )
         self.rename_worker_button = self._button(actions, "Rename", self.open_rename_worker_dialog)
-        _attach_tip(self.rename_worker_button, tr("tip.rename.worker"), self.theme)
         self.delete_worker_button = self._button(actions, "Delete", self.delete_selected_worker)
-        _attach_tip(
-            self.delete_worker_button,
-            tr("tip.delete.worker"),
-            self.theme,
-        )
-        for index, button in enumerate(
-            (
-                self.release_button,
-                self.refresh_button,
-                self.start_button,
-                self.stop_button,
-                self.restart_button,
-                self.setup_button,
-                self.config_button,
-                self.add_worker_button,
-                self.rename_worker_button,
-                self.delete_worker_button,
-            )
+        for button, key in (
+            (self.setup_button, "tip.setup"),
+            (self.config_button, "tip.config"),
+            (self.rename_worker_button, "tip.rename.worker"),
+            (self.delete_worker_button, "tip.delete.worker"),
         ):
-            button.grid(row=index // 4, column=index % 4, padx=(0, 6), pady=(0, 3), sticky="w")
+            _attach_tip(button, lambda k=key: tr(k), self.theme)
+        self._make_responsive_action_grid(
+            actions,
+            (self.setup_button, self.config_button, self.rename_worker_button, self.delete_worker_button),
+            target_button_width=105,
+        )
         self.start_button.state(["disabled"])
         self.stop_button.state(["disabled"])
         self.restart_button.state(["disabled"])
@@ -1035,98 +1047,46 @@ class AConductorDesktopApp:
 
         instance_actions = tk.Frame(instances_panel, bg=self.theme.panel)
         instance_actions.grid(row=2, column=0, sticky="ew", padx=9, pady=(0, 9))
-        self.instance_start_button = self._button(
-            instance_actions, "Start", self.start_selected_instance
+        self.instance_start_button = self._button(instance_actions, "Start", self.start_selected_instance)
+        self.instance_stop_button = self._button(instance_actions, "Stop", self.stop_selected_instance)
+        self.instance_startall_button = self._button(instance_actions, "Start All", self.start_all_instances)
+        self.instance_auto_button = self._button(instance_actions, "Toggle Auto", self.toggle_instance_autostart)
+        self.instance_rescan_button = self._button(instance_actions, "Rescan", self.rescan_instances)
+        self.add_instance_button = self._button(instance_actions, "Add Connector", self.open_add_instance_dialog)
+        self.rename_instance_button = self._button(instance_actions, "Rename", self.open_rename_instance_dialog)
+        self.delete_instance_button = self._button(instance_actions, "Delete", self.delete_selected_instance)
+        self.tunnel_button = self._button(instance_actions, "Set Tunnel ID", self.open_tunnel_id_dialog)
+        self.rebind_button = self._button(instance_actions, "Change Project", self.open_rebind_dialog)
+        self.upstream_button = self._button(instance_actions, "Check Engine Update", self.check_upstream)
+        connector_buttons = (
+            self.instance_start_button, self.instance_stop_button, self.instance_startall_button,
+            self.instance_auto_button, self.instance_rescan_button, self.add_instance_button,
+            self.rename_instance_button, self.delete_instance_button, self.tunnel_button,
+            self.rebind_button, self.upstream_button,
         )
-        _attach_tip(self.instance_start_button, tr("tip.instance.start"), self.theme)
-        self.instance_stop_button = self._button(
-            instance_actions, "Stop", self.stop_selected_instance
+        connector_tip_keys = (
+            "tip.instance.start", "tip.instance.stop", "tip.instance.startall",
+            "tip.instance.auto", "tip.instance.rescan", "tip.add.connector",
+            "tip.rename.connector", "tip.delete.connector", "tip.tunnel",
+            "tip.rebind", "tip.upstream",
         )
-        _attach_tip(self.instance_stop_button, tr("tip.instance.stop"), self.theme)
-        self.instance_startall_button = self._button(
-            instance_actions, "Start All", self.start_all_instances
-        )
-        _attach_tip(self.instance_startall_button, tr("tip.instance.startall"), self.theme)
-        self.instance_auto_button = self._button(
-            instance_actions, "Toggle Auto", self.toggle_instance_autostart
-        )
-        _attach_tip(self.instance_auto_button, tr("tip.instance.auto"), self.theme)
-        self.instance_rescan_button = self._button(
-            instance_actions, "Rescan", self.rescan_instances
-        )
-        _attach_tip(self.instance_rescan_button, tr("tip.instance.rescan"), self.theme)
-        self.add_instance_button = self._button(
-            instance_actions, tr("btn.add.connector"), self.open_add_instance_dialog
-        )
-        _attach_tip(
-            self.add_instance_button,
-            tr("tip.add.connector"),
-            self.theme,
-        )
-        self.rename_instance_button = self._button(
-            instance_actions, tr("btn.rename.connector"), self.open_rename_instance_dialog
-        )
-        _attach_tip(self.rename_instance_button, tr("tip.rename.connector"), self.theme)
-        self.delete_instance_button = self._button(
-            instance_actions, tr("btn.delete.connector"), self.delete_selected_instance
-        )
-        _attach_tip(
-            self.delete_instance_button,
-            tr("tip.delete.connector"),
-            self.theme,
-        )
-        self.brain_button = self._button(
-            instance_actions, tr("btn.brain"), self.open_brain_config
-        )
-        _attach_tip(
-            self.brain_button,
-            "Second Brain: เลือก folder สมอง (เช่น A-Wiki) 1-2 อัน\nทุก agent ที่เชื่อมเข้ามาต้องอ่านกฎเหล่านี้ก่อนทำงาน (Index เท่านั้น ประหยัด token)",
-            self.theme,
-        )
-        self.tunnel_button = self._button(
-            instance_actions, "ตั้ง Tunnel ID", self.open_tunnel_id_dialog
-        )
-        _attach_tip(
-            self.tunnel_button,
-            "วาง Tunnel ID (tunnel_...) ของตัวเชื่อมที่เลือก — สำหรับผู้ใช้ใหม่\nดูวิธีขอ ID ได้ในปุ่ม คู่มือ หมวด 'เชื่อมต่อ AI แต่ละค่าย'",
-            self.theme,
-        )
-        self.rebind_button = self._button(
-            instance_actions, "เปลี่ยนโปรเจกต์", self.open_rebind_dialog
-        )
-        _attach_tip(
+        for button, key in zip(connector_buttons, connector_tip_keys):
+            _attach_tip(button, lambda k=key: tr(k), self.theme)
+        self._make_responsive_action_grid(instance_actions, connector_buttons, target_button_width=116)
+        for button in (
+            self.instance_start_button, self.instance_stop_button, self.instance_startall_button,
+            self.instance_auto_button, self.instance_rescan_button, self.tunnel_button,
             self.rebind_button,
-            "เปลี่ยนโปรเจกต์ที่ตัวเชื่อมที่เลือกทำงานด้วย\nสำรองไฟล์เดิมเป็น .bak อัตโนมัติ · มีผลหลัง restart ตัวเชื่อม",
-            self.theme,
-        )
-        self.upstream_button = self._button(
-            instance_actions, "เช็คอัปเดท engine", self.check_upstream
-        )
-        _attach_tip(
-            self.upstream_button,
-            "ดูเวอร์ชันล่าสุดของ engine ต้นแบบ (Serena) จาก GitHub\nอ่านอย่างเดียว — ถ้ามีอัปเดท ค่อยให้ AI agent ช่วยตามทีหลัง",
-            self.theme,
-        )
-        for index, button in enumerate(
-            (
-                self.instance_start_button,
-                self.instance_stop_button,
-                self.instance_startall_button,
-                self.instance_auto_button,
-                self.instance_rescan_button,
-                self.brain_button,
-                self.tunnel_button,
-                self.rebind_button,
-                self.upstream_button,
-            )
         ):
-            button.grid(row=index // 4, column=index % 4, padx=(0, 6), pady=(0, 3), sticky="w")
             button.state(["disabled"])
-        self._set_enabled(self.upstream_button, True)  # read-only, always available
+        self._set_enabled(self.upstream_button, True)
 
-        monitor_panel = self._panel(self._main_pane, "MONITOR")
-        self._main_pane.add(monitor_panel, weight=1)
+        self._lower_pane = ttk.PanedWindow(self._main_pane, orient="horizontal")
+        self._main_pane.add(self._lower_pane, weight=2)
+        monitor_panel = self._panel(self._lower_pane, "MONITOR")
+        self._lower_pane.add(monitor_panel, weight=1)
         monitor_panel.grid_columnconfigure(0, weight=1)
+        monitor_panel.grid_rowconfigure(1, weight=1)
         self.monitor_text = tk.Text(
             monitor_panel,
             height=4,
@@ -1138,7 +1098,11 @@ class AConductorDesktopApp:
             state="disabled",
             font=(self.theme.monospace_font, self.theme.base_font_size),
         )
-        self.monitor_text.grid(row=0, column=0, sticky="ew", padx=(9, 0), pady=(9, 4))
+        self.monitor_text.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 9))
+        self._enable_copyable_text(self.monitor_text)
+        self._button(
+            monitor_panel, "Copy All", lambda: self.copy_text_widget_all(self.monitor_text)
+        ).grid(row=0, column=1, sticky="e", padx=(4, 9), pady=4)
         self.instance_tree.bind(
             "<<TreeviewSelect>>", lambda _event: self._refresh_monitor_async(), add="+"
         )
@@ -1146,10 +1110,11 @@ class AConductorDesktopApp:
 
         # Status bar (bottom, full-width) — brand watermark + update button
         status_bar = tk.Frame(self.root, bg=self.theme.background, height=24)
-        status_bar.grid(row=3, column=0, sticky="ew", padx=0, pady=(0, 2))
+        status_bar.grid(row=4, column=0, sticky="ew", padx=0, pady=(0, 2))
         self._update_button = self._button(status_bar, "Check Update", self.check_for_updates)
         self._donate_button = self._button(status_bar, "Donate", self.open_donate_dialog)
         self._update_button.pack(side="right", padx=(4, 10), pady=2)
+        self._donate_button.pack(side="right", padx=(4, 0), pady=2)
         _attach_tip(
             self._update_button,
             "ตรวจสอบเวอร์ชั่นใหม่จาก GitHub (กดแล้วเปิดหน้าดาวน์โหลด)\nCheck for a newer version on GitHub",
@@ -1169,8 +1134,8 @@ class AConductorDesktopApp:
             lambda _e: webbrowser.open("https://github.com/aase7en/A-Wiki-Conductor"),
         )
 
-        activity_panel = self._panel(self._main_pane, "ACTIVITY / LOG")
-        self._main_pane.add(activity_panel, weight=1)
+        activity_panel = self._panel(self._lower_pane, "ACTIVITY / LOG")
+        self._lower_pane.add(activity_panel, weight=1)
         activity_panel.grid_rowconfigure(1, weight=1)
         activity_panel.grid_columnconfigure(0, weight=1)
         self.activity_text = tk.Text(
@@ -1188,6 +1153,10 @@ class AConductorDesktopApp:
         activity_scroll = ttk.Scrollbar(activity_panel, orient="vertical", command=self.activity_text.yview)
         self.activity_text.configure(yscrollcommand=activity_scroll.set)
         self.activity_text.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 9))
+        self._enable_copyable_text(self.activity_text)
+        self._button(
+            activity_panel, "Copy All", lambda: self.copy_text_widget_all(self.activity_text)
+        ).grid(row=0, column=1, sticky="e", padx=(4, 9), pady=4)
         activity_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 9))
         self.log_activity("Control Center ready")
         self.root.after(1200, self._start_status_pulse)
@@ -1328,10 +1297,31 @@ class AConductorDesktopApp:
     def _button(self, parent, text: str, command) -> ttk.Button:
         return ttk.Button(
             parent,
-            text=text,
+            text=canonical_button_label(text),
             command=command,
             style="AConductor.TButton",
         )
+
+    def _make_responsive_action_grid(
+        self, parent: tk.Widget, buttons, *, target_button_width: int = 110
+    ) -> None:
+        buttons = tuple(buttons)
+        state = {"columns": None}
+
+        def reflow(event=None) -> None:
+            width = getattr(event, "width", None) or parent.winfo_width()
+            columns = responsive_column_count(width, len(buttons), target_button_width)
+            if columns <= 0 or state["columns"] == columns:
+                return
+            state["columns"] = columns
+            for index, button in enumerate(buttons):
+                button.grid(
+                    row=index // columns, column=index % columns,
+                    padx=(0, 6), pady=(0, 3), sticky="w",
+                )
+
+        parent.bind("<Configure>", reflow, add="+")
+        parent.after_idle(reflow)
 
     @staticmethod
     def _state_tag(state: WorkerState) -> str:
@@ -1495,13 +1485,43 @@ class AConductorDesktopApp:
         if worker_id is None:
             self._handle_error("SELECT_WORKER")
             return
+
+        snapshot = self.service.snapshot()
+        worker = next((row for row in snapshot.workers if row.worker_id == worker_id), None)
+        project = next((row for row in snapshot.projects if row.project_id == project_id), None)
+        if worker is None or project is None:
+            self._handle_error("REGISTRY_NOT_FOUND")
+            return
+
         try:
-            self.service.assign_project(worker_id, project_id, mutation_allowed=True)
+            if worker.project_id is None:
+                self.service.assign_project(worker_id, project_id, mutation_allowed=True)
+                action = "Assign"
+            elif worker.project_id == project_id:
+                self.log_activity(f"Assign       {worker_id} already uses {project_id}")
+                return
+            else:
+                if worker.state is not WorkerState.STOPPED:
+                    self._handle_error("WORKER_BUSY")
+                    return
+                current = worker.project_display_name or worker.project_id
+                message = tr("confirm.replace.assignment").format(
+                    current=current, new=project.display_name
+                )
+                if not self._confirm(message):
+                    return
+                replacer = getattr(self.service, "replace_assignment", None)
+                if not callable(replacer):
+                    self._handle_error("ASSIGNMENT_CONFLICT")
+                    return
+                replacer(worker_id, project_id, mutation_allowed=True)
+                action = "Replace"
         except ControlCenterError as exc:
             self._handle_error(exc.code)
             return
-        self.log_activity(f"Assign       {worker_id} <- {project_id}")
+        self.log_activity(f"{action:12} {worker_id} <- {project_id}")
         self.refresh()
+
 
     def release_selected(self) -> None:
         worker_id = self.selected_worker_id()
@@ -1665,7 +1685,7 @@ class AConductorDesktopApp:
                 in_=self._wiz_stitch_frame, anchor="w", pady=(8, 2))
             self._wiz_stitch_path = ttk.Entry(
                 self._wiz_stitch_frame, font=(theme.monospace_font, 10), width=50)
-            self._wiz_stitch_path.insert(0, "C:\AI\stitch-mcp")
+            self._wiz_stitch_path.insert(0, r"C:\AI\stitch-mcp")
             self._wiz_stitch_path.pack(in_=self._wiz_stitch_frame, fill="x", pady=(0, 4))
             label("Stitch API Key (บันทึกเป็น sti-key.txt):").pack(
                 in_=self._wiz_stitch_frame, anchor="w", pady=(0, 2))
@@ -1977,6 +1997,7 @@ class AConductorDesktopApp:
         if getattr(self, "_closing", False):
             return
         self._closing = True
+        self._stop_teaching_animation()
         stop_all = True
         getter = getattr(self.service, "get_preference", None)
         if callable(getter):
@@ -2540,6 +2561,64 @@ class AConductorDesktopApp:
         ).grid(row=4, column=0, sticky="w")
         return window
 
+    def _restart_teaching_animation(self) -> None:
+        self._stop_teaching_animation()
+        self._teaching_messages = tuple(tr(f"teach.step.{index}") for index in range(1, 5))
+        self._teaching_message_index = 0
+        self._teaching_char_index = 0
+        self._teaching_deleting = False
+        self._teaching_pause_ticks = 0
+        try:
+            self._teaching_label.configure(text="▌")
+            self._teaching_after_id = self.root.after(180, self._typewriter_tick)
+        except tk.TclError:
+            self._teaching_after_id = None
+
+    def _stop_teaching_animation(self) -> None:
+        callback = getattr(self, "_teaching_after_id", None)
+        if callback is not None:
+            try:
+                self.root.after_cancel(callback)
+            except (tk.TclError, ValueError):
+                pass
+        self._teaching_after_id = None
+
+    def _typewriter_tick(self) -> None:
+        self._teaching_after_id = None
+        try:
+            if not self.root.winfo_exists() or not self._teaching_label.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        messages = getattr(self, "_teaching_messages", ())
+        if not messages:
+            return
+        message = messages[self._teaching_message_index % len(messages)]
+        if not self._teaching_deleting:
+            if self._teaching_char_index < len(message):
+                self._teaching_char_index += 1
+                delay = 38
+            else:
+                self._teaching_pause_ticks += 1
+                if self._teaching_pause_ticks >= 12:
+                    self._teaching_deleting = True
+                    self._teaching_pause_ticks = 0
+                delay = 90
+        else:
+            if self._teaching_char_index > 0:
+                self._teaching_char_index = max(0, self._teaching_char_index - 2)
+                delay = 20
+            else:
+                self._teaching_deleting = False
+                self._teaching_message_index = (self._teaching_message_index + 1) % len(messages)
+                delay = 160
+        visible = message[: self._teaching_char_index]
+        try:
+            self._teaching_label.configure(text=f"{visible} ▌")
+            self._teaching_after_id = self.root.after(delay, self._typewriter_tick)
+        except tk.TclError:
+            self._teaching_after_id = None
+
     def _start_status_pulse(self) -> None:
         """Slow, gentle pulse for the ONLINE dot (minimal theme, ~1.2s cycle)."""
         self._pulse_on = not getattr(self, "_pulse_on", False)
@@ -2552,6 +2631,49 @@ class AConductorDesktopApp:
                 return
         if self.root.winfo_exists():
             self.root.after(1200, self._start_status_pulse)
+
+    def copy_text_widget_all(self, widget: tk.Text) -> str:
+        text = widget.get("1.0", "end-1c")
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        return text
+
+    def copy_text_widget_selection(self, widget: tk.Text) -> str:
+        try:
+            text = widget.get("sel.first", "sel.last")
+        except tk.TclError:
+            return ""
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        return text
+
+    def _enable_copyable_text(self, widget: tk.Text) -> None:
+        def copy_selection(_event=None):
+            self.copy_text_widget_selection(widget)
+            return "break"
+
+        def popup(event) -> None:
+            menu = tk.Menu(widget, tearoff=0, bg=self.theme.panel, fg=self.theme.foreground)
+            menu.add_command(
+                label="Copy Selection",
+                command=lambda: self.copy_text_widget_selection(widget),
+            )
+            menu.add_command(
+                label="Copy All",
+                command=lambda: self.copy_text_widget_all(widget),
+            )
+            try:
+                menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                menu.grab_release()
+
+        widget.bind("<Control-c>", copy_selection, add="+")
+        widget.bind("<Control-C>", copy_selection, add="+")
+        widget.bind("<Button-3>", popup, add="+")
+        _attach_tip(widget, lambda: tr("tip.copy.log"), self.theme)
+
+    def connector_help_text(self) -> str:
+        return tr("tip.connector.column")
 
     def log_activity(self, text: str) -> None:
         stamp = datetime.now().strftime("%H:%M:%S")
@@ -2639,7 +2761,8 @@ class AConductorDesktopApp:
             justify="left",
         ).grid(row=3, column=0, sticky="w", pady=(2, 8))
 
-        language_var = tk.BooleanVar(value=(get_language() == "en"))
+        language_display = {"th": "Thai", "zh-CN": "中文", "en": "English"}
+        language_var = tk.StringVar(value=language_display.get(get_language(), "Thai"))
 
         try:
             shutdown_pref = getter("shutdown_stops_instances")
@@ -2663,36 +2786,29 @@ class AConductorDesktopApp:
             command=lambda: self._save_shutdown_preference(setter, shutdown_var),
         )
         shutdown_box.grid(row=1, column=0, sticky="w", pady=(0, 2))
-        _attach_tip(shutdown_box, tr("prefs.shutdown.help"), self.theme)
+        _attach_tip(shutdown_box, lambda: tr("prefs.shutdown.help"), self.theme)
 
-        language_box = tk.Checkbutton(
-            frame,
-            text=tr("prefs.language") + ("  ✓ English" if language_var.get() else "  ✓ ไทย"),
-            variable=language_var,
-            bg=self.theme.panel,
-            fg=self.theme.foreground,
-            selectcolor=self.theme.background,
-            activebackground=self.theme.panel,
-            activeforeground=self.theme.foreground,
-            highlightthickness=0,
-            font=(self.theme.monospace_font, 9),
-            anchor="w",
-            justify="left",
-            wraplength=460,
-            command=lambda: self._save_language_preference(setter, language_var),
-        )
-        language_box.grid(row=4, column=0, sticky="w")
-        _attach_tip(language_box, tr("prefs.language.help"), self.theme)
+        language_row = tk.Frame(frame, bg=self.theme.panel)
+        language_row.grid(row=4, column=0, sticky="ew", pady=(2, 0))
         tk.Label(
-            frame,
-            text=tr("prefs.language.restart"),
-            bg=self.theme.panel,
-            fg=self.theme.muted,
-            font=(self.theme.monospace_font, 8),
-            anchor="w",
-            wraplength=460,
-            justify="left",
-        ).grid(row=5, column=0, sticky="w", pady=(2, 8))
+            language_row, text=tr("prefs.language"), bg=self.theme.panel,
+            fg=self.theme.foreground, font=(self.theme.monospace_font, 9),
+        ).pack(side="left", padx=(0, 8))
+        self._language_combo = ttk.Combobox(
+            language_row, textvariable=language_var, values=("Thai", "中文", "English"),
+            state="readonly", width=12,
+        )
+        self._language_combo.pack(side="left")
+        self._language_combo.bind(
+            "<<ComboboxSelected>>",
+            lambda _event: self._save_language_preference(setter, language_var),
+        )
+        _attach_tip(self._language_combo, lambda: tr("prefs.language.help"), self.theme)
+        self._language_status_label = tk.Label(
+            frame, text=tr("prefs.language.restart"), bg=self.theme.panel, fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8), anchor="w", wraplength=460, justify="left",
+        )
+        self._language_status_label.grid(row=5, column=0, sticky="w", pady=(2, 8))
 
         self._button(frame, tr("btn.close"), lambda: window.destroy() if window.winfo_exists() else None).grid(
             row=6, column=0, sticky="w"
@@ -2707,14 +2823,20 @@ class AConductorDesktopApp:
             return
         self.log_activity(f"Settings     shutdown_stops={'ON' if var.get() else 'OFF'}")
 
-    def _save_language_preference(self, setter, var: tk.BooleanVar) -> None:
+    def _save_language_preference(self, setter, var: tk.StringVar) -> None:
+        display_to_code = {"Thai": "th", "中文": "zh-CN", "English": "en"}
+        code = display_to_code.get(str(var.get()), "th")
         try:
-            setter("language", var.get())
+            setter("language_zh", code == "zh-CN")
+            setter("language", code == "en")
         except Exception:
             self._handle_error("PREFERENCE_SAVE_FAILED")
             return
-        set_language("en" if var.get() else "th")
-        self.log_activity(f"Settings     language={'en' if var.get() else 'th'}")
+        set_language(code)
+        if hasattr(self, "_language_status_label"):
+            self._language_status_label.configure(text=tr("prefs.language.restart"))
+        self._restart_teaching_animation()
+        self.log_activity(f"Settings     language={code}")
 
     def _save_supervised_preference(self, setter, var: tk.BooleanVar) -> None:
         try:

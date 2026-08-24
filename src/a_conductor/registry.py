@@ -165,6 +165,57 @@ class ControlPlaneRegistry:
         )
         return assignment
 
+    def replace_assignment(
+        self,
+        assignment: Assignment,
+        *,
+        mutation_allowed: bool = True,
+    ) -> Assignment:
+        """Atomically replace a STOPPED worker assignment after full validation."""
+        worker = self.get_worker(assignment.worker_id)
+        project = self.get_project(assignment.project_id)
+        if worker.state is not WorkerState.STOPPED:
+            raise WorkerBusyError(
+                f"busy worker assignment cannot be replaced until STOPPED: {worker.worker_id}"
+            )
+        if worker.assignment_id is None:
+            return self.assign(assignment, mutation_allowed=mutation_allowed)
+        if assignment.assignment_id in self._assignments:
+            raise DuplicateRegistrationError(
+                f"assignment_id already registered: {assignment.assignment_id}"
+            )
+        if (
+            worker.runtime_id is not None
+            and assignment.runtime_id is not None
+            and worker.runtime_id != assignment.runtime_id
+        ):
+            raise AssignmentConflictError(
+                f"runtime mismatch for worker {worker.worker_id}"
+            )
+        worktree_key = windows_worktree_key(project.root_path)
+        if mutation_allowed:
+            for record in self._assignments.values():
+                if (
+                    record.worker_id != worker.worker_id
+                    and record.mutation_allowed
+                    and record.worktree_key == worktree_key
+                ):
+                    raise AssignmentConflictError(
+                        "mutating worktree already assigned to another worker"
+                    )
+        old_assignment_id = worker.assignment_id
+        record = AssignmentRecord(
+            assignment=assignment,
+            mutation_allowed=bool(mutation_allowed),
+            worktree_key=worktree_key,
+        )
+        self._assignments.pop(old_assignment_id, None)
+        self._assignments[assignment.assignment_id] = record
+        self._workers[worker.worker_id] = replace(
+            worker, assignment_id=assignment.assignment_id
+        )
+        return assignment
+
     def release_worker(self, worker_id: str) -> Worker:
         worker = self.get_worker(worker_id)
         if worker.state is not WorkerState.STOPPED:

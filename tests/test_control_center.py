@@ -178,3 +178,83 @@ def test_failed_save_rolls_back_service_to_last_durable_state(tmp_path: Path) ->
     assert exc_info.value.code == "PERSISTENCE_FAILED"
     assert service.snapshot().projects == ()
     assert ControlCenterService.open(base).snapshot().projects == ()
+
+
+
+def test_replace_assignment_preserves_old_assignment_when_new_project_conflicts(tmp_path: Path) -> None:
+    service = open_service(tmp_path)
+    p1_dir = tmp_path / "p1"
+    p2_dir = tmp_path / "p2"
+    p1_dir.mkdir()
+    p2_dir.mkdir()
+    p1 = service.register_project(p1_dir, project_id="p1")
+    p2 = service.register_project(p2_dir, project_id="p2")
+    service.assign_project("a-worker-01", p1.project_id)
+    service.assign_project("a-worker-02", p2.project_id)
+
+    with pytest.raises(ControlCenterError) as exc_info:
+        service.replace_assignment("a-worker-01", p2.project_id)
+
+    assert exc_info.value.code == "ASSIGNMENT_CONFLICT"
+    w1 = next(w for w in service.snapshot().workers if w.worker_id == "a-worker-01")
+    assert w1.project_id == "p1"
+
+
+def test_replace_assignment_switches_stopped_worker_atomically(tmp_path: Path) -> None:
+    service = open_service(tmp_path)
+    p1_dir = tmp_path / "p1"
+    p2_dir = tmp_path / "p2"
+    p1_dir.mkdir()
+    p2_dir.mkdir()
+    p1 = service.register_project(p1_dir, project_id="p1")
+    p2 = service.register_project(p2_dir, project_id="p2")
+    service.assign_project("a-worker-01", p1.project_id)
+
+    service.replace_assignment("a-worker-01", p2.project_id)
+
+    w1 = next(w for w in service.snapshot().workers if w.worker_id == "a-worker-01")
+    assert w1.project_id == "p2"
+    reopened = open_service(tmp_path)
+    persisted = next(w for w in reopened.snapshot().workers if w.worker_id == "a-worker-01")
+    assert persisted.project_id == "p2"
+
+
+def test_replace_assignment_rejects_busy_worker_without_losing_old_project(tmp_path: Path) -> None:
+    service = open_service(tmp_path)
+    p1_dir = tmp_path / "p1-busy"
+    p2_dir = tmp_path / "p2-busy"
+    p1_dir.mkdir()
+    p2_dir.mkdir()
+    p1 = service.register_project(p1_dir, project_id="p1-busy")
+    p2 = service.register_project(p2_dir, project_id="p2-busy")
+    service.assign_project("a-worker-01", p1.project_id)
+    service.set_worker_state("a-worker-01", WorkerState.READY)
+    with pytest.raises(ControlCenterError) as exc_info:
+        service.replace_assignment("a-worker-01", p2.project_id)
+    assert exc_info.value.code == "WORKER_BUSY"
+    row = next(w for w in service.snapshot().workers if w.worker_id == "a-worker-01")
+    assert row.project_id == p1.project_id
+
+
+def test_replace_assignment_persistence_failure_restores_old_assignment(tmp_path: Path) -> None:
+    base = SQLiteRegistryStore(tmp_path / "replace.sqlite")
+    store = FailingStore(base)
+    service = ControlCenterService.open(store)
+    p1_dir = tmp_path / "p1-save"
+    p2_dir = tmp_path / "p2-save"
+    p1_dir.mkdir()
+    p2_dir.mkdir()
+    p1 = service.register_project(p1_dir, project_id="p1-save")
+    p2 = service.register_project(p2_dir, project_id="p2-save")
+    service.assign_project("a-worker-01", p1.project_id)
+    store.fail_next_save = True
+    with pytest.raises(ControlCenterError) as exc_info:
+        service.replace_assignment("a-worker-01", p2.project_id)
+    assert exc_info.value.code == "PERSISTENCE_FAILED"
+    row = next(w for w in service.snapshot().workers if w.worker_id == "a-worker-01")
+    assert row.project_id == p1.project_id
+    durable = next(
+        w for w in ControlCenterService.open(base).snapshot().workers
+        if w.worker_id == "a-worker-01"
+    )
+    assert durable.project_id == p1.project_id

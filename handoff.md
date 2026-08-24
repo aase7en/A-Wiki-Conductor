@@ -1,6 +1,6 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-24 (GPT-5.6 Sol + SunDay-Worker 2, WO-P1-061/062)
+Last updated: 2026-08-24 (GLM 5.3, v0.5.0 compact-ready) (GPT-5.6 Sol + SunDay-Worker 1, WO-P1-062 design review)
 
 ## Current objective
 
@@ -8,12 +8,13 @@ Finish `WO-P1-061` Sunday Family native GPU particle portrait with strict graysc
 
 ## Status
 
-`IN_PROGRESS` on branch `feat/gpu-sunday-family-particles-clean`.
+`IN_PROGRESS / DESIGN_REVIEW` on branch `feat/gpu-sunday-family-particles-clean`.
 
 - WO-P1-061 GPU path real smoke: previously PASS (`gpu-opengl`, ~9,360 particles, no GPU error).
 - WO-P1-061 local implementation is verified: GPU + forced fallback E2E pass, grayscale-only contract enforced, portable build succeeds and bundles GPU/asset. Final frozen/full regression is deferred to GitHub CI because this workstation security layer returns `Access is denied` for freshly built PE files.
 - Local Windows security/AV currently denies immediate reads of newly-created `.ps1` fixtures, so affected unrelated instance-management tests require CI confirmation rather than production-code changes.
-- WO-P1-062 is PLANNED in `docs/work-orders/WO-P1-062-responsive-global-ui.md`; no production implementation should precede that plan.
+- WO-P1-062 is `DESIGN_REVIEW / PARTIAL_IMPLEMENTATION`: requirements 1–10 have dirty partial code with focused test evidence; requirements 11–13 are planned but production work pauses for the explicitly-invoked brainstorming approval gate. Recommended design is bounded domain + UI extension (no rewrite).
+- Connector inspection confirms desktop `Add Connector` already exists; GPT is not required. The Worker Connector column is the matching connector instance for the assigned project; `-` means no match. New connector creation requires a validated reference connector; Tunnel ID is optional/settable later.
 - Model-routing research is durable at `docs/research/model-routing-2026-08-24.md`.
 
 ## Resume authority
@@ -22,7 +23,8 @@ Do not trust chat memory as the task source of truth. Use: `actual repo/GitHub s
 
 ## Current repository state
 
-- Branch: `main` (PRs #35–#73 merged CI-green on 3 OS); v0.4.3 installed; repo health 100%; 5 connector instances all READY (see CURRENT-WORK fleet table); secrets + backups live in the A-Wiki-Data Drive layer
+- Branch: `main` HEAD at UI redesign commit; v0.5.0 installed
+ (PRs #35–#73 merged CI-green on 3 OS); v0.4.3 installed; repo health 100%; 5 connector instances all READY (see CURRENT-WORK fleet table); secrets + backups live in the A-Wiki-Data Drive layer
 - Repo visibility: **public** (explicit user decision 2026-08-22; recorded in COLLAB.md)
 - Release: https://github.com/aase7en/A-Wiki-Conductor/releases/tag/v0.2.0 (Setup + Portable + Notices; anonymous download verified)
 - Full suite at close: 912 passed

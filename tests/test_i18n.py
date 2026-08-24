@@ -82,7 +82,11 @@ def test_app_opens_in_english_when_preference_set(root, tmp_path: Path) -> None:
 def test_app_opens_in_thai_by_default(root, tmp_path: Path) -> None:
     app = make_app(root, tmp_path)
     assert get_language() == "th"
-    assert app.help_button.cget("text") == "คู่มือ"
+    # Action labels stay canonical English; hover help follows Thai.
+    assert app.help_button.cget("text") == "Guide"
+    provider = app.help_button._acond_tooltip.text
+    assert callable(provider)
+    assert "คู่มือ" in provider()
 
 
 def test_error_popup_uses_english_when_switched(root, tmp_path: Path) -> None:
@@ -100,30 +104,69 @@ def test_error_popup_uses_english_when_switched(root, tmp_path: Path) -> None:
         window.destroy()
 
 
-def test_connector_button_labels_follow_language(root, tmp_path: Path) -> None:
+def test_connector_button_labels_are_canonical_english(root, tmp_path: Path) -> None:
     app = make_app(root, tmp_path, language=True)
-    assert app.add_instance_button.cget("text") == "+ Connector"
+    assert app.add_instance_button.cget("text") == "Add Connector"
     assert app.rename_instance_button.cget("text") == "Rename"
     assert app.delete_instance_button.cget("text") == "Delete"
 
 
-def test_preferences_language_switch_toggles_preference(root, tmp_path: Path) -> None:
-    import tkinter as tk
-
+def test_preferences_language_switch_persists_three_languages(root, tmp_path: Path) -> None:
     app = make_app(root, tmp_path, language=False)
     window = app.open_preferences()
     try:
-        boxes = [
-            child
-            for child in window.winfo_children()[0].winfo_children()
-            if isinstance(child, tk.Checkbutton)
-        ]
-        assert len(boxes) == 3  # supervised / shutdown-stops / language
-        boxes[2].invoke()
-        assert app.service.get_preference("language") is True
-        assert get_language() == "en"
-        boxes[2].invoke()
+        combo = app._language_combo
+        combo.set("中文")
+        combo.event_generate("<<ComboboxSelected>>")
+        root.update()
+        assert get_language() == "zh-CN"
+        assert app.service.get_preference("language_zh") is True
         assert app.service.get_preference("language") is False
+
+        combo.set("English")
+        combo.event_generate("<<ComboboxSelected>>")
+        root.update()
+        assert get_language() == "en"
+        assert app.service.get_preference("language_zh") is False
+        assert app.service.get_preference("language") is True
+
+        combo.set("Thai")
+        combo.event_generate("<<ComboboxSelected>>")
+        root.update()
         assert get_language() == "th"
+        assert app.service.get_preference("language_zh") is False
+        assert app.service.get_preference("language") is False
     finally:
         window.destroy()
+
+
+def test_switch_to_chinese_localized_help() -> None:
+    set_language("zh-CN")
+    assert "工作槽" in tr("tip.add.worker") or "工作" in tr("tip.add.worker")
+    set_language("th")
+
+
+def test_canonical_button_labels_are_always_english() -> None:
+    from a_conductor.i18n import canonical_button_label
+
+    assert canonical_button_label("คู่มือ") == "Guide"
+    assert canonical_button_label("ตั้งค่า") == "Settings"
+    assert canonical_button_label("บันทึก") == "Save"
+    assert canonical_button_label("ยกเลิก") == "Cancel"
+    assert canonical_button_label("เปิดไฟล์ภายนอก") == "Open External File"
+    assert canonical_button_label("เลือกโฟลเดอร์...") == "Browse Folder..."
+
+
+def test_tooltip_provider_changes_language_live(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    provider = app.start_button._acond_tooltip.text
+    assert callable(provider)
+    set_language("th")
+    thai = provider()
+    set_language("zh-CN")
+    chinese = provider()
+    set_language("en")
+    english = provider()
+    assert thai != chinese != english
+    assert "启动" in chinese
+    assert "Start" in english

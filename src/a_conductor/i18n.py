@@ -1,4 +1,4 @@
-"""Tiny bilingual string table (TH default, EN opt-in via preferences)."""
+"""Localized help/guidance strings; action button labels stay canonical English."""
 
 from __future__ import annotations
 
@@ -164,15 +164,144 @@ STRINGS: dict[str, dict[str, str]] = {
     "wiz.finish": {"th": "เสร็จสิ้น!", "en": "Done!"},
     "wiz.next": {"th": "ถัดไป", "en": "Next"},
     "wiz.back": {"th": "ย้อนกลับ", "en": "Back"},
-    "prefs.language": {"th": "ภาษา / Language", "en": "Language / ภาษา"},
+    "prefs.language": {"th": "ภาษาคำอธิบาย / Help language", "en": "Help language"},
     "prefs.language.help": {
-        "th": "สลับภาษาของโปรแกรม (ไทย/English) — บันทึกแล้วปิด-เปิดโปรแกรมใหม่เพื่อให้มีผล",
-        "en": "Switch the app language (Thai/English) — save, then restart the app to apply",
+        "th": "เลือกภาษาไทย/中文/English สำหรับคำอธิบายและ tooltip — ปุ่มคำสั่งยังเป็น English เสมอ",
+        "en": "Choose Thai/Chinese/English for help and tooltips — action buttons always stay in English",
     },
     "prefs.language.restart": {
-        "th": "บันทึกแล้ว — ปิดและเปิดโปรแกรมใหม่เพื่อเปลี่ยนภาษา",
-        "en": "Saved — restart the app to apply the new language",
+        "th": "เปลี่ยนคำอธิบายทันที และจำค่าไว้สำหรับครั้งถัดไป",
+        "en": "Help text updates immediately and the choice is saved for next launch",
     },
+}
+
+# Chinese is intentionally concentrated on operator guidance/tooltips. Entries
+# without a Chinese translation fall back to English so the UI never falls back
+# to Thai unexpectedly for a Chinese-selected session.
+_ZH_CN: dict[str, str] = {
+    "tip.add.project": "注册本机项目文件夹，不修改项目文件",
+    "tip.assign": "把所选项目分配给所选 Worker",
+    "btn.guide": "Guide",
+    "btn.settings": "Settings",
+    "tip.guide": "打开应用内使用指南",
+    "tip.settings": "打开 A-Conductor 全局设置",
+    "hint.three.steps": "开始：① Add Project  ② Assign 到 Worker  ③ Start",
+    "tip.release": "释放所选 Worker 并取消项目分配",
+    "tip.refresh": "重新加载最新状态",
+    "tip.start": "启动所选 Worker；如有 Connector 会同时启动连接",
+    "tip.stop": "停止所选 Worker",
+    "tip.restart": "停止后重新启动所选 Worker",
+    "tip.setup": "配置所选 Worker 的 Runtime",
+    "tip.config": "配置 Worker 的语言、工具和项目设置",
+    "tip.add.worker": "新增 Worker 工作槽，用于并行任务或子代理",
+    "tip.rename.worker": "修改所选 Worker 的显示名称",
+    "tip.delete.worker": "删除已停止且未分配项目的 Worker 工作槽",
+    "tip.instance.start": "启动所选 Connector",
+    "tip.instance.stop": "安全停止所选 Connector（会验证 PID）",
+    "tip.instance.startall": "启动所有尚未 READY 的 Connector",
+    "tip.instance.auto": "切换此 Connector 的自动启动",
+    "tip.instance.rescan": "重新扫描新的 Connector",
+    "tip.add.connector": "从已验证模板创建新的 Connector，并分配项目",
+    "tip.rename.connector": "修改 Connector 显示名称，不改真实文件夹",
+    "tip.delete.connector": "停止 Connector、创建 ZIP 备份后删除",
+    "prefs.language": "帮助语言 / Help language",
+    "prefs.language.help": "选择 Thai、中文或 English。按钮始终显示 English；帮助和提示按所选语言显示。",
+    "prefs.language.restart": "语言帮助会立即更新，并保存用于下次启动。",
+    "tip.activate": "复制 A-Conductor 项目激活指令，并粘贴到连接此 Conductor 的 AI 会话中",
+    "tip.brain": "配置所有 Worker 共用的 Second Brain 索引和必读入口文件",
+    "tip.connection": "ONLINE = A-Conductor 控制服务可用；OFFLINE = 控制服务无法访问",
+    "tip.logo": "Sunday Family 粒子标志；移动鼠标可看到粒子和视线跟随",
+    "tip.tunnel": "设置所选 Connector 的 Tunnel ID",
+    "tip.rebind": "把所选 Connector 重新绑定到另一个项目；重启后生效",
+    "tip.upstream": "只读检查底层 Runtime 引擎是否有上游更新",
+    "tip.memory": "只读查看所选项目是否已有 Conductor/Worker 可用的项目记忆",
+    "teach.step.1": "Step 1 · Add Project — register a project folder without modifying it.",
+    "teach.step.2": "Step 2 · Assign — connect the selected project to a Worker.",
+    "teach.step.3": "Step 3 · Start — start the selected Worker and its Connector when available.",
+    "teach.step.4": "Tip · Hover any action for help in your selected language.",
+}
+for _key, _value in _ZH_CN.items():
+    STRINGS.setdefault(_key, {})["zh-CN"] = _value
+
+# New help keys are tri-lingual. Keeping them in the same table preserves the
+# existing i18n single source of truth instead of creating a second help system.
+_NEW_HELP: dict[str, dict[str, str]] = {
+    "tip.add.project": {
+        "th": "เพิ่มโฟลเดอร์โปรเจกต์เข้า A-Conductor โดยไม่แก้ไฟล์ภายในโปรเจกต์",
+        "en": "Register a local project folder in A-Conductor without modifying project files",
+    },
+    "tip.assign": {
+        "th": "ผูกโปรเจกต์ที่เลือกเข้ากับ Worker ที่เลือก",
+        "en": "Assign the selected project to the selected Worker",
+    },
+    "tip.activate": {
+        "th": "คัดลอกคำสั่งเปิดใช้งานโปรเจกต์ของ A-Conductor แล้วนำไปวางใน AI chat ที่เชื่อมกับ Conductor นี้",
+        "en": "Copy the A-Conductor project activation instruction and paste it into an AI session connected to this Conductor",
+    },
+    "tip.brain": {
+        "th": "ตั้งค่า Second Brain ส่วนกลาง: โฟลเดอร์ความรู้และไฟล์ทางเข้าที่ Worker ต้องอ่าน",
+        "en": "Configure the shared Second Brain index and entry files that Workers should read",
+    },
+    "tip.connection": {
+        "th": "ONLINE = บริการควบคุม A-Conductor พร้อมใช้งาน · OFFLINE = ติดต่อบริการควบคุมไม่ได้",
+        "en": "ONLINE = the A-Conductor control service is reachable · OFFLINE = the control service is unavailable",
+    },
+    "tip.logo": {
+        "th": "โลโก้ Sunday Family แบบอนุภาค — ขยับเมาส์เพื่อดูอนุภาคและสายตาติดตาม",
+        "en": "Sunday Family particle logo — move the mouse to see particles and gaze tracking",
+    },
+    "tip.tunnel": {
+        "th": "ตั้ง Tunnel ID ให้ Connector ที่เลือก",
+        "en": "Set the Tunnel ID for the selected Connector",
+    },
+    "tip.rebind": {
+        "th": "เปลี่ยนโปรเจกต์ที่ Connector ที่เลือกผูกอยู่ มีผลหลัง restart",
+        "en": "Rebind the selected Connector to another project; takes effect after restart",
+    },
+    "tip.upstream": {
+        "th": "ตรวจสอบแบบอ่านอย่างเดียวว่ารันไทม์ต้นแบบมีอัปเดต upstream หรือไม่",
+        "en": "Read-only check for upstream updates to the underlying runtime engine",
+    },
+    "tip.memory": {
+        "th": "ตรวจแบบอ่านอย่างเดียวว่าโปรเจกต์ที่เลือกมีความจำสำหรับ Conductor/Worker แล้วหรือไม่",
+        "en": "Read-only check for project memory available to the Conductor/Worker workflow",
+    },
+    "teach.step.1": {
+        "th": "ขั้นที่ 1 · Add Project — ลงทะเบียนโฟลเดอร์โปรเจกต์โดยไม่แก้ไฟล์ภายใน",
+        "en": "Step 1 · Add Project — register a project folder without modifying it.",
+    },
+    "teach.step.2": {
+        "th": "ขั้นที่ 2 · Assign — ผูกโปรเจกต์ที่เลือกเข้ากับ Worker",
+        "en": "Step 2 · Assign — connect the selected project to a Worker.",
+    },
+    "teach.step.3": {
+        "th": "ขั้นที่ 3 · Start — เริ่ม Worker และ Connector ของโปรเจกต์เมื่อมี",
+        "en": "Step 3 · Start — start the selected Worker and its Connector when available.",
+    },
+    "teach.step.4": {
+        "th": "เคล็ดลับ · วางเมาส์บนปุ่มเพื่อดูคำอธิบายตามภาษาที่เลือก",
+        "en": "Tip · Hover any action for help in your selected language.",
+    },
+}
+for _key, _entry in _NEW_HELP.items():
+    target = STRINGS.setdefault(_key, {})
+    target.update(_entry)
+    target["zh-CN"] = _ZH_CN[_key]
+
+STRINGS["tip.connector.column"] = {
+    "th": "Connector คือช่องเชื่อมต่อ Runtime/Tunnel ที่ตรงกับโปรเจกต์ของ Worker · เครื่องหมาย - = ยังไม่มี Connector ที่ตรงกัน · สร้างได้ด้วย Add Connector",
+    "zh-CN": "Connector 是与 Worker 项目匹配的 Runtime/Tunnel 连接；- 表示尚无匹配的 Connector；可用 Add Connector 创建。",
+    "en": "Connector is the Runtime/Tunnel connection matched to this Worker's project. - means no matching Connector. Create one with Add Connector.",
+}
+STRINGS["confirm.replace.assignment"] = {
+    "th": "Worker นี้มีโปรเจกต์อยู่แล้ว\n\nCurrent: {current}\nNew: {new}\n\nแทนที่ assignment เดิมหรือไม่?",
+    "zh-CN": "此 Worker 已分配项目。\n\nCurrent: {current}\nNew: {new}\n\n是否替换现有分配？",
+    "en": "This Worker already has a project.\n\nCurrent: {current}\nNew: {new}\n\nReplace the current assignment?",
+}
+STRINGS["tip.copy.log"] = {
+    "th": "เลือกข้อความแล้วกด Ctrl+C หรือคลิกขวาเพื่อ Copy Selection / Copy All",
+    "zh-CN": "选择文本后按 Ctrl+C，或右键选择 Copy Selection / Copy All。",
+    "en": "Select text and press Ctrl+C, or right-click for Copy Selection / Copy All.",
 }
 
 _language = "th"
@@ -180,7 +309,7 @@ _language = "th"
 
 def set_language(language: str) -> None:
     global _language
-    if language in ("th", "en"):
+    if language in ("th", "zh-CN", "en"):
         _language = language
 
 
@@ -192,4 +321,31 @@ def tr(key: str) -> str:
     entry = STRINGS.get(key)
     if entry is None:
         return key
-    return entry.get(_language) or entry.get("th") or key
+    return entry.get(_language) or entry.get("en") or entry.get("th") or key
+
+
+_BUTTON_ALIASES: dict[str, str] = {
+    "ปิด": "Close",
+    "เปิดไฟล์ภายนอก": "Open External File",
+    "เลือก...": "Browse...",
+    "เลือกโฟลเดอร์...": "Browse Folder...",
+    "ใช้ค่า default (A-Wiki)": "Use Default (A-Wiki)",
+    "เปลี่ยนเลย": "Apply Change",
+    "ยกเลิก": "Cancel",
+    "บันทึก": "Save",
+    "ตั้ง Tunnel ID": "Set Tunnel ID",
+    "เปลี่ยนโปรเจกต์": "Change Project",
+    "เช็คอัปเดท engine": "Check Engine Update",
+}
+
+
+def canonical_button_label(text: str) -> str:
+    """Return the stable English action label for any localized/legacy button text."""
+    value = str(text)
+    if value in _BUTTON_ALIASES:
+        return _BUTTON_ALIASES[value]
+    for entry in STRINGS.values():
+        english = entry.get("en")
+        if english and value in entry.values():
+            return english
+    return value

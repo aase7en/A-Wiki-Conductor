@@ -120,3 +120,21 @@ report -> defect memory -> PR -> CI/CD -> fetch/merge`
 Upstream grill-with-docs freshness checked 2026-08-24. Current upstream still delegates to
 the grilling + domain-modeling disciplines; v1.1.0 release notes state grill-with-docs now
 builds the domain model inline and depends on domain-modeling/codebase-design vocabulary.
+## Freshness re-check — 2026-08-24 15:08 ICT
+
+Official OpenAI GPT-5.6 launch currently reports GPT-5.6 Sol MAX at **80** on the
+Artificial Analysis Coding Agent Index v1.1, **88.8%** Terminal-Bench 2.1,
+**72.7%** DeepSWE v1.1, and **64.6%** SWE-Bench Pro. OpenAI describes Sol as
+its strongest coding model and reports state-of-the-art results on Terminal-Bench 2.1
+and DeepSWE at launch. Source: https://openai.com/index/gpt-5-6/
+
+Z.ai's official GLM-5.3 launch (2026-08-14) reports **88.2** Terminal-Bench 2.1,
+**28.3** Terminal-Bench 3.0, **66.9** DeepSWE v1.1, **48.2** AutomationBench,
+**84.5** CyberGym and **1769** GDPval-AA v2 Elo. The same Z.ai table reports
+GPT-5.6 Sol at 88.8 / 34.6 / 72.7 / 45.8 / 83.6 / 1730 respectively.
+Source: https://z.ai/blog/glm-5.3
+
+Routing conclusion remains unchanged but is now stronger: use GPT-5.6 Sol MAX for
+decomposition, architecture, cross-layer safety decisions, difficult debugging, visual/UX
+judgment, and final integration/E2E; use GLM-5.3 MAX as the later bounded implementation
+workhorse where acceptance tests and file claims are already explicit. Do not duplicate intent.

@@ -178,6 +178,35 @@ class ControlCenterService:
         self._save()
         return assignment
 
+    def replace_assignment(
+        self,
+        worker_id: str,
+        project_id: str,
+        *,
+        mutation_allowed: bool = True,
+        runtime_id: str | None = None,
+    ) -> Assignment:
+        assignment = Assignment(
+            assignment_id=self._assignment_id_factory(),
+            worker_id=worker_id,
+            project_id=project_id,
+            runtime_id=runtime_id,
+        )
+        try:
+            self._registry.replace_assignment(
+                assignment, mutation_allowed=mutation_allowed
+            )
+        except AssignmentConflictError as exc:
+            raise ControlCenterError("ASSIGNMENT_CONFLICT") from exc
+        except WorkerBusyError as exc:
+            raise ControlCenterError("WORKER_BUSY") from exc
+        except RegistryNotFoundError as exc:
+            raise ControlCenterError("REGISTRY_NOT_FOUND") from exc
+        except DuplicateRegistrationError as exc:
+            raise ControlCenterError("DUPLICATE_REGISTRATION") from exc
+        self._save()
+        return assignment
+
     def set_worker_state(self, worker_id: str, state: WorkerState):
         try:
             worker = self._registry.set_worker_state(worker_id, state)
