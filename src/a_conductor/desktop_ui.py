@@ -693,7 +693,7 @@ class AConductorDesktopApp:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close_request)
         self.root.configure(background=self.theme.background)
         self.root.geometry("1080x680")
-        self.root.minsize(980, 640)
+        self.root.minsize(700, 500)
         icon = find_icon_path()
         if icon is not None:
             try:
@@ -746,8 +746,7 @@ class AConductorDesktopApp:
 
     def _build_layout(self) -> None:
         self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(2, weight=3)
-        self.root.grid_rowconfigure(4, weight=2)
+        self.root.grid_rowconfigure(2, weight=1)
 
         top = tk.Frame(
             self.root,
@@ -809,14 +808,13 @@ class AConductorDesktopApp:
         )
         hint.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 2))
 
-        body = tk.Frame(self.root, bg=self.theme.background)
-        body.grid(row=2, column=0, sticky="nsew", padx=10, pady=0)
-        body.grid_columnconfigure(0, weight=0, minsize=280)
-        body.grid_columnconfigure(1, weight=1)
-        body.grid_rowconfigure(0, weight=1)
+        self._main_pane = ttk.PanedWindow(self.root, orient="vertical")
+        self._main_pane.grid(row=2, column=0, sticky="nsew", padx=6, pady=2)
+        self._body_pane = ttk.PanedWindow(self._main_pane, orient="horizontal")
+        self._main_pane.add(self._body_pane, weight=3)
 
-        project_panel = self._panel(body, "PROJECTS")
-        project_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        project_panel = self._panel(self._body_pane, "PROJECTS")
+        self._body_pane.add(project_panel, weight=0)
         project_panel.grid_rowconfigure(1, weight=1)
         project_panel.grid_columnconfigure(0, weight=1)
         self.project_list = tk.Listbox(
@@ -873,8 +871,8 @@ class AConductorDesktopApp:
             "<<ListboxSelect>>", lambda _event: self._refresh_memory_status()
         )
 
-        worker_panel = self._panel(body, "WORKERS")
-        worker_panel.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        worker_panel = self._panel(self._body_pane, "WORKERS")
+        self._body_pane.add(worker_panel, weight=1)
         worker_panel.grid_rowconfigure(1, weight=1)
         worker_panel.grid_columnconfigure(0, weight=1)
         columns = ("worker", "state", "project", "path", "connector")
@@ -962,8 +960,8 @@ class AConductorDesktopApp:
         self.setup_button.state(["disabled"])
         self.config_button.state(["disabled"])
 
-        instances_panel = self._panel(self.root, "CONNECTORS")
-        instances_panel.grid(row=3, column=0, sticky="ew", padx=10, pady=(6, 0))
+        instances_panel = self._panel(self._main_pane, "CONNECTORS")
+        self._main_pane.add(instances_panel, weight=1)
         instances_panel.grid_columnconfigure(0, weight=1)
         instance_columns = ("name", "port", "state", "project", "tunnel", "auto")
         self.instance_tree = ttk.Treeview(
@@ -972,7 +970,7 @@ class AConductorDesktopApp:
             show="headings",
             selectmode="browse",
             style="Workers.Treeview",
-            height=3,
+            height=1,
         )
         instance_headings = {
             "name": ("INSTANCE", 150),
@@ -1087,12 +1085,12 @@ class AConductorDesktopApp:
             button.state(["disabled"])
         self._set_enabled(self.upstream_button, True)  # read-only, always available
 
-        monitor_panel = self._panel(self.root, "MONITOR")
-        monitor_panel.grid(row=4, column=0, sticky="ew", padx=10, pady=(6, 0))
+        monitor_panel = self._panel(self._main_pane, "MONITOR")
+        self._main_pane.add(monitor_panel, weight=1)
         monitor_panel.grid_columnconfigure(0, weight=1)
         self.monitor_text = tk.Text(
             monitor_panel,
-            height=9,
+            height=1,
             bg=self.theme.background,
             fg=self.theme.foreground,
             borderwidth=0,
@@ -1109,7 +1107,7 @@ class AConductorDesktopApp:
 
         # Status bar (bottom, full-width) — brand watermark + update button
         status_bar = tk.Frame(self.root, bg=self.theme.background, height=24)
-        status_bar.grid(row=6, column=0, sticky="ew", padx=0, pady=(0, 0))
+        status_bar.grid(row=3, column=0, sticky="ew", padx=0, pady=(0, 2))
         self._update_button = self._button(status_bar, "Check Update", self.check_for_updates)
         self._donate_button = self._button(status_bar, "Donate", self.open_donate_dialog)
         self._update_button.pack(side="right", padx=(4, 10), pady=2)
@@ -1132,13 +1130,13 @@ class AConductorDesktopApp:
             lambda _e: webbrowser.open("https://github.com/aase7en/A-Wiki-Conductor"),
         )
 
-        activity_panel = self._panel(self.root, "ACTIVITY / LOG")
-        activity_panel.grid(row=5, column=0, sticky="nsew", padx=10, pady=(6, 4))
+        activity_panel = self._panel(self._main_pane, "ACTIVITY / LOG")
+        self._main_pane.add(activity_panel, weight=1)
         activity_panel.grid_rowconfigure(1, weight=1)
         activity_panel.grid_columnconfigure(0, weight=1)
         self.activity_text = tk.Text(
             activity_panel,
-            height=9,
+            height=1,
             bg=self.theme.background,
             fg=self.theme.foreground,
             insertbackground=self.theme.accent,
