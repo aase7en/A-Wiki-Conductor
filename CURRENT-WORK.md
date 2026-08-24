@@ -168,3 +168,11 @@ One-stop installer: new users download Setup.exe → open → wizard auto-opens 
 ## Escalation rule
 
 GLM 5.3 owns routine implementation, TDD, regression, docs, PR/CI, merge. Escalate to GPT-5.6 Sol UltraHigh only for genuinely hard cross-cutting defects/architecture ambiguity, after checkpointing state.
+
+## WO-P1-063 real-monitor extension checkpoint
+
+Real-monitor extension checkpoint: user requested real CPU/RAM/app-uptime monitoring in the command-center overview. This extends WO-P1-063; it does not create a second dashboard. The implementation must use native/file-based sampling, no periodic subprocesses, bounded CPU history, and `—` for unavailable metrics. Claimed files include `src/a_conductor/system_metrics.py` and `tests/test_system_metrics.py` in addition to the existing WO-P1-063 UI scope.
+
+## WO-P1-063 implementation evidence — terminal command center + real monitor
+
+Current branch `feat/terminal-command-center-redesign` contains the implemented terminal command-center visual slice plus a real system-monitor extension. `SYSTEM OVERVIEW` now uses measured CPU/RAM/app uptime, not mockup numbers. New collector is `src/a_conductor/system_metrics.py`; it uses native Windows APIs / Linux `/proc`, no periodic subprocess. UI refresh = 2.5s, CPU history = max 60 points, callback cancels on close. Real UI smoke: CPU 5%, RAM 9.2 / 15.9 GB, uptime 00:00:03. Combined focused suite: 37 passed, 1 environment skip. Release loop is not complete until PR/CI/merge/fresh-install visual verification.

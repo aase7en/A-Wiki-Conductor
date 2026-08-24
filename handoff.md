@@ -74,3 +74,11 @@ Read CURRENT-WORK.md "Next safe action": (a) trial `+ Worker` / `+ ตัวเ�
 ## Escalation
 
 GLM 5.3 owns routine work. Escalate to **GPT-5.6 Sol UltraHigh** only for genuinely hard cross-cutting defects/architecture ambiguity, after checkpointing state.
+
+## WO-P1-063 real-monitor extension
+
+WO-P1-063 real-monitor extension: after the terminal-command-center visual slice, add factual CPU/RAM/app-uptime monitoring to SYSTEM OVERVIEW. Use a lightweight sampler with Windows native APIs / non-subprocess platform fallbacks. UI refresh target 2–5 seconds, bounded CPU history, clean `after_cancel` during close. Never fabricate metrics to match the visual reference.
+
+## Resume checkpoint — WO-P1-063 real monitor implemented
+
+Branch: `feat/terminal-command-center-redesign`. The native terminal-command-center redesign is implemented in the working tree and real CPU/RAM/app-uptime monitoring is now wired into SYSTEM OVERVIEW. New files: `src/a_conductor/system_metrics.py`, `tests/test_system_metrics.py`. Real UI smoke measured CPU 5%, RAM 9.2 / 15.9 GB, uptime 00:00:03; monitor timer cancelled cleanly. Focused redesign/GPU/monitor suite: 37 passed, 1 environment skip. Known local ESET fresh `.ps1` / fresh PE locks remain environment blockers; rely on GitHub CI for authoritative regression. Next safe action: commit implementation checkpoint, push/open PR, run 3-OS CI, fix real failures only, merge/fetch, rebuild/reinstall and visually compare with `DESIGN.md`.

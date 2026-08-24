@@ -133,3 +133,16 @@ A redesign is not accepted from screenshots alone. Verify:
 ## 10. Cross-agent rule
 
 This file is the visual/interaction authority for the redesign. Agents must not independently invent a second visual direction. Implementation details may change after test/review evidence, but changes to the approved design intent must be recorded here and in the active work order before code diverges.
+
+## 11. Real system monitoring contract
+
+`SYSTEM OVERVIEW` may show CPU, RAM, and app uptime only when they come from real runtime measurements. Never invent values to imitate a mockup.
+
+- CPU = real machine CPU utilisation sampled from native OS counters / kernel data; unavailable -> `—`.
+- RAM = real physical memory used / total; unavailable -> `—`.
+- Uptime = elapsed lifetime of the current A-Sunday Conductor process/session using a monotonic clock.
+- Project/Worker/Connector counters remain derived from the actual service snapshot and connector health state.
+- Monitoring must not spawn PowerShell, cmd, shell utilities, or any other subprocess on a periodic path.
+- Prefer native Windows API on Windows and file/native fallbacks on other supported systems. Unsupported metrics degrade to `—` rather than guessed numbers.
+- Default refresh should be low frequency (about 2–5 seconds) and UI-only. It must stop cleanly during app shutdown.
+- A tiny CPU history/sparkline is allowed only from the same real samples; keep at most a small bounded history and draw with a thin line/particle-like mark.

@@ -206,6 +206,9 @@ def test_responsive_action_grids_reflow_at_compact_and_wide_widths(root, tmp_pat
         app.upstream_button,
     )
 
+    workflow_parent.event_generate("<Configure>", width=900, height=60)
+    assert {int(b.grid_info()["row"]) for b in app.workflow_buttons} == {0}
+
     workflow_parent.event_generate("<Configure>", width=1280, height=60)
     connector_parent.event_generate("<Configure>", width=1280, height=60)
     assert {int(b.grid_info()["row"]) for b in app.workflow_buttons} == {0}
@@ -219,3 +222,97 @@ def test_responsive_action_grids_reflow_at_compact_and_wide_widths(root, tmp_pat
         b.winfo_manager() == "grid"
         for b in app.workflow_buttons + connector_buttons
     )
+
+
+def test_terminal_command_center_header_contract(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    root.update_idletasks()
+    assert app.title_label.cget("text") == "A-CONDUCTOR"
+    assert "Orchestrate" in app.tagline_label.cget("text")
+    assert app.brain_button.master is app._header_frame
+    assert app._logo.frame.master is app._header_frame
+    assert int(app._logo.frame.grid_info()["column"]) < int(app.title_label.master.grid_info()["column"])
+
+
+def test_system_overview_uses_real_snapshot_counts(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    root.update_idletasks()
+    assert app._overview_frame.winfo_exists()
+    assert app.overview_projects_value.cget("text") == "1"
+    worker_text = str(app.overview_workers_value.cget("text"))
+    assert worker_text.endswith("/ 3")
+    assert not any(token in worker_text for token in ("24", "32"))
+
+
+def test_terminal_theme_is_near_black_and_restrained() -> None:
+    from a_conductor.desktop_ui import DesktopTheme
+
+    theme = DesktopTheme()
+    assert theme.background.lower() == "#080b0f"
+    assert theme.panel.lower() == "#0d1117"
+    assert theme.border.lower() == "#242b35"
+
+
+def test_master_family_asset_is_preferred() -> None:
+    from a_conductor.desktop_ui import find_particle_image_path
+
+    path = find_particle_image_path()
+    assert path is not None
+    assert path.name == "sunday-family-particle.png"
+
+def test_compact_header_actions_do_not_overflow(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    root.geometry("700x700")
+    root.update_idletasks()
+    root.update()
+    assert app.prefs_button.winfo_x() + app.prefs_button.winfo_width() <= app._header_frame.winfo_width()
+    assert app.help_button.winfo_manager() == "grid"
+    assert app.prefs_button.winfo_manager() == "grid"
+
+
+def test_real_system_metrics_render_in_overview(root, tmp_path: Path) -> None:
+    from a_conductor.system_metrics import SystemMetrics
+
+    app = make_app(root, tmp_path)
+
+    class FakeSampler:
+        def sample(self):
+            return SystemMetrics(
+                cpu_percent=18.2,
+                memory_used_bytes=int(6.2 * 1024**3),
+                memory_total_bytes=32 * 1024**3,
+                uptime_seconds=2 * 86400 + 14 * 3600 + 37 * 60,
+            )
+
+    app._system_metrics_sampler = FakeSampler()
+    app._update_system_metrics_now()
+    assert app.overview_cpu_value.cget("text") == "18%"
+    assert app.overview_memory_value.cget("text") == "6.2 / 32.0 GB"
+    assert app.overview_uptime_value.cget("text") == "2d 14h 37m"
+    assert list(app._cpu_history)[-1] == pytest.approx(18.2)
+
+
+def test_system_monitor_history_is_bounded_and_unavailable_is_honest(root, tmp_path: Path) -> None:
+    from a_conductor.system_metrics import SystemMetrics
+
+    app = make_app(root, tmp_path)
+
+    class FakeSampler:
+        def sample(self):
+            return SystemMetrics(None, None, None, 5.0)
+
+    app._system_metrics_sampler = FakeSampler()
+    for _ in range(app.SYSTEM_METRIC_HISTORY_LIMIT + 10):
+        app._update_system_metrics_now()
+    assert len(app._cpu_history) <= app.SYSTEM_METRIC_HISTORY_LIMIT
+    assert app.overview_cpu_value.cget("text") == "—"
+    assert app.overview_memory_value.cget("text") == "—"
+    assert app.overview_uptime_value.cget("text") == "00:00:05"
+
+
+def test_system_monitor_callback_is_cancelled_cleanly(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    app._start_system_monitor()
+    assert app._system_metric_after_id is not None
+    app._stop_system_monitor()
+    assert app._system_metric_after_id is None

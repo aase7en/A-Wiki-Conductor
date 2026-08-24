@@ -42,6 +42,7 @@ from .local_instances import (
 from .config_blurbs import active_blurbs
 from .memory_presence import MemoryPresenceState, inspect_memory_presence
 from .upstream_check import fetch_upstream_status
+from .system_metrics import SystemMetricsSampler, format_memory, format_percent, format_uptime
 
 
 def find_user_guide_path() -> Path | None:
@@ -676,25 +677,28 @@ class ControlCenterUIService(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class DesktopTheme:
-    background: str = "#0c1015"
-    panel: str = "#121820"
-    panel_alt: str = "#171f29"
-    border: str = "#263241"
-    foreground: str = "#d7e0ea"
-    muted: str = "#7f8c9a"
-    accent: str = "#5cc8d7"
-    ready: str = "#62d394"
-    ready_dim: str = "#2f6b4a"
-    warning: str = "#e6b85c"
-    error: str = "#ee6b73"
-    idle: str = "#87929d"
-    selection: str = "#20394a"
+    background: str = "#080b0f"
+    panel: str = "#0d1117"
+    panel_alt: str = "#11161d"
+    border: str = "#242b35"
+    foreground: str = "#d8dee6"
+    muted: str = "#7d8794"
+    accent: str = "#78a9e6"
+    ready: str = "#66c985"
+    ready_dim: str = "#2f6743"
+    warning: str = "#ddb45f"
+    error: str = "#df6b72"
+    idle: str = "#808995"
+    selection: str = "#172331"
     monospace_font: str = "Cascadia Mono"
     sans_font: str = "Segoe UI"
     base_font_size: int = 10
 
 
 class AConductorDesktopApp:
+    SYSTEM_METRIC_INTERVAL_MS = 2500
+    SYSTEM_METRIC_HISTORY_LIMIT = 60
+
     def __init__(
         self,
         root: tk.Tk,
@@ -724,6 +728,9 @@ class AConductorDesktopApp:
         self._instance_rows: dict[str, str] = {}
         self._row_path_tip_providers: dict = {}
         self._monitor_instances: dict = {}
+        self._system_metrics_sampler = SystemMetricsSampler()
+        self._system_metric_after_id = None
+        self._cpu_history: list[float] = []
 
         self._configure_root()
         self._configure_styles()
@@ -767,8 +774,8 @@ class AConductorDesktopApp:
             bordercolor=self.theme.border,
             focusthickness=1,
             focuscolor=self.theme.accent,
-            padding=(9, 5),
-            font=(self.theme.sans_font, self.theme.base_font_size),
+            padding=(8, 4),
+            font=(self.theme.monospace_font, max(8, self.theme.base_font_size - 1)),
         )
         style.map(
             "AConductor.TButton",
@@ -781,15 +788,15 @@ class AConductorDesktopApp:
             fieldbackground=self.theme.panel,
             foreground=self.theme.foreground,
             bordercolor=self.theme.border,
-            rowheight=28,
-            font=(self.theme.monospace_font, self.theme.base_font_size),
+            rowheight=25,
+            font=(self.theme.monospace_font, max(8, self.theme.base_font_size - 1)),
         )
         style.configure(
             "Workers.Treeview.Heading",
             background=self.theme.panel_alt,
             foreground=self.theme.muted,
             bordercolor=self.theme.border,
-            font=(self.theme.sans_font, self.theme.base_font_size, "bold"),
+            font=(self.theme.monospace_font, max(8, self.theme.base_font_size - 1), "bold"),
         )
         style.map(
             "Workers.Treeview",
@@ -809,41 +816,13 @@ class AConductorDesktopApp:
         )
         self._header_frame = top
         top.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 6))
-        top.grid_columnconfigure(2, weight=1)
-        tk.Label(
-            top,
-            text="A-CONDUCTOR",
-            bg=self.theme.panel,
-            fg=self.theme.foreground,
-            font=(self.theme.monospace_font, 14, "bold"),
-            padx=12,
-            pady=9,
-        ).grid(row=0, column=0, sticky="w")
-        self.brain_button = self._button(top, "Add Brain", self.open_brain_config)
-        self.brain_button.grid(row=0, column=1, sticky="w", padx=(0, 8), pady=6)
-        _attach_tip(self.brain_button, lambda: tr("tip.brain"), self.theme)
-        self.connection_label = tk.Label(
-            top,
-            text="● ONLINE",
-            bg=self.theme.panel,
-            fg=self.theme.ready,
-            font=(self.theme.monospace_font, 10, "bold"),
-            padx=12,
-        )
-        self.connection_label.grid(row=0, column=3, sticky="e")
-        _attach_tip(self.connection_label, lambda: tr("tip.connection"), self.theme)
-        self.help_button = self._button(top, "Guide", self.open_guide)
-        self.help_button.grid(row=0, column=4, sticky="e", padx=(0, 4), pady=6)
-        _attach_tip(self.help_button, lambda: tr("tip.guide"), self.theme)
-        self.prefs_button = self._button(top, "Settings", self.open_preferences)
-        self.prefs_button.grid(row=0, column=5, sticky="e", padx=(0, 8), pady=6)
-        _attach_tip(self.prefs_button, lambda: tr("tip.settings"), self.theme)
+        top.grid_columnconfigure(3, weight=1)
 
         try:
             from .gpu_particle_logo import GPUParticleLogo
 
             self._logo = GPUParticleLogo(top, size=120)
-            self._logo.grid(row=0, column=6, sticky="e", padx=(0, 6), pady=4)
+            self._logo.grid(row=0, column=0, sticky="w", padx=(10, 8), pady=5)
             logo_path = find_particle_image_path()
             if logo_path is not None:
                 self._logo.load_image(logo_path)
@@ -851,6 +830,90 @@ class AConductorDesktopApp:
             _attach_tip(self._logo.canvas, lambda: tr("tip.logo"), self.theme)
         except Exception:
             self._logo = None
+
+        brand = tk.Frame(top, bg=self.theme.panel)
+        self._brand_frame = brand
+        brand.grid(row=0, column=1, sticky="w", padx=(2, 10), pady=7)
+        self.title_label = tk.Label(
+            brand,
+            text="A-CONDUCTOR",
+            bg=self.theme.panel,
+            fg=self.theme.foreground,
+            font=(self.theme.monospace_font, 18, "bold"),
+            anchor="w",
+        )
+        self.title_label.grid(row=0, column=0, sticky="w")
+        self.tagline_label = tk.Label(
+            brand,
+            text="Orchestrate. Execute. Observe.",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+            anchor="w",
+        )
+        self.tagline_label.grid(row=1, column=0, sticky="w", pady=(2, 4))
+        status_strip = tk.Frame(brand, bg=self.theme.panel)
+        status_strip.grid(row=2, column=0, sticky="w")
+        self.connection_label = tk.Label(
+            status_strip,
+            text="● ONLINE",
+            bg=self.theme.background,
+            fg=self.theme.ready,
+            font=(self.theme.monospace_font, 8, "bold"),
+            padx=7,
+            pady=2,
+            highlightthickness=1,
+            highlightbackground=self.theme.border,
+        )
+        self.connection_label.pack(side="left")
+        _attach_tip(self.connection_label, lambda: tr("tip.connection"), self.theme)
+        self.header_runtime_label = tk.Label(
+            status_strip,
+            text="WORKERS —  · CONNECTORS —",
+            bg=self.theme.background,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8),
+            padx=7,
+            pady=2,
+            highlightthickness=1,
+            highlightbackground=self.theme.border,
+        )
+        self.header_runtime_label.pack(side="left", padx=(5, 0))
+
+        self.brain_button = self._button(top, "Add Brain", self.open_brain_config)
+        self.brain_button.grid(row=0, column=2, sticky="w", padx=(0, 8), pady=6)
+        _attach_tip(self.brain_button, lambda: tr("tip.brain"), self.theme)
+
+        header_actions = tk.Frame(top, bg=self.theme.panel)
+        self._header_actions = header_actions
+        header_actions.grid(row=0, column=4, sticky="e", padx=(0, 10), pady=5)
+        self.help_button = self._button(header_actions, "Guide", self.open_guide)
+        _attach_tip(self.help_button, lambda: tr("tip.guide"), self.theme)
+        self.prefs_button = self._button(header_actions, "Settings", self.open_preferences)
+        _attach_tip(self.prefs_button, lambda: tr("tip.settings"), self.theme)
+
+        header_action_state = {"compact": None}
+
+        def _reflow_header_actions(event=None) -> None:
+            width = getattr(event, "width", None) or top.winfo_width()
+            compact = int(width) < 760
+            if header_action_state["compact"] is compact:
+                return
+            header_action_state["compact"] = compact
+            self.help_button.grid_forget()
+            self.prefs_button.grid_forget()
+            self.help_button.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, 3 if compact else 0))
+            self.prefs_button.grid(
+                row=1 if compact else 0,
+                column=0 if compact else 1,
+                sticky="ew",
+                padx=(0, 0) if compact else (4, 0),
+                pady=0,
+            )
+
+        top.bind("<Configure>", _reflow_header_actions, add="+")
+        top.after_idle(_reflow_header_actions)
+
         if not all(
             callable(getattr(self.service, name, None))
             for name in ("get_preference", "set_preference")
@@ -898,7 +961,7 @@ class AConductorDesktopApp:
             (self.refresh_button, "tip.refresh"),
         ):
             _attach_tip(button, lambda k=key: tr(k), self.theme)
-        self._make_responsive_action_grid(workflow, self.workflow_buttons, target_button_width=108)
+        self._make_responsive_action_grid(workflow, self.workflow_buttons, target_button_width=96)
 
         self._main_pane = ttk.PanedWindow(self.root, orient="vertical")
         self._main_pane.grid(row=3, column=0, sticky="nsew", padx=6, pady=2)
@@ -948,8 +1011,71 @@ class AConductorDesktopApp:
             "<<ListboxSelect>>", lambda _event: self._refresh_memory_status()
         )
 
-        worker_panel = self._panel(self._body_pane, "WORKERS")
-        self._body_pane.add(worker_panel, weight=1)
+        right_stack = tk.Frame(self._body_pane, bg=self.theme.background)
+        self._right_stack = right_stack
+        self._body_pane.add(right_stack, weight=1)
+        right_stack.grid_columnconfigure(0, weight=1)
+        right_stack.grid_rowconfigure(1, weight=1)
+
+        overview_panel = self._panel(right_stack, "SYSTEM OVERVIEW")
+        self._overview_frame = overview_panel
+        overview_panel.grid(row=0, column=0, sticky="ew", padx=(4, 0), pady=(0, 4))
+        overview_panel.grid_columnconfigure(0, weight=1)
+        metrics = tk.Frame(overview_panel, bg=self.theme.panel)
+        metrics.grid(row=1, column=0, sticky="ew", padx=9, pady=(0, 9))
+        for col in range(4):
+            metrics.grid_columnconfigure(col, weight=1)
+
+        def _overview_metric(column: int, label: str):
+            cell = tk.Frame(metrics, bg=self.theme.panel)
+            cell.grid(row=0, column=column, sticky="ew", padx=(0, 14 if column < 3 else 0))
+            tk.Label(
+                cell, text=label, bg=self.theme.panel, fg=self.theme.muted,
+                font=(self.theme.monospace_font, 8), anchor="w",
+            ).pack(anchor="w")
+            value = tk.Label(
+                cell, text="—", bg=self.theme.panel, fg=self.theme.foreground,
+                font=(self.theme.monospace_font, 15, "bold"), anchor="w",
+            )
+            value.pack(anchor="w", pady=(2, 0))
+            return value
+
+        self.overview_projects_value = _overview_metric(0, "PROJECTS")
+        self.overview_workers_value = _overview_metric(1, "WORKERS READY")
+        self.overview_connectors_value = _overview_metric(2, "CONNECTORS READY")
+        self.overview_connectors_value.configure(text="0 / 0")
+        self.overview_state_value = _overview_metric(3, "CONTROLLER")
+
+        system_strip = tk.Frame(overview_panel, bg=self.theme.panel)
+        self._system_metrics_frame = system_strip
+        system_strip.grid(row=2, column=0, sticky="ew", padx=9, pady=(0, 9))
+        system_strip.grid_columnconfigure(3, weight=1)
+
+        def _system_metric_cell(column: int, label: str, width: int):
+            cell = tk.Frame(system_strip, bg=self.theme.panel)
+            cell.grid(row=0, column=column, sticky="w", padx=(0, 16))
+            tk.Label(
+                cell, text=label, bg=self.theme.panel, fg=self.theme.muted,
+                font=(self.theme.monospace_font, 8), anchor="w",
+            ).pack(anchor="w")
+            value = tk.Label(
+                cell, text="—", bg=self.theme.panel, fg=self.theme.foreground,
+                font=(self.theme.monospace_font, 10, "bold"), anchor="w", width=width,
+            )
+            value.pack(anchor="w", pady=(1, 0))
+            return value
+
+        self.overview_cpu_value = _system_metric_cell(0, "CPU", 6)
+        self.overview_memory_value = _system_metric_cell(1, "MEMORY", 17)
+        self.overview_uptime_value = _system_metric_cell(2, "UPTIME", 12)
+        self._cpu_sparkline = tk.Canvas(
+            system_strip, width=150, height=30, bg=self.theme.panel,
+            highlightthickness=0, bd=0, takefocus=0,
+        )
+        self._cpu_sparkline.grid(row=0, column=3, sticky="ew", padx=(4, 0))
+
+        worker_panel = self._panel(right_stack, "WORKERS")
+        worker_panel.grid(row=1, column=0, sticky="nsew", padx=(4, 0))
         worker_panel.grid_rowconfigure(1, weight=1)
         worker_panel.grid_columnconfigure(0, weight=1)
         columns = ("worker", "state", "project", "path", "connector")
@@ -1128,7 +1254,7 @@ class AConductorDesktopApp:
             font=(self.theme.monospace_font, 8),
             anchor="e",
         )
-        self.brand_label.pack(side="right", padx=(0, 4))
+        self.brand_label.pack(side="left", padx=(8, 4))
         self.brand_label.bind(
             "<Button-1>",
             lambda _e: webbrowser.open("https://github.com/aase7en/A-Wiki-Conductor"),
@@ -1333,11 +1459,96 @@ class AConductorDesktopApp:
             return "error"
         return "idle"
 
+    def _draw_cpu_sparkline(self) -> None:
+        canvas = getattr(self, "_cpu_sparkline", None)
+        if canvas is None or not canvas.winfo_exists():
+            return
+        try:
+            width = max(20, int(canvas.winfo_width() or canvas.winfo_reqwidth()))
+            height = max(12, int(canvas.winfo_height() or canvas.winfo_reqheight()))
+            canvas.delete("all")
+            values = list(self._cpu_history)
+            if not values:
+                return
+            if len(values) == 1:
+                y = height - (max(0.0, min(100.0, values[0])) / 100.0) * (height - 4) - 2
+                canvas.create_oval(width - 3, y - 1, width - 1, y + 1, fill=self.theme.accent, outline="")
+                return
+            x_step = (width - 2) / max(1, len(values) - 1)
+            points: list[float] = []
+            for index, value in enumerate(values):
+                x = 1 + index * x_step
+                y = height - (max(0.0, min(100.0, value)) / 100.0) * (height - 4) - 2
+                points.extend((x, y))
+            canvas.create_line(*points, fill=self.theme.accent, width=1, smooth=False)
+        except tk.TclError:
+            return
+
+    def _update_system_metrics_now(self) -> None:
+        try:
+            metrics = self._system_metrics_sampler.sample()
+        except Exception:
+            return
+        self.overview_cpu_value.configure(text=format_percent(metrics.cpu_percent))
+        self.overview_memory_value.configure(
+            text=format_memory(metrics.memory_used_bytes, metrics.memory_total_bytes)
+        )
+        self.overview_uptime_value.configure(text=format_uptime(metrics.uptime_seconds))
+        if metrics.cpu_percent is not None:
+            self._cpu_history.append(max(0.0, min(100.0, float(metrics.cpu_percent))))
+            if len(self._cpu_history) > self.SYSTEM_METRIC_HISTORY_LIMIT:
+                del self._cpu_history[:-self.SYSTEM_METRIC_HISTORY_LIMIT]
+        self._draw_cpu_sparkline()
+
+    def _system_monitor_tick(self) -> None:
+        self._system_metric_after_id = None
+        if getattr(self, "_closing", False):
+            return
+        self._update_system_metrics_now()
+        try:
+            self._system_metric_after_id = self.root.after(
+                self.SYSTEM_METRIC_INTERVAL_MS, self._system_monitor_tick
+            )
+        except tk.TclError:
+            self._system_metric_after_id = None
+
+    def _start_system_monitor(self) -> None:
+        if self._system_metric_after_id is not None or getattr(self, "_closing", False):
+            return
+        self._update_system_metrics_now()
+        try:
+            self._system_metric_after_id = self.root.after(
+                self.SYSTEM_METRIC_INTERVAL_MS, self._system_monitor_tick
+            )
+        except tk.TclError:
+            self._system_metric_after_id = None
+
+    def _stop_system_monitor(self) -> None:
+        callback = self._system_metric_after_id
+        self._system_metric_after_id = None
+        if callback is None:
+            return
+        try:
+            self.root.after_cancel(callback)
+        except (tk.TclError, ValueError):
+            pass
+
     def refresh(self) -> None:
         snapshot = self.service.snapshot()
         self.connection_label.configure(
             text="● ONLINE" if snapshot.online else "● OFFLINE",
             fg=self.theme.ready if snapshot.online else self.theme.error,
+        )
+        ready_workers = sum(1 for worker in snapshot.workers if worker.state is WorkerState.READY)
+        total_workers = len(snapshot.workers)
+        self.overview_projects_value.configure(text=str(len(snapshot.projects)))
+        self.overview_workers_value.configure(text=f"{ready_workers} / {total_workers}")
+        self.overview_state_value.configure(
+            text="ONLINE" if snapshot.online else "OFFLINE",
+            fg=self.theme.ready if snapshot.online else self.theme.error,
+        )
+        self.header_runtime_label.configure(
+            text=f"WORKERS {ready_workers}/{total_workers} · CONNECTORS {len(self._instance_rows)}"
         )
 
         selected_project = self.selected_project_id()
@@ -1998,6 +2209,7 @@ class AConductorDesktopApp:
             return
         self._closing = True
         self._stop_teaching_animation()
+        self._stop_system_monitor()
         stop_all = True
         getter = getattr(self.service, "get_preference", None)
         if callable(getter):
@@ -3189,6 +3401,7 @@ class AConductorDesktopApp:
         destroyed.
         """
         self.refresh_instances()
+        self._start_system_monitor()
         # First-run: open the setup wizard if no connectors exist
         try:
             instances = self.service.instances()
@@ -3279,6 +3492,11 @@ class AConductorDesktopApp:
             self.instance_rescan_button,
         ):
             self._set_enabled(button, True)
+        ready_connectors = sum(1 for _instance, state in states if state.value == InstanceHealthState.READY.value)
+        self.overview_connectors_value.configure(text=f"{ready_connectors} / {len(states)}")
+        self.header_runtime_label.configure(
+            text=f"WORKERS {self.overview_workers_value.cget('text')} · CONNECTORS {ready_connectors}/{len(states)}"
+        )
         self._set_enabled(self.brain_button, self._has_settings_service())
 
     def _selected_instance_name(self) -> str | None:

@@ -46,3 +46,26 @@ def test_gpu_can_be_disabled_for_safe_fallback(monkeypatch) -> None:
 
     monkeypatch.setenv("A_CONDUCTOR_GPU_PARTICLES", "0")
     assert gpu_particle_logo.gpu_backend_available() is False
+
+
+def test_gpu_motion_contract_is_gentle_and_amber_is_eye_only() -> None:
+    from a_conductor import gpu_particle_logo as g
+
+    assert 0.0 < g.GPU_FACE_PARALLAX_CLIP <= 0.02
+    assert 0.0 < g.GPU_GAZE_CLIP <= 0.04
+    assert g.GPU_FACE_PARALLAX_CLIP < g.GPU_GAZE_CLIP
+    assert "v_eye" in g._VERTEX_SHADER
+    assert "v_eye" in g._FRAGMENT_SHADER
+    assert "vec3(0.96, 0.55, 0.10)" in g._FRAGMENT_SHADER
+    assert "__FACE_PARALLAX__" not in g._VERTEX_SHADER
+    assert "__GAZE__" not in g._VERTEX_SHADER
+    assert f"{g.GPU_FACE_PARALLAX_CLIP:.6f}" in g._VERTEX_SHADER
+    assert f"{g.GPU_GAZE_CLIP:.6f}" in g._VERTEX_SHADER
+
+def test_compact_logo_is_derived_asset_not_legacy_tiny_placeholder() -> None:
+    from PIL import Image
+    compact = ASSET.parent / "logo-face.png"
+    assert compact.is_file()
+    with Image.open(compact) as image:
+        assert image.size == (256, 256)
+        assert image.mode == "RGB"

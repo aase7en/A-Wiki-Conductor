@@ -34,10 +34,12 @@ except Exception as exc:  # pragma: no cover - exercised by fallback path on uns
 else:
     GPU_IMPORT_ERROR = None
 
-GPU_FRAME_MS = 16  # ~60 fps
+GPU_FRAME_MS = 24  # ~42 fps; enough for gentle logo motion with lower load
 GPU_MAX_PARTICLES = 40_000
 GPU_SOURCE_MAX_DIMENSION = 520
 GPU_BRIGHTNESS_THRESHOLD = 38
+GPU_FACE_PARALLAX_CLIP = 0.012  # ~0.7 px at a 120 px logo
+GPU_GAZE_CLIP = 0.032  # ~1.9 px at a 120 px logo
 
 
 def gpu_backend_available() -> bool:
@@ -135,6 +137,7 @@ uniform float u_view_aspect;
 
 out float v_luma;
 out float v_force;
+out float v_eye;
 
 vec2 aspect_fit(vec2 uv) {
     vec2 p = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
@@ -154,12 +157,16 @@ void main() {
     float drift = sin(u_time * 1.15 + phase) * (0.0015 + 0.0022 * in_luma);
     p += vec2(cos(phase * 1.73), sin(phase * 1.31)) * drift;
 
+    // Whole-portrait parallax is deliberately smaller than eye motion.
+    vec2 face_dir = length(u_mouse) > 0.0001 ? normalize(u_mouse) : vec2(0.0);
+    p += face_dir * __FACE_PARALLAX__ * u_mouse_active;
+
     // Eye-region particles shift toward the pointer.  Soft per-vertex weighting
     // means centres move most while the surrounding eyelid structure stays stable.
     vec2 to_mouse = u_mouse - p;
     float mouse_len = max(length(to_mouse), 0.0001);
     vec2 gaze_dir = to_mouse / mouse_len;
-    p += gaze_dir * (0.040 * in_eye * u_mouse_active);
+    p += gaze_dir * (__GAZE__ * in_eye * u_mouse_active);
 
     // CodePen-like local distortion field: radial push plus a velocity-dependent
     // tangential component that reads visually as a short particle trail/swirl.
@@ -177,13 +184,20 @@ void main() {
     gl_PointSize = 0.85 + 0.85 * in_luma + field * 0.45;
     v_luma = in_luma;
     v_force = field;
+    v_eye = in_eye;
 }
 """
+
+_VERTEX_SHADER = _VERTEX_SHADER.replace("__FACE_PARALLAX__", f"{GPU_FACE_PARALLAX_CLIP:.6f}")
+_VERTEX_SHADER = _VERTEX_SHADER.replace("__GAZE__", f"{GPU_GAZE_CLIP:.6f}")
+
 
 _FRAGMENT_SHADER = r"""
 #version 330
 in float v_luma;
 in float v_force;
+in float v_eye;
+uniform float u_mouse_active;
 out vec4 fragColor;
 
 void main() {
@@ -195,7 +209,11 @@ void main() {
     float edge = 1.0 - smoothstep(0.58, 1.0, radius);
     float alpha = edge * (0.42 + 0.58 * v_luma);
     float intensity = 0.78 + 0.22 * v_luma + 0.12 * v_force;
-    fragColor = vec4(vec3(intensity), alpha);
+    vec3 neutral = vec3(intensity);
+    float eye_core = smoothstep(0.72, 0.96, v_eye) * u_mouse_active;
+    vec3 amber = vec3(0.96, 0.55, 0.10);
+    vec3 colour = mix(neutral, amber, eye_core * 0.82);
+    fragColor = vec4(colour, alpha);
 }
 """
 

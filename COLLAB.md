@@ -34,7 +34,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-063` | GPT-5.6 Sol + SunDay-Worker 1 | 2026-08-24 | `AGENTS.md`, `DESIGN.md`, `PROJECT-PLAN.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-063-terminal-command-center-redesign.md`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/gpu_particle_logo.py`, `src/a_conductor/i18n.py`, `assets/sunday-family-particle.png`, UI/design tests |
+| `WO-P1-063` | GPT-5.6 Sol + SunDay-Worker 1 | 2026-08-24 | `AGENTS.md`, `DESIGN.md`, `PROJECT-PLAN.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-063-terminal-command-center-redesign.md`, `src/a_conductor/desktop_ui.py`, `src/a_conductor/gpu_particle_logo.py`, `src/a_conductor/i18n.py`, `src/a_conductor/system_metrics.py`, `assets/sunday-family-particle.png`, `tests/test_system_metrics.py`, UI/design tests |
 
 > Git remote `origin` = `https://github.com/aase7en/A-Wiki-Conductor.git` (public since 2026-08-22 by explicit user decision — originally created private 2026-08-20). Pull/reconcile before commit/push; record branch/HEAD in checkpoints.
 

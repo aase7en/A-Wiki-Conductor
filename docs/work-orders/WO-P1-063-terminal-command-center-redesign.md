@@ -66,11 +66,13 @@ Upstream `mattpocock/skills` freshness checked 2026-08-24: current `grill-with-d
 - recent-events / diagnostic placement based on available width;
 - bottom terminal-style diagnostics area while preserving copyable logs/monitor behavior.
 
-### 063-D — Theme / density / graphs
+### 063-D — Theme / density / real system monitor
 - thin borders and compact terminal typography;
 - restrained semantic colors;
-- thin low-cost sparkline/particle-style operational graph only where real data is available;
-- no new periodic subprocesses.
+- add real CPU %, RAM used/total, and A-Sunday Conductor process uptime to SYSTEM OVERVIEW;
+- collect metrics through a lightweight native/file-based sampler with no periodic subprocesses;
+- use a thin bounded CPU sparkline from real samples only; unavailable metrics render as `—`;
+- cancel the monitor callback cleanly during application shutdown.
 
 ### 063-E — Compatibility regression
 Preserve and test:
@@ -112,6 +114,8 @@ Preserve and test:
 - [ ] MONITOR/ACTIVITY/diagnostics remain copyable and read-only.
 - [ ] Assign replacement still confirms and preserves atomic safety.
 - [ ] No new repeating subprocess-based monitor/render path.
+- [ ] Real CPU/RAM/app-uptime values are measured, never invented; unavailable values show `—`.
+- [ ] System metric refresh uses no subprocess and stops cleanly on app shutdown.
 - [ ] Tests cover design contracts and regressions.
 - [ ] Realistic E2E passes on source build.
 - [ ] Packaging includes the logo/GPU requirements and build succeeds.
@@ -127,3 +131,24 @@ Preserve and test:
 ## Checkpoint — 2026-08-24 / start
 
 Design direction approved by user. Repository identity gate passed. `DESIGN.md` created. No production `src/` mutation has occurred in WO-P1-063 yet.
+
+## Checkpoint — 2026-08-24 / real monitor extension
+
+User explicitly requested that the CPU/RAM/uptime surfaces become real monitoring rather than mockup-only placeholders. SSoT was updated before production mutation. Planned implementation is a bounded `system_metrics.py` collector plus UI labels/sparkline; no PowerShell/cmd subprocess is permitted in the periodic path.
+
+## Checkpoint — 2026-08-24 / real monitor implemented
+
+Implemented factual system monitoring as part of the command-center overview:
+- new `src/a_conductor/system_metrics.py` with Windows native `GetSystemTimes` + `GlobalMemoryStatusEx`, Linux `/proc` fallbacks, and honest `None` on unsupported metrics;
+- no `subprocess`, PowerShell, or cmd dependency in the periodic collector;
+- real CPU %, RAM used/total, and current A-Sunday Conductor session uptime shown in SYSTEM OVERVIEW;
+- 2.5-second low-frequency UI refresh, bounded 60-sample CPU history, thin 1px sparkline;
+- monitor callback starts from `start_background_operations()` and is cancelled before close/shutdown work;
+- deterministic collector tests: 5 passed;
+- combined redesign/GPU/monitor focused suite: 37 passed, 1 environment skip;
+- real Tk/UI smoke on this workstation: CPU 5%, RAM 9.2 / 15.9 GB, uptime 00:00:03, two real CPU samples, callback cancelled cleanly;
+- previous real OpenGL smoke remains: `gpu-opengl`, ~9,360 particles, `GPU_ERROR=None`;
+- non-AV GUI regression previously: 142 passed; core suite previously: 890 passed with only known local ESET `.ps1` PermissionErrors;
+- Portable build previously completed at ~24.3 MB and included Sunday Family/GPU assets, but fresh-PE ESET lock still blocks immediate frozen/Setup continuation locally.
+
+Next release loop: final staff review -> broader CI-equivalent regression -> commit/push -> PR -> GitHub 3-OS CI -> fix real failures only -> merge -> fetch main -> rebuild Setup/Portable -> fresh install/relaunch -> visual acceptance against `DESIGN.md`.
