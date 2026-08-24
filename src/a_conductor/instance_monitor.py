@@ -56,23 +56,52 @@ def scan_errors(lines: list[str]) -> list[str]:
 def process_memory_mb(
     pid: int, *, runner: Callable[[list[str]], tuple[int, str, str]] | None = None
 ) -> float | None:
-    """Working-set size in MB (PowerShell on Windows, /proc on Linux)."""
+    """Working-set size in MB. Native Windows API via ctypes — NEVER spawns
+    a process (no powershell, no cmd). See DEFECT_LESSONS.md #1."""
     if pid is None or pid <= 0:
         return None
     if sys.platform == "win32":
-        def default_runner(argv: list[str]) -> tuple[int, str, str]:
-            done = subprocess.run(argv, capture_output=True, text=True, timeout=10)
-            return done.returncode, done.stdout, done.stderr
+        if runner is not None:
+            # Test mode: use the injected runner
+            code, out, _err = runner(["fake"])
+            if code == 0 and out.strip().isdigit():
+                return round(int(out.strip()) / (1024 * 1024), 1)
+            return None
+        # Production: native Windows API (zero process spawn)
+        try:
+            import ctypes
+            import ctypes.wintypes
 
-        active = runner or default_runner
-        code, out, _err = active(
-            [
-                "powershell.exe", "-NoProfile", "-Command",
-                f"(Get-Process -Id {pid}).WorkingSet64",
-            ]
-        )
-        if code == 0 and out.strip().isdigit():
-            return round(int(out.strip()) / (1024 * 1024), 1)
+            class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+                _fields_ = [
+                    ("cb", ctypes.wintypes.DWORD),
+                    ("PageFaultCount", ctypes.wintypes.DWORD),
+                    ("PeakWorkingSetSize", ctypes.c_size_t),
+                    ("WorkingSetSize", ctypes.c_size_t),
+                    ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                    ("PagefileUsage", ctypes.c_size_t),
+                    ("PeakPagefileUsage", ctypes.c_size_t),
+                ]
+
+            counters = PROCESS_MEMORY_COUNTERS()
+            counters.cb = ctypes.sizeof(PROCESS_MEMORY_COUNTERS)
+            handle = ctypes.windll.kernel32.OpenProcess(
+                0x0400 | 0x0010,  # PROCESS_QUERY_INFORMATION | PROCESS_VM_READ
+                False, pid,
+            )
+            if handle:
+                try:
+                    if ctypes.windll.psapi.GetProcessMemoryInfo(
+                        handle, ctypes.byref(counters), counters.cb
+                    ):
+                        return round(counters.WorkingSetSize / (1024 * 1024), 1)
+                finally:
+                    ctypes.windll.kernel32.CloseHandle(handle)
+        except Exception:
+            pass
         return None
     try:
         for line in Path(f"/proc/{pid}/status").read_text().splitlines():
