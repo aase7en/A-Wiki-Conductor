@@ -105,7 +105,7 @@ def test_create_instance_materializes_full_layout(sandbox) -> None:
         encoding="utf-8"
     )
     assert "127.0.0.1:48114" in template
-    assert f"--project {project.as_posix()}" in template
+    assert f'--project "{project.as_posix()}"' in template
     assert "__TUNNEL_ID__" in template
 
     config = (created / "serena-home" / "serena_config.yml").read_text(encoding="utf-8")

@@ -420,7 +420,7 @@ class FirstInstanceCreator:
             f"$TunnelClientPath = '{_ps_quote(str(tunnel_client_path))}'",
             f"$LegacySecretPath = '{_ps_quote(str(api_key_file))}'",
         ])
-        (target / "instance.ps1").write_text(ps1 + "\n", encoding="utf-8", newline="\r\n")
+        (target / "instance.ps1").write_text(ps1 + "\n", encoding="utf-8-sig", newline="\r\n")
 
         # start.ps1 (mirrors the validated layout)
         start = f"""$ErrorActionPreference = 'Stop'
@@ -493,7 +493,7 @@ $RuntimeProcess = Start-Process -FilePath $TunnelClientPath `
 Write-Log "READY: waiting for tunnel-client"
 Wait-Process -Id $RuntimeProcess.Id
 """
-        (target / "start.ps1").write_text(start, encoding="utf-8", newline="\r\n")
+        (target / "start.ps1").write_text(start, encoding="utf-8-sig", newline="\r\n")
 
         # stop.ps1
         stop = f"""$ErrorActionPreference = 'Stop'
@@ -520,7 +520,7 @@ if ([int]::TryParse($pidText, [ref]$existingPid)) {{
 Remove-Item -LiteralPath $PidFile -Force -ErrorAction SilentlyContinue
 Write-Host "STOPPED"
 """
-        (target / "stop.ps1").write_text(stop, encoding="utf-8", newline="\r\n")
+        (target / "stop.ps1").write_text(stop, encoding="utf-8-sig", newline="\r\n")
 
         # cmd wrappers
         start_cmd = (
@@ -555,7 +555,7 @@ Write-Host "STOPPED"
         else:
             mcp_command = (
                 f"serena start-mcp-server --context chatgpt\n"
-                f"      --project {project_fwd}\n"
+                f"      --project \"{project_fwd}\"\n"
                 f"      --enable-web-dashboard false\n"
                 f"      --open-web-dashboard false\n"
                 f"      --enable-gui-log-window false"
