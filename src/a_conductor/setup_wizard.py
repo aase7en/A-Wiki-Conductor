@@ -384,7 +384,19 @@ class FirstInstanceCreator:
             raise SetupWizardError("PROJECT_NOT_FOUND", str(project))
 
         display = slug.title()
-        instance_name = f"Sunday-Worker-1"
+        # Number follows the existing fleet so instance #2+ stops colliding
+        # with the name "Sunday-Worker-1" (user trial feedback).
+        work_number = 1
+        try:
+            existing = [
+                child
+                for child in self._root.iterdir()
+                if child.is_dir()
+            ]
+            work_number = len(existing) + 1
+        except OSError:
+            work_number = 1
+        instance_name = f"Sunday-Worker-{work_number}"
         profile = f"serena-{slug}"
         self._stitch_mcp_path = stitch_mcp_path
 
@@ -513,7 +525,7 @@ Write-Host "STOPPED"
         # cmd wrappers
         start_cmd = (
             "@echo off\r\n"
-            f"title Sunday-works 1 - {display}\r\n"
+            f"title Sunday-works {work_number} - {display}\r\n"
             "setlocal\r\n"
             "cd /d \"%~dp0\"\r\n"
             "powershell.exe -NoProfile -ExecutionPolicy Bypass -File start.ps1\r\n"
@@ -523,7 +535,7 @@ Write-Host "STOPPED"
 
         stop_cmd = (
             "@echo off\r\n"
-            f"title Sunday-works 1 - Stop\r\n"
+            f"title Sunday-works {work_number} - Stop\r\n"
             "setlocal\r\n"
             "cd /d \"%~dp0\"\r\n"
             "powershell.exe -NoProfile -ExecutionPolicy Bypass -File stop.ps1\r\n"

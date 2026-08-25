@@ -21,6 +21,7 @@
 | Agent Collaboration System | `docs/agent-collab-system` | docs/agent-collab/ (ทั้งหมด) | ✅ Done |
 | Documentation updates | — | README, CHANGELOG (ถ้าไม่ชน GPT) | ⏳ Pending |
 | WO-P1-065: Donate QR asset | `assets/donate-promptpay-qr` (จาก `acd77b4`) | assets/donate-promptpay-qr.png + WO นี้ | ✅ Done (user อนุมัติแทน GPT ตอน weekly limit) — **ไม่ทับ branch ของ GPT** ไฟล์โค้ดไม่มีทับเลย; GPT ช่วยตรวจภายหลัง: QR โชว์จริงใน Donate dialog + สแกนได้ถูกบัญชี (ดู WO-P1-065) |
+| WO-P1-066: Inline row buttons | `feat/inline-row-buttons` | desktop_ui.py, i18n.py, tests 4 ไฟล์, WO + DESIGN.md | ✅ Merged PR #81 (user อนุมัติแทน GPT) — แตะ desktop_ui.py แต่**ไม่ทับไฟล์ใดของ `fix/gpu-context-ui-repaint`** (GPT แตะแค่ gpu_particle_logo); GPT ตรวจภายหลัง: หน้าตา EDIT column/add-row/PROJECTS sidebar + ตัดสิน edit-project แทน assign (ดู WO-P1-066) |
 
 ## Backlog (ยังไม่มีคน claim)
 

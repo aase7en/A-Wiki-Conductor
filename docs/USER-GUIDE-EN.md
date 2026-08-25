@@ -1,6 +1,6 @@
 # A-Sunday Conductor — User Guide (English)
 
-Latest: 2026-08-22 (v0.4.3) · Supported OS: **Windows 10/11** (full features) · Python 3.11+ (developer install)
+Latest: 2026-08-25 (v0.6.0) · Supported OS: **Windows 10/11** (full features) · Python 3.11+ (developer install)
 
 ---
 
@@ -27,7 +27,7 @@ Verify: `a-conductor --smoke` → must print `A-CONDUCTOR_SMOKE_OK projects=0 wo
 ## 3. The main screen
 
 ```
-┌ A-SUNDAY CONDUCTOR v0.4.3                   [Guide] [Settings]  ● ONLINE ┐
+┌ A-SUNDAY CONDUCTOR v0.6.0                   [Guide] [Settings]  ● ONLINE ┐
 ├ PROJECTS (left) │ WORKERS (right) — WORKER/STATE/PROJECT/PATH table
 │                 │  Buttons: Add Project / Assign / Activate / Release / Refresh
 │                 │        Start / Stop / Restart / Setup / Config / + Worker / Rename / Delete
@@ -88,7 +88,28 @@ Caveats: more tokens and possible context mixing — best when a task truly need
 > The button only copies text — the app never activates Serena on the agent's behalf or edits project files.
 
 ### 4.5 Guide + Settings + language
-Top-right: **Guide** opens this guide (language follows the app language). **Settings** has: **supervised mode**, **stop-all-connectors-on-exit** (default ON — closing the app stops every connector and reaps stale processes), and **Language / ภาษา** (Thai ↔ English; takes full effect on next app start). The window title always carries the version, e.g. `A-Sunday Conductor v0.4.3`.
+Top-right: **Guide** opens this guide (language follows the app language). **Settings** has: **supervised mode**, **stop-all-connectors-on-exit** (default ON — closing the app stops every connector and reaps stale processes), and **Language / ภาษา** (Thai / 中文 / English — three languages, help text refreshes immediately with no restart; button labels stay English by design). The window title always carries the version, e.g. `A-Sunday Conductor v0.6.0`.
+
+### 4.6 Hand-holding: which chat is which connector / port / project?
+
+**Key fact:** the plugin name you set inside ChatGPT (e.g. `Sunday-Worker-1..5`) lives only on OpenAI's side — this app never sees or binds to that name. What actually links a chat to your machine is the plugin's **Tunnel ID**.
+
+The real chain:
+
+```
+ChatGPT chat → plugin carries a Tunnel ID → on this machine: the connector whose tunnel-id.txt matches
+→ that connector pins exactly ONE project (PROJECT column in the CONNECTORS table) + has its own PORT
+```
+
+Rule to remember: **one plugin = one connector = one fixed project** for the whole chat. To change the project use **Change Project** on that connector, then **Stop → Start** — it takes effect only after the restart (an open chat never sees the project change live).
+
+Step-by-step "which row is this chat?":
+
+1. In ChatGPT, open the plugin/connector settings and copy its **Tunnel ID**.
+2. In this app press **Set Tunnel ID** on each connector row to view/set the ID and find the match (the table shows only `Y/-`, not the ID value itself).
+3. Once matched: read that row's **PROJECT** and **PORT** — that chat is working on that project over that port.
+4. In the WORKERS table the **CONNECTOR (?)** column: any worker assigned to the same project path as a connector shows that connector's name; `-` means no connector is bound to this worker's project (not an error).
+5. To point "chat #2" at project B: select chat #2's connector → **Change Project** → enter B's path → **Stop** → **Start** → confirm the PROJECT column changed.
 
 ## 5. Where the data lives
 
