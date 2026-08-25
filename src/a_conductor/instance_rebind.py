@@ -18,7 +18,7 @@ from .instance_runtime import _ps_quote
 _PS1_PROJECT_RE = re.compile(
     r"^(\s*\$ProjectPath\s*=\s*')(?P<path>[^']*)(')\s*$", re.MULTILINE
 )
-_TEMPLATE_PROJECT_RE = re.compile(r"(--project\s+)(?P<path>[^\s']+)")
+_TEMPLATE_PROJECT_RE = re.compile(r"(--project\s+)(?:\"[^\"]*\"|\S+)")
 
 
 class InstanceRebindError(RuntimeError):
@@ -42,11 +42,13 @@ def _rewrite_ps1(instance_root: Path, new_project: str) -> None:
     if match is None:
         raise InstanceRebindError("PS1_PROJECT_LINE_NOT_FOUND")
     _backup(ps1)
+    # Keep the UTF-8 BOM: Windows PowerShell 5.1 mis-decodes BOM-less .ps1
+    # with non-ASCII (e.g. Thai) project paths.
     ps1.write_text(
         _PS1_PROJECT_RE.sub(
             lambda m: m.group(1) + _ps_quote(new_project) + m.group(3), text, count=1
         ),
-        encoding="utf-8",
+        encoding="utf-8-sig",
         newline="\n",
     )
 
@@ -62,7 +64,9 @@ def _rewrite_template(instance_root: Path, new_project: str) -> None:
     _backup(template)
     template.write_text(
         _TEMPLATE_PROJECT_RE.sub(
-            lambda m: m.group(1) + _to_forward_slash(new_project), text, count=1
+            lambda m: m.group(1) + f'"{_to_forward_slash(new_project)}"',
+            text,
+            count=1,
         ),
         encoding="utf-8",
         newline="\n",

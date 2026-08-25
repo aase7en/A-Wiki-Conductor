@@ -23,7 +23,7 @@ _SHARED_PATH_RES = (
     re.compile(r"^\$LegacySecretPath\s*=\s*'([^']*)'", re.MULTILINE),
 )
 _LISTEN_RE = re.compile(r"(?m)^(\s*listen_addr:\s*127\.0\.0\.1:)\d+")
-_TEMPLATE_PROJECT_RE = re.compile(r"(--project\s+)[^\s'\"]+")
+_TEMPLATE_PROJECT_RE = re.compile(r"(--project\s+)(?:\"[^\"]*\"|\S+)")
 
 
 class InstanceCreateError(RuntimeError):
@@ -147,7 +147,7 @@ def create_instance(
             f"$LegacySecretPath = '{_ps_quote(legacy_secret)}'",
         ]
     )
-    (target / "instance.ps1").write_text(instance_ps1 + "\n", encoding="utf-8", newline="\r\n")
+    (target / "instance.ps1").write_text(instance_ps1 + "\n", encoding="utf-8-sig", newline="\r\n")
 
     for script, action in (("start.ps1", "Start"), ("stop.ps1", "Stop")):
         source = reference / script
@@ -179,7 +179,7 @@ def create_instance(
         lambda m: m.group(1) + str(health_port), template_text, count=1
     )
     template_text = _TEMPLATE_PROJECT_RE.sub(
-        lambda m: m.group(1) + project.as_posix(), template_text, count=1
+        lambda m: m.group(1) + f'"{project.as_posix()}"', template_text, count=1
     )
     (target / "profiles" / f"{profile}.yaml.template").write_text(
         template_text, encoding="utf-8", newline="\n"
