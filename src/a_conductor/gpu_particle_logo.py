@@ -171,6 +171,30 @@ def _release_pyopengltk_context(gl_frame: object) -> None:
             setattr(gl_frame, "context_created", False)
 
 
+def _unbind_pyopengltk_context(gl_frame: object) -> None:
+    """Stop Tk callbacks from inheriting pyopengltk's current GL context.
+
+    ``BaseOpenGLFrame._display`` makes its context current, renders, and swaps
+    buffers, but pyopengltk 0.0.x never releases that thread-local binding.
+    Tk subsequently paints ordinary labels on the same UI thread; on Windows
+    that can corrupt GDI text after a refresh.  Unbinding is intentionally
+    best-effort because the GPU renderer remains an optional enhancement.
+    """
+    try:
+        if sys.platform.startswith("win32"):
+            from OpenGL.WGL import wglMakeCurrent
+
+            wglMakeCurrent(None, None)
+        elif sys.platform.startswith("linux"):
+            window = getattr(gl_frame, "_OpenGLFrame__window", None)
+            if window is not None:
+                from OpenGL import GLX
+
+                GLX.glXMakeCurrent(window, 0, None)
+    except Exception:
+        pass
+
+
 def _eye_weight(nx: float, ny: float) -> float:
     """Return a soft 0..1 gaze weight for the family portrait eye regions."""
     best = 0.0
@@ -365,6 +389,36 @@ if OpenGLFrame is not None:
             self.owner = owner
             super().__init__(parent, width=size, height=size)
 
+        def tkMap(self, event: tk.Event) -> None:
+            try:
+                super().tkMap(event)
+            finally:
+                _unbind_pyopengltk_context(self)
+
+        def tkResize(self, event: tk.Event) -> None:
+            if getattr(self, "context_created", False):
+                self.tkMakeCurrent()
+            try:
+                super().tkResize(event)
+            finally:
+                _unbind_pyopengltk_context(self)
+
+        def _display(self) -> None:
+            # pyopengltk's base implementation calls update_idletasks() from
+            # inside every animation callback.  That nested Tk flush can
+            # repaint ordinary labels with the GL child window's stale native
+            # drawing state after an unrelated refresh.  Geometry is already
+            # established by Map/Configure events, so render the frame without
+            # entering a recursive Tk event pass.
+            try:
+                self.tkMakeCurrent()
+                self.redraw()
+                self.tkSwapBuffers()
+            finally:
+                _unbind_pyopengltk_context(self)
+            if self.animate > 0:
+                self.cb = self.after(self.animate, self._display)
+
         def initgl(self) -> None:
             self.owner._init_gl(self)
 
@@ -517,23 +571,45 @@ class GPUParticleLogo:
             return
         if self._source_path is None:
             return
-        target_particles = max(6_000, min(GPU_MAX_PARTICLES, int(self.size * self.size * 0.65)))
-        packed, count, image_aspect = build_particle_vertices(
-            self._source_path, max_particles=target_particles
+        gl_frame = self._gl_frame
+        owns_current_context = bool(
+            gl_frame is not None and getattr(gl_frame, "context_created", False)
         )
-        self._release_gpu_resources()
-        # _release_gpu_resources clears the program too; recreate it before VAO build.
-        self._program = self._ctx.program(
-            vertex_shader=_VERTEX_SHADER,
-            fragment_shader=_FRAGMENT_SHADER,
-        )
-        self._buffer = self._ctx.buffer(packed.tobytes())
-        self._vao = self._ctx.vertex_array(
-            self._program,
-            [(self._buffer, "2f 1f 1f 1f", "in_uv", "in_luma", "in_seed", "in_eye")],
-        )
-        self._particle_count = count
-        self._image_aspect = image_aspect
+        if owns_current_context:
+            gl_frame.tkMakeCurrent()
+        try:
+            target_particles = max(
+                6_000,
+                min(GPU_MAX_PARTICLES, int(self.size * self.size * 0.65)),
+            )
+            packed, count, image_aspect = build_particle_vertices(
+                self._source_path, max_particles=target_particles
+            )
+            self._release_gpu_resources()
+            # _release_gpu_resources clears the program too; recreate it before VAO build.
+            self._program = self._ctx.program(
+                vertex_shader=_VERTEX_SHADER,
+                fragment_shader=_FRAGMENT_SHADER,
+            )
+            self._buffer = self._ctx.buffer(packed.tobytes())
+            self._vao = self._ctx.vertex_array(
+                self._program,
+                [
+                    (
+                        self._buffer,
+                        "2f 1f 1f 1f",
+                        "in_uv",
+                        "in_luma",
+                        "in_seed",
+                        "in_eye",
+                    )
+                ],
+            )
+            self._particle_count = count
+            self._image_aspect = image_aspect
+        finally:
+            if owns_current_context:
+                _unbind_pyopengltk_context(gl_frame)
 
     def load_image(self, image_path: str | Path) -> bool:
         path = Path(image_path)
