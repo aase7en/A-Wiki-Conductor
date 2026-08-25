@@ -47,3 +47,11 @@ Sequencing: 1a→1b→{2,3}→4→5→8 ; 6,7 after GPT design; 9 parallel; 10 l
 ## Out of scope / forbidden
 
 - No modification of brain schemas/stores; no UI work before GE-11; no weakening of durability invariants; no new worker processes (5-slot topology only).
+
+## Checkpoint — 2026-08-26 / GE-1a + GE-1b implemented (GLM 5.3, GO signal honored)
+
+Branch `feat/ge-1a-graph-domain` from main `a24db2c`, per D5 scope:
+- **GE-1a** `a_conductor/graph/domain.py`: `TaskNode` (frozen, NO dependency field per D2 — `dependencies`/`depends_on` deliberately absent, tests assert this), `TaskEdge`, `TaskGraph` invariants (unique ids, endpoint existence, self-edge + duplicate-edge rejection), `DependencyType` exactly the accepted 12 (D4), `TaskNodeStatus` = planning vocabulary only, `CAPABILITY_VOCABULARY` = the 20 awiki-task/v1 values, capability/priority/timeout validation.
+- **GE-1b** `a_conductor/graph/graph.py`: `TaskGraphBuilder` (fail-fast, rolls back a cycle-creating edge before raising) + `build_graph` convenience + `_find_cycle` (Kahn + cycle reconstruction; semantics credited to A-Wiki dag_eval per GE-0004/D1 — full DAG engine remains GE-3).
+- Tests: `tests/test_graph_domain.py` (14) + `tests/test_graph_assembly.py` (6) = **20 passed**. No scheduler/dispatch/persistence/UI (D5 gate).
+- Next node per roadmap: **GE-2** SQLite graph store (`a_conductor/graph/store.py`), then GE-3 DAG port.
