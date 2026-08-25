@@ -58,6 +58,9 @@ class LocalInstance:
     health_address: str
     instance_root: Path
     tunnel_configured: bool = False
+    # Last 4 chars of the configured Tunnel ID — masked pairing aid only;
+    # the full ID is a credential and must never be shown in the UI.
+    tunnel_suffix: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +101,7 @@ def discover_local_instances(
             continue
         tunnel_id_path = child / "config" / "tunnel-id.txt"
         tunnel_configured = False
+        tunnel_suffix = ""
         if tunnel_id_path.is_file():
             try:
                 candidate = tunnel_id_path.read_text(
@@ -106,6 +110,8 @@ def discover_local_instances(
             except OSError:
                 candidate = ""
             tunnel_configured = _TUNNEL_ID_RE.fullmatch(candidate) is not None
+            if tunnel_configured and len(candidate) >= 4:
+                tunnel_suffix = candidate[-4:]
         found.append(
             LocalInstance(
                 name=name,
@@ -113,6 +119,7 @@ def discover_local_instances(
                 health_address=address,
                 instance_root=child.resolve(strict=False),
                 tunnel_configured=tunnel_configured,
+                tunnel_suffix=tunnel_suffix,
             )
         )
     return tuple(found)

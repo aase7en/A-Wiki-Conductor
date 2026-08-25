@@ -106,9 +106,11 @@ Rule to remember: **one plugin = one connector = one fixed project** for the who
 Step-by-step "which row is this chat?":
 
 1. In ChatGPT, open the plugin/connector settings and copy its **Tunnel ID**.
-2. In this app press **Set Tunnel ID** on each connector row to view/set the ID and find the match (the table shows only `Y/-`, not the ID value itself).
+2. In this app check the CONNECTORS table's **TUNNEL** column — each row shows the **last 4 characters of its Tunnel ID** (e.g. `...e3f1`) so you can match it against the ID shown in ChatGPT instantly (the full ID is treated as a secret and never displayed). Press **Edit** on the row to see "current: ...xxxx" and change the ID there.
 3. Once matched: read that row's **PROJECT** and **PORT** — that chat is working on that project over that port.
-4. In the WORKERS table the **CONNECTOR (?)** column: any worker assigned to the same project path as a connector shows that connector's name; `-` means no connector is bound to this worker's project (not an error).
+4. In the WORKERS table the **CONNECTOR (?)** column: any worker assigned to the same project path as a connector shows that connector's name; `-` means no connector is bound to this worker's project (not an error). **This column is a derived display, not a registration — there is no setup and no button for it.**
+
+   > In short: the CONNECTORS table is the tunnel's source of truth (port + project + live state, auto-refreshed every 15 s), while WORKERS is the work-scheduling view — they are linked only through the project path.
 5. To point "chat #2" at project B: select chat #2's connector → **Change Project** → enter B's path → **Stop** → **Start** → confirm the PROJECT column changed.
 
 ## 5. Where the data lives
