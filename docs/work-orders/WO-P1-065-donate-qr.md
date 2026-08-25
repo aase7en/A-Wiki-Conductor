@@ -9,6 +9,7 @@ Branch: `assets/donate-promptpay-qr`
 ## Scope (all files touched)
 
 - `assets/donate-promptpay-qr.png` (new, 253,458 bytes, PNG magic verified)
+- `.github/DONATE.md` (filled the PromptPay/TrueWallet number; source: decoded locally from the user's own QR image via opencv-headless — EMVCo payload `0066992654265` → domestic `099-265-4265`, currency THB, static QR; TrueWallet is listed with the same number per the dialog's combined "PromptPay / TrueWallet" flow — owner should confirm TrueWallet uses the same number)
 - `docs/work-orders/WO-P1-065-donate-qr.md` (this file)
 - `docs/agent-collab/AGENT_TASKS.md` (one GLM row — small known merge-conflict surface with the same file's edit on `fix/gpu-context-ui-repaint`; trivial resolution, both are additive rows)
 
