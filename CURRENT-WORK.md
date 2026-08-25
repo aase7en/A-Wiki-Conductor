@@ -1,20 +1,18 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-25 (Codex / GPT-5.6 Sol, WO-P1-063 installed release candidate)
+Last updated: 2026-08-25 (GLM 5.3, full-loop session: H0 hygiene + brain E2E + GE prep)
 
 ## Current phase
 
-**WO-P1-063 RELEASE_VALIDATION — Terminal Command-Center completion.** One implementation owner: Codex / GPT-5.6 Sol. Branch: `fix/terminal-command-center-completion`; Draft PR **#79**. Installed-candidate implementation HEAD: `e3d4babb78859b9d5e218354b0ea0b5d14129484`, based on `origin/main` `9782f933426bbd5970e9e571545da89402c6a9ed`.
+**v0.6.0 code complete on `main` (`f4ecf9a`); GitHub release publication still pending (GPT lane).** Main worktree is CLEAN and current for the first time since 2026-08-24. Open PRs (GLM, CI-gated): **#82** brain restart-activation warning + WO-P1-067 evidence; **#83** Graph Engineering ADR drafts (GE-0001..0005 + WO-GE-001 — all PROPOSED, awaiting GPT-5.6 Sol MAX decisions D1-D5); this repo-health sync PR (docs + SSoT).
 
-**Repository/PR drift reconciled:** PR #77 was not waiting for review. GitHub marked it merged indirectly through PR #78 while it was still Draft, with no reviews; its original three CI jobs were green. The forward-only fixes and release evidence therefore live in PR #79. Do not reopen or recreate PR #77 work.
+**Merged this session:** PR #81 `d20cb70` (inline row Edit actions + empty-state `+ Add` rows + unified connector editor + wizard fleet numbering + guides v0.6.0 + user-trial fixes) and PR #80 `f4ecf9a` (PromptPay QR asset + DONATE.md). 37 dead branches deleted under a contained-in-main guardrail; the branch set is now: `main`, the open PR branches, and GPT's dormant `fix/gpu-context-ui-repaint` (pushed `ffff853`, no PR — core fix superseded by `12ce7ba`; its +192 unbind regression-test lines remain unique, salvage decision pending GPT).
 
-**Verified on the PR #79 source tree:** exact Sunday Family master portrait visible through real `gpu-opengl` (~9,360 fine particles) and a seven-item lightweight Canvas raster fallback; real CPU/RAM/session uptime; subtle pointer return; deterministic callback/native-context cleanup; 700/900/1280/1600/maximized layouts; English actions and TH/zh-CN/EN guidance; Add Brain/Add Connector; copyable logs; atomic reassignment; sandbox connector flows. Full repository result before the final bounded shutdown optimization: **1175 passed**; the focused regression and the subsequent GitHub full matrix are green. Real-system sandbox E2E: **23 passed** with the network-only test deselected.
+**Brain E2E (WO-P1-067, user-directed):** the global Second Brain WAS saved in the app DB (A-Wiki folders + AGENTS.md + wiki-overview) yet 0/5 running connectors carried the brain block in `serena_config.yml` — every instance started before the save; materialization happens only at connector Start (`apply_brain_to_serena_home`). That is exactly why chats ignored AGENTS.md and "remembered nothing". PR #82 adds the activation warning. **User action to activate today: Stop → Start each running connector.**
 
-**Fresh package/install evidence for `e3d4bab`:** Portable 24,285,453 bytes, SHA-256 `FF55C476BF4FFA852CB78545EFA12EC69399F2E70D28432B303CB69EEE98BD15`; Setup 31,222,411 bytes, SHA-256 `26CEE072C2FFDAF934B11C47CB1D5D5D4CFE67D4CAD1032988E34BE2FA2D2D7D`. Frozen smoke exits 0; archive checks pass 12/12 Portable and 6/6 Setup requirements. Setup exited 0, installed hash equals Portable, registry shows v0.6.0, and the user DB stayed physically and logically unchanged.
+**Graph Engineering:** GE-0 complete (repo/branch archaeology, live worker-fleet probe 5/5 READY, collision map). Next: GPT-5.6 Sol MAX reviews PR #83's ADRs, answers D1-D5 in WO-GE-001, then GLM starts GE-1a (graph domain, TDD). **Do not start graph production code before those decisions.**
 
-**Installed acceptance:** the real installed window was compared directly with the user-reconfirmed wide near-black command-center reference. The detailed Sunday Family portrait is visible; Add Brain/Guide/Settings and ordered English actions remain reachable; real CPU/RAM/uptime populate; prior GPU/fallback/layout/language/copy checks remain applicable. A real close during sandbox autostart created the stop marker and removed both frozen processes. The final forced-start optimization removes a redundant health probe; source close measured 4,361 ms and installed close remained bounded at 9,235 ms on this security-filtered host. All five live connectors stayed `STOPPED`.
-
-**Current CI:** run `32789507743` is green at implementation HEAD `e3d4bab` on Windows, Ubuntu, and macOS. **Remaining release gates:** commit the final evidence, require its PR checks green, mark PR #79 ready, final review/merge, fetch and rebuild/reinstall from main, repeat installed acceptance, then set WO/CURRENT-WORK/handoff/COLLAB to COMPLETE. WO-P1-061/062 are historical baseline capabilities, not active parallel implementation claims.
+**Known local environment:** ESET may lock fresh PE/.ps1 files (bounded 90 s retry pattern proven ~7×). Never bind tests to fleet ports 18011-18015. A-Wiki brain HOLD (phases 8-11) remains in force — brain repo untouched by all of the above.
 
 ## Source-of-truth rule
 

@@ -3,8 +3,8 @@
 <img src="assets/logo-face.png" alt="A-Sunday Conductor Logo" width="120" height="120" style="border-radius: 12px;" />
 
 [![Release](https://img.shields.io/github/v/release/aase7en/A-Wiki-Conductor?style=flat-square&color=blue)](https://github.com/aase7en/A-Wiki-Conductor/releases)
+[![CI](https://github.com/aase7en/A-Wiki-Conductor/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/aase7en/A-Wiki-Conductor/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-1059%20passed-brightgreen?style=flat-square)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)]()
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square)]()
 [![Sponsor](https://img.shields.io/badge/sponsor-GitHub-ea4aaa?style=flat-square&logo=github)](https://github.com/sponsors/aase7en)
@@ -15,7 +15,7 @@
 
 **A local autonomous control plane for coordinating AI agents, coding agents, MCP servers, and memory.**
 
-Pure desktop application. Python standard library only. No server. No cloud required.
+Pure desktop application — no server, no cloud required. Ships as a native Windows app; only a handful of small Python dependencies (Pillow, plus ModernGL/pyopengltk on Windows for the optional GPU logo).
 
 ---
 
@@ -27,17 +27,21 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 
 | Feature | Description |
 |---------|-------------|
+| Terminal command center | Dark Tk/Ttk operator UI: projects, workers, connectors, monitor, and copyable activity console |
+| Inline row actions | Every table row carries an `Edit` action; empty tables show a `+ Add ...` row to guide first-time users |
+| Real system overview | Measured CPU, RAM, and session uptime (native APIs, no background processes) |
+| Setup Wizard | One-stop first-run installer (uv, Python, Serena, tunnel-client, optional Node.js) with 4 backend choices incl. Google Stitch |
 | Connector fleet | Auto-discovers and manages Serena tunnel instances with health monitoring |
 | One-click creation | Create new ChatGPT connectors with auto-assigned ports from validated templates |
-| Live monitoring | Per-connector state, PID, memory usage, and log tail with 5-second refresh |
+| Live monitoring | Per-connector state, PID, memory usage, and log tail with 15-second refresh |
 | Worker management | Dynamic worker slots (add, rename, delete) with no fixed limit |
 | Engine configuration | Per-worker language backend, tool toggles, base modes, and timeouts |
-| Second Brain | Inject brain rules from A-Wiki into every connector's system prompt |
+| Second Brain | Inject brain rules from A-Wiki into every connector's system prompt (applies on connector start) |
 | Project rebinding | Switch any connector's project without recreating it |
-| Bilingual interface | Full Thai and English UI including tooltips and error messages |
+| Tri-lingual interface | Thai, English, and 中文 help/tooltips (action buttons stay English by design) |
 | Clean shutdown | Closing the app stops all connectors and reaps stale processes |
 | Drive backups | Connector deletion zips a backup to the A-Wiki-Data Google Drive layer |
-| Update checking | In-app GitHub release checker with one-click download |
+| Update checking & Donate | In-app GitHub release checker; PromptPay/TrueWallet QR and GitHub Sponsors |
 
 ## Install
 
@@ -49,7 +53,7 @@ Download `A-Sunday-Conductor-Setup.exe` from [Releases](https://github.com/aase7
 
 ### Portable
 
-Download `A-Sunday-Conductor-Portable.exe` and run from anywhere.
+Download `A-Sunday.Conductor.exe` (the Portable build — GitHub renders the space in "A-Sunday Conductor.exe" as a dot) and run from anywhere.
 
 ### From source
 
@@ -96,8 +100,8 @@ See the in-app Guide button for the full walkthrough (Thai or English).
 +---------------------------------------------------+
 ```
 
-- Python standard library only (zero external dependencies)
-- 1010 tests (unit, integration, E2E, adversarial)
+- Dependencies: `Pillow`, `moderngl` + `pyopengltk` (Windows GPU logo; optional at runtime with automatic Canvas fallback)
+- Full test suite runs on every push — see the CI badge above
 - CI on Windows, Ubuntu, and macOS
 
 ## Documentation

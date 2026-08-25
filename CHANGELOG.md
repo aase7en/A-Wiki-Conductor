@@ -2,6 +2,19 @@
 
 All notable changes to A-Sunday Conductor are documented here.
 
+## [Unreleased]
+
+### Added
+- **Inline row actions** — every PROJECTS/WORKERS/CONNECTORS row carries an `Edit` action; empty tables show a `+ Add ...` row (PR #81)
+- **Unified connector editor** — Edit on a connector opens one dialog for alias, Tunnel ID, and project path (PR #81)
+- **Donate QR shipped** — `assets/donate-promptpay-qr.png` bundled with every build; DONATE.md carries the PromptPay/TrueWallet number (PR #80)
+- **Brain activation warning** — saving the Second Brain now states that running connectors must restart for chats to pick it up (WO-P1-067, PR #82)
+
+### Fixed
+- Wizard-created instances number past the fleet (`Sunday-Worker-2`, …) instead of always `Sunday-Worker-1` (PR #81)
+- PROJECTS sidebar rows are tall enough to show name + path (PR #81)
+- Monitor test fixture no longer probes the real fleet port 18011 (PR #81)
+
 ## [0.6.0] — 2026-08-24
 
 ### Added
@@ -14,6 +27,20 @@ All notable changes to A-Sunday Conductor are documented here.
 - **Deterministic shutdown** — Tk timers, monitor work, renderer callbacks, contexts, and the owned executor are released when the window closes or is destroyed directly
 - **Cross-platform metrics** — Linux CPU accounting excludes guest time and unavailable platform metrics remain explicitly unknown
 - **Live language surfaces** — Thai, Simplified Chinese, and English explanations refresh without translating canonical English action labels
+
+## [0.5.0] — 2026-08-24
+
+### Added
+- **PanedWindow layout** — every panel is drag-resizable; no more disappearing panels
+- **Interactive particle-face logo** — 120px header canvas whose eyes track the pointer with bounded, gentle motion
+- **Responsive button grids** — actions wrap at narrow widths and flow in one row on wide windows
+- **English action labels** — canonical English button text across the app regardless of help language
+- **Tri-lingual help** — Thai / 中文 / English tooltips and teaching text (zh-CN falls back to English where untranslated)
+
+### Fixed
+- **Splash screen** — now a `Toplevel` over the single Tk root; the main window reliably appears after the splash
+- **+Worker dialog** — widget values are read before the dialog is destroyed, so workers actually get added
+- **PowerShell spawn storm** — connector memory sampling switched to native `ctypes` calls (zero periodic process spawns; see DEFECT_LESSONS #1)
 
 ## [0.4.3] — 2026-08-24
 
