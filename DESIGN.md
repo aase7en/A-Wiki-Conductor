@@ -72,6 +72,14 @@ Wide / normal target:
 - optional RECENT EVENTS region where space permits;
 - bottom: command-console-like diagnostics area with tabs or compact sections for Terminal/Status, Logs, Events/Monitor. Existing copyable log behavior must be preserved.
 
+Inline row guidance (added 2026-08-25, WO-P1-066, user request): each table carries a
+trailing EDIT column whose cell text `Edit` opens that row's editor, and when a table
+has no records at all its only row is a `+ Add ...` accent row that opens the matching
+add dialog anywhere it is clicked. ttk.Treeview cannot host real per-cell widgets or
+per-cell colors, so the affordance is text-in-cell; the PROJECTS sidebar is a
+single-column Treeview (not a Listbox) for the same reason. Existing action bars are
+unchanged.
+
 Compact target:
 - keep all controls reachable;
 - panels may stack vertically;

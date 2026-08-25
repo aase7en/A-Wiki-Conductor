@@ -131,7 +131,8 @@ def test_app_renders_projects_workers_and_disabled_lifecycle_controls(root) -> N
     root.update_idletasks()
 
     assert root.title() == "A-Sunday Conductor v0.6.0"
-    assert app.project_list.size() == 1
+    assert app.project_list.heading("project", "text") == "PROJECT"
+    assert len(app.project_list.get_children()) == 1
     assert len(app.worker_tree.get_children()) == 3
     assert app.start_button.instate(["disabled"])
     assert app.stop_button.instate(["disabled"])
@@ -152,7 +153,7 @@ def test_refresh_projects_worker_assignment_and_state(root) -> None:
 def test_assign_selected_delegates_to_service(root) -> None:
     service = FakeService(sample_snapshot())
     app = AConductorDesktopApp(root, service=service)
-    app.project_list.selection_set(0)
+    app.project_list.selection_set(app.project_list.get_children()[0])
     worker_item = app.worker_tree.get_children()[1]
     app.worker_tree.selection_set(worker_item)
     app.worker_tree.focus(worker_item)
@@ -735,7 +736,13 @@ def test_second_brain_dialog_saves_global_profile(root) -> None:
     assert len(saved) == 1
     assert saved[0].brain_folders == (r"A:\GitHub\A-Wiki",)
     assert saved[0].brain_entry_files == (r"A:\GitHub\A-Wiki\AGENTS.md",)
-    assert not dialog.winfo_exists()
+    # Success keeps the dialog open with the saved paths shown (trial feedback).
+    assert dialog.winfo_exists()
+    status_text = str(app._brain_status.cget("text"))
+    assert "บันทึกแล้ว" in status_text
+    assert r"A:\GitHub\A-Wiki" in status_text
+    assert r"A:\GitHub\A-Wiki\AGENTS.md" in status_text
+    dialog.destroy()
 
 
 def test_second_brain_defaults_button_fills_awiki(root) -> None:
@@ -835,7 +842,7 @@ def test_activate_helper_copies_selected_project_prompt(root) -> None:
     app = AConductorDesktopApp(
         root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
     )
-    app.project_list.selection_set(0)
+    app.project_list.selection_set(app.project_list.get_children()[0])
 
     app.copy_activation_prompt()
 
@@ -1079,18 +1086,18 @@ def test_memory_status_reflects_selected_project(root, tmp_path) -> None:
     )
 
     # nothing selected -> neutral
-    app.project_list.selection_clear(0, "end")
+    app.project_list.selection_set()
     app._refresh_memory_status()
     assert "เลือกโปรเจกต์" in app.memory_status_label.cget("text")
 
     # select project with memories
-    app.project_list.selection_set(0)
+    app.project_list.selection_set(app.project_list.get_children()[0])
     app._refresh_memory_status()
     assert "พร้อม (1 ไฟล์)" in app.memory_status_label.cget("text")
 
     # select fresh project -> onboarding nudge (click replaces selection)
-    app.project_list.selection_clear(0, "end")
-    app.project_list.selection_set(1)
+    app.project_list.selection_set()
+    app.project_list.selection_set(app.project_list.get_children()[1])
     app._refresh_memory_status()
     text = app.memory_status_label.cget("text")
     assert "ยังไม่มีความจำ" in text

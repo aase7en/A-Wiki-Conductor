@@ -30,7 +30,7 @@ def make_instance(root: Path, *, slug: str = "sunday-worker-1", day: str | None 
                 "$InstanceName = 'Sunday-Worker-1'",
                 "$ProjectPath = 'A:\\GitHub\\demo'",
                 f"$SerenaHome = '{instance / 'serena-home'}'",
-                "$HealthListenAddress = '127.0.0.1:18011'",
+                "$HealthListenAddress = '127.0.0.1:18901'",
                 "$TunnelProfileName = 'serena-sunday-worker-1'",
                 "$TunnelClientPath = 'C:\\AI\\tunnel\\tunnel-client.exe'",
                 "$LegacySecretPath = 'C:\\AI\\tunnel\\secret.dpapi'",
@@ -130,7 +130,7 @@ def make_app(root, tmp_path: Path):
     instance = LocalInstance(
         name="Sunday-Worker-1",
         project_path=str(tmp_path / "project"),
-        health_address="127.0.0.1:18011",
+        health_address="127.0.0.1:18901",
         instance_root=instance_root,
         tunnel_configured=False,
     )

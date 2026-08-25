@@ -219,6 +219,34 @@ def test_create_first_instance_full_layout(tmp_path: Path) -> None:
     assert "18011" in ps1
 
 
+def test_create_second_instance_numbers_past_the_fleet(tmp_path: Path) -> None:
+    """Trial feedback: instance #2 must not collide with the name Worker-1."""
+    from a_conductor.setup_wizard import FirstInstanceCreator
+
+    project = tmp_path / "proj-b"
+    project.mkdir()
+    instances_root = tmp_path / "instances"
+
+    creator = FirstInstanceCreator(instances_root=instances_root)
+    creator.create(
+        name="first",
+        project_path=project,
+        tunnel_client_path=tmp_path / "tc" / "tunnel-client.exe",
+        api_key_file=tmp_path / "tc" / "config" / "api-key.dpapi",
+    )
+    second = creator.create(
+        name="second",
+        project_path=project,
+        tunnel_client_path=tmp_path / "tc" / "tunnel-client.exe",
+        api_key_file=tmp_path / "tc" / "config" / "api-key.dpapi",
+    )
+
+    ps1 = (second / "instance.ps1").read_text(encoding="utf-8")
+    assert "$InstanceName = 'Sunday-Worker-2'" in ps1
+    start_cmd = (second / "Start-Sunday-Worker-2.cmd").read_text(encoding="utf-8")
+    assert "Sunday-works 2 - Second" in start_cmd
+
+
 def test_create_filesystem_backend_uses_npx(tmp_path: Path) -> None:
     from a_conductor.setup_wizard import FirstInstanceCreator
 

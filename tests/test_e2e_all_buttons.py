@@ -136,7 +136,7 @@ class TestProjectButtons:
         app.service.register_project(str(proj_dir), display_name="My Project")
         app.refresh()
         root.update()
-        assert app.project_list.size() == 1
+        assert len(app.project_list.get_children()) == 1
 
     def test_activate_button_exists(self, root, tmp_path):
         app = make_app(root, tmp_path)
