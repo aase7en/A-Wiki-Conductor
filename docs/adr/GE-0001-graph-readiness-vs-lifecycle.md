@@ -1,6 +1,6 @@
 # GE-0001 — Graph readiness is a DAG; lifecycle stays a durable state machine
 
-Status: PROPOSED (draft by GLM 5.3 for GPT-5.6 Sol MAX decision — user-authorized prep)
+Status: ACCEPTED — GPT-5.6 Sol MAX integrator decision, 2026-08-26
 Date: 2026-08-25
 Inputs: GE-0 status report + A-Wiki reuse gate (both in session records); program directive "Do NOT blindly encode VERIFY→REPAIR→VERIFY as a cyclic dependency graph".
 

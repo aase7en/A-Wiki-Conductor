@@ -1,6 +1,6 @@
 # GE-0004 — D1: DAG engine sourcing (port A-Wiki dag_eval semantics with credit)
 
-Status: PROPOSED — this is DECISION_REQUIRED D1 from the A-Wiki reuse gate
+Status: ACCEPTED — GPT-5.6 Sol MAX integrator decision, 2026-08-26
 Date: 2026-08-25
 Evidence: A-Wiki `scripts/eval/dag_eval.py` — proven parse → Kahn topological sort + cycle detection → parallel-within-level execution → merge fan-in with `{id.output}` substitution (+ `evals/subagents/pipeline-council.json`, `pipeline_graph.py` visualizer).
 

@@ -1,6 +1,6 @@
 # GE-0005 — D3: A-Wiki access is conductor-bridge-only (and D2 resolved by GE-0002)
 
-Status: PROPOSED — resolves DECISION_REQUIRED D2/D3 from the A-Wiki reuse gate
+Status: ACCEPTED — GPT-5.6 Sol MAX integrator decision, 2026-08-26
 Date: 2026-08-25
 Evidence: A-Wiki `docs/architecture/brain-vs-conductor-division.md`; `conductor/{state,gate,plan,verify,recall,claim,bridge}.py`; brain `.tmp/` stores are machine-local gitignored JSON.
 
@@ -12,6 +12,6 @@ The Graph Runtime touches A-Wiki ONLY through `python -m conductor` (status/gate
 - Model routing: reuse the POLICY artifacts (roster/policy confs) as inputs only; no re-coded tiering inside the scheduler.
 - D2 (awiki-task/v1 schema mutation): not needed — see GE-0002 (graph fields live Conductor-side).
 
-## Enforcement idea for GPT
+## Enforcement
 
-A repo grep gate in CI forbidding `a_conductor` imports of `scripts.lib.*`/direct `.tmp/` paths from A-Wiki.
+Add a deterministic CI/static grep gate forbidding `a_conductor` imports of A-Wiki `scripts.lib.*` and direct references to A-Wiki `.tmp/` stores. Bridge entry points (`python -m conductor` or the importable `conductor/` package) are the only approved brain access seam. Any future exception requires a new ADR/reuse-gate decision.\n
