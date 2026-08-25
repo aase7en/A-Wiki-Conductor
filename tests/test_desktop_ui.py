@@ -742,6 +742,10 @@ def test_second_brain_dialog_saves_global_profile(root) -> None:
     assert "บันทึกแล้ว" in status_text
     assert r"A:\GitHub\A-Wiki" in status_text
     assert r"A:\GitHub\A-Wiki\AGENTS.md" in status_text
+    # The brain only materializes at connector Start, so a save must tell the
+    # operator that running connectors need a restart (user trial finding:
+    # chats ran brainless for days with no hint why).
+    assert "รีสตาร์ท" in status_text
     dialog.destroy()
 
 

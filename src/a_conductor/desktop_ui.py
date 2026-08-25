@@ -4589,12 +4589,19 @@ class AConductorDesktopApp:
             tuple(saved.brain_folders) + tuple(saved.brain_entry_files)
         ) or "cleared"
         self.log_activity(f"Brain        {saved_summary} SAVED")
+        self.log_activity("Brain        NOTE: restart running connectors to activate")
         # Keep the dialog open with a green confirmation so the operator
-        # sees exactly which paths were saved (user trial feedback).
+        # sees exactly which paths were saved (trial feedback), plus the
+        # activation rule — the brain materializes only at connector Start,
+        # so already-running chats stay brainless until a restart.
         status = getattr(self, "_brain_status", None)
         if status is not None and status.winfo_exists():
             status.configure(
-                text=f"บันทึกแล้ว ✓  {saved_summary}",
+                text=(
+                    f"บันทึกแล้ว ✓  {saved_summary}\n"
+                    "⚠ สมองมีผลเมื่อตัวเชื่อม Start — รีสตาร์ทตัวเชื่อมที่กำลังรัน"
+                    "เพื่อให้แชทปัจจุบันใช้สมองใหม่"
+                ),
                 fg=self.theme.ready,
             )
 
