@@ -896,6 +896,29 @@ class AConductorDesktopApp:
             background=[("selected", self.theme.selection)],
             foreground=[("selected", self.theme.foreground)],
         )
+        # PROJECTS rows render two lines (display name + root path), so the
+        # sidebar tree needs a taller rowheight; Treeview never auto-sizes.
+        style.configure(
+            "Projects.Treeview",
+            background=self.theme.panel,
+            fieldbackground=self.theme.panel,
+            foreground=self.theme.foreground,
+            bordercolor=self.theme.border,
+            rowheight=40,
+            font=(self.theme.monospace_font, max(8, self.theme.base_font_size - 1)),
+        )
+        style.configure(
+            "Projects.Treeview.Heading",
+            background=self.theme.panel_alt,
+            foreground=self.theme.muted,
+            bordercolor=self.theme.border,
+            font=(self.theme.monospace_font, max(8, self.theme.base_font_size - 1), "bold"),
+        )
+        style.map(
+            "Projects.Treeview",
+            background=[("selected", self.theme.selection)],
+            foreground=[("selected", self.theme.foreground)],
+        )
 
     def _build_layout(self) -> None:
         self.root.grid_columnconfigure(0, weight=1)
@@ -1073,7 +1096,7 @@ class AConductorDesktopApp:
             columns=project_columns,
             show="headings",
             selectmode="browse",
-            style="Workers.Treeview",
+            style="Projects.Treeview",
             height=4,
         )
         self.project_list.heading("project", text="PROJECT", anchor="w")

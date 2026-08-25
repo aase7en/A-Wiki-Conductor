@@ -83,6 +83,12 @@ def test_projects_panel_is_treeview_with_edit_column(root, tmp_path: Path) -> No
     assert isinstance(app.project_list, ttk.Treeview)
     assert "edit" in app.project_list["columns"]
     assert app.project_list.heading("edit", "text") == "EDIT"
+    # Two-line rows (name + path) need a taller rowheight; Treeview never
+    # auto-sizes, so the dedicated style must carry it.
+    style = app.project_list.winfo_toplevel().tk.call(
+        "ttk::style", "lookup", "Projects.Treeview", "-rowheight"
+    )
+    assert int(style) >= 40
     items = [i for i in _children(app.project_list) if i != "__add_project__"]
     assert len(items) == 1
     assert app.project_list.item(items[0], "values")[-1] == "Edit"
