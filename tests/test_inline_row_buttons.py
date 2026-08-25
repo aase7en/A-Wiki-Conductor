@@ -320,3 +320,31 @@ def test_inline_action_labels_are_english(root, tmp_path: Path) -> None:
 
 def test_version_still_pinned(root, tmp_path: Path) -> None:
     assert APP_VERSION == "0.6.0"
+
+
+# --- trial-feedback regression guards ---------------------------------------
+
+
+def test_user_guides_carry_the_current_version() -> None:
+    """The Guide button bundles these files; stale version strings confused
+    users into thinking the app was outdated (trial feedback)."""
+    from a_conductor.desktop_ui import find_user_guide_path
+
+    for name in ("USER-GUIDE.md", "USER-GUIDE-EN.md"):
+        text = (find_user_guide_path().parent / name).read_text(encoding="utf-8")
+        assert f"v{APP_VERSION}" in text, f"{name} does not mention v{APP_VERSION}"
+        assert "v0.4.3" not in text, f"{name} still carries a stale version"
+    th = (find_user_guide_path().parent / "USER-GUIDE.md").read_text(encoding="utf-8")
+    assert "1 ปลั๊กอิน = 1 connector = 1 โปรเจกต์" in th  # hand-holding section exists
+
+
+def test_donate_qr_ships_in_dev_layout(root, tmp_path: Path) -> None:
+    """Trial build showed the placeholder because the asset was missing."""
+    from pathlib import Path as _Path
+
+    from a_conductor.desktop_ui import AConductorDesktopApp  # noqa: F401
+
+    import a_conductor.desktop_ui as ui
+
+    asset = _Path(ui.__file__).resolve().parents[2] / "assets" / "donate-promptpay-qr.png"
+    assert asset.is_file(), "assets/donate-promptpay-qr.png must ship (mirrors PR #80)"
