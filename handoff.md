@@ -1,20 +1,35 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-25 (GLM 5.3, full-loop session end)
+Last updated: 2026-08-26 (GPT-5.6 Sol release closeout)
 
 ## Current objective
 
-Land the remaining CI-green PRs (#82 brain warning, #83 GE ADR drafts, this docs sync), then hand integration authority to GPT-5.6 Sol MAX: GE fan-in decisions (D1-D5 in WO-GE-001), GPU-unbind test salvage from `fix/gpu-context-ui-repaint`, and the v0.6.0 GitHub release publication. GLM resumes bounded implementation (GE-1a onward, C2/I1 fixes) only after those decisions.
+v0.6.0 release work is complete. Resume Graph Engineering under `docs/work-orders/WO-GE-001-graph-engineering-kickoff.md`, beginning with **GE-1a only**. D1-D5 are accepted; no scheduler implementation is authorized yet. Exact GLM handoff phrase: `D1-D5 ตกลงแล้ว อ่าน WO-GE-001`.
 
-## Repository / PR identity
+## Repository / release identity
 
 - repository: `aase7en/A-Wiki-Conductor`
-- `origin/main`: `f4ecf9a` (= PR #80 merge; contains #79 `acd77b4` → #81 `d20cb70` → #80). **Main worktree CLEAN and current** (reconciled 2026-08-25; the old 29-file superseded dirty set was restored away under byte-subsumption evidence).
-- open PRs (GLM): **#82** `fix/brain-restart-note` (brain activation warning + WO-P1-067), **#83** `docs/ge-contracts-drafts` (PROPOSED ADRs GE-0001..0005 + WO-GE-001 roadmap), docs/repo-health sync PR.
-- dormant branch: `fix/gpu-context-ui-repaint` @ `ffff853` (GPT's, pushed, no PR — core fix superseded by main `12ce7ba`; +192 unbind regression-test lines unique → salvage pending GPT).
-- branch hygiene done: 37 dead branches deleted (contained-in-main guardrail); local main + PR branches only.
-- Brain (WO-P1-067): brain saved in DB but 0/5 running connectors materialized it (Start-only injection) → user must Stop→Start connectors to activate; PR #82 adds the warning.
-- environment: ESET fresh-PE locks (90 s retry pattern); never bind tests to ports 18011-18015; A-Wiki brain HOLD phases 8-11 in force.
+- verified v0.6.0 release target: `c8705257344ab6b2890e198074118f028cefdbcf`
+- GitHub Release: `https://github.com/aase7en/A-Wiki-Conductor/releases/tag/v0.6.0`
+- published: 2026-08-26 Thailand date; six assets present.
+- final-main release CI: run `32902558101` — Windows full tests, Portable+Setup build, archive verification, frozen smoke, Ubuntu smoke, macOS smoke all green.
+- release-triggered SignPath run `32904214805`: success; signing step no-op'd as designed because `SIGNPATH_API_TOKEN` is not configured.
+- release integration PRs merged: #85 PowerShell/BOM/path+CI isolation, #86 GE D1-D5, #87 GPU/Tk repaint corrective fix, #88 v0.6.0 changelog.
+- real workstation GPU regression after corrective fix: **19/19 passed**.
+- Portable: 24,872,490 bytes; SHA-256 `9432D96E867C486D012AA797C3D764103AABEAA97D8F2C068FAD9D84BAD3AC87`.
+- Setup: 32,653,155 bytes; SHA-256 `DF9C61214C235C6386761F177E0F7154885B3DB6614B0B890948B8685163F261`.
+- GitHub Actions artifact ZIP digest: SHA-256 `6f06f82044626cc29c9282f1e9a36ee035938ac37a2cca84e9165a8d8df02f49`.
+- ESET temporarily locked fresh PE/.ps1 files during local audit/upload. Bounded retry worked; antivirus was not disabled and no unrelated product fix was made for the host race.
+- A-Wiki brain repo remains HOLD / untouched for this release work.
+
+## Graph Engineering handoff
+
+D1-D5 are accepted in ADRs GE-0001..GE-0005 via PR #86:
+- D1: port A-Wiki `dag_eval` semantics with attribution; no runtime dependency on an A-Wiki checkout.
+- D2: graph fields are Conductor-owned; `awiki-task/v1` remains unchanged; dependency relations live in `TaskEdge`/`TaskGraph` rather than duplicated nested TaskNode fields.
+- D3: A-Wiki access is bridge-only; direct `.tmp` / `scripts.lib.*` coupling is forbidden.
+- D4: retain all 12 DependencyTypes with guardrails; dynamic/resource relations are not blindly persisted as precedence edges; `HUMAN_APPROVAL` is a readiness gate; no cycle exemptions/back-edges.
+- D5: first implementation PR is **GE-1a only** (`a_conductor/graph/domain.py` + `tests/test_graph_domain.py`), then GE-1b and GE-3. GE-6/GE-7 remain gated.
 
 ## Verified source state
 
@@ -52,13 +67,9 @@ Land the remaining CI-green PRs (#82 brain warning, #83 GE ADR drafts, this docs
 
 All six prior FIX FIRST findings are resolved: activity clipping, material GPU framebuffer threshold, compact brand fallback, stale pointer neutralization, live Copy Path localization, and combined eye displacement. Remaining native cleanup concern was closed by repeated real WGL evidence. The installed shutdown timing finding was also fixed test-first by skipping only the redundant pre-force probe; an independent skeptical review returned GO.
 
-## Remaining release gates
+## Release closeout
 
-1. Commit/push this bounded release-evidence checkpoint and require all three PR #79 jobs green on that exact documentation HEAD.
-2. Mark PR #79 ready, review the final diff, and merge by repository convention only while checks remain green.
-3. Fetch merged `main` into an isolated clean verification worktree.
-4. Rebuild Portable + Setup from fetched `main`, repeat archive/frozen smoke, reinstall, and rerun the real installed logo/metrics/layout/language/copy/shutdown acceptance.
-5. Update WO-P1-063, CURRENT-WORK, handoff, and COLLAB to COMPLETE in a final bounded documentation PR, merge it, then verify clean final `main`.
+The v0.6.0 release gates above are complete. This handoff is the bounded continuity closeout after release publication. The only remaining administrative action for this branch is its own docs-only PR/CI/merge; after that, fetch `origin/main` and verify the repository is clean. The v0.6.0 tag intentionally remains pinned to the verified implementation/release SHA `c8705257344ab6b2890e198074118f028cefdbcf`; continuity-only commits may advance `main` afterward.
 
 ## Safety / known environment
 

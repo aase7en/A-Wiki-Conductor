@@ -1,18 +1,25 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-25 (GLM 5.3, full-loop session: H0 hygiene + brain E2E + GE prep)
+Last updated: 2026-08-26 (GPT-5.6 Sol release closeout)
 
 ## Current phase
 
-**v0.6.0 code complete on `main` (`f4ecf9a`); GitHub release publication still pending (GPT lane).** Main worktree is CLEAN and current for the first time since 2026-08-24. Open PRs (GLM, CI-gated): **#82** brain restart-activation warning + WO-P1-067 evidence; **#83** Graph Engineering ADR drafts (GE-0001..0005 + WO-GE-001 — all PROPOSED, awaiting GPT-5.6 Sol MAX decisions D1-D5); this repo-health sync PR (docs + SSoT).
+**v0.6.0 RELEASED.** GitHub Release `v0.6.0` is published from verified release target `c8705257344ab6b2890e198074118f028cefdbcf` with six assets. Final-main CI run `32902558101` is green across Windows full tests/build/archive/frozen smoke plus Ubuntu/macOS smoke.
 
-**Merged this session:** PR #81 `d20cb70` (inline row Edit actions + empty-state `+ Add` rows + unified connector editor + wizard fleet numbering + guides v0.6.0 + user-trial fixes) and PR #80 `f4ecf9a` (PromptPay QR asset + DONATE.md). 37 dead branches deleted under a contained-in-main guardrail; the branch set is now: `main`, the open PR branches, and GPT's dormant `fix/gpu-context-ui-repaint` (pushed `ffff853`, no PR — core fix superseded by `12ce7ba`; its +192 unbind regression-test lines remain unique, salvage decision pending GPT).
+Release integration completed through PRs **#85–#88**:
+- #85 Windows PowerShell BOM/path reliability + isolated local-instance lifecycle CI process;
+- #86 Graph Engineering D1-D5 decisions accepted;
+- #87 GPU/Tk repaint isolation corrective fix + regression coverage, real workstation GPU **19/19 passed**;
+- #88 final v0.6.0 changelog.
 
-**Brain E2E (WO-P1-067, user-directed):** the global Second Brain WAS saved in the app DB (A-Wiki folders + AGENTS.md + wiki-overview) yet 0/5 running connectors carried the brain block in `serena_config.yml` — every instance started before the save; materialization happens only at connector Start (`apply_brain_to_serena_home`). That is exactly why chats ignored AGENTS.md and "remembered nothing". PR #82 adds the activation warning. **User action to activate today: Stop → Start each running connector.**
+Clean CI release artifacts from exact SHA `c870525`:
+- Portable `A-Sunday.Conductor.exe` — 24,872,490 bytes — SHA-256 `9432D96E867C486D012AA797C3D764103AABEAA97D8F2C068FAD9D84BAD3AC87`.
+- Setup `A-Sunday-Conductor-Setup.exe` — 32,653,155 bytes — SHA-256 `DF9C61214C235C6386761F177E0F7154885B3DB6614B0B890948B8685163F261`.
+- Actions artifact ZIP digest — SHA-256 `6f06f82044626cc29c9282f1e9a36ee035938ac37a2cca84e9165a8d8df02f49`.
 
-**Graph Engineering:** GE-0 complete (repo/branch archaeology, live worker-fleet probe 5/5 READY, collision map). Next: GPT-5.6 Sol MAX reviews PR #83's ADRs, answers D1-D5 in WO-GE-001, then GLM starts GE-1a (graph domain, TDD). **Do not start graph production code before those decisions.**
+**Next engineering work: WO-GE-001 / GE-1a only.** D1-D5 are accepted. GLM may begin the graph-domain slice test-first after reading WO-GE-001. No scheduler implementation is authorized until the later graph design/verification gates are satisfied. Exact handoff phrase for GLM: `D1-D5 ตกลงแล้ว อ่าน WO-GE-001`.
 
-**Known local environment:** ESET may lock fresh PE/.ps1 files (bounded 90 s retry pattern proven ~7×). Never bind tests to fleet ports 18011-18015. A-Wiki brain HOLD (phases 8-11) remains in force — brain repo untouched by all of the above.
+**A-Wiki HOLD remains in force.** Do not mutate `A:\GitHub\A-Wiki` during this Conductor work. Known local environment caveat remains ESET transient locks on fresh PE/.ps1 files; use bounded retry only and never disable antivirus. Never bind tests to live fleet ports 18011–18015.
 
 ## Source-of-truth rule
 
