@@ -736,7 +736,13 @@ def test_second_brain_dialog_saves_global_profile(root) -> None:
     assert len(saved) == 1
     assert saved[0].brain_folders == (r"A:\GitHub\A-Wiki",)
     assert saved[0].brain_entry_files == (r"A:\GitHub\A-Wiki\AGENTS.md",)
-    assert not dialog.winfo_exists()
+    # Success keeps the dialog open with the saved paths shown (trial feedback).
+    assert dialog.winfo_exists()
+    status_text = str(app._brain_status.cget("text"))
+    assert "บันทึกแล้ว" in status_text
+    assert r"A:\GitHub\A-Wiki" in status_text
+    assert r"A:\GitHub\A-Wiki\AGENTS.md" in status_text
+    dialog.destroy()
 
 
 def test_second_brain_defaults_button_fills_awiki(root) -> None:

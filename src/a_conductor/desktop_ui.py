@@ -4585,11 +4585,18 @@ class AConductorDesktopApp:
         if not isinstance(saved, WorkerSerenaSettings):
             self._handle_error("SETTINGS_RESULT_INVALID")
             return
-        self.log_activity(
-            f"Brain        {' -> '.join(saved.brain_folders) if saved.brain_folders else 'cleared'} SAVED"
-        )
-        if dialog is not None and dialog.winfo_exists():
-            dialog.destroy()
+        saved_summary = " · ".join(
+            tuple(saved.brain_folders) + tuple(saved.brain_entry_files)
+        ) or "cleared"
+        self.log_activity(f"Brain        {saved_summary} SAVED")
+        # Keep the dialog open with a green confirmation so the operator
+        # sees exactly which paths were saved (user trial feedback).
+        status = getattr(self, "_brain_status", None)
+        if status is not None and status.winfo_exists():
+            status.configure(
+                text=f"บันทึกแล้ว ✓  {saved_summary}",
+                fg=self.theme.ready,
+            )
 
     def _autostart_flagged_instances(self) -> None:
         if not self._has_instance_service():
