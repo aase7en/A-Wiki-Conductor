@@ -20,6 +20,7 @@
 |---|---|---|---|
 | Agent Collaboration System | `docs/agent-collab-system` | docs/agent-collab/ (ทั้งหมด) | ✅ Done |
 | Documentation updates | — | README, CHANGELOG (ถ้าไม่ชน GPT) | ⏳ Pending |
+| WO-P1-065: Donate QR asset | `assets/donate-promptpay-qr` (จาก `acd77b4`) | assets/donate-promptpay-qr.png + WO นี้ | ✅ Done (user อนุมัติแทน GPT ตอน weekly limit) — **ไม่ทับ branch ของ GPT** ไฟล์โค้ดไม่มีทับเลย; GPT ช่วยตรวจภายหลัง: QR โชว์จริงใน Donate dialog + สแกนได้ถูกบัญชี (ดู WO-P1-065) |
 
 ## Backlog (ยังไม่มีคน claim)
 
