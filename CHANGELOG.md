@@ -4,29 +4,27 @@ All notable changes to A-Sunday Conductor are documented here.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-08-26
+
 ### Added
+- **Terminal command center** — native Tk/Ttk operational layout with the Sunday Family particle portrait, first-class Add Brain action, and responsive compact/standard/wide workflows
+- **Real system overview** — native CPU, RAM, and session-uptime sampling with bounded CPU history and no periodic subprocesses
+- **GPU Sunday Family renderer** — optional OpenGL particle portrait with subtle pointer gaze/parallax and an automatic Canvas fallback
 - **Inline row actions** — every PROJECTS/WORKERS/CONNECTORS row carries an `Edit` action; empty tables show a `+ Add ...` row (PR #81)
 - **Unified connector editor** — Edit on a connector opens one dialog for alias, Tunnel ID, and project path (PR #81)
 - **Donate QR shipped** — `assets/donate-promptpay-qr.png` bundled with every build; DONATE.md carries the PromptPay/TrueWallet number (PR #80)
 - **Brain activation warning** — saving the Second Brain now states that running connectors must restart for chats to pick it up (WO-P1-067, PR #82)
 
 ### Fixed
-- Wizard-created instances number past the fleet (`Sunday-Worker-2`, …) instead of always `Sunday-Worker-1` (PR #81)
-- PROJECTS sidebar rows are tall enough to show name + path (PR #81)
-- Monitor test fixture no longer probes the real fleet port 18011 (PR #81)
-
-## [0.6.0] — 2026-08-24
-
-### Added
-- **Terminal command center** — native Tk/Ttk operational layout with the Sunday Family particle portrait, first-class Add Brain action, and responsive compact/standard/wide workflows
-- **Real system overview** — native CPU, RAM, and session-uptime sampling with bounded CPU history and no periodic subprocesses
-- **GPU Sunday Family renderer** — optional OpenGL particle portrait with subtle pointer gaze/parallax and an automatic Canvas fallback
-
-### Fixed
 - **Compact reachability** — action rows and Worker/Connector/Monitor/Activity surfaces remain selectable and readable at the supported minimum window size
 - **Deterministic shutdown** — Tk timers, monitor work, renderer callbacks, contexts, and the owned executor are released when the window closes or is destroyed directly
 - **Cross-platform metrics** — Linux CPU accounting excludes guest time and unavailable platform metrics remain explicitly unknown
 - **Live language surfaces** — Thai, Simplified Chinese, and English explanations refresh without translating canonical English action labels
+- **Wizard fleet numbering** — newly created instances number past the existing fleet instead of reusing `Sunday-Worker-1` (PR #81)
+- **PROJECTS row readability** — sidebar rows are tall enough to show name + path (PR #81)
+- **Fleet-safe monitor tests** — test fixtures no longer probe the live fleet port 18011 (PR #81)
+- **Generated PowerShell reliability** — generated `.ps1` files use a UTF-8 BOM and quoted `--project` paths; Windows CI isolates the subprocess-heavy local-instance suite from unrelated pytest state (PR #85)
+- **GPU/Tk repaint isolation** — native WGL/GLX contexts are unbound after map/resize/display callbacks and bounded buffer rebuilds so ordinary Tk/GDI repaints do not inherit stale GL state (PR #87)
 
 ## [0.5.0] — 2026-08-24
 
