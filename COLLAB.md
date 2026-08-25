@@ -34,10 +34,15 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-063` | Codex / GPT-5.6 Sol | 2026-08-25 | **RELEASED to main via PR #79 (`acd77b4`)** — remaining owner items: GPU-unbind test salvage from `fix/gpu-context-ui-repaint` (+192 unique test lines), publish the v0.6.0 GitHub release, installed-acceptance recheck. |
-| `WO-GE-001` (fan-in decisions only) | GPT-5.6 Sol MAX | 2026-08-25 | Review PROPOSED ADRs GE-0001..0005 in PR #83, answer D1-D5 — no file writes until decisions land. |
-| `docs/repo-health-sync` | GLM 5.3 | 2026-08-25 | README/CHANGELOG/PRIVACY/THIRD-PARTY-NOTICES/INSTALL + CURRENT-WORK/handoff/COLLAB/AGENT_TASKS reconciliation (this PR). |
-| `fix/brain-restart-note` (PR #82) | GLM 5.3 | 2026-08-25 | desktop_ui.py brain-save status text, tests/test_desktop_ui.py, WO-P1-067. |
+| `docs/v0.6.0-complete` / WO-P1-063 closeout | GPT-5.6 Sol | 2026-08-26 | Docs-only continuity closeout: `docs/work-orders/WO-P1-063-terminal-command-center-redesign.md`, `CURRENT-WORK.md`, `handoff.md`, `COLLAB.md`. No production code. |
+
+### Recently closed / released claims
+
+- `WO-P1-063`: implementation/release complete; v0.6.0 published from `c870525`; future work leaves this WO.
+- `WO-GE-001` decision fan-in: D1-D5 accepted via PR #86; decision claim released. GE-1a is the next implementation slice and must be claimed by its actual implementer before mutation.
+- `docs/repo-health-sync`: merged/closed before release integration; no live claim remains.
+- `fix/brain-restart-note` / PR #82: merged/closed; no live claim remains.
+- `fix/gpu-context-ui-repaint`: superseded by corrective release PR #87; no live claim remains.
 
 > Git remote `origin` = `https://github.com/aase7en/A-Wiki-Conductor.git` (public since 2026-08-22 by explicit user decision — originally created private 2026-08-20). Pull/reconcile before commit/push; record branch/HEAD in checkpoints.
 

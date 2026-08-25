@@ -2,7 +2,7 @@
 
 Created: 2026-08-24
 Owner: Codex / GPT-5.6 Sol (one implementation owner; PR #79)
-Status: RELEASE_VALIDATION — PR #79 candidate; source/package/installed green, final documentation CI/merge/main gates pending
+Status: COMPLETE / RELEASED — v0.6.0 published from verified `main` release target `c870525`; continuity closeout in progress
 Depends on: v0.5.0 UI baseline; WO-P1-061/062 capabilities already present on `main`
 
 ## Goal
@@ -120,8 +120,8 @@ Preserve and test:
 - [x] Realistic E2E passes on source build.
 - [x] Packaging includes the logo/GPU requirements and build succeeds.
 - [x] Fresh installed/relaunched app is visually checked.
-- [ ] PR CI is green before merge.
-- [ ] Main is fetched after merge and continuity files say DONE with evidence.
+- [x] PR CI is green before merge.
+- [x] Main is fetched after merge and continuity files say DONE with evidence.
 
 ## Known environment caveats
 
@@ -184,4 +184,22 @@ Implementation checkpoint committed as `c42d174` (`feat(ui): build terminal comm
 - installed visual acceptance directly compared the real 1096×719 window with the user-reconfirmed wide near-black reference: detailed Sunday Family portrait visible, terminal hierarchy/density retained, Add Brain/Guide/Settings reachable, English actions preserved, and real CPU/RAM/uptime populated;
 - all five live connectors remained `STOPPED`; installed sandbox actions used only the temporary Sunday-Worker-Test instance.
 
-Remaining gates: commit this release evidence, require the resulting PR checks green, mark PR #79 ready, final diff review/merge, fetch merged `main`, rebuild/reinstall from `main`, repeat installed acceptance, and publish the final COMPLETE continuity checkpoint.
+Remaining gates from that historical checkpoint are now complete.
+
+## Checkpoint — 2026-08-26 / v0.6.0 RELEASED
+
+Final release integration is complete and evidence-backed:
+- Graph Engineering decisions D1-D5 were accepted via PR #86 (`fc9250a` merge); WO-GE-001 is GO for GE-1a only, with no scheduler implementation authorized yet.
+- Windows PowerShell BOM/path reliability and test-process isolation shipped via PR #85 (`f1bf160`).
+- GPU/Tk repaint isolation shipped via corrective PR #87 (`7c0c63a`) after the original tests-only salvage proved the production unbind fix was absent from `main`; real workstation GPU verification = **19/19 passed**.
+- v0.6.0 changelog finalization shipped via PR #88; verified release target/final implementation `main` = `c8705257344ab6b2890e198074118f028cefdbcf`.
+- Final-main CI run `32902558101` passed Windows full tests, Portable+Setup build, archive verification, frozen smoke, and Ubuntu/macOS smoke.
+- Release-triggered SignPath workflow run `32904214805` completed successfully; the signing step correctly no-op'd because `SIGNPATH_API_TOKEN` is not configured.
+- Clean release artifacts were taken from that exact GitHub Actions run, not the locally ESET-affected audit build:
+  - `A-Sunday.Conductor.exe`: 24,872,490 bytes; SHA-256 `9432D96E867C486D012AA797C3D764103AABEAA97D8F2C068FAD9D84BAD3AC87`.
+  - `A-Sunday-Conductor-Setup.exe`: 32,653,155 bytes; SHA-256 `DF9C61214C235C6386761F177E0F7154885B3DB6614B0B890948B8685163F261`.
+  - GitHub Actions artifact ZIP digest: SHA-256 `6f06f82044626cc29c9282f1e9a36ee035938ac37a2cca84e9165a8d8df02f49`.
+- ESET temporarily locked fresh local PE files during audit/upload; bounded retry was sufficient. Antivirus was not disabled and no product behavior was changed for that host race.
+- GitHub Release **v0.6.0** published 2026-08-26 (Thailand date) at `https://github.com/aase7en/A-Wiki-Conductor/releases/tag/v0.6.0`, targeting `c8705257344ab6b2890e198074118f028cefdbcf` with exactly six release assets (Portable, Setup, CHANGELOG, notices, Thai guide, English guide).
+
+WO-P1-063 is therefore **COMPLETE / RELEASED**. Future Graph Engineering work resumes under WO-GE-001, beginning with GE-1a only.
