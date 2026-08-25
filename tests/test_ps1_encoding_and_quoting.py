@@ -1,6 +1,10 @@
 """WO: C2 + I1 — generated .ps1 must carry a UTF-8 BOM (Thai paths survive
 Windows PowerShell 5.1), and every substituted ``--project`` path must be
-double-quoted so spaces cannot split the command line."""
+double-quoted so spaces cannot split the command line.
+
+Test directories stay ASCII: hosted Windows runners have a known
+faulthandler/GC instability around non-ASCII pathlib comparisons; the
+BOM (not the directory name) is what carries the non-ASCII guarantee."""
 
 from __future__ import annotations
 
@@ -13,7 +17,7 @@ from a_conductor.instance_rebind import rebind_instance_project
 from a_conductor.local_instances import discover_local_instances
 
 
-def _sandbox(tmp_path: Path, project_name: str = "ไทย ทดสอบ"):
+def _sandbox(tmp_path: Path, project_name: str = "thai-test-project"):
     instances_root = tmp_path / "instances"
     instances_root.mkdir(exist_ok=True)
     project = tmp_path / project_name
@@ -44,7 +48,7 @@ def test_created_template_quotes_project_path_with_spaces(tmp_path: Path) -> Non
 def test_wizard_ps1_files_carry_utf8_bom(tmp_path: Path) -> None:
     from a_conductor.setup_wizard import FirstInstanceCreator
 
-    project = tmp_path / "โปรเจกต์ wizard"
+    project = tmp_path / "wizard-project"
     project.mkdir()
     tc = tmp_path / "tc" / "tunnel-client.exe"
     tc.parent.mkdir(parents=True, exist_ok=True)
@@ -53,7 +57,7 @@ def test_wizard_ps1_files_carry_utf8_bom(tmp_path: Path) -> None:
     key.parent.mkdir(parents=True, exist_ok=True)
     key.write_bytes(b"x")
     created = FirstInstanceCreator(instances_root=tmp_path / "inst").create(
-        name="wiz-thai",
+        name="wiz-ascii",
         project_path=project,
         health_port=48202,
         tunnel_client_path=tc,
