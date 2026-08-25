@@ -1065,22 +1065,31 @@ class AConductorDesktopApp:
         self._body_pane.add(project_panel, weight=0)
         project_panel.grid_rowconfigure(1, weight=1)
         project_panel.grid_columnconfigure(0, weight=1)
-        self.project_list = tk.Listbox(
+        project_columns = ("project", "edit")
+        # Treeview (not Listbox) so every row can carry an inline Edit
+        # action cell and an empty table can show a "+ Add Project" row.
+        self.project_list = ttk.Treeview(
             project_panel,
-            bg=self.theme.panel,
-            fg=self.theme.foreground,
-            selectbackground=self.theme.selection,
-            selectforeground=self.theme.foreground,
-            borderwidth=0,
-            highlightthickness=0,
-            activestyle="none",
-            exportselection=False,
-            font=(self.theme.monospace_font, self.theme.base_font_size),
+            columns=project_columns,
+            show="headings",
+            selectmode="browse",
+            style="Workers.Treeview",
+            height=4,
         )
-        project_scroll = ttk.Scrollbar(project_panel, orient="vertical", command=self.project_list.yview)
+        self.project_list.heading("project", text="PROJECT", anchor="w")
+        # Small base widths keep the sidebar's requested width near the old
+        # Listbox footprint; stretch=True lets the column fill the pane.
+        self.project_list.column("project", width=100, minwidth=80, anchor="w", stretch=True)
+        self.project_list.heading("edit", text="EDIT", anchor="w")
+        self.project_list.column("edit", width=44, minwidth=40, anchor="w", stretch=False)
+        self._project_edit_column = f"#{len(project_columns)}"
+        project_scroll = ttk.Scrollbar(
+            project_panel, orient="vertical", command=self.project_list.yview
+        )
         self.project_list.configure(yscrollcommand=project_scroll.set)
         self.project_list.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 4))
         project_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 4))
+        self.project_list.tag_configure("row-add", foreground=self.theme.accent)
 
         self.memory_status_label = tk.Label(
             project_panel,
@@ -1101,7 +1110,10 @@ class AConductorDesktopApp:
             self.theme,
         )
         self.project_list.bind(
-            "<<ListboxSelect>>", lambda _event: self._refresh_memory_status()
+            "<<TreeviewSelect>>", lambda _event: self._refresh_memory_status()
+        )
+        self.project_list.bind(
+            "<Button-1>", self._on_project_tree_click, add=True
         )
 
         right_stack = tk.Frame(self._body_pane, bg=self.theme.background)
@@ -1194,7 +1206,7 @@ class AConductorDesktopApp:
         worker_panel.grid(row=1, column=0, sticky="nsew", padx=(4, 0))
         worker_panel.grid_rowconfigure(1, weight=1)
         worker_panel.grid_columnconfigure(0, weight=1)
-        columns = ("worker", "state", "project", "path", "connector")
+        columns = ("worker", "state", "project", "path", "connector", "edit")
         self.worker_tree = ttk.Treeview(
             worker_panel,
             columns=columns,
@@ -1207,15 +1219,17 @@ class AConductorDesktopApp:
             height=1,
         )
         headings = {
-            "worker": ("WORKER", 120),
-            "state": ("STATE", 90),
-            "project": ("PROJECT", 170),
-            "path": ("PATH", 260),
-            "connector": ("CONNECTOR (?)", 150),
+            "worker": ("WORKER", 110),
+            "state": ("STATE", 85),
+            "project": ("PROJECT", 155),
+            "path": ("PATH", 235),
+            "connector": ("CONNECTOR (?)", 140),
+            "edit": ("EDIT", 48),
         }
         for name, (label, width) in headings.items():
             self.worker_tree.heading(name, text=label, anchor="w")
-            self.worker_tree.column(name, width=width, minwidth=80, anchor="w")
+            self.worker_tree.column(name, width=width, minwidth=48, anchor="w")
+        self._worker_edit_column = f"#{len(columns)}"
         worker_scroll = ttk.Scrollbar(worker_panel, orient="vertical", command=self.worker_tree.yview)
         self.worker_tree.configure(yscrollcommand=worker_scroll.set)
         self.worker_tree.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 2))
@@ -1230,6 +1244,8 @@ class AConductorDesktopApp:
         self.worker_tree.tag_configure("warning", foreground=self.theme.warning)
         self.worker_tree.tag_configure("error", foreground=self.theme.error)
         self.worker_tree.tag_configure("idle", foreground=self.theme.idle)
+        self.worker_tree.tag_configure("row-add", foreground=self.theme.accent)
+        self.worker_tree.bind("<Button-1>", self._on_worker_tree_click, add=True)
         self._attach_row_path_tip(
             self.worker_tree, column=3, label=lambda: tr("menu.copy.path")
         )
@@ -1263,7 +1279,7 @@ class AConductorDesktopApp:
         self._main_pane.add(instances_panel, weight=1)
         instances_panel.grid_columnconfigure(0, weight=1)
         instances_panel.grid_rowconfigure(1, weight=1)
-        instance_columns = ("name", "port", "state", "project", "tunnel", "auto")
+        instance_columns = ("name", "port", "state", "project", "tunnel", "auto", "edit")
         self.instance_tree = ttk.Treeview(
             instances_panel,
             columns=instance_columns,
@@ -1273,16 +1289,20 @@ class AConductorDesktopApp:
             height=1,
         )
         instance_headings = {
-            "name": ("INSTANCE", 150),
-            "port": ("PORT", 80),
-            "state": ("STATE", 80),
-            "project": ("PROJECT", 280),
-            "tunnel": ("TUNNEL", 70),
-            "auto": ("AUTO", 60),
+            "name": ("INSTANCE", 140),
+            "port": ("PORT", 75),
+            "state": ("STATE", 75),
+            "project": ("PROJECT", 250),
+            "tunnel": ("TUNNEL", 65),
+            "auto": ("AUTO", 55),
+            "edit": ("EDIT", 48),
         }
         for name, (label, width) in instance_headings.items():
             self.instance_tree.heading(name, text=label, anchor="w")
-            self.instance_tree.column(name, width=width, minwidth=50, anchor="w")
+            self.instance_tree.column(name, width=width, minwidth=48, anchor="w")
+        self._instance_edit_column = f"#{len(instance_columns)}"
+        self.instance_tree.tag_configure("row-add", foreground=self.theme.accent)
+        self.instance_tree.bind("<Button-1>", self._on_instance_tree_click, add=True)
         self.instance_tree.grid(row=1, column=0, sticky="nsew", padx=9, pady=(0, 1))
         self.instance_xscroll = ttk.Scrollbar(
             instances_panel, orient="horizontal", command=self.instance_tree.xview
@@ -1839,16 +1859,32 @@ class AConductorDesktopApp:
         self._render_header_runtime_status()
 
         selected_project = self.selected_project_id()
-        self.project_list.delete(0, "end")
+        for item in self.project_list.get_children():
+            self.project_list.delete(item)
         self._project_ids.clear()
         self._project_paths.clear()
         for project in snapshot.projects:
             self._project_ids.append(project.project_id)
             self._project_paths[project.project_id] = project.root_path
-            self.project_list.insert("end", f"> {project.display_name}\n  {project.root_path}")
-        if selected_project in self._project_ids:
-            index = self._project_ids.index(selected_project)
-            self.project_list.selection_set(index)
+            self.project_list.insert(
+                "",
+                "end",
+                iid=project.project_id,
+                values=(
+                    f"> {project.display_name}\n  {project.root_path}",
+                    "Edit",
+                ),
+            )
+        if not self.project_list.get_children():
+            self.project_list.insert(
+                "",
+                "end",
+                iid="__add_project__",
+                values=("+ Add Project", ""),
+                tags=("row-add",),
+            )
+        elif selected_project in self._project_ids:
+            self.project_list.selection_set(selected_project)
 
         selected_worker = self.selected_worker_id()
         for item in self.worker_tree.get_children():
@@ -1886,6 +1922,7 @@ class AConductorDesktopApp:
                     project_name,
                     project_path,
                     connector,
+                    "Edit",
                 ),
                 tags=(self._state_tag(worker.state),),
             )
@@ -1893,6 +1930,14 @@ class AConductorDesktopApp:
             if selected_worker == worker.worker_id:
                 self.worker_tree.selection_set(item)
                 self.worker_tree.focus(item)
+        if not self.worker_tree.get_children():
+            self.worker_tree.insert(
+                "",
+                "end",
+                iid="__add_worker__",
+                values=("+ Add Worker", "", "", "", "", ""),
+                tags=("row-add",),
+            )
         self._update_lifecycle_buttons()
         self._refresh_memory_status()
 
@@ -1930,11 +1975,11 @@ class AConductorDesktopApp:
             )
 
     def selected_project_id(self) -> str | None:
-        selected = self.project_list.curselection()
-        if not selected:
+        selection = self.project_list.selection()
+        if not selection:
             return None
-        index = int(selected[0])
-        return self._project_ids[index] if index < len(self._project_ids) else None
+        project_id = selection[0]
+        return project_id if project_id in self._project_ids else None
 
     def copy_activation_prompt(self) -> str | None:
         project_id = self.selected_project_id()
@@ -3865,11 +3910,20 @@ class AConductorDesktopApp:
                     instance.project_path,
                     "Y" if instance.tunnel_configured else "-",
                     "ON" if auto else "-",
+                    "Edit",
                 ),
                 tags=(tag,),
             )
             self._instance_rows[instance.name] = item
             self._monitor_instances[instance.name] = instance
+        if not self.instance_tree.get_children():
+            self.instance_tree.insert(
+                "",
+                "end",
+                iid="__add_instance__",
+                values=("+ Add Connector", "", "", "", "", "", ""),
+                tags=("row-add",),
+            )
         for button in (
             self.instance_start_button,
             self.instance_stop_button,
@@ -3892,6 +3946,219 @@ class AConductorDesktopApp:
             if item == selection[0]:
                 return name
         return None
+
+    def _handle_inline_click(self, tree, row, column, edit_column, on_edit, on_add):
+        """Route a row click to inline actions.
+
+        ``+ Add ...`` synthetic rows open the matching add dialog from any
+        column; data rows open the row editor only from the trailing EDIT
+        column. Returns "break" when the default selection handling should
+        be suppressed, otherwise None so Tk behavior continues untouched.
+        """
+        if not row:
+            return None
+        tags = tree.item(row, "tags") or ()
+        if row.startswith("__add_") or "row-add" in tags:
+            on_add()
+            return "break"
+        if column == edit_column:
+            tree.selection_set(row)
+            tree.focus(row)
+            on_edit()
+            return "break"
+        return None
+
+    def _on_worker_tree_click(self, event):
+        tree = self.worker_tree
+        if tree.identify_region(event.x, event.y) not in ("cell", "tree"):
+            return None
+        return self._handle_inline_click(
+            tree,
+            tree.identify_row(event.y),
+            tree.identify_column(event.x),
+            self._worker_edit_column,
+            self.open_rename_worker_dialog,
+            self.open_add_worker_dialog,
+        )
+
+    def _on_instance_tree_click(self, event):
+        tree = self.instance_tree
+        if tree.identify_region(event.x, event.y) not in ("cell", "tree"):
+            return None
+        return self._handle_inline_click(
+            tree,
+            tree.identify_row(event.y),
+            tree.identify_column(event.x),
+            self._instance_edit_column,
+            self.open_edit_instance_dialog,
+            self.open_add_instance_dialog,
+        )
+
+    def _on_project_tree_click(self, event):
+        tree = self.project_list
+        if tree.identify_region(event.x, event.y) not in ("cell", "tree"):
+            return None
+        return self._handle_inline_click(
+            tree,
+            tree.identify_row(event.y),
+            tree.identify_column(event.x),
+            self._project_edit_column,
+            self.assign_selected,
+            self.add_project,
+        )
+
+    def open_edit_instance_dialog(self) -> tk.Toplevel | None:
+        """Unified connector editor: alias, Tunnel ID, and project path."""
+        name = self._selected_instance_name()
+        if name is None:
+            self._handle_error("SELECT_INSTANCE")
+            return None
+        aliases = {}
+        loader = getattr(self.service, "instance_aliases", None)
+        if callable(loader):
+            try:
+                aliases = loader() or {}
+            except Exception:
+                aliases = {}
+        current_alias = aliases.get(name, name)
+        instance = self._monitor_instances.get(name)
+        current_project = getattr(instance, "project_path", "") or ""
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f'{APP_NAME} — {tr("dlg.edit.connector.title")} — {name}')
+        dialog.configure(bg=self.theme.panel)
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        frame = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=14)
+        frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            frame,
+            text=f'> {tr("dlg.edit.connector.header")}  {name}',
+            bg=self.theme.panel,
+            fg=self.theme.accent,
+            font=(self.theme.monospace_font, 10, "bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+
+        tk.Label(
+            frame,
+            text=tr("dlg.rename.worker.name").replace("WORKERS", "CONNECTORS"),
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        ).grid(row=1, column=0, columnspan=2, sticky="w")
+        self._edit_name_entry = ttk.Entry(frame, font=(self.theme.monospace_font, 10))
+        self._edit_name_entry.insert(0, current_alias)
+        self._edit_name_entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 8))
+
+        tk.Label(
+            frame,
+            text=tr("dlg.edit.connector.tunnel"),
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+            justify="left",
+        ).grid(row=3, column=0, columnspan=2, sticky="w")
+        self._tunnel_entry = ttk.Entry(frame, width=52)
+        self._tunnel_entry.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 2))
+        self._tunnel_status = tk.Label(
+            frame,
+            text="",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+        )
+        self._tunnel_status.grid(row=5, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        self._tunnel_entry.bind("<KeyRelease>", lambda _e: self._validate_tunnel_entry())
+
+        tk.Label(
+            frame,
+            text=tr("dlg.edit.connector.project"),
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 9),
+            justify="left",
+        ).grid(row=6, column=0, columnspan=2, sticky="w")
+        self._edit_project_entry = ttk.Entry(frame, width=64)
+        self._edit_project_entry.insert(0, current_project)
+        self._edit_project_entry.grid(row=7, column=0, sticky="ew", pady=(4, 2))
+        self._button(
+            frame,
+            "เลือกโฟลเดอร์...",
+            lambda: self._edit_project_entry.insert(0, self._directory_picker()),
+        ).grid(row=7, column=1, sticky="w", padx=(6, 0))
+
+        def save() -> None:
+            # DEFECT_LESSONS #2: read every widget value before destroy().
+            new_alias = self._edit_name_entry.get().strip()
+            tunnel = self._tunnel_entry.get().strip()
+            new_project = self._edit_project_entry.get().strip()
+            if not new_alias:
+                self._handle_error("INSTANCE_FIELDS_REQUIRED")
+                return
+            if dialog.winfo_exists():
+                dialog.destroy()
+            self._save_edit_instance_dialog_values(
+                name, current_alias, current_project, new_alias, tunnel, new_project
+            )
+
+        self._button(frame, "บันทึก", save).grid(row=8, column=0, sticky="w", pady=(12, 0))
+        self._button(
+            frame, "ยกเลิก", lambda: dialog.destroy() if dialog.winfo_exists() else None
+        ).grid(row=8, column=1, sticky="w", pady=(12, 0))
+        self._edit_name_entry.focus_set()
+        return dialog
+
+    def _save_edit_instance_dialog_values(
+        self,
+        name: str,
+        current_alias: str,
+        current_project: str,
+        new_alias: str,
+        tunnel: str,
+        new_project: str,
+    ) -> None:
+        """Apply only the changed fields, in a safe order, then refresh."""
+        changed = False
+        if tunnel:
+            writer = getattr(self.service, "set_instance_tunnel_id", None)
+            if not callable(writer):
+                self._handle_error("TUNNEL_SETUP_NOT_AVAILABLE")
+                return
+            try:
+                writer(name, tunnel)
+            except Exception:
+                self._handle_error("TUNNEL_ID_INVALID")
+                return
+            self.log_activity(f"Tunnel       {name} ID SAVED")
+            changed = True
+        if new_project and new_project != current_project:
+            rebind_fn = getattr(self.service, "rebind_instance", None)
+            if callable(rebind_fn):
+                try:
+                    result = rebind_fn(name, new_project)
+                except Exception:
+                    self._handle_error("REBIND_FAILED")
+                    return
+                if result == "REBOUND":
+                    self.log_activity(
+                        f"Rebind       {name} -> {new_project} (restart ตัวเชื่อมเพื่อให้มีผล)"
+                    )
+                    changed = True
+        if new_alias != current_alias:
+            rename_fn = getattr(self.service, "rename_instance", None)
+            if not callable(rename_fn):
+                self._handle_error("INSTANCE_RENAME_NOT_AVAILABLE")
+                return
+            try:
+                display = rename_fn(name, new_alias)
+            except Exception as exc:
+                self._handle_error(getattr(exc, "code", "INSTANCE_RENAME_FAILED"))
+                return
+            self.log_activity(f"Rename       {name} -> {display}")
+            changed = True
+        if changed:
+            self.refresh_instances()
 
     def _submit_instance_action(self, action: str, name: str) -> None:
         self.log_activity(f"{action:<12} {name} QUEUED")

@@ -95,6 +95,16 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "dlg.rename.connector.title": {"th": "แก้ชื่อตัวเชื่อม", "en": "Rename connector"},
     "dlg.rename.header": {"th": "แก้ชื่อ", "en": "Rename"},
+    "dlg.edit.connector.title": {"th": "แก้ไขตัวเชื่อม", "en": "Edit connector"},
+    "dlg.edit.connector.header": {"th": "แก้ไขตัวเชื่อม", "en": "Edit connector"},
+    "dlg.edit.connector.tunnel": {
+        "th": "Tunnel ID (ถ้าไม่เปลี่ยน ปล่อยว่างไว้ — ขึ้นต้นด้วย tunnel_ ตามด้วย 32 ตัวอักษร)",
+        "en": "Tunnel ID (leave blank to keep the current one — starts with tunnel_ plus 32 chars)",
+    },
+    "dlg.edit.connector.project": {
+        "th": "พาธโปรเจกต์ (เปลี่ยนแล้วมีผลหลัง restart ตัวเชื่อม)",
+        "en": "Project path (applies after the connector restarts)",
+    },
     "btn.close": {"th": "ปิด", "en": "Close"},
     "prefs.shutdown": {
         "th": "ปิดโปรแกรมแล้วหยุดทุกตัวเชื่อม (เครียร์เครื่อง)",
