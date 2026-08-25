@@ -744,6 +744,9 @@ class AConductorDesktopApp:
         self._status_pulse_after_id = None
         self._monitor_tick_after_id = None
         self._monitor_poll_after_id = None
+        self._instance_refresh_after_id = None
+        self._instance_states_active = False
+        self._rescan_summary_pending = False
         self._monitor_future: Future | None = None
         self._monitor_refresh_pending = False
         self._pane_layout_after_id = None
@@ -1598,13 +1601,30 @@ class AConductorDesktopApp:
     def _stop_instance_monitor(self) -> None:
         self._cancel_after(self._monitor_tick_after_id)
         self._cancel_after(self._monitor_poll_after_id)
+        self._cancel_after(self._instance_refresh_after_id)
         self._monitor_tick_after_id = None
         self._monitor_poll_after_id = None
+        self._instance_refresh_after_id = None
         self._monitor_refresh_pending = False
         future = self._monitor_future
         self._monitor_future = None
         if future is not None and not future.done():
             future.cancel()
+
+    def _instance_refresh_tick(self) -> None:
+        """Live connectors-state refresh (15s), mirroring the monitor tick.
+
+        Before WO-P1-068 the CONNECTORS table only updated on Rescan, so
+        sessions killed earlier (e.g. by close-time stop-all) kept showing
+        READY until the operator manually rescanned."""
+        self._cancel_after(self._instance_refresh_after_id)
+        self._instance_refresh_after_id = None
+        if self._closing or not self._has_instance_service():
+            return
+        self.refresh_instances()
+        self._instance_refresh_after_id = self._schedule_after(
+            15000, self._instance_refresh_tick
+        )
 
     def _panel(self, parent, title: str) -> tk.Frame:
         frame = tk.Frame(
@@ -2574,6 +2594,21 @@ class AConductorDesktopApp:
             except Exception:
                 stop_all = True
         stopped: list[tuple[str, bool]] = []
+        if stop_all:
+            # WO-P1-068: never silently kill live chat sessions. Confirm
+            # from the last known connector counts (READY per latest poll).
+            running = self._connector_counts[0] if self._connector_counts else 0
+            if running > 0:
+                ok = self._confirm(
+                    f"จะหยุดตัวเชื่อมที่กำลังรัน {running} ตัว\n"
+                    "แชทที่กำลังใช้อยู่ (เช่น ChatGPT plugin) จะถูกตัดการเชื่อมต่อ\n\n"
+                    "หยุดเลย หรือ ปิดโปรแกรมโดยไม่หยุด?"
+                )
+                if not ok:
+                    self.log_activity(
+                        f"Closing       skipped stop-all ({running} RUNNING kept alive)"
+                    )
+                    stop_all = False
         if stop_all:
             try:
                 self.log_activity("Closing       stopping all connectors ...")
@@ -3845,6 +3880,7 @@ class AConductorDesktopApp:
         except Exception:
             pass
         self._monitor_tick()
+        self._instance_refresh_tick()
         self._autostart_flagged_instances()
 
     def _has_instance_service(self) -> bool:
@@ -3872,6 +3908,10 @@ class AConductorDesktopApp:
             ):
                 self._set_enabled(button, False)
             return
+        # Single-flight: the 15s live tick must not stack state refreshes.
+        if self._instance_states_active:
+            return
+        self._instance_states_active = True
         future = self._background_executor.submit(self._instance_states_with_cancel)
         self._schedule_after(0, self._poll_instance_states, future)
 
@@ -3899,6 +3939,8 @@ class AConductorDesktopApp:
         try:
             states = future.result()
         except Exception:
+            self._instance_states_active = False
+            self._rescan_summary_pending = False
             self._handle_error("INSTANCE_REFRESH_FAILED")
             return
         self.instance_tree.delete(*self.instance_tree.get_children())
@@ -3923,6 +3965,13 @@ class AConductorDesktopApp:
                 InstanceHealthState.READY.value: "ready",
                 InstanceHealthState.STOPPED.value: "idle",
             }.get(state.value, "warning")
+            tunnel_cell = "-"
+            if instance.tunnel_configured:
+                tunnel_cell = (
+                    f"...{instance.tunnel_suffix}"
+                    if getattr(instance, "tunnel_suffix", "")
+                    else "Y"
+                )
             item = self.instance_tree.insert(
                 "",
                 "end",
@@ -3931,7 +3980,7 @@ class AConductorDesktopApp:
                     instance.health_address.split(":")[-1],
                     state.value,
                     instance.project_path,
-                    "Y" if instance.tunnel_configured else "-",
+                    tunnel_cell,
                     "ON" if auto else "-",
                     "Edit",
                 ),
@@ -3960,6 +4009,14 @@ class AConductorDesktopApp:
         self.overview_connectors_value.configure(text=f"{ready_connectors} / {len(states)}")
         self._render_header_runtime_status()
         self._set_enabled(self.brain_button, self._has_settings_service())
+        self._instance_states_active = False
+        if self._rescan_summary_pending:
+            self._rescan_summary_pending = False
+            stopped = len(states) - ready_connectors
+            self.log_activity(
+                f"RESCAN       พบ {len(states)} ตัวเชื่อม: "
+                f"{ready_connectors} READY, {stopped} STOPPED"
+            )
 
     def _selected_instance_name(self) -> str | None:
         selection = self.instance_tree.selection()
@@ -4084,13 +4141,19 @@ class AConductorDesktopApp:
         ).grid(row=3, column=0, columnspan=2, sticky="w")
         self._tunnel_entry = ttk.Entry(frame, width=52)
         self._tunnel_entry.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 2))
+        tunnel_now = getattr(instance, "tunnel_suffix", "")
+        tunnel_hint = (
+            f"ปัจจุบัน: ...{tunnel_now}" if tunnel_now else "ปัจจุบัน: ยังไม่ตั้ง Tunnel ID"
+        )
         self._tunnel_status = tk.Label(
             frame,
-            text="",
+            text=tunnel_hint,
             bg=self.theme.panel,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 9),
         )
+        # Masked-current alias: tests (and future callers) read the hint here.
+        self._edit_tunnel_current = self._tunnel_status
         self._tunnel_status.grid(row=5, column=0, columnspan=2, sticky="w", pady=(0, 8))
         self._tunnel_entry.bind("<KeyRelease>", lambda _e: self._validate_tunnel_entry())
 
@@ -4289,6 +4352,9 @@ class AConductorDesktopApp:
 
     def rescan_instances(self) -> None:
         self.log_activity("RESCAN       instances")
+        # WO-P1-068: the poll logs a found/READY/STOPPED summary when it
+        # lands, so the button never looks like it silently did something.
+        self._rescan_summary_pending = True
         self.refresh_instances()
 
     def add_instance(self, name: str, project_path: str, tunnel_id: str | None = None) -> None:
