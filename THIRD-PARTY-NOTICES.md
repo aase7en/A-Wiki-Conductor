@@ -35,3 +35,31 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Libraries bundled inside the executables
+
+The frozen Portable/Setup builds additionally embed these Python packages:
+
+### Pillow — image processing (logo/portrait assets)
+
+- Project: https://github.com/python-pillow/Pillow
+- License: HPND / MIT-CMU (full text: https://raw.githubusercontent.com/python-pillow/Pillow/main/LICENSE)
+- Role: loading and resizing the Sunday Family portrait and QR images.
+
+### ModernGL — OpenGL wrapper (optional GPU logo renderer)
+
+- Project: https://github.com/moderngl/moderngl
+- License: MIT (full text: https://raw.githubusercontent.com/moderngl/moderngl/master/LICENSE)
+- Role: GPU particle rendering for the header portrait; automatic Canvas fallback when unavailable.
+
+### pyopengltk + PyOpenGL — Tk/OpenGL bridge
+
+- Projects: https://github.com/jonwright/opengltk · https://github.com/mcfletch/pyopengl
+- Licenses: MIT (opengltk) · MIT (PyOpenGL)
+- Role: hosting the OpenGL logo inside the Tk window (Windows).
+
+### PyInstaller — build tooling (not embedded at runtime)
+
+- Project: https://github.com/pyinstaller/pyinstaller
+- License: GPL with bootloader exception (full text: https://raw.githubusercontent.com/pyinstaller/pyinstaller/develop/COPYING.txt)
+- Role: builds the Windows executables; not distributed inside them beyond its bootloader, per the exception.

@@ -1,20 +1,20 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-25 (Codex / GPT-5.6 Sol, WO-P1-063 installed release candidate)
+Last updated: 2026-08-25 (GLM 5.3, full-loop session end)
 
 ## Current objective
 
-Finish WO-P1-063 through final documentation CI, ready review, merge, fetch/rebuild/reinstall from main, repeated installed visual/interaction E2E, and final SSoT COMPLETE. Visual authority remains `DESIGN.md`; the user reconfirmed its wide near-black command-center reference on 2026-08-25.
+Land the remaining CI-green PRs (#82 brain warning, #83 GE ADR drafts, this docs sync), then hand integration authority to GPT-5.6 Sol MAX: GE fan-in decisions (D1-D5 in WO-GE-001), GPU-unbind test salvage from `fix/gpu-context-ui-repaint`, and the v0.6.0 GitHub release publication. GLM resumes bounded implementation (GE-1a onward, C2/I1 fixes) only after those decisions.
 
 ## Repository / PR identity
 
 - repository: `aase7en/A-Wiki-Conductor`
-- active branch: `fix/terminal-command-center-completion`
-- installed-candidate implementation HEAD: `e3d4babb78859b9d5e218354b0ea0b5d14129484`
-- base `origin/main`: `9782f933426bbd5970e9e571545da89402c6a9ed`
-- active Draft PR: **#79 — fix(ui): complete Sunday Family command center release**
-- PR #77 is historical: GitHub marked it merged indirectly through PR #78 while it was still Draft and had no reviews. Do not resume or recreate its implementation.
-- one implementation owner: Codex / GPT-5.6 Sol under WO-P1-063. GLM or another agent may review or take only a separately claimed disjoint task.
+- `origin/main`: `f4ecf9a` (= PR #80 merge; contains #79 `acd77b4` → #81 `d20cb70` → #80). **Main worktree CLEAN and current** (reconciled 2026-08-25; the old 29-file superseded dirty set was restored away under byte-subsumption evidence).
+- open PRs (GLM): **#82** `fix/brain-restart-note` (brain activation warning + WO-P1-067), **#83** `docs/ge-contracts-drafts` (PROPOSED ADRs GE-0001..0005 + WO-GE-001 roadmap), docs/repo-health sync PR.
+- dormant branch: `fix/gpu-context-ui-repaint` @ `ffff853` (GPT's, pushed, no PR — core fix superseded by main `12ce7ba`; +192 unbind regression-test lines unique → salvage pending GPT).
+- branch hygiene done: 37 dead branches deleted (contained-in-main guardrail); local main + PR branches only.
+- Brain (WO-P1-067): brain saved in DB but 0/5 running connectors materialized it (Start-only injection) → user must Stop→Start connectors to activate; PR #82 adds the warning.
+- environment: ESET fresh-PE locks (90 s retry pattern); never bind tests to ports 18011-18015; A-Wiki brain HOLD phases 8-11 in force.
 
 ## Verified source state
 

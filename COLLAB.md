@@ -34,7 +34,10 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-063` | Codex / GPT-5.6 Sol | 2026-08-25 | PR #79 forward-only completion: UI/GPU/fallback/metrics, Windows packaging/CI, regression tests, install verification, and WO/CURRENT-WORK/handoff/DESIGN/DEFECT_LESSONS release evidence. One intent owner; GLM may review or take only a separately claimed disjoint task. |
+| `WO-P1-063` | Codex / GPT-5.6 Sol | 2026-08-25 | **RELEASED to main via PR #79 (`acd77b4`)** — remaining owner items: GPU-unbind test salvage from `fix/gpu-context-ui-repaint` (+192 unique test lines), publish the v0.6.0 GitHub release, installed-acceptance recheck. |
+| `WO-GE-001` (fan-in decisions only) | GPT-5.6 Sol MAX | 2026-08-25 | Review PROPOSED ADRs GE-0001..0005 in PR #83, answer D1-D5 — no file writes until decisions land. |
+| `docs/repo-health-sync` | GLM 5.3 | 2026-08-25 | README/CHANGELOG/PRIVACY/THIRD-PARTY-NOTICES/INSTALL + CURRENT-WORK/handoff/COLLAB/AGENT_TASKS reconciliation (this PR). |
+| `fix/brain-restart-note` (PR #82) | GLM 5.3 | 2026-08-25 | desktop_ui.py brain-save status text, tests/test_desktop_ui.py, WO-P1-067. |
 
 > Git remote `origin` = `https://github.com/aase7en/A-Wiki-Conductor.git` (public since 2026-08-22 by explicit user decision — originally created private 2026-08-20). Pull/reconcile before commit/push; record branch/HEAD in checkpoints.
 

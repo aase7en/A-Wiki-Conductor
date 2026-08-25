@@ -6,12 +6,15 @@
 ## ปัจจุบัน (2026-08-25)
 
 ### GPT-5.6 Sol (SunDay-Worker 1)
-**สถานะ: 🟢 กำลังทำงาน**
+**สถานะ: 🟠 ติด Weekly limit (2026-08-25) — คิวรอกลับมา**
 
 | Task | Branch | ไฟล์ | Status |
 |---|---|---|---|
-| WO-P1-063: UI Redesign | `feat/terminal-command-center-redesign` | desktop_ui.py, system_metrics.py, gpu_particle_logo.py | 🔄 In progress |
-| Build Pipeline v0.6.0 | (รอ claim ใน COLLAB.md) | build_portable.py, build_installer.py, installer_main.py, ci.yml | 🔄 Starting |
+| WO-P1-063: UI Redesign (PR #79) | `fix/terminal-command-center-completion` | desktop_ui.py, system_metrics.py, gpu_particle_logo.py | ✅ Merged `acd77b4` |
+| Build Pipeline v0.6.0 | — | build_*.py, installer_main.py, ci.yml | ✅ ตก main ผ่าน PR #79 (CI build+archive+frozen-smoke เขียว) |
+| GPU-unbind tests salvage | `fix/gpu-context-ui-repaint` (`ffff853`, ยังไม่มี PR) | tests/test_gpu_particle_logo.py (+192 บรรทัด unique) | ⏳ รอ GPT: core fix ถูกแทนด้วย `12ce7ba` แล้ว เหลือแค่ tests — เปิด PR กู้ได้เลย |
+| v0.6.0 GitHub Release publish | — | — | ⏳ รอ GPT (code ครบที่ main `f4ecf9a` แล้ว) |
+| GE fan-in (WO-GE-001) | PR #83 `docs/ge-contracts-drafts` | docs/adr/GE-0001..0005 | ⏳ ตัดสิน D1-D5 → แล้ว GLM เริ่ม GE-1a |
 
 ### GLM 5.3 Max (ZCode session)
 **สถานะ: 🟢 กำลังทำงาน**
@@ -19,9 +22,12 @@
 | Task | Branch | ไฟล์ | Status |
 |---|---|---|---|
 | Agent Collaboration System | `docs/agent-collab-system` | docs/agent-collab/ (ทั้งหมด) | ✅ Done |
-| Documentation updates | — | README, CHANGELOG (ถ้าไม่ชน GPT) | ⏳ Pending |
-| WO-P1-065: Donate QR asset | `assets/donate-promptpay-qr` (จาก `acd77b4`) | assets/donate-promptpay-qr.png + WO นี้ | ✅ Done (user อนุมัติแทน GPT ตอน weekly limit) — **ไม่ทับ branch ของ GPT** ไฟล์โค้ดไม่มีทับเลย; GPT ช่วยตรวจภายหลัง: QR โชว์จริงใน Donate dialog + สแกนได้ถูกบัญชี (ดู WO-P1-065) |
-| WO-P1-066: Inline row buttons | `feat/inline-row-buttons` | desktop_ui.py, i18n.py, tests 4 ไฟล์, WO + DESIGN.md | ✅ Merged PR #81 (user อนุมัติแทน GPT) — แตะ desktop_ui.py แต่**ไม่ทับไฟล์ใดของ `fix/gpu-context-ui-repaint`** (GPT แตะแค่ gpu_particle_logo); GPT ตรวจภายหลัง: หน้าตา EDIT column/add-row/PROJECTS sidebar + ตัดสิน edit-project แทน assign (ดู WO-P1-066) |
+| WO-P1-065: Donate QR asset | `assets/donate-promptpay-qr` | assets/QR + DONATE.md | ✅ **Merged PR #80** (`f4ecf9a`) |
+| WO-P1-066: Inline row buttons | `feat/inline-row-buttons` | desktop_ui.py, i18n.py, tests, WO + DESIGN.md | ✅ **Merged PR #81** (`d20cb70`) |
+| WO-P1-067: Brain E2E + restart warning | `fix/brain-restart-note` | desktop_ui.py, test_desktop_ui.py, WO-067 | 🔄 PR #82 รอ CI |
+| GE prep (fan-in input) | `docs/ge-contracts-drafts` | docs/adr/GE-*.md, WO-GE-001 | 🔄 PR #83 รอ GPT ตัดสิน D1-D5 |
+| Docs/repo-health sync | `docs/repo-health-sync` | README/CHANGELOG/PRIVACY/NOTICES/INSTALL + SSoT | 🔄 PR นี้ |
+| Branch hygiene | — | ลบ 37 branch ตาย (guardrail contained-in-main) | ✅ Done — เหลือ 4 branches |
 
 ## Backlog (ยังไม่มีคน claim)
 
