@@ -2,16 +2,28 @@
 
 Created: 2026-08-25
 Owner: GLM 5.3 (preparation) → GPT-5.6 Sol MAX (integrator decisions) → paired implementation
-Status: AWAITING GPT FAN-IN (GE-0 complete; nothing here is approved until GPT marks the ADRs accepted)
+Status: GO — D1-D5 accepted by GPT-5.6 Sol MAX on 2026-08-26; GE-1 may start. Scheduler implementation remains gated until GE-6 design review.
 Inputs: GE-0 status report + A-Wiki reuse gate (session records 2026-08-25); ADR drafts GE-0001..0005 in this branch.
 
-## Decision briefs (answer these and GE-1 can start)
+## Decision briefs — integrator fan-in (2026-08-26)
 
-- **D1 (GE-0004):** DAG engine = port dag_eval semantics with credit? [GLM recommends YES]
-- **D2 (GE-0002):** graph fields live Conductor-side, awiki-task/v1 untouched? [GLM recommends YES]
-- **D3 (GE-0005):** A-Wiki access conductor-bridge-only + CI grep gate? [GLM recommends YES]
-- **D4:** accept GE-0003's 12 DependencyTypes as the initial vocabulary?
-- **D5:** GE-1 first implementation node = `a_conductor/graph/` package (domain + DAG) with tests only, no scheduler yet?
+| ID | ADR | DECISION | Reason / guardrail |
+|---|---|---|---|
+| D1 | GE-0004 | **ACCEPTED** — port A-Wiki `dag_eval` semantics with attribution. | Reuse proven Kahn/cycle/ready-level behavior without a runtime dependency on the A-Wiki checkout. GE-3 is limited to parse/validate, topo/cycle naming, and ready levels; scheduler/execution stays Conductor-side. |
+| D2 | GE-0002 | **ACCEPTED WITH CLARIFICATION** — graph fields are Conductor-owned; `awiki-task/v1` stays untouched. | A-Wiki is under HOLD and remains the brain contract. `TaskEdge`/`TaskGraph` own dependency relations so TaskNode must not keep a second nested dependency source of truth. A-Wiki task status is planning/source metadata only; retry/repair/execution state stays in the existing Conductor lifecycle state machine. |
+| D3 | GE-0005 | **ACCEPTED** — A-Wiki access is bridge-only, enforced by CI grep/static gate. | Current A-Wiki GitHub confirms `conductor/` is the thin brain-side API; direct `.tmp/*` or `scripts.lib.*` coupling would violate the reuse boundary and standalone Conductor requirement. |
+| D4 | GE-0003 | **ACCEPTED WITH SEMANTIC GUARDRAIL** — keep the 12-value initial vocabulary. | The enum vocabulary is useful, but dynamic/resource relations (for example worker/runtime/provider/rate-limit conflicts) must not be blindly materialized as precedence edges or exempted from cycle detection. Only true predecessor relations participate in Kahn ordering; dynamic constraints remain readiness/scheduler reasons unless a deterministic analyzer explicitly materializes a safe ordering. Human approval is a readiness gate, never a repair back-edge. |
+| D5 | GE-0001 + roadmap | **ACCEPTED** — start with `a_conductor/graph/` and tests only; no scheduler. | First implementation PR is **GE-1a only** (`domain.py` + `test_graph_domain.py`), then GE-1b; GE-3 ports DAG semantics after the graph contract exists. GE-6/GE-7 remain blocked until their GPT design gate. |
+
+**GO signal:** GLM may begin GE-1a from this accepted contract. No scheduler, dispatch, brain-schema mutation, or UI work is authorized by this decision PR.
+
+### Integrator verification evidence (2026-08-26)
+
+- A-Wiki GitHub `main` verified at `2b6dda1ff9e5ff17ef04d509a05048814d546129`; `docs/protocols/cross-agent-work-orders.md`, `skills/awiki/a-claim/SKILL.md`, `scripts/eval/dag_eval.py`, `schemas/awiki-task/v1.schema.json`, and `docs/architecture/brain-vs-conductor-division.md` were checked read-only.
+- Live local A-Wiki claim store `.tmp/agent-claims.json` contained `{"claims": []}` at the decision gate; no overlapping Graph Engineering claim blocked GE-1.
+- A-Wiki `dag_eval.py` still exposes Kahn topological sort with cycle detection and parallel dependency levels, supporting D1 reuse lineage.
+- A-Wiki brain HOLD phases 8–11 remains unchanged; these decisions authorize no A-Wiki mutation.
+- Conductor `origin/main` baseline for this decision PR: `6e8f2820423ae9bb80219e973f4ecbe09ac016d5`. The shared local `main` worktree was intentionally not switched or fast-forwarded.
 
 ## Roadmap (micro-step nodes; owner G=GLM, P=GPT; every node = WO + TDD + CI + PR)
 
