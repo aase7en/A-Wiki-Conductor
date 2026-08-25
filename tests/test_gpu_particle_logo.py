@@ -77,6 +77,7 @@ def test_real_gpu_framebuffer_contains_visible_family_particles() -> None:
     import tkinter as tk
 
     from OpenGL import GL
+    from OpenGL.WGL import wglGetCurrentContext
 
     from a_conductor.gpu_particle_logo import GPUParticleLogo, gpu_backend_available
 
@@ -116,6 +117,12 @@ def test_real_gpu_framebuffer_contains_visible_family_particles() -> None:
         assert nonblack >= 500, "GPU initialized but rendered a blank family portrait"
         assert logo._frame_verified is True
         assert logo.renderer_name == "gpu-opengl"
+
+        # The exact regression contract: after the complete draw + buffer-swap
+        # boundary, ordinary Tk/GDI callbacks must not inherit WGL state.
+        logo._stop_gl_animation()
+        logo._gl_frame._display()
+        assert not bool(wglGetCurrentContext())
     finally:
         logo.destroy()
         try:
@@ -291,6 +298,191 @@ def test_gpu_renderer_release_makes_context_current_then_releases_every_layer(
     assert logo._ctx is None
     assert logo._gl_frame is None
     assert logo._gpu_ready is False
+    assert logo._frame_verified is False
+
+
+def test_gpu_display_unbinds_native_context_after_buffer_swap(monkeypatch) -> None:
+    """Render without pyopengltk's recursive Tk idle flush, then unbind."""
+    from a_conductor import gpu_particle_logo as g
+
+    if g.OpenGLFrame is None:
+        pytest.skip("pyopengltk is unavailable on this platform")
+
+    events: list[str] = []
+    monkeypatch.setattr(
+        g._ParticleGLFrame,
+        "update_idletasks",
+        lambda _frame: events.append("idle"),
+    )
+    monkeypatch.setattr(
+        g._ParticleGLFrame,
+        "tkMakeCurrent",
+        lambda _frame: events.append("current"),
+    )
+    monkeypatch.setattr(
+        g._ParticleGLFrame,
+        "redraw",
+        lambda _frame: events.append("redraw"),
+    )
+    monkeypatch.setattr(
+        g._ParticleGLFrame,
+        "tkSwapBuffers",
+        lambda _frame: events.append("swap"),
+    )
+    monkeypatch.setattr(
+        g._ParticleGLFrame,
+        "after",
+        lambda _frame, delay, callback: (
+            events.append(f"after:{delay}") or "after#next"
+        ),
+    )
+    monkeypatch.setattr(
+        g,
+        "_unbind_pyopengltk_context",
+        lambda frame: events.append(
+            "unbind" if isinstance(frame, g._ParticleGLFrame) else "wrong-frame"
+        ),
+        raising=False,
+    )
+
+    frame = g._ParticleGLFrame.__new__(g._ParticleGLFrame)
+    frame.animate = 24
+    frame.cb = None
+    frame._display()
+
+    assert events == ["current", "redraw", "swap", "unbind", "after:24"]
+    assert frame.cb == "after#next"
+
+
+def test_gpu_display_unbinds_native_context_when_rendering_fails(monkeypatch) -> None:
+    from a_conductor import gpu_particle_logo as g
+
+    if g.OpenGLFrame is None:
+        pytest.skip("pyopengltk is unavailable on this platform")
+
+    events: list[str] = []
+
+    def fail_redraw(_frame) -> None:
+        events.append("display-error")
+        raise RuntimeError("render failed")
+
+    monkeypatch.setattr(
+        g._ParticleGLFrame,
+        "tkMakeCurrent",
+        lambda _frame: events.append("current"),
+    )
+    monkeypatch.setattr(g._ParticleGLFrame, "redraw", fail_redraw)
+    monkeypatch.setattr(
+        g._ParticleGLFrame,
+        "tkSwapBuffers",
+        lambda _frame: events.append("unexpected-swap"),
+    )
+    monkeypatch.setattr(
+        g,
+        "_unbind_pyopengltk_context",
+        lambda _frame: events.append("unbind"),
+    )
+
+    frame = g._ParticleGLFrame.__new__(g._ParticleGLFrame)
+    frame.animate = 24
+    frame.cb = None
+    with pytest.raises(RuntimeError, match="render failed"):
+        frame._display()
+
+    assert events == ["current", "display-error", "unbind"]
+    assert frame.cb is None
+
+
+def test_gpu_resize_rebinds_before_viewport_work_then_unbinds(monkeypatch) -> None:
+    from a_conductor import gpu_particle_logo as g
+
+    if g.OpenGLFrame is None:
+        pytest.skip("pyopengltk is unavailable on this platform")
+
+    events: list[str] = []
+    monkeypatch.setattr(
+        g._ParticleGLFrame,
+        "tkMakeCurrent",
+        lambda _frame: events.append("current"),
+    )
+    monkeypatch.setattr(
+        g.OpenGLFrame,
+        "tkResize",
+        lambda _frame, _event: events.append("resize"),
+    )
+    monkeypatch.setattr(
+        g,
+        "_unbind_pyopengltk_context",
+        lambda _frame: events.append("unbind"),
+    )
+
+    frame = g._ParticleGLFrame.__new__(g._ParticleGLFrame)
+    frame.context_created = True
+    frame.tkResize(object())
+
+    assert events == ["current", "resize", "unbind"]
+
+
+def test_gpu_buffer_rebuild_owns_a_bounded_current_context(monkeypatch) -> None:
+    """A later image reload must work after the display callback unbinds GL."""
+    from array import array
+
+    from a_conductor import gpu_particle_logo as g
+
+    events: list[str] = []
+
+    class Resource:
+        def release(self) -> None:
+            events.append("release")
+
+    class Context:
+        def program(self, **_shaders):
+            events.append("program")
+            return Resource()
+
+        def buffer(self, _packed):
+            events.append("buffer")
+            return Resource()
+
+        def vertex_array(self, _program, _layout):
+            events.append("vao")
+            return Resource()
+
+    class Frame:
+        context_created = True
+
+        def tkMakeCurrent(self) -> None:
+            events.append("current")
+
+    frame = Frame()
+    logo = g.GPUParticleLogo.__new__(g.GPUParticleLogo)
+    logo.size = 120
+    logo._gpu_ready = True
+    logo._ctx = Context()
+    logo._program = Resource()
+    logo._buffer = None
+    logo._vao = None
+    logo._source_path = ASSET
+    logo._gl_frame = frame
+    logo._frame_verified = True
+    monkeypatch.setattr(
+        g,
+        "build_particle_vertices",
+        lambda *_args, **_kwargs: (array("f", [0.0] * 5), 1, 4.0 / 3.0),
+    )
+    monkeypatch.setattr(
+        g,
+        "_unbind_pyopengltk_context",
+        lambda released_frame: events.append(
+            "unbind" if released_frame is frame else "wrong-frame"
+        ),
+    )
+
+    logo._rebuild_gpu_buffer()
+
+    assert events[0] == "current"
+    assert events[-1] == "unbind"
+    assert logo._particle_count == 1
     assert logo._frame_verified is False
 
 
