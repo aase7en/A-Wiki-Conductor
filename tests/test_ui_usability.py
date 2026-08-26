@@ -42,7 +42,7 @@ def make_app(root, tmp_path: Path):
 def test_window_title_shows_version(root, tmp_path: Path) -> None:
     app = make_app(root, tmp_path)
     assert root.title() == f"{APP_NAME} v{APP_VERSION}"
-    assert APP_VERSION == "0.6.0"
+    assert APP_VERSION == "0.7.0"
 
 
 def test_worker_tree_has_horizontal_scroll(root, tmp_path: Path) -> None:

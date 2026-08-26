@@ -2,7 +2,26 @@
 
 All notable changes to A-Sunday Conductor are documented here.
 
-## [Unreleased]
+## [0.7.0] — 2026-08-26
+
+### Added
+- **Inline row actions** — `Edit` cell in every PROJECTS/WORKERS/CONNECTORS row + `+ Add` row when a table is empty (PR #81)
+- **Unified connector editor** — one dialog for alias + Tunnel ID + project path (PR #81)
+- **Live connector states** — CONNECTORS table auto-refreshes every 15s without pressing Rescan (PR #90)
+- **Masked tunnel pairing** — TUNNEL column shows last 4 chars (e.g. `...e3f1`) for instant ChatGPT-side matching (PR #90)
+- **Graph Engineering foundation** — TaskGraph/TaskNode/TaskEdge domain + acyclic builder + SQLite store (PRs #91-92, backend only)
+
+### Fixed
+- **Singleton dialogs** — Donate/Guide/Preferences/Add Worker/Brain Config/Edit Connector no longer stack duplicate windows; re-open lifts the existing one (WO-P1-069)
+- **Close-time confirm** — the app asks before stopping RUNNING connectors, preventing silent chat disconnection (PR #90, WO-P1-068)
+- **Rescan summary** — logs "พบ N ตัวเชื่อม: X READY, Y STOPPED" instead of appearing silent (PR #90)
+- **PS1 UTF-8 BOM** — generated `.ps1` files carry a BOM so Thai project paths survive PowerShell 5.1 (PR #85)
+- **Quoted project paths** — `--project` substitutions are double-quoted so spaces can't split the MCP command line (PR #85)
+- **Brain activation warning** — saving the Second Brain now states that running connectors need a restart for chats to pick it up (PR #82, WO-P1-067)
+- **Wizard instance numbering** — new instances number past the fleet (Sunday-Worker-2, 3, ...) instead of always Sunday-Worker-1 (PR #81)
+- **PROJECTS row height** — two-line rows (name + path) visible without clipping (PR #81)
+- **Donate QR bundled** — PromptPay QR ships inside every build (PR #80)
+- **GPU context unbind** — GL context released after render so Tk text doesn't corrupt (PR #87)
 
 ## [0.6.0] — 2026-08-26
 
