@@ -2030,12 +2030,12 @@ class AConductorDesktopApp:
             return
 
         current = self._project_disk_future
-        if (
-            self._project_disk_request_path == normalized
-            and current is not None
-            and not current.done()
-        ):
-            disk_label.configure(text="…")
+        if self._project_disk_request_path == normalized and current is not None:
+            # A completed Future may still be waiting for its Tk poll callback.
+            # Keep the same request alive so a selection/refresh event cannot
+            # cancel the just-finished result and start a duplicate scan.
+            if not current.done():
+                disk_label.configure(text="…")
             return
 
         self._cancel_project_disk_scan()
