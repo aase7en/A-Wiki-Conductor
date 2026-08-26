@@ -1,13 +1,15 @@
 """Project folder size display — pure filesystem walk, no subprocess.
 
 WO-P1-070: shows total disk usage of the selected project folder.
-Data-only display; the visual gradient/particle rendering is GPT design
-lane. This module feeds the SYSTEM OVERVIEW "PROJECT DISK" metric.
+The exact size remains the authoritative data display. A bounded log-magnitude
+particle helper feeds the optional SYSTEM OVERVIEW visual cue without extra I/O.
 """
 
 from __future__ import annotations
 
+import math
 import os
+import re
 from pathlib import Path
 from typing import Callable
 
@@ -57,6 +59,25 @@ def format_size(num_bytes: int) -> str:
             return f"{size:.1f} {unit}"
         size /= 1024.0
     return f"{size:.1f} PB"
+
+
+_SIZE_RE = re.compile(r"^\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>B|KB|MB|GB|TB)\s*$", re.I)
+_SIZE_UNITS = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}
+_DISK_PARTICLE_COUNT = 24
+
+def disk_particle_levels(display_value: str, *, count: int = _DISK_PARTICLE_COUNT) -> tuple[float, ...]:
+    """Map formatted size to a bounded visual-only logarithmic gradient."""
+    if count < 1:
+        raise ValueError("count must be positive")
+    match = _SIZE_RE.match(str(display_value))
+    if match is None:
+        return (0.0,) * count
+    num_bytes = float(match.group("value")) * _SIZE_UNITS[match.group("unit").upper()]
+    if num_bytes <= 0:
+        return (0.0,) * count
+    magnitude = max(0.0, min(4.0, math.log(num_bytes, 1024.0)))
+    lit = max(1, min(count, int(round((magnitude / 4.0) * count))))
+    return tuple((i + 1) / lit for i in range(lit)) + (0.0,) * (count - lit)
 
 
 def project_disk_display(

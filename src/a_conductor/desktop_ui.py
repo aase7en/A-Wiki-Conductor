@@ -1197,8 +1197,23 @@ class AConductorDesktopApp:
         )
         self.overview_connectors_value.configure(text="0 / 0")
         state_caption, self.overview_state_value = _overview_metric(3, "CONTROLLER")
-        # WO-P1-070: project disk usage from the selected project folder
+        # WO-P1-070/073: exact project disk size + bounded visual magnitude cue.
         disk_caption, self.overview_disk_value = _overview_metric(4, "PROJECT DISK")
+        self._project_disk_particles = tk.Canvas(
+            self.overview_disk_value.master,
+            width=98,
+            height=16,
+            bg=self.theme.panel,
+            bd=0,
+            highlightthickness=0,
+        )
+        self._project_disk_particles.pack(side="left", anchor="w", padx=(7, 0))
+        _attach_tip(
+            self._project_disk_particles,
+            lambda: tr("tip.project.disk"),
+            self.theme,
+        )
+        self._draw_project_disk_particles("—")
         self._make_responsive_metric_grid(
             metrics,
             tuple(
@@ -2064,12 +2079,12 @@ class AConductorDesktopApp:
         project_id = self.selected_project_id()
         if project_id is None:
             self._cancel_project_disk_scan()
-            disk_label.configure(text="—")
+            self._set_project_disk_display("—")
             return
         root_path = self._project_paths.get(project_id)
         if not root_path:
             self._cancel_project_disk_scan()
-            disk_label.configure(text="—")
+            self._set_project_disk_display("—")
             return
 
         normalized = os.path.normcase(os.path.abspath(root_path))
@@ -2078,7 +2093,7 @@ class AConductorDesktopApp:
             if self._project_disk_request_path != normalized:
                 self._cancel_project_disk_scan()
             self._project_disk_request_path = normalized
-            disk_label.configure(text=cached)
+            self._set_project_disk_display(cached)
             return
 
         current = self._project_disk_future
@@ -2087,7 +2102,7 @@ class AConductorDesktopApp:
             # Keep the same request alive so a selection/refresh event cannot
             # cancel the just-finished result and start a duplicate scan.
             if not current.done():
-                disk_label.configure(text="…")
+                self._set_project_disk_display("…")
             return
 
         self._cancel_project_disk_scan()
@@ -2096,7 +2111,7 @@ class AConductorDesktopApp:
         cancel_event = Event()
         self._project_disk_cancel_event = cancel_event
         self._project_disk_request_path = normalized
-        disk_label.configure(text="…")
+        self._set_project_disk_display("…")
 
         from .folder_size import project_disk_display
 
@@ -2114,6 +2129,48 @@ class AConductorDesktopApp:
             normalized,
             cancel_event,
         )
+
+    def _set_project_disk_display(self, value: str) -> None:
+        disk_label = getattr(self, "overview_disk_value", None)
+        if disk_label is not None:
+            disk_label.configure(text=value)
+        self._draw_project_disk_particles(value)
+
+    def _draw_project_disk_particles(self, display_value: str) -> None:
+        canvas = getattr(self, "_project_disk_particles", None)
+        if canvas is None:
+            return
+        try:
+            if not canvas.winfo_exists():
+                return
+            from .folder_size import disk_particle_levels
+            levels = disk_particle_levels(display_value)
+            canvas.delete("disk-particle")
+
+            def _rgb(value: str) -> tuple[int, int, int]:
+                value = value.lstrip("#")
+                if len(value) != 6:
+                    raise ValueError(value)
+                return tuple(int(value[index:index + 2], 16) for index in (0, 2, 4))
+
+            low = _rgb(self.theme.muted)
+            high = _rgb(self.theme.foreground)
+            for index, level in enumerate(levels[:24]):
+                x = 2 + index * 4
+                if level <= 0:
+                    fill = self.theme.border
+                else:
+                    rgb = tuple(
+                        round(lo + (hi - lo) * max(0.0, min(1.0, level)))
+                        for lo, hi in zip(low, high)
+                    )
+                    fill = "#{:02x}{:02x}{:02x}".format(*rgb)
+                canvas.create_oval(
+                    x, 6, x + 2, 8,
+                    fill=fill, outline="", tags=("disk-particle",),
+                )
+        except (tk.TclError, ValueError):
+            return
 
     def _cancel_project_disk_scan(self) -> None:
         cancel_event = self._project_disk_cancel_event
@@ -2166,10 +2223,10 @@ class AConductorDesktopApp:
         if disk_label is None:
             return
         if result is None:
-            disk_label.configure(text="—")
+            self._set_project_disk_display("—")
             return
         self._project_disk_cache[normalized_path] = result
-        disk_label.configure(text=result)
+        self._set_project_disk_display(result)
 
     def _refresh_memory_status(self) -> None:
         """Read-only memory-presence line for the selected project (WO-P1-057).

@@ -124,6 +124,16 @@ The user-facing mental model is `Project -> AI Execution Slot -> Connection -> A
 - Monitoring reads must stay native/file-based and follow `DEFECT_LESSONS.md`.
 - GPU readiness requires observable framebuffer output, not merely a created context/buffer or a non-zero particle count. A blank or materially incomplete frame must fall back safely.
 
+### PROJECT DISK magnitude cue (2026-08-26)
+
+- `PROJECT DISK` exact human-readable text remains authoritative.
+- A bounded 24-dot monochrome strip may sit beside the number as a visual order-of-magnitude cue.
+- The strip uses a deterministic logarithmic magnitude mapping (B/KB/MB/GB/TB); it must never imply `% disk full` or a project quota.
+- `—`, `…`, and malformed values render fail-closed/dim.
+- The renderer consumes only the already-computed async/cached disk display value: no additional filesystem walk, subprocess, timer, thread, network call, or continuous animation.
+- Dots derive from the existing foreground/muted/border palette and must remain usable without color.
+- Tooltip/help text must explicitly explain that the dots are relative magnitude and the exact number is authoritative.
+
 ## 7. Responsive rules
 
 - COMPACT `< 900px`: wrap controls, stack secondary regions if necessary.
