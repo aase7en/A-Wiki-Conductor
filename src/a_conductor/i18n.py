@@ -300,9 +300,19 @@ for _key, _entry in _NEW_HELP.items():
     target["zh-CN"] = _ZH_CN[_key]
 
 STRINGS["tip.connector.column"] = {
-    "th": "Connector คือช่องเชื่อมต่อ Runtime/Tunnel ที่ตรงกับโปรเจกต์ของ Worker · เครื่องหมาย - = ยังไม่มี Connector ที่ตรงกัน · สร้างได้ด้วย Add Connector",
-    "zh-CN": "Connector 是与 Worker 项目匹配的 Runtime/Tunnel 连接；- 表示尚无匹配的 Connector；可用 Add Connector 创建。",
-    "en": "Connector is the Runtime/Tunnel connection matched to this Worker's project. - means no matching Connector. Create one with Add Connector.",
+    "th": "Worker Registry เป็นสถานะเชิงตรรกะของ scheduler ไม่ใช่สถานะ Connector แบบ live · ดู AI EXECUTION SLOTS สำหรับการเชื่อมต่อและ Active Project จริง",
+    "zh-CN": "Worker Registry 是调度器的逻辑状态，不是实时 Connector 状态；实时连接和 Active Project 请看 AI EXECUTION SLOTS。",
+    "en": "Worker Registry is scheduler/logical state, not live connector state. Use AI EXECUTION SLOTS for live connection and Active Project.",
+}
+STRINGS["tip.execution.slots"] = {
+    "th": "Live ≤15s: CONNECTION มาจาก /readyz · ACTIVE PROJECT มาจาก Serena runtime activation log · BOUND PROJECT คือโปรเจกต์ตอนสร้าง Connector · [DRIFT] หมายถึง Chat เปลี่ยน Active Project ไปจากที่ Connector ผูกไว้",
+    "zh-CN": "实时≤15秒：CONNECTION 来自 /readyz；ACTIVE PROJECT 来自 Serena 运行时激活日志；BOUND PROJECT 是 Connector 绑定项目；[DRIFT] 表示聊天已切换到其他 Active Project。",
+    "en": "Live ≤15s: CONNECTION comes from /readyz; ACTIVE PROJECT comes from Serena runtime activation logs; BOUND PROJECT is the connector binding. [DRIFT] means the chat switched to a different active project.",
+}
+STRINGS["tip.worker.registry"] = {
+    "th": "Advanced: logical Worker Registry สำหรับ scheduler/CRUD ไม่ใช่สถานะการเชื่อมต่อแบบ live · เปิดเมื่อจำเป็นต้องจัดการ Worker ภายใน",
+    "zh-CN": "高级：逻辑 Worker Registry 用于调度器/CRUD，不代表实时连接状态；仅在需要管理内部 Worker 时展开。",
+    "en": "Advanced: the logical Worker Registry is for scheduler/CRUD state, not live connection health. Expand it only when managing internal workers.",
 }
 STRINGS["confirm.replace.assignment"] = {
     "th": "Worker นี้มีโปรเจกต์อยู่แล้ว\n\nCurrent: {current}\nNew: {new}\n\nแทนที่ assignment เดิมหรือไม่?",

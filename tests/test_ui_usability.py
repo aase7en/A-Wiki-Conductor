@@ -98,13 +98,13 @@ def test_primary_workflow_buttons_follow_action_order(root, tmp_path: Path) -> N
     texts = [button.cget("text") for button in app.workflow_buttons]
     assert texts == [
         "Add Project",
-        "Assign",
+        "Assign Worker",
         "Add Worker",
-        "Start",
-        "Stop",
-        "Restart",
-        "Release",
-        "Activate",
+        "Start Worker",
+        "Stop Worker",
+        "Restart Worker",
+        "Release Worker",
+        "Copy Activate",
         "Refresh",
     ]
 
@@ -427,9 +427,8 @@ def test_system_overview_uses_real_snapshot_counts(root, tmp_path: Path) -> None
     root.update_idletasks()
     assert app._overview_frame.winfo_exists()
     assert app.overview_projects_value.cget("text") == "1"
-    worker_text = str(app.overview_workers_value.cget("text"))
-    assert worker_text.endswith("/ 3")
-    assert not any(token in worker_text for token in ("24", "32"))
+    assert app.overview_workers_value.cget("text") == "0 / 0"
+    assert "3 registered" in str(app.registry_status_label.cget("text"))
 
 
 def test_terminal_theme_is_near_black_and_restrained() -> None:
@@ -494,8 +493,8 @@ def test_system_overview_reflows_without_clipping_at_compact_width(
         assert cell.winfo_rootx() + cell.winfo_reqwidth() <= right_edge
     assert [str(cell.winfo_children()[0].cget("text")) for cell in cells] == [
         "PROJECTS",
-        "WORKERS",
-        "CONNECTORS",
+        "SLOTS",
+        "DRIFT",
         "STATE",
     ]
 
@@ -505,8 +504,8 @@ def test_system_overview_reflows_without_clipping_at_compact_width(
     assert {int(cell.grid_info()["row"]) for cell in cells} == {0}
     assert [str(cell.winfo_children()[0].cget("text")) for cell in cells] == [
         "PROJECTS",
-        "WORKERS READY",
-        "CONNECTORS READY",
+        "AI SLOTS LIVE",
+        "ACTIVE DRIFT",
         "CONTROLLER",
     ]
 

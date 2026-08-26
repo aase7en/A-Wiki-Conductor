@@ -68,7 +68,8 @@ Right cluster:
 Wide / normal target:
 - left: PROJECTS sidebar/list with filter/search seam;
 - right/top: SYSTEM OVERVIEW with small factual counters/status, no invented metrics;
-- right/middle: WORKERS and CONNECTORS/INSTANCES in horizontally efficient tables;
+- primary runtime surface: **AI EXECUTION SLOTS — LIVE**, connector/runtime-centric and refreshed from real health + Serena telemetry;
+- logical Worker Registry remains available as an **Advanced** scheduler-management surface and is collapsed by default so internal STOPPED/READY lifecycle state cannot be mistaken for live connector health;
 - optional RECENT EVENTS region where space permits;
 - bottom: command-console-like diagnostics area with tabs or compact sections for Terminal/Status, Logs, Events/Monitor. Existing copyable log behavior must be preserved.
 
@@ -85,6 +86,18 @@ Compact target:
 - panels may stack vertically;
 - primary workflow remains ordered;
 - no horizontal clipping of critical actions.
+
+### AI Execution Slot operator model (2026-08-26)
+
+The user-facing mental model is `Project -> AI Execution Slot -> Connection -> Active Project -> Task`.
+
+- `CONNECTION` is live connector health (`/readyz`).
+- `ACTIVE PROJECT` is read-only Serena runtime observation from the latest bounded activation-log event. Missing evidence is `UNKNOWN`; never infer.
+- `BOUND PROJECT` is the connector launch/config binding and may differ from the active project after a ChatGPT session calls `activate_project`.
+- A mismatch is rendered with explicit `[DRIFT]` text so meaning never relies on color alone.
+- refresh reuses the existing low-frequency single-flight connector monitor; no periodic subprocess or MCP call is allowed.
+- logical Worker Registry remains the scheduler/CRUD model for GE-6 but is Advanced/collapsed by default.
+- labels must name the actor (`Start Worker`, `Start Connector`) instead of presenting two unrelated state machines as peers.
 
 ## 5. Existing behavior that must survive redesign
 

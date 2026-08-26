@@ -1318,3 +1318,49 @@ def test_upstream_button_opens_dialog_with_data(root, monkeypatch) -> None:
     assert "https://github.com/oraios/serena" in texts[0]
     assert not app.upstream_button.instate(["disabled"])
     dialog.destroy()
+
+
+def test_execution_slots_show_live_serena_project(root, monkeypatch) -> None:
+    from datetime import datetime
+    from a_conductor.serena_activity import SerenaActivityObservation
+
+    def fake_observe(instance_root):
+        if Path(instance_root).name.lower() == "serena-alpha":
+            return SerenaActivityObservation(
+                active_project_name="pharmacy",
+                active_project_path=r"L:\\My Drive\\A-Wiki-Data\\personal-business\\pharmacy",
+                switched_at=datetime(2026, 8, 26, 13, 54, 8),
+            )
+        return SerenaActivityObservation()
+
+    monkeypatch.setattr(
+        "a_conductor.serena_activity.observe_serena_activity", fake_observe
+    )
+    service = FakeInstanceService(sample_snapshot())
+    app = AConductorDesktopApp(
+        root, service=service, background_executor=ImmediateExecutor()
+    )
+    app.refresh_instances()
+    root.update()
+
+    assert app.instance_tree.heading("name", "text") == "SLOT"
+    assert app.instance_tree.heading("state", "text") == "CONNECTION"
+    assert app.instance_tree.heading("active_project", "text") == "ACTIVE PROJECT"
+    assert app.instance_tree.heading("project", "text") == "BOUND PROJECT"
+    assert tuple(app.instance_tree["displaycolumns"])[0:5] == (
+        "name", "state", "active_project", "project", "last_switch"
+    )
+
+    row = app._instance_rows["Serena-Alpha"]
+    values = app.instance_tree.item(row, "values")
+    assert values[6] == "pharmacy [DRIFT]"
+    assert values[7] == "13:54:08"
+    assert values[-1] == "Edit"
+    assert app.worker_tree.heading("state", "text") == "SCHED STATE"
+    assert "SLOTS" in str(app.header_runtime_label.cget("text"))
+    assert app._worker_registry_expanded is False
+    assert app.worker_tree.winfo_manager() == ""
+    app.toggle_worker_registry()
+    root.update_idletasks()
+    assert app._worker_registry_expanded is True
+    assert app.worker_tree.winfo_manager() == "grid"
