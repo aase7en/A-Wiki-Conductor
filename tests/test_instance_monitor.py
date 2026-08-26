@@ -204,4 +204,4 @@ def test_instance_refresh_replaces_monitor_cache_and_preserves_ready_total_heade
     app.refresh()
 
     assert set(app._monitor_instances) == {"Sunday-Worker-1"}
-    assert "CONNECTORS 0/1" in str(app.header_runtime_label.cget("text"))
+    assert "SLOTS 0/1" in str(app.header_runtime_label.cget("text"))

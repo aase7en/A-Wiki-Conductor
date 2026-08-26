@@ -764,6 +764,8 @@ class AConductorDesktopApp:
         self._pane_layout_height = 0
         self._worker_counts = (0, 0)
         self._connector_counts = (0, 0)
+        self._active_drift_count = 0
+        self._worker_registry_expanded = False
         self._preferences_window: tk.Toplevel | None = None
 
         self._configure_root()
@@ -1004,7 +1006,7 @@ class AConductorDesktopApp:
         _attach_tip(self.connection_label, lambda: tr("tip.connection"), self.theme)
         self.header_runtime_label = tk.Label(
             status_strip,
-            text="WORKERS —  · CONNECTORS —",
+            text="SLOTS —  · REGISTRY —",
             bg=self.theme.background,
             fg=self.theme.muted,
             font=(self.theme.monospace_font, 8),
@@ -1071,13 +1073,13 @@ class AConductorDesktopApp:
         workflow.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 2))
         self._workflow_frame = workflow
         self.add_button = self._button(workflow, "Add Project", self.add_project)
-        self.assign_button = self._button(workflow, "Assign", self.assign_selected)
+        self.assign_button = self._button(workflow, "Assign Worker", self.assign_selected)
         self.add_worker_button = self._button(workflow, "Add Worker", self.open_add_worker_dialog)
-        self.start_button = self._button(workflow, "Start", self.start_selected)
-        self.stop_button = self._button(workflow, "Stop", self.stop_selected)
-        self.restart_button = self._button(workflow, "Restart", self.restart_selected)
-        self.release_button = self._button(workflow, "Release", self.release_selected)
-        self.activate_button = self._button(workflow, "Activate", self.copy_activation_prompt)
+        self.start_button = self._button(workflow, "Start Worker", self.start_selected)
+        self.stop_button = self._button(workflow, "Stop Worker", self.stop_selected)
+        self.restart_button = self._button(workflow, "Restart Worker", self.restart_selected)
+        self.release_button = self._button(workflow, "Release Worker", self.release_selected)
+        self.activate_button = self._button(workflow, "Copy Activate", self.copy_activation_prompt)
         self.refresh_button = self._button(workflow, "Refresh", self.refresh)
         self.workflow_buttons = (
             self.add_button, self.assign_button, self.add_worker_button,
@@ -1162,7 +1164,7 @@ class AConductorDesktopApp:
         self._right_stack = right_stack
         self._body_pane.add(right_stack, weight=1)
         right_stack.grid_columnconfigure(0, weight=1)
-        right_stack.grid_rowconfigure(1, weight=1)
+        right_stack.grid_rowconfigure(1, weight=0)
 
         overview_panel = self._panel(right_stack, "SYSTEM OVERVIEW")
         self._overview_frame = overview_panel
@@ -1189,9 +1191,9 @@ class AConductorDesktopApp:
             return caption, value
 
         projects_caption, self.overview_projects_value = _overview_metric(0, "PROJECTS")
-        workers_caption, self.overview_workers_value = _overview_metric(1, "WORKERS READY")
+        workers_caption, self.overview_workers_value = _overview_metric(1, "AI SLOTS LIVE")
         connectors_caption, self.overview_connectors_value = _overview_metric(
-            2, "CONNECTORS READY"
+            2, "ACTIVE DRIFT"
         )
         self.overview_connectors_value.configure(text="0 / 0")
         state_caption, self.overview_state_value = _overview_metric(3, "CONTROLLER")
@@ -1216,8 +1218,8 @@ class AConductorDesktopApp:
                 state_caption,
                 disk_caption,
             ),
-            full_labels=("PROJECTS", "WORKERS READY", "CONNECTORS READY", "CONTROLLER"),
-            compact_labels=("PROJECTS", "WORKERS", "CONNECTORS", "STATE"),
+            full_labels=("PROJECTS", "AI SLOTS LIVE", "ACTIVE DRIFT", "CONTROLLER"),
+            compact_labels=("PROJECTS", "SLOTS", "DRIFT", "STATE"),
         )
 
         system_strip = tk.Frame(overview_panel, bg=self.theme.panel)
@@ -1248,10 +1250,24 @@ class AConductorDesktopApp:
         )
         self._cpu_sparkline.grid(row=0, column=3, sticky="ew", padx=(4, 0))
 
-        worker_panel = self._panel(right_stack, "WORKERS")
-        worker_panel.grid(row=1, column=0, sticky="nsew", padx=(4, 0))
-        worker_panel.grid_rowconfigure(1, weight=1)
+        worker_panel = self._panel(right_stack, "SCHEDULER REGISTRY [ADVANCED]")
+        self._worker_panel = worker_panel
+        worker_panel.grid(row=1, column=0, sticky="ew", padx=(4, 0))
+        worker_panel.grid_rowconfigure(2, weight=1)
         worker_panel.grid_columnconfigure(0, weight=1)
+        self.registry_status_label = tk.Label(
+            worker_panel,
+            text="Logical scheduler state · hidden by default",
+            bg=self.theme.panel,
+            fg=self.theme.muted,
+            font=(self.theme.monospace_font, 8),
+            anchor="w",
+        )
+        self.registry_status_label.grid(row=1, column=0, sticky="ew", padx=9, pady=(0, 2))
+        self.registry_toggle_button = self._button(
+            worker_panel, "Show Registry", self.toggle_worker_registry
+        )
+        self.registry_toggle_button.grid(row=0, column=1, sticky="e", padx=(4, 9), pady=1)
         columns = ("worker", "state", "project", "path", "connector", "edit")
         self.worker_tree = ttk.Treeview(
             worker_panel,
@@ -1266,10 +1282,10 @@ class AConductorDesktopApp:
         )
         headings = {
             "worker": ("WORKER", 110),
-            "state": ("STATE", 85),
+            "state": ("SCHED STATE", 95),
             "project": ("PROJECT", 155),
             "path": ("PATH", 235),
-            "connector": ("CONNECTOR (?)", 140),
+            "connector": ("MATCHED CONNECTOR", 150),
             "edit": ("EDIT", 48),
         }
         for name, (label, width) in headings.items():
@@ -1278,13 +1294,13 @@ class AConductorDesktopApp:
         self._worker_edit_column = f"#{len(columns)}"
         worker_scroll = ttk.Scrollbar(worker_panel, orient="vertical", command=self.worker_tree.yview)
         self.worker_tree.configure(yscrollcommand=worker_scroll.set)
-        self.worker_tree.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 2))
-        worker_scroll.grid(row=1, column=1, sticky="ns", padx=(0, 9), pady=(0, 2))
+        self.worker_tree.grid(row=2, column=0, sticky="nsew", padx=(9, 0), pady=(0, 2))
+        worker_scroll.grid(row=2, column=1, sticky="ns", padx=(0, 9), pady=(0, 2))
         self.worker_xscroll = ttk.Scrollbar(
             worker_panel, orient="horizontal", command=self.worker_tree.xview
         )
         self.worker_tree.configure(xscrollcommand=self.worker_xscroll.set)
-        self.worker_xscroll.grid(row=2, column=0, sticky="ew", padx=(9, 0), pady=(0, 2))
+        self.worker_xscroll.grid(row=3, column=0, sticky="ew", padx=(9, 0), pady=(0, 2))
         self.worker_tree.bind("<<TreeviewSelect>>", lambda _event: self._update_lifecycle_buttons())
         self.worker_tree.tag_configure("ready", foreground=self.theme.ready)
         self.worker_tree.tag_configure("warning", foreground=self.theme.warning)
@@ -1298,7 +1314,7 @@ class AConductorDesktopApp:
         _attach_tip(self.worker_tree, lambda: self.connector_help_text(), self.theme)
 
         actions = tk.Frame(worker_panel, bg=self.theme.panel)
-        actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=9, pady=(1, 3))
+        actions.grid(row=4, column=0, columnspan=2, sticky="ew", padx=9, pady=(1, 3))
         self.setup_button = self._button(actions, "Setup", self.open_runtime_setup)
         self.config_button = self._button(actions, "Config", self.open_worker_config)
         self.rename_worker_button = self._button(actions, "Rename", self.open_rename_worker_dialog)
@@ -1315,17 +1331,23 @@ class AConductorDesktopApp:
             (self.setup_button, self.config_button, self.rename_worker_button, self.delete_worker_button),
             target_button_width=105,
         )
+        self._worker_registry_widgets = (
+            self.worker_tree, worker_scroll, self.worker_xscroll, actions
+        )
+        for widget in self._worker_registry_widgets:
+            widget.grid_remove()
+        _attach_tip(self.registry_toggle_button, lambda: tr("tip.worker.registry"), self.theme)
         self.start_button.state(["disabled"])
         self.stop_button.state(["disabled"])
         self.restart_button.state(["disabled"])
         self.setup_button.state(["disabled"])
         self.config_button.state(["disabled"])
 
-        instances_panel = self._panel(self._main_pane, "CONNECTORS")
+        instances_panel = self._panel(self._main_pane, "AI EXECUTION SLOTS — LIVE ≤15s")
         self._main_pane.add(instances_panel, weight=1)
         instances_panel.grid_columnconfigure(0, weight=1)
         instances_panel.grid_rowconfigure(1, weight=1)
-        instance_columns = ("name", "port", "state", "project", "tunnel", "auto", "edit")
+        instance_columns = ("name", "port", "state", "project", "tunnel", "auto", "active_project", "last_switch", "edit")
         self.instance_tree = ttk.Treeview(
             instances_panel,
             columns=instance_columns,
@@ -1335,17 +1357,25 @@ class AConductorDesktopApp:
             height=1,
         )
         instance_headings = {
-            "name": ("INSTANCE", 140),
-            "port": ("PORT", 75),
-            "state": ("STATE", 75),
-            "project": ("PROJECT", 250),
+            "name": ("SLOT", 150),
+            "port": ("PORT", 65),
+            "state": ("CONNECTION", 90),
+            "project": ("BOUND PROJECT", 220),
             "tunnel": ("TUNNEL", 65),
             "auto": ("AUTO", 55),
             "edit": ("EDIT", 48),
+            "active_project": ("ACTIVE PROJECT", 170),
+            "last_switch": ("LAST SWITCH", 90),
         }
         for name, (label, width) in instance_headings.items():
             self.instance_tree.heading(name, text=label, anchor="w")
             self.instance_tree.column(name, width=width, minwidth=48, anchor="w")
+        self.instance_tree.configure(
+            displaycolumns=(
+                "name", "state", "active_project", "project",
+                "last_switch", "port", "tunnel", "auto", "edit",
+            )
+        )
         self._instance_edit_column = f"#{len(instance_columns)}"
         self.instance_tree.tag_configure("row-add", foreground=self.theme.accent)
         self.instance_tree.bind("<Button-1>", self._on_instance_tree_click, add=True)
@@ -1358,14 +1388,15 @@ class AConductorDesktopApp:
         self.instance_tree.tag_configure("ready", foreground=self.theme.ready)
         self.instance_tree.tag_configure("warning", foreground=self.theme.warning)
         self.instance_tree.tag_configure("idle", foreground=self.theme.idle)
+        _attach_tip(self.instance_tree, lambda: tr("tip.execution.slots"), self.theme)
         self._attach_row_path_tip(
             self.instance_tree, column=3, label=lambda: tr("menu.copy.path")
         )
 
         instance_actions = tk.Frame(instances_panel, bg=self.theme.panel)
         instance_actions.grid(row=3, column=0, sticky="ew", padx=9, pady=(0, 2))
-        self.instance_start_button = self._button(instance_actions, "Start", self.start_selected_instance)
-        self.instance_stop_button = self._button(instance_actions, "Stop", self.stop_selected_instance)
+        self.instance_start_button = self._button(instance_actions, "Start Connector", self.start_selected_instance)
+        self.instance_stop_button = self._button(instance_actions, "Stop Connector", self.stop_selected_instance)
         self.instance_startall_button = self._button(instance_actions, "Start All", self.start_all_instances)
         self.instance_auto_button = self._button(instance_actions, "Toggle Auto", self.toggle_instance_autostart)
         self.instance_rescan_button = self._button(instance_actions, "Rescan", self.rescan_instances)
@@ -1895,14 +1926,27 @@ class AConductorDesktopApp:
         self._cancel_after(callback)
 
     def _render_header_runtime_status(self) -> None:
-        ready_workers, total_workers = self._worker_counts
-        ready_connectors, total_connectors = self._connector_counts
+        _ready_workers, total_workers = self._worker_counts
+        ready_slots, total_slots = self._connector_counts
         self.header_runtime_label.configure(
-            text=(
-                f"WORKERS {ready_workers}/{total_workers} · "
-                f"CONNECTORS {ready_connectors}/{total_connectors}"
-            )
+            text=f"SLOTS {ready_slots}/{total_slots} · REGISTRY {total_workers}"
         )
+
+    def toggle_worker_registry(self) -> None:
+        """Show or hide logical scheduler registry details without changing state."""
+        self._worker_registry_expanded = not self._worker_registry_expanded
+        if self._worker_registry_expanded:
+            self._right_stack.grid_rowconfigure(1, weight=1)
+            self._worker_panel.grid_configure(sticky="nsew")
+            for widget in self._worker_registry_widgets:
+                widget.grid()
+            self.registry_toggle_button.configure(text="Hide Registry")
+            return
+        for widget in self._worker_registry_widgets:
+            widget.grid_remove()
+        self._right_stack.grid_rowconfigure(1, weight=0)
+        self._worker_panel.grid_configure(sticky="ew")
+        self.registry_toggle_button.configure(text="Show Registry")
 
     def refresh(self) -> None:
         snapshot = self.service.snapshot()
@@ -1914,7 +1958,15 @@ class AConductorDesktopApp:
         total_workers = len(snapshot.workers)
         self._worker_counts = (ready_workers, total_workers)
         self.overview_projects_value.configure(text=str(len(snapshot.projects)))
-        self.overview_workers_value.configure(text=f"{ready_workers} / {total_workers}")
+        ready_slots, total_slots = self._connector_counts
+        self.overview_workers_value.configure(text=f"{ready_slots} / {total_slots}")
+        self.overview_connectors_value.configure(
+            text=str(self._active_drift_count),
+            fg=self.theme.warning if self._active_drift_count else self.theme.foreground,
+        )
+        self.registry_status_label.configure(
+            text=f"{total_workers} registered · {ready_workers} scheduler-ready · hidden by default"
+        )
         self.overview_state_value.configure(
             text="ONLINE" if snapshot.online else "OFFLINE",
             fg=self.theme.ready if snapshot.online else self.theme.error,
@@ -4080,6 +4132,9 @@ class AConductorDesktopApp:
         self._set_enabled(self.brain_button, self._has_settings_service())
         if not self._has_instance_service():
             self._connector_counts = (0, 0)
+            self._active_drift_count = 0
+            self.overview_workers_value.configure(text="0 / 0")
+            self.overview_connectors_value.configure(text="0", fg=self.theme.foreground)
             self._render_header_runtime_status()
             for button in (
                 self.instance_start_button,
@@ -4094,7 +4149,7 @@ class AConductorDesktopApp:
         if self._instance_states_active:
             return
         self._instance_states_active = True
-        future = self._background_executor.submit(self._instance_states_with_cancel)
+        future = self._background_executor.submit(self._instance_states_with_activity)
         self._schedule_after(0, self._poll_instance_states, future)
 
     def _instance_states_with_cancel(self):
@@ -4102,6 +4157,21 @@ class AConductorDesktopApp:
         if callable(states_fn):
             return states_fn(cancel_check=self._background_cancel_event.is_set)
         return getattr(self.service, "instance_states")()
+
+    def _instance_states_with_activity(self):
+        """Observe connector health + Serena active project off the Tk thread."""
+        from .serena_activity import observe_serena_activity
+
+        rows = []
+        for instance, state in self._instance_states_with_cancel():
+            if self._background_cancel_event.is_set():
+                break
+            try:
+                activity = observe_serena_activity(instance.instance_root)
+            except Exception:
+                activity = None
+            rows.append((instance, state, activity))
+        return tuple(rows)
 
     def _instance_action_with_cancel(self, name: str, action: str):
         if action == "start":
@@ -4136,17 +4206,43 @@ class AConductorDesktopApp:
                 aliases = aliases_fn() or {}
             except Exception:
                 aliases = {}
-        for instance, state in states:
+        drift_count = 0
+        for instance, state, activity in states:
             auto = False
             if callable(auto_fn):
                 try:
                     auto = bool(auto_fn(instance.name))
                 except Exception:
                     auto = False
+
+            active_project = "—"
+            last_switch = "—"
+            drift = False
+            if state is InstanceHealthState.READY:
+                active_name = getattr(activity, "active_project_name", None)
+                active_path = getattr(activity, "active_project_path", None)
+                switched_at = getattr(activity, "switched_at", None)
+                if active_name:
+                    if active_path:
+                        bound_key = os.path.normcase(os.path.normpath(str(instance.project_path)))
+                        active_key = os.path.normcase(os.path.normpath(str(active_path)))
+                        drift = active_key != bound_key
+                    active_project = f"{active_name} [DRIFT]" if drift else str(active_name)
+                else:
+                    active_project = "UNKNOWN"
+                if switched_at is not None:
+                    try:
+                        last_switch = switched_at.strftime("%H:%M:%S")
+                    except Exception:
+                        last_switch = "—"
+
             tag = {
                 InstanceHealthState.READY.value: "ready",
                 InstanceHealthState.STOPPED.value: "idle",
             }.get(state.value, "warning")
+            if drift:
+                drift_count += 1
+                tag = "warning"
             tunnel_cell = "-"
             if instance.tunnel_configured:
                 tunnel_cell = (
@@ -4164,6 +4260,8 @@ class AConductorDesktopApp:
                     instance.project_path,
                     tunnel_cell,
                     "ON" if auto else "-",
+                    active_project,
+                    last_switch,
                     "Edit",
                 ),
                 tags=(tag,),
@@ -4175,7 +4273,7 @@ class AConductorDesktopApp:
                 "",
                 "end",
                 iid="__add_instance__",
-                values=("+ Add Connector", "", "", "", "", "", ""),
+                values=("+ Add Connector", "", "", "", "", "", "", "", ""),
                 tags=("row-add",),
             )
         for button in (
@@ -4186,9 +4284,18 @@ class AConductorDesktopApp:
             self.instance_rescan_button,
         ):
             self._set_enabled(button, True)
-        ready_connectors = sum(1 for _instance, state in states if state.value == InstanceHealthState.READY.value)
+        ready_connectors = sum(
+            1
+            for _instance, state, _activity in states
+            if state.value == InstanceHealthState.READY.value
+        )
         self._connector_counts = (ready_connectors, len(states))
-        self.overview_connectors_value.configure(text=f"{ready_connectors} / {len(states)}")
+        self._active_drift_count = drift_count
+        self.overview_workers_value.configure(text=f"{ready_connectors} / {len(states)}")
+        self.overview_connectors_value.configure(
+            text=str(drift_count),
+            fg=self.theme.warning if drift_count else self.theme.foreground,
+        )
         self._render_header_runtime_status()
         self._set_enabled(self.brain_button, self._has_settings_service())
         self._instance_states_active = False
