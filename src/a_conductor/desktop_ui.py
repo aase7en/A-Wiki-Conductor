@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from concurrent.futures import Executor, Future, ThreadPoolExecutor, wait
+from concurrent.futures import CancelledError, Executor, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -712,6 +712,7 @@ class AConductorDesktopApp:
         directory_picker: Callable[[], str] | None = None,
         error_handler: Callable[[str], None] | None = None,
         background_executor: Executor | None = None,
+        disk_executor: Executor | None = None,
         guide_opener: Callable[[Path], None] | None = None,
     ) -> None:
         self.root = root
@@ -725,6 +726,15 @@ class AConductorDesktopApp:
         )
         self._owns_background_executor = background_executor is None
         self._background_cancel_event = Event()
+        self._project_disk_executor = disk_executor or ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="a-conductor-disk"
+        )
+        self._owns_project_disk_executor = disk_executor is None
+        self._project_disk_future: Future | None = None
+        self._project_disk_cancel_event: Event | None = None
+        self._project_disk_request_id = 0
+        self._project_disk_request_path: str | None = None
+        self._project_disk_cache: dict[str, str] = {}
         self._instance_start_futures: set[Future] = set()
         self._project_ids: list[str] = []
         self._project_paths: dict[str, str] = {}
@@ -830,6 +840,7 @@ class AConductorDesktopApp:
             return
         self._ui_resources_stopped = True
         self._background_cancel_event.set()
+        self._cancel_project_disk_scan()
         self._stop_teaching_animation()
         self._stop_system_monitor()
         self._stop_status_pulse()
@@ -844,6 +855,11 @@ class AConductorDesktopApp:
             try:
                 logo.destroy()
             except Exception:
+                pass
+        if self._owns_project_disk_executor:
+            try:
+                self._project_disk_executor.shutdown(wait=False, cancel_futures=True)
+            except (RuntimeError, TypeError):
                 pass
         if self._owns_background_executor:
             try:
@@ -1989,20 +2005,119 @@ class AConductorDesktopApp:
         self._refresh_memory_status()
 
     def _refresh_project_disk(self) -> None:
-        """WO-P1-070: update PROJECT DISK overview metric from the selected project."""
+        """Refresh PROJECT DISK without walking the filesystem on the Tk thread."""
         disk_label = getattr(self, "overview_disk_value", None)
         if disk_label is None:
             return
         project_id = self.selected_project_id()
         if project_id is None:
+            self._cancel_project_disk_scan()
             disk_label.configure(text="—")
             return
         root_path = self._project_paths.get(project_id)
         if not root_path:
+            self._cancel_project_disk_scan()
             disk_label.configure(text="—")
             return
+
+        normalized = os.path.normcase(os.path.abspath(root_path))
+        cached = self._project_disk_cache.get(normalized)
+        if cached is not None:
+            if self._project_disk_request_path != normalized:
+                self._cancel_project_disk_scan()
+            self._project_disk_request_path = normalized
+            disk_label.configure(text=cached)
+            return
+
+        current = self._project_disk_future
+        if (
+            self._project_disk_request_path == normalized
+            and current is not None
+            and not current.done()
+        ):
+            disk_label.configure(text="…")
+            return
+
+        self._cancel_project_disk_scan()
+        self._project_disk_request_id += 1
+        request_id = self._project_disk_request_id
+        cancel_event = Event()
+        self._project_disk_cancel_event = cancel_event
+        self._project_disk_request_path = normalized
+        disk_label.configure(text="…")
+
         from .folder_size import project_disk_display
-        disk_label.configure(text=project_disk_display(root_path))
+
+        future = self._project_disk_executor.submit(
+            project_disk_display,
+            normalized,
+            cancel_check=cancel_event.is_set,
+        )
+        self._project_disk_future = future
+        self._schedule_after(
+            0,
+            self._poll_project_disk,
+            future,
+            request_id,
+            normalized,
+            cancel_event,
+        )
+
+    def _cancel_project_disk_scan(self) -> None:
+        cancel_event = self._project_disk_cancel_event
+        if cancel_event is not None:
+            cancel_event.set()
+        future = self._project_disk_future
+        if future is not None and not future.done():
+            future.cancel()
+        self._project_disk_future = None
+        self._project_disk_cancel_event = None
+
+    def _poll_project_disk(
+        self,
+        future: Future,
+        request_id: int,
+        normalized_path: str,
+        cancel_event: Event,
+    ) -> None:
+        if self._closing:
+            cancel_event.set()
+            return
+        if not future.done():
+            self._schedule_after(
+                25,
+                self._poll_project_disk,
+                future,
+                request_id,
+                normalized_path,
+                cancel_event,
+            )
+            return
+
+        try:
+            result = future.result()
+        except CancelledError:
+            result = None
+        except Exception:
+            result = "—"
+
+        if (
+            cancel_event.is_set()
+            or request_id != self._project_disk_request_id
+            or normalized_path != self._project_disk_request_path
+        ):
+            return
+
+        self._project_disk_future = None
+        self._project_disk_cancel_event = None
+        disk_label = getattr(self, "overview_disk_value", None)
+        if disk_label is None:
+            return
+        if result is None:
+            disk_label.configure(text="—")
+            return
+        self._project_disk_cache[normalized_path] = result
+        disk_label.configure(text=result)
 
     def _refresh_memory_status(self) -> None:
         """Read-only memory-presence line for the selected project (WO-P1-057).

@@ -46,6 +46,17 @@ def test_display_real_path(tmp_path: Path) -> None:
     assert project_disk_display(tmp_path) == "2.0 KB"
 
 
+def test_cancelled_scan_returns_none_before_walk(tmp_path: Path, monkeypatch) -> None:
+    import a_conductor.folder_size as fs
+
+    def explode(_root):
+        raise AssertionError("os.walk must not run after cancellation")
+
+    monkeypatch.setattr(fs.os, "walk", explode)
+    assert fs.folder_size_bytes(tmp_path, cancel_check=lambda: True) is None
+    assert fs.project_disk_display(tmp_path, cancel_check=lambda: True) is None
+
+
 def test_never_spawns_subprocess() -> None:
     """WO-P1-070: verify no subprocess import in the module."""
     import a_conductor.folder_size as fs

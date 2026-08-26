@@ -1,20 +1,19 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-26 (GPT-5.6 Sol MAX — v0.7.0 integrator checkpoint)
+Last updated: 2026-08-26 (GPT-5.6 Sol MAX — GE design merged / v0.7.0 disk blocker)
 
 ## Current objective
 
-Finish the bounded GE-6/GE-7 design PR, repair the GE-5 ReadySet conflict mismatch, then hand GE-6 production implementation to GLM. In parallel, publish the user-designated v0.7.0 release from exact candidate `be8a45d384b4679ff5c93230d06cbfc17a060b48`, perform installed/visual acceptance, and complete the requested UI design decisions/cleanup.
+Finish `WO-P1-071` PROJECT DISK async repair, merge it only with green CI, then publish v0.7.0 from the exact post-repair main SHA using clean CI artifacts plus sandbox installed acceptance. In parallel, GE-6 implementation may start immediately from the merged ADR GE-0006; GE-005A is a required merge gate before GE-6 production merge.
 
 ## Repository / worktree identity
 
 - repository: `aase7en/A-Wiki-Conductor`
-- shared `A:\GitHub\A-Wiki-Conductor` worktree: local `main` was clean but stale at `f4ecf9a`; **do not mutate/fast-forward it** because it is shared by workers.
-- actual `origin/main`: `4956760765caab60ae8efe1a48d6edf807cdecce` after merged PR #96 (GE-5).
-- v0.7.0 release candidate: **pin to `be8a45d384b4679ff5c93230d06cbfc17a060b48`**. Current main is intentionally not the release target because it contains later GE-5 plus a known readiness defect.
-- active GPT design worktree: `A:\GitHub\A-Wiki-Conductor-ge-scheduler-design`, branch `docs/ge-scheduler-dispatch-design`, reconciled to `4956760` before docs mutation.
-- Worker 1 transport terminated during read-only inspection; work was checkpoint-safe and continued on Worker 4 against the same worktree/branch. This is TRANSPORT_FAILURE, not task/code failure.
-- A-Wiki is HOLD and was inspected only through authoritative GitHub read-only sources for the reuse gate; no A-Wiki mutation occurred.
+- actual `origin/main`: `15d2b26d959965ff7b32347326e02bbab1f60a8a` after PR #97 merge.
+- shared `A:\GitHub\A-Wiki-Conductor` main worktree remains out of mutation scope.
+- active release-blocker worktree: `A:\GitHub\A-Wiki-Conductor-disk-async`, branch `fix/project-disk-async-release`, base content includes PR #98 plus final PR #97 design head.
+- release-audit worktree: `A:\GitHub\A-Wiki-Conductor-glm-release-audit`, detached at `6f7dfd5`; `.venv-audit/` is protected local tool state and must not be deleted.
+- A-Wiki remains HOLD/read-only; no A-Wiki mutation occurred.
 
 ## Graph Engineering state
 
@@ -22,26 +21,28 @@ Verified merged implementation:
 - GE-1a/1b domain + acyclic assembly — PR #91.
 - GE-2 durable graph SQLite store — PR #92.
 - GE-3 Kahn DAG/ready levels/cycle naming — PR #94.
-- GE-4 glob-aware hidden conflict analyzer — PR #95.
-- GE-5 ReadySet — PR #96, CI green and merged, but a post-merge contract defect blocks GE-6 implementation until repaired.
+- GE-4 glob-aware hidden-conflict analyzer — PR #95.
+- GE-5 ReadySet — PR #96.
+- GE-6/GE-7 design — PR #97 merged at `15d2b26`; Windows/Ubuntu/macOS CI green.
 
-Accepted design decisions:
-- **ADR GE-0006:** event-driven/re-entrant deterministic scheduler core; no hot polling/background scheduler thread; current capacity policy `max_parallel=5`; worker capability/project/mutation-authority matching; same-batch + running conflict closure; pure SchedulePlan output only.
-- **ADR GE-0007:** graph dispatch REUSE/WRAPs existing `DurableJobControlService`, `SQLiteJobStore`, `DurableJobExecutionCoordinator`, supervised execution, recovery, and dedup; dispatch identity includes `{graph_id, graph_run_id, node_id}`; no second lifecycle/store.
-- A-Wiki brain bridge stays gate/policy seam only; A-Wiki agent-claim TTL is not Conductor execution-reservation ownership.
+Accepted execution decisions now on main:
+- **GE-0006:** deterministic event-driven/re-entrant scheduler core; `max_parallel=5`; worker capability/project/mutation-authority matching; running + same-batch GE-4 conflict closure; SchedulePlan output only.
+- **GE-0007:** reuse/wrap durable job control, SQLite lifecycle, execution coordinator, supervised execution, recovery and dedup. Stable identity includes `{graph_id, graph_run_id, node_id}`.
+- Current ChatGPT + Serena + Secure MCP Tunnel workers are **`INTERACTIVE_PULL`**: Conductor persists/offers/reserves work, and the AI in an active chat turn pulls/claims it and acts through Serena/tools. The tunnel is transport, not a server-push model-turn API.
+- A local/headless/API surface with a documented invocation interface may be `PROGRAMMATIC_PUSH`.
 
-### Blocking GE-5 repair before GE-6 code
+**Immediate GLM handoff:** `GE-0006/0007 accepted — start GE-6 TDD now; GE-005A must merge before GE-6 production merge.`
 
-Merged `graph/ready.py` compares running write sets by literal equality while GE-4 is glob-aware. Example `src/**/*.py` vs `src/specific.py` can be incorrectly marked safe. Repair ticket: `docs/work-orders/WO-GE-005A-readyset-glob-conflict-repair.md`. Integrator evidence is recorded on PR #96 comment `5420827136`.
+GE-005A remains necessary because merged GE-5 compares running write-set strings literally while GE-4 is glob-aware. Do not add a third overlap algorithm in scheduler code.
 
-After that repair merges green, GLM may implement GE-6 from ADR GE-0006. GE-7 follows ADR GE-0007. Do not add scheduler workarounds for the GE-5 defect.
+## Release state / blocker
 
-## Release state
-
-- v0.6.0 remains published and verified historically.
-- v0.7.0 is **not yet published** at this checkpoint.
-- Exact candidate for v0.7.0 remains `be8a45d` as explicitly handed to the integrator; do not include later GE-5/design changes in that release merely because `main` advanced.
-- PR #93 (`dab8f32`) singleton-dialog/release consolidation merged with Windows/Ubuntu/macOS CI green; PR #90 connector clarity and PRs #91–#95 graph/UI foundations are included as appropriate in the candidate line.
+- v0.7.0 is **not published yet**.
+- Exact `6f7dfd5` CI run `32935805411` was green and produced clean Portable/Setup artifacts, but that SHA is no longer safe to publish because PR #98's PROJECT DISK scan performs recursive `os.walk()` synchronously on the Tk UI thread.
+- Real reproducer: scanning `A:\GitHub\A-Wiki-Conductor` took **52.1194 s** on this workstation; selecting/refreshing a project can therefore freeze the GUI.
+- Active repair `WO-P1-071` moves the scan to a dedicated single-worker executor, separate from the existing one-worker lifecycle/monitor executor; adds cooperative cancellation, request-id/path stale-result guard, cache, pending `…`, and shutdown cleanup.
+- Focused deterministic tests after implementation: **10 passed, 4 skipped** because the local audit venv has an unusable Tcl path. Exact GitHub Windows GUI CI is required before merge.
+- Publish target becomes the exact **post-WO-P1-071 merged main SHA**, not `6f7dfd5` or older `be8a45d`.
 
 ## Verified source state
 

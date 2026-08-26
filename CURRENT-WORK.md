@@ -1,26 +1,27 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-26 (GPT-5.6 Sol MAX — GE-6/7 design + v0.7.0 integration)
+Last updated: 2026-08-26 (GPT-5.6 Sol MAX — GE design merged + v0.7.0 release blocker repair)
 
 ## Current phase
 
-**v0.7.0 RELEASE INTEGRATION + Graph Engineering design.** The user-designated v0.7.0 release candidate remains pinned to `be8a45d384b4679ff5c93230d06cbfc17a060b48` (v0.7 UI fixes + GE-1a/1b through GE-4). Do not silently retarget that release to later `main` commits.
+**v0.7.0 RELEASE BLOCKER REPAIR + Graph Engineering handoff.** Actual `origin/main` is `15d2b26d959965ff7b32347326e02bbab1f60a8a` after PR #97 merged the accepted GE-6/GE-7 design. Do not publish v0.7.0 from older `6f7dfd5`: PR #98's synchronous PROJECT DISK scan can block the Tk UI thread for tens of seconds on a real repository.
 
-Actual remote state has advanced beyond the release candidate:
-- `origin/main = 4956760765caab60ae8efe1a48d6edf807cdecce` after PR #96 (GE-5 ReadySet) merged green.
-- PRs #90–#95 are merged; GE-1a/1b, GE-2, GE-3, and GE-4 are complete on the v0.7.0 candidate line.
-- PR #96 GE-5 is merged, but GPT integrator review found a post-merge contract defect: ReadySet uses literal write-set equality while GE-4 is glob-aware. `src/**/*.py` vs `src/specific.py` can be incorrectly marked simultaneously safe.
+Verified current state:
+- PR #97 merged green on Windows/Ubuntu/macOS; ADR GE-0006 and GE-0007 are authoritative on main.
+- **GE-6 TDD is unblocked now.** GLM may start from ADR GE-0006 immediately.
+- `WO-GE-005A-readyset-glob-conflict-repair.md` remains a required **production merge gate** before GE-6 can merge; it no longer blocks isolated GE-6 TDD.
+- GE-7 follows GE-6 and must preserve the accepted `INTERACTIVE_PULL` (ChatGPT/tunnel) vs `PROGRAMMATIC_PUSH` execution-surface contract and existing durable job-control reuse boundary.
+- PR #98 guide glossary/step tables/ASCII flow + PROJECT DISK text display is merged.
 
-**GE-6/GE-7 design is accepted** in ADR GE-0006 and GE-0007 on branch `docs/ge-scheduler-dispatch-design`:
-- GE-6 = deterministic event-driven/re-entrant scheduling pass, bounded current policy `max_parallel=5`, capability/project/mutation-authority matching, and conflict closure against running + same-batch selections.
-- GE-7 = REUSE/WRAP existing durable `job_control.py`, SQLite job lifecycle, execution coordinator, supervised execution, and dedup; no second graph execution state machine/store.
-- A-Wiki remains bridge-only for gates/policy; its agent-claim TTL is not Conductor execution-reservation state.
+**Active release blocker: `WO-P1-071-project-disk-async-release-blocker.md`.** Real benchmark of the merged synchronous folder scan:
+- `A:\GitHub\A-Wiki-Conductor` = 1,093,795,443 bytes in **52.1194 s**;
+- release-audit worktree = 542,282,526 bytes in 1.1383 s.
 
-**Immediate blocking repair:** `WO-GE-005A-readyset-glob-conflict-repair.md`. GLM fixes GE-5 to reuse one authoritative GE-4 glob-overlap seam and merges green. Only then may GLM begin GE-6 production implementation from ADR GE-0006. GE-7 follows ADR GE-0007.
+Repair direction already implemented test-first on `fix/project-disk-async-release`: dedicated one-worker disk executor separate from lifecycle/monitor work, cooperative cancellation, stale-result protection, per-session cache, no subprocess, and owned shutdown. Focused deterministic result: **10 passed, 4 local-Tk-environment skips**; GitHub Windows GUI CI is the release authority for the Tk cases.
 
-**Release boundary:** v0.7.0 packaging/installed acceptance must use exact candidate `be8a45d`, not current main `4956760`, so the published release does not absorb the known GE-5 defect or post-candidate design documents.
+**Release boundary:** publish v0.7.0 only from the exact post-hotfix `origin/main` SHA after its full CI/build/archive/frozen smoke is green and sandbox installed acceptance passes. Clean GitHub Actions artifacts from `6f7dfd5` were valid, but that SHA is superseded as a release target because the synchronous disk scan is now a known product defect.
 
-**A-Wiki HOLD remains in force.** Do not mutate `A:\GitHub\A-Wiki`. Known local caveat: ESET may transiently lock fresh PE/.ps1 files; use bounded retry only and never disable antivirus. Never bind tests to live fleet ports 18011–18015.
+**A-Wiki HOLD remains in force.** Do not mutate `A:\GitHub\A-Wiki`. ESET may transiently lock fresh PE/.ps1 files; bounded retry only, never disable antivirus. Never bind tests to live fleet ports 18011–18015.
 
 ## Source-of-truth rule
 
