@@ -246,7 +246,7 @@ def test_registry_entry_records_current_display_version(
     module.write_registry(target, target / f"Uninstall-{APP_NAME}.exe")
 
     assert module.APP_VERSION == APP_VERSION == "0.7.0"
-    assert "-Name DisplayVersion -Value '0.6.0'" in scripts[0]
+    assert "-Name DisplayVersion -Value '0.7.0'" in scripts[0]
 
 
 def test_registry_removal_ignores_absence_but_surfaces_real_errors(monkeypatch) -> None:
