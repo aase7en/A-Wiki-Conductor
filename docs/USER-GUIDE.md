@@ -9,15 +9,15 @@
 | คำศัพท์ | คืออะไร (ภาษาง่าย ๆ) |
 |---|---|
 | **Project** | โฟลเดอร์ที่เก็บโค้ด/ไฟล์งานของคุณในเครื่อง เช่น `A:\GitHub\my-app` — เปรียบเสมือน "ห้องทำงาน" ที่ AI จะเข้าไปทำงาน |
-| **Connector** | "สะพาน" ที่เชื่อม ChatGPT เข้ากับโปรเจกต์ในเครื่องคุณ — แต่ละตัวมีชื่อ + พอร์ต + โปรเจกต์ที่ผูกไว้ตายตัว |
+| **Connector** | ตัวเชื่อม Serena/MCP ในเครื่องสำหรับ 1 ช่องทาง Tunnel ของ ChatGPT — มีชื่อ พอร์ต Tunnel ID และ **Bound Project** ที่ใช้ตอนเริ่มตัวเชื่อม |
 | **Tunnel ID** | รหัสผ่านของสะพาน (ขึ้นต้น `tunnel_` ตามด้วย 32 ตัวอักษร) — สร้างใน OpenAI Platform แล้วนำมาใส่ในโปรแกรม เพื่อให้ ChatGPT หาเครื่องคุณเจอ |
-| **Worker** | ช่องที่จะรับงานในอนาคต (เหมือนเก้าอี้พนักงาน) — ตอนนี้ยังไม่ได้ใช้งานจริง รอระบบกราฟเสร็จ |
+| **Worker** | ช่องตรรกะของ scheduler/CRUD อยู่ใน **Scheduler Registry [Advanced]** ไม่ใช่สถานะ live ของ Connector |
 | **Serena** | โปรแกรมภายในที่เป็น "มือ" ให้ AI — ทำให้ AI อ่าน/แก้ไขไฟล์ในโปรเจกต์ได้ |
 | **MCP** | มาตรฐานการสื่อสารที่ให้ AI เรียกใช้เครื่องมือต่าง ๆ (เช่น อ่านไฟล์ รันคำสั่ง) |
 | **Plugin** | สิ่งที่คุณสร้างใน ChatGPT เพื่อเชื่อมกับ Tunnel — คุณตั้งชื่อเองได้ (เช่น Sunday-Worker-1) |
 | **Port** | หมายเลขประตำ (เช่น 18011) ที่แต่ละ Connector ใช้สื่อสารภายในเครื่อง — แต่ละตัวไม่ซ้ำกัน |
 | **Second Brain** | ความรู้/กฎ/ความจำที่ AI ต้องอ่านก่อนทำงาน — เช่น ไฟล์ AGENTS.md ของ A-Wiki |
-| **Active Project** | โปรเจกต์ที่ AI กำลังทำงานด้วยอยู่ตอนนี้ — แต่ละ Connector ผูกกับ 1 โปรเจกต์เท่านั้น |
+| **Active Project** | โปรเจกต์ล่าสุดที่ Serena activate จริงใน runtime ของ Connector นั้น; `UNKNOWN` = ยังไม่มีหลักฐาน activation ที่เชื่อถือได้ |
 | **Instance** | อีกชื่อของ Connector (ใช้สลับกันได้) — หมายถึง "ตัวเชื่อม 1 ชุด" ในโฟลเดอร์ `C:\AI\serena-instances\` |
 
 ---
@@ -71,7 +71,7 @@
 
 | ขั้น | ทำอะไร | กดปุ่มไหน |
 |---|---|---|
-| 1 | เปิดโปรแกรม → ดูว่า Connector ไหน READY | (ดูตาราง CONNECTORS) |
+| 1 | เปิดโปรแกรม → ดู **AI EXECUTION SLOTS — LIVE**: CONNECTION ควร READY และดู ACTIVE PROJECT / BOUND PROJECT / [DRIFT] | ในโปรแกรม |
 | 2 | ไปที่ ChatGPT → เปิดแชทที่มี Plugin ของ Connector นั้น | ในเบราว์เซอร์ |
 | 3 | คุยกับ AI ได้เลย — AI เห็นโปรเจกต์ผ่าน Connector อัตโนมัติ | (แชท) |
 
@@ -109,16 +109,13 @@ a-conductor          # เปิดโปรแกรม
 ## 3. หน้าจอหลักมีอะไร
 
 ```
-┌ A-SUNDAY CONDUCTOR                         [คู่มือ]     ● ONLINE ┐
-├ PROJECTS (ซ้าย)  │  WORKERS (ขวา) — ตาราง WORKER/STATE/PROJECT/PATH
-│                  │  ปุ่ม: Add Project / Assign / Activate / Release / Refresh
-│                  │        Start / Stop / Restart / Setup / Config / + Worker / Rename / Delete
-├ CONNECTORS — INSTANCE / PORT / STATE / PROJECT / TUNNEL / AUTO
-│  ปุ่ม: Start / Stop / Start All / Toggle Auto / Rescan / + ตัวเชื่อม / แก้ชื่อ / ลบ
-│        ตั้ง Tunnel ID / เปลี่ยนโปรเจกต์ / สมอง + folder / เช็คอัปเดท
-├ MONITOR — สถานะ/PID/หน่วยความจำ/บรรทัดท้าย log ของตัวเชื่อมที่เลือก (รีเฟรชอัตโนมัติ)
-├ CONNECTORS — INSTANCE / PORT / STATE / PROJECT / AUTO
-│  ปุ่ม: Start / Stop / Start All / Toggle Auto / Rescan
+┌ A-SUNDAY CONDUCTOR                         [Guide] [Settings]  ● ONLINE ┐
+├ PROJECTS — ลงทะเบียน/เลือกโฟลเดอร์โปรเจกต์ที่จะทำงาน
+├ AI EXECUTION SLOTS — LIVE
+│  SLOT / CONNECTION / ACTIVE PROJECT / BOUND PROJECT / LAST SWITCH / PORT / TUNNEL / AUTO
+│  [DRIFT] = Active Project ไม่ตรงกับ Bound Project ของ Connector
+├ SCHEDULER REGISTRY [ADVANCED] — Worker เชิงตรรกะสำหรับ scheduler/CRUD; ซ่อนไว้เป็นค่าเริ่มต้น
+├ MONITOR — สถานะ/PID/หน่วยความจำ/บรรทัดท้าย log ของ Connector ที่เลือก
 └ ACTIVITY / LOG — บันทึกเหตุการณ์ทุกคำสั่ง
 ```
 
@@ -128,8 +125,9 @@ a-conductor          # เปิดโปรแกรม
 
 ### 4.1 จัดการโปรเจ็คกับ worker (ฝั่ง Control Center)
 1. **Add Project** → เลือกโฟลเดอร์โปรเจ็ค (การลงทะเบียน*ไม่แตะ*ไฟล์ในโปรเจ็คนั้น)
-2. คลิกโปรเจ็คซ้าย + คลิก worker ขวา → **Assign**
-3. **Start/Stop/Restart** ควบคุม lifecycle ของ worker
+2. งานประจำวันให้ดู **AI EXECUTION SLOTS — LIVE** เป็นหลัก เพราะเป็นสถานะ Connector/runtime จริง
+3. เปิด **Scheduler Registry [Advanced]** เฉพาะตอนต้อง assign/แก้ไข/config Worker เชิงตรรกะ
+4. Worker lifecycle กับ Connector lifecycle เป็นคนละ actor — ชื่อปุ่มจะระบุชัดว่ากำลังสั่ง Worker หรือ Connector
 
 ### 4.2 ตั้งค่า engine อ่านโค้ดของแต่ละ worker (ปุ่ม Config)
 เลือก worker → **Config** → แก้ได้:
@@ -188,21 +186,21 @@ a-conductor          # เปิดโปรแกรม
 ห่วงโซ่ที่เชื่อมกันจริง:
 
 ```
-แชทใน ChatGPT → ปลั๊กอินถือ Tunnel ID → ในเครื่อง: connector ที่มี tunnel-id.txt ตรงกัน
-→ connector นั้น pin "โปรเจกต์ 1 ตัว" (คอลัมน์ PROJECT ในตาราง CONNECTORS) + มีพอร์ตของตัวเอง (คอลัมน์ PORT)
+แชทใน ChatGPT → ปลั๊กอินถือ Tunnel ID → ในเครื่อง: Connector ที่ตรงกัน + PORT
+→ Connector เริ่มด้วย BOUND PROJECT → ระหว่างแชท Serena อาจ activate ACTIVE PROJECT อื่นได้
 ```
 
-กฎที่ต้องจำ: **1 ปลั๊กอิน = 1 connector = 1 โปรเจกต์ตายตัว** ตลอดอายุแชท เปลี่ยนโปรเจกต์ต้องใช้ปุ่ม **Change Project** ที่ connector ตัวนั้น แล้ว **Stop → Start ใหม่** จึงมีผล (แชทที่ค้างอยู่จะไม่เห็นโปรเจกต์เปลี่ยนแบบสด ๆ)
+กฎที่ต้องจำ: **1 ปลั๊กอิน = 1 connector lane** ไม่ได้แปลว่าโปรเจกต์ต้องตายตัวตลอดแชท **BOUND PROJECT** คือ binding ตอนเริ่ม Connector ส่วน **ACTIVE PROJECT** คือสิ่งที่ Serena activate จริงใน runtime; ถ้าขึ้น `ACTIVE PROJECT [DRIFT]` แปลว่าสองค่านี้ไม่ตรงกัน การเปลี่ยน Bound Project ต้องแก้ Connector แล้ว restart แต่การใช้ **Copy Activate** ในแชทสามารถเปลี่ยน Active Project ของ runtime ได้โดยไม่แกล้งบอกว่า binding เปลี่ยน
 
 ไล่ทีละ step ว่า "แชทนี้คือแถวไหน":
 
 1. ใน ChatGPT เปิดการตั้งค่าปลั๊กอิน/connector แล้วดู **Tunnel ID** ของเจ้านั้น
 2. ในโปรแกรม ดูคอลัมน์ **TUNNEL** ของตาราง CONNECTORS — แต่ละแถวโชว์ **4 ตัวท้ายของ Tunnel ID** (เช่น `...e3f1`) ให้เทียบกับ 4 ตัวท้ายของ ID ที่เห็นใน ChatGPT ได้ทันที (โปรแกรมไม่แสดง ID เต็ม เพราะถือเป็นข้อมูลลับ) · กด **Edit** ในแถวจะเห็น "ปัจจุบัน: ...xxxx" และแก้ ID ได้จากที่นี่
-3. เมื่อเจอตัวที่ตรง: อ่านคอลัมน์ **PROJECT** และ **PORT** ของแถวนั้น = แชทนี้กำลังทำงานกับโปรเจกต์นั้น ผ่านพอร์ตนั้น
-4. ในตาราง WORKERS คอลัมน์ **CONNECTOR (?)**: worker ใดที่ถูก assign โปรเจกต์เดียวกับ connector ตัวนั้น (path ตรงกันเป๊ะ) จะโชว์ชื่อ connector; ขีด `-` = ยังไม่มี connector ไหนผูกกับโปรเจกต์ของ worker นั้น (ไม่ใช่ error) — **คอลัมน์นี้เป็นแค่การแสดงผลที่คำนวณอัตโนมัติ ไม่ใช่การลงทะเบียน และไม่มีปุ่มตั้งค่า** ไม่ต้องตั้งค่าอะไรที่นี่
+3. เมื่อเจอตัวที่ตรง: อ่านแถว **AI EXECUTION SLOTS — LIVE** เดียวกันได้เลย ทั้ง **CONNECTION**, **ACTIVE PROJECT**, **BOUND PROJECT**, **PORT**, Tunnel แบบปิดบัง และ **LAST SWITCH**
+4. ถ้าขึ้น **[DRIFT]** = Active Project ไม่ตรง Bound Project อย่ารีบถือว่า error; ให้ดูว่าแชทตั้งใจ activate โปรเจกต์อื่นหรือไม่
 
-   > 💡 อีกนัยหนึ่ง: ตาราง CONNECTORS คือ "ความจริง" ของอุโมงค์ (พอร์ต+โปรเจกต์+สถานะ รีเฟรชสดทุก 15 วินาที) ส่วนตาราง WORKERS เป็นมุมมองการจัดคิวงาน — สองอย่างนี้เชื่อมกันผ่าน path ของโปรเจกต์เท่านั้น
-5. อยากให้ "แชทตัวที่ 2" ไปทำงานกับโปรเจกต์ B: เลือก connector ของแชทที่ 2 → **Change Project** → ใส่ path โปรเจกต์ B → **Stop** → **Start** → เช็คว่าคอลัมน์ PROJECT เปลี่ยนแล้ว = เสร็จ
+   > 💡 สรุป: **AI EXECUTION SLOTS — LIVE** คือมุมมอง operator ของความจริงแบบ live ส่วน **Scheduler Registry [Advanced]** คือมุมมอง Worker เชิงตรรกะสำหรับ scheduler/CRUD และจงใจซ่อนไว้เป็นค่าเริ่มต้น
+5. ถ้าต้องการเปลี่ยน binding เริ่มต้นของ Connector ไปโปรเจกต์ B: แก้ **Bound Project** → **Stop Connector** → **Start Connector**; ถ้าต้องการทำงานชั่วคราวใน B ในแชทปัจจุบัน ให้ใช้ **Copy Activate** ของ B แล้วตรวจ **ACTIVE PROJECT / [DRIFT]** ที่หน้า live
 
 ## 5. ฐานข้อมูล/ไฟล์ของโปรแกรมอยู่ไหน
 

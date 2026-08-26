@@ -215,6 +215,20 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 ---
 
+## #13: Embedded Markdown HTML must be sanitized with an allowlist (2026-08-27)
+
+**Symptom:** the embedded Guide renderer disabled JavaScript/images/objects, but Python-Markdown still preserves raw HTML from the Markdown source. A future guide edit containing iframe, svg, style/event attributes, or a javascript link could cross the content boundary before renderer feature flags are applied.
+
+**Root cause:** renderer capability flags are runtime controls, not an HTML content sanitizer; regex tag removal also leaves bypass classes and unsafe attributes.
+
+**Fix:** generated Markdown HTML now passes through a stdlib HTMLParser allowlist. Only text/structural tags are emitted; attributes are dropped except safe title and http/https or fragment anchor targets. Active/resource containers are suppressed fail-closed.
+
+**Lesson:** any Markdown-to-HTML surface must treat raw HTML as untrusted input even when Markdown files are repository-controlled. Sanitize with an explicit allowlist before handing content to an embedded renderer; renderer flags are defense-in-depth only.
+
+**Verify:** tests/test_guide_html.py pins iframe/embed/object/video/audio/script/style content, image/svg resources, javascript links, style attributes, and safe HTTPS links.
+
+---
+
 ## 🔨 BUILD CHECKLIST (อ่านทุกครั้งก่อน build/release ใหม่)
 
 บันทึก: 2026-08-26 — สรุปปัญหาที่เคยเจอทุกอย่างเพื่อไม่ให้เกิดซ้ำในเวอร์ชันใหม่

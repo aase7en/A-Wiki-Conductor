@@ -335,7 +335,10 @@ def test_user_guides_carry_the_current_version() -> None:
         assert f"v{APP_VERSION}" in text, f"{name} does not mention v{APP_VERSION}"
         assert "v0.4.3" not in text, f"{name} still carries a stale version"
     th = (find_user_guide_path().parent / "USER-GUIDE.md").read_text(encoding="utf-8")
-    assert "1 ปลั๊กอิน = 1 connector = 1 โปรเจกต์" in th  # hand-holding section exists
+    assert "connector lane" in th
+    assert "BOUND PROJECT" in th
+    assert "ACTIVE PROJECT" in th
+    assert "[DRIFT]" in th
 
 
 def test_donate_qr_ships_in_dev_layout(root, tmp_path: Path) -> None:
