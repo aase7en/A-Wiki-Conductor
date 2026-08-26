@@ -1,6 +1,88 @@
 # A-Sunday Conductor — User Guide (English)
 
-Latest: 2026-08-25 (v0.7.0) · Supported OS: **Windows 10/11** (full features) · Python 3.11+ (developer install)
+Latest: 2026-08-26 (v0.7.0) · Supported OS: **Windows 10/11** (full features) · Python 3.11+ (developer install)
+
+---
+
+## Glossary (read this first if the terms are new)
+
+| Term | What it means (plain English) |
+|---|---|
+| **Project** | A folder on your computer with code/files — the "workspace" the AI will work in |
+| **Connector** | A "bridge" linking ChatGPT to a project folder — each has a name + port + one pinned project |
+| **Tunnel ID** | The bridge's password (starts with `tunnel_` + 32 characters) — created on OpenAI Platform, pasted into the app |
+| **Worker** | A slot for future work assignment — not actively used yet, waiting for the Graph Engine |
+| **Serena** | The internal program that acts as the AI's "hands" — lets it read/edit project files |
+| **MCP** | The protocol standard that lets AI call tools (read files, run commands) |
+| **Plugin** | What you create in ChatGPT to connect to a Tunnel — you name it yourself (e.g. Sunday-Worker-1) |
+| **Port** | A door number (e.g. 18011) each Connector uses for local communication — unique per connector |
+| **Second Brain** | Knowledge/rules/memory the AI must read before working — e.g. A-Wiki's AGENTS.md |
+| **Active Project** | The project the AI is currently working on — each Connector is pinned to exactly 1 project |
+| **Instance** | Another name for Connector (used interchangeably) — one bridge setup in `C:\AI\serena-instances\` |
+
+---
+
+## How everything connects
+
+```
+┌─────────────────── ChatGPT (internet side) ────────────────────┐
+│                                                                │
+│   Chat 1 [Plugin: Sunday-Worker-1] ──── Tunnel ID: tunnel_abc │
+│   Chat 2 [Plugin: Sunday-Worker-2] ──── Tunnel ID: tunnel_def │
+│   Chat 3 [Plugin: Sunday-Worker-3] ──── Tunnel ID: tunnel_ghi │
+│                                                                │
+└──────┬──────────────────┬──────────────────┬───────────────────┘
+       │                  │                  │
+       ▼                  ▼                  ▼
+┌─── A-Sunday Conductor (on your computer) ──────────────────────┐
+│                                                                │
+│  ┌────────────┐   ┌────────────┐   ┌────────────┐           │
+│  │ Connector 1 │   │ Connector 2 │   │ Connector 3 │           │
+│  │ :18011     │   │ :18012     │   │ :18013     │           │
+│  │ tunnel_abc │   │ tunnel_def │   │ tunnel_ghi │           │
+│  └──────┬─────┘   └──────┬─────┘   └──────┬─────┘           │
+│         │                │                │                   │
+│         ▼                ▼                ▼                   │
+│  ┌────────────┐   ┌────────────┐   ┌────────────┐           │
+│  │ Project A  │   │ Project B  │   │ Project C  │           │
+│  │ A:\GitHub\ │   │ A:\GitHub\ │   │ A:\GitHub\ │           │
+│  │ my-app     │   │ other-app  │   │ third-app  │           │
+│  └────────────┘   └────────────┘   └────────────┘           │
+│                                                                │
+│  Key rule: 1 Plugin = 1 Tunnel ID = 1 Connector = 1 Project   │
+│  Change project = press "Change Project" then Stop → Start    │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## First-time setup (5 steps)
+
+| Step | What to do | Button |
+|---|---|---|
+| 1 | Open the app → Setup Wizard opens automatically | (automatic) |
+| 2 | Install everything the Wizard asks (uv, Python, Serena, tunnel-client) | [Next] through steps |
+| 3 | Create a Tunnel ID on OpenAI Platform (Settings → Tunnels → New) | Click link from Wizard |
+| 4 | Enter connector name + pick project folder + paste Tunnel ID | Wizard final step |
+| 5 | Go to ChatGPT → create a Plugin pointing to your Tunnel | In browser |
+
+## Daily use (3 steps)
+
+| Step | What to do | Button |
+|---|---|---|
+| 1 | Open the app → check which Connectors are READY | (see CONNECTORS table) |
+| 2 | Go to ChatGPT → open the chat with that Plugin | In browser |
+| 3 | Chat with the AI — it sees your project through the Connector | (chat) |
+
+## Add a new chat (4 steps)
+
+| Step | What to do | Button |
+|---|---|---|
+| 1 | Create a new Tunnel ID on OpenAI Platform | In browser |
+| 2 | Click `+ Add Connector` in the CONNECTORS table (or the `+ Add` row if empty) | In app |
+| 3 | Enter name + pick project + paste Tunnel ID → Save | In dialog |
+| 4 | Go to ChatGPT → create a new Plugin pointing to that Tunnel ID | In browser |
 
 ---
 
