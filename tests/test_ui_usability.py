@@ -163,11 +163,12 @@ def test_monitor_supports_copy_all(root, tmp_path: Path) -> None:
     assert str(app.monitor_text.cget("state")) == "disabled"
 
 
-def test_connector_column_has_help_and_add_connector_visible(root, tmp_path: Path) -> None:
+def test_registry_help_distinguishes_logical_workers_from_live_slots(root, tmp_path: Path) -> None:
     app = make_app(root, tmp_path)
     assert app.add_instance_button.cget("text") == "Add Connector"
     help_text = app.connector_help_text()
-    assert "Connector" in help_text and "-" in help_text and "Add Connector" in help_text
+    assert "Worker Registry" in help_text
+    assert "AI EXECUTION SLOTS" in help_text
 
 
 def test_assign_replacement_confirms_and_switches_project(root, tmp_path: Path) -> None:
@@ -307,16 +308,30 @@ def test_real_window_keeps_all_operational_panes_visible(
     root.update_idletasks()
     root.update()
 
-    for widget in (
-        app.worker_tree,
-        app.instance_tree,
-        app.monitor_text,
-        app.activity_text,
-    ):
+    assert not app.worker_tree.winfo_ismapped()
+    assert app.registry_toggle_button.winfo_ismapped()
+    for widget in (app.instance_tree, app.monitor_text, app.activity_text):
         assert widget.winfo_ismapped(), f"{width}x{height}: {widget} is hidden"
         assert widget.winfo_height() >= 24, (
             f"{width}x{height}: {widget} collapsed to {widget.winfo_height()}px"
         )
+
+
+
+def test_advanced_registry_can_reveal_selectable_worker_rows(root, tmp_path: Path) -> None:
+    app = make_app(root, tmp_path)
+    root.deiconify()
+    root.geometry("1080x680+20+20")
+    root.update_idletasks()
+    assert not app.worker_tree.winfo_ismapped()
+    app.toggle_worker_registry()
+    root.update_idletasks()
+    root.update()
+    item = app.worker_tree.get_children()[0]
+    bbox = app.worker_tree.bbox(item)
+    assert bbox
+    assert app.worker_tree.winfo_ismapped()
+    assert app.registry_toggle_button.cget("text") == "Hide Registry"
 
 
 def test_window_minimum_height_keeps_operational_surfaces_reachable(
@@ -329,12 +344,9 @@ def test_window_minimum_height_keeps_operational_surfaces_reachable(
     root.update()
 
     assert root.winfo_height() >= 680
-    for widget in (
-        app.worker_tree,
-        app.instance_tree,
-        app.monitor_text,
-        app.activity_text,
-    ):
+    assert not app.worker_tree.winfo_ismapped()
+    assert app.registry_toggle_button.winfo_ismapped()
+    for widget in (app.instance_tree, app.monitor_text, app.activity_text):
         assert widget.winfo_ismapped()
         assert widget.winfo_height() >= 24
 
@@ -360,15 +372,16 @@ def test_default_height_exposes_selectable_rows_and_two_console_lines(
     app._update_monitor_now()
     root.update_idletasks()
 
-    for tree in (app.worker_tree, app.instance_tree):
-        item = tree.get_children()[0]
-        bbox = tree.bbox(item)
-        assert bbox, f"{width}px: first row has no visible bbox"
-        _x, y, _row_width, row_height = bbox
-        assert y + row_height <= tree.winfo_height(), (
-            f"{width}px: first row is clipped at {y + row_height}px "
-            f"inside {tree.winfo_height()}px"
-        )
+    assert not app.worker_tree.winfo_ismapped()
+    tree = app.instance_tree
+    item = tree.get_children()[0]
+    bbox = tree.bbox(item)
+    assert bbox, f"{width}px: first live slot row has no visible bbox"
+    _x, y, _row_width, row_height = bbox
+    assert y + row_height <= tree.winfo_height(), (
+        f"{width}px: first live slot row is clipped at {y + row_height}px "
+        f"inside {tree.winfo_height()}px"
+    )
 
     for text_widget in (app.monitor_text, app.activity_text):
         first_visible = text_widget.index("@0,0 linestart")
