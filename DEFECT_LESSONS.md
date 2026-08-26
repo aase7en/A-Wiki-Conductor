@@ -201,6 +201,20 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 ---
 
+## #12: Live telemetry ต้องพิสูจน์ provenance ไม่ใช่จับ keyword (2026-08-26)
+
+**อาการ:** real-system E2E ของ AI EXECUTION SLOTS รายงาน Active Project ผิดได้ เพราะ runtime log มี tool/test output ที่ quote ข้อความ `Activating ...` ซึ่งหน้าตาเหมือน event จริง
+
+**Root cause:** parser รุ่นแรก match keyword กว้างเกินไป และสมมติชื่อไฟล์ `conductor-runtime.stderr.log` + tail 256 KiB คงที่ ทั้งที่ connector ที่ rename ยังใช้ชื่อ legacy และ activation ล่าสุดอาจอยู่ลึกกว่านั้น
+
+**แก:** ยอมรับเฉพาะ logger signature `serena.agent:_activate_project:<line> - Activating ...`; เลือก `*-runtime.stderr.log` ที่ใหม่สุด; อ่านย้อนหลังทีละ 64 KiB พร้อม hard cap 2 MiB และหยุดทันทีเมื่อเจอ event จริงล่าสุด
+
+**Lesson:** ข้อมูลที่ UI เรียกว่า **LIVE / ACTIVE / REAL** ต้องมี provenance ที่เฉพาะเจาะจงและ fail-closed; ห้ามยกระดับข้อความที่ "ดูคล้าย event" เป็น runtime truth จาก keyword อย่างเดียว
+
+**ตรวจสอบ:** `tests/test_serena_activity.py` pin กรณี deep-tail, legacy filename และ tool-output false positive + real-system read-only E2E กับ Sunday-Worker fleet
+
+---
+
 ## 🔨 BUILD CHECKLIST (อ่านทุกครั้งก่อน build/release ใหม่)
 
 บันทึก: 2026-08-26 — สรุปปัญหาที่เคยเจอทุกอย่างเพื่อไม่ให้เกิดซ้ำในเวอร์ชันใหม่

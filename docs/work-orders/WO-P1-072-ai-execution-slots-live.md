@@ -2,9 +2,9 @@
 
 Created: 2026-08-26
 Owner: GPT-5.6 Sol MAX — design + implementation + visual/release integration
-Status: IN_PROGRESS — user decision settled; telemetry seam proven; implementation branch active
+Status: READY_FOR_PR — real-system E2E complete; deep telemetry defects repaired TDD-first; focused GUI green
 Branch: `feat/ai-execution-slots-live`
-Stacked dependency: PR #99 / WO-P1-071 must merge before this PR is finalized
+Dependency satisfied: PR #99 merged as `e8195b1`; branch reconciled to that main line
 
 ## User problem / outcome
 
@@ -91,6 +91,26 @@ Forbidden:
 - STOPPED connector does not claim an active project even if stale log entries exist.
 - Telemetry never writes runtime files and never invokes Serena tools.
 
+## Real-system E2E checkpoint — 2026-08-26
+
+Read-only E2E used an online SQLite backup of the real user DB plus the real `C:\AI\serena-instances` fleet. The harness did **not** call `start_background_operations()` and therefore did not autostart/stop connectors. Post-run live health matched pre-run state.
+
+Observed fleet at capture time:
+- Sunday-Worker-1: READY, bound `A-Wiki-Conductor`, active `pharmacy` -> `[DRIFT]`;
+- Sunday-Worker-2: READY, bound `pharmacy`, active `sunday-estate-webapp` -> `[DRIFT]`;
+- Sunday-Worker-3: READY, bound `env-wastewater-webapp`, active `env-wastewater-webapp-review-worker3` -> `[DRIFT]`;
+- Sunday-Worker-4: STOPPED -> active project intentionally suppressed as `—`;
+- Sunday-Worker-5: READY, bound/active `sunday-estate-webapp` -> aligned.
+
+Header/overview evidence: `SLOTS 4/5 · REGISTRY 8`, Registry collapsed by default, three live drifts. A real 1600x900 screenshot was captured privately for visual review; screenshot/DB evidence is intentionally not committed because it contains local paths.
+
+E2E found three defects before PR:
+1. a fixed 256 KiB tail missed older-but-current activation events after heavy runtime noise; repair scans backward in 64 KiB chunks with a 2 MiB hard ceiling and stops at the newest real activation;
+2. renamed connectors retained legacy runtime filenames (`phase6-runtime.stderr.log`, `wastewater-runtime.stderr.log`); repair chooses the newest `*-runtime.stderr.log`;
+3. broad matching could treat tool/test output that *quoted* `Activating ...` as live truth; repair requires the exact `serena.agent:_activate_project:<line>` provenance signature.
+
+Regression coverage pins all three cases. Focused latest result: `148 passed, 1 host-Tk skip`; `tests/test_serena_activity.py` = 7 passed.
+
 ## Next micro-step
 
-Complete the main-screen collapse + live slot table against the proven telemetry parser, then run focused tests and reconcile with the post-PR-99 main SHA before opening a PR.
+Clean private E2E artifacts, final diff/spec review, push `feat/ai-execution-slots-live`, audit remote PR diff, require Windows/Ubuntu/macOS CI green, then merge/fetch and perform frozen/installed visual acceptance before v0.7.0 publication.

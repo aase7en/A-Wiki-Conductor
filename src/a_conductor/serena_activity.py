@@ -1,10 +1,9 @@
 """Read-only observation of Serena's current active project from runtime logs.
 
 This is telemetry only: it never invokes Serena/MCP tools and never mutates connector state.
-The tunnel runtime redirects Serena stderr to ``logs/conductor-runtime.stderr.log``.
-Serena emits an ``Activating <name> at <path>`` record whenever ``activate_project``
-changes the server-wide active project. We tail a bounded suffix and surface the
-latest such observation for the desktop live view.
+Serena runtime stderr files may retain legacy instance names after a connector is renamed,
+so the observer selects the newest ``*-runtime.stderr.log``. It scans backwards in
+bounded chunks and stops as soon as the newest real Serena activation record is present.
 """
 
 from __future__ import annotations
@@ -15,11 +14,13 @@ from pathlib import Path
 import re
 
 
-_DEFAULT_MAX_BYTES = 256 * 1024
+_DEFAULT_MAX_BYTES = 2 * 1024 * 1024
+_READ_CHUNK_BYTES = 64 * 1024
 _ACTIVATION_RE = re.compile(
     r"^(?:DEBUG|INFO|WARNING|ERROR)\s+"
-    r"(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+)"
-    r".*? - Activating (?P<name>.+?) at (?P<path>.+?)\s*$",
+    r"(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+)\s+"
+    r"\[[^]\r\n]+\]\s+serena\.agent:_activate_project:\d+\s+-\s+"
+    r"Activating (?P<name>.+?) at (?P<path>.+?)\s*$",
     re.MULTILINE,
 )
 
@@ -33,22 +34,63 @@ class SerenaActivityObservation:
     switched_at: datetime | None = None
 
 
-def _tail_text(path: Path, *, max_bytes: int) -> str:
+def _activation_suffix(path: Path, *, max_bytes: int) -> str:
+    """Return a bounded suffix containing the newest real activation record.
+
+    The file is read from the end in small chunks. As soon as the accumulated suffix
+    contains a Serena ``_activate_project`` record we stop, because earlier bytes
+    cannot contain a newer activation. ``max_bytes`` remains a hard I/O ceiling.
+    """
+
     if max_bytes < 1:
         raise ValueError("max_bytes must be positive")
     try:
         size = path.stat().st_size
-        with path.open("rb") as handle:
-            start = max(0, size - max_bytes)
-            handle.seek(start)
-            payload = handle.read(max_bytes)
     except OSError:
         return ""
-    if start:
-        newline = payload.find(b"\n")
-        if newline >= 0:
-            payload = payload[newline + 1 :]
+    if size <= 0:
+        return ""
+
+    limit = min(size, max_bytes)
+    payload = b""
+    offset = size
+    read_total = 0
+    try:
+        with path.open("rb") as handle:
+            while read_total < limit:
+                read_size = min(_READ_CHUNK_BYTES, limit - read_total)
+                offset -= read_size
+                handle.seek(offset)
+                payload = handle.read(read_size) + payload
+                read_total += read_size
+                text = payload.decode("utf-8", errors="replace")
+                if _ACTIVATION_RE.search(text):
+                    return text
+    except OSError:
+        return ""
     return payload.decode("utf-8", errors="replace")
+
+
+def _runtime_stderr_log(instance_root: Path | str) -> Path | None:
+    """Return the newest runtime stderr log, including legacy instance names."""
+
+    log_dir = Path(instance_root) / "logs"
+    try:
+        candidates = [
+            path for path in log_dir.glob("*-runtime.stderr.log") if path.is_file()
+        ]
+    except OSError:
+        return None
+    if not candidates:
+        return None
+
+    def modified_ns(path: Path) -> int:
+        try:
+            return path.stat().st_mtime_ns
+        except OSError:
+            return -1
+
+    return max(candidates, key=modified_ns)
 
 
 def observe_serena_activity(
@@ -58,12 +100,15 @@ def observe_serena_activity(
 ) -> SerenaActivityObservation:
     """Return the latest observed active project for a connector.
 
-    Missing/unreadable logs are normal (for example a never-started connector)
-    and return an empty observation. Only a bounded log tail is read.
+    Missing/unreadable logs are normal and return an empty observation. Runtime I/O is
+    bounded and accepts only Serena's own ``serena.agent:_activate_project`` logger
+    signature, so quoted tool/test output cannot masquerade as live project state.
     """
 
-    log_path = Path(instance_root) / "logs" / "conductor-runtime.stderr.log"
-    text = _tail_text(log_path, max_bytes=max_bytes)
+    log_path = _runtime_stderr_log(instance_root)
+    if log_path is None:
+        return SerenaActivityObservation()
+    text = _activation_suffix(log_path, max_bytes=max_bytes)
     latest = None
     for match in _ACTIVATION_RE.finditer(text):
         latest = match
