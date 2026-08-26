@@ -105,7 +105,7 @@ def test_build_and_installer_metadata_use_branding_ssot() -> None:
     assert "from a_conductor.branding import APP_NAME, APP_VERSION" in build_installer_source
     assert "installer-branding.json" in installer_source
     assert 'APP_NAME = "A-Sunday Conductor"' not in installer_source
-    assert 'APP_VERSION = "0.6.0"' not in installer_source
+    assert 'APP_VERSION = "0.7.0"' not in installer_source
 
 
 def _load_build_installer():
@@ -245,7 +245,7 @@ def test_registry_entry_records_current_display_version(
 
     module.write_registry(target, target / f"Uninstall-{APP_NAME}.exe")
 
-    assert module.APP_VERSION == APP_VERSION == "0.6.0"
+    assert module.APP_VERSION == APP_VERSION == "0.7.0"
     assert "-Name DisplayVersion -Value '0.6.0'" in scripts[0]
 
 

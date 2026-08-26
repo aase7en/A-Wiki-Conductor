@@ -2449,9 +2449,35 @@ class AConductorDesktopApp:
         self.log_activity("Wizard       credentials saved")
         self._wizard_advance()
 
+    def _singleton_dialog(self, attr: str, factory):
+        """Return an existing dialog (lifted to front) or create a new one.
+
+        WO-P1-069: pressing Donate/Guide/Edit repeatedly must never stack
+        duplicate windows. Store the Toplevel in ``self.<attr>``; on re-entry,
+        lift + focus instead of constructing another one.
+        """
+        existing = getattr(self, attr, None)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.lift()
+                    existing.focus_force()
+                    return existing
+            except tk.TclError:
+                pass
+        dialog = factory()
+        setattr(self, attr, dialog)
+        return dialog
+
     def open_donate_dialog(self) -> tk.Toplevel | None:
         """Support dialog: GitHub Sponsors + PromptPay QR + TrueWallet."""
+        existing = getattr(self, "_donate_dialog", None)
+        if existing is not None and existing.winfo_exists():
+            existing.lift()
+            existing.focus_force()
+            return existing
         dialog = tk.Toplevel(self.root)
+        self._donate_dialog = dialog
         dialog.title(f"{APP_NAME} — Support / สนับสนุน")
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
@@ -2714,7 +2740,18 @@ class AConductorDesktopApp:
         return answer["ok"]
 
     def open_add_worker_dialog(self) -> None:
+        existing = getattr(self, '_add_worker_dialog', None)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.lift()
+                    existing.focus_force()
+                    return existing
+            except tk.TclError:
+                pass
+
         dialog = tk.Toplevel(self.root)
+        setattr(self, '_add_worker_dialog', dialog)
         dialog.title(f'{APP_NAME} — {tr("dlg.add.worker.title")}')
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
@@ -3544,7 +3581,13 @@ class AConductorDesktopApp:
         self.log_activity("Guide        opened")
 
     def _show_guide_window(self, path: Path) -> tk.Toplevel:
+        existing = getattr(self, "_guide_dialog", None)
+        if existing is not None and existing.winfo_exists():
+            existing.lift()
+            existing.focus_force()
+            return existing
         window = tk.Toplevel(self.root)
+        self._guide_dialog = window
         window.title(APP_NAME + " — " + tr("win.guide"))
         window.configure(bg=self.theme.background)
         window.geometry("900x640")
@@ -4089,6 +4132,11 @@ class AConductorDesktopApp:
 
     def open_edit_instance_dialog(self) -> tk.Toplevel | None:
         """Unified connector editor: alias, Tunnel ID, and project path."""
+        existing = getattr(self, "_edit_dialog", None)
+        if existing is not None and existing.winfo_exists():
+            existing.lift()
+            existing.focus_force()
+            return existing
         name = self._selected_instance_name()
         if name is None:
             self._handle_error("SELECT_INSTANCE")
@@ -4105,6 +4153,7 @@ class AConductorDesktopApp:
         current_project = getattr(instance, "project_path", "") or ""
 
         dialog = tk.Toplevel(self.root)
+        self._edit_dialog = dialog
         dialog.title(f'{APP_NAME} — {tr("dlg.edit.connector.title")} — {name}')
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)
@@ -4523,6 +4572,11 @@ class AConductorDesktopApp:
         self.refresh_instances()
 
     def open_brain_config(self) -> tk.Toplevel | None:
+        existing = getattr(self, "_brain_dialog", None)
+        if existing is not None and existing.winfo_exists():
+            existing.lift()
+            existing.focus_force()
+            return existing
         load = getattr(self.service, "worker_settings", None)
         save = getattr(self.service, "save_worker_settings", None)
         if not callable(load) or not callable(save):
@@ -4538,6 +4592,7 @@ class AConductorDesktopApp:
             return None
 
         dialog = tk.Toplevel(self.root)
+        self._brain_dialog = dialog
         dialog.title(APP_NAME + " — Second Brain")
         dialog.configure(bg=self.theme.panel)
         dialog.transient(self.root)

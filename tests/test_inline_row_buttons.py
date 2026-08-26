@@ -319,7 +319,7 @@ def test_inline_action_labels_are_english(root, tmp_path: Path) -> None:
 
 
 def test_version_still_pinned(root, tmp_path: Path) -> None:
-    assert APP_VERSION == "0.6.0"
+    assert APP_VERSION == "0.7.0"
 
 
 # --- trial-feedback regression guards ---------------------------------------
