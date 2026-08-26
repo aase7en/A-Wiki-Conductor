@@ -1364,3 +1364,24 @@ def test_execution_slots_show_live_serena_project(root, monkeypatch) -> None:
     root.update_idletasks()
     assert app._worker_registry_expanded is True
     assert app.worker_tree.winfo_manager() == "grid"
+
+
+def test_project_disk_particle_strip_keeps_exact_text_authoritative(root) -> None:
+    app = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+    app._set_project_disk_display("1.0 GB")
+    root.update_idletasks()
+
+    assert app.overview_disk_value.cget("text") == "1.0 GB"
+    items = app._project_disk_particles.find_withtag("disk-particle")
+    assert len(items) == 24
+    fills = [app._project_disk_particles.itemcget(item, "fill") for item in items]
+    assert len(set(fills)) >= 3
+
+    app._set_project_disk_display("—")
+    root.update_idletasks()
+    dim_items = app._project_disk_particles.find_withtag("disk-particle")
+    assert len(dim_items) == 24
+    dim_fills = [app._project_disk_particles.itemcget(item, "fill") for item in dim_items]
+    assert set(dim_fills) == {app.theme.border}

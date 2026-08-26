@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from a_conductor.folder_size import folder_size_bytes, format_size, project_disk_display
+from a_conductor.folder_size import (
+    disk_particle_levels,
+    folder_size_bytes,
+    format_size,
+    project_disk_display,
+)
 
 
 def test_folder_size_sums_files(tmp_path: Path) -> None:
@@ -62,3 +67,22 @@ def test_never_spawns_subprocess() -> None:
     import a_conductor.folder_size as fs
     assert not hasattr(fs, "subprocess"), "folder_size must not import subprocess"
     assert not hasattr(fs, "Popen"), "folder_size must not use Popen"
+
+
+def test_disk_particle_levels_are_monotonic_log_magnitude() -> None:
+    samples = ["1.0 KB", "1.0 MB", "1.0 GB", "1.0 TB"]
+    lit = [sum(level > 0 for level in disk_particle_levels(value)) for value in samples]
+    assert lit == sorted(lit)
+    assert len(set(lit)) == len(lit)
+    assert lit[-1] == 24
+
+
+def test_disk_particle_levels_are_visual_only_and_fail_closed() -> None:
+    assert disk_particle_levels("—") == (0.0,) * 24
+    assert disk_particle_levels("…") == (0.0,) * 24
+    assert disk_particle_levels("not-a-size") == (0.0,) * 24
+    levels = disk_particle_levels("1.0 GB")
+    active = [level for level in levels if level > 0]
+    assert active
+    assert active == sorted(active)
+    assert all(0.0 <= level <= 1.0 for level in levels)
