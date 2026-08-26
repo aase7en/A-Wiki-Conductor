@@ -1964,7 +1964,7 @@ class AConductorDesktopApp:
                 "",
                 "end",
                 values=(
-                    worker.worker_id,
+                    worker.display_name,  # what the user typed, not the auto a-worker-NN id
                     worker.state.value,
                     project_name,
                     project_path,
