@@ -45,13 +45,16 @@ def _parse_binding(node: TaskNode) -> dict[str, str]:
     return result
 
 
-def _paths_overlap(pattern: str, path: str) -> bool:
-    """Check if a glob pattern matches a concrete path (or vice versa).
+def paths_overlap(pattern: str, path: str) -> bool:
+    """Authoritative glob-aware path overlap check (WO-GE-005A).
 
     Handles ``**`` recursive globs by collapsing them to ``*`` for
-    fnmatch purposes (``**`` in practice means "any depth including zero").
+    fnmatch purposes. Both directions are checked (pattern vs path AND
+    path vs pattern) because either side may contain wildcards.
+
+    This is the single seam consumed by both GE-4 (analyze_conflicts)
+    and GE-5 (compute_ready_set) — no second overlap algorithm allowed.
     """
-    # Normalize ** to * for fnmatch compatibility
     norm_pattern = pattern.replace("**/", "*").replace("**", "*")
     norm_path = path.replace("**/", "*").replace("**", "*")
     if fnmatch.fnmatch(norm_path, norm_pattern):
@@ -64,15 +67,25 @@ def _paths_overlap(pattern: str, path: str) -> bool:
     return False
 
 
-def _write_sets_overlap(a: TaskNode, b: TaskNode) -> bool:
-    """Check if two nodes' write sets share at least one path/glob overlap."""
-    for a_path in a.write_set:
-        for b_path in b.write_set:
+def write_sets_overlap(a_set: tuple[str, ...], b_set: tuple[str, ...]) -> bool:
+    """Check if two write-set tuples share at least one glob-aware overlap.
+
+    This is the single authoritative seam for write-conflict detection.
+    Both GE-4 analyzer and GE-5 ReadySet must call this — no separate
+    literal-equality copies.
+    """
+    for a_path in a_set:
+        for b_path in b_set:
             if a_path == b_path:
                 return True
-            if _paths_overlap(a_path, b_path):
+            if paths_overlap(a_path, b_path):
                 return True
     return False
+
+
+def _write_sets_overlap(a: TaskNode, b: TaskNode) -> bool:
+    """Node-level wrapper over the authoritative write_sets_overlap seam."""
+    return write_sets_overlap(a.write_set, b.write_set)
 
 
 def analyze_conflicts(graph: TaskGraph) -> ConflictsReport:
