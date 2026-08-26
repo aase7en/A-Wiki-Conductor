@@ -3,6 +3,7 @@ from __future__ import annotations
 from concurrent.futures import Future
 from pathlib import Path
 import inspect
+import time
 import tkinter as tk
 
 import pytest
@@ -73,6 +74,17 @@ def _select_project(app: AConductorDesktopApp, project_id: str) -> None:
     app.project_list.focus(project_id)
 
 
+def _wait_until(root: tk.Tk, predicate, *, timeout_seconds: float = 0.5) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        root.update()
+        if predicate():
+            return
+        time.sleep(0.005)
+    root.update()
+    assert predicate(), "condition did not become true before timeout"
+
+
 def test_project_disk_scan_is_submitted_without_running_on_ui_thread(root, tmp_path: Path) -> None:
     project = Project("p1", "One", str(tmp_path / "one"))
     disk_executor = ManualExecutor()
@@ -117,8 +129,7 @@ def test_stale_disk_result_cannot_overwrite_new_selection(root, tmp_path: Path) 
     assert app.overview_disk_value.cget("text") != "99.0 GB"
 
     second.set_result("2.0 GB")
-    root.update()
-    assert app.overview_disk_value.cget("text") == "2.0 GB"
+    _wait_until(root, lambda: app.overview_disk_value.cget("text") == "2.0 GB")
 
 
 def test_completed_project_disk_value_is_cached(root, tmp_path: Path) -> None:
@@ -134,7 +145,7 @@ def test_completed_project_disk_value_is_cached(root, tmp_path: Path) -> None:
     _select_project(app, "p1")
     app._refresh_project_disk()
     disk_executor.futures[0].set_result("3.0 GB")
-    root.update()
+    _wait_until(root, lambda: app.overview_disk_value.cget("text") == "3.0 GB")
 
     app._refresh_project_disk()
     assert app.overview_disk_value.cget("text") == "3.0 GB"
