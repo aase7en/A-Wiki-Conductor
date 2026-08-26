@@ -97,3 +97,16 @@ monochrome gradient particle display (user request, WO-P1-070).
 
 Design note: bindings in `model_requirement` are a pragmatic carrier
 until GE-1a domain gains dedicated fields (future EXTEND per D2).
+
+## Checkpoint — 2026-08-26 / GE-5 implemented (GLM 5.3)
+
+`a_conductor/graph/ready.py` — ReadySet computation:
+- `compute_ready_set(graph, node_states) -> ReadySetResult`
+- A node is READY when: deps satisfied (preds done/skipped) ∧ no
+  write-conflict with running nodes ∧ status == TODO
+- `ReadyCheck` per node with typed `Blocker(kind, detail)` list
+- `BlockerKind`: DEPENDENCY / RESOURCE / WORKER / GATE
+- `ReadySetResult`: checks dict + ready_ids set + blocked_count
+- 17 tests in tests/test_graph_ready.py; combined GE suite: 69 passed
+- Readiness != execution: scheduler (GE-6) picks from ReadySet by
+  capacity/policy — still gated on GPT design review
