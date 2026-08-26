@@ -1,25 +1,26 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-26 (GPT-5.6 Sol release closeout)
+Last updated: 2026-08-26 (GPT-5.6 Sol MAX — GE-6/7 design + v0.7.0 integration)
 
 ## Current phase
 
-**v0.6.0 RELEASED.** GitHub Release `v0.6.0` is published from verified release target `c8705257344ab6b2890e198074118f028cefdbcf` with six assets. Final-main CI run `32902558101` is green across Windows full tests/build/archive/frozen smoke plus Ubuntu/macOS smoke.
+**v0.7.0 RELEASE INTEGRATION + Graph Engineering design.** The user-designated v0.7.0 release candidate remains pinned to `be8a45d384b4679ff5c93230d06cbfc17a060b48` (v0.7 UI fixes + GE-1a/1b through GE-4). Do not silently retarget that release to later `main` commits.
 
-Release integration completed through PRs **#85–#88**:
-- #85 Windows PowerShell BOM/path reliability + isolated local-instance lifecycle CI process;
-- #86 Graph Engineering D1-D5 decisions accepted;
-- #87 GPU/Tk repaint isolation corrective fix + regression coverage, real workstation GPU **19/19 passed**;
-- #88 final v0.6.0 changelog.
+Actual remote state has advanced beyond the release candidate:
+- `origin/main = 4956760765caab60ae8efe1a48d6edf807cdecce` after PR #96 (GE-5 ReadySet) merged green.
+- PRs #90–#95 are merged; GE-1a/1b, GE-2, GE-3, and GE-4 are complete on the v0.7.0 candidate line.
+- PR #96 GE-5 is merged, but GPT integrator review found a post-merge contract defect: ReadySet uses literal write-set equality while GE-4 is glob-aware. `src/**/*.py` vs `src/specific.py` can be incorrectly marked simultaneously safe.
 
-Clean CI release artifacts from exact SHA `c870525`:
-- Portable `A-Sunday.Conductor.exe` — 24,872,490 bytes — SHA-256 `9432D96E867C486D012AA797C3D764103AABEAA97D8F2C068FAD9D84BAD3AC87`.
-- Setup `A-Sunday-Conductor-Setup.exe` — 32,653,155 bytes — SHA-256 `DF9C61214C235C6386761F177E0F7154885B3DB6614B0B890948B8685163F261`.
-- Actions artifact ZIP digest — SHA-256 `6f06f82044626cc29c9282f1e9a36ee035938ac37a2cca84e9165a8d8df02f49`.
+**GE-6/GE-7 design is accepted** in ADR GE-0006 and GE-0007 on branch `docs/ge-scheduler-dispatch-design`:
+- GE-6 = deterministic event-driven/re-entrant scheduling pass, bounded current policy `max_parallel=5`, capability/project/mutation-authority matching, and conflict closure against running + same-batch selections.
+- GE-7 = REUSE/WRAP existing durable `job_control.py`, SQLite job lifecycle, execution coordinator, supervised execution, and dedup; no second graph execution state machine/store.
+- A-Wiki remains bridge-only for gates/policy; its agent-claim TTL is not Conductor execution-reservation state.
 
-**Next engineering work: WO-GE-001 / GE-1a only.** D1-D5 are accepted. GLM may begin the graph-domain slice test-first after reading WO-GE-001. No scheduler implementation is authorized until the later graph design/verification gates are satisfied. Exact handoff phrase for GLM: `D1-D5 ตกลงแล้ว อ่าน WO-GE-001`.
+**Immediate blocking repair:** `WO-GE-005A-readyset-glob-conflict-repair.md`. GLM fixes GE-5 to reuse one authoritative GE-4 glob-overlap seam and merges green. Only then may GLM begin GE-6 production implementation from ADR GE-0006. GE-7 follows ADR GE-0007.
 
-**A-Wiki HOLD remains in force.** Do not mutate `A:\GitHub\A-Wiki` during this Conductor work. Known local environment caveat remains ESET transient locks on fresh PE/.ps1 files; use bounded retry only and never disable antivirus. Never bind tests to live fleet ports 18011–18015.
+**Release boundary:** v0.7.0 packaging/installed acceptance must use exact candidate `be8a45d`, not current main `4956760`, so the published release does not absorb the known GE-5 defect or post-candidate design documents.
+
+**A-Wiki HOLD remains in force.** Do not mutate `A:\GitHub\A-Wiki`. Known local caveat: ESET may transiently lock fresh PE/.ps1 files; use bounded retry only and never disable antivirus. Never bind tests to live fleet ports 18011–18015.
 
 ## Source-of-truth rule
 
