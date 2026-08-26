@@ -714,6 +714,8 @@ class AConductorDesktopApp:
         background_executor: Executor | None = None,
         disk_executor: Executor | None = None,
         guide_opener: Callable[[Path], None] | None = None,
+        guide_html_frame_factory: Callable | None = None,
+        guide_url_opener: Callable[[str], object] | None = None,
     ) -> None:
         self.root = root
         self.service = service
@@ -721,6 +723,8 @@ class AConductorDesktopApp:
         self._directory_picker = directory_picker or filedialog.askdirectory
         self._error_handler = error_handler or self._show_error
         self._guide_opener = guide_opener
+        self._guide_html_frame_factory = guide_html_frame_factory
+        self._guide_url_opener = guide_url_opener or webbrowser.open
         self._background_executor = background_executor or ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="a-conductor-ui"
         )
@@ -3611,13 +3615,19 @@ class AConductorDesktopApp:
     def _on_palette_shortcut(self, _event=None):
         return None
 
+    def _open_guide_web_link(self, url: str) -> None:
+        candidate = str(url).strip()
+        if not candidate.lower().startswith(("http://", "https://")):
+            return
+        self._guide_url_opener(candidate)
+
     def _open_guide_link(self, widget, index: str) -> None:
         for tag in widget.tag_names(index):
             if tag == "link":
                 start = widget.tag_prevrange("link", index + "+1c")
                 if start:
                     url = widget.get(start[0], start[1])
-                    webbrowser.open(url)
+                    self._open_guide_web_link(url)
                     return
 
     def open_preferences(self) -> tk.Toplevel | None:
@@ -3813,34 +3823,27 @@ class AConductorDesktopApp:
             return
         self.log_activity(f"Settings     supervised={'ON' if var.get() else 'OFF'}")
 
-    def open_guide(self) -> None:
+    def open_guide(self) -> tk.Toplevel | None:
         path = find_user_guide_path()
         if path is None:
             self._handle_error("GUIDE_NOT_FOUND")
-            return
+            return None
         try:
             if self._guide_opener is not None:
                 self._guide_opener(path)
+                self.log_activity("Guide        opened external")
                 return None
-            return self._show_guide_window(path)
+            window = self._show_guide_window(path)
+            self.log_activity("Guide        opened")
+            return window
         except Exception:
             self._handle_error("GUIDE_OPEN_FAILED")
             return None
-        self.log_activity("Guide        opened")
 
-    def _show_guide_window(self, path: Path) -> tk.Toplevel:
-        existing = getattr(self, "_guide_dialog", None)
-        if existing is not None and existing.winfo_exists():
-            existing.lift()
-            existing.focus_force()
-            return existing
-        window = tk.Toplevel(self.root)
-        self._guide_dialog = window
-        window.title(APP_NAME + " — " + tr("win.guide"))
-        window.configure(bg=self.theme.background)
-        window.geometry("900x640")
+    def _show_guide_markdown_fallback(self, parent, content: str) -> tk.Text:
+        """Render the legacy read-only Markdown view when rich HTML is unavailable."""
         text = tk.Text(
-            window,
+            parent,
             bg=self.theme.background,
             fg=self.theme.foreground,
             insertbackground=self.theme.accent,
@@ -3851,15 +3854,12 @@ class AConductorDesktopApp:
             padx=14,
             pady=10,
         )
-        scroll = ttk.Scrollbar(window, orient="vertical", command=text.yview)
+        scroll = ttk.Scrollbar(parent, orient="vertical", command=text.yview)
         text.configure(yscrollcommand=scroll.set)
-        content = path.read_text(encoding="utf-8", errors="replace")
         text.insert("1.0", content)
-        text.tag_configure(
-            "link", foreground=self.theme.accent, underline=True,
-        )
-        for start, end in link_url_spans(content):
-            text.tag_add("link", f"1.0+{start}c", f"1.0+{end}c")
+        text.tag_configure("link", foreground=self.theme.accent, underline=True)
+        for link_start, link_end in link_url_spans(content):
+            text.tag_add("link", f"1.0+{link_start}c", f"1.0+{link_end}c")
         text.tag_bind(
             "link",
             "<Button-1>",
@@ -3870,16 +3870,115 @@ class AConductorDesktopApp:
         text.configure(state="disabled")
         text.grid(row=0, column=0, sticky="nsew")
         scroll.grid(row=0, column=1, sticky="ns")
+        parent.grid_rowconfigure(0, weight=1)
+        parent.grid_columnconfigure(0, weight=1)
+        return text
+
+    def _show_guide_window(self, path: Path) -> tk.Toplevel:
+        existing = getattr(self, "_guide_dialog", None)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.deiconify()
+                    existing.lift()
+                    existing.focus_force()
+                    return existing
+            except tk.TclError:
+                pass
+            self._guide_dialog = None
+
+        window = tk.Toplevel(self.root)
+        self._guide_dialog = window
+        window.title(APP_NAME + " — " + tr("win.guide"))
+        window.configure(bg=self.theme.background)
+        window.geometry("1020x700")
         window.grid_rowconfigure(0, weight=1)
         window.grid_columnconfigure(0, weight=1)
+
+        body = tk.Frame(window, bg=self.theme.background)
+        body.grid(row=0, column=0, sticky="nsew")
+        body.grid_rowconfigure(0, weight=1)
+        body.grid_columnconfigure(1, weight=1)
+
+        nav = tk.Frame(body, bg=self.theme.panel, width=155)
+        viewer = tk.Frame(body, bg=self.theme.background)
+        content = path.read_text(encoding="utf-8", errors="replace")
+
+        rich_frame = None
+        rich_ready = False
+        try:
+            from .guide_html import GUIDE_SECTION_KEYS, guide_section_labels, render_guide_html
+            from .i18n import get_language
+
+            factory = self._guide_html_frame_factory
+            if factory is None:
+                from tkinterweb import HtmlFrame
+                factory = HtmlFrame
+
+            rich_frame = factory(
+                viewer,
+                messages_enabled=False,
+                javascript_enabled=False,
+                images_enabled=False,
+                objects_enabled=False,
+                forms_enabled=False,
+                caches_enabled=False,
+                dark_theme_enabled=True,
+                on_link_click=self._open_guide_web_link,
+            )
+            rich_frame.grid(row=0, column=0, sticky="nsew")
+            viewer.grid_rowconfigure(0, weight=1)
+            viewer.grid_columnconfigure(0, weight=1)
+
+            language = get_language()
+            labels = guide_section_labels(language)
+
+            def render_section(section_key: str) -> None:
+                html_source = render_guide_html(
+                    content,
+                    section_key=section_key,
+                    language=language,
+                )
+                rich_frame.load_html(html_source)
+                self._guide_section_key = section_key
+
+            render_section("start")
+            nav.grid(row=0, column=0, sticky="nsw")
+            viewer.grid(row=0, column=1, sticky="nsew")
+            for row, section_key in enumerate(GUIDE_SECTION_KEYS):
+                self._button(
+                    nav,
+                    labels[section_key],
+                    lambda key=section_key: render_section(key),
+                ).grid(row=row, column=0, sticky="ew", padx=8, pady=(8 if row == 0 else 3, 0))
+            rich_ready = True
+            self._guide_html_frame = rich_frame
+        except Exception:
+            if rich_frame is not None:
+                try:
+                    rich_frame.destroy()
+                except Exception:
+                    pass
+            try:
+                nav.destroy()
+            except tk.TclError:
+                pass
+            body.grid_columnconfigure(0, weight=1)
+            viewer.grid(row=0, column=0, sticky="nsew")
+            self._show_guide_markdown_fallback(viewer, content)
+            self._guide_html_frame = None
+
         bar = tk.Frame(window, bg=self.theme.panel)
-        bar.grid(row=1, column=0, columnspan=2, sticky="ew")
-        self._button(bar, "เปิดไฟล์ภายนอก", lambda: _default_guide_opener(path)).grid(
+        bar.grid(row=1, column=0, sticky="ew")
+        self._button(bar, "Open File", lambda: _default_guide_opener(path)).grid(
             row=0, column=0, sticky="w", padx=10, pady=8
         )
-        self._button(bar, "ปิด", lambda: window.destroy() if window.winfo_exists() else None).grid(
-            row=0, column=1, sticky="w", pady=8
-        )
+        self._button(
+            bar,
+            "Close",
+            lambda: window.destroy() if window.winfo_exists() else None,
+        ).grid(row=0, column=1, sticky="w", pady=8)
+        self._guide_rich_ready = rich_ready
         return window
 
     def open_worker_config(self) -> tk.Toplevel | None:

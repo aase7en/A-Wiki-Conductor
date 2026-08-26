@@ -9,15 +9,15 @@ Latest: 2026-08-26 (v0.7.0) · Supported OS: **Windows 10/11** (full features) �
 | Term | What it means (plain English) |
 |---|---|
 | **Project** | A folder on your computer with code/files — the "workspace" the AI will work in |
-| **Connector** | A "bridge" linking ChatGPT to a project folder — each has a name + port + one pinned project |
+| **Connector** | The local Serena/MCP endpoint behind one ChatGPT tunnel lane — each has a name, port, Tunnel ID and **Bound Project** launch/config binding |
 | **Tunnel ID** | The bridge's password (starts with `tunnel_` + 32 characters) — created on OpenAI Platform, pasted into the app |
-| **Worker** | A slot for future work assignment — not actively used yet, waiting for the Graph Engine |
+| **Worker** | A logical scheduler/CRUD slot. It lives in the **Scheduler Registry [Advanced]** and is not the same thing as live connector health |
 | **Serena** | The internal program that acts as the AI's "hands" — lets it read/edit project files |
 | **MCP** | The protocol standard that lets AI call tools (read files, run commands) |
 | **Plugin** | What you create in ChatGPT to connect to a Tunnel — you name it yourself (e.g. Sunday-Worker-1) |
 | **Port** | A door number (e.g. 18011) each Connector uses for local communication — unique per connector |
 | **Second Brain** | Knowledge/rules/memory the AI must read before working — e.g. A-Wiki's AGENTS.md |
-| **Active Project** | The project the AI is currently working on — each Connector is pinned to exactly 1 project |
+| **Active Project** | The most recent project Serena actually activated in that connector runtime. `UNKNOWN` means there is no trustworthy activation evidence yet |
 | **Instance** | Another name for Connector (used interchangeably) — one bridge setup in `C:\AI\serena-instances\` |
 
 ---
@@ -49,7 +49,7 @@ Latest: 2026-08-26 (v0.7.0) · Supported OS: **Windows 10/11** (full features) �
 │  │ my-app     │   │ other-app  │   │ third-app  │           │
 │  └────────────┘   └────────────┘   └────────────┘           │
 │                                                                │
-│  Key rule: 1 Plugin = 1 Tunnel ID = 1 Connector = 1 Project   │
+│  Key rule: 1 Plugin = 1 Tunnel ID = 1 Connector lane         │
 │  Change project = press "Change Project" then Stop → Start    │
 │                                                                │
 └────────────────────────────────────────────────────────────────┘
@@ -71,7 +71,7 @@ Latest: 2026-08-26 (v0.7.0) · Supported OS: **Windows 10/11** (full features) �
 
 | Step | What to do | Button |
 |---|---|---|
-| 1 | Open the app → check which Connectors are READY | (see CONNECTORS table) |
+| 1 | Open the app → check **AI EXECUTION SLOTS — LIVE**: CONNECTION should be READY; inspect ACTIVE PROJECT / BOUND PROJECT / [DRIFT] | In app |
 | 2 | Go to ChatGPT → open the chat with that Plugin | In browser |
 | 3 | Chat with the AI — it sees your project through the Connector | (chat) |
 
@@ -110,12 +110,11 @@ Verify: `a-conductor --smoke` → must print `A-CONDUCTOR_SMOKE_OK projects=0 wo
 
 ```
 ┌ A-SUNDAY CONDUCTOR v0.7.0                   [Guide] [Settings]  ● ONLINE ┐
-├ PROJECTS (left) │ WORKERS (right) — WORKER/STATE/PROJECT/PATH table
-│                 │  Buttons: Add Project / Assign / Activate / Release / Refresh
-│                 │        Start / Stop / Restart / Setup / Config / + Worker / Rename / Delete
-├ CONNECTORS — INSTANCE / PORT / STATE / PROJECT / TUNNEL / AUTO
-│  Buttons: Start / Stop / Start All / Toggle Auto / Rescan / + Connector / Rename / Delete
-│        Set Tunnel ID / Change Project / Brain folders / Check engine updates
+├ PROJECTS — register/select the project folder you want to work with
+├ AI EXECUTION SLOTS — LIVE
+│  SLOT / CONNECTION / ACTIVE PROJECT / BOUND PROJECT / LAST SWITCH / PORT / TUNNEL / AUTO
+│  [DRIFT] = Active Project differs from the connector's Bound Project
+├ SCHEDULER REGISTRY [ADVANCED] — logical Worker CRUD/scheduler state; hidden by default
 ├ MONITOR — state/PID/memory/live log tail of the selected connector (auto-refresh)
 └ ACTIVITY / LOG — every command is recorded
 ```
@@ -128,8 +127,9 @@ Verify: `a-conductor --smoke` → must print `A-CONDUCTOR_SMOKE_OK projects=0 wo
 
 ### 4.1 Manage projects & workers (Control Center)
 1. **Add Project** → pick a project folder (registering *never touches* files inside it)
-2. Click a project (left) + a worker (right) → **Assign**
-3. **Start/Stop/Restart** control that worker's lifecycle
+2. Use **AI EXECUTION SLOTS — LIVE** for day-to-day connector/runtime truth.
+3. Expand **Scheduler Registry [Advanced]** only when you need logical Worker assignment/CRUD/configuration.
+4. Worker lifecycle and Connector lifecycle are different actors; button labels name which one they control.
 
 ### 4.2 Engine config per worker (Config button)
 Select a worker → **Config** → edit:
@@ -179,21 +179,21 @@ Top-right: **Guide** opens this guide (language follows the app language). **Set
 The real chain:
 
 ```
-ChatGPT chat → plugin carries a Tunnel ID → on this machine: the connector whose tunnel-id.txt matches
-→ that connector pins exactly ONE project (PROJECT column in the CONNECTORS table) + has its own PORT
+ChatGPT chat → plugin carries a Tunnel ID → on this machine: the matching connector + PORT
+→ connector starts with a BOUND PROJECT → Serena may activate a different ACTIVE PROJECT during the chat
 ```
 
-Rule to remember: **one plugin = one connector = one fixed project** for the whole chat. To change the project use **Change Project** on that connector, then **Stop → Start** — it takes effect only after the restart (an open chat never sees the project change live).
+Rule to remember: **one plugin = one connector lane**, not one permanently fixed project. **BOUND PROJECT** is the connector launch/config binding. **ACTIVE PROJECT** is what Serena actually activated in the running session; `ACTIVE PROJECT [DRIFT]` means it differs from the binding. Changing the Bound Project requires connector edit + restart, while using **Copy Activate** in a connected chat can change the runtime Active Project without pretending the binding changed.
 
 Step-by-step "which row is this chat?":
 
 1. In ChatGPT, open the plugin/connector settings and copy its **Tunnel ID**.
 2. In this app check the CONNECTORS table's **TUNNEL** column — each row shows the **last 4 characters of its Tunnel ID** (e.g. `...e3f1`) so you can match it against the ID shown in ChatGPT instantly (the full ID is treated as a secret and never displayed). Press **Edit** on the row to see "current: ...xxxx" and change the ID there.
-3. Once matched: read that row's **PROJECT** and **PORT** — that chat is working on that project over that port.
-4. In the WORKERS table the **CONNECTOR (?)** column: any worker assigned to the same project path as a connector shows that connector's name; `-` means no connector is bound to this worker's project (not an error). **This column is a derived display, not a registration — there is no setup and no button for it.**
+3. Once matched: read the **AI EXECUTION SLOTS — LIVE** row: **CONNECTION**, **ACTIVE PROJECT**, **BOUND PROJECT**, **PORT**, masked **TUNNEL**, and **LAST SWITCH** are shown together.
+4. If you see **[DRIFT]**, Active Project differs from Bound Project. Treat that as explicit evidence, not automatically as an error: decide whether the chat intentionally activated another project.
 
-   > In short: the CONNECTORS table is the tunnel's source of truth (port + project + live state, auto-refreshed every 15 s), while WORKERS is the work-scheduling view — they are linked only through the project path.
-5. To point "chat #2" at project B: select chat #2's connector → **Change Project** → enter B's path → **Stop** → **Start** → confirm the PROJECT column changed.
+   > In short: AI EXECUTION SLOTS is the operator view of live connector/runtime truth. **Scheduler Registry [Advanced]** is the logical work-scheduling/CRUD view and is intentionally hidden by default.
+5. To change the connector's default binding to project B: edit that connector's Bound Project → **Stop Connector** → **Start Connector**. To work temporarily in B in the current connected chat, use **Copy Activate** for B and verify ACTIVE PROJECT / [DRIFT] in the live slot.
 
 ## 5. Where the data lives
 

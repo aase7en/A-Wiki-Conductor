@@ -134,6 +134,19 @@ The user-facing mental model is `Project -> AI Execution Slot -> Connection -> A
 - Dots derive from the existing foreground/muted/border palette and must remain usable without color.
 - Tooltip/help text must explicitly explain that the dots are relative magnitude and the exact number is authoritative.
 
+### Embedded beginner Guide (2026-08-26)
+
+- The Guide remains a native Tk `Toplevel`; it is not a browser/app rewrite.
+- `docs/USER-GUIDE.md` and `docs/USER-GUIDE-EN.md` are the content source of truth. HTML is generated in memory from them.
+- Primary renderer is local TkinterWeb `HtmlFrame`; no Chromium/WebView/Electron and no JavaScript requirement.
+- Guide rendering must not fetch remote CSS/fonts/images/scripts or send analytics. External web URLs open only after an explicit click.
+- The Guide presents six local sections: Start Here, First Setup, Daily Use, Add Chat, Terms, Troubleshooting, with a visible `Step n / 6` marker.
+- Start Here explains the operator model as `ChatGPT -> Tunnel -> Connector -> Project` and distinguishes live `ACTIVE PROJECT` from connector `BOUND PROJECT`.
+- Repeated Guide clicks reuse/lift the existing singleton window.
+- If the HTML renderer/import/load path fails, fall back to the existing read-only Markdown `tk.Text` viewer with clickable URLs.
+- No continuous animation. Accessibility and reduced-motion behavior are the default.
+- Frozen builds must explicitly collect TkinterWeb/Tkhtml runtime packages and include their licenses/notices.
+
 ## 7. Responsive rules
 
 - COMPACT `< 900px`: wrap controls, stack secondary regions if necessary.
