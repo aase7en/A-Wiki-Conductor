@@ -9,20 +9,32 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Callable
 
 
-def folder_size_bytes(path: Path | str) -> int:
+def folder_size_bytes(
+    path: Path | str,
+    *,
+    cancel_check: Callable[[], bool] | None = None,
+) -> int | None:
     """Total size in bytes of all files under ``path`` (recursive walk).
 
-    Never spawns a process. Returns 0 for missing/unreadable paths.
+    Never spawns a process. Returns 0 for missing/unreadable paths and ``None``
+    when cooperative cancellation is requested.
     """
+    if cancel_check is not None and cancel_check():
+        return None
     root = Path(path)
     if not root.is_dir():
         return 0
     total = 0
     try:
         for dirpath, _dirnames, filenames in os.walk(root):
+            if cancel_check is not None and cancel_check():
+                return None
             for filename in filenames:
+                if cancel_check is not None and cancel_check():
+                    return None
                 try:
                     total += os.path.getsize(os.path.join(dirpath, filename))
                 except (OSError, ValueError):
@@ -47,8 +59,15 @@ def format_size(num_bytes: int) -> str:
     return f"{size:.1f} PB"
 
 
-def project_disk_display(path: Path | str | None) -> str:
-    """Formatted size string for UI display, or '—' when unavailable."""
+def project_disk_display(
+    path: Path | str | None,
+    *,
+    cancel_check: Callable[[], bool] | None = None,
+) -> str | None:
+    """Formatted size string, ``—`` when unavailable, or ``None`` if cancelled."""
     if not path:
         return "—"
-    return format_size(folder_size_bytes(path))
+    size = folder_size_bytes(path, cancel_check=cancel_check)
+    if size is None:
+        return None
+    return format_size(size)
