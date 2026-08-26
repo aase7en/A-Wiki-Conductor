@@ -81,3 +81,19 @@ preservation + cycle-rejection survives load. 6 tests in
 
 Also noted for GPT design lane: project-folder-size monitor with
 monochrome gradient particle display (user request, WO-P1-070).
+
+## Checkpoint — 2026-08-26 / GE-4 implemented (GLM 5.3)
+
+`a_conductor/graph/analyze.py` — dependency analyzer:
+- `analyze_conflicts(graph) -> ConflictsReport` with derived edges:
+  FILE_WRITE (overlapping write_sets, glob-aware), WORKSPACE_WRITE
+  (same workspace binding), WORKER (same physical worker binding)
+- `_parse_binding` extracts pipe-separated bindings from model_requirement
+  (`ws:A:/repo|worker:sunday-worker-1`)
+- `_paths_overlap` handles recursive `**` globs (normalized for fnmatch)
+- `ConflictsReport` provides `conflict_count(type)` + `already_sequenced`
+  (pairs where the planner already declared an edge)
+- 12 tests in tests/test_graph_analyze.py; combined GE suite: 52 passed
+
+Design note: bindings in `model_requirement` are a pragmatic carrier
+until GE-1a domain gains dedicated fields (future EXTEND per D2).
