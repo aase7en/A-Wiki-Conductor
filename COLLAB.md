@@ -34,7 +34,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `docs/v0.6.0-complete` / WO-P1-063 closeout | GPT-5.6 Sol | 2026-08-26 | Docs-only continuity closeout: `docs/work-orders/WO-P1-063-terminal-command-center-redesign.md`, `CURRENT-WORK.md`, `handoff.md`, `COLLAB.md`. No production code. |
+| `WO-GE-006` / GE-6+GE-7 design | GPT-5.6 Sol MAX | 2026-08-26 | Design-only: `docs/adr/GE-0006-*`, `docs/adr/GE-0007-*`, `docs/work-orders/WO-GE-006-*` plus bounded continuity/coordination updates. No scheduler/dispatch production code; GE-5 implementation remains a separate GLM repair lane. |
 
 ### Recently closed / released claims
 

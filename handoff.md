@@ -1,35 +1,47 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-26 (GPT-5.6 Sol release closeout)
+Last updated: 2026-08-26 (GPT-5.6 Sol MAX — v0.7.0 integrator checkpoint)
 
 ## Current objective
 
-v0.6.0 release work is complete. Resume Graph Engineering under `docs/work-orders/WO-GE-001-graph-engineering-kickoff.md`, beginning with **GE-1a only**. D1-D5 are accepted; no scheduler implementation is authorized yet. Exact GLM handoff phrase: `D1-D5 ตกลงแล้ว อ่าน WO-GE-001`.
+Finish the bounded GE-6/GE-7 design PR, repair the GE-5 ReadySet conflict mismatch, then hand GE-6 production implementation to GLM. In parallel, publish the user-designated v0.7.0 release from exact candidate `be8a45d384b4679ff5c93230d06cbfc17a060b48`, perform installed/visual acceptance, and complete the requested UI design decisions/cleanup.
 
-## Repository / release identity
+## Repository / worktree identity
 
 - repository: `aase7en/A-Wiki-Conductor`
-- verified v0.6.0 release target: `c8705257344ab6b2890e198074118f028cefdbcf`
-- GitHub Release: `https://github.com/aase7en/A-Wiki-Conductor/releases/tag/v0.6.0`
-- published: 2026-08-26 Thailand date; six assets present.
-- final-main release CI: run `32902558101` — Windows full tests, Portable+Setup build, archive verification, frozen smoke, Ubuntu smoke, macOS smoke all green.
-- release-triggered SignPath run `32904214805`: success; signing step no-op'd as designed because `SIGNPATH_API_TOKEN` is not configured.
-- release integration PRs merged: #85 PowerShell/BOM/path+CI isolation, #86 GE D1-D5, #87 GPU/Tk repaint corrective fix, #88 v0.6.0 changelog.
-- real workstation GPU regression after corrective fix: **19/19 passed**.
-- Portable: 24,872,490 bytes; SHA-256 `9432D96E867C486D012AA797C3D764103AABEAA97D8F2C068FAD9D84BAD3AC87`.
-- Setup: 32,653,155 bytes; SHA-256 `DF9C61214C235C6386761F177E0F7154885B3DB6614B0B890948B8685163F261`.
-- GitHub Actions artifact ZIP digest: SHA-256 `6f06f82044626cc29c9282f1e9a36ee035938ac37a2cca84e9165a8d8df02f49`.
-- ESET temporarily locked fresh PE/.ps1 files during local audit/upload. Bounded retry worked; antivirus was not disabled and no unrelated product fix was made for the host race.
-- A-Wiki brain repo remains HOLD / untouched for this release work.
+- shared `A:\GitHub\A-Wiki-Conductor` worktree: local `main` was clean but stale at `f4ecf9a`; **do not mutate/fast-forward it** because it is shared by workers.
+- actual `origin/main`: `4956760765caab60ae8efe1a48d6edf807cdecce` after merged PR #96 (GE-5).
+- v0.7.0 release candidate: **pin to `be8a45d384b4679ff5c93230d06cbfc17a060b48`**. Current main is intentionally not the release target because it contains later GE-5 plus a known readiness defect.
+- active GPT design worktree: `A:\GitHub\A-Wiki-Conductor-ge-scheduler-design`, branch `docs/ge-scheduler-dispatch-design`, reconciled to `4956760` before docs mutation.
+- Worker 1 transport terminated during read-only inspection; work was checkpoint-safe and continued on Worker 4 against the same worktree/branch. This is TRANSPORT_FAILURE, not task/code failure.
+- A-Wiki is HOLD and was inspected only through authoritative GitHub read-only sources for the reuse gate; no A-Wiki mutation occurred.
 
-## Graph Engineering handoff
+## Graph Engineering state
 
-D1-D5 are accepted in ADRs GE-0001..GE-0005 via PR #86:
-- D1: port A-Wiki `dag_eval` semantics with attribution; no runtime dependency on an A-Wiki checkout.
-- D2: graph fields are Conductor-owned; `awiki-task/v1` remains unchanged; dependency relations live in `TaskEdge`/`TaskGraph` rather than duplicated nested TaskNode fields.
-- D3: A-Wiki access is bridge-only; direct `.tmp` / `scripts.lib.*` coupling is forbidden.
-- D4: retain all 12 DependencyTypes with guardrails; dynamic/resource relations are not blindly persisted as precedence edges; `HUMAN_APPROVAL` is a readiness gate; no cycle exemptions/back-edges.
-- D5: first implementation PR is **GE-1a only** (`a_conductor/graph/domain.py` + `tests/test_graph_domain.py`), then GE-1b and GE-3. GE-6/GE-7 remain gated.
+Verified merged implementation:
+- GE-1a/1b domain + acyclic assembly — PR #91.
+- GE-2 durable graph SQLite store — PR #92.
+- GE-3 Kahn DAG/ready levels/cycle naming — PR #94.
+- GE-4 glob-aware hidden conflict analyzer — PR #95.
+- GE-5 ReadySet — PR #96, CI green and merged, but a post-merge contract defect blocks GE-6 implementation until repaired.
+
+Accepted design decisions:
+- **ADR GE-0006:** event-driven/re-entrant deterministic scheduler core; no hot polling/background scheduler thread; current capacity policy `max_parallel=5`; worker capability/project/mutation-authority matching; same-batch + running conflict closure; pure SchedulePlan output only.
+- **ADR GE-0007:** graph dispatch REUSE/WRAPs existing `DurableJobControlService`, `SQLiteJobStore`, `DurableJobExecutionCoordinator`, supervised execution, recovery, and dedup; dispatch identity includes `{graph_id, graph_run_id, node_id}`; no second lifecycle/store.
+- A-Wiki brain bridge stays gate/policy seam only; A-Wiki agent-claim TTL is not Conductor execution-reservation ownership.
+
+### Blocking GE-5 repair before GE-6 code
+
+Merged `graph/ready.py` compares running write sets by literal equality while GE-4 is glob-aware. Example `src/**/*.py` vs `src/specific.py` can be incorrectly marked safe. Repair ticket: `docs/work-orders/WO-GE-005A-readyset-glob-conflict-repair.md`. Integrator evidence is recorded on PR #96 comment `5420827136`.
+
+After that repair merges green, GLM may implement GE-6 from ADR GE-0006. GE-7 follows ADR GE-0007. Do not add scheduler workarounds for the GE-5 defect.
+
+## Release state
+
+- v0.6.0 remains published and verified historically.
+- v0.7.0 is **not yet published** at this checkpoint.
+- Exact candidate for v0.7.0 remains `be8a45d` as explicitly handed to the integrator; do not include later GE-5/design changes in that release merely because `main` advanced.
+- PR #93 (`dab8f32`) singleton-dialog/release consolidation merged with Windows/Ubuntu/macOS CI green; PR #90 connector clarity and PRs #91–#95 graph/UI foundations are included as appropriate in the candidate line.
 
 ## Verified source state
 

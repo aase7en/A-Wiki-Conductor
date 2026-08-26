@@ -109,4 +109,35 @@ until GE-1a domain gains dedicated fields (future EXTEND per D2).
 - `ReadySetResult`: checks dict + ready_ids set + blocked_count
 - 17 tests in tests/test_graph_ready.py; combined GE suite: 69 passed
 - Readiness != execution: scheduler (GE-6) picks from ReadySet by
-  capacity/policy — still gated on GPT design review
+  capacity/policy — GPT design gate is resolved by ADR GE-0006/0007.
+
+## Checkpoint — 2026-08-26 / GE-6 + GE-7 design accepted (GPT-5.6 Sol MAX)
+
+Design authority is now `docs/adr/GE-0006-event-driven-bounded-scheduler.md` and
+`docs/adr/GE-0007-dispatch-through-durable-job-control.md`:
+- GE-6 = deterministic event-driven/re-entrant scheduling pass, no hot polling
+  loop or background scheduler thread; startup/reconnect/reconcile call the same
+  pure scheduling core.
+- Current fleet capacity is bounded by injected `max_parallel=5`, actual READY
+  worker availability, capability/project/mutation-authority match, existing
+  inflight reservations, and resource/gate/provider constraints.
+- GE-4 conflict semantics are authoritative and must close conflicts against
+  running nodes AND nodes selected in the same scheduling batch.
+- GE-7 reuses/wraps the existing durable `job_control.py` / SQLite job store /
+  execution coordinator / supervised dedup path. No second graph lifecycle or
+  execution store is authorized.
+- Stable dispatch identity includes `{graph_id, graph_run_id, node_id}`;
+  transport/lease loss triggers durable reconciliation, never blind relaunch.
+- A-Wiki remains bridge-only/read-only per GE-0005; its agent-claim TTL is not a
+  Conductor execution reservation lease.
+
+**Blocking upstream repair before GE-6 implementation:** merged GE-5 PR #96 uses
+literal equality for write-set conflict checks, weaker than GE-4's glob-aware
+semantics. `src/**/*.py` vs `src/specific.py` can therefore be marked safe.
+Repair GE-5 by reusing one authoritative GE-4 overlap/conflict seam and add the
+regression first; do not compensate with duplicate logic in `scheduler.py`.
+Integrator evidence/comment: PR #96 issue comment `5420827136`.
+
+After that repair is merged and green, GLM may start GE-6 implementation from
+ADR GE-0006. GE-7 follows GE-6 and must preserve ADR GE-0007's existing-job-
+control reuse boundary.
