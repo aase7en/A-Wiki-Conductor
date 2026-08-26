@@ -69,6 +69,14 @@ Focused result using isolated pytest temp root:
 - `git diff --check` clean;
 - `folder_size.py` LSP diagnostics: none.
 
+## CI routing correction — 2026-08-26
+
+PR #99 Windows run `32938220760` first exposed two real async race assertions; commit `a678137` fixed the completed-Future/result-consumption race. The next run and its single bounded rerun no longer reported those assertions, but both Windows core processes terminated with `0x80000003` while `test_native_git_transactions.py` was spawning Git.
+
+Root cause classification: the new `tests/test_project_disk_async.py` contains Tk tests but was not added to the repository's existing GUI/core process split. `.github/workflows/ci.yml` already documents that hosted Windows can emit `0x80000003` GC/native breakpoint failures when Tk/subprocess-heavy suites share the same long-lived pytest process.
+
+Repair: run `test_project_disk_async.py` in `Run GUI test suite` and explicitly ignore it in `Run core test suite`. This does **not** skip coverage; it restores the intended CI isolation boundary. Fresh CI must pass before merge.
+
 ## Release gate
 
 Do not publish `v0.7.0` from a SHA containing synchronous PROJECT DISK scanning. Merge this repair first with full CI green, then use the exact post-merge main build artifacts and perform sandbox installed acceptance.
