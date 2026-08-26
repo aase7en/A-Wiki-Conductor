@@ -55,3 +55,13 @@ Branch `feat/ge-1a-graph-domain` from main `a24db2c`, per D5 scope:
 - **GE-1b** `a_conductor/graph/graph.py`: `TaskGraphBuilder` (fail-fast, rolls back a cycle-creating edge before raising) + `build_graph` convenience + `_find_cycle` (Kahn + cycle reconstruction; semantics credited to A-Wiki dag_eval per GE-0004/D1 — full DAG engine remains GE-3).
 - Tests: `tests/test_graph_domain.py` (14) + `tests/test_graph_assembly.py` (6) = **20 passed**. No scheduler/dispatch/persistence/UI (D5 gate).
 - Next node per roadmap: **GE-2** SQLite graph store (`a_conductor/graph/store.py`), then GE-3 DAG port.
+
+## Checkpoint — 2026-08-26 / GE-2 implemented (GLM 5.3)
+
+`a_conductor/graph/store.py` — `GraphStore` with SQLite tables:
+`graph_nodes` (JSON per-node dataclass), `graph_edges`, `graph_runs`,
+`node_events` (append-only event log per node). Schema version tracked in
+`graph_meta`. Per-call connection pattern (same as existing stores).
+Full round-trip: save/load/list/delete + node events + enum status
+preservation + cycle-rejection survives load. 6 tests in
+`tests/test_graph_store.py`. Combined GE suite: 26 passed.
