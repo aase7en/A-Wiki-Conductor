@@ -81,7 +81,7 @@ class TestWorkerButtons:
         root.update()
         assert len(app.worker_tree.get_children()) == 4
         ids = [app.worker_tree.item(i, "values")[0] for i in app.worker_tree.get_children()]
-        assert "a-worker-04" in ids
+        assert "E2E Worker" in ids  # the custom name typed in the dialog
 
     def test_rename_worker_button(self, root, tmp_path):
         from tkinter import ttk
