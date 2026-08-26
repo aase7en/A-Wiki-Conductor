@@ -2,9 +2,10 @@
 
 Created: 2026-08-26
 Owner: GPT-5.6 Sol MAX — release blocker repair
-Status: READY_FOR_PR — TDD repair implemented; focused deterministic suite green; GitHub Windows GUI CI required
-Branch: `fix/project-disk-async-release`
-Base: PR #97 final head `923dd6b7dd74e5a78b29f8e6d688276ca1a57ff0` (contains current main `6f7dfd5`)
+Status: CI_RETRY_REQUIRED — implementation and deterministic tests ready; fresh Windows GUI CI pending after test-timing repair
+Remote PR branch: `fix/project-disk-async-release` (PR #99)
+Current local transport branch: `fix/project-disk-async-ci`
+Reconciled base: `origin/main` `12a4c56db5704706ef3b2b25e291f2639627c05c` via merge commit `35fbc5e`
 
 ## Trigger / reproducer
 
@@ -80,3 +81,11 @@ Repair: run `test_project_disk_async.py` in `Run GUI test suite` and explicitly 
 ## Release gate
 
 Do not publish `v0.7.0` from a SHA containing synchronous PROJECT DISK scanning. Merge this repair first with full CI green, then use the exact post-merge main build artifacts and perform sandbox installed acceptance.
+## CI timing correction / latest checkpoint — 2026-08-26
+
+- Fresh routed Windows run `32943940771` reached the GUI suite and failed only `test_stale_disk_result_cannot_overwrite_new_selection`; the prior core-process `0x80000003` contamination did not recur in that run.
+- Diagnosis: `_poll_project_disk()` intentionally polls every 25 ms, while the regression called `root.update()` once and assumed a future 25 ms callback must already have fired. That is not deterministic on hosted runners.
+- Repair: GUI tests now use a bounded event-loop wait (0.5 s maximum, 5 ms drain interval) for the designed poll callback. Production polling semantics were not weakened or complicated to satisfy a timing-fragile assertion. Cache completion uses the same bounded wait.
+- Local focused verification: `tests/test_project_disk_async.py tests/test_folder_size.py` -> **10 passed, 4 skipped**; the four skips remain only the workstation Tcl-path problem.
+- Branch merged latest `origin/main` `12a4c56` cleanly; stale `CURRENT-WORK.md`, `handoff.md`, and `COLLAB.md` branch checkpoints are deliberately removed from PR #99 so they cannot roll main back. Final continuity reconciliation belongs in `docs/repo-health-100` after all GPT-owned work closes.
+- Next gate: commit/push this final PR #99 head, audit remote diff, require all CI checks green, re-audit, merge, fetch/reconcile.

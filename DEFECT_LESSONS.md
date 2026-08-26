@@ -104,6 +104,140 @@ stop script ต้องเกิดหลัง launcher handoff, process ต�
 
 ---
 
+## #6: WORKERS ตารางแสดง auto id แทนชื่อที่ผู้ใช้ตั้ง (2026-08-26)
+
+**อาการ:** กด Add Worker พิมพ์ชื่อเอง → ตารางยังแสดง `a-worker-04` (auto)
+ไม่แสดงชื่อที่พิมพ์ — ผู้ใช้คิดว่าชื่อไม่ถูกบันทึก
+
+**Root cause:** `desktop_ui.py` refresh() ใส่ `worker.worker_id` (auto) ในคอลัมน์แรก
+แทนที่จะใส่ `worker.display_name` (ชื่อที่ผู้ใช้ตั้ง) — ข้อมูลถูกบันทึกถูกต้อง
+แต่ตาราง render ผิด field
+
+**แก้:** เปลี่ยน `worker.worker_id` → `worker.display_name` ในคอลัมน์แรกของ WORKERS
+
+**Lesson:** เมื่อมีทั้ง `id` (ระบบใช้ภายใน) และ `display_name` (ผู้ใช้เห็น)
+**ต้อง render display_name ใน UI เสมอ** — อย่าใช้ id ภายในแสดงต่อผู้ใช้
+
+**ตรวจสอบ:** `test_worker_display.py::test_add_worker_with_custom_name_shows_in_table`
+
+---
+
+## #7: Dialog เปิดซ้อนกันเมื่อกดปุ่มซ้ำ (2026-08-26)
+
+**อาการ:** กด Donate/Guide/Settings หลายครั้ง → หน้าต่างเดิมซ้อนกันเป็นชั้น ๆ
+
+**Root cause:** ทุก dialog method สร้าง `Toplevel` ใหม่ทุกครั้งที่ถูกเรียก
+ไม่มี check ว่ามี dialog เปิดอยู่แล้วหรือไม่
+
+**แก:** เพิ่ม singleton guard ที่ head ของทุก dialog method —
+ถ้ามี dialog เปิดอยู่ให้ `lift()` + `focus_force()` แล้ว return ตัวเดิม
+
+**Lesson:** ทุก dialog ใน Tk ต้องมี singleton guard — `lift + focus` แทนการสร้างใหม่
+
+**ตรวจสอบ:** `test_dialog_singleton.py` (6 tests)
+
+---
+
+## #8: PS1 ไฟล์ไม่มี BOM → พาธภาษาไทยเพี้ยน (2026-08-26)
+
+**อาการ:** สร้าง connector ที่ path มีภาษาไทย → connector เริ่มไม่ได้
+เพราะ PowerShell อ่านไฟล์ .ps1 ด้วย ANSI แทน UTF-8
+
+**Root cause:** `write_text(encoding="utf-8")` ไม่ใส่ BOM —
+Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น UTF-8
+
+**แก:** เปลี่ยนเป็น `encoding="utf-8-sig"` ในทุกจุดที่เขียนไฟล์ .ps1
+
+**Lesson:** ไฟล์ .ps1 ที่มีเนื้อหา non-ASCII ต้องเขียนด้วย `utf-8-sig` เสมอ
+
+**ตรวจสอบ:** `test_ps1_encoding_and_quoting.py` (4 tests ตรวจ BOM bytes)
+
+---
+
+## #9: ปิดโปรแกรมหยุด connector เงียบ ๆ → แชทหลุด (2026-08-26)
+
+**อาการ:** ผู้ใช้ปิดโปรแกรม → connector ทุกตัวถูกหยุด → แชท GPT ที่กำลังใช้งานหลุดหมด
+ตารางยังโชว์ READY ค้างไว้จนกด Rescan จึงเห็น STOPPED (เข้าใจผิดว่า Rescan ทำ)
+
+**Root cause:** preference `shutdown_stops_instances` (default ON) สั่งหยุดทุกตัว
+ตอนปิดหน้าต่างโดยไม่ถาม + ตาราง CONNECTORS ไม่รีเฟรชสด (ต้องกด Rescan เอง)
+
+**แก:** (1) ปิดโปรแกรมถามก่อนหยุด RUNNING connectors (2) ตารางรีเฟรชสดทุก 15 วิ
+
+**Lesson:** การหยุด process ที่ผู้ใช้กำลังใช้งานต้อง**ถามก่อนเสมอ** +
+ตารางสถานะต้องรีเฟรชสด ไม่รอให้ผู้ใช้กด
+
+**ตรวจสอบ:** `test_connector_clarity.py` (close-confirm + live-refresh tests)
+
+---
+
+## #10: Test ผูกพอร์ต 18011 = พอร์ต connector จริง (2026-08-26)
+
+**อาการ:** `test_instance_monitor` fail บนเครื่องที่มี connector จริงรันอยู่
+(health probe วิ่งไปโดน connector จริงบนพอร์ต 18011 → ได้ READY แทน STOPPED)
+
+**Root cause:** test fixture ใช้พอร์ต 18011 ซึ่งเป็นพอร์ตจริงของ sunday-worker-1
+
+**แก:** ย้าย test ไปใช้พอร์ต 18901+ (ช่วง test-only)
+
+**Lesson:** test fixture ห้ามใช้พอร์ตที่ตรงกับ production (18011-18015) —
+ใช้ช่วง 18900+ สำหรับ test เท่านั้น
+
+---
+
+## #11: GitHub Actions Windows runner: GC faulthandler flake (2026-08-26)
+
+**อาการ:** CI Windows `test` job fail ด้วย `Windows fatal exception: code 0x80000003`
+ระหว่าง Garbage Collection ใน `pathlib casefold_parts` — fail 5 ครั้งติดต่อกัน
+
+**Root cause:** hosted runner มี instability ใน GC + faulthandler interaction
+(known issue ใน repo ตั้งแต่ v0.2.2 — เคยแก้ด้วยการแยก GUI/core suite)
+
+**แก:** GPT แก้ด้วยการแยก `test_local_instances` เป็น CI step ใหม่ (PR #85)
+เพิ่มล่าสุด: test directories เปลี่ยนเป็น ASCII-only (ลด non-ASCII pathlib)
+
+**Lesson:** CI Windows flake คลาสนี้ถ้าเจอซ้ำ: (1) แยก suite เป็น step ใหม่
+(2) ตรวจว่าไม่ใช่ real bug ก่อน rerun (3) ถ้า rerun 3 ครั้งแล้วยัง fail = ไม่ใช่ flake
+
+---
+
+## 🔨 BUILD CHECKLIST (อ่านทุกครั้งก่อน build/release ใหม่)
+
+บันทึก: 2026-08-26 — สรุปปัญหาที่เคยเจอทุกอย่างเพื่อไม่ให้เกิดซ้ำในเวอร์ชันใหม่
+
+### ก่อน build:
+- [ ] `pyproject.toml` version = `branding.py APP_VERSION` (test ตรวจอยู่)
+- [ ] `CHANGELOG.md` มี section ของเวอร์ชันนี้
+- [ ] `docs/USER-GUIDE.md` + `USER-GUIDE-EN.md` มีเวอร์ชันล่าสุดใน header
+- [ ] `INSTALL.md` มีเวอร์ชันล่าสุด
+- [ ] `tests/test_build_installer.py` version assertions อัปเดต
+
+### ระหว่าง build:
+- [ ] ESET ล็อก PE file สด → รอ 90 วินาทีแล้ว retry (เกิดเกือบทุกครั้ง)
+- [ ] Build command: `python scripts/build_portable.py --distpath dist/<name>`
+- [ ] ตรวจ archive ด้วย `pyi-archive_viewer` ว่ามี: sunday-family-particle.png,
+      donate-promptpay-qr.png, gpu_particle_logo, system_metrics, moderngl, PIL, _tkinter
+
+### หลัง build (ก่อนส่งมอบ):
+- [ ] Frozen smoke: `./<exe> --smoke --database <temp>.sqlite` → exit 0
+- [ ] ทดสอบ: เปิดโปรแกรม → กดทุกปุ่มหลัก (Guide, Settings, Donate, Add Worker, Edit)
+- [ ] ทดสอบ: กดปุ่มเดิมซ้ำ 2-3 ครั้ง → หน้าต่างต้องไม่ซ้อน (singleton)
+- [ ] ทดสอบ: ปิดโปรแกรมขณะ connector รัน → ต้องมี confirm dialog
+- [ ] ทดสอบ: เลือกโปรเจกต์ → PROJECT DISK ต้องแสดงขนาด
+- [ ] ทดสอบ: พิมพ์ชื่อ Add Worker → ตารางแสดงชื่อที่พิมพ์ (ไม่ใช่ a-worker-NN)
+- [ ] ทดสอบ: กด Rescan → log สรุป "พบ N ตัวเชื่อม: X READY, Y STOPPED"
+
+### ก่อน merge PR:
+- [ ] CI 3-OS เขียว (Windows test + Ubuntu smoke + macOS smoke)
+- [ ] ถ้า Windows fail ด้วย `0x80000003 GC faulthandler` → ดู #11 (อาจเป็น flake)
+- [ ] ตรวจ diff ก่อน merge ทุกครั้ง
+
+### ที่อยู่ไฟล์:
+- Build output: `A:\GitHub\A-Sunday-Conductor-Builds\A-Sunday Conductor LATEST.exe`
+- (ชื่อ LATEST เสมอ — ทับไฟล์เก่า ไม่สร้างไฟล์ใหม่)
+
+---
+
 ## กติกาการเพิ่ม lesson ใหม่:
 
 1. บันทึกเมื่อ: พบ defect ที่ผู้ใช้จริงรายงาน (ไม่ใช่แค่ test fail)

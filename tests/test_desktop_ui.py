@@ -147,7 +147,7 @@ def test_refresh_projects_worker_assignment_and_state(root) -> None:
     values = app.worker_tree.item(rows[0], "values")
     assert "READY" in values
     assert "A-Wiki" in values
-    assert "a-worker-01" in values
+    assert "A-Worker 1" in values  # display_name, not the auto worker_id
 
 
 def test_assign_selected_delegates_to_service(root) -> None:

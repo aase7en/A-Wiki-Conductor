@@ -34,11 +34,10 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-071` / PROJECT DISK async release blocker | GPT-5.6 Sol MAX | 2026-08-26 | `src/a_conductor/folder_size.py`, bounded `desktop_ui.py` async/cancellation seam, focused tests, WO/defect/continuity records. No graph scheduler code; no live connector mutation. |
+| `WO-GE-006` / GE-6+GE-7 design | GPT-5.6 Sol MAX | 2026-08-26 | Design-only: `docs/adr/GE-0006-*`, `docs/adr/GE-0007-*`, `docs/work-orders/WO-GE-006-*` plus bounded continuity/coordination updates. No scheduler/dispatch production code; GE-5 implementation remains a separate GLM repair lane. |
 
 ### Recently closed / released claims
 
-- `WO-GE-006`: GE-6/GE-7 design merged via PR #97 at `15d2b26`; design claim released. GE-6 implementation is a separate GLM claim and GE-005A is its production-merge gate.
 - `WO-P1-063`: implementation/release complete; v0.6.0 published from `c870525`; future work leaves this WO.
 - `WO-GE-001` decision fan-in: D1-D5 accepted via PR #86; decision claim released. GE-1a is the next implementation slice and must be claimed by its actual implementer before mutation.
 - `docs/repo-health-sync`: merged/closed before release integration; no live claim remains.
