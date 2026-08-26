@@ -115,11 +115,11 @@ GE-6 returns an immutable scheduling result containing selected `{node_id, worke
 
 GE-7 owns durable dispatch of the accepted schedule plan.
 
-## Required GE-5 repair before GE-6 implementation
+## Required GE-5 repair before GE-6 production merge
 
 PR #96 merged GE-5 with a resource check that compares write-set strings literally. That is weaker than GE-4's accepted glob-aware conflict semantics and can mark overlapping paths such as `src/**/*.py` and `src/specific.py` simultaneously ready.
 
-Before GE-6 production implementation begins, GE-5 must reuse one authoritative GE-4 overlap/conflict seam and add a regression for glob-vs-specific overlap. GE-6 must not copy or compensate for the weaker GE-5 algorithm.
+This defect does **not** block isolated GE-6 TDD after this ADR is merged because GE-6 already consumes the authoritative GE-4 conflict report and must close conflicts against running + same-batch selections. It **does** block merging GE-6 as production-ready until GE-5 reuses one authoritative GE-4 overlap/conflict seam and adds a regression for glob-vs-specific overlap. GE-6 must not copy the weaker GE-5 path matcher or create a third overlap algorithm.
 
 ## Rejected alternatives
 

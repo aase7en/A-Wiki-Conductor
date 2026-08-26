@@ -49,7 +49,32 @@ The implementation maps this key deterministically to the durable `job_id` / exe
 
 Re-running the same graph creates a new `graph_run_id`; reconnecting/recovering the same run preserves it.
 
-### 3. Bounded dispatch transaction
+### 3. Chat/tunnel workers are pull-mode; programmatic workers may be push-mode
+
+A Secure MCP Tunnel transports MCP traffic between ChatGPT and a private/local MCP server. It does **not** by itself turn an existing ChatGPT conversation into a server-addressable background worker that Conductor may push an arbitrary new model turn into.
+
+Current OpenAI documentation describes custom MCP apps as tools that ChatGPT uses from a chat/prompt, with Secure MCP Tunnel providing connectivity to a private MCP server. It does not document an MCP-server primitive that starts an arbitrary new ChatGPT turn. GE-7 must therefore model execution-surface capability explicitly rather than assuming push semantics from the word `tunnel`.
+
+Scheduler/dispatch vocabulary:
+
+- `INTERACTIVE_PULL` — a ChatGPT/Serena-tunnel worker. Conductor durably queues/offers an assignment for that worker. During an active model turn, the AI client claims/pulls the next assignment through an approved Conductor task-inbox/application seam, executes bounded tools, heartbeats/checkpoints, and reports evidence. No scheduler code pretends it can wake the chat by writing to the tunnel.
+- `PROGRAMMATIC_PUSH` — a local/headless/API/durable agent surface for which Conductor owns an explicit invocation API/process. GE-7 may call the adapter after durable reservation/gating and supervise the returned execution identity.
+
+A worker snapshot therefore needs a declared dispatch mode/capability. Unknown mode is non-dispatchable; do not probe or guess.
+
+For the current Sunday-Worker ChatGPT plugins, the model in the chat is the **actor**, Serena is the semantic/tool runtime, and the tunnel is only the **transport**. Conductor is the manager/queue/lease authority. The practical flow is:
+
+`GE-6 selects node -> GE-7 durably offers/reserves -> active ChatGPT worker pulls/claims -> AI performs task through Serena/tools -> checkpoint/evidence -> lifecycle verify/review`
+
+This means full hands-off autonomy for chat-backed workers additionally requires a documented way to trigger/continue model turns. Until such a surface is explicitly integrated (for example a supported agent/API execution surface), the ChatGPT-tunnel lane remains resumable pull-mode rather than fake push-mode.
+
+A future Conductor MCP/task-inbox transport may expose bounded methods such as `next_assignment`, `claim_assignment`, `heartbeat`, `checkpoint`, and `report_result`; that transport must wrap this application contract and must not become a second scheduler/lifecycle store. Reopening/implementing a general MCP gateway remains a separate architecture gate.
+
+External platform evidence checked 2026-08-26:
+- OpenAI Help: `Developer mode and MCP apps in ChatGPT` — custom MCP tools are used in ChatGPT conversations; Secure MCP Tunnel connects private/local MCP servers to supported OpenAI products.
+- OpenAI Help: `Apps in ChatGPT` — MCP apps let ChatGPT call approved tools and retrieve/use service data.
+
+### 4. Bounded dispatch transaction
 
 For one GE-6 selected assignment, GE-7 performs this logical transaction through existing seams:
 
@@ -65,13 +90,13 @@ For one GE-6 selected assignment, GE-7 performs this logical transaction through
 
 The adapter must tolerate observing a job already part-way through this sequence after reconnect. It reconciles actual durable state rather than replaying non-idempotent steps blindly.
 
-### 4. Gates occur before attempt consumption
+### 5. Gates occur before attempt consumption
 
 A gate refusal, missing human approval, lost mutation authority, provider unavailability, or identity mismatch must prevent entry into EXECUTING.
 
 Existing job execution increments attempt count when the durable transition to EXECUTING succeeds. GE-7 preserves this invariant so a NO-GO that prevents execution does not consume an attempt.
 
-### 5. Scheduler reservation lease is Conductor execution state
+### 6. Scheduler reservation lease is Conductor execution state
 
 A GE-6 reservation and its heartbeat/expiry are control-plane execution coordination, not A-Wiki cross-agent claims.
 
@@ -89,7 +114,7 @@ Lease expiry or missed heartbeat means `RECONCILE DURABLE STATE`. It does **not*
 
 This ADR deliberately does not freeze a wall-clock lease duration. The implementation must choose one bounded policy at a single seam and prove expiry/recovery behavior; tuning the number does not require a new architecture ADR unless semantics change.
 
-### 6. Existing duplicate-execution guard is mandatory
+### 7. Existing duplicate-execution guard is mandatory
 
 Before an external execution can be launched, the existing canonical execution fingerprint/dedup path remains authoritative.
 
@@ -102,19 +127,19 @@ Expected outcomes stay:
 
 Transport/session/tunnel failure never authorizes blind replay.
 
-### 7. Dispatch failures are node-local and evidence-backed
+### 8. Dispatch failures are node-local and evidence-backed
 
 A failure dispatching one selected node does not automatically invalidate unrelated assignments from the same GE-6 schedule plan.
 
 Each node records/reconciles its own durable outcome. The scheduler is then triggered again by the resulting state change, allowing remaining safe capacity to be reconsidered.
 
-### 8. `operator_dispatch.py` is not the internal graph-dispatch bus
+### 9. `operator_dispatch.py` is not the internal graph-dispatch bus
 
 `operator_dispatch.py` translates bounded external operator requests to job-control calls. GE-7 may reuse the same service contract, but internal graph scheduling must call the application/job-control seam directly rather than synthesize operator protocol requests.
 
 This avoids unnecessary protocol coupling and keeps transport concerns outside Graph Runtime.
 
-### 9. A-Wiki access remains bridge-only
+### 10. A-Wiki access remains bridge-only
 
 If GE-7 needs brain gate/claim/policy information, it uses the GE-0005 approved bridge seam. No direct `.tmp` store reads and no `scripts.lib.*` imports are allowed.
 

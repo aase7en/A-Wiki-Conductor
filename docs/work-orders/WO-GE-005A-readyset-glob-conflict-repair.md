@@ -2,7 +2,7 @@
 
 Created: 2026-08-26
 Owner: GLM 5.3 implementation lane (claim required before mutation)
-Status: READY — blocking GE-6 implementation
+Status: READY — blocking GE-6 production merge (GE-6 TDD may start after ADR merge)
 Parent: `WO-GE-001`
 Found by: GPT-5.6 Sol MAX GE-6 design review after PR #96 merged
 

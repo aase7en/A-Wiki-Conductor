@@ -131,13 +131,13 @@ Design authority is now `docs/adr/GE-0006-event-driven-bounded-scheduler.md` and
 - A-Wiki remains bridge-only/read-only per GE-0005; its agent-claim TTL is not a
   Conductor execution reservation lease.
 
-**Blocking upstream repair before GE-6 implementation:** merged GE-5 PR #96 uses
+**Blocking upstream repair before GE-6 production merge:** merged GE-5 PR #96 uses
 literal equality for write-set conflict checks, weaker than GE-4's glob-aware
 semantics. `src/**/*.py` vs `src/specific.py` can therefore be marked safe.
-Repair GE-5 by reusing one authoritative GE-4 overlap/conflict seam and add the
-regression first; do not compensate with duplicate logic in `scheduler.py`.
+GE-6 TDD may begin after the ADR gate because GE-6 independently consumes the
+authoritative GE-4 conflict report. Before GE-6 is merged as production-ready,
+repair GE-5 by reusing one authoritative GE-4 overlap/conflict seam and add the
+regression; do not create duplicate path-overlap logic in `scheduler.py`.
 Integrator evidence/comment: PR #96 issue comment `5420827136`.
 
-After that repair is merged and green, GLM may start GE-6 implementation from
-ADR GE-0006. GE-7 follows GE-6 and must preserve ADR GE-0007's existing-job-
-control reuse boundary.
+After the ADR PR is merged, GLM may start GE-6 TDD immediately from ADR GE-0006. GE-005A may land before or during GE-6 implementation but must be green/merged before GE-6 production merge. GE-7 follows GE-6 and must preserve ADR GE-0007's existing-job-control reuse boundary.

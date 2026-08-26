@@ -85,7 +85,7 @@ No random scheduling. Fairness/aging beyond this deterministic policy is a futur
 
 Dynamic conflicts remain scheduler/readiness reasons, not persisted precedence edges unless a deterministic analyzer intentionally materializes a safe ordering under ADR GE-0003.
 
-**Post-merge GE-5 defect:** PR #96's `compute_ready_set()` currently uses literal write-set equality instead of GE-4's glob-aware overlap semantics. Example: `src/**/*.py` vs `src/specific.py` can be incorrectly marked safe. This is a blocking GE-5 contract repair before GE-6 implementation. No duplicate workaround may be added in scheduler code.
+**Post-merge GE-5 defect:** PR #96's `compute_ready_set()` currently uses literal write-set equality instead of GE-4's glob-aware overlap semantics. Example: `src/**/*.py` vs `src/specific.py` can be incorrectly marked safe. GE-6 TDD may start after this ADR PR merges because scheduler safety independently consumes GE-4 conflicts; the GE-5 repair is a required merge gate before GE-6 is production-ready. No duplicate path-overlap implementation may be added in scheduler code.
 
 ### D6-GATE — Brain/safety gate seam
 
@@ -109,6 +109,17 @@ Per selected graph node, the graph-dispatch adapter performs a bounded transacti
 8. reconcile/release the scheduler reservation based on durable outcome.
 
 Gate refusal must occur before EXECUTING so it does not consume an execution attempt.
+
+### D7-SURFACE — Tunnel/chat pull vs programmatic push
+
+**ACCEPTED.** The scheduler must not confuse a tunnel with an invocation API.
+
+- Current Sunday-Worker ChatGPT + Serena + Secure MCP Tunnel is `INTERACTIVE_PULL`: Conductor can persist/offer/reserve work; the AI in an active chat turn pulls/claims it through an approved task-inbox/application seam and then uses Serena/tools to perform the task. Conductor cannot assume it can inject a new turn into that chat merely because the MCP tunnel is connected.
+- A local/headless/API agent with an explicit invocation interface is `PROGRAMMATIC_PUSH`: GE-7 may invoke its adapter after durable claim/gating and supervise the returned execution identity.
+- Worker dispatch mode is declared metadata. Unknown mode blocks rather than guesses.
+- A future MCP task-inbox transport wraps job-control/application contracts (`next/claim/heartbeat/checkpoint/result`); it is not a second lifecycle/store. General gateway work remains separately gated.
+
+Direct answer to the product question: **the AI connected through the tunnel is the worker/actor during a ChatGPT turn; the tunnel itself does not press Run Node.** A-Sunday Conductor schedules and persists the node. For today's chat-backed workers, the model must pull the offered task when a turn is active. For true unattended push execution, use/integrate an execution surface that provides a documented programmatic run API.
 
 ### D7-IDENTITY — Stable graph dispatch identity
 
@@ -146,6 +157,7 @@ Post-merge GE-5 defect was recorded on PR #96: `https://github.com/aase7en/A-Wik
 - [x] Same-batch and running-node conflict behavior resolved.
 - [x] A-Wiki bridge/reuse boundary verified read-only.
 - [x] Dispatch reuse vs new-store decision resolved.
+- [x] Chat/tunnel pull-mode vs programmatic push-mode dispatch semantics resolved.
 - [x] Stable graph-run/node dispatch identity semantics resolved.
 - [x] Lease/heartbeat/dedup responsibilities resolved without duplicating A-Wiki claims.
 - [x] GE-5 post-merge readiness defect identified and handed back to responsible stage.
@@ -156,4 +168,4 @@ Post-merge GE-5 defect was recorded on PR #96: `https://github.com/aase7en/A-Wik
 
 ## Next safe action
 
-Persist ADR GE-0006 and GE-0007 from these accepted decisions, review the docs-only diff, open a bounded PR, require green CI, merge, then hand GE-6 implementation to GLM after the GE-5 regression is repaired.
+Re-audit the final ADR PR head against current `origin/main`, require green CI, merge, then hand GE-6 TDD to GLM immediately. GE-005A may land before or during that implementation but must be green/merged before GE-6 production merge.
