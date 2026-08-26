@@ -65,3 +65,19 @@ Branch `feat/ge-1a-graph-domain` from main `a24db2c`, per D5 scope:
 Full round-trip: save/load/list/delete + node events + enum status
 preservation + cycle-rejection survives load. 6 tests in
 `tests/test_graph_store.py`. Combined GE suite: 26 passed.
+
+## Checkpoint — 2026-08-26 / GE-3 implemented (GLM 5.3)
+
+`a_conductor/graph/dag.py` — full DAG engine per D1 (dag_eval semantics port):
+- `topological_sort(graph) -> DagResult` with Kahn's algorithm, returning
+  order + parallel-ready levels + cycle path (if any)
+- `compute_ready_levels(graph)` — nodes grouped by execution wave
+- `validate_acyclic(graph)` — cycle path or None
+- Cycle reconstruction walks the remaining subgraph to name the actual
+  cycle, not just flag "cyclic"
+- Credit to A-Wiki scripts/eval/dag_eval.py for the algorithmic core
+  (ADR GE-0004 decision D1)
+- 14 tests in tests/test_graph_dag.py; combined GE suite: 40 passed
+
+Also noted for GPT design lane: project-folder-size monitor with
+monochrome gradient particle display (user request, WO-P1-070).
