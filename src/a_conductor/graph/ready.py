@@ -11,6 +11,8 @@ policy (GE-6, gated on GPT design review).
 
 from __future__ import annotations
 
+from .analyze import write_sets_overlap
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Set
@@ -80,8 +82,6 @@ def compute_ready_set(
 
     # Collect write sets of running nodes for resource conflict detection.
     # Uses the authoritative glob-aware seam from GE-4 (WO-GE-005A).
-    from .analyze import write_sets_overlap
-
     running_write_sets: dict[str, tuple[str, ...]] = {}
     for node in graph.nodes():
         state = node_states.get(node.id, TaskNodeStatus.TODO)
