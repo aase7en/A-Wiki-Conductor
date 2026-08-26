@@ -1179,6 +1179,8 @@ class AConductorDesktopApp:
         )
         self.overview_connectors_value.configure(text="0 / 0")
         state_caption, self.overview_state_value = _overview_metric(3, "CONTROLLER")
+        # WO-P1-070: project disk usage from the selected project folder
+        disk_caption, self.overview_disk_value = _overview_metric(4, "PROJECT DISK")
         self._make_responsive_metric_grid(
             metrics,
             tuple(
@@ -1188,6 +1190,7 @@ class AConductorDesktopApp:
                     self.overview_workers_value,
                     self.overview_connectors_value,
                     self.overview_state_value,
+                    self.overview_disk_value,
                 )
             ),
             captions=(
@@ -1195,6 +1198,7 @@ class AConductorDesktopApp:
                 workers_caption,
                 connectors_caption,
                 state_caption,
+                disk_caption,
             ),
             full_labels=("PROJECTS", "WORKERS READY", "CONNECTORS READY", "CONTROLLER"),
             compact_labels=("PROJECTS", "WORKERS", "CONNECTORS", "STATE"),
@@ -1984,8 +1988,28 @@ class AConductorDesktopApp:
         self._update_lifecycle_buttons()
         self._refresh_memory_status()
 
+    def _refresh_project_disk(self) -> None:
+        """WO-P1-070: update PROJECT DISK overview metric from the selected project."""
+        disk_label = getattr(self, "overview_disk_value", None)
+        if disk_label is None:
+            return
+        project_id = self.selected_project_id()
+        if project_id is None:
+            disk_label.configure(text="—")
+            return
+        root_path = self._project_paths.get(project_id)
+        if not root_path:
+            disk_label.configure(text="—")
+            return
+        from .folder_size import project_disk_display
+        disk_label.configure(text=project_disk_display(root_path))
+
     def _refresh_memory_status(self) -> None:
-        """Read-only memory-presence line for the selected project (WO-P1-057)."""
+        """Read-only memory-presence line for the selected project (WO-P1-057).
+
+        Also updates the PROJECT DISK overview metric (WO-P1-070)."""
+        # WO-P1-070: update disk usage from the selected project
+        self._refresh_project_disk()
         label = getattr(self, "memory_status_label", None)
         if label is None:
             return
