@@ -71,6 +71,29 @@ APP_NAME, APP_VERSION = _load_branding()
 
 REG_KEY = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}"
 CREDIT = "Uses the Serena engine (https://github.com/oraios/serena) internally."
+INSTALL_MARKER_NAME = ".a-sunday-conductor-install.json"
+INSTALL_MARKER_FORMAT = 1
+
+
+def _install_marker_path(target: Path) -> Path:
+    return target / INSTALL_MARKER_NAME
+
+
+def _write_install_marker(target: Path) -> None:
+    payload = {"app_name": APP_NAME, "format": INSTALL_MARKER_FORMAT}
+    _install_marker_path(target).write_text(
+        json.dumps(payload, ensure_ascii=True, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _has_valid_install_marker(target: Path) -> bool:
+    try:
+        payload = json.loads(_install_marker_path(target).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return False
+    return payload == {"app_name": APP_NAME, "format": INSTALL_MARKER_FORMAT}
+
 
 
 def default_target() -> Path:
@@ -78,6 +101,67 @@ def default_target() -> Path:
     if local_app_data:
         return Path(local_app_data) / "Programs" / APP_NAME
     return Path.home() / ".local" / "bin" / APP_NAME
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
+
+
+def _windows_registry_install_location() -> Path | None:
+    if os.name != "nt":
+        return None
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_KEY, 0, winreg.KEY_READ) as key:
+            value, _kind = winreg.QueryValueEx(key, "InstallLocation")
+    except (OSError, ImportError):
+        return None
+    return Path(value) if isinstance(value, str) and value.strip() else None
+
+
+def _registry_install_location_matches(target: Path) -> bool:
+    location = _windows_registry_install_location()
+    return location is not None and _same_path(location, target)
+
+
+def _legacy_install_identity_exists(target: Path) -> bool:
+    app = target / f"{APP_NAME}.exe"
+    uninstall_exe = target / f"Uninstall-{APP_NAME}.exe"
+    uninstall_cmd = target / f"Uninstall-{APP_NAME}.cmd"
+    return app.is_file() and (uninstall_exe.is_file() or uninstall_cmd.is_file())
+
+
+def _target_is_empty(target: Path) -> bool:
+    if not target.exists():
+        return True
+    if not target.is_dir():
+        return False
+    try:
+        next(target.iterdir())
+    except StopIteration:
+        return True
+    return False
+
+def _install_target_is_managed_or_safe(target: Path) -> bool:
+    if _target_is_empty(target):
+        return True
+    if _has_valid_install_marker(target):
+        return True
+    return (
+        os.name == "nt"
+        and _registry_install_location_matches(target)
+        and _legacy_install_identity_exists(target)
+    )
+
+
+def _uninstall_target_is_managed_or_safe(target: Path) -> bool:
+    if _target_is_empty(target):
+        return True
+    if os.name == "nt":
+        return _registry_install_location_matches(target) and (
+            _has_valid_install_marker(target) or _legacy_install_identity_exists(target)
+        )
+    return _has_valid_install_marker(target)
 
 
 def payload_dir() -> Path:
@@ -237,7 +321,8 @@ def do_install(target: Path) -> int:
     print(f"[1/4] Installing to {target}")
     try:
         uninstaller = _install_files(source, target)
-    except FileNotFoundError as exc:
+        _write_install_marker(target)
+    except (FileNotFoundError, OSError) as exc:
         print(exc)
         return 2
 
@@ -306,7 +391,13 @@ def main(argv: list[str] | None = None) -> int:
         if _frozen_uninstaller_runs_inside_target(target):
             print("UNINSTALL_REQUIRES_REGISTERED_COMMAND")
             return 4
+        if not _uninstall_target_is_managed_or_safe(target):
+            print(f"UNINSTALL_TARGET_NOT_MANAGED: {target}")
+            return 5
         return do_uninstall(target)
+    if not _install_target_is_managed_or_safe(target):
+        print(f"INSTALL_TARGET_NOT_MANAGED: {target}")
+        return 5
     return do_install(target)
 
 
