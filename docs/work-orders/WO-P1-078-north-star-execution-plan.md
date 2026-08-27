@@ -267,3 +267,17 @@ Continuity constraint:
 - `CURRENT-WORK.md`, `handoff.md`, and `COLLAB.md` remain owned by live `WO-P1-075`; North Star must not overwrite those hotspots. This checkpoint in the bounded parent WO is the authoritative continuation record for this lane until the closeout claim is released.
 
 Next safe action: collect #102/#104 rerun verdicts; independently review/integrate N3 only after its delegate commits; otherwise stop at the documented N3/GE-7/release gates rather than stealing owner scope.
+
+## Checkpoint — PR #102 accepted + N3 integrated (2026-08-28)
+
+- PR #102 / GE-005A final HEAD `2378b9c` passed GPT final review and the rerun CI matrix; Windows, Ubuntu, and macOS are green.
+- PR #102 merged to `main` as `cc240e9`.
+- GLM N3 bounded Desktop Commander contract commit `6676dbf` passed integrator review and was integrated here as `ac8ff93`.
+- N3 focused regression after integration: **28 passed**; compileall and diff-check PASS.
+- PR #104 / GE-6 is now the next Graph gate and may be repaired against the accepted GE-005A seam in its own GLM-owned worktree.
+- North Star N4 remains BLOCKED: GE-6 must be accepted/merged and GE-7 production dispatch is still absent.
+- Release/installer lanes remain independent and must not be mixed with this North Star branch.
+
+Next safe parallel frontier:
+1. GLM: bounded PR #104 scheduler repair/review in `A:\GitHub\A-Wiki-Conductor-glm-ge6` only.
+2. GPT: North Star integration/review work that does not touch PR #104 scope; do not start N4 yet.

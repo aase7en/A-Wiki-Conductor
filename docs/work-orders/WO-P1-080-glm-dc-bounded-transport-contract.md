@@ -1,6 +1,6 @@
 # WO-P1-080 — GLM Desktop Commander bounded transport contract
 
-Status: READY_FOR_GLM
+Status: INTEGRATED_ACCEPTED
 Owner: GLM 5.3 MAX (bounded contract/test); GPT-5.6 Sol = integrator/reviewer
 Parent: WO-P1-078 / N3
 Repository: `aase7en/A-Wiki-Conductor`
@@ -143,3 +143,20 @@ Limitations:
 - Doc anchor tests assert exact phrases; integrator may rephrase only together with the test update (kept in one commit for reviewability).
 
 One next safe action: GPT-5.6 Sol reviews this contract against N3 acceptance (1-8) and the parent runtime contract; if accepted, the next bounded slice is the injected fake-backend adapter design (still no live transport), while N4 stays BLOCKED on GE gates.
+
+## Integrator review — 2026-08-28
+
+Verdict: `ACCEPTED / INTEGRATED`.
+
+GPT-5.6 Sol independently reconciled the GLM commit against N3 acceptance and parent runtime authority, then integrated it into the North Star branch as commit `ac8ff93`.
+
+Evidence:
+- bounded changed scope remains exactly the N3 contract/schema/example/test files plus this WO;
+- no production transport, MCP gateway, scheduler, job-state, UI, or A-Wiki mutation was introduced;
+- opaque `operation_ref`, project identity, explicit mutation intent, timeout, output budget, and optional explicit `device_id` remain fail-closed contract inputs;
+- runtime output budget mismatch (8 MiB operation maximum vs smaller artifact-read pages) remains an explicit future-adapter reconciliation item, not hidden behavior;
+- `pytest -q tests/test_desktop_commander_transport_contract.py tests/test_desktop_commander_runtime.py tests/test_runtime_catalog.py` -> **28 passed**;
+- `python -m compileall -q src/a_conductor` -> PASS;
+- `git diff --check` -> PASS.
+
+N3 is complete. N4 remains blocked until the accepted GE-6 scheduler and GE-7 durable dispatch implementation seam are both integrated on the applicable line.
