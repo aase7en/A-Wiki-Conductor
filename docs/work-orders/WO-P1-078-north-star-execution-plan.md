@@ -1,8 +1,8 @@
-﻿# WO-P1-078 — A-Conductor North Star execution plan
+# WO-P1-078 — A-Conductor North Star execution plan
 
 Status: READY
 Owner: GPT-5.6 Sol (integrator) + bounded workers per READY node
-Branch: eat/north-star-runtime-sunday-family
+Branch: `feat/north-star-runtime-sunday-family`
 Base: c72a550287a8c59d2361112b489e528639adeaa6
 Current HEAD at planning: da103748ffc9768a9fe76f17bfa9c03fc1896015
 
@@ -60,7 +60,7 @@ Actions:
 1. Run real WGL production-size renderer from this branch using the known GPU-capable environment.
 2. Verify observable framebuffer, actual particle count, GPU error state, create/destroy cleanup, pointer return.
 3. Exercise pointer sweep across whole application; verify eyes follow ~1-2 px and three heads turn subtly without chest/badge translation.
-4. Compare 120 px installed/frozen appearance against master ssets/sunday-family-particle.png.
+4. Compare 120 px installed/frozen appearance against master `assets/sunday-family-particle.png`.
 5. Benchmark buffer-build time, idle CPU/RAM, active animation CPU/RAM/GPU, repeated 5-minute run and create/destroy cycles.
 6. Tune only evidence-backed constants/regions; no visual redesign outside the logo.
 7. Verify forced GPU-disabled fallback remains <=7 Canvas items and responsive.
@@ -214,3 +214,19 @@ North Star increment is not DONE until:
 ## Immediate next safe action
 
 Execute N0, then start N1 and N2 as independent bounded lanes. Do not start N4 until the GE merge gates are proven from actual GitHub/main state.
+
+## Checkpoint — N0 safety baseline (2026-08-27)
+
+Status: VERIFIED. `SAFE_TO_MUTATE=YES` only for isolated North Star bounded scopes.
+
+Evidence:
+- Worktree: `A:\GitHub\A-Wiki-Conductor-north-star`.
+- Branch/HEAD: `feat/north-star-runtime-sunday-family @ 1303ee2332fd8d23da61ca134f0a4b2a58e4abb5`.
+- Remote/base: `origin/main = c72a550287a8c59d2361112b489e528639adeaa6`; `ls-remote` agrees.
+- Shared main, release worktree, GE-005A worktree, GE-6 worktree, and detached release-audit worktree remain separate and untouched.
+- Focused North Star baseline with isolated pytest temp: `66 passed, 1 skipped`.
+- Skip is local uv Tcl/Tk installation (`spinbox.tcl` missing), not a product assertion failure.
+- First pytest run completed assertions but session cleanup hit unrelated shared-temp `PermissionError`; rerun with task-owned `--basetemp` passed.
+- `compileall` PASS; `git diff --check` PASS.
+
+Next safe frontier: N1 by GPT-5.6 Sol; N2 may be delegated as an isolated additive non-UI lane.
