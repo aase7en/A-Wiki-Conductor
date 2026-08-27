@@ -64,3 +64,24 @@ Corrected repo-root focused regression:
 The two skips are local Tcl/Tk test-environment limitations. They are not WGL acceptance gaps: the real Windows WGL framebuffer test and the dedicated visual/resource harnesses above created a real Tk/WGL surface and passed.
 
 Source-level verdict: **PASS**. Frozen/install comparison remains a release-integration gate unless it can be executed without changing the live installation or violating the v0.7 release boundary.
+
+## Frozen / sandbox-installed acceptance
+
+North Star Portable build from this branch:
+- executable: `C:\Temp\ac-northstar-frozen\A-Sunday Conductor.exe`
+- size: 31,143,854 bytes
+- SHA-256: `fa7e324e74539b4856d53177239589991bcb0ceca975761fc7ff640f77ce477b`
+- isolated frozen smoke: `A-CONDUCTOR_SMOKE_OK projects=0 workers=3`, exit 0
+- archive inspection includes Sunday Family asset, GPU module, ModernGL, Pillow, `_tkinter`, pyopengltk and OpenGL/WGL.
+
+Setup build from the same North Star payload:
+- installer: `C:\Temp\ac-northstar-frozen\A-Sunday-Conductor-Setup.exe`
+- size: 38,098,517 bytes
+- SHA-256: `43dc50f5e1f43ad4f48e5ff9481821def5146423bf0449f760249b3ed5cc0ec9`
+- embedded payload includes Portable exe, both guides, notices, icon and `installer-branding.json`.
+
+Sandbox-installed payload was materialized under `C:\Temp\ac-northstar-installed` without touching live shortcuts/registry. The installed executable hash exactly matches the Portable hash and its isolated smoke passed. Direct installed GUI capture opened `A-Sunday Conductor v0.7.0` at 1096x719, showed the Sunday Family header and real command-center metrics, then closed cleanly.
+
+Additional durable images:
+- `docs/evidence/WO-P1-076-frozen-window.png`
+- `docs/evidence/WO-P1-076-installed-window.png`

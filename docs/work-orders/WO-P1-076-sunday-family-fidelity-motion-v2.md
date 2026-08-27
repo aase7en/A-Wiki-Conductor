@@ -1,6 +1,6 @@
 # WO-P1-076 — Sunday Family fidelity + gaze/head motion v2
 
-Status: SOURCE_ACCEPTED
+Status: FROZEN_ACCEPTED
 Owner: GPT-5.6 Sol
 Branch: `feat/north-star-runtime-sunday-family`
 Base: `c72a550287a8c59d2361112b489e528639adeaa6`
@@ -78,3 +78,19 @@ Key results:
 - no evidence-backed reason to increase density beyond 17,280 at 120 px; the direct master raster downscale is itself pixel-limited at badge text size.
 
 No further source/UI tuning is justified without new visual acceptance evidence. Do not widen scope merely to make motion more noticeable; current movement is deliberately subtle/non-uncanny by design.
+
+## Frozen / sandbox-installed checkpoint — 2026-08-27
+
+Status: FROZEN_ACCEPTED. Build HEAD before evidence-only edits: `4f5c9a9a9ab773ca8ca16a1255ebc56026b59d3f`.
+
+- Portable build: 31,143,854 bytes; SHA-256 `fa7e324e74539b4856d53177239589991bcb0ceca975761fc7ff640f77ce477b`.
+- Frozen isolated smoke: `A-CONDUCTOR_SMOKE_OK projects=0 workers=3`, exit 0.
+- Setup build: 38,098,517 bytes; SHA-256 `43dc50f5e1f43ad4f48e5ff9481821def5146423bf0449f760249b3ed5cc0ec9`.
+- Setup archive contains the Portable payload, guides, notices, icon and installer branding metadata.
+- Sandbox-installed executable hash exactly equals the Portable hash; isolated installed smoke passed.
+- Direct installed GUI capture opened `A-Sunday Conductor v0.7.0` at 1096x719, rendered the Sunday Family header + real command-center metrics, and closed cleanly.
+- Verification deliberately avoided running Setup integration against the user's live Start Menu/registry/install; the payload was materialized under `C:\Temp` instead.
+
+Durable evidence: `docs/evidence/WO-P1-076-sunday-family-v2.md` and the frozen/installed window PNGs.
+
+N1 implementation + source + WGL + resource + fallback + frozen/sandbox-installed acceptance are complete. Independent final PR review/CI remain N8 integration gates; do not reopen visual tuning without new user-visible evidence.
