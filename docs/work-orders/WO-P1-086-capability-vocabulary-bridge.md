@@ -1,6 +1,6 @@
 # WO-P1-086 — Capability vocabulary bridge C0
 
-Status: IN_PROGRESS
+Status: LOCAL_VERIFIED / DRAFT_PR_REVIEW
 Owner: GPT-5.6 Sol integrator
 Parent: `WO-P1-085` / Capability Fabric C0
 Repository: `aase7en/A-Wiki-Conductor`
@@ -46,3 +46,14 @@ Verified Conductor surfaces:
 - mutation authority remains a policy gate, not a capability-name alias;
 - no registry/state duplication;
 - `git diff --check` passes and changed files remain docs-only.
+## Checkpoint — C0 draft contract (2026-08-28)
+
+- A-Wiki local/remote `main` identity matched at `290626ba`; inspection was read-only despite unrelated dirty generated/wiki files.
+- Conductor base was exact `origin/main@9106da2` after PR #109 merged.
+- New contract separates task/actor requirement, execution supply, and policy/authority instead of conflating them.
+- The 20-value A-Wiki vocabulary remains canonical; Conductor Graph copy is treated only as a compatibility mirror.
+- Runtime dot-names from the accepted North Star branch are mapped as implementation supply, not promoted into A-Wiki policy.
+- `git diff --check`: PASS; bounded secret-pattern scan: PASS.
+- Commit: `572d3a2`; Draft PR: #110.
+
+Next safe action: independent review of PR #110; no C1/C2 production mutation until the mapping contract is accepted and current North Star/GE ownership is reconciled.
