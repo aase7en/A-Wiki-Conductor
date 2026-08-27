@@ -230,3 +230,40 @@ Evidence:
 - `compileall` PASS; `git diff --check` PASS.
 
 Next safe frontier: N1 by GPT-5.6 Sol; N2 may be delegated as an isolated additive non-UI lane.
+
+## Checkpoint — North Star unblocked frontier (2026-08-27)
+
+Current integrator branch before this checkpoint: `feat/north-star-runtime-sunday-family @ 88c7d5b`.
+
+N1 Sunday Family:
+- implementation commit `63ac2fa`; frozen/sandbox-installed evidence commit `88c7d5b`;
+- real WGL, 17,280 particles, local 3-head + 6-eye motion, anchored chest/badge, neutral return, 5-minute stability and 12-cycle cleanup all accepted;
+- Portable and Setup built from North Star HEAD; sandbox-installed executable hash equals Portable; direct installed GUI visual capture passed and closed cleanly;
+- N1 status is `FROZEN_ACCEPTED`; final independent PR/CI review remains an N8 integration gate only.
+
+N2 runtime catalog:
+- GLM implementation `8e9dc0c` independently rerun/reviewed and integrated as `78d2ae2`;
+- deterministic fail-closed availability/routing metadata only; no process/network/polling cost when unused.
+
+North Star local regression after N1/N2 integration:
+- one long-lived Windows pytest process reproduced known `DEFECT_LESSONS #11` `0x80000003` GC/faulthandler instability; no product assertion implicated;
+- rerun using the repository CI split boundary: GUI **241 passed**, local-instance **23 passed**, core **1081 passed / 1 local Tcl/Tk environment skip**;
+- total deterministic split evidence: **1345 passed, 1 environment-only skip**;
+- smoke `A-CONDUCTOR_SMOKE_OK projects=0 workers=3`; `compileall` PASS; `git diff --check` PASS.
+
+N3 / GE dependency state:
+- `WO-P1-080` is committed and materialized at `A:\GitHub\A-Wiki-Conductor-glm-dc-contract`, branch `feat/north-star-dc-contract-glm`;
+- at this checkpoint that worktree remains clean at `131a8b2`: delegate implementation has not started, so GPT must not overlap the assigned mutable scope;
+- GE-7 remains design-accepted only; repo SSoT explicitly says GE-7 follows GE-6 and no production dispatch implementation is yet ready;
+- therefore N4 remains blocked even if GE-005A/GE-6 CI becomes green.
+
+PR #102 / #104 CI diagnosis:
+- both historical Windows failures occur in the core step after GUI/local-instance pass;
+- both logs show the known `Windows fatal exception: code 0x80000003` during GC with subprocess/thread activity, matching `DEFECT_LESSONS #11`, not an assertion failure;
+- Ubuntu/macOS jobs are green;
+- integrator triggered a rerun of only each failed Windows `test` job; branch/worktree contents were not changed.
+
+Continuity constraint:
+- `CURRENT-WORK.md`, `handoff.md`, and `COLLAB.md` remain owned by live `WO-P1-075`; North Star must not overwrite those hotspots. This checkpoint in the bounded parent WO is the authoritative continuation record for this lane until the closeout claim is released.
+
+Next safe action: collect #102/#104 rerun verdicts; independently review/integrate N3 only after its delegate commits; otherwise stop at the documented N3/GE-7/release gates rather than stealing owner scope.
