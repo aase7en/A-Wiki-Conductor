@@ -34,7 +34,9 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-GE-006` / GE-6+GE-7 design | GPT-5.6 Sol MAX | 2026-08-26 | Design-only: `docs/adr/GE-0006-*`, `docs/adr/GE-0007-*`, `docs/work-orders/WO-GE-006-*` plus bounded continuity/coordination updates. No scheduler/dispatch production code; GE-5 implementation remains a separate GLM repair lane. |
+| `WO-P1-075` / `docs/repo-health-100` | GPT-5.6 Sol | 2026-08-27 | Docs/release closeout only: `CURRENT-WORK.md`, `handoff.md`, `COLLAB.md`, `CHANGELOG.md`, P1 release WOs, branch/worktree cleanup evidence, release verification. No Graph production code. |
+| PR #102 / GE-005A | GLM 5.3 | 2026-08-26 | `fix/ge-005a-glob-conflict` worktree/branch. OPEN with Windows CI failing; preserve until owner repairs/re-audits. |
+| PR #104 / GE-6 | GLM 5.3 | 2026-08-26 | `feat/ge-6-scheduler` worktree/branch. OPEN with Windows CI failing; preserve until owner repairs/re-audits. |
 
 ### Recently closed / released claims
 
