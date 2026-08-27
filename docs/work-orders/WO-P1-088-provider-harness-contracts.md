@@ -87,6 +87,7 @@ Tests must mechanically prove at minimum:
 ## Stop condition
 
 Stop after AHA-1 is locally verified and committed for independent review. Do not start AHA-2 or any live provider process from this work order.
+
 ## Checkpoint - AHA-1 local verification
 
 TDD evidence:
@@ -106,3 +107,13 @@ Verification at this checkpoint:
 - `git diff --check` -> PASS.
 
 Next safe action: run bounded related tests + secret/scope scan, commit/push this additive slice, and open a Draft PR for independent review. Do not start AHA-2 or live provider execution.
+## Checkpoint - Draft PR #112
+
+- implementation commit: `1eb8d859bbd69ed0d1d84fd3dd0a97c1383cfacf`;
+- Draft PR #112: `feat: define provider-neutral model harness contracts`;
+- remote PR base at creation: `main@6487cb2`;
+- remote diff audited: exactly the nine additive AHA-1 files listed in this work order; no production `src/**` or existing-file mutation;
+- no real proxy credential/endpoints were copied from screenshots; examples use synthetic refs/values only;
+- AHA-2/live provider execution remains blocked pending independent review + CI + merge/reconciliation.
+
+Next safe action: inspect PR #112 CI and obtain independent review of the actual remote diff. If changes are required, repair this same bounded slice and re-run focused/schema checks.
