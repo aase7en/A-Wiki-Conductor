@@ -1,26 +1,26 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-26 (GPT-5.6 Sol MAX — GE-6/7 design + v0.7.0 integration)
+Last updated: 2026-08-27 (GPT-5.6 Sol — repo-health-100 + v0.7.0 closeout)
 
 ## Current phase
 
-**v0.7.0 RELEASE INTEGRATION + Graph Engineering design.** The user-designated v0.7.0 release candidate remains pinned to `be8a45d384b4679ff5c93230d06cbfc17a060b48` (v0.7 UI fixes + GE-1a/1b through GE-4). Do not silently retarget that release to later `main` commits.
+**v0.7.0 RELEASE CLOSEOUT + repo health reconciliation.** Durable GitHub/repository state now outranks the stale historical v0.7 candidate checkpoint that pinned `be8a45d`.
 
-Actual remote state has advanced beyond the release candidate:
-- `origin/main = 4956760765caab60ae8efe1a48d6edf807cdecce` after PR #96 (GE-5 ReadySet) merged green.
-- PRs #90–#95 are merged; GE-1a/1b, GE-2, GE-3, and GE-4 are complete on the v0.7.0 candidate line.
-- PR #96 GE-5 is merged, but GPT integrator review found a post-merge contract defect: ReadySet uses literal write-set equality while GE-4 is glob-aware. `src/**/*.py` vs `src/specific.py` can be incorrectly marked simultaneously safe.
+Verified release line on `origin/main` before this docs branch:
+- PR #99 async PROJECT DISK release blocker — merge `e8195b1`.
+- PR #100 worker display-name repair — merge `12a4c56`.
+- PR #101 live AI Execution Slots — merge `4ad0b8e`.
+- PR #103 PROJECT DISK monochrome particle magnitude — merge `f85ee47`.
+- PR #105 interactive offline HTML Guide — merge `f9dff0b1`.
+- Exact-main CI run `33005521278` for `f9dff0b1` is green on Windows + Ubuntu + macOS. Windows also passed clean Portable/Setup build, frozen archive verification, Portable executable smoke, and artifact upload.
 
-**GE-6/GE-7 design is accepted** in ADR GE-0006 and GE-0007 on branch `docs/ge-scheduler-dispatch-design`:
-- GE-6 = deterministic event-driven/re-entrant scheduling pass, bounded current policy `max_parallel=5`, capability/project/mutation-authority matching, and conflict closure against running + same-batch selections.
-- GE-7 = REUSE/WRAP existing durable `job_control.py`, SQLite job lifecycle, execution coordinator, supervised execution, and dedup; no second graph execution state machine/store.
-- A-Wiki remains bridge-only for gates/policy; its agent-claim TTL is not Conductor execution-reservation state.
+**Current active work order:** `docs/work-orders/WO-P1-075-repo-health-v070-closeout.md` on branch `docs/repo-health-100`.
 
-**Immediate blocking repair:** `WO-GE-005A-readyset-glob-conflict-repair.md`. GLM fixes GE-5 to reuse one authoritative GE-4 glob-overlap seam and merges green. Only then may GLM begin GE-6 production implementation from ADR GE-0006. GE-7 follows ADR GE-0007.
+**Release boundary:** the historical `be8a45d` pin is superseded by later user-authorized P1 release work. v0.7.0 must be published from the exact merge SHA of `docs/repo-health-100` after its own CI and exact-artifact sandbox installation acceptance. Do not silently retarget to a later moving `main` after that SHA is selected.
 
-**Release boundary:** v0.7.0 packaging/installed acceptance must use exact candidate `be8a45d`, not current main `4956760`, so the published release does not absorb the known GE-5 defect or post-candidate design documents.
+**Excluded from v0.7.0:** PR #102 (`fix/ge-005a-glob-conflict`) and PR #104 (`feat/ge-6-scheduler`) are still OPEN with Windows CI failing. Their GLM worktrees/branches remain active and must not be deleted or merged into this release.
 
-**A-Wiki HOLD remains in force.** Do not mutate `A:\GitHub\A-Wiki`. Known local caveat: ESET may transiently lock fresh PE/.ps1 files; use bounded retry only and never disable antivirus. Never bind tests to live fleet ports 18011–18015.
+**Worktree safety:** shared `A:\GitHub\A-Wiki-Conductor` remains stale local `main` and must not be mutated/fast-forwarded. Mutation occurs only in isolated worktrees. A-Wiki remains HOLD/read-only. Never bind tests to live connector ports 18011–18015; never broad-kill Python/Serena/tunnel processes; never disable ESET.
 
 ## Source-of-truth rule
 

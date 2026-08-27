@@ -1,6 +1,6 @@
 # WO-P1-073 — PROJECT DISK monochrome particle magnitude
 
-Status: REVIEW
+Status: COMPLETE
 Owner: GPT-5.6 Sol
 Depends on: WO-P1-071 merged (`e8195b1`), WO-P1-072 merged (`4ad0b8e`)
 Branch: `feat/project-disk-particle-visual`
@@ -48,7 +48,9 @@ a quiet visual cue for order-of-magnitude. The dots are not disk-capacity percen
 
 - [x] Focused unit + GUI tests green.
 - [x] `git diff --check` clean.
-- [x] Real UI visual capture produced at desktop size (1080x680); final CI/merge remains pending.
-- [ ] PR remote diff audited.
-- [ ] Windows/Ubuntu/macOS CI green before merge.
-- [ ] Post-merge fetch/reconcile and branch/worktree cleanup.
+- [x] Real UI visual capture produced at desktop size (1080x680); capture kept out of public Git history.
+- [x] PR #103 remote diff audited.
+- [x] PR #103 CI green on Windows/Ubuntu/macOS.
+- [x] PR #103 merged as `f85ee4763215bbf7c5bf7050f779ec5c48810727`.
+- [x] Post-merge `origin/main` reconciliation completed.
+- [x] Local/remote feature branch and P4 worktree removed after ancestry/merge verification.

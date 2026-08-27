@@ -5,6 +5,9 @@ All notable changes to A-Sunday Conductor are documented here.
 ## [0.7.0] — 2026-08-26
 
 ### Added
+- **Live AI Execution Slots** — the primary runtime table now separates CONNECTION, ACTIVE PROJECT, and BOUND PROJECT and marks `[DRIFT]` when Serena runtime activation no longer matches connector binding (PR #101).
+- **PROJECT DISK particle magnitude** — exact async folder size remains authoritative with a bounded 24-dot monochrome logarithmic magnitude cue; no extra scan/thread/timer/GPU loop (PR #103).
+- **Embedded offline HTML Guide** — Markdown remains the content SSoT while TkinterWeb renders six beginner sections in-app with fail-closed HTML sanitization and a Markdown fallback; frozen packaging includes TkinterWeb/Markdown runtime assets (PR #105).
 - **Inline row actions** — `Edit` cell in every PROJECTS/WORKERS/CONNECTORS row + `+ Add` row when a table is empty (PR #81)
 - **Unified connector editor** — one dialog for alias + Tunnel ID + project path (PR #81)
 - **Live connector states** — CONNECTORS table auto-refreshes every 15s without pressing Rescan (PR #90)
@@ -12,6 +15,8 @@ All notable changes to A-Sunday Conductor are documented here.
 - **Graph Engineering foundation** — TaskGraph/TaskNode/TaskEdge domain + acyclic builder + SQLite store (PRs #91-92, backend only)
 
 ### Fixed
+- **PROJECT DISK UI freeze blocker** — recursive folder-size work runs off the Tk thread with cooperative cancellation/stale-result guards and dedicated tests; Windows CI topology preserves GUI/process isolation (PR #99).
+- **Worker display names** — WORKERS/registry surfaces show the user's configured worker name rather than an internal auto ID (PR #100).
 - **Singleton dialogs** — Donate/Guide/Preferences/Add Worker/Brain Config/Edit Connector no longer stack duplicate windows; re-open lifts the existing one (WO-P1-069)
 - **Close-time confirm** — the app asks before stopping RUNNING connectors, preventing silent chat disconnection (PR #90, WO-P1-068)
 - **Rescan summary** — logs "พบ N ตัวเชื่อม: X READY, Y STOPPED" instead of appearing silent (PR #90)

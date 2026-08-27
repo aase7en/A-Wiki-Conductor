@@ -1,47 +1,44 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-26 (GPT-5.6 Sol MAX — v0.7.0 integrator checkpoint)
+Last updated: 2026-08-27 (GPT-5.6 Sol — repo-health-100 / v0.7.0 closeout)
 
 ## Current objective
 
-Finish the bounded GE-6/GE-7 design PR, repair the GE-5 ReadySet conflict mismatch, then hand GE-6 production implementation to GLM. In parallel, publish the user-designated v0.7.0 release from exact candidate `be8a45d384b4679ff5c93230d06cbfc17a060b48`, perform installed/visual acceptance, and complete the requested UI design decisions/cleanup.
+Finish `docs/repo-health-100`, merge it green, then publish v0.7.0 from that exact reconciled main SHA only after exact-artifact sandbox installation acceptance. Do not reconstruct release state from the old `be8a45d` checkpoint.
 
 ## Repository / worktree identity
 
 - repository: `aase7en/A-Wiki-Conductor`
-- shared `A:\GitHub\A-Wiki-Conductor` worktree: local `main` was clean but stale at `f4ecf9a`; **do not mutate/fast-forward it** because it is shared by workers.
-- actual `origin/main`: `4956760765caab60ae8efe1a48d6edf807cdecce` after merged PR #96 (GE-5).
-- v0.7.0 release candidate: **pin to `be8a45d384b4679ff5c93230d06cbfc17a060b48`**. Current main is intentionally not the release target because it contains later GE-5 plus a known readiness defect.
-- active GPT design worktree: `A:\GitHub\A-Wiki-Conductor-ge-scheduler-design`, branch `docs/ge-scheduler-dispatch-design`, reconciled to `4956760` before docs mutation.
-- Worker 1 transport terminated during read-only inspection; work was checkpoint-safe and continued on Worker 4 against the same worktree/branch. This is TRANSPORT_FAILURE, not task/code failure.
-- A-Wiki is HOLD and was inspected only through authoritative GitHub read-only sources for the reuse gate; no A-Wiki mutation occurred.
+- shared `A:\GitHub\A-Wiki-Conductor` worktree: local `main @ f4ecf9a`, clean but stale; **do not mutate/fast-forward it** because it is shared.
+- `origin/main` before repo-health-100: `f9dff0b1ad169af376d102018eb859cdbea36777` after PR #105.
+- active GPT closeout worktree: `A:\GitHub\A-Wiki-Conductor-release-v070`, branch `docs/repo-health-100`, based on `f9dff0b1`.
+- P5 `A-Wiki-Conductor-guide-html` worktree and `feat/interactive-html-guide` local/remote branch were verified merged via PR #105 and removed.
+- old detached `A-Wiki-Conductor-glm-release-audit` worktree remains temporarily because it contains an untracked `.venv-audit/`; remove it only after v0.7.0 closeout if no protected content remains necessary.
+- A-Wiki remains HOLD/read-only.
+
+## Verified v0.7.0 implementation line
+
+- PR #99 — async PROJECT DISK release blocker — merge `e8195b1d16799140068abb09297198df4a725149`.
+- PR #100 — worker display name — merge `12a4c56db5704706ef3b2b25e291f2639627c05c`.
+- PR #101 — live AI Execution Slots / ACTIVE vs BOUND project telemetry — merge `4ad0b8e48ecd07686d1c090aa8153215cbf4632f`.
+- PR #103 — PROJECT DISK monochrome particle magnitude — merge `f85ee4763215bbf7c5bf7050f779ec5c48810727`.
+- PR #105 — embedded offline HTML Guide — merge `f9dff0b1ad169af376d102018eb859cdbea36777`.
+- Exact-main CI run `33005521278` for `f9dff0b1` passed Windows + Ubuntu + macOS; Windows passed GUI/core suites, clean Portable/Setup build, frozen archive verification, Portable executable smoke, and artifact upload.
 
 ## Graph Engineering state
 
-Verified merged implementation:
-- GE-1a/1b domain + acyclic assembly — PR #91.
-- GE-2 durable graph SQLite store — PR #92.
-- GE-3 Kahn DAG/ready levels/cycle naming — PR #94.
-- GE-4 glob-aware hidden conflict analyzer — PR #95.
-- GE-5 ReadySet — PR #96, CI green and merged, but a post-merge contract defect blocks GE-6 implementation until repaired.
+Merged foundation remains GE-1a/1b through GE-5 on historical main, but two GLM follow-up branches are intentionally **not** part of v0.7.0:
+- PR #102 `fix/ge-005a-glob-conflict` — OPEN; Windows CI FAILURE; Ubuntu/macOS SUCCESS.
+- PR #104 `feat/ge-6-scheduler` — OPEN; Windows CI FAILURE; Ubuntu/macOS SUCCESS.
 
-Accepted design decisions:
-- **ADR GE-0006:** event-driven/re-entrant deterministic scheduler core; no hot polling/background scheduler thread; current capacity policy `max_parallel=5`; worker capability/project/mutation-authority matching; same-batch + running conflict closure; pure SchedulePlan output only.
-- **ADR GE-0007:** graph dispatch REUSE/WRAPs existing `DurableJobControlService`, `SQLiteJobStore`, `DurableJobExecutionCoordinator`, supervised execution, recovery, and dedup; dispatch identity includes `{graph_id, graph_run_id, node_id}`; no second lifecycle/store.
-- A-Wiki brain bridge stays gate/policy seam only; A-Wiki agent-claim TTL is not Conductor execution-reservation ownership.
-
-### Blocking GE-5 repair before GE-6 code
-
-Merged `graph/ready.py` compares running write sets by literal equality while GE-4 is glob-aware. Example `src/**/*.py` vs `src/specific.py` can be incorrectly marked safe. Repair ticket: `docs/work-orders/WO-GE-005A-readyset-glob-conflict-repair.md`. Integrator evidence is recorded on PR #96 comment `5420827136`.
-
-After that repair merges green, GLM may implement GE-6 from ADR GE-0006. GE-7 follows ADR GE-0007. Do not add scheduler workarounds for the GE-5 defect.
+Do not delete their worktrees/branches and do not merge them into the release until their own Windows gates are green and their PRs are re-audited.
 
 ## Release state
 
-- v0.6.0 remains published and verified historically.
-- v0.7.0 is **not yet published** at this checkpoint.
-- Exact candidate for v0.7.0 remains `be8a45d` as explicitly handed to the integrator; do not include later GE-5/design changes in that release merely because `main` advanced.
-- PR #93 (`dab8f32`) singleton-dialog/release consolidation merged with Windows/Ubuntu/macOS CI green; PR #90 connector clarity and PRs #91–#95 graph/UI foundations are included as appropriate in the candidate line.
+- v0.6.0 remains published historically.
+- v0.7.0 is **not yet published**.
+- The old `be8a45d` candidate pin is superseded by later user-authorized P1 release work (#99/#100/#101/#103/#105). The final target will be the **exact merge SHA of repo-health-100**, not a moving `main`.
+- After repo-health-100 merges green: download Windows artifacts from the CI run for that exact SHA, record hashes, sandbox-install with `--target`, verify installed/frozen behavior without touching live ports 18011–18015, then publish v0.7.0 and verify public assets.
 
 ## Verified source state
 

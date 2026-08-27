@@ -1,6 +1,6 @@
 # WO-P1-074 — Interactive embedded HTML Guide
 
-Status: IN_PROGRESS
+Status: COMPLETE
 Owner: GPT-5.6 Sol
 Branch: `feat/interactive-html-guide`
 Depends on: WO-P1-073 / PR #103 (stacked until P4 merges)
@@ -79,13 +79,17 @@ first setup, daily use, adding a chat, terms, and troubleshooting without leavin
 
 ## Acceptance
 
-- [ ] RED test evidence recorded.
-- [ ] Pure guide tests green.
-- [ ] GUI primary + fallback tests green.
-- [ ] Existing Guide/singleton tests reconciled to new accepted design.
-- [ ] Real TkinterWeb render tested in an isolated environment.
-- [ ] Portable build/frozen Guide smoke green.
-- [ ] `git diff --check` + py_compile green.
-- [ ] Remote PR diff audited.
-- [ ] Windows + Ubuntu + macOS CI green before merge.
-- [ ] Post-merge fetch/reconcile and branch/worktree cleanup.
+- [x] RED evidence recorded: rich Guide constructor/render seam initially absent.
+- [x] Pure Guide section/render/security tests green, including fail-closed HTML allowlist regressions.
+- [x] GUI primary HtmlFrame + Markdown fallback tests green.
+- [x] Existing Guide/singleton tests reconciled to the accepted rich/fallback design.
+- [x] Real TkinterWeb `HtmlFrame` finite E2E green at 1020x700 (`_guide_rich_ready=True`).
+- [x] Local clean Portable build completed; local ESET then locked the fresh PE, so bounded local execution retry stopped per policy.
+- [x] Authoritative Windows CI built clean Portable + Setup, verified frozen archive contents including TkinterWeb/Markdown, and smoke-tested the Portable executable successfully.
+- [x] Broad pre-PR GUI/usability/build suite: 171 passed / 1 host-Tk skip; separate real-Tk Guide suite passed.
+- [x] `git diff --check` + py_compile green before PR.
+- [x] PR #105 remote diff audited and matched local head `8539407d1cc86cd22628360dcad7ed52d0a127ac`.
+- [x] PR #105 CI green on Windows/Ubuntu/macOS; Windows run `33004550418` passed GUI/core/build/archive/Portable smoke.
+- [x] PR #105 merged as `f9dff0b1ad169af376d102018eb859cdbea36777`.
+- [x] Exact-main post-merge CI run `33005521278` green on Windows/Ubuntu/macOS.
+- [x] P5 worktree and local/remote `feat/interactive-html-guide` branch removed after merge verification.
