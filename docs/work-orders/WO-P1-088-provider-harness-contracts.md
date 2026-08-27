@@ -37,7 +37,8 @@ Allowed mutable scope only:
 - `schemas/examples/provider-profile.example.json`;
 - `schemas/examples/provider-observation.example.json`;
 - `schemas/examples/harness-dispatch.example.json`;
-- `tests/test_provider_harness_contract.py`.
+- `tests/test_provider_harness_contract.py`;
+- `pyproject.toml` test-extra only, to declare the `jsonschema` dependency used by the contract validator test.
 
 Forbidden:
 - existing `src/**` production code/domain mutations;
@@ -117,3 +118,13 @@ Next safe action: run bounded related tests + secret/scope scan, commit/push thi
 - AHA-2/live provider execution remains blocked pending independent review + CI + merge/reconciliation.
 
 Next safe action: inspect PR #112 CI and obtain independent review of the actual remote diff. If changes are required, repair this same bounded slice and re-run focused/schema checks.
+
+
+## Checkpoint - CI dependency repair
+
+- PR #112 Windows CI reached the new contract suite and failed during collection with `ModuleNotFoundError: jsonschema`; macOS/Ubuntu smoke jobs passed.
+- Root cause: local verification used an ambient `jsonschema` installation, while `[project.optional-dependencies].test` declared only pytest.
+- Scope amendment: `pyproject.toml` is allowed only to add the missing test dependency; no production/runtime dependency or source behavior changes.
+- This is a deterministic dependency failure, not the pre-existing Windows `0x80000003` runner flake.
+
+Next safe action: install the test extra in a clean temporary environment, rerun the focused/related suites, diff/secret checks, then push and let PR CI re-evaluate the exact repaired head.
