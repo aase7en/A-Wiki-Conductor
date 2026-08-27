@@ -39,8 +39,8 @@ GPU_MAX_PARTICLES = 40_000
 GPU_SOURCE_MAX_DIMENSION = 520
 GPU_BRIGHTNESS_THRESHOLD = 38
 GPU_LUMINANCE_SAMPLING_POWER = 1.4
-GPU_FACE_PARALLAX_CLIP = 0.012  # ~0.7 px at a 120 px logo
-GPU_GAZE_CLIP = 0.032  # ~1.9 px at a 120 px logo
+GPU_FACE_PARALLAX_CLIP = 0.016  # ~1.0 px at a 120 px logo
+GPU_GAZE_CLIP = 0.028  # ~1.7 px at a 120 px logo
 GPU_REPULSION_CLIP = 0.012  # ~0.7 px at a 120 px logo
 GPU_TRAIL_CLIP = 0.005  # ~0.3 px at a 120 px logo
 GPU_POINTER_POSITION_EASE = 0.24
@@ -53,6 +53,36 @@ GPU_MIN_VISIBLE_PIXEL_RATIO = 0.035
 GPU_IDLE_BASE_CLIP = 0.0015
 GPU_IDLE_LUMA_CLIP = 0.0022
 GPU_IDLE_DRIFT_CLIP = GPU_IDLE_BASE_CLIP + GPU_IDLE_LUMA_CLIP
+
+# Elliptical head regions for local parallax.  They intentionally stop above the
+# chest/badge area so pointer-follow reads as a gentle head turn rather than a
+# flat translation of the whole family portrait.
+FAMILY_FACE_REGIONS: tuple[tuple[float, float, float, float], ...] = (
+    (0.247, 0.400, 0.145, 0.150),
+    (0.513, 0.290, 0.125, 0.135),
+    (0.837, 0.380, 0.120, 0.135),
+)
+
+
+def adaptive_particle_budget(size: int) -> int:
+    """Return a bounded GPU particle budget that scales with logo area."""
+    safe_size = max(1, int(size))
+    return max(6_000, min(GPU_MAX_PARTICLES, int(safe_size * safe_size * 1.20)))
+
+
+def _face_weight(nx: float, ny: float) -> float:
+    """Return a soft 0..1 local-head parallax weight for the portrait."""
+    best = 0.0
+    for cx, cy, rx, ry in FAMILY_FACE_REGIONS:
+        dx = (nx - cx) / rx
+        dy = (ny - cy) / ry
+        distance = math.hypot(dx, dy)
+        if distance >= 1.0:
+            continue
+        weight = 1.0 - distance
+        weight = weight * weight * (3.0 - 2.0 * weight)
+        best = max(best, weight)
+    return best
 
 
 def _enable_compatibility_point_sprites() -> None:
@@ -218,7 +248,7 @@ def build_particle_vertices(
 ) -> tuple[array, int, float]:
     """Sample a particle portrait into packed GPU vertex data.
 
-    Each vertex stores ``u, v, luminance, random_seed, eye_weight`` as floats.
+    Each vertex stores ``u, v, luminance, random_seed, eye_weight, face_weight`` as floats.
     Coordinates stay in source-image UV space; the shader performs aspect-fit so
     resizing the desktop window cannot stretch the family portrait.
     """
@@ -242,7 +272,7 @@ def build_particle_vertices(
 
         width, height = image.size
         pixels = image.load()
-        candidates: list[tuple[float, float, float, float, float]] = []
+        candidates: list[tuple[float, float, float, float, float, float]] = []
         for y in range(height):
             ny = (y + 0.5) / height
             for x in range(width):
@@ -259,7 +289,7 @@ def build_particle_vertices(
                 # into an indistinct cloud even though the vertex count is high.
                 if seed >= luminance**GPU_LUMINANCE_SAMPLING_POWER:
                     continue
-                candidates.append((nx, ny, luminance, seed, _eye_weight(nx, ny)))
+                candidates.append((nx, ny, luminance, seed, _eye_weight(nx, ny), _face_weight(nx, ny)))
 
     if not candidates:
         raise ValueError(f"Particle source contains no bright samples: {path}")
@@ -279,6 +309,7 @@ in vec2 in_uv;
 in float in_luma;
 in float in_seed;
 in float in_eye;
+in float in_face;
 
 uniform float u_time;
 uniform vec2 u_mouse;
@@ -310,9 +341,9 @@ void main() {
         * (__IDLE_BASE__ + __IDLE_LUMA__ * in_luma);
     p += vec2(cos(phase * 1.73), sin(phase * 1.31)) * drift;
 
-    // Whole-portrait parallax is deliberately smaller than eye motion.
+    // Local head parallax is deliberately smaller than eye motion; chest/background stay anchored.
     vec2 face_dir = length(u_mouse) > 0.0001 ? normalize(u_mouse) : vec2(0.0);
-    p += face_dir * __FACE_PARALLAX__ * u_mouse_active;
+    p += face_dir * __FACE_PARALLAX__ * in_face * u_mouse_active;
 
     // Eye-region particles shift toward the pointer.  Soft per-vertex weighting
     // means centres move most while the surrounding eyelid structure stays stable.
@@ -578,10 +609,7 @@ class GPUParticleLogo:
         if owns_current_context:
             gl_frame.tkMakeCurrent()
         try:
-            target_particles = max(
-                6_000,
-                min(GPU_MAX_PARTICLES, int(self.size * self.size * 0.65)),
-            )
+            target_particles = adaptive_particle_budget(self.size)
             packed, count, image_aspect = build_particle_vertices(
                 self._source_path, max_particles=target_particles
             )
@@ -597,11 +625,12 @@ class GPUParticleLogo:
                 [
                     (
                         self._buffer,
-                        "2f 1f 1f 1f",
+                        "2f 1f 1f 1f 1f",
                         "in_uv",
                         "in_luma",
                         "in_seed",
                         "in_eye",
+                        "in_face",
                     )
                 ],
             )

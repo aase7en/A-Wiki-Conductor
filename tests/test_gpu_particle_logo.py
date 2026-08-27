@@ -37,11 +37,13 @@ def test_family_gpu_sampling_is_dense_bounded_and_tracks_eyes() -> None:
         max_dimension=360,
     )
     assert 2_000 < count <= 12_000
-    assert len(packed) == count * 5
+    assert len(packed) == count * 6
     assert aspect == pytest.approx(1448 / 1086, rel=1e-4)
 
-    eye_weights = packed[4::5]
+    eye_weights = packed[4::6]
+    face_weights = packed[5::6]
     assert max(eye_weights) > 0.5
+    assert max(face_weights) > 0.5
 
 
 def test_gpu_sampling_density_tracks_luminance_instead_of_flattening_detail(
@@ -62,7 +64,7 @@ def test_gpu_sampling_density_tracks_luminance_instead_of_flattening_detail(
         max_dimension=64,
         threshold=10,
     )
-    left = sum(1 for u in packed[0::5] if u < 0.5)
+    left = sum(1 for u in packed[0::6] if u < 0.5)
     right = count - left
 
     assert count > 400
@@ -539,3 +541,45 @@ def test_compact_logo_is_derived_asset_not_legacy_tiny_placeholder() -> None:
     with Image.open(compact) as image:
         assert image.size == (256, 256)
         assert image.mode == "RGB"
+
+
+def test_gpu_particle_budget_is_denser_adaptive_and_bounded() -> None:
+    from a_conductor import gpu_particle_logo as g
+
+    header_budget = g.adaptive_particle_budget(120)
+    assert 15_000 <= header_budget <= 20_000
+    assert header_budget > 9_360
+    assert g.adaptive_particle_budget(80) < header_budget
+    assert g.adaptive_particle_budget(1_000) == g.GPU_MAX_PARTICLES
+
+
+def test_gpu_face_weight_targets_three_heads_not_chest_or_badge() -> None:
+    from a_conductor.gpu_particle_logo import _face_weight
+
+    assert _face_weight(0.247, 0.40) > 0.65
+    assert _face_weight(0.513, 0.29) > 0.65
+    assert _face_weight(0.837, 0.38) > 0.65
+    assert _face_weight(0.50, 0.72) < 0.05
+    assert _face_weight(0.50, 0.90) < 0.05
+
+
+def test_gpu_head_parallax_is_local_weighted_not_whole_portrait_translation() -> None:
+    from a_conductor import gpu_particle_logo as g
+
+    assert "in float in_face;" in g._VERTEX_SHADER
+    assert "in_face * u_mouse_active" in g._VERTEX_SHADER
+    assert "face_dir *" in g._VERTEX_SHADER
+    assert "face_dir * __FACE_PARALLAX__ * u_mouse_active" not in g._VERTEX_SHADER
+
+
+def test_gpu_head_motion_is_subtle_and_lower_than_eye_gaze() -> None:
+    from a_conductor import gpu_particle_logo as g
+
+    head_px = g.GPU_FACE_PARALLAX_CLIP * (120 / 2)
+    gaze_px = g.GPU_GAZE_CLIP * (120 / 2)
+    combined_eye_px = (
+        g.GPU_FACE_PARALLAX_CLIP + g.GPU_GAZE_CLIP + g.GPU_IDLE_DRIFT_CLIP
+    ) * (120 / 2)
+    assert 0.9 <= head_px <= 2.0
+    assert head_px < gaze_px
+    assert combined_eye_px <= 3.0

@@ -271,3 +271,17 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 1. บันทึกเมื่อ: พบ defect ที่ผู้ใช้จริงรายงาน (ไม่ใช่แค่ test fail)
 2. รูปแบบ: อาการ → root cause → วิธีแก้ → lesson → วิธีตรวจสอบ
 3. ทุก Agent ต้องอ่านไฟล์นี้ก่อนแก้โค้ดใน `src/a_conductor/`
+
+## #14: “ภาพขยับ” ไม่เท่ากับ “ใบหน้าหันตามเมาส์” (2026-08-27)
+
+**อาการ:** Sunday Family ผ่าน test/visual closeout เดิม แต่ผู้ใช้ยังเห็นว่า particle ไม่ละเอียดพอ และการตาม pointer ยังไม่ให้ความรู้สึกว่าตา/ใบหน้าหันตามจริง
+
+**Root cause:** GPU shader ใช้ face parallax แบบ translation ทั้ง portrait เท่ากันทุกจุด จึงขยับหน้า ลำตัว ป้าย และฉากพร้อมกัน; production 120px ยังถูก cap ที่ ~9,360 จุด ทำให้รายละเอียดใบหน้าถูกลดแม้ source asset ละเอียดกว่า
+
+**แก:** เพิ่ม soft local head weights 3 บริเวณใน vertex data/shader, ให้ parallax เฉพาะศีรษะ, คง gaze 6 ตาแยกต่างหาก และเพิ่ม adaptive 120px budget เป็น 17,280 จุดโดยไม่เพิ่ม Python per-frame loop
+
+**Lesson:** visual acceptance ต้องทดสอบ semantics ของ interaction ไม่ใช่แค่ว่า “มี motion”; local head motion ต้องแยกจาก whole-image translation และ fidelity ต้องวัดจาก production-size particle budget/observable framebuffer
+
+**ตรวจสอบ:** `tests/test_gpu_particle_logo.py` pin adaptive density, 3-head locality, chest/badge anchoring, motion bounds, eye bounds, framebuffer visibility และ pointer-return
+
+---
