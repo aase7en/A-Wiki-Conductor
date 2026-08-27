@@ -90,3 +90,44 @@ Use an isolated pytest `--basetemp` if shared temp cleanup causes `WinError 5`; 
 Commit only the bounded allowed files on the assigned branch. Append checkpoint evidence here: RED test, implementation summary, exact test results, branch/HEAD/dirty state, files changed, limitations, and one next safe action.
 
 Do not open or merge a PR unless the integrator later asks. Worker DONE is a claim until independently reconciled.
+
+## Checkpoint — GLM implementation (2026-08-27)
+
+Status: LOCAL_VERIFIED (worker claim; awaits independent reconciliation).
+
+Readiness note: the assigned worktree/branch did not exist at first attempt; GLM correctly stopped BLOCKED (read-only verification, no mutations). The integrator then settled the lane (commit `d5537c9` committed this WO + WO-P1-078 checkpoint on `feat/north-star-runtime-sunday-family`) and created the assigned worktree/branch before implementation started.
+
+Environment evidence (recorded, product code unchanged):
+
+- Isolated pytest `--basetemp` used for every run per WO; no `WinError 5` encountered.
+- The local `python` on PATH is a hermes-agent venv (3.11.15) whose interpreter cannot combine `sys.addaudithook` with bytecode compilation — even `import json` under a no-op audit hook fails (`AttributeError: 'bytes' object has no attribute 'co_filename'` in `_compile_bytecode`). An audit-hook subprocess purity gate is therefore non-deterministic on this machine. Purity is instead proven deterministically by (a) an AST import-allowlist test pinning the module's static import surface to `dataclasses`/`enum`/`collections.abc` + the two pure `a_conductor` metadata modules, and (b) a poisoned-callable test that replaces `builtins.open`/`os.system`/`subprocess.Popen`/`socket.socket` with raisers before `importlib.reload` of the module and then exercises construction + selection across all three families.
+
+TDD RED: `tests/test_runtime_catalog.py` (10 tests at authoring time) all failed with `ModuleNotFoundError: No module named 'a_conductor.runtime_catalog'` before implementation.
+
+Implementation summary (new `src/a_conductor/runtime_catalog.py`, pure metadata only):
+
+- `RuntimeAvailability` explicit states: `INSTALLED` / `AVAILABLE` / `UNAVAILABLE` / `UNKNOWN`; only `AVAILABLE` is executable-ready.
+- `RuntimeCatalogEntry` carries domain `Runtime`, `ExecutionSurfaceTraits`, availability, and a stable `runtime_family` (`native` / `serena` / `desktop-commander`, the latter matching the existing `runtime_type` from WO-P1-077).
+- `mark_availability` is fail-closed: entering `AVAILABLE` requires a supplied `RuntimeObservation`; `INSTALLED`/profile existence never implies readiness.
+- Helpers reuse the existing pure profile: `desktop_commander_entry` (defaults `UNKNOWN`) wraps `build_desktop_commander_profile`; `native_entry`/`serena_entry` are pure domain metadata (semantic-code = `semantic.code` capability).
+- `select_runtime` — exact case-sensitive capability-name matching, empty request → `None`, no-match → `None` (never a guessed runtime); eligibility: `AVAILABLE` only, full request subset, remote-advertising entries selected only when `remote.device` is requested, desktop-commander family only when the request intersects `{process.interactive, process.long-running, remote.device}`; ranking native → serena → desktop-commander with stable lexical `runtime_id` tie-break independent of catalog insertion order.
+- No transport, MCP calls, subprocess launch, scheduler/dispatch, persistence, UI, or remote discovery.
+
+Exact verification results (worktree `A:\GitHub\A-Wiki-Conductor-glm-northstar-runtime`, branch `feat/north-star-runtime-catalog-glm`, base `d5537c9`):
+
+- `python -m pytest -q tests/test_runtime_catalog.py tests/test_desktop_commander_runtime.py tests/test_domain.py --basetemp=<isolated>` → **32 passed** (11 new catalog tests + 4 existing DC runtime + 17 existing domain).
+- `python -m compileall -q src/a_conductor` → PASS.
+- `git diff --check` → PASS.
+- Static scan of the new module for `subprocess|socket|open(|threading|Timer|asyncio|requests|urllib|Popen|os.system|sleep|while|poll` → zero matches.
+
+Files changed (only allowed scope): `src/a_conductor/runtime_catalog.py` (new), `tests/test_runtime_catalog.py` (new), this WO checkpoint section.
+
+Dirty state at commit: exactly the two new files above plus this checkpoint edit; nothing else touched. No PR opened or merged.
+
+Limitations:
+
+- Availability is supplied observation only; no slice here observes anything (by design).
+- The hermes-venv audit-hook defect means the subprocess-based zero-side-effect gate cannot run locally; a stock interpreter (e.g. CI) may reintroduce it if desired.
+- `semantic.code` is catalog vocabulary for the Serena preference seam; it is not yet wired to any Serena engine capability source.
+
+One next safe action: integrator review/reconcile this branch against N2 acceptance (near-zero idle cost, no new task state machine, runtime-neutral domain intact), then decide whether N3 (bounded DC transport contract) may start in an additive seam.
