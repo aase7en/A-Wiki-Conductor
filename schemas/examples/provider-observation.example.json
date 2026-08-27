@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0.0",
+  "provider_id": "provider-glm-shared",
+  "health": "AVAILABLE",
+  "observed_at": "2026-08-28T00:00:00Z",
+  "provenance": "provider-health-adapter:test-fixture",
+  "latency_ms": 120,
+  "quota": {
+    "window_type": "ROLLING_5H",
+    "limit": 120000000,
+    "used": 14000000,
+    "remaining": 106000000,
+    "reset_at": "2026-08-28T04:00:00Z",
+    "reset_in_seconds": 14400,
+    "unit": "tokens"
+  }
+}

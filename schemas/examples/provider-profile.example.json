@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0.0",
+  "provider_id": "provider-glm-shared",
+  "display_name": "GLM Shared Provider",
+  "provider_type": "cloud-proxy",
+  "protocol_family": "ANTHROPIC_MESSAGES",
+  "endpoint_ref": "provider-config:glm-shared/base-url",
+  "credential_ref": "secret-ref:provider/glm-shared/main",
+  "trust_class": "TRUSTED_THIRD_PARTY",
+  "harness_strategies": [
+    "CLAUDE_CODE_CLI",
+    "DIRECT_API"
+  ],
+  "max_concurrency": 1,
+  "models": [
+    {
+      "model_id": "glm-5.3",
+      "display_name": "GLM-5.3",
+      "actor_capabilities": [
+        {
+          "capability": "documentation",
+          "evidence_level": "DECLARED",
+          "source": "operator-config"
+        },
+        {
+          "capability": "deep-reasoning",
+          "evidence_level": "UNKNOWN",
+          "source": "awaiting-verification"
+        }
+      ],
+      "supported_effort_levels": [
+        "LOW",
+        "HIGH",
+        "MAX"
+      ],
+      "context_window_tokens": null
+    }
+  ],
+  "enabled": true,
+  "egress_boundary": "EXTERNAL_THIRD_PARTY"
+}
