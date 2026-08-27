@@ -1,11 +1,11 @@
-# WO-P1-083 — Capability Fabric upgrade plan
+# WO-P1-085 — Capability Fabric upgrade plan
 
 Status: PLANNING_COMPLETE / IMPLEMENTATION_BLOCKED_ON_EXISTING_OWNERSHIP_GATES
 Owner: GPT-5.6 Sol planning/integrator lane
 Repository: `aase7en/A-Wiki-Conductor`
-Worktree: `A:\GitHub\A-Wiki-Conductor-capability-plan`
-Branch: `docs/wo-p1-083-capability-upgrade-plan`
-Base: `88c7d5bf0d23d719d56b80b45fc5c07da513b1a7`
+Worktree: `A:\GitHub\A-Wiki-Conductor-capability-plan-main`
+Branch: `docs/wo-p1-085-capability-upgrade-plan`
+Base: `64bc628e233a6fb596a7dc6d188f7cdef35b3bbe`
 
 ## Goal
 
@@ -28,9 +28,10 @@ Per repository safety rules, planning therefore uses Remote Desktop Commander in
 
 `SAFE_TO_MUTATE = YES` only for the new docs-only worktree and these additive files:
 
-- `docs/work-orders/WO-P1-083-capability-upgrade-plan.md`
+- `docs/work-orders/WO-P1-085-capability-upgrade-plan.md`
 - `docs/plans/2026-08-27-capability-upgrade-a-conductor-a-wiki.md`
 - `docs/prompts/A-WIKI-BRAIN-CAPABILITY-UPGRADE-PROMPT.md`
+- `docs/reviews/WO-P1-085-branch-defect-overlap-audit.md`
 
 Forbidden:
 - production code/tests/schemas;
@@ -61,6 +62,9 @@ Read/reconciled:
    - self-contained prompt to run only inside Project A-Wiki;
    - requires fresh repo/claim/upstream verification before mutation;
    - forbids bulk skill installation and A-Conductor mutation.
+3. `docs/reviews/WO-P1-085-branch-defect-overlap-audit.md`
+   - all-branch/worktree conflict and overlap archaeology;
+   - deterministic defect proofs, GLM benchmark evidence, and anti-overlap integration order.
 
 ## Acceptance criteria
 
@@ -82,7 +86,7 @@ git diff --check
 git diff --name-only
 ```
 
-Changed paths must equal the three allowed additive docs above.
+Changed paths must equal the four allowed additive docs above.
 
 ## Handoff / next safe action
 
@@ -94,6 +98,25 @@ Next A-Wiki action: copy the dedicated prompt into Project A-Wiki and let that p
 
 ## Planning-time remote drift checkpoint
 
-During this docs-only planning lane, `origin/main` advanced from `c72a550` to `64bc628` via merged PR #107 (`fix/v070-frozen-uninstall-self-delete`). Additional isolated v0.7 installer repair worktrees also appeared. This change is outside the three allowed planning files and does not justify rebasing/merging unrelated release code into this branch.
+During this docs-only planning lane, `origin/main` advanced from `c72a550` to `64bc628` via merged PR #107 (`fix/v070-frozen-uninstall-self-delete`). Additional isolated v0.7 installer repair worktrees also appeared. This change was outside the original planning scope and did not justify merging unrelated release code into the superseded branch; the replacement main-based lane adds only its bounded review document as a fourth allowed file.
 
-Before any future integration or implementation, fetch/reconcile current `origin/main` and all live claims/worktrees again. This plan branch intentionally remains based on the North Star integration point `88c7d5b` so its runtime-catalog context is preserved.
+Before any future integration or implementation, fetch/reconcile current `origin/main` and all live claims/worktrees again. The superseded backup branch remains at the historical North Star lineage; this replacement planning branch is deliberately based on current `origin/main@64bc628` so its PR contains only planning/audit documentation.
+
+## Branch-repair checkpoint — 2026-08-27
+
+The first backup branch docs/wo-p1-083-capability-upgrade-plan was intentionally pushed but was discovered during branch archaeology to be based on the North Star feature lineage (88c7d5b) rather than current main, making a PR from it unsafe because it would carry unrelated North Star commits. A newer installer lane also already owns WO-P1-083. This clean replacement branch starts from origin/main@64bc628, renames this plan to WO-P1-085, and treats the earlier remote branch as backup/superseded only. No PR should be opened from the superseded branch.
+
+## Branch archaeology / defect-audit checkpoint — 2026-08-27
+
+Detailed evidence: `docs/reviews/WO-P1-085-branch-defect-overlap-audit.md`.
+
+Key reconciliation results:
+- current `origin/main = 64bc628`; no tested branch has a textual merge-tree conflict against it;
+- old capability branch `docs/wo-p1-083-capability-upgrade-plan` is superseded because it carries unrelated North Star ancestry and collides with installer WO-P1-083 identity;
+- replacement lane is this clean main-based WO-P1-085 branch;
+- PR #102/#104/#108 are currently mergeable with green 3-OS CI, but green CI does not close the semantic/spec defects recorded in the review;
+- P0 blockers found: GE glob/glob conflict false-negative, GE-6 accepted-contract omissions, installer empty-target uninstall authorization;
+- current GLM evidence supports bounded deterministic TDD lanes for PR #102 then PR #104, with GPT final integration review;
+- no SunDay Worker was reassigned or reused from another Project during this audit.
+
+Next safe action: persist/push this docs-only review branch and open a Draft PR. Do not merge production branches from this planning lane.

@@ -2,7 +2,7 @@
 
 Date: 2026-08-27
 Status: PLANNED / NO PRODUCTION IMPLEMENTATION IN THIS LANE
-Parent: `docs/work-orders/WO-P1-083-capability-upgrade-plan.md`
+Parent: `docs/work-orders/WO-P1-085-capability-upgrade-plan.md`
 
 ## 1. Objective
 
@@ -19,7 +19,7 @@ The upgrade is called **Capability Fabric v1** in this plan. The name is descrip
 
 ## 2. Safety / actual-state basis
 
-This plan was created in isolated worktree `A:\GitHub\A-Wiki-Conductor-capability-plan` from `88c7d5b` on branch `docs/wo-p1-083-capability-upgrade-plan`.
+This plan was created in isolated worktree `A:\GitHub\A-Wiki-Conductor-capability-plan-main` from `origin/main@64bc628` on branch `docs/wo-p1-085-capability-upgrade-plan`.
 Verified boundaries at planning time:
 
 - shared `A:\GitHub\A-Wiki-Conductor` is stale/dirty and remains read-only;
