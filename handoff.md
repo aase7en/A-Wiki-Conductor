@@ -54,7 +54,7 @@ After fresh fetch/ancestry/status verification:
 ## Evidence / Next Safe Action
 
 1. verify this docs-only diff (`diff --check`, file scope, secret scan);
-2. commit/push WO-P1-087 and open a Draft PR;
+2. Draft PR #111 is open from commit `9a2e8dd`; inspect CI/review and keep it draft until accepted;
 3. reconcile exact PR #110 state/CI and accept C0 when review gates are satisfied;
 4. create AHA-1 provider/harness contract work order from updated main;
 5. leave the locked orphan release folder untouched until the owning process is identified or naturally releases it.

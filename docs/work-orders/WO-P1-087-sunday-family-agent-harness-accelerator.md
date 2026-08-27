@@ -1,4 +1,4 @@
-# WO-P1-087 โ€” Sunday Family Multi-Model Agent Harness Accelerator
+# WO-P1-087 — Sunday Family Multi-Model Agent Harness Accelerator
 
 Status: ACTIVE / PLAN-FIRST ACCELERATOR
 Owner: GPT-5.6 Sol integrator via Remote Desktop Commander
@@ -17,7 +17,7 @@ Primary user outcome:
 
 This is an accelerator for the existing North Star and Capability Fabric. It is not a second scheduler, task store, memory system, worker registry, or product.
 
-## User-priority decision โ€” 2026-08-28
+## User-priority decision — 2026-08-28
 
 The user explicitly moved this capability ahead of other new feature development because eliminating manual copy/paste and model switching should increase the speed of all later A-Conductor work.
 
@@ -142,3 +142,15 @@ Before push/PR, verify no secret-like GLM proxy token or `ANTHROPIC_AUTH_TOKEN` 
 2. open a new bounded AHA-1 implementation work order from current `origin/main` for provider/harness contracts only;
 3. keep #104/#108/North-Star mutable scopes isolated;
 4. do not start live provider execution until credential/trust/quota policy and fake-backend verification exist.
+## Checkpoint — plan branch / Draft PR
+
+- Plan/SSoT commit: `9a2e8dd6b7c492ffa2c7e2b747dd3280dc2f1e6c`.
+- Draft PR: #111 `docs: prioritize Sunday Family multi-model agent harness`.
+- Remote PR base: `main@9106da2`; head after first push: `9a2e8dd`.
+- Remote diff inspected: exactly seven intended docs/SSoT files; no production code/tests.
+- Local `git diff --check`: PASS before commit.
+- Bounded secret scan: PASS; no proxy credential value persisted.
+- Safe cleanup preserved #104, #108, #110, North Star, unique audit/untracked lanes; merged/redundant branches/worktrees only were removed.
+- Old release worktree registration was removed, but its physical folder remains process-locked; no unknown process was killed.
+
+Next safe action: independently reconcile PR #110 C0 and CI, then create AHA-1 provider/harness contract slice from the newest accepted `main`; do not start live provider execution yet.
