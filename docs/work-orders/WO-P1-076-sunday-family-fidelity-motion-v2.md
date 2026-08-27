@@ -1,6 +1,6 @@
 # WO-P1-076 — Sunday Family fidelity + gaze/head motion v2
 
-Status: IN_PROGRESS
+Status: SOURCE_ACCEPTED
 Owner: GPT-5.6 Sol
 Branch: `feat/north-star-runtime-sunday-family`
 Base: `c72a550287a8c59d2361112b489e528639adeaa6`
@@ -61,3 +61,20 @@ Implementation is locally verified on the isolated North Star worktree.
 - `compileall` PASS; `git diff --check` PASS.
 
 Status: LOCAL_VERIFIED — independent review / visual installed acceptance still required before merge.
+
+## Source acceptance checkpoint — 2026-08-27
+
+Status: SOURCE_ACCEPTED. Real Windows source-renderer acceptance is complete; frozen/install comparison remains an N8 release-integration gate unless it can be executed without disturbing the live install or v0.7 release boundary.
+
+Evidence is durable in `docs/evidence/WO-P1-076-sunday-family-v2.md` plus three framebuffer comparison PNGs.
+
+Key results:
+- real WGL: `gpu-opengl`, 17,280 particles, framebuffer verified, no GPU error;
+- deterministic left/right sweep: all three face regions move locally while chest/badge stays at 0.000 px translation and return-neutral is 0.000 px;
+- 5-minute active stability: RSS delta -1,572,864 bytes, no monotonic growth;
+- 12 create/destroy cycles: post-warm GDI and USER spans both 0;
+- forced fallback: 7 Canvas items, 0 particle ovals, bounded CPU/RSS;
+- corrected repo-root focused regression: 138 passed, 2 local Tcl/Tk environment skips;
+- no evidence-backed reason to increase density beyond 17,280 at 120 px; the direct master raster downscale is itself pixel-limited at badge text size.
+
+No further source/UI tuning is justified without new visual acceptance evidence. Do not widen scope merely to make motion more noticeable; current movement is deliberately subtle/non-uncanny by design.
