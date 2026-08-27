@@ -120,3 +120,12 @@ Key reconciliation results:
 - no SunDay Worker was reassigned or reused from another Project during this audit.
 
 Next safe action: persist/push this docs-only review branch and open a Draft PR. Do not merge production branches from this planning lane.
+
+## Remote checkpoint — 2026-08-27
+
+- canonical planning branch pushed: `docs/wo-p1-085-capability-upgrade-plan`;
+- Draft PR: #109 `docs: capability fabric upgrade plan and branch audit`;
+- verified PR base: `main@64bc628`;
+- verified PR head before this checkpoint: `172235904b7270b7ffa73ecc985a35f5c113e356`;
+- GitHub final diff contained exactly the four allowed additive docs and was MERGEABLE; CI started automatically;
+- old remote `docs/wo-p1-083-capability-upgrade-plan` remains superseded backup only, with no PR.
