@@ -113,3 +113,33 @@ Tests should parse the schema with stdlib `json`; do not add a dependency solely
 Commit only allowed files on the assigned branch. Append exact RED/PASS evidence, branch/HEAD/dirty state, changed files, limitations, and next safe action here. Do not open/merge a PR. Stop after commit for integrator review.
 
 N4 remains BLOCKED regardless of N3 completion until GE-005A, GE-6, and the GE-7 dispatch seam are independently proven ready on current main.
+
+## Checkpoint — GLM implementation (2026-08-27)
+
+Status: LOCAL_VERIFIED (worker claim; stopped for integrator review per delivery rule).
+
+TDD RED: `tests/test_desktop_commander_transport_contract.py` (13 tests) all failed with `FileNotFoundError` before any schema/example/contract file existed.
+
+Implementation summary (only the four allowed new files):
+
+- `schemas/desktop-commander-operation.schema.json` (`urn:a-conductor:schema:desktop-commander-operation:1.0.0`, draft 2020-12, matching existing schema conventions): closed object (`additionalProperties: false`), exactly six required fields (`operation_ref`, `tool_family`, `project_id`, `mutation_intent`, `timeout_seconds` 1..3600, `max_output_bytes` 1..8,388,608) plus optional `device_id` (remote-only, fail-closed wording in its description). `tool_family` is a fixed closed enum of exactly the eight N3 families; no `REMOTE_SHELL`. `operation_ref` reuses operator.v1 opaque-identifier charset/pattern.
+- `schemas/examples/desktop-commander-operation.example.json`: remote read-only `PROJECT_FILE_READ` definition with explicit `device_id` — pins the "read-only inspection first" recommendation mechanically.
+- `docs/contracts/desktop-commander-bounded-transport.md`: REUSE + WRAP/EXTEND contract stating: reuse of operator.v1 `job.execute` opaque `operation_ref` and the native-operation allowlist pattern; does not create a second registry and does not create a second `operation_ref` namespace; no second scheduler/state machine/retry authority; ADR-0001 in force with no MCP gateway; no raw command/argv/shell/executable/env/prompt/SQL fields; four independent clamps (project identity, mutation intent, timeout, output budget) with 8 MiB hard output maximum and pagination beyond; device identity explicit-registered-only, fails closed, no discovery or polling; read-only inspection as recommended first remote capability; defense-in-depth guardrails are not A-Conductor's authorization boundary; durable execution ID before any side effect; transport loss is not execution failure (reuses resilient supervisor contracts); transport adapter gate unchanged; this slice adds no transport.
+- `tests/test_desktop_commander_transport_contract.py`: 13 stdlib-only tests (json/re/pathlib/typing) covering parseability, closed-object + exact required set, recursive absence of 19 forbidden raw-authority property names, exact closed tool-family enum (REMOTE_SHELL excluded), two-state mutation intent, both numeric hard bounds, cross-check that the doc states the 8,388,608 maximum, device_id optionality + fail-closed description, example conformance + opaque-ref pattern, example-is-remote-read-only-first, and doc invariant anchor statements for acceptance items 1, 4, 5, 6, 7, 8.
+
+Exact verification results (worktree `A:\GitHub\A-Wiki-Conductor-glm-dc-contract`, branch `feat/north-star-dc-contract-glm`, base `131a8b2`):
+
+- `python -m pytest -q tests/test_desktop_commander_transport_contract.py tests/test_desktop_commander_runtime.py tests/test_runtime_catalog.py --basetemp=<isolated>` → **28 passed** (13 new contract + 4 existing DC runtime + 11 existing runtime catalog).
+- `python -m compileall -q src/a_conductor` → PASS.
+- `git diff --check` → PASS.
+- Static scan: recursive property-name walk of the schema finds none of the 19 forbidden raw-authority field names; the new test file imports only stdlib `json`/`re`/`pathlib`/`typing`; no production imports or transport/MCP/network/process code introduced anywhere.
+
+Files changed (only allowed scope): the four new files above plus this WO checkpoint section. Dirty state at commit: exactly those files; nothing else touched. No PR opened or merged.
+
+Limitations:
+
+- Contract + schema + mechanical guards only; no resolver/adapter code exists or is implied (live transport stays gated per the runtime contract's 8-point adapter gate and N6).
+- `max_output_bytes` hard maximum (8 MiB) is a new documented bound chosen for this contract; it is not yet cross-wired to `MAX_ARTIFACT_READ_BYTES` (64 KiB) in `execution_artifacts.py` — the future adapter must reconcile per-page vs per-operation budgets.
+- Doc anchor tests assert exact phrases; integrator may rephrase only together with the test update (kept in one commit for reviewability).
+
+One next safe action: GPT-5.6 Sol reviews this contract against N3 acceptance (1-8) and the parent runtime contract; if accepted, the next bounded slice is the injected fake-backend adapter design (still no live transport), while N4 stays BLOCKED on GE gates.

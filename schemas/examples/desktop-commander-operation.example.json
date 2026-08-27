@@ -1,0 +1,9 @@
+{
+  "operation_ref": "dc.op/north-star/project-file-read-log@v1",
+  "tool_family": "PROJECT_FILE_READ",
+  "project_id": "a-wiki-conductor",
+  "mutation_intent": "READ_ONLY",
+  "timeout_seconds": 60,
+  "max_output_bytes": 65536,
+  "device_id": "registered:workstation-01"
+}

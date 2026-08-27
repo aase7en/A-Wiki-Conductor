@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a-conductor:schema:desktop-commander-operation:1.0.0",
+  "title": "Desktop Commander bounded provider operation definition",
+  "description": "INTERNAL pre-authorized operation definition resolved by A-Conductor AFTER the opaque operation_ref has passed operator.v1/native-operation authority. This is not a model- or operator-facing payload and carries no raw command, argv, shell, executable, environment, prompt, SQL, or arbitrary script authority. Binding contract: docs/contracts/desktop-commander-bounded-transport.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operation_ref",
+    "tool_family",
+    "project_id",
+    "mutation_intent",
+    "timeout_seconds",
+    "max_output_bytes"
+  ],
+  "properties": {
+    "operation_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._\\-/:@]+$",
+      "description": "Same opaque identifier semantics already used by operator.v1 job.execute and the native operation registry. It is resolved by A-Conductor authority only and is never shell text or a free-form command."
+    },
+    "tool_family": {
+      "enum": [
+        "PROJECT_FILE_READ",
+        "PROJECT_FILE_SEARCH",
+        "PROCESS_START",
+        "PROCESS_INSPECT",
+        "PROCESS_READ_OUTPUT",
+        "PROCESS_INTERACT",
+        "DOCUMENT_READ",
+        "DATA_ANALYZE"
+      ],
+      "description": "Fixed closed set of bounded Desktop Commander tool families. Remote execution is expressed as a target device identity (device_id), never as a raw-shell family; REMOTE_SHELL and equivalents are forbidden."
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Authoritative A-Conductor project identity reference. Every operation is bounded to this project scope."
+    },
+    "mutation_intent": {
+      "enum": ["READ_ONLY", "PROJECT_MUTATION"],
+      "description": "Explicit mutation intent. READ_ONLY operations must never mutate project or device state."
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600,
+      "description": "Bounded wall-clock budget for one operation. Hard bound: 1..3600 seconds."
+    },
+    "max_output_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8388608,
+      "description": "Bounded output budget for one operation. Hard maximum 8,388,608 bytes (8 MiB); larger output must be paginated/tail-read by the future bounded transport adapter, never injected wholesale into model context."
+    },
+    "device_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._\\-/:@]+$",
+      "description": "Optional explicit registered remote-device identity. Only remote-device definitions may carry it; a missing or unknown device identity fails closed later. There is no discovery or polling behavior."
+    }
+  }
+}
