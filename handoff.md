@@ -24,7 +24,7 @@ PLAN / SSoT PRIORITY SWITCH + SAFE REPOSITORY CLEANUP.
 
 ## Live / Protected Parallel Work
 
-- PR #110 / `docs/wo-p1-086-capability-vocabulary`: open C0 prerequisite; do not edit its two files from WO-P1-087.
+- PR #110 / C0 merged as `6487cb2`; its worktree/local/remote feature branch were removed only after clean ancestry verification.
 - PR #104 / `feat/ge-6-scheduler`: active Graph ownership; do not overlap scheduler scope.
 - PR #108 / `fix/v070-installer-target-ownership`: active installer/release safety ownership; do not overlap.
 - `feat/north-star-runtime-sunday-family`: unique North Star integration branch; preserve and reconcile later.
@@ -55,6 +55,5 @@ After fresh fetch/ancestry/status verification:
 
 1. verify this docs-only diff (`diff --check`, file scope, secret scan);
 2. Draft PR #111 is open from commit `9a2e8dd`; inspect CI/review and keep it draft until accepted;
-3. reconcile exact PR #110 state/CI and accept C0 when review gates are satisfied;
-4. create AHA-1 provider/harness contract work order from updated main;
-5. leave the locked orphan release folder untouched until the owning process is identified or naturally releases it.
+3. C0 is accepted; create the AHA-1 provider/harness contract work order from the newest `main`;
+4. leave the locked orphan release folder untouched until the owning process is identified or naturally releases it.

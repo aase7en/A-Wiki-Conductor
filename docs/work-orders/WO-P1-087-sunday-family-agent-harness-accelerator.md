@@ -138,10 +138,11 @@ Before push/PR, verify no secret-like GLM proxy token or `ANTHROPIC_AUTH_TOKEN` 
 
 ## Next safe action
 
-1. independently reconcile/accept PR #110 C0 if its exact HEAD and CI are still valid;
+1. PR #110 C0 is merged as `6487cb2`; consume it as the accepted vocabulary contract;
 2. open a new bounded AHA-1 implementation work order from current `origin/main` for provider/harness contracts only;
 3. keep #104/#108/North-Star mutable scopes isolated;
 4. do not start live provider execution until credential/trust/quota policy and fake-backend verification exist.
+
 ## Checkpoint — plan branch / Draft PR
 
 - Plan/SSoT commit: `9a2e8dd6b7c492ffa2c7e2b747dd3280dc2f1e6c`.
@@ -153,4 +154,4 @@ Before push/PR, verify no secret-like GLM proxy token or `ANTHROPIC_AUTH_TOKEN` 
 - Safe cleanup preserved #104, #108, #110, North Star, unique audit/untracked lanes; merged/redundant branches/worktrees only were removed.
 - Old release worktree registration was removed, but its physical folder remains process-locked; no unknown process was killed.
 
-Next safe action: independently reconcile PR #110 C0 and CI, then create AHA-1 provider/harness contract slice from the newest accepted `main`; do not start live provider execution yet.
+Next safe action: create the AHA-1 provider/harness contract slice from `main` including merged C0 (`6487cb2`); do not start live provider execution yet.

@@ -780,7 +780,7 @@ First preferred coding lane:
 GLM is the first configured provider, not an architectural dependency. Provider/runtime abstractions must remain compatible with OpenAI, Anthropic first-party, Gemini, local models, and future execution surfaces.
 
 Priority order for new feature work:
-1. accept/reconcile capability-vocabulary C0 (PR #110 / WO-P1-086);
+1. capability-vocabulary C0 accepted via PR #110 (merged `6487cb2`);
 2. define provider + harness + trust/quota/credential-reference contracts;
 3. implement secure provider configuration and fake-backend health/quota tests;
 4. implement a bounded non-interactive Claude Code harness adapter;

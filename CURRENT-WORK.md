@@ -14,7 +14,7 @@ Current exact baseline for this lane:
 - branch: `docs/wo-p1-087-agent-harness-priority`;
 - base: `origin/main@9106da2` (PR #109 capability plan already merged);
 - shared `A:\GitHub\A-Wiki-Conductor` is stale/dirty and remains protected/read-only;
-- PR #110 capability vocabulary C0 is open and is the immediate architecture prerequisite;
+- PR #110 capability vocabulary C0 is merged as `6487cb2`; AHA-0 is satisfied;
 - PR #104 GE-6 and PR #108 installer ownership remain separately owned mutable lanes and must not be overlapped;
 - North Star `feat/north-star-runtime-sunday-family` remains a separate integration lineage and must be reconciled, not overwritten.
 
@@ -30,8 +30,8 @@ Current slice is plan/SSoT only. No production provider/network/process code is 
 
 ## Immediate execution frontier
 
-1. finish independent review/reconciliation of PR #110 C0;
-2. create AHA-1 bounded provider/harness contracts from current main;
+1. C0 is accepted/merged; create AHA-1 bounded provider/harness contracts from current main;
+2. reconcile AHA-1 against North Star N2/N3 and GE ownership before production mutation;
 3. add secure credential references + provider health/quota normalization with fake backends before live execution;
 4. implement Claude Code harness adapter in an isolated lane;
 5. wait for/reconcile GE scheduler/dispatch gates before durable autonomous dispatch;
@@ -42,7 +42,6 @@ Current slice is plan/SSoT only. No production provider/network/process code is 
 Safe branch/worktree cleanup has started under explicit user authorization. Only work proven merged/redundant has been removed. Active/open/unique/dirty lanes are protected. One old release worktree directory is no longer registered by Git but remains locked by another process; it is intentionally left in place rather than killing an unknown owner process.
 
 ## Source-of-truth rule
-
 
 Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub state → CURRENT-WORK.md → handoff.md → active work order → PROJECT-PLAN/contracts.
 

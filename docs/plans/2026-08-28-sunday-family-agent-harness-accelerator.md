@@ -253,8 +253,8 @@ Display rules:
 
 ## 13. Delivery sequence
 
-### AHA-0 — C0 vocabulary gate
-Accept/reconcile PR #110 so actor capability, runtime supply, and policy/authority are distinct before adding provider behavior.
+### AHA-0 — C0 vocabulary gate [COMPLETE]
+PR #110 merged as `6487cb2`; actor capability, runtime supply, and policy/authority are now explicitly distinct before provider behavior is added.
 
 ### AHA-1 — Provider/Harness contracts
 Docs/schema/domain design only. Define provider profile, harness strategy, trust class, health/quota observations, typed failures, and credential references. No live network execution.
@@ -296,7 +296,7 @@ The accelerator proves value when the user can issue one repository goal and obs
 
 ## 15. Interaction with current open work
 
-- PR #110 is a direct prerequisite for the provider capability vocabulary and should be reviewed first.
+- PR #110 / AHA-0 is merged (`6487cb2`); new provider work must consume that accepted vocabulary contract rather than redefining it.
 - PR #104 remains the owner of GE-6 scheduler semantics; the accelerator must not fork a substitute scheduler.
 - PR #108 remains an installer/release safety lane and must not be deleted or mixed into this feature.
 - North Star work remains the integration home for runtime/execution-fabric concepts; new provider work should reconcile with it rather than duplicate it.
