@@ -34,12 +34,14 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-075` / `docs/repo-health-100` | GPT-5.6 Sol | 2026-08-27 | Docs/release closeout only: `CURRENT-WORK.md`, `handoff.md`, `COLLAB.md`, `CHANGELOG.md`, P1 release WOs, branch/worktree cleanup evidence, release verification. No Graph production code. |
-| PR #102 / GE-005A | GLM 5.3 | 2026-08-26 | `fix/ge-005a-glob-conflict` worktree/branch. OPEN with Windows CI failing; preserve until owner repairs/re-audits. |
-| PR #104 / GE-6 | GLM 5.3 | 2026-08-26 | `feat/ge-6-scheduler` worktree/branch. OPEN with Windows CI failing; preserve until owner repairs/re-audits. |
+| `WO-P1-087` / Sunday Family Agent Harness accelerator | GPT-5.6 Sol via RDC | 2026-08-28 | Plan/SSoT only in isolated `A-Wiki-Conductor-agent-harness`: `PROJECT-PLAN.md`, `DESIGN.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, WO-P1-087 + accelerator plan. No production code/tests. |
+| PR #104 / GE-6 | GLM 5.3 lane | 2026-08-26 | `feat/ge-6-scheduler` worktree/branch; scheduler/Graph scope remains separately owned. |
+| PR #108 / installer target ownership | release/installer lane | 2026-08-27 | `fix/v070-installer-target-ownership`; destructive installer safety scope remains separately owned. |
+| North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
 
+- `WO-P1-086` / PR #110 capability vocabulary C0: merged as `6487cb2` on 2026-08-28; clean feature worktree/local/remote branch removed after ancestry verification; accepted contract remains on `main`.
 - `WO-P1-063`: implementation/release complete; v0.6.0 published from `c870525`; future work leaves this WO.
 - `WO-GE-001` decision fan-in: D1-D5 accepted via PR #86; decision claim released. GE-1a is the next implementation slice and must be claimed by its actual implementer before mutation.
 - `docs/repo-health-sync`: merged/closed before release integration; no live claim remains.

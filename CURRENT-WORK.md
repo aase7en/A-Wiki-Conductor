@@ -1,26 +1,45 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-27 (GPT-5.6 Sol — repo-health-100 + v0.7.0 closeout)
+Last updated: 2026-08-28 (GPT-5.6 Sol — Sunday Family Agent Harness accelerator)
 
 ## Current phase
 
-**v0.7.0 RELEASE CLOSEOUT + repo health reconciliation.** Durable GitHub/repository state now outranks the stale historical v0.7 candidate checkpoint that pinned `be8a45d`.
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator (WO-P1-087).**
 
-Verified release line on `origin/main` before this docs branch:
-- PR #99 async PROJECT DISK release blocker — merge `e8195b1`.
-- PR #100 worker display-name repair — merge `12a4c56`.
-- PR #101 live AI Execution Slots — merge `4ad0b8e`.
-- PR #103 PROJECT DISK monochrome particle magnitude — merge `f85ee47`.
-- PR #105 interactive offline HTML Guide — merge `f9dff0b1`.
-- Exact-main CI run `33005521278` for `f9dff0b1` is green on Windows + Ubuntu + macOS. Windows also passed clean Portable/Setup build, frozen archive verification, Portable executable smoke, and artifact upload.
+User outcome: eliminate the manual copy/paste loop between GPT, GLM, Claude Code, ZCode, and future models by making A-Sunday Conductor create bounded task packets, select eligible sub-agent providers, dispatch, collect evidence, review/repair, and continue from durable state.
 
-**Current active work order:** `docs/work-orders/WO-P1-075-repo-health-v070-closeout.md` on branch `docs/repo-health-100`.
+Current exact baseline for this lane:
+- repository: `aase7en/A-Wiki-Conductor`;
+- isolated worktree: `A:\GitHub\A-Wiki-Conductor-agent-harness`;
+- branch: `docs/wo-p1-087-agent-harness-priority`;
+- base: `origin/main@9106da2` (PR #109 capability plan already merged);
+- shared `A:\GitHub\A-Wiki-Conductor` is stale/dirty and remains protected/read-only;
+- PR #110 capability vocabulary C0 is merged as `6487cb2`; AHA-0 is satisfied;
+- PR #104 GE-6 and PR #108 installer ownership remain separately owned mutable lanes and must not be overlapped;
+- North Star `feat/north-star-runtime-sunday-family` remains a separate integration lineage and must be reconciled, not overwritten.
 
-**Release boundary:** the historical `be8a45d` pin is superseded by later user-authorized P1 release work. v0.7.0 must be published from the exact merge SHA of `docs/repo-health-100` after its own CI and exact-artifact sandbox installation acceptance. Do not silently retarget to a later moving `main` after that SHA is selected.
+First implementation preference: **Claude Code / Anthropic-style harness -> user-configured Anthropic-compatible provider -> GLM-5.3**, while all domain contracts remain provider-neutral.
 
-**Excluded from v0.7.0:** PR #102 (`fix/ge-005a-glob-conflict`) and PR #104 (`feat/ge-6-scheduler`) are still OPEN with Windows CI failing. Their GLM worktrees/branches remain active and must not be deleted or merged into this release.
+This priority switch does not cancel release/safety work. It determines what *new feature* starts first.
 
-**Worktree safety:** shared `A:\GitHub\A-Wiki-Conductor` remains stale local `main` and must not be mutated/fast-forwarded. Mutation occurs only in isolated worktrees. A-Wiki remains HOLD/read-only. Never bind tests to live connector ports 18011–18015; never broad-kill Python/Serena/tunnel processes; never disable ESET.
+## Active work order
+
+`docs/work-orders/WO-P1-087-sunday-family-agent-harness-accelerator.md`
+
+Current slice is plan/SSoT only. No production provider/network/process code is authorized on this branch.
+
+## Immediate execution frontier
+
+1. C0 is accepted/merged; create AHA-1 bounded provider/harness contracts from current main;
+2. reconcile AHA-1 against North Star N2/N3 and GE ownership before production mutation;
+3. add secure credential references + provider health/quota normalization with fake backends before live execution;
+4. implement Claude Code harness adapter in an isolated lane;
+5. wait for/reconcile GE scheduler/dispatch gates before durable autonomous dispatch;
+6. then prove GPT review <-> GLM implementation/repair without human prompt copying.
+
+## Cleanup checkpoint
+
+Safe branch/worktree cleanup has started under explicit user authorization. Only work proven merged/redundant has been removed. Active/open/unique/dirty lanes are protected. One old release worktree directory is no longer registered by Git but remains locked by another process; it is intentionally left in place rather than killing an unknown owner process.
 
 ## Source-of-truth rule
 
