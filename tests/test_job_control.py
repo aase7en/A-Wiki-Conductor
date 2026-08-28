@@ -278,3 +278,26 @@ def test_supervised_mode_routes_pytest_through_durable_execution(tmp_path: Path)
     run_dirs = list((repo / "runs").glob("exec-*"))
     assert len(run_dirs) == 1
     assert (run_dirs[0] / "result.json").is_file()
+
+
+def test_block_releases_claim_without_consuming_attempt(tmp_path: Path) -> None:
+    service, _ = open_service(tmp_path)
+    created = service.create_job(job_id="job-block", work_order_ref="wo", project_id="p")
+    ready = service.mark_ready("job-block", expected_version=created.version)
+    claimed = service.claim(
+        "job-block", expected_version=ready.version, worker_id="a-worker-01"
+    )
+
+    blocked = service.block(
+        "job-block",
+        expected_version=claimed.version,
+        worker_id="a-worker-01",
+        evidence_ref="gate:no-go",
+    )
+
+    assert blocked.state is TaskState.BLOCKED
+    assert blocked.worker_id is None
+    assert blocked.attempt_count == 0
+    event = service.list_events("job-block")[-1]
+    assert event.to_state is TaskState.BLOCKED
+    assert event.evidence_ref == "gate:no-go"

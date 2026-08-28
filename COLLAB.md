@@ -34,13 +34,14 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-092` / harness phase transition | GPT-5.6 Sol via RDC | 2026-08-28 | Isolated `A-Wiki-Conductor-harness-transition`: docs-only AHA-3 closeout/status update in README/CURRENT/COLLAB/roadmap + WO-P1-091/092. `handoff.md` excluded because PR #104 currently owns an overlapping change. No production code. |
-| PR #104 / GE-6 | GLM 5.3 lane | 2026-08-26 | `feat/ge-6-scheduler` worktree/branch; scheduler/Graph scope remains separately owned. |
+| `WO-P1-094` / AHA-4 durable graph dispatch | GPT-5.6 Sol integrator | 2026-08-28 | Isolated `A-Wiki-Conductor-aha4`: new graph-dispatch wrapper + focused tests; narrow `job_control.py` seam only if required; CURRENT/COLLAB/handoff + WO checkpoint. No scheduler rewrite, no worker lease/fallback, no installer/North-Star/live-provider mutation. |
 | PR #108 / installer target ownership | release/installer lane | 2026-08-27 | `fix/v070-installer-target-ownership`; destructive installer safety scope remains separately owned. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
 
+- PR #104 / GE-6 deterministic scheduler: exact head `694b8dee053e48d805596b527525cada875848a4` passed GPT re-audit + 3-OS CI and merged as `023c7b65026b0ff536cd1d802d6010e381a4447a`; worktree/local/remote branch removed after ancestry proof.
+- `WO-P1-092` / PR #117 harness phase transition: merged as `8db32269f3b1e55a7a551a5a98f6c93b8a30158d`; claim released to AHA-4.
 - `WO-P1-091` / PR #116 AHA-3 Claude Code harness adapter: merged as `ab28dc7` on 2026-08-28 after exact-head Windows/Ubuntu/macOS CI green; clean worktree/local/remote branch removed after ancestry verification.
 - `WO-P1-090` / PR #114 AHA-2 provider configuration + observation: merged as `ca4cd98` on 2026-08-28 after exact-head Windows/Ubuntu/macOS CI green; clean worktree/local/remote branch removed after ancestry verification.
 - `WO-P1-087` / PR #111 priority plan: merged as `457f974` on 2026-08-28; worktree/branch removed after ancestry verification.
