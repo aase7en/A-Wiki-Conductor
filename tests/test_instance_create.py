@@ -279,3 +279,29 @@ def test_add_instance_missing_fields_shows_error(root, tmp_path: Path, monkeypat
     monkeypatch.setattr(app, "_handle_error", lambda code: codes.append(code))
     app.add_instance("bad name!", str(tmp_path))
     assert codes and codes[0] == "NAME_INVALID"
+
+
+def test_create_instance_hardens_legacy_reference_runtime_forensics(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(
+        "$ProfilesDir = Join-Path $Root 'profiles'\n"
+        "$RunDir = Join-Path $Root 'run'\n"
+        "$LogsDir = Join-Path $Root 'logs'\n"
+        "$ProfileTemplate = Join-Path $ProfilesDir 'serena-wastewater.yaml.template'\n"
+        "$RuntimeProfile = Join-Path $RunDir 'serena-wastewater.yaml'\n"
+        "$RuntimeStdout = Join-Path $LogsDir 'wastewater-runtime.stdout.log'\n"
+        "$RuntimeStderr = Join-Path $LogsDir 'wastewater-runtime.stderr.log'\n"
+        "Write-Log \"STARTING: health=$HealthListenAddress project=$ProjectPath\"\n"
+        "$RuntimeProcess = Start-Process -FilePath $TunnelClientPath -PassThru\n"
+        "Wait-Process -Id $RuntimeProcess.Id\n",
+        encoding="utf-8",
+    )
+    created = create_instance(
+        instances_root, "Research", project, health_port=48114, reference_root=ref
+    )
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert "runtime-archive" in start
+    assert "$RuntimeProcess.WaitForExit()" in start
+    assert "$RuntimeProcess.ExitCode" in start
+    assert "TUNNEL_START_FAILED" in start
+    assert "exit_code=" in start

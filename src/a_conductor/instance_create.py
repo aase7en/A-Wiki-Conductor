@@ -78,6 +78,51 @@ def _retitle_cmd_text(text: str, title: str) -> str:
     return updated
 
 
+def _harden_start_script_runtime_forensics(text: str) -> str:
+    """Upgrade validated legacy start.ps1 text without replacing its credential/preflight logic."""
+    if "runtime-archive" in text and "$RuntimeProcess.ExitCode" in text:
+        return text
+    if (
+        "$RuntimeStdout" not in text
+        or "$RuntimeStderr" not in text
+        or "Wait-Process -Id $RuntimeProcess.Id" not in text
+    ):
+        return text
+    text, count = re.subn(
+        r"(?m)^(\$RuntimeStderr\s*=.*)$",
+        r"\1\n$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'",
+        text,
+        count=1,
+    )
+    if count != 1:
+        return text
+    archive = """New-Item -ItemType Directory -Force -Path $RuntimeArchiveDir | Out-Null
+$ArchiveStamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+foreach ($RuntimeLog in @($RuntimeStdout, $RuntimeStderr)) {
+    if (Test-Path -LiteralPath $RuntimeLog -PathType Leaf) {
+        $Leaf = [System.IO.Path]::GetFileName($RuntimeLog)
+        $Archived = Join-Path $RuntimeArchiveDir ($ArchiveStamp + '-' + $Leaf)
+        Move-Item -LiteralPath $RuntimeLog -Destination $Archived -Force
+    }
+}
+
+"""
+    start_marker = 'Write-Log "STARTING:'
+    if start_marker not in text:
+        return text
+    text = text.replace(start_marker, archive + start_marker, 1)
+    exit_block = """$RuntimeProcess.WaitForExit()
+$RuntimeProcess.Refresh()
+$RuntimeExitCode = $RuntimeProcess.ExitCode
+if ($RuntimeExitCode -eq 0) {
+    Write-Log "STOPPED: tunnel-client exit_code=0"
+} else {
+    Write-Log ("TUNNEL_START_FAILED: Tunnel client exited with code {0}; exit_code={0}" -f $RuntimeExitCode)
+}
+exit $RuntimeExitCode"""
+    return text.replace("Wait-Process -Id $RuntimeProcess.Id", exit_block, 1)
+
+
 def create_instance(
     instances_root: Path | str,
     name: str,
@@ -157,6 +202,8 @@ def create_instance(
         text = text.replace(f"serena-{reference_slug}.yaml.template", f"{profile}.yaml.template")
         text = text.replace(f"serena-{reference_slug}.yaml", f"{profile}.yaml")
         text = text.replace(f"'{reference_slug}-'", f"'{slug}-'")
+        if action == "Start":
+            text = _harden_start_script_runtime_forensics(text)
         (target / script).write_text(text, encoding="utf-8", newline="\r\n")
 
         cmd_source = reference / f"{action}-Serena-{reference_slug.title()}.cmd"

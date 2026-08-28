@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -29,6 +30,35 @@ UV_GITHUB_API = "https://api.github.com/repos/astral-sh/uv/releases/latest"
 TUNNEL_CLIENT_API = "https://api.github.com/repos/openai/tunnel-client/releases/latest"
 UV_INSTALL_DIR_NAME = "uv"
 TUNNEL_CLIENT_DIR_NAME = "dwb-serena-tunnel-starter"
+MIN_TUNNEL_CLIENT_VERSION = (0, 0, 12)
+_TUNNEL_CLIENT_VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[+\s]|$)")
+
+
+def parse_tunnel_client_version_output(text: str) -> tuple[int, int, int] | None:
+    match = _TUNNEL_CLIENT_VERSION_RE.match((text or "").strip())
+    if match is None:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def probe_tunnel_client_version(
+    path: Path, *, run_fn: RunFn | None = None
+) -> tuple[int, int, int] | None:
+    if not Path(path).is_file():
+        return None
+    runner = run_fn or _default_run
+    try:
+        result = runner([str(path), "--version"])
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    return parse_tunnel_client_version_output((result.stdout or "") + (result.stderr or ""))
+
+
+def tunnel_client_is_supported(path: Path, *, run_fn: RunFn | None = None) -> bool:
+    version = probe_tunnel_client_version(path, run_fn=run_fn)
+    return version is not None and version >= MIN_TUNNEL_CLIENT_VERSION
 
 
 class SetupWizardError(RuntimeError):
@@ -54,27 +84,23 @@ def _default_run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
 def check_system(
     *,
     tunnel_client_path: Path | None = None,
+    run_fn: RunFn | None = None,
 ) -> dict[str, bool]:
-    """Check which prerequisites are already installed."""
+    """Check prerequisites, rejecting tunnel-client builds older than the reliability floor."""
     result: dict[str, bool] = {}
 
-    # uv: on PATH or in the wizard's install location
     result["uv"] = shutil.which("uv") is not None or _find_uv() is not None
-
-    # Python 3.13: uv can manage it (check via `uv python list` is slow;
-    # check the uv-managed python dir instead)
     uv_dir = _uv_install_dir()
     python_dir = uv_dir / "python"
-    result["python_313"] = python_dir.is_dir() and any(
-        d.name.startswith("3.13") for d in python_dir.iterdir() if d.is_dir()
-    ) if python_dir.is_dir() else False
-
-    # Serena: on PATH or via `uv tool list` (fast check: `serena --version`)
+    result["python_313"] = (
+        python_dir.is_dir()
+        and any(d.name.startswith("3.13") for d in python_dir.iterdir() if d.is_dir())
+    )
     result["serena"] = shutil.which("serena") is not None
 
-    # tunnel-client: at the standard starter path or the given path
+    candidate: Path | None = None
     if tunnel_client_path is not None:
-        result["tunnel_client"] = tunnel_client_path.is_file()
+        candidate = Path(tunnel_client_path)
     else:
         local_app_data = os.environ.get("LOCALAPPDATA", "")
         default_tc = (
@@ -82,10 +108,13 @@ def check_system(
             / "tunnel-client" / "tunnel-client.exe"
         ) if local_app_data else None
         legacy_tc = Path("C:/AI") / TUNNEL_CLIENT_DIR_NAME / "tunnel-client" / "tunnel-client.exe"
-        result["tunnel_client"] = (
-            (default_tc is not None and default_tc.is_file()) or legacy_tc.is_file()
-        )
-
+        if default_tc is not None and default_tc.is_file():
+            candidate = default_tc
+        elif legacy_tc.is_file():
+            candidate = legacy_tc
+    result["tunnel_client"] = bool(
+        candidate is not None and tunnel_client_is_supported(candidate, run_fn=run_fn)
+    )
     return result
 
 
@@ -262,7 +291,7 @@ class Installer:
     def install_tunnel_client(
         self, *, target_dir: Path | None = None
     ) -> Path:
-        """Download tunnel-client from openai/tunnel-client GitHub releases."""
+        """Install a tunnel-client release at or above the shared-stdio reliability floor."""
         if target_dir is None:
             local_app_data = os.environ.get("LOCALAPPDATA", "")
             base = Path(local_app_data) if local_app_data else Path.home()
@@ -270,10 +299,9 @@ class Installer:
         target_dir.mkdir(parents=True, exist_ok=True)
 
         exe_path = target_dir / "tunnel-client.exe"
-        if exe_path.is_file():
+        if exe_path.is_file() and tunnel_client_is_supported(exe_path, run_fn=self._run):
             return exe_path
 
-        # Query GitHub API
         request = urllib.request.Request(
             TUNNEL_CLIENT_API,
             headers={
@@ -284,54 +312,72 @@ class Installer:
         with urllib.request.urlopen(request, timeout=15) as response:
             data = json.loads(response.read().decode("utf-8"))
 
-        # Find the Windows amd64 asset
         asset_url = None
+        asset_name = None
         checksums_url = None
         for asset in data.get("assets", []):
             name = asset.get("name", "")
-            if "windows-amd64" in name and name.endswith(".zip"):
+            if name == "windows-amd64.zip":
                 asset_url = asset.get("browser_download_url")
-            if name == "SHA256SUMS.txt":
+                asset_name = name
+                break
+            if (
+                asset_url is None
+                and name.startswith("tunnel-client-v")
+                and name.endswith("-windows-amd64.zip")
+            ):
+                asset_url = asset.get("browser_download_url")
+                asset_name = name
+        for asset in data.get("assets", []):
+            if asset.get("name", "") == "SHA256SUMS.txt":
                 checksums_url = asset.get("browser_download_url")
-
-        if not asset_url:
+                break
+        if not asset_url or not asset_name:
             raise SetupWizardError(
                 "TUNNEL_CLIENT_ASSET_NOT_FOUND", "no windows-amd64 zip in latest release"
             )
 
-        zip_path = target_dir / "tunnel-client-download.zip"
+        zip_path = target_dir / asset_name
         self._download(asset_url, str(zip_path))
+        try:
+            if checksums_url:
+                checksums_path = target_dir / "SHA256SUMS.txt"
+                try:
+                    self._download(checksums_url, str(checksums_path))
+                    expected = _find_checksum(checksums_path, asset_name)
+                    if expected:
+                        actual = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+                        if actual.lower() != expected.lower():
+                            raise SetupWizardError("TUNNEL_CLIENT_SHA256_MISMATCH")
+                except SetupWizardError:
+                    raise
+                except Exception:
+                    pass
 
-        # Verify SHA256 if checksums available
-        if checksums_url:
-            checksums_path = target_dir / "SHA256SUMS.txt"
-            try:
-                self._download(checksums_url, str(checksums_path))
-                expected = _find_checksum(checksums_path, zip_path.name)
-                if expected:
-                    actual = hashlib.sha256(zip_path.read_bytes()).hexdigest()
-                    if actual.lower() != expected.lower():
-                        zip_path.unlink(missing_ok=True)
-                        raise SetupWizardError("TUNNEL_CLIENT_SHA256_MISMATCH")
-            except SetupWizardError:
-                raise
-            except Exception:
-                pass  # checksum verification best-effort
+            with tempfile.TemporaryDirectory(prefix="tunnel-client-update-", dir=target_dir) as temp_name:
+                temp_root = Path(temp_name)
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    zf.extractall(temp_root)
+                candidates = list(temp_root.rglob("tunnel-client.exe"))
+                if not candidates:
+                    raise SetupWizardError("TUNNEL_CLIENT_INSTALL_FAILED", "exe not found after extraction")
+                candidate = candidates[0]
+                if not tunnel_client_is_supported(candidate, run_fn=self._run):
+                    raise SetupWizardError("TUNNEL_CLIENT_VERSION_UNSUPPORTED")
+                try:
+                    os.replace(candidate, exe_path)
+                except OSError as exc:
+                    raise SetupWizardError("TUNNEL_CLIENT_UPDATE_BLOCKED", str(exc)[:160]) from exc
+                for source in temp_root.rglob("*"):
+                    if not source.is_file() or source == candidate:
+                        continue
+                    relative = source.relative_to(temp_root)
+                    destination = target_dir / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, destination)
+        finally:
+            zip_path.unlink(missing_ok=True)
 
-        # Extract
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(target_dir)
-        zip_path.unlink(missing_ok=True)
-
-        if not exe_path.is_file():
-            # Maybe the zip has a subdirectory
-            for f in target_dir.rglob("tunnel-client.exe"):
-                if f != exe_path:
-                    shutil.move(str(f), str(exe_path))
-                    break
-
-        if not exe_path.is_file():
-            raise SetupWizardError("TUNNEL_CLIENT_INSTALL_FAILED", "exe not found after extraction")
         return exe_path
 
 
@@ -438,6 +484,7 @@ $PidFile = Join-Path $RunDir 'tunnel-client.pid'
 $LogFile = Join-Path $LogsDir ('{slug}-' + (Get-Date -Format 'yyyyMMdd') + '.log')
 $RuntimeStdout = Join-Path $LogsDir '{slug}-runtime.stdout.log'
 $RuntimeStderr = Join-Path $LogsDir '{slug}-runtime.stderr.log'
+$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'
 
 function Write-Log([string]$Message) {{
     $line = ('{{0}} [{{1}}] {{2}}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $InstanceName, $Message)
@@ -450,7 +497,7 @@ function Fail([string]$Code, [string]$Message) {{
     exit 1
 }}
 
-New-Item -ItemType Directory -Force -Path $RunDir, $LogsDir, $SerenaHome | Out-Null
+New-Item -ItemType Directory -Force -Path $RunDir, $LogsDir, $SerenaHome, $RuntimeArchiveDir | Out-Null
 
 if (-not (Test-Path -LiteralPath $TunnelClientPath -PathType Leaf)) {{
     Fail 'CONFIG_NOT_FOUND' "tunnel-client not found: $TunnelClientPath"
@@ -482,6 +529,15 @@ $profileContent = Get-Content -Raw -LiteralPath $ProfileTemplate
 $profileContent = $profileContent.Replace('__TUNNEL_ID__', $TunnelId)
 [System.IO.File]::WriteAllText($RuntimeProfile, $profileContent, (New-Object System.Text.UTF8Encoding($false)))
 
+$ArchiveStamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+foreach ($RuntimeLog in @($RuntimeStdout, $RuntimeStderr)) {{
+    if (Test-Path -LiteralPath $RuntimeLog -PathType Leaf) {{
+        $Leaf = [System.IO.Path]::GetFileName($RuntimeLog)
+        $Archived = Join-Path $RuntimeArchiveDir ($ArchiveStamp + '-' + $Leaf)
+        Move-Item -LiteralPath $RuntimeLog -Destination $Archived -Force
+    }}
+}}
+
 Write-Log "STARTING: health=$HealthListenAddress project=$ProjectPath"
 
 $RuntimeProcess = Start-Process -FilePath $TunnelClientPath `
@@ -491,7 +547,15 @@ $RuntimeProcess = Start-Process -FilePath $TunnelClientPath `
     -RedirectStandardError $RuntimeStderr
 
 Write-Log "READY: waiting for tunnel-client"
-Wait-Process -Id $RuntimeProcess.Id
+$RuntimeProcess.WaitForExit()
+$RuntimeProcess.Refresh()
+$RuntimeExitCode = $RuntimeProcess.ExitCode
+if ($RuntimeExitCode -eq 0) {{
+    Write-Log "STOPPED: tunnel-client exit_code=0"
+}} else {{
+    Write-Log ("TUNNEL_START_FAILED: Tunnel client exited with code {{0}}; exit_code={{0}}" -f $RuntimeExitCode)
+}}
+exit $RuntimeExitCode
 """
         (target / "start.ps1").write_text(start, encoding="utf-8-sig", newline="\r\n")
 
