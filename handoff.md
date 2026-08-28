@@ -1,59 +1,56 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-28 — WO-P1-087 Sunday Family Multi-Model Agent Harness Accelerator
+Last updated: 2026-08-28 — WO-P1-090 / AHA-2
 
 ## Current Objective
 
-Make the multi-model/sub-agent harness the primary new-feature accelerator so A-Sunday Conductor can dispatch bounded work to GLM/Claude-Code-style and future providers without the user manually copying prompts between models.
-
-## Current Phase
-
-PLAN / SSoT PRIORITY SWITCH + SAFE REPOSITORY CLEANUP.
+Eliminate manual prompt copying by building the provider-neutral Sunday Family multi-model harness. Current slice is secure non-secret provider configuration plus observed health/quota evidence.
 
 ## Current Task
 
-`WO-P1-087` — define the provider-neutral Sunday Family agent-harness roadmap, preserve existing North Star/Capability Fabric authority, and prepare the first bounded provider/harness implementation slice.
+`WO-P1-090` — implement AHA-2 provider configuration, endpoint validation, opaque credential references, same-control-DB persistence, and fake/injected observation normalization.
 
 ## Repository State
 
 - Repository: `aase7en/A-Wiki-Conductor`
-- Working lane: `A:\GitHub\A-Wiki-Conductor-agent-harness`
-- Branch: `docs/wo-p1-087-agent-harness-priority`
-- Base/initial HEAD: `origin/main@9106da2e5d2e7f5a687d40cc0b4677b6321ce1c1`
-- Shared `A:\GitHub\A-Wiki-Conductor`: stale local `main@f4ecf9a`, dirty `assets/donate-promptpay-qr.png`; protected/read-only.
+- Worktree: `A:\GitHub\A-Wiki-Conductor-provider-config`
+- Branch: `feat/wo-p1-090-provider-config-observation`
+- Base/HEAD at claim: `origin/main@c3ca84c81d901ae844ee40780619a41b46307049`
+- Working tree clean before AHA-2 claim.
+- Shared root remains protected/read-only.
 
-## Live / Protected Parallel Work
+## Accepted Harness Baseline
 
-- PR #110 / C0 merged as `6487cb2`; its worktree/local/remote feature branch were removed only after clean ancestry verification.
-- PR #104 / `feat/ge-6-scheduler`: active Graph ownership; do not overlap scheduler scope.
-- PR #108 / `fix/v070-installer-target-ownership`: active installer/release safety ownership; do not overlap.
-- `feat/north-star-runtime-sunday-family`: unique North Star integration branch; preserve and reconcile later.
-- `docs/wo-p1-082-ultra-independent-audit`: unique unmerged audit lane; preserve pending explicit disposition.
-- detached `A-Wiki-Conductor-glm-release-audit` contains untracked `.venv-audit/`; protected until evidence ownership is resolved.
-- `A-Wiki-Conductor-v070-path-quote` contains an untracked work-order file; protected.
+- PR #110 C0 vocabulary merged `6487cb2`.
+- PR #111 priority/SSoT plan merged `457f974`.
+- PR #112 AHA-1 provider/harness contracts merged `c3ca84c`.
+- PR #113 Windows CI isolation repair merged `e2de499`; exact-main CI passed Windows/Ubuntu/macOS including packaging/frozen smoke.
 
-## Safe Cleanup Completed
+First intended provider lane remains:
 
-After fresh fetch/ancestry/status verification:
-- removed merged local worktrees/branches for capability-plan-main (PR #109), GE-005A (PR #102), and frozen-uninstall-self-delete (PR #107);
-- removed patch-equivalent GLM N2/N3 side worktrees after proving their patches were already integrated into North Star;
-- removed the obsolete local superseded capability-plan worktree/branch while preserving its unique remote backup;
-- deleted remote branches already proven merged for repo-health-100, WO-P1-085, GE-005A, and frozen-uninstall-self-delete;
-- removed Git worktree registration for old `A-Wiki-Conductor-release-v070`; physical directory deletion is BLOCKED by an unknown process lock, so no process was killed and the folder remains.
+`Conductor -> Claude Code CLI / Anthropic-style harness -> configurable Anthropic-compatible provider -> GLM-5.3`
 
-## Decisions
+GLM is replaceable provider/model metadata. `CAPABLE != AUTHORIZED`; `CONFIGURED != READY`; provider `DONE` remains evidence only.
 
-- Product/brand remains **A-Sunday Conductor / Sunday Family**.
-- First preferred coding harness: Claude Code / Anthropic-style harness.
-- First configured model/provider: GLM-5.3 through a user-configured Anthropic-compatible provider.
-- GLM/provider identity is replaceable metadata, not task/scheduler authority.
-- Direct API may be added for lightweight work later; GUI automation is not the core orchestration path.
-- Secrets are credential references only; never persist the proxy key shown in prior screenshots.
-- Third-party proxy is an explicit trust/data-egress boundary.
+## Protected Parallel Work
 
-## Evidence / Next Safe Action
+- PR #104 / `feat/ge-6-scheduler`: separate Graph owner; no scheduler mutation.
+- PR #108 / installer target ownership: separate release owner; no installer mutation.
+- `feat/north-star-runtime-sunday-family`: unique integration lineage; reconcile, do not overwrite.
+- Unknown dirty/detached audit lanes remain protected.
 
-1. verify this docs-only diff (`diff --check`, file scope, secret scan);
-2. Draft PR #111 is open from commit `9a2e8dd`; inspect CI/review and keep it draft until accepted;
-3. C0 is accepted; create the AHA-1 provider/harness contract work order from the newest `main`;
-4. leave the locked orphan release folder untouched until the owning process is identified or naturally releases it.
+## Local Claude Harness Evidence (read-only)
+
+- Claude Code installed: `2.1.178`.
+- Non-interactive `-p` plus JSON/stream-json output is available.
+- Current Claude user settings point to a loopback gateway and an `apiKeyHelper`; no credential value was read or copied.
+- Gateway was not listening when observed; this is not yet a readiness signal.
+- No live Claude/provider call is authorized in AHA-2.
+
+## Next Safe Action
+
+1. write AHA-2 failing tests;
+2. implement only the bounded configuration/store/observation seams;
+3. run focused + contract regressions, compileall, diff/secret/scope checks;
+4. checkpoint, push, Draft PR, require CI;
+5. start AHA-3 only after AHA-2 merges.
