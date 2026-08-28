@@ -238,7 +238,21 @@ class ConnectorRecoveryCoordinator:
             if self._store.get_connector_recovery(current.instance_name) is None:
                 return self._save(current)
             return current
-        if current.recovery_suppressed or not self._autostart_check(current.instance_name):
+        if current.recovery_suppressed:
+            if (
+                current.state is ConnectorRecoveryState.STOPPED
+                and current.next_retry_at is None
+            ):
+                return current
+            return self._save(
+                replace(
+                    current,
+                    state=ConnectorRecoveryState.STOPPED,
+                    next_retry_at=None,
+                    updated_at=now,
+                )
+            )
+        if not self._autostart_check(current.instance_name):
             normalized_reason = _reason(reason_code)
             if (
                 current.state is ConnectorRecoveryState.STOPPED

@@ -96,12 +96,18 @@ def test_unexpected_stopped_autostart_attempts_one_recovery() -> None:
 
 
 def test_explicit_stop_suppresses_recovery_before_observation() -> None:
-    recovery, _, calls, _ = build()
+    recovery, store, calls, clock = build()
     stopped = recovery.suppress("Sunday-Worker-1")
+    saves = store.save_calls
+    clock.now += 15.0
     assert stopped.recovery_suppressed is True
     result = recovery.observe("Sunday-Worker-1", InstanceHealthState.STOPPED)
+    assert result == stopped
     assert result.state is ConnectorRecoveryState.STOPPED
     assert result.recovery_suppressed is True
+    assert result.last_exit_reason is None
+    assert result.last_exit_at is None
+    assert store.save_calls == saves
     assert calls == []
 def test_manual_start_clears_suppression_and_failure_budget() -> None:
     recovery, store, _, _ = build()

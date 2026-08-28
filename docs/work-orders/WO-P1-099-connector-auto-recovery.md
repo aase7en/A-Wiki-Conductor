@@ -80,3 +80,11 @@ Repair stays inside the existing monitor/lifecycle architecture:
 Deep-bug review also found that enabling the 15-second caller would otherwise rewrite durable SQLite state on every unchanged READY/explicit-STOPPED observation and continually move `last_exit_at`. Repeated stable observations are now idempotent; unchanged READY/STOPPED records are returned without a write and an existing exit timestamp is preserved.
 
 Verification on the reconciled branch: focused recovery/control `19 passed`; broader config/control/local-instance/monitor `58 passed`; compileall PASS; `git diff --check` PASS. Next: exact scope/secret audit -> commit/push -> fresh 3-OS CI -> final remote diff/review -> merge. CR-4 operator visibility remains a separate follow-up after CR-2 acceptance.
+
+## Explicit-Stop metadata repair - 2026-08-28
+
+Final staff review reproduced a semantic defect before merge: an explicit Stop was correctly persisted as `recovery_suppressed=True`, but the next STOPPED health observation rewrote `last_exit_reason` to `UNEXPECTED_STOPPED` and invented a new `last_exit_at`. That would make CR-4 operator diagnostics falsely report a user-requested stop as an incident.
+
+Repair separates explicit suppression from non-autostart stop classification. A suppressed stable STOPPED observation now returns the existing durable record without a write or exit-metadata mutation; non-autostart unexpected stops retain their prior classification behavior.
+
+Evidence: RED single regression `1 failed`; after repair single `1 passed`, focused recovery/control `19 passed`, broader recovery/config/control/local-instance/monitor `77 passed`; compileall, diff-check, and bounded secret scan PASS.
