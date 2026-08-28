@@ -259,3 +259,43 @@ def test_app_preferences_reject_invalid(tmp_path):
         assert "PREFERENCE_VALUE_INVALID" in str(exc)
     else:
         raise AssertionError("non-bool value accepted")
+def test_connector_recovery_state_round_trip_and_reopen(tmp_path: Path) -> None:
+    from a_conductor.connector_recovery import (
+        ConnectorRecoveryRecord,
+        ConnectorRecoveryState,
+    )
+
+    db = store(tmp_path)
+    expected = ConnectorRecoveryRecord(
+        instance_name="Sunday-Worker-1",
+        state=ConnectorRecoveryState.RECOVERING,
+        failure_count=2,
+        failure_window_started_at=100.0,
+        restart_count=4,
+        last_exit_reason="UNEXPECTED_EXIT",
+        last_exit_at=120.0,
+        next_retry_at=135.0,
+        updated_at=120.0,
+    )
+    assert db.save_connector_recovery(expected) == expected
+    assert db.get_connector_recovery(expected.instance_name) == expected
+
+    reopened = SQLiteSerenaConfigStore(db.database_path)
+    assert reopened.get_connector_recovery(expected.instance_name) == expected
+
+
+def test_clear_instance_flags_also_clears_recovery_state(tmp_path: Path) -> None:
+    from a_conductor.connector_recovery import ConnectorRecoveryRecord, ConnectorRecoveryState
+
+    db = store(tmp_path)
+    db.set_instance_autostart("Sunday-Worker-1", True)
+    db.save_connector_recovery(
+        ConnectorRecoveryRecord(
+            instance_name="Sunday-Worker-1",
+            state=ConnectorRecoveryState.DEGRADED,
+            failure_count=3,
+            updated_at=200.0,
+        )
+    )
+    db.clear_instance_flags("Sunday-Worker-1")
+    assert db.get_connector_recovery("Sunday-Worker-1") is None
