@@ -87,3 +87,25 @@ GLM-5.3 repository benchmark evidence:
 - GitHub currently reports PR #104 non-mergeable against newer `main`, so its next suitable bounded task is owner-led reconciliation + graph verification.
 
 AHA-3 TDD state remains RED-to-GREEN in progress: the fake-runner tests were written and the production module has only begun. No live Claude/provider subprocess has been authorized or executed. Roadmap/docs checkpoint may be committed independently; partial AHA-3 source/tests must remain preserved for the next implementation micro-step.
+## Checkpoint — AHA-3 fake-runner GREEN
+
+Roadmap PR #115 merged as `685029d8e367955ba7fb44a3d5449ddf75ca01eb`; this worktree was fast-forwarded to that accepted main before continuing source mutation.
+
+Implementation now provides:
+- schema-aligned bounded dispatch model with no free-form execution payload;
+- fixed `CLAUDE_CODE_CLI` read-only invocation only;
+- fresh AHA-2 provider readiness + configured model/harness gates;
+- explicit worktree-contained task packet with size + SHA-256 verification;
+- reference-only endpoint/credential environment bindings;
+- injected runner, exact timeout/output budgets, typed timeout/failure/invalid/output-limit results;
+- recursive payload/stderr redaction, including JSON object keys;
+- no subprocess/network client and no completion/retry authority.
+
+Verification:
+- focused AHA-3/AHA-2/AHA-1/domain: `52 passed in 0.87s`;
+- provider-store + supervised-runner regressions: `9 passed in 3.39s`;
+- `python -m compileall -q src/a_conductor` -> PASS;
+- `git diff --check` -> PASS;
+- forbidden live-network/subprocess scan: no executable/import path added; only explanatory text + synthetic test secrets found.
+
+Next: commit/push bounded AHA-3 source/tests + continuity, open Draft PR, remote-diff audit, exact-head CI. No live Claude/provider call yet.

@@ -12,11 +12,12 @@ Current exact lane:
 - repository: `aase7en/A-Wiki-Conductor`;
 - worktree: `A:\\GitHub\\A-Wiki-Conductor-claude-harness`;
 - branch: `feat/wo-p1-091-claude-code-harness`;
-- base: `origin/main@ca4cd986c9d3ad0b9af833350f067ff9056df653`;
+- current baseline/HEAD: `origin/main@685029d8e367955ba7fb44a3d5449ddf75ca01eb` after roadmap PR #115 merge;
 - AHA-0 PR #110 merged `6487cb2`;
 - priority plan PR #111 merged `457f974`;
 - AHA-1 PR #112 merged `c3ca84c`;
 - AHA-2 PR #114 merged `ca4cd98` after exact-head Windows/Ubuntu/macOS CI green;
+- roadmap/worker-fallback PR #115 merged `685029d` after rerun-classified Windows Tk infra flake passed;
 - CI repair PR #113 merged `e2de499`.
 
 Protected parallel work remains PR #104 GE-6, PR #108 installer safety, and the unique North Star branch. Shared `A:\\GitHub\\A-Wiki-Conductor` remains protected/read-only.
@@ -29,15 +30,14 @@ AHA-3 implements a fixed read-only Claude Code invocation plan plus injected fak
 
 ## Immediate execution frontier
 
-1. TDD the AHA-1 dispatch -> Claude Code invocation translation;
-2. require fresh AHA-2 provider readiness before fake runner invocation;
-3. verify bounded task packet path/size/SHA and fixed read-only CLI controls;
-4. prove output budget, JSON parsing, redaction, timeout/failure typing with fake runner;
-5. open/merge AHA-3 after deterministic tests + CI;
-6. live read-only provider smoke requires separately safe configured credentials/health;
-7. AHA-4 durable dispatch remains blocked on accepted GE scheduler/dispatch seams;
-8. AHA-4A then extends the existing worker registry with atomic leases, eligibility preflight, and automatic fallback so chats stop competing for a hard-coded Worker N;
-9. AHA-4B adds heartbeat/stale-owner recovery before AHA-5/AHA-6 autonomous multi-agent loops.
+1. AHA-3 fake-runner implementation is locally GREEN: `52 passed in 0.87s` plus 9 provider-store/supervised regressions;
+2. commit/push only `claude_code_harness.py`, its tests, and continuity checkpoint;
+3. open Draft AHA-3 PR, audit remote diff, require exact-head Windows/Ubuntu/macOS CI;
+4. merge/cleanup only after green CI and final scope/secret review;
+5. live read-only provider smoke requires separately safe configured credentials/health;
+6. AHA-4 durable dispatch remains blocked on accepted GE scheduler/dispatch seams;
+7. AHA-4A then extends the existing worker registry with atomic leases, eligibility preflight, and automatic fallback;
+8. AHA-4B adds heartbeat/stale-owner recovery before AHA-5/AHA-6 autonomous multi-agent loops.
 
 ## Source-of-truth rule
 

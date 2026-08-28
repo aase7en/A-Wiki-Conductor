@@ -15,8 +15,9 @@ Eliminate manual prompt copying by building the provider-neutral Sunday Family m
 - Repository: `aase7en/A-Wiki-Conductor`
 - Worktree: `A:\GitHub\A-Wiki-Conductor-claude-harness`
 - Branch: `feat/wo-p1-091-claude-code-harness`
-- Base/HEAD at claim: `origin/main@ca4cd986c9d3ad0b9af833350f067ff9056df653`
-- Worktree clean before AHA-3 claim.
+- Base at claim: `origin/main@ca4cd986c9d3ad0b9af833350f067ff9056df653`.
+- Current accepted main/worktree HEAD after roadmap PR #115: `685029d8e367955ba7fb44a3d5449ddf75ca01eb`.
+- Local AHA-3 source/tests are modified/untracked until the next bounded commit.
 - Shared root remains protected/read-only.
 
 ## Accepted Harness Baseline
@@ -25,6 +26,7 @@ Eliminate manual prompt copying by building the provider-neutral Sunday Family m
 - PR #111 priority/SSoT plan merged `457f974`.
 - PR #112 AHA-1 contracts merged `c3ca84c`.
 - PR #114 AHA-2 provider config/observation merged `ca4cd98` after Windows/Ubuntu/macOS exact-head CI green.
+- PR #115 roadmap/worker fallback docs merged `685029d`; Windows hosted Tk `0x80000003` rerun passed, Ubuntu/macOS passed.
 
 ## Local Claude Interface Evidence
 
@@ -56,11 +58,18 @@ User requested worker auto-fallback so new chats stop competing for a hard-coded
 
 Repository benchmark evidence for GLM-5.3: its owned GE-6 branch/PR #104 remains a strong bounded implementation lane; independent graph recheck = `83 passed in 1.76s`, while the PR is currently non-mergeable against newer main and needs owner-led reconciliation.
 
+## Verification Checkpoint
+
+- AHA-3/AHA-2/AHA-1/domain: `52 passed in 0.87s`.
+- Provider-store + supervised-runner regression: `9 passed in 3.39s`.
+- compileall + `git diff --check`: PASS.
+- Added a regression proving secret-like JSON keys are redacted before evidence return.
+
 ## Next Safe Action
 
-1. write failing AHA-3 tests;
-2. implement only `claude_code_harness.py` to satisfy the fake-runner contract;
-3. run focused + AHA-2/AHA-1 regressions, compileall, diff/secret/forbidden-import checks;
-4. checkpoint, push Draft PR, require exact-head CI;
+1. commit/push only AHA-3 source/tests + continuity checkpoint;
+2. open Draft AHA-3 PR and audit the remote diff;
+3. require exact-head Windows/Ubuntu/macOS CI, repairing only evidence-backed failures;
+4. merge/cleanup when green;
 5. live read-only provider smoke remains separately gated on safe configured credentials/health;
 6. AHA-4 remains blocked on accepted GE scheduler/durable-dispatch integration.
