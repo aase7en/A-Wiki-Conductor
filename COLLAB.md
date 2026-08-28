@@ -35,12 +35,12 @@ These are shared coordination surfaces and must be changed by only one active wo
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
 | `WO-P1-098` / AHA-4 supervised Claude runner | GPT-5.6 Sol integrator | 2026-08-28 | Isolated `A-Wiki-Conductor-aha4-supervised`: Claude invocation -> existing supervised execution/dedup, narrow environment propagation, focused tests, SSoT. No connector-stability, installer, North-Star, live-provider, worker-lease mutation. |
-| `WO-P1-097` / connector CR-1 + CR-3 | separate GPT stability lane | 2026-08-28 | `A-Wiki-Conductor-tunnel-stability`: setup/instance tunnel-client upgrade + forensic scripts/tests. Treat its dirty worktree as independently owned; do not mutate from WO-P1-098. |
 | PR #108 / installer target ownership | release/installer lane | 2026-08-27 | `fix/v070-installer-target-ownership`; destructive installer safety scope remains separately owned. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
 
+- `WO-P1-097` / PR #122 connector CR-1 + CR-3: tunnel-client >=0.0.12 floor + forensic launcher hardening merged as `ceee9bb7aa361aef6d0ecfc210c25b564578d552`; WO-P1-096 still blocks v0.7.0 on CR-2/CR-4 + isolated E2E/soak.
 - `WO-P1-095` / PR #121 Claude durable backend: exact head `69fffe7aba40f74ac23ea7c04f9b875c76d7f030` passed GPT re-audit + 3-OS CI run `33164201872` and merged as `0e9b93a7c08cb7b284f2234af61ec6a96b16a2ea`.
 - `WO-P1-094` / PR #119 durable graph-dispatch core: final head `70e80c1d958b08137bf5c70a44cca369ac4aadac` passed Windows/Ubuntu/macOS CI run `33159443742` including Windows packaging/frozen smoke and merged as `5cc417c92450eba796fa9af1cf3da037663b1eea`.
 - PR #104 / GE-6 deterministic scheduler: exact head `694b8dee053e48d805596b527525cada875848a4` passed GPT re-audit + 3-OS CI and merged as `023c7b65026b0ff536cd1d802d6010e381a4447a`; worktree/local/remote branch removed after ancestry proof.

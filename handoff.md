@@ -11,7 +11,7 @@ Finish the real process boundary for the Sunday Family multi-model harness by ad
 - Repository: `aase7en/A-Wiki-Conductor`
 - Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-supervised`
 - Branch: `feat/wo-p1-098-aha4-supervised-claude-runner`
-- Base/current main at claim: `0e9b93a7c08cb7b284f2234af61ec6a96b16a2ea`
+- Branch base: `0e9b93a7c08cb7b284f2234af61ec6a96b16a2ea`; reconciled current `origin/main@ceee9bb7aa361aef6d0ecfc210c25b564578d552`
 - Work order: `docs/work-orders/WO-P1-098-aha4-supervised-claude-runner.md`
 - Shared root remains protected/read-only.
 
@@ -38,11 +38,11 @@ Implemented seams at this checkpoint:
 - production builder binds durable execution identity plus `runtime:claude-code:<digest>` derived only from opaque endpoint/credential refs; source-ref drift fails before resolver/launch;
 - canonical execution fingerprint excludes resolved environment values; duplicate attach/reuse remains owned by `DuplicateExecutionGuard`.
 
-Local evidence: runner/builder **11 passed**; focused Claude/provider/native/supervisor/dedup/job regression **150 passed**; compileall, diff-check, and bounded secret-pattern scan PASS.
+Local evidence: runner/builder **11 passed**; post-reconcile Claude/provider/native/supervisor/dedup/job/graph regression **241 passed**; compileall, diff-check, and bounded secret-pattern scan PASS.
 
 ## Protected Parallel Work
 
-- WO-P1-097 connector CR-1/CR-3: independently dirty `A-Wiki-Conductor-tunnel-stability`; do not touch.
+- WO-P1-097 CR-1/CR-3 merged via PR #122 as `ceee9bb`; remaining connector CR-2/CR-4 + isolated E2E/soak stay under WO-P1-096 release gate.
 - PR #108 installer target ownership: do not touch.
 - North Star branch: do not touch.
 - live connector fleet / tunnel-client binary: do not mutate.
@@ -50,12 +50,10 @@ Local evidence: runner/builder **11 passed**; focused Claude/provider/native/sup
 
 ## Next Safe Action
 
-1. commit the locally green WO-P1-098 implementation and SSoT checkpoint;
-2. fetch/reconcile current `origin/main`; if it moved, merge safely and rerun focused gates;
-3. push Draft PR and audit exact remote diff/scope;
-4. require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke;
-5. merge only after green CI + exact-head review;
-6. then open the smallest per-job production assembly slice joining the accepted durable Claude backend to `build_supervised_claude_code_runner` without provider/gateway/live-secret mutation.
+1. push Draft PR and audit exact remote diff/scope;
+2. require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke;
+3. merge only after green CI + exact-head review;
+4. then open the smallest per-job production assembly slice joining the accepted durable Claude backend to `build_supervised_claude_code_runner` without provider/gateway/live-secret mutation.
 
 ## Safety
 

@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 Owner: GPT-5.6 Sol integrator
-Status: REVIEW_READY — LOCAL GREEN / PR PENDING
+Status: REVIEW_READY — RECONCILED / PR PENDING
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-supervised`
 Branch: `feat/wo-p1-098-aha4-supervised-claude-runner`
@@ -91,7 +91,7 @@ TDD evidence:
 - new runner import RED: module absent -> GREEN;
 - reference-drift RED proved an unpinned binding could reach launch -> GREEN after builder pinning;
 - runner/builder suite: **11 passed**;
-- focused Claude/provider/native/supervisor/dedup/job regression: **150 passed**;
+- post-reconcile Claude/provider/native/supervisor/dedup/job/graph regression: **241 passed**;
 - compileall PASS; diff-check PASS; bounded secret-pattern scan PASS.
 
-Next: commit implementation, push Draft PR, audit exact remote diff, require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke before merge.
+Reconciled `origin/main@ceee9bb7aa361aef6d0ecfc210c25b564578d552` (PR #122 / WO-P1-097) with zero scope overlap. Next: push Draft PR, audit exact remote diff, require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke before merge.

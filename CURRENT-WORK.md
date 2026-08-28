@@ -12,11 +12,11 @@ Current exact lane:
 - repository: `aase7en/A-Wiki-Conductor`;
 - worktree: `A:\GitHub\A-Wiki-Conductor-aha4-supervised`;
 - branch: `feat/wo-p1-098-aha4-supervised-claude-runner`;
-- accepted base/current main at claim: `0e9b93a7c08cb7b284f2234af61ec6a96b16a2ea`;
+- accepted branch base: `0e9b93a7c08cb7b284f2234af61ec6a96b16a2ea`; reconciled current `origin/main@ceee9bb7aa361aef6d0ecfc210c25b564578d552`;
 - PR #121 AHA-4 durable Claude backend passed exact-head 3-OS CI run `33164201872` and merged as `0e9b93a`;
-- WO-P1-096 connector runtime resilience remains an independent P0 v0.7.0 release gate; WO-P1-097 is an independently owned dirty implementation lane and must not be touched here.
+- WO-P1-096 connector runtime resilience remains an independent P0 v0.7.0 release gate; WO-P1-097 CR-1/CR-3 merged through PR #122 as `ceee9bb`, while CR-2/CR-4 and isolated E2E/soak remain open release-gate work.
 
-Protected parallel work remains PR #108 installer safety, North Star, and WO-P1-097 connector stability. Shared `A:\GitHub\A-Wiki-Conductor` remains protected/read-only.
+Protected parallel work remains PR #108 installer safety and North Star. Shared `A:\GitHub\A-Wiki-Conductor` remains protected/read-only.
 
 ## Active work order
 
@@ -27,9 +27,9 @@ Protected parallel work remains PR #108 installer safety, North Star, and WO-P1-
 1. supervised environment propagation is implemented and GREEN; values reach the exact-owned process only after scope validation and are masked from launch/spec repr;
 2. `SupervisedClaudeCodeRunner` is implemented: opaque refs resolve only at execution boundary, exact Claude env keys are enforced, secret values are redacted from returned streams, and no bare subprocess path was added;
 3. production builder binds durable job/work-order/project/worker/branch/HEAD identity plus a non-secret runtime-profile digest derived from opaque endpoint/credential refs; invocation ref drift fails before resolution/launch;
-4. deterministic evidence: runner/builder suite **11 passed**; focused Claude/provider/native/supervisor/dedup/job regression **150 passed**; compileall/diff/secret-pattern gates PASS;
-5. next = commit/push Draft PR -> exact remote diff audit -> exact-head Windows/Ubuntu/macOS CI -> merge only if green;
-6. after merge, wire the accepted durable Claude backend to this per-job supervised runner assembly; connector P0 remains independently owned in WO-P1-097 and v0.7.0 stable stays blocked by WO-P1-096 acceptance.
+4. deterministic evidence: runner/builder suite **11 passed**; post-reconcile Claude/provider/native/supervisor/dedup/job/graph regression **241 passed**; compileall/diff/secret-pattern gates PASS;
+5. next = push Draft PR -> exact remote diff audit -> exact-head Windows/Ubuntu/macOS CI -> merge only if green;
+6. after merge, wire the accepted durable Claude backend to this per-job supervised runner assembly; connector CR-1/CR-3 is merged; v0.7.0 stable remains blocked by WO-P1-096 CR-2/CR-4 plus isolated E2E/soak acceptance.
 
 ## Source-of-truth rule
 
