@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-28 (GPT-5.6 Sol — AHA-3 complete / AHA-4 gate)
+Last updated: 2026-08-28 (GPT-5.6 Sol — GE-6 code accepted / CI repair merged / reconcile gate)
 
 ## Current phase
 
@@ -12,7 +12,7 @@ Current exact lane:
 - repository: `aase7en/A-Wiki-Conductor`;
 - docs transition worktree: `A:\\GitHub\\A-Wiki-Conductor-harness-transition`;
 - branch: `docs/wo-p1-092-harness-phase-transition`;
-- accepted main: `origin/main@ab28dc7ea428e3253ce20cc155fb7b92e7719a8a`;
+- accepted main: `origin/main@ad1062827f1b177cde8af3f01e71da02ee0d2727` (PR #118 Windows Tk CI repair merged);
 - AHA-0 PR #110 merged `6487cb2`;
 - priority plan PR #111 merged `457f974`;
 - AHA-1 PR #112 merged `c3ca84c`;
@@ -30,8 +30,8 @@ Protected parallel work remains PR #104 GE-6, PR #108 installer safety, and the 
 
 1. AHA-3 fake-runner adapter is merged/accepted; its old worktree and branch were removed after clean ancestry proof;
 2. live read-only Claude/provider smoke remains NOT READY: the installed control DB currently has no `provider_*` tables, repository assembly does not yet reference `SQLiteProviderConfigStore`, and the configured loopback gateway on port 3456 has no listener; no live call/start or user-DB mutation is authorized here;
-3. GE-6 PR #104 owner reconciled to current `origin/main@ab28dc7` and pushed exact head `383ff1a`; GPT re-audit verified the original four blockers fixed, D6-CONFLICT still single-seam, local directive graph suite **102 passed in 1.67s**, and CI run `33144309315` green on Windows/macOS/Ubuntu including packaging/frozen smoke;
-4. GE-6 still has two accepted ADR GE-0006 blockers on `383ff1a`: explicit `worker:<id>` binding is not authoritative (deterministic repro assigns bound `worker:w-z` node to lexical `w-a`), and human-approval wait / typed blocked reason is not representable (`NodeEligibility` has only gate/provider/rate fields and `BlockedReason.reason` is plain `str`). GPT posted follow-up PR review `5048240548`; owner must repair test-first before final exact-head audit/merge;
+3. GE-6 PR #104 exact head `70f4e85e66887d44b9c567619ab343eebb5574c0` has passed GPT final code/spec re-audit: explicit worker binding + human-approval/typed reasons are fixed, D6-CONFLICT remains single-seam, independent directive graph suite **114 passed in 1.59s**, compileall/diff-check PASS, and independent repro `GE6_INDEPENDENT_REPRO_OK`;
+4. GE-6 merge is now blocked only on fresh current-main CI: repeated hosted-Windows Tk `0x80000003` at `test_interactive_logo.py` was classified after three repeats and repaired in PR #118. PR #118 exact head `dfcaa4c2ff52305700ee4aaa6b3a42ee5a3011aa` passed Windows/macOS/Ubuntu CI including Windows build/portable smoke and merged as `ad1062827f1b177cde8af3f01e71da02ee0d2727`. PR #104 owner must reconcile `feat/ge-6-scheduler` to this current main, push a new head, then GPT will require fresh exact-head 3-OS CI before merge;
 5. once GE-6 is accepted/merged, start AHA-4 by REUSE+WRAP of GE-7 + existing durable job control; do not create a second scheduler/lifecycle/store;
 6. after AHA-4, implement AHA-4A atomic worker lease + eligibility/fallback, then AHA-4B heartbeat/stale-owner recovery;
 7. then prove AHA-5 GPT↔GLM review/repair and AHA-6 parallel READY tasks without manual prompt copying.
