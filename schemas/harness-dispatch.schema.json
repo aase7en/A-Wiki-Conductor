@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a-conductor:schema:harness-dispatch:1.0.0",
+  "title": "A-Conductor Harness Dispatch",
+  "description": "Bounded internal dispatch reference for a pre-authorized task contract; not a raw prompt/command payload.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "execution_id",
+    "task_contract_ref",
+    "project_id",
+    "worktree_path",
+    "expected_head",
+    "provider_id",
+    "model_id",
+    "harness_strategy",
+    "mutation_intent",
+    "timeout_seconds",
+    "max_output_bytes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "execution_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "task_contract_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "worktree_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "expected_branch": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 256
+    },
+    "expected_head": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{7,64}$"
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "model_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "harness_strategy": {
+      "enum": [
+        "CLAUDE_CODE_CLI",
+        "DIRECT_API",
+        "LOCAL_CLI"
+      ]
+    },
+    "effort_level": {
+      "enum": [
+        "LOW",
+        "HIGH",
+        "MAX",
+        "DEFAULT"
+      ]
+    },
+    "mutation_intent": {
+      "enum": [
+        "READ_ONLY",
+        "PROJECT_MUTATION"
+      ]
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 14400
+    },
+    "max_output_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8388608
+    },
+    "evidence_destination_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 512
+    }
+  }
+}

@@ -314,6 +314,11 @@ STRINGS["tip.worker.registry"] = {
     "zh-CN": "高级：逻辑 Worker Registry 用于调度器/CRUD，不代表实时连接状态；仅在需要管理内部 Worker 时展开。",
     "en": "Advanced: the logical Worker Registry is for scheduler/CRUD state, not live connection health. Expand it only when managing internal workers.",
 }
+STRINGS["tip.project.disk"] = {
+    "th": "จุดสีขาวเทาเป็นเพียงสเกลขนาดแบบลอการิทึมโดยประมาณ ไม่ใช่เปอร์เซ็นต์พื้นที่ดิสก์ที่ใช้; ตัวเลข PROJECT DISK คือค่าหลักที่เชื่อถือได้",
+    "zh-CN": "灰白粒子仅表示近似的对数级大小，不是磁盘已用百分比；PROJECT DISK 的精确数字才是权威值。",
+    "en": "The monochrome dots show relative logarithmic size only, not percent disk used. The exact PROJECT DISK number is authoritative.",
+}
 STRINGS["confirm.replace.assignment"] = {
     "th": "Worker นี้มีโปรเจกต์อยู่แล้ว\n\nCurrent: {current}\nNew: {new}\n\nแทนที่ assignment เดิมหรือไม่?",
     "zh-CN": "此 Worker 已分配项目。\n\nCurrent: {current}\nNew: {new}\n\n是否替换现有分配？",

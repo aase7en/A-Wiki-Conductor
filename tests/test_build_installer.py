@@ -87,6 +87,8 @@ def test_portable_build_is_clean_and_bundles_brand_runtime_inputs(tmp_path: Path
     assert "--clean" in args
     assert args[args.index("--name") + 1] == APP_NAME
     assert f"{REPO_ROOT / 'assets'};assets" in args
+    collected = [args[index + 1] for index, value in enumerate(args[:-1]) if value == "--collect-all"]
+    assert collected == ["tkinterweb", "tkinterweb_tkhtml", "tkinterweb_tkhtml_extras"]
     assert args[-1] == str(REPO_ROOT / "entry.py")
 
 
@@ -135,6 +137,10 @@ def test_third_party_notices_exists_and_credits_serena() -> None:
     assert "oraios/serena" in content
     assert "MIT License" in content
     assert "Permission is hereby granted" in content  # full MIT text, not a link
+    assert "TkinterWeb" in content
+    assert "Andrew Clarke" in content
+    assert "Python-Markdown" in content
+    assert "BSD 3-Clause License" in content
 
 
 def test_setup_exe_name_derives_from_display_name(build_installer) -> None:
@@ -280,6 +286,11 @@ def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
         "PIL/_imaging",
         "tcl86t.dll",
         "tk86t.dll",
+        "tkinterweb",
+        "tkinterweb_tkhtml",
+        "tkinterweb_tkhtml_extras",
+        "markdown",
+        "tests/test_guide_html_ui.py",
         "payload/installer-branding.json",
         "SETUP_ARCHIVE_UNEXPECTED_ENTRY",
         "Start-Process",

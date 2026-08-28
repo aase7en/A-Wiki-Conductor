@@ -714,6 +714,8 @@ class AConductorDesktopApp:
         background_executor: Executor | None = None,
         disk_executor: Executor | None = None,
         guide_opener: Callable[[Path], None] | None = None,
+        guide_html_frame_factory: Callable | None = None,
+        guide_url_opener: Callable[[str], object] | None = None,
     ) -> None:
         self.root = root
         self.service = service
@@ -721,6 +723,8 @@ class AConductorDesktopApp:
         self._directory_picker = directory_picker or filedialog.askdirectory
         self._error_handler = error_handler or self._show_error
         self._guide_opener = guide_opener
+        self._guide_html_frame_factory = guide_html_frame_factory
+        self._guide_url_opener = guide_url_opener or webbrowser.open
         self._background_executor = background_executor or ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="a-conductor-ui"
         )
@@ -1197,8 +1201,23 @@ class AConductorDesktopApp:
         )
         self.overview_connectors_value.configure(text="0 / 0")
         state_caption, self.overview_state_value = _overview_metric(3, "CONTROLLER")
-        # WO-P1-070: project disk usage from the selected project folder
+        # WO-P1-070/073: exact project disk size + bounded visual magnitude cue.
         disk_caption, self.overview_disk_value = _overview_metric(4, "PROJECT DISK")
+        self._project_disk_particles = tk.Canvas(
+            self.overview_disk_value.master,
+            width=98,
+            height=16,
+            bg=self.theme.panel,
+            bd=0,
+            highlightthickness=0,
+        )
+        self._project_disk_particles.pack(side="left", anchor="w", padx=(7, 0))
+        _attach_tip(
+            self._project_disk_particles,
+            lambda: tr("tip.project.disk"),
+            self.theme,
+        )
+        self._draw_project_disk_particles("—")
         self._make_responsive_metric_grid(
             metrics,
             tuple(
@@ -2064,12 +2083,12 @@ class AConductorDesktopApp:
         project_id = self.selected_project_id()
         if project_id is None:
             self._cancel_project_disk_scan()
-            disk_label.configure(text="—")
+            self._set_project_disk_display("—")
             return
         root_path = self._project_paths.get(project_id)
         if not root_path:
             self._cancel_project_disk_scan()
-            disk_label.configure(text="—")
+            self._set_project_disk_display("—")
             return
 
         normalized = os.path.normcase(os.path.abspath(root_path))
@@ -2078,7 +2097,7 @@ class AConductorDesktopApp:
             if self._project_disk_request_path != normalized:
                 self._cancel_project_disk_scan()
             self._project_disk_request_path = normalized
-            disk_label.configure(text=cached)
+            self._set_project_disk_display(cached)
             return
 
         current = self._project_disk_future
@@ -2087,7 +2106,7 @@ class AConductorDesktopApp:
             # Keep the same request alive so a selection/refresh event cannot
             # cancel the just-finished result and start a duplicate scan.
             if not current.done():
-                disk_label.configure(text="…")
+                self._set_project_disk_display("…")
             return
 
         self._cancel_project_disk_scan()
@@ -2096,7 +2115,7 @@ class AConductorDesktopApp:
         cancel_event = Event()
         self._project_disk_cancel_event = cancel_event
         self._project_disk_request_path = normalized
-        disk_label.configure(text="…")
+        self._set_project_disk_display("…")
 
         from .folder_size import project_disk_display
 
@@ -2114,6 +2133,48 @@ class AConductorDesktopApp:
             normalized,
             cancel_event,
         )
+
+    def _set_project_disk_display(self, value: str) -> None:
+        disk_label = getattr(self, "overview_disk_value", None)
+        if disk_label is not None:
+            disk_label.configure(text=value)
+        self._draw_project_disk_particles(value)
+
+    def _draw_project_disk_particles(self, display_value: str) -> None:
+        canvas = getattr(self, "_project_disk_particles", None)
+        if canvas is None:
+            return
+        try:
+            if not canvas.winfo_exists():
+                return
+            from .folder_size import disk_particle_levels
+            levels = disk_particle_levels(display_value)
+            canvas.delete("disk-particle")
+
+            def _rgb(value: str) -> tuple[int, int, int]:
+                value = value.lstrip("#")
+                if len(value) != 6:
+                    raise ValueError(value)
+                return tuple(int(value[index:index + 2], 16) for index in (0, 2, 4))
+
+            low = _rgb(self.theme.muted)
+            high = _rgb(self.theme.foreground)
+            for index, level in enumerate(levels[:24]):
+                x = 2 + index * 4
+                if level <= 0:
+                    fill = self.theme.border
+                else:
+                    rgb = tuple(
+                        round(lo + (hi - lo) * max(0.0, min(1.0, level)))
+                        for lo, hi in zip(low, high)
+                    )
+                    fill = "#{:02x}{:02x}{:02x}".format(*rgb)
+                canvas.create_oval(
+                    x, 6, x + 2, 8,
+                    fill=fill, outline="", tags=("disk-particle",),
+                )
+        except (tk.TclError, ValueError):
+            return
 
     def _cancel_project_disk_scan(self) -> None:
         cancel_event = self._project_disk_cancel_event
@@ -2166,10 +2227,10 @@ class AConductorDesktopApp:
         if disk_label is None:
             return
         if result is None:
-            disk_label.configure(text="—")
+            self._set_project_disk_display("—")
             return
         self._project_disk_cache[normalized_path] = result
-        disk_label.configure(text=result)
+        self._set_project_disk_display(result)
 
     def _refresh_memory_status(self) -> None:
         """Read-only memory-presence line for the selected project (WO-P1-057).
@@ -3554,13 +3615,19 @@ class AConductorDesktopApp:
     def _on_palette_shortcut(self, _event=None):
         return None
 
+    def _open_guide_web_link(self, url: str) -> None:
+        candidate = str(url).strip()
+        if not candidate.lower().startswith(("http://", "https://")):
+            return
+        self._guide_url_opener(candidate)
+
     def _open_guide_link(self, widget, index: str) -> None:
         for tag in widget.tag_names(index):
             if tag == "link":
                 start = widget.tag_prevrange("link", index + "+1c")
                 if start:
                     url = widget.get(start[0], start[1])
-                    webbrowser.open(url)
+                    self._open_guide_web_link(url)
                     return
 
     def open_preferences(self) -> tk.Toplevel | None:
@@ -3756,34 +3823,27 @@ class AConductorDesktopApp:
             return
         self.log_activity(f"Settings     supervised={'ON' if var.get() else 'OFF'}")
 
-    def open_guide(self) -> None:
+    def open_guide(self) -> tk.Toplevel | None:
         path = find_user_guide_path()
         if path is None:
             self._handle_error("GUIDE_NOT_FOUND")
-            return
+            return None
         try:
             if self._guide_opener is not None:
                 self._guide_opener(path)
+                self.log_activity("Guide        opened external")
                 return None
-            return self._show_guide_window(path)
+            window = self._show_guide_window(path)
+            self.log_activity("Guide        opened")
+            return window
         except Exception:
             self._handle_error("GUIDE_OPEN_FAILED")
             return None
-        self.log_activity("Guide        opened")
 
-    def _show_guide_window(self, path: Path) -> tk.Toplevel:
-        existing = getattr(self, "_guide_dialog", None)
-        if existing is not None and existing.winfo_exists():
-            existing.lift()
-            existing.focus_force()
-            return existing
-        window = tk.Toplevel(self.root)
-        self._guide_dialog = window
-        window.title(APP_NAME + " — " + tr("win.guide"))
-        window.configure(bg=self.theme.background)
-        window.geometry("900x640")
+    def _show_guide_markdown_fallback(self, parent, content: str) -> tk.Text:
+        """Render the legacy read-only Markdown view when rich HTML is unavailable."""
         text = tk.Text(
-            window,
+            parent,
             bg=self.theme.background,
             fg=self.theme.foreground,
             insertbackground=self.theme.accent,
@@ -3794,15 +3854,12 @@ class AConductorDesktopApp:
             padx=14,
             pady=10,
         )
-        scroll = ttk.Scrollbar(window, orient="vertical", command=text.yview)
+        scroll = ttk.Scrollbar(parent, orient="vertical", command=text.yview)
         text.configure(yscrollcommand=scroll.set)
-        content = path.read_text(encoding="utf-8", errors="replace")
         text.insert("1.0", content)
-        text.tag_configure(
-            "link", foreground=self.theme.accent, underline=True,
-        )
-        for start, end in link_url_spans(content):
-            text.tag_add("link", f"1.0+{start}c", f"1.0+{end}c")
+        text.tag_configure("link", foreground=self.theme.accent, underline=True)
+        for link_start, link_end in link_url_spans(content):
+            text.tag_add("link", f"1.0+{link_start}c", f"1.0+{link_end}c")
         text.tag_bind(
             "link",
             "<Button-1>",
@@ -3813,16 +3870,115 @@ class AConductorDesktopApp:
         text.configure(state="disabled")
         text.grid(row=0, column=0, sticky="nsew")
         scroll.grid(row=0, column=1, sticky="ns")
+        parent.grid_rowconfigure(0, weight=1)
+        parent.grid_columnconfigure(0, weight=1)
+        return text
+
+    def _show_guide_window(self, path: Path) -> tk.Toplevel:
+        existing = getattr(self, "_guide_dialog", None)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.deiconify()
+                    existing.lift()
+                    existing.focus_force()
+                    return existing
+            except tk.TclError:
+                pass
+            self._guide_dialog = None
+
+        window = tk.Toplevel(self.root)
+        self._guide_dialog = window
+        window.title(APP_NAME + " — " + tr("win.guide"))
+        window.configure(bg=self.theme.background)
+        window.geometry("1020x700")
         window.grid_rowconfigure(0, weight=1)
         window.grid_columnconfigure(0, weight=1)
+
+        body = tk.Frame(window, bg=self.theme.background)
+        body.grid(row=0, column=0, sticky="nsew")
+        body.grid_rowconfigure(0, weight=1)
+        body.grid_columnconfigure(1, weight=1)
+
+        nav = tk.Frame(body, bg=self.theme.panel, width=155)
+        viewer = tk.Frame(body, bg=self.theme.background)
+        content = path.read_text(encoding="utf-8", errors="replace")
+
+        rich_frame = None
+        rich_ready = False
+        try:
+            from .guide_html import GUIDE_SECTION_KEYS, guide_section_labels, render_guide_html
+            from .i18n import get_language
+
+            factory = self._guide_html_frame_factory
+            if factory is None:
+                from tkinterweb import HtmlFrame
+                factory = HtmlFrame
+
+            rich_frame = factory(
+                viewer,
+                messages_enabled=False,
+                javascript_enabled=False,
+                images_enabled=False,
+                objects_enabled=False,
+                forms_enabled=False,
+                caches_enabled=False,
+                dark_theme_enabled=True,
+                on_link_click=self._open_guide_web_link,
+            )
+            rich_frame.grid(row=0, column=0, sticky="nsew")
+            viewer.grid_rowconfigure(0, weight=1)
+            viewer.grid_columnconfigure(0, weight=1)
+
+            language = get_language()
+            labels = guide_section_labels(language)
+
+            def render_section(section_key: str) -> None:
+                html_source = render_guide_html(
+                    content,
+                    section_key=section_key,
+                    language=language,
+                )
+                rich_frame.load_html(html_source)
+                self._guide_section_key = section_key
+
+            render_section("start")
+            nav.grid(row=0, column=0, sticky="nsw")
+            viewer.grid(row=0, column=1, sticky="nsew")
+            for row, section_key in enumerate(GUIDE_SECTION_KEYS):
+                self._button(
+                    nav,
+                    labels[section_key],
+                    lambda key=section_key: render_section(key),
+                ).grid(row=row, column=0, sticky="ew", padx=8, pady=(8 if row == 0 else 3, 0))
+            rich_ready = True
+            self._guide_html_frame = rich_frame
+        except Exception:
+            if rich_frame is not None:
+                try:
+                    rich_frame.destroy()
+                except Exception:
+                    pass
+            try:
+                nav.destroy()
+            except tk.TclError:
+                pass
+            body.grid_columnconfigure(0, weight=1)
+            viewer.grid(row=0, column=0, sticky="nsew")
+            self._show_guide_markdown_fallback(viewer, content)
+            self._guide_html_frame = None
+
         bar = tk.Frame(window, bg=self.theme.panel)
-        bar.grid(row=1, column=0, columnspan=2, sticky="ew")
-        self._button(bar, "เปิดไฟล์ภายนอก", lambda: _default_guide_opener(path)).grid(
+        bar.grid(row=1, column=0, sticky="ew")
+        self._button(bar, "Open File", lambda: _default_guide_opener(path)).grid(
             row=0, column=0, sticky="w", padx=10, pady=8
         )
-        self._button(bar, "ปิด", lambda: window.destroy() if window.winfo_exists() else None).grid(
-            row=0, column=1, sticky="w", pady=8
-        )
+        self._button(
+            bar,
+            "Close",
+            lambda: window.destroy() if window.winfo_exists() else None,
+        ).grid(row=0, column=1, sticky="w", pady=8)
+        self._guide_rich_ready = rich_ready
         return window
 
     def open_worker_config(self) -> tk.Toplevel | None:

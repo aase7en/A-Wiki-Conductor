@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a-conductor:schema:provider-observation:1.0.0",
+  "title": "A-Conductor Provider Observation",
+  "description": "Fresh evidence about provider health/capacity. Configuration alone never implies readiness.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provider_id",
+    "health",
+    "observed_at",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "health": {
+      "enum": [
+        "UNKNOWN",
+        "AVAILABLE",
+        "DEGRADED",
+        "UNAVAILABLE",
+        "AUTH_FAILED",
+        "RATE_LIMITED",
+        "QUOTA_EXHAUSTED"
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "provenance": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "latency_ms": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "quota": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "window_type",
+            "limit",
+            "used",
+            "remaining",
+            "reset_at",
+            "reset_in_seconds"
+          ],
+          "properties": {
+            "window_type": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "limit": {
+              "type": [
+                "integer",
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "used": {
+              "type": [
+                "integer",
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "remaining": {
+              "type": [
+                "integer",
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "reset_at": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "reset_in_seconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "unit": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 32
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

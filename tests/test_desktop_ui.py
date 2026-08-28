@@ -789,23 +789,32 @@ def test_second_brain_invalid_path_blocked(root) -> None:
 
 
 def test_guide_opens_in_app_window_by_default(root) -> None:
+    def failing_factory(master, **kwargs):
+        raise RuntimeError("renderer unavailable")
+
     app = AConductorDesktopApp(
-        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+        root,
+        service=FakeService(sample_snapshot()),
+        background_executor=ImmediateExecutor(),
+        guide_html_frame_factory=failing_factory,
     )
 
     window = app.open_guide()
 
     assert window is not None
     assert "คู่มือ" in window.title()
-    text_widget = None
-    for child in window.grid_slaves(row=0, column=0):
-        text_widget = child
-    assert isinstance(text_widget, tk.Text)
-    content = text_widget.get("1.0", "end")
+
+    def descendants(widget):
+        for child in widget.winfo_children():
+            yield child
+            yield from descendants(child)
+
+    text_widgets = [child for child in descendants(window) if isinstance(child, tk.Text)]
+    assert len(text_widgets) == 1
+    content = text_widgets[0].get("1.0", "end")
     assert "A-Sunday Conductor" in content
     assert "เริ่มต้น" in content or "คู่มือ" in content
     window.destroy()
-
 
 def test_all_primary_buttons_have_tooltips(root) -> None:
     app = AConductorDesktopApp(
@@ -1012,20 +1021,30 @@ def test_guide_viewer_marks_urls_as_links(root) -> None:
     assert (spans[0][1] - spans[0][0]) == len("https://oraios.github.io/serena/")
     assert spans[1][1] - spans[1][0] == len("https://a.b/c")
 
+    def failing_factory(master, **kwargs):
+        raise RuntimeError("renderer unavailable")
+
     app = AConductorDesktopApp(
-        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+        root,
+        service=FakeService(sample_snapshot()),
+        background_executor=ImmediateExecutor(),
+        guide_html_frame_factory=failing_factory,
     )
     window = app.open_guide()
     assert window is not None
-    text_widget = None
-    for child in window.grid_slaves(row=0, column=0):
-        text_widget = child
-    assert isinstance(text_widget, tk.Text)
+
+    def descendants(widget):
+        for child in widget.winfo_children():
+            yield child
+            yield from descendants(child)
+
+    text_widgets = [child for child in descendants(window) if isinstance(child, tk.Text)]
+    assert len(text_widgets) == 1
+    text_widget = text_widgets[0]
     content = text_widget.get("1.0", "end")
     assert "เชื่อมต่อ AI แต่ละค่าย" in content
     assert text_widget.tag_ranges("link")
     window.destroy()
-
 
 def test_error_popup_is_themed_and_teaches(root) -> None:
     from a_conductor.desktop_ui import ERROR_EXPLANATIONS
@@ -1364,3 +1383,24 @@ def test_execution_slots_show_live_serena_project(root, monkeypatch) -> None:
     root.update_idletasks()
     assert app._worker_registry_expanded is True
     assert app.worker_tree.winfo_manager() == "grid"
+
+
+def test_project_disk_particle_strip_keeps_exact_text_authoritative(root) -> None:
+    app = AConductorDesktopApp(
+        root, service=FakeService(sample_snapshot()), background_executor=ImmediateExecutor()
+    )
+    app._set_project_disk_display("1.0 GB")
+    root.update_idletasks()
+
+    assert app.overview_disk_value.cget("text") == "1.0 GB"
+    items = app._project_disk_particles.find_withtag("disk-particle")
+    assert len(items) == 24
+    fills = [app._project_disk_particles.itemcget(item, "fill") for item in items]
+    assert len(set(fills)) >= 3
+
+    app._set_project_disk_display("—")
+    root.update_idletasks()
+    dim_items = app._project_disk_particles.find_withtag("disk-particle")
+    assert len(dim_items) == 24
+    dim_fills = [app._project_disk_particles.itemcget(item, "fill") for item in dim_items]
+    assert set(dim_fills) == {app.theme.border}

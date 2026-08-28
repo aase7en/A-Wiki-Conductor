@@ -10,7 +10,6 @@ No scheduler or dispatch logic here — this module only *reports* conflicts.
 
 from __future__ import annotations
 
-import fnmatch
 from dataclasses import dataclass, field
 from typing import Tuple
 
@@ -45,26 +44,93 @@ def _parse_binding(node: TaskNode) -> dict[str, str]:
     return result
 
 
+def _tokenize_glob(pattern: str) -> tuple[str, ...]:
+    """Tokenize a glob into ``*`` / ``?`` / single-character tokens.
+
+    fnmatch character classes (``[...]``) are treated conservatively as a
+    single-character wildcard: for a write-conflict seam, over-detecting a
+    conflict is safe while under-detecting is the defect.
+    """
+    tokens: list[str] = []
+    i = 0
+    length = len(pattern)
+    while i < length:
+        char = pattern[i]
+        if char == "*":
+            tokens.append("*")
+            i += 1
+        elif char == "?":
+            tokens.append("?")
+            i += 1
+        elif char == "[":
+            j = i + 1
+            if j < length and pattern[j] in "!^":
+                j += 1
+            if j < length and pattern[j] == "]":
+                j += 1  # a leading ']' is a literal member, not the closer
+            while j < length and pattern[j] != "]":
+                j += 1
+            tokens.append("?")
+            i = j + 1 if j < length else length
+        else:
+            tokens.append(char)
+            i += 1
+    return tuple(tokens)
+
+
+def _globs_share_a_path(a: tuple[str, ...], b: tuple[str, ...]) -> bool:
+    """True when one concrete path can be matched by both token globs.
+
+    Deterministic glob-vs-glob intersection via memoized two-pointer
+    matching: a ``*`` may match empty, any run of the other side's
+    literal characters, or pair with the other side's ``*``/``?``.
+    """
+    memo: dict[tuple[int, int], bool] = {}
+
+    def visit(i: int, j: int) -> bool:
+        key = (i, j)
+        if key in memo:
+            return memo[key]
+        if i == len(a) and j == len(b):
+            return True
+        if i == len(a):
+            return all(token == "*" for token in b[j:])
+        if j == len(b):
+            return all(token == "*" for token in a[i:])
+        token_a = a[i]
+        token_b = b[j]
+        if token_a == "*" or token_b == "*":
+            # At least one wildcard: it may match empty (advance its side)
+            # or consume one matched character (advance the other side).
+            result = visit(i + 1, j) or visit(i, j + 1)
+        elif token_a == "?" or token_b == "?" or token_a == token_b:
+            result = visit(i + 1, j + 1)
+        else:
+            result = False
+        memo[key] = result
+        return result
+
+    return visit(0, 0)
+
+
 def paths_overlap(pattern: str, path: str) -> bool:
     """Authoritative glob-aware path overlap check (WO-GE-005A).
 
-    Handles ``**`` recursive globs by collapsing them to ``*`` for
-    fnmatch purposes. Both directions are checked (pattern vs path AND
-    path vs pattern) because either side may contain wildcards.
+    Deterministic glob-vs-glob intersection: True when some concrete
+    path is matched by BOTH expressions. ``**`` collapses to ``*``
+    (fnmatch has no path-segment awareness). Distinct literals that mere
+    share a prefix/suffix (``src/a.py`` vs ``src/a.py.bak``) do NOT
+    overlap; two wildcards whose match sets intersect (``src/*/a.py`` vs
+    ``src/x/*.py`` share ``src/x/a.py``) DO overlap.
 
     This is the single seam consumed by both GE-4 (analyze_conflicts)
     and GE-5 (compute_ready_set) — no second overlap algorithm allowed.
     """
     norm_pattern = pattern.replace("**/", "*").replace("**", "*")
     norm_path = path.replace("**/", "*").replace("**", "*")
-    if fnmatch.fnmatch(norm_path, norm_pattern):
-        return True
-    if fnmatch.fnmatch(norm_pattern, norm_path):
-        return True
-    # Direct substring check catches simple prefix overlaps
-    if norm_pattern in norm_path or norm_path in norm_pattern:
-        return True
-    return False
+    return _globs_share_a_path(
+        _tokenize_glob(norm_pattern), _tokenize_glob(norm_path)
+    )
 
 
 def write_sets_overlap(a_set: tuple[str, ...], b_set: tuple[str, ...]) -> bool:

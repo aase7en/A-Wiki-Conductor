@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from a_conductor.graph.analyze import write_sets_overlap
 from a_conductor.graph.domain import TaskNode, TaskNodeStatus
 from a_conductor.graph.graph import build_graph
 from a_conductor.graph.ready import compute_ready_set
@@ -99,3 +100,51 @@ def test_wildcard_conflicts_with_exact() -> None:
     )
     result = compute_ready_set(graph, {"r": TaskNodeStatus.DOING})
     assert "t" not in result.ready_ids
+
+
+# --- GE-005A follow-up: glob-vs-glob intersection + literal-suffix safety ----
+
+
+def test_glob_vs_glob_intersection_conflicts() -> None:
+    """`src/*/a.py` vs `src/x/*.py` share `src/x/a.py` → MUST conflict.
+
+    Old seam missed this: neither fnmatch direction fires and the two
+    strings are not substrings of each other.
+    """
+    assert write_sets_overlap(("src/*/a.py",), ("src/x/*.py",))
+    assert write_sets_overlap(("src/x/*.py",), ("src/*/a.py",))
+
+
+def test_literal_vs_suffixed_literal_does_not_conflict() -> None:
+    """`src/a.py` vs `src/a.py.bak` are distinct paths → must NOT conflict.
+
+    Old seam false-positived here via the substring check.
+    """
+    assert not write_sets_overlap(("src/a.py",), ("src/a.py.bak",))
+    assert not write_sets_overlap(("src/a.py.bak",), ("src/a.py",))
+
+
+def test_glob_vs_glob_running_blocks_todo_ready_set() -> None:
+    """ReadySet view of the glob-vs-glob intersection case."""
+    graph = build_graph(
+        [
+            _node("r", status=TaskNodeStatus.DOING, write_set=("src/*/a.py",)),
+            _node("t", write_set=("src/x/*.py",)),
+        ],
+        [],
+    )
+    result = compute_ready_set(graph, {"r": TaskNodeStatus.DOING})
+    assert "t" not in result.ready_ids
+
+
+def test_suffixed_literal_todo_stays_ready() -> None:
+    """ReadySet view of the literal-suffix non-conflict case."""
+    graph = build_graph(
+        [
+            _node("r", status=TaskNodeStatus.DOING, write_set=("src/a.py",)),
+            _node("t", write_set=("src/a.py.bak",)),
+        ],
+        [],
+    )
+    result = compute_ready_set(graph, {"r": TaskNodeStatus.DOING})
+    assert "t" in result.ready_ids

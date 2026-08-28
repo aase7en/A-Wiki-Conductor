@@ -1,30 +1,44 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-26 (GPT-5.6 Sol MAX — GE-6/7 design + v0.7.0 integration)
+Last updated: 2026-08-28 (GPT-5.6 Sol — AHA-2 provider configuration + observation)
 
 ## Current phase
 
-**v0.7.0 RELEASE INTEGRATION + Graph Engineering design.** The user-designated v0.7.0 release candidate remains pinned to `be8a45d384b4679ff5c93230d06cbfc17a060b48` (v0.7 UI fixes + GE-1a/1b through GE-4). Do not silently retarget that release to later `main` commits.
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — AHA-2.**
 
-Actual remote state has advanced beyond the release candidate:
-- `origin/main = 4956760765caab60ae8efe1a48d6edf807cdecce` after PR #96 (GE-5 ReadySet) merged green.
-- PRs #90–#95 are merged; GE-1a/1b, GE-2, GE-3, and GE-4 are complete on the v0.7.0 candidate line.
-- PR #96 GE-5 is merged, but GPT integrator review found a post-merge contract defect: ReadySet uses literal write-set equality while GE-4 is glob-aware. `src/**/*.py` vs `src/specific.py` can be incorrectly marked simultaneously safe.
+User outcome: give A-Sunday Conductor one goal; Conductor creates bounded task packets, selects an eligible model/harness, dispatches work, gathers evidence, reviews/repairs, and continues without manual prompt copy/paste.
 
-**GE-6/GE-7 design is accepted** in ADR GE-0006 and GE-0007 on branch `docs/ge-scheduler-dispatch-design`:
-- GE-6 = deterministic event-driven/re-entrant scheduling pass, bounded current policy `max_parallel=5`, capability/project/mutation-authority matching, and conflict closure against running + same-batch selections.
-- GE-7 = REUSE/WRAP existing durable `job_control.py`, SQLite job lifecycle, execution coordinator, supervised execution, and dedup; no second graph execution state machine/store.
-- A-Wiki remains bridge-only for gates/policy; its agent-claim TTL is not Conductor execution-reservation state.
+Current exact lane:
+- repository: `aase7en/A-Wiki-Conductor`;
+- worktree: `A:\\GitHub\\A-Wiki-Conductor-provider-config`;
+- branch: `feat/wo-p1-090-provider-config-observation`;
+- base: `origin/main@c3ca84c81d901ae844ee40780619a41b46307049`;
+- AHA-0 PR #110 merged `6487cb2`;
+- priority plan PR #111 merged `457f974`;
+- AHA-1 PR #112 merged `c3ca84c`;
+- CI repair PR #113 merged `e2de499`, with exact-main Windows/Ubuntu/macOS CI green.
 
-**Immediate blocking repair:** `WO-GE-005A-readyset-glob-conflict-repair.md`. GLM fixes GE-5 to reuse one authoritative GE-4 glob-overlap seam and merges green. Only then may GLM begin GE-6 production implementation from ADR GE-0006. GE-7 follows ADR GE-0007.
+Protected parallel work remains PR #104 GE-6, PR #108 installer safety, and the unique North Star branch. Do not overlap those scopes. Shared `A:\\GitHub\\A-Wiki-Conductor` remains protected/read-only.
 
-**Release boundary:** v0.7.0 packaging/installed acceptance must use exact candidate `be8a45d`, not current main `4956760`, so the published release does not absorb the known GE-5 defect or post-candidate design documents.
+## Active work order
 
-**A-Wiki HOLD remains in force.** Do not mutate `A:\GitHub\A-Wiki`. Known local caveat: ESET may transiently lock fresh PE/.ps1 files; use bounded retry only and never disable antivirus. Never bind tests to live fleet ports 18011–18015.
+`docs/work-orders/WO-P1-090-provider-config-observation.md`
+
+AHA-2 implements non-secret provider configuration, endpoint safety, opaque credential references, and fake/injected health+quota observation only. No live provider/Claude execution.
+
+## Immediate execution frontier
+
+1. TDD provider configuration/store/observation normalization;
+2. persist only safe metadata + credential references in the existing control SQLite database;
+3. prove stale/missing observations never become READY;
+4. open/merge AHA-2 after deterministic tests + CI;
+5. AHA-3: bounded non-interactive Claude Code adapter with fake runner first;
+6. live read-only harness smoke only after AHA-3 safety gates;
+7. AHA-4 durable dispatch stays blocked on accepted GE scheduler/dispatch seams.
 
 ## Source-of-truth rule
 
-Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub state → CURRENT-WORK.md → handoff.md → active work order → PROJECT-PLAN/contracts.
+Do **not** reconstruct task state from chat memory. Use actual repo/GitHub state → CURRENT-WORK.md → handoff.md → active work order → PROJECT-PLAN/contracts.
 
 ## Verified completed work (this session, main `2da3d01`)
 

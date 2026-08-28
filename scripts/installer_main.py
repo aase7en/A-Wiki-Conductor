@@ -19,6 +19,7 @@ shortcut, and an HKCU Add/Remove-Programs entry. No admin, no system paths.
 from __future__ import annotations
 
 import argparse
+import base64
 import importlib.util
 import json
 import os
@@ -125,7 +126,32 @@ def shortcut_paths() -> tuple[Path, Path]:
     return start_link, desktop
 
 
+def _registered_uninstall_command(target: Path, uninstaller: Path) -> str:
+    """Return a synchronous external wrapper for frozen Windows uninstall."""
+    target_q = str(target).replace("'", "''")
+    source_q = str(uninstaller).replace("'", "''")
+    script = (
+        "$ErrorActionPreference = 'Stop'; "
+        f"$target = '{target_q}'; $source = '{source_q}'; "
+        "$temp = Join-Path ([IO.Path]::GetTempPath()) "
+        "('A-Sunday-Conductor-Uninstall-' + [guid]::NewGuid().ToString('N') + '.exe'); "
+        "$rc = 1; try { "
+        "Copy-Item -LiteralPath $source -Destination $temp -Force; "
+        "& $temp --uninstall --target $target; $rc = $LASTEXITCODE "
+        "} catch { $rc = 1 } finally { "
+        "$removed = $false; for ($i = 0; $i -lt 100; $i++) { "
+        "try { Remove-Item -LiteralPath $temp -Force -ErrorAction Stop; $removed = $true; break } "
+        "catch { Start-Sleep -Milliseconds 100 } }; "
+        "if (-not $removed -and (Test-Path -LiteralPath $temp)) { $rc = 1 } }; exit $rc"
+    )
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    return subprocess.list2cmdline(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded]
+    )
+
+
 def write_registry(target: Path, uninstaller: Path) -> None:
+    uninstall_command = _registered_uninstall_command(target, uninstaller)
     size_kb = 0
     for file in target.rglob("*"):
         if file.is_file():
@@ -135,7 +161,7 @@ def write_registry(target: Path, uninstaller: Path) -> None:
         f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name DisplayName -Value '{APP_NAME}'; "
         f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name DisplayVersion -Value '{APP_VERSION}'; "
         f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name DisplayIcon -Value '{target / 'assets' / 'a-conductor.ico'}'; "
-        f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name UninstallString -Value '\"{uninstaller}\" --uninstall --target \"{target}\"'; "
+        f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name UninstallString -Value '{uninstall_command}'; "
         f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name InstallLocation -Value '{target}'; "
         f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name NoModify -Value 1; "
         f"Set-ItemProperty -Path 'HKCU:\\{REG_KEY}' -Name NoRepair -Value 1; "
@@ -149,6 +175,23 @@ def remove_registry() -> None:
     _run_ps(
         f"if (Test-Path -LiteralPath '{registry_path}') {{ "
         f"Remove-Item -LiteralPath '{registry_path}' -Force -ErrorAction Stop }}"
+    )
+
+
+def _path_is_within(path: Path, root: Path) -> bool:
+    path_text = os.path.normcase(os.path.abspath(path))
+    root_text = os.path.normcase(os.path.abspath(root))
+    try:
+        return os.path.commonpath([path_text, root_text]) == root_text
+    except ValueError:
+        return False
+
+
+def _frozen_uninstaller_runs_inside_target(target: Path) -> bool:
+    return (
+        os.name == "nt"
+        and getattr(sys, "frozen", False)
+        and _path_is_within(Path(sys.executable), target)
     )
 
 
@@ -260,6 +303,9 @@ def main(argv: list[str] | None = None) -> int:
 
     target = args.target or default_target()
     if args.uninstall:
+        if _frozen_uninstaller_runs_inside_target(target):
+            print("UNINSTALL_REQUIRES_REGISTERED_COMMAND")
+            return 4
         return do_uninstall(target)
     return do_install(target)
 
