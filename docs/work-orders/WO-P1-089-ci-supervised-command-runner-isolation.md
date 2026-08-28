@@ -23,6 +23,7 @@ Classification: `CI/ENVIRONMENT FAILURE`, recurring hosted-runner process-isolat
 
 `SAFE_TO_MUTATE = YES` only for:
 - `.github/workflows/ci.yml`;
+- `tests/test_supervised_command_runner.py` timeout/retry fixture only;
 - this work order.
 
 No open protected branch inspected (`#104`, `#108`, North Star, `#111`, `#112`) changes `.github/workflows/ci.yml`.
@@ -53,3 +54,22 @@ Merge only after the actual remote diff is audited and the exact PR head has gre
 - a long local remaining-core run outlived the transport call and later exited; its exit code was not recoverable, so it is not counted as PASS evidence and was not blindly retried.
 
 Next safe action: commit/push, open a Draft PR, inspect the remote diff, and require GitHub Windows CI to prove the isolated step plus remaining core suite and packaging path.
+
+## Checkpoint - PR #113 CI exposed a real timing assumption
+
+- First PR CI no longer crashed with `0x80000003`; the isolated suite produced a normal assertion failure instead.
+- Failure: the fixed two-second child completed before polling began on a slow hosted runner, so `timeout_seconds=1` returned a completed result rather than `timed_out=True`.
+- Root cause is the test fixture's wall-clock race, not timeout/attach product behavior.
+- Repair: hold the child on an explicit sentinel file; first call must time out while the child is provably still running, then the test releases the same child before the retry/attach call.
+- No assertion or production behavior is weakened.
+
+Next safe action: prove RED/old failure rationale by inspection, run the repaired test repeatedly plus related supervised suites, then push the exact repair and let PR CI verify on hosted Windows.
+
+## Checkpoint - deterministic timeout fixture verified
+
+- repaired timeout/retry scenario: 5 consecutive isolated runs passed (2.12-2.48s each);
+- full `tests/test_supervised_command_runner.py`: **6 passed in 3.63s**;
+- child remains live until an explicit sentinel is written, removing the fixed two-second startup race;
+- production source remains unchanged.
+
+Next safe action: commit/push the fixture repair and require PR #113 hosted-Windows CI to pass the standalone suite, remaining core suite, packaging and smoke gates.
