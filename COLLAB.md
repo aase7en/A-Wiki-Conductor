@@ -34,13 +34,14 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-090` / AHA-2 provider config + observation | GPT-5.6 Sol via RDC | 2026-08-28 | Isolated `A-Wiki-Conductor-provider-config`: new provider configuration/store + tests, and continuity hotspots only. No live provider/Claude execution, UI, scheduler, installer, or North Star mutation. |
+| `WO-P1-091` / AHA-3 Claude Code harness adapter | GPT-5.6 Sol via RDC | 2026-08-28 | Isolated `A-Wiki-Conductor-claude-harness`: injected fake-runner Claude Code adapter + tests, continuity hotspots, README/agent-harness roadmap, and worker-auto-fallback benchmark docs. No live provider/subprocess, UI, scheduler, installer, or North Star mutation. |
 | PR #104 / GE-6 | GLM 5.3 lane | 2026-08-26 | `feat/ge-6-scheduler` worktree/branch; scheduler/Graph scope remains separately owned. |
 | PR #108 / installer target ownership | release/installer lane | 2026-08-27 | `fix/v070-installer-target-ownership`; destructive installer safety scope remains separately owned. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
 
+- `WO-P1-090` / PR #114 AHA-2 provider configuration + observation: merged as `ca4cd98` on 2026-08-28 after exact-head Windows/Ubuntu/macOS CI green; clean worktree/local/remote branch removed after ancestry verification.
 - `WO-P1-087` / PR #111 priority plan: merged as `457f974` on 2026-08-28; worktree/branch removed after ancestry verification.
 - `WO-P1-088` / PR #112 AHA-1 provider/harness contracts: merged as `c3ca84c` on 2026-08-28; AHA-2 consumes this accepted contract.
 - `WO-P1-086` / PR #110 capability vocabulary C0: merged as `6487cb2` on 2026-08-28; clean feature worktree/local/remote branch removed after ancestry verification; accepted contract remains on `main`.
