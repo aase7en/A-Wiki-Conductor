@@ -8,11 +8,17 @@ credential implementation.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from threading import Lock
 from typing import Callable, Protocol
 
 from .control_center import ControlCenterService
+from .connector_recovery import (
+    ConnectorRecoveryCoordinator,
+    ConnectorRecoveryRecord,
+    ConnectorRecoveryState,
+)
 from .lifecycle import LifecycleAction
 from .lifecycle_assembly import build_local_lifecycle_coordinator
 from .lifecycle_coordinator import LifecycleCoordinator
@@ -59,6 +65,7 @@ class DesktopControlService:
         settings_store: SQLiteSerenaConfigStore | None = None,
         instances_root: str | Path = DEFAULT_INSTANCES_ROOT,
         instance_orchestrator: LocalInstanceOrchestrator | None = None,
+        connector_recovery: ConnectorRecoveryCoordinator | None = None,
     ) -> None:
         self.control_center = control_center
         self.lifecycle = lifecycle
@@ -66,8 +73,11 @@ class DesktopControlService:
         self.settings_store = settings_store
         self.instances_root = instances_root
         self._instance_orchestrator = instance_orchestrator
+        self._connector_recovery = connector_recovery
         self._pending_instance_starts: set[str] = set()
         self._pending_instance_starts_lock = Lock()
+        self._connector_intent_locks_guard = Lock()
+        self._connector_intent_locks: dict[str, object] = {}
 
     @classmethod
     def open(
@@ -424,12 +434,26 @@ class DesktopControlService:
     def instance_states_cancellable(
         self, *, cancel_check: Callable[[], bool]
     ) -> tuple[tuple[LocalInstance, InstanceHealthState], ...]:
-        """Read connector states while allowing app shutdown between probes."""
+        """Read connector states and reconcile recovery on the existing health loop."""
         states: list[tuple[LocalInstance, InstanceHealthState]] = []
         for instance in self.instances():
             if cancel_check():
                 break
-            states.append((instance, instance_health_state(instance)))
+            health = instance_health_state(instance)
+            if cancel_check():
+                break
+            if self.settings_store is not None:
+                record = self.reconcile_instance_recovery(
+                    instance.name, health, cancel_check=cancel_check
+                )
+                if cancel_check():
+                    break
+                if (
+                    health is InstanceHealthState.STOPPED
+                    and record.state is ConnectorRecoveryState.READY
+                ):
+                    health = InstanceHealthState.READY
+            states.append((instance, health))
         return tuple(states)
 
     def _orchestrator(self) -> LocalInstanceOrchestrator:
@@ -439,6 +463,54 @@ class DesktopControlService:
                 brain_settings_provider=self._global_brain_provider,
             )
         return self._instance_orchestrator
+
+    def _connector_intent_lock(self, instance_name: str):
+        name = instance_name.strip()
+        with self._connector_intent_locks_guard:
+            lock = self._connector_intent_locks.get(name)
+            if lock is None:
+                lock = Lock()
+                self._connector_intent_locks[name] = lock
+            return lock
+
+    def _recovery_orchestrator(self) -> ConnectorRecoveryCoordinator:
+        if self._connector_recovery is None:
+            store = self._require_settings_store()
+            self._connector_recovery = ConnectorRecoveryCoordinator(
+                store=store,
+                autostart_check=store.get_instance_autostart,
+                start_instance=self._start_instance_for_recovery,
+                clock_fn=time.time,
+            )
+        return self._connector_recovery
+
+    def _start_instance_for_recovery(
+        self, instance_name: str, *, cancel_check: Callable[[], bool] | None = None
+    ) -> InstanceOrchestrationOutcome:
+        target = next(
+            (item for item in self.instances() if item.name == instance_name), None
+        )
+        if target is None:
+            raise SerenaConfigStoreError("INSTANCE_NOT_FOUND")
+        if cancel_check is None:
+            return self._orchestrator().start(target)
+        return self._orchestrator().start(target, cancel_check=cancel_check)
+
+    def reconcile_instance_recovery(
+        self,
+        instance_name: str,
+        health: InstanceHealthState,
+        *,
+        reason_code: str = "UNEXPECTED_STOPPED",
+        cancel_check: Callable[[], bool] | None = None,
+    ) -> ConnectorRecoveryRecord:
+        with self._connector_intent_lock(instance_name):
+            return self._recovery_orchestrator().observe(
+                instance_name,
+                health,
+                reason_code=reason_code,
+                cancel_check=cancel_check,
+            )
 
     def _global_brain_provider(self):
         store = self.settings_store
@@ -461,10 +533,15 @@ class DesktopControlService:
         )
         if target is None:
             raise SerenaConfigStoreError("INSTANCE_NOT_FOUND")
-        orchestrator = self._orchestrator()
-        if action == "start":
-            return orchestrator.start(target)
-        return orchestrator.stop(target)
+        with self._connector_intent_lock(instance_name):
+            orchestrator = self._orchestrator()
+            if action == "start":
+                if self.settings_store is not None:
+                    self._recovery_orchestrator().manual_start(instance_name)
+                return orchestrator.start(target)
+            if self.settings_store is not None:
+                self._recovery_orchestrator().suppress(instance_name)
+            return orchestrator.stop(target)
 
     def instance_action_cancellable(
         self,
@@ -483,27 +560,32 @@ class DesktopControlService:
         )
         if target is None:
             raise SerenaConfigStoreError("INSTANCE_NOT_FOUND")
-        orchestrator = self._orchestrator()
-        if action == "start":
-            with self._pending_instance_starts_lock:
-                self._pending_instance_starts.add(instance_name)
-            keep_pending = False
-            try:
-                outcome = orchestrator.start(target, cancel_check=cancel_check)
-                keep_pending = (
-                    outcome.result_code
-                    in {
-                        InstanceResultCode.START_CANCELLED,
-                        InstanceResultCode.STARTED_NOT_READY,
-                    }
-                    and outcome.process_launched
-                )
-                return outcome
-            finally:
-                if not keep_pending:
-                    with self._pending_instance_starts_lock:
-                        self._pending_instance_starts.discard(instance_name)
-        return orchestrator.stop(target)
+        with self._connector_intent_lock(instance_name):
+            orchestrator = self._orchestrator()
+            if action == "start":
+                if self.settings_store is not None:
+                    self._recovery_orchestrator().manual_start(instance_name)
+                with self._pending_instance_starts_lock:
+                    self._pending_instance_starts.add(instance_name)
+                keep_pending = False
+                try:
+                    outcome = orchestrator.start(target, cancel_check=cancel_check)
+                    keep_pending = (
+                        outcome.result_code
+                        in {
+                            InstanceResultCode.START_CANCELLED,
+                            InstanceResultCode.STARTED_NOT_READY,
+                        }
+                        and outcome.process_launched
+                    )
+                    return outcome
+                finally:
+                    if not keep_pending:
+                        with self._pending_instance_starts_lock:
+                            self._pending_instance_starts.discard(instance_name)
+            if self.settings_store is not None:
+                self._recovery_orchestrator().suppress(instance_name)
+            return orchestrator.stop(target)
 
     def set_instance_autostart(self, instance_name: str, enabled: bool) -> None:
         self._require_settings_store().set_instance_autostart(instance_name, enabled)
