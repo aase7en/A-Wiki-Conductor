@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 Owner: GPT-5.6 Sol (documentation/architecture capture only in this branch)
-Status: PLANNED / P0 RELEASE BLOCKER
+Status: ACTIVE / P0 RELEASE BLOCKER
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-connector-resilience`
 Branch: `docs/wo-p1-096-connector-runtime-resilience`
@@ -174,3 +174,28 @@ Forbidden in this branch:
 ## Next safe implementation action
 
 After this documentation branch is integrated and active coordination surfaces are reconciled, create a fresh bounded implementation WO from then-current remote main for CR-1 + CR-3 first: deterministic reproducer, exit-code/log preservation, and request-TTL isolation. Add CR-2 supervisor only against the accepted lifecycle seam so recovery does not mask or duplicate the causal repair.
+
+## Evidence refresh - 2026-08-28 after WO-P1-097 / PR #125 review
+
+This checkpoint supersedes the earlier root-cause unknowns where newer upstream behavior had not yet been verified.
+
+### Closed or source-complete
+
+- CR-1 causal source mitigation: PR #122 merged as `ceee9bb7aa361aef6d0ecfc210c25b564578d552`; A-Sunday now rejects known-bad tunnel-client 0.0.11 and requires `>=0.0.12`.
+- Upstream `openai/tunnel-client` issue #34 documents the same 0.0.11 chain observed here: response deadline -> shared stdio closed -> `file already closed` -> process-wide shutdown. Current protocol explicitly preserves shared stdio child pipes for non-`initialize` response deadlines.
+- Latest verified upstream artifact is `v0.0.13` (`4b5267f823be0b046bb883aacb51603cfde3a0ea`). Full Windows amd64 zip SHA256 `17113162b353906bbb884c3ed7620facba5cc72b5fdc94fd54fd7208c7166edb` matches upstream `SHA256SUMS.txt`. The executable is not Authenticode-signed, so checksum/provenance verification remains required.
+- CR-3 source telemetry: generated launchers now rotate fixed runtime stdout/stderr logs and preserve numeric tunnel-client exit codes; legacy-reference materialization receives the same hardening.
+- CR-5 path-with-spaces regression is green for `L:\My Drive\...` quoted project arguments.
+- WO-P1-097 is `SOURCE SLICE COMPLETE / MERGED`; PR #123 closeout merged as `dec80993f7c567e370d09288386ebb87e7f3f4e9`. Post-merge main CI run `33173477868` passed Windows/Ubuntu/macOS plus Windows packaging/frozen smoke.
+
+### Still blocking v0.7.0 stable
+
+- CR-2 / CR-4 implementation is active in Draft PR #125 (`fix/wo-p1-099-connector-auto-recovery`). Independent snapshot verification passed 28 focused tests and 117 broader lifecycle/control/monitor tests.
+- P0 review finding on PR #125: `DesktopControlService.reconcile_instance_recovery()` currently has no production caller. The 15-second connector refresh path only observes health; therefore STOPPED connectors do not yet invoke recovery automatically. Review `5051679381` records the required single-flight/cancellable production wiring.
+- Real connector E2E/TTL soak remains blocked by fleet ownership, not by missing investigation: Sunday-Worker 1-5 are all READY and using the shared live binary. Private tunnel inventory contains exactly 5 configured IDs, all 5 are in use, and there are 0 unused IDs. No sacrificial connector can be created without adding a new Tunnel ID or taking one existing Worker through an explicit maintenance window.
+- Live shared tunnel-client remains intentionally unchanged until that maintenance window; source verification must not be confused with operational rollout.
+- CR-4 operator visibility (`READY / RECOVERING / DEGRADED / STOPPED`, last exit, restart count, next retry) remains incomplete until the recovery path is accepted and surfaced.
+
+### Release decision
+
+`v0.7.0` remains BLOCKED. Do not publish stable until PR #125 or its accepted successor has real production recovery wiring, CR-4 is operator-visible, and one isolated/authorized connector completes the v0.0.13 deadline/TTL soak with zero manual Start actions.
