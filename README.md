@@ -43,6 +43,54 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 | Drive backups | Connector deletion zips a backup to the A-Wiki-Data Google Drive layer |
 | Update checking & Donate | In-app GitHub release checker; PromptPay/TrueWallet QR and GitHub Sponsors |
 
+## Project Status & Roadmap
+
+**Latest public release:** `v0.6.0` — Terminal Command Center + Real Monitor
+
+**Current development version:** `0.7.0` — not released yet
+
+**Current program state:** Sunday Family Multi-Model Agent Harness — **AHA-3 in progress**
+
+> Direction: move from manually selecting individual workers/plugins toward one A-Sunday Conductor entry point that recovers SSoT, selects an eligible worker/model/harness, verifies evidence, falls back safely, and continues without prompt copy/paste.
+
+### Delivery checklist
+
+- [x] **v0.6.0 released** — terminal command center, real monitor, worker/connector management, Second Brain, installer/portable builds.
+- [x] **AHA-0** — capability vocabulary gate (`CAPABLE != AUTHORIZED`).
+- [x] **AHA-1** — provider/harness/trust/quota/dispatch contracts.
+- [x] **AHA-2** — secure provider configuration + observed health/quota; `CONFIGURED != READY`.
+- [ ] **AHA-3 — ACTIVE** — bounded Claude Code harness adapter with injected fake runner first.
+- [ ] **AHA-4** — durable dispatch integration after accepted GE scheduler/dispatch seams.
+- [ ] **AHA-4A** — atomic worker leases + eligibility preflight + automatic fallback to the next safe worker.
+- [ ] **AHA-4B** — heartbeat, stale-owner recovery, quarantine, fairness/backpressure.
+- [ ] **AHA-5** — GPT plan/review ↔ GLM implement/repair loop without human prompt copying.
+- [ ] **AHA-6** — parallel independent READY tasks through isolated worktrees/scopes.
+- [ ] **AHA-6B** — optional elastic worker capacity after fixed-pool correctness is proven.
+- [ ] **AHA-7** — Models & Agents operator UI with health/quota/trust/selection reason.
+- [ ] **AHA-8** — additional providers only after the contract is stable.
+
+<details>
+<summary><strong>Target autonomous loop</strong></summary>
+
+```text
+GOAL
+  -> recover durable SSoT
+  -> decompose READY tasks
+  -> inspect worker/provider eligibility
+  -> atomic lease / fallback
+  -> execute bounded task packet
+  -> collect evidence
+  -> deterministic verify + independent review
+  -> repair or checkpoint
+  -> continue until complete
+```
+
+Worker fallback never steals an active worker: busy, owned, overlapping, dirty-unknown, unhealthy, or incompatible workers are skipped.
+
+</details>
+
+See [Agent Harness Accelerator](docs/plans/2026-08-28-sunday-family-agent-harness-accelerator.md) and [Worker Auto-Fallback + GLM-5.3 Benchmark](docs/plans/2026-08-28-worker-auto-fallback-and-glm-benchmark.md).
+
 ## Install
 
 ### Windows (recommended)
@@ -113,6 +161,8 @@ See the in-app Guide button for the full walkthrough (Thai or English).
 | [Install Guide](INSTALL.md) | Step-by-step installation |
 | [Project Plan](PROJECT-PLAN.md) | Product vision and architecture |
 | [Cross-Platform Plan](docs/plans/cross-platform-plan.md) | macOS/Linux/RPi/Umbrel roadmap |
+| [Agent Harness Accelerator](docs/plans/2026-08-28-sunday-family-agent-harness-accelerator.md) | Multi-model routing/dispatch roadmap |
+| [Worker Auto-Fallback + GLM-5.3 Benchmark](docs/plans/2026-08-28-worker-auto-fallback-and-glm-benchmark.md) | Lease broker, fallback policy, delegation benchmark |
 | [Privacy Policy](PRIVACY.md) | Data handling (local-only) |
 | [Security Policy](SECURITY.md) | Vulnerability reporting |
 | [License](LICENSE) | MIT |

@@ -268,11 +268,20 @@ Injectable runner with non-interactive structured output, bounded timeout/output
 ### AHA-4 — Durable dispatch integration
 After compatible GE-6/GE-7/durable-execution gates: stable execution identity, claim/gate, duplicate protection, transport-loss reconciliation, evidence storage.
 
+### AHA-4A — Worker lease broker + automatic fallback
+Extend the existing worker registry/assignment authority with atomic leases, eligibility preflight, ownership/scope checks, and policy-driven fallback across eligible semantic workers. A busy/owned/dirty/incompatible worker is skipped, never rebound or interrupted. Eligible shell/read-only work may fall back to RDC; otherwise queue/wait. See `docs/plans/2026-08-28-worker-auto-fallback-and-glm-benchmark.md`.
+
+### AHA-4B — Lease heartbeat + stale-owner recovery
+Add heartbeat/expiry, quarantine for ambiguous dirty state, stale-owner reconciliation, fairness, and backpressure before broad autonomous parallelism. Recovery must reconcile actual runtime/worktree state before lease reuse.
+
 ### AHA-5 — GPT <-> GLM review/repair loop
 One vertical repository slice: GPT plan/review, GLM implement/repair, deterministic verifier, durable checkpoints.
 
 ### AHA-6 — Parallel READY-task execution
-Run two independent task packets concurrently in isolated scopes/worktrees; prove no ownership collision and bounded provider capacity/quota handling.
+Run two independent task packets concurrently in isolated scopes/worktrees through the lease broker; prove no ownership collision and bounded provider capacity/quota handling.
+
+### AHA-6B — Elastic worker capacity
+Only after fixed-pool lease correctness is proven, allow policy-bounded creation of additional worker instances when all eligible workers are leased. New capacity must inherit the same health, ownership, scope, checkpoint, and release gates.
 
 ### AHA-7 — Operator UI
 Sunday Family Models & Agents configuration/status, selection reason, quota/health/trust, disable/fallback controls.
