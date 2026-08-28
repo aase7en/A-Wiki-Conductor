@@ -26,6 +26,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 BRANDING_PAYLOAD_NAME = "installer-branding.json"
@@ -73,6 +74,7 @@ REG_KEY = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}"
 CREDIT = "Uses the Serena engine (https://github.com/oraios/serena) internally."
 INSTALL_MARKER_NAME = ".a-sunday-conductor-install.json"
 INSTALL_MARKER_FORMAT = 1
+UNINSTALL_REMOVE_RETRY_DELAYS = (0.25, 0.5, 1.0, 2.0, 4.0)
 
 
 def _install_marker_path(target: Path) -> Path:
@@ -347,6 +349,22 @@ def do_install(target: Path) -> int:
     return 0
 
 
+def _rmtree_with_permission_retry(
+    target: Path,
+    *,
+    retry_delays: tuple[float, ...] = UNINSTALL_REMOVE_RETRY_DELAYS,
+    sleep=time.sleep,
+) -> None:
+    """Remove an install tree, retrying only transient Windows-style PE locks."""
+    for delay in retry_delays:
+        try:
+            shutil.rmtree(target)
+            return
+        except PermissionError:
+            sleep(delay)
+    shutil.rmtree(target)
+
+
 def do_uninstall(target: Path) -> int:
     print(f"[1/3] Removing shortcuts")
     start_link, desktop_link = shortcut_paths()
@@ -367,7 +385,7 @@ def do_uninstall(target: Path) -> int:
         print(f"UNINSTALL_REGISTRY_FAILED: {exc}")
     print(f"[3/3] Removing files: {target}")
     try:
-        shutil.rmtree(target)
+        _rmtree_with_permission_retry(target)
     except OSError as exc:
         partial = True
         print(f"UNINSTALL_FILES_FAILED: {exc}")
