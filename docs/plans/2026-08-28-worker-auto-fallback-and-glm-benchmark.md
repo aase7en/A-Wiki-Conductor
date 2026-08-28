@@ -73,3 +73,15 @@ Recommended immediate GLM lane: finish/reconcile PR #104 only. It is already GLM
 10. Build **AHA-7** Models & Agents UI on the existing command center; no second dashboard.
 11. Add **AHA-8** providers one adapter at a time with the same contract tests.
 12. Run full E2E/chaos/security/release audit; update README checklist from evidence; release the next verified version.
+## Live benchmark once the router can dispatch GLM directly
+
+Use the same bounded task packet across providers and record:
+- time to first valid patch and time to deterministic GREEN;
+- number of repair rounds / human copy-paste interventions;
+- acceptance-criteria coverage and test pass rate;
+- mutable-scope violations / unsafe Git attempts / secret-policy violations;
+- diff size versus task size and regression count;
+- provider latency, quota consumed, and estimated cost when observable;
+- recovery success after forced transport loss / stale lease.
+
+Candidate benchmark set: one repository-archaeology task, one isolated bug fix, one deterministic feature+tests task, one branch-reconciliation task, and one read-only review. Final routing weights must come from these measured outcomes, not vendor preference.
