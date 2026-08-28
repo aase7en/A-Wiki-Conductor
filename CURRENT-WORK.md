@@ -1,43 +1,40 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-28 (GPT-5.6 Sol — AHA-3 Claude Code harness adapter)
+Last updated: 2026-08-28 (GPT-5.6 Sol — AHA-3 complete / AHA-4 gate)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — AHA-3.**
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — AHA-3 COMPLETE; AHA-4 BLOCKED ON GE-6 ACCEPTANCE.**
 
 User outcome: give A-Sunday Conductor one goal; Conductor creates bounded task packets, selects an eligible model/harness, dispatches work, gathers evidence, reviews/repairs, and continues without manual prompt copy/paste.
 
 Current exact lane:
 - repository: `aase7en/A-Wiki-Conductor`;
-- worktree: `A:\\GitHub\\A-Wiki-Conductor-claude-harness`;
-- branch: `feat/wo-p1-091-claude-code-harness`;
-- current baseline/HEAD: `origin/main@685029d8e367955ba7fb44a3d5449ddf75ca01eb` after roadmap PR #115 merge;
+- docs transition worktree: `A:\\GitHub\\A-Wiki-Conductor-harness-transition`;
+- branch: `docs/wo-p1-092-harness-phase-transition`;
+- accepted main: `origin/main@ab28dc7ea428e3253ce20cc155fb7b92e7719a8a`;
 - AHA-0 PR #110 merged `6487cb2`;
 - priority plan PR #111 merged `457f974`;
 - AHA-1 PR #112 merged `c3ca84c`;
-- AHA-2 PR #114 merged `ca4cd98` after exact-head Windows/Ubuntu/macOS CI green;
-- roadmap/worker-fallback PR #115 merged `685029d` after rerun-classified Windows Tk infra flake passed;
-- CI repair PR #113 merged `e2de499`.
+- AHA-2 PR #114 merged `ca4cd98`;
+- roadmap/worker-fallback PR #115 merged `685029d`;
+- AHA-3 PR #116 merged `ab28dc7` after Windows/Ubuntu/macOS CI green, including Windows packaging/frozen smoke.
 
 Protected parallel work remains PR #104 GE-6, PR #108 installer safety, and the unique North Star branch. Shared `A:\\GitHub\\A-Wiki-Conductor` remains protected/read-only.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-091-claude-code-harness.md`
-
-AHA-3 implements a fixed read-only Claude Code invocation plan plus injected fake runner, bounded task-packet verification/output, provider-readiness gate, environment-reference allowlist, and redacted structured evidence. No live Claude/provider process in this slice.
+`docs/work-orders/WO-P1-092-harness-phase-transition.md` — docs-only phase closeout. `handoff.md` is deliberately excluded because PR #104 currently has an overlapping owned change.
 
 ## Immediate execution frontier
 
-1. AHA-3 fake-runner implementation is locally GREEN: `52 passed in 0.87s` plus 9 provider-store/supervised regressions;
-2. commit/push only `claude_code_harness.py`, its tests, and continuity checkpoint;
-3. open Draft AHA-3 PR, audit remote diff, require exact-head Windows/Ubuntu/macOS CI;
-4. merge/cleanup only after green CI and final scope/secret review;
-5. live read-only provider smoke requires separately safe configured credentials/health;
-6. AHA-4 durable dispatch remains blocked on accepted GE scheduler/dispatch seams;
-7. AHA-4A then extends the existing worker registry with atomic leases, eligibility preflight, and automatic fallback;
-8. AHA-4B adds heartbeat/stale-owner recovery before AHA-5/AHA-6 autonomous multi-agent loops.
+1. AHA-3 fake-runner adapter is merged/accepted; its old worktree and branch were removed after clean ancestry proof;
+2. live read-only Claude/provider smoke remains NOT READY because the configured loopback gateway on port 3456 has no listener; no live call/start is authorized here;
+3. GE-6 PR #104 remains the next blocking dependency; independent GPT review found four ADR GE-0006 gaps: topological-rank ordering, stable worker-ID ordering, mutating project/workspace identity gate, and injected gate/provider eligibility;
+4. PR #104 owner lane must repair those gaps and reach exact-head CI green; its Windows supervised-command failure is being rerun/classified separately from scheduler correctness;
+5. once GE-6 is accepted/merged, start AHA-4 by REUSE+WRAP of GE-7 + existing durable job control; do not create a second scheduler/lifecycle/store;
+6. after AHA-4, implement AHA-4A atomic worker lease + eligibility/fallback, then AHA-4B heartbeat/stale-owner recovery;
+7. then prove AHA-5 GPT↔GLM review/repair and AHA-6 parallel READY tasks without manual prompt copying.
 
 ## Source-of-truth rule
 

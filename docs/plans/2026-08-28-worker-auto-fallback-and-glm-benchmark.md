@@ -41,9 +41,10 @@ AHA-4A must land before broad autonomous parallel execution.
 
 Current repository evidence, not a synthetic model-speed benchmark:
 
-- PR #104 / GE-6 is a GLM-owned bounded algorithmic lane: pure deterministic scheduler, 5 changed files, 505 additions / 17 deletions. Its PR description records 88 combined graph tests passing.
-- Independent recheck on 2026-08-28 ran the seven current `test_graph_*.py` files in that GLM worktree: **83 passed in 1.76s**.
-- The same PR is currently open and non-mergeable against newer `main`, showing that bounded implementation can be productive while final integration/reconciliation still needs explicit ownership + deterministic review.
+- PR #104 / GE-6 is a GLM-owned bounded algorithmic lane. After owner-led reconciliation its worktree reported **92 graph tests passing**; GitHub head is currently `b0febf20`.
+- Earlier independent GPT recheck ran the seven `test_graph_*.py` files: **83 passed in 1.76s**. This confirms useful bounded implementation throughput, not final acceptance.
+- Independent GPT review against accepted ADR GE-0006 found four current acceptance gaps: topological-rank ordering is omitted, equivalent worker choice depends on input order instead of stable worker ID, mutating project/workspace identity is not enforced, and gate/provider eligibility input is missing. These were posted as a PR review comment for the owner to repair.
+- Windows CI additionally failed in the existing supervised-command timeout suite rather than a scheduler assertion; a rerun was requested to classify that independently. The PR remains blocked until both scheduler acceptance and exact-head CI are green.
 
 ### Suitability score for work during AHA-3/AHA-4
 
@@ -61,9 +62,9 @@ Current repository evidence, not a synthetic model-speed benchmark:
 Recommended immediate GLM lane: finish/reconcile PR #104 only. It is already GLM-owned and does not overlap AHA-3 files.
 ## Completion plan from current state
 
-1. Finish **AHA-3** fake-runner Claude Code harness; focused regression, secret/scope scan, PR/CI/merge.
-2. Reconcile **GE-6 / PR #104** on its existing GLM-owned branch; do not mix AHA files.
-3. Define/accept the remaining GE durable-dispatch seam required by **AHA-4**; no second scheduler.
+1. **AHA-3 COMPLETE** — PR #116 merged `ab28dc7`; fake-runner/read-only harness, focused regressions, scope/secret checks, and 3-OS CI passed.
+2. Repair/accept **GE-6 / PR #104** on its existing GLM-owned branch using the independent ADR review findings; do not mix AHA files.
+3. Reuse the already accepted GE-7 durable-dispatch contract for **AHA-4**; implement only after GE-6 merges, with no second scheduler/lifecycle/store.
 4. Implement **AHA-4** durable harness dispatch with stable execution identity, duplicate protection, bounded evidence, transport-loss reconciliation.
 5. Implement **AHA-4A** worker eligibility + atomic lease broker + ordered fallback; deterministic race tests first.
 6. Implement **AHA-4B** heartbeat/expiry/quarantine/stale-owner recovery; chaos tests for crash/disconnect/dirty worktree.

@@ -1,7 +1,7 @@
 # WO-P1-091 — Claude Code Harness Adapter (AHA-3)
 
-Status: ACTIVE / TDD IMPLEMENTATION
-Owner: GPT-5.6 Sol via Remote Desktop Commander
+Status: COMPLETE / MERGED — PR #116 (`ab28dc7`)
+Owner: GPT-5.6 Sol via Remote Desktop Commander (claim released)
 Parent: WO-P1-087 Sunday Family Agent Harness Accelerator
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-claude-harness`
@@ -109,3 +109,13 @@ Verification:
 - forbidden live-network/subprocess scan: no executable/import path added; only explanatory text + synthetic test secrets found.
 
 Next: commit/push bounded AHA-3 source/tests + continuity, open Draft PR, remote-diff audit, exact-head CI. No live Claude/provider call yet.
+
+## Final closeout — 2026-08-28
+
+- Implementation commit: `8b9f034d4634bc3d23ebee8c00f28d6f089f34a8`.
+- PR #116 exact-head CI: Windows, Ubuntu, and macOS all PASS; Windows also built/verified/smoked Portable + Setup artifacts.
+- Merge: `ab28dc7ea428e3253ce20cc155fb7b92e7719a8a`.
+- Post-merge cleanup: feature worktree, local branch, and remote branch removed only after clean status + ancestry proof.
+- Live provider execution was not performed; loopback gateway port 3456 remains without a listener.
+
+AHA-3 acceptance is complete. Next production implementation is AHA-4 only after GE-6 acceptance and the existing GE-7 durable-dispatch contract is ready to be implemented.
