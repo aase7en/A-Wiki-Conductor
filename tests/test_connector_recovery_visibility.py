@@ -233,3 +233,23 @@ def test_auto_recover_activity_logs_each_drained_event_once() -> None:
     app._log_connector_recovery_events()
 
     assert lines == ["AUTO-RECOVER Sunday-Worker-1 READY restart=3"]
+
+
+def test_diagnostic_read_failure_cannot_replay_old_restart_event(tmp_path: Path) -> None:
+    service, store, _orchestrator = _service(tmp_path)
+    old = ConnectorRecoveryRecord(
+        instance_name="Sunday-Worker-1",
+        state=ConnectorRecoveryState.READY,
+        restart_count=7,
+        updated_at=1_788_000_000.0,
+    )
+    store.save_connector_recovery(old)
+    service.connector_recovery_record = lambda _name: None
+
+    record = service.reconcile_instance_recovery(
+        "Sunday-Worker-1",
+        InstanceHealthState.READY,
+    )
+
+    assert record.restart_count == 7
+    assert service.drain_connector_recovery_events() == ()

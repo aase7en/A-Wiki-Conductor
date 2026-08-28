@@ -525,15 +525,16 @@ class DesktopControlService:
         cancel_check: Callable[[], bool] | None = None,
     ) -> ConnectorRecoveryRecord:
         with self._connector_intent_lock(instance_name):
-            previous = self.connector_recovery_record(instance_name)
             record = self._recovery_orchestrator().observe(
                 instance_name,
                 health,
                 reason_code=reason_code,
                 cancel_check=cancel_check,
             )
-            previous_restarts = previous.restart_count if previous is not None else 0
-            if record.restart_count > previous_restarts:
+            if (
+                health is InstanceHealthState.STOPPED
+                and record.state is ConnectorRecoveryState.READY
+            ):
                 with self._connector_recovery_events_lock:
                     self._connector_recovery_events.append(record)
             return record

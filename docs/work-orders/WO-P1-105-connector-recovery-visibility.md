@@ -61,3 +61,17 @@ Deterministic evidence:
 - diff audit: no added timer, subprocess, Popen, Thread, or Timer path.
 
 Next: final intended-file/secret audit -> commit/push -> exact remote diff -> 3-OS CI -> post-CI re-audit -> merge -> reconcile WO-P1-096 release gate.
+
+## Staff-review correction — 2026-08-29
+
+Remote diff review found a replay edge: the UI diagnostic helper intentionally returns `None` on a transient store-read failure. Reusing that fail-closed value as the event baseline could compare an existing restart count against zero and emit an old `AUTO-RECOVER` event.
+
+Correction removes diagnostic reads from event detection. A recovery event is queued only when the current observed transport health is `STOPPED` and the recovery coordinator returns durable state `READY`; in the accepted coordinator this result occurs only after a successful RUNNING/ALREADY_RUNNING recovery path increments `restart_count`.
+
+Evidence:
+- RED replay regression: 1 failed with an old `restart_count=7` event replay;
+- GREEN visibility suite: 7 passed;
+- focused recovery/control/monitor: 29 passed;
+- desktop UI: 48 passed, 1 local Tk-installation skip;
+- broader lifecycle/recovery/instance: 91 passed;
+- compileall + diff-check: PASS.
