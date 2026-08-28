@@ -45,8 +45,9 @@ Forbidden:
 - Clean AHA-3 worktree/branch were removed only after ancestry proof.
 - Live smoke readiness checks remain fail-closed: port 3456 has no listener; the installed `%LOCALAPPDATA%\\A-Conductor\\control-center.sqlite` currently has no `provider_*` tables; and a repository search finds no application assembly reference to `SQLiteProviderConfigStore` outside its own module/tests. No live call, gateway start, or user-DB initialization was performed.
 - Independent GPT review of current GE-6 PR #104 head `b0febf20` found four acceptance gaps against ADR GE-0006: missing topological-rank ordering, input-order-dependent worker choice, missing mutating project/workspace identity gate, and missing injected gate/provider eligibility seam.
-- A COMMENT review was posted on PR #104; its owner lane remains responsible for repair.
-- PR #104 Windows CI first failed in the pre-existing supervised-command timeout suite. Rerun #1 cleared that test but later hit recurring hosted Tk `0x80000003` in `test_interactive_logo.py`; rerun #2 was requested for infra classification without changing the owner branch.
+- Deterministic read-only repro on `b0febf20`: earlier-rank `z0` loses to lexical `a1`; workers `(w-z, w-a)` choose `w-z`; a mutating node selects a worker bound to `project/workspace='OTHER'`; and `schedule_once` has no gate/provider eligibility input.
+- CI run `33141002330` attempt 3 is green on Windows/macOS/Ubuntu, including packaging/frozen smoke, but checkout logs show stale merge ref `18067731 = b0febf20 into ca4cd98`.
+- Current `origin/main` is `ab28dc7`; GitHub reports PR #104 `mergeable=false`; read-only `git merge-tree --write-tree HEAD origin/main` reproduces a content conflict in `handoff.md`. A follow-up COMMENT review was posted; the owner must reconcile current main + repair the four scheduler gaps before a fresh exact-head review/CI can authorize merge.
 
 ## Stop condition
 

@@ -30,8 +30,8 @@ Protected parallel work remains PR #104 GE-6, PR #108 installer safety, and the 
 
 1. AHA-3 fake-runner adapter is merged/accepted; its old worktree and branch were removed after clean ancestry proof;
 2. live read-only Claude/provider smoke remains NOT READY: the installed control DB currently has no `provider_*` tables, repository assembly does not yet reference `SQLiteProviderConfigStore`, and the configured loopback gateway on port 3456 has no listener; no live call/start or user-DB mutation is authorized here;
-3. GE-6 PR #104 remains the next blocking dependency; independent GPT review found four ADR GE-0006 gaps: topological-rank ordering, stable worker-ID ordering, mutating project/workspace identity gate, and injected gate/provider eligibility;
-4. PR #104 owner lane must repair those gaps and reach exact-head CI green; Windows rerun #1 cleared the supervised-command timeout but later hit the recurring hosted Tk `0x80000003` in `test_interactive_logo.py`, so rerun #2 was requested as infra classification while scheduler correctness remains independently blocked;
+3. GE-6 PR #104 remains the next blocking dependency; exact head `b0febf20` still reproduces four ADR GE-0006 gaps: topological-rank ordering, stable worker-ID ordering, mutating project/workspace identity gate, and injected gate/provider eligibility;
+4. CI run `33141002330` attempt 3 is green on Windows/macOS/Ubuntu, but it checked stale merge ref `18067731` = `b0febf20` into `ca4cd98`, not current `origin/main@ab28dc7`; GitHub reports `mergeable=false`, and read-only `git merge-tree --write-tree HEAD origin/main` confirms a `handoff.md` conflict. Owner must reconcile current main and repair the four scheduler gaps before fresh exact-head re-audit/CI;
 5. once GE-6 is accepted/merged, start AHA-4 by REUSE+WRAP of GE-7 + existing durable job control; do not create a second scheduler/lifecycle/store;
 6. after AHA-4, implement AHA-4A atomic worker lease + eligibility/fallback, then AHA-4B heartbeat/stale-owner recovery;
 7. then prove AHA-5 GPT↔GLM review/repair and AHA-6 parallel READY tasks without manual prompt copying.
