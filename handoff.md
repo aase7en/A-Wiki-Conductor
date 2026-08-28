@@ -1,65 +1,60 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-28 — WO-P1-095 / AHA-4 Claude durable backend bridge
+Last updated: 2026-08-28 — WO-P1-098 / AHA-4 supervised Claude runner
 
 ## Current Objective
 
-Eliminate manual prompt copying by placing the accepted AHA-3 Claude Code harness under the same durable job-control authority now used by accepted GE-6/GE-7 graph dispatch.
+Finish the real process boundary for the Sunday Family multi-model harness by adapting accepted AHA-3 `ClaudeCodeInvocation` into the existing supervised execution + duplicate-protection authority. No second process runner, lifecycle, store, retry loop, or dedup system.
 
 ## Repository State
 
 - Repository: `aase7en/A-Wiki-Conductor`
-- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-bridge`
-- Branch: `feat/wo-p1-095-aha4-harness-durable-bridge`
-- Base/accepted main: `5cc417c92450eba796fa9af1cf3da037663b1eea`
-- Work order: `docs/work-orders/WO-P1-095-aha4-claude-durable-backend.md`
+- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-supervised`
+- Branch: `feat/wo-p1-098-aha4-supervised-claude-runner`
+- Branch base: `0e9b93a7c08cb7b284f2234af61ec6a96b16a2ea`; reconciled current `origin/main@ceee9bb7aa361aef6d0ecfc210c25b564578d552`
+- Work order: `docs/work-orders/WO-P1-098-aha4-supervised-claude-runner.md`
 - Shared root remains protected/read-only.
 
 ## Accepted Baseline
 
-- AHA-1 provider/harness contracts merged `c3ca84c`.
-- AHA-2 provider config/readiness merged `ca4cd98`.
 - AHA-3 bounded read-only Claude Code adapter merged `ab28dc7`.
 - GE-6 scheduler merged `023c7b6`.
-- PR #119 durable graph-dispatch final head `70e80c1d958b08137bf5c70a44cca369ac4aadac` passed 3-OS CI run `33159443742` and merged as `5cc417c92450eba796fa9af1cf3da037663b1eea`.
+- durable graph dispatch PR #119 merged `5cc417c9`.
+- connector-resilience roadmap PR #120 merged `7505bd3` and is an independent P0 v0.7.0 gate.
+- durable Claude job backend PR #121 exact head `69fffe7` passed 3-OS CI run `33164201872` and merged as `0e9b93a`.
+
 ## Architecture Boundary
 
 Classification: **REUSE + WRAP + EXTEND**.
 
-Authority remains:
-- `SQLiteJobStore`
-- `DurableJobExecutionCoordinator`
-- `JobExecutionBackend`
-- `ClaudeCodeHarnessAdapter`
-- existing supervised execution + canonical duplicate guard for future real launch
+Current authoritative execution chain:
+`ClaudeCodeInvocation -> SupervisedClaudeCodeRunner -> NativeCommandSpec -> SupervisedCommandRunner -> DuplicateExecutionGuard -> SupervisedExecutionService -> OwnedProcessSpec`.
 
-Current archaeology: `JobExecutionBackend.execute(operation_ref, worker_id)` lacks job/work-order/project context required by the resilient execution identity contract. WO-P1-095 may add one immutable bounded context seam if RED tests prove it necessary. Existing native backend must remain compatible and may ignore unused context.
+Implemented seams at this checkpoint:
+- bounded environment overrides now flow through `SupervisedCommandRunner -> SupervisedLaunchPlan -> OwnedProcessSpec` after scope validation;
+- exact-owned policy allows only the existing `SERENA_HOME` plus Claude's `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` keys;
+- launch/spec repr masks environment values;
+- `SupervisedClaudeCodeRunner` resolves opaque refs only at execution boundary, redacts resolved secret values from returned streams, and never creates a bare subprocess path;
+- production builder binds durable execution identity plus `runtime:claude-code:<digest>` derived only from opaque endpoint/credential refs; source-ref drift fails before resolver/launch;
+- canonical execution fingerprint excludes resolved environment values; duplicate attach/reuse remains owned by `DuplicateExecutionGuard`.
 
-The Claude job backend must return only `JobBackendResult`; it does not transition job state itself. Provider/harness success is evidence, never completion authority.
-
-External process launch remains injected in this slice. The next micro-slice must adapt AHA-3 `ClaudeCodeInvocation` to the existing supervised runner/dedup path rather than build another launcher or duplicate guard.
+Local evidence: runner/builder **11 passed**; post-reconcile Claude/provider/native/supervisor/dedup/job/graph regression **241 passed**; compileall, diff-check, and bounded secret-pattern scan PASS.
 
 ## Protected Parallel Work
 
+- WO-P1-097 CR-1/CR-3 merged via PR #122 as `ceee9bb`; remaining connector CR-2/CR-4 + isolated E2E/soak stay under WO-P1-096 release gate.
 - PR #108 installer target ownership: do not touch.
-- `feat/north-star-runtime-sunday-family`: do not touch.
-- A-Wiki main is read-only; current A-Wiki phase 8+ remains HOLD.
-- live provider DB/gateway/credentials remain out of scope.
-## Local Evidence
-
-- Claude backend + job execution + native operations: **33 passed**.
-- Broader provider/harness/job-control/graph/dedup/supervised regressions: **106 passed**.
-- Full local run: **1398 passed / 4 skipped**; 31 failures + 8 errors confined to unrelated local PermissionError instance-file tests and GPU framebuffer tests.
-- GPT completed the blocked GLM archaeology: reuse SupervisedCommandRunner/DuplicateExecutionGuard; future missing seam is supervised environment propagation from NativeCommandSpec to OwnedProcessSpec.
+- North Star branch: do not touch.
+- live connector fleet / tunnel-client binary: do not mutate.
+- A-Wiki repository: read-only.
 
 ## Next Safe Action
 
-1. compileall + diff-check + exact scope/secret audit;
-2. commit/push Draft PR for WO-P1-095;
-3. audit exact remote diff and require exact-head Windows/Ubuntu/macOS CI;
-4. merge only when green;
-5. next micro-slice: supervised Claude runner adapter, no new process supervisor/dedup.
+1. push Draft PR and audit exact remote diff/scope;
+2. require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke;
+3. merge only after green CI + exact-head review;
+4. then open the smallest per-job production assembly slice joining the accepted durable Claude backend to `build_supervised_claude_code_runner` without provider/gateway/live-secret mutation.
 
 ## Safety
 
-`SAFE_TO_MUTATE = YES` only in `A:\GitHub\A-Wiki-Conductor-aha4-bridge` and WO-P1-095 allowed scope.
+`SAFE_TO_MUTATE = YES` only in `A:\GitHub\A-Wiki-Conductor-aha4-supervised` and WO-P1-098 allowed scope.

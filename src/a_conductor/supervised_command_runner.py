@@ -152,6 +152,38 @@ class SupervisedCommandRunner:
             raise NativeExecutionError("TIMEOUT_INVALID")
         return argv
 
+    def _validated_environment_overrides(
+        self, spec: NativeCommandSpec
+    ) -> tuple[tuple[str, str], ...]:
+        overrides = spec.environment_overrides
+        if not isinstance(overrides, tuple):
+            raise NativeExecutionError("ENV_OVERRIDE_INVALID")
+        allowed = {key.casefold() for key in self._scope.allowed_environment_overrides}
+        seen: set[str] = set()
+        normalized: list[tuple[str, str]] = []
+        for item in overrides:
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise NativeExecutionError("ENV_OVERRIDE_INVALID")
+            key, value = item
+            if (
+                not isinstance(key, str)
+                or not key.strip()
+                or "=" in key
+                or "\x00" in key
+                or not isinstance(value, str)
+                or not value
+                or "\x00" in value
+            ):
+                raise NativeExecutionError("ENV_OVERRIDE_INVALID")
+            folded = key.casefold()
+            if folded not in allowed:
+                raise NativeExecutionError("ENV_OVERRIDE_NOT_ALLOWED")
+            if folded in seen:
+                raise NativeExecutionError("ENV_OVERRIDE_INVALID")
+            seen.add(folded)
+            normalized.append((key, value))
+        return tuple(normalized)
+
     def _operation_ref(self, argv: tuple[str, ...]) -> str:
         digest = hashlib.sha256("\x00".join(argv).encode("utf-8")).hexdigest()[:16]
         return f"native:{digest}"
@@ -252,6 +284,7 @@ class SupervisedCommandRunner:
         if not isinstance(spec, NativeCommandSpec):
             raise NativeExecutionError("SPEC_INVALID")
         argv = self._validated_argv(spec)
+        environment_overrides = self._validated_environment_overrides(spec)
         cwd = self._scope.resolve_relative(spec.cwd, must_exist=True)
         if cwd != self._repo_root:
             raise NativeExecutionError("CWD_UNSUPPORTED")
@@ -300,6 +333,7 @@ class SupervisedCommandRunner:
                 runtime_root=self._repo_root,
                 target_argv=argv,
                 target_executable_name=PureWindowsPath(argv[0]).name,
+                environment_overrides=environment_overrides,
             )
             try:
                 outcome = self._supervised.launch(plan)
