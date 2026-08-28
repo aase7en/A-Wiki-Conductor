@@ -30,7 +30,7 @@ jobs:
           python -m pytest tests/test_desktop_ui.py tests/test_i18n.py
           tests/test_ui_usability.py tests/test_worker_crud.py
           tests/test_instance_manage.py tests/test_graceful_shutdown.py
-          tests/test_worker_serena_settings.py tests/test_instance_monitor.py tests/test_instance_create.py tests/test_doctor_fixes.py tests/test_wizard_ui.py tests/test_setup_wizard.py tests/test_blurbs_i18n.py tests/test_project_disk_async.py tests/test_guide_html_ui.py -q
+          tests/test_worker_serena_settings.py tests/test_instance_monitor.py tests/test_instance_create.py tests/test_doctor_fixes.py tests/test_wizard_ui.py tests/test_setup_wizard.py tests/test_blurbs_i18n.py tests/test_project_disk_async.py tests/test_guide_html_ui.py tests/test_interactive_logo.py -q
       - name: Run local-instance lifecycle suite
         run: python -m pytest tests/test_local_instances.py -q
       - name: Run supervised-command lifecycle suite
@@ -54,6 +54,7 @@ jobs:
             "test_blurbs_i18n.py",
             "test_project_disk_async.py",
             "test_guide_html_ui.py",
+            "test_interactive_logo.py",
             "test_local_instances.py",
             "test_supervised_command_runner.py"
           )
