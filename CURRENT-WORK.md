@@ -1,49 +1,44 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-28 (GPT-5.6 Sol — Sunday Family Agent Harness accelerator)
+Last updated: 2026-08-28 (GPT-5.6 Sol — AHA-2 provider configuration + observation)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator (WO-P1-087).**
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — AHA-2.**
 
-User outcome: eliminate the manual copy/paste loop between GPT, GLM, Claude Code, ZCode, and future models by making A-Sunday Conductor create bounded task packets, select eligible sub-agent providers, dispatch, collect evidence, review/repair, and continue from durable state.
+User outcome: give A-Sunday Conductor one goal; Conductor creates bounded task packets, selects an eligible model/harness, dispatches work, gathers evidence, reviews/repairs, and continues without manual prompt copy/paste.
 
-Current exact baseline for this lane:
+Current exact lane:
 - repository: `aase7en/A-Wiki-Conductor`;
-- isolated worktree: `A:\GitHub\A-Wiki-Conductor-agent-harness`;
-- branch: `docs/wo-p1-087-agent-harness-priority`;
-- base: `origin/main@9106da2` (PR #109 capability plan already merged);
-- shared `A:\GitHub\A-Wiki-Conductor` is stale/dirty and remains protected/read-only;
-- PR #110 capability vocabulary C0 is merged as `6487cb2`; AHA-0 is satisfied;
-- PR #104 GE-6 and PR #108 installer ownership remain separately owned mutable lanes and must not be overlapped;
-- North Star `feat/north-star-runtime-sunday-family` remains a separate integration lineage and must be reconciled, not overwritten.
+- worktree: `A:\\GitHub\\A-Wiki-Conductor-provider-config`;
+- branch: `feat/wo-p1-090-provider-config-observation`;
+- base: `origin/main@c3ca84c81d901ae844ee40780619a41b46307049`;
+- AHA-0 PR #110 merged `6487cb2`;
+- priority plan PR #111 merged `457f974`;
+- AHA-1 PR #112 merged `c3ca84c`;
+- CI repair PR #113 merged `e2de499`, with exact-main Windows/Ubuntu/macOS CI green.
 
-First implementation preference: **Claude Code / Anthropic-style harness -> user-configured Anthropic-compatible provider -> GLM-5.3**, while all domain contracts remain provider-neutral.
-
-This priority switch does not cancel release/safety work. It determines what *new feature* starts first.
+Protected parallel work remains PR #104 GE-6, PR #108 installer safety, and the unique North Star branch. Do not overlap those scopes. Shared `A:\\GitHub\\A-Wiki-Conductor` remains protected/read-only.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-087-sunday-family-agent-harness-accelerator.md`
+`docs/work-orders/WO-P1-090-provider-config-observation.md`
 
-Current slice is plan/SSoT only. No production provider/network/process code is authorized on this branch.
+AHA-2 implements non-secret provider configuration, endpoint safety, opaque credential references, and fake/injected health+quota observation only. No live provider/Claude execution.
 
 ## Immediate execution frontier
 
-1. C0 is accepted/merged; create AHA-1 bounded provider/harness contracts from current main;
-2. reconcile AHA-1 against North Star N2/N3 and GE ownership before production mutation;
-3. add secure credential references + provider health/quota normalization with fake backends before live execution;
-4. implement Claude Code harness adapter in an isolated lane;
-5. wait for/reconcile GE scheduler/dispatch gates before durable autonomous dispatch;
-6. then prove GPT review <-> GLM implementation/repair without human prompt copying.
-
-## Cleanup checkpoint
-
-Safe branch/worktree cleanup has started under explicit user authorization. Only work proven merged/redundant has been removed. Active/open/unique/dirty lanes are protected. One old release worktree directory is no longer registered by Git but remains locked by another process; it is intentionally left in place rather than killing an unknown owner process.
+1. TDD provider configuration/store/observation normalization;
+2. persist only safe metadata + credential references in the existing control SQLite database;
+3. prove stale/missing observations never become READY;
+4. open/merge AHA-2 after deterministic tests + CI;
+5. AHA-3: bounded non-interactive Claude Code adapter with fake runner first;
+6. live read-only harness smoke only after AHA-3 safety gates;
+7. AHA-4 durable dispatch stays blocked on accepted GE scheduler/dispatch seams.
 
 ## Source-of-truth rule
 
-Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub state → CURRENT-WORK.md → handoff.md → active work order → PROJECT-PLAN/contracts.
+Do **not** reconstruct task state from chat memory. Use actual repo/GitHub state → CURRENT-WORK.md → handoff.md → active work order → PROJECT-PLAN/contracts.
 
 ## Verified completed work (this session, main `2da3d01`)
 

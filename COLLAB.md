@@ -34,13 +34,15 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-087` / Sunday Family Agent Harness accelerator | GPT-5.6 Sol via RDC | 2026-08-28 | Plan/SSoT only in isolated `A-Wiki-Conductor-agent-harness`: `PROJECT-PLAN.md`, `DESIGN.md`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, WO-P1-087 + accelerator plan. No production code/tests. |
+| `WO-P1-090` / AHA-2 provider config + observation | GPT-5.6 Sol via RDC | 2026-08-28 | Isolated `A-Wiki-Conductor-provider-config`: new provider configuration/store + tests, and continuity hotspots only. No live provider/Claude execution, UI, scheduler, installer, or North Star mutation. |
 | PR #104 / GE-6 | GLM 5.3 lane | 2026-08-26 | `feat/ge-6-scheduler` worktree/branch; scheduler/Graph scope remains separately owned. |
 | PR #108 / installer target ownership | release/installer lane | 2026-08-27 | `fix/v070-installer-target-ownership`; destructive installer safety scope remains separately owned. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
 
+- `WO-P1-087` / PR #111 priority plan: merged as `457f974` on 2026-08-28; worktree/branch removed after ancestry verification.
+- `WO-P1-088` / PR #112 AHA-1 provider/harness contracts: merged as `c3ca84c` on 2026-08-28; AHA-2 consumes this accepted contract.
 - `WO-P1-086` / PR #110 capability vocabulary C0: merged as `6487cb2` on 2026-08-28; clean feature worktree/local/remote branch removed after ancestry verification; accepted contract remains on `main`.
 - `WO-P1-063`: implementation/release complete; v0.6.0 published from `c870525`; future work leaves this WO.
 - `WO-GE-001` decision fan-in: D1-D5 accepted via PR #86; decision claim released. GE-1a is the next implementation slice and must be claimed by its actual implementer before mutation.
