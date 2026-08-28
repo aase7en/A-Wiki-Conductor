@@ -287,3 +287,17 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 1. บันทึกเมื่อ: พบ defect ที่ผู้ใช้จริงรายงาน (ไม่ใช่แค่ test fail)
 2. รูปแบบ: อาการ → root cause → วิธีแก้ → lesson → วิธีตรวจสอบ
 3. ทุก Agent ต้องอ่านไฟล์นี้ก่อนแก้โค้ดใน `src/a_conductor/`
+
+## #15: Caller timeout lost to slow supervisor inspection (2026-08-29)
+
+**Symptom:** Windows hosted CI intermittently returned `timed_out=False` from a one-second supervised command timeout after the caller budget had elapsed. The result instead carried a supervisor recovery classification.
+
+**Root cause:** `_poll_until_resolved()` checked `inspection.recovery_required` before re-checking the monotonic caller deadline. Windows inspection can spend material time in bounded CIM/PowerShell observation, so the deadline may expire inside `inspect()` and a late transient recovery classification could incorrectly win.
+
+**Fix:** terminal durable result evidence remains authoritative first; immediately after inspection, re-check the caller deadline; only then accept a recovery classification. This adds no process, retry loop, scheduler, or execution-state authority.
+
+**Lesson:** timeout budgets include latency inside blocking observations. After a bounded external inspection returns, re-check caller time before classifying a non-terminal/transient result.
+
+**Verify:** deterministic fake-clock tests cover late recovery -> timeout, pre-deadline recovery -> recovery, and durable result -> result. Real Windows attach/timeout integration passed 20 consecutive runs after repair.
+
+---

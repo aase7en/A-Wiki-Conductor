@@ -25,7 +25,12 @@ from a_conductor.native_execution import (
 from a_conductor.native_operation_assembly import ControlCenterNativeAdapterResolver
 from a_conductor.owned_process import WindowsOwnedProcessController
 from a_conductor.supervised_command_runner import SupervisedCommandRunner
-from a_conductor.supervised_execution import SupervisedExecutionService, SupervisedLaunchOutcome
+from a_conductor.supervised_execution import (
+    SupervisedExecutionService,
+    SupervisedInspection,
+    SupervisedInspectionState,
+    SupervisedLaunchOutcome,
+)
 from a_conductor.windows_io import LoopbackReadyzHttpProbe, StrictPowerShellInspectionRunner
 from a_conductor.windows_observer import WindowsRuntimeObserver
 
@@ -419,3 +424,104 @@ def test_environment_values_do_not_enter_execution_fingerprint(tmp_path: Path) -
     )
 
     assert runner.fingerprint_for(one) == runner.fingerprint_for(two)
+
+
+class _FakeClock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def __call__(self) -> float:
+        return self.value
+
+
+class _ClockAdvancingSupervised:
+    def __init__(
+        self,
+        clock: _FakeClock,
+        inspection: SupervisedInspection,
+        *,
+        observed_at: float,
+    ) -> None:
+        self.clock = clock
+        self.inspection = inspection
+        self.observed_at = observed_at
+
+    def launch(self, plan):
+        raise AssertionError("launch not expected")
+
+    def inspect(self, execution_id):
+        self.clock.value = self.observed_at
+        return self.inspection
+
+    def collect(self, execution_id, *, expected_version):
+        raise AssertionError("collect not expected")
+
+
+def _poll_runner(tmp_path: Path, supervised, clock: _FakeClock) -> SupervisedCommandRunner:
+    repo = tmp_path / "repo-poll"
+    repo.mkdir()
+    return SupervisedCommandRunner(
+        scope=build_scope(repo),
+        execution_store=SQLiteExecutionStore(tmp_path / "poll.sqlite"),
+        supervised=supervised,
+        poll_interval_seconds=0.02,
+        sleep_fn=lambda _seconds: None,
+        clock_fn=clock,
+        **IDENTITY,
+    )
+
+
+def test_caller_timeout_wins_if_inspection_crosses_deadline_with_recovery(tmp_path: Path) -> None:
+    clock = _FakeClock()
+    inspection = SupervisedInspection(
+        execution_id="exec-timeout",
+        state=SupervisedInspectionState.RECOVERY_REQUIRED,
+        supervisor_pid=123,
+        result_available=False,
+        recovery_required=True,
+        error_code="SUPERVISOR_OWNERSHIP_UNKNOWN",
+    )
+    supervised = _ClockAdvancingSupervised(clock, inspection, observed_at=1.25)
+    runner = _poll_runner(tmp_path, supervised, clock)
+
+    observed, timed_out = runner._poll_until_resolved("exec-timeout", timeout_seconds=1)
+
+    assert observed is inspection
+    assert timed_out is True
+
+
+def test_predeadline_recovery_remains_recovery_not_timeout(tmp_path: Path) -> None:
+    clock = _FakeClock()
+    inspection = SupervisedInspection(
+        execution_id="exec-recovery",
+        state=SupervisedInspectionState.RECOVERY_REQUIRED,
+        supervisor_pid=123,
+        result_available=False,
+        recovery_required=True,
+        error_code="SUPERVISOR_EXITED_RESULT_MISSING",
+    )
+    supervised = _ClockAdvancingSupervised(clock, inspection, observed_at=0.25)
+    runner = _poll_runner(tmp_path, supervised, clock)
+
+    observed, timed_out = runner._poll_until_resolved("exec-recovery", timeout_seconds=1)
+
+    assert observed is inspection
+    assert timed_out is False
+
+
+def test_result_available_wins_even_if_inspection_crosses_deadline(tmp_path: Path) -> None:
+    clock = _FakeClock()
+    inspection = SupervisedInspection(
+        execution_id="exec-result",
+        state=SupervisedInspectionState.RESULT_AVAILABLE,
+        supervisor_pid=None,
+        result_available=True,
+        recovery_required=False,
+    )
+    supervised = _ClockAdvancingSupervised(clock, inspection, observed_at=1.25)
+    runner = _poll_runner(tmp_path, supervised, clock)
+
+    observed, timed_out = runner._poll_until_resolved("exec-result", timeout_seconds=1)
+
+    assert observed is inspection
+    assert timed_out is False
