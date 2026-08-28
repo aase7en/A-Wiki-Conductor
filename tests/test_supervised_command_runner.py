@@ -174,11 +174,17 @@ def test_nonzero_exit_maps_to_failure_with_real_exit_code(tmp_path: Path) -> Non
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows supervised integration")
 def test_timeout_leaves_durable_running_execution_then_retry_attaches(tmp_path: Path) -> None:
-    argv = (
-        RUNTIME_PYTHON,
-        "-c",
-        "import time; time.sleep(2); print('attach-marker')",
+    release = tmp_path / "release-child"
+    child_code = (
+        "import time; from pathlib import Path; "
+        f"p=Path({str(release)!r}); "
+        "[time.sleep(0.05) for _ in iter(p.exists, True)]; "
+        "print('attach-marker')"
     )
+    # The child waits for an explicit test signal instead of a fixed sleep.
+    # This keeps the timeout assertion deterministic even when hosted-runner
+    # process startup/inspection latency exceeds a few seconds.
+    argv = (RUNTIME_PYTHON, "-c", child_code)
     repo, store, runner = build_harness(tmp_path)
 
     first = runner.run(NativeCommandSpec(argv=argv, timeout_seconds=1))
@@ -190,6 +196,7 @@ def test_timeout_leaves_durable_running_execution_then_retry_attaches(tmp_path: 
     assert len(running_records) == 1
     assert running_records[0].execution_state is ExecutionProcessState.RUNNING
 
+    release.write_text("release", encoding="utf-8")
     second = runner.run(NativeCommandSpec(argv=argv, timeout_seconds=30))
 
     assert second.timed_out is False
