@@ -17,6 +17,7 @@ from a_conductor.owned_process import (
     WindowsExactPidTerminator,
     WindowsOwnedProcessController,
     WindowsProcessSpawner,
+    build_owned_child_environment,
 )
 from a_conductor.runtime_safety import (
     ProcessObservation,
@@ -570,3 +571,27 @@ def test_spawner_uses_safe_inherited_environment_plus_overrides(tmp_path: Path, 
     assert "OPENAI_API_KEY" not in env
     assert "CUSTOM_SECRET" not in env
     assert captured["shell"] is False
+
+
+def test_spec_accepts_bounded_anthropic_environment_overrides(tmp_path: Path) -> None:
+    root = tmp_path / "owned"
+    overrides = (
+        ("ANTHROPIC_BASE_URL", "https://provider.example/v1"),
+        ("ANTHROPIC_AUTH_TOKEN", "secret-token-value"),
+    )
+    runtime = OwnedProcessSpec(
+        allowed_root=root,
+        cwd=root,
+        pid_path=root / "run" / "runtime.pid",
+        stdout_path=root / "logs" / "stdout.log",
+        stderr_path=root / "logs" / "stderr.log",
+        command=(sys.executable, "--marker", "owned-marker"),
+        expected_executable_name=Path(sys.executable).name,
+        expected_profile_marker="owned-marker",
+        environment_overrides=overrides,
+    )
+
+    assert runtime.environment_overrides == overrides
+    environment = build_owned_child_environment(runtime, {"PATH": "C:/Tools"})
+    assert environment["ANTHROPIC_BASE_URL"] == "https://provider.example/v1"
+    assert environment["ANTHROPIC_AUTH_TOKEN"] == "secret-token-value"

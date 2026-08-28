@@ -71,6 +71,7 @@ class SupervisedLaunchPlan:
     runtime_root: Path | str
     target_argv: tuple[str, ...]
     target_executable_name: str
+    environment_overrides: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.record, DurableExecutionRecord):
@@ -100,6 +101,21 @@ class SupervisedLaunchPlan:
         if expected.casefold() != self.target_executable_name.strip().casefold():
             raise ValueError("target executable does not match target_argv[0]")
         object.__setattr__(self, "target_executable_name", self.target_executable_name.strip())
+        if not isinstance(self.environment_overrides, tuple):
+            raise ValueError("environment_overrides must be a tuple")
+        for item in self.environment_overrides:
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise ValueError("environment override must be a key/value tuple")
+            key, value = item
+            if (
+                not isinstance(key, str)
+                or not key
+                or "\x00" in key
+                or not isinstance(value, str)
+                or not value
+                or "\x00" in value
+            ):
+                raise ValueError("environment override is invalid")
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,6 +303,7 @@ class SupervisedExecutionService:
             command=command,
             expected_executable_name=self._python_name,
             expected_profile_marker=record.execution_id,
+            environment_overrides=plan.environment_overrides,
         )
 
     def _mark_recovery(

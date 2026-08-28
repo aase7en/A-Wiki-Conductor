@@ -20,7 +20,9 @@ from .runtime_safety import ProcessObservation, ProcessOwnership, classify_proce
 from .windows_observer import PidMetadataObservation, PidMetadataStatus
 
 
-_ALLOWED_ENVIRONMENT_OVERRIDES = frozenset({"SERENA_HOME"})
+_ALLOWED_ENVIRONMENT_OVERRIDES = frozenset(
+    {"SERENA_HOME", "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"}
+)
 _SAFE_INHERITED_ENVIRONMENT_KEYS = frozenset(
     key.casefold()
     for key in {

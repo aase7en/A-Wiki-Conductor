@@ -25,7 +25,7 @@ from a_conductor.native_execution import (
 from a_conductor.native_operation_assembly import ControlCenterNativeAdapterResolver
 from a_conductor.owned_process import WindowsOwnedProcessController
 from a_conductor.supervised_command_runner import SupervisedCommandRunner
-from a_conductor.supervised_execution import SupervisedExecutionService
+from a_conductor.supervised_execution import SupervisedExecutionService, SupervisedLaunchOutcome
 from a_conductor.windows_io import LoopbackReadyzHttpProbe, StrictPowerShellInspectionRunner
 from a_conductor.windows_observer import WindowsRuntimeObserver
 
@@ -337,3 +337,57 @@ def test_resolver_runner_factory_injects_into_adapters(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert len(recording.specs) == 1
     assert Path(recording.specs[0].argv[0]).name.startswith("git")
+
+
+def test_environment_overrides_are_forwarded_to_supervised_launch(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class CapturingSupervised:
+        def __init__(self) -> None:
+            self.plans = []
+
+        def launch(self, plan):
+            self.plans.append(plan)
+            return SupervisedLaunchOutcome(
+                record=plan.record,
+                supervisor_pid=None,
+                child_pid=None,
+                recovery_required=True,
+                error_code="TEST_STOP",
+            )
+
+        def inspect(self, execution_id):
+            raise AssertionError("inspect must not run")
+
+        def collect(self, execution_id, *, expected_version):
+            raise AssertionError("collect must not run")
+    supervised = CapturingSupervised()
+    scope = NativeExecutionScope(
+        root=repo,
+        mutation_allowed=False,
+        allowed_executables=(PYTHON_NAME,),
+        allowed_environment_overrides=("ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"),
+        max_timeout_seconds=60,
+    )
+    runner = SupervisedCommandRunner(
+        scope=scope,
+        execution_store=store,
+        supervised=supervised,
+        **IDENTITY,
+    )
+    overrides = (
+        ("ANTHROPIC_BASE_URL", "https://provider.example/v1"),
+        ("ANTHROPIC_AUTH_TOKEN", "secret-token-value"),
+    )
+
+    runner.run(
+        NativeCommandSpec(
+            argv=(PYTHON_NAME, "-c", "pass"),
+            environment_overrides=overrides,
+        )
+    )
+
+    assert len(supervised.plans) == 1
+    assert supervised.plans[0].environment_overrides == overrides
