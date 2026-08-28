@@ -1,74 +1,65 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-28 — WO-P1-094 / AHA-4
+Last updated: 2026-08-28 — WO-P1-095 / AHA-4 Claude durable backend bridge
 
 ## Current Objective
 
-Eliminate manual prompt copying by connecting accepted GE-6 scheduling to the existing durable job-control execution authority. AHA-4 is the durable dispatch layer; AHA-4A/4B worker lease/fallback/heartbeat remain later slices.
+Eliminate manual prompt copying by placing the accepted AHA-3 Claude Code harness under the same durable job-control authority now used by accepted GE-6/GE-7 graph dispatch.
 
 ## Repository State
 
 - Repository: `aase7en/A-Wiki-Conductor`
-- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4`
-- Branch: `feat/wo-p1-094-aha4-durable-graph-dispatch`
-- Base/accepted main at claim: `023c7b65026b0ff536cd1d802d6010e381a4447a`
-- Work order: `docs/work-orders/WO-P1-094-aha4-durable-graph-dispatch.md`
-- Shared root is protected/read-only.
+- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-bridge`
+- Branch: `feat/wo-p1-095-aha4-harness-durable-bridge`
+- Base/accepted main: `5cc417c92450eba796fa9af1cf3da037663b1eea`
+- Work order: `docs/work-orders/WO-P1-095-aha4-claude-durable-backend.md`
+- Shared root remains protected/read-only.
 
 ## Accepted Baseline
 
-- AHA-1 contracts merged `c3ca84c`.
-- AHA-2 provider configuration/observation merged `ca4cd98`.
-- AHA-3 bounded Claude Code read-only harness merged `ab28dc7`.
-- PR #118 Windows Tk CI isolation merged `ad106282`.
-- PR #117 harness phase transition merged `8db3226`.
-- GE-6 PR #104 exact head `694b8dee053e48d805596b527525cada875848a4` passed independent 114-test recheck + exact-head 3-OS CI and merged as `023c7b6`.
-
-## AHA-4 Architecture Boundary
-
-Accepted ADR: `docs/adr/GE-0007-dispatch-through-durable-job-control.md`.
+- AHA-1 provider/harness contracts merged `c3ca84c`.
+- AHA-2 provider config/readiness merged `ca4cd98`.
+- AHA-3 bounded read-only Claude Code adapter merged `ab28dc7`.
+- GE-6 scheduler merged `023c7b6`.
+- PR #119 durable graph-dispatch final head `70e80c1d958b08137bf5c70a44cca369ac4aadac` passed 3-OS CI run `33159443742` and merged as `5cc417c92450eba796fa9af1cf3da037663b1eea`.
+## Architecture Boundary
 
 Classification: **REUSE + WRAP + EXTEND**.
 
 Authority remains:
-- `DurableJobControlService`
 - `SQLiteJobStore`
 - `DurableJobExecutionCoordinator`
-- supervised execution + canonical execution fingerprint/dedup
+- `JobExecutionBackend`
+- `ClaudeCodeHarnessAdapter`
+- existing supervised execution + canonical duplicate guard for future real launch
 
-Do not create a graph-specific lifecycle/store/retry counter/process runner/dedup system. Do not route internal graph dispatch through `operator_dispatch.py`.
+Current archaeology: `JobExecutionBackend.execute(operation_ref, worker_id)` lacks job/work-order/project context required by the resilient execution identity contract. WO-P1-095 may add one immutable bounded context seam if RED tests prove it necessary. Existing native backend must remain compatible and may ignore unused context.
 
-Stable semantic key: `{graph_id, graph_run_id, node_id}`.
+The Claude job backend must return only `JobBackendResult`; it does not transition job state itself. Provider/harness success is evidence, never completion authority.
 
-Expected transaction:
-`resolve/recover job -> READY -> exact worker claim(CAS) -> injected gates -> GATING -> execute_operation -> VERIFYING or RECOVERY_NEEDED -> reconcile`.
-
-Gate refusal must occur before EXECUTING so it consumes zero attempts. Transport/backend uncertainty never authorizes blind replay.
-
-## Local Implementation Evidence
-
-- stable graph-run job identity + immutable dispatch metadata implemented;
-- authoritative injected dispatch-mode resolver blocks unknown/mismatch before job launch;
-- exact-worker CAS + gate denial/release + INTERACTIVE_PULL offer + PROGRAMMATIC_PUSH durable execution implemented;
-- transport loss after durable GATING reconciles then resumes once; node-local backend failure leaves independent dispatch healthy;
-- `test_graph_dispatch.py`: **18 passed**; graph/job-control/dedup/recovery: **183 passed**; AHA-2/AHA-3 + dispatch: **107 passed**.
+External process launch remains injected in this slice. The next micro-slice must adapt AHA-3 `ClaudeCodeInvocation` to the existing supervised runner/dedup path rather than build another launcher or duplicate guard.
 
 ## Protected Parallel Work
 
-- PR #108 installer target ownership: do not touch installer scope.
-- `feat/north-star-runtime-sunday-family`: preserved integration lineage; do not mutate.
-- dirty/detached audit lanes remain protected.
-- live provider/gateway/user DB remains fail-closed and out of this slice.
+- PR #108 installer target ownership: do not touch.
+- `feat/north-star-runtime-sunday-family`: do not touch.
+- A-Wiki main is read-only; current A-Wiki phase 8+ remains HOLD.
+- live provider DB/gateway/credentials remain out of scope.
+## Local Evidence
+
+- Claude backend + job execution + native operations: **33 passed**.
+- Broader provider/harness/job-control/graph/dedup/supervised regressions: **106 passed**.
+- Full local run: **1398 passed / 4 skipped**; 31 failures + 8 errors confined to unrelated local PermissionError instance-file tests and GPU framebuffer tests.
+- GPT completed the blocked GLM archaeology: reuse SupervisedCommandRunner/DuplicateExecutionGuard; future missing seam is supervised environment propagation from NativeCommandSpec to OwnedProcessSpec.
 
 ## Next Safe Action
 
-1. local final gate is GREEN: compileall PASS, staged diff-check PASS, exact 8-file scope PASS, bounded secret scan PASS;
-2. Draft PR #119 is open at old head `3b97cfa`; remote audit found and locally fixed same-key worker drift by pinning scheduled `worker_id`;
-3. commit/push that fix, then require fresh exact-head Windows/Ubuntu/macOS CI. Old-head run `33158379414` had Ubuntu/macOS green and Windows failed `test_supervised_command_runner.py::test_timeout_leaves_durable_running_execution_then_retry_attaches`; local repeated suite = 5/5 green;
-4. merge/cleanup only after evidence is green;
-5. continue AHA-4 in a new bounded micro-slice that bridges the accepted AHA-3 Claude Code harness into this durable job-control execution authority; AHA-4 is not COMPLETE until that bridge is proven;
-6. only then proceed to AHA-4A worker lease/fallback and AHA-4B heartbeat/stale recovery.
+1. compileall + diff-check + exact scope/secret audit;
+2. commit/push Draft PR for WO-P1-095;
+3. audit exact remote diff and require exact-head Windows/Ubuntu/macOS CI;
+4. merge only when green;
+5. next micro-slice: supervised Claude runner adapter, no new process supervisor/dedup.
 
 ## Safety
 
-`SAFE_TO_MUTATE = YES` only in `A:\GitHub\A-Wiki-Conductor-aha4` and WO-P1-094 allowed scope.
+`SAFE_TO_MUTATE = YES` only in `A:\GitHub\A-Wiki-Conductor-aha4-bridge` and WO-P1-095 allowed scope.
