@@ -73,3 +73,20 @@ Next safe action: prove RED/old failure rationale by inspection, run the repaire
 - production source remains unchanged.
 
 Next safe action: commit/push the fixture repair and require PR #113 hosted-Windows CI to pass the standalone suite, remaining core suite, packaging and smoke gates.
+
+## Checkpoint - PR #113 run 284 localized the remaining CI defect class
+
+- Hosted Windows: GUI **241 passed**, local-instance **23 passed**, supervised-command **6 passed**.
+- The subsequent long-lived core pytest process still hit `0x80000003`, now while `test_native_git_transactions.py` was spawning Git via `subprocess.run`.
+- This proves the defect is not specific to `SupervisedCommandRunner`; it is cumulative hosted-Windows GC/faulthandler instability across subprocess-heavy tests in one long-lived pytest process, matching `DEFECT_LESSONS.md` #11.
+- Repair strategy expands process isolation only: run remaining subprocess-heavy core files one file per pytest process, and exclude exactly those files from the residual core process. No tests are skipped or weakened.
+
+## Checkpoint - eliminate long-lived Windows core pytest process
+
+- Run 284 confirmed `0x80000003` migrated to `test_native_git_transactions.py` after the supervised suite itself passed 6/6; this is cumulative process instability, not one faulty test file.
+- CI repair now runs every remaining core `test_*.py` file in its own pytest process instead of chasing individual files.
+- Coverage check: **99** root test files total = **17** already-run GUI/lifecycle files + **82** isolated remaining files; duplicates=0, missing=0.
+- A representative set of 12 subprocess-heavy files was run one-file-per-process locally: all passed, including `test_native_git_transactions.py` **12 passed in 11.08s**.
+- This changes process lifetime only; no test is skipped, deleted, or assertion-weakened.
+
+Next safe action: commit/push and require GitHub Windows CI to prove all 99 test files plus smoke, packaging, frozen archive and executable smoke gates.
