@@ -43,7 +43,7 @@ Forbidden:
 - AHA-3 PR #116 head `8b9f034d4634bc3d23ebee8c00f28d6f089f34a8` passed Windows/Ubuntu/macOS CI including packaging/frozen smoke.
 - PR #116 merged as `ab28dc7ea428e3253ce20cc155fb7b92e7719a8a`.
 - Clean AHA-3 worktree/branch were removed only after ancestry proof.
-- Live loopback provider gateway check: port 3456 has no listener, so live provider smoke remains NOT READY.
+- Live smoke readiness checks remain fail-closed: port 3456 has no listener; the installed `%LOCALAPPDATA%\\A-Conductor\\control-center.sqlite` currently has no `provider_*` tables; and a repository search finds no application assembly reference to `SQLiteProviderConfigStore` outside its own module/tests. No live call, gateway start, or user-DB initialization was performed.
 - Independent GPT review of current GE-6 PR #104 head `b0febf20` found four acceptance gaps against ADR GE-0006: missing topological-rank ordering, input-order-dependent worker choice, missing mutating project/workspace identity gate, and missing injected gate/provider eligibility seam.
 - A COMMENT review was posted on PR #104; its owner lane remains responsible for repair.
 - PR #104 Windows CI also failed in the pre-existing supervised-command timeout suite, not in scheduler assertions; one rerun was requested for classification without changing its branch.

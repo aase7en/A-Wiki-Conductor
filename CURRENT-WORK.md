@@ -29,7 +29,7 @@ Protected parallel work remains PR #104 GE-6, PR #108 installer safety, and the 
 ## Immediate execution frontier
 
 1. AHA-3 fake-runner adapter is merged/accepted; its old worktree and branch were removed after clean ancestry proof;
-2. live read-only Claude/provider smoke remains NOT READY because the configured loopback gateway on port 3456 has no listener; no live call/start is authorized here;
+2. live read-only Claude/provider smoke remains NOT READY: the installed control DB currently has no `provider_*` tables, repository assembly does not yet reference `SQLiteProviderConfigStore`, and the configured loopback gateway on port 3456 has no listener; no live call/start or user-DB mutation is authorized here;
 3. GE-6 PR #104 remains the next blocking dependency; independent GPT review found four ADR GE-0006 gaps: topological-rank ordering, stable worker-ID ordering, mutating project/workspace identity gate, and injected gate/provider eligibility;
 4. PR #104 owner lane must repair those gaps and reach exact-head CI green; its Windows supervised-command failure is being rerun/classified separately from scheduler correctness;
 5. once GE-6 is accepted/merged, start AHA-4 by REUSE+WRAP of GE-7 + existing durable job control; do not create a second scheduler/lifecycle/store;
