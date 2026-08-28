@@ -34,7 +34,7 @@ GLM is replaceable provider/model metadata. `CAPABLE != AUTHORIZED`; `CONFIGURED
 
 ## Protected Parallel Work
 
-- PR #104 / `feat/ge-6-scheduler`: separate Graph owner; no scheduler mutation.
+- PR #104 / `feat/ge-6-scheduler`: GE-6 owner lane (GLM 5.3 MAX); reconciled with `origin/main @ ca4cd98` via clean merge `d377dbe` (no rebase/reset/force); full graph suite 92 passed locally on Windows on the merged state; awaiting PR CI + review. No scheduler mutation by non-Graph lanes.
 - PR #108 / installer target ownership: separate release owner; no installer mutation.
 - `feat/north-star-runtime-sunday-family`: unique integration lineage; reconcile, do not overwrite.
 - Unknown dirty/detached audit lanes remain protected.
