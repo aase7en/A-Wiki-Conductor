@@ -15,6 +15,7 @@ All notable changes to A-Sunday Conductor are documented here.
 - **Graph Engineering foundation** — TaskGraph/TaskNode/TaskEdge domain + acyclic builder + SQLite store (PRs #91-92, backend only)
 
 ### Fixed
+- **Connector tunnel reliability floor** ? Setup now rejects/upgrades tunnel-client `<0.0.12`, the first upstream release that preserves shared stdio MCP sessions after non-initialize response deadlines; generated connector start scripts rotate prior runtime stdout/stderr and persist the real tunnel-client exit code instead of `code .` (WO-P1-097).
 - **PROJECT DISK UI freeze blocker** — recursive folder-size work runs off the Tk thread with cooperative cancellation/stale-result guards and dedicated tests; Windows CI topology preserves GUI/process isolation (PR #99).
 - **Worker display names** — WORKERS/registry surfaces show the user's configured worker name rather than an internal auto ID (PR #100).
 - **Singleton dialogs** — Donate/Guide/Preferences/Add Worker/Brain Config/Edit Connector no longer stack duplicate windows; re-open lifts the existing one (WO-P1-069)
