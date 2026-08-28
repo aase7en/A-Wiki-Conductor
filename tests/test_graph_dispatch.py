@@ -33,6 +33,7 @@ def _result_ok() -> NativeCommandResult:
         stdout_truncated=False, stderr_truncated=False,
     )
 
+
 class FakeGit:
     def status_short(self, *, timeout_seconds=10):
         return _result_ok()
@@ -96,6 +97,7 @@ def _request(*, run_id: str = "run-1", project_id: str = "project-1", worker_id:
         max_attempts=3,
     )
 
+
 def test_dispatch_key_is_stable_and_graph_run_scoped() -> None:
     first = GraphDispatchKey("graph-1", "run-1", "node-1")
     same = GraphDispatchKey("graph-1", "run-1", "node-1")
@@ -129,6 +131,7 @@ def test_different_graph_runs_create_distinct_jobs(tmp_path: Path) -> None:
     one = coordinator.dispatch(_request(run_id="run-1"), gate=DispatchGateDecision.deny("NO_GO"))
     two = coordinator.dispatch(_request(run_id="run-2"), gate=DispatchGateDecision.deny("NO_GO"))
     assert one.job.job_id != two.job.job_id
+
 
 def test_exact_scheduled_worker_is_claimed_and_used(tmp_path: Path) -> None:
     service, resolver = _open_service(tmp_path)
@@ -173,6 +176,7 @@ def test_backend_uncertainty_enters_recovery_and_retry_does_not_relaunch(tmp_pat
     assert second.job == first.job
     assert resolver.calls == ["a-worker-01"]
 
+
 class RacingService:
     """Inject one optimistic-version race before worker claim."""
 
@@ -214,6 +218,7 @@ def test_stale_claim_version_reconciles_without_external_execution(tmp_path: Pat
     assert racing.execute_calls == 0
     assert resolver.calls == []
 
+
 def test_same_dispatch_key_with_different_project_fails_closed(tmp_path: Path) -> None:
     service, _ = _open_service(tmp_path)
     coordinator = _coordinator(service)
@@ -236,6 +241,7 @@ def test_request_node_must_match_scheduler_assignment() -> None:
             operation_ref="op:graph-pytest",
             dispatch_mode=GraphDispatchMode.PROGRAMMATIC_PUSH,
         )
+
 
 def test_interactive_pull_is_durably_offered_without_fake_push(tmp_path: Path) -> None:
     service, resolver = _open_service(tmp_path)
@@ -271,6 +277,7 @@ def test_allow_gate_evidence_is_persisted_before_execution(tmp_path: Path) -> No
         if event.to_state is TaskState.GATING
     )
     assert gating_event.evidence_ref == "gate:allow:e1"
+
 
 def test_same_key_with_different_operation_fails_closed(tmp_path: Path) -> None:
     service, _ = _open_service(tmp_path)
@@ -311,6 +318,7 @@ def test_same_key_with_different_dispatch_mode_fails_closed(tmp_path: Path) -> N
     with pytest.raises(GraphDispatchError) as exc_info:
         changed_mode_coordinator.dispatch(changed, gate=DispatchGateDecision.allow())
     assert exc_info.value.code == "DISPATCH_JOB_IDENTITY_MISMATCH"
+
 
 class LostAfterGateService:
     """Simulate observer transport loss after the durable GATING write."""
@@ -389,6 +397,7 @@ def _open_selective_service(tmp_path: Path, failing_workers: set[str]):
     )
     return service, resolver
 
+
 def _coordinator(service, *, modes=None):
     mapping = modes or {
         "a-worker-01": GraphDispatchMode.PROGRAMMATIC_PUSH,
@@ -447,4 +456,22 @@ def test_request_dispatch_mode_must_match_authoritative_worker_mode(tmp_path: Pa
         coordinator.dispatch(_request(), gate=DispatchGateDecision.allow())
 
     assert exc_info.value.code == "DISPATCH_MODE_MISMATCH"
+    assert resolver.calls == []
+
+
+def test_same_key_cannot_silently_change_scheduled_worker(tmp_path: Path) -> None:
+    service, resolver = _open_service(tmp_path)
+    coordinator = _coordinator(service)
+    coordinator.dispatch(
+        _request(worker_id="a-worker-01"),
+        gate=DispatchGateDecision.deny("NO_GO"),
+    )
+
+    with pytest.raises(GraphDispatchError) as exc_info:
+        coordinator.dispatch(
+            _request(worker_id="a-worker-02"),
+            gate=DispatchGateDecision.allow(),
+        )
+
+    assert exc_info.value.code == "DISPATCH_JOB_IDENTITY_MISMATCH"
     assert resolver.calls == []

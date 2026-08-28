@@ -1,6 +1,6 @@
 # WO-P1-094 — AHA-4 / GE-7 durable graph dispatch
 
-Status: REVIEW_READY — LOCAL GREEN / PR PENDING
+Status: REVIEW_READY — PR #119 / FINAL SHA PENDING
 Owner: GPT-5.6 Sol integrator
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha4`
@@ -71,7 +71,7 @@ Write RED tests for stable dispatch identity, idempotent create/recover, exact w
 
 Implemented in bounded scope:
 - deterministic SHA-256 durable `job_id` from `{graph_id, graph_run_id, node_id}`;
-- immutable dispatch-metadata checkpoint pins project/work-order/operation/mode/attempt policy;
+- immutable dispatch-metadata checkpoint pins project/work-order/operation/mode/attempt policy and the exact scheduled worker, preventing implicit worker fallback inside the same graph-run key;
 - authoritative injected worker dispatch-mode resolver; unknown/mismatch fails closed;
 - exact scheduled-worker CAS claim;
 - gate deny -> durable `BLOCKED`, claim released, attempt count unchanged;
@@ -81,9 +81,9 @@ Implemented in bounded scope:
 - response-loss-after-GATING regression resumes once; node-local failure does not corrupt an independent dispatch.
 
 Verification:
-- `tests/test_graph_dispatch.py`: **17 passed**;
-- graph/job-control/dedup/recovery suite: **182 passed in 8.24s**;
-- AHA-2/AHA-3 + durable-dispatch regression set: **106 passed in 7.38s**;
+- `tests/test_graph_dispatch.py`: **18 passed**;
+- graph/job-control/dedup/recovery suite: **183 passed in 7.08s**;
+- AHA-2/AHA-3 + durable-dispatch regression set: **107 passed in 6.82s**;
 - no scheduler/store/dedup/process-runner replacement introduced.
 
 Next: compileall + diff-check, final scope/secret audit, checkpoint continuity, commit/push Draft PR, exact remote diff review, then 3-OS CI.
@@ -95,4 +95,4 @@ Final local gate before PR:
 - bounded changed-file secret-pattern scan: PASS;
 - forbidden duplicate/runtime scan in `graph/dispatch.py`: no sqlite/subprocess/dedup/operator-dispatch/scheduler-loop imports.
 
-Local acceptance is GREEN. Remaining gates are remote diff review and exact-head 3-OS CI; no merge from local evidence alone.
+Local acceptance is GREEN. Draft PR #119 is open. Remote audit of head `3b97cfa` found one additional identity defect: the same graph-run key could silently change its scheduled worker. A failing regression was added and the immutable dispatch metadata now pins `worker_id`; focused dispatch is 18/18 green. Old-head CI run `33158379414` had Ubuntu/macOS green and a Windows supervised-command timeout/attach failure outside this PR's changed files; the same supervised suite passes locally 5/5 repeated runs. Push the worker-pin fix to create the final candidate SHA, then require fresh exact-head 3-OS CI before merge.

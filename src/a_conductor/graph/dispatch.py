@@ -35,6 +35,7 @@ def _text(value: str, field: str, *, max_length: int) -> str:
         raise ValueError(f"{field} is invalid")
     return value.strip()
 
+
 class GraphDispatchError(RuntimeError):
     def __init__(self, code: str) -> None:
         self.code = _text(code, "code", max_length=128)
@@ -44,6 +45,7 @@ class GraphDispatchError(RuntimeError):
 class GraphDispatchMode(str, Enum):
     INTERACTIVE_PULL = "INTERACTIVE_PULL"
     PROGRAMMATIC_PUSH = "PROGRAMMATIC_PUSH"
+
 
 class WorkerDispatchModeResolver(Protocol):
     def resolve(self, worker_id: str) -> GraphDispatchMode | None: ...
@@ -64,6 +66,7 @@ class StaticWorkerDispatchModeResolver:
     def resolve(self, worker_id: str) -> GraphDispatchMode | None:
         worker_id = _text(worker_id, "worker_id", max_length=128)
         return self._modes.get(worker_id)
+
 
 @dataclass(frozen=True, slots=True)
 class GraphDispatchKey:
@@ -242,6 +245,7 @@ def _dispatch_metadata_ref(request: GraphDispatchRequest) -> str:
         "graph_id": request.key.graph_id,
         "graph_run_id": request.key.graph_run_id,
         "node_id": request.key.node_id,
+        "worker_id": request.assignment.worker_id,
         "project_id": request.project_id,
         "work_order_ref": request.work_order_ref,
         "operation_ref": request.operation_ref,

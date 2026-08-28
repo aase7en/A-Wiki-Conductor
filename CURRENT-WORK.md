@@ -25,9 +25,9 @@ Protected parallel work remains PR #108 installer safety and the unique North St
 ## Immediate execution frontier
 
 1. AHA-4 durable graph-dispatch core is locally implemented: stable graph-run identity, immutable dispatch metadata, authoritative worker dispatch mode, exact-worker CAS claim, gate-before-attempt, pull-mode offer, push-mode durable execution, and recovery reconciliation;
-2. focused `test_graph_dispatch.py`: **17 passed**; graph/job-control/dedup/recovery regression set: **182 passed**; AHA-2/AHA-3 + durable-dispatch regression set: **106 passed**;
+2. focused `test_graph_dispatch.py`: **18 passed**; graph/job-control/dedup/recovery regression set: **183 passed**; AHA-2/AHA-3 + durable-dispatch regression set: **107 passed**;
 3. no second scheduler/lifecycle/store/process-runner/dedup was added; existing supervised execution remains external-launch authority;
-4. local final gate is GREEN: compileall PASS, staged diff-check PASS, exact 8-file scope PASS, bounded secret scan PASS; next = commit/push Draft PR -> exact remote diff review -> 3-OS CI;
+4. Draft PR #119 is open. Final remote audit found and fixed same-key scheduled-worker drift by pinning `worker_id` in immutable dispatch metadata; old-head Windows CI failed an unrelated supervised-command timeout/attach test while Ubuntu/macOS passed, and that suite passes locally 5/5. Next = commit/push final fix -> fresh exact-head 3-OS CI;
 5. after this core merges, continue AHA-4 with the bounded harness execution bridge that wraps the accepted AHA-3 Claude Code adapter in the same durable job-control authority; do not mark AHA-4 COMPLETE before that integration proof;
 6. then start AHA-4A atomic worker lease + eligibility/fallback and AHA-4B heartbeat/stale-owner recovery;
 7. live provider smoke remains separately fail-closed until safe provider-store assembly/gateway readiness exists.

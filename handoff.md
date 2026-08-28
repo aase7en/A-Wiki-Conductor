@@ -51,7 +51,7 @@ Gate refusal must occur before EXECUTING so it consumes zero attempts. Transport
 - authoritative injected dispatch-mode resolver blocks unknown/mismatch before job launch;
 - exact-worker CAS + gate denial/release + INTERACTIVE_PULL offer + PROGRAMMATIC_PUSH durable execution implemented;
 - transport loss after durable GATING reconciles then resumes once; node-local backend failure leaves independent dispatch healthy;
-- `test_graph_dispatch.py`: **17 passed**; graph/job-control/dedup/recovery: **182 passed**; AHA-2/AHA-3 + dispatch: **106 passed**.
+- `test_graph_dispatch.py`: **18 passed**; graph/job-control/dedup/recovery: **183 passed**; AHA-2/AHA-3 + dispatch: **107 passed**.
 
 ## Protected Parallel Work
 
@@ -63,8 +63,8 @@ Gate refusal must occur before EXECUTING so it consumes zero attempts. Transport
 ## Next Safe Action
 
 1. local final gate is GREEN: compileall PASS, staged diff-check PASS, exact 8-file scope PASS, bounded secret scan PASS;
-2. commit/push WO-P1-094 and open Draft PR;
-3. audit exact remote changed files/diff, then require exact-head Windows/Ubuntu/macOS CI;
+2. Draft PR #119 is open at old head `3b97cfa`; remote audit found and locally fixed same-key worker drift by pinning scheduled `worker_id`;
+3. commit/push that fix, then require fresh exact-head Windows/Ubuntu/macOS CI. Old-head run `33158379414` had Ubuntu/macOS green and Windows failed `test_supervised_command_runner.py::test_timeout_leaves_durable_running_execution_then_retry_attaches`; local repeated suite = 5/5 green;
 4. merge/cleanup only after evidence is green;
 5. continue AHA-4 in a new bounded micro-slice that bridges the accepted AHA-3 Claude Code harness into this durable job-control execution authority; AHA-4 is not COMPLETE until that bridge is proven;
 6. only then proceed to AHA-4A worker lease/fallback and AHA-4B heartbeat/stale recovery.
