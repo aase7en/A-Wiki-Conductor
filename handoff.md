@@ -1,65 +1,65 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-28 — WO-P1-095 / AHA-4 Claude durable backend bridge
+Last updated: 2026-08-28 — WO-P1-100 / AHA-4 supervised durable backend assembly
 
 ## Current Objective
 
-Eliminate manual prompt copying by placing the accepted AHA-3 Claude Code harness under the same durable job-control authority now used by accepted GE-6/GE-7 graph dispatch.
+Finish the production AHA-4 execution boundary by joining accepted durable Claude job execution to the accepted supervised Claude runner using exact per-job identity. No second process runner, lifecycle, execution store, retry loop, dedup system, scheduler, provider registry, or memory system.
 
 ## Repository State
 
 - Repository: `aase7en/A-Wiki-Conductor`
-- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-bridge`
-- Branch: `feat/wo-p1-095-aha4-harness-durable-bridge`
-- Base/accepted main: `5cc417c92450eba796fa9af1cf3da037663b1eea`
-- Work order: `docs/work-orders/WO-P1-095-aha4-claude-durable-backend.md`
+- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-assembly`
+- Branch: `feat/wo-p1-100-aha4-supervised-backend-assembly`
+- reconciled current base: `7db34048a0dd002b9bfbe41408c83c7ec18df2ad`
+- Work order: `docs/work-orders/WO-P1-100-aha4-supervised-backend-assembly.md`
+- PR #130 is open; implementation commit `001cbc968faf7b66d28de39635827aacbd506d5c` plus this bounded truthfulness/formatting follow-up; local verification green.
 - Shared root remains protected/read-only.
 
 ## Accepted Baseline
 
-- AHA-1 provider/harness contracts merged `c3ca84c`.
-- AHA-2 provider config/readiness merged `ca4cd98`.
-- AHA-3 bounded read-only Claude Code adapter merged `ab28dc7`.
 - GE-6 scheduler merged `023c7b6`.
-- PR #119 durable graph-dispatch final head `70e80c1d958b08137bf5c70a44cca369ac4aadac` passed 3-OS CI run `33159443742` and merged as `5cc417c92450eba796fa9af1cf3da037663b1eea`.
+- durable graph dispatch merged `5cc417c9`.
+- durable Claude backend PR #121 merged `0e9b93a`.
+- supervised Claude runner PR #124 exact head `25cc694` passed 3-OS CI run `33176757259` and merged as `e933a53`.
+- reconciled main `7db34048a0dd002b9bfbe41408c83c7ec18df2ad` includes independent tunnel-client checksum hardening/closeout; no WO-P1-100 source overlap.
+
 ## Architecture Boundary
 
 Classification: **REUSE + WRAP + EXTEND**.
 
-Authority remains:
-- `SQLiteJobStore`
-- `DurableJobExecutionCoordinator`
-- `JobExecutionBackend`
-- `ClaudeCodeHarnessAdapter`
-- existing supervised execution + canonical duplicate guard for future real launch
+Accepted chains to join:
 
-Current archaeology: `JobExecutionBackend.execute(operation_ref, worker_id)` lacks job/work-order/project context required by the resilient execution identity contract. WO-P1-095 may add one immutable bounded context seam if RED tests prove it necessary. Existing native backend must remain compatible and may ignore unused context.
+`DurableJobExecutionCoordinator -> ClaudeCodeJobBackend -> ClaudeCodeHarnessAdapter`
 
-The Claude job backend must return only `JobBackendResult`; it does not transition job state itself. Provider/harness success is evidence, never completion authority.
+and
 
-External process launch remains injected in this slice. The next micro-slice must adapt AHA-3 `ClaudeCodeInvocation` to the existing supervised runner/dedup path rather than build another launcher or duplicate guard.
+`ClaudeCodeInvocation -> SupervisedClaudeCodeRunner -> SupervisedCommandRunner -> DuplicateExecutionGuard -> SupervisedExecutionService -> OwnedProcessSpec`.
+
+The missing seam is lazy per-job adapter construction after durable `JobExecutionContext` and non-secret provider metadata are known. Provider-unavailable paths must not resolve credentials or launch. Dispatch branch/HEAD must bind the supervised fingerprint; missing branch must fail closed before reference resolution.
 
 ## Protected Parallel Work
 
-- PR #108 installer target ownership: do not touch.
-- `feat/north-star-runtime-sunday-family`: do not touch.
-- A-Wiki main is read-only; current A-Wiki phase 8+ remains HOLD.
-- live provider DB/gateway/credentials remain out of scope.
-## Local Evidence
-
-- Claude backend + job execution + native operations: **33 passed**.
-- Broader provider/harness/job-control/graph/dedup/supervised regressions: **106 passed**.
-- Full local run: **1398 passed / 4 skipped**; 31 failures + 8 errors confined to unrelated local PermissionError instance-file tests and GPU framebuffer tests.
-- GPT completed the blocked GLM archaeology: reuse SupervisedCommandRunner/DuplicateExecutionGuard; future missing seam is supervised environment propagation from NativeCommandSpec to OwnedProcessSpec.
+- Draft PR #125 / connector CR-2/CR-4: separate P0 v0.7.0 lane; do not touch its files.
+- PR #108 installer target ownership: separate destructive-boundary lane; do not touch.
+- North Star branch: protected integration lineage; do not touch.
+- live connector fleet / tunnel-client binary / provider credentials: do not mutate.
+- A-Wiki repository: read-only; its architecture says A-Wiki owns brain/policy/memory while A-Conductor owns dispatch/process control.
 
 ## Next Safe Action
 
-1. compileall + diff-check + exact scope/secret audit;
-2. commit/push Draft PR for WO-P1-095;
-3. audit exact remote diff and require exact-head Windows/Ubuntu/macOS CI;
-4. merge only when green;
-5. next micro-slice: supervised Claude runner adapter, no new process supervisor/dedup.
+1. commit/push the bounded SSoT/formatting follow-up to PR #130;
+2. re-audit exact remote 7-file diff and head SHA;
+3. require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke;
+4. merge only after green CI + final exact-head review; then release claim to AHA-4A.
 
 ## Safety
 
-`SAFE_TO_MUTATE = YES` only in `A:\GitHub\A-Wiki-Conductor-aha4-bridge` and WO-P1-095 allowed scope.
+`SAFE_TO_MUTATE = YES` only in `A:\GitHub\A-Wiki-Conductor-aha4-assembly` and WO-P1-100 allowed scope.
+
+## Verification checkpoint
+
+- focused runner/backend/assembly: **25 passed in 1.49s**.
+- broader Claude/provider/native/supervisor/dedup/job/graph: **237 passed in 13.43s**.
+- compileall / diff-check / bounded real-secret-prefix scan: PASS.
+- successful production assembly chain reaches durable `VERIFYING`; repeated unknown fingerprint does not blind relaunch.

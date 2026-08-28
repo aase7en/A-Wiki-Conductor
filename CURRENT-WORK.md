@@ -1,36 +1,35 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-28 (GPT-5.6 Sol — PR #119 merged / AHA-4 Claude durable bridge ACTIVE)
+Last updated: 2026-08-28 (GPT-5.6 Sol — PR #124 merged / AHA-4 per-job assembly ACTIVE)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — AHA-4 DURABLE HARNESS BRIDGE ACTIVE.**
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — DURABLE ↔ SUPERVISED CLAUDE ASSEMBLY ACTIVE.**
 
 User outcome: give A-Sunday Conductor one goal; Conductor creates bounded task packets, selects an eligible model/harness, dispatches work, gathers evidence, reviews/repairs, and continues without manual prompt copy/paste.
 
 Current exact lane:
 - repository: `aase7en/A-Wiki-Conductor`;
-- worktree: `A:\GitHub\A-Wiki-Conductor-aha4-bridge`;
-- branch: `feat/wo-p1-095-aha4-harness-durable-bridge`;
-- branch base: 5cc417c92450eba796fa9af1cf3da037663b1eea; current origin/main@7505bd3d2c88a8832df560e703cb5784b02ab805 adds PR #120 connector-resilience docs only, with no overlap to WO-P1-095;
-- PR #119 final head `70e80c1d958b08137bf5c70a44cca369ac4aadac` passed final 3-OS CI run `33159443742` including Windows packaging/frozen smoke and merged as `5cc417c9`;
-- AHA-0/1/2/3 + AHA-4 durable graph-dispatch core are merged.
+- worktree: `A:\GitHub\A-Wiki-Conductor-aha4-assembly`;
+- branch: `feat/wo-p1-100-aha4-supervised-backend-assembly`;
+- reconciled current remote main: `7db34048a0dd002b9bfbe41408c83c7ec18df2ad`;
+- PR #124 supervised Claude runner final head `25cc69478f73a8cfc154de721ae1c48bb8db7fd2` passed exact-head 3-OS CI run `33176757259` including Windows packaging/frozen/Portable smoke and merged as `e933a53c3c32bf0f8126f1602c913c08765d9a8a`;
+- WO-P1-096 connector runtime resilience remains an independent P0 v0.7.0 release gate; latest evidence records Draft PR #125 CR-2/CR-4 work and isolated E2E/soak still blocked on a sacrificial/authorized connector.
 
-Protected parallel work remains PR #108 installer safety and the unique North Star branch. Shared `A:\GitHub\A-Wiki-Conductor` remains protected/read-only.
+Protected parallel work remains PR #125 connector recovery, PR #108 installer safety and North Star. Shared `A:\GitHub\A-Wiki-Conductor` remains protected/read-only.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-095-aha4-claude-durable-backend.md` — bridge accepted AHA-3 Claude Code harness into existing durable job execution authority.
+`docs/work-orders/WO-P1-100-aha4-supervised-backend-assembly.md` — lazily assemble the accepted durable Claude backend onto the accepted supervised Claude runner using exact per-job identity.
 
 ## Immediate execution frontier
 
-1. immutable JobExecutionContext seam is implemented and carries durable job/work-order/project/worker/attempt identity into the backend; native backend compatibility remains green;
-2. ClaudeCodeJobBackend is implemented over the accepted AHA-3 adapter with opaque operation registry, exact identity checks, provider-state resolution, bounded evidence digests, and typed failure mapping;
-3. focused backend/job/native tests: **33 passed**; broader provider/harness/job/graph/dedup/supervised regression set: **106 passed**;
-4. full local suite reached **1398 passed / 4 skipped**, with 31 failures + 8 errors confined to existing machine-specific instance-file PermissionError/GPU tests, outside WO-P1-095 scope;
-5. GPT archaeology replacing the blocked GLM lane is complete: future live Claude runner should adapt ClaudeCodeInvocation -> NativeCommandSpec -> SupervisedCommandRunner, reusing DuplicateExecutionGuard/SupervisedExecutionService; NativeCommandSpec already supports env overrides, but supervised propagation/allowlist is the missing seam;
-6. next = local compile/diff/scope/secret gate -> commit/push Draft PR -> exact remote diff + 3-OS CI; after merge, open the supervised Claude runner micro-slice;
-7. live provider smoke remains separately fail-closed until safe provider-store assembly/gateway readiness exists.
+1. accepted durable backend (`ClaudeCodeJobBackend`) already owns provider/harness result classification and durable evidence semantics;
+2. accepted supervised runner (`build_supervised_claude_code_runner`) already owns opaque-ref resolution boundary and canonical `DuplicateExecutionGuard` process path;
+3. lazy per-job adapter factory + production assembly are implemented; provider unavailable/no-branch fail closed before secret resolution or launch;
+4. deterministic successful chain reaches durable `VERIFYING`; fixed-adapter compatibility and canonical duplicate recovery behavior remain green;
+5. verification: focused **25 passed**, broader Claude/provider/native/supervisor/dedup/job/graph **237 passed**, compileall/diff/secret gates PASS;
+6. Draft PR #130 is open; next = push the SSoT/formatting follow-up -> exact remote diff re-audit -> exact-head 3-OS CI -> merge; after merge begin AHA-4A worker lease/fallback as a separate work order.
 
 ## Source-of-truth rule
 

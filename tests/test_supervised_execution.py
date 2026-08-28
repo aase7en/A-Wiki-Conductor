@@ -355,3 +355,38 @@ def test_inspect_prefers_result_written_while_supervisor_was_exiting(tmp_path: P
     assert inspection.state is SupervisedInspectionState.RESULT_AVAILABLE
     assert inspection.result_available is True
     assert inspection.recovery_required is False
+
+
+def test_launch_forwards_environment_overrides_to_owned_process(tmp_path: Path) -> None:
+    controller = FakeController(child_pid=2222)
+    service, _ = make_service(tmp_path, controller=controller)
+    overrides = (
+        ("ANTHROPIC_BASE_URL", "https://provider.example/v1"),
+        ("ANTHROPIC_AUTH_TOKEN", "secret-token-value"),
+    )
+    plan = SupervisedLaunchPlan(
+        record=make_record(tmp_path),
+        runtime_root=tmp_path,
+        target_argv=(sys.executable, "-c", "pass"),
+        target_executable_name=PYTHON_NAME,
+        environment_overrides=overrides,
+    )
+
+    service.launch(plan)
+
+    assert len(controller.start_calls) == 1
+    assert controller.start_calls[0].environment_overrides == overrides
+    assert b"secret-token-value" not in (tmp_path / "executions.sqlite").read_bytes()
+
+
+def test_launch_plan_repr_masks_environment_override_values(tmp_path: Path) -> None:
+    secret = "secret-token-value"
+    plan = SupervisedLaunchPlan(
+        record=make_record(tmp_path),
+        runtime_root=tmp_path,
+        target_argv=(sys.executable, "-c", "pass"),
+        target_executable_name=PYTHON_NAME,
+        environment_overrides=(("ANTHROPIC_AUTH_TOKEN", secret),),
+    )
+
+    assert secret not in repr(plan)
