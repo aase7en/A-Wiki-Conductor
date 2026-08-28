@@ -32,12 +32,15 @@ def _node(node_id: str, priority: int = 0, worker_req: tuple[str, ...] = ("shell
 
 
 def _worker(worker_id: str, state: str = "READY", caps: tuple[str, ...] = ("shell",),
-            reserved: bool = False) -> WorkerSnapshot:
+            reserved: bool = False, workspace: str | None = None,
+            mutation_authorized: bool = True) -> WorkerSnapshot:
     return WorkerSnapshot(
         worker_id=worker_id,
         state=state,
         capabilities=caps,
         reserved=reserved,
+        workspace=workspace,
+        mutation_authorized=mutation_authorized,
     )
 
 
@@ -134,35 +137,65 @@ def test_no_workers_no_selection() -> None:
 
 
 def test_write_conflict_with_running_blocks() -> None:
+    """External running write-set must block an otherwise-ready node.
+
+    Conflicts with in-graph DOING nodes are already surfaced by
+    compute_ready_set; the scheduler seam covers external reservations
+    supplied via running_write_sets.
+    """
     nodes = [
-        _node("running", write_set=("f.py",)),
-        _node("todo", write_set=("f.py",)),
+        TaskNode(
+            id="todo",
+            objective="o",
+            worker_requirement=("shell",),
+            write_set=("f.py",),
+            model_requirement="ws:/repo",
+        ),
     ]
     graph = build_graph(nodes, [])
-    states = {"running": TaskNodeStatus.DOING, "todo": TaskNodeStatus.TODO}
-    ready = compute_ready_set(graph, states)
-    workers = (_worker("w-0"), _worker("w-1"))
-    # running is DOING so not in ready set; todo should be blocked by conflict
-    plan = schedule_once(graph, ready, workers, SchedulePolicy(),
-                         running_write_sets={"running": ("f.py",)})
+    ready = compute_ready_set(graph, {})
+    workers = (_worker("w-0", workspace="/repo"),)
+    plan = schedule_once(
+        graph,
+        ready,
+        workers,
+        SchedulePolicy(),
+        running_write_sets={"external-running": ("f.py",)},
+    )
     assert all(s.node_id != "todo" for s in plan.selected)
+    assert any(
+        "conflict" in r.reason.lower() for r in plan.blocked if r.node_id == "todo"
+    )
 
 
 def test_same_batch_conflict_prevented() -> None:
     """Two nodes writing the same file must NOT both be selected in one pass."""
     nodes = [
-        _node("a", write_set=("shared.py",)),
-        _node("b", write_set=("shared.py",)),
+        TaskNode(
+            id="a",
+            objective="o",
+            worker_requirement=("shell",),
+            write_set=("shared.py",),
+            model_requirement="ws:/repo",
+        ),
+        TaskNode(
+            id="b",
+            objective="o",
+            worker_requirement=("shell",),
+            write_set=("shared.py",),
+            model_requirement="ws:/repo",
+        ),
     ]
     graph = build_graph(nodes, [])
     ready = compute_ready_set(graph, {})
-    workers = (_worker("w-0"), _worker("w-1"))
+    workers = (_worker("w-0", workspace="/repo"), _worker("w-1", workspace="/repo"))
     plan = schedule_once(graph, ready, workers, SchedulePolicy())
     selected_ids = {s.node_id for s in plan.selected}
     # At most one of a/b should be selected (the other is deferred)
     assert not ("a" in selected_ids and "b" in selected_ids), (
         "Same-batch write conflict: both a and b selected"
     )
+    assert len(selected_ids) == 1  # identity passes; exactly one runs, one conflicts
 
 
 # --- SchedulePlan structure ---------------------------------------------------------
@@ -200,3 +233,145 @@ def test_pure_function_no_mutation() -> None:
     assert graph.node("a").status == TaskNodeStatus.TODO
     # Verify worker unchanged
     assert workers[0].reserved is False
+
+
+# --- GE-6 review round 2: ADR GE-0006 ordering / identity / eligibility ------
+
+# Blocker 1: priority -> earlier topological rank -> lexical node ID.
+
+
+def test_same_priority_orders_by_topological_rank_before_lexical_id() -> None:
+    """c-early (topo rank 1) must beat b-later (topo rank 2, lexically first)."""
+    nodes = [
+        _node("a-done"),
+        _node("b-later"),  # depends on a-done; "b-later" < "c-early" lexically
+        _node("c-early"),
+    ]
+    graph = build_graph(
+        nodes, [TaskEdge(from_id="a-done", to_id="b-later")]
+    )
+    states = {"a-done": TaskNodeStatus.DONE}
+    ready = compute_ready_set(graph, states)
+    assert "b-later" in ready.ready_ids and "c-early" in ready.ready_ids
+    plan = schedule_once(graph, ready, (_worker("w-0"),), SchedulePolicy())
+    assert [s.node_id for s in plan.selected] == ["c-early"]
+
+
+# Blocker 2: equivalent worker selection is stable by worker ID.
+
+
+def test_equivalent_worker_selection_is_stable_by_worker_id() -> None:
+    """Input order must not decide which worker gets the first node."""
+    nodes = [_node("t1"), _node("t2")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    workers = (_worker("w-bravo"), _worker("w-alpha"))  # deliberately unsorted
+    plan = schedule_once(graph, ready, workers, SchedulePolicy())
+    assert plan.selected[0].worker_id == "w-alpha"
+    assert plan.selected[1].worker_id == "w-bravo"
+
+
+# Blocker 3: mutating tasks enforce project/workspace identity fail-closed.
+
+
+def _mutating_node(node_id: str, model_requirement: str | None) -> TaskNode:
+    return TaskNode(
+        id=node_id,
+        objective=f"obj {node_id}",
+        worker_requirement=("shell",),
+        write_set=("src/x.py",),
+        model_requirement=model_requirement,
+    )
+
+
+def test_mutating_node_requires_matching_workspace_identity() -> None:
+    nodes = [_mutating_node("mut", "ws:/repo/alpha")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+
+    wrong = _worker("w-wrong", workspace="/repo/beta")
+    plan = schedule_once(graph, ready, (wrong,), SchedulePolicy())
+    assert all(s.node_id != "mut" for s in plan.selected)
+    assert any("identity" in r.reason.lower() for r in plan.blocked)
+
+    right = _worker("w-right", workspace="/repo/alpha")
+    plan2 = schedule_once(graph, ready, (right,), SchedulePolicy())
+    assert [s.node_id for s in plan2.selected] == ["mut"]
+
+
+def test_mutating_node_fails_closed_without_identity_binding() -> None:
+    nodes = [_mutating_node("mut", None)]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    capable = _worker("w-ok", workspace="/repo/alpha")
+    plan = schedule_once(graph, ready, (capable,), SchedulePolicy())
+    assert all(s.node_id != "mut" for s in plan.selected)
+    assert any("identity" in r.reason.lower() for r in plan.blocked)
+
+
+def test_mutating_node_requires_mutation_authorized_worker() -> None:
+    nodes = [_mutating_node("mut", "ws:/repo/alpha")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    unauthorized = _worker(
+        "w-noauth", workspace="/repo/alpha", mutation_authorized=False
+    )
+    plan = schedule_once(graph, ready, (unauthorized,), SchedulePolicy())
+    assert all(s.node_id != "mut" for s in plan.selected)
+    assert any("mutation" in r.reason.lower() for r in plan.blocked)
+
+
+def test_read_only_node_not_blocked_by_mutation_unauthorized() -> None:
+    """Empty write_set = read-only: mutation authority must not block it."""
+    nodes = [_node("ro")]  # read-only: no write_set
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    worker = _worker("w-ro", mutation_authorized=False)
+    plan = schedule_once(graph, ready, (worker,), SchedulePolicy())
+    assert [s.node_id for s in plan.selected] == ["ro"]
+
+
+# Blocker 4: injected gate/provider eligibility seam (no reservation, no dispatch).
+
+
+@pytest.mark.parametrize(
+    "flag,expected_fragment",
+    [
+        ("gate_refused", "gate"),
+        ("provider_unavailable", "provider"),
+        ("rate_limited", "rate"),
+    ],
+)
+def test_ineligibility_blocks_without_selection(flag: str, expected_fragment: str) -> None:
+    from a_conductor.graph.scheduler import NodeEligibility
+
+    nodes = [_node("n")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    workers = (_worker("w-0"),)
+    plan = schedule_once(
+        graph,
+        ready,
+        workers,
+        SchedulePolicy(),
+        eligibility={"n": NodeEligibility(**{flag: True})},
+    )
+    assert all(s.node_id != "n" for s in plan.selected)
+    reasons = [r.reason.lower() for r in plan.blocked if r.node_id == "n"]
+    assert any(expected_fragment in reason for reason in reasons)
+
+
+def test_eligible_node_with_default_eligibility_still_selects() -> None:
+    from a_conductor.graph.scheduler import NodeEligibility
+
+    nodes = [_node("n")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    plan = schedule_once(
+        graph,
+        ready,
+        (_worker("w-0"),),
+        SchedulePolicy(),
+        eligibility={"n": NodeEligibility()},
+    )
+    assert [s.node_id for s in plan.selected] == ["n"]

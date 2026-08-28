@@ -182,3 +182,25 @@ Status: RECONCILED_LOCAL_GREEN — awaiting PR #104 CI + review; no merge by wor
 - Scope held: only this WO checkpoint, `handoff.md` PR-#104 line, and the merge commit itself; no AHA-3/README/worker-auto-fallback/installer/North-Star file was edited.
 
 Next safe action: push `feat/ge-6-scheduler`, require the exact PR head Windows/Ubuntu/macOS CI green, then GPT-5.6 Sol re-audits the final PR head before any merge.
+
+## Checkpoint — GE-6 review round 2 (2026-08-28, GLM 5.3 MAX)
+
+Status: FOUR_REVIEW_BLOCKERS_FIXED_LOCAL_GREEN — awaiting PR #104 CI + GPT re-audit; no merge by worker.
+
+Reconcile: merged `origin/main @ ab28dc7` (safe merge `09753c6`, no rebase/reset/force); the only conflict was `handoff.md` "Protected Parallel Work", resolved preserving both sides' continuity (main's AHA-3 narrative + GE-6 lane status line).
+
+TDD RED→GREEN for the four ADR GE-0006 review blockers (10 new failing tests first, then the fix; scheduler file 14 old tests unchanged-green):
+
+1. **Ordering now priority → topological rank → lexical ID.** `_topological_rank()` derives deterministic Kahn ranks via the existing GE-3 `topological_sort`; same-priority nodes order by earlier rank before the lexical tiebreak. Regression: `test_same_priority_orders_by_topological_rank_before_lexical_id` (c-early rank 1 beats b-later rank 2 despite lexical order).
+2. **Equivalent worker selection is input-order independent.** Available workers are sorted by stable `worker_id` before assignment; no explicit binding/policy override exists yet (noted in the docstring as the future exception). Regression: `test_equivalent_worker_selection_is_stable_by_worker_id` (w-alpha before w-bravo regardless of input order).
+3. **Mutating identity enforcement, fail closed; read-only exempt.** A node with non-empty write_set reuses the single GE-4 binding parser (`_parse_binding`, `ws:`/`project:` convention — no second parser) and requires the selected worker's project/workspace identity to match plus `mutation_authorized=True`; a mutating node without any identity binding blocks itself before worker selection (missing identity fail closed), and worker identity mismatch/absence is not eligible (ambiguous fail closed). Read-only nodes (empty write_set) are NOT blocked by `mutation_authorized=False` — the old blanket `mutation_authorized` gate was removed. Regressions: matching/mismatching workspace, missing-binding fail-closed, unauthorized-worker fail-closed, read-only-not-blocked.
+4. **Injected `NodeEligibility` gate/provider seam.** `schedule_once(..., eligibility={node_id: NodeEligibility})` is a deterministic injected input; `gate_refused` / `provider_unavailable` / `rate_limited` each block the node with a typed reason BEFORE any worker is considered or reserved — no reservation, no dispatch, no GE-7 expansion, no probing. Regressions: parametrized three-refusal test + default-eligible-still-selects.
+
+D6-CONFLICT held: all conflict checks still route through the single `write_sets_overlap` seam from `graph/analyze.py` (now imported at module level along with `_parse_binding`); the running-conflict regression was restructured to exercise the scheduler's external-reservation path (`running_write_sets`), since in-graph DOING conflicts are already surfaced by `compute_ready_set`.
+
+Verification (worktree `A:\GitHub\A-Wiki-Conductor-glm-ge6`, merged state `09753c6` + fix commit):
+- full directive graph suite: **102 passed** (scheduler 24 = 14 original + 10 new; analyze/ready/dag/domain/assembly/store/ge005a 78).
+- `python -m compileall -q src/a_conductor` PASS; `git diff --check` PASS.
+- Changed files confined to GE-6 scope: `src/a_conductor/graph/scheduler.py`, `tests/test_graph_scheduler.py`, plus this WO checkpoint and the handoff PR-#104 status line. AHA/README/installer/North-Star untouched.
+
+Remaining blockers: none known locally — PR #104 exact-head CI (Windows/Ubuntu/macOS) and GPT-5.6 Sol re-audit are the outstanding gates before merge.
