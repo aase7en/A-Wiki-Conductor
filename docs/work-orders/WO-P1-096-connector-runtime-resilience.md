@@ -199,3 +199,18 @@ This checkpoint supersedes the earlier root-cause unknowns where newer upstream 
 ### Release decision
 
 `v0.7.0` remains BLOCKED. Do not publish stable until PR #125 or its accepted successor has real production recovery wiring, CR-4 is operator-visible, and one isolated/authorized connector completes the v0.0.13 deadline/TTL soak with zero manual Start actions.
+
+## Upstream v0.0.13 CI verification - 2026-08-28
+
+Independent source review of `openai/tunnel-client@4b5267f823be0b046bb883aacb51603cfde3a0ea` closes the remaining source-level uncertainty around the shared-stdio deadline fix:
+
+- the release workflow's `Test` job runs `make test`, and `make test` runs `go test -race ./...`;
+- commit `4b5267f...` has successful upstream `Test` checks plus successful Windows/Linux/macOS release builds;
+- `TestHarnessStdioResponseDeadlineKeepsServingAfterTimedOutRequest` injects a 2-second response timeout, then sends a recovery command through the same stdio server; both commands must reach the server and the recovery response must succeed;
+- that E2E explicitly fails if logs contain `stdio MCP command stdin write failed` or `file already closed`;
+- dispatcher/unit coverage separately requires a response deadline to retire the logical shared-MCP lifecycle without closing the physical shared connection;
+- serialized-stdio coverage requires the next request to write/read successfully after a retired deadline without triggering the stdio write-failure callback.
+
+Local source execution was not repeated because this workstation has no Go toolchain installed; no toolchain was installed solely for this audit. Upstream exact-commit CI is therefore the executable source-level evidence, while A-Sunday's authorized real connector soak remains the operational acceptance gate.
+
+PR #125 re-review on head `f6fdb5d9dcee493a0ae5104db0d660eb44f50b08` confirms `09bf1ab` improves manual-intent serialization, but the production-caller P0 remains open: `reconcile_instance_recovery()` still has no caller from the existing health/refresh loop. Review `5051827379` records the unchanged blocker.
