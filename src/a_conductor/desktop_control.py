@@ -72,6 +72,8 @@ class DesktopControlService:
         self._connector_recovery = connector_recovery
         self._pending_instance_starts: set[str] = set()
         self._pending_instance_starts_lock = Lock()
+        self._connector_intent_locks_guard = Lock()
+        self._connector_intent_locks: dict[str, object] = {}
 
     @classmethod
     def open(
@@ -444,6 +446,15 @@ class DesktopControlService:
             )
         return self._instance_orchestrator
 
+    def _connector_intent_lock(self, instance_name: str):
+        name = instance_name.strip()
+        with self._connector_intent_locks_guard:
+            lock = self._connector_intent_locks.get(name)
+            if lock is None:
+                lock = Lock()
+                self._connector_intent_locks[name] = lock
+            return lock
+
     def _recovery_orchestrator(self) -> ConnectorRecoveryCoordinator:
         if self._connector_recovery is None:
             store = self._require_settings_store()
@@ -472,9 +483,10 @@ class DesktopControlService:
         *,
         reason_code: str = "UNEXPECTED_STOPPED",
     ) -> ConnectorRecoveryRecord:
-        return self._recovery_orchestrator().observe(
-            instance_name, health, reason_code=reason_code
-        )
+        with self._connector_intent_lock(instance_name):
+            return self._recovery_orchestrator().observe(
+                instance_name, health, reason_code=reason_code
+            )
 
     def _global_brain_provider(self):
         store = self.settings_store
@@ -497,14 +509,15 @@ class DesktopControlService:
         )
         if target is None:
             raise SerenaConfigStoreError("INSTANCE_NOT_FOUND")
-        orchestrator = self._orchestrator()
-        if action == "start":
+        with self._connector_intent_lock(instance_name):
+            orchestrator = self._orchestrator()
+            if action == "start":
+                if self.settings_store is not None:
+                    self._recovery_orchestrator().manual_start(instance_name)
+                return orchestrator.start(target)
             if self.settings_store is not None:
-                self._recovery_orchestrator().manual_start(instance_name)
-            return orchestrator.start(target)
-        if self.settings_store is not None:
-            self._recovery_orchestrator().suppress(instance_name)
-        return orchestrator.stop(target)
+                self._recovery_orchestrator().suppress(instance_name)
+            return orchestrator.stop(target)
 
     def instance_action_cancellable(
         self,
@@ -523,31 +536,32 @@ class DesktopControlService:
         )
         if target is None:
             raise SerenaConfigStoreError("INSTANCE_NOT_FOUND")
-        orchestrator = self._orchestrator()
-        if action == "start":
+        with self._connector_intent_lock(instance_name):
+            orchestrator = self._orchestrator()
+            if action == "start":
+                if self.settings_store is not None:
+                    self._recovery_orchestrator().manual_start(instance_name)
+                with self._pending_instance_starts_lock:
+                    self._pending_instance_starts.add(instance_name)
+                keep_pending = False
+                try:
+                    outcome = orchestrator.start(target, cancel_check=cancel_check)
+                    keep_pending = (
+                        outcome.result_code
+                        in {
+                            InstanceResultCode.START_CANCELLED,
+                            InstanceResultCode.STARTED_NOT_READY,
+                        }
+                        and outcome.process_launched
+                    )
+                    return outcome
+                finally:
+                    if not keep_pending:
+                        with self._pending_instance_starts_lock:
+                            self._pending_instance_starts.discard(instance_name)
             if self.settings_store is not None:
-                self._recovery_orchestrator().manual_start(instance_name)
-            with self._pending_instance_starts_lock:
-                self._pending_instance_starts.add(instance_name)
-            keep_pending = False
-            try:
-                outcome = orchestrator.start(target, cancel_check=cancel_check)
-                keep_pending = (
-                    outcome.result_code
-                    in {
-                        InstanceResultCode.START_CANCELLED,
-                        InstanceResultCode.STARTED_NOT_READY,
-                    }
-                    and outcome.process_launched
-                )
-                return outcome
-            finally:
-                if not keep_pending:
-                    with self._pending_instance_starts_lock:
-                        self._pending_instance_starts.discard(instance_name)
-        if self.settings_store is not None:
-            self._recovery_orchestrator().suppress(instance_name)
-        return orchestrator.stop(target)
+                self._recovery_orchestrator().suppress(instance_name)
+            return orchestrator.stop(target)
 
     def set_instance_autostart(self, instance_name: str, enabled: bool) -> None:
         self._require_settings_store().set_instance_autostart(instance_name, enabled)

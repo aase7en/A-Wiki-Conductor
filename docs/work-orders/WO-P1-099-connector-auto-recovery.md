@@ -57,7 +57,7 @@ Deterministic evidence:
 - RED: recovery module missing; then core **8 passed**;
 - RED: store API missing; then config/recovery **16 passed**;
 - RED: DesktopControl integration **4 failed**; then **4 passed**;
-- focused CR-2/config/control/local-instance regression: **79 passed**;
+- focused CR-2/config/control/local-instance regression: **80 passed**;
 - `python -m compileall -q src/a_conductor`: PASS;
 - `git diff --check`: PASS.
 

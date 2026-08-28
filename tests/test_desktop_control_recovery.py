@@ -120,3 +120,51 @@ def test_explicit_stop_then_reconcile_never_restarts(tmp_path: Path) -> None:
     assert record.state is ConnectorRecoveryState.STOPPED
     assert record.recovery_suppressed is True
     assert orchestrator.start_calls == []
+
+
+def test_manual_stop_serializes_with_inflight_auto_recovery(tmp_path: Path) -> None:
+    import threading
+    import time
+
+    svc, store, orchestrator = service(tmp_path)
+    store.set_instance_autostart("Sunday-Worker-1", True)
+    entered = threading.Event()
+    release = threading.Event()
+    original_start = orchestrator.start
+
+    def blocking_start(target, *, cancel_check=None):
+        entered.set()
+        assert release.wait(2.0)
+        return original_start(target, cancel_check=cancel_check)
+
+    orchestrator.start = blocking_start
+    recovery = threading.Thread(
+        target=lambda: svc.reconcile_instance_recovery(
+            "Sunday-Worker-1", InstanceHealthState.STOPPED
+        )
+    )
+    recovery.start()
+    assert entered.wait(1.0)
+    stopped = threading.Event()
+
+    def manual_stop():
+        svc.instance_action("Sunday-Worker-1", "stop")
+        stopped.set()
+
+    stop_thread = threading.Thread(target=manual_stop)
+    stop_thread.start()
+    time.sleep(0.05)
+    assert orchestrator.stop_calls == []
+    assert not stopped.is_set()
+
+    release.set()
+    recovery.join(2.0)
+    stop_thread.join(2.0)
+
+    assert not recovery.is_alive()
+    assert not stop_thread.is_alive()
+    assert orchestrator.stop_calls == ["Sunday-Worker-1"]
+    record = store.get_connector_recovery("Sunday-Worker-1")
+    assert record is not None
+    assert record.recovery_suppressed is True
+    assert record.state is ConnectorRecoveryState.STOPPED
