@@ -82,6 +82,7 @@ def provider_state(*, health: ProviderHealth = ProviderHealth.AVAILABLE) -> Clau
         observation=observation(health),
     )
 
+
 def packet(root: Path, ref: str, name: str) -> TaskPacketFile:
     path = root / ".a-conductor" / "task-packets" / f"{name}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -140,6 +141,7 @@ def context(
         max_attempts=3,
     )
 
+
 class CountingResolver:
     def __init__(self, values: dict[str, str]) -> None:
         self.values = values
@@ -169,6 +171,7 @@ class CapturingRecoverySupervised:
 
     def collect(self, execution_id, *, expected_version):
         raise AssertionError("collect must not run after launch recovery")
+
 
 def build_backend(
     tmp_path: Path,
@@ -200,6 +203,7 @@ def build_backend(
     )
     return backend, resolver, supervised
 
+
 def test_provider_unavailable_does_not_resolve_or_launch(tmp_path: Path) -> None:
     definition = operation(tmp_path)
     configured = profile()
@@ -223,6 +227,7 @@ def test_provider_unavailable_does_not_resolve_or_launch(tmp_path: Path) -> None
     assert result.recovery_classification is RecoveryClassification.NO_MUTATION
     assert resolver.calls == []
     assert supervised.plans == []
+
 
 def test_rate_limited_provider_does_not_resolve_or_launch(tmp_path: Path) -> None:
     definition = operation(tmp_path)
@@ -248,6 +253,7 @@ def test_rate_limited_provider_does_not_resolve_or_launch(tmp_path: Path) -> Non
     assert resolver.calls == []
     assert supervised.plans == []
 
+
 def test_missing_branch_fails_closed_before_reference_resolution_or_launch(tmp_path: Path) -> None:
     definition = operation(tmp_path, branch=None)
     state = provider_state()
@@ -270,6 +276,7 @@ def test_missing_branch_fails_closed_before_reference_resolution_or_launch(tmp_p
     assert result.recovery_classification is RecoveryClassification.NO_MUTATION
     assert resolver.calls == []
     assert supervised.plans == []
+
 
 def test_each_durable_job_builds_exact_identity_bound_supervised_plan(tmp_path: Path) -> None:
     one_root = tmp_path / "one"
@@ -336,6 +343,7 @@ def test_each_durable_job_builds_exact_identity_bound_supervised_plan(tmp_path: 
         assert secret not in plan.record.runtime_profile_ref
         assert secret not in repr(plan)
 
+
 class StoringRecoverySupervised:
     def __init__(self, store: SQLiteExecutionStore) -> None:
         self.store = store
@@ -365,6 +373,7 @@ class StoringRecoverySupervised:
 
     def collect(self, execution_id, *, expected_version):
         raise AssertionError("collect must not run")
+
 
 def test_recovery_unknown_never_blind_relaunches_same_fingerprint(tmp_path: Path) -> None:
     definition = operation(tmp_path)
@@ -401,6 +410,7 @@ def test_recovery_unknown_never_blind_relaunches_same_fingerprint(tmp_path: Path
     assert records[0].execution_state is ExecutionProcessState.RECOVERY_REQUIRED
     assert secret not in records[0].command_fingerprint
     assert secret not in records[0].command_summary
+
 
 class SuccessfulSupervised:
     def __init__(self, store: SQLiteExecutionStore) -> None:
@@ -450,6 +460,7 @@ class SuccessfulSupervised:
             recovery_required=False,
         )
 
+
 def test_successful_supervised_chain_returns_digest_only(tmp_path: Path) -> None:
     definition = operation(tmp_path)
     state = provider_state()
@@ -479,6 +490,7 @@ def test_successful_supervised_chain_returns_digest_only(tmp_path: Path) -> None
     assert secret not in result.evidence_ref
     assert resolver.calls == [state.profile.endpoint_ref, state.profile.credential_ref]
     assert len(supervised.plans) == 1
+
 
 def test_successful_assembly_reaches_verifying_via_durable_coordinator(tmp_path: Path) -> None:
     from a_conductor.domain import TaskState

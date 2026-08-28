@@ -13,7 +13,7 @@ Finish the production AHA-4 execution boundary by joining accepted durable Claud
 - Branch: `feat/wo-p1-100-aha4-supervised-backend-assembly`
 - reconciled current base: `7db34048a0dd002b9bfbe41408c83c7ec18df2ad`
 - Work order: `docs/work-orders/WO-P1-100-aha4-supervised-backend-assembly.md`
-- Dirty state: bounded WO-P1-100 implementation + tests + SSoT only; local verification green.
+- PR #130 is open; implementation commit `001cbc968faf7b66d28de39635827aacbd506d5c` plus this bounded truthfulness/formatting follow-up; local verification green.
 - Shared root remains protected/read-only.
 
 ## Accepted Baseline
@@ -22,7 +22,7 @@ Finish the production AHA-4 execution boundary by joining accepted durable Claud
 - durable graph dispatch merged `5cc417c9`.
 - durable Claude backend PR #121 merged `0e9b93a`.
 - supervised Claude runner PR #124 exact head `25cc694` passed 3-OS CI run `33176757259` and merged as `e933a53`.
-- latest main `5dd9ab2` only refreshed independent connector-resilience evidence after PR #124.
+- reconciled main `7db34048a0dd002b9bfbe41408c83c7ec18df2ad` includes independent tunnel-client checksum hardening/closeout; no WO-P1-100 source overlap.
 
 ## Architecture Boundary
 
@@ -48,11 +48,10 @@ The missing seam is lazy per-job adapter construction after durable `JobExecutio
 
 ## Next Safe Action
 
-1. refetch remote main and reconcile only if scope remains non-overlapping;
-2. stage exactly the seven WO-P1-100 allowed files and inspect staged patch;
-3. commit/push Draft PR and audit exact remote diff;
-4. require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke;
-5. merge only after green CI + final exact-head review; then release claim to AHA-4A.
+1. commit/push the bounded SSoT/formatting follow-up to PR #130;
+2. re-audit exact remote 7-file diff and head SHA;
+3. require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke;
+4. merge only after green CI + final exact-head review; then release claim to AHA-4A.
 
 ## Safety
 

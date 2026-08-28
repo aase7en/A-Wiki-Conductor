@@ -6,7 +6,7 @@ Status: ACTIVE — TDD
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-assembly`
 Branch: `feat/wo-p1-100-aha4-supervised-backend-assembly`
-Base: `origin/main@5dd9ab283fa0d250098736898e8dcf6a090e3023`
+Base/reconciled main: `origin/main@7db34048a0dd002b9bfbe41408c83c7ec18df2ad`
 Parent: AHA-4 / PR #124 supervised Claude runner
 
 ## Goal
@@ -53,7 +53,7 @@ Reuse `ClaudeCodeJobBackend`, `ClaudeCodeHarnessAdapter`, `build_supervised_clau
 
 Verified before mutation:
 - repo/worktree/remote/branch/HEAD clean and exact;
-- branch fast-forwarded to `origin/main@5dd9ab2`;
+- branch reconciled to `origin/main@7db34048a0dd002b9bfbe41408c83c7ec18df2ad`;
 - PR #125 connector recovery and PR #108 installer scopes do not overlap this slice;
 - North Star and shared dirty root remain protected;
 - A-Wiki reuse check confirms Conductor owns dispatch/process control and must not duplicate A-Wiki brain logic;
@@ -89,4 +89,4 @@ Verification at `origin/main@7db34048a0dd002b9bfbe41408c83c7ec18df2ad`:
 - changed-file scope: exactly 7 allowed files.
 - bounded real-secret-prefix scan: PASS; no credential/private-key prefixes found.
 
-Next gate: refetch/reconcile remote main, stage exact allowed scope, commit/push Draft PR, remote diff audit, exact-head 3-OS CI, merge only if green.
+Draft PR #130 opened from exact feature head. Next gate: push this truthfulness/formatting follow-up, re-audit exact remote diff, require exact-head Windows/Ubuntu/macOS CI, then merge only if green.

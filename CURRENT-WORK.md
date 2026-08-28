@@ -29,7 +29,7 @@ Protected parallel work remains PR #125 connector recovery, PR #108 installer sa
 3. lazy per-job adapter factory + production assembly are implemented; provider unavailable/no-branch fail closed before secret resolution or launch;
 4. deterministic successful chain reaches durable `VERIFYING`; fixed-adapter compatibility and canonical duplicate recovery behavior remain green;
 5. verification: focused **25 passed**, broader Claude/provider/native/supervisor/dedup/job/graph **237 passed**, compileall/diff/secret gates PASS;
-6. next = refetch/reconcile -> exact staging/commit/push Draft PR -> remote diff audit -> exact-head 3-OS CI -> merge; after merge begin AHA-4A worker lease/fallback as a separate work order.
+6. Draft PR #130 is open; next = push the SSoT/formatting follow-up -> exact remote diff re-audit -> exact-head 3-OS CI -> merge; after merge begin AHA-4A worker lease/fallback as a separate work order.
 
 ## Source-of-truth rule
 
