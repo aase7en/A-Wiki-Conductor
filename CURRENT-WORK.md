@@ -1,10 +1,10 @@
-# A-Sunday Conductor ? Current Work
+# A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-28 (GPT-5.6 Sol ? PR #121 merged / AHA-4 supervised runner ACTIVE)
+Last updated: 2026-08-28 (GPT-5.6 Sol — PR #121 merged / AHA-4 supervised runner ACTIVE)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator ? SUPERVISED CLAUDE EXECUTION BOUNDARY ACTIVE.**
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — SUPERVISED CLAUDE EXECUTION BOUNDARY ACTIVE.**
 
 User outcome: give A-Sunday Conductor one goal; Conductor creates bounded task packets, selects an eligible model/harness, dispatches work, gathers evidence, reviews/repairs, and continues without manual prompt copy/paste.
 
@@ -20,7 +20,7 @@ Protected parallel work remains PR #108 installer safety and North Star. Shared 
 
 ## Active work order
 
-`docs/work-orders/WO-P1-098-aha4-supervised-claude-runner.md` ? reuse `SupervisedCommandRunner` / `DuplicateExecutionGuard` as the real Claude Code process boundary.
+`docs/work-orders/WO-P1-098-aha4-supervised-claude-runner.md` — reuse `SupervisedCommandRunner` / `DuplicateExecutionGuard` as the real Claude Code process boundary.
 
 ## Immediate execution frontier
 
