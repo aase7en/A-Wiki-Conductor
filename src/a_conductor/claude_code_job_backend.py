@@ -105,7 +105,12 @@ class ClaudeCodeOperationDefinition:
         _text(self.worker_id, "worker_id", max_length=128)
 
 
-def _result_digest(result: ClaudeCodeHarnessResult | None, code: str) -> str:
+def _result_digest(
+    definition: ClaudeCodeOperationDefinition,
+    context: JobExecutionContext,
+    result: ClaudeCodeHarnessResult | None,
+    code: str,
+) -> str:
     payload = None if result is None else result.payload
     payload_bytes = json.dumps(
         payload,
@@ -114,6 +119,15 @@ def _result_digest(result: ClaudeCodeHarnessResult | None, code: str) -> str:
         ensure_ascii=True,
     ).encode("utf-8")
     digest_payload = {
+        "operation_ref": definition.operation_ref,
+        "job_id": context.job_id,
+        "work_order_ref": context.work_order_ref,
+        "project_id": context.project_id,
+        "worker_id": context.worker_id,
+        "attempt_no": context.attempt_no,
+        "provider_id": definition.dispatch.provider_id,
+        "model_id": definition.dispatch.model_id,
+        "task_packet_sha256": definition.packet.sha256.casefold(),
         "code": code,
         "status": None if result is None else result.status.value,
         "exit_code": None if result is None else result.exit_code,
@@ -141,6 +155,8 @@ def _provider_error_code(state: ClaudeCodeProviderState) -> str:
 
 
 def _failure(
+    definition: ClaudeCodeOperationDefinition,
+    context: JobExecutionContext,
     code: str,
     *,
     classification: RecoveryClassification,
@@ -148,7 +164,7 @@ def _failure(
 ) -> JobBackendResult:
     return JobBackendResult(
         success=False,
-        evidence_ref=_result_digest(result, code),
+        evidence_ref=_result_digest(definition, context, result, code),
         recovery_classification=classification,
         error_code=code,
     )
@@ -212,6 +228,8 @@ class ClaudeCodeJobBackend:
         state = self._provider_resolver.resolve(definition.dispatch.provider_id)
         if state is None:
             return _failure(
+                definition,
+                context,
                 "PROVIDER_UNAVAILABLE",
                 classification=RecoveryClassification.NO_MUTATION,
             )
@@ -241,15 +259,22 @@ class ClaudeCodeJobBackend:
                 }
                 else "HARNESS_FAILED"
             )
-            return _failure(code, classification=RecoveryClassification.NO_MUTATION)
+            return _failure(
+                definition,
+                context,
+                code,
+                classification=RecoveryClassification.NO_MUTATION,
+            )
 
         if result.status is HarnessExecutionStatus.SUCCESS:
             return JobBackendResult(
                 success=True,
-                evidence_ref=_result_digest(result, "SUCCESS"),
+                evidence_ref=_result_digest(definition, context, result, "SUCCESS"),
             )
         if result.status is HarnessExecutionStatus.TIMEOUT:
             return _failure(
+                definition,
+                context,
                 "EXECUTION_STATE_UNKNOWN",
                 classification=RecoveryClassification.UNKNOWN,
                 result=result,
@@ -260,11 +285,15 @@ class ClaudeCodeJobBackend:
             HarnessExecutionStatus.OUTPUT_INVALID,
         }:
             return _failure(
+                definition,
+                context,
                 "HARNESS_FAILED",
                 classification=RecoveryClassification.NO_MUTATION,
                 result=result,
             )
         return _failure(
+            definition,
+            context,
             "HARNESS_FAILED",
             classification=RecoveryClassification.UNKNOWN,
             result=result,

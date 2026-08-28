@@ -99,3 +99,21 @@ Verification so far:
 - full local run: **1398 passed, 4 skipped**; 31 failures + 8 errors were confined to pre-existing machine-specific PermissionError instance-file tests and local GPU framebuffer tests, outside changed scope.
 
 Final local gate: compileall PASS; diff-check PASS; exact changed scope = allowed files only; bounded secret scan PASS; latest main overlap = NONE. Next: commit/push Draft PR, remote diff audit, exact-head 3-OS CI.
+
+## Checkpoint — final evidence-identity repair
+
+Final self-review found a provenance defect: two different durable executions returning identical harness output could produce the same opaque evidence digest. A RED regression reproduced the collision.
+
+Repair:
+- evidence digest now binds operation/job/work-order/project/worker/attempt identity;
+- provider/model and task-packet SHA are included;
+- raw model output/stderr remain represented only by SHA-256 digests.
+
+Verification after repair:
+- focused Claude backend + job execution + native operations: **34 passed**;
+- broader provider/config/harness/job/graph/dedup/supervised regression: **100 passed**;
+- compileall PASS;
+- diff-check PASS;
+- changed-file secret scan PASS.
+
+Roadmap reconciliation: `origin/main@7505bd3` adds accepted WO-P1-096 connector-runtime resilience as an independent P0 v0.7.0 release gate. It has no file overlap with WO-P1-095, so this AHA-4 bridge remains mergeable independently; release must still satisfy WO-P1-096 later.

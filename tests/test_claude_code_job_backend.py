@@ -102,7 +102,7 @@ def packet(worktree: Path, ref: str) -> TaskPacketFile:
     )
 
 
-def operation(worktree: Path, *, job_id="job-claude", worker_id="a-worker-01"):
+def operation(worktree: Path, *, job_id="job-claude", worker_id="a-worker-01", operation_ref="op:claude-node"):
     ref = "docs/work-orders/WO-node.md"
     dispatch = HarnessDispatch(
         execution_id=job_id,
@@ -120,7 +120,7 @@ def operation(worktree: Path, *, job_id="job-claude", worker_id="a-worker-01"):
         effort_level="MAX",
     )
     return ClaudeCodeOperationDefinition(
-        operation_ref="op:claude-node",
+        operation_ref=operation_ref,
         dispatch=dispatch,
         packet=packet(worktree, ref),
         worker_id=worker_id,
@@ -260,3 +260,48 @@ def test_raw_model_output_and_stderr_are_not_persisted(tmp_path: Path) -> None:
     assert b"TOP-SECRET-MODEL-TEXT" not in database
     assert b"PRIVATE-STDERR" not in database
     assert outcome.evidence_ref.encode() in database
+
+
+def test_evidence_digest_is_bound_to_durable_execution_identity(tmp_path: Path) -> None:
+    runner = FakeRunner(runner_result(payload={"type": "result", "is_error": False, "result": "same"}))
+    p = profile()
+    state = ClaudeCodeProviderState(
+        profile=p,
+        endpoint=ProviderEndpointConfig(p.endpoint_ref, "https://api.example.test/v1"),
+        observation=observation(),
+    )
+    one_root, two_root = tmp_path / "one", tmp_path / "two"
+    one_root.mkdir(); two_root.mkdir()
+    job_backend = ClaudeCodeJobBackend(
+        operations=(
+            operation(one_root, job_id="job-one", operation_ref="op:one"),
+            operation(two_root, job_id="job-two", operation_ref="op:two"),
+        ),
+        adapter=ClaudeCodeHarnessAdapter(runner=runner),
+        provider_resolver=StaticClaudeCodeProviderResolver({p.provider_id: state}),
+        clock=lambda: NOW,
+    )
+    one = job_backend.execute(
+        "op:one",
+        JobExecutionContext(
+            job_id="job-one",
+            work_order_ref="docs/work-orders/WO-node.md",
+            project_id="project-1",
+            worker_id="a-worker-01",
+            attempt_no=1,
+            max_attempts=3,
+        ),
+    )
+    two = job_backend.execute(
+        "op:two",
+        JobExecutionContext(
+            job_id="job-two",
+            work_order_ref="docs/work-orders/WO-node.md",
+            project_id="project-1",
+            worker_id="a-worker-01",
+            attempt_no=1,
+            max_attempts=3,
+        ),
+    )
+    assert one.success is True and two.success is True
+    assert one.evidence_ref != two.evidence_ref
