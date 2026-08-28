@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE — TDD
+Status: REVIEW_READY — LOCAL GREEN / PR PENDING
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-supervised`
 Branch: `feat/wo-p1-098-aha4-supervised-claude-runner`
@@ -74,3 +74,24 @@ Verified before mutation:
 2. GREEN: propagate only bounded allowed overrides into `OwnedProcessSpec`.
 3. RED/GREEN: implement `SupervisedClaudeCodeRunner` reference resolution, mapping, redaction, and no-secret-persistence assertions.
 4. Reconcile whether production backend assembly needs a separate bounded follow-up after this runner contract is proven.
+
+## Implementation checkpoint — 2026-08-28
+
+Implemented:
+- `NativeCommandSpec.environment_overrides` now survives the supervised launch seam into `OwnedProcessSpec` under the existing scope allowlist;
+- low-level owned-process policy explicitly permits only `SERENA_HOME`, `ANTHROPIC_BASE_URL`, and `ANTHROPIC_AUTH_TOKEN`;
+- `SupervisedLaunchPlan` / `OwnedProcessSpec` mask environment override values from dataclass repr;
+- new `SupervisedClaudeCodeRunner` resolves endpoint/token refs only at execution time, validates the exact two Claude environment keys, maps to `NativeCommandSpec`, and redacts resolved secrets from returned streams;
+- production builder derives `runtime:claude-code:<digest>` only from opaque endpoint/credential refs and pins invocation refs to that identity before resolution;
+- raw environment values are excluded from execution fingerprints; duplicate attach/reuse remains canonical `DuplicateExecutionGuard` behavior.
+
+TDD evidence:
+- environment propagation RED: **3 failed** -> GREEN;
+- repr secret-safety RED: **2 failed** -> GREEN;
+- new runner import RED: module absent -> GREEN;
+- reference-drift RED proved an unpinned binding could reach launch -> GREEN after builder pinning;
+- runner/builder suite: **11 passed**;
+- focused Claude/provider/native/supervisor/dedup/job regression: **150 passed**;
+- compileall PASS; diff-check PASS; bounded secret-pattern scan PASS.
+
+Next: commit implementation, push Draft PR, audit exact remote diff, require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke before merge.

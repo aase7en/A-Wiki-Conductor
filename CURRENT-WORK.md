@@ -24,12 +24,12 @@ Protected parallel work remains PR #108 installer safety, North Star, and WO-P1-
 
 ## Immediate execution frontier
 
-1. propagate bounded environment overrides through `SupervisedCommandRunner -> SupervisedLaunchPlan -> OwnedProcessSpec`;
-2. implement `SupervisedClaudeCodeRunner` resolving opaque endpoint/credential references only at execution boundary;
-3. keep raw secret values out of argv, SQLite identity metadata, result JSON, command summaries, and returned diagnostics via redaction;
-4. prove duplicate attach/reuse and timeout/unknown-state behavior stay under the existing supervised execution authority;
-5. after this runner contract is green, wire the production durable Claude backend to a per-job supervised runner without hidden context or a second lifecycle;
-6. in parallel, connector P0 proceeds only in its separate WO-P1-097 lane; v0.7.0 stable remains blocked until WO-P1-096 acceptance is satisfied.
+1. supervised environment propagation is implemented and GREEN; values reach the exact-owned process only after scope validation and are masked from launch/spec repr;
+2. `SupervisedClaudeCodeRunner` is implemented: opaque refs resolve only at execution boundary, exact Claude env keys are enforced, secret values are redacted from returned streams, and no bare subprocess path was added;
+3. production builder binds durable job/work-order/project/worker/branch/HEAD identity plus a non-secret runtime-profile digest derived from opaque endpoint/credential refs; invocation ref drift fails before resolution/launch;
+4. deterministic evidence: runner/builder suite **11 passed**; focused Claude/provider/native/supervisor/dedup/job regression **150 passed**; compileall/diff/secret-pattern gates PASS;
+5. next = commit/push Draft PR -> exact remote diff audit -> exact-head Windows/Ubuntu/macOS CI -> merge only if green;
+6. after merge, wire the accepted durable Claude backend to this per-job supervised runner assembly; connector P0 remains independently owned in WO-P1-097 and v0.7.0 stable stays blocked by WO-P1-096 acceptance.
 
 ## Source-of-truth rule
 

@@ -30,13 +30,15 @@ Classification: **REUSE + WRAP + EXTEND**.
 Current authoritative execution chain:
 `ClaudeCodeInvocation -> SupervisedClaudeCodeRunner -> NativeCommandSpec -> SupervisedCommandRunner -> DuplicateExecutionGuard -> SupervisedExecutionService -> OwnedProcessSpec`.
 
-Missing seams at this checkpoint:
-- `NativeCommandSpec.environment_overrides` is not forwarded by `SupervisedCommandRunner`;
-- `SupervisedLaunchPlan` has no environment field;
-- `OwnedProcessSpec` permits only `SERENA_HOME` overrides;
-- no Claude-specific adapter yet resolves opaque environment references into that supervised path.
+Implemented seams at this checkpoint:
+- bounded environment overrides now flow through `SupervisedCommandRunner -> SupervisedLaunchPlan -> OwnedProcessSpec` after scope validation;
+- exact-owned policy allows only the existing `SERENA_HOME` plus Claude's `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` keys;
+- launch/spec repr masks environment values;
+- `SupervisedClaudeCodeRunner` resolves opaque refs only at execution boundary, redacts resolved secret values from returned streams, and never creates a bare subprocess path;
+- production builder binds durable execution identity plus `runtime:claude-code:<digest>` derived only from opaque endpoint/credential refs; source-ref drift fails before resolver/launch;
+- canonical execution fingerprint excludes resolved environment values; duplicate attach/reuse remains owned by `DuplicateExecutionGuard`.
 
-Raw endpoint/credential values must resolve only at execution boundary and never enter argv, SQLite identity metadata, result JSON, or command summaries.
+Local evidence: runner/builder **11 passed**; focused Claude/provider/native/supervisor/dedup/job regression **150 passed**; compileall, diff-check, and bounded secret-pattern scan PASS.
 
 ## Protected Parallel Work
 
@@ -48,13 +50,12 @@ Raw endpoint/credential values must resolve only at execution boundary and never
 
 ## Next Safe Action
 
-1. RED tests proving supervised environment overrides are dropped today;
-2. propagate bounded overrides through launch plan into exact-owned process spec;
-3. add `SupervisedClaudeCodeRunner` with injected opaque-reference resolver and secret redaction;
-4. prove canonical duplicate attach/reuse + timeout/recovery behavior is unchanged;
-5. run focused/regression/compile/diff/scope/secret gates;
-6. open exact-head PR + require Windows/Ubuntu/macOS CI;
-7. follow with a separate bounded production-assembly slice if per-job runner construction is still required.
+1. commit the locally green WO-P1-098 implementation and SSoT checkpoint;
+2. fetch/reconcile current `origin/main`; if it moved, merge safely and rerun focused gates;
+3. push Draft PR and audit exact remote diff/scope;
+4. require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke;
+5. merge only after green CI + exact-head review;
+6. then open the smallest per-job production assembly slice joining the accepted durable Claude backend to `build_supervised_claude_code_runner` without provider/gateway/live-secret mutation.
 
 ## Safety
 

@@ -391,3 +391,31 @@ def test_environment_overrides_are_forwarded_to_supervised_launch(tmp_path: Path
 
     assert len(supervised.plans) == 1
     assert supervised.plans[0].environment_overrides == overrides
+
+
+def test_environment_values_do_not_enter_execution_fingerprint(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    runner = SupervisedCommandRunner(
+        scope=NativeExecutionScope(
+            root=repo,
+            mutation_allowed=False,
+            allowed_executables=(PYTHON_NAME,),
+            allowed_environment_overrides=("ANTHROPIC_AUTH_TOKEN",),
+            max_timeout_seconds=60,
+        ),
+        execution_store=store,
+        supervised=StubSupervised(),
+        **IDENTITY,
+    )
+    one = NativeCommandSpec(
+        argv=(PYTHON_NAME, "-c", "pass"),
+        environment_overrides=(("ANTHROPIC_AUTH_TOKEN", "token-one"),),
+    )
+    two = NativeCommandSpec(
+        argv=(PYTHON_NAME, "-c", "pass"),
+        environment_overrides=(("ANTHROPIC_AUTH_TOKEN", "token-two"),),
+    )
+
+    assert runner.fingerprint_for(one) == runner.fingerprint_for(two)

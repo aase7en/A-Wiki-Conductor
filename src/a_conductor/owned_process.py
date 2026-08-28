@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path, PureWindowsPath
 from typing import Mapping, Protocol
@@ -95,7 +95,7 @@ class OwnedProcessSpec:
     expected_executable_name: str
     expected_profile_marker: str
     stop_timeout_seconds: int = 5
-    environment_overrides: tuple[tuple[str, str], ...] = ()
+    environment_overrides: tuple[tuple[str, str], ...] = field(default=(), repr=False)
 
     def __post_init__(self) -> None:
         root = _resolved(Path(self.allowed_root))

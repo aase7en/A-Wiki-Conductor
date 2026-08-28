@@ -377,3 +377,16 @@ def test_launch_forwards_environment_overrides_to_owned_process(tmp_path: Path) 
     assert len(controller.start_calls) == 1
     assert controller.start_calls[0].environment_overrides == overrides
     assert b"secret-token-value" not in (tmp_path / "executions.sqlite").read_bytes()
+
+
+def test_launch_plan_repr_masks_environment_override_values(tmp_path: Path) -> None:
+    secret = "secret-token-value"
+    plan = SupervisedLaunchPlan(
+        record=make_record(tmp_path),
+        runtime_root=tmp_path,
+        target_argv=(sys.executable, "-c", "pass"),
+        target_executable_name=PYTHON_NAME,
+        environment_overrides=(("ANTHROPIC_AUTH_TOKEN", secret),),
+    )
+
+    assert secret not in repr(plan)

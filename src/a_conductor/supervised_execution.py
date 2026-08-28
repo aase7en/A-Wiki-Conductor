@@ -9,7 +9,7 @@ Serena-specific behavior.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path, PureWindowsPath
 import sys
@@ -71,7 +71,7 @@ class SupervisedLaunchPlan:
     runtime_root: Path | str
     target_argv: tuple[str, ...]
     target_executable_name: str
-    environment_overrides: tuple[tuple[str, str], ...] = ()
+    environment_overrides: tuple[tuple[str, str], ...] = field(default=(), repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.record, DurableExecutionRecord):
