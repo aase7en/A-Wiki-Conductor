@@ -256,17 +256,17 @@ Display rules:
 ### AHA-0 — C0 vocabulary gate [COMPLETE]
 PR #110 merged as `6487cb2`; actor capability, runtime supply, and policy/authority are now explicitly distinct before provider behavior is added.
 
-### AHA-1 — Provider/Harness contracts
-Docs/schema/domain design only. Define provider profile, harness strategy, trust class, health/quota observations, typed failures, and credential references. No live network execution.
+### AHA-1 — Provider/Harness contracts [COMPLETE]
+PR #112 merged as `c3ca84c`; provider profile, harness strategy, trust/quota observations, typed failure vocabulary, credential references, and bounded dispatch schema are accepted.
 
-### AHA-2 — Secure provider configuration
-Local storage/credential-reference seam, masked UI/service API, validation, health/quota normalizer. Use fake providers in tests first.
+### AHA-2 — Secure provider configuration [COMPLETE]
+PR #114 merged as `ca4cd98`; non-secret provider configuration, safe endpoint validation, opaque credential references, same-control-DB persistence, and injected health/quota observation are accepted.
 
-### AHA-3 — Claude Code harness adapter
-Injectable runner with non-interactive structured output, bounded timeout/output, explicit working directory/task packet, environment allowlist, redaction, and fake-backend tests. GLM Anthropic-compatible profile is first real configuration.
+### AHA-3 — Claude Code harness adapter [COMPLETE]
+PR #116 merged as `ab28dc7` after Windows/Ubuntu/macOS CI green. The adapter is injected-runner/read-only only, validates task packet path/size/SHA, requires fresh provider readiness, bounds output, and redacts evidence. No live provider call was required for acceptance.
 
-### AHA-4 — Durable dispatch integration
-After compatible GE-6/GE-7/durable-execution gates: stable execution identity, claim/gate, duplicate protection, transport-loss reconciliation, evidence storage.
+### AHA-4 — Durable dispatch integration [BLOCKED ON GE-6 ACCEPTANCE]
+GE-7's durable-job-control design is accepted, but production AHA-4 waits for GE-6 scheduler correctness/merge. Then add stable execution identity, claim/gate, duplicate protection, transport-loss reconciliation, and evidence storage by wrapping existing durable job control.
 
 ### AHA-4A — Worker lease broker + automatic fallback
 Extend the existing worker registry/assignment authority with atomic leases, eligibility preflight, ownership/scope checks, and policy-driven fallback across eligible semantic workers. A busy/owned/dirty/incompatible worker is skipped, never rebound or interrupted. Eligible shell/read-only work may fall back to RDC; otherwise queue/wait. See `docs/plans/2026-08-28-worker-auto-fallback-and-glm-benchmark.md`.
