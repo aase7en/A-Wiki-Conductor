@@ -128,3 +128,12 @@ Next safe action: inspect PR #112 CI and obtain independent review of the actual
 - This is a deterministic dependency failure, not the pre-existing Windows `0x80000003` runner flake.
 
 Next safe action: install the test extra in a clean temporary environment, rerun the focused/related suites, diff/secret checks, then push and let PR CI re-evaluate the exact repaired head.
+
+## Checkpoint - reconciled after PR #111 + CI repair
+
+- CI infrastructure repair PR #113 merged as `e2de499`; exact-main CI passed Windows/Ubuntu/macOS including packaging and frozen smoke.
+- Priority/SSoT PR #111 merged as `457f974`; this branch was merged forward from that exact main without conflicts.
+- Focused post-reconcile regression: `tests/test_provider_harness_contract.py tests/test_domain.py` -> **25 passed**; `compileall` PASS; `git diff --check origin/main...HEAD` PASS.
+- No production provider/network/process execution was added; credential values remain absent.
+
+Next safe action: require green CI on the reconciled head, merge AHA-1, then start a new AHA-2 work order from exact merged main for non-secret provider configuration + fake health/quota normalization only.
