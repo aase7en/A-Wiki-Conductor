@@ -156,6 +156,14 @@ def test_install_tunnel_client_downloads_and_extracts(tmp_path: Path, monkeypatc
         zf.writestr("LICENSE", b"Apache 2.0")
 
     def fake_download(url, dest):
+        if url.endswith("SHA256SUMS.txt"):
+            import hashlib
+            digest = hashlib.sha256(fake_zip.read_bytes()).hexdigest()
+            Path(dest).write_text(
+                f"{digest}  tunnel-client-v0.0.12-windows-amd64.zip\n",
+                encoding="utf-8",
+            )
+            return
         Path(dest).write_bytes(fake_zip.read_bytes())
 
     # Mock the GitHub API response to avoid rate limits on CI
@@ -163,10 +171,16 @@ def test_install_tunnel_client_downloads_and_extracts(tmp_path: Path, monkeypatc
         class FakeResponse:
             def read(self):
                 return fake_json.dumps({
-                    "assets": [{
-                        "name": "tunnel-client-v0.0.12-windows-amd64.zip",
-                        "browser_download_url": "https://example.com/tc.zip",
-                    }]
+                    "assets": [
+                        {
+                            "name": "tunnel-client-v0.0.12-windows-amd64.zip",
+                            "browser_download_url": "https://example.com/tc.zip",
+                        },
+                        {
+                            "name": "SHA256SUMS.txt",
+                            "browser_download_url": "https://example.com/SHA256SUMS.txt",
+                        },
+                    ]
                 }).encode()
 
             def __enter__(self):
@@ -190,6 +204,8 @@ def test_install_tunnel_client_downloads_and_extracts(tmp_path: Path, monkeypatc
     assert tc_path.is_file()
     assert (tmp_path / "tc" / "LICENSE").is_file()
     assert tc_path.read_bytes() == b"fake-tc"
+    assert not (tmp_path / "tc" / "SHA256SUMS.txt").exists()
+    assert not (tmp_path / "tc" / "tunnel-client-v0.0.12-windows-amd64.zip").exists()
 
 
 # --- FirstInstanceCreator ---------------------------------------------------
@@ -402,6 +418,11 @@ def test_install_tunnel_client_upgrades_known_bad_existing_binary(tmp_path: Path
     downloads = []
     def fake_download(url, dest):
         downloads.append(url)
+        if url.endswith("SHA256SUMS.txt"):
+            import hashlib
+            digest = hashlib.sha256(fake_zip.read_bytes()).hexdigest()
+            Path(dest).write_text(f"{digest}  windows-amd64.zip\n", encoding="utf-8")
+            return
         Path(dest).write_bytes(fake_zip.read_bytes())
 
     def fake_urlopen(req, timeout=None):
@@ -410,6 +431,7 @@ def test_install_tunnel_client_upgrades_known_bad_existing_binary(tmp_path: Path
                 return fake_json.dumps({"tag_name": "v0.0.13", "assets": [
                     {"name": "tunnel-client-runtime-v0.0.13-windows-amd64.zip", "browser_download_url": "https://example.com/runtime.zip"},
                     {"name": "windows-amd64.zip", "browser_download_url": "https://example.com/tc.zip"},
+                    {"name": "SHA256SUMS.txt", "browser_download_url": "https://example.com/SHA256SUMS.txt"},
                 ]}).encode()
             def __enter__(self): return self
             def __exit__(self, *args): pass
@@ -419,7 +441,9 @@ def test_install_tunnel_client_upgrades_known_bad_existing_binary(tmp_path: Path
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     installed = Installer(download_fn=fake_download, run_fn=fake_run).install_tunnel_client(target_dir=target)
     assert installed.read_bytes() == b"new"
-    assert downloads == ["https://example.com/tc.zip"]
+    assert downloads == ["https://example.com/SHA256SUMS.txt", "https://example.com/tc.zip"]
+    assert not (target / "SHA256SUMS.txt").exists()
+    assert not (target / "windows-amd64.zip").exists()
 
 def test_generated_start_script_preserves_runtime_forensics(tmp_path: Path) -> None:
     from a_conductor.setup_wizard import FirstInstanceCreator
@@ -498,10 +522,23 @@ def test_install_tunnel_client_locked_old_binary_fails_without_destroying_it(tmp
         version = "0.0.11+old\n" if calls == 1 else "0.0.13+new\n"
         return subprocess.CompletedProcess(cmd, 0, stdout=version, stderr="")
 
-    def fake_download(url, dest): Path(dest).write_bytes(fake_zip.read_bytes())
+    def fake_download(url, dest):
+        if url.endswith("SHA256SUMS.txt"):
+            import hashlib
+            digest = hashlib.sha256(fake_zip.read_bytes()).hexdigest()
+            Path(dest).write_text(
+                f"{digest}  tunnel-client-v0.0.13-windows-amd64.zip\n",
+                encoding="utf-8",
+            )
+            return
+        Path(dest).write_bytes(fake_zip.read_bytes())
     def fake_urlopen(req, timeout=None):
         class R:
-            def read(self): return fake_json.dumps({"assets": [{"name": "tunnel-client-v0.0.13-windows-amd64.zip", "browser_download_url": "https://example.com/tc.zip"}]}).encode()
+            def read(self):
+                return fake_json.dumps({"assets": [
+                    {"name": "tunnel-client-v0.0.13-windows-amd64.zip", "browser_download_url": "https://example.com/tc.zip"},
+                    {"name": "SHA256SUMS.txt", "browser_download_url": "https://example.com/SHA256SUMS.txt"},
+                ]}).encode()
             def __enter__(self): return self
             def __exit__(self, *args): pass
         return R()
@@ -512,3 +549,169 @@ def test_install_tunnel_client_locked_old_binary_fails_without_destroying_it(tmp
         Installer(download_fn=fake_download, run_fn=fake_run).install_tunnel_client(target_dir=target)
     assert exc.value.code == "TUNNEL_CLIENT_UPDATE_BLOCKED"
     assert exe.read_bytes() == b"old-live-binary"
+
+def test_install_tunnel_client_requires_checksum_asset_before_replacing_binary(tmp_path: Path, monkeypatch) -> None:
+    import json as fake_json
+    import zipfile
+    import urllib.request
+    from a_conductor.setup_wizard import Installer
+
+    target = tmp_path / "tc"
+    target.mkdir()
+    exe = target / "tunnel-client.exe"
+    exe.write_bytes(b"old-live-binary")
+    fake_zip = tmp_path / "new.zip"
+    with zipfile.ZipFile(fake_zip, "w") as zf:
+        zf.writestr("tunnel-client.exe", b"new")
+
+    calls = 0
+    def fake_run(cmd, **kwargs):
+        nonlocal calls
+        calls += 1
+        version = "0.0.11+old\n" if calls == 1 else "0.0.13+new\n"
+        return subprocess.CompletedProcess(cmd, 0, stdout=version, stderr="")
+
+    downloads = []
+    def fake_download(url, dest):
+        downloads.append(url)
+        Path(dest).write_bytes(fake_zip.read_bytes())
+
+    def fake_urlopen(req, timeout=None):
+        class R:
+            def read(self):
+                return fake_json.dumps({"assets": [
+                    {"name": "tunnel-client-v0.0.13-windows-amd64.zip", "browser_download_url": "https://example.com/tc.zip"}
+                ]}).encode()
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+        return R()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(SetupWizardError) as exc:
+        Installer(download_fn=fake_download, run_fn=fake_run).install_tunnel_client(target_dir=target)
+    assert exc.value.code == "TUNNEL_CLIENT_CHECKSUM_REQUIRED"
+    assert exe.read_bytes() == b"old-live-binary"
+    assert downloads == []
+
+
+def test_install_tunnel_client_fails_closed_when_checksum_download_fails(tmp_path: Path, monkeypatch) -> None:
+    import json as fake_json
+    import urllib.request
+    from a_conductor.setup_wizard import Installer
+
+    target = tmp_path / "tc"
+    target.mkdir()
+    exe = target / "tunnel-client.exe"
+    exe.write_bytes(b"old-live-binary")
+
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="0.0.11+old\n", stderr="")
+
+    downloads = []
+    def fake_download(url, dest):
+        downloads.append(url)
+        if url.endswith("SHA256SUMS.txt"):
+            raise OSError("checksum unavailable")
+        raise AssertionError("artifact must not download before checksum is verified")
+
+    def fake_urlopen(req, timeout=None):
+        class R:
+            def read(self):
+                return fake_json.dumps({"assets": [
+                    {"name": "tunnel-client-v0.0.13-windows-amd64.zip", "browser_download_url": "https://example.com/tc.zip"},
+                    {"name": "SHA256SUMS.txt", "browser_download_url": "https://example.com/SHA256SUMS.txt"}
+                ]}).encode()
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+        return R()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(SetupWizardError) as exc:
+        Installer(download_fn=fake_download, run_fn=fake_run).install_tunnel_client(target_dir=target)
+    assert exc.value.code == "TUNNEL_CLIENT_CHECKSUM_REQUIRED"
+    assert exe.read_bytes() == b"old-live-binary"
+    assert downloads == ["https://example.com/SHA256SUMS.txt"]
+
+
+def test_install_tunnel_client_fails_closed_when_checksum_entry_missing(tmp_path: Path, monkeypatch) -> None:
+    import json as fake_json
+    import urllib.request
+    from a_conductor.setup_wizard import Installer
+
+    target = tmp_path / "tc"
+    target.mkdir()
+    exe = target / "tunnel-client.exe"
+    exe.write_bytes(b"old-live-binary")
+
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="0.0.11+old\n", stderr="")
+
+    downloads = []
+    def fake_download(url, dest):
+        downloads.append(url)
+        if url.endswith("SHA256SUMS.txt"):
+            Path(dest).write_text("00" * 32 + "  another-file.zip\n", encoding="utf-8")
+            return
+        raise AssertionError("artifact must not download without its checksum entry")
+
+    def fake_urlopen(req, timeout=None):
+        class R:
+            def read(self):
+                return fake_json.dumps({"assets": [
+                    {"name": "tunnel-client-v0.0.13-windows-amd64.zip", "browser_download_url": "https://example.com/tc.zip"},
+                    {"name": "SHA256SUMS.txt", "browser_download_url": "https://example.com/SHA256SUMS.txt"}
+                ]}).encode()
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+        return R()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(SetupWizardError) as exc:
+        Installer(download_fn=fake_download, run_fn=fake_run).install_tunnel_client(target_dir=target)
+    assert exc.value.code == "TUNNEL_CLIENT_CHECKSUM_REQUIRED"
+    assert exe.read_bytes() == b"old-live-binary"
+    assert downloads == ["https://example.com/SHA256SUMS.txt"]
+
+
+def test_install_tunnel_client_sha256_mismatch_preserves_existing_binary_and_cleans_scratch(tmp_path: Path, monkeypatch) -> None:
+    import json as fake_json
+    import zipfile
+    import urllib.request
+    from a_conductor.setup_wizard import Installer
+
+    target = tmp_path / "tc"
+    target.mkdir()
+    exe = target / "tunnel-client.exe"
+    exe.write_bytes(b"old-live-binary")
+    asset_name = "tunnel-client-v0.0.13-windows-amd64.zip"
+    fake_zip = tmp_path / "new.zip"
+    with zipfile.ZipFile(fake_zip, "w") as zf:
+        zf.writestr("tunnel-client.exe", b"new")
+
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="0.0.11+old\n", stderr="")
+
+    def fake_download(url, dest):
+        if url.endswith("SHA256SUMS.txt"):
+            Path(dest).write_text(f"{'0' * 64}  {asset_name}\n", encoding="utf-8")
+            return
+        Path(dest).write_bytes(fake_zip.read_bytes())
+
+    def fake_urlopen(req, timeout=None):
+        class R:
+            def read(self):
+                return fake_json.dumps({"assets": [
+                    {"name": asset_name, "browser_download_url": "https://example.com/tc.zip"},
+                    {"name": "SHA256SUMS.txt", "browser_download_url": "https://example.com/SHA256SUMS.txt"},
+                ]}).encode()
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+        return R()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(SetupWizardError) as exc:
+        Installer(download_fn=fake_download, run_fn=fake_run).install_tunnel_client(target_dir=target)
+    assert exc.value.code == "TUNNEL_CLIENT_SHA256_MISMATCH"
+    assert exe.read_bytes() == b"old-live-binary"
+    assert not (target / asset_name).exists()
+    assert not (target / "SHA256SUMS.txt").exists()
