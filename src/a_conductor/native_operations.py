@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Mapping, Protocol, Sequence
 
 from .domain import RecoveryClassification
-from .job_execution import JobBackendResult
+from .job_execution import JobBackendResult, JobExecutionContext
 from .native_execution import NativeCommandResult
 
 
@@ -271,9 +271,13 @@ class AllowlistedNativeJobBackend:
             raise NativeOperationError("NATIVE_RESULT_INVALID")
         return result
 
-    def execute(self, operation_ref: str, worker_id: str) -> JobBackendResult:
+    def execute(
+        self, operation_ref: str, context: JobExecutionContext
+    ) -> JobBackendResult:
+        if not isinstance(context, JobExecutionContext):
+            raise ValueError("context must be a JobExecutionContext")
         definition = self._registry.resolve(operation_ref)
-        adapters = self._resolver.resolve(worker_id)
+        adapters = self._resolver.resolve(context.worker_id)
         result = self._execute_definition(definition, adapters)
         evidence_ref = _evidence_ref(definition, result)
         success = not result.timed_out and result.exit_code == 0

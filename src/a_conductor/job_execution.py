@@ -56,6 +56,7 @@ class JobBackendResult:
     success: bool
     evidence_ref: str | None = None
     recovery_classification: RecoveryClassification | None = None
+    error_code: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.success, bool):
@@ -65,11 +66,14 @@ class JobBackendResult:
             self.recovery_classification, RecoveryClassification
         ):
             raise ValueError("recovery_classification must be a RecoveryClassification")
+        _require_optional_text(self.error_code, "error_code")
         if self.success:
             if self.evidence_ref is None:
                 raise ValueError("successful backend result requires evidence_ref")
             if self.recovery_classification is not None:
                 raise ValueError("successful backend result cannot require recovery")
+            if self.error_code is not None:
+                raise ValueError("successful backend result cannot have error_code")
         elif self.recovery_classification is None:
             raise ValueError("failed backend result requires recovery_classification")
 
@@ -93,8 +97,30 @@ class JobExecutionOutcome:
             raise ValueError("recovery_required must be a bool")
 
 
+@dataclass(frozen=True, slots=True)
+class JobExecutionContext:
+    job_id: str
+    work_order_ref: str
+    project_id: str
+    worker_id: str
+    attempt_no: int
+    max_attempts: int
+
+    def __post_init__(self) -> None:
+        _require_text(self.job_id, "job_id")
+        _require_text(self.work_order_ref, "work_order_ref")
+        _require_text(self.project_id, "project_id")
+        _require_text(self.worker_id, "worker_id")
+        _require_positive_int(self.attempt_no, "attempt_no")
+        _require_positive_int(self.max_attempts, "max_attempts")
+        if self.attempt_no > self.max_attempts:
+            raise ValueError("attempt_no cannot exceed max_attempts")
+
+
 class JobExecutionBackend(Protocol):
-    def execute(self, operation_ref: str, worker_id: str) -> JobBackendResult: ...
+    def execute(
+        self, operation_ref: str, context: JobExecutionContext
+    ) -> JobBackendResult: ...
 
 
 class DurableJobStore(Protocol):
@@ -200,7 +226,17 @@ class DurableJobExecutionCoordinator:
         )
 
         try:
-            backend_result = self._backend.execute(operation_ref, worker_id)
+            backend_result = self._backend.execute(
+                operation_ref,
+                JobExecutionContext(
+                    job_id=executing.job_id,
+                    work_order_ref=executing.work_order_ref,
+                    project_id=executing.project_id,
+                    worker_id=worker_id,
+                    attempt_no=executing.attempt_count,
+                    max_attempts=executing.max_attempts,
+                ),
+            )
         except Exception:
             return self._recover_after_backend(
                 executing,
@@ -223,7 +259,7 @@ class DurableJobExecutionCoordinator:
                 executing,
                 classification=backend_result.recovery_classification,
                 evidence_ref=backend_result.evidence_ref,
-                error_code="BACKEND_REPORTED_FAILURE",
+                error_code=backend_result.error_code or "BACKEND_REPORTED_FAILURE",
             )
 
         assert backend_result.evidence_ref is not None

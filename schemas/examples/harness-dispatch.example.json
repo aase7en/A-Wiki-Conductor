@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0.0",
+  "execution_id": "exec-aha1-example-001",
+  "task_contract_ref": "task-ref:WO-EXAMPLE-001",
+  "project_id": "project-example",
+  "worktree_path": "A:/GitHub/example-worktree",
+  "expected_branch": "feat/example",
+  "expected_head": "0123456789abcdef0123456789abcdef01234567",
+  "provider_id": "provider-glm-shared",
+  "model_id": "glm-5.3",
+  "harness_strategy": "CLAUDE_CODE_CLI",
+  "effort_level": "MAX",
+  "mutation_intent": "READ_ONLY",
+  "timeout_seconds": 1800,
+  "max_output_bytes": 1048576,
+  "evidence_destination_ref": "evidence-ref:exec-aha1-example-001"
+}

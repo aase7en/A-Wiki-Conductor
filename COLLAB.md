@@ -34,12 +34,20 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-075` / `docs/repo-health-100` | GPT-5.6 Sol | 2026-08-27 | Docs/release closeout only: `CURRENT-WORK.md`, `handoff.md`, `COLLAB.md`, `CHANGELOG.md`, P1 release WOs, branch/worktree cleanup evidence, release verification. No Graph production code. |
-| PR #102 / GE-005A | GLM 5.3 | 2026-08-26 | `fix/ge-005a-glob-conflict` worktree/branch. OPEN with Windows CI failing; preserve until owner repairs/re-audits. |
-| PR #104 / GE-6 | GLM 5.3 | 2026-08-26 | `feat/ge-6-scheduler` worktree/branch. OPEN with Windows CI failing; preserve until owner repairs/re-audits. |
+| `WO-P1-095` / AHA-4 Claude durable backend bridge | GPT-5.6 Sol integrator | 2026-08-28 | Isolated `A-Wiki-Conductor-aha4-bridge`: new Claude job backend + tests; narrow job-execution/job-control seams and native-backend compatibility only if RED tests require context/assembly. No graph scheduler/dispatch rewrite, no live process/provider/secret mutation. |
+| PR #108 / installer target ownership | release/installer lane | 2026-08-27 | `fix/v070-installer-target-ownership`; destructive installer safety scope remains separately owned. |
+| North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
 
+- `WO-P1-094` / PR #119 durable graph-dispatch core: final head `70e80c1d958b08137bf5c70a44cca369ac4aadac` passed Windows/Ubuntu/macOS CI run `33159443742` including Windows packaging/frozen smoke and merged as `5cc417c92450eba796fa9af1cf3da037663b1eea`.
+- PR #104 / GE-6 deterministic scheduler: exact head `694b8dee053e48d805596b527525cada875848a4` passed GPT re-audit + 3-OS CI and merged as `023c7b65026b0ff536cd1d802d6010e381a4447a`; worktree/local/remote branch removed after ancestry proof.
+- `WO-P1-092` / PR #117 harness phase transition: merged as `8db32269f3b1e55a7a551a5a98f6c93b8a30158d`; claim released to AHA-4.
+- `WO-P1-091` / PR #116 AHA-3 Claude Code harness adapter: merged as `ab28dc7` on 2026-08-28 after exact-head Windows/Ubuntu/macOS CI green; clean worktree/local/remote branch removed after ancestry verification.
+- `WO-P1-090` / PR #114 AHA-2 provider configuration + observation: merged as `ca4cd98` on 2026-08-28 after exact-head Windows/Ubuntu/macOS CI green; clean worktree/local/remote branch removed after ancestry verification.
+- `WO-P1-087` / PR #111 priority plan: merged as `457f974` on 2026-08-28; worktree/branch removed after ancestry verification.
+- `WO-P1-088` / PR #112 AHA-1 provider/harness contracts: merged as `c3ca84c` on 2026-08-28; AHA-2 consumes this accepted contract.
+- `WO-P1-086` / PR #110 capability vocabulary C0: merged as `6487cb2` on 2026-08-28; clean feature worktree/local/remote branch removed after ancestry verification; accepted contract remains on `main`.
 - `WO-P1-063`: implementation/release complete; v0.6.0 published from `c870525`; future work leaves this WO.
 - `WO-GE-001` decision fan-in: D1-D5 accepted via PR #86; decision claim released. GE-1a is the next implementation slice and must be claimed by its actual implementer before mutation.
 - `docs/repo-health-sync`: merged/closed before release integration; no live claim remains.

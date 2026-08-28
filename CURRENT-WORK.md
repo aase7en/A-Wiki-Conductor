@@ -1,30 +1,40 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-27 (GPT-5.6 Sol — repo-health-100 + v0.7.0 closeout)
+Last updated: 2026-08-28 (GPT-5.6 Sol — PR #119 merged / AHA-4 Claude durable bridge ACTIVE)
 
 ## Current phase
 
-**v0.7.0 RELEASE CLOSEOUT + repo health reconciliation.** Durable GitHub/repository state now outranks the stale historical v0.7 candidate checkpoint that pinned `be8a45d`.
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — AHA-4 DURABLE HARNESS BRIDGE ACTIVE.**
 
-Verified release line on `origin/main` before this docs branch:
-- PR #99 async PROJECT DISK release blocker — merge `e8195b1`.
-- PR #100 worker display-name repair — merge `12a4c56`.
-- PR #101 live AI Execution Slots — merge `4ad0b8e`.
-- PR #103 PROJECT DISK monochrome particle magnitude — merge `f85ee47`.
-- PR #105 interactive offline HTML Guide — merge `f9dff0b1`.
-- Exact-main CI run `33005521278` for `f9dff0b1` is green on Windows + Ubuntu + macOS. Windows also passed clean Portable/Setup build, frozen archive verification, Portable executable smoke, and artifact upload.
+User outcome: give A-Sunday Conductor one goal; Conductor creates bounded task packets, selects an eligible model/harness, dispatches work, gathers evidence, reviews/repairs, and continues without manual prompt copy/paste.
 
-**Current active work order:** `docs/work-orders/WO-P1-075-repo-health-v070-closeout.md` on branch `docs/repo-health-100`.
+Current exact lane:
+- repository: `aase7en/A-Wiki-Conductor`;
+- worktree: `A:\GitHub\A-Wiki-Conductor-aha4-bridge`;
+- branch: `feat/wo-p1-095-aha4-harness-durable-bridge`;
+- branch base: 5cc417c92450eba796fa9af1cf3da037663b1eea; current origin/main@7505bd3d2c88a8832df560e703cb5784b02ab805 adds PR #120 connector-resilience docs only, with no overlap to WO-P1-095;
+- PR #119 final head `70e80c1d958b08137bf5c70a44cca369ac4aadac` passed final 3-OS CI run `33159443742` including Windows packaging/frozen smoke and merged as `5cc417c9`;
+- AHA-0/1/2/3 + AHA-4 durable graph-dispatch core are merged.
 
-**Release boundary:** the historical `be8a45d` pin is superseded by later user-authorized P1 release work. v0.7.0 must be published from the exact merge SHA of `docs/repo-health-100` after its own CI and exact-artifact sandbox installation acceptance. Do not silently retarget to a later moving `main` after that SHA is selected.
+Protected parallel work remains PR #108 installer safety and the unique North Star branch. Shared `A:\GitHub\A-Wiki-Conductor` remains protected/read-only.
 
-**Excluded from v0.7.0:** PR #102 (`fix/ge-005a-glob-conflict`) and PR #104 (`feat/ge-6-scheduler`) are still OPEN with Windows CI failing. Their GLM worktrees/branches remain active and must not be deleted or merged into this release.
+## Active work order
 
-**Worktree safety:** shared `A:\GitHub\A-Wiki-Conductor` remains stale local `main` and must not be mutated/fast-forwarded. Mutation occurs only in isolated worktrees. A-Wiki remains HOLD/read-only. Never bind tests to live connector ports 18011–18015; never broad-kill Python/Serena/tunnel processes; never disable ESET.
+`docs/work-orders/WO-P1-095-aha4-claude-durable-backend.md` — bridge accepted AHA-3 Claude Code harness into existing durable job execution authority.
+
+## Immediate execution frontier
+
+1. immutable JobExecutionContext seam is implemented and carries durable job/work-order/project/worker/attempt identity into the backend; native backend compatibility remains green;
+2. ClaudeCodeJobBackend is implemented over the accepted AHA-3 adapter with opaque operation registry, exact identity checks, provider-state resolution, bounded evidence digests, and typed failure mapping;
+3. focused backend/job/native tests: **33 passed**; broader provider/harness/job/graph/dedup/supervised regression set: **106 passed**;
+4. full local suite reached **1398 passed / 4 skipped**, with 31 failures + 8 errors confined to existing machine-specific instance-file PermissionError/GPU tests, outside WO-P1-095 scope;
+5. GPT archaeology replacing the blocked GLM lane is complete: future live Claude runner should adapt ClaudeCodeInvocation -> NativeCommandSpec -> SupervisedCommandRunner, reusing DuplicateExecutionGuard/SupervisedExecutionService; NativeCommandSpec already supports env overrides, but supervised propagation/allowlist is the missing seam;
+6. next = local compile/diff/scope/secret gate -> commit/push Draft PR -> exact remote diff + 3-OS CI; after merge, open the supervised Claude runner micro-slice;
+7. live provider smoke remains separately fail-closed until safe provider-store assembly/gateway readiness exists.
 
 ## Source-of-truth rule
 
-Do **not** reconstruct task state from chat memory. Use: actual repo/GitHub state → CURRENT-WORK.md → handoff.md → active work order → PROJECT-PLAN/contracts.
+Do **not** reconstruct task state from chat memory. Use actual repo/GitHub state → CURRENT-WORK.md → handoff.md → active work order → PROJECT-PLAN/contracts.
 
 ## Verified completed work (this session, main `2da3d01`)
 

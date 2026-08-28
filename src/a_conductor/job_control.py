@@ -118,18 +118,36 @@ class DurableJobControlService:
             worker_id=worker_id,
         )
 
+    def block(
+        self,
+        job_id: str,
+        *,
+        expected_version: int,
+        worker_id: str,
+        evidence_ref: str | None = None,
+    ) -> JobRuntimeState:
+        return self._store.transition(
+            job_id,
+            TaskState.BLOCKED,
+            expected_version=expected_version,
+            worker_id=worker_id,
+            evidence_ref=evidence_ref,
+        )
+
     def gate(
         self,
         job_id: str,
         *,
         expected_version: int,
         worker_id: str,
+        evidence_ref: str | None = None,
     ) -> JobRuntimeState:
         return self._store.transition(
             job_id,
             TaskState.GATING,
             expected_version=expected_version,
             worker_id=worker_id,
+            evidence_ref=evidence_ref,
         )
 
     def checkpoint(

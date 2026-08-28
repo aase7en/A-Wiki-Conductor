@@ -763,3 +763,55 @@ Key constraints:
 - no periodic subprocess spawning in UI/monitor/render paths.
 
 Implementation and verification are tracked by `docs/work-orders/WO-P1-063-terminal-command-center-redesign.md`.
+
+## 21. Priority Accelerator — Sunday Family Multi-Model Agent Harness (2026-08-28)
+
+**User-priority decision:** move the multi-model/sub-agent harness ahead of other new feature development because removing manual GPT/GLM/Claude-Code/ZCode prompt copying should accelerate every later A-Sunday Conductor milestone.
+
+Binding plan: `docs/plans/2026-08-28-sunday-family-agent-harness-accelerator.md`
+Active work order: `docs/work-orders/WO-P1-087-sunday-family-agent-harness-accelerator.md`
+
+The feature remains inside the **A-Sunday Conductor / Sunday Family** product. It extends Capability Fabric v1 and the North Star runtime/execution fabric; it must not create a second scheduler, provider registry, task store, memory system, or vendor-specific control plane.
+
+First preferred coding lane:
+
+`Conductor -> Claude Code/Anthropic-style harness -> Anthropic-compatible provider -> GLM-5.3`
+
+GLM is the first configured provider, not an architectural dependency. Provider/runtime abstractions must remain compatible with OpenAI, Anthropic first-party, Gemini, local models, and future execution surfaces.
+
+Priority order for new feature work:
+1. capability-vocabulary C0 accepted via PR #110 (merged `6487cb2`);
+2. define provider + harness + trust/quota/credential-reference contracts;
+3. implement secure provider configuration and fake-backend health/quota tests;
+4. implement a bounded non-interactive Claude Code harness adapter;
+5. integrate with existing durable dispatch only after GE scheduler/dispatch gates are satisfied;
+6. prove GPT-plan/review <-> GLM-implement/repair without human copy/paste;
+7. prove safe parallel READY-task execution with isolated worktrees/scopes;
+8. expose `Models & Agents` / `Sub-Agent Providers` in the existing Sunday Family command center;
+9. add further providers only after the contract is stable.
+
+Safety/release correctness work and already-owned Graph branches remain independent P0 lanes. A priority change never authorizes stealing their worktrees or bypassing their gates.
+
+## 22. v0.7.0 Stability Gate — Connector Runtime Resilience (2026-08-28)
+
+**P0 release blocker:** `docs/work-orders/WO-P1-096-connector-runtime-resilience.md`
+
+A real fleet incident proved that connector liveness is still coupled too tightly to MCP/tunnel request transport lifetime. During a live Sunday-Worker-5 run, tunnel-client reached an MCP connection TTL/deadline, then failed writing to already-closed stdio and requested whole-process shutdown. Because the Windows launcher chain is `cmd.exe /c -> PowerShell -> tunnel-client`, the visible CMD window then disappeared. Windows event logs did not show a matching native crash; Serena logs showed orderly shutdown.
+
+The user's Control Center activity log also proves the later Worker-5 restart was manual (`START-INST`), not runtime auto-recovery. `AUTO-START` currently means startup-time launch, not a continuous watchdog guarantee.
+
+This creates two separate P0 reliability obligations:
+
+1. **Causal isolation:** a request/connection TTL must not kill the long-lived connector service. A dead child transport must be classified/recreated without blind replay of unknown execution state.
+2. **Bounded recovery:** unexpected connector death must be detected and recovered automatically with exact ownership checks, bounded backoff/restart budget, `RECOVERING/DEGRADED` states, and explicit-user-Stop suppression.
+
+Required supporting work:
+- durable per-run exit reason/code and timestamped/rotated logs; never preserve the only forensic signal as `Tunnel client exited with code .`;
+- operator-visible last-exit/restart state and `AUTO-RECOVER` activity events;
+- deterministic fault injection for TTL, closed stdio, repeated crash/restart-storm, and explicit Stop;
+- reverify argument-safe project-path handling for paths such as `L:\My Drive\...`;
+- isolated connector E2E and soak beyond effective/default transport TTL, with zero manual Start actions.
+
+**Release policy:** source currently identifies as `0.7.0`, while the public GitHub Latest release is still `v0.6.0` at this checkpoint. Connector resilience is therefore a v0.7.0 **stabilization gate before stable publication**, not a post-release nice-to-have. Do not publish v0.7.0 as stable until the WO-P1-096 acceptance gates are satisfied and a fresh branch/release audit proves the release source descends from accepted remote `main` rather than a stale/superseded local branch.
+
+**Branch hygiene:** the shared root checkout is currently stale/dirty and protected. Stability work must use isolated worktrees created from verified remote main, preserve AHA-4/installer/North-Star ownership, and treat old/detached worktrees as cleanup candidates only after their dirty/untracked evidence and ancestry are individually reconciled. No destructive branch/worktree cleanup is implied by this roadmap item.

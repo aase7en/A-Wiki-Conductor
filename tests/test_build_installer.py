@@ -305,6 +305,16 @@ def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
     # exercises the deterministic Canvas path; real WGL is an explicit local E2E.
     assert 'A_CONDUCTOR_GPU_PARTICLES: "0"' in workflow
 
+    gui_block = workflow.split("- name: Run GUI test suite", 1)[1].split(
+        "- name: Run local-instance lifecycle suite", 1
+    )[0]
+    assert "tests/test_interactive_logo.py" in gui_block
+
+    remaining_block = workflow.split(
+        "- name: Run remaining core suites one file per process", 1
+    )[1].split("- name: Smoke test", 1)[0]
+    assert '"test_interactive_logo.py"' in remaining_block
+
 
 def test_install_guide_matches_current_release_and_hkcu_contract() -> None:
     guide = (REPO_ROOT / "INSTALL.md").read_text(encoding="utf-8")

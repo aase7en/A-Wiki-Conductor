@@ -1,0 +1,105 @@
+# WO-P1-097 เนโฌโ€ Tunnel Client Stability / CR-1 + CR-3
+
+Date: 2026-08-28
+Owner: GPT-5.6 Sol
+Status: SOURCE SLICE COMPLETE / MERGED
+Repository: `aase7en/A-Wiki-Conductor`
+Worktree: `A:\GitHub\A-Wiki-Conductor-tunnel-stability`
+Branch: `fix/wo-p1-097-tunnel-client-stability`
+Base: `origin/main@7505bd3d2c88a8832df560e703cb5784b02ab805`
+Parent roadmap: `WO-P1-096`
+
+## Goal
+
+Close the smallest non-overlapping v0.7.0 connector-stability slice:
+1. stop treating known-bad tunnel-client 0.0.11 as an acceptable installed dependency;
+2. preserve real tunnel-client exit codes and prior runtime logs for newly materialized connector scripts;
+3. prove project paths with spaces remain quoted.
+
+## Evidence / root-cause update
+
+Live machine binary: `0.0.11+8d55683...`.
+Upstream v0.0.12 release notes explicitly state: shared stdio MCP sessions are preserved after non-initialize response deadlines. Latest upstream release observed on 2026-08-28 is v0.0.13.
+This directly matches the captured TTL/deadline -> closed stdio -> tunnel shutdown incident and makes upstream upgrade the preferred CR-1 repair before custom lifecycle workarounds.
+## Scope / collision gate
+
+Allowed mutation:
+- `src/a_conductor/setup_wizard.py`
+- `src/a_conductor/instance_create.py` only if required for generated-script parity
+- additive tunnel-client helper module if useful
+- focused tests for those files
+- this work order
+
+Forbidden:
+- `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md` while AHA-4 bridge owns dirty coordination surfaces
+- `job_execution.py`, `native_operations.py`, supervised Claude/AHA-4 bridge files
+- PR #108 installer ownership files
+- North Star files
+- live `C:\AI\serena-instances` mutation
+
+Observed overlap check: AHA-4 bridge, PR #108, and North Star have zero file overlap with the allowed production/test scope above.
+Classification: `EXTEND + WRAP`; no second lifecycle/store/dedup system.
+
+## RED acceptance tests
+
+- Existing 0.0.11 binary is classified below the minimum safe version 0.0.12.
+- Existing >=0.0.12 binary is accepted without download.
+- Old binary causes verified latest release download/install rather than early-return.
+- Unparseable version fails closed instead of silently accepting an unknown binary.
+- Generated Windows start script records a nonblank numeric exit code after tunnel-client exits.
+- Previous fixed-name runtime stdout/stderr logs are archived before a new run truncates them.
+- `L:\My Drive\...` project path remains one quoted `--project` argument in generated profile material.
+## Verification
+
+1. focused RED tests fail on untouched base for the intended reasons;
+2. focused tests pass after implementation;
+3. existing setup/instance-create/path-quoting suites pass;
+4. compileall + diff/secret scan pass;
+5. exact-head CI Windows/Ubuntu/macOS green before merge;
+6. no live connector process or binary is stopped/replaced in this slice.
+
+## Release boundary
+
+This source slice may merge while active workers remain untouched. Applying the new tunnel-client to the live shared binary is a separate operational step because replacing it while other chats use connectors would create an outage and violate the non-collision requirement.
+
+## Next after merge
+
+Reconcile then-current SSoT and active connector ownership. Only when a sacrificial/idle connector is available: install upstream >=0.0.12 (prefer latest verified v0.0.13), run isolated TTL/response-deadline soak, and prove zero manual Start. CR-2 bounded auto-recovery remains a later layer; do not use it to mask an old tunnel-client defect.
+## Implementation checkpoint โ€” 2026-08-28
+
+Implemented source-only; live connector fleet remains untouched.
+
+- tunnel-client support floor: `>=0.0.12`; current live `0.0.11+8d55683...` is classified unsupported;
+- installer now upgrades old/unknown binaries from the verified full-client Windows amd64 release asset, validates the extracted version before replacement, and fails closed with `TUNNEL_CLIENT_UPDATE_BLOCKED` when Windows locks a live binary;
+- generated first-instance `start.ps1` rotates previous fixed runtime stdout/stderr into `logs/runtime-archive/`, captures `Process.ExitCode`, logs numeric `exit_code`, and returns that exit code;
+- cloned legacy reference start scripts receive the same forensic hardening when the validated markers exist;
+- existing project-path quoting regression remains green for paths containing spaces.
+
+Deterministic local evidence:
+- RED base: `5 failed, 15 passed` for the newly introduced safety expectations;
+- focused setup/create/quoting/build: `58 passed`;
+- broader local lifecycle/UI subset: `118 passed`;
+- CI-topology GUI process: `272 passed, 1 skipped` (local Tcl/Tk installation defect only);
+- local-instance process: `23 passed`; supervised-command process: `6 passed`;
+- isolated remaining core files before/after the local GPU dependency mismatch passed; 67 files after GPU all passed, including graph/job/lifecycle/native/recovery/tunnel suites;
+- source smoke: `A-CONDUCTOR_SMOKE_OK projects=0 workers=3`, exit 0.
+
+Local verification limitation: the Desktop Commander/Hermes Python environment lacks the complete optional WGL/OpenGL package/Tcl layout used by GitHub CI, so `test_gpu_particle_logo.py` produced environment-only dependency failures and Tk-dependent tests reported bounded skips. Exact-head GitHub CI installs `.[test]` and remains the final Windows/Ubuntu/macOS authority. No test was weakened or skipped in repository configuration.
+## Pre-PR reconciliation โ€” 2026-08-28
+
+- `origin/main` advanced from the original `7505bd3` base to `0e9b93a7c08cb7b284f2234af61ec6a96b16a2ea` after the AHA-4 Claude durable bridge merged.
+- The implementation commit was rebased cleanly onto that accepted main; final pre-PR parent is e9b93a7c08cb7b284f2234af61ec6a96b16a2ea.
+- None of those mainline commits modified this work order's production/test files.
+- Active `WO-P1-098` supervised Claude runner changes `owned_process.py`, `supervised_command_runner.py`, `supervised_execution.py` and their tests; overlap with WO-P1-097 is `NONE`.
+- PR #108 installer-target ownership remains separate (`scripts/installer_main.py` + its work order/test); overlap is `NONE`.
+- Real upstream install verification used the modified installer in a temporary directory only: downloaded full `tunnel-client v0.0.13`, parsed `(0, 0, 13)`, binary SHA build suffix `4b5267f...`, then deleted the temporary directory.
+- Live `C:\AI\serena-instances` and the currently running shared tunnel-client binary were not modified or stopped.
+## Final closeout - 2026-08-28
+
+- Source implementation PR #122 merged into main as ceee9bb7aa361aef6d0ecfc210c25b564578d552; implementation head e981787ea4e9f2a48a9c130b4f102ddf75f1d961 is an ancestor of that merge.
+- PR #122 exact-head CI run 33168733122: Ubuntu/macOS passed; Windows attempt 1 hit the pre-existing supervised-runner timeout flake outside WO-P1-097 scope; attempt 2 passed full Windows tests, packaging, frozen-archive verification, and frozen executable smoke at the same implementation head.
+- Post-merge main CI run 33169654985 passed Windows, Ubuntu, and macOS, including clean Portable/Setup builds, frozen archive verification, and Portable executable smoke.
+- Remote diff stayed limited to CHANGELOG.md, this work order, setup_wizard.py, instance_create.py, and focused tests. No WO-P1-098, PR #108, North Star, live connector, credential, or shared runtime files were modified.
+- Live fleet upgrade/TTL soak and CR-2 watchdog remain separately owned follow-up work under WO-P1-096; they are not hidden inside this completed source slice.
+
+**SOURCE SLICE COMPLETE.** No code, tests, PR, or CI work remains in WO-P1-097.

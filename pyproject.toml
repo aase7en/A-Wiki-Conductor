@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7"]
+test = ["pytest>=7", "jsonschema>=4.23"]
 
 [project.scripts]
 a-conductor = "a_conductor.desktop_app:main"
