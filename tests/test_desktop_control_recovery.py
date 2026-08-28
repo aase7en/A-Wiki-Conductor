@@ -41,6 +41,10 @@ class RecordingOrchestrator:
         self.stop_seen = None
 
     def start(self, target, *, cancel_check=None):
+        if cancel_check is not None and cancel_check():
+            return InstanceOrchestrationOutcome(
+                "start", InstanceResultCode.START_CANCELLED, process_launched=False
+            )
         self.start_calls.append(target.name)
         self.start_seen = self.store.get_connector_recovery(target.name)
         return InstanceOrchestrationOutcome("start", InstanceResultCode.RUNNING, process_launched=True)
@@ -168,3 +172,53 @@ def test_manual_stop_serializes_with_inflight_auto_recovery(tmp_path: Path) -> N
     assert record is not None
     assert record.recovery_suppressed is True
     assert record.state is ConnectorRecoveryState.STOPPED
+
+
+def test_cancellable_state_refresh_triggers_recovery_for_stopped_autostart(
+    tmp_path: Path, monkeypatch
+) -> None:
+    svc, store, orchestrator = service(tmp_path)
+    store.set_instance_autostart("Sunday-Worker-1", True)
+    monkeypatch.setattr(
+        "a_conductor.desktop_control.instance_health_state",
+        lambda _target: InstanceHealthState.STOPPED,
+    )
+
+    states = svc.instance_states_cancellable(cancel_check=lambda: False)
+
+    assert orchestrator.start_calls == ["Sunday-Worker-1"]
+    assert states[0][1] is InstanceHealthState.READY
+
+
+def test_cancellable_state_refresh_ready_and_unknown_never_launch(
+    tmp_path: Path, monkeypatch
+) -> None:
+    for health in (InstanceHealthState.READY, InstanceHealthState.UNKNOWN):
+        svc, store, orchestrator = service(tmp_path / health.value.lower())
+        store.set_instance_autostart("Sunday-Worker-1", True)
+        monkeypatch.setattr(
+            "a_conductor.desktop_control.instance_health_state",
+            lambda _target, value=health: value,
+        )
+
+        states = svc.instance_states_cancellable(cancel_check=lambda: False)
+
+        assert orchestrator.start_calls == []
+        assert states[0][1] is health
+
+
+def test_cancellable_state_refresh_cancels_after_probe_before_recovery(
+    tmp_path: Path, monkeypatch
+) -> None:
+    svc, store, orchestrator = service(tmp_path)
+    store.set_instance_autostart("Sunday-Worker-1", True)
+    monkeypatch.setattr(
+        "a_conductor.desktop_control.instance_health_state",
+        lambda _target: InstanceHealthState.STOPPED,
+    )
+    checks = iter((False, True))
+
+    states = svc.instance_states_cancellable(cancel_check=lambda: next(checks))
+
+    assert states == ()
+    assert orchestrator.start_calls == []

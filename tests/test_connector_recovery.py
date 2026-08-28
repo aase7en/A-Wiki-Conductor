@@ -17,11 +17,13 @@ from a_conductor.local_instances import (
 class MemoryStore:
     def __init__(self) -> None:
         self.records: dict[str, ConnectorRecoveryRecord] = {}
+        self.save_calls = 0
 
     def get_connector_recovery(self, instance_name: str):
         return self.records.get(instance_name)
 
     def save_connector_recovery(self, record: ConnectorRecoveryRecord):
+        self.save_calls += 1
         self.records[record.instance_name] = record
         return record
 
@@ -41,7 +43,9 @@ def build(*, outcomes=(), autostart=True, clock=None):
     queue = list(outcomes)
     active_clock = clock or Clock()
 
-    def start(name: str):
+    def start(name: str, *, cancel_check=None):
+        if cancel_check is not None and cancel_check():
+            return InstanceOrchestrationOutcome("start", InstanceResultCode.START_CANCELLED)
         calls.append(name)
         if queue:
             return queue.pop(0)
@@ -159,4 +163,41 @@ def test_non_autostart_connector_stays_stopped() -> None:
     recovery, _, calls, _ = build(autostart=False)
     result = recovery.observe("Sunday-Worker-1", InstanceHealthState.STOPPED)
     assert result.state is ConnectorRecoveryState.STOPPED
+    assert calls == []
+
+
+def test_repeated_ready_observation_is_idempotent() -> None:
+    recovery, store, calls, clock = build()
+    first = recovery.observe("Sunday-Worker-1", InstanceHealthState.READY)
+    saves = store.save_calls
+    clock.now += 15.0
+    second = recovery.observe("Sunday-Worker-1", InstanceHealthState.READY)
+    assert second == first
+    assert store.save_calls == saves
+    assert calls == []
+
+
+def test_repeated_suppressed_stopped_does_not_move_last_exit_timestamp() -> None:
+    recovery, store, calls, clock = build()
+    recovery.suppress("Sunday-Worker-1")
+    first = recovery.observe("Sunday-Worker-1", InstanceHealthState.STOPPED)
+    saves = store.save_calls
+    clock.now += 15.0
+    second = recovery.observe("Sunday-Worker-1", InstanceHealthState.STOPPED)
+    assert second == first
+    assert second.last_exit_at == first.last_exit_at
+    assert store.save_calls == saves
+    assert calls == []
+
+
+def test_late_cancellation_reaches_start_boundary_without_failure_budget() -> None:
+    checks = iter((False, True))
+    recovery, _, calls, _ = build()
+    result = recovery.observe(
+        "Sunday-Worker-1",
+        InstanceHealthState.STOPPED,
+        cancel_check=lambda: next(checks),
+    )
+    assert result.state is ConnectorRecoveryState.STOPPED
+    assert result.failure_count == 0
     assert calls == []

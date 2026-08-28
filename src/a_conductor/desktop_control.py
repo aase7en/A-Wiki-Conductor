@@ -14,7 +14,11 @@ from threading import Lock
 from typing import Callable, Protocol
 
 from .control_center import ControlCenterService
-from .connector_recovery import ConnectorRecoveryCoordinator, ConnectorRecoveryRecord
+from .connector_recovery import (
+    ConnectorRecoveryCoordinator,
+    ConnectorRecoveryRecord,
+    ConnectorRecoveryState,
+)
 from .lifecycle import LifecycleAction
 from .lifecycle_assembly import build_local_lifecycle_coordinator
 from .lifecycle_coordinator import LifecycleCoordinator
@@ -430,12 +434,26 @@ class DesktopControlService:
     def instance_states_cancellable(
         self, *, cancel_check: Callable[[], bool]
     ) -> tuple[tuple[LocalInstance, InstanceHealthState], ...]:
-        """Read connector states while allowing app shutdown between probes."""
+        """Read connector states and reconcile recovery on the existing health loop."""
         states: list[tuple[LocalInstance, InstanceHealthState]] = []
         for instance in self.instances():
             if cancel_check():
                 break
-            states.append((instance, instance_health_state(instance)))
+            health = instance_health_state(instance)
+            if cancel_check():
+                break
+            if self.settings_store is not None:
+                record = self.reconcile_instance_recovery(
+                    instance.name, health, cancel_check=cancel_check
+                )
+                if cancel_check():
+                    break
+                if (
+                    health is InstanceHealthState.STOPPED
+                    and record.state is ConnectorRecoveryState.READY
+                ):
+                    health = InstanceHealthState.READY
+            states.append((instance, health))
         return tuple(states)
 
     def _orchestrator(self) -> LocalInstanceOrchestrator:
@@ -467,14 +485,16 @@ class DesktopControlService:
         return self._connector_recovery
 
     def _start_instance_for_recovery(
-        self, instance_name: str
+        self, instance_name: str, *, cancel_check: Callable[[], bool] | None = None
     ) -> InstanceOrchestrationOutcome:
         target = next(
             (item for item in self.instances() if item.name == instance_name), None
         )
         if target is None:
             raise SerenaConfigStoreError("INSTANCE_NOT_FOUND")
-        return self._orchestrator().start(target)
+        if cancel_check is None:
+            return self._orchestrator().start(target)
+        return self._orchestrator().start(target, cancel_check=cancel_check)
 
     def reconcile_instance_recovery(
         self,
@@ -482,10 +502,14 @@ class DesktopControlService:
         health: InstanceHealthState,
         *,
         reason_code: str = "UNEXPECTED_STOPPED",
+        cancel_check: Callable[[], bool] | None = None,
     ) -> ConnectorRecoveryRecord:
         with self._connector_intent_lock(instance_name):
             return self._recovery_orchestrator().observe(
-                instance_name, health, reason_code=reason_code
+                instance_name,
+                health,
+                reason_code=reason_code,
+                cancel_check=cancel_check,
             )
 
     def _global_brain_provider(self):

@@ -87,7 +87,7 @@ class ConnectorRecoveryCoordinator:
         *,
         store: ConnectorRecoveryStore,
         autostart_check: Callable[[str], bool],
-        start_instance: Callable[[str], InstanceOrchestrationOutcome],
+        start_instance: Callable[..., InstanceOrchestrationOutcome],
         clock_fn: Callable[[], float],
         backoff_seconds: Sequence[float] = (5.0, 15.0, 30.0),
         failure_limit: int = 3,
@@ -167,6 +167,13 @@ class ConnectorRecoveryCoordinator:
         )
 
     def _ready(self, current: ConnectorRecoveryRecord, now: float) -> ConnectorRecoveryRecord:
+        if (
+            current.state is ConnectorRecoveryState.READY
+            and current.failure_count == 0
+            and current.failure_window_started_at is None
+            and current.next_retry_at is None
+        ):
+            return current
         return self._save(
             replace(
                 current,
@@ -216,11 +223,15 @@ class ConnectorRecoveryCoordinator:
         health: InstanceHealthState,
         *,
         reason_code: str = "UNEXPECTED_STOPPED",
+        cancel_check: Callable[[], bool] | None = None,
     ) -> ConnectorRecoveryRecord:
         if not isinstance(health, InstanceHealthState):
             health = InstanceHealthState(health)
         now = self._now()
         current = self._current(instance_name, now)
+        cancelled = cancel_check or (lambda: False)
+        if cancelled():
+            return current
         if health is InstanceHealthState.READY:
             return self._ready(current, now)
         if health is InstanceHealthState.UNKNOWN:
@@ -228,12 +239,19 @@ class ConnectorRecoveryCoordinator:
                 return self._save(current)
             return current
         if current.recovery_suppressed or not self._autostart_check(current.instance_name):
+            normalized_reason = _reason(reason_code)
+            if (
+                current.state is ConnectorRecoveryState.STOPPED
+                and current.next_retry_at is None
+                and current.last_exit_reason == normalized_reason
+            ):
+                return current
             return self._save(
                 replace(
                     current,
                     state=ConnectorRecoveryState.STOPPED,
                     next_retry_at=None,
-                    last_exit_reason=_reason(reason_code),
+                    last_exit_reason=normalized_reason,
                     last_exit_at=now,
                     updated_at=now,
                 )
@@ -241,6 +259,8 @@ class ConnectorRecoveryCoordinator:
         if current.state is ConnectorRecoveryState.DEGRADED:
             return current
         if current.next_retry_at is not None and now < current.next_retry_at:
+            return current
+        if cancelled():
             return current
 
         recovering = self._save(
@@ -254,11 +274,25 @@ class ConnectorRecoveryCoordinator:
             )
         )
         try:
-            outcome = self._start_instance(recovering.instance_name)
+            if cancel_check is None:
+                outcome = self._start_instance(recovering.instance_name)
+            else:
+                outcome = self._start_instance(
+                    recovering.instance_name, cancel_check=cancel_check
+                )
         except Exception:
             return self._failed_attempt(recovering, now, "RECOVERY_START_EXCEPTION")
         if not isinstance(outcome, InstanceOrchestrationOutcome):
             return self._failed_attempt(recovering, now, "RECOVERY_RESULT_INVALID")
+        if outcome.result_code is InstanceResultCode.START_CANCELLED:
+            return self._save(
+                replace(
+                    recovering,
+                    state=ConnectorRecoveryState.STOPPED,
+                    next_retry_at=None,
+                    updated_at=now,
+                )
+            )
         if outcome.result_code in {
             InstanceResultCode.RUNNING,
             InstanceResultCode.ALREADY_RUNNING,

@@ -62,3 +62,21 @@ Deterministic evidence:
 - `git diff --check`: PASS.
 
 Next: scope/secret audit -> commit/push Draft PR -> exact remote diff -> 3-OS CI. CR-4 UI/operator state remains a separate follow-up after CR-2 core acceptance.
+
+## Production wiring + idempotence repair ? 2026-08-28
+
+Independent review findings `5051679381` / `5051827379` were reproduced on current-main integration: the recovery core had no production caller. `instance_states_cancellable()` only probed health, so the existing 15-second single-flight refresh could observe STOPPED forever without invoking recovery.
+
+RED production-path evidence:
+- STOPPED + autostart via `instance_states_cancellable()` did not call the existing orchestrator start seam;
+- cancellation after a health probe still returned the row instead of aborting before recovery.
+
+Repair stays inside the existing monitor/lifecycle architecture:
+- `instance_states_cancellable()` now reconciles recovery after each health probe; no second timer/monitor was added;
+- app cancellation is checked before probe, after probe, inside recovery, and propagated to `LocalInstanceOrchestrator.start(cancel_check=...)`; `START_CANCELLED` does not consume failure budget;
+- successful bounded recovery maps that refresh result to READY because the existing orchestrator returns RUNNING only after its readiness probe passes;
+- READY/UNKNOWN observations never launch recovery.
+
+Deep-bug review also found that enabling the 15-second caller would otherwise rewrite durable SQLite state on every unchanged READY/explicit-STOPPED observation and continually move `last_exit_at`. Repeated stable observations are now idempotent; unchanged READY/STOPPED records are returned without a write and an existing exit timestamp is preserved.
+
+Verification on the reconciled branch: focused recovery/control `19 passed`; broader config/control/local-instance/monitor `58 passed`; compileall PASS; `git diff --check` PASS. Next: exact scope/secret audit -> commit/push -> fresh 3-OS CI -> final remote diff/review -> merge. CR-4 operator visibility remains a separate follow-up after CR-2 acceptance.
