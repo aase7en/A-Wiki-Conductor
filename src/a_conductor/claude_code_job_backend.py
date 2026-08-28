@@ -67,6 +67,15 @@ class ClaudeCodeProviderResolver(Protocol):
     def resolve(self, provider_id: str) -> ClaudeCodeProviderState | None: ...
 
 
+class ClaudeCodeHarnessAdapterFactory(Protocol):
+    def build(
+        self,
+        definition: "ClaudeCodeOperationDefinition",
+        context: JobExecutionContext,
+        state: ClaudeCodeProviderState,
+    ) -> ClaudeCodeHarnessAdapter: ...
+
+
 class StaticClaudeCodeProviderResolver:
     def __init__(self, states: Mapping[str, ClaudeCodeProviderState]) -> None:
         if not isinstance(states, Mapping):
@@ -175,9 +184,10 @@ class ClaudeCodeJobBackend:
         self,
         *,
         operations: Sequence[ClaudeCodeOperationDefinition],
-        adapter: ClaudeCodeHarnessAdapter,
         provider_resolver: ClaudeCodeProviderResolver,
         clock: Callable[[], object],
+        adapter: ClaudeCodeHarnessAdapter | None = None,
+        adapter_factory: ClaudeCodeHarnessAdapterFactory | None = None,
     ) -> None:
         if isinstance(operations, (str, bytes)):
             raise ValueError("operations must be a sequence")
@@ -188,14 +198,17 @@ class ClaudeCodeJobBackend:
             if definition.operation_ref in by_ref:
                 raise ValueError("operation_ref must be unique")
             by_ref[definition.operation_ref] = definition
-        if not callable(getattr(adapter, "execute", None)):
-            raise ValueError("adapter must provide execute")
+        has_adapter = callable(getattr(adapter, "execute", None))
+        has_factory = callable(getattr(adapter_factory, "build", None))
+        if has_adapter == has_factory:
+            raise ValueError("exactly one of adapter or adapter_factory is required")
         if not callable(getattr(provider_resolver, "resolve", None)):
             raise ValueError("provider_resolver must provide resolve")
         if not callable(clock):
             raise ValueError("clock must be callable")
         self._operations = by_ref
         self._adapter = adapter
+        self._adapter_factory = adapter_factory
         self._provider_resolver = provider_resolver
         self._clock = clock
 
@@ -235,7 +248,13 @@ class ClaudeCodeJobBackend:
             )
 
         try:
-            result = self._adapter.execute(
+            adapter = self._adapter
+            if adapter is None:
+                assert self._adapter_factory is not None
+                adapter = self._adapter_factory.build(definition, context, state)
+            if not callable(getattr(adapter, "execute", None)):
+                raise ClaudeCodeHarnessError("HARNESS_ADAPTER_INVALID")
+            result = adapter.execute(
                 definition.dispatch,
                 state.profile,
                 state.endpoint,
@@ -256,6 +275,7 @@ class ClaudeCodeJobBackend:
                     "ENDPOINT_REF_MISMATCH",
                     "MODEL_NOT_CONFIGURED",
                     "EFFORT_NOT_SUPPORTED",
+                    "HARNESS_BRANCH_REQUIRED",
                 }
                 else "HARNESS_FAILED"
             )
