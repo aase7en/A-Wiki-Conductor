@@ -1,35 +1,34 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-28 (GPT-5.6 Sol — PR #124 merged / AHA-4 per-job assembly ACTIVE)
+Last updated: 2026-08-28 (GPT-5.6 Sol — PR #130 merged / AHA-4A worker lease broker ACTIVE)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — DURABLE ↔ SUPERVISED CLAUDE ASSEMBLY ACTIVE.**
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — WORKER LEASE + AUTOMATIC FALLBACK ACTIVE.**
 
-User outcome: give A-Sunday Conductor one goal; Conductor creates bounded task packets, selects an eligible model/harness, dispatches work, gathers evidence, reviews/repairs, and continues without manual prompt copy/paste.
+User outcome: give A-Sunday Conductor one goal; Conductor selects safe eligible execution capacity without hard-coding or stealing busy workers.
 
 Current exact lane:
 - repository: `aase7en/A-Wiki-Conductor`;
-- worktree: `A:\GitHub\A-Wiki-Conductor-aha4-assembly`;
-- branch: `feat/wo-p1-100-aha4-supervised-backend-assembly`;
-- reconciled current remote main: `7db34048a0dd002b9bfbe41408c83c7ec18df2ad`;
-- PR #124 supervised Claude runner final head `25cc69478f73a8cfc154de721ae1c48bb8db7fd2` passed exact-head 3-OS CI run `33176757259` including Windows packaging/frozen/Portable smoke and merged as `e933a53c3c32bf0f8126f1602c913c08765d9a8a`;
-- WO-P1-096 connector runtime resilience remains an independent P0 v0.7.0 release gate; latest evidence records Draft PR #125 CR-2/CR-4 work and isolated E2E/soak still blocked on a sacrificial/authorized connector.
+- worktree: `A:\\GitHub\\A-Wiki-Conductor-aha4a-lease`;
+- branch: `feat/wo-p1-102-aha4a-worker-lease-broker`;
+- exact base/current `origin/main`: `08369ade59206cbe2bc80a314d49d3daa50038b7`;
+- PR #130 exact head `d3890820174c6a3a59331a30cd97ba1b9d42fe3e` passed exact-head 3-OS CI run `33183355995` and merged as `08369ade59206cbe2bc80a314d49d3daa50038b7`.
 
-Protected parallel work remains PR #125 connector recovery, PR #108 installer safety and North Star. Shared `A:\GitHub\A-Wiki-Conductor` remains protected/read-only.
+Protected parallel work remains connector/release/North-Star lanes. Shared `A:\\GitHub\\A-Wiki-Conductor` remains protected/read-only.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-100-aha4-supervised-backend-assembly.md` — lazily assemble the accepted durable Claude backend onto the accepted supervised Claude runner using exact per-job identity.
+`docs/work-orders/WO-P1-102-aha4a-worker-lease-broker.md` — atomic worker lease + deterministic eligibility/fallback.
 
 ## Immediate execution frontier
 
-1. accepted durable backend (`ClaudeCodeJobBackend`) already owns provider/harness result classification and durable evidence semantics;
-2. accepted supervised runner (`build_supervised_claude_code_runner`) already owns opaque-ref resolution boundary and canonical `DuplicateExecutionGuard` process path;
-3. lazy per-job adapter factory + production assembly are implemented; provider unavailable/no-branch fail closed before secret resolution or launch;
-4. deterministic successful chain reaches durable `VERIFYING`; fixed-adapter compatibility and canonical duplicate recovery behavior remain green;
-5. verification: focused **25 passed**, broader Claude/provider/native/supervisor/dedup/job/graph **237 passed**, compileall/diff/secret gates PASS;
-6. Draft PR #130 is open; next = push the SSoT/formatting follow-up -> exact remote diff re-audit -> exact-head 3-OS CI -> merge; after merge begin AHA-4A worker lease/fallback as a separate work order.
+1. claim WO-P1-102 before source mutation;
+2. RED concurrency test: one worker, two broker connections, one atomic winner;
+3. implement smallest SQLite lease store + immutable request/result vocabulary;
+4. add ordered fallback, typed fail-closed preflight, exact-owner release, explicit read-only RDC fallback;
+5. focused+broad regression + compile/diff/scope audit -> Draft PR -> exact-head 3-OS CI -> merge;
+6. after merge open AHA-4B heartbeat/expiry/quarantine as a separate slice.
 
 ## Source-of-truth rule
 
