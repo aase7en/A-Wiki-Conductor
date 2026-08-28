@@ -337,22 +337,36 @@ class Installer:
                 "TUNNEL_CLIENT_ASSET_NOT_FOUND", "no windows-amd64 zip in latest release"
             )
 
+        if not checksums_url:
+            raise SetupWizardError(
+                "TUNNEL_CLIENT_CHECKSUM_REQUIRED",
+                "SHA256SUMS.txt is missing from the latest tunnel-client release",
+            )
+
         zip_path = target_dir / asset_name
-        self._download(asset_url, str(zip_path))
+        checksums_path = target_dir / "SHA256SUMS.txt"
         try:
-            if checksums_url:
-                checksums_path = target_dir / "SHA256SUMS.txt"
-                try:
-                    self._download(checksums_url, str(checksums_path))
-                    expected = _find_checksum(checksums_path, asset_name)
-                    if expected:
-                        actual = hashlib.sha256(zip_path.read_bytes()).hexdigest()
-                        if actual.lower() != expected.lower():
-                            raise SetupWizardError("TUNNEL_CLIENT_SHA256_MISMATCH")
-                except SetupWizardError:
-                    raise
-                except Exception:
-                    pass
+            try:
+                self._download(checksums_url, str(checksums_path))
+            except SetupWizardError:
+                raise
+            except Exception as exc:
+                raise SetupWizardError(
+                    "TUNNEL_CLIENT_CHECKSUM_REQUIRED",
+                    f"could not download SHA256SUMS.txt: {str(exc)[:100]}",
+                ) from exc
+
+            expected = _find_checksum(checksums_path, asset_name)
+            if not expected or re.fullmatch(r"[0-9a-fA-F]{64}", expected) is None:
+                raise SetupWizardError(
+                    "TUNNEL_CLIENT_CHECKSUM_REQUIRED",
+                    f"no valid SHA256 entry for {asset_name}",
+                )
+
+            self._download(asset_url, str(zip_path))
+            actual = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+            if actual.lower() != expected.lower():
+                raise SetupWizardError("TUNNEL_CLIENT_SHA256_MISMATCH")
 
             with tempfile.TemporaryDirectory(prefix="tunnel-client-update-", dir=target_dir) as temp_name:
                 temp_root = Path(temp_name)
@@ -377,6 +391,7 @@ class Installer:
                     shutil.copy2(source, destination)
         finally:
             zip_path.unlink(missing_ok=True)
+            checksums_path.unlink(missing_ok=True)
 
         return exe_path
 
