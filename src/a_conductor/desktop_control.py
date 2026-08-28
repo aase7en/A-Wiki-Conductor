@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections import deque
 from pathlib import Path
 from threading import Lock
 from typing import Callable, Protocol
@@ -78,6 +79,8 @@ class DesktopControlService:
         self._pending_instance_starts_lock = Lock()
         self._connector_intent_locks_guard = Lock()
         self._connector_intent_locks: dict[str, object] = {}
+        self._connector_recovery_events_lock = Lock()
+        self._connector_recovery_events: deque[ConnectorRecoveryRecord] = deque(maxlen=64)
 
     @classmethod
     def open(
@@ -431,6 +434,23 @@ class DesktopControlService:
             for instance in self.instances()
         )
 
+    def connector_recovery_record(
+        self, instance_name: str
+    ) -> ConnectorRecoveryRecord | None:
+        store = self.settings_store
+        if store is None:
+            return None
+        try:
+            return store.get_connector_recovery(instance_name)
+        except (SerenaConfigStoreError, ValueError):
+            return None
+
+    def drain_connector_recovery_events(self) -> tuple[ConnectorRecoveryRecord, ...]:
+        with self._connector_recovery_events_lock:
+            events = tuple(self._connector_recovery_events)
+            self._connector_recovery_events.clear()
+        return events
+
     def instance_states_cancellable(
         self, *, cancel_check: Callable[[], bool]
     ) -> tuple[tuple[LocalInstance, InstanceHealthState], ...]:
@@ -505,12 +525,18 @@ class DesktopControlService:
         cancel_check: Callable[[], bool] | None = None,
     ) -> ConnectorRecoveryRecord:
         with self._connector_intent_lock(instance_name):
-            return self._recovery_orchestrator().observe(
+            previous = self.connector_recovery_record(instance_name)
+            record = self._recovery_orchestrator().observe(
                 instance_name,
                 health,
                 reason_code=reason_code,
                 cancel_check=cancel_check,
             )
+            previous_restarts = previous.restart_count if previous is not None else 0
+            if record.restart_count > previous_restarts:
+                with self._connector_recovery_events_lock:
+                    self._connector_recovery_events.append(record)
+            return record
 
     def _global_brain_provider(self):
         store = self.settings_store

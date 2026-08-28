@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE — CR-4 TDD
+Status: REVIEW_READY - LOCAL GREEN / PR PENDING
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-connector-recovery-ui`
 Branch: `fix/wo-p1-105-connector-recovery-visibility`
@@ -37,3 +37,27 @@ Forbidden: WO-P1-102/PR #131 files and SSoT hotspots; installer/PR #132; North S
 5. Recovery-store read failure degrades to unavailable diagnostics without breaking connector refresh/monitor.
 6. Existing monitor remains async/single-flight and no periodic subprocess/MCP/timer is added.
 7. Focused GUI/service tests, broader connector/monitor/UI regressions, compileall/diff/secret gates and exact-head 3-OS CI pass.
+
+## TDD implementation checkpoint — 2026-08-29
+
+Implemented CR-4 without a second monitor/timer/store/lifecycle:
+- `DesktopControlService.connector_recovery_record()` exposes fail-safe durable diagnostics;
+- successful automatic recovery is detected only when durable `restart_count` advances;
+- events use a bounded in-memory queue (`maxlen=64`) and drain exactly once;
+- explicit Stop remains suppressed and never emits `AUTO-RECOVER`;
+- MONITOR keeps `CONNECTION` separate and renders recovery state/counts/last exit/next retry;
+- existing 15s connector refresh drains `AUTO-RECOVER <slot> READY restart=<n>` events.
+
+Deterministic evidence:
+- baseline before mutation: 77 passed, 1 local Tk-environment skip;
+- RED new visibility suite: 6 failed on the six missing seams;
+- GREEN visibility suite: 6 passed;
+- focused recovery/control/store/monitor: 52 passed, 1 local Tk-environment skip;
+- desktop UI integration: 49 passed;
+- broader lifecycle/recovery/instance integration: 90 passed;
+- `python -m compileall -q src`: PASS;
+- `git diff --check`: PASS;
+- bounded secret scan: 0 hits;
+- diff audit: no added timer, subprocess, Popen, Thread, or Timer path.
+
+Next: final intended-file/secret audit -> commit/push -> exact remote diff -> 3-OS CI -> post-CI re-audit -> merge -> reconcile WO-P1-096 release gate.
