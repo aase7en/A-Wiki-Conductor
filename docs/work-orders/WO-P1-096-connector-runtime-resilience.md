@@ -214,3 +214,16 @@ Independent source review of `openai/tunnel-client@4b5267f823be0b046bb883aacb516
 Local source execution was not repeated because this workstation has no Go toolchain installed; no toolchain was installed solely for this audit. Upstream exact-commit CI is therefore the executable source-level evidence, while A-Sunday's authorized real connector soak remains the operational acceptance gate.
 
 PR #125 re-review on head `f6fdb5d9dcee493a0ae5104db0d660eb44f50b08` confirms `09bf1ab` improves manual-intent serialization, but the production-caller P0 remains open: `reconcile_instance_recovery()` still has no caller from the existing health/refresh loop. Review `5051827379` records the unchanged blocker.
+
+## Checksum/provenance hardening closeout - 2026-08-28
+
+WO-P1-101 closes the A-Sunday-owned checksum fail-open gap identified during v0.0.13 provenance review:
+
+- PR #128 (`fix(setup): require tunnel-client checksum`) merged as `cbaadb757f71e2b304a1c8ec4ca58f1ae1466679`;
+- tunnel-client install/upgrade now requires release `SHA256SUMS.txt` and a valid 64-hex entry for the selected Windows artifact before the ZIP is downloaded for installation;
+- checksum metadata download failure, missing checksum asset/entry, or SHA256 mismatch fails closed before extraction/replacement;
+- an existing tunnel-client binary remains byte-for-byte unchanged on verification failure, and checksum/ZIP scratch files are removed;
+- local evidence: setup suite 26 passed; broader setup/instance/control regression 106 passed; compile/diff/secret gates passed;
+- exact-head GitHub Actions run `33180188339` passed Windows, Ubuntu, and macOS before merge.
+
+This closes the checksum/provenance sub-gate only. `v0.7.0` remains BLOCKED: PR #125 head `f6fdb5d9dcee493a0ae5104db0d660eb44f50b08` still has no production caller for `reconcile_instance_recovery()`, CR-4 operator visibility remains incomplete, and no unused Tunnel ID exists for the required isolated/live TTL soak.

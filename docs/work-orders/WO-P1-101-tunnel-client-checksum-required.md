@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 Owner: GPT-5.6 Sol
-Status: REVIEW_READY / LOCAL GREEN
+Status: COMPLETE / MERGED
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-tunnel-checksum`
 Branch: `fix/wo-p1-101-tunnel-checksum-required`
@@ -51,4 +51,12 @@ Forbidden: PR #108 installer files, PR #125 recovery files, coordination SSoT, A
 - secret-like added-line scan: PASS;
 - behavior now downloads and validates `SHA256SUMS.txt` before the ZIP, requires a valid 64-hex entry for the selected asset, rejects mismatch before extraction/replacement, and removes both checksum/ZIP scratch files in `finally`.
 
-Next: compile/scope audit -> commit/push PR -> exact-head 3-OS CI -> merge/cleanup if green.
+## Merge closeout
+
+- Implementation commit: `f4b935f23bff018aefb6a21995d681d98417e3b9`.
+- PR #128 merged to `main` as `cbaadb757f71e2b304a1c8ec4ca58f1ae1466679`.
+- Exact-head CI run `33180188339`: Windows test/build, Ubuntu smoke, and macOS smoke all SUCCESS.
+- The isolated worktree and local/remote feature branch were removed after ancestry verification.
+- Acceptance 1-9 is satisfied at source/CI level; no live connector was mutated by this slice.
+
+This work order is complete. Remaining WO-P1-096 blockers are outside this checksum slice: accepted CR-2 production recovery wiring, CR-4 operator visibility, and an authorized isolated/live v0.0.13 TTL soak.
