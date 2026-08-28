@@ -44,10 +44,10 @@ Forbidden:
 - PR #116 merged as `ab28dc7ea428e3253ce20cc155fb7b92e7719a8a`.
 - Clean AHA-3 worktree/branch were removed only after ancestry proof.
 - Live smoke readiness checks remain fail-closed: port 3456 has no listener; the installed `%LOCALAPPDATA%\\A-Conductor\\control-center.sqlite` currently has no `provider_*` tables; and a repository search finds no application assembly reference to `SQLiteProviderConfigStore` outside its own module/tests. No live call, gateway start, or user-DB initialization was performed.
-- Independent GPT review of current GE-6 PR #104 head `b0febf20` found four acceptance gaps against ADR GE-0006: missing topological-rank ordering, input-order-dependent worker choice, missing mutating project/workspace identity gate, and missing injected gate/provider eligibility seam.
-- Deterministic read-only repro on `b0febf20`: earlier-rank `z0` loses to lexical `a1`; workers `(w-z, w-a)` choose `w-z`; a mutating node selects a worker bound to `project/workspace='OTHER'`; and `schedule_once` has no gate/provider eligibility input.
-- CI run `33141002330` attempt 3 is green on Windows/macOS/Ubuntu, including packaging/frozen smoke, but checkout logs show stale merge ref `18067731 = b0febf20 into ca4cd98`.
-- Current `origin/main` is `ab28dc7`; GitHub reports PR #104 `mergeable=false`; read-only `git merge-tree --write-tree HEAD origin/main` reproduces a content conflict in `handoff.md`. A follow-up COMMENT review was posted; the owner must reconcile current main + repair the four scheduler gaps before a fresh exact-head review/CI can authorize merge.
+- GE-6 owner reconciled to `origin/main@ab28dc7` and pushed `383ff1a`; exact diff remains bounded to scheduler/tests + GE-6 WO/handoff.
+- GPT exact-head re-audit verified the original four blockers fixed and D6-CONFLICT still reuses `write_sets_overlap`; independent directive graph suite: **102 passed in 1.67s**.
+- Exact-head CI run `33144309315` is green on Windows/Ubuntu/macOS, including Windows packaging/frozen smoke.
+- Two accepted ADR GE-0006 blockers remain on `383ff1a`: explicit `worker:<id>` binding is not authoritative (read-only repro bound to `w-z` selects `w-a`), and human-approval wait / typed blocked reason is not representable (`NodeEligibility` lacks a human-approval state; `BlockedReason.reason` is plain `str`). GPT posted COMMENT review `5048240548`; no merge until owner repairs both test-first and a new exact-head audit/CI passes.
 
 ## Stop condition
 
