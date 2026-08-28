@@ -46,8 +46,11 @@ def test_check_system_detects_tunnel_client(tmp_path: Path, monkeypatch) -> None
     (tc_dir / "tunnel-client.exe").write_bytes(b"fake")
     monkeypatch.setattr("shutil.which", lambda name: None)
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    # The check should find tunnel-client at the standard path
-    result = check_system(tunnel_client_path=tc_dir / "tunnel-client.exe")
+    # The check should find a supported tunnel-client at the standard path.
+    tc = tc_dir / "tunnel-client.exe"
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="0.0.13+test\n", stderr="")
+    result = check_system(tunnel_client_path=tc, run_fn=fake_run)
     assert result["tunnel_client"] is True
 
 
@@ -178,7 +181,10 @@ def test_install_tunnel_client_downloads_and_extracts(tmp_path: Path, monkeypatc
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
-    installer = Installer(download_fn=fake_download)
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="0.0.13+test\n", stderr="")
+
+    installer = Installer(download_fn=fake_download, run_fn=fake_run)
     tc_path = installer.install_tunnel_client(target_dir=tmp_path / "tc")
 
     assert tc_path.is_file()
@@ -338,3 +344,171 @@ def test_stitch_backend_no_api_key_still_works(tmp_path: Path) -> None:
     )
     # sti-key.txt should not be created when no key
     assert not (created / "config" / "sti-key.txt").exists()
+
+
+def test_check_system_rejects_known_bad_tunnel_client_0_0_11(tmp_path: Path) -> None:
+    tc = tmp_path / "tunnel-client.exe"
+    tc.write_bytes(b"fake")
+
+    def fake_run(cmd, **kwargs):
+        assert cmd == [str(tc), "--version"]
+        return subprocess.CompletedProcess(cmd, 0, stdout="0.0.11+deadbeef\n", stderr="")
+
+    result = check_system(tunnel_client_path=tc, run_fn=fake_run)
+    assert result["tunnel_client"] is False
+
+
+def test_check_system_accepts_tunnel_client_0_0_12_or_newer(tmp_path: Path) -> None:
+    tc = tmp_path / "tunnel-client.exe"
+    tc.write_bytes(b"fake")
+
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="0.0.13+feedface\n", stderr="")
+
+    result = check_system(tunnel_client_path=tc, run_fn=fake_run)
+    assert result["tunnel_client"] is True
+
+
+def test_check_system_fails_closed_on_unparseable_tunnel_version(tmp_path: Path) -> None:
+    tc = tmp_path / "tunnel-client.exe"
+    tc.write_bytes(b"fake")
+
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="unknown-build\n", stderr="")
+
+    result = check_system(tunnel_client_path=tc, run_fn=fake_run)
+    assert result["tunnel_client"] is False
+
+def test_install_tunnel_client_upgrades_known_bad_existing_binary(tmp_path: Path, monkeypatch) -> None:
+    import json as fake_json
+    import zipfile
+    from a_conductor.setup_wizard import Installer
+
+    target = tmp_path / "tc"
+    target.mkdir()
+    exe = target / "tunnel-client.exe"
+    exe.write_bytes(b"old")
+    fake_zip = tmp_path / "tc-new.zip"
+    with zipfile.ZipFile(fake_zip, "w") as zf:
+        zf.writestr("tunnel-client.exe", b"new")
+
+    version_calls = 0
+    def fake_run(cmd, **kwargs):
+        nonlocal version_calls
+        version_calls += 1
+        version = "0.0.11+deadbeef\n" if version_calls == 1 else "0.0.13+feedface\n"
+        return subprocess.CompletedProcess(cmd, 0, stdout=version, stderr="")
+
+    downloads = []
+    def fake_download(url, dest):
+        downloads.append(url)
+        Path(dest).write_bytes(fake_zip.read_bytes())
+
+    def fake_urlopen(req, timeout=None):
+        class FakeResponse:
+            def read(self):
+                return fake_json.dumps({"tag_name": "v0.0.13", "assets": [
+                    {"name": "tunnel-client-runtime-v0.0.13-windows-amd64.zip", "browser_download_url": "https://example.com/runtime.zip"},
+                    {"name": "windows-amd64.zip", "browser_download_url": "https://example.com/tc.zip"},
+                ]}).encode()
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+        return FakeResponse()
+
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    installed = Installer(download_fn=fake_download, run_fn=fake_run).install_tunnel_client(target_dir=target)
+    assert installed.read_bytes() == b"new"
+    assert downloads == ["https://example.com/tc.zip"]
+
+def test_generated_start_script_preserves_runtime_forensics(tmp_path: Path) -> None:
+    from a_conductor.setup_wizard import FirstInstanceCreator
+
+    project = tmp_path / "project"
+    project.mkdir()
+    created = FirstInstanceCreator(instances_root=tmp_path / "instances").create(
+        name="forensics",
+        project_path=project,
+        tunnel_client_path=tmp_path / "tc.exe",
+        api_key_file=tmp_path / "key.dpapi",
+    )
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert "runtime-archive" in start
+    assert "$RuntimeProcess.WaitForExit()" in start
+    assert "$RuntimeProcess.ExitCode" in start
+    assert "TUNNEL_START_FAILED" in start
+    assert "exit_code=" in start
+
+
+def test_wizard_serena_profile_keeps_space_path_as_one_quoted_argument(tmp_path: Path) -> None:
+    from a_conductor.setup_wizard import FirstInstanceCreator
+
+    project = tmp_path / "My Drive" / "pharmacy"
+    project.mkdir(parents=True)
+    created = FirstInstanceCreator(instances_root=tmp_path / "instances").create(
+        name="space-path",
+        project_path=project,
+        tunnel_client_path=tmp_path / "tc.exe",
+        api_key_file=tmp_path / "key.dpapi",
+        backend="serena",
+    )
+    template = next((created / "profiles").glob("*.yaml.template"))
+    text = template.read_text(encoding="utf-8")
+    assert f'--project "{project.as_posix()}"' in text
+
+
+def test_install_tunnel_client_keeps_supported_existing_binary(tmp_path: Path) -> None:
+    from a_conductor.setup_wizard import Installer
+
+    target = tmp_path / "tc"
+    target.mkdir()
+    exe = target / "tunnel-client.exe"
+    exe.write_bytes(b"supported")
+
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="0.0.12+stable\n", stderr="")
+
+    def fail_download(url, dest):
+        raise AssertionError("supported tunnel-client must not download again")
+
+    installed = Installer(download_fn=fail_download, run_fn=fake_run).install_tunnel_client(
+        target_dir=target
+    )
+    assert installed == exe
+    assert installed.read_bytes() == b"supported"
+
+def test_install_tunnel_client_locked_old_binary_fails_without_destroying_it(tmp_path: Path, monkeypatch) -> None:
+    import json as fake_json
+    import zipfile
+    import urllib.request
+    from a_conductor.setup_wizard import Installer
+
+    target = tmp_path / "tc"
+    target.mkdir()
+    exe = target / "tunnel-client.exe"
+    exe.write_bytes(b"old-live-binary")
+    fake_zip = tmp_path / "new.zip"
+    with zipfile.ZipFile(fake_zip, "w") as zf:
+        zf.writestr("tunnel-client.exe", b"new")
+
+    calls = 0
+    def fake_run(cmd, **kwargs):
+        nonlocal calls
+        calls += 1
+        version = "0.0.11+old\n" if calls == 1 else "0.0.13+new\n"
+        return subprocess.CompletedProcess(cmd, 0, stdout=version, stderr="")
+
+    def fake_download(url, dest): Path(dest).write_bytes(fake_zip.read_bytes())
+    def fake_urlopen(req, timeout=None):
+        class R:
+            def read(self): return fake_json.dumps({"assets": [{"name": "tunnel-client-v0.0.13-windows-amd64.zip", "browser_download_url": "https://example.com/tc.zip"}]}).encode()
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+        return R()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr("a_conductor.setup_wizard.os.replace", lambda src, dst: (_ for _ in ()).throw(PermissionError("locked")))
+    with pytest.raises(SetupWizardError) as exc:
+        Installer(download_fn=fake_download, run_fn=fake_run).install_tunnel_client(target_dir=target)
+    assert exc.value.code == "TUNNEL_CLIENT_UPDATE_BLOCKED"
+    assert exe.read_bytes() == b"old-live-binary"
