@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE — CLAIM / DESIGN LOCK
+Status: REVIEW_READY — LOCAL GREEN / PR PENDING
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`
 Branch: `feat/wo-p1-102-aha4a-worker-lease-broker`
@@ -67,3 +67,26 @@ A lease carries: lease/worker/session/task/project identity, runtime, worktree/b
 ## Safety gate
 
 `SAFE_TO_MUTATE = YES` only after the WO-P1-102 claim is committed/pushed from this isolated worktree and `origin/main` remains non-overlapping.
+
+## Implementation checkpoint — 2026-08-28
+
+Implemented in new `worker_lease.py` only:
+- immutable request/candidate/lease/outcome + typed rejection vocabulary;
+- atomic SQLite active-worker lease constraint across independent connections;
+- atomic mutable-scope conflict check using canonical GE `write_sets_overlap`;
+- deterministic caller-ordered candidate fallback;
+- fail-closed health/ownership/dirty/identity/capability/mutation preflight;
+- exact-owner idempotent release; expiry metadata is recorded but never auto-reclaimed in AHA-4A;
+- explicit RDC fallback only for eligible read-only requests.
+
+TDD/evidence:
+- initial RED: `ModuleNotFoundError: a_conductor.worker_lease`;
+- race RED: two different workers could both lease overlapping mutable scope; fixed under one `BEGIN IMMEDIATE` transaction;
+- focused: **29 passed**;
+- focused race suite repeated **10/10 PASS**;
+- registry/persistence/graph/job + lease regression: **140 passed**;
+- `python -m compileall -q src/a_conductor`: PASS;
+- `git diff --check`: PASS;
+- forbidden-import + bounded real-secret-prefix scan: PASS.
+
+Next gate: stage only WO-P1-102 allowed files -> commit/push -> Draft PR -> exact remote diff audit -> exact-head Windows/Ubuntu/macOS CI -> merge only if green.

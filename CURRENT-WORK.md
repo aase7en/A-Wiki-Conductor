@@ -23,12 +23,11 @@ Protected parallel work remains connector/release/North-Star lanes. Shared `A:\\
 
 ## Immediate execution frontier
 
-1. claim WO-P1-102 before source mutation;
-2. RED concurrency test: one worker, two broker connections, one atomic winner;
-3. implement smallest SQLite lease store + immutable request/result vocabulary;
-4. add ordered fallback, typed fail-closed preflight, exact-owner release, explicit read-only RDC fallback;
-5. focused+broad regression + compile/diff/scope audit -> Draft PR -> exact-head 3-OS CI -> merge;
-6. after merge open AHA-4B heartbeat/expiry/quarantine as a separate slice.
+1. AHA-4A core implementation is local GREEN: atomic active-worker + mutable-scope leasing, ordered fallback, typed fail-closed preflight, exact-owner release, read-only RDC fallback;
+2. focused **29 passed**; race repeat **10/10 PASS**; relevant registry/persistence/graph/job regression **140 passed**;
+3. compileall/diff/forbidden-import/secret scans PASS;
+4. next = stage exact allowed scope -> commit/push Draft PR -> remote diff audit -> exact-head 3-OS CI -> merge;
+5. AHA-4B heartbeat/expiry/quarantine remains a separate future work order; no auto-reclaim exists in AHA-4A.
 
 ## Source-of-truth rule
 

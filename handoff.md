@@ -37,8 +37,17 @@ Classification: **EXTEND + WRAP**. Reuse `ControlPlaneRegistry`, GE-6 worker fac
 
 ## Next Safe Action
 
-Commit/push the WO-P1-102 claim, then RED concurrency/fallback tests before any production-source mutation.
+Stage only `worker_lease.py`, `test_worker_lease.py` and WO-P1-102 SSoT files; commit/push, open Draft PR, audit exact remote diff, then require exact-head 3-OS CI before merge.
 
 ## Safety
 
 `SAFE_TO_MUTATE = YES` only inside this isolated worktree and WO-P1-102 allowed scope after claim commit/push.
+
+## Implementation checkpoint
+
+- atomic SQLite worker lease + active mutable-scope collision gate implemented;
+- deterministic ordered fallback + typed preflight implemented;
+- exact-owner idempotent release; expired metadata is not reclaimed in this phase;
+- explicit read-only RDC fallback; mutation never falls to RDC;
+- focused **29 passed**, race repeat **10/10**, related regression **140 passed**;
+- compileall/diff/forbidden-import/secret checks PASS.
