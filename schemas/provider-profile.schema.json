@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a-conductor:schema:provider-profile:1.0.0",
+  "title": "A-Conductor Provider Profile",
+  "description": "Non-secret provider/model/harness configuration. Health/readiness is observed separately.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provider_id",
+    "display_name",
+    "protocol_family",
+    "endpoint_ref",
+    "credential_ref",
+    "trust_class",
+    "egress_boundary",
+    "harness_strategies",
+    "models",
+    "enabled"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "provider_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "provider_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "protocol_family": {
+      "enum": [
+        "ANTHROPIC_MESSAGES",
+        "OPENAI_COMPATIBLE",
+        "LOCAL",
+        "CUSTOM"
+      ]
+    },
+    "endpoint_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Non-secret endpoint/config reference; not a readiness signal."
+    },
+    "credential_ref": {
+      "type": "string",
+      "pattern": "^secret-ref:[A-Za-z0-9][A-Za-z0-9._:/-]{2,255}$",
+      "description": "Opaque reference to a credential held outside tracked configuration."
+    },
+    "trust_class": {
+      "enum": [
+        "FIRST_PARTY",
+        "TRUSTED_THIRD_PARTY",
+        "LOCAL",
+        "UNKNOWN"
+      ]
+    },
+    "harness_strategies": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "CLAUDE_CODE_CLI",
+          "DIRECT_API",
+          "LOCAL_CLI"
+        ]
+      }
+    },
+    "max_concurrency": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 64,
+      "default": 1
+    },
+    "models": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model_id",
+          "display_name",
+          "actor_capabilities",
+          "supported_effort_levels"
+        ],
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "actor_capabilities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability",
+                "evidence_level",
+                "source"
+              ],
+              "properties": {
+                "capability": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "evidence_level": {
+                  "enum": [
+                    "DECLARED",
+                    "OBSERVED",
+                    "VERIFIED",
+                    "UNKNOWN"
+                  ]
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              }
+            }
+          },
+          "supported_effort_levels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "LOW",
+                "HIGH",
+                "MAX",
+                "DEFAULT"
+              ]
+            }
+          },
+          "context_window_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "egress_boundary": {
+      "enum": [
+        "EXTERNAL_THIRD_PARTY",
+        "EXTERNAL_FIRST_PARTY",
+        "LOCAL_MACHINE",
+        "NO_EGRESS",
+        "UNKNOWN"
+      ],
+      "description": "Observed/configured trust boundary only; does not authorize task data egress."
+    }
+  }
+}
