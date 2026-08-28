@@ -1,40 +1,43 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-28 (GPT-5.6 Sol — AHA-2 provider configuration + observation)
+Last updated: 2026-08-28 (GPT-5.6 Sol — AHA-3 Claude Code harness adapter)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — AHA-2.**
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — AHA-3.**
 
 User outcome: give A-Sunday Conductor one goal; Conductor creates bounded task packets, selects an eligible model/harness, dispatches work, gathers evidence, reviews/repairs, and continues without manual prompt copy/paste.
 
 Current exact lane:
 - repository: `aase7en/A-Wiki-Conductor`;
-- worktree: `A:\\GitHub\\A-Wiki-Conductor-provider-config`;
-- branch: `feat/wo-p1-090-provider-config-observation`;
-- base: `origin/main@c3ca84c81d901ae844ee40780619a41b46307049`;
+- worktree: `A:\\GitHub\\A-Wiki-Conductor-claude-harness`;
+- branch: `feat/wo-p1-091-claude-code-harness`;
+- current baseline/HEAD: `origin/main@685029d8e367955ba7fb44a3d5449ddf75ca01eb` after roadmap PR #115 merge;
 - AHA-0 PR #110 merged `6487cb2`;
 - priority plan PR #111 merged `457f974`;
 - AHA-1 PR #112 merged `c3ca84c`;
-- CI repair PR #113 merged `e2de499`, with exact-main Windows/Ubuntu/macOS CI green.
+- AHA-2 PR #114 merged `ca4cd98` after exact-head Windows/Ubuntu/macOS CI green;
+- roadmap/worker-fallback PR #115 merged `685029d` after rerun-classified Windows Tk infra flake passed;
+- CI repair PR #113 merged `e2de499`.
 
-Protected parallel work remains PR #104 GE-6, PR #108 installer safety, and the unique North Star branch. Do not overlap those scopes. Shared `A:\\GitHub\\A-Wiki-Conductor` remains protected/read-only.
+Protected parallel work remains PR #104 GE-6, PR #108 installer safety, and the unique North Star branch. Shared `A:\\GitHub\\A-Wiki-Conductor` remains protected/read-only.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-090-provider-config-observation.md`
+`docs/work-orders/WO-P1-091-claude-code-harness.md`
 
-AHA-2 implements non-secret provider configuration, endpoint safety, opaque credential references, and fake/injected health+quota observation only. No live provider/Claude execution.
+AHA-3 implements a fixed read-only Claude Code invocation plan plus injected fake runner, bounded task-packet verification/output, provider-readiness gate, environment-reference allowlist, and redacted structured evidence. No live Claude/provider process in this slice.
 
 ## Immediate execution frontier
 
-1. TDD provider configuration/store/observation normalization;
-2. persist only safe metadata + credential references in the existing control SQLite database;
-3. prove stale/missing observations never become READY;
-4. open/merge AHA-2 after deterministic tests + CI;
-5. AHA-3: bounded non-interactive Claude Code adapter with fake runner first;
-6. live read-only harness smoke only after AHA-3 safety gates;
-7. AHA-4 durable dispatch stays blocked on accepted GE scheduler/dispatch seams.
+1. AHA-3 fake-runner implementation is locally GREEN: `52 passed in 0.87s` plus 9 provider-store/supervised regressions;
+2. commit/push only `claude_code_harness.py`, its tests, and continuity checkpoint;
+3. open Draft AHA-3 PR, audit remote diff, require exact-head Windows/Ubuntu/macOS CI;
+4. merge/cleanup only after green CI and final scope/secret review;
+5. live read-only provider smoke requires separately safe configured credentials/health;
+6. AHA-4 durable dispatch remains blocked on accepted GE scheduler/dispatch seams;
+7. AHA-4A then extends the existing worker registry with atomic leases, eligibility preflight, and automatic fallback;
+8. AHA-4B adds heartbeat/stale-owner recovery before AHA-5/AHA-6 autonomous multi-agent loops.
 
 ## Source-of-truth rule
 
