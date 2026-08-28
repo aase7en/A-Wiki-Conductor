@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
+from .connector_recovery import ConnectorRecoveryRecord, ConnectorRecoveryState
 from .serena_runtime import (
     ProjectIdentityPolicy,
     SerenaProjectBinding,
@@ -156,6 +157,19 @@ class SQLiteSerenaConfigStore:
                     CREATE TABLE IF NOT EXISTS instance_flags (
                         instance_name TEXT PRIMARY KEY,
                         autostart INTEGER NOT NULL CHECK (autostart IN (0, 1))
+                    );
+
+                    CREATE TABLE IF NOT EXISTS instance_recovery (
+                        instance_name TEXT PRIMARY KEY,
+                        state TEXT NOT NULL,
+                        recovery_suppressed INTEGER NOT NULL CHECK (recovery_suppressed IN (0, 1)),
+                        failure_count INTEGER NOT NULL CHECK (failure_count >= 0),
+                        failure_window_started_at REAL,
+                        restart_count INTEGER NOT NULL CHECK (restart_count >= 0),
+                        last_exit_reason TEXT,
+                        last_exit_at REAL,
+                        next_retry_at REAL,
+                        updated_at REAL NOT NULL CHECK (updated_at >= 0)
                     );
 
                     CREATE TABLE IF NOT EXISTS instance_display_names (
@@ -510,6 +524,86 @@ class SQLiteSerenaConfigStore:
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             raise SerenaConfigStoreError("SETTINGS_ROW_CORRUPT") from exc
 
+    def save_connector_recovery(
+        self, record: ConnectorRecoveryRecord
+    ) -> ConnectorRecoveryRecord:
+        if not isinstance(record, ConnectorRecoveryRecord):
+            raise SerenaConfigStoreError("RECOVERY_RECORD_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute(
+                    """
+                    INSERT INTO instance_recovery(
+                        instance_name, state, recovery_suppressed, failure_count,
+                        failure_window_started_at, restart_count, last_exit_reason,
+                        last_exit_at, next_retry_at, updated_at
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(instance_name) DO UPDATE SET
+                        state=excluded.state,
+                        recovery_suppressed=excluded.recovery_suppressed,
+                        failure_count=excluded.failure_count,
+                        failure_window_started_at=excluded.failure_window_started_at,
+                        restart_count=excluded.restart_count,
+                        last_exit_reason=excluded.last_exit_reason,
+                        last_exit_at=excluded.last_exit_at,
+                        next_retry_at=excluded.next_retry_at,
+                        updated_at=excluded.updated_at
+                    """,
+                    (
+                        record.instance_name, record.state.value,
+                        int(record.recovery_suppressed), record.failure_count,
+                        record.failure_window_started_at, record.restart_count,
+                        record.last_exit_reason, record.last_exit_at,
+                        record.next_retry_at, record.updated_at,
+                    ),
+                )
+                connection.commit()
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise SerenaConfigStoreError("RECOVERY_STORE_WRITE_FAILED") from exc
+        return record
+
+    def get_connector_recovery(
+        self, instance_name: str
+    ) -> ConnectorRecoveryRecord | None:
+        if not isinstance(instance_name, str) or not instance_name.strip():
+            raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM instance_recovery WHERE instance_name = ?",
+                (instance_name.strip(),),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            return ConnectorRecoveryRecord(
+                instance_name=row["instance_name"],
+                state=ConnectorRecoveryState(row["state"]),
+                recovery_suppressed=bool(row["recovery_suppressed"]),
+                failure_count=row["failure_count"],
+                failure_window_started_at=row["failure_window_started_at"],
+                restart_count=row["restart_count"],
+                last_exit_reason=row["last_exit_reason"],
+                last_exit_at=row["last_exit_at"],
+                next_retry_at=row["next_retry_at"],
+                updated_at=row["updated_at"],
+            )
+        except (ValueError, TypeError) as exc:
+            raise SerenaConfigStoreError("RECOVERY_RECORD_INVALID") from exc
+
+    def clear_connector_recovery(self, instance_name: str) -> None:
+        if not isinstance(instance_name, str) or not instance_name.strip():
+            raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM instance_recovery WHERE instance_name = ?",
+                (instance_name.strip(),),
+            )
+            connection.commit()
+
     def set_instance_autostart(self, instance_name: str, enabled: bool) -> None:
         if not isinstance(instance_name, str) or not instance_name.strip():
             raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
@@ -556,9 +650,14 @@ class SQLiteSerenaConfigStore:
             raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
         self.initialize()
         with self._connect() as connection:
+            cleaned = instance_name.strip()
             connection.execute(
                 "DELETE FROM instance_flags WHERE instance_name = ?",
-                (instance_name.strip(),),
+                (cleaned,),
+            )
+            connection.execute(
+                "DELETE FROM instance_recovery WHERE instance_name = ?",
+                (cleaned,),
             )
             connection.commit()
 
