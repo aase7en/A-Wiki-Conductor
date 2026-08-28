@@ -155,8 +155,6 @@ def _install_target_is_managed_or_safe(target: Path) -> bool:
 
 
 def _uninstall_target_is_managed_or_safe(target: Path) -> bool:
-    if _target_is_empty(target):
-        return True
     if os.name == "nt":
         return _registry_install_location_matches(target) and (
             _has_valid_install_marker(target) or _legacy_install_identity_exists(target)

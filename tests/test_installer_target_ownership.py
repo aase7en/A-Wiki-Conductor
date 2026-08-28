@@ -76,6 +76,27 @@ def test_corrupt_marker_does_not_authorize_nonempty_install_target(
     assert called == []
 
 
+def test_empty_uninstall_target_requires_managed_identity(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    module = _load_installer_main()
+    target = tmp_path / "empty-foreign"
+    target.mkdir()
+    real_install = tmp_path / "real-install"
+    monkeypatch.setattr(module.os, "name", "nt")
+    monkeypatch.setattr(module.sys, "frozen", False, raising=False)
+    monkeypatch.setattr(module, "_windows_registry_install_location", lambda: real_install)
+    called: list[Path] = []
+    monkeypatch.setattr(module, "do_uninstall", lambda value: called.append(value) or 0)
+
+    code = module.main(["--uninstall", "--target", str(target)])
+
+    assert code == 5
+    assert called == []
+    assert target.exists()
+    assert "UNINSTALL_TARGET_NOT_MANAGED" in capsys.readouterr().out
+
+
 def test_unmanaged_nonempty_uninstall_fails_before_cleanup(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:

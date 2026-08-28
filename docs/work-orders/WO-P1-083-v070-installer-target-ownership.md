@@ -84,3 +84,18 @@ Remaining gate:
 3. Windows/Ubuntu/macOS CI;
 4. final HEAD re-audit + merge;
 5. exact-main release artifact rebuild/download and final sandbox install/uninstall acceptance before v0.7 publication.
+
+## Resume / independent destructive-boundary review ? 2026-08-28
+
+Lead integration resumed this same work order after verifying the worktree was clean, no process referenced it, and WO-P1-102 had no overlapping files. `origin/main@08369ade59206cbe2bc80a314d49d3daa50038b7` was merged into the branch before new mutation.
+
+Independent review found one additional release-blocking trust-boundary defect: `_uninstall_target_is_managed_or_safe()` treated any empty target as managed. A user could invoke `--uninstall --target <empty-foreign-dir>` while Windows registry identity pointed elsewhere; `do_uninstall()` would still be authorized and could remove the real product shortcuts/registry entry. Reproduction returned `code=0` and called `do_uninstall` on the foreign empty target.
+
+Scope expansion: `tests/test_installer_uninstall_self_delete.py` is now allowed only to update existing self-delete/source-mode fixtures so they model a managed install under the stricter ownership contract. No production self-delete behavior changes are authorized.
+
+Repair:
+- RED regression: empty foreign uninstall target must return `UNINSTALL_TARGET_NOT_MANAGED` and never call `do_uninstall`;
+- uninstall no longer trusts emptiness; Windows requires exact registry `InstallLocation` plus marker/legacy identity; non-Windows requires a valid marker;
+- self-delete/source-mode fixtures now model managed ownership rather than relying on an empty directory.
+
+Verification after repair: installer ownership/build/self-delete suites `37 passed`; `compileall` PASS; `git diff --check` PASS. Next gate: commit/push exact head -> 3-OS CI -> remote diff re-audit -> merge -> exact-main Setup sandbox acceptance.
