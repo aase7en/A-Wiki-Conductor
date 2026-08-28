@@ -8,6 +8,7 @@ from a_conductor.domain import RecoveryClassification, TaskState
 from a_conductor.job_execution import (
     DurableJobExecutionCoordinator,
     JobBackendResult,
+    JobExecutionContext,
     JobExecutionCoordinatorError,
     JobExecutionOutcome,
 )
@@ -21,8 +22,10 @@ class FakeBackend:
         self.calls: list[tuple[str, str]] = []
         self.error: BaseException | None = None
 
-    def execute(self, operation_ref: str, worker_id: str) -> JobBackendResult:
-        self.calls.append((operation_ref, worker_id))
+    def execute(
+        self, operation_ref: str, context: JobExecutionContext
+    ) -> JobBackendResult:
+        self.calls.append((operation_ref, context.worker_id))
         if self.error is not None:
             raise self.error
         return self.result
@@ -72,7 +75,7 @@ def test_operation_ref_must_be_opaque_identifier_not_raw_command(tmp_path: Path)
 
 
 class InvalidResultBackend:
-    def execute(self, operation_ref: str, worker_id: str):
+    def execute(self, operation_ref: str, context: JobExecutionContext):
         return object()
 
 
@@ -305,3 +308,42 @@ def test_coordinator_has_no_scheduler_retry_loop_or_router_surface(tmp_path: Pat
         "decompose",
     ):
         assert not hasattr(coordinator, forbidden)
+
+
+class ContextCapturingBackend:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, JobExecutionContext]] = []
+
+    def execute(
+        self,
+        operation_ref: str,
+        context: JobExecutionContext,
+    ) -> JobBackendResult:
+        self.calls.append((operation_ref, context))
+        return JobBackendResult(success=True, evidence_ref="evidence-context")
+
+
+def test_backend_receives_durable_execution_context_after_attempt_starts(tmp_path: Path) -> None:
+    store, gating = prepare_gating(tmp_path)
+    backend = ContextCapturingBackend()
+    coordinator = DurableJobExecutionCoordinator(store=store, backend=backend)
+
+    outcome = coordinator.execute(
+        "job-1",
+        expected_version=gating.version,
+        worker_id="a-worker-01",
+        operation_ref="op:context",
+    )
+
+    assert outcome.success is True
+    assert backend.calls == [(
+        "op:context",
+        JobExecutionContext(
+            job_id="job-1",
+            work_order_ref="docs/work-orders/WO-1.md",
+            project_id="project-1",
+            worker_id="a-worker-01",
+            attempt_no=1,
+            max_attempts=3,
+        ),
+    )]

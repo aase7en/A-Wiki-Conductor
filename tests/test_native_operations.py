@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from a_conductor.domain import RecoveryClassification, TaskState
-from a_conductor.job_execution import DurableJobExecutionCoordinator
+from a_conductor.job_execution import DurableJobExecutionCoordinator, JobExecutionContext
 from a_conductor.job_store import SQLiteJobStore
 from a_conductor.native_execution import NativeCommandResult
 from a_conductor.native_operations import (
@@ -72,6 +72,17 @@ class FakeVerificationAdapter:
     def compileall(self, paths=("src",), *, timeout_seconds: int = 120):
         self.calls.append(("compileall", tuple(paths), timeout_seconds))
         return self.result
+
+
+def execution_context(worker_id: str = "a-worker-01") -> JobExecutionContext:
+    return JobExecutionContext(
+        job_id="job-native",
+        work_order_ref="docs/work-orders/WO-native.md",
+        project_id="project-native",
+        worker_id=worker_id,
+        attempt_no=1,
+        max_attempts=3,
+    )
 
 
 def resolver_for(
@@ -209,7 +220,7 @@ def test_backend_dispatches_only_fixed_adapter_methods(definition, expected_call
         resolver=resolver,
     )
 
-    result = backend.execute(definition.operation_ref, "a-worker-01")
+    result = backend.execute(definition.operation_ref, execution_context())
 
     assert result.success is True
     target, call = expected_call
@@ -239,7 +250,7 @@ def test_evidence_ref_is_digest_only_and_does_not_embed_output() -> None:
         resolver=resolver,
     )
 
-    result = backend.execute("op:status", "a-worker-01")
+    result = backend.execute("op:status", execution_context())
 
     assert result.success is True
     assert result.evidence_ref is not None
@@ -259,7 +270,7 @@ def test_git_failure_is_no_mutation_recovery() -> None:
         registry=NativeOperationRegistry((definition,)), resolver=resolver
     )
 
-    result = backend.execute("op:diff", "a-worker-01")
+    result = backend.execute("op:diff", execution_context())
 
     assert result.success is False
     assert result.recovery_classification is RecoveryClassification.NO_MUTATION
@@ -280,7 +291,7 @@ def test_verification_failure_or_timeout_is_unknown_recovery(timed_out, exit_cod
         registry=NativeOperationRegistry((definition,)), resolver=resolver
     )
 
-    result = backend.execute("op:pytest", "a-worker-01")
+    result = backend.execute("op:pytest", execution_context())
 
     assert result.success is False
     assert result.recovery_classification is RecoveryClassification.UNKNOWN
