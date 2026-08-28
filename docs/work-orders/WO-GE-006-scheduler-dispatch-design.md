@@ -204,3 +204,19 @@ Verification (worktree `A:\GitHub\A-Wiki-Conductor-glm-ge6`, merged state `09753
 - Changed files confined to GE-6 scope: `src/a_conductor/graph/scheduler.py`, `tests/test_graph_scheduler.py`, plus this WO checkpoint and the handoff PR-#104 status line. AHA/README/installer/North-Star untouched.
 
 Remaining blockers: none known locally — PR #104 exact-head CI (Windows/Ubuntu/macOS) and GPT-5.6 Sol re-audit are the outstanding gates before merge.
+
+## Checkpoint — GE-6 final round (2026-08-28, GLM 5.3 MAX)
+
+Status: FINAL_TWO_ADR_BLOCKERS_FIXED_LOCAL_GREEN — awaiting exact-head CI + GPT re-audit; no merge by worker. Base for this round: `383ff1a` (GPT-verified: original 4 blockers fixed, independent 102-pass rerun, exact-head CI green on all three OS, single seam confirmed).
+
+TDD RED→GREEN (12 new failing tests first; all 24 prior scheduler tests stayed green):
+
+1. **Explicit worker binding is authoritative (ADR §4/§5).** `_node_bindings()` now returns project/workspace/worker from ONE `_parse_binding` call (the single GE-4 parser — no second parser). A node bound `worker:<id>` restricts candidates to exactly that worker: bound worker wins over stable worker-ID order; a bound worker that is missing / not READY / reserved / capability-mismatched / identity-unauthorized / already assigned this batch BLOCKS with `BINDING` kind — the scheduler never silently falls back to another worker; mutating bound workers still satisfy project/workspace identity + mutation authority (verified match→select, mismatch→block).
+2. **Human approval + stable typed block reasons (ADR §7).** `NodeEligibility` gains deterministic `human_approval_pending`; `BlockedReason` gains a required stable `kind: BlockedReasonKind` (str-Enum output vocabulary, not a lifecycle/store): `GATE_NO_GO`, `HUMAN_APPROVAL_WAIT`, `PROVIDER_WAIT`, `RATE_LIMIT_WAIT`, `CAPACITY`, `CAPABILITY`, `NO_WORKERS`, `IDENTITY`, `CONFLICT`, `BINDING`. All four §7 wait/refusal states are distinct kinds; pending human approval blocks BEFORE worker selection/reservation, same as other eligibility refusals. Human-readable reason strings from earlier rounds are unchanged, so existing fragment assertions remain valid.
+
+Verification (worktree `A:\GitHub\A-Wiki-Conductor-glm-ge6`, base `383ff1a` + this round):
+- full directive graph suite: **114 passed** (scheduler 36 = 24 prior + 12 new; analyze/ready/dag/domain/assembly/store/ge005a 78).
+- `python -m compileall -q src/a_conductor` PASS; `git diff --check` PASS.
+- Changed files: `src/a_conductor/graph/scheduler.py`, `tests/test_graph_scheduler.py`, this WO checkpoint, handoff PR-#104 line. No AHA changes, no GE-7 dispatch, no new scheduler/parser/store; `write_sets_overlap` remains the sole conflict seam.
+
+Remaining blockers: none known locally — exact-head PR #104 CI and GPT-5.6 Sol re-audit remain the gates before merge.

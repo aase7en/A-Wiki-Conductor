@@ -38,7 +38,7 @@ Read-only CLI inspection on this machine:
 
 ## Protected Parallel Work
 
-- PR #104 / `feat/ge-6-scheduler`: GE-6 owner lane (GLM 5.3 MAX); re-reconciled with `origin/main @ ab28dc7` (safe merge `09753c6`); all four ADR GE-0006 review blockers fixed test-first (topological-rank ordering, stable worker-ID selection, mutating identity fail-closed + read-only exemption, injected NodeEligibility seam); full graph suite 102 passed locally; awaiting exact-head PR CI + GPT re-audit. No scheduler mutation by non-Graph lanes.
+- PR #104 / `feat/ge-6-scheduler`: GE-6 owner lane (GLM 5.3 MAX); re-reconciled with `origin/main @ ab28dc7`; round-2 blockers (topo order, stable worker pick, mutating identity, eligibility seam) GPT-verified fixed with green exact-head CI; final round adds authoritative explicit worker binding (BINDING kind, never falls back) + human-approval pending and stable typed `BlockedReasonKind` per ADR §7; full graph suite 114 passed locally; awaiting final exact-head CI + GPT re-audit. No scheduler mutation by non-Graph lanes.
 - PR #108 installer safety: separate release owner; no installer mutation.
 - `feat/north-star-runtime-sunday-family`: unique integration lineage; read-only reconciliation only.
 - dirty/detached audit lanes remain protected.

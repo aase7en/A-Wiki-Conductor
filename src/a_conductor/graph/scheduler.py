@@ -19,6 +19,7 @@ Gate/provider eligibility is an injected, deterministic input.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Dict, Set, Tuple
 
 from .analyze import _parse_binding, write_sets_overlap
@@ -45,27 +46,55 @@ class NodeEligibility:
     """Injected gate/provider eligibility facts for one node.
 
     Deterministic input only: the scheduler never probes gates or
-    providers. Any refusal blocks the node without reserving a worker
-    or dispatching anything (GE-7 stays out of scope).
+    providers. Any refusal or pending approval blocks the node without
+    reserving a worker or dispatching anything (GE-7 stays out of scope).
     """
 
     gate_refused: bool = False
+    human_approval_pending: bool = False
     provider_unavailable: bool = False
     rate_limited: bool = False
 
     @property
     def eligible(self) -> bool:
-        return not (self.gate_refused or self.provider_unavailable or self.rate_limited)
+        return not (
+            self.gate_refused
+            or self.human_approval_pending
+            or self.provider_unavailable
+            or self.rate_limited
+        )
 
     @property
     def reason(self) -> str:
         if self.gate_refused:
             return "gate refusal (NO-GO)"
+        if self.human_approval_pending:
+            return "human approval pending"
         if self.provider_unavailable:
             return "provider unavailable"
         if self.rate_limited:
             return "rate limited / quota exhausted"
         return "eligible"
+
+
+class BlockedReasonKind(str, Enum):
+    """Stable typed reason codes for scheduler blocked/deferred output.
+
+    ADR GE-0006 §7 requires distinct NO-GO, human-approval wait,
+    provider wait, and rate-limit wait states; these codes are output
+    vocabulary only — not a lifecycle, store, or retry authority.
+    """
+
+    GATE_NO_GO = "GATE_NO_GO"
+    HUMAN_APPROVAL_WAIT = "HUMAN_APPROVAL_WAIT"
+    PROVIDER_WAIT = "PROVIDER_WAIT"
+    RATE_LIMIT_WAIT = "RATE_LIMIT_WAIT"
+    CAPACITY = "CAPACITY"
+    CAPABILITY = "CAPABILITY"
+    NO_WORKERS = "NO_WORKERS"
+    IDENTITY = "IDENTITY"
+    CONFLICT = "CONFLICT"
+    BINDING = "BINDING"
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +119,7 @@ class BlockedReason:
 
     node_id: str
     reason: str
+    kind: BlockedReasonKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,14 +143,14 @@ def _topological_rank(graph: TaskGraph) -> Dict[str, int]:
     return {node_id: index for index, node_id in enumerate(result.order)}
 
 
-def _node_identity(node: TaskNode) -> Tuple[str | None, str | None]:
-    """Project/workspace identity carried by the node binding convention.
+def _node_bindings(node: TaskNode) -> Tuple[str | None, str | None, str | None]:
+    """Project / workspace / explicit-worker bindings for one node.
 
-    Reuses the single ``ws:...|worker:...|project:...`` binding parser
+    Reuses the single ``project:...|ws:...|worker:...`` binding parser
     from the GE-4 analyzer; no second parser is introduced.
     """
     binding = _parse_binding(node)
-    return binding.get("project"), binding.get("ws")
+    return binding.get("project"), binding.get("ws"), binding.get("worker")
 
 
 def _worker_identity_allows(
@@ -184,37 +214,78 @@ def schedule_once(
         # Injected gate/provider eligibility first: block without reserving.
         node_eligibility = eligibility_map.get(node.id)
         if node_eligibility is not None and not node_eligibility.eligible:
+            kind_by_reason = {
+                "gate refusal (NO-GO)": BlockedReasonKind.GATE_NO_GO,
+                "human approval pending": BlockedReasonKind.HUMAN_APPROVAL_WAIT,
+                "provider unavailable": BlockedReasonKind.PROVIDER_WAIT,
+            }
+            reason = node_eligibility.reason
             blocked.append(
                 BlockedReason(
-                    node.id, f"eligibility: {node_eligibility.reason}"
+                    node.id,
+                    f"eligibility: {reason}",
+                    kind_by_reason.get(reason, BlockedReasonKind.RATE_LIMIT_WAIT),
                 )
             )
             continue
 
         if len(selected) >= effective_capacity:
-            blocked.append(BlockedReason(node.id, "capacity: all slots filled"))
+            blocked.append(
+                BlockedReason(
+                    node.id,
+                    "capacity: all slots filled",
+                    BlockedReasonKind.CAPACITY,
+                )
+            )
             continue
 
         mutating = bool(node.write_set)
-        if mutating:
-            node_project, node_workspace = _node_identity(node)
-            if node_project is None and node_workspace is None:
+        node_project, node_workspace, bound_worker_id = _node_bindings(node)
+        if mutating and node_project is None and node_workspace is None:
+            blocked.append(
+                BlockedReason(
+                    node.id,
+                    "identity: mutating node lacks project/workspace "
+                    "binding (fail closed)",
+                    BlockedReasonKind.IDENTITY,
+                )
+            )
+            continue
+
+        # Explicit worker binding is authoritative: restrict candidates to
+        # exactly that worker and block (never fall back) when unusable.
+        if bound_worker_id is not None:
+            if any(s.worker_id == bound_worker_id for s in selected):
                 blocked.append(
                     BlockedReason(
                         node.id,
-                        "identity: mutating node lacks project/workspace "
-                        "binding (fail closed)",
+                        f"binding: bound worker {bound_worker_id} already "
+                        "assigned this batch",
+                        BlockedReasonKind.BINDING,
+                    )
+                )
+                continue
+            candidate_workers = [
+                w for w in available_workers if w.worker_id == bound_worker_id
+            ]
+            if not candidate_workers:
+                blocked.append(
+                    BlockedReason(
+                        node.id,
+                        f"binding: bound worker {bound_worker_id} is not "
+                        "available (missing, not READY, or reserved)",
+                        BlockedReasonKind.BINDING,
                     )
                 )
                 continue
         else:
-            node_project = node_workspace = None
+            candidate_workers = available_workers
 
         # Find a worker: capability match, then identity/authority when mutating.
         assigned_worker = None
         capability_matched = False
         identity_or_authority_matched = False
-        for worker in available_workers:
+        for worker in candidate_workers:
             if any(s.worker_id == worker.worker_id for s in selected):
                 continue
             if not all(cap in worker.capabilities for cap in node.worker_requirement):
@@ -230,10 +301,35 @@ def schedule_once(
 
         if assigned_worker is None:
             if not available_workers:
-                blocked.append(BlockedReason(node.id, "no available workers"))
+                blocked.append(
+                    BlockedReason(
+                        node.id,
+                        "no available workers",
+                        BlockedReasonKind.NO_WORKERS,
+                    )
+                )
+            elif bound_worker_id is not None:
+                if not capability_matched:
+                    detail = "lacks the required capability"
+                else:
+                    detail = (
+                        "fails project/workspace identity or mutation "
+                        "authority requirements"
+                    )
+                blocked.append(
+                    BlockedReason(
+                        node.id,
+                        f"binding: bound worker {bound_worker_id} {detail}",
+                        BlockedReasonKind.BINDING,
+                    )
+                )
             elif not capability_matched:
                 blocked.append(
-                    BlockedReason(node.id, "capability: no matching worker")
+                    BlockedReason(
+                        node.id,
+                        "capability: no matching worker",
+                        BlockedReasonKind.CAPABILITY,
+                    )
                 )
             elif mutating and not identity_or_authority_matched:
                 blocked.append(
@@ -241,10 +337,17 @@ def schedule_once(
                         node.id,
                         "identity: no worker with matching project/workspace "
                         "identity and mutation authority",
+                        BlockedReasonKind.IDENTITY,
                     )
                 )
             else:
-                blocked.append(BlockedReason(node.id, "capability: no matching worker"))
+                blocked.append(
+                    BlockedReason(
+                        node.id,
+                        "capability: no matching worker",
+                        BlockedReasonKind.CAPABILITY,
+                    )
+                )
             continue
 
         # Conflict check: against running nodes (single GE-4/GE-005A seam)
@@ -256,6 +359,7 @@ def schedule_once(
                         BlockedReason(
                             node.id,
                             f"resource conflict with running {running_id}",
+                            BlockedReasonKind.CONFLICT,
                         )
                     )
                     conflict = True
@@ -268,7 +372,11 @@ def schedule_once(
             for already_selected_ws in batch_write_sets:
                 if write_sets_overlap(node.write_set, already_selected_ws):
                     blocked.append(
-                        BlockedReason(node.id, "resource conflict in same batch")
+                        BlockedReason(
+                            node.id,
+                            "resource conflict in same batch",
+                            BlockedReasonKind.CONFLICT,
+                        )
                     )
                     batch_conflict = True
                     break

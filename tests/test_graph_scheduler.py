@@ -375,3 +375,177 @@ def test_eligible_node_with_default_eligibility_still_selects() -> None:
         eligibility={"n": NodeEligibility()},
     )
     assert [s.node_id for s in plan.selected] == ["n"]
+
+
+# --- GE-6 final round: explicit worker binding (ADR §4/§5) --------------------
+
+
+def _bound_node(node_id: str, binding: str, write_set: tuple[str, ...] = ()) -> TaskNode:
+    return TaskNode(
+        id=node_id,
+        objective=f"obj {node_id}",
+        worker_requirement=("shell",),
+        write_set=write_set,
+        model_requirement=binding,
+    )
+
+
+def test_explicit_worker_binding_is_authoritative() -> None:
+    """Bound `worker:w-z` must win over the stable worker-ID order (w-a)."""
+    nodes = [_bound_node("n", "worker:w-z")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    workers = (_worker("w-a"), _worker("w-z"))
+    plan = schedule_once(graph, ready, workers, SchedulePolicy())
+    assert [(s.node_id, s.worker_id) for s in plan.selected] == [("n", "w-z")]
+
+
+@pytest.mark.parametrize(
+    "bound_worker",
+    [
+        _worker("w-z", state="STOPPED"),
+        _worker("w-z", reserved=True),
+        _worker("w-z", caps=("documentation",)),
+    ],
+    ids=["not-ready", "reserved", "capability-mismatch"],
+)
+def test_bound_worker_unusable_blocks_never_falls_back(bound_worker) -> None:
+    """An unusable bound worker must block, never silently pick w-a."""
+    nodes = [_bound_node("n", "worker:w-z")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    workers = (_worker("w-a"), bound_worker)
+    plan = schedule_once(graph, ready, workers, SchedulePolicy())
+    assert plan.selected == ()
+    reasons = [r.reason.lower() for r in plan.blocked if r.node_id == "n"]
+    assert any("binding" in reason for reason in reasons)
+
+
+def test_bound_worker_missing_entirely_blocks_never_falls_back() -> None:
+    nodes = [_bound_node("n", "worker:w-z")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    workers = (_worker("w-a"),)  # w-z not even in the snapshot
+    plan = schedule_once(graph, ready, workers, SchedulePolicy())
+    assert plan.selected == ()
+    assert any("binding" in r.reason.lower() for r in plan.blocked)
+
+
+def test_mutating_bound_worker_still_requires_identity_and_authority() -> None:
+    """Binding is authoritative but never bypasses identity/mutation gates."""
+    nodes = [_bound_node("mut", "ws:/repo/alpha|worker:w-z", write_set=("src/x.py",))]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+
+    wrong_ws = _worker("w-z", workspace="/repo/beta")
+    plan = schedule_once(
+        graph, ready, (_worker("w-a", workspace="/repo/alpha"), wrong_ws), SchedulePolicy()
+    )
+    assert plan.selected == ()
+    assert any("binding" in r.reason.lower() for r in plan.blocked)
+
+    no_auth = _worker("w-z", workspace="/repo/alpha", mutation_authorized=False)
+    plan2 = schedule_once(
+        graph, ready, (_worker("w-a", workspace="/repo/alpha"), no_auth), SchedulePolicy()
+    )
+    assert plan2.selected == ()
+    assert any("binding" in r.reason.lower() for r in plan2.blocked)
+
+    good = _worker("w-z", workspace="/repo/alpha")
+    plan3 = schedule_once(
+        graph, ready, (_worker("w-a", workspace="/repo/alpha"), good), SchedulePolicy()
+    )
+    assert [(s.node_id, s.worker_id) for s in plan3.selected] == [("mut", "w-z")]
+
+
+# --- GE-6 final round: human approval + stable typed block kinds (ADR §7) -----
+
+
+def test_human_approval_pending_blocks_before_worker_selection() -> None:
+    from a_conductor.graph.scheduler import BlockedReasonKind, NodeEligibility
+
+    nodes = [_node("n")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    plan = schedule_once(
+        graph,
+        ready,
+        (_worker("w-0"),),
+        SchedulePolicy(),
+        eligibility={"n": NodeEligibility(human_approval_pending=True)},
+    )
+    assert plan.selected == ()
+    entry = next(r for r in plan.blocked if r.node_id == "n")
+    assert entry.kind is BlockedReasonKind.HUMAN_APPROVAL_WAIT
+    assert "approval" in entry.reason.lower()
+
+
+@pytest.mark.parametrize(
+    "flag,expected_kind",
+    [
+        ("gate_refused", "GATE_NO_GO"),
+        ("human_approval_pending", "HUMAN_APPROVAL_WAIT"),
+        ("provider_unavailable", "PROVIDER_WAIT"),
+        ("rate_limited", "RATE_LIMIT_WAIT"),
+    ],
+)
+def test_eligibility_block_reasons_have_stable_typed_kinds(
+    flag: str, expected_kind: str
+) -> None:
+    from a_conductor.graph.scheduler import BlockedReasonKind, NodeEligibility
+
+    nodes = [_node("n")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    plan = schedule_once(
+        graph,
+        ready,
+        (_worker("w-0"),),
+        SchedulePolicy(),
+        eligibility={"n": NodeEligibility(**{flag: True})},
+    )
+    entry = next(r for r in plan.blocked if r.node_id == "n")
+    assert entry.kind is BlockedReasonKind(expected_kind)
+    assert entry.kind.value == expected_kind
+
+
+def test_non_eligibility_blocks_have_stable_typed_kinds() -> None:
+    from a_conductor.graph.scheduler import BlockedReasonKind
+
+    # capacity: two nodes, one worker
+    nodes = [_node("a"), _node("b")]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    plan = schedule_once(graph, ready, (_worker("w-0"),), SchedulePolicy())
+    kinds = {r.node_id: r.kind for r in plan.blocked}
+    assert kinds["b"] is BlockedReasonKind.CAPACITY
+
+    # capability
+    nodes = [_node("c", worker_req=("shell",))]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    plan = schedule_once(graph, ready, (_worker("w-x", caps=("documentation",)),), SchedulePolicy())
+    assert plan.blocked[0].kind is BlockedReasonKind.CAPABILITY
+
+    # identity (mutating without binding)
+    nodes = [
+        TaskNode(id="m", objective="o", worker_requirement=("shell",),
+                 write_set=("x.py",))
+    ]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    plan = schedule_once(graph, ready, (_worker("w-y", workspace="/repo"),), SchedulePolicy())
+    assert plan.blocked[0].kind is BlockedReasonKind.IDENTITY
+
+    # conflict (external running write set)
+    nodes = [
+        TaskNode(id="cf", objective="o", worker_requirement=("shell",),
+                 write_set=("f.py",), model_requirement="ws:/repo")
+    ]
+    graph = build_graph(nodes, [])
+    ready = compute_ready_set(graph, {})
+    plan = schedule_once(
+        graph, ready, (_worker("w-z", workspace="/repo"),), SchedulePolicy(),
+        running_write_sets={"ext": ("f.py",)},
+    )
+    assert plan.blocked[0].kind is BlockedReasonKind.CONFLICT
