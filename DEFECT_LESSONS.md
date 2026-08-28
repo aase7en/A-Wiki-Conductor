@@ -229,6 +229,22 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 ---
 
+## #14: MCP TTL/stdio failure closes connector CMD and there is no proven runtime auto-recovery (2026-08-28)
+
+**อาการ:** CMD ของ Sunday-Worker หายไปเองระหว่างใช้งาน แล้วผู้ใช้ต้องกลับมากด Start ใน A-Sunday Conductor เอง. Activity log แสดง `START-INST` ตอน 16:24 จึงยืนยันว่าการเปิด Worker-5 รอบนั้นเป็น manual start ไม่ใช่ watchdog recovery.
+
+**Root cause ที่พิสูจน์แล้ว:** live tunnel log ของ Worker-5 แสดง `MCP connection TTL reached; stopping response forwarding` ตามด้วย `stdio MCP command stdin write failed` / `write |1: file already closed`; tunnel-client จึงร้องขอ shutdown ทั้ง process. Launcher เป็น `cmd.exe /c -> powershell.exe -> tunnel-client.exe`, ดังนั้น tunnel-client ออก -> PowerShell จบ -> CMD ปิด. Serena log เป็น orderly shutdown และ Windows event log ไม่พบ native crash ที่ตรงเหตุการณ์.
+
+**สิ่งที่ยังไม่พิสูจน์:** tunnel-client `0.0.11` แสดง default max TTL 10 นาทีและไม่พบ local TTL override แต่ failure สดเกิดที่ effective deadline สั้นกว่า; ห้ามสรุปว่า deadline สั้นมาจาก OpenAI control plane หรือ config ใดจนกว่าจะมี reproducer/upstream evidence.
+
+**สถานะแก้:** ยังไม่ถือว่า FIXED. บันทึกเป็น P0 v0.7.0 stability gate ใน `WO-P1-096`. ต้องแก้ทั้ง (1) request/connection TTL ห้ามฆ่า long-lived connector และ (2) unexpected connector death ต้องมี bounded auto-recovery โดย explicit Stop ต้องไม่ถูก restart.
+
+**Lesson:** transport/request lifetime กับ connector-service lifetime ต้องเป็นคนละ authority. CMD window ไม่ใช่ health authority. Recovery ต้องมี restart budget/backoff และต้องไม่ blind-replay งานที่ execution state ยัง unknown.
+
+**ตรวจสอบ:** fault-injection ต้องทำ TTL/closed-stdio แล้ว connector ยังใช้ request ถัดไปได้หรือ recover กลับ READY; explicit Stop ไม่ restart; repeated crash เข้า DEGRADED ไม่เกิด restart storm; exit code/reason ต้องไม่ว่างและ log เก่าต้องยังอยู่; live isolated E2E ต้องผ่านโดยไม่กด Start เอง.
+
+---
+
 ## 🔨 BUILD CHECKLIST (อ่านทุกครั้งก่อน build/release ใหม่)
 
 บันทึก: 2026-08-26 — สรุปปัญหาที่เคยเจอทุกอย่างเพื่อไม่ให้เกิดซ้ำในเวอร์ชันใหม่
