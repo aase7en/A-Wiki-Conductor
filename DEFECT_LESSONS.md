@@ -301,3 +301,17 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Verify:** deterministic fake-clock tests cover late recovery -> timeout, pre-deadline recovery -> recovery, and durable result -> result. Real Windows attach/timeout integration passed 20 consecutive runs after repair.
 
 ---
+
+## #16: Native timeout result lost to transient temp-file cleanup lock (2026-08-29)
+
+**Symptom:** after a native subprocess timeout was already known, Windows occasionally held `stderr.bin` long enough for temp cleanup to raise `WinError 32`; the runner converted that cleanup problem into `COMMAND_EXECUTION_FAILED` and lost the valid timeout result.
+
+**Root cause:** execution result collection and temp-tree deletion shared one context-manager exit. `TemporaryDirectory` performed one immediate removal attempt, so a transient security/indexer file lock changed command semantics after output handles were already closed.
+
+**Fix:** use an explicit private temp directory and finite in-process removal. Retry only `PermissionError`; `FileNotFoundError` is already-clean success; unrelated `OSError` fails immediately; a persistent lock ends as explicit `COMMAND_CLEANUP_FAILED`.
+
+**Lesson:** cleanup after a completed/timeout operation is a separate failure boundary. Transient cleanup locks must not rewrite already-known execution semantics; retries must be bounded and exception-specific.
+
+**Verify:** deterministic fault injection covers two transient locks then success, persistent budget exhaustion, unrelated OSError fail-fast, and temp-directory creation failure. Native and broader execution/supervisor/job suites remain green.
+
+---

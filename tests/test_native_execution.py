@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import a_conductor.native_execution as native_execution
 from a_conductor.native_execution import (
     NativeCommandSpec,
     NativeExecutionError,
@@ -303,6 +304,55 @@ def test_subprocess_timeout_is_bounded_and_reported(tmp_path: Path) -> None:
     assert exc_info.value.code == "TIMEOUT_INVALID"
 
 
+def test_temp_directory_creation_error_preserves_execution_error_contract(tmp_path: Path, monkeypatch) -> None:
+    runner = NativeSubprocessRunner(
+        scope_for(tmp_path.resolve(), allowed_executables=(python_name(),))
+    )
+    monkeypatch.setattr(
+        native_execution.tempfile,
+        "mkdtemp",
+        lambda **_kwargs: (_ for _ in ()).throw(OSError("temp unavailable")),
+    )
+
+    with pytest.raises(NativeExecutionError) as exc_info:
+        runner.run(NativeCommandSpec(argv=(sys.executable, "-c", "print('unused')")))
+
+    assert exc_info.value.code == "COMMAND_EXECUTION_FAILED"
+
+
+def test_timeout_result_survives_transient_temp_cleanup_lock(tmp_path: Path, monkeypatch) -> None:
+    runner = NativeSubprocessRunner(
+        scope_for(
+            tmp_path.resolve(),
+            allowed_executables=(python_name(),),
+            max_timeout_seconds=2,
+        )
+    )
+    real_rmtree = native_execution.shutil.rmtree
+    attempts: list[Path] = []
+
+    def transient_lock(path, *args, **kwargs):
+        candidate = Path(path)
+        if candidate.name.startswith("a-conductor-exec-"):
+            attempts.append(candidate)
+            if len(attempts) <= 2:
+                raise PermissionError("transient Windows temp-file lock")
+        return real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(native_execution.shutil, "rmtree", transient_lock)
+    monkeypatch.setattr(native_execution.time, "sleep", lambda _seconds: None)
+
+    result = runner.run(
+        NativeCommandSpec(
+            argv=(sys.executable, "-c", "import time; time.sleep(2)"),
+            timeout_seconds=1,
+        )
+    )
+
+    assert result.timed_out is True
+    assert result.exit_code is None
+    assert len(attempts) == 3
+
 def test_subprocess_output_is_bounded_but_digest_covers_full_stream(tmp_path: Path) -> None:
     runner = NativeSubprocessRunner(
         scope_for(
@@ -324,3 +374,75 @@ def test_subprocess_output_is_bounded_but_digest_covers_full_stream(tmp_path: Pa
     assert result.stdout_sha256 == hashlib.sha256(b"x" * 100).hexdigest()
     assert result.stderr_truncated is False
     assert result.stderr_sha256 == hashlib.sha256(b"").hexdigest()
+
+
+def test_temp_cleanup_retry_is_finite_for_persistent_permission_error(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "a-conductor-exec-persistent"
+    target.mkdir()
+    attempts: list[Path] = []
+    sleeps: list[float] = []
+
+    def locked(path, *args, **kwargs):
+        attempts.append(Path(path))
+        raise PermissionError("still locked")
+
+    monkeypatch.setattr(native_execution.shutil, "rmtree", locked)
+    with pytest.raises(PermissionError, match="still locked"):
+        native_execution._remove_temp_tree_with_permission_retry(
+            target,
+            retry_delays=(0.1, 0.2),
+            sleep_fn=sleeps.append,
+        )
+
+    assert attempts == [target, target, target]
+    assert sleeps == [0.1, 0.2]
+
+
+def test_temp_cleanup_unrelated_oserror_fails_without_retry(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "a-conductor-exec-disk-error"
+    target.mkdir()
+    attempts: list[Path] = []
+    sleeps: list[float] = []
+
+    def broken(path, *args, **kwargs):
+        attempts.append(Path(path))
+        raise OSError("disk failure")
+
+    monkeypatch.setattr(native_execution.shutil, "rmtree", broken)
+    with pytest.raises(OSError, match="disk failure"):
+        native_execution._remove_temp_tree_with_permission_retry(
+            target,
+            retry_delays=(0.1, 0.2),
+            sleep_fn=sleeps.append,
+        )
+
+    assert attempts == [target]
+    assert sleeps == []
+
+
+def test_persistent_temp_cleanup_lock_is_explicit_cleanup_failure(tmp_path: Path, monkeypatch) -> None:
+    runner = NativeSubprocessRunner(
+        scope_for(tmp_path.resolve(), allowed_executables=(python_name(),))
+    )
+    real_rmtree = native_execution.shutil.rmtree
+    locked_paths: list[Path] = []
+
+    def locked(path, *args, **kwargs):
+        candidate = Path(path)
+        if candidate.name.startswith("a-conductor-exec-"):
+            locked_paths.append(candidate)
+            raise PermissionError("persistent temp lock")
+        return real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(native_execution.shutil, "rmtree", locked)
+    monkeypatch.setattr(native_execution.time, "sleep", lambda _seconds: None)
+    try:
+        with pytest.raises(NativeExecutionError) as exc_info:
+            runner.run(NativeCommandSpec(argv=(sys.executable, "-c", "print('done')")))
+        assert exc_info.value.code == "COMMAND_CLEANUP_FAILED"
+        assert len(locked_paths) == len(native_execution._TEMP_CLEANUP_RETRY_DELAYS) + 1
+    finally:
+        monkeypatch.undo()
+        for leftover in set(locked_paths):
+            if leftover.exists():
+                real_rmtree(leftover)
