@@ -46,7 +46,7 @@ Forbidden:
 - Live smoke readiness checks remain fail-closed: port 3456 has no listener; the installed `%LOCALAPPDATA%\\A-Conductor\\control-center.sqlite` currently has no `provider_*` tables; and a repository search finds no application assembly reference to `SQLiteProviderConfigStore` outside its own module/tests. No live call, gateway start, or user-DB initialization was performed.
 - Independent GPT review of current GE-6 PR #104 head `b0febf20` found four acceptance gaps against ADR GE-0006: missing topological-rank ordering, input-order-dependent worker choice, missing mutating project/workspace identity gate, and missing injected gate/provider eligibility seam.
 - A COMMENT review was posted on PR #104; its owner lane remains responsible for repair.
-- PR #104 Windows CI also failed in the pre-existing supervised-command timeout suite, not in scheduler assertions; one rerun was requested for classification without changing its branch.
+- PR #104 Windows CI first failed in the pre-existing supervised-command timeout suite. Rerun #1 cleared that test but later hit recurring hosted Tk `0x80000003` in `test_interactive_logo.py`; rerun #2 was requested for infra classification without changing the owner branch.
 
 ## Stop condition
 

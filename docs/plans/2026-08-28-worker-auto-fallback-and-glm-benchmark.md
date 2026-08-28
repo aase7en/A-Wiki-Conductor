@@ -44,7 +44,7 @@ Current repository evidence, not a synthetic model-speed benchmark:
 - PR #104 / GE-6 is a GLM-owned bounded algorithmic lane. After owner-led reconciliation its worktree reported **92 graph tests passing**; GitHub head is currently `b0febf20`.
 - Earlier independent GPT recheck ran the seven `test_graph_*.py` files: **83 passed in 1.76s**. This confirms useful bounded implementation throughput, not final acceptance.
 - Independent GPT review against accepted ADR GE-0006 found four current acceptance gaps: topological-rank ordering is omitted, equivalent worker choice depends on input order instead of stable worker ID, mutating project/workspace identity is not enforced, and gate/provider eligibility input is missing. These were posted as a PR review comment for the owner to repair.
-- Windows CI additionally failed in the existing supervised-command timeout suite rather than a scheduler assertion; a rerun was requested to classify that independently. The PR remains blocked until both scheduler acceptance and exact-head CI are green.
+- Windows CI first failed in the existing supervised-command timeout suite; rerun #1 cleared that suite but later hit the recurring hosted Tk `0x80000003` in `test_interactive_logo.py`. Rerun #2 was requested as infra classification. The PR remains blocked regardless until scheduler acceptance gaps are repaired and exact-head CI is green.
 
 ### Suitability score for work during AHA-3/AHA-4
 
