@@ -763,3 +763,31 @@ Key constraints:
 - no periodic subprocess spawning in UI/monitor/render paths.
 
 Implementation and verification are tracked by `docs/work-orders/WO-P1-063-terminal-command-center-redesign.md`.
+
+## 21. Priority Accelerator — Sunday Family Multi-Model Agent Harness (2026-08-28)
+
+**User-priority decision:** move the multi-model/sub-agent harness ahead of other new feature development because removing manual GPT/GLM/Claude-Code/ZCode prompt copying should accelerate every later A-Sunday Conductor milestone.
+
+Binding plan: `docs/plans/2026-08-28-sunday-family-agent-harness-accelerator.md`
+Active work order: `docs/work-orders/WO-P1-087-sunday-family-agent-harness-accelerator.md`
+
+The feature remains inside the **A-Sunday Conductor / Sunday Family** product. It extends Capability Fabric v1 and the North Star runtime/execution fabric; it must not create a second scheduler, provider registry, task store, memory system, or vendor-specific control plane.
+
+First preferred coding lane:
+
+`Conductor -> Claude Code/Anthropic-style harness -> Anthropic-compatible provider -> GLM-5.3`
+
+GLM is the first configured provider, not an architectural dependency. Provider/runtime abstractions must remain compatible with OpenAI, Anthropic first-party, Gemini, local models, and future execution surfaces.
+
+Priority order for new feature work:
+1. capability-vocabulary C0 accepted via PR #110 (merged `6487cb2`);
+2. define provider + harness + trust/quota/credential-reference contracts;
+3. implement secure provider configuration and fake-backend health/quota tests;
+4. implement a bounded non-interactive Claude Code harness adapter;
+5. integrate with existing durable dispatch only after GE scheduler/dispatch gates are satisfied;
+6. prove GPT-plan/review <-> GLM-implement/repair without human copy/paste;
+7. prove safe parallel READY-task execution with isolated worktrees/scopes;
+8. expose `Models & Agents` / `Sub-Agent Providers` in the existing Sunday Family command center;
+9. add further providers only after the contract is stable.
+
+Safety/release correctness work and already-owned Graph branches remain independent P0 lanes. A priority change never authorizes stealing their worktrees or bypassing their gates.
