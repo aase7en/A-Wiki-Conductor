@@ -49,7 +49,7 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 
 **Current development version:** `0.7.0` — not released yet
 
-**Current program state:** Sunday Family Multi-Model Agent Harness — **AHA-3 in progress**
+**Current program state:** Sunday Family Multi-Model Agent Harness — **AHA-3 complete; AHA-4 waiting on GE-6 acceptance**
 
 > Direction: move from manually selecting individual workers/plugins toward one A-Sunday Conductor entry point that recovers SSoT, selects an eligible worker/model/harness, verifies evidence, falls back safely, and continues without prompt copy/paste.
 
@@ -59,8 +59,8 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 - [x] **AHA-0** — capability vocabulary gate (`CAPABLE != AUTHORIZED`).
 - [x] **AHA-1** — provider/harness/trust/quota/dispatch contracts.
 - [x] **AHA-2** — secure provider configuration + observed health/quota; `CONFIGURED != READY`.
-- [ ] **AHA-3 — ACTIVE** — bounded Claude Code harness adapter with injected fake runner first.
-- [ ] **AHA-4** — durable dispatch integration after accepted GE scheduler/dispatch seams.
+- [x] **AHA-3** — bounded Claude Code harness adapter merged in PR #116 (`ab28dc7`); fake-runner/read-only gates and 3-OS CI proven.
+- [ ] **AHA-4 — BLOCKED** — durable dispatch integration waits for GE-6 acceptance/merge; GE-7 durable job-control design is already accepted.
 - [ ] **AHA-4A** — atomic worker leases + eligibility preflight + automatic fallback to the next safe worker.
 - [ ] **AHA-4B** — heartbeat, stale-owner recovery, quarantine, fairness/backpressure.
 - [ ] **AHA-5** — GPT plan/review ↔ GLM implement/repair loop without human prompt copying.
