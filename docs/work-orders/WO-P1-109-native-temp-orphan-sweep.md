@@ -2,11 +2,11 @@
 
 Created: 2026-08-29
 Owner: GPT-5.6 Sol runtime hygiene lane
-Status: LOCAL_VERIFIED / PR PENDING
+Status: MERGE_READY / FINAL-BASE LOCAL GREEN
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-native-temp-sweep`
 Branch: `fix/wo-p1-109-native-temp-orphan-sweep`
-Base: `origin/main@392047a0395f30cc1d6ed7d8c2c3f7c0457a5e37`
+Base: `origin/main@d2190414dcd8b51868a2c8214616425f2cb9dea9` (final base reconciled after PR #141)
 
 ## Trigger
 
@@ -55,3 +55,13 @@ No background cleaner, detached process, scheduler, timer, live connector or use
 - local stale cleanup reduced residues to **2 recent dirs (~8.6-8.7h)** and preserved both because they are below the 24h threshold.
 
 Next: reconcile latest accepted main, rerun gates, commit/push/open PR, exact-head CI/re-audit/merge.
+
+## Final-base checkpoint
+
+Accepted main reconciled to `d2190414dcd8b51868a2c8214616425f2cb9dea9` after PR #141. Post-reconcile verification:
+- native execution: **28 passed**;
+- broader native/supervised/job/Claude runtime: **190 passed**;
+- installer workflow contract: **22 passed**;
+- no source/scope conflict with GE-11R1 or CI Node24 changes.
+
+Next: exact remote diff audit -> PR -> 3-OS CI/frozen smoke -> post-CI re-audit -> expected-head merge -> accepted-main verification.
