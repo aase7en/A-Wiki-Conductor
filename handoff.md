@@ -1,65 +1,38 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-28 — WO-P1-100 / AHA-4 supervised durable backend assembly
+Last updated: 2026-08-29 — WO-P1-102 / AHA-4A worker lease broker
 
 ## Current Objective
 
-Finish the production AHA-4 execution boundary by joining accepted durable Claude job execution to the accepted supervised Claude runner using exact per-job identity. No second process runner, lifecycle, execution store, retry loop, dedup system, scheduler, provider registry, or memory system.
+Close AHA-4A with atomic, retry-safe worker leasing and fail-closed mutation scope. No AHA-4B stale reclaim, second scheduler/store/lifecycle, or A-Wiki claim duplication.
 
 ## Repository State
 
-- Repository: `aase7en/A-Wiki-Conductor`
-- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-assembly`
-- Branch: `feat/wo-p1-100-aha4-supervised-backend-assembly`
-- reconciled current base: `7db34048a0dd002b9bfbe41408c83c7ec18df2ad`
-- Work order: `docs/work-orders/WO-P1-100-aha4-supervised-backend-assembly.md`
-- PR #130 is open; implementation commit `001cbc968faf7b66d28de39635827aacbd506d5c` plus this bounded truthfulness/formatting follow-up; local verification green.
+- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`
+- Branch: `feat/wo-p1-102-aha4a-worker-lease-broker`
+- Reconciled `origin/main`: `39f0253cc4f8896cffa78b6772ce6ffd2e229736`
+- PR #131 is Draft; branch requires one final fix/checkpoint push.
 - Shared root remains protected/read-only.
 
-## Accepted Baseline
+## Latest defects repaired
 
-- GE-6 scheduler merged `023c7b6`.
-- durable graph dispatch merged `5cc417c9`.
-- durable Claude backend PR #121 merged `0e9b93a`.
-- supervised Claude runner PR #124 exact head `25cc694` passed 3-OS CI run `33176757259` and merged as `e933a53`.
-- reconciled main `7db34048a0dd002b9bfbe41408c83c7ec18df2ad` includes independent tunnel-client checksum hardening/closeout; no WO-P1-100 source overlap.
+1. `allowed_scope` was stored but not enforced. Mutation scope is now fail-closed: literal paths may be covered by an allowed glob; wider/unproven mutable globs are rejected.
+2. Same `session_id/task_id` retry after uncertain delivery could select a second worker. Active owner/task is now unique and retry attaches the existing lease; request-contract drift fails closed.
+3. Required capability drift is persisted/checked so retry cannot silently weaken or change the task contract.
+4. Resume verification found two race outcome-classification defects: attach-to-existing could be mislabeled `LEASED`, and proposed lease-ID equality could hide the attach when two brokers generated the same ID. The store now returns atomic `created` status; `EXISTING` no longer depends on ID comparison.
 
-## Architecture Boundary
+## Evidence
 
-Classification: **REUSE + WRAP + EXTEND**.
-
-Accepted chains to join:
-
-`DurableJobExecutionCoordinator -> ClaudeCodeJobBackend -> ClaudeCodeHarnessAdapter`
-
-and
-
-`ClaudeCodeInvocation -> SupervisedClaudeCodeRunner -> SupervisedCommandRunner -> DuplicateExecutionGuard -> SupervisedExecutionService -> OwnedProcessSpec`.
-
-The missing seam is lazy per-job adapter construction after durable `JobExecutionContext` and non-secret provider metadata are known. Provider-unavailable paths must not resolve credentials or launch. Dispatch branch/HEAD must bind the supervised fingerprint; missing branch must fail closed before reference resolution.
-
-## Protected Parallel Work
-
-- Draft PR #125 / connector CR-2/CR-4: separate P0 v0.7.0 lane; do not touch its files.
-- PR #108 installer target ownership: separate destructive-boundary lane; do not touch.
-- North Star branch: protected integration lineage; do not touch.
-- live connector fleet / tunnel-client binary / provider credentials: do not mutate.
-- A-Wiki repository: read-only; its architecture says A-Wiki owns brain/policy/memory while A-Conductor owns dispatch/process control.
+- focused worker lease: **36 passed**;
+- registry/persistence/graph/job/lease regression: **220 passed**;
+- focused race repeat: **10/10 PASS**;
+- compileall + diff-check: PASS;
+- concurrency cases include competing tasks, overlapping mutable scopes, same-owner convergence, and explicit `EXISTING` classification.
 
 ## Next Safe Action
 
-1. commit/push the bounded SSoT/formatting follow-up to PR #130;
-2. re-audit exact remote 7-file diff and head SHA;
-3. require exact-head Windows/Ubuntu/macOS CI including Windows packaging/frozen/Portable smoke;
-4. merge only after green CI + final exact-head review; then release claim to AHA-4A.
+Update WO checkpoint, inspect bounded diff/scope/secret gates, commit/push the preserved dirty checkpoint, merge latest accepted `origin/main`, rerun regression, update PR #131, run independent read-only review, then require exact-head Windows/Ubuntu/macOS CI before merge.
 
 ## Safety
 
-`SAFE_TO_MUTATE = YES` only in `A:\GitHub\A-Wiki-Conductor-aha4-assembly` and WO-P1-100 allowed scope.
-
-## Verification checkpoint
-
-- focused runner/backend/assembly: **25 passed in 1.49s**.
-- broader Claude/provider/native/supervisor/dedup/job/graph: **237 passed in 13.43s**.
-- compileall / diff-check / bounded real-secret-prefix scan: PASS.
-- successful production assembly chain reaches durable `VERIFYING`; repeated unknown fingerprint does not blind relaunch.
+`SAFE_TO_MUTATE = YES` only inside this isolated worktree and WO-P1-102 scope.

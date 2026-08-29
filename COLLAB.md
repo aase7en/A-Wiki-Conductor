@@ -34,11 +34,13 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-100` / AHA-4 supervised durable backend assembly | GPT-5.6 Sol integrator | 2026-08-28 | Isolated `A-Wiki-Conductor-aha4-assembly`: per-job durable Claude backend -> accepted supervised Claude runner assembly, focused tests, SSoT. No connector-stability, installer, North-Star, live-provider, worker-lease mutation. |
+| `WO-P1-102` / AHA-4A worker lease broker + fallback | GPT-5.6 Sol integrator | 2026-08-28 | Isolated `A-Wiki-Conductor-aha4a-lease`: atomic worker lease, deterministic eligibility/fallback, focused tests, SSoT. No AHA-4B expiry recovery, connector, installer, North-Star, live-provider mutation. |
 | PR #108 / installer target ownership | release/installer lane | 2026-08-27 | `fix/v070-installer-target-ownership`; destructive installer safety scope remains separately owned. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
+
+- `WO-P1-100` / PR #130 durable supervised Claude backend assembly: exact head `d3890820174c6a3a59331a30cd97ba1b9d42fe3e` passed Windows/Ubuntu/macOS CI run `33183355995` including Windows packaging/frozen/Portable smoke and merged as `08369ade59206cbe2bc80a314d49d3daa50038b7`; claim released to WO-P1-102.
 
 - `WO-P1-098` / PR #124 supervised Claude runner: final head `25cc69478f73a8cfc154de721ae1c48bb8db7fd2` passed exact-head Windows/Ubuntu/macOS CI run `33176757259` including Windows packaging/frozen/Portable smoke and merged as `e933a53c3c32bf0f8126f1602c913c08765d9a8a`; claim released to WO-P1-100.
 - `WO-P1-097` / PR #122 connector CR-1 + CR-3: tunnel-client >=0.0.12 floor + forensic launcher hardening merged as `ceee9bb7aa361aef6d0ecfc210c25b564578d552`; WO-P1-096 still blocks v0.7.0 on CR-2/CR-4 + isolated E2E/soak.

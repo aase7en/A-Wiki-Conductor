@@ -1,35 +1,30 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-28 (GPT-5.6 Sol — PR #124 merged / AHA-4 per-job assembly ACTIVE)
+Last updated: 2026-08-29 (GPT-5.6 Sol — AHA-4A retry/scope hardening GREEN / PR #131 pending)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — DURABLE ↔ SUPERVISED CLAUDE ASSEMBLY ACTIVE.**
-
-User outcome: give A-Sunday Conductor one goal; Conductor creates bounded task packets, selects an eligible model/harness, dispatches work, gathers evidence, reviews/repairs, and continues without manual prompt copy/paste.
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — WORKER LEASE + AUTOMATIC FALLBACK REVIEW GATE.**
 
 Current exact lane:
-- repository: `aase7en/A-Wiki-Conductor`;
-- worktree: `A:\GitHub\A-Wiki-Conductor-aha4-assembly`;
-- branch: `feat/wo-p1-100-aha4-supervised-backend-assembly`;
-- reconciled current remote main: `7db34048a0dd002b9bfbe41408c83c7ec18df2ad`;
-- PR #124 supervised Claude runner final head `25cc69478f73a8cfc154de721ae1c48bb8db7fd2` passed exact-head 3-OS CI run `33176757259` including Windows packaging/frozen/Portable smoke and merged as `e933a53c3c32bf0f8126f1602c913c08765d9a8a`;
-- WO-P1-096 connector runtime resilience remains an independent P0 v0.7.0 release gate; latest evidence records Draft PR #125 CR-2/CR-4 work and isolated E2E/soak still blocked on a sacrificial/authorized connector.
-
-Protected parallel work remains PR #125 connector recovery, PR #108 installer safety and North Star. Shared `A:\GitHub\A-Wiki-Conductor` remains protected/read-only.
+- worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`;
+- branch: `feat/wo-p1-102-aha4a-worker-lease-broker`;
+- reconciled `origin/main`: `39f0253cc4f8896cffa78b6772ce6ffd2e229736`;
+- Draft PR: #131.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-100-aha4-supervised-backend-assembly.md` — lazily assemble the accepted durable Claude backend onto the accepted supervised Claude runner using exact per-job identity.
+`docs/work-orders/WO-P1-102-aha4a-worker-lease-broker.md`.
 
 ## Immediate execution frontier
 
-1. accepted durable backend (`ClaudeCodeJobBackend`) already owns provider/harness result classification and durable evidence semantics;
-2. accepted supervised runner (`build_supervised_claude_code_runner`) already owns opaque-ref resolution boundary and canonical `DuplicateExecutionGuard` process path;
-3. lazy per-job adapter factory + production assembly are implemented; provider unavailable/no-branch fail closed before secret resolution or launch;
-4. deterministic successful chain reaches durable `VERIFYING`; fixed-adapter compatibility and canonical duplicate recovery behavior remain green;
-5. verification: focused **25 passed**, broader Claude/provider/native/supervisor/dedup/job/graph **237 passed**, compileall/diff/secret gates PASS;
-6. Draft PR #130 is open; next = push the SSoT/formatting follow-up -> exact remote diff re-audit -> exact-head 3-OS CI -> merge; after merge begin AHA-4A worker lease/fallback as a separate work order.
+1. AHA-4A core is local GREEN: atomic worker/scope leasing, ordered fallback, typed preflight, exact-owner release, RDC read-only fallback;
+2. independent review found and fixed two P0/P1 correctness gaps: mutation scope could escape `allowed_scope`; same session/task retry could create a second lease after uncertain transport;
+3. retries now attach the same active owner/task lease, contract drift fails `LEASE_REQUEST_CONFLICT`, and concurrent same-owner requests converge on one lease;
+4. resumed verification found P1 outcome-classification bugs: race attachment could report `LEASED`, and comparing lease IDs was not sufficient when two brokers proposed the same ID; store acquisition now returns atomic `created` truth and `EXISTING` is explicit;
+5. final local evidence: focused **36 passed**, relevant regression **220 passed**, race repeat **10/10 PASS**, compileall/diff-check PASS; final exact-head CI remains required;
+6. next = checkpoint/commit/push -> merge latest accepted main -> remote PR #131 diff audit -> independent read-only review + GPT re-review -> exact-head 3-OS CI -> merge;
+7. AHA-4B heartbeat/expiry/quarantine remains a separate work order; no stale lease is reclaimed here.
 
 ## Source-of-truth rule
 
