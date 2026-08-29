@@ -315,3 +315,17 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Verify:** deterministic fault injection covers two transient locks then success, persistent budget exhaustion, unrelated OSError fail-fast, and temp-directory creation failure. Native and broader execution/supervisor/job suites remain green.
 
 ---
+
+---
+
+## #17: Requested graph run identity is not runtime evidence (2026-08-29)
+
+**Symptom:** GE-11 Graph MONITOR could label any operator-entered RUN ID as runtime evidence even when no durable job or event existed for that run.
+
+**Root cause:** `runtime_evidence` was derived from `graph_run_id is not None`, which proves only user input, not durable runtime provenance.
+
+**Fix:** keep requested run identity visible, but set runtime evidence only when a matching durable `GraphDispatchKey` job or durable job event is actually observed. Unknown run IDs remain `RUNTIME: NO RUN EVIDENCE` and project nodes stay fail-closed through GE-9 missing-job semantics.
+
+**Lesson:** an identifier supplied by an operator is selection context, not evidence that the identified runtime entity exists. UI labels such as LIVE/RUNNING/EVIDENCE require observed durable provenance.
+
+**Verify:** deterministic GE-11 tests cover planning-only mode, unknown explicit run -> no evidence, and matching durable job -> durable run evidence.

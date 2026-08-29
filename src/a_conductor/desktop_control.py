@@ -112,6 +112,24 @@ class DesktopControlService:
     def snapshot(self):
         return self.control_center.snapshot()
 
+    def operator_graph_ids(self) -> tuple[str, ...]:
+        store = self.settings_store
+        if store is None:
+            return ()
+        from .graph.operator_view import list_operator_graph_ids
+
+        return list_operator_graph_ids(store.database_path)
+
+    def operator_graph_snapshot(
+        self, graph_id: str, graph_run_id: str | None = None, *, event_limit: int = 20
+    ):
+        store = self._require_settings_store()
+        from .graph.operator_view import read_graph_operator_snapshot
+
+        return read_graph_operator_snapshot(
+            store.database_path, graph_id, graph_run_id, event_limit=event_limit
+        )
+
     def register_project(self, root_path, *, display_name=None, project_id=None):
         return self.control_center.register_project(
             root_path,
