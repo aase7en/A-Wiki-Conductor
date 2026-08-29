@@ -159,3 +159,17 @@ Still genuinely open from this roadmap:
 - GE-11 graph operator visualization/timeline/queues.
 
 Do not mark the parent COMPLETE until GE-8..GE-11 have their own bounded work orders, tests/E2E, PRs and accepted-main evidence.
+
+
+## GE-8 implementation checkpoint — 2026-08-29
+
+WO-GE-008 implements pure fan-out/fan-in completeness barriers on isolated branch `feat/wo-ge-008-fan-in-barriers` from accepted main `7722374b`.
+
+- fan-in joins derive expected predecessors from TaskGraph incoming edges;
+- fan-out parents derive expected children from TaskGraph outgoing edges;
+- missing, pending, successful, failed, skipped, and terminal-silent/output-gap states remain distinct;
+- completeness is separate from satisfaction: terminal failures can complete a barrier without satisfying it;
+- duplicate edge types do not double-count a node; expected output refs are validated/normalized;
+- no lifecycle/store/scheduler/dispatch/UI authority is duplicated.
+
+Local evidence at checkpoint: focused 18/18 green; graph-related suite 141/141 green versus pre-GE-8 accepted-main baseline 123. GE-8 remains REVIEW_READY until compile/diff/secret/scope gates, exact-head 3-OS CI, final review, merge, and accepted-main verification complete.
