@@ -1,28 +1,28 @@
-# A-Sunday Conductor ? Current Work
+# A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-29 (GPT-5.6 Sol ? AHA-4B LOCAL GREEN / REVIEW GATE)
+Last updated: 2026-08-29 (GPT-5.6 Sol — AHA-5 CONTRACT / TDD)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator ? LEASE HEARTBEAT + STALE-OWNER RECOVERY.**
+**PRIMARY PRIORITY: AHA-5 GPT↔GLM durable review/repair loop.**
 
-Current exact lane:
-- worktree: `A:\GitHub\A-Wiki-Conductor-aha4b-lease-recovery`;
-- branch: `feat/wo-p1-111-aha4b-lease-recovery`;
-- base/current accepted `origin/main`: `b7a2149cb5e40c596ae6934506e1a360263ecc3d`;
+Current lane:
+- worktree: `A:\\GitHub\\A-Wiki-Conductor-aha5-review-repair`;
+- branch: `feat/wo-p1-112-aha5-agent-review-repair-loop`;
+- accepted base: `origin/main@7f9a16f6dfafe17f3795167da22d4886945611e0`;
 - owner: GPT-5.6 Sol integrator.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-111-aha4b-lease-recovery.md`.
+`docs/work-orders/WO-P1-112-aha5-agent-review-repair-loop.md`.
 
 ## Immediate execution frontier
 
-1. AHA-4B implementation is local GREEN: bounded TTL/heartbeat, stale `RECOVERY_REQUIRED`, quarantine and explicit reconciliation-before-reuse;
-2. deep review closed stale-observation replay, direct-release-after-expiry/quarantine bypasses, and stale owner-retry snapshot after racing heartbeat;
-3. focused **69 passed**, relevant integration **247 passed**, three race classes **20/20 each**, compileall/diff/secret/forbidden-surface gates PASS;
-4. next = commit/push -> Draft PR -> remote diff audit -> independent review -> exact-head 3-OS CI -> merge/post-main/cleanup;
-5. live tunnel-client v0.0.13 soak remains a separate human-authorization release gate and is forbidden in this lane.
+1. AHA-4B merged via PR #147; post-main CI `33261050931` GREEN all OS + Frozen Setup E2E.
+2. Build provider-neutral task/result packet flow over accepted durable job + execution artifacts + AHA-4B leases.
+3. Enable only lease-bound scoped GLM mutation; preserve existing read-only behavior.
+4. Prove GLM implementation + GPT review + one automatic repair round without result copy/paste.
+5. Live tunnel-client request-level TTL soak and v0.7 release remain separate gates.
 
 ## Source-of-truth rule
 
