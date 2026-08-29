@@ -32,7 +32,11 @@ from a_conductor.graph.scheduler import SelectedAssignment
 from a_conductor.job_control import DurableJobControlService
 from a_conductor.job_store import SQLiteJobStore
 from a_conductor.native_execution import NativeCommandResult
-from a_conductor.native_operations import NativeOperationDefinition, NativeOperationKind, WorkerNativeAdapters
+from a_conductor.native_operations import (
+    NativeOperationDefinition,
+    NativeOperationKind,
+    WorkerNativeAdapters,
+)
 from a_conductor.recovery_reconciliation import (
     RecoveryDecision,
     RecoveryReconciliationService,
@@ -119,7 +123,8 @@ def _execution(store: SQLiteExecutionStore, repo: Path, job_id: str):
             repo_root=spec.repo_root,
             branch=spec.branch,
             head_before=spec.head_before,
-            operation_ref=spec.operation_ref,            command_fingerprint=compute_execution_fingerprint(spec),
+            operation_ref=spec.operation_ref,
+            command_fingerprint=compute_execution_fingerprint(spec),
             command_summary="graph chaos",
             runtime_profile_ref=spec.runtime_profile_ref,
             run_dir_ref="runs/exec-1",
@@ -436,7 +441,9 @@ def test_chaos_13_fan_in_waits_for_recovery_and_output_evidence(tmp_path: Path) 
         graph,
         "join",
         {
-            "a": FanInChildObservation("a", True, successful=True, observed_outputs=("artifact:a",)),
+            "a": FanInChildObservation(
+                "a", True, successful=True, observed_outputs=("artifact:a",)
+            ),
             "b": FanInChildObservation("b", False),
         },
     )
@@ -452,8 +459,12 @@ def test_chaos_13_fan_in_waits_for_recovery_and_output_evidence(tmp_path: Path) 
         graph,
         "join",
         {
-            "a": FanInChildObservation("a", True, successful=True, observed_outputs=("artifact:a",)),
-            "b": FanInChildObservation("b", True, successful=True, observed_outputs=("artifact:b",)),
+            "a": FanInChildObservation(
+                "a", True, successful=True, observed_outputs=("artifact:a",)
+            ),
+            "b": FanInChildObservation(
+                "b", True, successful=True, observed_outputs=("artifact:b",)
+            ),
         },
     )
     assert states["a"] is TaskNodeStatus.DONE

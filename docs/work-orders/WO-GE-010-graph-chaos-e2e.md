@@ -21,6 +21,7 @@ Classification: **REUSE + COMPOSE**.
 - reuse SQLite durable job/execution stores and recovery services;
 - reuse GE-7 `GraphDispatchKey`, GE-9 lifecycle projection, GE-8 barriers and GE-5 ReadySet;
 - no second fake executor, lifecycle, retry loop, graph store or scheduler.
+
 ## 13-case program
 
 Fault-contract cases:
@@ -47,6 +48,7 @@ Graph-specific resilience:
 - GE-9 accepted-main closeout in WO-GE-009
 - bounded GE-10 checkpoint in WO-GE-001
 - production source only if a deterministic new RED defect is found and recorded before mutation.
+
 ## Forbidden
 
 - `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, WO-P1-102, worker lease source/tests (active Draft PR #131 ownership);
@@ -71,6 +73,7 @@ Graph-specific resilience:
 ## Next
 
 Write tests-only program -> run focused 13 cases -> classify any RED as test/spec defect vs production defect -> repair only evidence-backed source if needed -> regressions -> review -> PR/CI/re-audit/merge.
+
 ## Local verification checkpoint - 2026-08-29
 
 - Focused collection is exactly 13 tests and focused execution is **13/13 PASS**.
