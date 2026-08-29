@@ -282,3 +282,19 @@ def test_rejects_lease_for_different_worktree(tmp_path: Path) -> None:
             wrong.lease_id, session_id="session-1", task_id="task-1", actual_head="a" * 40,
         )
     assert target.read_text(encoding="utf-8") == "OLD\n"
+
+def test_rejects_non_repo_relative_or_non_posix_change_paths() -> None:
+    for bad in ("../escape.py", "/absolute.py", "C:/absolute.py", r"src\a_conductor\demo.py", "."):
+        with pytest.raises(ValueError, match="path is invalid"):
+            AgentFileChange(bad, "X\n")
+
+
+def test_rejects_read_only_lease_for_materialization(tmp_path: Path) -> None:
+    readonly = replace(
+        lease(tmp_path), mutation_intent=LeaseMutationIntent.READ_ONLY, mutable_scope=()
+    )
+    with pytest.raises(AgentChangeError, match="LEASE_NOT_MUTATING"):
+        applier(tmp_path, readonly).apply(
+            packet(AgentFileChange("src/a_conductor/demo.py", "X\n")),
+            readonly.lease_id, session_id="session-1", task_id="task-1", actual_head="a" * 40,
+        )

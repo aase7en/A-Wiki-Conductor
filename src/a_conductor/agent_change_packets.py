@@ -43,9 +43,11 @@ def _text(value: str, field: str, *, max_length: int) -> str:
 
 
 def _path(value: str) -> str:
-    raw = _text(value, "path", max_length=1024).replace("\\", "/")
+    raw = _text(value, "path", max_length=1024)
+    if "\\" in raw or re.match(r"^[A-Za-z]:", raw):
+        raise ValueError("path is invalid")
     pure = PurePosixPath(raw)
-    if pure.is_absolute() or ".." in pure.parts or raw.startswith("./"):
+    if pure.is_absolute() or ".." in pure.parts or raw.startswith("./") or pure.as_posix() == ".":
         raise ValueError("path is invalid")
     return pure.as_posix()
 
