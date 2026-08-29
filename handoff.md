@@ -1,53 +1,38 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-28 — WO-P1-102 / AHA-4A worker lease broker
+Last updated: 2026-08-29 — WO-P1-102 / AHA-4A worker lease broker
 
 ## Current Objective
 
-Implement atomic worker leasing + deterministic eligibility/fallback without creating a second scheduler, task store, lifecycle, dispatch system, retry loop, or A-Wiki claim system.
+Close AHA-4A with atomic, retry-safe worker leasing and fail-closed mutation scope. No AHA-4B stale reclaim, second scheduler/store/lifecycle, or A-Wiki claim duplication.
 
 ## Repository State
 
-- Repository: `aase7en/A-Wiki-Conductor`
-- Worktree: `A:\\GitHub\\A-Wiki-Conductor-aha4a-lease`
+- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`
 - Branch: `feat/wo-p1-102-aha4a-worker-lease-broker`
-- Base/current main at claim: `08369ade59206cbe2bc80a314d49d3daa50038b7`
-- Work order: `docs/work-orders/WO-P1-102-aha4a-worker-lease-broker.md`
+- Reconciled `origin/main`: `bca98022aa2035e3851360eff12061151a01392d`
+- PR #131 is Draft; branch requires one final fix/checkpoint push.
 - Shared root remains protected/read-only.
 
-## Accepted Baseline
+## Latest defects repaired
 
-- GE-6 deterministic scheduler merged `023c7b6`.
-- durable graph dispatch merged `5cc417c9`.
-- durable Claude backend merged `0e9b93a`.
-- supervised Claude runner merged `e933a53`.
-- durable↔supervised production assembly PR #130 exact head `d389082` passed CI `33183355995` and merged `08369ade`.
+1. `allowed_scope` was stored but not enforced. Mutation scope is now fail-closed: literal paths may be covered by an allowed glob; wider/unproven mutable globs are rejected.
+2. Same `session_id/task_id` retry after uncertain delivery could select a second worker. Active owner/task is now unique and retry attaches the existing lease; request-contract drift fails closed.
+3. Required capability drift is persisted/checked so retry cannot silently weaken or change the task contract.
+4. Resume verification found a race outcome-classification defect: an attach-to-existing result could be mislabeled `LEASED`. `LeaseOutcomeKind.EXISTING` now distinguishes idempotent/race attachment from a newly created lease.
 
-## Architecture Boundary
+## Evidence
 
-Classification: **EXTEND + WRAP**. Reuse `ControlPlaneRegistry`, GE-6 worker facts, `windows_worktree_key`, GE overlap semantics and existing durable execution authority. A-Wiki work-order claims remain governance; this slice owns runtime capacity leasing only.
-
-## Protected Parallel Work
-
-- connector/release stability lanes;
-- installer PR #108 lineage;
-- North Star branch;
-- provider DB/gateway/live credentials;
-- A-Wiki repository.
+- focused worker lease: **35 passed**;
+- registry/persistence/graph/job/lease regression: **216 passed**;
+- focused race repeat: **10/10 PASS**;
+- compileall + diff-check: PASS;
+- concurrency cases include competing tasks, overlapping mutable scopes, same-owner convergence, and explicit `EXISTING` classification.
 
 ## Next Safe Action
 
-Stage only `worker_lease.py`, `test_worker_lease.py` and WO-P1-102 SSoT files; commit/push, open Draft PR, audit exact remote diff, then require exact-head 3-OS CI before merge.
+Update WO checkpoint, inspect bounded diff/scope/secret gates, commit/push the preserved dirty checkpoint, merge latest accepted `origin/main`, rerun regression, update PR #131, run independent read-only review, then require exact-head Windows/Ubuntu/macOS CI before merge.
 
 ## Safety
 
-`SAFE_TO_MUTATE = YES` only inside this isolated worktree and WO-P1-102 allowed scope after claim commit/push.
-
-## Implementation checkpoint
-
-- atomic SQLite worker lease + active mutable-scope collision gate implemented;
-- deterministic ordered fallback + typed preflight implemented;
-- exact-owner idempotent release; expired metadata is not reclaimed in this phase;
-- explicit read-only RDC fallback; mutation never falls to RDC;
-- focused **29 passed**, race repeat **10/10**, related regression **140 passed**;
-- compileall/diff/forbidden-import/secret checks PASS.
+`SAFE_TO_MUTATE = YES` only inside this isolated worktree and WO-P1-102 scope.

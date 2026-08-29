@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -39,7 +39,7 @@ def request(*, ordered=("a-worker-01",), mutation=True, rdc=False, session="sess
         required_runtime_id="runtime-1", worktree=r"A:\Repo", branch="feat/test",
         expected_head="a" * 40,
         mutation_intent=(LeaseMutationIntent.MUTATION if mutation else LeaseMutationIntent.READ_ONLY),
-        allowed_scope=("src/a.py",), forbidden_scope=("secrets/**",),
+        allowed_scope=(tuple(mutable_scope) if mutation else ("src/a.py",)), forbidden_scope=("secrets/**",),
         mutable_scope=(tuple(mutable_scope) if mutation else ()), rdc_fallback_eligible=rdc,
     )
 
@@ -56,12 +56,16 @@ def test_two_independent_stores_racing_one_worker_produce_one_winner(tmp_path: P
     second = SQLiteWorkerLeaseStore(database)
     barrier = Barrier(2)
 
-    def acquire(store, lease_id):
+    def acquire(store, req, lease_id):
         barrier.wait()
-        return store.try_acquire(request(), candidate("a-worker-01"), lease_id=lease_id, acquired_at=NOW)
+        return store.try_acquire(req, candidate("a-worker-01"), lease_id=lease_id, acquired_at=NOW)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(lambda pair: acquire(*pair), ((first, "lease-1"), (second, "lease-2"))))
+        results = list(pool.map(
+            lambda args: acquire(*args),
+            ((first, request(session="s1", task="t1"), "lease-1"),
+             (second, request(session="s2", task="t2"), "lease-2")),
+        ))
 
     winners = [item for item in results if item is not None]
     assert len(winners) == 1
@@ -196,9 +200,16 @@ def test_expiry_metadata_never_causes_aha4a_to_reclaim_active_lease(tmp_path: Pa
     service, store = broker(tmp_path)
     req = request()
     store.try_acquire(req, candidate("a-worker-01"), lease_id="lease-old", acquired_at=NOW, expires_at="2026-08-28T15:00:00Z")
-    outcome = service.acquire(req, (candidate("a-worker-01"),))
-    assert outcome.kind is LeaseOutcomeKind.WAIT
-    assert outcome.rejections[0].kind is CandidateRejectionKind.LEASE_BUSY
+    owner_retry = service.acquire(req, (candidate("a-worker-01"),))
+    assert owner_retry.kind is LeaseOutcomeKind.EXISTING
+    assert owner_retry.lease is not None and owner_retry.lease.lease_id == "lease-old"
+
+    other = service.acquire(
+        request(session="other", task="other"),
+        (candidate("a-worker-01"),),
+    )
+    assert other.kind is LeaseOutcomeKind.WAIT
+    assert other.rejections[0].kind is CandidateRejectionKind.LEASE_BUSY
     assert store.list_active()[0].lease_id == "lease-old"
 
 
@@ -301,3 +312,107 @@ def test_windows_worktree_identity_is_case_and_separator_insensitive(tmp_path: P
     service, _ = broker(tmp_path)
     outcome = service.acquire(request(), (candidate("a-worker-01", worktree="a:/repo/."),))
     assert outcome.kind is LeaseOutcomeKind.LEASED
+
+
+def test_mutation_scope_cannot_escape_allowed_scope() -> None:
+    with pytest.raises(ValueError, match="mutable_scope escapes allowed_scope"):
+        WorkerLeaseRequest(
+            session_id="session-1", task_id="task-1", project_id="project-1",
+            ordered_worker_ids=("a-worker-01",), required_capabilities=("shell",),
+            required_runtime_id="runtime-1", worktree=r"A:\Repo", branch="feat/test",
+            expected_head="a" * 40, mutation_intent=LeaseMutationIntent.MUTATION,
+            allowed_scope=("src/a.py",), forbidden_scope=("secrets/**",),
+            mutable_scope=("src/**",),
+        )
+
+
+def test_literal_mutation_path_can_be_covered_by_allowed_glob() -> None:
+    req = request(mutable_scope=("src/a.py",))
+    widened = WorkerLeaseRequest(
+        session_id=req.session_id, task_id=req.task_id, project_id=req.project_id,
+        ordered_worker_ids=req.ordered_worker_ids, required_capabilities=req.required_capabilities,
+        required_runtime_id=req.required_runtime_id, worktree=req.worktree, branch=req.branch,
+        expected_head=req.expected_head, mutation_intent=req.mutation_intent,
+        allowed_scope=("src/**",), forbidden_scope=req.forbidden_scope,
+        mutable_scope=req.mutable_scope,
+    )
+    assert widened.mutable_scope == ("src/a.py",)
+
+
+def test_retry_same_owner_task_reuses_existing_lease_without_fallback(tmp_path: Path) -> None:
+    service, store = broker(tmp_path, ids=iter(("lease-1", "lease-2")))
+    req = request(ordered=("a-worker-01", "a-worker-02"))
+    first = service.acquire(req, (candidate("a-worker-01"), candidate("a-worker-02")))
+    assert first.lease is not None and first.lease.worker_id == "a-worker-01"
+
+    retried = service.acquire(
+        req,
+        (candidate("a-worker-01", active_task=True), candidate("a-worker-02")),
+    )
+
+    assert retried.kind is LeaseOutcomeKind.EXISTING
+    assert retried.lease is not None and retried.lease.lease_id == first.lease.lease_id
+    assert retried.lease.worker_id == "a-worker-01"
+    assert len(store.list_active()) == 1
+
+
+def test_same_owner_task_with_drifted_contract_fails_closed(tmp_path: Path) -> None:
+    service, store = broker(tmp_path, ids=iter(("lease-1", "lease-2")))
+    original = request(ordered=("a-worker-01", "a-worker-02"))
+    assert service.acquire(original, (candidate("a-worker-01"), candidate("a-worker-02"))).lease
+    drifted = WorkerLeaseRequest(
+        session_id=original.session_id, task_id=original.task_id, project_id=original.project_id,
+        ordered_worker_ids=original.ordered_worker_ids, required_capabilities=original.required_capabilities,
+        required_runtime_id=original.required_runtime_id, worktree=original.worktree, branch="feat/drifted",
+        expected_head=original.expected_head, mutation_intent=original.mutation_intent,
+        allowed_scope=original.allowed_scope, forbidden_scope=original.forbidden_scope,
+        mutable_scope=original.mutable_scope,
+    )
+    with pytest.raises(WorkerLeaseError, match="LEASE_REQUEST_CONFLICT"):
+        service.acquire(drifted, (candidate("a-worker-01"), candidate("a-worker-02", branch="feat/drifted")))
+    assert len(store.list_active()) == 1
+
+
+def test_concurrent_same_owner_task_converges_on_one_lease(tmp_path: Path) -> None:
+    database = tmp_path / "leases.sqlite"
+    first = WorkerLeaseBroker(
+        store=SQLiteWorkerLeaseStore(database), lease_id_factory=lambda: "lease-1", clock=lambda: NOW
+    )
+    second = WorkerLeaseBroker(
+        store=SQLiteWorkerLeaseStore(database), lease_id_factory=lambda: "lease-2", clock=lambda: NOW
+    )
+    req = request(ordered=("a-worker-01", "a-worker-02"))
+    candidates = (candidate("a-worker-01"), candidate("a-worker-02"))
+    barrier = Barrier(2)
+
+    def run(service):
+        barrier.wait()
+        return service.acquire(req, candidates)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        left = pool.submit(run, first)
+        right = pool.submit(run, second)
+        outcomes = (left.result(), right.result())
+
+    assert sorted(item.kind.value for item in outcomes) == ["EXISTING", "LEASED"]
+    assert outcomes[0].lease is not None and outcomes[1].lease is not None
+    assert outcomes[0].lease.lease_id == outcomes[1].lease.lease_id
+    assert len(SQLiteWorkerLeaseStore(database).list_active()) == 1
+
+
+def test_same_owner_task_with_capability_contract_drift_fails_closed(tmp_path: Path) -> None:
+    service, store = broker(tmp_path, ids=iter(("lease-1",)))
+    original = request()
+    assert service.acquire(original, (candidate("a-worker-01"),)).lease
+    drifted = WorkerLeaseRequest(
+        session_id=original.session_id, task_id=original.task_id, project_id=original.project_id,
+        ordered_worker_ids=original.ordered_worker_ids,
+        required_capabilities=("shell", "new-capability"),
+        required_runtime_id=original.required_runtime_id, worktree=original.worktree,
+        branch=original.branch, expected_head=original.expected_head,
+        mutation_intent=original.mutation_intent, allowed_scope=original.allowed_scope,
+        forbidden_scope=original.forbidden_scope, mutable_scope=original.mutable_scope,
+    )
+    with pytest.raises(WorkerLeaseError, match="LEASE_REQUEST_CONFLICT"):
+        service.acquire(drifted, (candidate("a-worker-01"),))
+    assert len(store.list_active()) == 1

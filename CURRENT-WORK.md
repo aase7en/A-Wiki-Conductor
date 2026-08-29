@@ -1,33 +1,30 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-28 (GPT-5.6 Sol — PR #130 merged / AHA-4A worker lease broker ACTIVE)
+Last updated: 2026-08-29 (GPT-5.6 Sol — AHA-4A retry/scope hardening GREEN / PR #131 pending)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — WORKER LEASE + AUTOMATIC FALLBACK ACTIVE.**
-
-User outcome: give A-Sunday Conductor one goal; Conductor selects safe eligible execution capacity without hard-coding or stealing busy workers.
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — WORKER LEASE + AUTOMATIC FALLBACK REVIEW GATE.**
 
 Current exact lane:
-- repository: `aase7en/A-Wiki-Conductor`;
-- worktree: `A:\\GitHub\\A-Wiki-Conductor-aha4a-lease`;
+- worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`;
 - branch: `feat/wo-p1-102-aha4a-worker-lease-broker`;
-- exact base/current `origin/main`: `08369ade59206cbe2bc80a314d49d3daa50038b7`;
-- PR #130 exact head `d3890820174c6a3a59331a30cd97ba1b9d42fe3e` passed exact-head 3-OS CI run `33183355995` and merged as `08369ade59206cbe2bc80a314d49d3daa50038b7`.
-
-Protected parallel work remains connector/release/North-Star lanes. Shared `A:\\GitHub\\A-Wiki-Conductor` remains protected/read-only.
+- reconciled `origin/main`: `bca98022aa2035e3851360eff12061151a01392d`;
+- Draft PR: #131.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-102-aha4a-worker-lease-broker.md` — atomic worker lease + deterministic eligibility/fallback.
+`docs/work-orders/WO-P1-102-aha4a-worker-lease-broker.md`.
 
 ## Immediate execution frontier
 
-1. AHA-4A core implementation is local GREEN: atomic active-worker + mutable-scope leasing, ordered fallback, typed fail-closed preflight, exact-owner release, read-only RDC fallback;
-2. focused **29 passed**; race repeat **10/10 PASS**; relevant registry/persistence/graph/job regression **140 passed**;
-3. compileall/diff/forbidden-import/secret scans PASS;
-4. next = stage exact allowed scope -> commit/push Draft PR -> remote diff audit -> exact-head 3-OS CI -> merge;
-5. AHA-4B heartbeat/expiry/quarantine remains a separate future work order; no auto-reclaim exists in AHA-4A.
+1. AHA-4A core is local GREEN: atomic worker/scope leasing, ordered fallback, typed preflight, exact-owner release, RDC read-only fallback;
+2. independent review found and fixed two P0/P1 correctness gaps: mutation scope could escape `allowed_scope`; same session/task retry could create a second lease after uncertain transport;
+3. retries now attach the same active owner/task lease, contract drift fails `LEASE_REQUEST_CONFLICT`, and concurrent same-owner requests converge on one lease;
+4. resumed verification found a P1 outcome-classification bug: the race loser could attach the existing lease but still report `LEASED`; `EXISTING` is now explicit for pre-existing/race-attached leases;
+5. final local evidence: focused **35 passed**, relevant regression **216 passed**, race repeat **10/10 PASS**, compileall/diff-check PASS; final exact-head CI remains required;
+6. next = checkpoint/commit/push -> merge latest accepted main -> remote PR #131 diff audit -> independent read-only review + GPT re-review -> exact-head 3-OS CI -> merge;
+7. AHA-4B heartbeat/expiry/quarantine remains a separate work order; no stale lease is reclaimed here.
 
 ## Source-of-truth rule
 

@@ -2,11 +2,11 @@
 
 Date: 2026-08-28
 Owner: GPT-5.6 Sol integrator
-Status: REVIEW_READY — LOCAL GREEN / PR PENDING
+Status: REVIEW_READY — RETRY/SCOPE HARDENING GREEN / PR #131
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`
 Branch: `feat/wo-p1-102-aha4a-worker-lease-broker`
-Base: `origin/main@08369ade59206cbe2bc80a314d49d3daa50038b7`
+Base/reconciled main: `origin/main@bca98022aa2035e3851360eff12061151a01392d`
 Parent: Sunday Family Harness Accelerator / AHA-4A
 
 ## Goal
@@ -89,4 +89,12 @@ TDD/evidence:
 - `git diff --check`: PASS;
 - forbidden-import + bounded real-secret-prefix scan: PASS.
 
-Next gate: stage only WO-P1-102 allowed files -> commit/push -> Draft PR -> exact remote diff audit -> exact-head Windows/Ubuntu/macOS CI -> merge only if green.
+Deep-review checkpoint — 2026-08-29:
+- RED found `allowed_scope` was not an authority: wider mutable scope could escape the task contract. Fixed with conservative fail-closed scope authorization; literal paths may be covered by an allowed glob, while unproven wider globs are rejected.
+- RED found uncertain-delivery retry could allocate a second worker for the same `session_id/task_id`. Added atomic active owner/task uniqueness, idempotent attach, and `LEASE_REQUEST_CONFLICT` on contract drift.
+- required capabilities are persisted and checked on retry; concurrent same-owner requests converge on one lease.
+- post-reconcile focused **35 passed**; relevant registry/persistence/graph/job/lease regression **145 passed**; compileall/diff-check PASS.
+- resume RED found outcome classification was incomplete: a concurrent same-owner loser could atomically attach the existing lease but broker still labeled both outcomes `LEASED`. Added explicit `EXISTING`; focused **35 passed**, broad registry/persistence/graph/job/lease regression **216 passed**, race repeat **10/10 PASS**, compileall/diff-check PASS.
+- these review-discovered defects remain recorded here because `DEFECT_LESSONS.md` policy is for user-reported defects.
+
+Next gate: commit/push the bounded preserved follow-up -> merge latest accepted `origin/main` without rebasing away history -> rerun gates -> update/audit PR #131 exact remote diff -> independent read-only review -> exact-head Windows/Ubuntu/macOS CI -> merge only if green.

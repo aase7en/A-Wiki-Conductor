@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Callable, Iterator, Sequence
 
@@ -38,6 +39,7 @@ class LeaseMutationIntent(str, Enum):
 
 class LeaseOutcomeKind(str, Enum):
     LEASED = "LEASED"
+    EXISTING = "EXISTING"
     RDC_READ_ONLY = "RDC_READ_ONLY"
     WAIT = "WAIT"
 
@@ -90,6 +92,18 @@ def _scope(values: Sequence[str], field_name: str) -> tuple[str, ...]:
     if len(set(result)) != len(result):
         raise ValueError(f"{field_name} must not contain duplicates")
     return result
+
+
+def _mutable_scope_is_authorized(allowed: tuple[str, ...], mutable: tuple[str, ...]) -> bool:
+    """Fail closed unless every mutation expression is provably within allowed scope."""
+    for expression in mutable:
+        if expression in allowed:
+            continue
+        if any(ch in expression for ch in "*?["):
+            return False
+        if not any(fnmatchcase(expression, pattern) for pattern in allowed):
+            return False
+    return True
 
 
 def _timestamp(value: object, field_name: str) -> str:
@@ -188,6 +202,8 @@ class WorkerLeaseRequest:
             raise ValueError("read-only lease cannot request mutable_scope")
         if self.mutation_intent is LeaseMutationIntent.MUTATION and not mutable:
             raise ValueError("mutation lease requires mutable_scope")
+        if self.mutation_intent is LeaseMutationIntent.MUTATION and not _mutable_scope_is_authorized(allowed, mutable):
+            raise ValueError("mutable_scope escapes allowed_scope")
         if mutable and forbidden and write_sets_overlap(mutable, forbidden):
             raise ValueError("mutable_scope overlaps forbidden_scope")
 
@@ -203,6 +219,7 @@ class WorkerLease:
     worktree_key: str
     branch: str
     expected_head: str
+    required_capabilities: tuple[str, ...]
     allowed_scope: tuple[str, ...]
     forbidden_scope: tuple[str, ...]
     mutable_scope: tuple[str, ...]
@@ -250,11 +267,35 @@ def _lease_from_row(row: sqlite3.Row) -> WorkerLease:
         lease_id=row["lease_id"], worker_id=row["worker_id"],
         session_id=row["session_id"], task_id=row["task_id"], project_id=row["project_id"],
         runtime_id=row["runtime_id"], worktree_key=row["worktree_key"], branch=row["branch"],
-        expected_head=row["expected_head"], allowed_scope=_decode_scope(row["allowed_scope_json"]),
+        expected_head=row["expected_head"],
+        required_capabilities=_decode_scope(row["required_capabilities_json"]),
+        allowed_scope=_decode_scope(row["allowed_scope_json"]),
         forbidden_scope=_decode_scope(row["forbidden_scope_json"]),
         mutable_scope=_decode_scope(row["mutable_scope_json"]), mutation_intent=intent,
         acquired_at=row["acquired_at"], expires_at=row["expires_at"], released_at=row["released_at"],
     )
+
+
+def _request_matches_lease(request: WorkerLeaseRequest, lease: WorkerLease) -> bool:
+    return (
+        lease.worker_id in request.ordered_worker_ids
+        and lease.project_id == request.project_id
+        and lease.worktree_key == windows_worktree_key(request.worktree)
+        and lease.branch == request.branch
+        and lease.expected_head.casefold() == request.expected_head.casefold()
+        and lease.mutation_intent is request.mutation_intent
+        and frozenset(lease.required_capabilities) == frozenset(request.required_capabilities)
+        and frozenset(lease.allowed_scope) == frozenset(request.allowed_scope)
+        and frozenset(lease.forbidden_scope) == frozenset(request.forbidden_scope)
+        and frozenset(lease.mutable_scope) == frozenset(request.mutable_scope)
+        and (request.required_runtime_id is None or lease.runtime_id == request.required_runtime_id)
+    )
+
+
+def _require_matching_request(request: WorkerLeaseRequest, lease: WorkerLease) -> WorkerLease:
+    if not _request_matches_lease(request, lease):
+        raise WorkerLeaseError("LEASE_REQUEST_CONFLICT")
+    return lease
 
 
 class SQLiteWorkerLeaseStore:
@@ -289,6 +330,7 @@ class SQLiteWorkerLeaseStore:
                     worktree_key TEXT NOT NULL,
                     branch TEXT NOT NULL,
                     expected_head TEXT NOT NULL,
+                    required_capabilities_json TEXT NOT NULL,
                     allowed_scope_json TEXT NOT NULL,
                     forbidden_scope_json TEXT NOT NULL,
                     mutable_scope_json TEXT NOT NULL,
@@ -299,9 +341,25 @@ class SQLiteWorkerLeaseStore:
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS ux_worker_leases_active_worker
                     ON worker_leases(worker_id) WHERE released_at IS NULL;
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_worker_leases_active_owner_task
+                    ON worker_leases(session_id, task_id) WHERE released_at IS NULL;
                 """
             )
             connection.commit()
+
+    def find_active_owner_task(self, session_id: str, task_id: str) -> WorkerLease | None:
+        session_id = _text(session_id, "session_id", max_length=128)
+        task_id = _text(task_id, "task_id", max_length=256)
+        with self._connect() as connection:
+            try:
+                row = connection.execute(
+                    "SELECT * FROM worker_leases WHERE session_id = ? AND task_id = ? "
+                    "AND released_at IS NULL",
+                    (session_id, task_id),
+                ).fetchone()
+            except sqlite3.Error as exc:
+                raise WorkerLeaseError("LEASE_STORE_READ_FAILED") from exc
+        return None if row is None else _lease_from_row(row)
 
     def try_acquire(
         self,
@@ -320,13 +378,23 @@ class SQLiteWorkerLeaseStore:
             session_id=request.session_id, task_id=request.task_id,
             project_id=request.project_id, runtime_id=candidate.runtime_id,
             worktree_key=windows_worktree_key(request.worktree), branch=request.branch,
-            expected_head=request.expected_head, allowed_scope=request.allowed_scope,
+            expected_head=request.expected_head,
+            required_capabilities=request.required_capabilities, allowed_scope=request.allowed_scope,
             forbidden_scope=request.forbidden_scope, mutable_scope=request.mutable_scope,
             mutation_intent=request.mutation_intent, acquired_at=acquired, expires_at=expiry,
         )
         with self._connect() as connection:
             try:
                 connection.execute("BEGIN IMMEDIATE")
+                active_owner = connection.execute(
+                    "SELECT * FROM worker_leases WHERE session_id = ? AND task_id = ? "
+                    "AND released_at IS NULL",
+                    (lease.session_id, lease.task_id),
+                ).fetchone()
+                if active_owner is not None:
+                    existing = _require_matching_request(request, _lease_from_row(active_owner))
+                    connection.rollback()
+                    return existing
                 active_worker = connection.execute(
                     "SELECT lease_id FROM worker_leases WHERE worker_id = ? AND released_at IS NULL",
                     (lease.worker_id,),
@@ -347,13 +415,14 @@ class SQLiteWorkerLeaseStore:
                 connection.execute(
                     "INSERT INTO worker_leases(lease_id, worker_id, session_id, task_id, "
                     "project_id, runtime_id, worktree_key, branch, expected_head, "
-                    "allowed_scope_json, forbidden_scope_json, mutable_scope_json, "
+                    "required_capabilities_json, allowed_scope_json, forbidden_scope_json, mutable_scope_json, "
                     "mutation_intent, acquired_at, expires_at, released_at) "
-                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
                     (
                         lease.lease_id, lease.worker_id, lease.session_id, lease.task_id,
                         lease.project_id, lease.runtime_id, lease.worktree_key, lease.branch,
-                        lease.expected_head, json.dumps(lease.allowed_scope),
+                        lease.expected_head, json.dumps(lease.required_capabilities),
+                        json.dumps(lease.allowed_scope),
                         json.dumps(lease.forbidden_scope), json.dumps(lease.mutable_scope),
                         lease.mutation_intent.value, lease.acquired_at, lease.expires_at,
                     ),
@@ -479,8 +548,10 @@ class WorkerLeaseBroker:
         lease_id_factory: Callable[[], str],
         clock: Callable[[], object],
     ) -> None:
-        if not callable(getattr(store, "try_acquire", None)):
-            raise ValueError("store must provide try_acquire")
+        if not callable(getattr(store, "try_acquire", None)) or not callable(
+            getattr(store, "find_active_owner_task", None)
+        ):
+            raise ValueError("store must provide try_acquire and find_active_owner_task")
         if not callable(lease_id_factory):
             raise ValueError("lease_id_factory must be callable")
         if not callable(clock):
@@ -496,6 +567,11 @@ class WorkerLeaseBroker:
     ) -> WorkerLeaseOutcome:
         if not isinstance(request, WorkerLeaseRequest):
             raise ValueError("request must be WorkerLeaseRequest")
+        existing = self._store.find_active_owner_task(request.session_id, request.task_id)
+        if existing is not None:
+            return WorkerLeaseOutcome(
+                LeaseOutcomeKind.EXISTING, _require_matching_request(request, existing), ()
+            )
         if isinstance(candidates, (str, bytes)):
             raise ValueError("candidates must be a sequence")
         by_worker: dict[str, WorkerLeaseCandidate] = {}
@@ -517,10 +593,11 @@ class WorkerLeaseBroker:
                 rejections.append(CandidateRejection(worker_id, reason))
                 continue
             try:
+                proposed_lease_id = _text(self._lease_id_factory(), "lease_id", max_length=128)
                 lease = self._store.try_acquire(
                     request,
                     item,
-                    lease_id=_text(self._lease_id_factory(), "lease_id", max_length=128),
+                    lease_id=proposed_lease_id,
                     acquired_at=self._clock(),
                 )
             except WorkerLeaseError as exc:
@@ -531,7 +608,12 @@ class WorkerLeaseBroker:
                 )
                 continue
             if lease is not None:
-                return WorkerLeaseOutcome(LeaseOutcomeKind.LEASED, lease, tuple(rejections))
+                kind = (
+                    LeaseOutcomeKind.LEASED
+                    if lease.lease_id == proposed_lease_id
+                    else LeaseOutcomeKind.EXISTING
+                )
+                return WorkerLeaseOutcome(kind, lease, tuple(rejections))
             rejections.append(CandidateRejection(worker_id, CandidateRejectionKind.LEASE_BUSY))
 
         if request.mutation_intent is LeaseMutationIntent.READ_ONLY and request.rdc_fallback_eligible:
