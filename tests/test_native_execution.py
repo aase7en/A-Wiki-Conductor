@@ -524,6 +524,27 @@ def test_native_runner_attempts_stale_sweep_before_new_temp_dir(
     assert calls == [Path(native_execution.tempfile.gettempdir())]
 
 
+def test_native_runner_creates_versioned_temp_directory_name(tmp_path: Path, monkeypatch) -> None:
+    runner = NativeSubprocessRunner(
+        scope_for(tmp_path.resolve(), allowed_executables=(python_name(),))
+    )
+    real_mkdtemp = native_execution.tempfile.mkdtemp
+    prefixes: list[str] = []
+
+    def capture_prefix(**kwargs):
+        prefixes.append(kwargs["prefix"])
+        return real_mkdtemp(**kwargs)
+
+    monkeypatch.setattr(native_execution.tempfile, "mkdtemp", capture_prefix)
+    result = runner.run(
+        NativeCommandSpec(argv=(sys.executable, "-c", "print('ok')"))
+    )
+
+    assert result.exit_code == 0
+    assert len(prefixes) == 1
+    assert prefixes[0].startswith("a-conductor-exec-v2-")
+
+
 def test_stale_execution_temp_sweep_caps_work_and_never_waits_for_locks(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -588,6 +609,19 @@ def test_native_runner_holds_owner_lock_during_subprocess(
 
     assert result.exit_code == 0
     assert observed == [False]
+
+
+def test_versioned_temp_name_preserves_age_after_directory_metadata_refresh(tmp_path: Path) -> None:
+    candidate = tmp_path / "a-conductor-exec-v2-1000-deadbeef"
+    candidate.mkdir()
+    os.utime(candidate, (100_000.0, 100_000.0))
+
+    removed = native_execution._sweep_stale_execution_temp_trees(
+        tmp_path, now=100_000.0, stale_after_seconds=10.0
+    )
+
+    assert removed == 1
+    assert not candidate.exists()
 
 
 def test_stale_execution_age_anchor_survives_mtime_refresh() -> None:

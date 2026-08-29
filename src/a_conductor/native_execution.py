@@ -54,6 +54,8 @@ def _remove_temp_tree_with_permission_retry(
 
 _TEMP_ORPHAN_STALE_AFTER_SECONDS = 86_400.0
 _TEMP_ORPHAN_SWEEP_LIMIT = 32
+_TEMP_DIR_PREFIX = "a-conductor-exec-"
+_TEMP_DIR_V2_PREFIX = f"{_TEMP_DIR_PREFIX}v2-"
 
 _TEMP_OWNER_LOCK_NAME = ".a-conductor-owner.lock"
 
@@ -139,6 +141,26 @@ def _execution_temp_age_anchor(stat_result) -> float:
     return min(float(stat_result.st_mtime), float(stat_result.st_ctime))
 
 
+def _versioned_execution_temp_prefix(*, now: float | None = None) -> str:
+    created_at = time.time() if now is None else float(now)
+    return f"{_TEMP_DIR_V2_PREFIX}{int(created_at)}-"
+
+
+def _execution_temp_stable_age_anchor(candidate: Path, stat_result) -> float:
+    name = Path(candidate).name
+    if name.startswith(_TEMP_DIR_V2_PREFIX):
+        encoded = name[len(_TEMP_DIR_V2_PREFIX) :].split("-", 1)[0]
+        try:
+            created_at = int(encoded)
+        except ValueError:
+            pass
+        else:
+            if created_at >= 0:
+                return float(created_at)
+
+    return _execution_temp_age_anchor(stat_result)
+
+
 def _sweep_stale_execution_temp_trees(
     temp_root: Path,
     *,
@@ -149,7 +171,7 @@ def _sweep_stale_execution_temp_trees(
     """Best-effort cleanup for stale private execution temp trees only."""
     current = time.time() if now is None else float(now)
     try:
-        candidates = tuple(sorted(Path(temp_root).glob("a-conductor-exec-*")))
+        candidates = tuple(sorted(Path(temp_root).glob(f"{_TEMP_DIR_PREFIX}*")))
     except OSError:
         return 0
     removed = 0
@@ -158,7 +180,7 @@ def _sweep_stale_execution_temp_trees(
         try:
             if candidate.is_symlink() or not candidate.is_dir():
                 continue
-            if current - _execution_temp_age_anchor(candidate.stat()) < stale_after_seconds:
+            if current - _execution_temp_stable_age_anchor(candidate, candidate.stat()) < stale_after_seconds:
                 continue
             if attempted >= max_candidates:
                 break
@@ -584,7 +606,7 @@ class NativeSubprocessRunner:
         exit_code: int | None = None
         _sweep_stale_execution_temp_trees(Path(tempfile.gettempdir()))
         try:
-            temp_dir = Path(tempfile.mkdtemp(prefix="a-conductor-exec-"))
+            temp_dir = Path(tempfile.mkdtemp(prefix=_versioned_execution_temp_prefix()))
         except OSError as exc:
             raise NativeExecutionError("COMMAND_EXECUTION_FAILED") from exc
         try:
