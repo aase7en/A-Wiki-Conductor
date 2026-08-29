@@ -1,6 +1,6 @@
 # WO-P1-093 — Windows Tk CI isolation
 
-Status: ACTIVE — TDD
+Status: COMPLETE / MERGED
 Owner: GPT-5.6 Sol via Remote Desktop Commander
 Branch: `fix/wo-p1-093-windows-tk-ci-isolation`
 Worktree: `A:\GitHub\A-Wiki-Conductor-ci-tk`
@@ -49,4 +49,9 @@ Add the workflow-structure regression first, capture RED, then make the smallest
 - `tests/test_build_installer.py`: **22 passed**.
 - `git diff --check`: PASS.
 
-Status: LOCAL_GREEN — push PR and require exact-head CI before merge.
+Status: COMPLETE / MERGED
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #118 merged into main as `ad1062827f1b177cde8af3f01e71da02ee0d2727`.

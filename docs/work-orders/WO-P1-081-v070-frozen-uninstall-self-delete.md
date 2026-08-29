@@ -1,6 +1,6 @@
 # WO-P1-081 — v0.7 frozen uninstaller self-delete repair
 
-Status: IN_PROGRESS
+Status: COMPLETE / MERGED
 Owner: GPT-5.6 Sol
 Parent: WO-P1-075 release closeout
 Repository: `aase7en/A-Wiki-Conductor`
@@ -58,7 +58,7 @@ v0.7.0 publication remains BLOCKED until this fix is merged and the release boun
 
 ## Checkpoint — implementation + real frozen acceptance (2026-08-27)
 
-Status: `LOCAL_VERIFIED / PRE_PR_REVIEW`.
+Status: COMPLETE / MERGED
 
 Evidence:
 - RED after isolated `--basetemp`: 5 failures because no self-delete-safe seam existed.
@@ -81,3 +81,8 @@ Remaining gate:
 5. post-CI final HEAD re-audit;
 6. merge/fetch exact main;
 7. rebuild/download exact merged artifact and repeat sandbox installed/uninstall acceptance before v0.7 publication.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #107 merged into main as `64bc628e233a6fb596a7dc6d188f7cdef35b3bbe`.

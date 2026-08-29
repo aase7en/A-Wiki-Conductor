@@ -1,6 +1,6 @@
 # WO-P1-094 — AHA-4 / GE-7 durable graph dispatch
 
-Status: REVIEW_READY — PR #119 / FINAL SHA PENDING
+Status: COMPLETE / MERGED
 Owner: GPT-5.6 Sol integrator
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha4`
@@ -96,3 +96,8 @@ Final local gate before PR:
 - forbidden duplicate/runtime scan in `graph/dispatch.py`: no sqlite/subprocess/dedup/operator-dispatch/scheduler-loop imports.
 
 Local acceptance is GREEN. Draft PR #119 is open. Remote audit of head `3b97cfa` found one additional identity defect: the same graph-run key could silently change its scheduled worker. A failing regression was added and the immutable dispatch metadata now pins `worker_id`; focused dispatch is 18/18 green. Old-head CI run `33158379414` had Ubuntu/macOS green and a Windows supervised-command timeout/attach failure outside this PR's changed files; the same supervised suite passes locally 5/5 repeated runs. Push the worker-pin fix to create the final candidate SHA, then require fresh exact-head 3-OS CI before merge.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #119 merged into main as `5cc417c92450eba796fa9af1cf3da037663b1eea`.

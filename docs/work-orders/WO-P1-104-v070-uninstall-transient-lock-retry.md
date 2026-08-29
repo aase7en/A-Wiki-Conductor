@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE — TDD / RELEASE BLOCKER
+Status: SOURCE COMPLETE / MERGED
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-v070-uninstall-retry`
 Branch: `fix/wo-p1-104-uninstall-transient-lock-retry`
@@ -62,3 +62,8 @@ TDD evidence for this repair:
 - bounded secret scan: 0 hits.
 
 Next: exact scope/overlap gate -> commit/push -> PR -> exact-head 3-OS CI -> merge -> exact-main artifact sandbox install/smoke/uninstall repetition. Publication stays blocked until target and temp uninstaller both disappear with live v0.6 state unchanged.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #132 merged into main as `c7aae70bfe0f24dddcd746f16e32f6c5f00b6a5f`.

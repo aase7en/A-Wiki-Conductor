@@ -2,7 +2,7 @@
 
 All notable changes to A-Sunday Conductor are documented here.
 
-## [0.7.0] — 2026-08-26
+## [0.7.0] — Unreleased
 
 ### Added
 - **Live AI Execution Slots** — the primary runtime table now separates CONNECTION, ACTIVE PROJECT, and BOUND PROJECT and marks `[DRIFT]` when Serena runtime activation no longer matches connector binding (PR #101).
@@ -14,8 +14,16 @@ All notable changes to A-Sunday Conductor are documented here.
 - **Masked tunnel pairing** — TUNNEL column shows last 4 chars (e.g. `...e3f1`) for instant ChatGPT-side matching (PR #90)
 - **Graph Engineering foundation** — TaskGraph/TaskNode/TaskEdge domain + acyclic builder + SQLite store (PRs #91-92, backend only)
 
+### Changed
+- **GitHub Actions runtime refresh** — CI/sign workflows use current Node-24-based actions/checkout@v7 and actions/setup-python@v7, removing hosted-runner Node 20 deprecation debt.
+
 ### Fixed
-- **Connector tunnel reliability floor** ? Setup now rejects/upgrades tunnel-client `<0.0.12`, the first upstream release that preserves shared stdio MCP sessions after non-initialize response deadlines; generated connector start scripts rotate prior runtime stdout/stderr and persist the real tunnel-client exit code instead of `code .` (WO-P1-097).
+- **Bounded connector auto-recovery + operator state** — unexpected STOPPED autostart connectors now reconcile through the production health loop with bounded backoff/DEGRADED semantics; MONITOR exposes recovery state, counters, last exit and next retry; successful recovery emits AUTO-RECOVER once (PRs #125, #133).
+- **Tunnel-client provenance** — setup requires upstream SHA256SUMS.txt before installing/upgrading tunnel-client and fails closed without a matching digest (PR #128).
+- **Installer destructive-boundary guards** — managed-target ownership, frozen self-delete handling, and bounded transient uninstall-lock retry protect custom/user paths and keep cleanup synchronous (PRs #107, #108, #132).
+- **Supervised timeout determinism** — caller deadlines now include slow inspection time while durable results remain authoritative, eliminating the recurring hosted-Windows timeout/recovery race (PR #134).
+
+- **Connector tunnel reliability floor** — Setup now rejects/upgrades tunnel-client `<0.0.12`, the first upstream release that preserves shared stdio MCP sessions after non-initialize response deadlines; generated connector start scripts rotate prior runtime stdout/stderr and persist the real tunnel-client exit code instead of `code .` (WO-P1-097).
 - **PROJECT DISK UI freeze blocker** — recursive folder-size work runs off the Tk thread with cooperative cancellation/stale-result guards and dedicated tests; Windows CI topology preserves GUI/process isolation (PR #99).
 - **Worker display names** — WORKERS/registry surfaces show the user's configured worker name rather than an internal auto ID (PR #100).
 - **Singleton dialogs** — Donate/Guide/Preferences/Add Worker/Brain Config/Edit Connector no longer stack duplicate windows; re-open lifts the existing one (WO-P1-069)

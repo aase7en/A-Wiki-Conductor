@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 Owner: GPT-5.6 Sol integrator
-Status: REVIEW_READY - LOCAL GREEN / PR PENDING
+Status: COMPLETE / MERGED
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-connector-recovery-ui`
 Branch: `fix/wo-p1-105-connector-recovery-visibility`
@@ -75,3 +75,8 @@ Evidence:
 - desktop UI: 48 passed, 1 local Tk-installation skip;
 - broader lifecycle/recovery/instance: 91 passed;
 - compileall + diff-check: PASS.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #133 merged into main as `599e0dcd68173aca857a14d77b5628cd2333e673`.

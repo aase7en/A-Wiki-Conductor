@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 Owner: GPT-5.6 Sol integrator
-Status: REVIEW_READY — CORE LOCAL GREEN / PR PENDING
+Status: COMPLETE / MERGED
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-connector-recovery`
 Branch: `fix/wo-p1-099-connector-auto-recovery`
@@ -88,3 +88,8 @@ Final staff review reproduced a semantic defect before merge: an explicit Stop w
 Repair separates explicit suppression from non-autostart stop classification. A suppressed stable STOPPED observation now returns the existing durable record without a write or exit-metadata mutation; non-autostart unexpected stops retain their prior classification behavior.
 
 Evidence: RED single regression `1 failed`; after repair single `1 passed`, focused recovery/control `19 passed`, broader recovery/config/control/local-instance/monitor `77 passed`; compileall, diff-check, and bounded secret scan PASS.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #125 merged into main as `8dddb6ffe9dbbc561a9d3b4fb11501cf0fb3f33c`.
