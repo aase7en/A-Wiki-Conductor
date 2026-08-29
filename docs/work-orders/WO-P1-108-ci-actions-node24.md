@@ -2,7 +2,7 @@
 
 Created: 2026-08-29
 Owner: GPT-5.6 Sol CI maintenance lane
-Status: MERGE_READY / EXACT-HEAD CI GREEN
+Status: COMPLETE / MERGED PR #141 / POST-MERGE MAIN CI GREEN
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-ci-actions-v7`
 Branch: `fix/wo-p1-108-ci-actions-node24`
@@ -57,3 +57,7 @@ Exact-head Windows CI exposed one stale contract assertion in `tests/test_build_
 - remote scope remains four files and review threads = 0.
 
 Next: docs-only checkpoint commit -> fresh exact-head CI -> expected-SHA merge -> accepted-main CI verification.
+
+## Merge closeout - 2026-08-29
+
+PR #141 merged as `d2190414dcd8b51868a2c8214616425f2cb9dea9`. Post-merge main CI run `33241804664` passed Windows, Ubuntu, and macOS. Active workflows now use `actions/checkout@v7`, `actions/setup-python@v7`, and `actions/upload-artifact@v7`; remaining older-major strings are historical documentation only.

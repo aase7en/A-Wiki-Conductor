@@ -2,7 +2,7 @@
 
 Created: 2026-08-29
 Owner: GPT-5.6 Sol Graph hardening lane
-Status: REVIEW_READY / PR PENDING
+Status: COMPLETE / MERGED PR #142 / POST-MERGE MAIN CI GREEN
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-ge11r1-readonly`
 Branch: `fix/wo-ge-011r1-graph-store-readonly`
@@ -66,3 +66,7 @@ Next: commit local checkpoint; after PR #140 merges, fetch/reconcile accepted ma
 Next: exact-scope commit/push, PR, exact-head 3-OS CI, remote re-audit, merge and accepted-main verification.
 
 Accepted-main prerequisite verified: CI run `33239717637` for PR #140 merge `392047a0` is SUCCESS.
+
+## Merge closeout - 2026-08-29
+
+PR #142 merged as `7acb10225e0fff15c6ca0e43b6227599852d3e84`. Post-merge main CI run `33241026175` passed Windows, Ubuntu, and macOS. `GraphStore.open_read_only()` is accepted with SQLite `mode=ro`, `query_only=ON`, no missing-database creation, supported read paths, and fail-closed mutations.
