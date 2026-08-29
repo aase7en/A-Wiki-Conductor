@@ -78,18 +78,43 @@ def _json_to_node(json_str: str) -> TaskNode:
     return TaskNode(**d)
 
 
+class GraphStoreReadOnlyError(RuntimeError):
+    def __init__(self, code: str = "GRAPH_STORE_READ_ONLY") -> None:
+        self.code = code
+        super().__init__(code)
+
+
 class GraphStore:
     """Durable persistence for TaskGraph instances in SQLite."""
 
-    def __init__(self, db_path: Path | str) -> None:
+    def __init__(self, db_path: Path | str, *, read_only: bool = False) -> None:
         self._db_path = Path(db_path)
+        self._read_only = bool(read_only)
+        if self._read_only:
+            return
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
+    @classmethod
+    def open_read_only(cls, db_path: Path | str) -> "GraphStore":
+        path = Path(db_path).expanduser().resolve(strict=False)
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        return cls(path, read_only=True)
+
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self._db_path))
+        if self._read_only:
+            path = self._db_path.expanduser().resolve(strict=False)
+            conn = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
+            conn.execute("PRAGMA query_only=ON")
+        else:
+            conn = sqlite3.connect(str(self._db_path))
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
+
+    def _require_writable(self) -> None:
+        if self._read_only:
+            raise GraphStoreReadOnlyError()
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
@@ -100,6 +125,7 @@ class GraphStore:
             )
 
     def save_graph(self, graph: TaskGraph, graph_id: str) -> None:
+        self._require_writable()
         with self._connect() as conn:
             conn.execute("DELETE FROM graph_nodes WHERE graph_id = ?", (graph_id,))
             conn.execute("DELETE FROM graph_edges WHERE graph_id = ?", (graph_id,))
@@ -142,6 +168,7 @@ class GraphStore:
         return [r[0] for r in rows]
 
     def delete_graph(self, graph_id: str) -> None:
+        self._require_writable()
         with self._connect() as conn:
             conn.execute("DELETE FROM graph_nodes WHERE graph_id = ?", (graph_id,))
             conn.execute("DELETE FROM graph_edges WHERE graph_id = ?", (graph_id,))
@@ -149,6 +176,7 @@ class GraphStore:
     def record_node_event(
         self, graph_id: str, node_id: str, event_type: str, payload: str = ""
     ) -> int:
+        self._require_writable()
         with self._connect() as conn:
             cursor = conn.execute(
                 "INSERT INTO node_events (graph_id, node_id, event_type, payload) "
