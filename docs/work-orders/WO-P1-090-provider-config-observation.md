@@ -1,6 +1,6 @@
 # WO-P1-090 — Secure Provider Configuration + Observation (AHA-2)
 
-Status: ACTIVE / TDD IMPLEMENTATION
+Status: COMPLETE / MERGED
 Owner: GPT-5.6 Sol via Remote Desktop Commander
 Parent: WO-P1-087 Sunday Family Agent Harness Accelerator
 Repository: `aase7en/A-Wiki-Conductor`
@@ -105,3 +105,8 @@ Verification:
 - exact changed-file set remains the eight files authorized by this work order.
 
 Next safe action: commit/push this bounded slice, open Draft PR, inspect remote diff, and require exact-head CI before merge. AHA-3 remains blocked until AHA-2 is merged.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #114 merged into main as `ca4cd986c9d3ad0b9af833350f067ff9056df653`.

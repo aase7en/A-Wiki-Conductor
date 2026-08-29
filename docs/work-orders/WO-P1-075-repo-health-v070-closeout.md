@@ -1,9 +1,9 @@
 # WO-P1-075 — Repo health 100 + v0.7.0 closeout
 
-Status: REVIEW
+Status: ACTIVE / REPO-HEALTH-100 + V0.7.0 RELEASE CLOSEOUT
 Owner: GPT-5.6 Sol
 Branch: `docs/repo-health-100`
-Base: `f9dff0b1ad169af376d102018eb859cdbea36777`
+Base: origin/main@bca98022aa2035e3851360eff12061151a01392d (PR #135 merged/reconciled)
 
 ## Objective
 
@@ -69,10 +69,38 @@ Merged P4/P5 worktrees/branches may be removed after ancestry + PR merge verific
 - [x] WO-P1-073 / WO-P1-074 closed with merge/CI evidence.
 - [x] CHANGELOG reflects v0.7.0 shipped UI/release work.
 - [x] `git diff --check` clean.
-- [ ] Remote PR diff audited.
-- [ ] Repo-health CI green on 3 OS.
-- [ ] Repo-health merged and exact main fetched.
-- [ ] Exact-main Windows artifact downloaded and hashes recorded.
-- [ ] Sandbox install/frozen acceptance green.
+- [x] Remote PR diff audited.
+- [x] Repo-health CI green on 3 OS.
+- [x] Repo-health merged and exact main fetched.
+- [x] Exact-main Windows artifact downloaded and hashes recorded.
+- [x] Sandbox install/frozen acceptance green.
 - [ ] GitHub Release v0.7.0 published and verified.
 - [ ] Obsolete branches/worktrees removed; active GLM branches preserved.
+## Repo-health restart checkpoint - 2026-08-29
+
+This work order is reused as the authority for the user-requested docs/repo-health-100 loop; do not create a competing closeout document.
+
+Verified at restart:
+- public GitHub Latest is v0.6.0 while source identifies 0.7.0; INSTALL.md previously called v0.7.0 the latest release and must be corrected until publication;
+- PRs #99-#134 include many accepted slices whose work-order Status lines still said ACTIVE, REVIEW_READY, or PR PENDING; repo-health reconciles only entries with verified merge evidence;
+- Draft PR #131 actively owns COLLAB.md, CURRENT-WORK.md, handoff.md, WO-P1-102, worker_lease.py and tests/test_worker_lease.py; those files are forbidden here until that owner releases them;
+- PR #135 native-timeout cleanup is merged as `bca98022`; this branch is reconciled on top of that accepted main;
+- live installed app remains v0.6.0 and the shared live tunnel-client remains 0.0.11; source-level resilience is not equivalent to operational rollout;
+- hosted CI emits Node 20 deprecation warnings for existing action majors. That is real CI dependency debt, but this SSoT refresh remains docs-only; repair it in a separate bounded CI work order after this reconciliation merges.
+
+Current non-overlap mutable scope:
+- this work order and verified stale historical work orders;
+- README.md, INSTALL.md, CHANGELOG.md truthfulness;
+- WO-P1-096 release-gate reconciliation.
+
+Deferred until ownership release: COLLAB.md, CURRENT-WORK.md, handoff.md and AHA-4A/AHA-4B coordination surfaces.
+
+## Pre-authorization release checkpoint — 2026-08-29
+
+Repo-health reconciliation is accepted through PR #144 merge `c37925850cb5f096844b4e38d3b9dbdbedde6cd6`; post-merge main CI `33244164739` passed Windows/Ubuntu/macOS. Frozen installer acceptance is now a permanent Windows CI gate via PR #145 merge `047326966ded5d2941d57411782f8a85b6d9121a`; post-merge main CI `33248070680` passed, including real frozen Setup install -> installed smoke -> direct-uninstall fail-closed -> registered uninstall -> zero managed residue.
+
+Exact-main Actions artifact `9713566612` was downloaded as a ZIP and hashed without local PE execution: ZIP `1d52ace01664487566096461833099c8dbe40f2fed4ab75c8a0d0d972a4a702a`, Portable `6728ce75349b6975c9f774868ff47adb1793264abe30e3d194c1c376aa0c1675`, Setup `1c4a1166d2af4509df184bc41f839a0fabd7fb0d45e6e2772f01346b93a89d4a`.
+
+Local installed v0.6.0 remains byte-identical to pre-test evidence: installed exe SHA-256 `7D324A7F34ED553E72CB50334868E0402C36C01CEFEA5DF99223FC903643C35C`, Start Menu shortcut `86DAF2EAB98442B29ED5B159B936F693900B83FF6A0D2DB62F8F5ADBCF115CDB`, Desktop shortcut absent before/after. Fresh unsigned CI PE extraction remains denied by local host AV, which was not disabled or bypassed; clean hosted-Windows E2E is the exact-main frozen acceptance surface.
+
+Publication is still blocked only by the operational tunnel-client soak and final release-truth/publish step. Do not publish v0.7.0 before WO-P1-096 is released.

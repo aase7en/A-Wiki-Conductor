@@ -2,7 +2,7 @@
 
 Created: 2026-08-26
 Owner: GPT-5.6 Sol MAX — single integrator design lane
-Status: DESIGN_ACCEPTED — implementation handoff pending ADR PR/CI/merge and GE-5 conflict fix
+Status: COMPLETE / MERGED
 Branch: `docs/ge-scheduler-dispatch-design`
 Base at design start: `be8a45d384b4679ff5c93230d06cbfc17a060b48`; reconciled to `4956760765caab60ae8efe1a48d6edf807cdecce` after GE-5 merged.
 Parent: `docs/work-orders/WO-GE-001-graph-engineering-kickoff.md`
@@ -172,7 +172,7 @@ Re-audit the final ADR PR head against current `origin/main`, require green CI, 
 
 ## Checkpoint — GE-6 implementation lane reconcile (2026-08-28, GLM 5.3 MAX)
 
-Status: RECONCILED_LOCAL_GREEN — awaiting PR #104 CI + review; no merge by worker.
+Status: COMPLETE / MERGED
 
 - Worktree `A:\GitHub\A-Wiki-Conductor-glm-ge6`, branch `feat/ge-6-scheduler`, clean before and after.
 - Implementation commit `43cd20f` (pure deterministic `schedule_once → SchedulePlan`, 176-line scheduler + 202-line tests) was already green in isolation: scheduler 14 passed, graph suite 74 passed pre-reconcile.
@@ -185,7 +185,7 @@ Next safe action: push `feat/ge-6-scheduler`, require the exact PR head Windows/
 
 ## Checkpoint — GE-6 review round 2 (2026-08-28, GLM 5.3 MAX)
 
-Status: FOUR_REVIEW_BLOCKERS_FIXED_LOCAL_GREEN — awaiting PR #104 CI + GPT re-audit; no merge by worker.
+Status: COMPLETE / MERGED
 
 Reconcile: merged `origin/main @ ab28dc7` (safe merge `09753c6`, no rebase/reset/force); the only conflict was `handoff.md` "Protected Parallel Work", resolved preserving both sides' continuity (main's AHA-3 narrative + GE-6 lane status line).
 
@@ -207,7 +207,7 @@ Remaining blockers: none known locally — PR #104 exact-head CI (Windows/Ubuntu
 
 ## Checkpoint — GE-6 final round (2026-08-28, GLM 5.3 MAX)
 
-Status: FINAL_TWO_ADR_BLOCKERS_FIXED_LOCAL_GREEN — awaiting exact-head CI + GPT re-audit; no merge by worker. Base for this round: `383ff1a` (GPT-verified: original 4 blockers fixed, independent 102-pass rerun, exact-head CI green on all three OS, single seam confirmed).
+Status: COMPLETE / MERGED
 
 TDD RED→GREEN (12 new failing tests first; all 24 prior scheduler tests stayed green):
 
@@ -220,3 +220,8 @@ Verification (worktree `A:\GitHub\A-Wiki-Conductor-glm-ge6`, base `383ff1a` + th
 - Changed files: `src/a_conductor/graph/scheduler.py`, `tests/test_graph_scheduler.py`, this WO checkpoint, handoff PR-#104 line. No AHA changes, no GE-7 dispatch, no new scheduler/parser/store; `write_sets_overlap` remains the sole conflict seam.
 
 Remaining blockers: none known locally — exact-head PR #104 CI and GPT-5.6 Sol re-audit remain the gates before merge.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution/checklist text above is preserved as evidence; stale status is superseded by accepted GitHub state.
+- PR #97 merged into main as `15d2b26d959965ff7b32347326e02bbab1f60a8a`.

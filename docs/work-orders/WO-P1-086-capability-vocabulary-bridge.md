@@ -1,6 +1,6 @@
 # WO-P1-086 — Capability vocabulary bridge C0
 
-Status: LOCAL_VERIFIED / DRAFT_PR_REVIEW
+Status: COMPLETE / MERGED
 Owner: GPT-5.6 Sol integrator
 Parent: `WO-P1-085` / Capability Fabric C0
 Repository: `aase7en/A-Wiki-Conductor`
@@ -57,3 +57,8 @@ Verified Conductor surfaces:
 - Commit: `572d3a2`; Draft PR: #110.
 
 Next safe action: independent review of PR #110; no C1/C2 production mutation until the mapping contract is accepted and current North Star/GE ownership is reconciled.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #110 merged into main as `6487cb2b796bbd4351cf8c65ce9c6e90de8d96f3`.

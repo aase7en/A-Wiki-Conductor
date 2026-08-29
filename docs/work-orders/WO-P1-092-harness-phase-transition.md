@@ -1,6 +1,6 @@
 # WO-P1-092 — Harness Phase Transition / AHA-3 Closeout
 
-Status: ACTIVE / DOCS-ONLY TRANSITION
+Status: COMPLETE / MERGED
 Owner: GPT-5.6 Sol via Remote Desktop Commander
 Parent: WO-P1-087 Sunday Family Agent Harness Accelerator
 Repository: `aase7en/A-Wiki-Conductor`
@@ -53,3 +53,8 @@ Forbidden:
 ## Stop condition
 
 Update durable status only, run diff/scope checks, push a small docs PR, and merge after CI. Do not start AHA-4 production mutation until GE-6 is accepted/merged and the GE-7 durable-dispatch seam is ready for implementation.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #117 merged into main as `8db32269f3b1e55a7a551a5a98f6c93b8a30158d`.

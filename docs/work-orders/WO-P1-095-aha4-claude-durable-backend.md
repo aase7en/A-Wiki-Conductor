@@ -1,6 +1,6 @@
 # WO-P1-095 — AHA-4 Claude Code durable backend bridge
 
-Status: REVIEW_READY — LOCAL GREEN / PR PENDING
+Status: COMPLETE / MERGED
 Owner: GPT-5.6 Sol integrator
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha4-bridge`
@@ -117,3 +117,8 @@ Verification after repair:
 - changed-file secret scan PASS.
 
 Roadmap reconciliation: `origin/main@7505bd3` adds accepted WO-P1-096 connector-runtime resilience as an independent P0 v0.7.0 release gate. It has no file overlap with WO-P1-095, so this AHA-4 bridge remains mergeable independently; release must still satisfy WO-P1-096 later.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #121 merged into main as `0e9b93a7c08cb7b284f2234af61ec6a96b16a2ea`.

@@ -315,3 +315,44 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Verify:** deterministic fault injection covers two transient locks then success, persistent budget exhaustion, unrelated OSError fail-fast, and temp-directory creation failure. Native and broader execution/supervisor/job suites remain green.
 
 ---
+
+---
+
+## #17: Requested graph run identity is not runtime evidence (2026-08-29)
+
+**Symptom:** GE-11 Graph MONITOR could label any operator-entered RUN ID as runtime evidence even when no durable job or event existed for that run.
+
+**Root cause:** `runtime_evidence` was derived from `graph_run_id is not None`, which proves only user input, not durable runtime provenance.
+
+**Fix:** keep requested run identity visible, but set runtime evidence only when a matching durable `GraphDispatchKey` job or durable job event is actually observed. Unknown run IDs remain `RUNTIME: NO RUN EVIDENCE` and project nodes stay fail-closed through GE-9 missing-job semantics.
+
+**Lesson:** an identifier supplied by an operator is selection context, not evidence that the identified runtime entity exists. UI labels such as LIVE/RUNNING/EVIDENCE require observed durable provenance.
+
+**Verify:** deterministic GE-11 tests cover planning-only mode, unknown explicit run -> no evidence, and matching durable job -> durable run evidence.
+
+---
+
+## #18: Persistent native temp cleanup failure accumulates app-owned residue (2026-08-29)
+
+**Symptom:** live audit found 17 `%TEMP%\a-conductor-exec-*` directories after persistent cleanup failures; 15 were older than 24 hours and several were 5-8 days old.
+
+**Root cause:** WO-P1-107 correctly made exhausted cleanup retries explicit as `COMMAND_CLEANUP_FAILED`, but there was no later owner-bounded retry path. A naive age-only sweep also risks deleting a legitimately long-running execution, and failed partial deletion can refresh directory mtime so an old orphan appears recent.
+
+**Fix:** each new execution temp tree holds an OS lock marker for its active lifetime. New trees also use a versioned basename `a-conductor-exec-v2-<created-epoch>-...`, so their creation age survives directory mtime/ctime refresh after partial cleanup. Before a new run, a best-effort sweep inspects only exact `a-conductor-exec-*` directories, skips symlinks and active locks, uses the encoded creation epoch for v2 trees (legacy pre-v2 residue falls back to the older mtime/ctime), and attempts at most 32 single-shot deletions. Primary command cleanup keeps its existing PermissionError retry budget.
+
+**Lesson:** deferred hygiene needs both durable ownership evidence and stable provenance. Age is a filter, not proof of inactivity; active work needs an exclusion signal, and cleanup attempts must not rewrite the age authority used by the next sweep. Background-style cleanup must remain bounded so residue cannot turn into startup latency or alter command semantics.
+
+**Verify:** deterministic tests cover stale/recent/unrelated/symlink boundaries, fail-soft locks, active owner locks, bounded no-wait sweep, runner-held lease, versioned temp creation, and metadata-refresh recovery using the encoded creation epoch. Native suite = 30 passed; broader native/supervised/job/Claude + installer composition = 219 passed. Local stale residue remains reduced to two legacy directories ~9h old, intentionally preserved below the 24h threshold.
+
+
+## #19: PowerShell 5.1 default text encoding corrupts UTF-8 Markdown (2026-08-29)
+
+**Symptom:** a release-gate documentation checkpoint changed valid em dashes in tracked UTF-8 Markdown into mojibake such as `โ€”` without the edit command failing. A separate release audit also found three historical `?` separators in `CHANGELOG.md` where em dashes were intended.
+
+**Root cause:** Windows PowerShell 5.1 text read/write paths can decode or re-encode UTF-8 content using legacy code-page defaults. A successful shell command therefore does not prove byte-preserving Markdown mutation.
+
+**Fix:** restore affected files from the clean branch HEAD, reapply only intended substitutions with an explicit UTF-8 writer, repair the three proven CHANGELOG separators, and re-run remote diff/CI from the corrected head.
+
+**Lesson:** do not use implicit PowerShell 5.1 text encoding for repository Markdown containing non-ASCII text. Use an explicit UTF-8-capable writer (for example Python `Path.read_text/write_text(encoding="utf-8")`) and treat encoding preservation as part of the mutation contract.
+
+**Verify:** run `git diff --check`, inspect the complete diff, scan release-facing text for replacement/mojibake markers, and confirm only intended lines changed before commit/push. CI must run again after any encoding repair.

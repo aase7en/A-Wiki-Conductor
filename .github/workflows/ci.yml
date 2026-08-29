@@ -15,8 +15,8 @@ jobs:
     env:
       A_CONDUCTOR_GPU_PARTICLES: "0"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Install package with test extra (validates packaging)
@@ -170,8 +170,15 @@ jobs:
           if (-not (Test-Path -LiteralPath $database -PathType Leaf)) {
             throw "PORTABLE_SMOKE_DATABASE_MISSING: $database"
           }
+      - name: Frozen Setup install/uninstall E2E
+        shell: pwsh
+        run: |
+          $portable = Join-Path $PWD "dist/ci/A-Sunday Conductor.exe"
+          $setup = Join-Path $PWD "dist/ci/A-Sunday-Conductor-Setup.exe"
+          $version = python -c "from a_conductor.branding import APP_VERSION; print(APP_VERSION)"
+          python scripts/verify_frozen_installer_e2e.py --portable $portable --setup $setup --expected-version $version
       - name: Archive Windows executables
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: A-Sunday-Conductor-Windows-${{ github.sha }}
           if-no-files-found: error
@@ -186,8 +193,8 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Install package with test extra

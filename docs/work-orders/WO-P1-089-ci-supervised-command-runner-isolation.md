@@ -1,6 +1,6 @@
 # WO-P1-089 — Windows CI supervised-command isolation
 
-Status: ACTIVE / CI REPAIR
+Status: COMPLETE / MERGED
 Owner: GPT-5.6 Sol via Remote Desktop Commander
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-ci-supervised-isolation`
@@ -90,3 +90,8 @@ Next safe action: commit/push the fixture repair and require PR #113 hosted-Wind
 - This changes process lifetime only; no test is skipped, deleted, or assertion-weakened.
 
 Next safe action: commit/push and require GitHub Windows CI to prove all 99 test files plus smoke, packaging, frozen archive and executable smoke gates.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #113 merged into main as `e2de49937a7fc211e46d81fd6425e770465834c1`.

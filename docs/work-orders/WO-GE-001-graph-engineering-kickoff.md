@@ -2,7 +2,7 @@
 
 Created: 2026-08-25
 Owner: GLM 5.3 (preparation) → GPT-5.6 Sol MAX (integrator decisions) → paired implementation
-Status: GO — D1-D5 accepted by GPT-5.6 Sol MAX on 2026-08-26; GE-1 may start. Scheduler implementation remains gated until GE-6 design review.
+Status: COMPLETE / GE-1..GE-11 MERGED; GE-11R1 READ-ONLY HARDENING MERGED
 Inputs: GE-0 status report + A-Wiki reuse gate (session records 2026-08-25); ADR drafts GE-0001..0005 in this branch.
 
 ## Decision briefs — integrator fan-in (2026-08-26)
@@ -141,3 +141,74 @@ regression; do not create duplicate path-overlap logic in `scheduler.py`.
 Integrator evidence/comment: PR #96 issue comment `5420827136`.
 
 After the ADR PR is merged, GLM may start GE-6 TDD immediately from ADR GE-0006. GE-005A may land before or during GE-6 implementation but must be green/merged before GE-6 production merge. GE-7 follows GE-6 and must preserve ADR GE-0007's existing-job-control reuse boundary.
+## Repo-health reconciliation - 2026-08-29
+
+The original GO/gating text is historical. Accepted main now contains the graph foundation, glob-aware readiness repair and deterministic scheduler, and AHA-4 durable graph dispatch has consumed the accepted GE-7 boundary.
+
+Completed milestones:
+- GE-1..GE-5 graph domain/store/DAG/analyze/ready line is merged;
+- GE-6/GE-7 design gate merged via PR #97;
+- GE-005A glob-conflict repair merged via PR #102;
+- GE-6 deterministic scheduler merged via PR #104;
+- GE-7 durable graph-dispatch integration is accepted in the AHA-4 line via PR #119.
+
+Still genuinely open from this roadmap:
+- GE-8 fan-out/fan-in completeness barriers (barriers.py not present);
+- GE-9 lifecycle outcome bridge (lifecycle_bridge.py not present);
+- GE-10 graph chaos/E2E program scenarios (test_graph_chaos.py not present);
+- GE-11 graph operator visualization/timeline/queues.
+
+Do not mark the parent COMPLETE until GE-8..GE-11 have their own bounded work orders, tests/E2E, PRs and accepted-main evidence.
+
+
+## GE-8 implementation checkpoint — 2026-08-29
+
+WO-GE-008 implements pure fan-out/fan-in completeness barriers on isolated branch `feat/wo-ge-008-fan-in-barriers` from accepted main `7722374b`.
+
+- fan-in joins derive expected predecessors from TaskGraph incoming edges;
+- fan-out parents derive expected children from TaskGraph outgoing edges;
+- missing, pending, successful, failed, skipped, and terminal-silent/output-gap states remain distinct;
+- completeness is separate from satisfaction: terminal failures can complete a barrier without satisfying it;
+- duplicate edge types do not double-count a node; expected output refs are validated/normalized;
+- no lifecycle/store/scheduler/dispatch/UI authority is duplicated.
+
+Local evidence at checkpoint: focused 18/18 green; graph-related suite 141/141 green versus pre-GE-8 accepted-main baseline 123. GE-8 remains REVIEW_READY until compile/diff/secret/scope gates, exact-head 3-OS CI, final review, merge, and accepted-main verification complete.
+
+
+## GE-9 implementation checkpoint — 2026-08-29
+
+WO-GE-009 adds a read-only durable lifecycle projection on isolated branch `feat/wo-ge-009-lifecycle-bridge` from accepted GE-8 main `76a7b55`.
+
+- stable job identity reuses `GraphDispatchKey`;
+- durable NEW/PLANNING/READY -> graph TODO;
+- claimed/executing/verifying/review/repair states -> graph DOING;
+- BLOCKED/RECOVERY_NEEDED/FAILED -> graph BLOCKED;
+- COMPLETE -> DONE; CANCELLED -> SKIPPED;
+- missing durable jobs -> TODO; non-not-found store failures and identity mismatches fail closed;
+- no lifecycle/store/scheduler/dispatch mutation authority was added.
+
+Focused bridge + ReadySet composition evidence is 13/13 green. GE-9 remains REVIEW_READY pending exact graph regression, local gates, exact-head CI, final review, merge and accepted-main verification.
+
+## GE-10 tests-only checkpoint - 2026-08-29
+
+WO-GE-010 composes all 10 existing deterministic FaultScenario cases with GE durable identity/lifecycle semantics plus three graph-specific cases: wrong-repo recovery blocking, durable reopen same-key replay prevention, and fan-in recovery/output completeness.
+
+Focused chaos matrix is 13/13 green; broader graph + fault/recovery/transport regression is 200/200 green. No production source change was needed. GE-10 is REVIEW_READY pending exact-head CI, remote diff re-audit, merge and accepted-main verification.
+
+## GE-8..GE-11 reconciliation — 2026-08-29
+
+Accepted-main evidence now closes GE-8..GE-10:
+
+- GE-8 PR #137 merged as `76a7b55a1b4b8cde32173a7446741db9975c485b` after exact-head 3-OS CI;
+- GE-9 PR #138 merged as `da50305961536cc68b072ca99769a9c8e3048ffd` after exact-head 3-OS CI;
+- GE-10 PR #139 merged as `1fea5cfffbe9bb8a9093e67dfa1065559e324ab2` after 13-case chaos, broader regression, remote re-audit and 3-OS CI.
+
+GE-11 is the only remaining Graph Engineering roadmap node. Its isolated UI lane is `feat/wo-ge-011-graph-operator-ui` from accepted main `1fea5cf`; local deterministic/UI/E2E gates are green and PR/CI/merge remain outstanding.
+
+## GE-11 accepted-source checkpoint — 2026-08-29
+
+GE-11 operator visualization merged via PR #140 as `392047a0395f30cc1d6ed7d8c2c3f7c0457a5e37`. GE-8/9/10/11 source milestones are now merged; post-merge CI plus GE-11R1 read-only-store hardening remain before graph-lane closeout is declared fully verified.
+
+## Final Graph Engineering closeout - 2026-08-29
+
+Accepted main now contains the complete GE-1..GE-11 roadmap plus the GE-11R1 read-only hardening follow-up. Final slices: GE-8 PR #137 (`76a7b55`), GE-9 PR #138 (`da50305`), GE-10 PR #139 (`1fea5cf`), GE-11 PR #140 (`392047a`), and GE-11R1 PR #142 (`7acb102`). Post-merge main CI remained green through the later accepted main line. Graph Engineering is therefore closed as an implementation roadmap; later graph work requires a new bounded work order rather than reopening this kickoff.

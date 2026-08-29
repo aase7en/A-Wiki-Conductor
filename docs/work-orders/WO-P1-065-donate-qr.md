@@ -2,7 +2,7 @@
 
 Created: 2026-08-25
 Owner: GLM 5.3 Max (user-authorized substitution while GPT-5.6 Sol is on weekly limit)
-Status: IN_PROGRESS — asset committed, PR opened, awaiting CI + GPT visual acceptance
+Status: COMPLETE / MERGED
 Base: `origin/main` `acd77b4c9fb04101557a12657779db50d5d543dd`
 Branch: `assets/donate-promptpay-qr`
 
@@ -48,3 +48,8 @@ Rename to the expected filename. That is the entire functional change.
 - [x] Work order + AGENT_TASKS record for GPT
 - [ ] CI green on PR
 - [ ] GPT visual acceptance after weekly limit resets
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution/checklist text above is preserved as evidence; stale status is superseded by accepted GitHub state.
+- PR #80 merged into main as `f4ecf9a8e5a3aa9f92e3cd4ee4c16125f45e43e2`.
