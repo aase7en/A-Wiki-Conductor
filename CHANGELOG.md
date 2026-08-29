@@ -15,13 +15,14 @@ All notable changes to A-Sunday Conductor are documented here.
 - **Graph Engineering foundation** — TaskGraph/TaskNode/TaskEdge domain + acyclic builder + SQLite store (PRs #91-92, backend only)
 
 ### Changed
-- **GitHub Actions runtime refresh** — CI/sign workflows use current Node-24-based actions/checkout@v7 and actions/setup-python@v7, removing hosted-runner Node 20 deprecation debt.
+- **GitHub Actions runtime refresh** — CI/sign workflows use current Node-24-based actions/checkout@v7, actions/setup-python@v7 and actions/upload-artifact@v7, removing hosted-runner Node 20 deprecation debt.
 
 ### Fixed
 - **Bounded connector auto-recovery + operator state** — unexpected STOPPED autostart connectors now reconcile through the production health loop with bounded backoff/DEGRADED semantics; MONITOR exposes recovery state, counters, last exit and next retry; successful recovery emits AUTO-RECOVER once (PRs #125, #133).
 - **Tunnel-client provenance** — setup requires upstream SHA256SUMS.txt before installing/upgrading tunnel-client and fails closed without a matching digest (PR #128).
 - **Installer destructive-boundary guards** — managed-target ownership, frozen self-delete handling, and bounded transient uninstall-lock retry protect custom/user paths and keep cleanup synchronous (PRs #107, #108, #132).
 - **Supervised timeout determinism** — caller deadlines now include slow inspection time while durable results remain authoritative, eliminating the recurring hosted-Windows timeout/recovery race (PR #134).
+- **Native execution cleanup determinism** — timeout results are no longer overwritten by transient Windows temp-tree locks; PermissionError cleanup retries are bounded and persistent cleanup failures are classified explicitly (PR #135).
 
 - **Connector tunnel reliability floor** — Setup now rejects/upgrades tunnel-client `<0.0.12`, the first upstream release that preserves shared stdio MCP sessions after non-initialize response deadlines; generated connector start scripts rotate prior runtime stdout/stderr and persist the real tunnel-client exit code instead of `code .` (WO-P1-097).
 - **PROJECT DISK UI freeze blocker** — recursive folder-size work runs off the Tk thread with cooperative cancellation/stale-result guards and dedicated tests; Windows CI topology preserves GUI/process isolation (PR #99).
