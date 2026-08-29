@@ -2,7 +2,7 @@
 
 Created: 2026-08-29
 Owner: GPT-5.6 Sol Graph/UI lane
-Status: ACTIVE / DESIGN_ACCEPTED / TDD
+Status: COMPLETE / MERGED PR #140 / POST-MERGE CI GREEN
 Parent: `docs/work-orders/WO-GE-001-graph-engineering-kickoff.md` (GE-11)
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-ge11-ui`
@@ -96,3 +96,9 @@ Local evidence at this checkpoint:
 - headless smoke with repo `PYTHONPATH=src`: `A-CONDUCTOR_SMOKE_OK projects=0 workers=3`.
 
 Remaining gate: final diff/static/secret/scope review, commit/push, exact-head 3-OS CI, remote re-audit, merge, accepted-main verification.
+
+## Merge closeout — 2026-08-29
+
+PR #140 merged with expected head `b74cf8ec927ca0ff39fb815f516eaa6c2f5a132d` as accepted main `392047a0395f30cc1d6ed7d8c2c3f7c0457a5e37`. Exact-head Windows/Ubuntu/macOS CI, Windows packaging/frozen smoke, remote diff review and zero review-thread gate passed before merge. Post-merge main CI is the remaining verification checkpoint.
+
+Post-merge accepted-main CI run `33239717637` on `392047a0395f30cc1d6ed7d8c2c3f7c0457a5e37` completed successfully. GE-11 is closed; GE-11R1 remains a separate hardening successor.
