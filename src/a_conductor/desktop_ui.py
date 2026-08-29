@@ -17,11 +17,13 @@ from threading import Event
 from typing import Callable, Protocol
 
 import tkinter as tk
-from tkinter import filedialog, ttk
+from tkinter import filedialog, simpledialog, ttk
 import webbrowser
 
 from .branding import APP_NAME, APP_VERSION
 from .connector_recovery import ConnectorRecoveryRecord
+from .graph.domain import TaskNodeStatus
+from .graph.operator_view import GraphOperatorSnapshot
 from .error_explanations_en import ERROR_EXPLANATIONS_EN
 from .i18n import canonical_button_label, get_language, set_language, tr
 from .control_center import ControlCenterError, ControlCenterSnapshot
@@ -650,6 +652,70 @@ def responsive_column_count(width: int, button_count: int, target_button_width: 
     return max(1, min(button_count, usable // target))
 
 
+def _monitor_safe_text(value: str, limit: int = 72) -> str:
+    text = " ".join(str(value).split())
+    if len(text) <= limit:
+        return text
+    return text[: max(1, limit - 1)] + "…"
+
+
+def graph_monitor_lines(snapshot: GraphOperatorSnapshot) -> tuple[str, ...]:
+    if not isinstance(snapshot, GraphOperatorSnapshot):
+        raise ValueError("snapshot must be GraphOperatorSnapshot")
+    counts = {status: 0 for status in TaskNodeStatus}
+    for node in snapshot.nodes:
+        counts[node.status] += 1
+    lines = ["MONITOR · GRAPH", f"  GRAPH {snapshot.graph_id}"]
+    if snapshot.runtime_evidence:
+        lines.append(
+            f"  RUN {snapshot.graph_run_id}   RUNTIME: DURABLE RUN EVIDENCE"
+        )
+    elif snapshot.graph_run_id:
+        lines.append(f"  RUN {snapshot.graph_run_id}   RUNTIME: NO RUN EVIDENCE")
+    else:
+        lines.append("  RUNTIME: NO RUN EVIDENCE")
+    lines.append(
+        "  QUEUE "
+        f"TODO {counts[TaskNodeStatus.TODO]}   "
+        f"DOING {counts[TaskNodeStatus.DOING]}   "
+        f"BLOCKED {counts[TaskNodeStatus.BLOCKED]}   "
+        f"DONE {counts[TaskNodeStatus.DONE]}   "
+        f"SKIPPED {counts[TaskNodeStatus.SKIPPED]}"
+    )
+
+    lines.append("  --- nodes ---")
+    for node in snapshot.nodes:
+        worker = f" worker={node.worker_id}" if node.worker_id else ""
+        lines.append(
+            f"  {node.status.name:<7} {node.node_id}{worker}  "
+            f"{_monitor_safe_text(node.objective)}"
+        )
+    lines.append("  --- edges ---")
+    if snapshot.edges:
+        lines.extend(
+            f"  {edge.from_id} -> {edge.to_id} [{edge.dependency_type.value}]"
+            for edge in snapshot.edges
+        )
+    else:
+        lines.append("  -")
+    lines.append("  --- timeline ---")
+    if not snapshot.runtime_evidence:
+        lines.append("  timeline: - (explicit run required)")
+    elif not snapshot.events:
+        lines.append("  timeline: -")
+    else:
+        for event in snapshot.events:
+            transition = ""
+            if event.from_state or event.to_state:
+                transition = f" {event.from_state or '-'}->{event.to_state or '-'}"
+            worker = f" worker={event.worker_id}" if event.worker_id else ""
+            lines.append(
+                f"  {event.recorded_at} {event.node_id} {event.event_type}"
+                f"{transition}{worker}"
+            )
+    return tuple(lines)
+
+
 class ControlCenterUIService(Protocol):
     def snapshot(self) -> ControlCenterSnapshot: ...
 
@@ -764,6 +830,9 @@ class AConductorDesktopApp:
         self._rescan_summary_pending = False
         self._monitor_future: Future | None = None
         self._monitor_refresh_pending = False
+        self._monitor_mode = "connector"
+        self._graph_monitor_graph_id: str | None = None
+        self._graph_monitor_run_id: str | None = None
         self._pane_layout_after_id = None
         self._activity_align_after_id = None
         self._pane_layout_height = 0
@@ -1468,9 +1537,19 @@ class AConductorDesktopApp:
         )
         self.monitor_text.grid(row=1, column=0, sticky="nsew", padx=(9, 0), pady=(0, 1))
         self._enable_copyable_text(self.monitor_text)
+        self._graph_monitor_button = self._button(
+            monitor_panel, "Graph...", self.open_graph_monitor
+        )
+        self._connector_monitor_button = self._button(
+            monitor_panel, "Connector", self.show_connector_monitor
+        )
+        self._graph_monitor_button.grid(row=0, column=1, sticky="e", padx=(4, 0), pady=1)
+        self._connector_monitor_button.grid(
+            row=0, column=2, sticky="e", padx=(4, 0), pady=1
+        )
         self._button(
             monitor_panel, "Copy All", lambda: self.copy_text_widget_all(self.monitor_text)
-        ).grid(row=0, column=1, sticky="e", padx=(4, 9), pady=1)
+        ).grid(row=0, column=3, sticky="e", padx=(4, 9), pady=1)
         self.instance_tree.bind(
             "<<TreeviewSelect>>", lambda _event: self._refresh_monitor_async(), add="+"
         )
@@ -1567,8 +1646,99 @@ class AConductorDesktopApp:
         except (TypeError, ValueError, OSError, OverflowError):
             return "-"
 
+    def open_graph_monitor(self) -> None:
+        graph_ids_fn = getattr(self.service, "operator_graph_ids", None)
+        if not callable(graph_ids_fn):
+            self._error_handler("GRAPH_MONITOR_UNAVAILABLE")
+            return
+        try:
+            graph_ids = tuple(graph_ids_fn())
+        except Exception:
+            self._error_handler("GRAPH_MONITOR_READ_FAILED")
+            return
+        if not graph_ids:
+            self._error_handler("GRAPH_MONITOR_EMPTY")
+            return
+        preview = ", ".join(graph_ids[:8])
+        initial_graph = self._graph_monitor_graph_id or graph_ids[0]
+        graph_id = simpledialog.askstring(
+            "Graph Monitor",
+            f"GRAPH ID\nAvailable: {preview}",
+            initialvalue=initial_graph,
+            parent=self.root,
+        )
+        if graph_id is None:
+            return
+        graph_id = graph_id.strip()
+        if graph_id not in graph_ids:
+            self._error_handler("GRAPH_MONITOR_GRAPH_INVALID")
+            return
+        run_id = simpledialog.askstring(
+            "Graph Monitor",
+            "RUN ID (optional; blank = planning-only / no run evidence)",
+            initialvalue=self._graph_monitor_run_id or "",
+            parent=self.root,
+        )
+        if run_id is None:
+            return
+        self._monitor_mode = "graph"
+        self._graph_monitor_graph_id = graph_id
+        self._graph_monitor_run_id = run_id.strip() or None
+        self._refresh_monitor_async()
+
+    def show_connector_monitor(self) -> None:
+        self._monitor_mode = "connector"
+        self._refresh_monitor_async()
+
+    def _render_graph_monitor(
+        self,
+        snapshot: GraphOperatorSnapshot | None,
+        error_code: str | None = None,
+    ) -> None:
+        if not self.monitor_text.winfo_exists():
+            return
+        lines = (
+            graph_monitor_lines(snapshot)
+            if snapshot is not None
+            else ("MONITOR · GRAPH", f"  error: {error_code or 'GRAPH_MONITOR_READ_FAILED'}")
+        )
+        try:
+            self.monitor_text.configure(state="normal")
+            self.monitor_text.delete("1.0", "end")
+            self.monitor_text.insert("1.0", chr(10).join(lines))
+            self.monitor_text.yview_moveto(0.0)
+            self.monitor_text.configure(state="disabled")
+        except tk.TclError:
+            pass
+
+    @staticmethod
+    def _graph_monitor_error_code(exc: Exception) -> str:
+        code = getattr(exc, "code", None)
+        if isinstance(code, str) and code.strip() and "\n" not in code and "\r" not in code:
+            return code.strip()
+        return "GRAPH_MONITOR_READ_FAILED"
+
+    def _update_graph_monitor_now(self) -> None:
+        graph_id = getattr(self, "_graph_monitor_graph_id", None)
+        if not graph_id:
+            self._render_graph_monitor(None, "GRAPH_CONTEXT_REQUIRED")
+            return
+        snapshot_fn = getattr(self.service, "operator_graph_snapshot", None)
+        if not callable(snapshot_fn):
+            self._render_graph_monitor(None, "GRAPH_MONITOR_UNAVAILABLE")
+            return
+        try:
+            snapshot = snapshot_fn(graph_id, self._graph_monitor_run_id)
+        except Exception as exc:
+            self._render_graph_monitor(None, self._graph_monitor_error_code(exc))
+            return
+        self._render_graph_monitor(snapshot)
+
     def _update_monitor_now(self) -> None:
         """Sync render (tests / no-selection hint path)."""
+        if getattr(self, "_monitor_mode", "connector") == "graph":
+            self._update_graph_monitor_now()
+            return
         from .local_instances import instance_health_state
 
         name = self._selected_instance_name()
@@ -1662,14 +1832,17 @@ class AConductorDesktopApp:
         )
 
     def _refresh_monitor_async(self) -> None:
-        """Fetch the monitor report off the UI thread, then render."""
-        from .local_instances import instance_health_state
-
+        """Fetch the selected monitor mode off the UI thread, then render."""
         if self._closing:
             return
         if self._monitor_future is not None and not self._monitor_future.done():
             self._monitor_refresh_pending = True
             return
+        if getattr(self, "_monitor_mode", "connector") == "graph":
+            self._refresh_graph_monitor_async()
+            return
+        from .local_instances import instance_health_state
+
         name = self._selected_instance_name()
         if name is None:
             self._update_monitor_now()
@@ -1695,6 +1868,63 @@ class AConductorDesktopApp:
         self._monitor_refresh_pending = False
         self._poll_monitor(future, name)
 
+    def _refresh_graph_monitor_async(self) -> None:
+        if self._closing:
+            return
+        if self._monitor_future is not None and not self._monitor_future.done():
+            self._monitor_refresh_pending = True
+            return
+        graph_id = self._graph_monitor_graph_id
+        run_id = self._graph_monitor_run_id
+        if not graph_id:
+            self._update_graph_monitor_now()
+            return
+        snapshot_fn = getattr(self.service, "operator_graph_snapshot", None)
+        if not callable(snapshot_fn):
+            self._render_graph_monitor(None, "GRAPH_MONITOR_UNAVAILABLE")
+            return
+
+        def work():
+            try:
+                return snapshot_fn(graph_id, run_id), None
+            except Exception as exc:
+                return None, self._graph_monitor_error_code(exc)
+
+        try:
+            future = self._background_executor.submit(work)
+        except Exception:
+            self._update_graph_monitor_now()
+            return
+        self._monitor_future = future
+        self._monitor_refresh_pending = False
+        self._poll_graph_monitor(future, graph_id, run_id)
+
+    def _poll_graph_monitor(self, future, graph_id: str, run_id: str | None) -> None:
+        self._cancel_after(self._monitor_poll_after_id)
+        self._monitor_poll_after_id = None
+        if self._closing or future is not self._monitor_future:
+            return
+        if not future.done():
+            self._monitor_poll_after_id = self._schedule_after(
+                25, self._poll_graph_monitor, future, graph_id, run_id
+            )
+            return
+        self._monitor_future = None
+        try:
+            snapshot, error_code = future.result()
+        except Exception:
+            snapshot, error_code = None, "GRAPH_MONITOR_READ_FAILED"
+        if (
+            not self._closing
+            and self._monitor_mode == "graph"
+            and self._graph_monitor_graph_id == graph_id
+            and self._graph_monitor_run_id == run_id
+        ):
+            self._render_graph_monitor(snapshot, error_code)
+        if self._monitor_refresh_pending and not self._closing:
+            self._monitor_refresh_pending = False
+            self._schedule_after(0, self._refresh_monitor_async)
+
     def _poll_monitor(self, future, name: str) -> None:
         self._cancel_after(self._monitor_poll_after_id)
         self._monitor_poll_after_id = None
@@ -1710,7 +1940,11 @@ class AConductorDesktopApp:
             report = future.result()
         except Exception:
             report = None
-        if not self._closing and self._selected_instance_name() == name:
+        if (
+            not self._closing
+            and getattr(self, "_monitor_mode", "connector") == "connector"
+            and self._selected_instance_name() == name
+        ):
             self._render_monitor(name, report)
         if self._monitor_refresh_pending and not self._closing:
             self._monitor_refresh_pending = False
