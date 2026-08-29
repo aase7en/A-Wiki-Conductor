@@ -3,7 +3,7 @@
 Status: ACTIVE / REPO-HEALTH-100 + V0.7.0 RELEASE CLOSEOUT
 Owner: GPT-5.6 Sol
 Branch: `docs/repo-health-100`
-Base: origin/main@df6819213e0489f3b02a86c3d63f9045139e2da5 (restart base; reconcile again after PR #135)
+Base: origin/main@bca98022aa2035e3851360eff12061151a01392d (PR #135 merged/reconciled)
 
 ## Objective
 
@@ -84,14 +84,13 @@ Verified at restart:
 - public GitHub Latest is v0.6.0 while source identifies 0.7.0; INSTALL.md previously called v0.7.0 the latest release and must be corrected until publication;
 - PRs #99-#134 include many accepted slices whose work-order Status lines still said ACTIVE, REVIEW_READY, or PR PENDING; repo-health reconciles only entries with verified merge evidence;
 - Draft PR #131 actively owns COLLAB.md, CURRENT-WORK.md, handoff.md, WO-P1-102, worker_lease.py and tests/test_worker_lease.py; those files are forbidden here until that owner releases them;
-- PR #135 is an independent native-timeout-cleanup lane and must merge/reconcile before final repo-health PR;
+- PR #135 native-timeout cleanup is merged as `bca98022`; this branch is reconciled on top of that accepted main;
 - live installed app remains v0.6.0 and the shared live tunnel-client remains 0.0.11; source-level resilience is not equivalent to operational rollout;
-- hosted CI emits Node 20 deprecation warnings for actions/checkout@v4 + actions/setup-python@v5. Official upstream v7 actions run on Node 24, so this branch upgrades the workflow and requires exact-head CI proof.
+- hosted CI emits Node 20 deprecation warnings for existing action majors. That is real CI dependency debt, but this SSoT refresh remains docs-only; repair it in a separate bounded CI work order after this reconciliation merges.
 
 Current non-overlap mutable scope:
 - this work order and verified stale historical work orders;
 - README.md, INSTALL.md, CHANGELOG.md truthfulness;
-- .github/workflows/ci.yml and .github/workflows/sign.yml dependency refresh;
 - WO-P1-096 release-gate reconciliation.
 
 Deferred until ownership release: COLLAB.md, CURRENT-WORK.md, handoff.md and AHA-4A/AHA-4B coordination surfaces.
