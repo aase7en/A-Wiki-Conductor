@@ -91,12 +91,14 @@ def test_frozen_temp_copy_outside_target_can_run_uninstall(
     module = _load_installer_main()
     target = tmp_path / "installed"
     target.mkdir()
+    module._write_install_marker(target)
     temp_copy = tmp_path / "temp" / "uninstall.exe"
     temp_copy.parent.mkdir()
     temp_copy.write_bytes(b"EXE")
     monkeypatch.setattr(module.os, "name", "nt")
     monkeypatch.setattr(module.sys, "frozen", True, raising=False)
     monkeypatch.setattr(module.sys, "executable", str(temp_copy))
+    monkeypatch.setattr(module, "_windows_registry_install_location", lambda: target)
     called: list[Path] = []
     monkeypatch.setattr(module, "do_uninstall", lambda value: called.append(value) or 0)
 
@@ -110,7 +112,9 @@ def test_source_mode_uninstall_remains_synchronous(tmp_path: Path, monkeypatch) 
     module = _load_installer_main()
     target = tmp_path / "installed"
     target.mkdir()
+    module._write_install_marker(target)
     monkeypatch.setattr(module.sys, "frozen", False, raising=False)
+    monkeypatch.setattr(module, "_windows_registry_install_location", lambda: target)
     called: list[Path] = []
     monkeypatch.setattr(module, "do_uninstall", lambda value: called.append(value) or 0)
 

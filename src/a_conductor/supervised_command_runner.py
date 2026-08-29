@@ -274,10 +274,14 @@ class SupervisedCommandRunner:
                 return None, False
             if inspection.state is SupervisedInspectionState.RESULT_AVAILABLE:
                 return inspection, False
-            if inspection.recovery_required:
-                return inspection, False
+            # A caller deadline covers inspection latency too. A late transient
+            # recovery classification must not turn an elapsed caller timeout
+            # into a false non-timeout result; durable execution state remains
+            # available for the next attach/recovery attempt.
             if self._clock_fn() - start + self._poll_interval_seconds >= timeout_seconds:
                 return inspection, True
+            if inspection.recovery_required:
+                return inspection, False
             self._sleep_fn(self._poll_interval_seconds)
 
     def run(self, spec: NativeCommandSpec) -> NativeCommandResult:

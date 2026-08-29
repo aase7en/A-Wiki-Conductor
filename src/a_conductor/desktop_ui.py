@@ -11,7 +11,7 @@ import re
 import sys
 from concurrent.futures import CancelledError, Executor, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
 from typing import Callable, Protocol
@@ -21,6 +21,7 @@ from tkinter import filedialog, ttk
 import webbrowser
 
 from .branding import APP_NAME, APP_VERSION
+from .connector_recovery import ConnectorRecoveryRecord
 from .error_explanations_en import ERROR_EXPLANATIONS_EN
 from .i18n import canonical_button_label, get_language, set_language, tr
 from .control_center import ControlCenterError, ControlCenterSnapshot
@@ -1534,9 +1535,40 @@ class AConductorDesktopApp:
         self.log_activity("Control Center ready")
         self._status_pulse_after_id = self._schedule_after(1200, self._start_status_pulse)
 
+    def _connector_recovery_for_monitor(
+        self, instance_name: str
+    ) -> ConnectorRecoveryRecord | None:
+        recovery_fn = getattr(self.service, "connector_recovery_record", None)
+        if not callable(recovery_fn):
+            return None
+        try:
+            recovery = recovery_fn(instance_name)
+        except Exception:
+            return None
+        return recovery if isinstance(recovery, ConnectorRecoveryRecord) else None
+
+    def _monitor_report_with_recovery(self, name: str, target, state: str) -> dict:
+        from .instance_monitor import monitor_report
+
+        report = monitor_report(target.instance_root, state=state)
+        report["recovery"] = self._connector_recovery_for_monitor(name)
+        return report
+
+    @staticmethod
+    def _format_recovery_timestamp(value: float | None) -> str:
+        if value is None:
+            return "-"
+        try:
+            return (
+                datetime.fromtimestamp(float(value), tz=timezone.utc)
+                .isoformat(timespec="seconds")
+                .replace("+00:00", "Z")
+            )
+        except (TypeError, ValueError, OSError, OverflowError):
+            return "-"
+
     def _update_monitor_now(self) -> None:
         """Sync render (tests / no-selection hint path)."""
-        from .instance_monitor import monitor_report
         from .local_instances import instance_health_state
 
         name = self._selected_instance_name()
@@ -1551,7 +1583,7 @@ class AConductorDesktopApp:
             state = instance_health_state(target).value
         except Exception:
             state = "UNKNOWN"
-        self._render_monitor(name, monitor_report(target.instance_root, state=state))
+        self._render_monitor(name, self._monitor_report_with_recovery(name, target, state))
 
     def _render_monitor(self, name, report) -> None:
         """Paint the MONITOR panel; report=None means unknown/none."""
@@ -1576,6 +1608,23 @@ class AConductorDesktopApp:
             pid_text = str(report["pid"]) if report["pid"] else "-"
             mem_text = f"{report['memory_mb']} MB" if report["memory_mb"] else "-"
             lines.append(f"{header}   {state}   PID {pid_text}   MEM {mem_text}")
+            recovery = report.get("recovery")
+            if isinstance(recovery, ConnectorRecoveryRecord):
+                suppressed = "YES" if recovery.recovery_suppressed else "NO"
+                lines.append(
+                    f"  recovery: {recovery.state.value}   "
+                    f"restarts {recovery.restart_count}   failures {recovery.failure_count}   "
+                    f"suppressed {suppressed}"
+                )
+                lines.append(
+                    f"  last exit: {recovery.last_exit_reason or '-'} @ "
+                    f"{self._format_recovery_timestamp(recovery.last_exit_at)}"
+                )
+                lines.append(
+                    f"  next retry: {self._format_recovery_timestamp(recovery.next_retry_at)}"
+                )
+            else:
+                lines.append("  recovery: -")
             lines.append(f"  log: {report['log_file'] or '-'}")
             errors = report["errors"]
             lines.append(tr("monitor.errors").format(count=len(errors)))
@@ -1614,7 +1663,6 @@ class AConductorDesktopApp:
 
     def _refresh_monitor_async(self) -> None:
         """Fetch the monitor report off the UI thread, then render."""
-        from .instance_monitor import monitor_report
         from .local_instances import instance_health_state
 
         if self._closing:
@@ -1636,7 +1684,7 @@ class AConductorDesktopApp:
                 state = instance_health_state(target).value
             except Exception:
                 state = "UNKNOWN"
-            return monitor_report(target.instance_root, state=state)
+            return self._monitor_report_with_recovery(name, target, state)
 
         try:
             future = self._background_executor.submit(work)
@@ -4340,6 +4388,22 @@ class AConductorDesktopApp:
                 )
         return getattr(self.service, "instance_action")(name, action)
 
+    def _log_connector_recovery_events(self) -> None:
+        drain_fn = getattr(self.service, "drain_connector_recovery_events", None)
+        if not callable(drain_fn):
+            return
+        try:
+            events = drain_fn()
+        except Exception:
+            return
+        for record in events:
+            if not isinstance(record, ConnectorRecoveryRecord):
+                continue
+            self.log_activity(
+                f"AUTO-RECOVER {record.instance_name} {record.state.value} "
+                f"restart={record.restart_count}"
+            )
+
     def _poll_instance_states(self, future: Future) -> None:
         if not future.done():
             self._schedule_after(25, self._poll_instance_states, future)
@@ -4351,6 +4415,7 @@ class AConductorDesktopApp:
             self._rescan_summary_pending = False
             self._handle_error("INSTANCE_REFRESH_FAILED")
             return
+        self._log_connector_recovery_events()
         self.instance_tree.delete(*self.instance_tree.get_children())
         self._instance_rows.clear()
         self._monitor_instances.clear()
