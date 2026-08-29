@@ -1,38 +1,27 @@
-# HANDOFF — A-Sunday Conductor
+# HANDOFF ? A-Sunday Conductor
 
-Last updated: 2026-08-29 — WO-P1-102 / AHA-4A worker lease broker
+Last updated: 2026-08-29 ? WO-P1-111 / AHA-4B lease recovery
 
 ## Current Objective
 
-Close AHA-4A with atomic, retry-safe worker leasing and fail-closed mutation scope. No AHA-4B stale reclaim, second scheduler/store/lifecycle, or A-Wiki claim duplication.
+Extend accepted AHA-4A leasing with heartbeat and stale-owner reconciliation while preserving the rule that expiry is uncertainty, never retry/release authority.
 
 ## Repository State
 
-- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`
-- Branch: `feat/wo-p1-102-aha4a-worker-lease-broker`
-- Reconciled `origin/main`: `39f0253cc4f8896cffa78b6772ce6ffd2e229736`
-- PR #131 is Draft; branch requires one final fix/checkpoint push.
+- Worktree: `A:\GitHub\A-Wiki-Conductor-aha4b-lease-recovery`
+- Branch: `feat/wo-p1-111-aha4b-lease-recovery`
+- Base: `origin/main@b7a2149cb5e40c596ae6934506e1a360263ecc3d`
+- Work order: `docs/work-orders/WO-P1-111-aha4b-lease-recovery.md`
 - Shared root remains protected/read-only.
 
-## Latest defects repaired
+## Accepted predecessor
 
-1. `allowed_scope` was stored but not enforced. Mutation scope is now fail-closed: literal paths may be covered by an allowed glob; wider/unproven mutable globs are rejected.
-2. Same `session_id/task_id` retry after uncertain delivery could select a second worker. Active owner/task is now unique and retry attaches the existing lease; request-contract drift fails closed.
-3. Required capability drift is persisted/checked so retry cannot silently weaken or change the task contract.
-4. Resume verification found two race outcome-classification defects: attach-to-existing could be mislabeled `LEASED`, and proposed lease-ID equality could hide the attach when two brokers generated the same ID. The store now returns atomic `created` status; `EXISTING` no longer depends on ID comparison.
-
-## Evidence
-
-- focused worker lease: **36 passed**;
-- registry/persistence/graph/job/lease regression: **220 passed**;
-- focused race repeat: **10/10 PASS**;
-- compileall + diff-check: PASS;
-- concurrency cases include competing tasks, overlapping mutable scopes, same-owner convergence, and explicit `EXISTING` classification.
+PR #131 AHA-4A merged as `b7a2149cb5e40c596ae6934506e1a360263ecc3d`; exact-head CI `33251145108` and post-main CI `33256317010` passed all OS gates including Windows Frozen Setup E2E. AHA-4A worktree/local branch were cleaned after merge proof.
 
 ## Next Safe Action
 
-Update WO checkpoint, inspect bounded diff/scope/secret gates, commit/push the preserved dirty checkpoint, merge latest accepted `origin/main`, rerun regression, update PR #131, run independent read-only review, then require exact-head Windows/Ubuntu/macOS CI before merge.
+Commit/push WO-P1-111 claim, then write failing heartbeat/stale/quarantine tests. Mutate only the allowed WO-P1-111 scope. Do not touch the live Worker/tunnel-client fleet or release soak.
 
 ## Safety
 
-`SAFE_TO_MUTATE = YES` only inside this isolated worktree and WO-P1-102 scope.
+`SAFE_TO_MUTATE = YES` only inside this isolated worktree and WO-P1-111 scope.

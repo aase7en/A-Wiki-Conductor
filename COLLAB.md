@@ -34,11 +34,13 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-102` / AHA-4A worker lease broker + fallback | GPT-5.6 Sol integrator | 2026-08-28 | Isolated `A-Wiki-Conductor-aha4a-lease`: atomic worker lease, deterministic eligibility/fallback, focused tests, SSoT. No AHA-4B expiry recovery, connector, installer, North-Star, live-provider mutation. |
+| `WO-P1-111` / AHA-4B lease heartbeat + stale-owner recovery | GPT-5.6 Sol integrator | 2026-08-29 | Isolated `A-Wiki-Conductor-aha4b-lease-recovery`: heartbeat, stale evidence, quarantine/reconciliation, race/chaos tests. No live fleet, retry authority, scheduler rewrite, installer/release or North-Star mutation. |
 | PR #108 / installer target ownership | release/installer lane | 2026-08-27 | `fix/v070-installer-target-ownership`; destructive installer safety scope remains separately owned. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
+
+- `WO-P1-102` / PR #131 AHA-4A worker lease broker: final head `9abee8baa7388077f81379e4a909155ad0ebb72a` passed exact-head CI `33251145108`; merged as `b7a2149cb5e40c596ae6934506e1a360263ecc3d`; post-main CI `33256317010` passed Windows/Ubuntu/macOS including Frozen Setup E2E; worktree/local branch removed after clean/no-child merge proof. Claim released to WO-P1-111.
 
 - `WO-P1-100` / PR #130 durable supervised Claude backend assembly: exact head `d3890820174c6a3a59331a30cd97ba1b9d42fe3e` passed Windows/Ubuntu/macOS CI run `33183355995` including Windows packaging/frozen/Portable smoke and merged as `08369ade59206cbe2bc80a314d49d3daa50038b7`; claim released to WO-P1-102.
 
