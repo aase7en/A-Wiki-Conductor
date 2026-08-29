@@ -131,3 +131,22 @@ def test_rejects_non_json_or_error_agent_envelope() -> None:
         agent_result_from_claude_payload({"type": "result", "is_error": False, "result": "done"})
     with pytest.raises(AgentChangeError, match="AGENT_RESULT_ENVELOPE_INVALID"):
         agent_result_from_claude_payload({"type": "result", "is_error": True, "result": "{}"})
+
+
+def test_result_packet_as_dict_is_stable_for_durable_handoff() -> None:
+    proposed = packet(
+        AgentFileChange("src/a_conductor/demo.py", "NEW\n", digest("OLD\n"))
+    )
+    assert proposed.as_dict() == {
+        "task_id": "task-1",
+        "provider_id": "zai",
+        "model_id": "glm-5.3",
+        "status": "CHANGES_PROPOSED",
+        "base_head": "a" * 40,
+        "changes": [{
+            "path": "src/a_conductor/demo.py",
+            "content": "NEW\n",
+            "expected_sha256": digest("OLD\n"),
+        }],
+        "evidence_refs": ["agent-report:1"],
+    }
