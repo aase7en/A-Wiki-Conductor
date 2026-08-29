@@ -2,7 +2,7 @@
 
 Created: 2026-08-29
 Owner: bounded Graph Engineering implementation lane
-Status: REVIEW_READY / LOCAL_GREEN
+Status: COMPLETE / MERGED — PR #137 (`76a7b55`)
 Parent: `docs/work-orders/WO-GE-001-graph-engineering-kickoff.md` (GE-8)
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-ge8-barriers`
@@ -85,3 +85,14 @@ TDD: add focused RED tests -> implement pure `barriers.py` -> focused + full gra
 - API remains pure/read-only: no scheduler/store/lifecycle/retry/execution/UI authority was added.
 - `evaluate_fan_in_barrier()` derives expected predecessors from `edges_to(join)`; `evaluate_fan_out_barrier()` derives expected children from `edges_from(parent)`; duplicate edge types count one node.
 - Output refs are normalized; blank declared output refs fail closed; terminal failure is complete-but-unsatisfied; skipped/successful terminal nodes with missing declared outputs remain silent/incomplete.
+
+
+## Accepted-main closeout — 2026-08-29
+
+- implementation commit `b627ffafe0a7073fa6e19fbf2ce697b1db7efa8b` opened PR #137;
+- exact-head CI run `33233102964` passed Windows test/build/frozen/Portable archive plus Ubuntu/macOS smoke;
+- final PR state was CLEAN / MERGEABLE with exactly 4 scoped files and no review threads;
+- PR #137 squash-merged as `76a7b55a1b4b8cde32173a7446741db9975c485b` and ancestry was verified on `origin/main`;
+- clean feature worktree/local/remote branch were removed after ancestry proof.
+
+GE-8 is complete. GE-9 consumes this accepted main and does not reopen barrier semantics unless new deterministic evidence requires a repair WO.

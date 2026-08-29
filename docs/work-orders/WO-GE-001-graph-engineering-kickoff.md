@@ -173,3 +173,18 @@ WO-GE-008 implements pure fan-out/fan-in completeness barriers on isolated branc
 - no lifecycle/store/scheduler/dispatch/UI authority is duplicated.
 
 Local evidence at checkpoint: focused 18/18 green; graph-related suite 141/141 green versus pre-GE-8 accepted-main baseline 123. GE-8 remains REVIEW_READY until compile/diff/secret/scope gates, exact-head 3-OS CI, final review, merge, and accepted-main verification complete.
+
+
+## GE-9 implementation checkpoint — 2026-08-29
+
+WO-GE-009 adds a read-only durable lifecycle projection on isolated branch `feat/wo-ge-009-lifecycle-bridge` from accepted GE-8 main `76a7b55`.
+
+- stable job identity reuses `GraphDispatchKey`;
+- durable NEW/PLANNING/READY -> graph TODO;
+- claimed/executing/verifying/review/repair states -> graph DOING;
+- BLOCKED/RECOVERY_NEEDED/FAILED -> graph BLOCKED;
+- COMPLETE -> DONE; CANCELLED -> SKIPPED;
+- missing durable jobs -> TODO; non-not-found store failures and identity mismatches fail closed;
+- no lifecycle/store/scheduler/dispatch mutation authority was added.
+
+Focused bridge + ReadySet composition evidence is 13/13 green. GE-9 remains REVIEW_READY pending exact graph regression, local gates, exact-head CI, final review, merge and accepted-main verification.
