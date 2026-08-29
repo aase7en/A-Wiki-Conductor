@@ -168,6 +168,8 @@ def test_adapter_builds_fixed_read_only_noninteractive_invocation(tmp_path) -> N
     assert "json" in invocation.argv
     assert "--no-session-persistence" in invocation.argv
     assert "--safe-mode" in invocation.argv
+    setting_index = invocation.argv.index("--setting-sources")
+    assert invocation.argv[setting_index + 1] == "project,local"
     assert "--permission-mode" in invocation.argv
     assert "plan" in invocation.argv
     assert "--system-prompt-file" in invocation.argv
