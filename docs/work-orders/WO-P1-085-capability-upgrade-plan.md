@@ -1,6 +1,6 @@
 # WO-P1-085 — Capability Fabric upgrade plan
 
-Status: PLANNING_COMPLETE / IMPLEMENTATION_BLOCKED_ON_EXISTING_OWNERSHIP_GATES
+Status: COMPLETE / MERGED - PR #109 (`9106da2`); successor implementation moved to WO-P1-086+ / AHA lanes
 Owner: GPT-5.6 Sol planning/integrator lane
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-capability-plan-main`
