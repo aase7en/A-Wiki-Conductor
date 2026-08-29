@@ -69,11 +69,11 @@ Merged P4/P5 worktrees/branches may be removed after ancestry + PR merge verific
 - [x] WO-P1-073 / WO-P1-074 closed with merge/CI evidence.
 - [x] CHANGELOG reflects v0.7.0 shipped UI/release work.
 - [x] `git diff --check` clean.
-- [ ] Remote PR diff audited.
-- [ ] Repo-health CI green on 3 OS.
-- [ ] Repo-health merged and exact main fetched.
-- [ ] Exact-main Windows artifact downloaded and hashes recorded.
-- [ ] Sandbox install/frozen acceptance green.
+- [x] Remote PR diff audited.
+- [x] Repo-health CI green on 3 OS.
+- [x] Repo-health merged and exact main fetched.
+- [x] Exact-main Windows artifact downloaded and hashes recorded.
+- [x] Sandbox install/frozen acceptance green.
 - [ ] GitHub Release v0.7.0 published and verified.
 - [ ] Obsolete branches/worktrees removed; active GLM branches preserved.
 ## Repo-health restart checkpoint - 2026-08-29
@@ -94,3 +94,13 @@ Current non-overlap mutable scope:
 - WO-P1-096 release-gate reconciliation.
 
 Deferred until ownership release: COLLAB.md, CURRENT-WORK.md, handoff.md and AHA-4A/AHA-4B coordination surfaces.
+
+## Pre-authorization release checkpoint — 2026-08-29
+
+Repo-health reconciliation is accepted through PR #144 merge `c37925850cb5f096844b4e38d3b9dbdbedde6cd6`; post-merge main CI `33244164739` passed Windows/Ubuntu/macOS. Frozen installer acceptance is now a permanent Windows CI gate via PR #145 merge `047326966ded5d2941d57411782f8a85b6d9121a`; post-merge main CI `33248070680` passed, including real frozen Setup install -> installed smoke -> direct-uninstall fail-closed -> registered uninstall -> zero managed residue.
+
+Exact-main Actions artifact `9713566612` was downloaded as a ZIP and hashed without local PE execution: ZIP `1d52ace01664487566096461833099c8dbe40f2fed4ab75c8a0d0d972a4a702a`, Portable `6728ce75349b6975c9f774868ff47adb1793264abe30e3d194c1c376aa0c1675`, Setup `1c4a1166d2af4509df184bc41f839a0fabd7fb0d45e6e2772f01346b93a89d4a`.
+
+Local installed v0.6.0 remains byte-identical to pre-test evidence: installed exe SHA-256 `7D324A7F34ED553E72CB50334868E0402C36C01CEFEA5DF99223FC903643C35C`, Start Menu shortcut `86DAF2EAB98442B29ED5B159B936F693900B83FF6A0D2DB62F8F5ADBCF115CDB`, Desktop shortcut absent before/after. Fresh unsigned CI PE extraction remains denied by local host AV, which was not disabled or bypassed; clean hosted-Windows E2E is the exact-main frozen acceptance surface.
+
+Publication is still blocked only by the operational tunnel-client soak and final release-truth/publish step. Do not publish v0.7.0 before WO-P1-096 is released.

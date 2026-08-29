@@ -92,7 +92,7 @@ Scheduler eligibility must eventually require all applicable checks:
 
 `task capability satisfied ∧ actor capability satisfied ∧ runtime supply satisfied ∧ identity/authority satisfied ∧ gate/provider health satisfied`
 
-This contract does not authorize scheduler changes. PR #104 remains the owner of GE-6 implementation semantics.
+This contract does not authorize scheduler changes. GE-6 implementation semantics are accepted through PR #104 (`023c7b65`); later work must consume that scheduler contract rather than redefine it.
 
 ## 7. Known gaps for later slices
 

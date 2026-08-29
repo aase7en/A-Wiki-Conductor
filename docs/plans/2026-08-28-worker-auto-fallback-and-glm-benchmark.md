@@ -41,10 +41,10 @@ AHA-4A must land before broad autonomous parallel execution.
 
 Current repository evidence, not a synthetic model-speed benchmark:
 
-- PR #104 / GE-6 is a GLM-owned bounded algorithmic lane. After owner-led reconciliation its worktree reported **92 graph tests passing**; GitHub head is currently `b0febf20`.
+- PR #104 / GE-6 was a GLM-owned bounded algorithmic lane and is now accepted: final head `694b8dee` merged as `023c7b65` after the recorded scheduler acceptance gaps were repaired and exact-head 3-OS CI passed.
 - Earlier independent GPT recheck ran the seven `test_graph_*.py` files: **83 passed in 1.76s**. This confirms useful bounded implementation throughput, not final acceptance.
 - Independent GPT review against accepted ADR GE-0006 found four current acceptance gaps: topological-rank ordering is omitted, equivalent worker choice depends on input order instead of stable worker ID, mutating project/workspace identity is not enforced, and gate/provider eligibility input is missing. These were posted as a PR review comment for the owner to repair.
-- Windows CI first failed in the existing supervised-command timeout suite; rerun #1 cleared that suite but later hit the recurring hosted Tk `0x80000003` in `test_interactive_logo.py`. Rerun #2 was requested as infra classification. The PR remains blocked regardless until scheduler acceptance gaps are repaired and exact-head CI is green.
+- Historical Windows CI failures in supervised-command/Tk isolation were repaired through the bounded CI lane; PR #104 later passed exact-head Windows/Ubuntu/macOS CI and merged. Those failures remain useful benchmark evidence but are no longer an active blocker.
 
 ### Suitability score for work during AHA-3/AHA-4
 
@@ -53,27 +53,26 @@ Current repository evidence, not a synthetic model-speed benchmark:
 | isolated deterministic implementation + tests | 5/5 | Yes |
 | repository archaeology / symbol tracing | 5/5 | Yes |
 | fix a bounded failing test in owned scope | 5/5 | Yes |
-| reconcile its own GE-6 branch with current main | 4/5 | Yes, with scope gate |
+| reconcile its own bounded branch with current main | 4/5 | Yes, only when that branch is explicitly GLM-owned |
 | independent review against acceptance criteria | 4/5 | Yes, read-only |
 | cross-cutting SSoT/hotspot architecture | 2/5 | Lead/review by GPT |
 | secrets/trust-boundary final approval | 2/5 | GPT + deterministic checks |
 | release/merge authority | 1/5 | No; evidence only |
 
-Recommended immediate GLM lane: finish/reconcile PR #104 only. It is already GLM-owned and does not overlap AHA-3 files.
+Recommended immediate GLM mutation lane: **none while AHA-4A / PR #131 is actively owned by the GPT integrator with protected local work**. GLM remains a strong fit for a separately authorized bounded review or implementation lane after ownership/scope is released.
 ## Completion plan from current state
 
 1. **AHA-3 COMPLETE** — PR #116 merged `ab28dc7`; fake-runner/read-only harness, focused regressions, scope/secret checks, and 3-OS CI passed.
-2. Repair/accept **GE-6 / PR #104** on its existing GLM-owned branch using the independent ADR review findings; do not mix AHA files.
-3. Reuse the already accepted GE-7 durable-dispatch contract for **AHA-4**; implement only after GE-6 merges, with no second scheduler/lifecycle/store.
-4. Implement **AHA-4** durable harness dispatch with stable execution identity, duplicate protection, bounded evidence, transport-loss reconciliation.
-5. Implement **AHA-4A** worker eligibility + atomic lease broker + ordered fallback; deterministic race tests first.
-6. Implement **AHA-4B** heartbeat/expiry/quarantine/stale-owner recovery; chaos tests for crash/disconnect/dirty worktree.
-7. Prove **AHA-5** GPT-plan/review ↔ GLM-implement/repair vertical slice without manual prompt copying.
-8. Prove **AHA-6** two independent READY tasks in isolated worktrees; assert no lease/scope collisions.
-9. Add **AHA-6B** elastic capacity only if fixed-pool benchmark is green.
-10. Build **AHA-7** Models & Agents UI on the existing command center; no second dashboard.
-11. Add **AHA-8** providers one adapter at a time with the same contract tests.
-12. Run full E2E/chaos/security/release audit; update README checklist from evidence; release the next verified version.
+2. **GE-6 COMPLETE** — PR #104 merged as `023c7b65` after exact-head 3-OS CI green.
+3. **AHA-4 COMPLETE** — durable graph dispatch merged via PR #119 as `5cc417c9`; no second scheduler/lifecycle/store was introduced.
+4. **AHA-4A ACTIVE / PROTECTED** — WO-P1-102 / draft PR #131 owns worker eligibility + atomic lease broker + ordered fallback. Its isolated worktree contains protected local changes; no other agent may rebind or mutate that scope.
+5. After AHA-4A is accepted and ownership released, implement **AHA-4B** heartbeat/expiry/quarantine/stale-owner recovery with chaos tests for crash/disconnect/dirty worktree.
+6. Prove **AHA-5** GPT-plan/review ↔ GLM-implement/repair vertical slice without manual prompt copying.
+7. Prove **AHA-6** two independent READY tasks in isolated worktrees; assert no lease/scope collisions.
+8. Add **AHA-6B** elastic capacity only if fixed-pool benchmark is green.
+9. Build **AHA-7** Models & Agents UI on the existing command center; no second dashboard.
+10. Add **AHA-8** providers one adapter at a time with the same contract tests.
+11. Run full E2E/chaos/security/release audit; update README checklist from evidence; release the next verified version.
 ## Live benchmark once the router can dispatch GLM directly
 
 Use the same bounded task packet across providers and record:

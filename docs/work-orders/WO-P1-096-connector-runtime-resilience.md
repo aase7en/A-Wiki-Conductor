@@ -245,3 +245,13 @@ Operational state is NOT complete:
 - v0.7.0 publication therefore remains blocked until an authorized isolated live upgrade/soak requires zero manual Start actions, followed by exact-main artifact install/smoke/uninstall acceptance.
 
 Release rule: source-complete CR-1..CR-5 may be reported as merged, but WO-P1-096 stays ACTIVE / P0 RELEASE BLOCKER until the operational soak and release E2E gates pass.
+
+## Pre-authorization operational gate refresh — 2026-08-29
+
+Accepted exact main is `047326966ded5d2941d57411782f8a85b6d9121a` (PR #145). Main CI `33248070680` is green on Windows, Ubuntu, and macOS and Windows now includes real frozen Setup install/uninstall E2E. Exact-main frozen artifact acceptance is therefore complete; it is no longer an outstanding WO-P1-096 blocker.
+
+Live operational state was re-verified read-only: ports 18011-18015 are all READY, all five use the shared live tunnel-client `0.0.11+8d55683eeef80bc5e360d95abf4692454fafc615`. Private inventory was checked without exposing IDs: configured Tunnel IDs = 5, READY ports = 5, spare by count = 0.
+
+Upstream latest release remains `v0.0.13`. The Windows amd64 ZIP was staged outside the live binary path and verified against upstream SHA256SUMS: `17113162b353906bbb884c3ed7620facba5cc72b5fdc94fd54fd7208c7166edb`. No live Worker or shared tunnel-client binary was stopped, replaced, or upgraded.
+
+Only remaining WO-P1-096 acceptance action: an authorized isolated/live v0.0.13 deadline/TTL soak that exceeds the relevant transport TTL repeatedly, shows zero manual Start actions, and returns the chosen Worker to its verified ownership/configuration state. Because there are zero spare IDs and all five ports are active, this requires either a new spare Tunnel ID or explicit maintenance authorization to take one specific Worker offline temporarily. Until then `v0.7.0` remains blocked.

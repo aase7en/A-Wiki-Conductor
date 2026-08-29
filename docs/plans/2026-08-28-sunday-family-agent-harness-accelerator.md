@@ -265,11 +265,11 @@ PR #114 merged as `ca4cd98`; non-secret provider configuration, safe endpoint va
 ### AHA-3 — Claude Code harness adapter [COMPLETE]
 PR #116 merged as `ab28dc7` after Windows/Ubuntu/macOS CI green. The adapter is injected-runner/read-only only, validates task packet path/size/SHA, requires fresh provider readiness, bounds output, and redacts evidence. No live provider call was required for acceptance.
 
-### AHA-4 — Durable dispatch integration [BLOCKED ON GE-6 ACCEPTANCE]
-GE-7's durable-job-control design is accepted, but production AHA-4 waits for GE-6 scheduler correctness/merge. Then add stable execution identity, claim/gate, duplicate protection, transport-loss reconciliation, and evidence storage by wrapping existing durable job control.
+### AHA-4 — Durable dispatch integration [COMPLETE]
+GE-6 scheduler correctness merged via PR #104 (`023c7b65`), and durable graph-dispatch integration merged via PR #119 (`5cc417c9`) after 3-OS CI green. Stable execution identity, duplicate protection, transport-loss reconciliation, and bounded evidence now wrap the accepted durable job-control seams; AHA-4A extends this with worker leases/fallback rather than creating a second scheduler.
 
-### AHA-4A — Worker lease broker + automatic fallback
-Extend the existing worker registry/assignment authority with atomic leases, eligibility preflight, ownership/scope checks, and policy-driven fallback across eligible semantic workers. A busy/owned/dirty/incompatible worker is skipped, never rebound or interrupted. Eligible shell/read-only work may fall back to RDC; otherwise queue/wait. See `docs/plans/2026-08-28-worker-auto-fallback-and-glm-benchmark.md`.
+### AHA-4A — Worker lease broker + automatic fallback [ACTIVE / PROTECTED PR #131]
+WO-P1-102 / draft PR #131 owns the current implementation in isolated worktree `A-Wiki-Conductor-aha4a-lease`. That worktree has protected local changes beyond the remote PR head, so other agents must not rebind, overwrite, or mutate its scope. Extend the existing worker registry/assignment authority with atomic leases, eligibility preflight, ownership/scope checks, and policy-driven fallback across eligible semantic workers. A busy/owned/dirty/incompatible worker is skipped, never rebound or interrupted. Eligible shell/read-only work may fall back to RDC; otherwise queue/wait. See `docs/plans/2026-08-28-worker-auto-fallback-and-glm-benchmark.md`.
 
 ### AHA-4B — Lease heartbeat + stale-owner recovery
 Add heartbeat/expiry, quarantine for ambiguous dirty state, stale-owner reconciliation, fairness, and backpressure before broad autonomous parallelism. Recovery must reconcile actual runtime/worktree state before lease reuse.
@@ -306,8 +306,8 @@ The accelerator proves value when the user can issue one repository goal and obs
 ## 15. Interaction with current open work
 
 - PR #110 / AHA-0 is merged (`6487cb2`); new provider work must consume that accepted vocabulary contract rather than redefining it.
-- PR #104 remains the owner of GE-6 scheduler semantics; the accelerator must not fork a substitute scheduler.
-- PR #108 remains an installer/release safety lane and must not be deleted or mixed into this feature.
+- PR #104 / GE-6 scheduler semantics merged as `023c7b65`; subsequent accelerator work must reuse that accepted scheduler and must not fork a substitute.
+- PR #108 installer target-ownership safety merged as `bbb392b1`; its installer/release boundary remains separate from provider/harness feature scope.
 - North Star work remains the integration home for runtime/execution-fabric concepts; new provider work should reconcile with it rather than duplicate it.
 
 This priority switch changes what new feature work starts next. It does not invalidate safety gates or ownership.
