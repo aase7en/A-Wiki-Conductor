@@ -8,7 +8,7 @@ import pytest
 
 from a_conductor.graph.domain import DependencyType, TaskEdge, TaskNode, TaskNodeStatus
 from a_conductor.graph.graph import build_graph
-from a_conductor.graph.store import GraphStore
+from a_conductor.graph.store import GraphStore, GraphStoreReadOnlyError
 
 
 def _node(node_id: str, **overrides) -> TaskNode:
@@ -107,3 +107,44 @@ def test_cycle_still_rejected_after_load(tmp_path: Path) -> None:
             loaded.nodes(),
             list(loaded.edges()) + [TaskEdge("c", "a", DependencyType.DATA)],
         )
+
+
+def test_open_read_only_missing_database_does_not_create_path(tmp_path: Path) -> None:
+    database = tmp_path / "missing" / "graphs.sqlite"
+
+    with pytest.raises(FileNotFoundError):
+        GraphStore.open_read_only(database)
+
+    assert not database.exists()
+    assert not database.parent.exists()
+
+
+def test_open_read_only_reads_existing_database_without_write(tmp_path: Path) -> None:
+    database = tmp_path / "g.sqlite"
+    writable = GraphStore(database)
+    writable.save_graph(_simple_graph(), "g1")
+    before = database.stat().st_mtime_ns
+
+    readonly = GraphStore.open_read_only(database)
+
+    assert readonly.list_graph_ids() == ["g1"]
+    assert readonly.load_graph("g1").node_ids() == ("a", "b", "c")
+    assert database.stat().st_mtime_ns == before
+
+
+def test_open_read_only_rejects_mutations_before_sql(tmp_path: Path) -> None:
+    database = tmp_path / "g.sqlite"
+    writable = GraphStore(database)
+    writable.save_graph(_simple_graph(), "g1")
+    readonly = GraphStore.open_read_only(database)
+
+    for mutation in (
+        lambda: readonly.save_graph(_simple_graph(), "g2"),
+        lambda: readonly.delete_graph("g1"),
+        lambda: readonly.record_node_event("g1", "a", "test"),
+    ):
+        with pytest.raises(GraphStoreReadOnlyError) as exc:
+            mutation()
+        assert exc.value.code == "GRAPH_STORE_READ_ONLY"
+
+    assert readonly.list_graph_ids() == ["g1"]
