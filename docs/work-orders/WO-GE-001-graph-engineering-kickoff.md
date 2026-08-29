@@ -194,3 +194,13 @@ Focused bridge + ReadySet composition evidence is 13/13 green. GE-9 remains REVI
 WO-GE-010 composes all 10 existing deterministic FaultScenario cases with GE durable identity/lifecycle semantics plus three graph-specific cases: wrong-repo recovery blocking, durable reopen same-key replay prevention, and fan-in recovery/output completeness.
 
 Focused chaos matrix is 13/13 green; broader graph + fault/recovery/transport regression is 200/200 green. No production source change was needed. GE-10 is REVIEW_READY pending exact-head CI, remote diff re-audit, merge and accepted-main verification.
+
+## GE-8..GE-11 reconciliation — 2026-08-29
+
+Accepted-main evidence now closes GE-8..GE-10:
+
+- GE-8 PR #137 merged as `76a7b55a1b4b8cde32173a7446741db9975c485b` after exact-head 3-OS CI;
+- GE-9 PR #138 merged as `da50305961536cc68b072ca99769a9c8e3048ffd` after exact-head 3-OS CI;
+- GE-10 PR #139 merged as `1fea5cfffbe9bb8a9093e67dfa1065559e324ab2` after 13-case chaos, broader regression, remote re-audit and 3-OS CI.
+
+GE-11 is the only remaining Graph Engineering roadmap node. Its isolated UI lane is `feat/wo-ge-011-graph-operator-ui` from accepted main `1fea5cf`; local deterministic/UI/E2E gates are green and PR/CI/merge remain outstanding.
