@@ -2,7 +2,7 @@
 
 Created: 2026-08-29
 Owner: GPT-5.6 Sol release verification lane
-Status: ACTIVE / TDD
+Status: COMPLETE / MERGED PR #145 / POST-MERGE MAIN CI GREEN
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-installer-e2e`
 Branch: `test/wo-p1-110-frozen-installer-e2e`
@@ -18,7 +18,7 @@ The Windows CI builds and inspects both frozen executables and smokes the Portab
 
 Allowed:
 - `.github/workflows/ci.yml`
-- additive `scripts/verify_frozen_installer_e2e.ps1`
+- additive `scripts/verify_frozen_installer_e2e.py`
 - `tests/test_build_installer.py` workflow-contract assertion only
 - this work order
 
@@ -47,7 +47,7 @@ RED: workflow contract must require the reusable frozen installer E2E script bef
 ## Local TDD / verification checkpoint
 
 - RED: workflow contract failed because no frozen Setup E2E step/script existed.
-- GREEN: workflow now invokes `scripts/verify_frozen_installer_e2e.ps1` after Portable smoke and before artifact upload.
+- GREEN: workflow initially invoked a PowerShell verifier; exact-head CI exposed its output-stream bug and the accepted repair uses `scripts/verify_frozen_installer_e2e.py` after Portable smoke and before artifact upload.
 - Verifier is clean-host only and exercises unknown-target refusal, install identity, installed hash/smoke, direct-uninstall fail-closed, registered uninstall, and zero managed residue.
 - On this workstation the verifier parsed/bound successfully and stopped at `HOST_REGISTRY_NOT_CLEAN` before mutation because live v0.6.0 is installed; this is the intended safety behavior.
 - Local exact-main artifact PE files are independently blocked by host AV with `Access is denied`; artifact ZIP/member hashes remain valid. AV was not disabled or bypassed.
@@ -66,3 +66,13 @@ Classification: verifier-harness defect, not installer behavior.
 Repair: replace the PowerShell verifier with a Python clean-host Windows verifier that captures native stdout/stderr explicitly and returns only process exit codes.
 Post-repair local evidence: installer regression `41 passed`; `compileall scripts` PASS; `git diff --check` PASS; local invocation fails closed at `HOST_REGISTRY_NOT_CLEAN` before mutating the installed v0.6 state.
 Next: commit/push follow-up, rerun exact-head CI, inspect the real Setup E2E result, then re-audit/merge only on green.
+
+## Merge / exact-main closeout — 2026-08-29
+
+PR #145 final head `b7a2c77df4ba413df40d2fcdfdd0388615e899ab` passed exact-head CI run `33247761698` on Windows, Ubuntu, and macOS. Windows executed the real frozen Setup install/uninstall E2E successfully after Portable smoke. Remote scope was exactly four intended files and review/issue comments were zero.
+
+PR #145 was SHA-guard squash-merged as `047326966ded5d2941d57411782f8a85b6d9121a`. Post-merge main CI run `33248070680` passed all three OS jobs and repeated the frozen Setup install/uninstall E2E successfully on that exact main SHA.
+
+Exact-main Windows Actions artifact: ID `9713566612`, name `A-Sunday-Conductor-Windows-047326966ded5d2941d57411782f8a85b6d9121a`; artifact ZIP SHA-256 `1d52ace01664487566096461833099c8dbe40f2fed4ab75c8a0d0d972a4a702a`; Portable SHA-256 `6728ce75349b6975c9f774868ff47adb1793264abe30e3d194c1c376aa0c1675`; Setup SHA-256 `1c4a1166d2af4509df184bc41f839a0fabd7fb0d45e6e2772f01346b93a89d4a`.
+
+Local live v0.6.0 was never mutated by this CI-based E2E. Re-check after acceptance proves installed exe and Start Menu shortcut remain byte-identical to their pre-test hashes; Desktop shortcut remains absent as before. WO-P1-110 is complete.
