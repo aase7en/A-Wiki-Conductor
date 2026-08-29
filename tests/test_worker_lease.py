@@ -416,3 +416,30 @@ def test_same_owner_task_with_capability_contract_drift_fails_closed(tmp_path: P
     with pytest.raises(WorkerLeaseError, match="LEASE_REQUEST_CONFLICT"):
         service.acquire(drifted, (candidate("a-worker-01"),))
     assert len(store.list_active()) == 1
+
+
+def test_concurrent_same_owner_with_reused_proposed_id_still_marks_existing(tmp_path: Path) -> None:
+    database = tmp_path / "leases.sqlite"
+    first = WorkerLeaseBroker(
+        store=SQLiteWorkerLeaseStore(database), lease_id_factory=lambda: "lease-same", clock=lambda: NOW
+    )
+    second = WorkerLeaseBroker(
+        store=SQLiteWorkerLeaseStore(database), lease_id_factory=lambda: "lease-same", clock=lambda: NOW
+    )
+    req = request(ordered=("a-worker-01", "a-worker-02"))
+    candidates = (candidate("a-worker-01"), candidate("a-worker-02"))
+    barrier = Barrier(2)
+
+    def run(service):
+        barrier.wait()
+        return service.acquire(req, candidates)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        left = pool.submit(run, first)
+        right = pool.submit(run, second)
+        outcomes = (left.result(), right.result())
+
+    assert sorted(item.kind.value for item in outcomes) == ["EXISTING", "LEASED"]
+    assert outcomes[0].lease is not None and outcomes[1].lease is not None
+    assert outcomes[0].lease.lease_id == outcomes[1].lease.lease_id == "lease-same"
+    assert len(SQLiteWorkerLeaseStore(database).list_active()) == 1

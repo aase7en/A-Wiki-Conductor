@@ -248,6 +248,12 @@ class LeaseReleaseResult:
     already_released: bool
 
 
+@dataclass(frozen=True, slots=True)
+class LeaseStoreAcquireResult:
+    lease: WorkerLease | None
+    created: bool
+
+
 def _decode_scope(raw: str) -> tuple[str, ...]:
     try:
         value = json.loads(raw)
@@ -361,7 +367,7 @@ class SQLiteWorkerLeaseStore:
                 raise WorkerLeaseError("LEASE_STORE_READ_FAILED") from exc
         return None if row is None else _lease_from_row(row)
 
-    def try_acquire(
+    def try_acquire_result(
         self,
         request: WorkerLeaseRequest,
         candidate: WorkerLeaseCandidate,
@@ -369,7 +375,7 @@ class SQLiteWorkerLeaseStore:
         lease_id: str,
         acquired_at: object,
         expires_at: str | None = None,
-    ) -> WorkerLease | None:
+    ) -> LeaseStoreAcquireResult:
         lease_id = _text(lease_id, "lease_id", max_length=128)
         acquired = _timestamp(acquired_at, "acquired_at")
         expiry = _optional_text(expires_at, "expires_at")
@@ -394,14 +400,14 @@ class SQLiteWorkerLeaseStore:
                 if active_owner is not None:
                     existing = _require_matching_request(request, _lease_from_row(active_owner))
                     connection.rollback()
-                    return existing
+                    return LeaseStoreAcquireResult(existing, created=False)
                 active_worker = connection.execute(
                     "SELECT lease_id FROM worker_leases WHERE worker_id = ? AND released_at IS NULL",
                     (lease.worker_id,),
                 ).fetchone()
                 if active_worker is not None:
                     connection.rollback()
-                    return None
+                    return LeaseStoreAcquireResult(None, created=False)
                 if lease.mutation_intent is LeaseMutationIntent.MUTATION:
                     rows = connection.execute(
                         "SELECT mutable_scope_json FROM worker_leases "
@@ -428,7 +434,7 @@ class SQLiteWorkerLeaseStore:
                     ),
                 )
                 connection.commit()
-                return lease
+                return LeaseStoreAcquireResult(lease, created=True)
             except WorkerLeaseError:
                 connection.rollback()
                 raise
@@ -439,11 +445,28 @@ class SQLiteWorkerLeaseStore:
                     (candidate.worker_id,),
                 ).fetchone()
                 if active is not None:
-                    return None
+                    return LeaseStoreAcquireResult(None, created=False)
                 raise WorkerLeaseError("LEASE_ID_CONFLICT") from exc
             except sqlite3.Error as exc:
                 connection.rollback()
                 raise WorkerLeaseError("LEASE_STORE_WRITE_FAILED") from exc
+
+    def try_acquire(
+        self,
+        request: WorkerLeaseRequest,
+        candidate: WorkerLeaseCandidate,
+        *,
+        lease_id: str,
+        acquired_at: object,
+        expires_at: str | None = None,
+    ) -> WorkerLease | None:
+        return self.try_acquire_result(
+            request,
+            candidate,
+            lease_id=lease_id,
+            acquired_at=acquired_at,
+            expires_at=expires_at,
+        ).lease
 
     def list_active(self) -> tuple[WorkerLease, ...]:
         with self._connect() as connection:
@@ -548,10 +571,10 @@ class WorkerLeaseBroker:
         lease_id_factory: Callable[[], str],
         clock: Callable[[], object],
     ) -> None:
-        if not callable(getattr(store, "try_acquire", None)) or not callable(
+        if not callable(getattr(store, "try_acquire_result", None)) or not callable(
             getattr(store, "find_active_owner_task", None)
         ):
-            raise ValueError("store must provide try_acquire and find_active_owner_task")
+            raise ValueError("store must provide try_acquire_result and find_active_owner_task")
         if not callable(lease_id_factory):
             raise ValueError("lease_id_factory must be callable")
         if not callable(clock):
@@ -594,12 +617,13 @@ class WorkerLeaseBroker:
                 continue
             try:
                 proposed_lease_id = _text(self._lease_id_factory(), "lease_id", max_length=128)
-                lease = self._store.try_acquire(
+                acquire_result = self._store.try_acquire_result(
                     request,
                     item,
                     lease_id=proposed_lease_id,
                     acquired_at=self._clock(),
                 )
+                lease = acquire_result.lease
             except WorkerLeaseError as exc:
                 if exc.code != "MUTABLE_SCOPE_OVERLAP":
                     raise
@@ -608,11 +632,7 @@ class WorkerLeaseBroker:
                 )
                 continue
             if lease is not None:
-                kind = (
-                    LeaseOutcomeKind.LEASED
-                    if lease.lease_id == proposed_lease_id
-                    else LeaseOutcomeKind.EXISTING
-                )
+                kind = LeaseOutcomeKind.LEASED if acquire_result.created else LeaseOutcomeKind.EXISTING
                 return WorkerLeaseOutcome(kind, lease, tuple(rejections))
             rejections.append(CandidateRejection(worker_id, CandidateRejectionKind.LEASE_BUSY))
 

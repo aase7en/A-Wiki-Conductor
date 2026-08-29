@@ -19,12 +19,12 @@ Close AHA-4A with atomic, retry-safe worker leasing and fail-closed mutation sco
 1. `allowed_scope` was stored but not enforced. Mutation scope is now fail-closed: literal paths may be covered by an allowed glob; wider/unproven mutable globs are rejected.
 2. Same `session_id/task_id` retry after uncertain delivery could select a second worker. Active owner/task is now unique and retry attaches the existing lease; request-contract drift fails closed.
 3. Required capability drift is persisted/checked so retry cannot silently weaken or change the task contract.
-4. Resume verification found a race outcome-classification defect: an attach-to-existing result could be mislabeled `LEASED`. `LeaseOutcomeKind.EXISTING` now distinguishes idempotent/race attachment from a newly created lease.
+4. Resume verification found two race outcome-classification defects: attach-to-existing could be mislabeled `LEASED`, and proposed lease-ID equality could hide the attach when two brokers generated the same ID. The store now returns atomic `created` status; `EXISTING` no longer depends on ID comparison.
 
 ## Evidence
 
-- focused worker lease: **35 passed**;
-- registry/persistence/graph/job/lease regression: **219 passed**;
+- focused worker lease: **36 passed**;
+- registry/persistence/graph/job/lease regression: **220 passed**;
 - focused race repeat: **10/10 PASS**;
 - compileall + diff-check: PASS;
 - concurrency cases include competing tasks, overlapping mutable scopes, same-owner convergence, and explicit `EXISTING` classification.

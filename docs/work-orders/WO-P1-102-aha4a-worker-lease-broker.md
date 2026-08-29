@@ -94,7 +94,8 @@ Deep-review checkpoint — 2026-08-29:
 - RED found uncertain-delivery retry could allocate a second worker for the same `session_id/task_id`. Added atomic active owner/task uniqueness, idempotent attach, and `LEASE_REQUEST_CONFLICT` on contract drift.
 - required capabilities are persisted and checked on retry; concurrent same-owner requests converge on one lease.
 - post-reconcile focused **35 passed**; relevant registry/persistence/graph/job/lease regression **145 passed**; compileall/diff-check PASS.
-- resume RED found outcome classification was incomplete: a concurrent same-owner loser could atomically attach the existing lease but broker still labeled both outcomes `LEASED`. Added explicit `EXISTING`; focused **35 passed**, broad registry/persistence/graph/job/lease regression **219 passed**, race repeat **10/10 PASS**, compileall/diff-check PASS.
+- resume RED found outcome classification was incomplete: a concurrent same-owner loser could atomically attach the existing lease but broker still labeled both outcomes `LEASED`. Added explicit `EXISTING`;
+- independent RED then proved lease-ID comparison was not a reliable created/existing authority when concurrent brokers proposed the same lease ID. Added atomic `LeaseStoreAcquireResult.created`; broker classification now consumes store transaction truth, while public `try_acquire()` remains backward-compatible. Same proposed lease ID race is covered deterministically; focused **36 passed**, broad registry/persistence/graph/job/lease regression **220 passed**, race repeat **10/10 PASS**, compileall/diff-check PASS.
 - these review-discovered defects remain recorded here because `DEFECT_LESSONS.md` policy is for user-reported defects.
 
 Post-main reconciliation: merged accepted `origin/main@39f0253cc4f8896cffa78b6772ce6ffd2e229736` without rebase/conflict. Focused **35 passed**, relevant broad regression **219 passed**, compileall/diff-check PASS.
