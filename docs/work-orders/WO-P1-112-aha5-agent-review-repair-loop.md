@@ -79,3 +79,21 @@ than bypass these gates.
 
 Next: checkpoint claim -> write RED contract tests -> smallest mutation/result bridge ->
 independent review -> real GLM vertical slice -> bounded repair slice -> CI/merge loop.
+
+## Checkpoint — proposal boundary GREEN
+
+- Chosen design is narrower than the initial mutation plan: GLM/other models remain
+  read-only and return structured complete-file proposals; only Conductor materializes
+  changes through exact owner/task/HEAD + active mutating lease + scope + content-hash gates.
+- Added `agent_change_packets.py` with strict proposal/result decoding and deterministic
+  lease-bound apply; overwrite proposals require `expected_sha256` to prevent stale/TOCTOU writes.
+- A pre-existing untracked `tests/test_agent_proposal_decoder.py` was discovered during
+  resume, preserved, reconciled into the same provider-neutral decoder contract, and not overwritten.
+- Focused decoder/apply tests: 11 passed. Relevant lease/supervised/Claude integration:
+  176 passed. `compileall` and `git diff --check` PASS.
+- Live direct GLM probe through raw `subprocess.run(timeout=30)` exposed a Windows process-tree
+  hazard: Claude descendant inherited capture handles and delayed parent completion until the
+  descendant exited. Production/live AHA-5 execution must therefore use the accepted supervised
+  execution service, never a raw subprocess shortcut.
+- Next: clean checkpoint commit -> supervised direct-Z.ai GLM vertical slice from exact HEAD ->
+  decode proposal -> lease apply -> deterministic review -> bounded repair round.

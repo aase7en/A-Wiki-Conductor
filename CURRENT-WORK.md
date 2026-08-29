@@ -20,8 +20,8 @@ Current lane:
 
 1. AHA-4B merged via PR #147; post-main CI `33261050931` GREEN all OS + Frozen Setup E2E.
 2. Build provider-neutral task/result packet flow over accepted durable job + execution artifacts + AHA-4B leases.
-3. Enable only lease-bound scoped GLM mutation; preserve existing read-only behavior.
-4. Prove GLM implementation + GPT review + one automatic repair round without result copy/paste.
+3. Keep GLM/provider execution read-only; accept structured proposals and let Conductor apply them only through lease + scope + exact-HEAD + content-hash gates.
+4. Prove direct-Z.ai GLM proposal + Conductor materialization + GPT review + one automatic repair round without result copy/paste.
 5. Live tunnel-client request-level TTL soak and v0.7 release remain separate gates.
 
 ## Source-of-truth rule
