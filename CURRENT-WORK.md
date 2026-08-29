@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-29 (GPT-5.6 Sol — AHA-5 CONTRACT / TDD)
+Last updated: 2026-08-30 (GPT-5.6 Sol — AHA-5 FILE BRIDGE GREEN / AUDIT GATE)
 
 ## Current phase
 
@@ -18,11 +18,11 @@ Current lane:
 
 ## Immediate execution frontier
 
-1. AHA-4B merged via PR #147; post-main CI `33261050931` GREEN all OS + Frozen Setup E2E.
-2. Build provider-neutral task/result packet flow over accepted durable job + execution artifacts + AHA-4B leases.
-3. Keep GLM/provider execution read-only; accept structured proposals and let Conductor apply them only through lease + scope + exact-HEAD + content-hash gates.
-4. Prove direct-Z.ai GLM proposal + Conductor materialization + GPT review + one automatic repair round without result copy/paste.
-5. Live tunnel-client request-level TTL soak and v0.7 release remain separate gates.
+1. Provider-neutral structured proposal + result-file bridge + one-file lease materialization are GREEN.
+2. Deterministic review/repair file loop is GREEN without human result copy/paste.
+3. Claude provider jobs are isolated from user settings via `--setting-sources project,local`; existing READ_ONLY behavior remains.
+4. GLM-5.3 MAX suitability is proven; direct Z.ai remains entitlement-blocked, while the user has a working external Claude-CLI proxy profile. That proxy credential is not stored in repo/runtime SSoT, so automatic Conductor dispatch must fail closed until an external secret/profile resolver is configured. The one-prompt file bridge remains the supported fallback and requires no result copy-back.
+5. Next = defect/SSoT audit -> broad regression/chaos -> PR/diff/3-OS CI/re-audit/merge. Live tunnel-client request-level TTL soak and v0.7 release remain separate gates.
 
 ## Source-of-truth rule
 
@@ -188,3 +188,5 @@ Current branch `feat/terminal-command-center-redesign` contains the implemented 
 ## WO-P1-063 PR checkpoint
 
 Draft PR #77 is open from `feat/terminal-command-center-redesign`; implementation commit `c42d174` is pushed. CI started with Windows test + Ubuntu/macOS cross-platform smoke pending. Next owner must review actual PR diff and checks first, then fix only evidence-backed failures, finish packaging/fresh-install visual E2E, update SSoT, convert from draft/merge only after acceptance.
+
+- AHA-5 audit evidence: related suite 122 passed; CI-equivalent full suite 1687 passed, 1 environment skip, 0 failed; compileall/diff-check/secret-pattern scan PASS.

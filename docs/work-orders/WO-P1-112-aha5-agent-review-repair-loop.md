@@ -2,7 +2,7 @@
 
 Date: 2026-08-29
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / CONTRACT-FIRST
+Status: ACTIVE / FILE-BRIDGE GREEN / AUDIT GATE
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha5-review-repair`
 Branch: `feat/wo-p1-112-aha5-agent-review-repair-loop`
@@ -49,7 +49,7 @@ non-overlap.
 `status`, `checkpoint_at`, `result_ref`, `next_safe_action`.
 ## Acceptance criteria
 
-1. One bounded GLM implementation task can be dispatched without result copy/paste.
+1. One bounded external-agent implementation task can use automatic dispatch when provider-ready, or the one-prompt human bridge when externally blocked; result copy/paste is never required.
 2. Mutation is impossible without exact identity + active compatible worker lease.
 3. Mutation is confined to allowed scope; forbidden/overlap/dirty uncertainty fails closed.
 4. Result packet/evidence survives process/session/model rotation and is re-readable by GPT.
@@ -97,3 +97,21 @@ independent review -> real GLM vertical slice -> bounded repair slice -> CI/merg
   execution service, never a raw subprocess shortcut.
 - Next: clean checkpoint commit -> supervised direct-Z.ai GLM vertical slice from exact HEAD ->
   decode proposal -> lease apply -> deterministic review -> bounded repair round.
+
+## Checkpoint — file bridge + repair GREEN / live-provider blocked
+
+- `AgentResultPacket.as_dict()` provides stable durable JSON handoff.
+- `AgentResultFileReader` is root-confined through `NativeFileSystem` and verifies task/provider/model identity.
+- AHA-5 intentionally permits one mutable file per agent task; broader fan-out/fan-in is AHA-6.
+- `AgentRepairRequest` + repair-task Markdown carry deterministic review findings into one bounded repair round using the same task/lease authority.
+- Deterministic file-bridge E2E proves result → apply → review-fail → repair packet → repaired result → apply without human result copy/paste.
+- `docs/agent-collab/*` is provider-neutral and no longer acts as stale duplicate SSoT.
+- Live automatic GLM-5.3 MAX attempt reached Z.ai after fixing user-settings isolation, but provider returned HTTP 429 `[1113]` insufficient resource package.
+- Installed ZCode 0.16.5 reports full GLM-5.3 Coding Plan `coding_plan_not_entitled`; Start Plan exposes GLM-5.3-Flash. CLI help also advertises flags that its parser rejects, so it is not accepted as a reliable automatic GLM-5.3 MAX path in this checkpoint.
+- The user has a working external Claude-CLI GLM proxy profile, but its credential is not stored or copied into tracked/runtime evidence. Automatic proxy dispatch remains fail-closed until an approved external secret/profile resolver exists.
+- User-requested fallback therefore remains first-class: human relays one short prompt pointing to task/result files; integrator reads the result directly.
+- Focused bridge/harness tests: 34 passed before SSoT/docs checkpoint.
+
+Next: defect-memory → broad lease/supervised/harness regression + chaos → compile/diff/secret audit → commit/push → Draft PR → remote review/3-OS CI/Frozen Setup → re-audit/merge/post-main.
+
+- AHA-5 audit evidence: related suite 122 passed; CI-equivalent full suite 1687 passed, 1 environment skip, 0 failed; compileall/diff-check/secret-pattern scan PASS.

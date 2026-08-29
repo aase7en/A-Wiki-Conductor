@@ -9,14 +9,25 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from fnmatch import fnmatchcase
 from pathlib import PurePosixPath
+from typing import Callable, Protocol
 
 from .native_execution import NativeExecutionError, NativeFileSystem
-from .worker_lease import LeaseMutationIntent, WorkerLease
+from .registry import windows_worktree_key
+from .worker_lease import LeaseHealth, LeaseHealthKind, LeaseMutationIntent, WorkerLeaseError
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _ALLOWED_STATUSES = frozenset({"CHANGES_PROPOSED", "NO_CHANGES", "BLOCKED"})
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class LeaseHealthReader(Protocol):
+    def inspect_health(self, lease_id: str, *, now: object) -> LeaseHealth: ...
 
 
 class AgentChangeError(RuntimeError):
@@ -83,6 +94,8 @@ class AgentResultPacket:
             raise ValueError("changes are invalid")
         if len({item.path for item in changes}) != len(changes):
             raise ValueError("change paths must be unique")
+        if len(changes) > 1:
+            raise ValueError("one file change per task is supported")
         if self.status == "CHANGES_PROPOSED" and not changes:
             raise ValueError("changes are required")
         if self.status != "CHANGES_PROPOSED" and changes:
@@ -94,6 +107,24 @@ class AgentResultPacket:
             tuple(_text(item, "evidence_ref", max_length=512) for item in self.evidence_refs),
         )
 
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "task_id": self.task_id,
+            "provider_id": self.provider_id,
+            "model_id": self.model_id,
+            "status": self.status,
+            "base_head": self.base_head,
+            "changes": [
+                {
+                    "path": item.path,
+                    "content": item.content,
+                    "expected_sha256": item.expected_sha256,
+                }
+                for item in self.changes
+            ],
+            "evidence_refs": list(self.evidence_refs),
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class AgentChangeApplyResult:
@@ -101,24 +132,40 @@ class AgentChangeApplyResult:
 
 
 class AgentChangeApplier:
-    def __init__(self, *, filesystem: NativeFileSystem) -> None:
+    def __init__(self, *, filesystem: NativeFileSystem, lease_store: LeaseHealthReader,
+                 clock: Callable[[], object] = _utc_now) -> None:
         if not isinstance(filesystem, NativeFileSystem):
             raise ValueError("filesystem must be NativeFileSystem")
+        if not hasattr(lease_store, "inspect_health"):
+            raise ValueError("lease_store must inspect lease health")
+        if not callable(clock):
+            raise ValueError("clock must be callable")
         self._filesystem = filesystem
+        self._lease_store = lease_store
+        self._clock = clock
 
     def apply(
         self,
         packet: AgentResultPacket,
-        lease: WorkerLease,
+        lease_id: str,
         *,
         session_id: str,
         task_id: str,
         actual_head: str,
     ) -> AgentChangeApplyResult:
-        if not isinstance(packet, AgentResultPacket) or not isinstance(lease, WorkerLease):
-            raise ValueError("packet and lease are required")
+        if not isinstance(packet, AgentResultPacket):
+            raise ValueError("packet is required")
+        try:
+            health = self._lease_store.inspect_health(lease_id, now=self._clock())
+        except WorkerLeaseError as exc:
+            raise AgentChangeError("LEASE_HEALTH_UNAVAILABLE") from exc
+        if not isinstance(health, LeaseHealth) or health.kind is not LeaseHealthKind.ACTIVE:
+            raise AgentChangeError("LEASE_NOT_ACTIVE")
+        lease = health.lease
         if lease.session_id != session_id or lease.task_id != task_id or packet.task_id != task_id:
             raise AgentChangeError("LEASE_OWNER_MISMATCH")
+        if windows_worktree_key(str(self._filesystem.root)) != windows_worktree_key(lease.worktree_key):
+            raise AgentChangeError("WORKTREE_MISMATCH")
         if lease.mutation_intent is not LeaseMutationIntent.MUTATION:
             raise AgentChangeError("LEASE_NOT_MUTATING")
         if lease.released_at is not None or lease.quarantined_at is not None:
@@ -195,6 +242,57 @@ def agent_result_from_claude_payload(payload: dict[str, object]) -> AgentResultP
         raise AgentChangeError("AGENT_RESULT_SCHEMA_INVALID") from exc
 
 
+def _packet_from_mapping(decoded: dict[str, object]) -> AgentResultPacket:
+    try:
+        changes_raw = decoded.get("changes", [])
+        if not isinstance(changes_raw, list):
+            raise ValueError("changes are invalid")
+        evidence_raw = decoded.get("evidence_refs", [])
+        if not isinstance(evidence_raw, list):
+            raise ValueError("evidence refs are invalid")
+        return AgentResultPacket(
+            task_id=decoded["task_id"], provider_id=decoded["provider_id"],
+            model_id=decoded["model_id"], status=decoded["status"],
+            base_head=decoded["base_head"],
+            changes=tuple(AgentFileChange(**item) for item in changes_raw),
+            evidence_refs=tuple(evidence_raw),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise AgentChangeError("AGENT_RESULT_INVALID") from exc
+
+
+class AgentResultFileReader:
+    def __init__(self, *, filesystem: NativeFileSystem) -> None:
+        if not isinstance(filesystem, NativeFileSystem):
+            raise ValueError("filesystem must be NativeFileSystem")
+        self._filesystem = filesystem
+
+    def read(self, relative_path: str, *, expected_task_id: str,
+             expected_provider_id: str, expected_model_id: str) -> AgentResultPacket:
+        try:
+            raw = self._filesystem.read_text(relative_path).content
+            decoded = json.loads(raw)
+        except (NativeExecutionError, json.JSONDecodeError) as exc:
+            raise AgentChangeError("AGENT_RESULT_FILE_INVALID") from exc
+        if not isinstance(decoded, dict):
+            raise AgentChangeError("AGENT_RESULT_FILE_INVALID")
+        packet = _packet_from_mapping(decoded)
+        if packet.task_id != expected_task_id:
+            raise AgentChangeError("TASK_MISMATCH")
+        if packet.provider_id != expected_provider_id:
+            raise AgentChangeError("PROVIDER_MISMATCH")
+        if packet.model_id != expected_model_id:
+            raise AgentChangeError("MODEL_MISMATCH")
+        return packet
+
+
+def build_human_bridge_prompt(task_ref: str, result_ref: str) -> str:
+    task = _text(task_ref, "task_ref", max_length=512)
+    result = _text(result_ref, "result_ref", max_length=512)
+    return (f"Read {task}. Do only that authorized lane; write the required JSON result "
+            f"to {result}. Do not return the result to the human or edit coordination files.")
+
+
 class AgentProposalDecoder:
     """Validate one successful harness result into a provider-neutral proposal packet."""
 
@@ -245,3 +343,44 @@ class AgentProposalDecoder:
         if expected_model_id is not None and packet.model_id != expected_model_id:
             raise AgentChangeError("MODEL_MISMATCH")
         return packet
+
+
+@dataclass(frozen=True, slots=True)
+class AgentRepairRequest:
+    task_id: str
+    provider_id: str
+    model_id: str
+    base_head: str
+    source_result_ref: str
+    result_destination_ref: str
+    review_findings: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "task_id", _text(self.task_id, "task_id", max_length=128))
+        object.__setattr__(self, "provider_id", _text(self.provider_id, "provider_id", max_length=128))
+        object.__setattr__(self, "model_id", _text(self.model_id, "model_id", max_length=128))
+        if not re.fullmatch(r"[0-9a-fA-F]{7,64}", self.base_head):
+            raise ValueError("base_head is invalid")
+        object.__setattr__(self, "base_head", self.base_head.casefold())
+        object.__setattr__(self, "source_result_ref", _text(self.source_result_ref, "source_result_ref", max_length=512))
+        object.__setattr__(self, "result_destination_ref", _text(self.result_destination_ref, "result_destination_ref", max_length=512))
+        findings = tuple(_text(item, "review_finding", max_length=1024) for item in self.review_findings)
+        if not findings:
+            raise ValueError("review_findings must not be empty")
+        object.__setattr__(self, "review_findings", findings)
+
+
+def build_repair_task_markdown(request: AgentRepairRequest) -> str:
+    if not isinstance(request, AgentRepairRequest):
+        raise ValueError("request must be AgentRepairRequest")
+    findings = "\n".join(f"- {item}" for item in request.review_findings)
+    return (
+        f"# Repair task {request.task_id}\n\n"
+        f"Provider/model: `{request.provider_id}` / `{request.model_id}`\n"
+        f"Base HEAD: `{request.base_head}`\n"
+        f"Read prior result: `{request.source_result_ref}`\n"
+        f"Write replacement result: `{request.result_destination_ref}`\n\n"
+        "## Review findings\n"
+        f"{findings}\n\n"
+        "Do not broaden scope, change coordination files, merge, publish, or retry outside this repair task.\n"
+    )

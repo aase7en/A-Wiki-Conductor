@@ -33,3 +33,17 @@ Windows passed Frozen Setup install/uninstall E2E.
   hazard. Do not use raw subprocess for the live slice; use `SupervisedExecutionService`.
 - Next safe action: checkpoint commit, then run a supervised direct-Z.ai GLM proposal
   from exact clean HEAD and review/apply it through the new boundary.
+
+## 2026-08-30 AHA-5 file bridge checkpoint
+
+- proposal/result decoding, exact identity, one-file-per-task scope and content-hash preconditions are implemented;
+- human one-prompt bridge reads/writes durable `runs/` task/result files; integrator reads results directly;
+- deterministic review → repair packet → repaired result E2E is GREEN without human result copy-back;
+- Claude provider execution is isolated from user-level settings with `--setting-sources project,local`;
+- direct GLM-5.3 MAX reached Z.ai but provider returned HTTP 429 `[1113]` insufficient resource package;
+- the user also has a working external Claude-CLI GLM proxy profile, but its credential is intentionally not tracked or copied into Conductor artifacts;
+- automatic proxy dispatch remains fail-closed until that credential/profile is exposed through an approved external secret resolver; the durable one-prompt file bridge remains usable without result copy-back;
+- these are external provider/configuration conditions, not permission to weaken deterministic gates;
+- next safe action: defect-memory + broad regression/chaos + diff/secret audit, then PR/CI/re-audit/merge.
+
+- AHA-5 audit evidence: related suite 122 passed; CI-equivalent full suite 1687 passed, 1 environment skip, 0 failed; compileall/diff-check/secret-pattern scan PASS.

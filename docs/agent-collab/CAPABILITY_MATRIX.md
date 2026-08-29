@@ -1,70 +1,55 @@
-# Capability Matrix — GLM 5.3 Max vs GPT-5.6 Sol
+# Agent Capability / Routing Evidence
 
-> ข้อมูลจาก Artificial Analysis (v4.1.1), Arena (ex-LMArena), SWE-bench Verified
-> วันที่วิจัย: 2026-08-23
+This file records routing evidence, not permanent model rankings.
+Re-check current upstream evidence before delegating material work to a named model.
 
-## Benchmark สรุป
+## Current researched candidate — GLM-5.3 MAX
 
-| Metric | GLM 5.3 Max | GPT-5.6 Sol | หมายเหตุ |
-|---|---|---|---|
-| **AA Intelligence Index** | 60 (#9 of 186) | 61 (#5 of 186) | ต่างกัน 1 คะแนน |
-| **Arena Text Elo** | ~1495 (#13) | #16 | GLM สูงกว่าทุก GPT |
-| **SWE-bench Verified** | GLM 5 = 72.8% | GPT 5.2 = 72.8% | เท่ากัน (GLM 5.3 ยังไม่มี score) |
-| **Output speed** | ~81 tok/s (est) | ~73 tok/s | GLM เร็วกว่าเล็กน้อย |
-| **First-token latency** | **1.4s** | 35-63s | GLM เร็วกว่า 25-45x |
-| **Context window** | 1M | 1M | เท่ากัน |
-| **Output cost** | **$4.40/1M** | $30.00/1M | GLM ถูกกว่า 7x |
-| **Input cost** | $1.40/1M | $5.00/1M | GLM ถูกกว่า 3.6x |
-| **Cache discount** | 81% | 90% | GPT ดีกว่า |
-| **License** | MIT (open weight) | Proprietary | GLM เปิดกว้างกว่า |
+Research date: 2026-08-29.
+Primary source: official Z.ai GLM-5.3 materials reviewed before AHA-5 delegation.
 
-## ความเหมาะสมต่องาน
+| Evidence | Observed value | Routing implication |
+|---|---:|---|
+| Terminal-Bench 3.0 | 28.3 | suitable candidate for bounded terminal/agentic coding |
+| DeepSWE v1.1 | 66.9 | suitable candidate for repository implementation/repair |
+| Z.ai Code Bench, max effort | 34.5% | use max reasoning for difficult coding tasks |
+| Coding Plan / Claude Code support | documented | compatible in principle with the existing Claude-style harness |
 
-### GLM 5.3 Max เหมาะกับ:
+These values justify trying GLM-5.3 MAX for bounded implementation/repair.
+They do not prove it is best for every task and do not replace GPT/integrator review.
 
-| งาน | เหตุผล |
-|---|---|
-| **Architecture & Design** | AA Index สูง + Arena สูงกว่า + long context |
-| **UI/UX Design** | เข้าใจ layout + responsive + สุนทรียศาสตร์ |
-| **Complex Debugging** | Deep reasoning + 1M context สำหรับ trace |
-| **Thai i18n** | เข้าใจภาษาไทยลึกกว่า |
-| **Testing & QA** | ละเอียด + ครอบคลุม + ถูกกว่า (รันหลายรอบได้) |
-| **Documentation** | Long-context + ถูกกว่าสำหรับเขียนยาว |
-| **Code Review** | เข้าใจ codebase ทั้งหมด (1M context) |
-| **Cross-platform** | วิเคราะห์ platform differences ได้ดี |
-| **Cost-sensitive tasks** | ถูกกว่า 7x — เหมาะกับงานที่ต้องรันหลายครั้ง |
+## Current local availability evidence
 
-### GPT-5.6 Sol เหมาะกับ:
+- Direct Z.ai GLM-5.3 invocation reached the provider but returned HTTP 429 / insufficient resource package.
+- Installed ZCode 0.16.5 reports `builtin:zai-coding-plan` unavailable with `coding_plan_not_entitled`.
+- Installed ZCode Start Plan is available, but its active model set currently exposes GLM-5.3-Flash rather than full GLM-5.3.
+- The user also has a working external Claude-CLI GLM proxy profile, but its credential is intentionally outside tracked project state.
+- Therefore AHA-5 must distinguish **model suitability** from **provider entitlement/readiness** and from **credential/profile integration readiness**.
 
-| งาน | เหตุผล |
-|---|---|
-| **Speed-critical tasks** | Ecosystem เข้ากับ OpenAI tools ดีกว่า |
-| **Bulk code changes** | Codex integration + editor tools |
-| **Image generation** | DALL-E integration built-in |
-| **Quick reviews** | เร็วเมื่อต้องการ feedback ทันที (แต่ first-token ช้า) |
-| **Ecosystem integrations** | OpenAI API, plugins, tools มากกว่า |
-| **Vision tasks** | Image input built-in (GLM ต้องใช้ 4.6V แยก) |
-| **English content** | Native English quality สูงกว่าเล็กน้อย |
+## Routing decision record
 
-## Cost Optimization Rules
+For each delegation record:
+- task class and why an external model helps;
+- evidence source/date;
+- provider/model/effort requested;
+- current readiness/auth/quota/entitlement observation;
+- assigned mutable scope and verification;
+- fallback if the provider is unavailable.
 
-| สถานการณ์ | ใช้ | เหตุผล |
-|---|---|---|
-| งานต้องรัน >5 ครั้ง (debug, test) | **GLM** | ประหยัด 7x |
-| งานต้องคิดลึก (architecture) | **GLM** | คุณภาพใกล้กัน ถูกกว่า |
-| งานต้องการ image | **GPT** | DALL-E built-in |
-| งานต้องการ speed จริง (ไม่ใช่ first-token) | **GLM** | 82 vs 74 tok/s |
-| งานเขียน English content สั้น | **GPT** | Native quality |
-| งานวิเคราะห์ codebase ใหญ่ | **GLM** | 1M context + ถูกกว่า |
+## Default role split for AHA-5
 
-## กฎการเลือก (เมื่อไม่แน่ใจ)
+**Integrator/reviewer:** GPT-5.6 Sol — architecture, trust boundaries, deterministic
+review, integration, PR/merge/release authority.
 
-```
-ถ้างานเป็น "คิด/วิเคราะห์/เขียน/ทดสอบ" → GLM
-ถ้างานเป็น "สร้างภาพ/เร่งความเร็ว/integrate ecosystem" → GPT
-ถ้ายังไม่แน่ใจ → GLM (ถูกกว่า 7x = เสียน้อยกว่าถ้าผิด)
-```
+**Candidate implement/repair agent:** GLM-5.3 MAX when current provider readiness permits.
+It receives a bounded task packet and returns a structured proposal; it does not own merge
+or acceptance authority.
 
----
+**Future agents:** use the same packet/lease/result contract. Do not encode lifecycle rules
+from provider names.
 
-*Sources: artificialanalysis.ai, arena.ai/leaderboard, swebench.com — accessed 2026-08-23*
+## Evidence discipline
+
+Prefer official model/provider documentation plus reproducible repository evidence.
+Community leaderboards may supplement routing decisions but should not be the sole authority.
+If evidence is stale or the task class changes materially, research again before delegation.
