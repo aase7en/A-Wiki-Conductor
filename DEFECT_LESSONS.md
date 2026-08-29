@@ -329,3 +329,17 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** an identifier supplied by an operator is selection context, not evidence that the identified runtime entity exists. UI labels such as LIVE/RUNNING/EVIDENCE require observed durable provenance.
 
 **Verify:** deterministic GE-11 tests cover planning-only mode, unknown explicit run -> no evidence, and matching durable job -> durable run evidence.
+
+---
+
+## #18: Persistent native temp cleanup failure accumulates app-owned residue (2026-08-29)
+
+**Symptom:** live audit found 17 `%TEMP%\a-conductor-exec-*` directories after persistent cleanup failures; 15 were older than 24 hours and several were 5-8 days old.
+
+**Root cause:** WO-P1-107 correctly made exhausted cleanup retries explicit as `COMMAND_CLEANUP_FAILED`, but there was no later owner-bounded retry path. A naive age-only sweep also risks deleting a legitimately long-running execution, and failed partial deletion can refresh directory mtime so an old orphan appears recent.
+
+**Fix:** each new execution temp tree holds an OS lock marker for its active lifetime. New trees also use a versioned basename `a-conductor-exec-v2-<created-epoch>-...`, so their creation age survives directory mtime/ctime refresh after partial cleanup. Before a new run, a best-effort sweep inspects only exact `a-conductor-exec-*` directories, skips symlinks and active locks, uses the encoded creation epoch for v2 trees (legacy pre-v2 residue falls back to the older mtime/ctime), and attempts at most 32 single-shot deletions. Primary command cleanup keeps its existing PermissionError retry budget.
+
+**Lesson:** deferred hygiene needs both durable ownership evidence and stable provenance. Age is a filter, not proof of inactivity; active work needs an exclusion signal, and cleanup attempts must not rewrite the age authority used by the next sweep. Background-style cleanup must remain bounded so residue cannot turn into startup latency or alter command semantics.
+
+**Verify:** deterministic tests cover stale/recent/unrelated/symlink boundaries, fail-soft locks, active owner locks, bounded no-wait sweep, runner-held lease, versioned temp creation, and metadata-refresh recovery using the encoded creation epoch. Native suite = 30 passed; broader native/supervised/job/Claude + installer composition = 219 passed. Local stale residue remains reduced to two legacy directories ~9h old, intentionally preserved below the 24h threshold.

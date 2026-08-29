@@ -446,3 +446,187 @@ def test_persistent_temp_cleanup_lock_is_explicit_cleanup_failure(tmp_path: Path
         for leftover in set(locked_paths):
             if leftover.exists():
                 real_rmtree(leftover)
+
+
+def test_stale_execution_temp_sweep_is_prefix_age_and_symlink_bounded(
+    tmp_path: Path, monkeypatch
+) -> None:
+    now = native_execution.time.time()
+    stale = tmp_path / "a-conductor-exec-stale"
+    recent = tmp_path / "a-conductor-exec-recent"
+    link_like = tmp_path / "a-conductor-exec-link"
+    unrelated = tmp_path / "other-temp"
+    for candidate in (stale, recent, link_like, unrelated):
+        candidate.mkdir()
+    os.utime(stale, (now - 90_000, now - 90_000))
+    os.utime(recent, (now - 60, now - 60))
+    os.utime(link_like, (now - 90_000, now - 90_000))
+    os.utime(unrelated, (now - 90_000, now - 90_000))
+
+    original_is_symlink = Path.is_symlink
+    monkeypatch.setattr(
+        Path,
+        "is_symlink",
+        lambda self: self == link_like or original_is_symlink(self),
+    )
+
+    removed = native_execution._sweep_stale_execution_temp_trees(
+        tmp_path,
+        now=now,
+        stale_after_seconds=86_400,
+    )
+
+    assert removed == 1
+    assert not stale.exists()
+    assert recent.exists()
+    assert link_like.exists()
+    assert unrelated.exists()
+
+
+def test_stale_execution_temp_sweep_is_fail_soft(
+    tmp_path: Path, monkeypatch
+) -> None:
+    stale = tmp_path / "a-conductor-exec-locked"
+    stale.mkdir()
+    os.utime(stale, (1.0, 1.0))
+
+    monkeypatch.setattr(
+        native_execution,
+        "_remove_temp_tree_with_permission_retry",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("locked")),
+    )
+
+    assert native_execution._sweep_stale_execution_temp_trees(
+        tmp_path, now=100_000.0, stale_after_seconds=10.0
+    ) == 0
+    assert stale.exists()
+
+
+def test_native_runner_attempts_stale_sweep_before_new_temp_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    runner = NativeSubprocessRunner(
+        scope_for(tmp_path.resolve(), allowed_executables=(python_name(),))
+    )
+    calls: list[Path] = []
+
+    monkeypatch.setattr(
+        native_execution,
+        "_sweep_stale_execution_temp_trees",
+        lambda root, **_kwargs: calls.append(Path(root)) or 0,
+    )
+
+    result = runner.run(
+        NativeCommandSpec(argv=(sys.executable, "-c", "print('ok')"))
+    )
+
+    assert result.exit_code == 0
+    assert calls == [Path(native_execution.tempfile.gettempdir())]
+
+
+def test_native_runner_creates_versioned_temp_directory_name(tmp_path: Path, monkeypatch) -> None:
+    runner = NativeSubprocessRunner(
+        scope_for(tmp_path.resolve(), allowed_executables=(python_name(),))
+    )
+    real_mkdtemp = native_execution.tempfile.mkdtemp
+    prefixes: list[str] = []
+
+    def capture_prefix(**kwargs):
+        prefixes.append(kwargs["prefix"])
+        return real_mkdtemp(**kwargs)
+
+    monkeypatch.setattr(native_execution.tempfile, "mkdtemp", capture_prefix)
+    result = runner.run(
+        NativeCommandSpec(argv=(sys.executable, "-c", "print('ok')"))
+    )
+
+    assert result.exit_code == 0
+    assert len(prefixes) == 1
+    assert prefixes[0].startswith("a-conductor-exec-v2-")
+
+
+def test_stale_execution_temp_sweep_caps_work_and_never_waits_for_locks(
+    tmp_path: Path, monkeypatch
+) -> None:
+    for index in range(3):
+        candidate = tmp_path / f"a-conductor-exec-old-{index}"
+        candidate.mkdir()
+        os.utime(candidate, (1.0, 1.0))
+    calls: list[tuple[Path, tuple[float, ...] | None]] = []
+
+    def locked(path, **kwargs):
+        calls.append((Path(path), kwargs.get("retry_delays")))
+        raise PermissionError("locked")
+
+    monkeypatch.setattr(
+        native_execution, "_remove_temp_tree_with_permission_retry", locked
+    )
+
+    assert native_execution._sweep_stale_execution_temp_trees(
+        tmp_path,
+        now=100_000.0,
+        stale_after_seconds=10.0,
+        max_candidates=2,
+    ) == 0
+    assert len(calls) == 2
+    assert all(retry_delays == () for _path, retry_delays in calls)
+
+
+def test_stale_execution_temp_sweep_skips_active_owner_lock(tmp_path: Path) -> None:
+    candidate = tmp_path / "a-conductor-exec-active"
+    candidate.mkdir()
+    lease = native_execution._acquire_execution_temp_lease(candidate)
+    try:
+        os.utime(candidate, (1.0, 1.0))
+        assert native_execution._sweep_stale_execution_temp_trees(
+            tmp_path, now=100_000.0, stale_after_seconds=10.0
+        ) == 0
+        assert candidate.exists()
+    finally:
+        native_execution._release_execution_temp_lease(lease)
+
+    assert native_execution._sweep_stale_execution_temp_trees(
+        tmp_path, now=100_000.0, stale_after_seconds=10.0
+    ) == 1
+    assert not candidate.exists()
+
+
+def test_native_runner_holds_owner_lock_during_subprocess(
+    tmp_path: Path, monkeypatch
+) -> None:
+    runner = NativeSubprocessRunner(
+        scope_for(tmp_path.resolve(), allowed_executables=(python_name(),))
+    )
+    observed: list[bool] = []
+
+    def fake_run(*_args, **kwargs):
+        temp_dir = Path(kwargs["stdout"].name).parent
+        observed.append(native_execution._execution_temp_lease_available(temp_dir))
+        return type("Completed", (), {"returncode": 0})()
+
+    monkeypatch.setattr(native_execution.subprocess, "run", fake_run)
+    result = runner.run(NativeCommandSpec(argv=(sys.executable, "-c", "pass")))
+
+    assert result.exit_code == 0
+    assert observed == [False]
+
+
+def test_versioned_temp_name_preserves_age_after_directory_metadata_refresh(tmp_path: Path) -> None:
+    candidate = tmp_path / "a-conductor-exec-v2-1000-deadbeef"
+    candidate.mkdir()
+    os.utime(candidate, (100_000.0, 100_000.0))
+
+    removed = native_execution._sweep_stale_execution_temp_trees(
+        tmp_path, now=100_000.0, stale_after_seconds=10.0
+    )
+
+    assert removed == 1
+    assert not candidate.exists()
+
+
+def test_stale_execution_age_anchor_survives_mtime_refresh() -> None:
+    class StatLike:
+        st_mtime = 100_000.0
+        st_ctime = 1_000.0
+
+    assert native_execution._execution_temp_age_anchor(StatLike()) == 1_000.0

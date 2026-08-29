@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import BinaryIO, Mapping, Sequence
 
 
 class NativeExecutionError(RuntimeError):
@@ -50,6 +50,148 @@ def _remove_temp_tree_with_permission_retry(
         shutil.rmtree(target)
     except FileNotFoundError:
         return
+
+
+_TEMP_ORPHAN_STALE_AFTER_SECONDS = 86_400.0
+_TEMP_ORPHAN_SWEEP_LIMIT = 32
+_TEMP_DIR_PREFIX = "a-conductor-exec-"
+_TEMP_DIR_V2_PREFIX = f"{_TEMP_DIR_PREFIX}v2-"
+
+_TEMP_OWNER_LOCK_NAME = ".a-conductor-owner.lock"
+
+
+def _lock_execution_temp_handle(handle: BinaryIO, *, blocking: bool) -> bool:
+    handle.seek(0)
+    if os.name == "nt":
+        import msvcrt
+
+        mode = msvcrt.LK_LOCK if blocking else msvcrt.LK_NBLCK
+        try:
+            msvcrt.locking(handle.fileno(), mode, 1)
+        except OSError:
+            return False
+        return True
+
+    import fcntl
+
+    flags = fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB)
+    try:
+        fcntl.flock(handle.fileno(), flags)
+    except (BlockingIOError, OSError):
+        return False
+    return True
+
+
+def _unlock_execution_temp_handle(handle: BinaryIO) -> None:
+    handle.seek(0)
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+
+
+def _acquire_execution_temp_lease(temp_dir: Path) -> BinaryIO:
+    handle = (Path(temp_dir) / _TEMP_OWNER_LOCK_NAME).open("a+b")
+    try:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"1")
+            handle.flush()
+        if not _lock_execution_temp_handle(handle, blocking=True):
+            raise OSError("EXECUTION_TEMP_LEASE_FAILED")
+        return handle
+    except Exception:
+        handle.close()
+        raise
+
+
+def _release_execution_temp_lease(handle: BinaryIO) -> None:
+    try:
+        _unlock_execution_temp_handle(handle)
+    finally:
+        handle.close()
+
+
+def _execution_temp_lease_available(temp_dir: Path) -> bool:
+    lock_path = Path(temp_dir) / _TEMP_OWNER_LOCK_NAME
+    if not lock_path.exists():
+        return True
+    try:
+        handle = lock_path.open("r+b")
+    except OSError:
+        return False
+    locked = False
+    try:
+        locked = _lock_execution_temp_handle(handle, blocking=False)
+        return locked
+    finally:
+        if locked:
+            _unlock_execution_temp_handle(handle)
+        handle.close()
+
+
+def _execution_temp_age_anchor(stat_result) -> float:
+    return min(float(stat_result.st_mtime), float(stat_result.st_ctime))
+
+
+def _versioned_execution_temp_prefix(*, now: float | None = None) -> str:
+    created_at = time.time() if now is None else float(now)
+    return f"{_TEMP_DIR_V2_PREFIX}{int(created_at)}-"
+
+
+def _execution_temp_stable_age_anchor(candidate: Path, stat_result) -> float:
+    name = Path(candidate).name
+    if name.startswith(_TEMP_DIR_V2_PREFIX):
+        encoded = name[len(_TEMP_DIR_V2_PREFIX) :].split("-", 1)[0]
+        try:
+            created_at = int(encoded)
+        except ValueError:
+            pass
+        else:
+            if created_at >= 0:
+                return float(created_at)
+
+    return _execution_temp_age_anchor(stat_result)
+
+
+def _sweep_stale_execution_temp_trees(
+    temp_root: Path,
+    *,
+    now: float | None = None,
+    stale_after_seconds: float = _TEMP_ORPHAN_STALE_AFTER_SECONDS,
+    max_candidates: int = _TEMP_ORPHAN_SWEEP_LIMIT,
+) -> int:
+    """Best-effort cleanup for stale private execution temp trees only."""
+    current = time.time() if now is None else float(now)
+    try:
+        candidates = tuple(sorted(Path(temp_root).glob(f"{_TEMP_DIR_PREFIX}*")))
+    except OSError:
+        return 0
+    removed = 0
+    attempted = 0
+    for candidate in candidates:
+        try:
+            if candidate.is_symlink() or not candidate.is_dir():
+                continue
+            if current - _execution_temp_stable_age_anchor(candidate, candidate.stat()) < stale_after_seconds:
+                continue
+            if attempted >= max_candidates:
+                break
+            if not _execution_temp_lease_available(candidate):
+                continue
+            attempted += 1
+            _remove_temp_tree_with_permission_retry(candidate, retry_delays=())
+        except OSError:
+            continue
+        removed += 1
+    return removed
 
 
 _SAFE_INHERITED_ENVIRONMENT_KEYS = frozenset(
@@ -462,38 +604,43 @@ class NativeSubprocessRunner:
 
         timed_out = False
         exit_code: int | None = None
+        _sweep_stale_execution_temp_trees(Path(tempfile.gettempdir()))
         try:
-            temp_dir = Path(tempfile.mkdtemp(prefix="a-conductor-exec-"))
+            temp_dir = Path(tempfile.mkdtemp(prefix=_versioned_execution_temp_prefix()))
         except OSError as exc:
             raise NativeExecutionError("COMMAND_EXECUTION_FAILED") from exc
         try:
-            stdout_path = temp_dir / "stdout.bin"
-            stderr_path = temp_dir / "stderr.bin"
-            with stdout_path.open("wb") as stdout_handle, stderr_path.open("wb") as stderr_handle:
-                try:
-                    completed = subprocess.run(
-                        list(argv),
-                        cwd=str(cwd),
-                        shell=False,
-                        stdin=subprocess.DEVNULL,
-                        stdout=stdout_handle,
-                        stderr=stderr_handle,
-                        env=environment,
-                        timeout=timeout,
-                        check=False,
-                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                    )
-                    exit_code = completed.returncode
-                except subprocess.TimeoutExpired:
-                    timed_out = True
-            stdout, stdout_sha256, stdout_truncated = _bounded_file_result(
-                stdout_path,
-                self._scope.max_output_bytes,
-            )
-            stderr, stderr_sha256, stderr_truncated = _bounded_file_result(
-                stderr_path,
-                self._scope.max_output_bytes,
-            )
+            lease = _acquire_execution_temp_lease(temp_dir)
+            try:
+                stdout_path = temp_dir / "stdout.bin"
+                stderr_path = temp_dir / "stderr.bin"
+                with stdout_path.open("wb") as stdout_handle, stderr_path.open("wb") as stderr_handle:
+                    try:
+                        completed = subprocess.run(
+                            list(argv),
+                            cwd=str(cwd),
+                            shell=False,
+                            stdin=subprocess.DEVNULL,
+                            stdout=stdout_handle,
+                            stderr=stderr_handle,
+                            env=environment,
+                            timeout=timeout,
+                            check=False,
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                        )
+                        exit_code = completed.returncode
+                    except subprocess.TimeoutExpired:
+                        timed_out = True
+                stdout, stdout_sha256, stdout_truncated = _bounded_file_result(
+                    stdout_path,
+                    self._scope.max_output_bytes,
+                )
+                stderr, stderr_sha256, stderr_truncated = _bounded_file_result(
+                    stderr_path,
+                    self._scope.max_output_bytes,
+                )
+            finally:
+                _release_execution_temp_lease(lease)
         except Exception as exc:
             try:
                 _remove_temp_tree_with_permission_retry(temp_dir)
