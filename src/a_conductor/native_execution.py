@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,6 +25,31 @@ class NativeExecutionError(RuntimeError):
     def __init__(self, code: str) -> None:
         self.code = code
         super().__init__(code)
+
+
+_TEMP_CLEANUP_RETRY_DELAYS = (0.05, 0.1, 0.2, 0.4)
+
+
+def _remove_temp_tree_with_permission_retry(
+    target: Path,
+    *,
+    retry_delays: tuple[float, ...] = _TEMP_CLEANUP_RETRY_DELAYS,
+    sleep_fn=None,
+) -> None:
+    """Remove one private execution temp tree with finite transient-lock retry."""
+    sleeper = time.sleep if sleep_fn is None else sleep_fn
+    for delay in retry_delays:
+        try:
+            shutil.rmtree(target)
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            sleeper(delay)
+    try:
+        shutil.rmtree(target)
+    except FileNotFoundError:
+        return
 
 
 _SAFE_INHERITED_ENVIRONMENT_KEYS = frozenset(
@@ -437,38 +463,52 @@ class NativeSubprocessRunner:
         timed_out = False
         exit_code: int | None = None
         try:
-            with tempfile.TemporaryDirectory(prefix="a-conductor-exec-") as temp_dir:
-                stdout_path = Path(temp_dir) / "stdout.bin"
-                stderr_path = Path(temp_dir) / "stderr.bin"
-                with stdout_path.open("wb") as stdout_handle, stderr_path.open("wb") as stderr_handle:
-                    try:
-                        completed = subprocess.run(
-                            list(argv),
-                            cwd=str(cwd),
-                            shell=False,
-                            stdin=subprocess.DEVNULL,
-                            stdout=stdout_handle,
-                            stderr=stderr_handle,
-                            env=environment,
-                            timeout=timeout,
-                            check=False,
-                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                        )
-                        exit_code = completed.returncode
-                    except subprocess.TimeoutExpired:
-                        timed_out = True
-                stdout, stdout_sha256, stdout_truncated = _bounded_file_result(
-                    stdout_path,
-                    self._scope.max_output_bytes,
-                )
-                stderr, stderr_sha256, stderr_truncated = _bounded_file_result(
-                    stderr_path,
-                    self._scope.max_output_bytes,
-                )
-        except NativeExecutionError:
-            raise
+            temp_dir = Path(tempfile.mkdtemp(prefix="a-conductor-exec-"))
         except OSError as exc:
             raise NativeExecutionError("COMMAND_EXECUTION_FAILED") from exc
+        try:
+            stdout_path = temp_dir / "stdout.bin"
+            stderr_path = temp_dir / "stderr.bin"
+            with stdout_path.open("wb") as stdout_handle, stderr_path.open("wb") as stderr_handle:
+                try:
+                    completed = subprocess.run(
+                        list(argv),
+                        cwd=str(cwd),
+                        shell=False,
+                        stdin=subprocess.DEVNULL,
+                        stdout=stdout_handle,
+                        stderr=stderr_handle,
+                        env=environment,
+                        timeout=timeout,
+                        check=False,
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    )
+                    exit_code = completed.returncode
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+            stdout, stdout_sha256, stdout_truncated = _bounded_file_result(
+                stdout_path,
+                self._scope.max_output_bytes,
+            )
+            stderr, stderr_sha256, stderr_truncated = _bounded_file_result(
+                stderr_path,
+                self._scope.max_output_bytes,
+            )
+        except Exception as exc:
+            try:
+                _remove_temp_tree_with_permission_retry(temp_dir)
+            except OSError:
+                pass
+            if isinstance(exc, NativeExecutionError):
+                raise
+            if isinstance(exc, OSError):
+                raise NativeExecutionError("COMMAND_EXECUTION_FAILED") from exc
+            raise
+
+        try:
+            _remove_temp_tree_with_permission_retry(temp_dir)
+        except OSError as exc:
+            raise NativeExecutionError("COMMAND_CLEANUP_FAILED") from exc
 
         return NativeCommandResult(
             executable=executable,
