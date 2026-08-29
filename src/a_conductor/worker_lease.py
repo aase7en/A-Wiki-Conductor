@@ -966,9 +966,10 @@ class WorkerLeaseBroker:
         if existing is not None:
             matching = _require_matching_request(request, existing)
             health = self._store.inspect_health(matching.lease_id, now=now)
+            latest = _require_matching_request(request, health.lease)
             if health.kind is LeaseHealthKind.ACTIVE:
-                return WorkerLeaseOutcome(LeaseOutcomeKind.EXISTING, matching, ())
-            return WorkerLeaseOutcome(LeaseOutcomeKind.RECOVERY_REQUIRED, matching, ())
+                return WorkerLeaseOutcome(LeaseOutcomeKind.EXISTING, latest, ())
+            return WorkerLeaseOutcome(LeaseOutcomeKind.RECOVERY_REQUIRED, latest, ())
         if isinstance(candidates, (str, bytes)):
             raise ValueError("candidates must be a sequence")
         by_worker: dict[str, WorkerLeaseCandidate] = {}

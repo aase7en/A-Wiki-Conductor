@@ -19,8 +19,8 @@ Current exact lane:
 ## Immediate execution frontier
 
 1. AHA-4B implementation is local GREEN: bounded TTL/heartbeat, stale `RECOVERY_REQUIRED`, quarantine and explicit reconciliation-before-reuse;
-2. deep review closed stale-observation replay and direct-release-after-expiry/quarantine bypasses before checkpoint;
-3. focused **68 passed**, relevant integration **247 passed**, three race classes **20/20 each**, compileall/diff/secret/forbidden-surface gates PASS;
+2. deep review closed stale-observation replay, direct-release-after-expiry/quarantine bypasses, and stale owner-retry snapshot after racing heartbeat;
+3. focused **69 passed**, relevant integration **247 passed**, three race classes **20/20 each**, compileall/diff/secret/forbidden-surface gates PASS;
 4. next = commit/push -> Draft PR -> remote diff audit -> independent review -> exact-head 3-OS CI -> merge/post-main/cleanup;
 5. live tunnel-client v0.0.13 soak remains a separate human-authorization release gate and is forbidden in this lane.
 

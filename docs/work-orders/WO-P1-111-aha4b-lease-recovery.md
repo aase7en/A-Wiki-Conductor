@@ -85,9 +85,10 @@ Review-discovered defects closed before checkpoint:
 1. stale reconciliation evidence could replay after a newer heartbeat/quarantine and release a lease; fixed with monotonic evidence authority;
 2. inherited AHA-4A `release()` could bypass AHA-4B reconciliation after expiry/quarantine; fixed by requiring recovery for uncertain ownership and preserving only active exact-owner release;
 3. a fallback test initially used the same mutable scope on worker 2; canonical overlap correctly blocked it, so the test was corrected to exercise non-overlapping fallback rather than weakening the conflict gate.
+4. owner retry could return the stale pre-health lookup snapshot when a heartbeat raced between owner lookup and health inspection; fixed by returning the exact latest lease snapshot from the health read.
 
 Evidence:
-- AHA-4A + AHA-4B focused: **68 passed**;
+- AHA-4A + AHA-4B focused: **69 passed**;
 - lease/recovery/domain/job/registry/persistence/graph integration: **247 passed**;
 - race stress: heartbeat?reconcile **20/20**, same-worker contention **20/20**, same-owner convergence **20/20**;
 - compileall: PASS;

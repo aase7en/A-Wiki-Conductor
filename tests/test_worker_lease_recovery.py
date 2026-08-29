@@ -536,3 +536,33 @@ def test_release_timestamp_older_than_latest_heartbeat_fails_closed(tmp_path: Pa
             task_id=lease.task_id,
             released_at=NOW + timedelta(seconds=9),
         )
+
+
+def test_broker_returns_latest_health_snapshot_when_heartbeat_races_owner_lookup(tmp_path: Path) -> None:
+    class HeartbeatOnLookupStore(SQLiteWorkerLeaseStore):
+        def find_active_owner_task(self, session_id: str, task_id: str):
+            snapshot = super().find_active_owner_task(session_id, task_id)
+            if snapshot is not None:
+                super().heartbeat(
+                    snapshot.lease_id,
+                    session_id=snapshot.session_id,
+                    task_id=snapshot.task_id,
+                    heartbeat_at=NOW + timedelta(seconds=4),
+                )
+            return snapshot
+
+    store = HeartbeatOnLookupStore(tmp_path / "leases.sqlite")
+    first = WorkerLeaseBroker(store=store, lease_id_factory=lambda: "lease-1", clock=lambda: NOW)
+    lease = first.acquire(request(ttl=5), (candidate(),)).lease
+    assert lease is not None
+
+    retry = WorkerLeaseBroker(
+        store=store,
+        lease_id_factory=lambda: "lease-2",
+        clock=lambda: NOW + timedelta(seconds=6),
+    ).acquire(request(ttl=5), (candidate(),))
+
+    assert retry.kind is LeaseOutcomeKind.EXISTING
+    assert retry.lease is not None
+    assert retry.lease.heartbeat_at == "2026-08-29T14:00:04.000000Z"
+    assert retry.lease.expires_at == "2026-08-29T14:00:09.000000Z"

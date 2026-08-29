@@ -20,7 +20,7 @@ PR #131 AHA-4A merged as `b7a2149cb5e40c596ae6934506e1a360263ecc3d`; exact-head 
 
 ## Evidence
 
-- AHA-4A + AHA-4B focused: **68 passed**;
+- AHA-4A + AHA-4B focused: **69 passed**;
 - relevant lease/recovery/domain/job/registry/persistence/graph regression: **247 passed**;
 - race stress: heartbeat?reconcile, same-worker contention and same-owner convergence each **20/20 PASS**;
 - compileall/diff/secret/forbidden-surface gates: PASS.
