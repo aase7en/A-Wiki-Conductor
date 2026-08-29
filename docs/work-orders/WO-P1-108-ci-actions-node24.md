@@ -22,6 +22,7 @@ Official GitHub release check on 2026-08-29:
 Allowed:
 - `.github/workflows/ci.yml`
 - `.github/workflows/sign.yml`
+- `tests/test_build_installer.py` (workflow contract expectation only)
 - this work order
 
 Forbidden:
@@ -40,3 +41,7 @@ Forbidden:
 - Windows packaging/frozen smoke still passes;
 - CI run no longer emits Node-20 forced-runtime warnings for these actions;
 - remote diff/review and accepted-main verification pass before closeout.
+
+## CI RED repair — 2026-08-29
+
+Exact-head Windows CI exposed one stale contract assertion in `tests/test_build_installer.py` that required `actions/upload-artifact@v4`. Local RED reproduced the same single failure; repo-wide grep found no other old action assertions. The test expectation is updated to `@v7`; workflow behavior is unchanged.

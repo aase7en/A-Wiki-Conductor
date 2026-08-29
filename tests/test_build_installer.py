@@ -294,7 +294,7 @@ def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
         "payload/installer-branding.json",
         "SETUP_ARCHIVE_UNEXPECTED_ENTRY",
         "Start-Process",
-        "actions/upload-artifact@v4",
+        "actions/upload-artifact@v7",
     ):
         assert required in workflow
     # ``pyi-archive_viewer`` emits Windows member names with backslashes.  CI
