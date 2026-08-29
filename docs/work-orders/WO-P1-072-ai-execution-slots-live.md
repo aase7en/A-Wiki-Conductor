@@ -2,7 +2,7 @@
 
 Created: 2026-08-26
 Owner: GPT-5.6 Sol MAX — design + implementation + visual/release integration
-Status: READY_FOR_PR — real-system E2E complete; deep telemetry defects repaired TDD-first; focused GUI green
+Status: COMPLETE / MERGED
 Branch: `feat/ai-execution-slots-live`
 Dependency satisfied: PR #99 merged as `e8195b1`; branch reconciled to that main line
 
@@ -114,3 +114,8 @@ Regression coverage pins all three cases. Focused latest result: `148 passed, 1 
 ## Next micro-step
 
 Clean private E2E artifacts, final diff/spec review, push `feat/ai-execution-slots-live`, audit remote PR diff, require Windows/Ubuntu/macOS CI green, then merge/fetch and perform frozen/installed visual acceptance before v0.7.0 publication.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #101 merged into main as `4ad0b8e48ecd07686d1c090aa8153215cbf4632f`.

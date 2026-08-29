@@ -227,3 +227,21 @@ WO-P1-101 closes the A-Sunday-owned checksum fail-open gap identified during v0.
 - exact-head GitHub Actions run `33180188339` passed Windows, Ubuntu, and macOS before merge.
 
 This closes the checksum/provenance sub-gate only. `v0.7.0` remains BLOCKED: PR #125 head `f6fdb5d9dcee493a0ae5104db0d660eb44f50b08` still has no production caller for `reconcile_instance_recovery()`, CR-4 operator visibility remains incomplete, and no unused Tunnel ID exists for the required isolated/live TTL soak.
+## Authoritative release-gate refresh - 2026-08-29
+
+This checkpoint supersedes earlier statements in this file that CR-2 had no production caller or that CR-4 was still incomplete.
+
+Source state verified from accepted main:
+- CR-1: source complete via PR #122; setup rejects tunnel-client 0.0.11 and requires >=0.0.12. Checksum/provenance fail-closed hardening merged via PR #128.
+- CR-2: source complete via PR #125. DesktopControlService.instance_states_cancellable() calls reconcile_instance_recovery() from the existing health loop; explicit STOP suppression, bounded retry budget and DEGRADED semantics remain under the accepted coordinator.
+- CR-3: source complete in generated/legacy launcher hardening: timestamped runtime-log archive and numeric tunnel-client exit code are preserved.
+- CR-4: source complete via PR #133. MONITOR exposes recovery state, restart/failure counters, last exit and next retry; AUTO-RECOVER is emitted from durable restart evidence.
+- CR-5: source tests cover quoted project paths with spaces including L:\My Drive\... .
+
+Operational state is NOT complete:
+- the live shared binary at C:\AI\dwb-serena-tunnel-starter\tunnel-client\tunnel-client.exe is still 0.0.11;
+- the installed public app is still v0.6.0;
+- no sacrificial/idle tunnel has yet been proven available for the required v0.0.13 deadline/TTL soak without disrupting another active chat/worker;
+- v0.7.0 publication therefore remains blocked until an authorized isolated live upgrade/soak requires zero manual Start actions, followed by exact-main artifact install/smoke/uninstall acceptance.
+
+Release rule: source-complete CR-1..CR-5 may be reported as merged, but WO-P1-096 stays ACTIVE / P0 RELEASE BLOCKER until the operational soak and release E2E gates pass.

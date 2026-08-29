@@ -2,7 +2,7 @@
 
 Created: 2026-08-26
 Owner: GPT-5.6 Sol MAX — release blocker repair
-Status: CI_RETRY_REQUIRED — implementation and deterministic tests ready; fresh Windows GUI CI pending after test-timing repair
+Status: COMPLETE / MERGED
 Remote PR branch: `fix/project-disk-async-release` (PR #99)
 Current local transport branch: `fix/project-disk-async-ci`
 Reconciled base: `origin/main` `12a4c56db5704706ef3b2b25e291f2639627c05c` via merge commit `35fbc5e`
@@ -89,3 +89,8 @@ Do not publish `v0.7.0` from a SHA containing synchronous PROJECT DISK scanning.
 - Local focused verification: `tests/test_project_disk_async.py tests/test_folder_size.py` -> **10 passed, 4 skipped**; the four skips remain only the workstation Tcl-path problem.
 - Branch merged latest `origin/main` `12a4c56` cleanly; stale `CURRENT-WORK.md`, `handoff.md`, and `COLLAB.md` branch checkpoints are deliberately removed from PR #99 so they cannot roll main back. Final continuity reconciliation belongs in `docs/repo-health-100` after all GPT-owned work closes.
 - Next gate: commit/push this final PR #99 head, audit remote diff, require all CI checks green, re-audit, merge, fetch/reconcile.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #99 merged into main as `e8195b1d16799140068abb09297198df4a725149`.

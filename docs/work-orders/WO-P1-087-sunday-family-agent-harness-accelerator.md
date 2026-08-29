@@ -1,6 +1,6 @@
 # WO-P1-087 — Sunday Family Multi-Model Agent Harness Accelerator
 
-Status: ACTIVE / PLAN-FIRST ACCELERATOR
+Status: ACTIVE / AHA-0..AHA-4 MERGED; AHA-4A ACTIVE IN DRAFT PR #131; AHA-5+ PENDING
 Owner: GPT-5.6 Sol integrator via Remote Desktop Commander
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-agent-harness`
@@ -155,3 +155,15 @@ Before push/PR, verify no secret-like GLM proxy token or `ANTHROPIC_AUTH_TOKEN` 
 - Old release worktree registration was removed, but its physical folder remains process-locked; no unknown process was killed.
 
 Next safe action: create the AHA-1 provider/harness contract slice from `main` including merged C0 (`6487cb2`); do not start live provider execution yet.
+## Repo-health reconciliation - 2026-08-29
+
+The early plan/checkpoint text above is historical. Current accepted progress is:
+- AHA-0 capability vocabulary: PR #110 merged;
+- AHA-1 provider/harness contracts: PR #112 merged;
+- AHA-2 provider configuration/observation: PR #114 merged;
+- AHA-3 Claude Code harness: PR #116 merged;
+- AHA-4 durable graph dispatch + Claude durable backend + supervised runner + assembly: PRs #119, #121, #124 and #130 merged;
+- AHA-4A worker leasing is actively owned by Draft PR #131 and its live worktree/process. Repo-health must not edit or close that lane while ownership is active;
+- AHA-4B and AHA-5+ remain future work and must consume the accepted lease/ownership authority rather than bypass it.
+
+Next safe accelerator action is determined only after PR #131 releases ownership and current main SSoT is reconciled.

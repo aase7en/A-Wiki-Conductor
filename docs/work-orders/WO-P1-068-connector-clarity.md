@@ -2,7 +2,7 @@
 
 Created: 2026-08-26
 Owner: GLM 5.3 Max (user-reported incident; textual/behavioral scope, records per standing takeover pattern)
-Status: implementation on `fix/connector-clarity-safety`, PR pending
+Status: COMPLETE / MERGED
 Base: `origin/main` `333750e` (post-v0.6.0-complete)
 
 ## Incident (user report, 2026-08-26)
@@ -32,3 +32,8 @@ While GPT chat sessions worked through plugins Sunday-Worker-1..4, pressing **Re
 ## Tests
 
 `tests/test_connector_clarity.py` (8 tests): close-asks/decline-skips, close-silent-when-idle, rescan summary, masked suffix in table (+dash case), discovery suffix extraction, edit-dialog masked hint, periodic tick scheduled+cancelled. Suite reruns handle the known transient uv-Tk skip.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution/checklist text above is preserved as evidence; stale status is superseded by accepted GitHub state.
+- PR #90 merged into main as `a24db2c89301bb943f300f8d5cde451f511b8450`.

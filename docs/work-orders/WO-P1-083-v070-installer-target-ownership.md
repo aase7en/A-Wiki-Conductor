@@ -1,6 +1,6 @@
 # WO-P1-083 — v0.7 installer target ownership guard
 
-Status: IN_PROGRESS
+Status: COMPLETE / MERGED
 Owner: GPT-5.6 Sol
 Parent: WO-P1-075 release closeout
 Depends on: WO-P1-081 / PR #107
@@ -62,7 +62,7 @@ v0.7 publication remains blocked until both PR #107 and this ownership guard are
 
 ## Checkpoint — local verification + destructive-boundary E2E (2026-08-27)
 
-Status: `LOCAL_VERIFIED / PRE_PR_REVIEW`.
+Status: COMPLETE / MERGED
 
 Evidence:
 - RED: `8 failed, 1 passed` before ownership seams existed.
@@ -99,3 +99,8 @@ Repair:
 - self-delete/source-mode fixtures now model managed ownership rather than relying on an empty directory.
 
 Verification after repair: installer ownership/build/self-delete suites `37 passed`; `compileall` PASS; `git diff --check` PASS. Next gate: commit/push exact head -> 3-OS CI -> remote diff re-audit -> merge -> exact-main Setup sandbox acceptance.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #108 merged into main as `bbb392b1ea459e7e5103232845ec3bd463856dbd`.

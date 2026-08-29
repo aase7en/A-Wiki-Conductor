@@ -1,6 +1,6 @@
 # ติดตั้ง A-Sunday Conductor (Install Guide)
 
-> เวอร์ชันล่าสุด: v0.7.0 · รองรับ: Windows 10/11 · ไม่ต้องมีสิทธิ์ admin
+> Latest public release: v0.6.0 · Development source: v0.7.0 (not released yet) · Windows 10/11 · no admin required
 
 ## วิธีที่ 1: Setup Installer (แนะนำสำหรับผู้ใช้ทั่วไป)
 

@@ -1,6 +1,6 @@
 # WO-P1-061 — GPU Sunday Family Particle Portrait
 
-Created: 2026-08-24 · Owner: GPT-5.6 Sol + SunDay-Worker 2 (resumed from Workers 4/5) · Status: LOCAL_VERIFIED — FINAL_CI_PENDING
+Created: 2026-08-24 · Owner: GPT-5.6 Sol + SunDay-Worker 2 (resumed from Workers 4/5) · Status: COMPLETE / ABSORBED INTO ACCEPTED MAIN BASELINE
 
 ## Goal
 
@@ -83,6 +83,12 @@ machine-wide environment was changed.
 - Portable PyInstaller build: PASS, `A-Sunday Conductor.exe` 24,153,546 bytes (~24.15 MB).
 - PyInstaller TOC confirms bundled `assets/sunday-family-particle.png`, `a_conductor.gpu_particle_logo`, ModernGL native module, and `pyopengltk`.
 - Fresh frozen `--smoke` on this workstation: BLOCKED_LOCAL_SECURITY (`Access is denied`), matching the repository's existing ESET/fresh-PE lock pattern. Final frozen/full-suite authority is GitHub CI; do not alter production behavior to bypass local antivirus.
+
+## Repo-health closure - 2026-08-29
+
+The WO-P1-061 baseline is present on accepted `main`: initial GPU work `19c6432` is in the PR #77 command-center lineage; PR #79 completed command-center integration and PR #87 carried the WGL/Tk context release repair. Their exact-head CI was green. Current `main` still contains `gpu_particle_logo.py`, its tests, production wiring and frozen-archive asset/module assertions.
+
+The later motion/fidelity refinement commit `63ac2fa` is **not** an ancestor of `main`; it belongs to the protected North-Star/WO-P1-076 lineage and is not silently absorbed or cherry-picked by this closeout.
 
 ## Next safe action
 

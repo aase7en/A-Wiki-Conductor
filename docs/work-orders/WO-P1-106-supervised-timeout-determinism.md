@@ -2,7 +2,7 @@
 
 Date: 2026-08-29
 Owner: GPT-5.6 Sol integrator
-Status: REVIEW_READY - LOCAL GREEN / PR PENDING
+Status: COMPLETE / MERGED
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-ci-timeout`
 Branch: `fix/wo-p1-106-supervised-timeout-determinism`
@@ -57,3 +57,8 @@ Forbidden: PR #131 worker lease/SSoT hotspots; connector/live tunnel-client; ins
 - Separate observed native temp-cleanup PermissionError did not reproduce in 12 isolated retries; tracked for independent fault-injection rather than speculative repair.
 
 Next: final scope/secret audit -> commit/push -> exact remote diff -> 3-OS CI -> post-CI re-audit -> merge -> verify main.
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution text above is preserved as evidence; the stale status is superseded by accepted GitHub state.
+- PR #134 merged into main as `df6819213e0489f3b02a86c3d63f9045139e2da5`.
