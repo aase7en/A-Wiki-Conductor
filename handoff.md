@@ -10,7 +10,7 @@ Close AHA-4A with atomic, retry-safe worker leasing and fail-closed mutation sco
 
 - Worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`
 - Branch: `feat/wo-p1-102-aha4a-worker-lease-broker`
-- Reconciled `origin/main`: `bca98022aa2035e3851360eff12061151a01392d`
+- Reconciled `origin/main`: `39f0253cc4f8896cffa78b6772ce6ffd2e229736`
 - PR #131 is Draft; branch requires one final fix/checkpoint push.
 - Shared root remains protected/read-only.
 
@@ -24,7 +24,7 @@ Close AHA-4A with atomic, retry-safe worker leasing and fail-closed mutation sco
 ## Evidence
 
 - focused worker lease: **35 passed**;
-- registry/persistence/graph/job/lease regression: **216 passed**;
+- registry/persistence/graph/job/lease regression: **219 passed**;
 - focused race repeat: **10/10 PASS**;
 - compileall + diff-check: PASS;
 - concurrency cases include competing tasks, overlapping mutable scopes, same-owner convergence, and explicit `EXISTING` classification.

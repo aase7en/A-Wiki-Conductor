@@ -6,7 +6,7 @@ Status: REVIEW_READY — RETRY/SCOPE HARDENING GREEN / PR #131
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`
 Branch: `feat/wo-p1-102-aha4a-worker-lease-broker`
-Base/reconciled main: `origin/main@bca98022aa2035e3851360eff12061151a01392d`
+Base/reconciled main: `origin/main@39f0253cc4f8896cffa78b6772ce6ffd2e229736`
 Parent: Sunday Family Harness Accelerator / AHA-4A
 
 ## Goal
@@ -94,7 +94,9 @@ Deep-review checkpoint — 2026-08-29:
 - RED found uncertain-delivery retry could allocate a second worker for the same `session_id/task_id`. Added atomic active owner/task uniqueness, idempotent attach, and `LEASE_REQUEST_CONFLICT` on contract drift.
 - required capabilities are persisted and checked on retry; concurrent same-owner requests converge on one lease.
 - post-reconcile focused **35 passed**; relevant registry/persistence/graph/job/lease regression **145 passed**; compileall/diff-check PASS.
-- resume RED found outcome classification was incomplete: a concurrent same-owner loser could atomically attach the existing lease but broker still labeled both outcomes `LEASED`. Added explicit `EXISTING`; focused **35 passed**, broad registry/persistence/graph/job/lease regression **216 passed**, race repeat **10/10 PASS**, compileall/diff-check PASS.
+- resume RED found outcome classification was incomplete: a concurrent same-owner loser could atomically attach the existing lease but broker still labeled both outcomes `LEASED`. Added explicit `EXISTING`; focused **35 passed**, broad registry/persistence/graph/job/lease regression **219 passed**, race repeat **10/10 PASS**, compileall/diff-check PASS.
 - these review-discovered defects remain recorded here because `DEFECT_LESSONS.md` policy is for user-reported defects.
 
-Next gate: commit/push the bounded preserved follow-up -> merge latest accepted `origin/main` without rebasing away history -> rerun gates -> update/audit PR #131 exact remote diff -> independent read-only review -> exact-head Windows/Ubuntu/macOS CI -> merge only if green.
+Post-main reconciliation: merged accepted `origin/main@39f0253cc4f8896cffa78b6772ce6ffd2e229736` without rebase/conflict. Focused **35 passed**, relevant broad regression **219 passed**, compileall/diff-check PASS.
+
+Next gate: push reconciled head -> update/audit PR #131 exact remote diff -> independent read-only review -> exact-head Windows/Ubuntu/macOS CI -> merge only if green.

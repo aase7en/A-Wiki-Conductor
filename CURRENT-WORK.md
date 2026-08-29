@@ -9,7 +9,7 @@ Last updated: 2026-08-29 (GPT-5.6 Sol — AHA-4A retry/scope hardening GREEN / P
 Current exact lane:
 - worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`;
 - branch: `feat/wo-p1-102-aha4a-worker-lease-broker`;
-- reconciled `origin/main`: `bca98022aa2035e3851360eff12061151a01392d`;
+- reconciled `origin/main`: `39f0253cc4f8896cffa78b6772ce6ffd2e229736`;
 - Draft PR: #131.
 
 ## Active work order
@@ -22,7 +22,7 @@ Current exact lane:
 2. independent review found and fixed two P0/P1 correctness gaps: mutation scope could escape `allowed_scope`; same session/task retry could create a second lease after uncertain transport;
 3. retries now attach the same active owner/task lease, contract drift fails `LEASE_REQUEST_CONFLICT`, and concurrent same-owner requests converge on one lease;
 4. resumed verification found a P1 outcome-classification bug: the race loser could attach the existing lease but still report `LEASED`; `EXISTING` is now explicit for pre-existing/race-attached leases;
-5. final local evidence: focused **35 passed**, relevant regression **216 passed**, race repeat **10/10 PASS**, compileall/diff-check PASS; final exact-head CI remains required;
+5. final local evidence: focused **35 passed**, relevant regression **219 passed**, race repeat **10/10 PASS**, compileall/diff-check PASS; final exact-head CI remains required;
 6. next = checkpoint/commit/push -> merge latest accepted main -> remote PR #131 diff audit -> independent read-only review + GPT re-review -> exact-head 3-OS CI -> merge;
 7. AHA-4B heartbeat/expiry/quarantine remains a separate work order; no stale lease is reclaimed here.
 
