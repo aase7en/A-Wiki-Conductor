@@ -295,7 +295,7 @@ def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
         "SETUP_ARCHIVE_UNEXPECTED_ENTRY",
         "Start-Process",
         "actions/upload-artifact@v7",
-        "scripts/verify_frozen_installer_e2e.ps1",
+        "scripts/verify_frozen_installer_e2e.py",
         "Frozen Setup install/uninstall E2E",
     ):
         assert required in workflow
@@ -307,7 +307,7 @@ def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
     # exercises the deterministic Canvas path; real WGL is an explicit local E2E.
     assert 'A_CONDUCTOR_GPU_PARTICLES: "0"' in workflow
 
-    verifier = (REPO_ROOT / "scripts" / "verify_frozen_installer_e2e.ps1").read_text(
+    verifier = (REPO_ROOT / "scripts" / "verify_frozen_installer_e2e.py").read_text(
         encoding="utf-8"
     )
     for required in (
@@ -315,6 +315,8 @@ def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
         "UNKNOWN_TARGET_SENTINEL_CHANGED",
         "REGISTERED_UNINSTALL_FAILED",
         "UNINSTALL_TEMP_RESIDUE",
+        "subprocess.run([str(exe), *args]",
+        "registry_values()",
     ):
         assert required in verifier
 

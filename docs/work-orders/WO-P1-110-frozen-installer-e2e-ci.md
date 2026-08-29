@@ -56,3 +56,13 @@ RED: workflow contract must require the reusable frozen installer E2E script bef
 - `git diff --check`: PASS.
 
 Next: scope audit -> commit/push/PR -> exact-head Windows runner executes the real frozen install/uninstall E2E -> remote diff/review audit -> merge -> post-merge main CI.
+
+## Exact-head CI RED / harness repair — 2026-08-29
+
+PR #145 head `a3fc38e3790cf5e4ce5296ca5fadbd85599653b2` ran CI `33244718525`.
+Ubuntu/macOS passed; Windows build, archive verification, and Portable smoke passed.
+The new frozen Setup E2E failed before product assertions because the PowerShell helper leaked native stdout into the function return stream, producing `System.Object[]` where a Boolean assertion was expected.
+Classification: verifier-harness defect, not installer behavior.
+Repair: replace the PowerShell verifier with a Python clean-host Windows verifier that captures native stdout/stderr explicitly and returns only process exit codes.
+Post-repair local evidence: installer regression `41 passed`; `compileall scripts` PASS; `git diff --check` PASS; local invocation fails closed at `HOST_REGISTRY_NOT_CLEAN` before mutating the installed v0.6 state.
+Next: commit/push follow-up, rerun exact-head CI, inspect the real Setup E2E result, then re-audit/merge only on green.
