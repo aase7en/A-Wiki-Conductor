@@ -64,3 +64,5 @@ Next: commit local checkpoint; after PR #140 merges, fetch/reconcile accepted ma
 - compileall and `git diff --check`: PASS.
 
 Next: exact-scope commit/push, PR, exact-head 3-OS CI, remote re-audit, merge and accepted-main verification.
+
+Accepted-main prerequisite verified: CI run `33239717637` for PR #140 merge `392047a0` is SUCCESS.
