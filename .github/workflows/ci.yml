@@ -170,6 +170,13 @@ jobs:
           if (-not (Test-Path -LiteralPath $database -PathType Leaf)) {
             throw "PORTABLE_SMOKE_DATABASE_MISSING: $database"
           }
+      - name: Frozen Setup install/uninstall E2E
+        shell: pwsh
+        run: |
+          $portable = Join-Path $PWD "dist/ci/A-Sunday Conductor.exe"
+          $setup = Join-Path $PWD "dist/ci/A-Sunday-Conductor-Setup.exe"
+          $version = python -c "from a_conductor.branding import APP_VERSION; print(APP_VERSION)"
+          ./scripts/verify_frozen_installer_e2e.ps1 -Portable $portable -Setup $setup -ExpectedVersion $version
       - name: Archive Windows executables
         uses: actions/upload-artifact@v7
         with:

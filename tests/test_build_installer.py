@@ -295,6 +295,8 @@ def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
         "SETUP_ARCHIVE_UNEXPECTED_ENTRY",
         "Start-Process",
         "actions/upload-artifact@v7",
+        "scripts/verify_frozen_installer_e2e.ps1",
+        "Frozen Setup install/uninstall E2E",
     ):
         assert required in workflow
     # ``pyi-archive_viewer`` emits Windows member names with backslashes.  CI
@@ -304,6 +306,17 @@ def test_windows_ci_builds_verifies_smokes_and_archives_portable() -> None:
     # terminate the process before Python's fallback handler runs.  Generic CI
     # exercises the deterministic Canvas path; real WGL is an explicit local E2E.
     assert 'A_CONDUCTOR_GPU_PARTICLES: "0"' in workflow
+
+    verifier = (REPO_ROOT / "scripts" / "verify_frozen_installer_e2e.ps1").read_text(
+        encoding="utf-8"
+    )
+    for required in (
+        "FROZEN_INSTALLER_E2E_OK",
+        "UNKNOWN_TARGET_SENTINEL_CHANGED",
+        "REGISTERED_UNINSTALL_FAILED",
+        "UNINSTALL_TEMP_RESIDUE",
+    ):
+        assert required in verifier
 
     gui_block = workflow.split("- name: Run GUI test suite", 1)[1].split(
         "- name: Run local-instance lifecycle suite", 1
