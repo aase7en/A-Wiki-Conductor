@@ -201,7 +201,7 @@ def test_expiry_metadata_never_causes_aha4a_to_reclaim_active_lease(tmp_path: Pa
     req = request()
     store.try_acquire(req, candidate("a-worker-01"), lease_id="lease-old", acquired_at=NOW, expires_at="2026-08-28T15:00:00Z")
     owner_retry = service.acquire(req, (candidate("a-worker-01"),))
-    assert owner_retry.kind is LeaseOutcomeKind.EXISTING
+    assert owner_retry.kind is LeaseOutcomeKind.RECOVERY_REQUIRED
     assert owner_retry.lease is not None and owner_retry.lease.lease_id == "lease-old"
 
     other = service.acquire(

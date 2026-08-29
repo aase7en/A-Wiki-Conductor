@@ -1,30 +1,28 @@
-# A-Sunday Conductor — Current Work
+# A-Sunday Conductor ? Current Work
 
-Last updated: 2026-08-29 (GPT-5.6 Sol — AHA-4A retry/scope hardening GREEN / PR #131 pending)
+Last updated: 2026-08-29 (GPT-5.6 Sol ? AHA-4B LOCAL GREEN / REVIEW GATE)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator — WORKER LEASE + AUTOMATIC FALLBACK REVIEW GATE.**
+**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator ? LEASE HEARTBEAT + STALE-OWNER RECOVERY.**
 
 Current exact lane:
-- worktree: `A:\GitHub\A-Wiki-Conductor-aha4a-lease`;
-- branch: `feat/wo-p1-102-aha4a-worker-lease-broker`;
-- reconciled `origin/main`: `39f0253cc4f8896cffa78b6772ce6ffd2e229736`;
-- Draft PR: #131.
+- worktree: `A:\GitHub\A-Wiki-Conductor-aha4b-lease-recovery`;
+- branch: `feat/wo-p1-111-aha4b-lease-recovery`;
+- base/current accepted `origin/main`: `b7a2149cb5e40c596ae6934506e1a360263ecc3d`;
+- owner: GPT-5.6 Sol integrator.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-102-aha4a-worker-lease-broker.md`.
+`docs/work-orders/WO-P1-111-aha4b-lease-recovery.md`.
 
 ## Immediate execution frontier
 
-1. AHA-4A core is local GREEN: atomic worker/scope leasing, ordered fallback, typed preflight, exact-owner release, RDC read-only fallback;
-2. independent review found and fixed two P0/P1 correctness gaps: mutation scope could escape `allowed_scope`; same session/task retry could create a second lease after uncertain transport;
-3. retries now attach the same active owner/task lease, contract drift fails `LEASE_REQUEST_CONFLICT`, and concurrent same-owner requests converge on one lease;
-4. resumed verification found P1 outcome-classification bugs: race attachment could report `LEASED`, and comparing lease IDs was not sufficient when two brokers proposed the same ID; store acquisition now returns atomic `created` truth and `EXISTING` is explicit;
-5. final local evidence: focused **36 passed**, relevant regression **220 passed**, race repeat **10/10 PASS**, compileall/diff-check PASS; final exact-head CI remains required;
-6. next = checkpoint/commit/push -> merge latest accepted main -> remote PR #131 diff audit -> independent read-only review + GPT re-review -> exact-head 3-OS CI -> merge;
-7. AHA-4B heartbeat/expiry/quarantine remains a separate work order; no stale lease is reclaimed here.
+1. AHA-4B implementation is local GREEN: bounded TTL/heartbeat, stale `RECOVERY_REQUIRED`, quarantine and explicit reconciliation-before-reuse;
+2. deep review closed stale-observation replay, direct-release-after-expiry/quarantine bypasses, and stale owner-retry snapshot after racing heartbeat;
+3. focused **69 passed**, relevant integration **247 passed**, three race classes **20/20 each**, compileall/diff/secret/forbidden-surface gates PASS;
+4. next = commit/push -> Draft PR -> remote diff audit -> independent review -> exact-head 3-OS CI -> merge/post-main/cleanup;
+5. live tunnel-client v0.0.13 soak remains a separate human-authorization release gate and is forbidden in this lane.
 
 ## Source-of-truth rule
 

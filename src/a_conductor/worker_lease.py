@@ -12,12 +12,13 @@ import re
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Callable, Iterator, Sequence
 
+from .domain import RecoveryClassification
 from .graph.analyze import write_sets_overlap
 from .registry import windows_worktree_key
 
@@ -40,8 +41,22 @@ class LeaseMutationIntent(str, Enum):
 class LeaseOutcomeKind(str, Enum):
     LEASED = "LEASED"
     EXISTING = "EXISTING"
+    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
     RDC_READ_ONLY = "RDC_READ_ONLY"
     WAIT = "WAIT"
+
+
+class LeaseHealthKind(str, Enum):
+    ACTIVE = "ACTIVE"
+    STALE = "STALE"
+    QUARANTINED = "QUARANTINED"
+    RELEASED = "RELEASED"
+    EXPIRY_UNKNOWN = "EXPIRY_UNKNOWN"
+
+
+class LeaseReconciliationKind(str, Enum):
+    RELEASED = "RELEASED"
+    QUARANTINED = "QUARANTINED"
 
 
 class CandidateRejectionKind(str, Enum):
@@ -114,6 +129,27 @@ def _timestamp(value: object, field_name: str) -> str:
     return _text(value, field_name, max_length=64)  # type: ignore[arg-type]
 
 
+def _timestamp_datetime(value: object, field_name: str) -> datetime:
+    text = _timestamp(value, field_name)
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{field_name} must be timezone-aware")
+    return parsed.astimezone(timezone.utc)
+
+
+def _timestamp_add_seconds(value: object, seconds: int, field_name: str) -> str:
+    return _timestamp(_timestamp_datetime(value, field_name) + timedelta(seconds=seconds), field_name)
+
+
+def _timestamp_compare(left: object, right: object) -> int:
+    a = _timestamp_datetime(left, "timestamp")
+    b = _timestamp_datetime(right, "timestamp")
+    return (a > b) - (a < b)
+
+
 @dataclass(frozen=True, slots=True)
 class WorkerLeaseCandidate:
     worker_id: str
@@ -172,6 +208,7 @@ class WorkerLeaseRequest:
     forbidden_scope: tuple[str, ...] = ()
     mutable_scope: tuple[str, ...] = ()
     rdc_fallback_eligible: bool = False
+    lease_ttl_seconds: int = 300
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "session_id", _text(self.session_id, "session_id", max_length=128))
@@ -198,6 +235,10 @@ class WorkerLeaseRequest:
         object.__setattr__(self, "forbidden_scope", forbidden)
         object.__setattr__(self, "mutable_scope", mutable)
         object.__setattr__(self, "rdc_fallback_eligible", _bool(self.rdc_fallback_eligible, "rdc_fallback_eligible"))
+        if not isinstance(self.lease_ttl_seconds, int) or isinstance(self.lease_ttl_seconds, bool):
+            raise ValueError("lease_ttl_seconds must be int")
+        if self.lease_ttl_seconds < 1 or self.lease_ttl_seconds > 86400:
+            raise ValueError("lease_ttl_seconds must be between 1 and 86400")
         if self.mutation_intent is LeaseMutationIntent.READ_ONLY and mutable:
             raise ValueError("read-only lease cannot request mutable_scope")
         if self.mutation_intent is LeaseMutationIntent.MUTATION and not mutable:
@@ -225,8 +266,15 @@ class WorkerLease:
     mutable_scope: tuple[str, ...]
     mutation_intent: LeaseMutationIntent
     acquired_at: str
+    heartbeat_at: str
+    lease_ttl_seconds: int
     expires_at: str | None = None
     released_at: str | None = None
+    quarantined_at: str | None = None
+    quarantine_code: str | None = None
+    recovery_classification: RecoveryClassification | None = None
+    recovery_evidence_ref: str | None = None
+    reconciled_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,6 +288,53 @@ class WorkerLeaseOutcome:
     kind: LeaseOutcomeKind
     lease: WorkerLease | None = None
     rejections: tuple[CandidateRejection, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class LeaseHealth:
+    kind: LeaseHealthKind
+    lease: WorkerLease
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerLeaseRecoveryObservation:
+    worker_id: str
+    worktree: str
+    branch: str
+    head: str
+    dirty_state: str
+    ownership_known: bool
+    runtime_running: bool | None
+    recovery_classification: RecoveryClassification
+    evidence_ref: str
+    observed_at: object
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "worker_id", _text(self.worker_id, "worker_id", max_length=128))
+        object.__setattr__(self, "worktree", _text(self.worktree, "worktree"))
+        object.__setattr__(self, "branch", _text(self.branch, "branch", max_length=256))
+        head = _text(self.head, "head", max_length=64)
+        if not _HEAD_RE.fullmatch(head):
+            raise ValueError("head must be a git object id")
+        object.__setattr__(self, "head", head.lower())
+        dirty = _text(self.dirty_state, "dirty_state", max_length=16).upper()
+        if dirty not in _DIRTY_STATES:
+            raise ValueError("dirty_state is invalid")
+        object.__setattr__(self, "dirty_state", dirty)
+        object.__setattr__(self, "ownership_known", _bool(self.ownership_known, "ownership_known"))
+        if self.runtime_running is not None:
+            object.__setattr__(self, "runtime_running", _bool(self.runtime_running, "runtime_running"))
+        if not isinstance(self.recovery_classification, RecoveryClassification):
+            raise ValueError("recovery_classification must be RecoveryClassification")
+        object.__setattr__(self, "evidence_ref", _text(self.evidence_ref, "evidence_ref", max_length=512))
+        object.__setattr__(self, "observed_at", _timestamp(self.observed_at, "observed_at"))
+
+
+@dataclass(frozen=True, slots=True)
+class LeaseReconciliationResult:
+    kind: LeaseReconciliationKind
+    lease: WorkerLease
+    reason_code: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,7 +362,10 @@ def _decode_scope(raw: str) -> tuple[str, ...]:
 def _lease_from_row(row: sqlite3.Row) -> WorkerLease:
     try:
         intent = LeaseMutationIntent(row["mutation_intent"])
-    except ValueError as exc:
+        recovery_raw = row["recovery_classification"]
+        recovery = RecoveryClassification(recovery_raw) if recovery_raw is not None else None
+        ttl = int(row["lease_ttl_seconds"])
+    except (ValueError, TypeError, KeyError, IndexError) as exc:
         raise WorkerLeaseError("LEASE_DATA_INVALID") from exc
     return WorkerLease(
         lease_id=row["lease_id"], worker_id=row["worker_id"],
@@ -278,7 +376,11 @@ def _lease_from_row(row: sqlite3.Row) -> WorkerLease:
         allowed_scope=_decode_scope(row["allowed_scope_json"]),
         forbidden_scope=_decode_scope(row["forbidden_scope_json"]),
         mutable_scope=_decode_scope(row["mutable_scope_json"]), mutation_intent=intent,
-        acquired_at=row["acquired_at"], expires_at=row["expires_at"], released_at=row["released_at"],
+        acquired_at=row["acquired_at"], heartbeat_at=row["heartbeat_at"], lease_ttl_seconds=ttl,
+        expires_at=row["expires_at"], released_at=row["released_at"],
+        quarantined_at=row["quarantined_at"], quarantine_code=row["quarantine_code"],
+        recovery_classification=recovery, recovery_evidence_ref=row["recovery_evidence_ref"],
+        reconciled_at=row["reconciled_at"],
     )
 
 
@@ -294,6 +396,7 @@ def _request_matches_lease(request: WorkerLeaseRequest, lease: WorkerLease) -> b
         and frozenset(lease.allowed_scope) == frozenset(request.allowed_scope)
         and frozenset(lease.forbidden_scope) == frozenset(request.forbidden_scope)
         and frozenset(lease.mutable_scope) == frozenset(request.mutable_scope)
+        and lease.lease_ttl_seconds == request.lease_ttl_seconds
         and (request.required_runtime_id is None or lease.runtime_id == request.required_runtime_id)
     )
 
@@ -302,6 +405,59 @@ def _require_matching_request(request: WorkerLeaseRequest, lease: WorkerLease) -
     if not _request_matches_lease(request, lease):
         raise WorkerLeaseError("LEASE_REQUEST_CONFLICT")
     return lease
+
+
+def _lease_health_kind(lease: WorkerLease, *, now: object) -> LeaseHealthKind:
+    if lease.released_at is not None:
+        return LeaseHealthKind.RELEASED
+    if lease.quarantine_code is not None:
+        return LeaseHealthKind.QUARANTINED
+    if lease.expires_at is None:
+        return LeaseHealthKind.EXPIRY_UNKNOWN
+    if _timestamp_compare(now, lease.expires_at) >= 0:
+        return LeaseHealthKind.STALE
+    return LeaseHealthKind.ACTIVE
+
+
+def _reconciliation_quarantine_reason(
+    lease: WorkerLease,
+    observation: WorkerLeaseRecoveryObservation,
+) -> str | None:
+    if observation.worker_id != lease.worker_id:
+        return "WORKER_MISMATCH"
+    if not observation.ownership_known:
+        return "OWNERSHIP_UNKNOWN"
+    try:
+        if windows_worktree_key(observation.worktree) != lease.worktree_key:
+            return "WORKTREE_MISMATCH"
+    except ValueError:
+        return "WORKTREE_MISMATCH"
+    if observation.branch != lease.branch:
+        return "BRANCH_MISMATCH"
+    if observation.runtime_running is None:
+        return "RUNTIME_STATE_UNKNOWN"
+    if observation.runtime_running:
+        return "RUNTIME_STILL_RUNNING"
+    if observation.dirty_state == "UNKNOWN":
+        return "WORKTREE_DIRTY_UNKNOWN"
+    if observation.dirty_state != "CLEAN":
+        return "WORKTREE_DIRTY"
+    classification = observation.recovery_classification
+    if classification is RecoveryClassification.UNKNOWN:
+        return "RECOVERY_UNKNOWN"
+    if classification is RecoveryClassification.PARTIAL_MUTATION:
+        return "PARTIAL_MUTATION"
+    if classification is RecoveryClassification.MUTATION_COMPLETE_UNVERIFIED:
+        return "MUTATION_COMPLETE_UNVERIFIED"
+    if classification is RecoveryClassification.UNEXPECTED_DRIFT:
+        return "UNEXPECTED_DRIFT"
+    if classification is RecoveryClassification.NO_MUTATION:
+        if observation.head.casefold() != lease.expected_head.casefold():
+            return "HEAD_MISMATCH"
+        return None
+    if classification is RecoveryClassification.COMPLETE_VERIFIED:
+        return None
+    return "RECOVERY_UNKNOWN"
 
 
 class SQLiteWorkerLeaseStore:
@@ -342,8 +498,15 @@ class SQLiteWorkerLeaseStore:
                     mutable_scope_json TEXT NOT NULL,
                     mutation_intent TEXT NOT NULL,
                     acquired_at TEXT NOT NULL,
+                    heartbeat_at TEXT NOT NULL,
+                    lease_ttl_seconds INTEGER NOT NULL,
                     expires_at TEXT,
-                    released_at TEXT
+                    released_at TEXT,
+                    quarantined_at TEXT,
+                    quarantine_code TEXT,
+                    recovery_classification TEXT,
+                    recovery_evidence_ref TEXT,
+                    reconciled_at TEXT
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS ux_worker_leases_active_worker
                     ON worker_leases(worker_id) WHERE released_at IS NULL;
@@ -351,6 +514,42 @@ class SQLiteWorkerLeaseStore:
                     ON worker_leases(session_id, task_id) WHERE released_at IS NULL;
                 """
             )
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(worker_leases)")}
+            migrations = {
+                "heartbeat_at": "TEXT",
+                "lease_ttl_seconds": "INTEGER",
+                "quarantined_at": "TEXT",
+                "quarantine_code": "TEXT",
+                "recovery_classification": "TEXT",
+                "recovery_evidence_ref": "TEXT",
+                "reconciled_at": "TEXT",
+            }
+            for name, sql_type in migrations.items():
+                if name not in columns:
+                    connection.execute(f"ALTER TABLE worker_leases ADD COLUMN {name} {sql_type}")
+            connection.execute(
+                "UPDATE worker_leases SET heartbeat_at = acquired_at WHERE heartbeat_at IS NULL"
+            )
+            legacy_rows = connection.execute(
+                "SELECT lease_id, acquired_at, expires_at FROM worker_leases "
+                "WHERE lease_ttl_seconds IS NULL"
+            ).fetchall()
+            for row in legacy_rows:
+                ttl = 300
+                if row["expires_at"] is not None:
+                    try:
+                        delta = int(
+                            (_timestamp_datetime(row["expires_at"], "expires_at") -
+                             _timestamp_datetime(row["acquired_at"], "acquired_at")).total_seconds()
+                        )
+                        if 1 <= delta <= 86400:
+                            ttl = delta
+                    except ValueError:
+                        pass
+                connection.execute(
+                    "UPDATE worker_leases SET lease_ttl_seconds = ? WHERE lease_id = ?",
+                    (ttl, row["lease_id"]),
+                )
             connection.commit()
 
     def find_active_owner_task(self, session_id: str, task_id: str) -> WorkerLease | None:
@@ -379,6 +578,10 @@ class SQLiteWorkerLeaseStore:
         lease_id = _text(lease_id, "lease_id", max_length=128)
         acquired = _timestamp(acquired_at, "acquired_at")
         expiry = _optional_text(expires_at, "expires_at")
+        if expiry is None:
+            expiry = _timestamp_add_seconds(acquired, request.lease_ttl_seconds, "expires_at")
+        else:
+            _timestamp_datetime(expiry, "expires_at")
         lease = WorkerLease(
             lease_id=lease_id, worker_id=candidate.worker_id,
             session_id=request.session_id, task_id=request.task_id,
@@ -387,7 +590,8 @@ class SQLiteWorkerLeaseStore:
             expected_head=request.expected_head,
             required_capabilities=request.required_capabilities, allowed_scope=request.allowed_scope,
             forbidden_scope=request.forbidden_scope, mutable_scope=request.mutable_scope,
-            mutation_intent=request.mutation_intent, acquired_at=acquired, expires_at=expiry,
+            mutation_intent=request.mutation_intent, acquired_at=acquired, heartbeat_at=acquired,
+            lease_ttl_seconds=request.lease_ttl_seconds, expires_at=expiry,
         )
         with self._connect() as connection:
             try:
@@ -422,15 +626,17 @@ class SQLiteWorkerLeaseStore:
                     "INSERT INTO worker_leases(lease_id, worker_id, session_id, task_id, "
                     "project_id, runtime_id, worktree_key, branch, expected_head, "
                     "required_capabilities_json, allowed_scope_json, forbidden_scope_json, mutable_scope_json, "
-                    "mutation_intent, acquired_at, expires_at, released_at) "
-                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+                    "mutation_intent, acquired_at, heartbeat_at, lease_ttl_seconds, expires_at, released_at, "
+                    "quarantined_at, quarantine_code, recovery_classification, recovery_evidence_ref, reconciled_at) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL)",
                     (
                         lease.lease_id, lease.worker_id, lease.session_id, lease.task_id,
                         lease.project_id, lease.runtime_id, lease.worktree_key, lease.branch,
                         lease.expected_head, json.dumps(lease.required_capabilities),
                         json.dumps(lease.allowed_scope),
                         json.dumps(lease.forbidden_scope), json.dumps(lease.mutable_scope),
-                        lease.mutation_intent.value, lease.acquired_at, lease.expires_at,
+                        lease.mutation_intent.value, lease.acquired_at, lease.heartbeat_at,
+                        lease.lease_ttl_seconds, lease.expires_at,
                     ),
                 )
                 connection.commit()
@@ -468,6 +674,159 @@ class SQLiteWorkerLeaseStore:
             expires_at=expires_at,
         ).lease
 
+    def inspect_health(self, lease_id: str, *, now: object) -> LeaseHealth:
+        lease_id = _text(lease_id, "lease_id", max_length=128)
+        now_text = _timestamp(now, "now")
+        with self._connect() as connection:
+            try:
+                row = connection.execute(
+                    "SELECT * FROM worker_leases WHERE lease_id = ?", (lease_id,)
+                ).fetchone()
+            except sqlite3.Error as exc:
+                raise WorkerLeaseError("LEASE_STORE_READ_FAILED") from exc
+        if row is None:
+            raise WorkerLeaseError("LEASE_NOT_FOUND")
+        lease = _lease_from_row(row)
+        return LeaseHealth(_lease_health_kind(lease, now=now_text), lease)
+
+    def heartbeat(
+        self,
+        lease_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+        heartbeat_at: object,
+    ) -> WorkerLease:
+        lease_id = _text(lease_id, "lease_id", max_length=128)
+        session_id = _text(session_id, "session_id", max_length=128)
+        task_id = _text(task_id, "task_id", max_length=256)
+        beat = _timestamp(heartbeat_at, "heartbeat_at")
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT * FROM worker_leases WHERE lease_id = ?", (lease_id,)
+                ).fetchone()
+                if row is None:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_NOT_FOUND")
+                lease = _lease_from_row(row)
+                if lease.session_id != session_id or lease.task_id != task_id:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_OWNER_MISMATCH")
+                if lease.released_at is not None:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_RELEASED")
+                if lease.quarantine_code is not None:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_QUARANTINED")
+                if lease.expires_at is None:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_EXPIRY_UNKNOWN")
+                order = _timestamp_compare(beat, lease.heartbeat_at)
+                if order < 0:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_HEARTBEAT_STALE")
+                if order == 0:
+                    connection.rollback()
+                    return lease
+                if _timestamp_compare(beat, lease.expires_at) >= 0:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_HEARTBEAT_EXPIRED")
+                expiry = _timestamp_add_seconds(beat, lease.lease_ttl_seconds, "expires_at")
+                connection.execute(
+                    "UPDATE worker_leases SET heartbeat_at = ?, expires_at = ? "
+                    "WHERE lease_id = ? AND released_at IS NULL",
+                    (beat, expiry, lease_id),
+                )
+                updated = connection.execute(
+                    "SELECT * FROM worker_leases WHERE lease_id = ?", (lease_id,)
+                ).fetchone()
+                connection.commit()
+                if updated is None:
+                    raise WorkerLeaseError("LEASE_DATA_INVALID")
+                return _lease_from_row(updated)
+            except WorkerLeaseError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise WorkerLeaseError("LEASE_STORE_WRITE_FAILED") from exc
+
+    def reconcile_stale(
+        self,
+        lease_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+        observation: WorkerLeaseRecoveryObservation,
+    ) -> LeaseReconciliationResult:
+        lease_id = _text(lease_id, "lease_id", max_length=128)
+        session_id = _text(session_id, "session_id", max_length=128)
+        task_id = _text(task_id, "task_id", max_length=256)
+        if not isinstance(observation, WorkerLeaseRecoveryObservation):
+            raise ValueError("observation must be WorkerLeaseRecoveryObservation")
+        observed = _timestamp(observation.observed_at, "observed_at")
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT * FROM worker_leases WHERE lease_id = ?", (lease_id,)
+                ).fetchone()
+                if row is None:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_NOT_FOUND")
+                lease = _lease_from_row(row)
+                if lease.session_id != session_id or lease.task_id != task_id:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_OWNER_MISMATCH")
+                if lease.released_at is not None:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_RELEASED")
+                latest_evidence_at = lease.heartbeat_at
+                for value in (lease.quarantined_at, lease.reconciled_at):
+                    if value is not None and _timestamp_compare(value, latest_evidence_at) > 0:
+                        latest_evidence_at = value
+                if _timestamp_compare(observed, latest_evidence_at) < 0:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_OBSERVATION_STALE")
+                health = _lease_health_kind(lease, now=observed)
+                if health is LeaseHealthKind.ACTIVE:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_NOT_STALE")
+                reason = _reconciliation_quarantine_reason(lease, observation)
+                classification = observation.recovery_classification.value
+                if reason is None:
+                    connection.execute(
+                        "UPDATE worker_leases SET released_at = ?, recovery_classification = ?, "
+                        "recovery_evidence_ref = ?, reconciled_at = ? WHERE lease_id = ? AND released_at IS NULL",
+                        (observed, classification, observation.evidence_ref, observed, lease_id),
+                    )
+                    kind = LeaseReconciliationKind.RELEASED
+                    reason_code = "RECONCILED_SAFE_RELEASE"
+                else:
+                    connection.execute(
+                        "UPDATE worker_leases SET quarantined_at = COALESCE(quarantined_at, ?), "
+                        "quarantine_code = ?, recovery_classification = ?, recovery_evidence_ref = ?, "
+                        "reconciled_at = ? WHERE lease_id = ? AND released_at IS NULL",
+                        (observed, reason, classification, observation.evidence_ref, observed, lease_id),
+                    )
+                    kind = LeaseReconciliationKind.QUARANTINED
+                    reason_code = reason
+                updated = connection.execute(
+                    "SELECT * FROM worker_leases WHERE lease_id = ?", (lease_id,)
+                ).fetchone()
+                connection.commit()
+                if updated is None:
+                    raise WorkerLeaseError("LEASE_DATA_INVALID")
+                return LeaseReconciliationResult(kind, _lease_from_row(updated), reason_code)
+            except WorkerLeaseError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise WorkerLeaseError("LEASE_STORE_WRITE_FAILED") from exc
+
     def list_active(self) -> tuple[WorkerLease, ...]:
         with self._connect() as connection:
             try:
@@ -494,18 +853,28 @@ class SQLiteWorkerLeaseStore:
             try:
                 connection.execute("BEGIN IMMEDIATE")
                 row = connection.execute(
-                    "SELECT session_id, task_id, released_at FROM worker_leases WHERE lease_id = ?",
+                    "SELECT * FROM worker_leases WHERE lease_id = ?",
                     (lease_id,),
                 ).fetchone()
                 if row is None:
                     connection.rollback()
                     raise WorkerLeaseError("LEASE_NOT_FOUND")
-                if row["session_id"] != session_id or row["task_id"] != task_id:
+                lease = _lease_from_row(row)
+                if lease.session_id != session_id or lease.task_id != task_id:
                     connection.rollback()
                     raise WorkerLeaseError("LEASE_OWNER_MISMATCH")
-                if row["released_at"] is not None:
+                if lease.released_at is not None:
                     connection.rollback()
                     return LeaseReleaseResult(released=False, already_released=True)
+                if _timestamp_compare(released, lease.heartbeat_at) < 0:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_RELEASE_STALE")
+                if lease.quarantine_code is not None:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_RECOVERY_REQUIRED")
+                if lease.expires_at is None or _timestamp_compare(released, lease.expires_at) >= 0:
+                    connection.rollback()
+                    raise WorkerLeaseError("LEASE_RECOVERY_REQUIRED")
                 connection.execute(
                     "UPDATE worker_leases SET released_at = ? WHERE lease_id = ? AND released_at IS NULL",
                     (released, lease_id),
@@ -571,10 +940,12 @@ class WorkerLeaseBroker:
         lease_id_factory: Callable[[], str],
         clock: Callable[[], object],
     ) -> None:
-        if not callable(getattr(store, "try_acquire_result", None)) or not callable(
-            getattr(store, "find_active_owner_task", None)
+        if (
+            not callable(getattr(store, "try_acquire_result", None))
+            or not callable(getattr(store, "find_active_owner_task", None))
+            or not callable(getattr(store, "inspect_health", None))
         ):
-            raise ValueError("store must provide try_acquire_result and find_active_owner_task")
+            raise ValueError("store must provide acquire, owner lookup and health inspection")
         if not callable(lease_id_factory):
             raise ValueError("lease_id_factory must be callable")
         if not callable(clock):
@@ -590,11 +961,15 @@ class WorkerLeaseBroker:
     ) -> WorkerLeaseOutcome:
         if not isinstance(request, WorkerLeaseRequest):
             raise ValueError("request must be WorkerLeaseRequest")
+        now = self._clock()
         existing = self._store.find_active_owner_task(request.session_id, request.task_id)
         if existing is not None:
-            return WorkerLeaseOutcome(
-                LeaseOutcomeKind.EXISTING, _require_matching_request(request, existing), ()
-            )
+            matching = _require_matching_request(request, existing)
+            health = self._store.inspect_health(matching.lease_id, now=now)
+            latest = _require_matching_request(request, health.lease)
+            if health.kind is LeaseHealthKind.ACTIVE:
+                return WorkerLeaseOutcome(LeaseOutcomeKind.EXISTING, latest, ())
+            return WorkerLeaseOutcome(LeaseOutcomeKind.RECOVERY_REQUIRED, latest, ())
         if isinstance(candidates, (str, bytes)):
             raise ValueError("candidates must be a sequence")
         by_worker: dict[str, WorkerLeaseCandidate] = {}
@@ -621,7 +996,7 @@ class WorkerLeaseBroker:
                     request,
                     item,
                     lease_id=proposed_lease_id,
-                    acquired_at=self._clock(),
+                    acquired_at=now,
                 )
                 lease = acquire_result.lease
             except WorkerLeaseError as exc:
