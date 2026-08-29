@@ -2,7 +2,7 @@
 
 Created: 2026-08-25
 Owner: GLM 5.3 (preparation) → GPT-5.6 Sol MAX (integrator decisions) → paired implementation
-Status: GO — D1-D5 accepted by GPT-5.6 Sol MAX on 2026-08-26; GE-1 may start. Scheduler implementation remains gated until GE-6 design review.
+Status: ACTIVE / GE-1..GE-7 ACCEPTED + MERGED; GE-8..GE-11 REMAIN
 Inputs: GE-0 status report + A-Wiki reuse gate (session records 2026-08-25); ADR drafts GE-0001..0005 in this branch.
 
 ## Decision briefs — integrator fan-in (2026-08-26)
@@ -141,3 +141,21 @@ regression; do not create duplicate path-overlap logic in `scheduler.py`.
 Integrator evidence/comment: PR #96 issue comment `5420827136`.
 
 After the ADR PR is merged, GLM may start GE-6 TDD immediately from ADR GE-0006. GE-005A may land before or during GE-6 implementation but must be green/merged before GE-6 production merge. GE-7 follows GE-6 and must preserve ADR GE-0007's existing-job-control reuse boundary.
+## Repo-health reconciliation - 2026-08-29
+
+The original GO/gating text is historical. Accepted main now contains the graph foundation, glob-aware readiness repair and deterministic scheduler, and AHA-4 durable graph dispatch has consumed the accepted GE-7 boundary.
+
+Completed milestones:
+- GE-1..GE-5 graph domain/store/DAG/analyze/ready line is merged;
+- GE-6/GE-7 design gate merged via PR #97;
+- GE-005A glob-conflict repair merged via PR #102;
+- GE-6 deterministic scheduler merged via PR #104;
+- GE-7 durable graph-dispatch integration is accepted in the AHA-4 line via PR #119.
+
+Still genuinely open from this roadmap:
+- GE-8 fan-out/fan-in completeness barriers (barriers.py not present);
+- GE-9 lifecycle outcome bridge (lifecycle_bridge.py not present);
+- GE-10 graph chaos/E2E program scenarios (test_graph_chaos.py not present);
+- GE-11 graph operator visualization/timeline/queues.
+
+Do not mark the parent COMPLETE until GE-8..GE-11 have their own bounded work orders, tests/E2E, PRs and accepted-main evidence.

@@ -2,7 +2,7 @@
 
 Created: 2026-08-25
 Owner: GLM 5.3 Max (user-authorized substitution while GPT-5.6 Sol is on weekly limit — user approved this exact feature and scope)
-Status: IN_PROGRESS — implementation + tests on branch, PR open, awaiting CI + GPT visual acceptance
+Status: COMPLETE / MERGED
 Base: `origin/main` `acd77b4c9fb04101557a12657779db50d5d543dd`
 Branch: `feat/inline-row-buttons`
 
@@ -50,3 +50,8 @@ Add per-record guidance buttons inside the data columns themselves (NOT in the p
 - [ ] Focused suites green
 - [ ] PR CI green (3 OS)
 - [ ] GPT visual acceptance after weekly limit resets
+
+## Repo-health reconciliation - 2026-08-29
+
+- Historical execution/checklist text above is preserved as evidence; stale status is superseded by accepted GitHub state.
+- PR #81 merged into main as `d20cb701663645c00311a6e51f8fe5601cba03b2`.
