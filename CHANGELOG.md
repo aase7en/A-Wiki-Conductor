@@ -13,6 +13,7 @@ All notable changes to A-Sunday Conductor are documented here.
 - **Live connector states** — CONNECTORS table auto-refreshes every 15s without pressing Rescan (PR #90)
 - **Masked tunnel pairing** — TUNNEL column shows last 4 chars (e.g. `...e3f1`) for instant ChatGPT-side matching (PR #90)
 - **Graph Engineering foundation** — TaskGraph/TaskNode/TaskEdge domain + acyclic builder + SQLite store (PRs #91-92, backend only)
+- **Graph execution completeness + diagnostics** ? fan-in barriers, lifecycle projection, deterministic 13-case chaos coverage, factual MONITOR topology/runtime evidence, and read-only GraphStore diagnostics complete the GE-8..GE-11/11R1 roadmap (PRs #137-#140, #142).
 
 ### Fixed
 - **Bounded connector auto-recovery + operator state** — unexpected STOPPED autostart connectors now reconcile through the production health loop with bounded backoff/DEGRADED semantics; MONITOR exposes recovery state, counters, last exit and next retry; successful recovery emits AUTO-RECOVER once (PRs #125, #133).
@@ -20,6 +21,8 @@ All notable changes to A-Sunday Conductor are documented here.
 - **Installer destructive-boundary guards** — managed-target ownership, frozen self-delete handling, and bounded transient uninstall-lock retry protect custom/user paths and keep cleanup synchronous (PRs #107, #108, #132).
 - **Supervised timeout determinism** — caller deadlines now include slow inspection time while durable results remain authoritative, eliminating the recurring hosted-Windows timeout/recovery race (PR #134).
 - **Native execution cleanup determinism** — timeout results are no longer overwritten by transient Windows temp-tree locks; PermissionError cleanup retries are bounded and persistent cleanup failures are classified explicitly (PR #135).
+- **Native temp orphan hygiene** ? stale app-owned execution temp trees are swept with active owner locks, bounded fail-soft work, and stable versioned creation provenance so cleanup attempts cannot renew orphan age (PR #143).
+- **GitHub Actions Node 24 refresh** ? CI/sign workflows use checkout/setup-python/upload-artifact v7 (PR #141).
 
 - **Connector tunnel reliability floor** — Setup now rejects/upgrades tunnel-client `<0.0.12`, the first upstream release that preserves shared stdio MCP sessions after non-initialize response deadlines; generated connector start scripts rotate prior runtime stdout/stderr and persist the real tunnel-client exit code instead of `code .` (WO-P1-097).
 - **PROJECT DISK UI freeze blocker** — recursive folder-size work runs off the Tk thread with cooperative cancellation/stale-result guards and dedicated tests; Windows CI topology preserves GUI/process isolation (PR #99).

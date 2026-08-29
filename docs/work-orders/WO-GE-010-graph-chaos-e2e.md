@@ -2,7 +2,7 @@
 
 Created: 2026-08-29
 Owner: GPT-5.6 Sol Graph Engineering lane
-Status: REVIEW_READY / LOCAL_GREEN
+Status: COMPLETE / MERGED PR #139 / POST-MERGE MAIN CI GREEN
 Parent: `docs/work-orders/WO-GE-001-graph-engineering-kickoff.md` (GE-10)
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-ge10-chaos`
@@ -80,3 +80,7 @@ Write tests-only program -> run focused 13 cases -> classify any RED as test/spe
 - Broader graph + fault/recovery/transport regression is **200/200 PASS**.
 - Staff review restored the promised same-key replay case: reopening durable job control cannot execute an already-VERIFYING GraphDispatchKey twice.
 - No production source mutation was required; compileall/diff-check and forbidden-call scan pass.
+
+## Merge closeout - 2026-08-29
+
+PR #139 merged as `1fea5cfffbe9bb8a9093e67dfa1065559e324ab2`. Post-merge main CI run `33237480511` passed Windows, Ubuntu, and macOS. The deterministic 13-case chaos matrix is accepted; this work order is complete.

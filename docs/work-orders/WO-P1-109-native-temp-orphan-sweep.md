@@ -2,7 +2,7 @@
 
 Created: 2026-08-29
 Owner: GPT-5.6 Sol runtime hygiene lane
-Status: PR_OPEN / LOCAL GREEN / EXACT-HEAD CI REQUIRED
+Status: COMPLETE / MERGED PR #143 / POST-MERGE MAIN CI GREEN
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-native-temp-sweep`
 Branch: `fix/wo-p1-109-native-temp-orphan-sweep`
@@ -84,3 +84,7 @@ Post-repair evidence:
 - production-helper probe: one disposable stale v2 app-owned directory was removed (`removed=1`) while both real recent legacy directories survived unchanged.
 
 Next: diff/compile checks -> independent/adversarial review -> commit/push PR #143 -> exact-head CI -> remote re-audit -> expected-head merge -> post-merge main CI.
+
+## Merge closeout - 2026-08-29
+
+PR #143 merged with exact-head guard from `452b57aa93753eb17e83e264890130fd5c3d45ea` as `d554d084a9925715ea7588c97c81d3c61a002eb2`. Exact-head CI run `33242882386` and post-merge main CI run `33243187844` both passed Windows, Ubuntu, and macOS, including Windows build/archive/frozen smoke. Live hygiene validation removed only a disposable stale v2 temp tree and preserved the two real recent legacy residues below the 24h threshold.

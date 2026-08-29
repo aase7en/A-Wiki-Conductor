@@ -2,7 +2,7 @@
 
 Created: 2026-08-25
 Owner: GLM 5.3 (preparation) → GPT-5.6 Sol MAX (integrator decisions) → paired implementation
-Status: ACTIVE / GE-1..GE-7 ACCEPTED + MERGED; GE-8..GE-11 REMAIN
+Status: COMPLETE / GE-1..GE-11 MERGED; GE-11R1 READ-ONLY HARDENING MERGED
 Inputs: GE-0 status report + A-Wiki reuse gate (session records 2026-08-25); ADR drafts GE-0001..0005 in this branch.
 
 ## Decision briefs — integrator fan-in (2026-08-26)
@@ -208,3 +208,7 @@ GE-11 is the only remaining Graph Engineering roadmap node. Its isolated UI lane
 ## GE-11 accepted-source checkpoint — 2026-08-29
 
 GE-11 operator visualization merged via PR #140 as `392047a0395f30cc1d6ed7d8c2c3f7c0457a5e37`. GE-8/9/10/11 source milestones are now merged; post-merge CI plus GE-11R1 read-only-store hardening remain before graph-lane closeout is declared fully verified.
+
+## Final Graph Engineering closeout - 2026-08-29
+
+Accepted main now contains the complete GE-1..GE-11 roadmap plus the GE-11R1 read-only hardening follow-up. Final slices: GE-8 PR #137 (`76a7b55`), GE-9 PR #138 (`da50305`), GE-10 PR #139 (`1fea5cf`), GE-11 PR #140 (`392047a`), and GE-11R1 PR #142 (`7acb102`). Post-merge main CI remained green through the later accepted main line. Graph Engineering is therefore closed as an implementation roadmap; later graph work requires a new bounded work order rather than reopening this kickoff.
