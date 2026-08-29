@@ -14,9 +14,6 @@ All notable changes to A-Sunday Conductor are documented here.
 - **Masked tunnel pairing** — TUNNEL column shows last 4 chars (e.g. `...e3f1`) for instant ChatGPT-side matching (PR #90)
 - **Graph Engineering foundation** — TaskGraph/TaskNode/TaskEdge domain + acyclic builder + SQLite store (PRs #91-92, backend only)
 
-### Changed
-- **GitHub Actions runtime refresh** — CI/sign workflows use current Node-24-based actions/checkout@v7, actions/setup-python@v7 and actions/upload-artifact@v7, removing hosted-runner Node 20 deprecation debt.
-
 ### Fixed
 - **Bounded connector auto-recovery + operator state** — unexpected STOPPED autostart connectors now reconcile through the production health loop with bounded backoff/DEGRADED semantics; MONITOR exposes recovery state, counters, last exit and next retry; successful recovery emits AUTO-RECOVER once (PRs #125, #133).
 - **Tunnel-client provenance** — setup requires upstream SHA256SUMS.txt before installing/upgrading tunnel-client and fails closed without a matching digest (PR #128).
