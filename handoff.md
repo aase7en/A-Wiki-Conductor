@@ -18,9 +18,16 @@ Extend accepted AHA-4A leasing with heartbeat and stale-owner reconciliation whi
 
 PR #131 AHA-4A merged as `b7a2149cb5e40c596ae6934506e1a360263ecc3d`; exact-head CI `33251145108` and post-main CI `33256317010` passed all OS gates including Windows Frozen Setup E2E. AHA-4A worktree/local branch were cleaned after merge proof.
 
+## Evidence
+
+- AHA-4A + AHA-4B focused: **68 passed**;
+- relevant lease/recovery/domain/job/registry/persistence/graph regression: **247 passed**;
+- race stress: heartbeat?reconcile, same-worker contention and same-owner convergence each **20/20 PASS**;
+- compileall/diff/secret/forbidden-surface gates: PASS.
+
 ## Next Safe Action
 
-Commit/push WO-P1-111 claim, then write failing heartbeat/stale/quarantine tests. Mutate only the allowed WO-P1-111 scope. Do not touch the live Worker/tunnel-client fleet or release soak.
+Audit exact allowed diff, commit/push the implementation checkpoint, open a Draft PR, independently review the remote diff, and require exact-head Windows/Ubuntu/macOS CI before merge. Do not touch the live Worker/tunnel-client fleet or release soak.
 
 ## Safety
 

@@ -2,7 +2,7 @@
 
 Date: 2026-08-29
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE ? CLAIMED / TDD RED NEXT
+Status: REVIEW_READY ? LOCAL GREEN / PR PENDING
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha4b-lease-recovery`
 Branch: `feat/wo-p1-111-aha4b-lease-recovery`
@@ -64,3 +64,35 @@ Extend the accepted AHA-4A worker lease authority with exact-owner heartbeat, st
 - primary checkout remains protected/dirty only at `assets/donate-promptpay-qr.png`; this isolated worktree is clean.
 
 Next: commit/push this claim, then add failing heartbeat/reconciliation tests before production code.
+
+
+## Implementation checkpoint ? 2026-08-29
+
+Implemented as a bounded extension of the accepted AHA-4A lease store:
+- broker-created leases now carry a bounded TTL, persisted heartbeat timestamp and expiry;
+- exact-owner heartbeat is monotonic and cannot revive an expired, released or quarantined lease;
+- owner retry on stale/quarantined capacity returns `RECOVERY_REQUIRED`, never fallback/rebind;
+- stale capacity stays active and blocks worker/scope reuse until explicit reconciliation;
+- canonical `RecoveryClassification` is reused; no second recovery vocabulary or lifecycle was created;
+- dirty/unknown/running/identity-drift evidence quarantines the lease while preserving ownership;
+- `NO_MUTATION` requires original HEAD identity before safe release; `COMPLETE_VERIFIED` may release a clean/stopped lease after the expected mutation changed HEAD;
+- reconciliation observations are monotonic against heartbeat/quarantine/reconciliation evidence, preventing stale replay from releasing newer ownership state;
+- direct exact-owner release is now fail-closed after expiry/quarantine and rejects release timestamps older than the latest heartbeat;
+- legacy AHA-4A SQLite databases migrate additively, preserving active leases and deriving legacy TTL from stored acquisition/expiry where possible;
+- no background poll/thread, subprocess, scheduler, retry loop, live Worker operation or A-Wiki mutation was added.
+
+Review-discovered defects closed before checkpoint:
+1. stale reconciliation evidence could replay after a newer heartbeat/quarantine and release a lease; fixed with monotonic evidence authority;
+2. inherited AHA-4A `release()` could bypass AHA-4B reconciliation after expiry/quarantine; fixed by requiring recovery for uncertain ownership and preserving only active exact-owner release;
+3. a fallback test initially used the same mutable scope on worker 2; canonical overlap correctly blocked it, so the test was corrected to exercise non-overlapping fallback rather than weakening the conflict gate.
+
+Evidence:
+- AHA-4A + AHA-4B focused: **68 passed**;
+- lease/recovery/domain/job/registry/persistence/graph integration: **247 passed**;
+- race stress: heartbeat?reconcile **20/20**, same-worker contention **20/20**, same-owner convergence **20/20**;
+- compileall: PASS;
+- `git diff --check`: PASS;
+- forbidden execution/retry surface scan: clean;
+- bounded secret-pattern scan: clean.
+
+Next gate: scope audit -> commit/push -> Draft PR -> exact remote diff audit -> independent review -> exact-head Windows/Ubuntu/macOS CI -> merge only if green.

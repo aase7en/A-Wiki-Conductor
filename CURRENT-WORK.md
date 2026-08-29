@@ -1,6 +1,6 @@
 # A-Sunday Conductor ? Current Work
 
-Last updated: 2026-08-29 (GPT-5.6 Sol ? AHA-4A MERGED / AHA-4B ACTIVE)
+Last updated: 2026-08-29 (GPT-5.6 Sol ? AHA-4B LOCAL GREEN / REVIEW GATE)
 
 ## Current phase
 
@@ -18,10 +18,10 @@ Current exact lane:
 
 ## Immediate execution frontier
 
-1. AHA-4A is merged via PR #131 and post-main CI `33256317010` is green on Windows/Ubuntu/macOS including Frozen Setup E2E;
-2. AHA-4B extends the accepted lease store only: exact-owner heartbeat, typed stale state, quarantine and deterministic reconciliation before capacity reuse;
-3. expiry/heartbeat loss never auto-releases, retries, rebinds or steals a worker;
-4. first TDD gate = heartbeat/released-owner/stale tests RED before source mutation;
+1. AHA-4B implementation is local GREEN: bounded TTL/heartbeat, stale `RECOVERY_REQUIRED`, quarantine and explicit reconciliation-before-reuse;
+2. deep review closed stale-observation replay and direct-release-after-expiry/quarantine bypasses before checkpoint;
+3. focused **68 passed**, relevant integration **247 passed**, three race classes **20/20 each**, compileall/diff/secret/forbidden-surface gates PASS;
+4. next = commit/push -> Draft PR -> remote diff audit -> independent review -> exact-head 3-OS CI -> merge/post-main/cleanup;
 5. live tunnel-client v0.0.13 soak remains a separate human-authorization release gate and is forbidden in this lane.
 
 ## Source-of-truth rule
