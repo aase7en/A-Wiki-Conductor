@@ -2,7 +2,7 @@
 
 Created: 2026-08-29
 Owner: GPT-5.6 Sol Graph Engineering lane
-Status: REVIEW_READY / LOCAL_GREEN
+Status: COMPLETE / MERGED - PR #138 (`da503059`)
 Parent: `docs/work-orders/WO-GE-001-graph-engineering-kickoff.md` (GE-9)
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-ge9-lifecycle`
@@ -68,14 +68,14 @@ The table is exhaustive over the current `TaskState` enum. Future enum additions
 
 ## Acceptance
 
-- [ ] every current TaskState has an explicit pinned projection;
-- [ ] repair/review states remain unresolved/DOING rather than satisfying dependencies;
-- [ ] FAILED and RECOVERY_NEEDED cannot become DONE/SKIPPED;
-- [ ] missing durable job => TODO; unrelated store errors fail closed;
-- [ ] stable identity reuses GraphDispatchKey and mismatched durable job identity fails closed;
-- [ ] bridge port exposes read only `get_job`;
-- [ ] focused + graph regression + compile/diff/secret/scope gates green;
-- [ ] exact-head 3-OS CI green, final review clean, PR merged and main verified.
+- [x] every current TaskState has an explicit pinned projection;
+- [x] repair/review states remain unresolved/DOING rather than satisfying dependencies;
+- [x] FAILED and RECOVERY_NEEDED cannot become DONE/SKIPPED;
+- [x] missing durable job => TODO; unrelated store errors fail closed;
+- [x] stable identity reuses GraphDispatchKey and mismatched durable job identity fails closed;
+- [x] bridge port exposes read only `get_job`;
+- [x] focused + graph regression + compile/diff/secret/scope gates green;
+- [x] exact-head 3-OS CI green, final review clean, PR merged and main verified.
 
 ## Next
 
@@ -91,3 +91,9 @@ RED exhaustive state mapping and graph projection tests -> implement pure/read-o
 - Review/repair states remain DOING so downstream graph dependencies cannot proceed before lifecycle resolution.
 - COMPLETE projects DONE; CANCELLED projects SKIPPED; BLOCKED/RECOVERY_NEEDED/FAILED project BLOCKED.
 - The bridge has a read-only `get_job` port only and contains no mutation operation.
+
+## Accepted-main closeout - 2026-08-29
+
+- PR #138 exact head `5dea0fca908ef0ce3c52c2c83803cf01fe60fc07` passed CI run `33233859035` on Windows/Ubuntu/macOS.
+- Remote diff was exactly 5 scoped files with 0 review threads.
+- PR #138 squash-merged as `da50305961536cc68b072ca99769a9c8e3048ffd`; ancestry was verified before GE-10 began.

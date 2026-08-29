@@ -188,3 +188,9 @@ WO-GE-009 adds a read-only durable lifecycle projection on isolated branch `feat
 - no lifecycle/store/scheduler/dispatch mutation authority was added.
 
 Focused bridge + ReadySet composition evidence is 13/13 green. GE-9 remains REVIEW_READY pending exact graph regression, local gates, exact-head CI, final review, merge and accepted-main verification.
+
+## GE-10 tests-only checkpoint - 2026-08-29
+
+WO-GE-010 composes all 10 existing deterministic FaultScenario cases with GE durable identity/lifecycle semantics plus three graph-specific cases: wrong-repo recovery blocking, durable reopen same-key replay prevention, and fan-in recovery/output completeness.
+
+Focused chaos matrix is 13/13 green; broader graph + fault/recovery/transport regression is 200/200 green. No production source change was needed. GE-10 is REVIEW_READY pending exact-head CI, remote diff re-audit, merge and accepted-main verification.
