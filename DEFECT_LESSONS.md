@@ -329,3 +329,17 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** an identifier supplied by an operator is selection context, not evidence that the identified runtime entity exists. UI labels such as LIVE/RUNNING/EVIDENCE require observed durable provenance.
 
 **Verify:** deterministic GE-11 tests cover planning-only mode, unknown explicit run -> no evidence, and matching durable job -> durable run evidence.
+
+---
+
+## #18: Persistent native temp cleanup failure accumulates app-owned residue (2026-08-29)
+
+**Symptom:** live audit found 17 `%TEMP%\a-conductor-exec-*` directories after persistent cleanup failures; 15 were older than 24 hours and several were 5-8 days old.
+
+**Root cause:** WO-P1-107 correctly made exhausted cleanup retries explicit as `COMMAND_CLEANUP_FAILED`, but there was no later owner-bounded retry path. A naive age-only sweep also risks deleting a legitimately long-running execution, and failed partial deletion can refresh directory mtime so an old orphan appears recent.
+
+**Fix:** each new execution temp tree holds an OS lock marker for its active lifetime. Before a new run, a best-effort sweep inspects only exact `a-conductor-exec-*` directories, skips symlinks and active locks, uses a 24h age threshold anchored to the older mtime/ctime, and attempts at most 32 single-shot deletions. Primary command cleanup keeps its existing PermissionError retry budget.
+
+**Lesson:** deferred hygiene must retain durable ownership evidence. Age is a filter, not proof of inactivity; active work needs an exclusion signal, and background-style cleanup must be bounded so residue cannot turn into startup latency or alter command semantics.
+
+**Verify:** deterministic tests cover stale/recent/unrelated/symlink boundaries, fail-soft locks, active owner locks, bounded no-wait sweep, mtime-refresh recovery, and runner-held lease. Native suite and broader supervised/job/Claude runtime regressions remain green; local stale residue was reduced to only two recent directories that stayed below the deletion threshold.
