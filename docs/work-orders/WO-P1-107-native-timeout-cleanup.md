@@ -2,7 +2,7 @@
 
 Date: 2026-08-29
 Owner: GPT-5.6 Sol integrator
-Status: REVIEW_READY - LOCAL GREEN / PR PENDING
+Status: MERGE_READY - EXACT-HEAD CI GREEN / POST-CI RE-AUDIT PASS
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-native-timeout-cleanup`
 Branch: `fix/wo-p1-107-native-timeout-cleanup`
@@ -50,7 +50,9 @@ Fault-inject `shutil.rmtree` for only `a-conductor-exec-*`: fail twice with `Per
 - compileall PASS; `git diff --check` PASS.
 - No new process, detached cleaner, scheduler, store, or background lifecycle.
 
-Next: final scope/secret audit -> commit/push -> PR -> exact-head 3-OS CI -> re-audit -> merge -> verify main.
+PR #135 checkpoint: head 0431c32f794c99f8fa1145a42a39e22d9ec5c44b; exact-head CI run 33219590720 passed Windows test plus Ubuntu/macOS cross-platform smoke. Remote diff = exactly four claimed files, one commit, no review/comment findings, base/head unchanged, CLEAN/MERGEABLE.
+
+Next: commit this final checkpoint -> require CI green on the new documentation head -> post-CI re-audit -> merge -> verify accepted main.
 
 ## Reconcile checkpoint
 
