@@ -204,3 +204,7 @@ Accepted-main evidence now closes GE-8..GE-10:
 - GE-10 PR #139 merged as `1fea5cfffbe9bb8a9093e67dfa1065559e324ab2` after 13-case chaos, broader regression, remote re-audit and 3-OS CI.
 
 GE-11 is the only remaining Graph Engineering roadmap node. Its isolated UI lane is `feat/wo-ge-011-graph-operator-ui` from accepted main `1fea5cf`; local deterministic/UI/E2E gates are green and PR/CI/merge remain outstanding.
+
+## GE-11 accepted-source checkpoint — 2026-08-29
+
+GE-11 operator visualization merged via PR #140 as `392047a0395f30cc1d6ed7d8c2c3f7c0457a5e37`. GE-8/9/10/11 source milestones are now merged; post-merge CI plus GE-11R1 read-only-store hardening remain before graph-lane closeout is declared fully verified.

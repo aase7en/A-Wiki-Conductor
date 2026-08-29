@@ -2,11 +2,11 @@
 
 Created: 2026-08-29
 Owner: GPT-5.6 Sol Graph hardening lane
-Status: ACTIVE / TDD
+Status: REVIEW_READY / PR PENDING
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-ge11r1-readonly`
 Branch: `fix/wo-ge-011r1-graph-store-readonly`
-Base: `origin/main@1fea5cfffbe9bb8a9093e67dfa1065559e324ab2`
+Base reconciled: `origin/main@392047a0395f30cc1d6ed7d8c2c3f7c0457a5e37` (PR #140 merged)
 
 ## Trigger
 
@@ -54,3 +54,13 @@ No GE-11 UI, lifecycle, scheduler, dispatch, job store, or SSoT hotspot mutation
 Implementation preserves `GraphStore(path)` writable behavior. `open_read_only(path)` requires an existing file, skips mkdir/schema initialization, uses SQLite URI `mode=ro` + `query_only`, and rejects save/delete/event mutation before SQL.
 
 Next: commit local checkpoint; after PR #140 merges, fetch/reconcile accepted main, rerun graph suite, then open PR.
+
+## Accepted-main reconciliation — 2026-08-29
+
+- PR #140 merged as `392047a0395f30cc1d6ed7d8c2c3f7c0457a5e37`; merge into this lane was conflict-free.
+- focused GraphStore + GE-11 composition: **24 passed**.
+- full `tests/test_graph_*.py` after reconciliation: **185 passed**.
+- read-only event retrieval is covered in addition to load/list; database mtime remains unchanged.
+- compileall and `git diff --check`: PASS.
+
+Next: exact-scope commit/push, PR, exact-head 3-OS CI, remote re-audit, merge and accepted-main verification.

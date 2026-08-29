@@ -123,12 +123,14 @@ def test_open_read_only_reads_existing_database_without_write(tmp_path: Path) ->
     database = tmp_path / "g.sqlite"
     writable = GraphStore(database)
     writable.save_graph(_simple_graph(), "g1")
+    writable.record_node_event("g1", "a", "observed", "{}")
     before = database.stat().st_mtime_ns
 
     readonly = GraphStore.open_read_only(database)
 
     assert readonly.list_graph_ids() == ["g1"]
     assert readonly.load_graph("g1").node_ids() == ("a", "b", "c")
+    assert readonly.node_events("g1", "a")[0]["event_type"] == "observed"
     assert database.stat().st_mtime_ns == before
 
 
