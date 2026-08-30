@@ -32,7 +32,10 @@ Allowed implementation scope:
 - `src/a_conductor/parallel_ready_execution.py` (new thin integration seam only);
 - `tests/test_parallel_ready_execution.py`;
 - this work order and bounded coordination checkpoints in `COLLAB.md`, `CURRENT-WORK.md`,
-  `handoff.md`, `docs/agent-collab/AGENT_TASKS.md`.
+  `handoff.md`, `docs/agent-collab/AGENT_TASKS.md`;
+- user-requested AHA-6 governance extension: `docs/agent-collab/COLLAB_PROTOCOL.md`,
+  `docs/agent-collab/CAPABILITY_MATRIX.md`, and `DEFECT_LESSONS.md` only for
+  multi-agent loop/bridge rules, routing evidence, and reusable defects found in this slice.
 
 Forbidden without a new explicit gate/claim:
 - edits to `graph/scheduler.py`, `graph/dispatch.py`, `worker_lease.py`, durable job stores;
@@ -102,3 +105,7 @@ Current status: `IMPLEMENTED / REVIEW_PENDING`.
 - Fresh official Z.ai GLM-5.3 evidence (2026-08-14 launch) supports bounded code review/debug delegation: Terminal-Bench 3.0 28.3, DeepSWE v1.1 66.9, Z.ai Code Bench Max 34.5%. GPT retains architecture/integration/merge authority.
 
 Next safe action: durable read-only GLM-5.3 MAX independent review packet -> GPT reads result directly -> bounded repair if needed -> full regression/audit -> PR/CI/re-audit.
+
+## Governance scope extension checkpoint ? 2026-08-30
+
+User explicitly requested durable multi-agent rules so GPT/GLM/future agents can exchange task/result state without human result copy-back. Pre-gate evidence: active AHA-6 worktree clean; GitHub open PRs 0; A-Wiki live local claims 0. `SAFE_TO_MUTATE = YES` for the three governance files added to allowed scope above. External agents remain read-only to coordination SSoT; the integrator is the single tracked SSoT writer.
