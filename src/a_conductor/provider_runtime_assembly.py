@@ -22,6 +22,10 @@ from .claude_code_job_backend import (
     ClaudeCodeProviderState,
 )
 from .provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+from .parallel_ready_execution import ParallelReadyExecutor, ParallelReadyRunner
+from .worker_lease import WorkerLeaseBroker
+from .provider_configuration import ProviderHealth, ProviderObservation, observe_provider
+from .zai_quota_probe import ZaiQuotaProbe, ZaiQuotaTransport, supports_zai_quota_endpoint
 
 
 class SQLiteClaudeCodeProviderResolver:
@@ -70,6 +74,7 @@ def build_sqlite_supervised_claude_job_backend(
 ) -> ClaudeCodeJobBackend:
     """Build the accepted Claude backend from one existing control database."""
     store = SQLiteProviderConfigStore(database_path)
+    store.initialize()
     resolved_drive = (
         Path(drive_root).expanduser().resolve(strict=False)
         if drive_root is not None
@@ -97,4 +102,88 @@ def build_sqlite_supervised_claude_job_backend(
         clock=clock,
         claude_executable=claude_executable,
         poll_interval_seconds=poll_interval_seconds,
+    )
+
+def refresh_zai_provider_observation(
+    *,
+    database_path: str | Path,
+    provider_id: str,
+    clock: Callable[[], object],
+    transport: ZaiQuotaTransport | None = None,
+    drive_root: str | Path | None = None,
+    awiki_repo_root: str | Path | None = None,
+    home: str | Path | None = None,
+    environment: Mapping[str, str] | None = None,
+    repo_env_name: str | None = None,
+) -> ProviderObservation | None:
+    """Refresh one explicit Z.ai provider observation without guessing routes."""
+    if not isinstance(provider_id, str) or not provider_id.strip():
+        raise ValueError("provider_id must not be blank")
+    if not callable(clock):
+        raise ValueError("clock must be callable")
+    store = SQLiteProviderConfigStore(database_path)
+    store.initialize()
+    profile = store.get_provider(provider_id.strip())
+    if profile is None:
+        return None
+    endpoint = store.get_endpoint(profile.endpoint_ref)
+    if endpoint is None:
+        return None
+    if not supports_zai_quota_endpoint(endpoint):
+        observation = ProviderObservation(
+            provider_id=profile.provider_id,
+            health=ProviderHealth.UNAVAILABLE,
+            observed_at=clock(),
+            provenance="zai-quota-monitor:unsupported-route",
+        )
+        store.save_observation(observation)
+        return observation
+    resolved_drive = (
+        Path(drive_root).expanduser().resolve(strict=False)
+        if drive_root is not None
+        else resolve_awiki_drive_root(
+            environment=environment,
+            awiki_repo_root=awiki_repo_root,
+            home=home,
+        )
+    )
+    secret_source = AWikiDriveEnvironmentSource(
+        resolved_drive,
+        repo_env_name=repo_env_name,
+    )
+    reference_resolver = AWikiEnvironmentReferenceResolver(
+        endpoint_reader=store,
+        secret_source=secret_source,
+    )
+    probe = ZaiQuotaProbe(
+        resolve_credential=reference_resolver.resolve,
+        transport=transport,
+        clock=clock,
+    )
+    observed_at = clock()
+    observation = observe_provider(
+        profile,
+        endpoint,
+        probe,
+        observed_at=observed_at,
+        provenance="zai-quota-monitor:v1",
+    )
+    store.save_observation(observation)
+    return observation
+
+def build_sqlite_parallel_ready_executor(
+    *,
+    database_path: str | Path,
+    broker: WorkerLeaseBroker,
+    runner: ParallelReadyRunner,
+    clock: Callable[[], object],
+) -> ParallelReadyExecutor:
+    """Build AHA-6 execution with the shared SQLite provider admission authority."""
+    store = SQLiteProviderConfigStore(database_path)
+    store.initialize()
+    return ParallelReadyExecutor(
+        broker=broker,
+        runner=runner,
+        clock=clock,
+        provider_admission_store=store,
     )

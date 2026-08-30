@@ -25,6 +25,7 @@ from a_conductor.provider_configuration import (
 from a_conductor.provider_runtime_assembly import (
     SQLiteClaudeCodeProviderResolver,
     build_sqlite_supervised_claude_job_backend,
+    refresh_zai_provider_observation,
 )
 from a_conductor.supervised_execution import SupervisedLaunchOutcome
 
@@ -277,3 +278,96 @@ def test_corrupt_provider_row_fails_closed_as_unusable_state(tmp_path: Path) -> 
 
     resolver = SQLiteClaudeCodeProviderResolver(store)
     assert resolver.resolve("provider-glm-shared") is None
+
+
+def test_production_builder_bootstraps_provider_schema_without_touching_existing_data(tmp_path: Path) -> None:
+    import sqlite3
+
+    db = tmp_path / "installed-control.sqlite"
+    with sqlite3.connect(db) as connection:
+        connection.execute("CREATE TABLE existing_state(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        connection.execute("INSERT INTO existing_state(key, value) VALUES('keep', 'unchanged')")
+        connection.commit()
+    drive = tmp_path / "A-Wiki-Data"
+    drive.mkdir()
+    definition = operation(tmp_path / "worktree-bootstrap")
+    supervised = CapturingRecoverySupervised()
+
+    build_sqlite_supervised_claude_job_backend(
+        database_path=db,
+        operations=(definition,),
+        execution_store=SQLiteExecutionStore(tmp_path / "execution-bootstrap.sqlite"),
+        supervised=supervised,
+        drive_root=drive,
+        clock=lambda: NOW,
+    )
+    with sqlite3.connect(db) as connection:
+        assert connection.execute("SELECT value FROM existing_state WHERE key='keep'").fetchone()[0] == "unchanged"
+        names = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert {"provider_configurations", "provider_endpoints", "provider_observations", "provider_admissions"} <= names
+    assert supervised.plans == []
+
+
+class FakeQuotaTransport:
+    def __init__(self, status: int, payload: object) -> None:
+        self.status = status
+        self.payload = payload
+        self.calls = []
+
+    def get_json(self, url: str, *, authorization: str, timeout_seconds: float):
+        self.calls.append((url, authorization, timeout_seconds))
+        return self.status, self.payload
+
+
+def test_refresh_zai_provider_observation_uses_drive_secret_and_persists_quota(tmp_path: Path) -> None:
+    db = tmp_path / "quota-control.sqlite"
+    store = SQLiteProviderConfigStore(db)
+    configured = profile()
+    store.save_provider(configured)
+    store.save_endpoint(ProviderEndpointConfig(configured.endpoint_ref, "https://api.z.ai/api/anthropic"))
+    drive = tmp_path / "A-Wiki-Data"
+    (drive / "secrets").mkdir(parents=True)
+    (drive / "secrets" / "global.env").write_text("ANTHROPIC_API_KEY=quota-secret\n", encoding="utf-8")
+    transport = FakeQuotaTransport(200, {"data": {"limits": [{
+        "type": "TOKENS_LIMIT", "usage": 100, "currentValue": 40,
+        "remaining": 60, "nextResetTime": 1788084000000,
+    }]}})
+    observed = refresh_zai_provider_observation(
+        database_path=db,
+        provider_id=configured.provider_id,
+        drive_root=drive,
+        clock=lambda: NOW,
+        transport=transport,
+    )
+
+    assert observed is not None
+    assert observed.health is ProviderHealth.AVAILABLE
+    assert observed.quota is not None
+    assert observed.quota.window_type == "5h"
+    assert observed.quota.remaining == 60
+    assert store.get_observation(configured.provider_id) == observed
+    assert transport.calls[0][1] == "quota-secret"
+    assert "quota-secret" not in observed.provenance
+
+
+def test_refresh_zai_provider_observation_rejects_non_zai_route_without_secret_read(tmp_path: Path) -> None:
+    db = tmp_path / "quota-non-zai.sqlite"
+    store = SQLiteProviderConfigStore(db)
+    configured = profile()
+    store.save_provider(configured)
+    store.save_endpoint(ProviderEndpointConfig(configured.endpoint_ref, "https://proxy.example/v1"))
+    transport = FakeQuotaTransport(200, {})
+
+    observed = refresh_zai_provider_observation(
+        database_path=db,
+        provider_id=configured.provider_id,
+        clock=lambda: NOW,
+        transport=transport,
+        environment={},
+        home=tmp_path / "missing-home",
+    )
+    assert observed is not None
+    assert observed.health is ProviderHealth.UNAVAILABLE
+    assert observed.quota is None
+    assert transport.calls == []
+    assert store.get_observation(configured.provider_id) == observed

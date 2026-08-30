@@ -20,12 +20,13 @@ They do not prove it is best for every task and do not replace GPT/integrator re
 
 ## Current local availability evidence
 
-- Direct Z.ai GLM-5.3 invocation reached the provider but returned HTTP 429 / insufficient resource package.
-- Installed ZCode 0.16.5 reports `builtin:zai-coding-plan` unavailable with `coding_plan_not_entitled`.
-- Installed ZCode Start Plan is available, but its active model set currently exposes GLM-5.3-Flash rather than full GLM-5.3.
-- The user also has a working external Claude-CLI GLM proxy profile, but its credential is intentionally outside tracked project state.
-- Read-only inspection on 2026-08-30 confirmed the installed `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` still has no `provider_*` tables, and production code still exposes only the `EnvironmentReferenceResolver` protocol rather than a concrete Drive-backed resolver.
-- Therefore AHA-6 must distinguish **model suitability** from **provider entitlement/readiness**, **quota evidence**, and **credential/profile integration readiness**. Automatic dispatch stays fail-closed; the one-direction file bridge is the current safe fallback.
+- Direct Z.ai GLM-5.3 invocation previously reached the provider but returned HTTP 429 / insufficient resource package.
+- Installed ZCode 0.16.5 previously reported `builtin:zai-coding-plan` unavailable with `coding_plan_not_entitled`; Start Plan exposed GLM-5.3-Flash rather than full GLM-5.3.
+- WO-P1-115 reviewed head `5c16ed5248eda5dd0f8094520e45915fe436093e` safely bootstraps provider tables and adds atomic provider-global admission in the existing SQLite provider authority; independent GLM review and repair re-review both found zero P0/P1/P2 defects, and GPT repaired two quota-evidence P3 hardening findings before re-review. Installed-DB-copy E2E preserved all 12 existing tables and did not mutate the live DB.
+- Cross-process admission E2E proves `max_concurrency=1` yields exactly `ADMITTED,CAPACITY_WAIT`; batch-local snapshots are no longer the production-global capacity authority when the SQLite admission store is injected.
+- Current Claude CLI configuration still points to an unavailable loopback route, and current router configuration exposes no proven live GLM/CoinTH profile. Earlier GLM-proxy readiness is historical, not current readiness.
+- Official Z.ai quota tooling still exposes `/api/monitor/usage/quota/limit`, but current upstream issue evidence says that endpoint lacks reset time. Because Conductor requires the full five-hour tuple, automatic dispatch remains fail-closed; the one-direction file bridge is the current safe fallback.
+- Model suitability, provider route/readiness, quota evidence, credential resolution and atomic provider admission remain independent authorities.
 
 ## Routing decision record
 
@@ -63,3 +64,13 @@ Task class: provider/runtime integration with secret/quota trust boundaries.
 - GLM-5.3 MAX is suitable for bounded code archaeology/adversarial review and repair after the implementation contract is exact-SHA pinned; current official Z.ai evidence remains Terminal-Bench 3.0 28.3, DeepSWE v1.1 66.9, Z.ai Code Bench Max 34.5%.
 - Automatic GLM execution is itself the capability being assembled, so this work order uses the one-way file bridge until secret/readiness/quota gates are provably available.
 - Deterministic repository/tests/CI remain acceptance authority.
+
+## WO-P1-115 routing decision - 2026-08-30
+
+Task class: SQLite concurrency/admission authority, production runtime bootstrap, and provider/quota trust boundaries.
+
+- Official Z.ai GLM-5.3 evidence was refreshed before delegation planning: Terminal-Bench 3.0 `28.3`, DeepSWE v1.1 `66.9`, Z.ai Code Bench Max `34.5%`; Z.ai notes meaningful human-in-the-loop work remains.
+- GPT-5.6 Sol owns architecture, atomic-concurrency design, trust boundaries, integration adjudication, deterministic verification and merge authority.
+- GLM-5.3 MAX is suitable for later bounded adversarial/concurrency review after an exact-SHA snapshot exists; current local provider readiness is insufficient for automatic dispatch.
+- No model name may imply a quota endpoint. Provider-matched readiness/quota evidence must be proven independently; otherwise dispatch fails closed.
+- Deterministic repository tests, race/E2E evidence and CI remain acceptance authority.

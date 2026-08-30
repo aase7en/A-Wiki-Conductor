@@ -34,6 +34,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
+| `WO-P1-115` / AHA-6A.1 provider admission + runtime wiring | GPT-5.6 Sol integrator | 2026-08-30 | Isolated `A-Wiki-Conductor-provider-admission` / `feat/wo-p1-115-provider-admission-runtime`; GLM-reviewed implementation was repaired at `cf9676a6d4b9ce988f849426d514a823df034d18`; exact-SHA re-review passed on `5c16ed5248eda5dd0f8094520e45915fe436093e`, so the branch is at PR gate. Existing provider store + runtime assembly + AHA-6 admission seam + focused tests + bounded SSoT only. No UI/North Star/live connector/user CCR config/plaintext secret mutation. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims

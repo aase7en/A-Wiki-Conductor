@@ -1,10 +1,10 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-114 / AHA-6A COMPLETE / RELEASED)
+Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 VERIFIED / PR_GATE)
 
 ## Current phase
 
-**WO-P1-114 / AHA-6A is COMPLETE / RELEASED. No successor AHA work order is currently claimed.**
+**PRIMARY SAFE NEW-FEATURE PRIORITY: WO-P1-115 / AHA-6A.1 provider admission + production runtime wiring.**
 
 P0 release gate `WO-P1-096` remains higher priority but is externally blocked pending a spare Tunnel ID or explicit maintenance authorization for one live Worker; this work order does not disrupt live connectors.
 
@@ -15,18 +15,21 @@ Accepted AHA-5 closeout state:
 - Windows Frozen Setup install/uninstall E2E: PASS;
 - AHA-5 implementation + closeout worktrees/branches cleaned after tree-equality proof.
 
-## Latest completed work order
+## Active work order
 
-`docs/work-orders/WO-P1-114-auto-provider-runtime-assembly.md` - COMPLETE / RELEASED.
-Implementation PR `#153` merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`; exact-head CI `33299166993` and post-main CI `33299559419` both passed Windows/Ubuntu/macOS including Frozen Setup E2E.
+`docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / VERIFIED / PR_GATE.
+Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`.
+Branch: `feat/wo-p1-115-provider-admission-runtime` @ base `5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`.
 
 ## Immediate execution frontier
 
-1. PR #153 exact reviewed head `00d0828816e11110f30299c76d6b5a43e7d5b095` passed CI `33299166993` and merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`.
-2. Post-main CI `33299559419` passed Windows/Ubuntu/macOS including packaging, Portable smoke and Frozen Setup install/uninstall E2E.
-3. GLM-5.3 MAX `wo114-glm-review-002` returned PASS with zero P0/P1/P2 findings; four P3 hardening observations remain deferred.
-4. WO-P1-114 claim is released. Remove implementation/closeout worktrees only after closeout PR + post-main ancestry/tree proof.
-5. Next accelerator slice requires a new work order for AHA-6A.1: runtime Drive binding, fresh complete quota observation, and serialized/atomic provider admission. AHA-6B/AHA-7 stay behind that gate. WO-P1-096 remains the separate higher P0 release blocker.
+1. GLM re-review `wo115-glm-rereview-002` returned validated `PASS` on exact HEAD `5c16ed5248eda5dd0f8094520e45915fe436093e`; P0/P1/P2 findings `0`.
+2. Repair `cf9676a6d4b9ce988f849426d514a823df034d18` is accepted: explicit five-hour quota evidence wins, ambiguous/inconsistent quota evidence fails closed, and no concurrency/secret/lifecycle authority was duplicated.
+3. P3 disposition: quota-consistency tolerance remains intentionally conservative/fail-closed pending upstream evidence; the reported missing multithread test is rejected because `test_atomic_provider_admission_allows_only_one_concurrent_owner` already uses `ThreadPoolExecutor + Barrier`, with separate cross-process E2E also PASS.
+4. Final local evidence: focused `62 passed`; related `256 passed`; full local `1753 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures`; compile/diff/scope/secret/encoding audit PASS; DB-copy and cross-process E2E PASS.
+5. Source/tests are frozen at reviewed HEAD `5c16ed5248eda5dd0f8094520e45915fe436093e`. No further source mutation before PR unless a deterministic gate exposes a new defect.
+6. Next gate: final branch/remote/file-scope audit -> Draft PR -> exact-head Windows/Ubuntu/macOS CI including Frozen Setup E2E -> re-audit -> merge -> post-main proof.
+7. Automatic live GLM remains fail-closed: no proven active local GLM route and no complete reset-bearing 5h quota tuple. `WO-P1-096` remains the separate higher P0 release blocker pending authorized live connector soak.
 
 ## Source-of-truth rule
 
