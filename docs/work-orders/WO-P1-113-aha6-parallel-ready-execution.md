@@ -2,7 +2,7 @@
 
 Date: 2026-08-30
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / CLAIMED
+Status: ACTIVE / IMPLEMENTED / REVIEW_PENDING
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha6-parallel`
 Branch: `feat/wo-p1-113-aha6-parallel-ready`
@@ -90,6 +90,15 @@ F. Optional real CoinTH/GLM proof only after external secret resolver + quota pr
 - Existing Conductor scheduler, atomic lease broker/recovery, durable graph dispatch and provider quota model were inspected; no competing open PR exists.
 - Provider quota already has `limit`, `used`, `remaining`, `reset_at`, `reset_in_seconds`; no second quota type is authorized.
 
-Current status: `CLAIMED / READY_FOR_RED`.
+Current status: `IMPLEMENTED / REVIEW_PENDING`.
 
-Next safe action: checkpoint coordination SSoT, commit the claim, then add the focused failing AHA-6 tests before production code.
+## Implementation checkpoint ? 2026-08-30
+
+- Implementation commit: `bad6567a7909f6cceb34d6debff20a23e5c42484`.
+- Added only `parallel_ready_execution.py` + focused tests; scheduler, lease broker, job store and provider model were reused unchanged.
+- Proves exact SchedulePlan mapping, provider freshness/quota/capacity waits before lease, atomic lease non-replay, same-scope collision blocking, two-task concurrent runner/GE-7 dispatch, gate deny-before-lease, lease retention, and per-task runner exception -> recovery-required without retry.
+- Focused AHA-6: 13 passed. Relevant scheduler/dispatch/chaos/lease/provider/harness/AHA-5 regression: 193 passed. Compileall, diff-check and staged secret-pattern scan PASS.
+- One regression invocation initially failed only because pytest ran outside repo root and a schema path was relative; rerun from the canonical worktree root passed without code changes.
+- Fresh official Z.ai GLM-5.3 evidence (2026-08-14 launch) supports bounded code review/debug delegation: Terminal-Bench 3.0 28.3, DeepSWE v1.1 66.9, Z.ai Code Bench Max 34.5%. GPT retains architecture/integration/merge authority.
+
+Next safe action: durable read-only GLM-5.3 MAX independent review packet -> GPT reads result directly -> bounded repair if needed -> full regression/audit -> PR/CI/re-audit.
