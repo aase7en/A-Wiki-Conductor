@@ -7,7 +7,7 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
-| Integrator | GPT-5.6 Sol | WO-P1-115 / AHA-6A.1 | provider admission/runtime wiring + tests + bounded SSoT | VERIFIED / PR_GATE |
+| Integrator | GPT-5.6 Sol | WO-P1-115 / AHA-6A.1 | provider admission/runtime wiring + tests + bounded SSoT | RELEASED |
 | GLM review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-review-001` | read-only `runs/wo115-glm-review-001/result.json` only | VERIFIED PASS / REPAIR ACCEPTED |
 | GLM re-review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-rereview-002` | read-only `runs/wo115-glm-rereview-002/result.json` only | VERIFIED PASS / RELEASED |
 | Integrator | GPT-5.6 Sol | WO-P1-114 / AHA-6A | provider runtime assembly + tests + bounded SSoT | RELEASED |
@@ -92,3 +92,10 @@ AHA-5 permits one mutable file per agent task. Multi-file parallel fan-out belon
 - Outcome: `PASS`; P0/P1/P2 findings: `0`; P3 hardening observations: `4`.
 - P3 cache/whitespace/blank-override/.drive-path diagnostics are deferred: none changes the current fail-closed acceptance boundary, and modifying source after exact-SHA PASS would require a new review snapshot.
 - Result path is historical evidence: `runs/wo114-glm-review-002/result.json`; do not reuse the packet for a later HEAD.
+
+### WO-P1-115 released lane evidence
+
+- Integrator lane released after PR #155 exact-head CI `33312763072`, merge `a758f9e882db03e988d67a3f04f69862dd9195c2`, and post-main CI `33313201851` passed.
+- `wo115-glm-review-001` and `wo115-glm-rereview-002` are historical ignored evidence only; both are verified and must not be reused after HEAD changes.
+- Human fallback carried task pointers only; GPT read/validated result artifacts directly and folded accepted findings into tracked SSoT.
+- No successor lane is claimed here. Future agents must re-enter CURRENT-WORK/handoff/work-order/claims before claiming AHA-6B or another slice.
