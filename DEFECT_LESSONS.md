@@ -356,3 +356,46 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** do not use implicit PowerShell 5.1 text encoding for repository Markdown containing non-ASCII text. Use an explicit UTF-8-capable writer (for example Python `Path.read_text/write_text(encoding="utf-8")`) and treat encoding preservation as part of the mutation contract.
 
 **Verify:** run `git diff --check`, inspect the complete diff, scan release-facing text for replacement/mojibake markers, and confirm only intended lines changed before commit/push. CI must run again after any encoding repair.
+
+---
+
+## #20: User-level Claude settings can override a task's declared provider endpoint (2026-08-30)
+
+**Symptom:** a supervised direct-Z.ai GLM task carried the intended `ANTHROPIC_BASE_URL`, yet Claude Code attempted the user's local CCR endpoint and failed `ConnectionRefused`.
+
+**Root cause:** bare/safe provider jobs still loaded user settings; the user's valid interactive Claude configuration defines `ANTHROPIC_BASE_URL=http://127.0.0.1:3456`, which conflicted with the task's provider binding.
+
+**Fix:** supervised harness invocations now add `--setting-sources project,local`, excluding unrelated user-level settings while preserving explicit provider endpoint/credential bindings and read-only safe mode.
+
+**Lesson:** provider identity is part of execution authority. Ambient user configuration must not silently rewrite the provider selected by a durable task.
+
+**Verify:** harness regression checks the setting-source boundary; live retry changed from localhost `ConnectionRefused` to an actual Z.ai HTTP 429 entitlement response, proving the declared endpoint became authoritative.
+
+---
+
+## #21: CLI timeout without process-tree ownership can outlive the caller budget (2026-08-30)
+
+**Symptom:** a raw Python `subprocess.run(..., timeout=30)` probe around Claude/GLM reported timeout only after roughly 181 seconds because a descendant process kept inherited capture handles alive.
+
+**Root cause:** caller timeout killed/wound only the direct subprocess relationship; it did not provide durable ownership/reconciliation for the spawned CLI process tree.
+
+**Fix:** AHA-5 provider execution uses the accepted `WindowsOwnedProcessController` + `SupervisedExecutionService` + durable execution records/artifacts. Raw subprocess probes are not a production provider path.
+
+**Lesson:** timeout is not process ownership. Long-horizon agent CLIs need supervised identity, durable PID/evidence and recovery semantics before retry or cleanup.
+
+**Verify:** supervised GLM attempts produced durable execution IDs/PIDs and terminal states; failures were classified as controlled provider/tool errors rather than orphaned execution claims.
+
+
+---
+
+## #22: Safety-authority refactors must migrate test callers before claiming GREEN (2026-08-30)
+
+**Symptom:** AHA-5 continuity files claimed the file bridge GREEN, but a fresh related regression run found seven tests still constructing `AgentChangeApplier` with the retired direct-lease calling convention.
+
+**Root cause:** production correctly moved mutation authority to `lease_store.inspect_health(lease_id)`, while older test helpers still injected `WorkerLease` objects directly. The checkpoint summary advanced before the whole affected caller set was re-run.
+
+**Fix:** keep the production lease-health boundary; migrate test callers to a health-reader/lease-id contract and rerun both the related suite and the CI-equivalent full suite.
+
+**Lesson:** when an authority-bearing API changes, compile success or a narrow new test is insufficient. Search/migrate all callers and verify the affected regression set before durable SSoT says GREEN.
+
+**Verify:** related AHA-5/lease/supervised suite = 122 passed; CI-equivalent full suite with project dependencies = 1687 passed, 1 environment skip, 0 failed.

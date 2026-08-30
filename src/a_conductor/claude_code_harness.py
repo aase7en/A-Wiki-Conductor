@@ -280,6 +280,8 @@ class ClaudeCodeHarnessAdapter:
             "json",
             "--no-session-persistence",
             "--safe-mode",
+            "--setting-sources",
+            "project,local",
             "--permission-mode",
             "plan",
             "--tools",

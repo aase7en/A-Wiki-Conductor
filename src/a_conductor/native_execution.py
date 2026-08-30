@@ -350,6 +350,10 @@ class NativeFileSystem:
     def __init__(self, scope: NativeExecutionScope) -> None:
         self._scope = scope
 
+    @property
+    def root(self) -> Path:
+        return Path(self._scope.root)
+
     def read_text(
         self,
         relative_path: str | Path,

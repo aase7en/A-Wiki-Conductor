@@ -89,3 +89,16 @@ Resume sequence:
 `AGENTS.md -> PROJECT-PLAN.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active work order -> actual repository/runtime reconciliation`
 
 Never blindly repeat a mutation merely because the previous agent/session disappeared.
+
+## Active claim — AHA-5 multi-agent review/repair loop (2026-08-29)
+
+- Task: `AHA-5 / WO-P1-112`
+- Integrator owner: GPT-5.6 Sol
+- Worktree: `A:\GitHub\A-Wiki-Conductor-aha5-review-repair`
+- Branch: `feat/wo-p1-112-aha5-agent-review-repair-loop`
+- Base: `7f9a16f6dfafe17f3795167da22d4886945611e0`
+- Mutable scope: AHA-5 task/result packet, harness mutation boundary, supervised execution integration, tests, and provider-neutral `docs/agent-collab/*` only.
+- Forbidden: live connector/release soak, UI, North Star, credentials, A-Wiki mutation, unrelated scheduler semantics.
+- GLM/future-agent mutation requires its own bounded sub-lane + exact lease + non-overlapping scope recorded in WO-P1-112 before edit.
+- Agent output is not transferred through chat as authority; task/result/evidence refs in durable repo state are authoritative.
+- Merge/release authority remains GPT integrator + deterministic gates.

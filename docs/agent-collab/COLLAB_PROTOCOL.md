@@ -1,114 +1,87 @@
-# Agent Collaboration Protocol — GPT + GLM
+# Provider-Neutral Agent Collaboration Protocol
 
-> วิธีทำงานร่วมกันบนโปรเจกต์เดียวกันแบบคู่ขนาน โดยไม่ชนกัน
+Purpose: let GPT, GLM, Claude, Codex, local models, and future agents work on one project without relying on chat memory or human result copy/paste.
 
-## 1. กติกาหลัก (อ่านก่อนเริ่มทุกครั้ง)
+## 1. Entry sequence
 
-### Entry Sequence (บังคับ)
-```
-1. COLLAB.md — เช็ค claims/lanes ปัจจุบัน
-2. CURRENT-WORK.md — สถานะล่าสุด + WO ที่ active
-3. handoff.md — resume state
-4. DEFECT_LESSONS.md — บทเรียนจากบั๊กเก่า (ก่อนแตะ src/)
-5. docs/agent-collab/AGENT_TASKS.md — งานของตัวเอง
-```
+Before non-trivial work, read:
+1. `00-AGENT-ENTRY.md`
+2. `PROJECT-PLAN.md` + `DESIGN.md`
+3. `COLLAB.md`
+4. `CURRENT-WORK.md`
+5. `handoff.md`
+6. active `docs/work-orders/<id>.md`
+7. `DEFECT_LESSONS.md` before `src/` mutation
+8. this lane index only when multi-agent work is active
 
-### Claim ก่อนแก้ (บังคับ)
-- ทุกไฟล์ที่จะแก้ **ต้องไม่อยู่ใน claim ของอีกฝ่าย** (ดู COLLAB.md)
-- ถ้าต้องการไฟล์ที่อีกฝ่าย claim:
-  1. จดใน work order ของตัวเองว่าต้องการอะไร
-  2. รออีกฝ่าย release หรือ
-  3. ถาม user ให้ตัดสินใจ
-- **ห้ามแก้ไฟล์ที่อีกฝ่าย claim โดยไม่ได้รับอนุญาต**
+Actual repo/runtime state overrides stale summaries.
 
-### Evidence หลังเสร็จ (บังคับ)
-- Commit SHA + ผล test + CI status
-- Update CURRENT-WORK.md + handoff.md
-- Release claim ใน COLLAB.md
+## 2. Safety gate
 
-## 2. การแบ่งเขตปัจจุบัน (2026-08-25)
+Mutation requires all of:
+- exact repository/worktree/remote/branch/HEAD;
+- known dirty-state ownership;
+- task owner and active bounded claim/lease;
+- non-overlapping mutable scope;
+- explicit allowed + forbidden scope;
+- acceptance criteria and verification;
+- durable result/evidence destination.
 
-### GPT-5.6 Sol (SunDay-Worker 1)
-**WO-P1-063 (UI Redesign)** + **Build Pipeline (v0.6.0)**
+If any item is uncertain: `SAFE_TO_MUTATE = NO`.
 
-| ไฟล์ | งาน |
-|---|---|
-| `src/a_conductor/desktop_ui.py` | Terminal command center redesign |
-| `src/a_conductor/gpu_particle_logo.py` | GPU particle logo |
-| `src/a_conductor/system_metrics.py` | System metrics |
-| `src/a_conductor/i18n.py` | i18n updates |
-| `scripts/build_portable.py` | Retry loop + clean build |
-| `scripts/build_installer.py` | Version stamp |
-| `scripts/installer_main.py` | DisplayVersion + non-silent failures |
-| `tests/test_build_installer.py` | TDD for retry + version |
-| `.github/workflows/ci.yml` | Build+archive verification |
-| `INSTALL.md` | Version update + naming fix |
-| `assets/` | Logo + images |
-| `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `AGENTS.md` | Hotspot files |
+## 3. Task → result protocol
 
-### GLM 5.3 Max (ZCode session)
-**Collaboration System** + **Backend** + **Docs**
+Integrator writes or selects one task packet containing identity, goal, scope,
+acceptance, verification and result destination.
 
-| ไฟล์ | งาน |
-|---|---|
-| `docs/agent-collab/` (ทั้งหมด) | สร้าง collaboration infrastructure |
-| `src/a_conductor/control_center.py` | Backend logic |
-| `src/a_conductor/registry.py` | Registry |
-| `src/a_conductor/local_instances.py` | Instance discovery |
-| `src/a_conductor/platform_support.py` | Cross-platform |
-| `src/a_conductor/instance_*.py` | Instance CRUD |
-| `src/a_conductor/setup_wizard.py` | Setup wizard engine |
-| `tests/` (ยกเว้น test_build_installer) | Tests |
+Agent then:
+1. reads the task packet;
+2. works only inside its lease/scope;
+3. writes structured result/evidence to the declared destination;
+4. does not edit coordination SSoT unless explicitly assigned;
+5. does not merge, publish, retry ownership, or broaden scope.
 
-### ไม่มีใคร claim (เป็นส่วนกลาง)
-- `PROJECT-PLAN.md` (อ่านอย่างเดียว — แก้ต้องปรึกษากัน)
-- `DEFECT_LESSONS.md` (เพิ่มได้ — ไม่ต้อง claim)
-- `CHANGELOG.md` (เพิ่มได้ — ไม่ต้อง claim)
-- `README.md` (แก้ได้ถ้าไม่กระทบ GPT)
+Integrator then:
+1. reads the result directly;
+2. checks task/provider/model identity;
+3. checks exact base HEAD and file SHA256 precondition;
+4. applies one-file replacement through the deterministic lease boundary;
+5. runs review/tests;
+6. accepts or emits a bounded repair task.
 
-## 3. Communication Protocol
+Agent claims are descriptive; deterministic evidence is authoritative.
 
-### ผ่าน Git (primary)
-```
-Agent แต่ละตัวทำงานบน branch ของตัวเอง
-→ commit พร้อมข้อความชัดเจน
-→ PR เมื่อพร้อม merge
-→ merge เฉพาะเมื่อ CI เขียว
-```
+## 4. Repair loop
 
-### ผ่าน Work Orders
-```
-สร้าง docs/work-orders/WO-P1-XXX.md
-→ ระบุ scope (ไฟล์ที่จะแตะ)
-→ checkpoint ทุกขั้นตอน
-→ mark DONE เมื่อเสร็จ + evidence
-```
+On review failure, persist findings and create a repair packet referencing the prior result.
+Use the same provider/task lifecycle and lease authority; do not invent a second retry system.
+A transport timeout or ownership uncertainty becomes `RECOVERY_REQUIRED`, never blind replay.
 
-### ผ่าน SSoT Files
-```
-CURRENT-WORK.md — สถานะรวม
-handoff.md — resume state
-DEFECT_LESSONS.md — บทเรียนใหม่
-COLLAB.md — claims ปัจจุบัน
-```
+## 5. Human bridge fallback
 
-## 4. Conflict Resolution
+Use only when automatic provider execution is unavailable because of auth, quota,
+entitlement, tool packaging, or another external condition.
 
-| สถานการณ์ | วิธีแก้ |
-|---|---|
-| ต้องการไฟล์ที่อีกฝ่าย claim | จดใน WO + รอ release หรือถาม user |
-| ทั้งคู่ต้องการไฟล์เดียวกัน | User ตัดสินใจ |
-| Merge conflict | ฝ่ายที่ claim ไว้ก่อนมีสิทธิ์ก่อน |
-| Hotspot file (SSoT) | ใช้ PR + review โดยเสมอ |
+The integrator gives the human one short prompt:
+`Read <task-ref>. Do only that authorized lane; write the required JSON result to <result-ref>. Do not return the result to the human or edit coordination files.`
 
-## 5. Best Practices
+The human relays that direction once. The external agent reads the task and writes the
+result file. The integrator resumes by reading that file itself; the human never copies
+the result back into another chat.
 
-- อ่าน `git log --oneline -5` ก่อน push เพื่อเช็คว่าอีกฝ่าย push อะไรไปแล้ว
-- ใช้ `git fetch origin` ก่อนเริ่มงานทุกครั้ง
-- Commit เล็กๆ บ่อยๆ (ไม่รวมหลาย feature ใน commit เดียว)
-- PR description ระบุไฟล์ที่แตะทั้งหมด
-- ถ้าไม่แน่ใจ → ถาม user ก่อน
+## 6. Parallelism
 
----
+Only independent READY tasks may run in parallel. Each gets a distinct worktree/lease
+or a proven non-overlapping mutable scope. AHA-5 intentionally allows one mutable file
+per agent task; AHA-6 owns broader fan-out/fan-in scheduling and collision safety.
 
-*Last updated: 2026-08-25 by GLM 5.3 Max*
+## 7. Provider selection gate
+
+Before delegating to a named external model, record recent trustworthy evidence that the
+model is suitable for the task class. Benchmark evidence informs routing; it never grants
+mutation authority or overrides deterministic review.
+
+## 8. Completion
+
+A lane is complete only when acceptance evidence, diff, tests/CI as required, ownership
+release and continuity checkpoint agree. `DONE` from an agent alone is insufficient.

@@ -1,28 +1,28 @@
-# A-Sunday Conductor ? Current Work
+# A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-29 (GPT-5.6 Sol ? AHA-4B LOCAL GREEN / REVIEW GATE)
+Last updated: 2026-08-30 (GPT-5.6 Sol — AHA-5 FILE BRIDGE GREEN / AUDIT GATE)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: Sunday Family Multi-Model Agent Harness Accelerator ? LEASE HEARTBEAT + STALE-OWNER RECOVERY.**
+**PRIMARY PRIORITY: AHA-5 GPT↔GLM durable review/repair loop.**
 
-Current exact lane:
-- worktree: `A:\GitHub\A-Wiki-Conductor-aha4b-lease-recovery`;
-- branch: `feat/wo-p1-111-aha4b-lease-recovery`;
-- base/current accepted `origin/main`: `b7a2149cb5e40c596ae6934506e1a360263ecc3d`;
+Current lane:
+- worktree: `A:\\GitHub\\A-Wiki-Conductor-aha5-review-repair`;
+- branch: `feat/wo-p1-112-aha5-agent-review-repair-loop`;
+- accepted base: `origin/main@7f9a16f6dfafe17f3795167da22d4886945611e0`;
 - owner: GPT-5.6 Sol integrator.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-111-aha4b-lease-recovery.md`.
+`docs/work-orders/WO-P1-112-aha5-agent-review-repair-loop.md`.
 
 ## Immediate execution frontier
 
-1. AHA-4B implementation is local GREEN: bounded TTL/heartbeat, stale `RECOVERY_REQUIRED`, quarantine and explicit reconciliation-before-reuse;
-2. deep review closed stale-observation replay, direct-release-after-expiry/quarantine bypasses, and stale owner-retry snapshot after racing heartbeat;
-3. focused **69 passed**, relevant integration **247 passed**, three race classes **20/20 each**, compileall/diff/secret/forbidden-surface gates PASS;
-4. next = commit/push -> Draft PR -> remote diff audit -> independent review -> exact-head 3-OS CI -> merge/post-main/cleanup;
-5. live tunnel-client v0.0.13 soak remains a separate human-authorization release gate and is forbidden in this lane.
+1. Provider-neutral structured proposal + result-file bridge + one-file lease materialization are GREEN.
+2. Deterministic review/repair file loop is GREEN without human result copy/paste.
+3. Claude provider jobs are isolated from user settings via `--setting-sources project,local`; existing READ_ONLY behavior remains.
+4. GLM-5.3 MAX suitability is proven; direct Z.ai remains entitlement-blocked, while the user has a working external Claude-CLI proxy profile. That proxy credential is not stored in repo/runtime SSoT, so automatic Conductor dispatch must fail closed until an external secret/profile resolver is configured. The one-prompt file bridge remains the supported fallback and requires no result copy-back.
+5. Next = defect/SSoT audit -> broad regression/chaos -> PR/diff/3-OS CI/re-audit/merge. Live tunnel-client request-level TTL soak and v0.7 release remain separate gates.
 
 ## Source-of-truth rule
 
@@ -188,3 +188,5 @@ Current branch `feat/terminal-command-center-redesign` contains the implemented 
 ## WO-P1-063 PR checkpoint
 
 Draft PR #77 is open from `feat/terminal-command-center-redesign`; implementation commit `c42d174` is pushed. CI started with Windows test + Ubuntu/macOS cross-platform smoke pending. Next owner must review actual PR diff and checks first, then fix only evidence-backed failures, finish packaging/fresh-install visual E2E, update SSoT, convert from draft/merge only after acceptance.
+
+- AHA-5 audit evidence: related suite 122 passed; CI-equivalent full suite 1687 passed, 1 environment skip, 0 failed; compileall/diff-check/secret-pattern scan PASS.
