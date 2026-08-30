@@ -280,8 +280,11 @@ One vertical repository slice: GPT plan/review, GLM implement/repair, determinis
 ### AHA-6 — Parallel READY-task execution
 Run two independent task packets concurrently in isolated scopes/worktrees through the lease broker; prove no ownership collision and bounded provider capacity/quota handling.
 
-### AHA-6B — Elastic worker capacity
-Only after fixed-pool lease correctness is proven, allow policy-bounded creation of additional worker instances when all eligible workers are leased. New capacity must inherit the same health, ownership, scope, checkpoint, and release gates.
+### AHA-6A - Automatic provider runtime assembly [ACTIVE - WO-P1-114]
+Close the remaining human-message-bus gap before UI/elastic expansion: assemble the accepted provider SQLite state, A-Wiki Drive secret-reference boundary, fresh health/quota evidence and supervised Claude backend into a production provider execution path. Reuse existing stores/protocols; no second registry, scheduler, retry loop or secret vault. Live provider dispatch remains fail-closed until required secret + quota evidence is provably ready.
+
+### AHA-6B - Elastic worker capacity
+Only after fixed-pool lease correctness and the provider execution assembly boundary are proven, allow policy-bounded creation of additional worker instances when all eligible workers are leased. New capacity must inherit the same health, ownership, scope, checkpoint, and release gates.
 
 ### AHA-7 — Operator UI
 Sunday Family Models & Agents configuration/status, selection reason, quota/health/trust, disable/fallback controls.

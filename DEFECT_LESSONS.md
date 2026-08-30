@@ -443,3 +443,28 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** defensive checks inside a parallel admission loop must preserve already-acquired ownership/evidence. An invariant violation may prove the current lane unsafe, but it must not erase sibling state or silently create replay pressure.
 
 **Verify:** RED tests reproduced both batch-wide raises. Repair focused suite = 16 passed; related scheduler/dispatch/chaos/lease/provider/harness/AHA-5 regression = 196 passed. Full local suite after repair = 1698 passed, 5 skipped, with only the two pre-existing GPU/OpenGL/Tcl environment failures outside AHA-6 scope.
+
+
+## #26: Malformed private path config must not escape as a decoder exception (2026-08-30)
+
+**Symptom:** WO-P1-114 adversarial test wrote invalid UTF-8 to A-Wiki `.drive-path`; provider runtime setup leaked raw `UnicodeDecodeError` instead of falling through to the next approved Drive locator.
+
+**Root cause:** the new path resolver treated filesystem I/O failure as untrusted configuration input but caught only `OSError`; text decoding failure was left outside the fail-closed boundary.
+
+**Fix:** catch `UnicodeError` together with `OSError` when reading `.drive-path`. A malformed locator contributes no path authority, so resolution continues to the next approved source/fallback without exposing file contents.
+
+**Lesson:** configuration-file readability includes decoding. Any external/private locator used as execution authority must convert both I/O and decoding failures into bounded fail-closed behavior rather than leaking parser/codec exceptions.
+
+**Verify:** `test_malformed_drive_path_file_falls_through_without_decode_leak`; WO-P1-114 focused suite `15 passed` and related regression `211 passed`.
+
+## #27: Explicit private-source intent and persisted provider corruption must fail closed (2026-08-30)
+
+**Symptom:** GPT trust-boundary review found two silent-authority hazards in WO-P1-114: an invalid explicit `A_WIKI_DRIVE_PATH` could fall through to another source, and a corrupted provider row could leak a raw configuration `ValueError`.
+
+**Root cause:** ordered fallback logic did not distinguish an explicit operator override from discovery candidates, while the SQLite runtime resolver assumed persisted rows would always decode into valid typed provider objects.
+
+**Fix:** an explicit Drive override is authoritative—invalid means `AWIKI_DRIVE_ROOT_UNAVAILABLE`, never fallback. Provider/endpoint decode errors from persisted state become unusable provider state (`None`) so execution fails closed through the existing provider gate.
+
+**Lesson:** explicit configuration intent outranks discovery fallback, and persisted control-plane data is untrusted at decode time. Neither source-selection drift nor corrupt durable metadata may silently become execution authority.
+
+**Verify:** `test_invalid_explicit_drive_override_fails_closed_instead_of_falling_back` and `test_corrupt_provider_row_fails_closed_as_unusable_state`; focused WO-P1-114 `17 passed`, related regression `224 passed`.

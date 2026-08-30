@@ -1,13 +1,18 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-30 — WO-P1-113 / AHA-6 COMPLETE
+Last updated: 2026-08-30 - WO-P1-114 / AHA-6A ACTIVE
 
 ## Current objective
 
-AHA-6 fixed-pool parallel READY-task execution is complete and merged. No successor AHA work order is claimed. Future provider-global capacity assembly or automatic CoinTH/GLM secret/quota wiring must start under a new work order/reuse gate; WO-P1-096 remains the separate v0.7.0 release blocker.
+Assemble the accepted provider SQLite state, A-Wiki Drive secret-reference boundary, fresh health/quota evidence and supervised Claude backend so eligible sub-agent work can dispatch without human result copy-back. `WO-P1-096` remains the higher P0 release blocker but needs explicit live-Worker maintenance authority; this slice does not touch live connectors.
 
 ## Repository state
 
+- Active work order: `docs/work-orders/WO-P1-114-auto-provider-runtime-assembly.md` - ACTIVE / CLAIMED / PLAN_GATE.
+- Worktree: `A:\GitHub\A-Wiki-Conductor-auto-provider-dispatch`; branch `feat/wo-p1-114-auto-provider-dispatch`; base `9d65564eeea4c5085b365de158340285e8c9c657`.
+- Reuse gate: A-Wiki remote main `71406f8a25079f364face422012e4bdeac5f483e`; secret authority is `docs/protocols/secrets-global-env.md`; A-Wiki local checkout remains dirty/read-only.
+- Open GitHub PRs at claim: 0; A-Wiki live claims: 0; North Star worktree clean/non-overlapping.
+- Automatic GLM remains fail-closed until concrete secret resolver + fresh required quota evidence are assembled; one-way ignored `runs/` bridge remains fallback.
 - AHA-5 implementation PR `#149` — MERGED as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`.
 - AHA-5 closeout PR `#150` — MERGED as current base `64b6ef839f16a270295fb2c24649d01e0f54d862`.
 - Post-main CI `33286026232` — SUCCESS on Windows/Ubuntu/macOS; Windows Frozen Setup E2E PASS.
@@ -82,3 +87,29 @@ Windows passed Frozen Setup install/uninstall E2E.
 - CoinTH live dispatch remains fail-closed until the runtime resolver can source credentials through `A-Wiki-Data/.env` and produce the required five-hour quota observation without exposing values.
 
 Next safe action: commit this claim/SSoT checkpoint, then add RED tests for WO-P1-113.
+
+
+## WO-P1-114 AHA-6A checkpoint — provider runtime assembly
+
+- Worktree `A:\GitHub\A-Wiki-Conductor-auto-provider-dispatch`; branch `feat/wo-p1-114-auto-provider-dispatch`; claim commit `7229d6ffa24932b7656825c63031b041f446079f`.
+- Implemented native A-Wiki Drive/env reference resolution plus SQLite-backed Claude provider-state assembly; provider secret values are resolved only at the supervised execution boundary and are not stored in tracked state.
+- Focused `15 passed`; related `211 passed`; full local `1714 passed, 5 skipped, 2 known GPU dependency failures`.
+- Defect #26 records malformed `.drive-path` decode fail-closed behavior.
+- Remaining production blockers are explicit: no desktop `A_WIKI_DRIVE_PATH`/equivalent runtime binding is assembled yet, and provider-global cross-batch admission still needs serialized admission or an existing atomic capacity authority.
+- Next authority handoff is an exact-SHA GLM-5.3 MAX read-only review through ignored `runs/`; human relay is one pointer only if automatic provider execution remains unavailable.
+
+### WO-P1-114 pre-external-review repair
+
+GPT exact-state review found two additional fail-closed defects and repaired them with RED-first tests: explicit Drive override no longer falls through when invalid, and corrupt persisted provider data now resolves unavailable instead of leaking decode exceptions. Focused `17 passed`; related `224 passed`; defect memory #27 added. The earlier ignored GLM packet for `c94abfc...` was not dispatched and must not be reused.
+
+Exact repaired full-suite evidence: `1716 passed, 5 skipped, 2 known GPU dependency failures`; focused `17 passed`, related `224 passed`. No WO-P1-114 regression. Generate a new external-review packet only after the repair commit is pushed.
+
+### WO-P1-114 external review packet prep
+
+Repair head `d914915e5a1b2f179ce1315b13633cc4aa5f7b7e` is pushed/clean. Final local evidence before external review: focused `17 passed`, related `224 passed`, full `1716 passed / 5 skipped / 2 known GPU dependency failures`, compile/diff/scope/secret/encoding additions audit PASS.
+
+Prepared task identity: `wo114-glm-review-002`; ignored task/result paths are `runs/wo114-glm-review-002/task.md` and `runs/wo114-glm-review-002/result.json`. The task packet must be generated only after the tracked handoff checkpoint is committed, then re-read/hash-verified against the resulting exact HEAD. GLM is read-only; human relays only the pointer if automatic dispatch remains blocked.
+
+### WO-P1-114 independent review accepted
+
+`wo114-glm-review-002` is complete. GLM-5.3 MAX returned PASS on exact `75c8e21da3d47ffb2fff6f8e37f6240b537f2522`; GPT validated result identity, task SHA `17696ee758555478d41de76d2a6be23ca380549ae85eb7ccc9269e37aedab4ca`, and all pinned source/test hashes. No P0/P1/P2 findings. Four P3 hardening observations are accepted as non-blocking/deferred; no source/test change follows this review. Next safe action is final audit -> Draft PR -> exact-head CI -> re-audit -> merge/post-main proof.
