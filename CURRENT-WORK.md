@@ -1,10 +1,10 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-114 / AHA-6A ACTIVE)
+Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-114 / AHA-6A COMPLETE / RELEASED)
 
 ## Current phase
 
-**PRIMARY NEW-FEATURE PRIORITY: WO-P1-114 / AHA-6A automatic provider runtime assembly.**
+**WO-P1-114 / AHA-6A is COMPLETE / RELEASED. No successor AHA work order is currently claimed.**
 
 P0 release gate `WO-P1-096` remains higher priority but is externally blocked pending a spare Tunnel ID or explicit maintenance authorization for one live Worker; this work order does not disrupt live connectors.
 
@@ -15,19 +15,18 @@ Accepted AHA-5 closeout state:
 - Windows Frozen Setup install/uninstall E2E: PASS;
 - AHA-5 implementation + closeout worktrees/branches cleaned after tree-equality proof.
 
-## Active work order
+## Latest completed work order
 
-`docs/work-orders/WO-P1-114-auto-provider-runtime-assembly.md` - ACTIVE / CLAIMED / PLAN_GATE.
-Isolated worktree: `A:\GitHub\A-Wiki-Conductor-auto-provider-dispatch`.
-Branch: `feat/wo-p1-114-auto-provider-dispatch` @ base `9d65564eeea4c5085b365de158340285e8c9c657`.
+`docs/work-orders/WO-P1-114-auto-provider-runtime-assembly.md` - COMPLETE / RELEASED.
+Implementation PR `#153` merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`; exact-head CI `33299166993` and post-main CI `33299559419` both passed Windows/Ubuntu/macOS including Frozen Setup E2E.
 
 ## Immediate execution frontier
 
-1. Persist WO-P1-114 claim/roadmap checkpoint from exact `origin/main@9d65564eeea4c5085b365de158340285e8c9c657`.
-2. RED-first: SQLite-backed provider-state resolver + native A-Wiki environment/reference resolver tests.
-3. GREEN: compose accepted provider store/observation + supervised Claude backend without new registry/scheduler/retry/secret authority.
-4. Prove fake vertical E2E and fail-closed secret/health/quota/identity behavior; no live provider call until required quota tuple is available.
-5. Generate exact-SHA GLM-5.3 MAX read-only review packet; human relays one pointer only if automatic dispatch is still blocked. GPT reads result directly and continues repair/audit/PR/CI/merge.
+1. PR #153 exact reviewed head `00d0828816e11110f30299c76d6b5a43e7d5b095` passed CI `33299166993` and merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`.
+2. Post-main CI `33299559419` passed Windows/Ubuntu/macOS including packaging, Portable smoke and Frozen Setup install/uninstall E2E.
+3. GLM-5.3 MAX `wo114-glm-review-002` returned PASS with zero P0/P1/P2 findings; four P3 hardening observations remain deferred.
+4. WO-P1-114 claim is released. Remove implementation/closeout worktrees only after closeout PR + post-main ancestry/tree proof.
+5. Next accelerator slice requires a new work order for AHA-6A.1: runtime Drive binding, fresh complete quota observation, and serialized/atomic provider admission. AHA-6B/AHA-7 stay behind that gate. WO-P1-096 remains the separate higher P0 release blocker.
 
 ## Source-of-truth rule
 

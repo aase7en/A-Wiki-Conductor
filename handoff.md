@@ -1,15 +1,16 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-30 - WO-P1-114 / AHA-6A ACTIVE
+Last updated: 2026-08-30 - WO-P1-114 / AHA-6A COMPLETE / RELEASED
 
 ## Current objective
 
-Assemble the accepted provider SQLite state, A-Wiki Drive secret-reference boundary, fresh health/quota evidence and supervised Claude backend so eligible sub-agent work can dispatch without human result copy-back. `WO-P1-096` remains the higher P0 release blocker but needs explicit live-Worker maintenance authority; this slice does not touch live connectors.
+WO-P1-114 provider runtime assembly is merged and released. Preserve its fail-closed boundary while closing the docs-only release checkpoint. No successor AHA lane is claimed yet; AHA-6A.1 requires a new work order for runtime Drive binding, fresh complete quota observation, and serialized/atomic provider admission. `WO-P1-096` remains the higher P0 release blocker pending explicit live-Worker maintenance authority.
 
 ## Repository state
 
-- Active work order: `docs/work-orders/WO-P1-114-auto-provider-runtime-assembly.md` - ACTIVE / CLAIMED / PLAN_GATE.
-- Worktree: `A:\GitHub\A-Wiki-Conductor-auto-provider-dispatch`; branch `feat/wo-p1-114-auto-provider-dispatch`; base `9d65564eeea4c5085b365de158340285e8c9c657`.
+- Latest completed work order: `docs/work-orders/WO-P1-114-auto-provider-runtime-assembly.md` - COMPLETE / RELEASED.
+- Active closeout worktree: `A:\GitHub\A-Wiki-Conductor-auto-provider-closeout`; branch `docs/wo-p1-114-auto-provider-closeout`; base `origin/main@8828f07654746a52110bc89cc359e9e558b2f9e5`.
+- Historical implementation worktree: `A:\GitHub\A-Wiki-Conductor-auto-provider-dispatch`; branch `feat/wo-p1-114-auto-provider-dispatch`; final feature head `00d0828816e11110f30299c76d6b5a43e7d5b095`.
 - Reuse gate: A-Wiki remote main `71406f8a25079f364face422012e4bdeac5f483e`; secret authority is `docs/protocols/secrets-global-env.md`; A-Wiki local checkout remains dirty/read-only.
 - Open GitHub PRs at claim: 0; A-Wiki live claims: 0; North Star worktree clean/non-overlapping.
 - Automatic GLM remains fail-closed until concrete secret resolver + fresh required quota evidence are assembled; one-way ignored `runs/` bridge remains fallback.
@@ -17,7 +18,7 @@ Assemble the accepted provider SQLite state, A-Wiki Drive secret-reference bound
 - AHA-5 closeout PR `#150` — MERGED as current base `64b6ef839f16a270295fb2c24649d01e0f54d862`.
 - Post-main CI `33286026232` — SUCCESS on Windows/Ubuntu/macOS; Windows Frozen Setup E2E PASS.
 - AHA-5 implementation + closeout worktrees/branches cleaned after exact tree-equality proof.
-- Latest completed work order: `docs/work-orders/WO-P1-113-aha6-parallel-ready-execution.md` — COMPLETE / RELEASED.
+- Previous completed work order: `docs/work-orders/WO-P1-113-aha6-parallel-ready-execution.md` — COMPLETE / RELEASED.
 - Worktree: `A:\GitHub\A-Wiki-Conductor-aha6-parallel`.
 - Branch: `feat/wo-p1-113-aha6-parallel-ready` @ `64b6ef839f16a270295fb2c24649d01e0f54d862`.
 - Root checkout remains protected/dirty and is not the mutation surface.
@@ -113,3 +114,9 @@ Prepared task identity: `wo114-glm-review-002`; ignored task/result paths are `r
 ### WO-P1-114 independent review accepted
 
 `wo114-glm-review-002` is complete. GLM-5.3 MAX returned PASS on exact `75c8e21da3d47ffb2fff6f8e37f6240b537f2522`; GPT validated result identity, task SHA `17696ee758555478d41de76d2a6be23ca380549ae85eb7ccc9269e37aedab4ca`, and all pinned source/test hashes. No P0/P1/P2 findings. Four P3 hardening observations are accepted as non-blocking/deferred; no source/test change follows this review. Next safe action is final audit -> Draft PR -> exact-head CI -> re-audit -> merge/post-main proof.
+
+### WO-P1-114 final release checkpoint
+
+PR #153 exact head `00d0828816e11110f30299c76d6b5a43e7d5b095` passed CI `33299166993`, merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`, and post-main CI `33299559419` passed Windows/Ubuntu/macOS including Frozen Setup E2E. WO-P1-114 is COMPLETE / RELEASED.
+
+No successor AHA lane is claimed. The next accelerator slice requires a new work order for AHA-6A.1: runtime Drive binding, fresh complete quota observation, and serialized/atomic provider admission. Until that exists, automatic live GLM/provider dispatch remains fail-closed and the one-way task/result file bridge remains the accepted fallback. WO-P1-096 remains the separate higher P0 release blocker pending authorized live connector soak.
