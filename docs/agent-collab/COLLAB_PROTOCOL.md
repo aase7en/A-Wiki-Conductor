@@ -32,7 +32,9 @@ If any item is uncertain: `SAFE_TO_MUTATE = NO`.
 ## 3. Task → result protocol
 
 Integrator writes or selects one task packet containing identity, goal, scope,
-acceptance, verification and result destination.
+acceptance, verification and result destination. After generation, the integrator must
+re-read the packet and verify literal worktree/branch/HEAD, unresolved-placeholder absence,
+content/SHA preconditions and result destination before any provider/human relay dispatch.
 
 Agent then:
 1. reads the task packet;

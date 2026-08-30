@@ -414,3 +414,18 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** parallel fan-out requires failure-isolated fan-in. Once work may have started, a collector exception is not permission to forget sibling state or retry the batch. Preserve per-task evidence/ownership and reconcile uncertain lanes individually.
 
 **Verify:** focused AHA-6 tests cover runner exception -> recovery-required, exactly one runner call, active lease retention, stable sibling outcomes, plus real two-task concurrent dispatch. Focused suite = 13 passed; related scheduler/dispatch/chaos/lease/provider/harness regression = 193 passed.
+
+
+---
+
+## #24: Generated agent task packets must be re-read before dispatch (2026-08-30)
+
+**Symptom:** the first ignored AHA-6 GLM review task was generated through a PowerShell double-quoted here-string. Markdown backticks altered interpolation/escape behavior: identity variables were written literally and the result path was split, even though the shell command itself succeeded.
+
+**Root cause:** task generation trusted shell-template success instead of treating the generated packet as an execution-authority artifact requiring deterministic post-write verification.
+
+**Fix:** discard the malformed packet before dispatch; regenerate it with an explicit UTF-8 writer; re-read the packet and verify literal worktree, branch, exact HEAD, source/test SHA256 values and result destination. Keep task/result under ignored `runs/` and leave tracked SSoT unchanged by the external reviewer.
+
+**Lesson:** generated prompts/task packets are code-like authority, not prose. Never dispatch merely because generation returned exit code 0. Re-read exact fields, hash the packet, and fail closed on unresolved placeholders, broken paths or encoding damage.
+
+**Verify:** the corrected `aha6-glm-review-001` packet contains exact identity values and SHA256 preconditions, has a stable packet SHA256, is gitignored, and the worktree remains clean before human/provider dispatch.
