@@ -2,7 +2,7 @@
 
 Date: 2026-08-30
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / CLAIMED / PLAN_GATE
+Status: COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-auto-provider-dispatch`
 Branch: `feat/wo-p1-114-auto-provider-dispatch`
@@ -141,3 +141,12 @@ Task `wo114-glm-review-002` reviewed exact head `75c8e21da3d47ffb2fff6f8e37f6240
 Four P3 hardening observations were recorded: optional env-file caching, quoted-secret whitespace semantics, whitespace-only explicit override semantics, and diagnostics for an unusable `.drive-path` target. They are not acceptance defects and are deferred to a future hardening work order; changing source now would invalidate the accepted exact-SHA review without closing a required gate.
 
 Next gate: final scope/secret/encoding/diff audit, Draft PR, exact-head 3-OS CI including Frozen Setup E2E, re-audit, merge, and post-main proof.
+
+## Final merge / release checkpoint - 2026-08-30
+
+- Final PR head: `00d0828816e11110f30299c76d6b5a43e7d5b095`.
+- Exact-head CI `33299166993`: SUCCESS on Windows/Ubuntu/macOS; Windows packaging, Portable smoke and Frozen Setup install/uninstall E2E passed.
+- PR #153 merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`.
+- Post-main CI `33299559419`: SUCCESS on exact merge SHA, including Windows Frozen Setup E2E.
+- Independent GLM-5.3 MAX task `wo114-glm-review-002`: PASS, zero P0/P1/P2 findings; four P3 hardening notes deferred.
+- WO-P1-114 is released. It does not authorize live provider dispatch: desktop/runtime Drive binding, fresh quota observation, and provider-global serialized/atomic admission remain separate successor gates.

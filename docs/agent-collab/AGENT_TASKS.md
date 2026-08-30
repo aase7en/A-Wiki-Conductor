@@ -7,7 +7,7 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
-| Integrator | GPT-5.6 Sol | WO-P1-114 / AHA-6A | provider runtime assembly + tests + bounded SSoT | RUNNING / REVIEW_PREP |
+| Integrator | GPT-5.6 Sol | WO-P1-114 / AHA-6A | provider runtime assembly + tests + bounded SSoT | RELEASED |
 | GLM review lane | GLM-5.3 MAX via one-way file bridge until auto dispatch exists | `wo114-glm-review-002` | read-only result artifact only | VERIFIED / RELEASED |
 | Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | RELEASED |
 | Parallel agent lane A | provider-neutral | AHA-6 selected READY task A | one leased file/task in isolated authorized worktree | RELEASED |

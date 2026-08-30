@@ -280,8 +280,11 @@ One vertical repository slice: GPT plan/review, GLM implement/repair, determinis
 ### AHA-6 — Parallel READY-task execution
 Run two independent task packets concurrently in isolated scopes/worktrees through the lease broker; prove no ownership collision and bounded provider capacity/quota handling.
 
-### AHA-6A - Automatic provider runtime assembly [ACTIVE - WO-P1-114]
-Close the remaining human-message-bus gap before UI/elastic expansion: assemble the accepted provider SQLite state, A-Wiki Drive secret-reference boundary, fresh health/quota evidence and supervised Claude backend into a production provider execution path. Reuse existing stores/protocols; no second registry, scheduler, retry loop or secret vault. Live provider dispatch remains fail-closed until required secret + quota evidence is provably ready.
+### AHA-6A - Automatic provider runtime assembly [COMPLETE - WO-P1-114 / PR #153]
+Accepted provider SQLite state, A-Wiki Drive secret-reference boundary and supervised Claude backend assembly are merged. Exact-head and post-main CI are green; independent GLM review found zero P0/P1/P2 defects. This milestone does not yet authorize automatic live provider dispatch.
+
+### AHA-6A.1 - Production provider admission/runtime wiring [NEW WO REQUIRED]
+Before elastic capacity or operator UI, wire the accepted WO-P1-114 resolver into an authorized runtime assembly that can locate the private Drive root without hardcoding, produce fresh provider health plus the complete required quota tuple, and serialize or atomically reserve same-provider admission across concurrent batches. Reuse existing authorities; do not add a second capacity store/semaphore, quota model, provider registry or secret system. Live dispatch stays fail-closed until all three gates are deterministic and tested.
 
 ### AHA-6B - Elastic worker capacity
 Only after fixed-pool lease correctness and the provider execution assembly boundary are proven, allow policy-bounded creation of additional worker instances when all eligible workers are leased. New capacity must inherit the same health, ownership, scope, checkpoint, and release gates.

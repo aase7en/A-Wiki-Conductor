@@ -34,10 +34,11 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-114` / AHA-6A automatic provider runtime assembly | GPT-5.6 Sol integrator | 2026-08-30 | Isolated `A-Wiki-Conductor-auto-provider-dispatch` / `feat/wo-p1-114-auto-provider-dispatch`; new provider/runtime assembly + A-Wiki environment-reference resolver + focused tests + bounded SSoT only. No UI, North Star, scheduler/lease/job-store, live connector or plaintext secret mutation. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
+
+- `WO-P1-114` / PR #153 AHA-6A automatic provider runtime assembly: exact reviewed head `00d0828816e11110f30299c76d6b5a43e7d5b095` passed CI `33299166993`; merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`; post-main CI `33299559419` passed Windows/Ubuntu/macOS including Frozen Setup E2E. GLM-5.3 MAX review PASS with zero P0/P1/P2 findings. Claim released. Production Drive binding, fresh quota observation and provider-global admission require a new work order before automatic provider dispatch is declared ready.
 
 - `WO-P1-113` / PR #151 AHA-6 parallel READY execution: reviewed feature head `5cc2425580c1724ae34f5f836a2211ee6af06b1d` passed exact-head CI `33293013006`; merged as `7825afa0ae946d0389b5c6b2955a63a8ae36f54b`; post-main CI `33293299053` passed Windows/Ubuntu/macOS including Frozen Setup E2E. GLM repair re-review PASS; implementation claim released. Provider-global batch capacity and automatic CoinTH secret/quota assembly require a new work order.
 - `WO-P1-112` / PR #149 + closeout PR #150 AHA-5: durable proposal/result/review/repair bridge merged as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`; closeout merged as `64b6ef839f16a270295fb2c24649d01e0f54d862`; post-main CI `33286026232` passed Windows/Ubuntu/macOS including Frozen Setup E2E; implementation + closeout worktrees/branches removed after clean tree-equality proof. Claim released to WO-P1-113.
