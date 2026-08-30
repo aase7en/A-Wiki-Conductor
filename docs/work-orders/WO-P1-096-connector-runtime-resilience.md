@@ -255,3 +255,13 @@ Live operational state was re-verified read-only: ports 18011-18015 are all READ
 Upstream latest release remains `v0.0.13`. The Windows amd64 ZIP was staged outside the live binary path and verified against upstream SHA256SUMS: `17113162b353906bbb884c3ed7620facba5cc72b5fdc94fd54fd7208c7166edb`. No live Worker or shared tunnel-client binary was stopped, replaced, or upgraded.
 
 Only remaining WO-P1-096 acceptance action: an authorized isolated/live v0.0.13 deadline/TTL soak that exceeds the relevant transport TTL repeatedly, shows zero manual Start actions, and returns the chosen Worker to its verified ownership/configuration state. Because there are zero spare IDs and all five ports are active, this requires either a new spare Tunnel ID or explicit maintenance authorization to take one specific Worker offline temporarily. Until then `v0.7.0` remains blocked.
+
+
+## 2026-08-30 isolated v0.0.13 live-soak checkpoint
+
+- Read-only fleet preflight found Worker4 unexpectedly STOPPED while Workers 1/2/3/5 remained READY; Worker4 had no tunnel PID and its persistent autostart flag remained enabled.
+- Worker4 was selected as the isolated maintenance target without stopping or rebinding another live Worker. The shared tunnel-client binary used by Workers 1/2/3/5 was not changed.
+- Worker4 was started with the staged `tunnel-client v0.0.13` binary through a temporary path override; `instance.ps1` was restored byte-for-byte immediately after launch.
+- Runtime identity verified the Worker4 tunnel process executable is the staged v0.0.13 binary and `/readyz` returned HTTP 200 beyond the default ten-minute TTL.
+- This is partial acceptance evidence only. A real hosted/remote MCP request must still succeed after TTL with zero manual Start action before the live-soak gate can close.
+- Do not record or expose Tunnel IDs in tracked evidence. Workers 1/2/3/5 and the shared v0.0.11 binary remain outside this maintenance mutation lane.

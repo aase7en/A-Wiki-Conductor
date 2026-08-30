@@ -1,13 +1,19 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-30 - WO-P1-115 / AHA-6A.1 COMPLETE / RELEASED
+Last updated: 2026-08-30 - WO-P1-116 / AHA-6B ACTIVE / CLAIMED / RED_GATE
 
 ## Current objective
 
-Preserve the released WO-P1-115 / AHA-6A.1 evidence, finish docs-only closeout/cleanup, then re-enter actual roadmap and claims before opening any successor lane. Automatic GLM/provider execution remains fail-closed until an exact active provider route and complete reset-bearing five-hour quota evidence are proven. `WO-P1-096` remains the higher P0 release blocker pending explicit live-Worker maintenance authority.
+Execute WO-P1-116 / AHA-6B: assemble production worker/scheduler/lease candidates from durable + live evidence and add policy-bounded elastic worker capacity without creating a second scheduler/lease/registry. `WO-P1-096` remains the higher P0 release blocker; Worker4 is now an isolated v0.0.13 soak target, but remote MCP-after-TTL proof is still required. Automatic GLM/provider dispatch remains fail-closed until active route + complete reset-bearing five-hour quota evidence exist.
 
 ## Repository state
 
+- Active work order: `docs/work-orders/WO-P1-116-elastic-worker-capacity.md` - ACTIVE / CLAIMED / SHAPING_COMPLETE / RED_GATE.
+- Worktree `A:\GitHub\A-Wiki-Conductor-elastic-capacity`; branch `feat/wo-p1-116-elastic-worker-capacity`; exact base `origin/main@23243651d51780b76dce15cdb24eaba90fce9a99`; clean at claim.
+- WO-P1-115 implementation/closeout worktrees and branches are cleaned; no WO-P1-115 local/remote branch remains.
+- A-Wiki remote/reuse gate refreshed; live A-Wiki claims `0`; A-Wiki local checkout remains dirty/read-only.
+- North Star is clean and file-level non-overlapping; GitHub open Conductor PRs `0` at claim.
+- Worker4 maintenance evidence: isolated staged tunnel-client v0.0.13 is READY beyond ten minutes with instance config restored byte-for-byte; Workers 1/2/3/5 remain untouched. This is partial P0 evidence only because remote MCP-after-TTL has not been exercised.
 - Latest completed work order: `docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.
 - Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`; branch `feat/wo-p1-115-provider-admission-runtime`; base `origin/main@5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`; clean at claim.
 - Predecessor WO-P1-114 implementation + closeout are merged, post-main green and cleaned; no WO-P1-114 branches/worktrees remain.

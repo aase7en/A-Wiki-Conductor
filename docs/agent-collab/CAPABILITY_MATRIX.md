@@ -74,3 +74,14 @@ Task class: SQLite concurrency/admission authority, production runtime bootstrap
 - GLM-5.3 MAX is suitable for later bounded adversarial/concurrency review after an exact-SHA snapshot exists; current local provider readiness is insufficient for automatic dispatch.
 - No model name may imply a quota endpoint. Provider-matched readiness/quota evidence must be proven independently; otherwise dispatch fails closed.
 - Deterministic repository tests, race/E2E evidence and CI remain acceptance authority.
+
+
+## WO-P1-116 routing decision - 2026-08-30
+
+Task class: production worker/candidate assembly, atomic elastic-capacity reservation, and concurrency/ownership safety.
+
+- Official Z.ai GLM-5.3 evidence was refreshed immediately before claim: Terminal-Bench 3.0 `28.3`, DeepSWE v1.1 `66.9`, Z.ai Code Bench Max `34.5%`; Z.ai explicitly notes meaningful human-in-the-loop work remains.
+- GPT-5.6 Sol owns architecture, cross-process capacity authority, trust/ownership adjudication and merge/release authority.
+- GLM-5.3 MAX is suitable for a later bounded deterministic implementation or read-only adversarial review lane after exact scope/HEAD/task packet pinning.
+- Deterministic tests, race/chaos evidence and actual Git/runtime state remain acceptance authority; model `DONE` claims are never sufficient.
+- Automatic provider dispatch is independent and remains fail-closed until provider route/readiness/full quota evidence is proven.

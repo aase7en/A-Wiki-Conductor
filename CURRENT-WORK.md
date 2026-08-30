@@ -1,12 +1,12 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 COMPLETE / RELEASED)
+Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-116 / AHA-6B ACTIVE / CLAIMED / RED_GATE)
 
 ## Current phase
 
-**LATEST COMPLETED ACCELERATOR SLICE: WO-P1-115 / AHA-6A.1 provider admission + production runtime wiring.**
+**PRIMARY SAFE NEW-FEATURE PRIORITY: WO-P1-116 / AHA-6B production worker supply + elastic capacity.**
 
-P0 release gate `WO-P1-096` remains higher priority but is externally blocked pending a spare Tunnel ID or explicit maintenance authorization for one live Worker; this work order does not disrupt live connectors.
+P0 release gate `WO-P1-096` remains higher priority. Worker4 is now an isolated v0.0.13 maintenance target and is READY beyond the default ten-minute TTL, but a real remote MCP request after TTL is still unproven; uptime alone does not close the P0. Workers 1/2/3/5 remain untouched.
 
 Accepted AHA-5 closeout state:
 - implementation PR `#149` merged as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`;
@@ -14,6 +14,11 @@ Accepted AHA-5 closeout state:
 - post-main CI `33286026232`: SUCCESS on Windows/Ubuntu/macOS;
 - Windows Frozen Setup install/uninstall E2E: PASS;
 - AHA-5 implementation + closeout worktrees/branches cleaned after tree-equality proof.
+
+## Active work order
+
+`docs/work-orders/WO-P1-116-elastic-worker-capacity.md` - ACTIVE / CLAIMED / SHAPING_COMPLETE / RED_GATE.
+Worktree: `A:\GitHub\A-Wiki-Conductor-elastic-capacity`; branch `feat/wo-p1-116-elastic-worker-capacity`; base `origin/main@23243651d51780b76dce15cdb24eaba90fce9a99`.
 
 ## Latest completed work order
 
@@ -23,13 +28,14 @@ Closeout worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission-closeout`; bra
 
 ## Immediate execution frontier
 
-1. WO-P1-115 implementation/review loop is released: GLM review + re-review both PASS with P0/P1/P2 = `0`; accepted quota-evidence repairs are in the merged lineage.
-2. PR `#155` exact head `7959ff9d8a300b2920a2ef1014c63db64b19518c` passed CI `33312763072`, then merged as `a758f9e882db03e988d67a3f04f69862dd9195c2`.
-3. Post-main CI `33313201851` on the exact merge SHA passed Windows/Ubuntu/macOS including Frozen Setup install/uninstall E2E.
-4. Local acceptance remains focused `62 passed`, related `256 passed`, full `1753 passed / 4 skipped / 2 known GPU dependency failures`; installed-DB-copy and cross-process admission E2E PASS.
-5. Automatic live GLM remains fail-closed: no proven active provider route and no complete reset-bearing five-hour quota tuple. AHA-6A.1 completion does not weaken that gate.
-6. `WO-P1-096` remains the higher P0 release blocker whenever a spare Tunnel ID or explicit maintenance authorization becomes available.
-7. No successor AHA lane is claimed by this closeout. After closeout merge/post-main proof and cleanup, re-enter roadmap/claims; AHA-6B is only a candidate new work order after a fresh reuse/ownership gate.
+1. WO-P1-115 implementation + closeout are merged/post-main green and their implementation/closeout worktrees and branches are cleaned after ancestry/tree-equality proof.
+2. WO-P1-116 reuse gate is `REUSE + WRAP + EXTEND`: scheduler, broker, registry, lifecycle, Git readers and A-Wiki claims are reused; no second scheduler/lease/registry is allowed.
+3. Shaping found a real production gap: `WorkerLeaseCandidate` and `ParallelReadyTask` are currently assembled only in tests. AHA-6B must close production worker/task supply before elastic provisioning can be authoritative.
+4. Elastic provisioning belongs above the existing broker. It may trigger only from typed capacity exhaustion, must atomically reserve bounded provisioning capacity, re-observe the new worker, then re-enter the existing broker.
+5. Remote connector/tunnel provisioning is disabled by default. Logical/local worker capacity is distinct from ChatGPT connector capacity; Tunnel IDs are never inferred or silently reused.
+6. Fresh GLM-5.3 evidence supports bounded implementation/review, while GPT retains architecture/trust/merge authority. No external agent lane is dispatched until an exact task packet exists.
+7. P0 Worker4 v0.0.13 remains READY, but the required remote MCP-after-TTL request is not yet proven. Continue its isolated soak without touching Workers 1/2/3/5 or the shared v0.0.11 binary.
+8. Next gate: commit/push claim checkpoint -> focused baseline -> RED candidate assembly + fail-closed evidence tests.
 
 ## Source-of-truth rule
 

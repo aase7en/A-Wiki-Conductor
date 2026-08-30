@@ -7,6 +7,7 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
+| Integrator | GPT-5.6 Sol | WO-P1-116 / AHA-6B | production candidate assembly + bounded elastic capacity + focused tests + SSoT | CLAIMED / RED_GATE |
 | Integrator | GPT-5.6 Sol | WO-P1-115 / AHA-6A.1 | provider admission/runtime wiring + tests + bounded SSoT | RELEASED |
 | GLM review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-review-001` | read-only `runs/wo115-glm-review-001/result.json` only | VERIFIED PASS / REPAIR ACCEPTED |
 | GLM re-review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-rereview-002` | read-only `runs/wo115-glm-rereview-002/result.json` only | VERIFIED PASS / RELEASED |
@@ -35,6 +36,15 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 - installed ZCode exposes Start Plan, while full GLM-5.3 Coding Plan is currently reported not entitled;
 - the user has a working external Claude-CLI GLM proxy profile; its credential remains outside tracked project state;
 - automatic Conductor dispatch requires an approved external secret/profile resolver, while the file-based one-prompt fallback remains ready and needs no result copy-back.
+
+
+### WO-P1-116 lane contract
+
+- GPT-5.6 Sol owns architecture, atomic capacity/provisioning authority, SSoT integration and merge/release adjudication.
+- GLM-5.3 MAX is benchmark-eligible for a later bounded implementation/review lane only after an exact task packet and non-overlapping scope are recorded.
+- External-agent task/result artifacts remain ignored under `runs/<task-id>/`; human fallback relays one pointer only and never copies result content back.
+- Worker4 v0.0.13 live soak is a separate P0 evidence lane and grants no mutation authority over Workers 1/2/3/5 or shared tunnel binaries.
+- Automatic GLM dispatch remains fail-closed; provider readiness/quota evidence is independent from worker elasticity.
 
 ## Required lane record
 
