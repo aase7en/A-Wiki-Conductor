@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 ACTIVE)
+Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 IMPLEMENTED / REVIEW_GATE)
 
 ## Current phase
 
@@ -17,19 +17,19 @@ Accepted AHA-5 closeout state:
 
 ## Active work order
 
-`docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / PLAN_GATE.
+`docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / IMPLEMENTED / REVIEW_GATE.
 Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`.
 Branch: `feat/wo-p1-115-provider-admission-runtime` @ base `5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`.
 
 ## Immediate execution frontier
 
-1. Persist and push the WO-P1-115 claim checkpoint before source mutation.
-2. RED slice A: open an existing non-provider Control Center DB and prove safe provider-table bootstrap without damaging existing tables/data.
-3. RED slice B-C: atomic same-provider admission in `SQLiteProviderConfigStore`; two independent batches at `max_concurrency=1` must admit exactly one runner.
-4. GREEN only through existing provider store/runtime/AHA-6 seams; no second semaphore/store/quota model.
-5. Keep the current local GLM route fail-closed: no active GLM/CoinTH router profile or listening gateway is proven at this checkpoint. Quota probes must be provider-matched, never inferred from model name.
-6. After deterministic concurrency/runtime gates: broad regression + adversarial E2E + exact-SHA GLM-5.3 MAX read-only review through ignored `runs/`; human pointer relay only if automatic dispatch remains unavailable.
-7. PR/CI/re-audit/merge only after review and all applicable gates. `WO-P1-096` remains the separate higher P0 release blocker pending authorized live connector soak.
+1. Implementation snapshot is pushed at `4e66cdeefbc31bd0513c8bd32ff322dc6230641b`; do not mutate source/tests before independent review unless a deterministic gate finds a new defect.
+2. Exact local evidence: focused `59 passed`; related provider/harness/lease/graph regression `253 passed`; full local `1750 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures` outside WO-P1-115 scope.
+3. Adversarial E2E: real installed-control-DB copy preserved `12` existing tables, added `4` provider tables, and left the live DB hash unchanged; independent-process admission produced exactly `ADMITTED,CAPACITY_WAIT`.
+4. Provider-global capacity now extends `SQLiteProviderConfigStore` with atomic durable admission; no second semaphore/store/quota model exists. Runner uncertainty retains admission; pre-run safe failure releases; malformed/future admission outcomes fail closed per-task.
+5. Z.ai quota probing is exact-route only (approved host + Anthropic path + default TLS port), no redirects, finite-number only, full five-hour tuple required. Current official quota endpoint lacks reset time, so automatic live GLM remains fail-closed.
+6. Independent review task ID is `wo115-glm-review-001`; create/re-read/hash-pin the ignored packet only after this tracked SSoT checkpoint is committed. GLM-5.3 MAX is read-only; GPT retains repair/acceptance/merge authority.
+7. After validated review: bounded repair if required -> final audit -> Draft PR -> exact-head CI -> re-audit -> merge/post-main proof. `WO-P1-096` remains the separate higher P0 release blocker pending authorized live connector soak.
 
 ## Source-of-truth rule
 

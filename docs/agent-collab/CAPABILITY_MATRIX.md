@@ -22,10 +22,11 @@ They do not prove it is best for every task and do not replace GPT/integrator re
 
 - Direct Z.ai GLM-5.3 invocation previously reached the provider but returned HTTP 429 / insufficient resource package.
 - Installed ZCode 0.16.5 previously reported `builtin:zai-coding-plan` unavailable with `coding_plan_not_entitled`; Start Plan exposed GLM-5.3-Flash rather than full GLM-5.3.
-- WO-P1-114 merged a concrete A-Wiki Drive environment resolver and SQLite-backed supervised provider runtime assembly, but installed production state is not bootstrapped yet.
-- Read-only inspection on 2026-08-30 confirms `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` still has zero `provider_*` tables.
-- Current Claude CLI configuration points to a loopback gateway, but the gateway is not listening; current router configuration exposes no active GLM/CoinTH provider or virtual GLM profile. Earlier GLM-proxy readiness is historical, not current readiness.
-- Therefore AHA-6A.1 must keep **model suitability**, **provider route/readiness**, **quota evidence**, **credential resolution**, and **atomic provider admission** independent. Automatic dispatch remains fail-closed; the one-direction file bridge is the current safe fallback.
+- WO-P1-115 implementation head `4e66cdeefbc31bd0513c8bd32ff322dc6230641b` now safely bootstraps provider tables in the shared control DB and adds atomic provider-global admission in the existing SQLite provider authority. Installed-DB-copy E2E preserved all 12 existing tables and did not mutate the live DB.
+- Cross-process admission E2E proves `max_concurrency=1` yields exactly `ADMITTED,CAPACITY_WAIT`; batch-local snapshots are no longer the production-global capacity authority when the SQLite admission store is injected.
+- Current Claude CLI configuration still points to an unavailable loopback route, and current router configuration exposes no proven live GLM/CoinTH profile. Earlier GLM-proxy readiness is historical, not current readiness.
+- Official Z.ai quota tooling still exposes `/api/monitor/usage/quota/limit`, but current upstream issue evidence says that endpoint lacks reset time. Because Conductor requires the full five-hour tuple, automatic dispatch remains fail-closed; the one-direction file bridge is the current safe fallback.
+- Model suitability, provider route/readiness, quota evidence, credential resolution and atomic provider admission remain independent authorities.
 
 ## Routing decision record
 

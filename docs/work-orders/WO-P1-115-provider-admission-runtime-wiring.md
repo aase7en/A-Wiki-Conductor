@@ -2,7 +2,7 @@
 
 Date: 2026-08-30
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / CLAIMED / PLAN_GATE
+Status: ACTIVE / CLAIMED / IMPLEMENTED / REVIEW_GATE
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`
 Branch: `feat/wo-p1-115-provider-admission-runtime`
@@ -100,4 +100,26 @@ E. Installed-style runtime assembly + Drive-resolution fail-closed tests.
 F. Provider-matched quota adapter/probe contract; unsupported current local gateway remains unavailable rather than guessed.
 G. Broad regression/adversarial E2E → exact-SHA independent review → repair if valid → PR/CI/re-audit/merge.
 
-Next safe action: persist the WO-P1-115 claim/SSoT checkpoint, commit and push it, then begin RED slice A-B. No source mutation precedes that checkpoint.
+Historical plan-gate instruction (completed): claim/SSoT was committed before RED slice A-B; current authority is the implementation checkpoint below.
+
+## Implementation checkpoint — exact source snapshot
+
+Implementation commit: `4e66cdeefbc31bd0513c8bd32ff322dc6230641b` (pushed).
+
+Deterministic evidence:
+- focused provider-store/runtime/parallel/quota suite: `59 passed`;
+- related provider/harness/lease/graph/execution regression: `253 passed`;
+- full local suite: `1750 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures` outside this work order;
+- compileall + `git diff --check` + bounded source/scope/secret/encoding audit: PASS;
+- installed-control-DB copy E2E: existing tables `12`, provider tables added `4`, live DB hash unchanged;
+- independent-process admission E2E: `ADMITTED,CAPACITY_WAIT` at `max_concurrency=1`.
+
+Trust-boundary repairs found during GPT adversarial review:
+- admission backend exceptions/malformed/future result kinds are isolated per task and cannot erase sibling batch evidence;
+- unsafe reason codes and invalid admission records fail closed before lease/runner;
+- active admission timestamps are decoded/validated before expiry/capacity reconciliation; corrupt durable time cannot masquerade as capacity wait;
+- Z.ai quota transport forbids redirects, accepts only exact supported HTTPS host/path/default port, rejects non-finite numeric evidence, and requires a complete reset-bearing five-hour tuple.
+
+Current production readiness remains fail-closed. Official Z.ai tooling confirms the quota endpoint and raw-token auth surface, while upstream issue #20 states the current quota-limit response lacks reset time. The current local loopback GLM route is also not proven active. No full quota tuple means no automatic dispatch.
+
+Next gate: commit this SSoT/review-prep checkpoint, then generate and re-read `runs/wo115-glm-review-001/task.md` from the resulting exact HEAD. GLM-5.3 MAX owns read-only adversarial security/concurrency review only; result goes to `runs/wo115-glm-review-001/result.json`. GPT validates exact identity/hashes and owns any repair, PR, CI and merge action.

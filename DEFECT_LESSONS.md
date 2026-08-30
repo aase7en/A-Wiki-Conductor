@@ -468,3 +468,39 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** explicit configuration intent outranks discovery fallback, and persisted control-plane data is untrusted at decode time. Neither source-selection drift nor corrupt durable metadata may silently become execution authority.
 
 **Verify:** `test_invalid_explicit_drive_override_fails_closed_instead_of_falling_back` and `test_corrupt_provider_row_fails_closed_as_unusable_state`; focused WO-P1-114 `17 passed`, related regression `224 passed`.
+
+## #28: Provider admission boundaries must isolate malformed authority results per task (2026-08-30)
+
+**Symptom:** adversarial WO-P1-115 tests showed that an injected admission authority could raise an unexpected exception, return a malformed object/future outcome kind, emit a control-character reason code, or return `ADMITTED` with an invalid record. Several variants could crash the batch or let a runner start before the malformed admission was rejected.
+
+**Root cause:** admission acquisition was atomic, but the consumer trusted adapter result shape/reason/record after the call returned. Defensive validation happened too late or not at all.
+
+**Fix:** convert acquire/release exceptions to bounded typed recovery, validate `ProviderAdmissionResult` and enum kind before use, validate admission-record type before lease/runner, sanitize reason codes, and continue collecting sibling outcomes. Unknown/malformed authority state is never replay permission.
+
+**Lesson:** an authority interface is untrusted at both exception and return-value boundaries. In parallel fan-out, every malformed authority result must fail closed for that lane while preserving sibling evidence.
+
+**Verify:** focused tests cover unexpected acquire/release exceptions, malformed object, future kind, unsafe reason code, invalid record and sibling preservation; final focused suite `59 passed`, related regression `253 passed`.
+
+## #29: Durable expiry must be parsed before provider capacity is computed (2026-08-30)
+
+**Symptom:** corrupt `expires_at='not-a-time'` in an ACTIVE provider admission did not raise; SQLite lexical comparison left it active and the next task received `PROVIDER_CAPACITY_EXHAUSTED`, hiding durable-state corruption as ordinary load.
+
+**Root cause:** expiry reconciliation compared raw TEXT timestamps inside SQL before typed decode. A malformed timestamp therefore participated in capacity calculation without proving valid time authority.
+
+**Fix:** inside the same `BEGIN IMMEDIATE` transaction, read and decode every ACTIVE admission first, fail typed on corrupt/naive time, then expire validated records and calculate remaining active capacity from parsed UTC datetimes.
+
+**Lesson:** persisted timestamps that control ownership/capacity are untrusted data. Parse and validate before ordering/comparison; never let lexical storage representation become lifecycle authority.
+
+**Verify:** corrupt active expiry now raises `PROVIDER_ADMISSION_RECORD_INVALID`; normal expiry and concurrent admission tests remain green.
+
+## #30: Secret-bearing quota probes require exact origin pinning and bounded evidence semantics (2026-08-30)
+
+**Symptom:** RED tests proved three credential/evidence hazards in the initial Z.ai quota adapter: urllib followed a 302 while carrying Authorization, `/api/anthropic-evil` and non-default TLS port were accepted as route lookalikes, and `NaN` quota values could become an `OK` snapshot.
+
+**Root cause:** endpoint recognition used a prefix, default urllib redirect behavior was left enabled, and numeric validation checked only type/non-negativity rather than finiteness.
+
+**Fix:** exact first-party hostname + Anthropic path subtree + default 443 only; redirects disabled; no credential resolution for unsupported routes; finite-number validation; incomplete/no-reset quota remains unavailable.
+
+**Lesson:** once a probe carries a secret, hostname resemblance and HTTP convenience behavior are insufficient. Pin the intended origin/route, forbid credential-bearing redirects, and treat remote numeric evidence as untrusted until structurally complete and finite.
+
+**Verify:** local redirect server receives Authorization only on the original request; lookalike path/8443 never resolve the secret; non-finite quota fails closed; final focused/related suites are green.
