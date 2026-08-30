@@ -133,3 +133,11 @@ The GLM lane is read-only. It must review the exact branch snapshot, verify prov
 Automatic provider dispatch is not yet authorized because runtime Drive binding, fresh required quota evidence, and provider-global serialized/atomic admission are still explicit blockers. If automatic execution remains unavailable, the human relays one short task-pointer prompt only; GPT reads the result file itself.
 
 Next gate: commit/push this tracked handoff checkpoint, generate the ignored task packet from that exact HEAD, re-read literal identity/hash/result fields, then dispatch the independent review.
+
+## Independent GLM review result - 2026-08-30
+
+Task `wo114-glm-review-002` reviewed exact head `75c8e21da3d47ffb2fff6f8e37f6240b537f2522` and returned `PASS`. Integrator validation confirmed task/provider/model identity, exact HEAD, task SHA, clean state, and all four pinned source/test SHA256 values. There are no P0/P1/P2 findings.
+
+Four P3 hardening observations were recorded: optional env-file caching, quoted-secret whitespace semantics, whitespace-only explicit override semantics, and diagnostics for an unusable `.drive-path` target. They are not acceptance defects and are deferred to a future hardening work order; changing source now would invalidate the accepted exact-SHA review without closing a required gate.
+
+Next gate: final scope/secret/encoding/diff audit, Draft PR, exact-head 3-OS CI including Frozen Setup E2E, re-audit, merge, and post-main proof.

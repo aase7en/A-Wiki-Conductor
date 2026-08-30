@@ -8,7 +8,7 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
 | Integrator | GPT-5.6 Sol | WO-P1-114 / AHA-6A | provider runtime assembly + tests + bounded SSoT | RUNNING / REVIEW_PREP |
-| GLM review lane | GLM-5.3 MAX via one-way file bridge until auto dispatch exists | `wo114-glm-review-002` exact-SHA review | read-only `runs/wo114-glm-review-002/result.json` only | PREPARED |
+| GLM review lane | GLM-5.3 MAX via one-way file bridge until auto dispatch exists | `wo114-glm-review-002` | read-only result artifact only | VERIFIED / RELEASED |
 | Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | RELEASED |
 | Parallel agent lane A | provider-neutral | AHA-6 selected READY task A | one leased file/task in isolated authorized worktree | RELEASED |
 | Parallel agent lane B | provider-neutral | AHA-6 selected READY task B | one leased file/task in isolated authorized worktree | RELEASED |
@@ -81,3 +81,11 @@ AHA-5 permits one mutable file per agent task. Multi-file parallel fan-out belon
 - GLM lane is READ-ONLY: no source/test/SSoT/Git/branch/commit/PR mutation.
 - Human fallback relays only the task pointer; GPT reads and validates the result file directly.
 - Automatic provider dispatch remains blocked until runtime Drive binding, fresh required quota evidence, and provider-global admission authority are proven.
+
+### WO-P1-114 GLM review result
+
+- Task `wo114-glm-review-002` reviewed exact HEAD `75c8e21da3d47ffb2fff6f8e37f6240b537f2522`.
+- Result identity/task SHA/source/test SHA all validated by GPT integrator.
+- Outcome: `PASS`; P0/P1/P2 findings: `0`; P3 hardening observations: `4`.
+- P3 cache/whitespace/blank-override/.drive-path diagnostics are deferred: none changes the current fail-closed acceptance boundary, and modifying source after exact-SHA PASS would require a new review snapshot.
+- Result path is historical evidence: `runs/wo114-glm-review-002/result.json`; do not reuse the packet for a later HEAD.
