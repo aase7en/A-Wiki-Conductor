@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Barrier, Lock
@@ -33,9 +34,11 @@ from a_conductor.provider_configuration import (
 )
 from a_conductor.worker_lease import (
     LeaseMutationIntent,
+    LeaseOutcomeKind,
     SQLiteWorkerLeaseStore,
     WorkerLeaseBroker,
     WorkerLeaseCandidate,
+    WorkerLeaseOutcome,
     WorkerLeaseRequest,
 )
 
@@ -372,6 +375,125 @@ def test_lease_scope_collision_blocks_second_task_without_replay(tmp_path: Path)
     assert result.outcomes[0].kind is ParallelReadyOutcomeKind.RUN_COMPLETED
     assert result.outcomes[1].kind is ParallelReadyOutcomeKind.LEASE_WAIT
     assert runner.calls == ["left-collision"]
+    assert len(store.list_active()) == 1
+
+
+class UnsupportedLeaseOutcomeBroker:
+    def acquire(self, request, candidates):
+        return WorkerLeaseOutcome("FUTURE_KIND", None, ())
+
+
+def test_unknown_lease_outcome_fails_closed_as_recovery(tmp_path: Path) -> None:
+    runner = BarrierRunner(parties=1)
+    executor = ParallelReadyExecutor(
+        broker=UnsupportedLeaseOutcomeBroker(),
+        runner=runner,
+        clock=lambda: NOW,
+    )
+    task = _task(
+        node_id="future-lease-outcome",
+        worker_id="a-worker-01",
+        worktree=r"A:\\Work\\future-lease-outcome",
+        branch="feat/future-lease-outcome",
+        mutable_scope=("src/future_lease_outcome.py",),
+    )
+    plan = SchedulePlan((task.assignment,), (), "capacity=1/1")
+
+    result = executor.execute(
+        plan,
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "LEASE_OUTCOME_UNSUPPORTED"
+    assert runner.calls == []
+
+
+class MissingLeaseSecondBroker:
+    def __init__(self, delegate: WorkerLeaseBroker) -> None:
+        self.delegate = delegate
+        self.calls = 0
+
+    def acquire(self, request, candidates):
+        self.calls += 1
+        if self.calls == 2:
+            return WorkerLeaseOutcome(LeaseOutcomeKind.LEASED, None, ())
+        return self.delegate.acquire(request, candidates)
+
+
+def test_invalid_leased_outcome_is_isolated_and_prior_sibling_still_runs(tmp_path: Path) -> None:
+    real_broker, store = _broker(tmp_path)
+    broker = MissingLeaseSecondBroker(real_broker)
+    runner = BarrierRunner(parties=1)
+    executor = ParallelReadyExecutor(broker=broker, runner=runner, clock=lambda: NOW)
+    first = _task(
+        node_id="valid-first",
+        worker_id="a-worker-01",
+        worktree=r"A:\\Work\\valid-first",
+        branch="feat/valid-first",
+        mutable_scope=("src/valid_first.py",),
+    )
+    second = _task(
+        node_id="invalid-second",
+        worker_id="a-worker-02",
+        worktree=r"A:\\Work\\invalid-second",
+        branch="feat/invalid-second",
+        mutable_scope=("src/invalid_second.py",),
+    )
+    plan = SchedulePlan((first.assignment, second.assignment), (), "capacity=2/2")
+
+    result = executor.execute(
+        plan,
+        {first.assignment.node_id: first, second.assignment.node_id: second},
+        provider_inflight={"cointh-glm": 0},
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.RUN_COMPLETED
+    assert result.outcomes[1].kind is ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED
+    assert result.outcomes[1].reason_code == "LEASE_RECORD_MISSING"
+    assert runner.calls == ["valid-first"]
+    assert len(store.list_active()) == 1
+
+
+class DriftingLeaseBroker:
+    def __init__(self, delegate: WorkerLeaseBroker) -> None:
+        self.delegate = delegate
+
+    def acquire(self, request, candidates):
+        outcome = self.delegate.acquire(request, candidates)
+        assert outcome.lease is not None
+        return WorkerLeaseOutcome(
+            outcome.kind,
+            replace(outcome.lease, worker_id="a-worker-drift"),
+            outcome.rejections,
+        )
+
+
+def test_drifted_leased_worker_becomes_recovery_without_runner(tmp_path: Path) -> None:
+    real_broker, store = _broker(tmp_path)
+    broker = DriftingLeaseBroker(real_broker)
+    runner = BarrierRunner(parties=1)
+    executor = ParallelReadyExecutor(broker=broker, runner=runner, clock=lambda: NOW)
+    task = _task(
+        node_id="drifted-lease",
+        worker_id="a-worker-01",
+        worktree=r"A:\\Work\\drifted-lease",
+        branch="feat/drifted-lease",
+        mutable_scope=("src/drifted_lease.py",),
+    )
+    plan = SchedulePlan((task.assignment,), (), "capacity=1/1")
+
+    result = executor.execute(
+        plan,
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "LEASE_WORKER_DRIFT"
+    assert result.outcomes[0].lease_outcome is not None
+    assert runner.calls == []
     assert len(store.list_active()) == 1
 
 

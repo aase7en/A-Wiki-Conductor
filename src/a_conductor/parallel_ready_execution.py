@@ -198,7 +198,15 @@ def _lease_wait_outcome(node_id: str, outcome: WorkerLeaseOutcome) -> ParallelRe
         ),
         LeaseOutcomeKind.RDC_READ_ONLY: (ParallelReadyOutcomeKind.RDC_READ_ONLY, "RDC_READ_ONLY"),
     }
-    kind, reason = mapping[outcome.kind]
+    mapped = mapping.get(outcome.kind)
+    if mapped is None:
+        return ParallelReadyOutcome(
+            node_id,
+            ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED,
+            "LEASE_OUTCOME_UNSUPPORTED",
+            lease_outcome=outcome,
+        )
+    kind, reason = mapped
     return ParallelReadyOutcome(node_id, kind, reason, lease_outcome=outcome)
 
 
@@ -265,6 +273,14 @@ class ParallelReadyExecutor:
         *,
         provider_inflight: Mapping[str, int],
     ) -> ParallelReadyBatchResult:
+        """Execute one scheduler-owned batch against one capacity snapshot.
+
+        This seam reserves provider capacity only inside this batch. Production assembly
+        must serialize batch admission per provider, or inject ``provider_inflight`` from
+        an existing atomic provider-capacity authority. Concurrent batch starts that reuse
+        the same snapshot are unsupported because this module intentionally owns no second
+        provider semaphore/store.
+        """
         tasks = self._validate_batch(plan, tasks_by_node, provider_inflight)
         now = self._clock()
         provider_batch_count: dict[str, int] = {}
@@ -311,9 +327,21 @@ class ParallelReadyExecutor:
                 outcomes[node_id] = _lease_wait_outcome(node_id, lease_outcome)
                 continue
             if lease_outcome.lease is None:
-                raise RuntimeError("LEASED outcome missing lease")
+                outcomes[node_id] = ParallelReadyOutcome(
+                    node_id,
+                    ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED,
+                    "LEASE_RECORD_MISSING",
+                    lease_outcome=lease_outcome,
+                )
+                continue
             if lease_outcome.lease.worker_id != task.assignment.worker_id:
-                raise RuntimeError("leased worker drifted from scheduler assignment")
+                outcomes[node_id] = ParallelReadyOutcome(
+                    node_id,
+                    ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED,
+                    "LEASE_WORKER_DRIFT",
+                    lease_outcome=lease_outcome,
+                )
+                continue
             provider_batch_count[provider_id] = batch_count + 1
             runnable.append((task, lease_outcome))
 
