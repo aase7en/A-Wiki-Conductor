@@ -1,19 +1,19 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-30 - WO-P1-114 / AHA-6A COMPLETE / RELEASED
+Last updated: 2026-08-30 - WO-P1-115 / AHA-6A.1 ACTIVE / PLAN_GATE
 
 ## Current objective
 
-WO-P1-114 provider runtime assembly is merged and released. Preserve its fail-closed boundary while closing the docs-only release checkpoint. No successor AHA lane is claimed yet; AHA-6A.1 requires a new work order for runtime Drive binding, fresh complete quota observation, and serialized/atomic provider admission. `WO-P1-096` remains the higher P0 release blocker pending explicit live-Worker maintenance authority.
+Execute WO-P1-115 / AHA-6A.1: add provider-global atomic admission and production runtime/bootstrap wiring by extending existing provider authorities. Automatic GLM/provider execution remains fail-closed until an exact provider route, fresh required quota evidence, secret resolution and admission gates are all proven. `WO-P1-096` remains the higher P0 release blocker pending explicit live-Worker maintenance authority.
 
 ## Repository state
 
-- Latest completed work order: `docs/work-orders/WO-P1-114-auto-provider-runtime-assembly.md` - COMPLETE / RELEASED.
-- Active closeout worktree: `A:\GitHub\A-Wiki-Conductor-auto-provider-closeout`; branch `docs/wo-p1-114-auto-provider-closeout`; base `origin/main@8828f07654746a52110bc89cc359e9e558b2f9e5`.
-- Historical implementation worktree: `A:\GitHub\A-Wiki-Conductor-auto-provider-dispatch`; branch `feat/wo-p1-114-auto-provider-dispatch`; final feature head `00d0828816e11110f30299c76d6b5a43e7d5b095`.
+- Active work order: `docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / PLAN_GATE.
+- Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`; branch `feat/wo-p1-115-provider-admission-runtime`; base `origin/main@5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`; clean at claim.
+- Predecessor WO-P1-114 implementation + closeout are merged, post-main green and cleaned; no WO-P1-114 branches/worktrees remain.
 - Reuse gate: A-Wiki remote main `71406f8a25079f364face422012e4bdeac5f483e`; secret authority is `docs/protocols/secrets-global-env.md`; A-Wiki local checkout remains dirty/read-only.
-- Open GitHub PRs at claim: 0; A-Wiki live claims: 0; North Star worktree clean/non-overlapping.
-- Automatic GLM remains fail-closed until concrete secret resolver + fresh required quota evidence are assembled; one-way ignored `runs/` bridge remains fallback.
+- GitHub open PRs at claim: 0; A-Wiki live claims: 0; North Star worktree clean and file-level non-overlapping.
+- Production preflight: installed control DB has no `provider_*` tables; current loopback Claude gateway is not listening and current router config exposes no active GLM/CoinTH route. Automatic GLM remains fail-closed; ignored `runs/` pointer/result bridge remains fallback.
 - AHA-5 implementation PR `#149` — MERGED as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`.
 - AHA-5 closeout PR `#150` — MERGED as current base `64b6ef839f16a270295fb2c24649d01e0f54d862`.
 - Post-main CI `33286026232` — SUCCESS on Windows/Ubuntu/macOS; Windows Frozen Setup E2E PASS.

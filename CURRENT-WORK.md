@@ -1,10 +1,10 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-114 / AHA-6A COMPLETE / RELEASED)
+Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 ACTIVE)
 
 ## Current phase
 
-**WO-P1-114 / AHA-6A is COMPLETE / RELEASED. No successor AHA work order is currently claimed.**
+**PRIMARY SAFE NEW-FEATURE PRIORITY: WO-P1-115 / AHA-6A.1 provider admission + production runtime wiring.**
 
 P0 release gate `WO-P1-096` remains higher priority but is externally blocked pending a spare Tunnel ID or explicit maintenance authorization for one live Worker; this work order does not disrupt live connectors.
 
@@ -15,18 +15,21 @@ Accepted AHA-5 closeout state:
 - Windows Frozen Setup install/uninstall E2E: PASS;
 - AHA-5 implementation + closeout worktrees/branches cleaned after tree-equality proof.
 
-## Latest completed work order
+## Active work order
 
-`docs/work-orders/WO-P1-114-auto-provider-runtime-assembly.md` - COMPLETE / RELEASED.
-Implementation PR `#153` merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`; exact-head CI `33299166993` and post-main CI `33299559419` both passed Windows/Ubuntu/macOS including Frozen Setup E2E.
+`docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / PLAN_GATE.
+Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`.
+Branch: `feat/wo-p1-115-provider-admission-runtime` @ base `5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`.
 
 ## Immediate execution frontier
 
-1. PR #153 exact reviewed head `00d0828816e11110f30299c76d6b5a43e7d5b095` passed CI `33299166993` and merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`.
-2. Post-main CI `33299559419` passed Windows/Ubuntu/macOS including packaging, Portable smoke and Frozen Setup install/uninstall E2E.
-3. GLM-5.3 MAX `wo114-glm-review-002` returned PASS with zero P0/P1/P2 findings; four P3 hardening observations remain deferred.
-4. WO-P1-114 claim is released. Remove implementation/closeout worktrees only after closeout PR + post-main ancestry/tree proof.
-5. Next accelerator slice requires a new work order for AHA-6A.1: runtime Drive binding, fresh complete quota observation, and serialized/atomic provider admission. AHA-6B/AHA-7 stay behind that gate. WO-P1-096 remains the separate higher P0 release blocker.
+1. Persist and push the WO-P1-115 claim checkpoint before source mutation.
+2. RED slice A: open an existing non-provider Control Center DB and prove safe provider-table bootstrap without damaging existing tables/data.
+3. RED slice B-C: atomic same-provider admission in `SQLiteProviderConfigStore`; two independent batches at `max_concurrency=1` must admit exactly one runner.
+4. GREEN only through existing provider store/runtime/AHA-6 seams; no second semaphore/store/quota model.
+5. Keep the current local GLM route fail-closed: no active GLM/CoinTH router profile or listening gateway is proven at this checkpoint. Quota probes must be provider-matched, never inferred from model name.
+6. After deterministic concurrency/runtime gates: broad regression + adversarial E2E + exact-SHA GLM-5.3 MAX read-only review through ignored `runs/`; human pointer relay only if automatic dispatch remains unavailable.
+7. PR/CI/re-audit/merge only after review and all applicable gates. `WO-P1-096` remains the separate higher P0 release blocker pending authorized live connector soak.
 
 ## Source-of-truth rule
 

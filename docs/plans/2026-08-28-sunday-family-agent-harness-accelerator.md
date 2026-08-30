@@ -283,7 +283,7 @@ Run two independent task packets concurrently in isolated scopes/worktrees throu
 ### AHA-6A - Automatic provider runtime assembly [COMPLETE - WO-P1-114 / PR #153]
 Accepted provider SQLite state, A-Wiki Drive secret-reference boundary and supervised Claude backend assembly are merged. Exact-head and post-main CI are green; independent GLM review found zero P0/P1/P2 defects. This milestone does not yet authorize automatic live provider dispatch.
 
-### AHA-6A.1 - Production provider admission/runtime wiring [NEW WO REQUIRED]
+### AHA-6A.1 - Production provider admission/runtime wiring [ACTIVE - WO-P1-115]
 Before elastic capacity or operator UI, wire the accepted WO-P1-114 resolver into an authorized runtime assembly that can locate the private Drive root without hardcoding, produce fresh provider health plus the complete required quota tuple, and serialize or atomically reserve same-provider admission across concurrent batches. Reuse existing authorities; do not add a second capacity store/semaphore, quota model, provider registry or secret system. Live dispatch stays fail-closed until all three gates are deterministic and tested.
 
 ### AHA-6B - Elastic worker capacity
