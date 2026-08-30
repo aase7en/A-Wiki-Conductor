@@ -2,7 +2,7 @@
 
 Date: 2026-08-30
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / REVIEW_PASS / PR_PENDING
+Status: COMPLETE / MERGED / POST_MAIN_GREEN
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha6-parallel`
 Branch: `feat/wo-p1-113-aha6-parallel-ready`
@@ -93,7 +93,7 @@ F. Optional real CoinTH/GLM proof only after external secret resolver + quota pr
 - Existing Conductor scheduler, atomic lease broker/recovery, durable graph dispatch and provider quota model were inspected; no competing open PR exists.
 - Provider quota already has `limit`, `used`, `remaining`, `reset_at`, `reset_in_seconds`; no second quota type is authorized.
 
-Current status: `REVIEW_PASS / PR_PENDING`.
+Current status: `COMPLETE / MERGED / POST_MAIN_GREEN`.
 
 ## Implementation checkpoint — 2026-08-30
 
@@ -141,3 +141,15 @@ Next safe action: checkpoint this review/repair state, generate `aha6-glm-rerevi
 - GPT final local audit on the same tracked code: related regression 196 passed; compileall, diff-check, scope audit and secret-pattern scan PASS. Full local suite evidence remains 1698 passed, 5 skipped, with only the two pre-existing GPU/OpenGL/Tcl environment failures outside AHA-6 scope.
 
 Next safe action: create Draft PR from this branch to `main`, verify the exact remote PR head, run required Windows/Ubuntu/macOS CI including Frozen Setup E2E, then re-audit before merge.
+
+## Final merge/post-main closeout checkpoint — 2026-08-30
+
+- Implementation PR #151 was reviewed at exact head `5cc2425580c1724ae34f5f836a2211ee6af06b1d`; exact-head CI `33293013006` passed Windows, Ubuntu and macOS, including Windows clean Portable/Setup build, Portable smoke and Frozen Setup install/uninstall E2E.
+- PR #151 merged as `7825afa0ae946d0389b5c6b2955a63a8ae36f54b`. The reviewed feature head is an ancestor of the merged main.
+- Post-main CI `33293299053` on exact merge SHA `7825afa0ae946d0389b5c6b2955a63a8ae36f54b` passed Windows, Ubuntu and macOS, including Windows Frozen Setup install/uninstall E2E.
+- Independent GLM-5.3 review/re-review, local regression evidence, scope/diff/secret audits, exact-head CI and post-main verification satisfy WO-P1-113 acceptance.
+- Provider-global cross-batch capacity reservation and automatic CoinTH secret/quota assembly remain future integration work. They require a new work order/reuse gate and are not claimed fixed by AHA-6.
+- WO-P1-096 connector live TTL/recovery soak remains a separate v0.7.0 release blocker.
+- WO-P1-113 is complete; its implementation claim is released by this closeout. No successor AHA work order is claimed.
+
+Next safe action: merge this docs-only closeout from exact merged main, verify post-main state, then remove only the clean/merged AHA-6 implementation and closeout worktrees/branches after ancestry/tree-equality/no-unique-diff proof. New engineering work must start under a new work order.

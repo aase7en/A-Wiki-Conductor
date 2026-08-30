@@ -1,10 +1,10 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol — AHA-6 ACTIVE / WO-P1-113)
+Last updated: 2026-08-30 (GPT-5.6 Sol — AHA-6 COMPLETE / CLOSEOUT)
 
 ## Current phase
 
-**PRIMARY PRIORITY: WO-P1-113 / AHA-6 fixed-pool parallel READY-task execution.**
+**WO-P1-113 / AHA-6 is COMPLETE. No successor AHA work order is currently claimed.**
 
 Accepted AHA-5 closeout state:
 - implementation PR `#149` merged as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`;
@@ -13,19 +13,19 @@ Accepted AHA-5 closeout state:
 - Windows Frozen Setup install/uninstall E2E: PASS;
 - AHA-5 implementation + closeout worktrees/branches cleaned after tree-equality proof.
 
-## Active work order
+## Latest completed work order
 
-`docs/work-orders/WO-P1-113-aha6-parallel-ready-execution.md` — ACTIVE / CLAIMED.
+`docs/work-orders/WO-P1-113-aha6-parallel-ready-execution.md` — COMPLETE / RELEASED.
 Isolated worktree: `A:\GitHub\A-Wiki-Conductor-aha6-parallel`.
 Branch: `feat/wo-p1-113-aha6-parallel-ready` @ base `64b6ef839f16a270295fb2c24649d01e0f54d862`.
 
 ## Immediate execution frontier
 
-1. GLM-5.3 repair re-review `aha6-glm-rereview-002` returned `PASS` with zero findings at exact clean HEAD `960bf95de9c135a44a1afb33d488f7b4973dd6c6`; task/source/test/prior-result hashes all matched.
-2. Final local PR audit is green for this slice: focused 16 passed, related regression 196 passed, compileall/diff-check/scope/secret scans PASS; full local remains 1698 passed, 5 skipped, only the two known GPU-environment failures outside scope.
-3. Cross-batch provider `max_concurrency` remains a production-assembly blocker: this seam is one scheduler-owned batch; concurrent batches may not reuse one inflight snapshot until an existing atomic capacity authority/serialized assembly is proven. Do not add a second semaphore/store here.
-4. Automatic CoinTH/GLM remains `BLOCKED` until a concrete Drive-backed provider resolver + required 5-hour quota evidence are available; this does not block the deterministic AHA-6 PR.
-5. Next gate: Draft PR -> exact-head Windows/Ubuntu/macOS CI + Frozen Setup E2E -> final diff/re-audit -> authorized merge. WO-P1-096 release soak remains separate.
+1. AHA-6 implementation PR `#151` merged exact reviewed head `5cc2425580c1724ae34f5f836a2211ee6af06b1d` as main `7825afa0ae946d0389b5c6b2955a63a8ae36f54b`.
+2. Exact-head CI `33293013006` and post-main CI `33293299053` both passed Windows/Ubuntu/macOS; Windows included clean packaging, Portable smoke and Frozen Setup install/uninstall E2E.
+3. GLM-5.3 independent review found one real P2; repair `2a4d8fd786a9d3086a8cd2a298b8ee8cfcb6adc8` closed it, and exact-SHA re-review returned `PASS` with zero findings. Local focused 16 / related 196 passed; full local only retained the known GPU environment failures outside scope.
+4. Provider-global cross-batch capacity reservation and automatic CoinTH secret/quota assembly remain future integration blockers requiring a new work order/reuse gate; no duplicate semaphore/store is authorized.
+5. WO-P1-113 is closed/released. No successor AHA work order is claimed. WO-P1-096 connector live TTL/recovery soak remains the separate v0.7.0 release blocker.
 
 ## Source-of-truth rule
 

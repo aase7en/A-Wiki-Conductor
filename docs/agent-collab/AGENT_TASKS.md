@@ -3,20 +3,20 @@
 This file is a compact lane index, not the project source of truth.
 Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work order → runtime/Git evidence.
 
-## Active lane — 2026-08-30
+## Latest lane checkpoint — 2026-08-30
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
-| Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | REVIEW_PASS / PR_PENDING |
-| Parallel agent lane A | provider-neutral | AHA-6 selected READY task A | one leased file/task in isolated authorized worktree | PREPARED |
-| Parallel agent lane B | provider-neutral | AHA-6 selected READY task B | one leased file/task in isolated authorized worktree | PREPARED |
-| CoinTH/GLM provider lane | GLM-5.3 MAX via Claude CLI/ZCode bridge | `aha6-glm-rereview-002` repair re-review | read-only result file only | VERIFIED / AUTO_BLOCKED |
+| Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | RELEASED |
+| Parallel agent lane A | provider-neutral | AHA-6 selected READY task A | one leased file/task in isolated authorized worktree | RELEASED |
+| Parallel agent lane B | provider-neutral | AHA-6 selected READY task B | one leased file/task in isolated authorized worktree | RELEASED |
+| CoinTH/GLM provider lane | GLM-5.3 MAX via Claude CLI/ZCode bridge | `aha6-glm-rereview-002` repair re-review | read-only result file only | RELEASED |
 | Future agents | provider-neutral | none | none | UNCLAIMED |
 
-### Human-bridge contract for the active GLM lane
+### Completed GLM bridge contract
 
-- Task pointer: `runs/aha6-glm-rereview-002/task.md` (ignored runtime artifact; regenerate after any tracked HEAD change).
-- Result pointer: `runs/aha6-glm-rereview-002/result.json`.
+- Historical task pointer: `runs/aha6-glm-rereview-002/task.md` (ignored runtime artifact; do not reuse after tracked HEAD changes).
+- Historical result pointer: `runs/aha6-glm-rereview-002/result.json`.
 - Human relays only the pointer prompt; human never copies the result back.
 - GLM must not edit source, tests, `CURRENT-WORK.md`, `handoff.md`, `COLLAB.md`, work orders, commits or PRs in this review lane.
 - GPT/Conductor validates task/model/HEAD identity, reads the result itself, and performs the only tracked SSoT fold-back.
