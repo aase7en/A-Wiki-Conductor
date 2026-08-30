@@ -218,3 +218,12 @@ Draft PR #77 is open from `feat/terminal-command-center-redesign`; implementatio
 ### WO-P1-114 exact repaired full-suite evidence
 
 Exact repaired snapshot: focused `17 passed`; related `224 passed`; full local `1716 passed, 5 skipped, 2 known GPU dependency failures`. No provider/runtime assembly regression. Next gate remains audit → repair commit/push → fresh exact-SHA GLM review.
+
+### WO-P1-114 external review handoff
+
+- Repaired implementation head `d914915e5a1b2f179ce1315b13633cc4aa5f7b7e` is pushed and clean.
+- Exact local gates: focused `17 passed`, related `224 passed`, full local `1716 passed / 5 skipped / 2 known GPU dependency failures`; compile/diff/scope/secret/encoding additions audit PASS.
+- Independent review task ID is `wo114-glm-review-002`; task/result live only under ignored `runs/wo114-glm-review-002/`.
+- GLM-5.3 MAX is assigned read-only trust-boundary review only; GPT retains acceptance/repair/merge authority.
+- Automatic GLM dispatch is still fail-closed; use one-way human pointer relay only if the packet cannot be dispatched automatically.
+- Next: commit/push this handoff checkpoint, generate and re-read exact-SHA task packet, then dispatch review.

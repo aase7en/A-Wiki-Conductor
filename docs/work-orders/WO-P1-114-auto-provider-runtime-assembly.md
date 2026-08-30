@@ -121,3 +121,15 @@ The previously generated ignored GLM task at HEAD `c94abfc755a279f873cd0745eb8cd
 ## Exact repaired-snapshot audit — 2026-08-30
 
 After GPT trust-boundary repairs, the exact working snapshot passed focused `17`, related `224`, and full local `1716 passed / 5 skipped / 2 failed`. The only failures remain the same local GPU dependency cases (`Pillow` import coupling and missing `OpenGL`) outside WO-P1-114. No new WO-P1-114 regression appeared. Next gate is repair commit/push followed by a fresh exact-SHA external review packet.
+
+## Independent GLM review handoff prep - 2026-08-30
+
+Task ID: `wo114-glm-review-002`.
+
+Routing evidence was re-checked on 2026-08-30 against official Z.ai GLM-5.3 material: Terminal-Bench 3.0 `28.3`, DeepSWE v1.1 `66.9`, Z.ai Code Bench Max `34.5%`. This supports bounded repository/security review, not merge authority. GPT remains integrator/reviewer-of-record.
+
+The GLM lane is read-only. It must review the exact branch snapshot, verify provider/secret/fail-closed boundaries and tests, and write only `runs/wo114-glm-review-002/result.json`. It must not edit source, tests, SSoT, Git, branch, commit, PR or live provider configuration.
+
+Automatic provider dispatch is not yet authorized because runtime Drive binding, fresh required quota evidence, and provider-global serialized/atomic admission are still explicit blockers. If automatic execution remains unavailable, the human relays one short task-pointer prompt only; GPT reads the result file itself.
+
+Next gate: commit/push this tracked handoff checkpoint, generate the ignored task packet from that exact HEAD, re-read literal identity/hash/result fields, then dispatch the independent review.
