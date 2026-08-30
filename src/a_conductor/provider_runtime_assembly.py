@@ -42,7 +42,7 @@ class SQLiteClaudeCodeProviderResolver:
             if endpoint is None or endpoint.endpoint_ref != profile.endpoint_ref:
                 return None
             observation = self._store.get_observation(profile.provider_id)
-        except ProviderConfigStoreError:
+        except (ProviderConfigStoreError, TypeError, ValueError):
             return None
         if observation is not None and observation.provider_id != profile.provider_id:
             return None

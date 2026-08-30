@@ -153,3 +153,18 @@ def test_repo_environment_name_rejects_path_escape(tmp_path: Path) -> None:
     drive = make_drive(tmp_path)
     with pytest.raises(ValueError, match="repo_env_name"):
         AWikiDriveEnvironmentSource(drive, repo_env_name="../outside")
+
+
+def test_invalid_explicit_drive_override_fails_closed_instead_of_falling_back(tmp_path: Path) -> None:
+    repo = tmp_path / "A-Wiki-explicit"
+    repo.mkdir()
+    (repo / "drive").mkdir()
+
+    with pytest.raises(AWikiEnvironmentResolutionError) as exc:
+        resolve_awiki_drive_root(
+            environment={"A_WIKI_DRIVE_PATH": str(tmp_path / "missing-explicit")},
+            awiki_repo_root=repo,
+            home=tmp_path / "home-explicit",
+        )
+
+    assert exc.value.code == "AWIKI_DRIVE_ROOT_UNAVAILABLE"

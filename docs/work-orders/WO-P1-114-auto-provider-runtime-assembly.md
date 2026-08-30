@@ -107,3 +107,17 @@ Evidence after repair:
 - the two failures are unchanged local environment issues in `tests/test_gpu_particle_logo.py` (Pillow import coupling and missing `OpenGL`), outside this work order.
 
 Automatic provider dispatch is **not** yet declared production-ready: the installed desktop process does not currently expose `A_WIKI_DRIVE_PATH`, and AHA-6 cross-batch provider admission still requires serialized admission or an existing atomic provider-capacity authority. WO-P1-114 supplies the provider DB/reference/supervised backend assembly only; those remaining gates must stay explicit.
+
+## GPT trust-boundary review repair — 2026-08-30
+
+Before external review, GPT found and RED-reproduced two authority-boundary defects:
+- invalid explicit `A_WIKI_DRIVE_PATH` could fall through to another locator;
+- corrupted persisted provider data could escape as raw typed-decoding `ValueError`.
+
+Repairs are bounded to the two new WO-P1-114 source modules. Explicit override now fails closed, and corrupt provider/endpoint state resolves as unavailable. Focused suite is `17 passed`; related provider/harness/AHA-6 regression is `224 passed`. `DEFECT_LESSONS.md #27` records the reusable rule.
+
+The previously generated ignored GLM task at HEAD `c94abfc755a279f873cd0745eb8cdb131103ef84` was never dispatched and is superseded. A fresh exact-SHA review packet must be generated only after this repair is committed and pushed.
+
+## Exact repaired-snapshot audit — 2026-08-30
+
+After GPT trust-boundary repairs, the exact working snapshot passed focused `17`, related `224`, and full local `1716 passed / 5 skipped / 2 failed`. The only failures remain the same local GPU dependency cases (`Pillow` import coupling and missing `OpenGL`) outside WO-P1-114. No new WO-P1-114 regression appeared. Next gate is repair commit/push followed by a fresh exact-SHA external review packet.

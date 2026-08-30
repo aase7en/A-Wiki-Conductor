@@ -206,3 +206,15 @@ Draft PR #77 is open from `feat/terminal-command-center-redesign`; implementatio
 - Adversarial `.drive-path` decode defect repaired and recorded as `DEFECT_LESSONS.md #26`.
 - Automatic GLM is still fail-closed: desktop runtime has no current `A_WIKI_DRIVE_PATH` binding, and AHA-6 cross-batch provider admission remains unsupported without serialized/atomic capacity authority.
 - Next gate: scope/secret/encoding audit → implementation commit/push → exact-SHA GLM-5.3 MAX read-only review packet → bounded repair if valid → PR/CI.
+
+### WO-P1-114 trust-boundary repair update
+
+- Pre-external GPT review found 2 real fail-closed defects: invalid explicit Drive override fallback and corrupt SQLite provider row decode escape.
+- Both have RED tests and bounded repairs; focused suite is now `17 passed`, related regression `224 passed`.
+- `DEFECT_LESSONS.md #27` added.
+- The first ignored GLM packet at `c94abfc755a279f873cd0745eb8cdb131103ef84` was never dispatched and is superseded.
+- Next: exact-state full suite → audit/commit/push repair → regenerate exact-SHA GLM review packet.
+
+### WO-P1-114 exact repaired full-suite evidence
+
+Exact repaired snapshot: focused `17 passed`; related `224 passed`; full local `1716 passed, 5 skipped, 2 known GPU dependency failures`. No provider/runtime assembly regression. Next gate remains audit → repair commit/push → fresh exact-SHA GLM review.

@@ -261,3 +261,19 @@ def test_missing_endpoint_fails_before_secret_resolution_or_launch(tmp_path: Pat
     assert result.error_code == "PROVIDER_UNAVAILABLE"
     assert result.recovery_classification is RecoveryClassification.NO_MUTATION
     assert supervised.plans == []
+
+
+def test_corrupt_provider_row_fails_closed_as_unusable_state(tmp_path: Path) -> None:
+    import sqlite3
+
+    db = tmp_path / "corrupt-provider.sqlite"
+    store = seeded_store(db)
+    with sqlite3.connect(db) as connection:
+        connection.execute(
+            "UPDATE provider_configurations SET protocol_family = ? WHERE provider_id = ?",
+            ("NOT_A_PROTOCOL", "provider-glm-shared"),
+        )
+        connection.commit()
+
+    resolver = SQLiteClaudeCodeProviderResolver(store)
+    assert resolver.resolve("provider-glm-shared") is None

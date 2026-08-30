@@ -52,8 +52,9 @@ def resolve_awiki_drive_root(
     override = source.get("A_WIKI_DRIVE_PATH", "").strip()
     if override:
         candidate = _safe_directory(override)
-        if candidate is not None:
-            return candidate
+        if candidate is None:
+            raise AWikiEnvironmentResolutionError("AWIKI_DRIVE_ROOT_UNAVAILABLE")
+        return candidate
 
     if awiki_repo_root is not None:
         repo = Path(awiki_repo_root).expanduser().resolve(strict=False)
