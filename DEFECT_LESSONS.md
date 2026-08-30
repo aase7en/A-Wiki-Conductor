@@ -443,3 +443,16 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** defensive checks inside a parallel admission loop must preserve already-acquired ownership/evidence. An invariant violation may prove the current lane unsafe, but it must not erase sibling state or silently create replay pressure.
 
 **Verify:** RED tests reproduced both batch-wide raises. Repair focused suite = 16 passed; related scheduler/dispatch/chaos/lease/provider/harness/AHA-5 regression = 196 passed. Full local suite after repair = 1698 passed, 5 skipped, with only the two pre-existing GPU/OpenGL/Tcl environment failures outside AHA-6 scope.
+
+
+## #26: Malformed private path config must not escape as a decoder exception (2026-08-30)
+
+**Symptom:** WO-P1-114 adversarial test wrote invalid UTF-8 to A-Wiki `.drive-path`; provider runtime setup leaked raw `UnicodeDecodeError` instead of falling through to the next approved Drive locator.
+
+**Root cause:** the new path resolver treated filesystem I/O failure as untrusted configuration input but caught only `OSError`; text decoding failure was left outside the fail-closed boundary.
+
+**Fix:** catch `UnicodeError` together with `OSError` when reading `.drive-path`. A malformed locator contributes no path authority, so resolution continues to the next approved source/fallback without exposing file contents.
+
+**Lesson:** configuration-file readability includes decoding. Any external/private locator used as execution authority must convert both I/O and decoding failures into bounded fail-closed behavior rather than leaking parser/codec exceptions.
+
+**Verify:** `test_malformed_drive_path_file_falls_through_without_decode_leak`; WO-P1-114 focused suite `15 passed` and related regression `211 passed`.

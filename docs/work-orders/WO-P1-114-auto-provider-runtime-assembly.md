@@ -96,3 +96,14 @@ G. Broad regression/audit -> PR -> exact-head CI -> re-audit -> merge -> post-ma
 - Upstream `grill-with-docs` was refreshed 2026-08-30; explicit plan/task/claim gate remains mandatory because current upstream grilling can transition toward implementation without creating this repository's safety authority.
 
 Next safe action: persist this claim/roadmap checkpoint, then write RED tests for slices A-B before source implementation.
+## Scope reopen — defect memory
+
+During RED adversarial testing, malformed UTF-8 in A-Wiki `.drive-path` escaped as a raw `UnicodeDecodeError`. This is reusable fail-closed configuration-boundary knowledge, so this work order explicitly adds one bounded `DEFECT_LESSONS.md` entry to its documentation scope. No other hotspot/source scope is reopened.
+
+Evidence after repair:
+- focused WO-P1-114: `15 passed`;
+- related provider/harness/AHA-6 regression: `211 passed`;
+- full local suite: `1714 passed, 5 skipped, 2 known GPU dependency failures`;
+- the two failures are unchanged local environment issues in `tests/test_gpu_particle_logo.py` (Pillow import coupling and missing `OpenGL`), outside this work order.
+
+Automatic provider dispatch is **not** yet declared production-ready: the installed desktop process does not currently expose `A_WIKI_DRIVE_PATH`, and AHA-6 cross-batch provider admission still requires serialized admission or an existing atomic provider-capacity authority. WO-P1-114 supplies the provider DB/reference/supervised backend assembly only; those remaining gates must stay explicit.

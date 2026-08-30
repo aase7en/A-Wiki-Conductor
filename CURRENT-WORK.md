@@ -195,3 +195,14 @@ Current branch `feat/terminal-command-center-redesign` contains the implemented 
 Draft PR #77 is open from `feat/terminal-command-center-redesign`; implementation commit `c42d174` is pushed. CI started with Windows test + Ubuntu/macOS cross-platform smoke pending. Next owner must review actual PR diff and checks first, then fix only evidence-backed failures, finish packaging/fresh-install visual E2E, update SSoT, convert from draft/merge only after acceptance.
 
 - AHA-5 audit evidence: related suite 122 passed; CI-equivalent full suite 1687 passed, 1 environment skip, 0 failed; compileall/diff-check/secret-pattern scan PASS.
+
+
+## WO-P1-114 implementation checkpoint — 2026-08-30
+
+- New provider runtime seams implemented in `awiki_environment_resolver.py` and `provider_runtime_assembly.py`; no scheduler/lease/job-store/UI mutation.
+- RED collection proved both modules absent before implementation; GREEN focused suite now `15 passed`.
+- Related provider/harness/AHA-6 regression: `211 passed`; compileall PASS.
+- Full local suite: `1714 passed, 5 skipped, 2 known GPU dependency failures` outside WO-P1-114.
+- Adversarial `.drive-path` decode defect repaired and recorded as `DEFECT_LESSONS.md #26`.
+- Automatic GLM is still fail-closed: desktop runtime has no current `A_WIKI_DRIVE_PATH` binding, and AHA-6 cross-batch provider admission remains unsupported without serialized/atomic capacity authority.
+- Next gate: scope/secret/encoding audit → implementation commit/push → exact-SHA GLM-5.3 MAX read-only review packet → bounded repair if valid → PR/CI.
