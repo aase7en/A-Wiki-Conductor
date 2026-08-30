@@ -21,6 +21,11 @@ from .graph.dispatch import (
     GraphDispatchRequest,
 )
 from .graph.scheduler import SchedulePlan, SelectedAssignment
+from .provider_config_store import (
+    ProviderAdmissionKind,
+    ProviderAdmissionRecord,
+    ProviderAdmissionResult,
+)
 from .provider_configuration import (
     ProviderConfiguration,
     ProviderObservation,
@@ -43,6 +48,7 @@ class ParallelReadyOutcomeKind(str, Enum):
     PROVIDER_WAIT = "PROVIDER_WAIT"
     PROVIDER_QUOTA_WAIT = "PROVIDER_QUOTA_WAIT"
     PROVIDER_CAPACITY_WAIT = "PROVIDER_CAPACITY_WAIT"
+    PROVIDER_ADMISSION_RECOVERY_REQUIRED = "PROVIDER_ADMISSION_RECOVERY_REQUIRED"
     DISPATCH_GATE_BLOCKED = "DISPATCH_GATE_BLOCKED"
     LEASE_WAIT = "LEASE_WAIT"
     LEASE_EXISTING_RECONCILE = "LEASE_EXISTING_RECONCILE"
@@ -57,6 +63,7 @@ class ParallelReadyOutcome:
     reason_code: str
     lease_outcome: WorkerLeaseOutcome | None = None
     runner_result: object | None = None
+    provider_admission: ProviderAdmissionRecord | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +79,29 @@ class GraphDispatchPort(Protocol):
     def dispatch(
         self, request: GraphDispatchRequest, *, gate: DispatchGateDecision
     ) -> object: ...
+
+
+class ProviderAdmissionPort(Protocol):
+    def acquire_admission(
+        self,
+        *,
+        provider_id: str,
+        execution_id: str,
+        batch_id: str,
+        expected_max_concurrency: int,
+        now: object,
+        ttl_seconds: int,
+    ) -> ProviderAdmissionResult: ...
+
+    def release_admission(
+        self,
+        admission_id: str,
+        *,
+        provider_id: str,
+        execution_id: str,
+        batch_id: str,
+        now: object,
+    ) -> ProviderAdmissionRecord: ...
 
 
 class GraphDispatchParallelRunner:
@@ -185,6 +215,21 @@ def _quota_reason(task: ParallelReadyTask) -> str | None:
     return None
 
 
+def _safe_reason_code(code: object, fallback: str) -> str:
+    if (
+        isinstance(code, str)
+        and code
+        and len(code) <= 128
+        and all(ch.isalnum() or ch in "._:-" for ch in code)
+    ):
+        return code
+    return fallback
+
+
+def _safe_exception_reason(exc: Exception, fallback: str) -> str:
+    return _safe_reason_code(getattr(exc, "code", None), fallback)
+
+
 def _lease_wait_outcome(node_id: str, outcome: WorkerLeaseOutcome) -> ParallelReadyOutcome:
     mapping = {
         LeaseOutcomeKind.WAIT: (ParallelReadyOutcomeKind.LEASE_WAIT, "LEASE_WAIT"),
@@ -217,6 +262,7 @@ class ParallelReadyExecutor:
         broker: WorkerLeaseBroker,
         runner: ParallelReadyRunner,
         clock: Callable[[], object],
+        provider_admission_store: ProviderAdmissionPort | None = None,
     ) -> None:
         if not callable(getattr(broker, "acquire", None)):
             raise ValueError("broker must provide acquire")
@@ -224,9 +270,13 @@ class ParallelReadyExecutor:
             raise ValueError("runner must provide run")
         if not callable(clock):
             raise ValueError("clock must be callable")
+        if provider_admission_store is not None:
+            if not callable(getattr(provider_admission_store, "acquire_admission", None)) or not callable(getattr(provider_admission_store, "release_admission", None)):
+                raise ValueError("provider_admission_store must provide acquire_admission and release_admission")
         self._broker = broker
         self._runner = runner
         self._clock = clock
+        self._provider_admission_store = provider_admission_store
 
     @staticmethod
     def _validate_batch(
@@ -266,12 +316,34 @@ class ParallelReadyExecutor:
             tasks.append(task)
         return tuple(tasks)
 
+    def _release_provider_admission(
+        self,
+        task: ParallelReadyTask,
+        batch_id: str,
+        admission: ProviderAdmissionRecord | None,
+        now: object,
+    ) -> str | None:
+        if admission is None or self._provider_admission_store is None:
+            return None
+        try:
+            self._provider_admission_store.release_admission(
+                admission.admission_id,
+                provider_id=task.provider_profile.provider_id,
+                execution_id=task.harness_dispatch.execution_id,
+                batch_id=batch_id,
+                now=now,
+            )
+        except Exception as exc:
+            return _safe_exception_reason(exc, "PROVIDER_ADMISSION_RELEASE_EXCEPTION")
+        return None
+
     def execute(
         self,
         plan: SchedulePlan,
         tasks_by_node: Mapping[str, ParallelReadyTask],
         *,
         provider_inflight: Mapping[str, int],
+        batch_id: str | None = None,
     ) -> ParallelReadyBatchResult:
         """Execute one scheduler-owned batch against one capacity snapshot.
 
@@ -282,10 +354,14 @@ class ParallelReadyExecutor:
         provider semaphore/store.
         """
         tasks = self._validate_batch(plan, tasks_by_node, provider_inflight)
+        if self._provider_admission_store is not None:
+            if not isinstance(batch_id, str) or not batch_id.strip():
+                raise ValueError("batch_id is required with provider admission store")
+            batch_id = batch_id.strip()
         now = self._clock()
         provider_batch_count: dict[str, int] = {}
         outcomes: dict[str, ParallelReadyOutcome] = {}
-        runnable: list[tuple[ParallelReadyTask, WorkerLeaseOutcome]] = []
+        runnable: list[tuple[ParallelReadyTask, WorkerLeaseOutcome, ProviderAdmissionRecord | None]] = []
 
         for task in tasks:
             node_id = task.assignment.node_id
@@ -322,9 +398,88 @@ class ParallelReadyExecutor:
                 )
                 continue
 
-            lease_outcome = self._broker.acquire(task.lease_request, task.candidates)
+            admission = None
+            if self._provider_admission_store is not None:
+                try:
+                    admission_result = self._provider_admission_store.acquire_admission(
+                        provider_id=provider_id,
+                        execution_id=task.harness_dispatch.execution_id,
+                        batch_id=batch_id,
+                        expected_max_concurrency=profile.max_concurrency,
+                        now=now,
+                        ttl_seconds=task.lease_request.lease_ttl_seconds,
+                    )
+                except Exception as exc:
+                    reason = _safe_exception_reason(exc, "PROVIDER_ADMISSION_EXCEPTION")
+                    outcomes[node_id] = ParallelReadyOutcome(node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED, reason)
+                    continue
+                if not isinstance(admission_result, ProviderAdmissionResult):
+                    outcomes[node_id] = ParallelReadyOutcome(node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED, "PROVIDER_ADMISSION_OUTCOME_INVALID")
+                    continue
+                if not isinstance(admission_result.kind, ProviderAdmissionKind):
+                    outcomes[node_id] = ParallelReadyOutcome(node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED, "PROVIDER_ADMISSION_OUTCOME_UNSUPPORTED")
+                    continue
+                if admission_result.admission is not None and not isinstance(admission_result.admission, ProviderAdmissionRecord):
+                    outcomes[node_id] = ParallelReadyOutcome(node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED, "PROVIDER_ADMISSION_RECORD_INVALID")
+                    continue
+                if admission_result.kind is ProviderAdmissionKind.CAPACITY_WAIT:
+                    reason = _safe_reason_code(admission_result.reason_code, "PROVIDER_CAPACITY_EXHAUSTED")
+                    outcomes[node_id] = ParallelReadyOutcome(node_id, ParallelReadyOutcomeKind.PROVIDER_CAPACITY_WAIT, reason)
+                    continue
+                if admission_result.kind in {ProviderAdmissionKind.EXISTING, ProviderAdmissionKind.RECOVERY_REQUIRED}:
+                    reason = _safe_reason_code(admission_result.reason_code, "PROVIDER_ADMISSION_RECONCILE_REQUIRED")
+                    outcomes[node_id] = ParallelReadyOutcome(
+                        node_id,
+                        ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
+                        reason,
+                        provider_admission=admission_result.admission,
+                    )
+                    continue
+                admission = admission_result.admission
+                if admission_result.kind is not ProviderAdmissionKind.ADMITTED or admission is None:
+                    outcomes[node_id] = ParallelReadyOutcome(node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED, "PROVIDER_ADMISSION_RECORD_MISSING")
+                    continue
+
+            try:
+                lease_outcome = self._broker.acquire(task.lease_request, task.candidates)
+            except Exception as exc:
+                outcomes[node_id] = ParallelReadyOutcome(
+                    node_id,
+                    ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED,
+                    _safe_exception_reason(exc, "LEASE_ACQUIRE_EXCEPTION"),
+                    provider_admission=admission,
+                )
+                continue
+            if not isinstance(lease_outcome, WorkerLeaseOutcome):
+                outcomes[node_id] = ParallelReadyOutcome(
+                    node_id,
+                    ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED,
+                    "LEASE_OUTCOME_INVALID",
+                    provider_admission=admission,
+                )
+                continue
             if lease_outcome.kind is not LeaseOutcomeKind.LEASED:
-                outcomes[node_id] = _lease_wait_outcome(node_id, lease_outcome)
+                mapped = _lease_wait_outcome(node_id, lease_outcome)
+                if lease_outcome.kind in {LeaseOutcomeKind.WAIT, LeaseOutcomeKind.RDC_READ_ONLY}:
+                    release_reason = self._release_provider_admission(
+                        task, batch_id or "", admission, now
+                    )
+                    if release_reason is not None:
+                        outcomes[node_id] = ParallelReadyOutcome(
+                            node_id,
+                            ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
+                            release_reason,
+                            lease_outcome=lease_outcome,
+                            provider_admission=admission,
+                        )
+                        continue
+                outcomes[node_id] = ParallelReadyOutcome(
+                    node_id,
+                    mapped.kind,
+                    mapped.reason_code,
+                    lease_outcome=lease_outcome,
+                    provider_admission=admission,
+                )
                 continue
             if lease_outcome.lease is None:
                 outcomes[node_id] = ParallelReadyOutcome(
@@ -332,6 +487,7 @@ class ParallelReadyExecutor:
                     ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED,
                     "LEASE_RECORD_MISSING",
                     lease_outcome=lease_outcome,
+                    provider_admission=admission,
                 )
                 continue
             if lease_outcome.lease.worker_id != task.assignment.worker_id:
@@ -340,10 +496,11 @@ class ParallelReadyExecutor:
                     ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED,
                     "LEASE_WORKER_DRIFT",
                     lease_outcome=lease_outcome,
+                    provider_admission=admission,
                 )
                 continue
             provider_batch_count[provider_id] = batch_count + 1
-            runnable.append((task, lease_outcome))
+            runnable.append((task, lease_outcome, admission))
 
         if runnable:
             with ThreadPoolExecutor(
@@ -356,28 +513,25 @@ class ParallelReadyExecutor:
                         task,
                         lease_outcome.lease,
                     )
-                    for task, lease_outcome in runnable
+                    for task, lease_outcome, admission in runnable
                 }
-                for task, lease_outcome in runnable:
+                for task, lease_outcome, admission in runnable:
                     node_id = task.assignment.node_id
                     try:
                         runner_result = futures[node_id].result()
                     except Exception as exc:
-                        code = getattr(exc, "code", None)
-                        reason = (
-                            code
-                            if isinstance(code, str)
-                            and code
-                            and len(code) <= 128
-                            and all(ch.isalnum() or ch in "._:-" for ch in code)
-                            else "RUNNER_EXCEPTION"
-                        )
+                        reason = _safe_exception_reason(exc, "RUNNER_EXCEPTION")
                         outcomes[node_id] = ParallelReadyOutcome(
                             node_id,
                             ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED,
                             reason,
                             lease_outcome=lease_outcome,
+                            provider_admission=admission,
                         )
+                        continue
+                    release_reason = self._release_provider_admission(task, batch_id or "", admission, self._clock())
+                    if release_reason is not None:
+                        outcomes[node_id] = ParallelReadyOutcome(node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED, release_reason, lease_outcome=lease_outcome, runner_result=runner_result, provider_admission=admission)
                         continue
                     outcomes[node_id] = ParallelReadyOutcome(
                         node_id,
@@ -385,6 +539,7 @@ class ParallelReadyExecutor:
                         "RUNNER_COMPLETED",
                         lease_outcome=lease_outcome,
                         runner_result=runner_result,
+                        provider_admission=admission,
                     )
 
         return ParallelReadyBatchResult(

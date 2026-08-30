@@ -8,9 +8,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from enum import Enum
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 from .provider_configuration import (
     ProviderConfiguration,
@@ -25,9 +29,37 @@ class ProviderConfigStoreError(RuntimeError):
         super().__init__(code)
 
 
+class ProviderAdmissionKind(str, Enum):
+    ADMITTED = "ADMITTED"
+    CAPACITY_WAIT = "CAPACITY_WAIT"
+    EXISTING = "EXISTING"
+    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderAdmissionRecord:
+    admission_id: str
+    provider_id: str
+    execution_id: str
+    batch_id: str
+    acquired_at: datetime
+    expires_at: datetime
+    status: str
+    released_at: datetime | None = None
+    reconciled_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderAdmissionResult:
+    kind: ProviderAdmissionKind
+    reason_code: str
+    admission: ProviderAdmissionRecord | None = None
+
+
 class SQLiteProviderConfigStore:
-    def __init__(self, database_path: str | Path) -> None:
+    def __init__(self, database_path: str | Path, *, admission_id_factory: Callable[[], str] | None = None) -> None:
         self.database_path = Path(database_path)
+        self._admission_id_factory = admission_id_factory or (lambda: f'provider-admission-{uuid.uuid4().hex}')
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -79,6 +111,22 @@ class SQLiteProviderConfigStore:
                         latency_ms INTEGER,
                         quota_json TEXT
                     );
+
+                    CREATE TABLE IF NOT EXISTS provider_admissions (
+                        admission_id TEXT PRIMARY KEY,
+                        provider_id TEXT NOT NULL,
+                        execution_id TEXT NOT NULL,
+                        batch_id TEXT NOT NULL,
+                        acquired_at TEXT NOT NULL,
+                        expires_at TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK (status IN ('ACTIVE', 'RELEASED', 'EXPIRED')),
+                        released_at TEXT,
+                        reconciled_at TEXT,
+                        UNIQUE(provider_id, execution_id),
+                        FOREIGN KEY(provider_id) REFERENCES provider_configurations(provider_id)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_provider_admissions_active
+                    ON provider_admissions(provider_id, status, expires_at);
                     """
                 )
                 connection.commit()
@@ -261,3 +309,217 @@ class SQLiteProviderConfigStore:
             quota=quota,
             schema_version=row["schema_version"],
         )
+
+    @staticmethod
+    def _require_admission_text(value: str, field_name: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{field_name} must not be blank")
+        return value
+
+    @staticmethod
+    def _require_admission_time(value: datetime, field_name: str) -> datetime:
+        if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(f"{field_name} must be timezone-aware datetime")
+        return value.astimezone(timezone.utc)
+
+    @staticmethod
+    def _format_time(value: datetime | None) -> str | None:
+        if value is None:
+            return None
+        return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    @staticmethod
+    def _parse_time(value: str | None) -> datetime | None:
+        if value is None:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_RECORD_INVALID") from exc
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_RECORD_INVALID")
+        return parsed.astimezone(timezone.utc)
+
+    @classmethod
+    def _admission_from_row(cls, row: sqlite3.Row) -> ProviderAdmissionRecord:
+        acquired_at = cls._parse_time(row["acquired_at"])
+        expires_at = cls._parse_time(row["expires_at"])
+        if acquired_at is None or expires_at is None:
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_RECORD_INVALID")
+        return ProviderAdmissionRecord(
+            admission_id=row["admission_id"],
+            provider_id=row["provider_id"],
+            execution_id=row["execution_id"],
+            batch_id=row["batch_id"],
+            acquired_at=acquired_at,
+            expires_at=expires_at,
+            status=row["status"],
+            released_at=cls._parse_time(row["released_at"]),
+            reconciled_at=cls._parse_time(row["reconciled_at"]),
+        )
+
+    def _next_admission_id(self) -> str:
+        try:
+            value = self._admission_id_factory()
+        except Exception as exc:
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_ID_FAILED") from exc
+        return self._require_admission_text(value, "admission_id")
+
+    def acquire_admission(
+        self,
+        *,
+        provider_id: str,
+        execution_id: str,
+        batch_id: str,
+        expected_max_concurrency: int,
+        now: datetime,
+        ttl_seconds: int,
+    ) -> ProviderAdmissionResult:
+        provider_id = self._require_admission_text(provider_id, "provider_id")
+        execution_id = self._require_admission_text(execution_id, "execution_id")
+        batch_id = self._require_admission_text(batch_id, "batch_id")
+        if isinstance(expected_max_concurrency, bool) or not isinstance(expected_max_concurrency, int) or not 1 <= expected_max_concurrency <= 64:
+            raise ValueError("expected_max_concurrency must be between 1 and 64")
+        if isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, int) or ttl_seconds < 1:
+            raise ValueError("ttl_seconds must be >= 1")
+        now = self._require_admission_time(now, "now")
+        expires_at = now + timedelta(seconds=ttl_seconds)
+        now_text = self._format_time(now)
+        expires_text = self._format_time(expires_at)
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                profile = connection.execute(
+                    "SELECT max_concurrency, enabled FROM provider_configurations WHERE provider_id = ?",
+                    (provider_id,),
+                ).fetchone()
+                if profile is None:
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_PROVIDER_NOT_FOUND")
+                if int(profile["max_concurrency"]) != expected_max_concurrency:
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_PROFILE_DRIFT")
+                if not bool(profile["enabled"]):
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_PROVIDER_DISABLED")
+                active_rows = connection.execute(
+                    "SELECT * FROM provider_admissions WHERE provider_id=? AND status='ACTIVE'",
+                    (provider_id,),
+                ).fetchall()
+                active_records = tuple(self._admission_from_row(row) for row in active_rows)
+                expired_ids = tuple(
+                    record.admission_id for record in active_records if record.expires_at <= now
+                )
+                if expired_ids:
+                    connection.executemany(
+                        "UPDATE provider_admissions SET status='EXPIRED', reconciled_at=? "
+                        "WHERE admission_id=? AND status='ACTIVE'",
+                        ((now_text, admission_id) for admission_id in expired_ids),
+                    )
+                prior = connection.execute(
+                    "SELECT * FROM provider_admissions WHERE provider_id=? AND execution_id=?",
+                    (provider_id, execution_id),
+                ).fetchone()
+                if prior is not None:
+                    record = self._admission_from_row(prior)
+                    if record.batch_id != batch_id:
+                        connection.commit()
+                        return ProviderAdmissionResult(
+                            ProviderAdmissionKind.RECOVERY_REQUIRED,
+                            "PROVIDER_ADMISSION_BATCH_DRIFT",
+                            record,
+                        )
+                    connection.commit()
+                    kind = ProviderAdmissionKind.EXISTING if record.status == "ACTIVE" else ProviderAdmissionKind.RECOVERY_REQUIRED
+                    reason = "PROVIDER_ADMISSION_ALREADY_ACTIVE" if record.status == "ACTIVE" else "PROVIDER_ADMISSION_TERMINAL_RECONCILE"
+                    return ProviderAdmissionResult(kind, reason, record)
+                active = sum(record.expires_at > now for record in active_records)
+                if active >= expected_max_concurrency:
+                    connection.commit()
+                    return ProviderAdmissionResult(
+                        ProviderAdmissionKind.CAPACITY_WAIT,
+                        "PROVIDER_CAPACITY_EXHAUSTED",
+                    )
+                admission_id = self._next_admission_id()
+                connection.execute(
+                    "INSERT INTO provider_admissions(admission_id, provider_id, execution_id, batch_id, acquired_at, expires_at, status) "
+                    "VALUES(?, ?, ?, ?, ?, ?, 'ACTIVE')",
+                    (admission_id, provider_id, execution_id, batch_id, now_text, expires_text),
+                )
+                row = connection.execute(
+                    "SELECT * FROM provider_admissions WHERE admission_id=?",
+                    (admission_id,),
+                ).fetchone()
+                connection.commit()
+                return ProviderAdmissionResult(
+                    ProviderAdmissionKind.ADMITTED,
+                    "PROVIDER_ADMITTED",
+                    self._admission_from_row(row),
+                )
+            except ProviderConfigStoreError:
+                connection.rollback()
+                raise
+            except sqlite3.IntegrityError as exc:
+                connection.rollback()
+                raise ProviderConfigStoreError("PROVIDER_ADMISSION_CONFLICT") from exc
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise ProviderConfigStoreError("CONFIG_STORE_WRITE_FAILED") from exc
+
+    def get_admission(self, admission_id: str) -> ProviderAdmissionRecord | None:
+        admission_id = self._require_admission_text(admission_id, "admission_id")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                row = connection.execute(
+                    "SELECT * FROM provider_admissions WHERE admission_id=?",
+                    (admission_id,),
+                ).fetchone()
+            except sqlite3.Error as exc:
+                raise ProviderConfigStoreError("CONFIG_STORE_READ_FAILED") from exc
+        return None if row is None else self._admission_from_row(row)
+
+    def release_admission(
+        self,
+        admission_id: str,
+        *,
+        provider_id: str,
+        execution_id: str,
+        batch_id: str,
+        now: datetime,
+    ) -> ProviderAdmissionRecord:
+        admission_id = self._require_admission_text(admission_id, "admission_id")
+        provider_id = self._require_admission_text(provider_id, "provider_id")
+        execution_id = self._require_admission_text(execution_id, "execution_id")
+        batch_id = self._require_admission_text(batch_id, "batch_id")
+        now = self._require_admission_time(now, "now")
+        now_text = self._format_time(now)
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT * FROM provider_admissions WHERE admission_id=?",
+                    (admission_id,),
+                ).fetchone()
+                if row is None:
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_NOT_FOUND")
+                record = self._admission_from_row(row)
+                if (record.provider_id, record.execution_id, record.batch_id) != (provider_id, execution_id, batch_id):
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_IDENTITY_MISMATCH")
+                if record.status != "ACTIVE":
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_NOT_ACTIVE")
+                connection.execute(
+                    "UPDATE provider_admissions SET status='RELEASED', released_at=?, reconciled_at=? WHERE admission_id=? AND status='ACTIVE'",
+                    (now_text, now_text, admission_id),
+                )
+                updated = connection.execute(
+                    "SELECT * FROM provider_admissions WHERE admission_id=?",
+                    (admission_id,),
+                ).fetchone()
+                connection.commit()
+                return self._admission_from_row(updated)
+            except ProviderConfigStoreError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise ProviderConfigStoreError("CONFIG_STORE_WRITE_FAILED") from exc

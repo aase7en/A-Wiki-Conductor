@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from threading import Barrier, Lock
+import sqlite3
+from threading import Barrier, Event, Lock
 
 import pytest
 
@@ -21,6 +23,8 @@ from a_conductor.parallel_ready_execution import (
     ParallelReadyOutcomeKind,
     ParallelReadyTask,
 )
+from a_conductor.provider_config_store import ProviderAdmissionKind, ProviderAdmissionResult, SQLiteProviderConfigStore
+from a_conductor.provider_runtime_assembly import build_sqlite_parallel_ready_executor
 from a_conductor.provider_configuration import (
     EgressBoundary,
     HarnessStrategy,
@@ -675,3 +679,493 @@ def test_same_batch_honors_provider_max_concurrency_before_second_lease(tmp_path
     active = store.list_active()
     assert len(active) == 1
     assert active[0].task_id == "task-provider-first"
+
+
+class BlockingAdmissionRunner:
+    def __init__(self) -> None:
+        self.started = Event()
+        self.release = Event()
+        self.lock = Lock()
+        self.calls: list[str] = []
+
+    def run(self, task: ParallelReadyTask, lease):
+        with self.lock:
+            self.calls.append(task.assignment.node_id)
+        self.started.set()
+        assert self.release.wait(timeout=3)
+        return {"node_id": task.assignment.node_id, "lease_id": lease.lease_id}
+
+
+def test_provider_global_admission_blocks_concurrent_independent_batch(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    left_broker, _ = _broker(tmp_path / "left")
+    right_broker, _ = _broker(tmp_path / "right")
+    runner = BlockingAdmissionRunner()
+    left_executor = build_sqlite_parallel_ready_executor(
+        database_path=database, broker=left_broker, runner=runner, clock=lambda: NOW,
+    )
+    right_executor = build_sqlite_parallel_ready_executor(
+        database_path=database, broker=right_broker, runner=runner, clock=lambda: NOW,
+    )
+    left = _task(
+        node_id="global-left",
+        worker_id="a-worker-01",
+        worktree=r"A:\Work\global-left",
+        branch="feat/global-left",
+        mutable_scope=("src/global_left.py",),
+        profile=profile,
+    )
+    right = _task(
+        node_id="global-right",
+        worker_id="a-worker-02",
+        worktree=r"A:\Work\global-right",
+        branch="feat/global-right",
+        mutable_scope=("src/global_right.py",),
+        profile=profile,
+    )
+    left_plan = SchedulePlan((left.assignment,), (), "capacity=1/1")
+    right_plan = SchedulePlan((right.assignment,), (), "capacity=1/1")
+
+    def execute(executor, plan, task, batch_id):
+        return executor.execute(
+            plan,
+            {task.assignment.node_id: task},
+            provider_inflight={"cointh-glm": 0},
+            batch_id=batch_id,
+        )
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        left_future = pool.submit(execute, left_executor, left_plan, left, "batch-left")
+        right_future = pool.submit(execute, right_executor, right_plan, right, "batch-right")
+        assert runner.started.wait(timeout=3)
+        for _ in range(60):
+            if left_future.done() or right_future.done():
+                break
+            Event().wait(0.05)
+        assert left_future.done() or right_future.done()
+        runner.release.set()
+        results = (left_future.result(timeout=3), right_future.result(timeout=3))
+
+    kinds = sorted(result.outcomes[0].kind.value for result in results)
+    assert kinds == ["PROVIDER_CAPACITY_WAIT", "RUN_COMPLETED"]
+    assert len(runner.calls) == 1
+
+
+class FailingAdmissionRunner:
+    def run(self, task: ParallelReadyTask, lease):
+        raise RuntimeError("uncertain transport")
+
+
+def test_runner_uncertainty_retains_provider_admission_for_reconcile(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    broker, _ = _broker(tmp_path / "lease")
+    task = _task(
+        node_id="uncertain-provider-run",
+        worker_id="a-worker-01",
+        worktree=r"A:\Work\uncertain-provider-run",
+        branch="feat/uncertain-provider-run",
+        mutable_scope=("src/uncertain.py",),
+        profile=profile,
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=FailingAdmissionRunner(),
+        clock=lambda: NOW,
+        provider_admission_store=SQLiteProviderConfigStore(database),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-uncertain",
+    )
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("ACTIVE",)]
+
+
+def test_pre_runner_existing_lease_retains_provider_admission_for_reconcile(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    broker, _ = _broker(tmp_path / "lease-existing")
+    task = _task(
+        node_id="provider-before-existing-lease",
+        worker_id="a-worker-01",
+        worktree=r"A:\Work\provider-before-existing",
+        branch="feat/provider-before-existing",
+        mutable_scope=("src/existing.py",),
+        profile=profile,
+    )
+    assert broker.acquire(task.lease_request, task.candidates).kind is LeaseOutcomeKind.LEASED
+    runner = BarrierRunner(parties=1)
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=runner,
+        clock=lambda: NOW,
+        provider_admission_store=SQLiteProviderConfigStore(database),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-existing-lease",
+    )
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.LEASE_EXISTING_RECONCILE
+    assert runner.calls == []
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("ACTIVE",)]
+
+
+class SelectiveExplodingAdmissionStore:
+    def __init__(self, delegate, *, explode_execution_id: str) -> None:
+        self.delegate = delegate
+        self.explode_execution_id = explode_execution_id
+
+    def acquire_admission(self, **kwargs):
+        if kwargs["execution_id"] == self.explode_execution_id:
+            raise RuntimeError("unexpected admission backend failure")
+        return self.delegate.acquire_admission(**kwargs)
+
+    def release_admission(self, admission_id, **kwargs):
+        return self.delegate.release_admission(admission_id, **kwargs)
+
+
+class ReleaseExplodingAdmissionStore:
+    def __init__(self, delegate) -> None:
+        self.delegate = delegate
+
+    def acquire_admission(self, **kwargs):
+        return self.delegate.acquire_admission(**kwargs)
+
+    def release_admission(self, admission_id, **kwargs):
+        raise RuntimeError("unexpected admission release failure")
+
+
+def test_unexpected_admission_exception_preserves_sibling_batch_evidence(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=2)
+    delegate = SQLiteProviderConfigStore(database)
+    delegate.save_provider(profile)
+    broker, _ = _broker(tmp_path / "leases")
+    runner = BarrierRunner(parties=1)
+    first = _task(
+        node_id="admission-sibling-good", worker_id="a-worker-01",
+        worktree=r"A:\Work\admission-good", branch="feat/admission-good",
+        mutable_scope=("src/good.py",), profile=profile,
+    )
+    second = _task(
+        node_id="admission-sibling-bad", worker_id="a-worker-02",
+        worktree=r"A:\Work\admission-bad", branch="feat/admission-bad",
+        mutable_scope=("src/bad.py",), profile=profile,
+    )
+    store = SelectiveExplodingAdmissionStore(
+        delegate,
+        explode_execution_id=second.harness_dispatch.execution_id,
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker, runner=runner, clock=lambda: NOW,
+        provider_admission_store=store,
+    )
+    plan = SchedulePlan((first.assignment, second.assignment), (), "capacity=2/2")
+    result = executor.execute(
+        plan,
+        {first.assignment.node_id: first, second.assignment.node_id: second},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-admission-sibling",
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.RUN_COMPLETED
+    assert result.outcomes[1].kind is ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED
+    assert result.outcomes[1].reason_code == "PROVIDER_ADMISSION_EXCEPTION"
+    assert runner.calls == ["admission-sibling-good"]
+
+
+def test_unexpected_admission_release_exception_becomes_typed_recovery(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    delegate = SQLiteProviderConfigStore(database)
+    delegate.save_provider(profile)
+    broker, _ = _broker(tmp_path / "leases-release")
+    task = _task(
+        node_id="admission-release-failure", worker_id="a-worker-01",
+        worktree=r"A:\Work\admission-release-failure",
+        branch="feat/admission-release-failure",
+        mutable_scope=("src/release_failure.py",), profile=profile,
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=BarrierRunner(parties=1),
+        clock=lambda: NOW,
+        provider_admission_store=ReleaseExplodingAdmissionStore(delegate),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-release-failure",
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "PROVIDER_ADMISSION_RELEASE_EXCEPTION"
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("ACTIVE",)]
+
+
+class UnsafeCodeAdmissionError(RuntimeError):
+    code = "unsafe\nprovider-code"
+
+
+class UnsafeCodeAdmissionStore:
+    def acquire_admission(self, **kwargs):
+        raise UnsafeCodeAdmissionError("do not expose")
+
+    def release_admission(self, admission_id, **kwargs):
+        raise AssertionError("release should not run")
+
+
+def test_untrusted_admission_exception_code_is_sanitized(tmp_path: Path) -> None:
+    broker, _ = _broker(tmp_path / "unsafe-code")
+    task = _task(
+        node_id="unsafe-admission-code", worker_id="a-worker-01",
+        worktree=r"A:\Work\unsafe-admission-code", branch="feat/unsafe-admission-code",
+        mutable_scope=("src/unsafe.py",), profile=_profile(max_concurrency=1),
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker, runner=BarrierRunner(parties=1), clock=lambda: NOW,
+        provider_admission_store=UnsafeCodeAdmissionStore(),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-unsafe-code",
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "PROVIDER_ADMISSION_EXCEPTION"
+
+
+class ExplodingWorkerLeaseBroker:
+    def acquire(self, request, candidates):
+        raise RuntimeError("worker lease state uncertain")
+
+
+class WaitingWorkerLeaseBroker:
+    def acquire(self, request, candidates):
+        return WorkerLeaseOutcome(LeaseOutcomeKind.WAIT)
+
+
+class FutureWorkerLeaseBroker:
+    def acquire(self, request, candidates):
+        return WorkerLeaseOutcome("FUTURE_KIND")
+
+
+def _admission_statuses(database: Path) -> list[tuple[str]]:
+    with sqlite3.connect(database) as connection:
+        return connection.execute("SELECT status FROM provider_admissions ORDER BY admission_id").fetchall()
+
+
+def test_worker_lease_exception_retains_provider_admission_and_batch_evidence(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    task = _task(
+        node_id="lease-exception", worker_id="a-worker-01",
+        worktree=r"A:\Work\lease-exception", branch="feat/lease-exception",
+        mutable_scope=("src/lease_exception.py",), profile=profile,
+    )
+    runner = BarrierRunner(parties=1)
+    executor = ParallelReadyExecutor(
+        broker=ExplodingWorkerLeaseBroker(), runner=runner, clock=lambda: NOW,
+        provider_admission_store=SQLiteProviderConfigStore(database),
+    )
+
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task}, provider_inflight={"cointh-glm": 0},
+        batch_id="batch-lease-exception",
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "LEASE_ACQUIRE_EXCEPTION"
+    assert runner.calls == []
+    assert _admission_statuses(database) == [("ACTIVE",)]
+
+
+def test_worker_lease_wait_releases_unused_provider_admission(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    task = _task(
+        node_id="lease-wait-release", worker_id="a-worker-01",
+        worktree=r"A:\Work\lease-wait-release", branch="feat/lease-wait-release",
+        mutable_scope=("src/lease_wait.py",), profile=profile,
+    )
+    runner = BarrierRunner(parties=1)
+    executor = ParallelReadyExecutor(
+        broker=WaitingWorkerLeaseBroker(), runner=runner, clock=lambda: NOW,
+        provider_admission_store=SQLiteProviderConfigStore(database),
+    )
+
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task}, provider_inflight={"cointh-glm": 0},
+        batch_id="batch-lease-wait",
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.LEASE_WAIT
+    assert runner.calls == []
+    assert _admission_statuses(database) == [("RELEASED",)]
+
+
+def test_unknown_worker_lease_outcome_retains_provider_admission_for_reconcile(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    task = _task(
+        node_id="future-lease-provider", worker_id="a-worker-01",
+        worktree=r"A:\Work\future-lease-provider", branch="feat/future-lease-provider",
+        mutable_scope=("src/future_lease_provider.py",), profile=profile,
+    )
+    runner = BarrierRunner(parties=1)
+    executor = ParallelReadyExecutor(
+        broker=FutureWorkerLeaseBroker(), runner=runner, clock=lambda: NOW,
+        provider_admission_store=SQLiteProviderConfigStore(database),
+    )
+
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task}, provider_inflight={"cointh-glm": 0},
+        batch_id="batch-future-lease-provider",
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "LEASE_OUTCOME_UNSUPPORTED"
+    assert runner.calls == []
+    assert _admission_statuses(database) == [("ACTIVE",)]
+
+
+class MalformedAdmissionResultStore:
+    def acquire_admission(self, **kwargs):
+        return object()
+
+    def release_admission(self, admission_id, **kwargs):
+        raise AssertionError("release must not run for malformed admission result")
+
+
+def test_malformed_admission_result_becomes_typed_recovery(tmp_path: Path) -> None:
+    broker, _ = _broker(tmp_path / "malformed-admission")
+    task = _task(
+        node_id="malformed-admission", worker_id="a-worker-01",
+        worktree=r"A:\Work\malformed-admission", branch="feat/malformed-admission",
+        mutable_scope=("src/malformed.py",), profile=_profile(max_concurrency=1),
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker, runner=BarrierRunner(parties=1), clock=lambda: NOW,
+        provider_admission_store=MalformedAdmissionResultStore(),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-malformed-admission",
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "PROVIDER_ADMISSION_OUTCOME_INVALID"
+
+
+class FutureAdmissionStore(MalformedAdmissionResultStore):
+    def acquire_admission(self, **kwargs):
+        return ProviderAdmissionResult("FUTURE_KIND", "future-kind", None)
+
+
+def test_unknown_admission_outcome_kind_fails_closed(tmp_path: Path) -> None:
+    broker, _ = _broker(tmp_path / "future-admission")
+    task = _task(
+        node_id="future-admission", worker_id="a-worker-01",
+        worktree=r"A:\Work\future-admission", branch="feat/future-admission",
+        mutable_scope=("src/future.py",), profile=_profile(max_concurrency=1),
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker, runner=BarrierRunner(parties=1), clock=lambda: NOW,
+        provider_admission_store=FutureAdmissionStore(),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-future-admission",
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "PROVIDER_ADMISSION_OUTCOME_UNSUPPORTED"
+
+
+class UnsafeAdmissionResultStore(MalformedAdmissionResultStore):
+    def acquire_admission(self, **kwargs):
+        return ProviderAdmissionResult(
+            ProviderAdmissionKind.CAPACITY_WAIT,
+            "unsafe\ncapacity-code",
+            None,
+        )
+
+
+def test_admission_result_reason_code_is_sanitized(tmp_path: Path) -> None:
+    broker, _ = _broker(tmp_path / "unsafe-result-code")
+    task = _task(
+        node_id="unsafe-result-code", worker_id="a-worker-01",
+        worktree=r"A:\Work\unsafe-result-code", branch="feat/unsafe-result-code",
+        mutable_scope=("src/unsafe_result.py",), profile=_profile(max_concurrency=1),
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker, runner=BarrierRunner(parties=1), clock=lambda: NOW,
+        provider_admission_store=UnsafeAdmissionResultStore(),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-unsafe-result-code",
+    )
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_CAPACITY_WAIT
+    assert result.outcomes[0].reason_code == "PROVIDER_CAPACITY_EXHAUSTED"
+
+
+class InvalidAdmissionRecordStore(MalformedAdmissionResultStore):
+    def acquire_admission(self, **kwargs):
+        return ProviderAdmissionResult(
+            ProviderAdmissionKind.ADMITTED,
+            "PROVIDER_ADMITTED",
+            object(),
+        )
+
+
+def test_admitted_result_with_invalid_record_never_starts_runner(tmp_path: Path) -> None:
+    broker, _ = _broker(tmp_path / "invalid-admission-record")
+    runner = BarrierRunner(parties=1)
+    task = _task(
+        node_id="invalid-admission-record", worker_id="a-worker-01",
+        worktree=r"A:\Work\invalid-admission-record", branch="feat/invalid-admission-record",
+        mutable_scope=("src/invalid_record.py",), profile=_profile(max_concurrency=1),
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker, runner=runner, clock=lambda: NOW,
+        provider_admission_store=InvalidAdmissionRecordStore(),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-invalid-admission-record",
+    )
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "PROVIDER_ADMISSION_RECORD_INVALID"
+    assert runner.calls == []
