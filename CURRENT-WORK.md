@@ -1,10 +1,10 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 VERIFIED / PR_GATE)
+Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 COMPLETE / RELEASED)
 
 ## Current phase
 
-**PRIMARY SAFE NEW-FEATURE PRIORITY: WO-P1-115 / AHA-6A.1 provider admission + production runtime wiring.**
+**LATEST COMPLETED ACCELERATOR SLICE: WO-P1-115 / AHA-6A.1 provider admission + production runtime wiring.**
 
 P0 release gate `WO-P1-096` remains higher priority but is externally blocked pending a spare Tunnel ID or explicit maintenance authorization for one live Worker; this work order does not disrupt live connectors.
 
@@ -15,21 +15,21 @@ Accepted AHA-5 closeout state:
 - Windows Frozen Setup install/uninstall E2E: PASS;
 - AHA-5 implementation + closeout worktrees/branches cleaned after tree-equality proof.
 
-## Active work order
+## Latest completed work order
 
-`docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / VERIFIED / PR_GATE.
-Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`.
-Branch: `feat/wo-p1-115-provider-admission-runtime` @ base `5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`.
+`docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.
+Implementation PR `#155` merged as `a758f9e882db03e988d67a3f04f69862dd9195c2`; exact-head CI `33312763072` and post-main CI `33313201851` passed Windows/Ubuntu/macOS including Frozen Setup E2E.
+Closeout worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission-closeout`; branch `docs/wo-p1-115-provider-admission-closeout`.
 
 ## Immediate execution frontier
 
-1. GLM re-review `wo115-glm-rereview-002` returned validated `PASS` on exact HEAD `5c16ed5248eda5dd0f8094520e45915fe436093e`; P0/P1/P2 findings `0`.
-2. Repair `cf9676a6d4b9ce988f849426d514a823df034d18` is accepted: explicit five-hour quota evidence wins, ambiguous/inconsistent quota evidence fails closed, and no concurrency/secret/lifecycle authority was duplicated.
-3. P3 disposition: quota-consistency tolerance remains intentionally conservative/fail-closed pending upstream evidence; the reported missing multithread test is rejected because `test_atomic_provider_admission_allows_only_one_concurrent_owner` already uses `ThreadPoolExecutor + Barrier`, with separate cross-process E2E also PASS.
-4. Final local evidence: focused `62 passed`; related `256 passed`; full local `1753 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures`; compile/diff/scope/secret/encoding audit PASS; DB-copy and cross-process E2E PASS.
-5. Source/tests are frozen at reviewed HEAD `5c16ed5248eda5dd0f8094520e45915fe436093e`. No further source mutation before PR unless a deterministic gate exposes a new defect.
-6. Next gate: final branch/remote/file-scope audit -> Draft PR -> exact-head Windows/Ubuntu/macOS CI including Frozen Setup E2E -> re-audit -> merge -> post-main proof.
-7. Automatic live GLM remains fail-closed: no proven active local GLM route and no complete reset-bearing 5h quota tuple. `WO-P1-096` remains the separate higher P0 release blocker pending authorized live connector soak.
+1. WO-P1-115 implementation/review loop is released: GLM review + re-review both PASS with P0/P1/P2 = `0`; accepted quota-evidence repairs are in the merged lineage.
+2. PR `#155` exact head `7959ff9d8a300b2920a2ef1014c63db64b19518c` passed CI `33312763072`, then merged as `a758f9e882db03e988d67a3f04f69862dd9195c2`.
+3. Post-main CI `33313201851` on the exact merge SHA passed Windows/Ubuntu/macOS including Frozen Setup install/uninstall E2E.
+4. Local acceptance remains focused `62 passed`, related `256 passed`, full `1753 passed / 4 skipped / 2 known GPU dependency failures`; installed-DB-copy and cross-process admission E2E PASS.
+5. Automatic live GLM remains fail-closed: no proven active provider route and no complete reset-bearing five-hour quota tuple. AHA-6A.1 completion does not weaken that gate.
+6. `WO-P1-096` remains the higher P0 release blocker whenever a spare Tunnel ID or explicit maintenance authorization becomes available.
+7. No successor AHA lane is claimed by this closeout. After closeout merge/post-main proof and cleanup, re-enter roadmap/claims; AHA-6B is only a candidate new work order after a fresh reuse/ownership gate.
 
 ## Source-of-truth rule
 

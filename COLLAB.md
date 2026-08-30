@@ -34,10 +34,11 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-115` / AHA-6A.1 provider admission + runtime wiring | GPT-5.6 Sol integrator | 2026-08-30 | Isolated `A-Wiki-Conductor-provider-admission` / `feat/wo-p1-115-provider-admission-runtime`; GLM-reviewed implementation was repaired at `cf9676a6d4b9ce988f849426d514a823df034d18`; exact-SHA re-review passed on `5c16ed5248eda5dd0f8094520e45915fe436093e`, so the branch is at PR gate. Existing provider store + runtime assembly + AHA-6 admission seam + focused tests + bounded SSoT only. No UI/North Star/live connector/user CCR config/plaintext secret mutation. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
+
+- `WO-P1-115` / PR #155 AHA-6A.1 provider admission + production runtime wiring: exact PR head `7959ff9d8a300b2920a2ef1014c63db64b19518c` passed CI `33312763072`; merged as `a758f9e882db03e988d67a3f04f69862dd9195c2`; post-main CI `33313201851` passed Windows/Ubuntu/macOS including Frozen Setup E2E. GLM review + repair re-review found zero P0/P1/P2 defects. Claim released. Automatic live provider dispatch remains fail-closed until active route + complete reset-bearing 5h quota evidence exist.
 
 - `WO-P1-114` / PR #153 AHA-6A automatic provider runtime assembly: exact reviewed head `00d0828816e11110f30299c76d6b5a43e7d5b095` passed CI `33299166993`; merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`; post-main CI `33299559419` passed Windows/Ubuntu/macOS including Frozen Setup E2E. GLM-5.3 MAX review PASS with zero P0/P1/P2 findings. Claim released. Production Drive binding, fresh quota observation and provider-global admission require a new work order before automatic provider dispatch is declared ready.
 

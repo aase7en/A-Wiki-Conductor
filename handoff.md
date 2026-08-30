@@ -1,14 +1,14 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-30 - WO-P1-115 / AHA-6A.1 ACTIVE / VERIFIED / PR_GATE
+Last updated: 2026-08-30 - WO-P1-115 / AHA-6A.1 COMPLETE / RELEASED
 
 ## Current objective
 
-Execute WO-P1-115 / AHA-6A.1: add provider-global atomic admission and production runtime/bootstrap wiring by extending existing provider authorities. Automatic GLM/provider execution remains fail-closed until an exact provider route, fresh required quota evidence, secret resolution and admission gates are all proven. `WO-P1-096` remains the higher P0 release blocker pending explicit live-Worker maintenance authority.
+Preserve the released WO-P1-115 / AHA-6A.1 evidence, finish docs-only closeout/cleanup, then re-enter actual roadmap and claims before opening any successor lane. Automatic GLM/provider execution remains fail-closed until an exact active provider route and complete reset-bearing five-hour quota evidence are proven. `WO-P1-096` remains the higher P0 release blocker pending explicit live-Worker maintenance authority.
 
 ## Repository state
 
-- Active work order: `docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / VERIFIED / PR_GATE.
+- Latest completed work order: `docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.
 - Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`; branch `feat/wo-p1-115-provider-admission-runtime`; base `origin/main@5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`; clean at claim.
 - Predecessor WO-P1-114 implementation + closeout are merged, post-main green and cleaned; no WO-P1-114 branches/worktrees remain.
 - Reuse gate: A-Wiki remote main `71406f8a25079f364face422012e4bdeac5f483e`; secret authority is `docs/protocols/secrets-global-env.md`; A-Wiki local checkout remains dirty/read-only.
@@ -125,3 +125,13 @@ Prepared task identity: `wo114-glm-review-002`; ignored task/result paths are `r
 PR #153 exact head `00d0828816e11110f30299c76d6b5a43e7d5b095` passed CI `33299166993`, merged as `8828f07654746a52110bc89cc359e9e558b2f9e5`, and post-main CI `33299559419` passed Windows/Ubuntu/macOS including Frozen Setup E2E. WO-P1-114 is COMPLETE / RELEASED.
 
 No successor AHA lane is claimed. The next accelerator slice requires a new work order for AHA-6A.1: runtime Drive binding, fresh complete quota observation, and serialized/atomic provider admission. Until that exists, automatic live GLM/provider dispatch remains fail-closed and the one-way task/result file bridge remains the accepted fallback. WO-P1-096 remains the separate higher P0 release blocker pending authorized live connector soak.
+
+## WO-P1-115 final release checkpoint
+
+- PR #155 exact head `7959ff9d8a300b2920a2ef1014c63db64b19518c` passed CI `33312763072` on Windows/Ubuntu/macOS including Windows Frozen Setup E2E.
+- PR #155 merged as `a758f9e882db03e988d67a3f04f69862dd9195c2`; post-main CI `33313201851` passed all three OS jobs including Frozen Setup E2E.
+- GLM review and exact-repair re-review are accepted historical evidence; both result packets are ignored runtime artifacts and must not be reused for later HEADs.
+- Automatic live GLM remains fail-closed until an active provider route and complete reset-bearing five-hour quota tuple are proven. Provider admission/bootstrap capability is merged, not equivalent to provider readiness.
+- Closeout branch/worktree: `docs/wo-p1-115-provider-admission-closeout` / `A:\GitHub\A-Wiki-Conductor-provider-admission-closeout` from exact merged main.
+- After closeout merge/post-main proof, remove only WO-P1-115 implementation/closeout worktrees and branches after clean/ancestry/no-unique-commit/tree-diff proof. Preserve root/North-Star/other worktrees.
+- No successor accelerator claim exists yet. Re-enter actual roadmap/claims after cleanup; WO-P1-096 remains P0 when maintenance authority becomes available.

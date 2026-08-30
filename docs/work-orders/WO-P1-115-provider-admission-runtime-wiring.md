@@ -2,7 +2,7 @@
 
 Date: 2026-08-30
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / CLAIMED / VERIFIED / PR_GATE
+Status: COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`
 Branch: `feat/wo-p1-115-provider-admission-runtime`
@@ -148,3 +148,14 @@ The remaining quota-consistency tolerance note is intentionally deferred because
 Acceptance snapshot: focused `62 passed`; related `256 passed`; full local `1753 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures`; installed-DB-copy and cross-process E2E PASS; compile/diff/scope/secret/encoding audit PASS. Automatic live GLM remains fail-closed until a proven active route and complete reset-bearing five-hour quota tuple exist.
 
 Next gate: final branch/remote/file-scope audit, Draft PR, exact-head CI on Windows/Ubuntu/macOS including Frozen Setup E2E, re-audit, merge and post-main proof.
+
+## Final release checkpoint
+
+- PR #155 exact reviewed head: `7959ff9d8a300b2920a2ef1014c63db64b19518c`.
+- Exact-head CI `33312763072`: SUCCESS on Windows/Ubuntu/macOS; Windows Frozen Setup install/uninstall E2E PASS.
+- Merge commit: `a758f9e882db03e988d67a3f04f69862dd9195c2`.
+- Post-main CI `33313201851` on the exact merge SHA: SUCCESS on Windows/Ubuntu/macOS including Frozen Setup E2E.
+- Independent GLM review and repair re-review both returned validated PASS with P0/P1/P2 = `0`; task/result identity and pinned source/test hashes were verified before acceptance.
+- Local acceptance evidence remains focused `62 passed`, related `256 passed`, full `1753 passed / 4 skipped / 2 known GPU dependency failures`; DB-copy and cross-process admission E2E PASS.
+- Provider-global admission/bootstrap is merged. Automatic live GLM/provider dispatch remains fail-closed until a proven active provider route and complete reset-bearing five-hour quota tuple exist.
+- Claim is released. No successor AHA lane is claimed by this closeout; future work must perform a fresh roadmap/reuse/ownership gate.
