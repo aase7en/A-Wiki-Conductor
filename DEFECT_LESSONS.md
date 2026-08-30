@@ -399,3 +399,47 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** when an authority-bearing API changes, compile success or a narrow new test is insufficient. Search/migrate all callers and verify the affected regression set before durable SSoT says GREEN.
 
 **Verify:** related AHA-5/lease/supervised suite = 122 passed; CI-equivalent full suite with project dependencies = 1687 passed, 1 environment skip, 0 failed.
+
+
+---
+
+## #23: One parallel runner exception must not erase sibling batch outcomes (2026-08-30)
+
+**Symptom:** the first AHA-6 executor draft called `future.result()` directly while collecting a parallel batch. One runner exception would raise out of the entire batch collector even though sibling tasks had already been leased/dispatched, making the returned batch state incomplete and tempting a caller to replay work blindly.
+
+**Root cause:** execution fan-out was concurrent, but fan-in error collection still used all-or-nothing exception semantics instead of per-task recovery semantics.
+
+**Fix:** collect each future independently. A failed runner becomes `RUNNER_RECOVERY_REQUIRED` with a bounded reason code; no internal retry occurs, and the active lease remains authoritative for later reconciliation. Successful siblings still return their own outcomes.
+
+**Lesson:** parallel fan-out requires failure-isolated fan-in. Once work may have started, a collector exception is not permission to forget sibling state or retry the batch. Preserve per-task evidence/ownership and reconcile uncertain lanes individually.
+
+**Verify:** focused AHA-6 tests cover runner exception -> recovery-required, exactly one runner call, active lease retention, stable sibling outcomes, plus real two-task concurrent dispatch. Focused suite = 13 passed; related scheduler/dispatch/chaos/lease/provider/harness regression = 193 passed.
+
+
+---
+
+## #24: Generated agent task packets must be re-read before dispatch (2026-08-30)
+
+**Symptom:** the first ignored AHA-6 GLM review task was generated through a PowerShell double-quoted here-string. Markdown backticks altered interpolation/escape behavior: identity variables were written literally and the result path was split, even though the shell command itself succeeded.
+
+**Root cause:** task generation trusted shell-template success instead of treating the generated packet as an execution-authority artifact requiring deterministic post-write verification.
+
+**Fix:** discard the malformed packet before dispatch; regenerate it with an explicit UTF-8 writer; re-read the packet and verify literal worktree, branch, exact HEAD, source/test SHA256 values and result destination. Keep task/result under ignored `runs/` and leave tracked SSoT unchanged by the external reviewer.
+
+**Lesson:** generated prompts/task packets are code-like authority, not prose. Never dispatch merely because generation returned exit code 0. Re-read exact fields, hash the packet, and fail closed on unresolved placeholders, broken paths or encoding damage.
+
+**Verify:** the corrected `aha6-glm-review-001` packet contains exact identity values and SHA256 preconditions, has a stable packet SHA256, is gitignored, and the worktree remains clean before human/provider dispatch.
+
+---
+
+## #25: Defensive lease invariant raises can erase sibling batch evidence (2026-08-30)
+
+**Symptom:** independent GLM-5.3 review found that a malformed `LEASED` broker outcome could raise from the AHA-6 acquisition loop after earlier sibling leases were already acquired. The whole batch then returned no structured result for those siblings.
+
+**Root cause:** impossible-by-contract lease states were handled with batch-wide exceptions inside fan-out admission instead of the same per-task recovery vocabulary used for runner uncertainty.
+
+**Fix:** `LEASED` without a lease now becomes `LEASE_RECOVERY_REQUIRED / LEASE_RECORD_MISSING`; selected-worker drift becomes `LEASE_RECOVERY_REQUIRED / LEASE_WORKER_DRIFT`. Both retain the broker outcome and continue fan-in so valid siblings still execute. Unknown future lease outcome kinds fail closed as `LEASE_OUTCOME_UNSUPPORTED` rather than raw `KeyError`.
+
+**Lesson:** defensive checks inside a parallel admission loop must preserve already-acquired ownership/evidence. An invariant violation may prove the current lane unsafe, but it must not erase sibling state or silently create replay pressure.
+
+**Verify:** RED tests reproduced both batch-wide raises. Repair focused suite = 16 passed; related scheduler/dispatch/chaos/lease/provider/harness/AHA-5 regression = 196 passed. Full local suite after repair = 1698 passed, 5 skipped, with only the two pre-existing GPU/OpenGL/Tcl environment failures outside AHA-6 scope.

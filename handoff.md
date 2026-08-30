@@ -1,19 +1,33 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-30 — WO-P1-112 COMPLETE / AHA-6 next
+Last updated: 2026-08-30 — WO-P1-113 / AHA-6 ACTIVE
 
 ## Current objective
 
-AHA-5 is accepted on main. Next: AHA-6 parallel READY-task execution with lease/scope collision safety; automatic GLM proxy dispatch must use an external secret resolver and quota preflight.
+Execute AHA-6 fixed-pool parallel READY tasks with exact scheduler selection, AHA-4B lease/scope collision safety, provider capacity/quota preflight and no blind replay. Automatic CoinTH/GLM execution must resolve secrets externally from `A-Wiki-Data/.env`; credentials never enter tracked state.
 
 ## Repository state
 
-- AHA-5 PR: `#149` — MERGED.
-- Accepted main: `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`.
-- Post-main CI: `33284585961` — SUCCESS on Windows/Ubuntu/macOS.
-- Windows Frozen Setup install/uninstall E2E: PASS.
-- Work order: `docs/work-orders/WO-P1-112-aha5-agent-review-repair-loop.md` — COMPLETE.
-- Next mutation requires a new bounded AHA-6 work order/claim.
+- AHA-5 implementation PR `#149` — MERGED as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`.
+- AHA-5 closeout PR `#150` — MERGED as current base `64b6ef839f16a270295fb2c24649d01e0f54d862`.
+- Post-main CI `33286026232` — SUCCESS on Windows/Ubuntu/macOS; Windows Frozen Setup E2E PASS.
+- AHA-5 implementation + closeout worktrees/branches cleaned after exact tree-equality proof.
+- Active work order: `docs/work-orders/WO-P1-113-aha6-parallel-ready-execution.md` — ACTIVE / CLAIMED.
+- Worktree: `A:\GitHub\A-Wiki-Conductor-aha6-parallel`.
+- Branch: `feat/wo-p1-113-aha6-parallel-ready` @ `64b6ef839f16a270295fb2c24649d01e0f54d862`.
+- Root checkout remains protected/dirty and is not the mutation surface.
+- AHA-6 implementation checkpoint: `bad6567a7909f6cceb34d6debff20a23e5c42484` — pushed to the active feature branch.
+- Focused AHA-6 13 passed; relevant scheduler/dispatch/chaos/lease/provider/harness/AHA-5 regression 193 passed; compile/diff/secret audit PASS.
+- Independent GLM review authority used durable `runs/` task/result files with no human result copy-back; review and repair re-review are now complete.
+- Full local suite: 1696 passed, 5 skipped, 2 known local GPU dependency failures outside AHA-6 scope; related AHA-6 suite remains 193 passed.
+- Auto GLM is not assembled in the installed app: no provider tables in the real control DB and no concrete production environment-reference resolver; quota evidence is also unavailable. Do not dispatch automatically.
+- One-direction bridges `aha6-glm-review-001` and `aha6-glm-rereview-002` both completed; automatic provider dispatch remains fail-closed until its separate secret/quota assembly gates are proven.
+- GLM review `aha6-glm-review-001` at `ae3dae595b6acc173657e15120c48068fcc4af7a` returned `CHANGES_REQUIRED`; identity/task SHA/source SHA/test SHA were validated before accepting findings.
+- Accepted P2 repair: malformed `LEASED` outcomes no longer raise batch-wide; missing lease / worker drift become typed recovery while siblings retain outcomes. Repair commit: `2a4d8fd786a9d3086a8cd2a298b8ee8cfcb6adc8`.
+- Post-repair evidence: focused 16 passed; related regression 196 passed; full local 1698 passed, 5 skipped, only the same two known GPU/OpenGL/Tcl environment failures outside AHA-6 scope.
+- Cross-batch provider capacity is not globally reserved by this thin seam. Production wiring is blocked until batch admission is serialized per provider or an existing atomic provider-capacity authority supplies/reserves the snapshot; do not create a duplicate semaphore/store.
+- Exact-repair-HEAD re-review `aha6-glm-rereview-002` returned `PASS` with zero findings at `960bf95de9c135a44a1afb33d488f7b4973dd6c6`; task/source/test/prior-result hashes matched.
+- Final local PR audit: related regression 196 passed; compileall/diff-check/scope/secret scans PASS. Next safe action is Draft PR -> exact-head CI -> re-audit/merge.
 
 ## Accepted predecessor
 
@@ -55,3 +69,13 @@ Windows passed Frozen Setup install/uninstall E2E.
 - Local CI-equivalent suite: 1687 passed, 1 environment skip, 0 failed.
 - Related AHA-5 regression: 122 passed.
 - Automatic GLM proxy use remains fail-closed until an approved external runtime profile is configured; quota must be checked before dispatch.
+
+## AHA-6 claim checkpoint — 2026-08-30
+
+- GitHub open PRs: 0 at claim time; A-Wiki local claim store: 0 live claims.
+- Reuse gate: scheduler, atomic lease/recovery, durable graph dispatch, AHA-5 packet/result boundary and provider quota model already exist.
+- Allowed implementation is restricted to the new parallel coordination seam + focused tests; existing scheduler/lease/job-store modules are forbidden unless scope is explicitly reopened.
+- Provider quota fields already normalize to `QuotaSnapshot`; do not create a second quota model.
+- CoinTH live dispatch remains fail-closed until the runtime resolver can source credentials through `A-Wiki-Data/.env` and produce the required five-hour quota observation without exposing values.
+
+Next safe action: commit this claim/SSoT checkpoint, then add RED tests for WO-P1-113.
