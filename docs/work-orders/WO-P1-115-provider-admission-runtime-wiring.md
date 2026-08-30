@@ -2,7 +2,7 @@
 
 Date: 2026-08-30
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / CLAIMED / IMPLEMENTED / REVIEW_GATE
+Status: ACTIVE / CLAIMED / REPAIR / REREVIEW_GATE
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`
 Branch: `feat/wo-p1-115-provider-admission-runtime`
@@ -122,4 +122,19 @@ Trust-boundary repairs found during GPT adversarial review:
 
 Current production readiness remains fail-closed. Official Z.ai tooling confirms the quota endpoint and raw-token auth surface, while upstream issue #20 states the current quota-limit response lacks reset time. The current local loopback GLM route is also not proven active. No full quota tuple means no automatic dispatch.
 
-Next gate: commit this SSoT/review-prep checkpoint, then generate and re-read `runs/wo115-glm-review-001/task.md` from the resulting exact HEAD. GLM-5.3 MAX owns read-only adversarial security/concurrency review only; result goes to `runs/wo115-glm-review-001/result.json`. GPT validates exact identity/hashes and owns any repair, PR, CI and merge action.
+Historical review-001 gate (completed): the packet was generated after its tracked checkpoint, validated, reviewed read-only, and superseded by the repair/re-review checkpoint below.
+
+## Independent review 001 + repair checkpoint
+
+GLM-5.3 MAX task `wo115-glm-review-001` returned validated `PASS` on exact reviewed HEAD `9abb6400d0e881b5fbc20e4e8823556f47d4c3a7`; P0/P1/P2 findings: `0`; P3 findings: `5`.
+
+GPT accepted two quota-evidence hardening findings and repaired them in `cf9676a6d4b9ce988f849426d514a823df034d18`: explicit unit=3/number=5 5h windows now outrank legacy unitless TOKENS_LIMIT shapes; ambiguous legacy windows and internally inconsistent quota tuples fail closed.
+
+Other P3 disposition:
+- stale ACTIVE status is intentionally reconciled lazily on acquire; no background sweeper authority is added;
+- concurrency stress was already covered by tracked `ThreadPoolExecutor + Barrier` plus isolated cross-process E2E;
+- cross-process clock agreement is now documented as a conservative retention boundary, not permission to over-admit or replay.
+
+Post-repair evidence: focused `62 passed`; related `256 passed`; full local `1753 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures`; DB-copy E2E, cross-process E2E, compile/diff/scope/secret/encoding audit PASS.
+
+Next authority gate: commit this SSoT checkpoint, generate/re-read/hash-pin `wo115-glm-rereview-002` against the resulting exact HEAD, then obtain a read-only re-review before PR.

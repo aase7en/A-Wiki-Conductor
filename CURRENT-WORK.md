@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 IMPLEMENTED / REVIEW_GATE)
+Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 REPAIR / REREVIEW_GATE)
 
 ## Current phase
 
@@ -17,19 +17,19 @@ Accepted AHA-5 closeout state:
 
 ## Active work order
 
-`docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / IMPLEMENTED / REVIEW_GATE.
+`docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / REPAIR / REREVIEW_GATE.
 Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`.
 Branch: `feat/wo-p1-115-provider-admission-runtime` @ base `5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`.
 
 ## Immediate execution frontier
 
-1. Implementation snapshot is pushed at `4e66cdeefbc31bd0513c8bd32ff322dc6230641b`; do not mutate source/tests before independent review unless a deterministic gate finds a new defect.
-2. Exact local evidence: focused `59 passed`; related provider/harness/lease/graph regression `253 passed`; full local `1750 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures` outside WO-P1-115 scope.
-3. Adversarial E2E: real installed-control-DB copy preserved `12` existing tables, added `4` provider tables, and left the live DB hash unchanged; independent-process admission produced exactly `ADMITTED,CAPACITY_WAIT`.
-4. Provider-global capacity now extends `SQLiteProviderConfigStore` with atomic durable admission; no second semaphore/store/quota model exists. Runner uncertainty retains admission; pre-run safe failure releases; malformed/future admission outcomes fail closed per-task.
-5. Z.ai quota probing is exact-route only (approved host + Anthropic path + default TLS port), no redirects, finite-number only, full five-hour tuple required. Current official quota endpoint lacks reset time, so automatic live GLM remains fail-closed.
-6. Independent review task ID is `wo115-glm-review-001`; create/re-read/hash-pin the ignored packet only after this tracked SSoT checkpoint is committed. GLM-5.3 MAX is read-only; GPT retains repair/acceptance/merge authority.
-7. After validated review: bounded repair if required -> final audit -> Draft PR -> exact-head CI -> re-audit -> merge/post-main proof. `WO-P1-096` remains the separate higher P0 release blocker pending authorized live connector soak.
+1. GLM task `wo115-glm-review-001` returned validated `PASS`; P0/P1/P2 findings `0`, P3 findings `5`.
+2. GPT repaired two quota-evidence P3s in `cf9676a6d4b9ce988f849426d514a823df034d18`: explicit 5h window priority plus ambiguous/inconsistent quota fail-closed behavior.
+3. Other P3 disposition: concurrency stress already covered; lazy expiry stays acquire-time reconciled; clock agreement is documented as a conservative retention boundary.
+4. Post-repair evidence: focused `62 passed`; related `256 passed`; full local `1753 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures`; compile/diff/repair-scope/secret/encoding audit PASS; DB-copy and cross-process E2E remain PASS.
+5. Source/tests are frozen at repair commit `cf9676a6d4b9ce988f849426d514a823df034d18`. Next independent task is `wo115-glm-rereview-002`; generate/re-read/hash-pin only after this tracked SSoT checkpoint is committed.
+6. GLM re-review remains READ-ONLY. GPT validates task/result/head/hashes and owns any further repair, PR, CI and merge action.
+7. Automatic live GLM remains fail-closed: no proven active local GLM route and no complete reset-bearing 5h quota tuple. `WO-P1-096` remains the separate higher P0 release blocker pending authorized live connector soak.
 
 ## Source-of-truth rule
 

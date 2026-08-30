@@ -1,6 +1,6 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-30 - WO-P1-115 / AHA-6A.1 ACTIVE / IMPLEMENTED / REVIEW_GATE
+Last updated: 2026-08-30 - WO-P1-115 / AHA-6A.1 ACTIVE / REPAIR / REREVIEW_GATE
 
 ## Current objective
 
@@ -8,7 +8,7 @@ Execute WO-P1-115 / AHA-6A.1: add provider-global atomic admission and productio
 
 ## Repository state
 
-- Active work order: `docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / IMPLEMENTED / REVIEW_GATE.
+- Active work order: `docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / REPAIR / REREVIEW_GATE.
 - Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`; branch `feat/wo-p1-115-provider-admission-runtime`; base `origin/main@5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`; clean at claim.
 - Predecessor WO-P1-114 implementation + closeout are merged, post-main green and cleaned; no WO-P1-114 branches/worktrees remain.
 - Reuse gate: A-Wiki remote main `71406f8a25079f364face422012e4bdeac5f483e`; secret authority is `docs/protocols/secrets-global-env.md`; A-Wiki local checkout remains dirty/read-only.
@@ -16,7 +16,9 @@ Execute WO-P1-115 / AHA-6A.1: add provider-global atomic admission and productio
 - Implementation head `4e66cdeefbc31bd0513c8bd32ff322dc6230641b` is pushed; source/tests are frozen for independent review. Focused `59 passed`; related `253 passed`; full local `1750 passed / 4 skipped / 2 known GPU dependency failures`; compile/diff/scope/secret/encoding audit PASS.
 - Installed-style DB-copy E2E preserved 12 existing tables, added 4 provider tables and left the live DB unchanged; cross-process admission E2E returned exactly `ADMITTED,CAPACITY_WAIT`.
 - Automatic GLM remains fail-closed: current loopback route is not proven active, and official Z.ai `/api/monitor/usage/quota/limit` still lacks reset time required by the full five-hour tuple. One-way ignored `runs/` task/result bridge remains fallback.
-- Independent review task is `wo115-glm-review-001`; GLM-5.3 MAX is read-only and must write only its ignored result artifact. GPT validates exact task/HEAD/hashes and owns any tracked repair/SSoT/PR/merge action.
+- Historical review task `wo115-glm-review-001` is complete and superseded; its result remains ignored evidence only. GPT validated exact task/HEAD/hashes and owns tracked repair/SSoT/PR/merge action.
+- Review `wo115-glm-review-001` validated PASS with zero P0/P1/P2. Repair `cf9676a6d4b9ce988f849426d514a823df034d18` closes two quota-evidence P3s; other P3s are already-covered/deferred/documented as bounded above. Post-repair gates: focused 62, related 256, full 1753/4/2 known GPU-only failures; E2E/audits PASS.
+- Next review identity is `wo115-glm-rereview-002`; do not reuse task 001 against the repaired HEAD.
 - AHA-5 implementation PR `#149` — MERGED as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`.
 - AHA-5 closeout PR `#150` — MERGED as current base `64b6ef839f16a270295fb2c24649d01e0f54d862`.
 - Post-main CI `33286026232` — SUCCESS on Windows/Ubuntu/macOS; Windows Frozen Setup E2E PASS.

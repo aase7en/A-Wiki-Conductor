@@ -504,3 +504,15 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** once a probe carries a secret, hostname resemblance and HTTP convenience behavior are insufficient. Pin the intended origin/route, forbid credential-bearing redirects, and treat remote numeric evidence as untrusted until structurally complete and finite.
 
 **Verify:** local redirect server receives Authorization only on the original request; lookalike path/8443 never resolve the secret; non-finite quota fails closed; final focused/related suites are green.
+
+## #31: Ambiguous quota-window evidence must not be promoted to a five-hour snapshot (2026-08-30)
+
+**Symptom:** independent WO-P1-115 GLM review found that a unitless legacy TOKENS_LIMIT item could be selected before an explicit 5h item, and internally contradictory limit/used/remaining values could still become an OK quota observation.
+
+**Root cause:** the first parser returned the first legacy-compatible TOKENS_LIMIT candidate and validated quota fields independently rather than proving one unambiguous 5h window and a self-consistent tuple.
+
+**Fix:** prefer exactly one explicit `unit=3, number=5` candidate; reject multiple explicit or multiple unitless legacy candidates; allow the legacy shape only when it is the sole TOKENS_LIMIT candidate; reject used/remaining values that exceed the limit or disagree with the limit outside a small rounding tolerance.
+
+**Lesson:** remote quota evidence is execution authority. A compatibility fallback may be used only when it is unambiguous; independently plausible fields are insufficient if the tuple contradicts itself.
+
+**Verify:** RED tests reproduce explicit-vs-legacy misselection, ambiguous unitless candidates and inconsistent tuples; repaired focused suite `62 passed`, related regression `256 passed`, full local `1753 passed / 4 skipped / 2 known GPU dependency failures`.
