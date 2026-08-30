@@ -375,6 +375,11 @@ class SQLiteProviderConfigStore:
         now: datetime,
         ttl_seconds: int,
     ) -> ProviderAdmissionResult:
+        """Acquire capacity atomically; callers must supply reasonably synchronized UTC clocks.
+
+        Clock skew can conservatively retain capacity longer, but must never be used to
+        justify over-admission or replay. Expiry is reconciled from validated UTC values.
+        """
         provider_id = self._require_admission_text(provider_id, "provider_id")
         execution_id = self._require_admission_text(execution_id, "execution_id")
         batch_id = self._require_admission_text(batch_id, "batch_id")

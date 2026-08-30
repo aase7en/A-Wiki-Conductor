@@ -252,3 +252,47 @@ def test_http_transport_rejects_oversized_response_body() -> None:
 
     assert status == 0
     assert payload == {}
+
+
+def test_explicit_five_hour_tokens_limit_wins_over_legacy_unitless_candidate() -> None:
+    payload = {"data": {"limits": [
+        {"type": "TOKENS_LIMIT", "usage": 9000, "currentValue": 100, "remaining": 8900, "nextResetTime": 1788500000000},
+        {"type": "TOKENS_LIMIT", "unit": 3, "number": 5, "usage": 2000, "currentValue": 1653, "remaining": 347, "nextResetTime": 1788084000000},
+    ]}}
+    transport = FakeTransport(200, payload)
+    endpoint = ProviderEndpointConfig(profile().endpoint_ref, "https://api.z.ai/api/anthropic")
+
+    result = probe_for(endpoint.base_url, transport, []).probe(profile(), endpoint)
+
+    assert result.state is ProviderProbeState.OK
+    assert result.quota is not None
+    assert (result.quota.limit, result.quota.used, result.quota.remaining) == (2000, 1653, 347)
+
+
+def test_multiple_unitless_legacy_tokens_limits_fail_closed_as_ambiguous() -> None:
+    payload = {"data": {"limits": [
+        {"type": "TOKENS_LIMIT", "usage": 1000, "currentValue": 100, "remaining": 900, "nextResetTime": 1788084000000},
+        {"type": "TOKENS_LIMIT", "usage": 2000, "currentValue": 200, "remaining": 1800, "nextResetTime": 1788084000000},
+    ]}}
+    transport = FakeTransport(200, payload)
+    endpoint = ProviderEndpointConfig(profile().endpoint_ref, "https://api.z.ai/api/anthropic")
+
+    result = probe_for(endpoint.base_url, transport, []).probe(profile(), endpoint)
+
+    assert result.state is ProviderProbeState.UNAVAILABLE
+    assert result.quota is None
+
+
+def test_internally_inconsistent_quota_tuple_fails_closed() -> None:
+    payload = {"data": {"limits": [{
+        "type": "CREDIT_LIMIT", "unit": 3, "number": 5,
+        "usage": 1000, "currentValue": 100,
+        "remaining": 1200, "nextResetTime": 1788084000000,
+    }]}}
+    transport = FakeTransport(200, payload)
+    endpoint = ProviderEndpointConfig(profile().endpoint_ref, "https://api.z.ai/api/anthropic")
+
+    result = probe_for(endpoint.base_url, transport, []).probe(profile(), endpoint)
+
+    assert result.state is ProviderProbeState.UNAVAILABLE
+    assert result.quota is None

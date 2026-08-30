@@ -122,18 +122,23 @@ def _five_hour_item(payload: object) -> Mapping[str, object] | None:
     limits = data.get("limits")
     if not isinstance(limits, list):
         return None
+    explicit: list[Mapping[str, object]] = []
+    legacy_tokens: list[Mapping[str, object]] = []
     for item in limits:
         if not isinstance(item, Mapping):
             continue
         limit_type = item.get("type")
         unit = item.get("unit")
         number = item.get("number")
-        if limit_type == "TOKENS_LIMIT":
-            if (unit is None and number is None) or (unit == 3 and number == 5):
-                return item
-        if limit_type == "CREDIT_LIMIT" and unit == 3 and number == 5:
-            return item
-    return None
+        if limit_type in {"TOKENS_LIMIT", "CREDIT_LIMIT"} and unit == 3 and number == 5:
+            explicit.append(item)
+        elif limit_type == "TOKENS_LIMIT" and unit is None and number is None:
+            legacy_tokens.append(item)
+    if len(explicit) == 1:
+        return explicit[0]
+    if explicit:
+        return None
+    return legacy_tokens[0] if len(legacy_tokens) == 1 else None
 
 
 def _quota_from_payload(payload: object, *, now: datetime) -> QuotaSnapshot | None:
@@ -145,6 +150,12 @@ def _quota_from_payload(payload: object, *, now: datetime) -> QuotaSnapshot | No
     remaining = _number(item.get("remaining"))
     reset_raw = _number(item.get("nextResetTime"))
     if None in (limit, used, remaining, reset_raw):
+        return None
+    assert limit is not None and used is not None and remaining is not None
+    tolerance = max(1.0, float(limit) * 0.001)
+    if used > limit or remaining > limit:
+        return None
+    if abs((float(used) + float(remaining)) - float(limit)) > tolerance:
         return None
     reset_seconds = float(reset_raw)
     if reset_seconds > 1_000_000_000_000:
