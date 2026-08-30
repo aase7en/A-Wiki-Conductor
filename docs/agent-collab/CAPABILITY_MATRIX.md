@@ -54,3 +54,12 @@ from provider names.
 Prefer official model/provider documentation plus reproducible repository evidence.
 Community leaderboards may supplement routing decisions but should not be the sole authority.
 If evidence is stale or the task class changes materially, research again before delegation.
+
+## WO-P1-114 routing decision - 2026-08-30
+
+Task class: provider/runtime integration with secret/quota trust boundaries.
+
+- GPT-5.6 Sol owns architecture, security boundary, integration adjudication, deterministic verification and merge authority.
+- GLM-5.3 MAX is suitable for bounded code archaeology/adversarial review and repair after the implementation contract is exact-SHA pinned; current official Z.ai evidence remains Terminal-Bench 3.0 28.3, DeepSWE v1.1 66.9, Z.ai Code Bench Max 34.5%.
+- Automatic GLM execution is itself the capability being assembled, so this work order uses the one-way file bridge until secret/readiness/quota gates are provably available.
+- Deterministic repository/tests/CI remain acceptance authority.

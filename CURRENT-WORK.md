@@ -1,10 +1,12 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol — AHA-6 COMPLETE / CLOSEOUT)
+Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-114 / AHA-6A ACTIVE)
 
 ## Current phase
 
-**WO-P1-113 / AHA-6 is COMPLETE. No successor AHA work order is currently claimed.**
+**PRIMARY NEW-FEATURE PRIORITY: WO-P1-114 / AHA-6A automatic provider runtime assembly.**
+
+P0 release gate `WO-P1-096` remains higher priority but is externally blocked pending a spare Tunnel ID or explicit maintenance authorization for one live Worker; this work order does not disrupt live connectors.
 
 Accepted AHA-5 closeout state:
 - implementation PR `#149` merged as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`;
@@ -13,19 +15,19 @@ Accepted AHA-5 closeout state:
 - Windows Frozen Setup install/uninstall E2E: PASS;
 - AHA-5 implementation + closeout worktrees/branches cleaned after tree-equality proof.
 
-## Latest completed work order
+## Active work order
 
-`docs/work-orders/WO-P1-113-aha6-parallel-ready-execution.md` — COMPLETE / RELEASED.
-Isolated worktree: `A:\GitHub\A-Wiki-Conductor-aha6-parallel`.
-Branch: `feat/wo-p1-113-aha6-parallel-ready` @ base `64b6ef839f16a270295fb2c24649d01e0f54d862`.
+`docs/work-orders/WO-P1-114-auto-provider-runtime-assembly.md` - ACTIVE / CLAIMED / PLAN_GATE.
+Isolated worktree: `A:\GitHub\A-Wiki-Conductor-auto-provider-dispatch`.
+Branch: `feat/wo-p1-114-auto-provider-dispatch` @ base `9d65564eeea4c5085b365de158340285e8c9c657`.
 
 ## Immediate execution frontier
 
-1. AHA-6 implementation PR `#151` merged exact reviewed head `5cc2425580c1724ae34f5f836a2211ee6af06b1d` as main `7825afa0ae946d0389b5c6b2955a63a8ae36f54b`.
-2. Exact-head CI `33293013006` and post-main CI `33293299053` both passed Windows/Ubuntu/macOS; Windows included clean packaging, Portable smoke and Frozen Setup install/uninstall E2E.
-3. GLM-5.3 independent review found one real P2; repair `2a4d8fd786a9d3086a8cd2a298b8ee8cfcb6adc8` closed it, and exact-SHA re-review returned `PASS` with zero findings. Local focused 16 / related 196 passed; full local only retained the known GPU environment failures outside scope.
-4. Provider-global cross-batch capacity reservation and automatic CoinTH secret/quota assembly remain future integration blockers requiring a new work order/reuse gate; no duplicate semaphore/store is authorized.
-5. WO-P1-113 is closed/released. No successor AHA work order is claimed. WO-P1-096 connector live TTL/recovery soak remains the separate v0.7.0 release blocker.
+1. Persist WO-P1-114 claim/roadmap checkpoint from exact `origin/main@9d65564eeea4c5085b365de158340285e8c9c657`.
+2. RED-first: SQLite-backed provider-state resolver + native A-Wiki environment/reference resolver tests.
+3. GREEN: compose accepted provider store/observation + supervised Claude backend without new registry/scheduler/retry/secret authority.
+4. Prove fake vertical E2E and fail-closed secret/health/quota/identity behavior; no live provider call until required quota tuple is available.
+5. Generate exact-SHA GLM-5.3 MAX read-only review packet; human relays one pointer only if automatic dispatch is still blocked. GPT reads result directly and continues repair/audit/PR/CI/merge.
 
 ## Source-of-truth rule
 

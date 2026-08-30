@@ -3,10 +3,12 @@
 This file is a compact lane index, not the project source of truth.
 Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work order → runtime/Git evidence.
 
-## Latest lane checkpoint — 2026-08-30
+## Active lane checkpoint — 2026-08-30
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
+| Integrator | GPT-5.6 Sol | WO-P1-114 / AHA-6A | provider runtime assembly + tests + bounded SSoT | CLAIMED / PLAN_GATE |
+| GLM review lane | GLM-5.3 MAX via one-way file bridge until auto dispatch exists | WO-P1-114 exact-SHA review | read-only result artifact only | PREPARED_AFTER_IMPLEMENTATION |
 | Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | RELEASED |
 | Parallel agent lane A | provider-neutral | AHA-6 selected READY task A | one leased file/task in isolated authorized worktree | RELEASED |
 | Parallel agent lane B | provider-neutral | AHA-6 selected READY task B | one leased file/task in isolated authorized worktree | RELEASED |

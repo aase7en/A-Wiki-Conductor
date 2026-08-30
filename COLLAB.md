@@ -34,6 +34,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
+| `WO-P1-114` / AHA-6A automatic provider runtime assembly | GPT-5.6 Sol integrator | 2026-08-30 | Isolated `A-Wiki-Conductor-auto-provider-dispatch` / `feat/wo-p1-114-auto-provider-dispatch`; new provider/runtime assembly + A-Wiki environment-reference resolver + focused tests + bounded SSoT only. No UI, North Star, scheduler/lease/job-store, live connector or plaintext secret mutation. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims
