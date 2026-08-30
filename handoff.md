@@ -18,15 +18,16 @@ Execute AHA-6 fixed-pool parallel READY tasks with exact scheduler selection, AH
 - Root checkout remains protected/dirty and is not the mutation surface.
 - AHA-6 implementation checkpoint: `bad6567a7909f6cceb34d6debff20a23e5c42484` — pushed to the active feature branch.
 - Focused AHA-6 13 passed; relevant scheduler/dispatch/chaos/lease/provider/harness/AHA-5 regression 193 passed; compile/diff/secret audit PASS.
-- Next authority handoff is read-only GLM-5.3 MAX review through durable `runs/` task/result files; no human result copy-back.
+- Independent GLM review authority used durable `runs/` task/result files with no human result copy-back; review and repair re-review are now complete.
 - Full local suite: 1696 passed, 5 skipped, 2 known local GPU dependency failures outside AHA-6 scope; related AHA-6 suite remains 193 passed.
 - Auto GLM is not assembled in the installed app: no provider tables in the real control DB and no concrete production environment-reference resolver; quota evidence is also unavailable. Do not dispatch automatically.
-- Previous one-direction bridge `aha6-glm-review-001` completed; the next safe bridge is `aha6-glm-rereview-002`, regenerated only after the repair+SSoT HEAD is clean and committed.
+- One-direction bridges `aha6-glm-review-001` and `aha6-glm-rereview-002` both completed; automatic provider dispatch remains fail-closed until its separate secret/quota assembly gates are proven.
 - GLM review `aha6-glm-review-001` at `ae3dae595b6acc173657e15120c48068fcc4af7a` returned `CHANGES_REQUIRED`; identity/task SHA/source SHA/test SHA were validated before accepting findings.
 - Accepted P2 repair: malformed `LEASED` outcomes no longer raise batch-wide; missing lease / worker drift become typed recovery while siblings retain outcomes. Repair commit: `2a4d8fd786a9d3086a8cd2a298b8ee8cfcb6adc8`.
 - Post-repair evidence: focused 16 passed; related regression 196 passed; full local 1698 passed, 5 skipped, only the same two known GPU/OpenGL/Tcl environment failures outside AHA-6 scope.
 - Cross-batch provider capacity is not globally reserved by this thin seam. Production wiring is blocked until batch admission is serialized per provider or an existing atomic provider-capacity authority supplies/reserves the snapshot; do not create a duplicate semaphore/store.
-- Next authority handoff is exact-repair-HEAD independent re-review through a fresh ignored `runs/` packet.
+- Exact-repair-HEAD re-review `aha6-glm-rereview-002` returned `PASS` with zero findings at `960bf95de9c135a44a1afb33d488f7b4973dd6c6`; task/source/test/prior-result hashes matched.
+- Final local PR audit: related regression 196 passed; compileall/diff-check/scope/secret scans PASS. Next safe action is Draft PR -> exact-head CI -> re-audit/merge.
 
 ## Accepted predecessor
 

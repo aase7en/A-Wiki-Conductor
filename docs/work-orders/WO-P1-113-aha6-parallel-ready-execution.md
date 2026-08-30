@@ -2,7 +2,7 @@
 
 Date: 2026-08-30
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / IMPLEMENTED / REVIEW_PENDING
+Status: ACTIVE / REVIEW_PASS / PR_PENDING
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha6-parallel`
 Branch: `feat/wo-p1-113-aha6-parallel-ready`
@@ -93,7 +93,7 @@ F. Optional real CoinTH/GLM proof only after external secret resolver + quota pr
 - Existing Conductor scheduler, atomic lease broker/recovery, durable graph dispatch and provider quota model were inspected; no competing open PR exists.
 - Provider quota already has `limit`, `used`, `remaining`, `reset_at`, `reset_in_seconds`; no second quota type is authorized.
 
-Current status: `REPAIRED / REREVIEW_PENDING`.
+Current status: `REVIEW_PASS / PR_PENDING`.
 
 ## Implementation checkpoint — 2026-08-30
 
@@ -132,3 +132,12 @@ Next safe action: commit this governance checkpoint, regenerate the ignored GLM 
 - Durable defect lesson #25 records the batch-evidence failure mode and prevention rule.
 
 Next safe action: checkpoint this review/repair state, generate `aha6-glm-rereview-002` against the exact clean repair+SSoT HEAD, obtain independent read-only re-review via the one-way bridge, then audit -> Draft PR -> exact-head CI -> re-audit/merge.
+
+## Independent repair re-review PASS — 2026-08-30
+
+- `aha6-glm-rereview-002` verified exact clean HEAD `960bf95de9c135a44a1afb33d488f7b4973dd6c6`, task SHA256 `0f4fcbf4176fefd1714c08710662008d948a63322c9e34bd84ea1a04e4cd8c51`, source/test SHA256 and prior-review SHA256, then returned `PASS` with zero findings.
+- Independent review confirms prior P2 lease-invariant defect is closed: malformed lease outcomes remain per-task recovery, siblings preserve outcomes, no replay or lease-authority drift is introduced, and unknown outcome kinds fail closed.
+- Cross-batch provider capacity is accepted only as a documented AHA-6 boundary: no production caller exists yet; production assembly remains blocked from concurrent same-provider batch starts until admission is serialized or an existing atomic capacity authority is reused.
+- GPT final local audit on the same tracked code: related regression 196 passed; compileall, diff-check, scope audit and secret-pattern scan PASS. Full local suite evidence remains 1698 passed, 5 skipped, with only the two pre-existing GPU/OpenGL/Tcl environment failures outside AHA-6 scope.
+
+Next safe action: create Draft PR from this branch to `main`, verify the exact remote PR head, run required Windows/Ubuntu/macOS CI including Frozen Setup E2E, then re-audit before merge.
