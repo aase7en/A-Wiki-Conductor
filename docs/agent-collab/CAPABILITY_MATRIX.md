@@ -5,8 +5,8 @@ Re-check current upstream evidence before delegating material work to a named mo
 
 ## Current researched candidate — GLM-5.3 MAX
 
-Research date: 2026-08-29.
-Primary source: official Z.ai GLM-5.3 materials reviewed before AHA-5 delegation.
+Research date: 2026-08-30.
+Primary sources: official Z.ai GLM-5.3 launch (published 2026-08-14) + official Claude Code/Coding Plan guidance, re-checked before AHA-6 review delegation.
 
 | Evidence | Observed value | Routing implication |
 |---|---:|---|
@@ -24,7 +24,8 @@ They do not prove it is best for every task and do not replace GPT/integrator re
 - Installed ZCode 0.16.5 reports `builtin:zai-coding-plan` unavailable with `coding_plan_not_entitled`.
 - Installed ZCode Start Plan is available, but its active model set currently exposes GLM-5.3-Flash rather than full GLM-5.3.
 - The user also has a working external Claude-CLI GLM proxy profile, but its credential is intentionally outside tracked project state.
-- Therefore AHA-5 must distinguish **model suitability** from **provider entitlement/readiness** and from **credential/profile integration readiness**.
+- Read-only inspection on 2026-08-30 confirmed the installed `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` still has no `provider_*` tables, and production code still exposes only the `EnvironmentReferenceResolver` protocol rather than a concrete Drive-backed resolver.
+- Therefore AHA-6 must distinguish **model suitability** from **provider entitlement/readiness**, **quota evidence**, and **credential/profile integration readiness**. Automatic dispatch stays fail-closed; the one-direction file bridge is the current safe fallback.
 
 ## Routing decision record
 
@@ -36,7 +37,7 @@ For each delegation record:
 - assigned mutable scope and verification;
 - fallback if the provider is unavailable.
 
-## Default role split for AHA-5
+## Default role split for AHA-6
 
 **Integrator/reviewer:** GPT-5.6 Sol — architecture, trust boundaries, deterministic
 review, integration, PR/merge/release authority.

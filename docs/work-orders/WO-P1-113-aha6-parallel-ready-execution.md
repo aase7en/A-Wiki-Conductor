@@ -95,7 +95,7 @@ F. Optional real CoinTH/GLM proof only after external secret resolver + quota pr
 
 Current status: `IMPLEMENTED / REVIEW_PENDING`.
 
-## Implementation checkpoint ? 2026-08-30
+## Implementation checkpoint — 2026-08-30
 
 - Implementation commit: `bad6567a7909f6cceb34d6debff20a23e5c42484`.
 - Added only `parallel_ready_execution.py` + focused tests; scheduler, lease broker, job store and provider model were reused unchanged.
@@ -106,6 +106,17 @@ Current status: `IMPLEMENTED / REVIEW_PENDING`.
 
 Next safe action: durable read-only GLM-5.3 MAX independent review packet -> GPT reads result directly -> bounded repair if needed -> full regression/audit -> PR/CI/re-audit.
 
-## Governance scope extension checkpoint ? 2026-08-30
+## Governance scope extension checkpoint — 2026-08-30
 
 User explicitly requested durable multi-agent rules so GPT/GLM/future agents can exchange task/result state without human result copy-back. Pre-gate evidence: active AHA-6 worktree clean; GitHub open PRs 0; A-Wiki live local claims 0. `SAFE_TO_MUTATE = YES` for the three governance files added to allowed scope above. External agents remain read-only to coordination SSoT; the integrator is the single tracked SSoT writer.
+
+## Full-loop / collaboration checkpoint — 2026-08-30
+
+- Fresh `grill-with-docs` upstream check: local 7-line wrapper matches current `mattpocock/skills` main behavior (`/grilling` + `/domain-modeling`); upstream commit history shows grill alignment work on 2026-08-06. An upstream issue opened 2026-08-26 reports grill can jump into implementation without an explicit spec/task handoff, so this repo now enforces a separate plan/task/claim gate before mutation.
+- Full local `python -m pytest -q`: 1696 passed, 5 skipped, 2 failed. Both failures are the already-documented Desktop Commander GPU environment limitation (`OpenGL`/WGL dependency set absent); AHA-6 touched no GPU files. WO-P1-097 already records exact-head GitHub CI as final GPU authority for this machine.
+- Relevant AHA-6 regression remains 193 passed; focused = 13 passed; compileall/diff-check/secret scan PASS.
+- Read-only installed DB inspection confirms `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` has no `provider_*` tables. Production still has only the `EnvironmentReferenceResolver` protocol, not a concrete Drive-backed provider resolver. Automatic CoinTH/GLM therefore remains fail-closed and no provider call was attempted.
+- Human one-way bridge is the accepted current fallback: runtime task/result files live only under ignored `runs/`; the human relays one task pointer; GLM writes the result there; GPT reads it directly and is the single writer that folds status/evidence into tracked SSoT.
+- Collaboration protocol now forbids per-agent roadmap/handoff/memory clones and codifies the full loop-engineer cycle with explicit plan/task gate, independent exact-SHA review, realistic E2E, defect memory, PR/CI/re-audit/merge proof.
+
+Next safe action: commit this governance checkpoint, regenerate the ignored GLM review task against that exact clean HEAD, then obtain the read-only GLM-5.3 MAX review via automatic dispatch only if secret+quota gates become provably ready; otherwise use the one-direction human relay.

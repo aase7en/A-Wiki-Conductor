@@ -399,3 +399,18 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** when an authority-bearing API changes, compile success or a narrow new test is insufficient. Search/migrate all callers and verify the affected regression set before durable SSoT says GREEN.
 
 **Verify:** related AHA-5/lease/supervised suite = 122 passed; CI-equivalent full suite with project dependencies = 1687 passed, 1 environment skip, 0 failed.
+
+
+---
+
+## #23: One parallel runner exception must not erase sibling batch outcomes (2026-08-30)
+
+**Symptom:** the first AHA-6 executor draft called `future.result()` directly while collecting a parallel batch. One runner exception would raise out of the entire batch collector even though sibling tasks had already been leased/dispatched, making the returned batch state incomplete and tempting a caller to replay work blindly.
+
+**Root cause:** execution fan-out was concurrent, but fan-in error collection still used all-or-nothing exception semantics instead of per-task recovery semantics.
+
+**Fix:** collect each future independently. A failed runner becomes `RUNNER_RECOVERY_REQUIRED` with a bounded reason code; no internal retry occurs, and the active lease remains authoritative for later reconciliation. Successful siblings still return their own outcomes.
+
+**Lesson:** parallel fan-out requires failure-isolated fan-in. Once work may have started, a collector exception is not permission to forget sibling state or retry the batch. Preserve per-task evidence/ownership and reconcile uncertain lanes individually.
+
+**Verify:** focused AHA-6 tests cover runner exception -> recovery-required, exactly one runner call, active lease retention, stable sibling outcomes, plus real two-task concurrent dispatch. Focused suite = 13 passed; related scheduler/dispatch/chaos/lease/provider/harness regression = 193 passed.

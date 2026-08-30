@@ -21,10 +21,10 @@ Branch: `feat/wo-p1-113-aha6-parallel-ready` @ base `64b6ef839f16a270295fb2c2464
 
 ## Immediate execution frontier
 
-1. Implementation checkpoint `bad6567a7909f6cceb34d6debff20a23e5c42484` is pushed; focused 13 + relevant regression 193 passed, compile/diff/secret audit PASS.
-2. Prepare a read-only GLM-5.3 MAX independent review task bound to exact HEAD + file SHA256; result goes to ignored `runs/` state and is read directly by GPT.
-3. Automatic CoinTH/GLM remains fail-closed until `.env` runtime resolution + required 5-hour quota evidence is available; otherwise use the one-direction human bridge prompt only.
-4. GPT reviews the durable GLM result, performs bounded repair if needed, then full regression/deep audit -> PR -> exact-head CI -> re-audit/merge.
+1. AHA-6 implementation is pushed; focused 13 + relevant regression 193 passed. Full local suite = 1696 passed, 5 skipped, 2 known GPU-environment failures outside AHA-6 scope.
+2. Multi-agent governance is now single-writer SSoT + ignored `runs/` task/result exchange; no per-agent roadmap/handoff/memory duplication.
+3. Automatic CoinTH/GLM is `BLOCKED` until a concrete Drive-backed provider resolver + required 5-hour quota evidence are available. No provider request may bypass this.
+4. Human one-way GLM review bridge is the current safe path: relay only the task pointer; GPT reads the result file directly, repairs if required, then audit -> PR -> exact-head CI -> re-audit/merge.
 5. WO-P1-096 live tunnel request-level soak and v0.7 release remain separate gates.
 
 ## Source-of-truth rule

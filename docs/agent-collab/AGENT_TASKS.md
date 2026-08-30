@@ -10,8 +10,16 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 | Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | IMPLEMENTED / REVIEW_PENDING |
 | Parallel agent lane A | provider-neutral | AHA-6 selected READY task A | one leased file/task in isolated authorized worktree | PREPARED |
 | Parallel agent lane B | provider-neutral | AHA-6 selected READY task B | one leased file/task in isolated authorized worktree | PREPARED |
-| CoinTH/GLM provider lane | GLM-5.3 MAX via Claude CLI/ZCode bridge | independent AHA-6 code review | read-only review; result file only | TASK_PACKET_NEXT / AUTO_QUOTA_GATE |
+| CoinTH/GLM provider lane | GLM-5.3 MAX via Claude CLI/ZCode bridge | `aha6-glm-review-001` independent code review | read-only; `runs/aha6-glm-review-001/result.json` only | HUMAN_BRIDGE_READY / AUTO_BLOCKED |
 | Future agents | provider-neutral | none | none | UNCLAIMED |
+
+### Human-bridge contract for the active GLM lane
+
+- Task pointer: `runs/aha6-glm-review-001/task.md` (ignored runtime artifact; regenerate after any tracked HEAD change).
+- Result pointer: `runs/aha6-glm-review-001/result.json`.
+- Human relays only the pointer prompt; human never copies the result back.
+- GLM must not edit source, tests, `CURRENT-WORK.md`, `handoff.md`, `COLLAB.md`, work orders, commits or PRs in this review lane.
+- GPT/Conductor validates task/model/HEAD identity, reads the result itself, and performs the only tracked SSoT fold-back.
 
 ### Current GLM evidence
 
