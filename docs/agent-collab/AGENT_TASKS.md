@@ -7,8 +7,10 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
-| Integrator | GPT-5.6 Sol | WO-P1-112 / AHA-5 | work-order assigned integration/docs/tests | RUNNING |
-| Candidate implement/repair | GLM-5.3 MAX | AHA-5 live vertical slice | one leased file per task | FILE_BRIDGE_READY / AUTO_PROVIDER_CONFIG_REQUIRED |
+| Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | CLAIMED / READY_FOR_RED |
+| Parallel agent lane A | provider-neutral | AHA-6 selected READY task A | one leased file/task in isolated authorized worktree | PREPARED |
+| Parallel agent lane B | provider-neutral | AHA-6 selected READY task B | one leased file/task in isolated authorized worktree | PREPARED |
+| CoinTH/GLM provider lane | GLM-5.3 via Claude CLI proxy | optional live AHA-6 proof | read-only proposal; external secret resolver only | QUOTA_PREFLIGHT_REQUIRED |
 | Future agents | provider-neutral | none | none | UNCLAIMED |
 
 ### Current GLM evidence

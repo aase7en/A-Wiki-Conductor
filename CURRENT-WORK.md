@@ -1,29 +1,31 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol — AHA-5 COMPLETE / AHA-6 NEXT)
+Last updated: 2026-08-30 (GPT-5.6 Sol — AHA-6 ACTIVE / WO-P1-113)
 
 ## Current phase
 
-**PRIMARY PRIORITY: AHA-6 parallel READY-task execution with ownership/collision safety.**
+**PRIMARY PRIORITY: WO-P1-113 / AHA-6 fixed-pool parallel READY-task execution.**
 
-Accepted AHA-5 state:
-- PR: `#149`;
-- merged main: `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`;
-- post-main CI: `33284585961` SUCCESS;
+Accepted AHA-5 closeout state:
+- implementation PR `#149` merged as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`;
+- closeout PR `#150` merged as main `64b6ef839f16a270295fb2c24649d01e0f54d862`;
+- post-main CI `33286026232`: SUCCESS on Windows/Ubuntu/macOS;
 - Windows Frozen Setup install/uninstall E2E: PASS;
-- Ubuntu/macOS smoke: PASS.
+- AHA-5 implementation + closeout worktrees/branches cleaned after tree-equality proof.
 
 ## Active work order
 
-WO-P1-112 is COMPLETE. Create the bounded AHA-6 work order before the next mutation.
+`docs/work-orders/WO-P1-113-aha6-parallel-ready-execution.md` — ACTIVE / CLAIMED.
+Isolated worktree: `A:\GitHub\A-Wiki-Conductor-aha6-parallel`.
+Branch: `feat/wo-p1-113-aha6-parallel-ready` @ base `64b6ef839f16a270295fb2c24649d01e0f54d862`.
 
 ## Immediate execution frontier
 
-1. AHA-5 durable proposal/result/review/repair bridge is accepted on main.
-2. No human result copy/paste is required; the one-prompt file bridge remains the safe fallback when provider execution is unavailable.
-3. Automatic GLM proxy dispatch must resolve credentials only from an approved external secret source; never track/copy the key into repo or runtime evidence.
-4. CoinTH quota preflight (`remaining_5h`, reset window) is required before GLM dispatch once the external secret resolver is configured.
-5. Next = create bounded AHA-6 work order for parallel READY tasks with lease/scope collision safety. WO-P1-096 live tunnel request-level soak and v0.7 release remain separate gates.
+1. Checkpoint WO-P1-113 + coordination claim before implementation.
+2. RED-first tests for exact SchedulePlan mapping, provider freshness/quota/capacity, lease non-replay and real two-task concurrency.
+3. Implement only the thin `parallel_ready_execution.py` integration seam; reuse scheduler/lease/job/provider contracts unchanged.
+4. Automatic CoinTH/GLM proof remains fail-closed until runtime secret resolution from `A-Wiki-Data/.env` and the required 5-hour quota preflight are available without exposing credentials.
+5. WO-P1-096 live tunnel request-level soak and v0.7 release remain separate gates.
 
 ## Source-of-truth rule
 
