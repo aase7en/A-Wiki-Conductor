@@ -2,7 +2,7 @@
 
 Date: 2026-08-30
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / CLAIMED / REPAIR / REREVIEW_GATE
+Status: ACTIVE / CLAIMED / VERIFIED / PR_GATE
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`
 Branch: `feat/wo-p1-115-provider-admission-runtime`
@@ -137,4 +137,14 @@ Other P3 disposition:
 
 Post-repair evidence: focused `62 passed`; related `256 passed`; full local `1753 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures`; DB-copy E2E, cross-process E2E, compile/diff/scope/secret/encoding audit PASS.
 
-Next authority gate: commit this SSoT checkpoint, generate/re-read/hash-pin `wo115-glm-rereview-002` against the resulting exact HEAD, then obtain a read-only re-review before PR.
+Historical re-review gate (completed): the SSoT checkpoint was committed and `wo115-glm-rereview-002` was generated/re-read/hash-pinned before the accepted re-review below.
+
+## Independent re-review 002 accepted
+
+GLM-5.3 MAX task `wo115-glm-rereview-002` returned validated `PASS` on exact HEAD `5c16ed5248eda5dd0f8094520e45915fe436093e`; task SHA, prior-result SHA and all eight source/test hashes matched. P0/P1/P2 findings: `0`.
+
+The remaining quota-consistency tolerance note is intentionally deferred because its failure direction is conservative `UNAVAILABLE`; tolerance changes require upstream evidence. The reported missing multithread contention test is rejected by repository evidence: `test_atomic_provider_admission_allows_only_one_concurrent_owner` already runs `ThreadPoolExecutor + Barrier`, and isolated cross-process E2E separately returns `ADMITTED,CAPACITY_WAIT`.
+
+Acceptance snapshot: focused `62 passed`; related `256 passed`; full local `1753 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures`; installed-DB-copy and cross-process E2E PASS; compile/diff/scope/secret/encoding audit PASS. Automatic live GLM remains fail-closed until a proven active route and complete reset-bearing five-hour quota tuple exist.
+
+Next gate: final branch/remote/file-scope audit, Draft PR, exact-head CI on Windows/Ubuntu/macOS including Frozen Setup E2E, re-audit, merge and post-main proof.

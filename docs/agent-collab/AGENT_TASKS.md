@@ -7,9 +7,9 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
-| Integrator | GPT-5.6 Sol | WO-P1-115 / AHA-6A.1 | provider admission/runtime wiring + tests + bounded SSoT | REPAIR / REREVIEW_GATE |
+| Integrator | GPT-5.6 Sol | WO-P1-115 / AHA-6A.1 | provider admission/runtime wiring + tests + bounded SSoT | VERIFIED / PR_GATE |
 | GLM review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-review-001` | read-only `runs/wo115-glm-review-001/result.json` only | VERIFIED PASS / REPAIR ACCEPTED |
-| GLM re-review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-rereview-002` | read-only `runs/wo115-glm-rereview-002/result.json` only | PREPARED / EXACT-SHA PACKET NEXT |
+| GLM re-review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-rereview-002` | read-only `runs/wo115-glm-rereview-002/result.json` only | VERIFIED PASS / RELEASED |
 | Integrator | GPT-5.6 Sol | WO-P1-114 / AHA-6A | provider runtime assembly + tests + bounded SSoT | RELEASED |
 | GLM review lane | GLM-5.3 MAX via one-way file bridge until auto dispatch exists | `wo114-glm-review-002` | read-only result artifact only | VERIFIED / RELEASED |
 | Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | RELEASED |

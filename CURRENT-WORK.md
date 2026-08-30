@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 REPAIR / REREVIEW_GATE)
+Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 VERIFIED / PR_GATE)
 
 ## Current phase
 
@@ -17,18 +17,18 @@ Accepted AHA-5 closeout state:
 
 ## Active work order
 
-`docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / REPAIR / REREVIEW_GATE.
+`docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - ACTIVE / CLAIMED / VERIFIED / PR_GATE.
 Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`.
 Branch: `feat/wo-p1-115-provider-admission-runtime` @ base `5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`.
 
 ## Immediate execution frontier
 
-1. GLM task `wo115-glm-review-001` returned validated `PASS`; P0/P1/P2 findings `0`, P3 findings `5`.
-2. GPT repaired two quota-evidence P3s in `cf9676a6d4b9ce988f849426d514a823df034d18`: explicit 5h window priority plus ambiguous/inconsistent quota fail-closed behavior.
-3. Other P3 disposition: concurrency stress already covered; lazy expiry stays acquire-time reconciled; clock agreement is documented as a conservative retention boundary.
-4. Post-repair evidence: focused `62 passed`; related `256 passed`; full local `1753 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures`; compile/diff/repair-scope/secret/encoding audit PASS; DB-copy and cross-process E2E remain PASS.
-5. Source/tests are frozen at repair commit `cf9676a6d4b9ce988f849426d514a823df034d18`. Next independent task is `wo115-glm-rereview-002`; generate/re-read/hash-pin only after this tracked SSoT checkpoint is committed.
-6. GLM re-review remains READ-ONLY. GPT validates task/result/head/hashes and owns any further repair, PR, CI and merge action.
+1. GLM re-review `wo115-glm-rereview-002` returned validated `PASS` on exact HEAD `5c16ed5248eda5dd0f8094520e45915fe436093e`; P0/P1/P2 findings `0`.
+2. Repair `cf9676a6d4b9ce988f849426d514a823df034d18` is accepted: explicit five-hour quota evidence wins, ambiguous/inconsistent quota evidence fails closed, and no concurrency/secret/lifecycle authority was duplicated.
+3. P3 disposition: quota-consistency tolerance remains intentionally conservative/fail-closed pending upstream evidence; the reported missing multithread test is rejected because `test_atomic_provider_admission_allows_only_one_concurrent_owner` already uses `ThreadPoolExecutor + Barrier`, with separate cross-process E2E also PASS.
+4. Final local evidence: focused `62 passed`; related `256 passed`; full local `1753 passed, 4 skipped, 2 known GPU/Pillow/OpenGL environment failures`; compile/diff/scope/secret/encoding audit PASS; DB-copy and cross-process E2E PASS.
+5. Source/tests are frozen at reviewed HEAD `5c16ed5248eda5dd0f8094520e45915fe436093e`. No further source mutation before PR unless a deterministic gate exposes a new defect.
+6. Next gate: final branch/remote/file-scope audit -> Draft PR -> exact-head Windows/Ubuntu/macOS CI including Frozen Setup E2E -> re-audit -> merge -> post-main proof.
 7. Automatic live GLM remains fail-closed: no proven active local GLM route and no complete reset-bearing 5h quota tuple. `WO-P1-096` remains the separate higher P0 release blocker pending authorized live connector soak.
 
 ## Source-of-truth rule
