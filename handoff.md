@@ -1,10 +1,10 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-30 — WO-P1-113 / AHA-6 ACTIVE
+Last updated: 2026-08-30 — WO-P1-113 / AHA-6 COMPLETE
 
 ## Current objective
 
-Execute AHA-6 fixed-pool parallel READY tasks with exact scheduler selection, AHA-4B lease/scope collision safety, provider capacity/quota preflight and no blind replay. Automatic CoinTH/GLM execution must resolve secrets externally from `A-Wiki-Data/.env`; credentials never enter tracked state.
+AHA-6 fixed-pool parallel READY-task execution is complete and merged. No successor AHA work order is claimed. Future provider-global capacity assembly or automatic CoinTH/GLM secret/quota wiring must start under a new work order/reuse gate; WO-P1-096 remains the separate v0.7.0 release blocker.
 
 ## Repository state
 
@@ -12,7 +12,7 @@ Execute AHA-6 fixed-pool parallel READY tasks with exact scheduler selection, AH
 - AHA-5 closeout PR `#150` — MERGED as current base `64b6ef839f16a270295fb2c24649d01e0f54d862`.
 - Post-main CI `33286026232` — SUCCESS on Windows/Ubuntu/macOS; Windows Frozen Setup E2E PASS.
 - AHA-5 implementation + closeout worktrees/branches cleaned after exact tree-equality proof.
-- Active work order: `docs/work-orders/WO-P1-113-aha6-parallel-ready-execution.md` — ACTIVE / CLAIMED.
+- Latest completed work order: `docs/work-orders/WO-P1-113-aha6-parallel-ready-execution.md` — COMPLETE / RELEASED.
 - Worktree: `A:\GitHub\A-Wiki-Conductor-aha6-parallel`.
 - Branch: `feat/wo-p1-113-aha6-parallel-ready` @ `64b6ef839f16a270295fb2c24649d01e0f54d862`.
 - Root checkout remains protected/dirty and is not the mutation surface.
@@ -27,7 +27,10 @@ Execute AHA-6 fixed-pool parallel READY tasks with exact scheduler selection, AH
 - Post-repair evidence: focused 16 passed; related regression 196 passed; full local 1698 passed, 5 skipped, only the same two known GPU/OpenGL/Tcl environment failures outside AHA-6 scope.
 - Cross-batch provider capacity is not globally reserved by this thin seam. Production wiring is blocked until batch admission is serialized per provider or an existing atomic provider-capacity authority supplies/reserves the snapshot; do not create a duplicate semaphore/store.
 - Exact-repair-HEAD re-review `aha6-glm-rereview-002` returned `PASS` with zero findings at `960bf95de9c135a44a1afb33d488f7b4973dd6c6`; task/source/test/prior-result hashes matched.
-- Final local PR audit: related regression 196 passed; compileall/diff-check/scope/secret scans PASS. Next safe action is Draft PR -> exact-head CI -> re-audit/merge.
+- Final local PR audit: related regression 196 passed; compileall/diff-check/scope/secret scans PASS.
+- PR #151 exact reviewed head `5cc2425580c1724ae34f5f836a2211ee6af06b1d` passed CI `33293013006` on Windows/Ubuntu/macOS including Windows Frozen Setup E2E, then merged as `7825afa0ae946d0389b5c6b2955a63a8ae36f54b`.
+- Post-main CI `33293299053` on merge SHA `7825afa0ae946d0389b5c6b2955a63a8ae36f54b` passed Windows/Ubuntu/macOS including Frozen Setup E2E.
+- Docs-only closeout uses `A:\GitHub\A-Wiki-Conductor-aha6-closeout` / `docs/wo-p1-113-aha6-closeout` from exact merged main. After closeout merge/post-main proof, remove only the clean AHA-6 implementation+closeout worktrees/branches after ancestry/tree-equality/no-unique-diff proof.
 
 ## Accepted predecessor
 
