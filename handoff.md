@@ -1,19 +1,19 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-29 — WO-P1-112 / AHA-5 multi-agent review/repair loop
+Last updated: 2026-08-30 — WO-P1-112 COMPLETE / AHA-6 next
 
 ## Current objective
 
-Prove a durable GPT-plan/review ↔ GLM-implement/repair loop where task/result/evidence
-move through repository state, not human copy/paste.
+AHA-5 is accepted on main. Next: AHA-6 parallel READY-task execution with lease/scope collision safety; automatic GLM proxy dispatch must use an external secret resolver and quota preflight.
 
 ## Repository state
 
-- Worktree: `A:\GitHub\A-Wiki-Conductor-aha5-review-repair`
-- Branch: `feat/wo-p1-112-aha5-agent-review-repair-loop`
-- Base: `origin/main@7f9a16f6dfafe17f3795167da22d4886945611e0`
-- Work order: `docs/work-orders/WO-P1-112-aha5-agent-review-repair-loop.md`
-- `SAFE_TO_MUTATE = YES` only inside WO-P1-112 allowed scope.
+- AHA-5 PR: `#149` — MERGED.
+- Accepted main: `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`.
+- Post-main CI: `33284585961` — SUCCESS on Windows/Ubuntu/macOS.
+- Windows Frozen Setup install/uninstall E2E: PASS.
+- Work order: `docs/work-orders/WO-P1-112-aha5-agent-review-repair-loop.md` — COMPLETE.
+- Next mutation requires a new bounded AHA-6 work order/claim.
 
 ## Accepted predecessor
 
@@ -47,3 +47,11 @@ Windows passed Frozen Setup install/uninstall E2E.
 - next safe action: defect-memory + broad regression/chaos + diff/secret audit, then PR/CI/re-audit/merge.
 
 - AHA-5 audit evidence: related suite 122 passed; CI-equivalent full suite 1687 passed, 1 environment skip, 0 failed; compileall/diff-check/secret-pattern scan PASS.
+
+## AHA-5 final acceptance
+
+- PR #149 merged after exact-head CI passed.
+- Post-main CI `33284585961` passed all jobs, including Windows packaging and Frozen Setup E2E.
+- Local CI-equivalent suite: 1687 passed, 1 environment skip, 0 failed.
+- Related AHA-5 regression: 122 passed.
+- Automatic GLM proxy use remains fail-closed until an approved external runtime profile is configured; quota must be checked before dispatch.

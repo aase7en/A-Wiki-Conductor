@@ -2,7 +2,7 @@
 
 Date: 2026-08-29
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / FILE-BRIDGE GREEN / AUDIT GATE
+Status: COMPLETE
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-aha5-review-repair`
 Branch: `feat/wo-p1-112-aha5-agent-review-repair-loop`
@@ -115,3 +115,13 @@ independent review -> real GLM vertical slice -> bounded repair slice -> CI/merg
 Next: defect-memory → broad lease/supervised/harness regression + chaos → compile/diff/secret audit → commit/push → Draft PR → remote review/3-OS CI/Frozen Setup → re-audit/merge/post-main.
 
 - AHA-5 audit evidence: related suite 122 passed; CI-equivalent full suite 1687 passed, 1 environment skip, 0 failed; compileall/diff-check/secret-pattern scan PASS.
+
+## Final acceptance — 2026-08-30
+
+- PR `#149` merged as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`.
+- Exact-head PR CI `33272591895`: SUCCESS on Windows/Ubuntu/macOS.
+- Post-main CI `33284585961`: SUCCESS; Windows packaging, Portable smoke, and Frozen Setup install/uninstall E2E PASS.
+- Local CI-equivalent suite: 1687 passed, 1 environment skip, 0 failed; related AHA-5 regression: 122 passed.
+- Diff/scope audit PASS. No provider credential is stored in tracked state.
+- All ten acceptance criteria are satisfied using automatic dispatch when provider-ready or the durable one-prompt bridge when externally blocked.
+- Follow-on work belongs to AHA-6; do not reopen this WO for parallel fan-out or provider quota orchestration.

@@ -90,9 +90,9 @@ Resume sequence:
 
 Never blindly repeat a mutation merely because the previous agent/session disappeared.
 
-## Active claim — AHA-5 multi-agent review/repair loop (2026-08-29)
+## Closed claim — AHA-5 multi-agent review/repair loop (2026-08-30)
 
-- Task: `AHA-5 / WO-P1-112`
+- Task: `AHA-5 / WO-P1-112` — COMPLETE; PR #149 merged as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`; post-main CI `33284585961` SUCCESS.
 - Integrator owner: GPT-5.6 Sol
 - Worktree: `A:\GitHub\A-Wiki-Conductor-aha5-review-repair`
 - Branch: `feat/wo-p1-112-aha5-agent-review-repair-loop`

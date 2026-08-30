@@ -1,28 +1,29 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol — AHA-5 FILE BRIDGE GREEN / AUDIT GATE)
+Last updated: 2026-08-30 (GPT-5.6 Sol — AHA-5 COMPLETE / AHA-6 NEXT)
 
 ## Current phase
 
-**PRIMARY PRIORITY: AHA-5 GPT↔GLM durable review/repair loop.**
+**PRIMARY PRIORITY: AHA-6 parallel READY-task execution with ownership/collision safety.**
 
-Current lane:
-- worktree: `A:\\GitHub\\A-Wiki-Conductor-aha5-review-repair`;
-- branch: `feat/wo-p1-112-aha5-agent-review-repair-loop`;
-- accepted base: `origin/main@7f9a16f6dfafe17f3795167da22d4886945611e0`;
-- owner: GPT-5.6 Sol integrator.
+Accepted AHA-5 state:
+- PR: `#149`;
+- merged main: `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`;
+- post-main CI: `33284585961` SUCCESS;
+- Windows Frozen Setup install/uninstall E2E: PASS;
+- Ubuntu/macOS smoke: PASS.
 
 ## Active work order
 
-`docs/work-orders/WO-P1-112-aha5-agent-review-repair-loop.md`.
+WO-P1-112 is COMPLETE. Create the bounded AHA-6 work order before the next mutation.
 
 ## Immediate execution frontier
 
-1. Provider-neutral structured proposal + result-file bridge + one-file lease materialization are GREEN.
-2. Deterministic review/repair file loop is GREEN without human result copy/paste.
-3. Claude provider jobs are isolated from user settings via `--setting-sources project,local`; existing READ_ONLY behavior remains.
-4. GLM-5.3 MAX suitability is proven; direct Z.ai remains entitlement-blocked, while the user has a working external Claude-CLI proxy profile. That proxy credential is not stored in repo/runtime SSoT, so automatic Conductor dispatch must fail closed until an external secret/profile resolver is configured. The one-prompt file bridge remains the supported fallback and requires no result copy-back.
-5. Next = defect/SSoT audit -> broad regression/chaos -> PR/diff/3-OS CI/re-audit/merge. Live tunnel-client request-level TTL soak and v0.7 release remain separate gates.
+1. AHA-5 durable proposal/result/review/repair bridge is accepted on main.
+2. No human result copy/paste is required; the one-prompt file bridge remains the safe fallback when provider execution is unavailable.
+3. Automatic GLM proxy dispatch must resolve credentials only from an approved external secret source; never track/copy the key into repo or runtime evidence.
+4. CoinTH quota preflight (`remaining_5h`, reset window) is required before GLM dispatch once the external secret resolver is configured.
+5. Next = create bounded AHA-6 work order for parallel READY tasks with lease/scope collision safety. WO-P1-096 live tunnel request-level soak and v0.7 release remain separate gates.
 
 ## Source-of-truth rule
 
