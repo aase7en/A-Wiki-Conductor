@@ -7,22 +7,24 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
-| Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | IMPLEMENTED / REVIEW_PENDING |
+| Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | REPAIRED / REREVIEW_PENDING |
 | Parallel agent lane A | provider-neutral | AHA-6 selected READY task A | one leased file/task in isolated authorized worktree | PREPARED |
 | Parallel agent lane B | provider-neutral | AHA-6 selected READY task B | one leased file/task in isolated authorized worktree | PREPARED |
-| CoinTH/GLM provider lane | GLM-5.3 MAX via Claude CLI/ZCode bridge | `aha6-glm-review-001` independent code review | read-only; `runs/aha6-glm-review-001/result.json` only | HUMAN_BRIDGE_READY / AUTO_BLOCKED |
+| CoinTH/GLM provider lane | GLM-5.3 MAX via Claude CLI/ZCode bridge | `aha6-glm-rereview-002` repair re-review | read-only result file only | TASK_PACKET_NEXT / AUTO_BLOCKED |
 | Future agents | provider-neutral | none | none | UNCLAIMED |
 
 ### Human-bridge contract for the active GLM lane
 
-- Task pointer: `runs/aha6-glm-review-001/task.md` (ignored runtime artifact; regenerate after any tracked HEAD change).
-- Result pointer: `runs/aha6-glm-review-001/result.json`.
+- Task pointer: `runs/aha6-glm-rereview-002/task.md` (ignored runtime artifact; regenerate after any tracked HEAD change).
+- Result pointer: `runs/aha6-glm-rereview-002/result.json`.
 - Human relays only the pointer prompt; human never copies the result back.
 - GLM must not edit source, tests, `CURRENT-WORK.md`, `handoff.md`, `COLLAB.md`, work orders, commits or PRs in this review lane.
 - GPT/Conductor validates task/model/HEAD identity, reads the result itself, and performs the only tracked SSoT fold-back.
 
 ### Current GLM evidence
 
+- `aha6-glm-review-001` validated exact HEAD/SHA and returned `CHANGES_REQUIRED`: one accepted P2 lease-invariant fan-in defect, one accepted production-assembly capacity risk, plus P3 hardening.
+- repair commit `2a4d8fd786a9d3086a8cd2a298b8ee8cfcb6adc8` closes the lease-invariant defect and P3 unknown-outcome `KeyError` risk; exact-SHA re-review remains required before PR acceptance.
 - suitability benchmark gate completed before delegation and recorded in WO-P1-112;
 - direct Z.ai execution reached the provider but returned HTTP 429 / insufficient resource package;
 - installed ZCode exposes Start Plan, while full GLM-5.3 Coding Plan is currently reported not entitled;

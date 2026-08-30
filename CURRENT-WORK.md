@@ -21,11 +21,11 @@ Branch: `feat/wo-p1-113-aha6-parallel-ready` @ base `64b6ef839f16a270295fb2c2464
 
 ## Immediate execution frontier
 
-1. AHA-6 implementation is pushed; focused 13 + relevant regression 193 passed. Full local suite = 1696 passed, 5 skipped, 2 known GPU-environment failures outside AHA-6 scope.
-2. Multi-agent governance is now single-writer SSoT + ignored `runs/` task/result exchange; no per-agent roadmap/handoff/memory duplication.
-3. Automatic CoinTH/GLM is `BLOCKED` until a concrete Drive-backed provider resolver + required 5-hour quota evidence are available. No provider request may bypass this.
-4. Human one-way GLM review bridge is the current safe path: relay only the task pointer; GPT reads the result file directly, repairs if required, then audit -> PR -> exact-head CI -> re-audit/merge.
-5. WO-P1-096 live tunnel request-level soak and v0.7 release remain separate gates.
+1. GLM-5.3 independent review `aha6-glm-review-001` returned `CHANGES_REQUIRED` at exact HEAD `ae3dae595b6acc173657e15120c48068fcc4af7a`; GPT validated identity/hash and accepted the lease-invariant P2.
+2. Repair commit `2a4d8fd786a9d3086a8cd2a298b8ee8cfcb6adc8` is pushed. Focused AHA-6 = 16 passed; related regression = 196 passed; full local = 1698 passed, 5 skipped, 2 known GPU-environment failures outside scope.
+3. Cross-batch provider `max_concurrency` remains a production-assembly blocker: this seam is one scheduler-owned batch; concurrent batches may not reuse one inflight snapshot until an existing atomic capacity authority/serialized assembly is proven. Do not add a second semaphore/store here.
+4. Automatic CoinTH/GLM remains `BLOCKED` until a concrete Drive-backed provider resolver + required 5-hour quota evidence are available. Human one-way bridge is required for exact-SHA re-review.
+5. Next gate: independent repair re-review -> audit -> Draft PR -> exact-head Windows/Ubuntu/macOS CI + Frozen Setup E2E -> re-audit/merge. WO-P1-096 release soak remains separate.
 
 ## Source-of-truth rule
 

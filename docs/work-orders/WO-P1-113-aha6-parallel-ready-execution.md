@@ -93,7 +93,7 @@ F. Optional real CoinTH/GLM proof only after external secret resolver + quota pr
 - Existing Conductor scheduler, atomic lease broker/recovery, durable graph dispatch and provider quota model were inspected; no competing open PR exists.
 - Provider quota already has `limit`, `used`, `remaining`, `reset_at`, `reset_in_seconds`; no second quota type is authorized.
 
-Current status: `IMPLEMENTED / REVIEW_PENDING`.
+Current status: `REPAIRED / REREVIEW_PENDING`.
 
 ## Implementation checkpoint — 2026-08-30
 
@@ -120,3 +120,15 @@ User explicitly requested durable multi-agent rules so GPT/GLM/future agents can
 - Collaboration protocol now forbids per-agent roadmap/handoff/memory clones and codifies the full loop-engineer cycle with explicit plan/task gate, independent exact-SHA review, realistic E2E, defect memory, PR/CI/re-audit/merge proof.
 
 Next safe action: commit this governance checkpoint, regenerate the ignored GLM review task against that exact clean HEAD, then obtain the read-only GLM-5.3 MAX review via automatic dispatch only if secret+quota gates become provably ready; otherwise use the one-direction human relay.
+
+## Independent GLM review + repair checkpoint — 2026-08-30
+
+- Read-only task `aha6-glm-review-001` was bound to exact clean HEAD `ae3dae595b6acc173657e15120c48068fcc4af7a`; task SHA256 `c27d14ebe738f12fb305c5371f2f694d54fa7728071dc7953ef4469e22a576e7`; reviewed source/test SHA256 matched. Result identity matched `cointh-glm / glm-5.3` and returned `CHANGES_REQUIRED`.
+- Accepted correctness defect: the lease-admission loop could raise on malformed `LEASED` broker outcomes after sibling leases were acquired, erasing structured sibling batch evidence. RED tests reproduced both missing-lease and selected-worker-drift paths.
+- Repair commit `2a4d8fd786a9d3086a8cd2a298b8ee8cfcb6adc8`: both paths now become per-task `LEASE_RECOVERY_REQUIRED`; valid siblings continue; unknown future lease outcome kinds fail closed instead of raising `KeyError`.
+- Accepted integration risk, not solved by a duplicate authority: provider `max_concurrency` is batch-local against the injected snapshot. `ParallelReadyExecutor.execute()` now documents that concurrent batch starts using one snapshot are unsupported. Production assembly must serialize admission per provider or reuse an existing atomic capacity authority before this seam is wired live. This remains a blocker for production assembly, not permission to add a second provider semaphore/store inside AHA-6.
+- P3 review items about runner diagnostic richness, read-only lease lifecycle, and internal thread cap remain hardening backlog; current runner concurrency is already bounded by the upstream `SchedulePlan` policy and mutation leases intentionally remain active for AHA-5 reconcile.
+- Post-repair verification: focused = 16 passed; related scheduler/dispatch/chaos/lease/provider/harness/AHA-5 regression = 196 passed; compileall/diff-check/secret scan PASS. Full local suite = 1698 passed, 5 skipped, 2 failed only on the pre-existing Desktop Commander GPU/OpenGL/Tcl dependency limitation outside AHA-6.
+- Durable defect lesson #25 records the batch-evidence failure mode and prevention rule.
+
+Next safe action: checkpoint this review/repair state, generate `aha6-glm-rereview-002` against the exact clean repair+SSoT HEAD, obtain independent read-only re-review via the one-way bridge, then audit -> Draft PR -> exact-head CI -> re-audit/merge.

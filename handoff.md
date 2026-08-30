@@ -21,7 +21,12 @@ Execute AHA-6 fixed-pool parallel READY tasks with exact scheduler selection, AH
 - Next authority handoff is read-only GLM-5.3 MAX review through durable `runs/` task/result files; no human result copy-back.
 - Full local suite: 1696 passed, 5 skipped, 2 known local GPU dependency failures outside AHA-6 scope; related AHA-6 suite remains 193 passed.
 - Auto GLM is not assembled in the installed app: no provider tables in the real control DB and no concrete production environment-reference resolver; quota evidence is also unavailable. Do not dispatch automatically.
-- Current safe fallback is one-direction human relay to the ignored `runs/aha6-glm-review-001/task.md`; external agent writes only its result file and never edits tracked coordination SSoT.
+- Previous one-direction bridge `aha6-glm-review-001` completed; the next safe bridge is `aha6-glm-rereview-002`, regenerated only after the repair+SSoT HEAD is clean and committed.
+- GLM review `aha6-glm-review-001` at `ae3dae595b6acc173657e15120c48068fcc4af7a` returned `CHANGES_REQUIRED`; identity/task SHA/source SHA/test SHA were validated before accepting findings.
+- Accepted P2 repair: malformed `LEASED` outcomes no longer raise batch-wide; missing lease / worker drift become typed recovery while siblings retain outcomes. Repair commit: `2a4d8fd786a9d3086a8cd2a298b8ee8cfcb6adc8`.
+- Post-repair evidence: focused 16 passed; related regression 196 passed; full local 1698 passed, 5 skipped, only the same two known GPU/OpenGL/Tcl environment failures outside AHA-6 scope.
+- Cross-batch provider capacity is not globally reserved by this thin seam. Production wiring is blocked until batch admission is serialized per provider or an existing atomic provider-capacity authority supplies/reserves the snapshot; do not create a duplicate semaphore/store.
+- Next authority handoff is exact-repair-HEAD independent re-review through a fresh ignored `runs/` packet.
 
 ## Accepted predecessor
 
