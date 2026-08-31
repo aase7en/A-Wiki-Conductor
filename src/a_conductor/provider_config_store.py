@@ -242,20 +242,16 @@ class SQLiteProviderConfigStore:
                 if row is None:
                     if expected is not None:
                         raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
-                    connection.execute(
-                        "INSERT INTO provider_endpoints(endpoint_ref, base_url, generation) "
-                        "VALUES(?, ?, 1)",
-                        (endpoint.endpoint_ref, endpoint.base_url),
-                    )
-                    connection.commit()
-                    return 1
-                current = self._stored_generation(row["generation"])
-                assert current is not None
-                if expected is None:
-                    raise ProviderConfigStoreError("PROVIDER_GENERATION_EXPECTED")
-                if expected != current:
-                    raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
-                next_endpoint_generation = self._next_generation(current)
+                    current = None
+                    next_endpoint_generation = 1
+                else:
+                    current = self._stored_generation(row["generation"])
+                    assert current is not None
+                    if expected is None:
+                        raise ProviderConfigStoreError("PROVIDER_GENERATION_EXPECTED")
+                    if expected != current:
+                        raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
+                    next_endpoint_generation = self._next_generation(current)
                 provider_rows = connection.execute(
                     "SELECT provider_id, generation FROM provider_configurations WHERE endpoint_ref=?",
                     (endpoint.endpoint_ref,),
@@ -269,13 +265,20 @@ class SQLiteProviderConfigStore:
                         provider_generation,
                         self._next_generation(provider_generation),
                     ))
-                updated_endpoint = connection.execute(
-                    "UPDATE provider_endpoints SET base_url=?, generation=? "
-                    "WHERE endpoint_ref=? AND generation=?",
-                    (endpoint.base_url, next_endpoint_generation, endpoint.endpoint_ref, current),
-                )
-                if updated_endpoint.rowcount != 1:
-                    raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
+                if current is None:
+                    connection.execute(
+                        "INSERT INTO provider_endpoints(endpoint_ref, base_url, generation) "
+                        "VALUES(?, ?, 1)",
+                        (endpoint.endpoint_ref, endpoint.base_url),
+                    )
+                else:
+                    updated_endpoint = connection.execute(
+                        "UPDATE provider_endpoints SET base_url=?, generation=? "
+                        "WHERE endpoint_ref=? AND generation=?",
+                        (endpoint.base_url, next_endpoint_generation, endpoint.endpoint_ref, current),
+                    )
+                    if updated_endpoint.rowcount != 1:
+                        raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
                 for provider_id, provider_generation, next_provider_generation in provider_updates:
                     updated_provider = connection.execute(
                         "UPDATE provider_configurations SET generation=? "
@@ -298,13 +301,14 @@ class SQLiteProviderConfigStore:
         with self._connect() as connection:
             try:
                 row = connection.execute(
-                    "SELECT endpoint_ref, base_url FROM provider_endpoints WHERE endpoint_ref = ?",
+                    "SELECT endpoint_ref, base_url, generation FROM provider_endpoints WHERE endpoint_ref = ?",
                     (endpoint_ref,),
                 ).fetchone()
             except sqlite3.Error as exc:
                 raise ProviderConfigStoreError("CONFIG_STORE_READ_FAILED") from exc
         if row is None:
             return None
+        self._stored_generation(row["generation"])
         return ProviderEndpointConfig(row["endpoint_ref"], row["base_url"])
 
     def save_provider(
@@ -577,13 +581,13 @@ class SQLiteProviderConfigStore:
                 raise ProviderConfigStoreError("CONFIG_STORE_READ_FAILED") from exc
         if profile is None:
             return None
-        endpoint = (
-            None
-            if endpoint_row is None
-            else ProviderEndpointConfig(
+        if endpoint_row is None:
+            endpoint = None
+        else:
+            self._stored_generation(endpoint_row["generation"])
+            endpoint = ProviderEndpointConfig(
                 endpoint_row["endpoint_ref"], endpoint_row["base_url"]
             )
-        )
         observation = None if observation_row is None else self._observation_from_row(
             observation_row
         )

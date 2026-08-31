@@ -108,3 +108,20 @@ RED: two unsafe trust classes returned `POLICY_ALLOWED_EXTERNAL_EGRESS`; the `FI
 Repair: `EXTERNAL_FIRST_PARTY` now requires `ProviderTrustClass.FIRST_PARTY`; otherwise policy fails closed with `PROVIDER_TRUST_EGRESS_MISMATCH`. Conservative `EXTERNAL_THIRD_PARTY` behavior remains unchanged, and explicit loopback local/no-egress paths remain eligible.
 
 Verification after repair: targeted `3 passed`; full policy `15 passed`; broader provider/store/runtime/parallel/graph/lease/elastic/Claude supervised stack `254 passed`. The previously generated `wo118a-independent-review-001` packet for head `036acf29...` is superseded and must not be used.
+
+## Integrator review-002 rejection + repair checkpoint — 2026-08-31
+
+The `wo118a-independent-review-002` reviewer returned `PASS`, but integrator validation rejected that verdict after reproducing two uncovered generation-authority defects on exact reviewed HEAD `729c3133a2c9281fe768793756099c21a2edd933`.
+
+1. **Endpoint insert fan-out gap:** a provider and generation-1 observation could exist while its referenced endpoint row was absent. Inserting that endpoint committed generation 1 without advancing the referencing provider generation, so the old observation became READY for a newly materialized route.
+2. **Endpoint generation decode gap:** `load_provider_snapshot()` and `get_endpoint()` consumed endpoint route data without validating the persisted endpoint generation. Raw durable corruption (`generation=0`) plus a changed route therefore resolved the new route together with the old generation-1 observation.
+
+RED evidence: endpoint-insert fan-out regressions = `3 failed`; corrupt endpoint resolver regression = `1 failed`. Existing focused/related suites remained green, proving a coverage gap rather than an unrelated regression.
+
+Repair remains inside WO118A store authority: endpoint insert now pre-validates every referencing provider generation and atomically advances those provider generations in the same transaction; endpoint reads/snapshots validate persisted endpoint generation before returning route authority. Non-insert fixtures that require generation 1 use canonical `endpoint -> provider -> observation` setup rather than weakening the new invariant.
+
+Post-repair evidence: focused WO118A = `68 passed`; dispatch/lease related = `179 passed`; provider/harness/supervised = `111 passed`; combined frontier regression including elastic/candidate = `305 passed`. Deterministic raw-SQL reproduction confirms endpoint insert produces provider gen2 and drops gen1 readiness; corrupt endpoint generation makes resolver return unavailable and direct endpoint read fail typed `PROVIDER_GENERATION_INVALID`.
+
+Status: **WO-P1-118A REPAIRED / EXACT-HEAD REREVIEW REQUIRED.** The old reviewer `PASS` is not merge authority. WO118B remains pending and is not claimed complete.
+
+Full local verification after the review-002 repair: `1843 passed, 5 skipped, 2 failed` in 226.46s. The two failures are the pre-existing local GPU dependency gaps outside WO118A (`Pillow` unavailable for particle sampling; `OpenGL` module unavailable for real WGL framebuffer test). No provider/configuration failure appeared in the full suite.

@@ -67,11 +67,11 @@ def observation() -> ProviderObservation:
 def seeded_store(db: Path, *, include_endpoint: bool = True) -> SQLiteProviderConfigStore:
     store = SQLiteProviderConfigStore(db)
     configured = profile()
-    store.save_provider(configured)
     if include_endpoint:
         store.save_endpoint(
             ProviderEndpointConfig(configured.endpoint_ref, "https://provider.example/v1")
         )
+    store.save_provider(configured)
     store.save_observation(observation())
     return store
 
@@ -409,10 +409,10 @@ def test_refresh_observation_is_bound_to_captured_generation(tmp_path: Path) -> 
     db = tmp_path / "quota-stale.sqlite"
     store = SQLiteProviderConfigStore(db)
     configured = profile()
-    store.save_provider(configured)
     store.save_endpoint(
         ProviderEndpointConfig(configured.endpoint_ref, "https://api.z.ai/api/anthropic")
     )
+    store.save_provider(configured)
     drive = tmp_path / "A-Wiki-Data"
     (drive / "secrets").mkdir(parents=True)
     (drive / "secrets" / "global.env").write_text(
@@ -461,3 +461,18 @@ def test_refresh_observation_is_bound_to_captured_generation(tmp_path: Path) -> 
     with _sqlite3.connect(db) as connection:
         saved = connection.execute(select_sql, (configured.provider_id,)).fetchone()[0]
     assert saved == 1, "stale in-flight probe must never publish generation-2 evidence"
+
+
+def test_resolver_fails_closed_on_corrupt_endpoint_generation(tmp_path: Path) -> None:
+    import sqlite3
+
+    db = tmp_path / "corrupt-endpoint-generation.sqlite"
+    store = seeded_store(db)
+    with sqlite3.connect(db) as connection:
+        connection.execute(
+            "UPDATE provider_endpoints SET base_url=?, generation=0 WHERE endpoint_ref=?",
+            ("https://new-route.example/v1", profile().endpoint_ref),
+        )
+        connection.commit()
+
+    assert SQLiteClaudeCodeProviderResolver(store).resolve("provider-glm-shared") is None

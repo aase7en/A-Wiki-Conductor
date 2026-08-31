@@ -123,13 +123,13 @@ def test_latest_observation_round_trip_is_separate_from_configuration(tmp_path) 
 def test_generation_cas_prevents_stale_editors_and_blind_updates(tmp_path) -> None:
     store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
     profile = make_profile()
-    assert store.save_provider(profile) == 1
     assert (
         store.save_endpoint(
             ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1")
         )
         == 1
     )
+    assert store.save_provider(profile) == 1
 
     with pytest.raises(ProviderConfigStoreError) as missing:
         store.save_provider(profile)
@@ -201,10 +201,10 @@ def test_stale_observation_cannot_authorize_new_configuration(tmp_path) -> None:
 
     store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
     profile = make_profile()
-    store.save_provider(profile)
     store.save_endpoint(
         ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1")
     )
+    store.save_provider(profile)
     observation = ProviderObservation(
         provider_id=profile.provider_id,
         health=ProviderHealth.AVAILABLE,
@@ -856,3 +856,63 @@ def test_endpoint_fanout_refuses_corrupt_or_exhausted_referencing_provider_gener
         )
     assert blocked.value.code == expected_code
     assert store.get_endpoint(profile.endpoint_ref) == endpoint
+
+
+def test_endpoint_insert_fans_out_generation_to_existing_referencing_provider(tmp_path) -> None:
+    from a_conductor.provider_configuration import is_provider_ready
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = make_profile()
+    store.save_provider(profile)
+    stale_observation = ProviderObservation(
+        provider_id=profile.provider_id,
+        health=ProviderHealth.AVAILABLE,
+        observed_at=NOW,
+        provenance="fake:before-endpoint-existed",
+        configuration_generation=1,
+    )
+    store.save_observation(stale_observation)
+
+    assert store.save_endpoint(
+        ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1")
+    ) == 1
+
+    snapshot = store.load_provider_snapshot(profile.provider_id)
+    assert snapshot is not None
+    assert snapshot.endpoint is not None
+    assert snapshot.generation == 2
+    assert snapshot.observation is not None
+    assert snapshot.observation.configuration_generation == 1
+    assert not is_provider_ready(
+        snapshot.profile,
+        snapshot.observation,
+        now=NOW,
+        expected_generation=snapshot.generation,
+    )
+
+
+@pytest.mark.parametrize(
+    ("bad_generation", "expected_code"),
+    [(0, "PROVIDER_GENERATION_INVALID"), (2**63 - 1, "PROVIDER_GENERATION_EXHAUSTED")],
+)
+def test_endpoint_insert_fanout_validates_referencing_provider_before_mutation(
+    tmp_path, bad_generation, expected_code
+) -> None:
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = make_profile()
+    store.save_provider(profile)
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "UPDATE provider_configurations SET generation=? WHERE provider_id=?",
+            (bad_generation, profile.provider_id),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as blocked:
+        store.save_endpoint(
+            ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1")
+        )
+    assert blocked.value.code == expected_code
+    assert store.get_endpoint(profile.endpoint_ref) is None
