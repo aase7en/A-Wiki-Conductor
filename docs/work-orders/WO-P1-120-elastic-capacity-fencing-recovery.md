@@ -66,5 +66,5 @@ May run concurrently with WO-P1-117 and WO-P1-119. If the R6 RED test requires c
 - GPT adversarial review rejected that boolean as decommission authority and found a second bypass: the generic transition matrix still allowed `RECOVERY_REQUIRED -> RELEASED` without reconciliation.
 - RED proved both bypasses. Final local repair removes the boolean escape, refuses all bound stale-residue release until a typed runtime/decommission observation seam exists, and forbids generic `RECOVERY_REQUIRED -> RELEASED`. Unbound stale residue remains evidence-gated releasable.
 - A final GPT authority audit then proved `release_unstarted()` could retire a successful `CAPACITY` record through the generic transition table. RED reproduced it; `CAPACITY -> RELEASED` is now forbidden until a separate typed retirement lifecycle exists.
-- Focused + related worker/elastic/parallel regression after all integrator repairs: `229 passed`; compileall and `git diff --check` PASS.
+- Focused + related worker/elastic/parallel regression after all integrator repairs: `230 passed`; the final positive control proves legitimate ACTIVE `release_unstarted()` still releases and returns budget; compileall and `git diff --check` PASS.
 - Remaining gates: source/docs commit + push -> exact-SHA independent review -> 3-OS CI -> merge/post-main verification.

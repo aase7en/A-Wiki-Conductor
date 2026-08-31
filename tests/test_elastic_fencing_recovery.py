@@ -995,3 +995,18 @@ def test_release_unstarted_cannot_retire_capacity(tmp_path: Path) -> None:
         )
     record = store.list_provisioning_reservations(consuming_only=True)[0]
     assert record.state == "CAPACITY"
+
+
+def test_release_unstarted_still_releases_active_reservation(tmp_path: Path) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    _acquired(store)
+    reservations = SQLiteWorkerProvisioningReservations(store)
+    released = reservations.release_unstarted(
+        "r-1", session_id="s-1", task_id="t-1", now=LATER
+    )
+    assert released.state == "RELEASED"
+    second = store.acquire_provisioning_reservation(
+        reservation_id="r-2", session_id="s-2", task_id="t-2",
+        runtime_kind="serena-local", max_extra_workers=1, now=LATER,
+    )
+    assert second.kind.value == "ACQUIRED"

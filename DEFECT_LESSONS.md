@@ -563,4 +563,4 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 **Lesson:** booleans and caller claims are not ownership/decommission evidence. Any action that frees bounded capacity after uncertainty must consume typed provenance from an authoritative observation path, or fail closed.
 
-**Verify:** RED tests prove the boolean escape, generic recovery-release bypass, and `release_unstarted()` CAPACITY-retirement bypass; final worker/elastic/parallel regression = 229 passed.
+**Verify:** RED tests prove the boolean escape, generic recovery-release bypass, and `release_unstarted()` CAPACITY-retirement bypass; final worker/elastic/parallel regression = 230 passed, including a positive control that legitimate ACTIVE `release_unstarted()` still releases and returns budget.
