@@ -921,34 +921,23 @@ class SQLiteWorkerLeaseStore:
                 if (now_dt - updated_dt).total_seconds() < stale_after_seconds:
                     connection.rollback()
                     raise WorkerLeaseError("PROVISIONING_NOT_STALE")
-                if current.worker_id is not None:
-                    active_lease = connection.execute(
-                        "SELECT lease_id FROM worker_leases "
-                        "WHERE worker_id = ? AND released_at IS NULL",
-                        (current.worker_id,),
-                    ).fetchone()
-                    if active_lease is not None:
-                        connection.rollback()
-                        raise WorkerLeaseError("PROVISIONING_WORKER_IN_USE")
+                if current.worker_id is None:
                     connection.rollback()
                     raise WorkerLeaseError(
-                        "PROVISIONING_WORKER_DECOMMISSION_EVIDENCE_REQUIRED"
+                        "PROVISIONING_RUNTIME_ABSENCE_EVIDENCE_REQUIRED"
                     )
-                connection.execute(
-                    "UPDATE worker_provisioning_reservations "
-                    "SET state='RELEASED', updated_at=? WHERE reservation_id=?",
-                    (observed_at, reservation_id),
-                )
-                updated = connection.execute(
-                    "SELECT * FROM worker_provisioning_reservations WHERE reservation_id=?",
-                    (reservation_id,),
+                active_lease = connection.execute(
+                    "SELECT lease_id FROM worker_leases "
+                    "WHERE worker_id = ? AND released_at IS NULL",
+                    (current.worker_id,),
                 ).fetchone()
-                if updated is None:
+                if active_lease is not None:
                     connection.rollback()
-                    raise WorkerLeaseError("PROVISIONING_RESERVATION_NOT_FOUND")
-                record = self._provisioning_record_from_row(updated)
-                connection.commit()
-                return record
+                    raise WorkerLeaseError("PROVISIONING_WORKER_IN_USE")
+                connection.rollback()
+                raise WorkerLeaseError(
+                    "PROVISIONING_WORKER_DECOMMISSION_EVIDENCE_REQUIRED"
+                )
             except WorkerLeaseError:
                 connection.rollback()
                 raise

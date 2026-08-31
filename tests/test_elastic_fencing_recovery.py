@@ -772,18 +772,18 @@ def _acquired(store, *, reservation_id="r-1", session_id="s-1", task_id="t-1"):
     return result
 
 
-def test_reconcile_releases_stale_active_reservation_and_frees_budget(tmp_path: Path) -> None:
+def test_reconcile_refuses_stale_unbound_active_without_runtime_absence_evidence(tmp_path: Path) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     _acquired(store)
-    record = store.reconcile_stale_provisioning(
-        "r-1", session_id="s-1", task_id="t-1", now=LATER, stale_after_seconds=3600
-    )
-    assert record.state == "RELEASED"
+    with pytest.raises(WorkerLeaseError, match="PROVISIONING_RUNTIME_ABSENCE_EVIDENCE_REQUIRED"):
+        store.reconcile_stale_provisioning(
+            "r-1", session_id="s-1", task_id="t-1", now=LATER, stale_after_seconds=3600
+        )
     second = store.acquire_provisioning_reservation(
         reservation_id="r-2", session_id="s-2", task_id="t-2",
         runtime_kind="serena-local", max_extra_workers=1, now=LATER,
     )
-    assert second.kind.value == "ACQUIRED"
+    assert second.kind.value == "LIMIT_WAIT"
 
 
 def test_reconcile_refuses_fresh_reservation(tmp_path: Path) -> None:
@@ -839,16 +839,16 @@ def test_reconcile_refuses_provisioned_worker_with_active_lease(tmp_path: Path) 
         )
 
 
-def test_reconcile_releases_stale_unbound_recovery_residue(tmp_path: Path) -> None:
+def test_reconcile_refuses_stale_unbound_recovery_without_runtime_absence_evidence(tmp_path: Path) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     _acquired(store, reservation_id="r-1")
     store.transition_provisioning_reservation(
         "r-1", session_id="s-1", task_id="t-1", state="RECOVERY_REQUIRED", now=NOW
     )
-    recovered = store.reconcile_stale_provisioning(
-        "r-1", session_id="s-1", task_id="t-1", now=LATER, stale_after_seconds=3600
-    )
-    assert recovered.state == "RELEASED"
+    with pytest.raises(WorkerLeaseError, match="PROVISIONING_RUNTIME_ABSENCE_EVIDENCE_REQUIRED"):
+        store.reconcile_stale_provisioning(
+            "r-1", session_id="s-1", task_id="t-1", now=LATER, stale_after_seconds=3600
+        )
 
 
 def test_adapter_reconcile_maps_typed_errors(tmp_path: Path) -> None:
