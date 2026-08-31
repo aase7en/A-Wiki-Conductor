@@ -98,3 +98,11 @@ For the now-implemented concurrency slice, GPT-5.6 Sol keeps worker-capacity aut
 - GLM-5.3 MAX independent review returned validated PASS with zero P0/P1/P2; four P3 observations are non-blocking follow-up.
 - Post-main CI `33354156749` passed Windows/Ubuntu/macOS including Windows Frozen Setup E2E on merge `af5a5068aea37ce82875e4b6fff40ac19ac112c5`.
 - Future Ultra/GLM read-only shaping may run concurrently, but tracked mutation requires a fresh work-order/claim/repository gate.
+
+
+## Post-AHA-6B multi-model routing — 2026-08-31
+
+- GPT-5.6 Sol Ultra is effective for broad parallel architecture/adversarial shaping: `gpt56-ultra-frontier-001` found multiple source-confirmed P1 integration hazards missed by the narrower AHA-6B exact-SHA review. It remains advisory until the integrator verifies source evidence and claims a bounded WO.
+- GLM-5.3 MAX remains a strong bounded code-review/hardening agent: `glm53-capacity-hardening-001` confirmed all four AHA-6B P3 risks with exact symbols/tests and a conservative AHA-4B-compatible recovery plan.
+- GPT-5.6 Sol integrator retains cross-store authority design, finding adjudication, shared SSoT, PR/merge/release authority and conflict serialization.
+- Next parallel routing: integrator→117, Ultra→119, GLM→120. 118 stays queued behind 117 because file ownership overlaps.

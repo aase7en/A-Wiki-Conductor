@@ -4,18 +4,22 @@ Last updated: 2026-08-31 - WO-P1-116 / AHA-6B COMPLETE / MERGED / POST_MAIN_GREE
 
 ## Current objective
 
-WO-P1-116 / AHA-6B is COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED. Preserve the accepted scheduler/broker/lease authority. P0 WO-P1-096 remains the highest unresolved release gate. Parallel Ultra/GLM shaping may continue read-only under ignored `runs/`; no successor mutable lane exists until integrator validation and a fresh WO/claim.
+Fold validated Ultra/GLM frontier findings into bounded safety work orders, then run three disjoint implementation lanes only after the exact closeout-main baseline is green. Preserve all accepted scheduler/job/lease/provider authorities; no AHA-7/AHA-8 breadth before P1 trust-boundary repairs.
 
 ## Repository state
 
-- PR #157 merged as `af5a5068aea37ce82875e4b6fff40ac19ac112c5`.
-- Exact reviewed head `d06129ac943ceaa30c398d744b07a0fec9b505e1`; GLM-5.3 MAX review validated PASS; P0/P1/P2 = 0; four P3 notes are follow-up candidates.
-- Exact-head CI `33352780461` and post-main CI `33354156749` passed Windows/Ubuntu/macOS including Windows packaging and Frozen Setup E2E.
-- Closeout branch starts from exact merged main; shared root remains stale/dirty/protected; live A-Wiki claims were 0 at preflight.
-- Read-only P0 refresh: Worker4 is READY, but no live tunnel-client process uses the staged v0.0.13 executable. The prior staged-v0.0.13 soak is not current operational evidence.
-- Real hosted/remote MCP-after-TTL success on v0.0.13 remains unproven. No live worker/process was mutated during this refresh.
-- Next safe feature action: ingest/validate Ultra + GLM results, then run a fresh main/reuse/claims/worktree gate before claiming AHA-7/AHA-8 or bounded hardening.
-- Next P0 action remains an explicitly authorized isolated v0.0.13 remote-after-TTL maintenance proof.
+- WO-P1-116 implementation PR #157 and closeout PR #158 are merged; current exact main baseline is `fd2f443b6e93abbc766bfcdc41e31424f35013e8`.
+- Ultra task `gpt56-ultra-frontier-001`: task SHA validated; read-only result ingested. Source-confirmed P1s: durable RECONCILE misclassified/released, TTL-only provider capacity expiry, missing config-generation binding, missing trust/egress policy consumer, and raw provider output persistence before redaction. P2: post-provision recovery persistence gap. R6 publication fencing remains RED-first until reproduced.
+- GLM task `glm53-capacity-hardening-001`: read-only result ingested; four AHA-6B P3 findings independently confirmed.
+- Prepared WOs: 117 (GPT integrator, P1 dispatch/admission), 118 (queued P1 config/policy), 119 (Ultra, P1 output persistence), 120 (GLM, elastic fencing/recovery).
+- WO-P1-117/119/120 scopes are source-file disjoint and have no overlap with the clean North-Star branch at its current unique file set.
+- A-Wiki local claims file is empty at preparation; GitHub has no open Conductor PRs after #158 merge. Fresh claim/worktree checks are still mandatory immediately before mutation.
+- Root checkout remains stale/dirty/protected and is not a mutation surface.
+- P0 WO-P1-096 remains open: no current live staged-v0.0.13 process; remote-after-TTL hosted proof is still absent.
+
+## Next safe action
+
+Exact post-main CI `33357214028` on `fd2f443...` is green. Next: commit/push this coordination checkpoint, create isolated 117/119/120 worktrees, verify fresh claims/overlap, generate exact task packets, then start RED-first lanes concurrently. WO-P1-118 remains queued behind 117.
 
 ## Accepted predecessor
 

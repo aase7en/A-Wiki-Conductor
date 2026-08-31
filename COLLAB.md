@@ -34,8 +34,12 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-116` / AHA-6B worker supply + elastic capacity | GPT-5.6 Sol integrator | RELEASED 2026-08-31 | PR #157 merged as `af5a5068`; exact-head CI `33352780461` and post-main CI `33354156749` green; independent GLM review PASS with P0/P1/P2=0. No successor mutable lane claimed. |
-| North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
+| `WO-P1-116` / AHA-6B worker supply + elastic capacity | GPT-5.6 Sol integrator | RELEASED 2026-08-31 | PR #157 + closeout PR #158 merged; source lane released. |
+| `WO-P1-117` provider dispatch/admission safety | GPT-5.6 Sol integrator | READY_FOR_CLAIM | `parallel_ready_execution.py`, `provider_config_store.py`, focused tests; baseline CI `33357214028` green; claim requires isolated worktree + fresh preflight. |
+| `WO-P1-118` provider config generation/policy | unassigned | QUEUED | Shares `provider_config_store.py` with 117; must not start until 117 releases it. |
+| `WO-P1-119` provider output persistence safety | GPT-5.6 Sol Ultra proposed | READY_FOR_CLAIM | supervised Claude capture / smallest owned-process boundary + focused tests; disjoint from 117/120. |
+| `WO-P1-120` elastic fencing/recovery | GLM-5.3 MAX proposed | READY_FOR_CLAIM | worker lease/candidate/elastic files + focused tests; disjoint from 117/119. |
+| North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; preserved; current unique file set does not overlap 117/119/120 planned source files. |
 
 ### Recently closed / released claims
 
