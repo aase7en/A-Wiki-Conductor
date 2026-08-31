@@ -552,3 +552,15 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** recovery is a durable state transition, not only a return code. If a process can restart between failure and operator action, the persisted authority must still explain why replay is unsafe.
 
 **Verify:** RED tests assert both returned recovery code and persisted reservation state after observation/broker failure; cross-process capacity limits remain enforced.
+
+## #35: Provider capacity must follow durable execution evidence, not elapsed time or return shape (2026-08-31)
+
+**Symptom:** WO-P1-117 RED tests proved that a normal typed `GraphDispatchResult(RECONCILE)` was reported as `RUN_COMPLETED`, provider admission TTL alone freed capacity while execution outcome was unknown, malformed `EXECUTED` results without valid execution evidence were accepted, and `EXISTING + FAILED` was reported as success.
+
+**Root cause:** the parallel executor treated every normal runner return as completion, while provider admission expiry treated elapsed wall-clock time as proof that no provider execution remained active. Typed graph-dispatch action/state/evidence consistency was not revalidated at the consumer boundary.
+
+**Fix:** classify typed dispatch results into success, terminal non-success, or uncertainty; release provider admission only when durable evidence proves no active execution; retain uncertain admissions. ACTIVE or legacy EXPIRED rows continue consuming bounded provider capacity until exact-identity explicit release/reconciliation.
+
+**Lesson:** timeouts and typed return objects are not completion authority. Capacity may be released only from durable, identity-bound post-execution evidence or a proven non-executing/terminal state; uncertainty must remain capacity-consuming and fail closed.
+
+**Verify:** RED reproduced all four defects; spawned-process stale-capacity fencing stayed single-owner; impact-expanded provider/harness/lease/elastic regression = 208 passed before source freeze.
