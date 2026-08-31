@@ -1,35 +1,35 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-31 — WO121 repair + WO118A integrator-hardening frontier
+Last updated: 2026-08-31 — WO121 merged; WO118A Ultra-003 repaired
 
 ## Current objective
 
-Close WO121/PR164 and WO118A/PR165 with exact-head independent evidence, then refresh/re-review/merge WO120 and execute WO118B. Keep P0 WO096 separate.
+Close WO118A/PR165 with exact-head Ultra evidence, then refresh/re-review/merge WO120 and execute WO118B. Keep P0 WO096 separate.
 
 ## Repository / release identity
 
-- authoritative remote main: `bd5bdd83522685c6213b7452b31220ca0691089d`; protected root checkout is stale/dirty and MUST NOT be mutated;
-- PR #164 / WO121: DRAFT head `f9eeedaeb7b0024359bfdde28cfb6d71aa1ac9c7`; generic no-admission compatibility repair pushed; Ultra packet `runs/wo121-ultra-rereview-002/task.md` SHA `ab045e0c95623bd3fb114c2ab91a2bfce3b8d700176bd803c1ce70cb6f9f371c`; exact-head Windows/full CI + rereview pending;
-- PR #165 / WO118A: DRAFT head `729c3133a2c9281fe768793756099c21a2edd933`; worktree clean/pushed; packet `runs/wo118a-independent-review-002/task.md` SHA `e667128ca4f65f207bfd25f1ce127286e88871547ae66cce3ffc2b51d0cbe7ed`; prior packet 001 is superseded; exact-head 3-OS CI SUCCESS; independent review pending;
-- PR #162 / WO120: DRAFT head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; defer final main refresh until #164/#165 stabilize.
+- authoritative remote main: `1b0468fae2f2a3b60a1037d343330466e27b7306`; protected root checkout is stale/dirty and MUST NOT be mutated;
+- PR #164 / WO121: MERGED as `1b0468fa...`; GLM rereview 004 PASS, P0/P1/P2=0; post-main CI `33404736157` running;
+- PR #165 / WO118A: DRAFT head `2bfcdabbb88058784be52cb990ce927b89cd376f`; Ultra review003 P2s repaired; packet `runs/wo118a-independent-review-004/task.md` SHA `c54264a6041cdf2d2c69a4a605a54fcd536759da5ef7eacefaa813cb0e895238`; exact-head Windows/full CI and Ultra004 pending;
+- PR #162 / WO120: DRAFT head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; prospective merge against `2bfcdab...` conflicts only in `DEFECT_LESSONS.md`.
 
 ## Ownership / claims
 
-- No live mutable source claims remain for WO121 or WO118A; both heads are pushed and pinned for review.
+- No live mutable source claim remains for WO121 or WO118A; reviewed/pushed heads are immutable until a new evidence-backed repair claim.
 - GPT integrator owns SSoT, review adjudication, cross-PR reconciliation and merge authority.
 - WO118B may not start before WO118A and WO120 release required seams.
 
 ## Verified evidence
 
-- WO121: current-main RED 10 failed/1 control pass; repaired focused 13, parallel 56, impact-expanded 366; compile/diff/UTF-8/secret gates PASS; exact-head CI SUCCESS.
-- WO118A: integrator fault injection found and repaired generation rollback/corruption/overflow/missing-row CAS and local-egress metadata bypass; focused 61, related 191, Claude launch-adjacent 71, post-main union 306; second trust/egress RED repaired and broader stack 254 passed; compile/diff/UTF-8/secret gates PASS.
-- WO120 old-head review remains PASS at 230 tests but must be repeated after final main refresh.
+- WO121: GLM exact-head rereview 004 PASS; parallel 57 and related 162 fresh reviewer tests; exact-head CI green; merged main `1b0468fa...`.
+- WO118A latest repair: Ultra003 RED 2 failures, targeted GREEN 2; focused 70; related 196; merged-main union 280; full pre-refresh local 1846 passed / 4 skipped / 2 known GPU dependency failures; static/scope/secret gates PASS.
+- WO120 old-head review remains PASS at 230 tests but must be repeated after final main refresh. Prospective exact merge proof shows only the lesson-file conflict.
 
 ## Next safe actions
 
-1. Ingest Ultra WO121 rereview; if PASS and identity/hashes match, merge #164 and require post-main CI.
-2. Obtain independent exact-head review for #165; accept/repair from evidence only; merge/post-main prove 118A.
-3. Refresh #162 only after #164/#165 stabilize. Actual merge-base proof against current main shows only `DEFECT_LESSONS.md` conflict. The earlier parallel/provider-store conflict matrix was invalid because it used an explicit base newer than WO120's fork. Re-run `git merge-tree --write-tree <then-current-main> <WO120-head>` after #164/#165 merge, resolve only real conflicts, rerun union tests, then obtain a diverse exact-head review.
+1. Complete WO121 post-main CI.
+2. Ingest Ultra WO118A rereview004 + exact-head CI; merge/post-main prove only if both pass.
+3. Refresh #162 after #165 merges; resolve only actual lesson conflict, rerun union tests and obtain diverse exact-head review.
 4. After #162 merges, execute WO118B pre-admission/pre-elastic/pre-secret/pre-launch generation+policy enforcement.
 5. Keep WO096 blocked pending explicit maintenance authority.
 

@@ -1,33 +1,34 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-31 (GPT-5.6 Sol — WO121 compatibility repair + WO118A review + merge-base correction)
+Last updated: 2026-08-31 (GPT-5.6 Sol — WO121 merged; WO118A Ultra-003 repair; WO120 prospective merge proof)
 
 ## Current phase
 
-**Post-AHA-6B frontier safety integration. WO117/WO119 are merged. Ultra's late WO117 review found real post-merge dispatch-evidence defects now isolated as WO-P1-121 / PR #164. WO118A is integrator-repaired in PR #165 and awaits exact-head CI/review. WO120 remains queued for refresh after these fronts stabilize. WO118B remains blocked until WO118A and WO120 are accepted. P0 WO-P1-096 remains a separate operational release blocker.**
+**Post-AHA-6B frontier safety integration. WO117/WO119 and the WO121 post-merge repair are merged. WO118A review-003 findings are repaired on PR #165 and await exact-head Ultra rereview/Windows CI. WO120 remains queued for refresh after WO118A stabilizes. WO118B remains blocked until WO118A and WO120 are accepted. P0 WO-P1-096 remains a separate operational release blocker.**
 
 Accepted / active frontier state:
 - PR #160 / WO117 merged as `76123743df90e2fddfb37cbaf94826bf6f50bba1`; later Ultra CHANGES_REQUIRED was reproduced on merged main and is not dismissed.
 - PR #161 / WO119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI SUCCESS.
-- PR #164 / WO121 head `f9eeedaeb7b0024359bfdde28cfb6d71aa1ac9c7`: post-merge dispatch evidence binding repair plus generic no-admission runner compatibility correction; parallel 57 and related 237 pass; new exact-head CI + Ultra packet 002 pending.
-- PR #165 / WO118A head `729c3133a2c9281fe768793756099c21a2edd933`: generation/CAS + observation/admission generation seam + pure trust/egress policy. GPT integrator repaired generation rollback/corruption/overflow/missing-row CAS and local-egress metadata bypass; post-main union 306 passed; a second RED closed EXTERNAL_FIRST_PARTY trust-class downgrade; broader repair regression 254 passed; exact-head CI/review pending.
-- PR #162 / WO120 remains open at `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; actual merge-base is `822e0a2022d56385543511e2d999474c3772c7ef`. `git merge-tree --write-tree origin/main HEAD` against current main shows only `DEFECT_LESSONS.md` conflict. Earlier parallel/provider-store conflicts were a simulation artifact from using an invalid explicit base. Re-run auto-merge proof after #164/#165 merge before refresh.
+- PR #164 / WO121 merged as `1b0468fae2f2a3b60a1037d343330466e27b7306`; GLM exact-head rereview 004 PASS with P0/P1/P2=0; exact-head CI was green; post-main CI `33404736157` is running.
+- PR #165 / WO118A head `2bfcdabbb88058784be52cb990ce927b89cd376f`: Ultra review 003 found two P2s (borrowed endpoint policy identity and non-atomic legacy migration); both were RED-reproduced and repaired. Focused 70, related 196, merged-main union 280 pass; full pre-refresh local suite 1846 passed / 4 skipped / 2 known GPU dependency failures. Ultra packet 004 SHA `c54264a6041cdf2d2c69a4a605a54fcd536759da5ef7eacefaa813cb0e895238`; Windows/full CI pending, Ubuntu/macOS green.
+- PR #162 / WO120 remains open at `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`. Prospective auto-merge using exact PR165 head `2bfcdab...` plus #162 again proves the only conflict is `DEFECT_LESSONS.md`; source/test files auto-merge clean. Refresh only after #165 acceptance/merge.
 - WO118B remains blocked: production must enforce accepted generation + policy before admission/lease/elastic expansion/credential resolution/launch.
 - P0 WO096 remains operationally open: hosted remote MCP-after-TTL v0.0.13 proof is still absent and requires explicit maintenance authority.
 
 ## Active work orders
 
-1. `WO-P1-121` — PR #164; exact-head CI green, Ultra rereview pending.
-2. `WO-P1-118A` — PR #165; implementation/integrator repair pushed; exact-head CI + independent review pending.
-3. `WO-P1-120` — PR #162; final main refresh / diverse exact-head review pending after #164/#165.
-4. `WO-P1-118B` — blocked until 118A and 120 release required seams.
-5. `WO-P1-096` — P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
+1. `WO-P1-118A` — PR #165 head `2bfcdab...`; Ultra rereview 004 + Windows/full CI pending.
+2. `WO-P1-120` — PR #162; refresh / diverse exact-head review pending after #165.
+3. `WO-P1-118B` — blocked until 118A and 120 release required seams.
+4. `WO-P1-096` — P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
+
+Recently merged: `WO-P1-121` / PR #164 as `1b0468fa...`; post-main CI is the only remaining release verification for that repair.
 
 ## Immediate execution frontier
 
-1. Validate Ultra rereview of WO121; merge PR #164 only after exact-head review + CI, then require post-main proof.
-2. Obtain independent exact-head review of PR #165; repair only evidence-backed defects; merge/post-main prove WO118A.
-3. After #164/#165 stabilize, reconstruct/refresh PR #162 onto then-current main: current-main dispatch/provider-generation safety is authoritative; re-run actual merge-base auto-merge proof, resolve only real conflicts (currently `DEFECT_LESSONS.md`), preserve bounded WO120 elastic/fencing intent, rerun union RED/regression, then regenerate diverse exact-head review.
+1. Complete post-main CI for merged WO121 / main `1b0468fa...`.
+2. Validate Ultra rereview 004 and exact-head CI for PR #165; repair only evidence-backed defects, then merge/post-main prove WO118A.
+3. Refresh PR #162 onto then-current main. Prospective proof against `2bfcdab...` shows only `DEFECT_LESSONS.md` conflict; preserve current-main dispatch/provider safety, rerun union regression, then regenerate a diverse exact-head review.
 4. Start WO118B only after 118A+120 release their seams; denial must precede provider admission, worker lease, elastic expansion, credential access and process launch.
 5. Keep WO096 separately blocked until authorized hosted remote MCP-after-TTL evidence exists.
 
