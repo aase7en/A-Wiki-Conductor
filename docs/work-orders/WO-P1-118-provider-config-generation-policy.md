@@ -125,3 +125,16 @@ Post-repair evidence: focused WO118A = `68 passed`; dispatch/lease related = `17
 Status: **WO-P1-118A REPAIRED / EXACT-HEAD REREVIEW REQUIRED.** The old reviewer `PASS` is not merge authority. WO118B remains pending and is not claimed complete.
 
 Full local verification after the review-002 repair: `1843 passed, 5 skipped, 2 failed` in 226.46s. The two failures are the pre-existing local GPU dependency gaps outside WO118A (`Pillow` unavailable for particle sampling; `OpenGL` module unavailable for real WGL framebuffer test). No provider/configuration failure appeared in the full suite.
+
+## Ultra review-003 repair checkpoint — 2026-08-31
+
+Ultra independently returned `CHANGES_REQUIRED` on exact head `2812222590ce3001bdbee3b4bf039f999fdb1626` with two P2 findings. It also confirmed the prior endpoint-insert fan-out and corrupt-endpoint-generation repairs.
+
+1. **Policy endpoint identity binding:** `evaluate_provider_policy()` accepted an unrelated endpoint object and could authorize borrowed loopback/allowlisted routes. RED reproduced both unsafe allows. Repair denies supplied `endpoint.endpoint_ref != profile.endpoint_ref` as `PROVIDER_ENDPOINT_REF_MISMATCH` before trust/egress classification; endpoint-less local behavior remains intentionally supported.
+2. **Retry-safe legacy migration:** generation-column `ALTER TABLE` statements could persist before a faulted first backfill, leaving NULL generations that ordinary retry could not recover. RED fault-injected the provider-generation UPDATE and proved columns survived. Repair starts an explicit SQLite `BEGIN IMMEDIATE` before schema introspection/conditional ALTER/backfill so DDL + first backfill roll back as one retryable authority transition.
+
+RED before repair: `2 failed`. Targeted after repair: `2 passed`; full provider configuration/store/policy/runtime focused suite: `70 passed`; related provider/harness/parallel/graph/lease/candidate/elastic-present suite: `196 passed`.
+
+`DEFECT_LESSONS.md` is intentionally not mutated on this PR head while WO121 owns lesson #37 and WO120 still carries a competing historical #37. The accepted findings are durably recorded here; final integrated defect-memory numbering will be reconciled after WO121 merges rather than creating another shared-file collision.
+
+Status: **WO-P1-118A ULTRA-003 REPAIRED / NEW EXACT-HEAD REREVIEW REQUIRED.** WO118B remains pending.

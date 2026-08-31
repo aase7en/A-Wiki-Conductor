@@ -916,3 +916,49 @@ def test_endpoint_insert_fanout_validates_referencing_provider_before_mutation(
         )
     assert blocked.value.code == expected_code
     assert store.get_endpoint(profile.endpoint_ref) is None
+
+def test_interrupted_legacy_generation_migration_rolls_back_and_retries(tmp_path, monkeypatch) -> None:
+    database = tmp_path / "interrupted-legacy.sqlite"
+    connection = sqlite3.connect(database)
+    connection.executescript("""
+        CREATE TABLE provider_configurations (provider_id TEXT PRIMARY KEY, schema_version TEXT NOT NULL, display_name TEXT NOT NULL, provider_type TEXT NOT NULL, protocol_family TEXT NOT NULL, endpoint_ref TEXT NOT NULL, credential_ref TEXT NOT NULL, trust_class TEXT NOT NULL, egress_boundary TEXT NOT NULL, harness_strategies_json TEXT NOT NULL, max_concurrency INTEGER NOT NULL, models_json TEXT NOT NULL, enabled INTEGER NOT NULL);
+        CREATE TABLE provider_endpoints (endpoint_ref TEXT PRIMARY KEY, base_url TEXT NOT NULL);
+        CREATE TABLE unrelated_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO unrelated_settings VALUES ('theme', 'sunday');
+    """)
+    profile = make_profile()
+    connection.execute("INSERT INTO provider_configurations VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", (profile.provider_id, profile.schema_version, profile.display_name, profile.provider_type, profile.protocol_family.value, profile.endpoint_ref, profile.credential_ref, profile.trust_class.value, profile.egress_boundary.value, '["CLAUDE_CODE_CLI"]', 1, '[{"model_id":"model-test","display_name":"Model Test"}]', 1))
+    connection.execute("INSERT INTO provider_endpoints VALUES(?, ?)", (profile.endpoint_ref, "https://api.example.test/v1"))
+    connection.commit(); connection.close()
+    real_connect = sqlite3.connect
+    denied = {"done": False}
+
+    def faulting_connect(*args, **kwargs):
+        conn = real_connect(*args, **kwargs)
+        def authorizer(action, arg1, arg2, db_name, trigger):
+            if not denied["done"] and action == sqlite3.SQLITE_UPDATE and arg1 == "provider_configurations" and arg2 == "generation":
+                denied["done"] = True
+                return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+        conn.set_authorizer(authorizer)
+        return conn
+    monkeypatch.setattr(sqlite3, "connect", faulting_connect)
+    store = SQLiteProviderConfigStore(database)
+    with pytest.raises(ProviderConfigStoreError) as interrupted:
+        store.initialize()
+    assert interrupted.value.code == "CONFIG_STORE_INITIALIZE_FAILED"
+    monkeypatch.setattr(sqlite3, "connect", real_connect)
+    with sqlite3.connect(database) as check:
+        provider_columns = {row[1] for row in check.execute("PRAGMA table_info(provider_configurations)")}
+        endpoint_columns = {row[1] for row in check.execute("PRAGMA table_info(provider_endpoints)")}
+    assert "generation" not in provider_columns
+    assert "generation" not in endpoint_columns
+
+    store.initialize()
+    snapshot = store.load_provider_snapshot(profile.provider_id)
+    assert snapshot is not None
+    assert snapshot.generation == 1
+    assert snapshot.endpoint is not None
+    with sqlite3.connect(database) as check:
+        assert check.execute("SELECT generation FROM provider_endpoints WHERE endpoint_ref=?", (profile.endpoint_ref,)).fetchone()[0] == 1
+        assert check.execute("SELECT value FROM unrelated_settings WHERE key='theme'").fetchone()[0] == "sunday"

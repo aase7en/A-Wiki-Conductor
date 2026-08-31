@@ -147,9 +147,11 @@ class SQLiteProviderConfigStore:
                     ON provider_admissions(provider_id, status, expires_at);
                     """
                 )
-                # Conservative in-place migration for installed databases created
-                # before generations existed: existing rows become generation 1;
-                # legacy observations/admissions keep NULL (unknown) generations.
+                # Conservative installed-database migration. SQLite DDL is
+                # transactional when enclosed by an explicit transaction, so column
+                # addition and first backfill remain one retryable authority change.
+                # Legacy observations/admissions keep NULL (unknown) generations.
+                connection.execute("BEGIN IMMEDIATE")
                 added_generation_columns: set[str] = set()
                 for table in (
                     "provider_configurations",

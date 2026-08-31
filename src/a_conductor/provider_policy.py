@@ -112,6 +112,8 @@ def evaluate_provider_policy(
         raise ValueError("endpoint must be ProviderEndpointConfig or None")
     if not isinstance(task, ProviderPolicyTaskSecurity):
         raise ValueError("task must be ProviderPolicyTaskSecurity")
+    if endpoint is not None and endpoint.endpoint_ref != profile.endpoint_ref:
+        return _deny("PROVIDER_ENDPOINT_REF_MISMATCH")
 
     if profile.trust_class is ProviderTrustClass.UNKNOWN:
         return _deny("PROVIDER_TRUST_UNKNOWN")

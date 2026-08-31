@@ -269,3 +269,14 @@ def test_external_first_party_with_first_party_trust_stays_eligible() -> None:
     )
     assert decision.allowed is True
     assert decision.reason_code == "POLICY_ALLOWED_EXTERNAL_EGRESS"
+
+def test_policy_rejects_borrowed_endpoint_reference_before_route_classification() -> None:
+    local_profile = profile(egress_boundary=EgressBoundary.LOCAL_MACHINE)
+    borrowed_loopback = ProviderEndpointConfig("endpoint:borrowed", "http://127.0.0.1:1234/v1")
+    local = evaluate_provider_policy(local_profile, borrowed_loopback, task(privacy=TaskPrivacyClass.SECRET, policy=TaskNetworkPolicy.DENIED))
+    assert local.allowed is False
+    assert local.reason_code == "PROVIDER_ENDPOINT_REF_MISMATCH"
+    borrowed_allowlisted = ProviderEndpointConfig("endpoint:borrowed", "https://allowed.example/v1")
+    external = evaluate_provider_policy(profile(), borrowed_allowlisted, task(privacy=TaskPrivacyClass.INTERNAL, policy=TaskNetworkPolicy.ALLOWLISTED, allowlist=("allowed.example",)))
+    assert external.allowed is False
+    assert external.reason_code == "PROVIDER_ENDPOINT_REF_MISMATCH"
