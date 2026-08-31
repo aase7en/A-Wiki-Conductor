@@ -553,7 +553,43 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 **Verify:** RED tests assert both returned recovery code and persisted reservation state after observation/broker failure; cross-process capacity limits remain enforced.
 
-## #37: Recovery assertions are not decommission authority (2026-08-31)
+## #35: Provider capacity must follow durable execution evidence, not elapsed time or return shape (2026-08-31)
+
+**Symptom:** WO-P1-117 RED tests proved that a normal typed `GraphDispatchResult(RECONCILE)` was reported as `RUN_COMPLETED`, provider admission TTL alone freed capacity while execution outcome was unknown, malformed `EXECUTED` results without valid execution evidence were accepted, `EXISTING + FAILED` was reported as success, and `BLOCKED`/`OFFERED` action-state drift could release capacity without proving a non-executing state.
+
+**Root cause:** the parallel executor treated every normal runner return as completion, while provider admission expiry treated elapsed wall-clock time as proof that no provider execution remained active. Typed graph-dispatch action/state/evidence consistency was not revalidated at the consumer boundary.
+
+**Fix:** classify typed dispatch results into success, terminal non-success, or uncertainty; release provider admission only when durable evidence proves no active execution; retain uncertain admissions. ACTIVE or legacy EXPIRED rows continue consuming bounded provider capacity until exact-identity explicit release/reconciliation.
+
+**Lesson:** timeouts and typed return objects are not completion authority. Capacity may be released only from durable, identity-bound post-execution evidence or a proven non-executing/terminal state; uncertainty must remain capacity-consuming and fail closed.
+
+**Verify:** RED reproduced all four defects; spawned-process stale-capacity fencing stayed single-owner; impact-expanded provider/harness/lease/elastic regression = 210 passed before source freeze.
+
+## #36: Credential-bearing child output must be sanitized before durable persistence (2026-08-31)
+
+**Symptom:** a provider child could echo its credential to stdout/stderr. The returned `ClaudeCodeRunnerResult` was redacted, but durable `stdout.log` / `stderr.log` already contained plaintext bytes.
+
+**Root cause:** the detached helper inherited durable file handles directly, while redaction existed only after artifact collection. The first streaming repair also used buffered `read(64 KiB)`, delaying output until EOF for long-running children. A later adversarial test proved another lifecycle hazard: a descendant can inherit the target pipe handles after the direct child exits, so an unbounded drain can wait forever for EOF.
+
+**Fix:** credential-bearing children now use in-memory stdout/stderr pipes in `supervised_child.py`; a bounded streaming redactor handles cross-chunk matches and forwards only sanitized bytes to durable handles. `read1()` consumes available pipe bytes without waiting for EOF. After the direct child exits, drain completion has a finite budget; inherited descendant pipe-holds become `OUTPUT_CAPTURE_DRAIN_TIMEOUT` with no terminal result, and daemon capture threads cannot pin the helper process after fail-closed return. Oversized redaction values fail before launch.
+
+**Lesson:** return-time redaction is not a persistence boundary. Secret-bearing subprocess output must be sanitized before the first durable write, with chunk-boundary tests and live-child/timeout evidence proving no write-then-scrub window.
+
+**Verify:** real Windows child echo test, held-live durable-log test, timeout -> reattach test, fragmented-stream unit test, capture-failure no-result test; related supervised/native regression 120 passed after bounded-drain hardening.
+
+## #37: Durable completion evidence must bind to the exact dispatched task and lease (2026-08-31)
+
+**Symptom:** an independent post-merge WO117 review proved seven normal-return cases could release provider admission while the actual job remained `EXECUTING`: unsupported `None`/dictionary returns, internally consistent evidence for another job, and non-executing actions carrying contradictory nested execution evidence.
+
+**Root cause:** the consumer validated parts of the typed result internally but did not bind the returned job to the current dispatch request and acquired worker lease. While provider capacity was held, non-`GraphDispatchResult` values also bypassed typed refusal and fell through to completion/release; the separate no-admission generic-runner seam was not provider-capacity authority.
+
+**Fix:** every provider-admitted normal return now passes one fail-closed consumer policy. Unsupported shapes while provider capacity is held are recovery and keep that admission reserved; typed evidence must match job/project/work-order/max-attempt identity and canonical worker ownership; `EXECUTED` requires a real attempt plus successful matching execution evidence; `EXISTING`/`BLOCKED`/`OFFERED` reject any nested execution payload. When no provider admission authority exists, the older injected generic-runner contract still permits a non-`GraphDispatchResult` normal return to mean only that the runner stage completed; it is not durable lifecycle completion authority.
+
+**Lesson:** internal consistency is not provenance. Provider-capacity completion/release authority must bind evidence to the exact operation being consumed; foreign-but-valid evidence and unknown return shapes while an admission is held remain uncertainty and keep capacity reserved. A no-admission generic runner may still report stage completion without becoming durable lifecycle authority.
+
+**Verify:** current-main RED = 10 failures/1 positive control; after compatibility repair, full parallel suite = 57 passed and broader provider/store/runtime/graph/lease/candidate/elastic/Claude supervised regression = 284 passed; compileall/diff/UTF-8 gates PASS.
+
+## #38: Recovery assertions are not decommission authority (2026-08-31)
 
 **Symptom:** bounded elastic capacity could be freed without lifecycle evidence through three generic escape hatches: a caller boolean `worker_decommissioned=True`, `RECOVERY_REQUIRED -> RELEASED`, or `release_unstarted()` applied to a successful `CAPACITY` reservation. None proved the worker/capacity had actually been retired.
 
