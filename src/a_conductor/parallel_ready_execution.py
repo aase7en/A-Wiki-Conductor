@@ -601,6 +601,13 @@ class ParallelReadyExecutor:
                             provider_admission=admission,
                         )
                         continue
+                    if admission is None and not isinstance(runner_result, GraphDispatchResult):
+                        outcomes[node_id] = ParallelReadyOutcome(
+                            node_id, ParallelReadyOutcomeKind.RUN_COMPLETED, "RUNNER_COMPLETED",
+                            lease_outcome=lease_outcome, runner_result=runner_result,
+                            provider_admission=None,
+                        )
+                        continue
                     typed_policy = _typed_dispatch_policy(runner_result, task, lease_outcome.lease)
                     if not typed_policy[0]:
                         _, release_admission, typed_reason = typed_policy

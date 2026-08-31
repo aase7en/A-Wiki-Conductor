@@ -30,7 +30,7 @@ Forbidden: provider configuration/store/runtime files owned by WO118A; worker le
 
 ## Acceptance
 
-1. Any non-`GraphDispatchResult` normal return is recovery-required, never completion, and never releases provider admission.
+1. With a held provider admission, any non-`GraphDispatchResult` normal return is recovery-required, never completion, and never releases provider capacity. Without a provider admission, the original injected generic-runner stage-completion contract remains valid.
 2. Positive/terminal typed evidence must match the current dispatch job ID, project ID, work-order ref and max-attempt policy; worker-bound states must match the acquired lease worker.
 3. `EXECUTED` requires VERIFYING + matching successful `JobExecutionOutcome` and exact task/lease identity.
 4. `EXISTING` may release only for canonical state/evidence combinations; non-executing actions require `execution is None`.
@@ -56,3 +56,12 @@ GREEN repair is consumer-side only:
 - legacy success test doubles now return canonical typed execution evidence rather than relying on dictionary fallthrough.
 
 Verification: WO121 focused `13 passed`; full parallel file `56 passed`; impact-expanded provider/graph/lease/elastic/harness/supervisor/native suite `366 passed`; compileall, `git diff --check`, UTF-8 gate PASS. No provider-store, worker-capacity, scheduler, lifecycle, live credential, worker or tunnel mutation.
+## Generic-runner compatibility repair — 2026-08-31
+
+Post-implementation GPT audit re-read WO-P1-113 and found the first WO121 repair over-tightened the injected `ParallelReadyRunner -> object` seam: unknown normal returns became recovery even when no provider admission store existed. That was a compatibility regression, not needed to close Ultra F1.
+
+RED: provider-backed unknown-return safety controls remained green, while a generic no-admission runner returning a dictionary incorrectly produced `RUNNER_RECOVERY_REQUIRED`.
+
+Repair: only no-admission + non-`GraphDispatchResult` returns retain the original stage-level `RUN_COMPLETED` behavior. Once provider capacity is admitted, unknown normal returns still require recovery and retain capacity. Typed `GraphDispatchResult` evidence remains subject to exact identity/action/state policy in both modes.
+
+Verification: targeted safety/compatibility `3 passed`; full parallel `57 passed`; related provider/store/runtime/graph/lease/candidate/elastic/Claude supervised suite `237 passed`. The earlier Ultra rereview packet for `fdf8e780...` is superseded by the next exact-head packet.

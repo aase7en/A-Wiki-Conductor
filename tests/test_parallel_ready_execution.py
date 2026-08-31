@@ -2050,3 +2050,31 @@ def test_wo121_malformed_lane_preserves_valid_sibling_completion(tmp_path: Path)
     assert result.outcomes[1].kind is ParallelReadyOutcomeKind.RUN_COMPLETED
     assert store.get_admission(result.outcomes[0].provider_admission.admission_id).status == "ACTIVE"
     assert store.get_admission(result.outcomes[1].provider_admission.admission_id).status == "RELEASED"
+
+
+def test_wo121_generic_runner_completion_remains_supported_without_provider_admission(tmp_path: Path) -> None:
+    broker, _ = _broker(tmp_path / "generic-no-admission")
+    task = _task(
+        node_id="generic-no-admission",
+        worker_id="a-worker-01",
+        worktree=r"A:\Work\generic-no-admission",
+        branch="fix/generic-no-admission",
+        mutable_scope=("src/generic.py",),
+    )
+    returned = {"stage": "runner-complete"}
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=_Wo121ReturnRunner(lambda task, lease: returned),
+        clock=lambda: NOW,
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={task.provider_profile.provider_id: 0},
+        batch_id="batch-generic-no-admission",
+    )
+    outcome = result.outcomes[0]
+    assert outcome.kind is ParallelReadyOutcomeKind.RUN_COMPLETED
+    assert outcome.reason_code == "RUNNER_COMPLETED"
+    assert outcome.runner_result == returned
+    assert outcome.provider_admission is None
