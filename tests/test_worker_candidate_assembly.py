@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from a_conductor.control_center import ControlCenterSnapshot, WorkerScreenRow
 from a_conductor.domain import WorkerState
 from a_conductor.lifecycle import LifecycleAction, LifecycleContext
+from a_conductor.registry import windows_worktree_key
 from a_conductor.runtime_safety import (
     PortBindingState,
     ProcessOwnership,
@@ -133,7 +134,7 @@ def lease(*, mutable_scope=("src/**",)) -> WorkerLease:
         task_id="task-1",
         project_id="project-1",
         runtime_id="runtime-1",
-        worktree_key="a:\\repo",
+        worktree_key=windows_worktree_key(r"A:\Repo"),
         branch="feat/test",
         expected_head=HEAD,
         required_capabilities=("shell",),
