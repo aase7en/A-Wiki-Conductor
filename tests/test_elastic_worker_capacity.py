@@ -149,12 +149,13 @@ def make_coordinator(tmp_path: Path, *, provisioner=None, assembler=None, reserv
     ), active_reservations
 
 
-def policy(*, enabled=True, limit=1, allow_remote=False):
+def policy(*, enabled=True, limit=1, allow_remote=False, transport_ref=None):
     return ElasticCapacityPolicy(
         enabled=enabled,
         max_extra_workers=limit,
         permitted_runtime_kinds=("serena-local",),
         allow_remote_connector=allow_remote,
+        transport_authorization_ref=transport_ref,
     )
 
 
@@ -199,6 +200,42 @@ def test_disabled_or_non_capacity_failure_never_calls_provisioner(tmp_path: Path
     )
     assert blocked.kind is ElasticCapacityOutcomeKind.NOT_CAPACITY_FAILURE
     assert provisioner.calls == []
+
+
+def test_remote_connector_permission_requires_explicit_transport_authority(tmp_path: Path) -> None:
+    provisioner = FakeProvisioner(
+        ElasticProvisionedWorker(
+            "a-worker-09", "serena-local", remote_connector_configured=True
+        )
+    )
+    service, reservations = make_coordinator(tmp_path, provisioner=provisioner)
+
+    blocked = service.expand(
+        capacity_plan(),
+        lease_request(),
+        runtime_kind="serena-local",
+        policy=policy(allow_remote=True),
+    )
+    assert blocked.kind is ElasticCapacityOutcomeKind.POLICY_BLOCKED
+    assert blocked.reason_code == "REMOTE_TRANSPORT_AUTHORIZATION_REQUIRED"
+    assert provisioner.calls == []
+    assert reservations.list_consuming() == ()
+
+    allowed = service.expand(
+        capacity_plan(),
+        lease_request(),
+        runtime_kind="serena-local",
+        policy=policy(
+            allow_remote=True,
+            transport_ref="transport-auth:worker-capacity/test",
+        ),
+    )
+    assert allowed.kind is ElasticCapacityOutcomeKind.PROVISIONED_AND_LEASED
+    assert provisioner.calls[0].remote_connector_allowed is True
+    assert (
+        provisioner.calls[0].transport_authorization_ref
+        == "transport-auth:worker-capacity/test"
+    )
 
 
 def test_atomic_reservation_limit_one_has_one_winner_across_independent_connections(tmp_path: Path) -> None:
@@ -246,6 +283,7 @@ def test_capacity_exhaustion_provisions_reobserves_then_uses_existing_broker(tmp
     assert outcome.lease_outcome.lease.worker_id == "a-worker-09"
     assert assembler.calls == ["a-worker-09"]
     assert provisioner.calls[0].remote_connector_allowed is False
+    assert provisioner.calls[0].transport_authorization_ref is None
     records = reservations.list_consuming()
     assert len(records) == 1
     assert records[0].state == "PROVISIONED"
