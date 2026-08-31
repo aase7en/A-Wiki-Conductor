@@ -1,25 +1,42 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-31 - WO-P1-116 / AHA-6B COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED
+Last updated: 2026-08-31 — frontier safety integration after PR #161 merge
 
 ## Current objective
 
-Fold validated Ultra/GLM frontier findings into bounded safety work orders, then run three disjoint implementation lanes only after the exact closeout-main baseline is green. Preserve all accepted scheduler/job/lease/provider authorities; no AHA-7/AHA-8 breadth before P1 trust-boundary repairs.
+Finish the post-AHA-6B trust-boundary sequence without human result copy-back: validate WO118A, refresh/re-review/merge WO120, then wire WO118B before AHA-7 provider controls. Preserve the separate P0 WO-P1-096 operational gate.
 
-## Repository state
+## Repository / release identity
 
-- WO-P1-116 implementation PR #157 and closeout PR #158 are merged; current exact main baseline is `fd2f443b6e93abbc766bfcdc41e31424f35013e8`.
-- Ultra task `gpt56-ultra-frontier-001`: task SHA validated; read-only result ingested. Source-confirmed P1s: durable RECONCILE misclassified/released, TTL-only provider capacity expiry, missing config-generation binding, missing trust/egress policy consumer, and raw provider output persistence before redaction. P2: post-provision recovery persistence gap. R6 publication fencing remains RED-first until reproduced.
-- GLM task `glm53-capacity-hardening-001`: read-only result ingested; four AHA-6B P3 findings independently confirmed.
-- Prepared WOs: 117 (GPT integrator, P1 dispatch/admission), 118 (queued P1 config/policy), 119 (Ultra, P1 output persistence), 120 (GLM, elastic fencing/recovery).
-- WO-P1-117/119/120 scopes are source-file disjoint and have no overlap with the clean North-Star branch at its current unique file set.
-- A-Wiki local claims file is empty at preparation; GitHub has no open Conductor PRs after #158 merge. Fresh claim/worktree checks are still mandatory immediately before mutation.
-- Root checkout remains stale/dirty/protected and is not a mutation surface.
-- P0 WO-P1-096 remains open: no current live staged-v0.0.13 process; remote-after-TTL hosted proof is still absent.
+- authoritative remote main: `887ef3c9c640a612dffc1a3baeab42b70f6aa12f` (PR #161 merge at this checkpoint);
+- protected root checkout is stale/dirty and MUST NOT be mutated;
+- PR #160 / WO117: MERGED `76123743df90e2fddfb37cbaf94826bf6f50bba1`, post-main CI green;
+- PR #161 / WO119: MERGED `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI run `33376099903` is being verified;
+- PR #162 / WO120: OPEN DRAFT, head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`, old-head CI/review green; refresh onto current main still required;
+- WO118A worktree `A:\GitHub\A-Wiki-Conductor-provider-generation-policy`, branch `fix/wo-p1-118-provider-generation-policy`, start HEAD `4c60d2fd19474f8b9e84058642e598b277ee7af4`.
 
-## Next safe action
+## Ownership / claims
 
-Exact post-main CI `33357214028` on `fd2f443...` is green. Next: commit/push this coordination checkpoint, create isolated 117/119/120 worktrees, verify fresh claims/overlap, generate exact task packets, then start RED-first lanes concurrently. WO-P1-118 remains queued behind 117.
+- GLM-5.3 MAX owns only WO118A source/test scope under claim `51e7c75537f1`.
+- WO118A exact packet: `runs/wo118a-glm-impl-001/task.md` in the provider-generation worktree; result destination `runs/wo118a-glm-impl-001/result.md`.
+- GPT integrator owns architecture, trust-boundary adjudication, exact-SHA review packets, cross-PR reconciliation and merge authority.
+- WO120 main refresh is intentionally paused while WO118A owns `provider_config_store.py`; do not treat a mechanical merge of main as permission to overlap the active claim.
+
+## Verified evidence
+
+- WO117 independent review: PASS, 102 tests, P0/P1/P2=0.
+- WO119 final post-main branch revalidation: PASS, 206 tests, P0-P3=0.
+- WO120 old-head re-review: PASS, 230 tests, P0/P1/P2=0; final diverse review must be repeated after main refresh.
+- Synthetic #160+#161+#162 tree: 16/16 canonical non-shared blobs matched; 366 focused passed; full 1834 passed / 5 skipped / 2 known GPU-environment failures.
+- WO118 generation bug reproduced deterministically: configuration changed while an old provider observation remained apparently READY. No live credential/provider was used.
+
+## Next safe actions
+
+1. Poll merged #161 post-main CI to terminal SUCCESS.
+2. Ingest WO118A result; independently inspect source/diff/transactions/tests before accepting GLM's verdict.
+3. Release WO118A claim only after durable checkpoint. Then refresh PR #162 with current main, preserve lessons #35/#36/#37, rerun union regression and create a new exact-head review packet.
+4. Merge #162 only after exact-head CI and independent review are green; then start WO118B against the released candidate/elastic seam.
+5. Keep WO-P1-096 blocked until authorized hosted remote MCP-after-TTL v0.0.13 evidence exists.
 
 ## Accepted predecessor
 

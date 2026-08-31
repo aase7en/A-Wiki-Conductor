@@ -1,42 +1,32 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-31 (GPT-5.6 Sol - POST-AHA-6B FRONTIER SAFETY SHAPING / PREPARED LANES)
+Last updated: 2026-08-31 (GPT-5.6 Sol — frontier safety integration after PR #161)
 
 ## Current phase
 
-**AHA-6B is released. Ultra + GLM results are validated and the next safety-first lanes are READY_FOR_CLAIM after exact closeout-main post-main CI turned green. P0 WO-P1-096 remains the highest unresolved release gate.**
+**Post-AHA-6B frontier safety integration. WO-P1-117 and WO-P1-119 are merged; WO-P1-118A is the active provider-generation/policy implementation lane; WO-P1-120 is review-green on its old head but awaits refresh onto current main before final independent review/merge. P0 WO-P1-096 remains the stable-release blocker.**
 
-P0 WO-P1-096 remains separate: Worker4 is READY but no live staged-v0.0.13 process exists; remote MCP-after-TTL proof on v0.0.13 remains unproven and still requires explicit maintenance authority.
+Accepted frontier state:
+- PR #160 / WO-P1-117 merged as `76123743df90e2fddfb37cbaf94826bf6f50bba1`; exact-head review P0/P1/P2=0 and post-main CI SUCCESS.
+- PR #161 / WO-P1-119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; exact post-main revalidation PASS (206 tests, P0-P3=0). Post-main push CI `33376099903` is the current release verification run.
+- WO-P1-118 is split durably: 118A provider generation/CAS + pure trust/egress policy is active in `A:\GitHub\A-Wiki-Conductor-provider-generation-policy`; 118B pre-elastic wiring is blocked until WO-P1-120 releases its candidate/elastic scope.
+- PR #162 / WO-P1-120 head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5` has 3-OS CI green and exact-head GLM re-review PASS (230 tests, P0/P1/P2=0), but must be refreshed onto current main and independently re-reviewed before merge.
+- Synthetic final-tree proof for #160+#161+#162: 366 focused tests passed; full suite 1834 passed / 5 skipped / 2 known local GPU-dependency failures only.
+- P0 WO-P1-096 remains operationally open: current hosted/remote MCP-after-TTL success on tunnel-client v0.0.13 is still unproven and requires explicit maintenance authority.
 
-Accepted AHA-6B closeout state:
-- implementation PR `#157` merged as `af5a5068aea37ce82875e4b6fff40ac19ac112c5`;
-- exact-head CI `33352780461`: SUCCESS on Windows/Ubuntu/macOS;
-- post-main CI `33354156749`: SUCCESS on Windows/Ubuntu/macOS;
-- Windows packaging, Portable smoke and Frozen Setup install/uninstall E2E: PASS;
-- independent GLM-5.3 MAX exact-SHA review: PASS with P0/P1/P2 = 0.
+## Active work orders
 
-## Active work order
-
-No implementation lane is claimed yet. Prepared safety slices:
-- `WO-P1-117` provider dispatch outcome + admission lifetime — proposed GPT integrator owner; P1.
-- `WO-P1-118` config generation + trust/egress policy — QUEUED behind 117 due shared provider-store scope; P1.
-- `WO-P1-119` provider output persistence safety — proposed GPT-5.6 Sol Ultra owner; P1; disjoint.
-- `WO-P1-120` elastic fencing/recovery hardening — proposed GLM-5.3 MAX owner under exact bounded packet; P2/P3; disjoint.
-
-## Latest completed work order
-
-`docs/work-orders/WO-P1-116-elastic-worker-capacity.md` - COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.
-Implementation PR `#157` merged as `af5a5068aea37ce82875e4b6fff40ac19ac112c5`; exact-head CI `33352780461` and post-main CI `33354156749` passed Windows/Ubuntu/macOS including Windows Frozen Setup E2E.
-Independent GLM-5.3 MAX review passed on exact reviewed head `d06129ac943ceaa30c398d744b07a0fec9b505e1` with P0/P1/P2 = 0; four P3 notes are non-blocking follow-up candidates.
+1. `WO-P1-118A` — GLM-5.3 MAX bounded implementation under claim `51e7c75537f1`; packet `runs/wo118a-glm-impl-001/task.md`; no 118B wiring in this lane.
+2. `WO-P1-120` — final integration pending main refresh after WO118A releases overlapping provider-store claim; then exact-head CI + independent review + merge.
+3. `WO-P1-096` — P0 operational release gate; no live tunnel/worker mutation without explicit maintenance authority.
 
 ## Immediate execution frontier
 
-1. Closeout PR #158 is merged as `fd2f443b6e93abbc766bfcdc41e31424f35013e8`; its exact post-main CI is the baseline gate before implementation claims.
-2. Ultra `gpt56-ultra-frontier-001` identity is validated; GPT independently confirmed source-level R1/R2/R3/R4/R5 and R9, with R6 retained as a RED-first interleaving hypothesis.
-3. GLM `glm53-capacity-hardening-001` is validated; its four AHA-6B P3 findings were independently confirmed.
-4. Safety ordering: WO-P1-117 + WO-P1-119 + WO-P1-120 may run concurrently after baseline/claim/worktree gates; WO-P1-118 follows 117 because both own `provider_config_store.py`.
-5. AHA-7 read-only operator status and no-relay F4/F5/F6 remain downstream of these trust boundaries; broad AHA-8 provider breadth is later.
-6. P0 WO-P1-096 maintenance remains independent and cannot borrow a live worker/tunnel without explicit authority.
+1. Require post-main CI success for merged PR #161.
+2. Validate WO118A result from actual source/tests; repair only evidence-backed defects, then release its claim.
+3. Refresh PR #162 onto then-current main, resolve only known `DEFECT_LESSONS.md` append collision, rerun union regression, regenerate exact-head independent review, and merge only after green gates.
+4. After #162 releases `worker_candidate_assembly.py`, execute WO118B so trust/egress denial occurs before admission, lease, elastic expansion, credential resolution, or launch.
+5. Only after 117/118/119/120 are accepted may AHA-7 write/Test/Disable controls consume the stable provider safety contract; AHA-8 provider breadth remains later.
 
 ## Source-of-truth rule
 
