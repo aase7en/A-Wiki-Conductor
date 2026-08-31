@@ -576,3 +576,15 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** return-time redaction is not a persistence boundary. Secret-bearing subprocess output must be sanitized before the first durable write, with chunk-boundary tests and live-child/timeout evidence proving no write-then-scrub window.
 
 **Verify:** real Windows child echo test, held-live durable-log test, timeout -> reattach test, fragmented-stream unit test, capture-failure no-result test; related supervised/native regression 120 passed after bounded-drain hardening.
+
+## #37: Durable completion evidence must bind to the exact dispatched task and lease (2026-08-31)
+
+**Symptom:** an independent post-merge WO117 review proved seven normal-return cases could release provider admission while the actual job remained `EXECUTING`: unsupported `None`/dictionary returns, internally consistent evidence for another job, and non-executing actions carrying contradictory nested execution evidence.
+
+**Root cause:** the consumer validated parts of the typed result internally but did not bind the returned job to the current dispatch request and acquired worker lease. While provider capacity was held, non-`GraphDispatchResult` values also bypassed typed refusal and fell through to completion/release; the separate no-admission generic-runner seam was not provider-capacity authority.
+
+**Fix:** every provider-admitted normal return now passes one fail-closed consumer policy. Unsupported shapes while provider capacity is held are recovery and keep that admission reserved; typed evidence must match job/project/work-order/max-attempt identity and canonical worker ownership; `EXECUTED` requires a real attempt plus successful matching execution evidence; `EXISTING`/`BLOCKED`/`OFFERED` reject any nested execution payload. When no provider admission authority exists, the older injected generic-runner contract still permits a non-`GraphDispatchResult` normal return to mean only that the runner stage completed; it is not durable lifecycle completion authority.
+
+**Lesson:** internal consistency is not provenance. Provider-capacity completion/release authority must bind evidence to the exact operation being consumed; foreign-but-valid evidence and unknown return shapes while an admission is held remain uncertainty and keep capacity reserved. A no-admission generic runner may still report stage completion without becoming durable lifecycle authority.
+
+**Verify:** current-main RED = 10 failures/1 positive control; after compatibility repair, full parallel suite = 57 passed and broader provider/store/runtime/graph/lease/candidate/elastic/Claude supervised regression = 284 passed; compileall/diff/UTF-8 gates PASS.
