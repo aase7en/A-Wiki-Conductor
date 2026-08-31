@@ -49,7 +49,7 @@ Ultra result: `A:\GitHub\A-Wiki-Conductor-provider-dispatch-safety\runs\wo117-in
 RED on exact main `887ef3c9...`: WO121 focused matrix = `10 failed / 1 passed`. Unsupported `None`/`dict`, five task-identity drifts, and contradictory nested execution all reproduced unsafe release/completion behavior.
 
 GREEN repair is consumer-side only:
-- unsupported normal returns -> `DISPATCH_RESULT_UNSUPPORTED`, recovery, admission retained;
+- with a held provider admission, unsupported normal returns -> `DISPATCH_RESULT_UNSUPPORTED`, recovery, admission retained; generic no-admission returns are handled by the later compatibility checkpoint;
 - typed result job identity binds exact job/project/work-order/max-attempts and canonical worker ownership to task + acquired lease;
 - `EXECUTED` additionally requires a real attempt (`attempt_count >= 1`) plus matching successful execution evidence;
 - `EXISTING`/`BLOCKED`/`OFFERED` require `execution is None`; contradictory nested execution remains capacity-consuming recovery;
@@ -64,4 +64,4 @@ RED: provider-backed unknown-return safety controls remained green, while a gene
 
 Repair: only no-admission + non-`GraphDispatchResult` returns retain the original stage-level `RUN_COMPLETED` behavior. Once provider capacity is admitted, unknown normal returns still require recovery and retain capacity. Typed `GraphDispatchResult` evidence remains subject to exact identity/action/state policy in both modes.
 
-Verification: targeted safety/compatibility `3 passed`; full parallel `57 passed`; related provider/store/runtime/graph/lease/candidate/elastic/Claude supervised suite `237 passed`. The earlier Ultra rereview packet for `fdf8e780...` is superseded by the next exact-head packet.
+Verification: targeted safety/compatibility `3 passed`; full parallel `57 passed`; final broader provider/store/runtime/graph/lease/candidate/elastic/Claude supervised suite `284 passed`. The earlier Ultra rereview packets are superseded by the next exact-head packet.
