@@ -328,11 +328,15 @@ class SQLiteWorkerProvisioningReservations:
         self,
         reservation_id: str,
         *,
+        session_id: str,
+        task_id: str,
         state: str,
         now: object,
         worker_id: str | None = None,
     ) -> ProvisioningReservationRecord:
         reservation_id = _text(reservation_id, "reservation_id")
+        session_id = _text(session_id, "session_id")
+        task_id = _text(task_id, "task_id")
         observed_at = _timestamp(now, "now")
         if state not in {"PROVISIONED", "RECOVERY_REQUIRED", "RELEASED"}:
             raise ValueError("provisioning transition state invalid")
@@ -349,6 +353,9 @@ class SQLiteWorkerProvisioningReservations:
                     connection.rollback()
                     raise ElasticCapacityError("PROVISIONING_RESERVATION_NOT_FOUND")
                 current = self._record(row)
+                if current.session_id != session_id or current.task_id != task_id:
+                    connection.rollback()
+                    raise ElasticCapacityError("PROVISIONING_OWNER_MISMATCH")
                 if current.state == state and current.worker_id == worker_id:
                     connection.rollback()
                     return current
@@ -378,10 +385,18 @@ class SQLiteWorkerProvisioningReservations:
                 raise ElasticCapacityError("PROVISIONING_STORE_WRITE_FAILED") from exc
 
     def mark_provisioned(
-        self, reservation_id: str, *, worker_id: str, now: object
+        self,
+        reservation_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+        worker_id: str,
+        now: object,
     ) -> ProvisioningReservationRecord:
         return self._transition(
             reservation_id,
+            session_id=session_id,
+            task_id=task_id,
             state="PROVISIONED",
             worker_id=worker_id,
             now=now,
@@ -391,21 +406,32 @@ class SQLiteWorkerProvisioningReservations:
         self,
         reservation_id: str,
         *,
+        session_id: str,
+        task_id: str,
         now: object,
         worker_id: str | None = None,
     ) -> ProvisioningReservationRecord:
         return self._transition(
             reservation_id,
+            session_id=session_id,
+            task_id=task_id,
             state="RECOVERY_REQUIRED",
             worker_id=worker_id,
             now=now,
         )
 
     def release_unstarted(
-        self, reservation_id: str, *, now: object
+        self,
+        reservation_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+        now: object,
     ) -> ProvisioningReservationRecord:
         return self._transition(
             reservation_id,
+            session_id=session_id,
+            task_id=task_id,
             state="RELEASED",
             now=now,
         )
@@ -586,6 +612,21 @@ class ElasticWorkerCapacityCoordinator:
             and record.worker_id is None
         )
 
+    def _mark_recovery(
+        self,
+        reservation_id: str,
+        lease_request: WorkerLeaseRequest,
+        *,
+        worker_id: str | None = None,
+    ) -> None:
+        self._reservations.mark_recovery(
+            reservation_id,
+            session_id=lease_request.session_id,
+            task_id=lease_request.task_id,
+            now=self._clock(),
+            worker_id=worker_id,
+        )
+
     def expand(
         self,
         plan: SchedulePlan,
@@ -709,10 +750,7 @@ class ElasticWorkerCapacityCoordinator:
             provisioned = self._provisioner.provision(provision_request)
         except Exception:
             try:
-                self._reservations.mark_recovery(
-                    reservation_id,
-                    now=self._clock(),
-                )
+                self._mark_recovery(reservation_id, lease_request)
             except Exception:
                 pass
             return self._recovery(
@@ -721,10 +759,7 @@ class ElasticWorkerCapacityCoordinator:
             )
         if not isinstance(provisioned, ElasticProvisionedWorker):
             try:
-                self._reservations.mark_recovery(
-                    reservation_id,
-                    now=self._clock(),
-                )
+                self._mark_recovery(reservation_id, lease_request)
             except Exception:
                 pass
             return self._recovery(
@@ -733,9 +768,9 @@ class ElasticWorkerCapacityCoordinator:
             )
         if provisioned.runtime_kind != runtime_kind:
             try:
-                self._reservations.mark_recovery(
+                self._mark_recovery(
                     reservation_id,
-                    now=self._clock(),
+                    lease_request,
                     worker_id=provisioned.worker_id,
                 )
             except Exception:
@@ -750,9 +785,9 @@ class ElasticWorkerCapacityCoordinator:
             or policy.transport_authorization_ref is None
         ):
             try:
-                self._reservations.mark_recovery(
+                self._mark_recovery(
                     reservation_id,
-                    now=self._clock(),
+                    lease_request,
                     worker_id=provisioned.worker_id,
                 )
             except Exception:
@@ -766,6 +801,8 @@ class ElasticWorkerCapacityCoordinator:
         try:
             self._reservations.mark_provisioned(
                 reservation_id,
+                session_id=lease_request.session_id,
+                task_id=lease_request.task_id,
                 worker_id=provisioned.worker_id,
                 now=self._clock(),
             )
