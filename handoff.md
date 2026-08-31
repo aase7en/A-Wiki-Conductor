@@ -8,9 +8,9 @@ Close WO121/PR164 and WO118A/PR165 with exact-head independent evidence, then re
 
 ## Repository / release identity
 
-- authoritative remote main: `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; protected root checkout is stale/dirty and MUST NOT be mutated;
-- PR #164 / WO121: DRAFT head `fdf8e78048eda9f503db70707d2e2521cdb3c85b`; exact-head 3-OS CI SUCCESS; Ultra rereview packet `runs/wo121-ultra-rereview-001/task.md`; result pending;
-- PR #165 / WO118A: DRAFT head `729c3133a2c9281fe768793756099c21a2edd933`; worktree clean/pushed; packet `runs/wo118a-independent-review-002/task.md` SHA `e667128ca4f65f207bfd25f1ce127286e88871547ae66cce3ffc2b51d0cbe7ed`; prior packet 001 is superseded; CI/review pending;
+- authoritative remote main: `bd5bdd83522685c6213b7452b31220ca0691089d`; protected root checkout is stale/dirty and MUST NOT be mutated;
+- PR #164 / WO121: DRAFT head `f9eeedaeb7b0024359bfdde28cfb6d71aa1ac9c7`; generic no-admission compatibility repair pushed; Ultra packet `runs/wo121-ultra-rereview-002/task.md` SHA `ab045e0c95623bd3fb114c2ab91a2bfce3b8d700176bd803c1ce70cb6f9f371c`; exact-head Windows/full CI + rereview pending;
+- PR #165 / WO118A: DRAFT head `729c3133a2c9281fe768793756099c21a2edd933`; worktree clean/pushed; packet `runs/wo118a-independent-review-002/task.md` SHA `e667128ca4f65f207bfd25f1ce127286e88871547ae66cce3ffc2b51d0cbe7ed`; prior packet 001 is superseded; exact-head 3-OS CI SUCCESS; independent review pending;
 - PR #162 / WO120: DRAFT head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; defer final main refresh until #164/#165 stabilize.
 
 ## Ownership / claims
@@ -29,7 +29,7 @@ Close WO121/PR164 and WO118A/PR165 with exact-head independent evidence, then re
 
 1. Ingest Ultra WO121 rereview; if PASS and identity/hashes match, merge #164 and require post-main CI.
 2. Obtain independent exact-head review for #165; accept/repair from evidence only; merge/post-main prove 118A.
-3. Refresh #162 only after #164/#165 stabilize. Known changed-in-both files: `parallel_ready_execution.py` + test versus #164; `provider_config_store.py` + test versus #165; plus `DEFECT_LESSONS.md`. Preserve current-main safety behavior, replay only bounded WO120 elastic/fencing intent, rerun union tests, then obtain a diverse exact-head review.
+3. Refresh #162 only after #164/#165 stabilize. Actual merge-base proof against current main shows only `DEFECT_LESSONS.md` conflict. The earlier parallel/provider-store conflict matrix was invalid because it used an explicit base newer than WO120's fork. Re-run `git merge-tree --write-tree <then-current-main> <WO120-head>` after #164/#165 merge, resolve only real conflicts, rerun union tests, then obtain a diverse exact-head review.
 4. After #162 merges, execute WO118B pre-admission/pre-elastic/pre-secret/pre-launch generation+policy enforcement.
 5. Keep WO096 blocked pending explicit maintenance authority.
 
