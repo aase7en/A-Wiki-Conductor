@@ -552,3 +552,15 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** recovery is a durable state transition, not only a return code. If a process can restart between failure and operator action, the persisted authority must still explain why replay is unsafe.
 
 **Verify:** RED tests assert both returned recovery code and persisted reservation state after observation/broker failure; cross-process capacity limits remain enforced.
+
+## #35: Credential-bearing child output must be sanitized before durable persistence (2026-08-31)
+
+**Symptom:** a provider child could echo its credential to stdout/stderr. The returned `ClaudeCodeRunnerResult` was redacted, but durable `stdout.log` / `stderr.log` already contained plaintext bytes.
+
+**Root cause:** the detached helper inherited durable file handles directly, while redaction existed only after artifact collection. The first streaming repair also used buffered `read(64 KiB)`, delaying output until EOF for long-running children.
+
+**Fix:** credential-bearing children now use in-memory stdout/stderr pipes in `supervised_child.py`; a bounded streaming redactor handles cross-chunk matches and forwards only sanitized bytes to durable handles. `read1()` consumes available pipe bytes without waiting for EOF; terminal result publication waits for both drains. Oversized redaction values fail before launch.
+
+**Lesson:** return-time redaction is not a persistence boundary. Secret-bearing subprocess output must be sanitized before the first durable write, with chunk-boundary tests and live-child/timeout evidence proving no write-then-scrub window.
+
+**Verify:** real Windows child echo test, held-live durable-log test, timeout -> reattach test, fragmented-stream unit test, capture-failure no-result test; related supervised/native regression 119 passed before final audit.

@@ -1,8 +1,8 @@
 # WO-P1-119 — Provider Output Persistence Safety
 
 Date: 2026-08-31
-Proposed owner: GPT-5.6 Sol Ultra
-Status: READY_FOR_CLAIM / UNCLAIMED
+Owner: GPT-5.6 Sol integrator (repair after Ultra RED)
+Status: SOURCE_FROZEN / REVIEW_PREP
 Repository: `aase7en/A-Wiki-Conductor`
 Priority: P1 before any credential-bearing unattended provider canary
 
@@ -45,3 +45,15 @@ Classification: `WRAP + EXTEND` the accepted supervised/owned-process boundary. 
 ## Concurrency
 
 This lane may run in parallel with WO-P1-117 and WO-P1-120 because source ownership is disjoint. If RED requires `supervised_command_runner.py` or another shared lifecycle file, stop and return `SCOPE_REOPEN_REQUIRED` rather than editing outside this contract.
+
+## Implementation checkpoint — 2026-08-31
+
+- Ultra produced deterministic RED evidence: returned diagnostics were redacted while durable stdout/stderr contained the synthetic marker; Ultra correctly stopped with `SCOPE_REOPEN_REQUIRED` at `supervised_child.py`.
+- Integrator reopened the exact capture boundary and repaired it in-place: secret-bearing child streams are piped through a bounded streaming redactor before any durable write; no second process/store/lifecycle authority was added.
+- Live-child test proves sanitized bytes are present while the target is still running; timeout -> reattach preserves sanitization; fragmented secret bytes are redacted across chunk boundaries.
+- Capture failure publishes no terminal result. Redaction values over 16 KiB fail closed before target launch.
+- A first pump implementation exposed a `BufferedReader.read(64 KiB)` live-stream delay; replacing it with `read1()` restored prompt sanitized persistence without weakening confidentiality.
+- Related supervised/native regression: `119 passed`; compileall and `git diff --check` PASS before final commit.
+- Full local suite: `1794 passed, 5 skipped, 2 failed`; both failures are the pre-existing optional GPU/Pillow/OpenGL environment gaps in `tests/test_gpu_particle_logo.py`, outside WO-P1-119 scope and identical in class to prior accepted local baselines.
+- Source/test implementation commit `a6fc29d12976742baf67a93f455588070de8d607` is pushed on `fix/wo-p1-119-provider-output-persistence-safety`; no history rewrite is permitted.
+- Remaining gates: checkpoint docs commit/push -> exact-SHA independent review -> 3-OS CI -> merge/post-main proof.
