@@ -259,8 +259,14 @@ def _typed_dispatch_policy(result: object) -> tuple[bool, bool, str] | None:
         return False, False, "DISPATCH_EXISTING_STATE_INVALID"
     if result.action is GraphDispatchAction.RECONCILE:
         return False, False, reason
-    if result.action in {GraphDispatchAction.BLOCKED, GraphDispatchAction.OFFERED}:
-        return False, True, reason
+    if result.action is GraphDispatchAction.BLOCKED:
+        if result.job.state is TaskState.BLOCKED:
+            return False, True, reason
+        return False, False, "DISPATCH_BLOCKED_STATE_INVALID"
+    if result.action is GraphDispatchAction.OFFERED:
+        if result.job.state is TaskState.CLAIMED:
+            return False, True, reason
+        return False, False, "DISPATCH_OFFERED_STATE_INVALID"
     return False, False, "DISPATCH_ACTION_UNSUPPORTED"
 
 

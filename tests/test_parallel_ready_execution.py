@@ -961,6 +961,26 @@ def test_typed_nonexecuting_action_is_recovery_but_releases_capacity(
         rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
     assert rows == [("RELEASED",)]
 
+
+@pytest.mark.parametrize(
+    ("action", "reason", "expected_reason"),
+    [
+        (GraphDispatchAction.BLOCKED, "DISPATCH_BLOCKED", "DISPATCH_BLOCKED_STATE_INVALID"),
+        (GraphDispatchAction.OFFERED, "INTERACTIVE_PULL_OFFERED", "DISPATCH_OFFERED_STATE_INVALID"),
+    ],
+)
+def test_typed_nonexecuting_action_with_executing_state_retains_capacity(
+    tmp_path: Path, action: GraphDispatchAction, reason: str, expected_reason: str
+) -> None:
+    outcome, database = _execute_typed_dispatch(
+        tmp_path, action=action, state=TaskState.EXECUTING, reason=reason
+    )
+    assert outcome.kind is ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED
+    assert outcome.reason_code == expected_reason
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("ACTIVE",)]
+
 def test_typed_existing_failed_is_not_reported_as_completed(tmp_path: Path) -> None:
     outcome, database = _execute_typed_dispatch(
         tmp_path, action=GraphDispatchAction.EXISTING,
