@@ -62,10 +62,10 @@ May run concurrently with WO-P1-119 and WO-P1-120 because mutable source scopes 
 
 - Worktree: `A:\GitHub\A-Wiki-Conductor-provider-dispatch-safety`
 - Branch: `fix/wo-p1-117-provider-dispatch-admission-safety`
-- Source/test commits: `7a575d162b47cd63ceddfe3943108cd8f3a4f38e` + `afeaf6d520039fe8dca6ba6cacaf2f1adcddd822`
+- Source/test commits: `7a575d162b47cd63ceddfe3943108cd8f3a4f38e` + `afeaf6d520039fe8dca6ba6cacaf2f1adcddd822` + `76b45b0099d3cd623a9e1af5ee8623378712b7af`
 - RED proved durable `RECONCILE` false-success, TTL-only over-admission, malformed `EXECUTED` evidence acceptance, and `EXISTING + FAILED` false-success.
 - Spawned-process stale-admission test proves expired-but-unknown work still fences `max_concurrency=1` across processes.
 - Positive control proves valid typed `EXECUTED` with matching successful `JobExecutionOutcome` releases capacity and remains `RUN_COMPLETED`.
-- Impact-expanded regression: `208 passed`; compileall and `git diff --check` PASS.
-- Draft PR: `#160`; previous exact-head CI for `7a575d1` passed Windows/Ubuntu/macOS, but final CI must rerun after `afeaf6d`.
+- Impact-expanded regression: `210 passed`; compileall and `git diff --check` PASS.
+- Draft PR: `#160`; final exact-head CI must rerun after `76b45b0` and this checkpoint commit.
 - Next gate: commit this bounded defect/WO checkpoint, push final head, rerun exact-head CI, generate independent exact-SHA review packet, and merge only after review + CI pass.
