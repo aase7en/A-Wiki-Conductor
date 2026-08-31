@@ -10,7 +10,7 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 | Released | GPT-5.6 Sol | WO-P1-117 | provider dispatch outcome + admission lifetime safety | MERGED `76123743` / POST_MAIN_GREEN |
 | Active implementation | GLM-5.3 MAX | WO-P1-118A | provider configuration generation/CAS + pure trust/egress evaluator | CLAIMED `51e7c75537f1` / PACKET_READY |
 | Blocked integration | GPT-5.6 Sol | WO-P1-118B | pre-elastic provider-policy wiring | BLOCKED_ON_WO-P1-120 |
-| Released | GPT-5.6 Sol + GLM review | WO-P1-119 | provider output persistence safety | MERGED `887ef3c9` / POST_MAIN_VERIFYING |
+| Released | GPT-5.6 Sol + GLM review | WO-P1-119 | provider output persistence safety | MERGED `887ef3c9` / POST_MAIN_GREEN |
 | Integration queue | GPT-5.6 Sol | WO-P1-120 | elastic capacity fencing + recovery hardening | PR #162 / OLD_HEAD_REVIEW_PASS / MAIN_REFRESH_PENDING |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / NO CURRENT PROOF |
 | Future | provider-neutral | AHA-7 write/Test/Disable provider controls | released provider safety contracts | AFTER_117_118_119_120 |

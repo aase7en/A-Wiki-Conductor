@@ -8,7 +8,7 @@ Last updated: 2026-08-31 (GPT-5.6 Sol — frontier safety integration after PR #
 
 Accepted frontier state:
 - PR #160 / WO-P1-117 merged as `76123743df90e2fddfb37cbaf94826bf6f50bba1`; exact-head review P0/P1/P2=0 and post-main CI SUCCESS.
-- PR #161 / WO-P1-119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; exact post-main revalidation PASS (206 tests, P0-P3=0). Post-main push CI `33376099903` is the current release verification run.
+- PR #161 / WO-P1-119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; exact post-main revalidation PASS (206 tests, P0-P3=0). Post-main push CI `33376099903` completed SUCCESS; WO-P1-119 is fully released.
 - WO-P1-118 is split durably: 118A provider generation/CAS + pure trust/egress policy is active in `A:\GitHub\A-Wiki-Conductor-provider-generation-policy`; 118B pre-elastic wiring is blocked until WO-P1-120 releases its candidate/elastic scope.
 - PR #162 / WO-P1-120 head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5` has 3-OS CI green and exact-head GLM re-review PASS (230 tests, P0/P1/P2=0), but must be refreshed onto current main and independently re-reviewed before merge.
 - Synthetic final-tree proof for #160+#161+#162: 366 focused tests passed; full suite 1834 passed / 5 skipped / 2 known local GPU-dependency failures only.
@@ -22,11 +22,10 @@ Accepted frontier state:
 
 ## Immediate execution frontier
 
-1. Require post-main CI success for merged PR #161.
-2. Validate WO118A result from actual source/tests; repair only evidence-backed defects, then release its claim.
-3. Refresh PR #162 onto then-current main, resolve only known `DEFECT_LESSONS.md` append collision, rerun union regression, regenerate exact-head independent review, and merge only after green gates.
-4. After #162 releases `worker_candidate_assembly.py`, execute WO118B so trust/egress denial occurs before admission, lease, elastic expansion, credential resolution, or launch.
-5. Only after 117/118/119/120 are accepted may AHA-7 write/Test/Disable controls consume the stable provider safety contract; AHA-8 provider breadth remains later.
+1. Validate WO118A result from actual source/tests; repair only evidence-backed defects, then release its claim.
+2. Refresh PR #162 onto then-current main, resolve only known `DEFECT_LESSONS.md` append collision, rerun union regression, regenerate exact-head independent review, and merge only after green gates.
+3. After #162 releases `worker_candidate_assembly.py`, execute WO118B so trust/egress denial occurs before admission, lease, elastic expansion, credential resolution, or launch.
+4. Only after 117/118/119/120 are accepted may AHA-7 write/Test/Disable controls consume the stable provider safety contract; AHA-8 provider breadth remains later.
 
 ## Source-of-truth rule
 

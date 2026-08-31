@@ -11,7 +11,7 @@ Finish the post-AHA-6B trust-boundary sequence without human result copy-back: v
 - authoritative remote main: `887ef3c9c640a612dffc1a3baeab42b70f6aa12f` (PR #161 merge at this checkpoint);
 - protected root checkout is stale/dirty and MUST NOT be mutated;
 - PR #160 / WO117: MERGED `76123743df90e2fddfb37cbaf94826bf6f50bba1`, post-main CI green;
-- PR #161 / WO119: MERGED `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI run `33376099903` is being verified;
+- PR #161 / WO119: MERGED `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI run `33376099903` completed SUCCESS;
 - PR #162 / WO120: OPEN DRAFT, head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`, old-head CI/review green; refresh onto current main still required;
 - WO118A worktree `A:\GitHub\A-Wiki-Conductor-provider-generation-policy`, branch `fix/wo-p1-118-provider-generation-policy`, start HEAD `4c60d2fd19474f8b9e84058642e598b277ee7af4`.
 
@@ -32,11 +32,10 @@ Finish the post-AHA-6B trust-boundary sequence without human result copy-back: v
 
 ## Next safe actions
 
-1. Poll merged #161 post-main CI to terminal SUCCESS.
-2. Ingest WO118A result; independently inspect source/diff/transactions/tests before accepting GLM's verdict.
-3. Release WO118A claim only after durable checkpoint. Then refresh PR #162 with current main, preserve lessons #35/#36/#37, rerun union regression and create a new exact-head review packet.
-4. Merge #162 only after exact-head CI and independent review are green; then start WO118B against the released candidate/elastic seam.
-5. Keep WO-P1-096 blocked until authorized hosted remote MCP-after-TTL v0.0.13 evidence exists.
+1. Ingest WO118A result; independently inspect source/diff/transactions/tests before accepting GLM's verdict.
+2. Release WO118A claim only after durable checkpoint. Then refresh PR #162 with current main, preserve lessons #35/#36/#37, rerun union regression and create a new exact-head review packet.
+3. Merge #162 only after exact-head CI and independent review are green; then start WO118B against the released candidate/elastic seam.
+4. Keep WO-P1-096 blocked until authorized hosted remote MCP-after-TTL v0.0.13 evidence exists.
 
 ## Accepted predecessor
 
