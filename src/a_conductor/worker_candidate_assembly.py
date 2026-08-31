@@ -126,7 +126,9 @@ class NativeGitWorktreeStateObserver:
         identity_runner: GitReadOnlyRunner | None = None,
     ) -> None:
         self._git_executable = _text(git_executable, "git_executable", max_length=260)
-        self._identity = identity_runner or StrictReadOnlyGitRunner(git_executable=self._git_executable)
+        self._identity = identity_runner or StrictReadOnlyGitRunner(
+            git_executable=self._git_executable
+        )
 
     def observe(self, worktree: str) -> GitWorktreeState:
         try:
@@ -145,7 +147,8 @@ class NativeGitWorktreeStateObserver:
                 max_timeout_seconds=30,
             )
             status = NativeGitReadAdapter(
-                scope, git_executable=self._git_executable
+                scope,
+                git_executable=self._git_executable,
             ).status_short(timeout_seconds=10)
         except NativeExecutionError as exc:
             raise WorkerCandidateAssemblyError("GIT_STATUS_UNAVAILABLE") from exc
@@ -159,7 +162,7 @@ class NativeGitWorktreeStateObserver:
 
 
 def _runtime_ready(context: LifecycleContext, row: WorkerScreenRow) -> bool:
-    if row.state is not WorkerState.READY:
+    if row.state is not WorkerState.READY or context.worker_state is not row.state:
         return False
     if context.assignment_present is not True or context.project_exists is not True:
         return False
@@ -201,22 +204,37 @@ class WorkerCandidateAssembler:
         self._leases = lease_store
         self._capabilities = capability_resolver
 
-    def _row(self, worker_id: str) -> WorkerScreenRow:
-        value = _text(worker_id, "worker_id", max_length=128)
+    def _snapshot(self) -> ControlCenterSnapshot:
         snapshot = self._control_center.snapshot()
         if not isinstance(snapshot, ControlCenterSnapshot):
             raise WorkerCandidateAssemblyError("CONTROL_CENTER_SNAPSHOT_INVALID")
+        return snapshot
+
+    def _active_leases(self) -> tuple[WorkerLease, ...]:
+        active = self._leases.list_active()
+        if not isinstance(active, tuple) or not all(
+            isinstance(item, WorkerLease) for item in active
+        ):
+            raise WorkerCandidateAssemblyError("LEASE_EVIDENCE_INVALID")
+        return active
+
+    @staticmethod
+    def _find_row(
+        snapshot: ControlCenterSnapshot,
+        worker_id: str,
+    ) -> WorkerScreenRow:
+        value = _text(worker_id, "worker_id", max_length=128)
         for row in snapshot.workers:
             if row.worker_id == value:
                 return row
         raise WorkerCandidateAssemblyError("WORKER_NOT_FOUND")
 
+    @staticmethod
     def _lease_evidence(
-        self, worker_id: str, worktree: str | None
+        worker_id: str,
+        worktree: str | None,
+        active: tuple[WorkerLease, ...],
     ) -> tuple[bool, tuple[tuple[str, ...], ...]]:
-        active = self._leases.list_active()
-        if not isinstance(active, tuple) or not all(isinstance(item, WorkerLease) for item in active):
-            raise WorkerCandidateAssemblyError("LEASE_EVIDENCE_INVALID")
         reserved = any(item.worker_id == worker_id for item in active)
         scopes: list[tuple[str, ...]] = []
         if worktree is not None:
@@ -262,20 +280,56 @@ class WorkerCandidateAssembler:
             mutation_authorized=False,
             occupied_mutable_scopes=scopes,
         )
-        return WorkerSupplyRecord(row.worker_id, scheduler, candidate, reason_code)
+        return WorkerSupplyRecord(
+            row.worker_id,
+            scheduler,
+            candidate,
+            reason_code,
+        )
 
-    def assemble(self, worker_id: str) -> WorkerSupplyRecord:
-        row = self._row(worker_id)
-        if row.assignment_id is None or row.project_id is None or row.project_root_path is None:
-            reserved, scopes = self._lease_evidence(row.worker_id, row.project_root_path)
-            return self._closed(row, "ASSIGNMENT_MISSING", reserved=reserved, scopes=scopes)
+    def _assemble_row(
+        self,
+        row: WorkerScreenRow,
+        active: tuple[WorkerLease, ...],
+    ) -> WorkerSupplyRecord:
+        if (
+            row.assignment_id is None
+            or row.project_id is None
+            or row.project_root_path is None
+        ):
+            reserved, scopes = self._lease_evidence(
+                row.worker_id,
+                row.project_root_path,
+                active,
+            )
+            return self._closed(
+                row,
+                "ASSIGNMENT_MISSING",
+                reserved=reserved,
+                scopes=scopes,
+            )
 
         binding = self._config_store.get_project_binding(row.project_id)
         if not isinstance(binding, SerenaProjectBinding):
-            reserved, scopes = self._lease_evidence(row.worker_id, row.project_root_path)
-            return self._closed(row, "PROJECT_BINDING_MISSING", reserved=reserved, scopes=scopes)
-        if windows_worktree_key(binding.worktree_path) != windows_worktree_key(row.project_root_path):
-            reserved, scopes = self._lease_evidence(row.worker_id, binding.worktree_path)
+            reserved, scopes = self._lease_evidence(
+                row.worker_id,
+                row.project_root_path,
+                active,
+            )
+            return self._closed(
+                row,
+                "PROJECT_BINDING_MISSING",
+                reserved=reserved,
+                scopes=scopes,
+            )
+        if windows_worktree_key(binding.worktree_path) != windows_worktree_key(
+            row.project_root_path
+        ):
+            reserved, scopes = self._lease_evidence(
+                row.worker_id,
+                binding.worktree_path,
+                active,
+            )
             return self._closed(
                 row,
                 "PROJECT_BINDING_DRIFT",
@@ -284,7 +338,11 @@ class WorkerCandidateAssembler:
                 scopes=scopes,
             )
 
-        reserved, scopes = self._lease_evidence(row.worker_id, binding.worktree_path)
+        reserved_by_lease, scopes = self._lease_evidence(
+            row.worker_id,
+            binding.worktree_path,
+            active,
+        )
         try:
             capabilities = tuple(self._capabilities.resolve(row.runtime_id))
         except Exception:
@@ -292,26 +350,31 @@ class WorkerCandidateAssembler:
                 row,
                 "CAPABILITY_EVIDENCE_FAILED",
                 worktree=binding.worktree_path,
-                reserved=reserved,
+                reserved=reserved_by_lease,
                 scopes=scopes,
             )
-        if not capabilities or not all(isinstance(item, str) and item.strip() for item in capabilities):
+        if not capabilities or not all(
+            isinstance(item, str) and item.strip() for item in capabilities
+        ):
             return self._closed(
                 row,
                 "CAPABILITY_EVIDENCE_MISSING",
                 worktree=binding.worktree_path,
-                reserved=reserved,
+                reserved=reserved_by_lease,
                 scopes=scopes,
             )
 
         try:
-            context = self._lifecycle.observe(row.worker_id, LifecycleAction.START)
+            context = self._lifecycle.observe(
+                row.worker_id,
+                LifecycleAction.START,
+            )
         except Exception:
             return self._closed(
                 row,
                 "LIFECYCLE_OBSERVATION_FAILED",
                 worktree=binding.worktree_path,
-                reserved=reserved,
+                reserved=reserved_by_lease,
                 scopes=scopes,
             )
         if not isinstance(context, LifecycleContext) or context.action is not LifecycleAction.START:
@@ -319,7 +382,7 @@ class WorkerCandidateAssembler:
                 row,
                 "LIFECYCLE_OBSERVATION_INVALID",
                 worktree=binding.worktree_path,
-                reserved=reserved,
+                reserved=reserved_by_lease,
                 scopes=scopes,
             )
         if not _observation_known(context):
@@ -327,7 +390,7 @@ class WorkerCandidateAssembler:
                 row,
                 "RUNTIME_OBSERVATION_UNKNOWN",
                 worktree=binding.worktree_path,
-                reserved=reserved,
+                reserved=reserved_by_lease or bool(context.active_task),
                 scopes=scopes,
             )
 
@@ -338,7 +401,7 @@ class WorkerCandidateAssembler:
                 row,
                 "GIT_OBSERVATION_FAILED",
                 worktree=binding.worktree_path,
-                reserved=reserved,
+                reserved=reserved_by_lease or bool(context.active_task),
                 scopes=scopes,
             )
         if not isinstance(git, GitWorktreeState):
@@ -346,17 +409,26 @@ class WorkerCandidateAssembler:
                 row,
                 "GIT_OBSERVATION_INVALID",
                 worktree=binding.worktree_path,
-                reserved=reserved,
+                reserved=reserved_by_lease or bool(context.active_task),
                 scopes=scopes,
             )
 
         state = "READY" if _runtime_ready(context, row) else "UNKNOWN"
-        mutation_allowed = bool(row.mutation_allowed) and git.dirty_state == "CLEAN" and state == "READY"
+        has_active_task = reserved_by_lease or bool(context.active_task)
+        durable_mutation_allowed = bool(row.mutation_allowed) and bool(
+            binding.mutation_allowed
+        )
+        mutation_allowed = (
+            durable_mutation_allowed
+            and git.dirty_state == "CLEAN"
+            and state == "READY"
+            and not has_active_task
+        )
         scheduler = WorkerSnapshot(
             worker_id=row.worker_id,
             state=state,
             capabilities=capabilities,
-            reserved=reserved,
+            reserved=has_active_task,
             project=row.project_id,
             workspace=binding.worktree_path,
             mutation_authorized=mutation_allowed,
@@ -364,8 +436,8 @@ class WorkerCandidateAssembler:
         candidate = WorkerLeaseCandidate(
             worker_id=row.worker_id,
             state=state,
-            reserved=reserved,
-            active_task=reserved,
+            reserved=has_active_task,
+            active_task=has_active_task,
             capabilities=capabilities,
             runtime_id=row.runtime_id,
             project_id=row.project_id,
@@ -373,26 +445,51 @@ class WorkerCandidateAssembler:
             branch=git.branch,
             head=git.head,
             health_fresh=True,
-            ownership_known=context.process_ownership is not ProcessOwnership.UNKNOWN,
+            ownership_known=(
+                context.process_ownership is not ProcessOwnership.UNKNOWN
+            ),
             dirty_state=git.dirty_state,
-            mutation_authorized=bool(row.mutation_allowed),
+            mutation_authorized=durable_mutation_allowed,
             occupied_mutable_scopes=scopes,
         )
-        reason = "READY_DIRTY" if state == "READY" and git.dirty_state == "DIRTY" else (
-            "READY" if state == "READY" else "WORKER_NOT_READY"
+        reason = (
+            "READY_DIRTY"
+            if state == "READY" and git.dirty_state == "DIRTY"
+            else "READY"
+            if state == "READY"
+            else "WORKER_NOT_READY"
         )
-        return WorkerSupplyRecord(row.worker_id, scheduler, candidate, reason)
+        return WorkerSupplyRecord(
+            row.worker_id,
+            scheduler,
+            candidate,
+            reason,
+        )
+
+    def assemble(self, worker_id: str) -> WorkerSupplyRecord:
+        snapshot = self._snapshot()
+        active = self._active_leases()
+        row = self._find_row(snapshot, worker_id)
+        return self._assemble_row(row, active)
 
     def assemble_all(self) -> tuple[WorkerSupplyRecord, ...]:
-        snapshot = self._control_center.snapshot()
-        if not isinstance(snapshot, ControlCenterSnapshot):
-            raise WorkerCandidateAssemblyError("CONTROL_CENTER_SNAPSHOT_INVALID")
+        snapshot = self._snapshot()
+        try:
+            active = self._active_leases()
+        except Exception:
+            return tuple(
+                self._closed(row, "LEASE_EVIDENCE_INVALID")
+                for row in snapshot.workers
+            )
+
         records: list[WorkerSupplyRecord] = []
         for row in snapshot.workers:
             try:
-                records.append(self.assemble(row.worker_id))
+                records.append(self._assemble_row(row, active))
             except WorkerCandidateAssemblyError:
-                records.append(self._closed(row, "ASSEMBLY_RECOVERY_REQUIRED"))
+                records.append(
+                    self._closed(row, "ASSEMBLY_RECOVERY_REQUIRED")
+                )
             except Exception:
                 records.append(self._closed(row, "ASSEMBLY_EXCEPTION"))
         return tuple(records)
