@@ -553,7 +553,7 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 **Verify:** RED tests assert both returned recovery code and persisted reservation state after observation/broker failure; cross-process capacity limits remain enforced.
 
-## #35: Credential-bearing child output must be sanitized before durable persistence (2026-08-31)
+## #36: Credential-bearing child output must be sanitized before durable persistence (2026-08-31)
 
 **Symptom:** a provider child could echo its credential to stdout/stderr. The returned `ClaudeCodeRunnerResult` was redacted, but durable `stdout.log` / `stderr.log` already contained plaintext bytes.
 
