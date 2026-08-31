@@ -10,8 +10,8 @@ Close WO120/PR162 with exact-head Ultra evidence and post-main proof, then execu
 
 - authoritative remote main: `0ff914efa2887a0f9c6d330859fa4e49ed921d89`; protected root checkout is stale/dirty and MUST NOT be mutated;
 - PR #164 / WO121: MERGED as `1b0468fa...`; GLM rereview004 PASS; post-main CI `33404736157` SUCCESS;
-- PR #165 / WO118A: MERGED as `0ff914ef...`; Ultra rereview004 PASS at exact `2bfcdab...`, P0/P1/P2=0; exact-head 3-OS CI SUCCESS; WO118B remains pending;
-- PR #162 / WO120: DRAFT final candidate `899d002745b7ae56704c8a6614e7b9a957ab0ba6`; final union `359 passed`; packet `runs/wo120-ultra-rereview-002/task.md` SHA `63751963056bd463b9d456de25e4026afbb148ef6537109f165fcc5a2e22062c`; Ubuntu/macOS CI green, Windows/full + Ultra review pending.
+- PR #165 / WO118A: MERGED as `0ff914ef...`; Ultra rereview004 PASS at exact `2bfcdab...`, P0/P1/P2=0; exact-head CI `33405254844` SUCCESS; post-main CI `33417911998` SUCCESS across Windows/Ubuntu/macOS including Windows Frozen Setup E2E; WO118B remains pending;
+- PR #162 / WO120: DRAFT final candidate `899d002745b7ae56704c8a6614e7b9a957ab0ba6`; final union `359 passed`; packet `runs/wo120-ultra-rereview-002/task.md` SHA `63751963056bd463b9d456de25e4026afbb148ef6537109f165fcc5a2e22062c`; exact-head CI `33418133578` SUCCESS on Windows/Ubuntu/macOS; Ultra review pending.
 
 ## Ownership / claims
 
@@ -22,12 +22,12 @@ Close WO120/PR162 with exact-head Ultra evidence and post-main proof, then execu
 ## Verified evidence
 
 - WO121: exact-head GLM PASS; parallel 57, related 162 reviewer tests; post-main CI green.
-- WO118A: Ultra004 PASS; review003 F1/F2 independently closed; exact-head CI green; merge commit `0ff914ef...`.
+- WO118A: Ultra004 PASS; review003 F1/F2 independently closed; reviewer-fresh focused `70 passed` and related `213 passed`; exact-head CI `33405254844` green; merge commit `0ff914ef...`; post-main CI `33417911998` green including Windows packaging/install E2E.
 - WO120: latest crash-window RED proved stale unbound ACTIVE/RECOVERY could release capacity from owner+age; repair requires runtime-absence evidence while explicit known-pre-provision `release_unstarted()` remains valid. Focused+related 209; refreshed union 263; final post-WO118A union 359; compile/diff gates PASS.
 
 ## Next safe actions
 
-1. Ingest Ultra WO120 rereview002 + exact-head CI; merge #162 only if P0/P1/P2=0 and identity/hash match, then require post-main CI.
+1. Ingest Ultra WO120 rereview002; revalidate the already-green exact-head CI `33418133578`; merge #162 only if P0/P1/P2=0 and identity/hash match, then require post-main CI.
 2. Execute WO118B after #162 merges: generation/policy denial must precede admission, lease, elastic expansion, credential access and launch.
 3. Keep WO096 blocked pending explicit maintenance authority.
 

@@ -2,7 +2,7 @@
 
 Date: 2026-08-31
 Owner: split — GLM-5.3 MAX (118A implementation), GPT-5.6 Sol integrator (118B architecture/merge)
-Status: ACTIVE — WO-P1-118A READY; WO-P1-118B BLOCKED_ON_WO-P1-120
+Status: ACTIVE — WO-P1-118A COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED; WO-P1-118B BLOCKED_ON_WO-P1-120
 Repository: `aase7en/A-Wiki-Conductor`
 Priority: P1 before automatic live provider dispatch
 
@@ -138,3 +138,10 @@ RED before repair: `2 failed`. Targeted after repair: `2 passed`; full provider 
 `DEFECT_LESSONS.md` is intentionally not mutated on this PR head while WO121 owns lesson #37 and WO120 still carries a competing historical #37. The accepted findings are durably recorded here; final integrated defect-memory numbering will be reconciled after WO121 merges rather than creating another shared-file collision.
 
 Status: **WO-P1-118A ULTRA-003 REPAIRED / NEW EXACT-HEAD REREVIEW REQUIRED.** WO118B remains pending.
+## WO-P1-118A final release checkpoint — 2026-09-01
+
+- Ultra rereview004 returned `PASS` with P0/P1/P2 = `0` on exact head `2bfcdabbb88058784be52cb990ce927b89cd376f`; the separate Spec-axis P3 raw-getter consistency note is non-blocking and has no production caller.
+- The reviewer independently closed review003 F1/F2: borrowed endpoint-reference decisions denied across 960 combinations, both migration-backfill fault positions rolled back schema/data and retried successfully, modern NULL/zero/text/REAL/BLOB generations remained fail-closed, and earlier fan-out/CAS/observation/admission protections held.
+- Reviewer-fresh verification: focused `70 passed`, related `213 passed`, independent generation probe 25 summarized cases including 12 CAS races, compile/diff/scope/secret-pattern gates PASS. Task SHA-256: `c54264a6041cdf2d2c69a4a605a54fcd536759da5ef7eacefaa813cb0e895238`; ignored local result `runs/wo118a-independent-review-004/result.md` SHA-256: `e7b530ff6eab146230266968af7f5aca01f9790625cceb14a9c816a459f5cf0c`.
+- Exact-head CI `33405254844` passed Windows/Ubuntu/macOS. PR #165 merged as `0ff914efa2887a0f9c6d330859fa4e49ed921d89`; exact post-main CI `33417911998` passed all three OS jobs, including Windows packaging, Portable smoke and Frozen Setup install/uninstall E2E.
+- **WO-P1-118A is COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.** This does not complete WO118: WO118B policy/generation enforcement before admission, lease, elastic expansion, credential access and launch remains blocked on accepted WO-P1-120.

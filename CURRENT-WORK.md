@@ -4,24 +4,24 @@ Last updated: 2026-09-01 (GPT-5.6 Sol — WO121/WO118A merged; WO120 final exact
 
 ## Current phase
 
-**Post-AHA-6B frontier safety integration. WO117/WO119/WO121 and WO118A are merged with independent evidence. WO120 is refreshed onto current main and awaits exact-head Ultra review + CI at final candidate `899d002...`. WO118B is blocked only on WO120 acceptance. P0 WO-P1-096 remains a separate operational release blocker.**
+**Post-AHA-6B frontier safety integration. WO117/WO119/WO121 and WO118A are merged with independent evidence. WO120 is refreshed onto current main at final candidate `899d002...`; exact-head 3-OS CI is green and Ultra review remains pending. WO118B is blocked only on WO120 acceptance. P0 WO-P1-096 remains a separate operational release blocker.**
 
 Accepted / active frontier state:
 - PR #160 / WO117 merged as `76123743df90e2fddfb37cbaf94826bf6f50bba1`; late Ultra defects were repaired separately by WO121.
 - PR #161 / WO119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI SUCCESS.
 - PR #164 / WO121 merged as `1b0468fae2f2a3b60a1037d343330466e27b7306`; GLM exact-head rereview PASS P0/P1/P2=0; post-main CI `33404736157` SUCCESS.
-- PR #165 / WO118A merged as `0ff914efa2887a0f9c6d330859fa4e49ed921d89`; Ultra rereview004 PASS P0/P1/P2=0 at exact `2bfcdab...`; exact-head CI SUCCESS. WO118B production enforcement remains explicitly pending.
-- PR #162 / WO120 final candidate `899d002745b7ae56704c8a6614e7b9a957ab0ba6`: refreshed conflict-free onto WO118A main after resolving lesson #38 earlier; latest crash-window repair prevents stale unbound ACTIVE/RECOVERY reservations from freeing bounded capacity without runtime-absence evidence. Final union regression `359 passed`; Ultra rereview002 + Windows/full CI pending, Ubuntu/macOS green.
+- PR #165 / WO118A merged as `0ff914efa2887a0f9c6d330859fa4e49ed921d89`; Ultra rereview004 PASS P0/P1/P2=0 at exact `2bfcdab...`; exact-head CI `33405254844` SUCCESS; post-main CI `33417911998` SUCCESS on Windows/Ubuntu/macOS including Windows Frozen Setup E2E. WO118B production enforcement remains explicitly pending.
+- PR #162 / WO120 final candidate `899d002745b7ae56704c8a6614e7b9a957ab0ba6`: refreshed conflict-free onto WO118A main after resolving lesson #38 earlier; latest crash-window repair prevents stale unbound ACTIVE/RECOVERY reservations from freeing bounded capacity without runtime-absence evidence. Final union regression `359 passed`; exact-head CI `33418133578` SUCCESS on Windows/Ubuntu/macOS; Ultra rereview002 pending.
 - WO118B remains blocked only on accepted WO120: production must enforce generation + policy before admission/lease/elastic expansion/credential resolution/launch.
 - P0 WO096 remains operationally open: hosted remote MCP-after-TTL v0.0.13 proof is absent and requires explicit maintenance authority.
 
 ## Active work orders
 
-1. `WO-P1-120` — PR #162 head `899d002...`; Ultra exact-head rereview002 + Windows/full CI pending.
+1. `WO-P1-120` — PR #162 head `899d002...`; exact-head CI `33418133578` green; Ultra rereview002 pending.
 2. `WO-P1-118B` — blocked until WO120 releases worker/elastic seams.
 3. `WO-P1-096` — P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
 
-Recently merged: WO121/PR164 `1b0468fa...` and WO118A/PR165 `0ff914ef...`, both with accepted independent review and green exact-head evidence; WO121 post-main CI is green.
+Recently merged: WO121/PR164 `1b0468fa...` and WO118A/PR165 `0ff914ef...`, both with accepted independent review and green exact-head/post-main evidence.
 
 ## Immediate execution frontier
 

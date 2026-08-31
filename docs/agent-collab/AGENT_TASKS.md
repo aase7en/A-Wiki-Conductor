@@ -9,8 +9,8 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 |---|---|---|---|---|
 | Released predecessor | GPT-5.6 Sol | WO-P1-117 | provider dispatch/admission lifetime | MERGED #160; late defects repaired by WO121 |
 | Released repair | GPT-5.6 Sol + GLM rereview | WO-P1-121 | dispatch completion evidence binding | MERGED #164 `1b0468fa` / GLM_004_PASS / POST_MAIN_GREEN |
-| Released provider seam | GPT-5.6 Sol + Ultra rereview | WO-P1-118A | provider generation/CAS + pure trust/egress evaluator | MERGED #165 `0ff914ef` / ULTRA_004_PASS / CI_GREEN |
-| Review gate | GPT-5.6 Sol + Ultra rereview | WO-P1-120 | elastic capacity fencing + recovery hardening | PR #162 / HEAD `899d002` / UNION_359_PASS / ULTRA_002_AND_WINDOWS_CI_PENDING |
+| Released provider seam | GPT-5.6 Sol + Ultra rereview | WO-P1-118A | provider generation/CAS + pure trust/egress evaluator | MERGED #165 `0ff914ef` / ULTRA_004_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
+| Review gate | GPT-5.6 Sol + Ultra rereview | WO-P1-120 | elastic capacity fencing + recovery hardening | PR #162 / HEAD `899d002` / UNION_359_PASS / EXACT_HEAD_3OS_CI_GREEN / ULTRA_002_PENDING |
 | Blocked integration | GPT-5.6 Sol | WO-P1-118B | pre-admission/pre-elastic/pre-secret enforcement | BLOCKED_ON_WO120 |
 | Released | GPT-5.6 Sol + GLM review | WO-P1-119 | provider output persistence safety | MERGED `887ef3c9` / POST_MAIN_GREEN |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / NO CURRENT PROOF |
