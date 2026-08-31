@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-31 (GPT-5.6 Sol — WO121 post-merge repair + WO118A integrator hardening)
+Last updated: 2026-08-31 (GPT-5.6 Sol — WO121 compatibility repair + WO118A review + merge-base correction)
 
 ## Current phase
 
@@ -9,9 +9,9 @@ Last updated: 2026-08-31 (GPT-5.6 Sol — WO121 post-merge repair + WO118A integ
 Accepted / active frontier state:
 - PR #160 / WO117 merged as `76123743df90e2fddfb37cbaf94826bf6f50bba1`; later Ultra CHANGES_REQUIRED was reproduced on merged main and is not dismissed.
 - PR #161 / WO119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI SUCCESS.
-- PR #164 / WO121 head `fdf8e78048eda9f503db70707d2e2521cdb3c85b`: post-merge dispatch evidence binding repair; RED 10 failed/1 control pass, repaired parallel 56 and frontier 366 pass; 3-OS exact-head CI SUCCESS; Ultra exact-head rereview pending.
+- PR #164 / WO121 head `f9eeedaeb7b0024359bfdde28cfb6d71aa1ac9c7`: post-merge dispatch evidence binding repair plus generic no-admission runner compatibility correction; parallel 57 and related 237 pass; new exact-head CI + Ultra packet 002 pending.
 - PR #165 / WO118A head `729c3133a2c9281fe768793756099c21a2edd933`: generation/CAS + observation/admission generation seam + pure trust/egress policy. GPT integrator repaired generation rollback/corruption/overflow/missing-row CAS and local-egress metadata bypass; post-main union 306 passed; a second RED closed EXTERNAL_FIRST_PARTY trust-class downgrade; broader repair regression 254 passed; exact-head CI/review pending.
-- PR #162 / WO120 remains open at `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; exact merge-tree analysis proves source conflicts with #164 (`parallel_ready_execution.py` + test) and #165 (`provider_config_store.py` + test), plus `DEFECT_LESSONS.md`. Refresh must preserve then-current main safety authorities and replay only the bounded WO120 elastic/fencing delta.
+- PR #162 / WO120 remains open at `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; actual merge-base is `822e0a2022d56385543511e2d999474c3772c7ef`. `git merge-tree --write-tree origin/main HEAD` against current main shows only `DEFECT_LESSONS.md` conflict. Earlier parallel/provider-store conflicts were a simulation artifact from using an invalid explicit base. Re-run auto-merge proof after #164/#165 merge before refresh.
 - WO118B remains blocked: production must enforce accepted generation + policy before admission/lease/elastic expansion/credential resolution/launch.
 - P0 WO096 remains operationally open: hosted remote MCP-after-TTL v0.0.13 proof is still absent and requires explicit maintenance authority.
 
@@ -27,7 +27,7 @@ Accepted / active frontier state:
 
 1. Validate Ultra rereview of WO121; merge PR #164 only after exact-head review + CI, then require post-main proof.
 2. Obtain independent exact-head review of PR #165; repair only evidence-backed defects; merge/post-main prove WO118A.
-3. After #164/#165 stabilize, reconstruct/refresh PR #162 onto then-current main: current-main dispatch/provider-generation safety is authoritative; resolve known source conflicts deliberately, replay only bounded WO120 elastic/fencing intent, rerun union RED/regression, then regenerate diverse exact-head review.
+3. After #164/#165 stabilize, reconstruct/refresh PR #162 onto then-current main: current-main dispatch/provider-generation safety is authoritative; re-run actual merge-base auto-merge proof, resolve only real conflicts (currently `DEFECT_LESSONS.md`), preserve bounded WO120 elastic/fencing intent, rerun union RED/regression, then regenerate diverse exact-head review.
 4. Start WO118B only after 118A+120 release their seams; denial must precede provider admission, worker lease, elastic expansion, credential access and process launch.
 5. Keep WO096 separately blocked until authorized hosted remote MCP-after-TTL evidence exists.
 
