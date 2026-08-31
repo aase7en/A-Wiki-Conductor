@@ -17,7 +17,11 @@ from a_conductor.worker_candidate_assembly import (
     GitWorktreeState,
     WorkerCandidateAssembler,
 )
-from a_conductor.worker_lease import LeaseMutationIntent, WorkerLease
+from a_conductor.worker_lease import (
+    LeaseMutationIntent,
+    WorkerLease,
+    WorkerProvisioningReservationRecord,
+)
 
 
 HEAD = "a" * 40
@@ -63,13 +67,25 @@ class FakeGitStateObserver:
 
 
 class FakeLeaseStore:
-    def __init__(self, leases: tuple[WorkerLease, ...] = ()) -> None:
+    def __init__(
+        self,
+        leases: tuple[WorkerLease, ...] = (),
+        reservations: tuple[WorkerProvisioningReservationRecord, ...] = (),
+    ) -> None:
         self.leases = leases
+        self.reservations = reservations
         self.calls = 0
+        self.reservation_calls = 0
 
     def list_active(self) -> tuple[WorkerLease, ...]:
         self.calls += 1
         return self.leases
+
+    def list_provisioning_reservations(
+        self, *, consuming_only: bool = False
+    ) -> tuple[WorkerProvisioningReservationRecord, ...]:
+        self.reservation_calls += 1
+        return self.reservations
 
 
 class FakeCapabilityResolver:
@@ -164,6 +180,7 @@ def assembler(
     lifecycle=None,
     git_state=None,
     leases=(),
+    reservations=(),
 ):
     return WorkerCandidateAssembler(
         control_center=FakeControlCenter(snapshot(worker_row)),
@@ -172,7 +189,7 @@ def assembler(
         git_state_observer=FakeGitStateObserver(
             git_state or GitWorktreeState("feat/test", HEAD, "CLEAN")
         ),
-        lease_store=FakeLeaseStore(tuple(leases)),
+        lease_store=FakeLeaseStore(tuple(leases), tuple(reservations)),
         capability_resolver=FakeCapabilityResolver(),
     )
 
@@ -347,3 +364,55 @@ def test_assemble_all_captures_one_durable_worker_and_lease_snapshot() -> None:
     assert leases.calls == 1
     assert records[0].candidate.reserved is True
     assert records[1].reason_code == "ASSIGNMENT_MISSING"
+
+
+
+def provisioning_reservation(
+    *,
+    state: str = "PROVISIONED",
+    session_id: str = "session-1",
+    task_id: str = "task-1",
+) -> WorkerProvisioningReservationRecord:
+    return WorkerProvisioningReservationRecord(
+        reservation_id="reservation-1",
+        session_id=session_id,
+        task_id=task_id,
+        runtime_kind="serena-local",
+        state=state,
+        worker_id="a-worker-01",
+        acquired_at="2026-08-31T00:00:00Z",
+        updated_at="2026-08-31T00:00:01Z",
+        project_id="project-1",
+        worktree_key=windows_worktree_key(r"A:\Repo"),
+        mutable_scope=("src/a.py",),
+    )
+
+
+def test_provisioned_capacity_reservation_is_owner_scoped() -> None:
+    reservation = provisioning_reservation()
+    service = assembler(reservations=(reservation,))
+
+    generic = service.assemble("a-worker-01")
+    assert generic.scheduler.reserved is True
+    assert generic.candidate.reserved is True
+    assert generic.candidate.active_task is True
+    assert generic.candidate.occupied_mutable_scopes == (("src/a.py",),)
+
+    owner = service.assemble_for_owner(
+        "a-worker-01", session_id="session-1", task_id="task-1"
+    )
+    assert owner.scheduler.reserved is False
+    assert owner.candidate.reserved is False
+    assert owner.candidate.active_task is False
+    assert owner.candidate.occupied_mutable_scopes == ()
+
+
+def test_capacity_state_counts_as_capacity_but_does_not_reserve_worker() -> None:
+    service = assembler(
+        reservations=(provisioning_reservation(state="CAPACITY"),)
+    )
+    record = service.assemble("a-worker-01")
+    assert record.scheduler.reserved is False
+    assert record.candidate.reserved is False
+    assert record.candidate.active_task is False
+    assert record.candidate.occupied_mutable_scopes == ()

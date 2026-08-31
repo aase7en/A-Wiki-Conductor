@@ -133,3 +133,15 @@ claimed from stale READY/process evidence.
 
 Next safe action: continue RED/implementation on this single remote branch, use CI as the temporary
 deterministic execution gate, and resume local focused/E2E verification only after RDC reconnects.
+
+## 2026-08-31 implementation / local audit checkpoint
+
+Slices A-F are locally implemented. `SQLiteWorkerLeaseStore` now owns provisioning reservation schema/transactions; the elastic adapter is compatibility-only. Production supply reads durable lease + provisioning reservations, live lifecycle/Git/binding evidence, and supports exact-owner re-observation during the provision?lease handoff.
+
+Adversarial repairs completed: missing scheduler eligibility cannot trigger provisioning; `PROVISIONED`/`RECOVERY_REQUIRED` workers are reserved from competing sessions; successful capacity becomes `CAPACITY`; post-create observation/broker uncertainty becomes durable `RECOVERY_REQUIRED`; remote connector remains disabled without explicit transport authorization.
+
+Verification: related `163 passed`; compileall/diff-check pass; spawned cross-process capacity race at `max_extra=1` yields exactly one winner; realistic fixed-pool E2E begins with one existing reserved worker (`workers_ready=0/1`) and reaches the existing runner on exactly one additional worker. CI-topology local run passed GUI 277 + local-instance 23 + supervised 11 + first 30 isolated core files, then stopped on missing GPU/OpenGL dependency in the shared Hermes venv outside WO scope. Exact-head GitHub CI is required before acceptance.
+
+Worker lane preflight found Worker5 clean/idle and therefore the only fallback candidate, but its project was not rebound because no safe direct SunDay-Worker invocation surface is available in this chat. Workers 1-4 remain unavailable for reassignment for protected/active/dirty/P0 reasons. RDC remains the execution fallback.
+
+Next gate: source/SSoT audit ? checkpoint commit/push ? exact-SHA independent GLM read-only review via ignored `runs/` packet ? repair/re-review if source changes ? PR #157 remote diff/CI/re-audit.

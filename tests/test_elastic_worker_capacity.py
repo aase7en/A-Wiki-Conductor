@@ -21,6 +21,7 @@ from a_conductor.elastic_worker_capacity import (
     SQLiteWorkerProvisioningReservations,
     build_sqlite_elastic_worker_capacity_coordinator,
 )
+from a_conductor.registry import windows_worktree_key
 from a_conductor.graph.scheduler import (
     BlockedReason,
     BlockedReasonKind,
@@ -97,6 +98,11 @@ class FakeAssembler:
             raise self.value
         return self.value
 
+    def assemble_for_owner(
+        self, worker_id: str, *, session_id: str, task_id: str
+    ) -> WorkerSupplyRecord:
+        return self.assemble(worker_id)
+
 
 class FakeProvisioner:
     def __init__(self, value: ElasticProvisionedWorker | Exception) -> None:
@@ -108,6 +114,21 @@ class FakeProvisioner:
         if isinstance(self.value, Exception):
             raise self.value
         return self.value
+
+
+class OwnerScopedAssembler(FakeAssembler):
+    def __init__(self, value: WorkerSupplyRecord) -> None:
+        super().__init__(value)
+        self.owner_calls: list[tuple[str, str, str]] = []
+
+    def assemble(self, worker_id: str) -> WorkerSupplyRecord:
+        raise AssertionError("generic observation must not bypass provisioning reservation")
+
+    def assemble_for_owner(
+        self, worker_id: str, *, session_id: str, task_id: str
+    ) -> WorkerSupplyRecord:
+        self.owner_calls.append((worker_id, session_id, task_id))
+        return self.value  # type: ignore[return-value]
 
 
 def supply(worker_id: str = "a-worker-09") -> WorkerSupplyRecord:
@@ -265,6 +286,18 @@ def test_atomic_reservation_limit_one_has_one_winner_across_independent_connecti
     assert len(left.list_consuming()) == 1
 
 
+def test_provision_ready_uses_owner_scoped_reobservation(tmp_path: Path) -> None:
+    assembler = OwnerScopedAssembler(supply("a-worker-09"))
+    service, _ = make_coordinator(tmp_path, assembler=assembler)
+
+    outcome = service.provision_ready(
+        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+    )
+
+    assert outcome.kind is ElasticCapacityOutcomeKind.PROVISIONED_READY
+    assert assembler.owner_calls == [("a-worker-09", "session-1", "task-1")]
+
+
 def test_capacity_exhaustion_provisions_reobserves_then_uses_existing_broker(tmp_path: Path) -> None:
     provisioner = FakeProvisioner(ElasticProvisionedWorker("a-worker-09", "serena-local"))
     assembler = FakeAssembler(supply("a-worker-09"))
@@ -286,7 +319,7 @@ def test_capacity_exhaustion_provisions_reobserves_then_uses_existing_broker(tmp
     assert provisioner.calls[0].transport_authorization_ref is None
     records = reservations.list_consuming()
     assert len(records) == 1
-    assert records[0].state == "PROVISIONED"
+    assert records[0].state == "CAPACITY"
     assert records[0].worker_id == "a-worker-09"
 
 
@@ -340,7 +373,35 @@ def test_reobserved_worker_that_fails_existing_broker_is_not_silently_retried(tm
 
     assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
     assert outcome.reason_code == "PROVISIONED_WORKER_NOT_LEASED"
-    assert reservations.list_consuming()[0].state == "PROVISIONED"
+    assert reservations.list_consuming()[0].state == "RECOVERY_REQUIRED"
+
+
+def test_post_provision_observation_failure_marks_recovery(tmp_path: Path) -> None:
+    service, reservations = make_coordinator(
+        tmp_path, assembler=FakeAssembler(RuntimeError("observation lost"))
+    )
+
+    outcome = service.provision_ready(
+        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+    )
+
+    assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
+    assert outcome.reason_code == "PROVISIONED_WORKER_OBSERVATION_FAILED"
+    record = reservations.list_consuming()[0]
+    assert record.state == "RECOVERY_REQUIRED"
+    assert record.worker_id == "a-worker-09"
+
+
+def test_reservation_persists_identity_and_scope(tmp_path: Path) -> None:
+    service, reservations = make_coordinator(tmp_path)
+    outcome = service.provision_ready(
+        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+    )
+    assert outcome.kind is ElasticCapacityOutcomeKind.PROVISIONED_READY
+    record = reservations.list_consuming()[0]
+    assert record.project_id == "project-1"
+    assert record.worktree_key == windows_worktree_key(r"A:\Repo")
+    assert record.mutable_scope == ("src/a.py",)
 
 
 def test_runtime_kind_outside_policy_does_not_reserve_or_provision(tmp_path: Path) -> None:

@@ -516,3 +516,39 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** remote quota evidence is execution authority. A compatibility fallback may be used only when it is unambiguous; independently plausible fields are insufficient if the tuple contradicts itself.
 
 **Verify:** RED tests reproduce explicit-vs-legacy misselection, ambiguous unitless candidates and inconsistent tuples; repaired focused suite `62 passed`, related regression `256 passed`, full local `1753 passed / 4 skipped / 2 known GPU dependency failures`.
+
+## #32: Elastic expansion must consume scheduler eligibility evidence before capacity classification (2026-08-31)
+
+**Symptom:** a production composition could see zero available workers and classify the plan as capacity exhaustion even when the task's gate/provider evidence was absent, allowing provisioning before the downstream executor rejected the task.
+
+**Root cause:** elastic composition accepted the scheduler capacity output without proving the same gate/provider eligibility inputs that make that output authoritative.
+
+**Fix:** `ProductionElasticWorkerExecutor` requires typed `NodeEligibility` evidence for every ready node before scheduling; missing/malformed evidence is typed recovery and dispatch-gate denial is folded into scheduler eligibility before capacity expansion is considered.
+
+**Lesson:** capacity is meaningful only after non-capacity admission gates are proven. Autoscaling/elastic layers must never infer ?need more workers? from a plan assembled without the scheduler's complete eligibility evidence.
+
+**Verify:** RED reproduced provisioning with missing eligibility; repaired focused/related suite is green and the provisioner receives zero calls for the missing-evidence path.
+
+## #33: Provisioning reservations must be visible to worker candidate assembly with owner-scoped re-observation (2026-08-31)
+
+**Symptom:** after a worker was provisioned but before its lease was acquired, generic candidate assembly could report the new worker as free, creating a race where another session might lease it first.
+
+**Root cause:** lease evidence and provisioning-capacity evidence shared one SQLite file but candidate assembly consumed only active worker leases.
+
+**Fix:** provisioning reservations are now part of the existing `SQLiteWorkerLeaseStore` authority and production candidate assembly reads them. `PROVISIONED`/`RECOVERY_REQUIRED` reserve the worker for generic observers; only the exact owner `(session_id, task_id)` may re-observe its own `PROVISIONED` worker. Successful handoff transitions to `CAPACITY`, which continues counting bounded extra capacity without permanently reserving the worker.
+
+**Lesson:** a reservation that is invisible to the next admission layer is not an ownership boundary. Preserve reservation visibility across provision ? observe ? lease, with a narrow owner-scoped bypass rather than a global ignore.
+
+**Verify:** owner/generic observation RED tests plus realistic fixed-pool E2E prove the worker is hidden from competing sessions yet schedulable by its exact provisioning owner.
+
+## #34: Typed recovery output is insufficient unless ambiguous provisioning state is durably marked (2026-08-31)
+
+**Symptom:** post-provision observation or broker failure returned `RECOVERY_REQUIRED`, while the durable reservation remained `PROVISIONED`, making operator/restart state indistinguishable from a healthy owner handoff.
+
+**Root cause:** recovery vocabulary existed at the return boundary but was not reconciled into the SQLite capacity authority on every post-create failure path.
+
+**Fix:** post-provision observation and broker failures best-effort transition the reservation to durable `RECOVERY_REQUIRED`; ambiguous state remains capacity-consuming and is never blindly retried.
+
+**Lesson:** recovery is a durable state transition, not only a return code. If a process can restart between failure and operator action, the persisted authority must still explain why replay is unsafe.
+
+**Verify:** RED tests assert both returned recovery code and persisted reservation state after observation/broker failure; cross-process capacity limits remain enforced.

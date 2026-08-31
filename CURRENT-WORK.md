@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-116 / AHA-6B ACTIVE / CLAIMED / RED_GATE)
+Last updated: 2026-08-31 (GPT-5.6 Sol - WO-P1-116 / AHA-6B IMPLEMENTED / LOCAL_AUDIT / REVIEW_PREP)
 
 ## Current phase
 
@@ -17,7 +17,7 @@ Accepted AHA-5 closeout state:
 
 ## Active work order
 
-`docs/work-orders/WO-P1-116-elastic-worker-capacity.md` - ACTIVE / CLAIMED / SHAPING_COMPLETE / RED_GATE.
+`docs/work-orders/WO-P1-116-elastic-worker-capacity.md` - ACTIVE / CLAIMED / IMPLEMENTED / LOCAL_AUDIT / REVIEW_PREP.
 Worktree: `A:\GitHub\A-Wiki-Conductor-elastic-capacity`; branch `feat/wo-p1-116-elastic-worker-capacity`; base `origin/main@23243651d51780b76dce15cdb24eaba90fce9a99`.
 
 ## Latest completed work order
@@ -28,14 +28,14 @@ Closeout worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission-closeout`; bra
 
 ## Immediate execution frontier
 
-1. WO-P1-115 implementation + closeout are merged/post-main green and their implementation/closeout worktrees and branches are cleaned after ancestry/tree-equality proof.
-2. WO-P1-116 reuse gate is `REUSE + WRAP + EXTEND`: scheduler, broker, registry, lifecycle, Git readers and A-Wiki claims are reused; no second scheduler/lease/registry is allowed.
-3. Shaping found a real production gap: `WorkerLeaseCandidate` and `ParallelReadyTask` are currently assembled only in tests. AHA-6B must close production worker/task supply before elastic provisioning can be authoritative.
-4. Elastic provisioning belongs above the existing broker. It may trigger only from typed capacity exhaustion, must atomically reserve bounded provisioning capacity, re-observe the new worker, then re-enter the existing broker.
-5. Remote connector/tunnel provisioning is disabled by default. Logical/local worker capacity is distinct from ChatGPT connector capacity; Tunnel IDs are never inferred or silently reused.
-6. Fresh GLM-5.3 evidence supports bounded implementation/review, while GPT retains architecture/trust/merge authority. No external agent lane is dispatched until an exact task packet exists.
-7. P0 Worker4 v0.0.13 remains READY, but the required remote MCP-after-TTL request is not yet proven. Continue its isolated soak without touching Workers 1/2/3/5 or the shared v0.0.11 binary.
-8. Next gate: commit/push claim checkpoint -> focused baseline -> RED candidate assembly + fail-closed evidence tests.
+1. WO-P1-116 production worker/task supply, existing-store provisioning reservations, owner-scoped re-observation, and bounded production elastic execution are implemented locally in the isolated worktree.
+2. Atomic capacity authority is `SQLiteWorkerLeaseStore` with `BEGIN IMMEDIATE`; `max_extra_workers=1` has a spawned cross-process one-winner proof. No second scheduler/registry/lease/task/provider authority exists.
+3. Realistic E2E now starts with one fixed worker already reserved (`workers_ready=0/1`), provisions exactly one local/semantic worker, re-observes it under exact owner identity, re-runs the existing scheduler, leases through the existing broker, and reaches the existing runner.
+4. Trust-boundary repairs: scheduler eligibility is mandatory before capacity expansion; provisioning reservations are visible to generic candidate assembly; post-provision ambiguity is durably `RECOVERY_REQUIRED`; successful extra capacity becomes `CAPACITY` without permanently reserving the worker.
+5. Current local evidence: related regression `163 passed`; compileall and `git diff --check` pass. CI-topology local run passed GUI `277`, local-instance `23`, supervised `11`, and isolated core through 30 files before the shared Hermes venv hit known GPU dependency gaps (`OpenGL` unavailable); no WO file touches GPU/UI.
+6. Worker preflight: Worker5 is the only clean/idle fallback candidate; Worker2 has an open pharmacy cycle, Worker3 is dirty, Worker4 remains the P0 connector-soak lane, and Worker1 points at the protected dirty root. No Worker was rebound or interrupted.
+7. GLM-5.3 MAX remains suitable for bounded read-only adversarial review after an exact committed SHA; automatic dispatch remains fail-closed, so the accepted fallback is one human pointer to `runs/<task-id>/task.md`, with GPT reading `result.json` directly.
+8. Next gate: final diff/secret/scope audit -> checkpoint commit/push -> exact-SHA GLM independent review -> repair/re-review if needed -> PR #157 exact-head CI/re-audit -> merge/post-main proof.
 
 ## Source-of-truth rule
 

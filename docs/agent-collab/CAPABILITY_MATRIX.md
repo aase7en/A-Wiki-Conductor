@@ -85,3 +85,9 @@ Task class: production worker/candidate assembly, atomic elastic-capacity reserv
 - GLM-5.3 MAX is suitable for a later bounded deterministic implementation or read-only adversarial review lane after exact scope/HEAD/task packet pinning.
 - Deterministic tests, race/chaos evidence and actual Git/runtime state remain acceptance authority; model `DONE` claims are never sufficient.
 - Automatic provider dispatch is independent and remains fail-closed until provider route/readiness/full quota evidence is proven.
+
+## WO-P1-116 routing refresh ? 2026-08-31
+
+Official Z.ai GLM-5.3 evidence was refreshed again before review routing: Terminal-Bench 3.0 `28.3`, DeepSWE v1.1 `66.9`, Z.ai Code Bench Max `34.5%`. This continues to support bounded repository archaeology/adversarial review, not architecture or merge authority.
+
+For the now-implemented concurrency slice, GPT-5.6 Sol keeps worker-capacity authority design, defect adjudication and release ownership. GLM's next useful lane is independent exact-SHA read-only review with pinned file hashes and structured `result.json`; no overlapping source mutation is permitted. Provider route/readiness/credential/quota admission remains a separate fail-closed gate from model suitability.

@@ -9,21 +9,40 @@ until explicit reconciliation; it is never retried blindly.
 
 from __future__ import annotations
 
-import sqlite3
-from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Callable, Iterator, Protocol
+from typing import Callable, Mapping, Protocol
 
-from .graph.scheduler import BlockedReasonKind, SchedulePlan
-from .worker_candidate_assembly import WorkerSupplyRecord
+from .graph.domain import TaskGraph
+from .graph.ready import ReadySetResult
+from .graph.scheduler import (
+    BlockedReasonKind,
+    NodeEligibility,
+    SchedulePlan,
+    SchedulePolicy,
+    schedule_once,
+)
+from .parallel_ready_execution import (
+    ParallelReadyBatchResult,
+    ParallelReadyExecutor,
+    ParallelReadyOutcomeKind,
+)
+from .worker_candidate_assembly import (
+    ParallelReadyNodeContract,
+    WorkerSupplyRecord,
+    WorkerSupplySnapshot,
+    assemble_parallel_ready_tasks,
+)
 from .worker_lease import (
     LeaseOutcomeKind,
     SQLiteWorkerLeaseStore,
     WorkerLeaseBroker,
     WorkerLeaseOutcome,
     WorkerLeaseRequest,
+    WorkerProvisioningReservationKind,
+    WorkerProvisioningReservationRecord,
+    WorkerProvisioningReservationResult,
 )
 
 
@@ -121,106 +140,25 @@ class ElasticCapacityPolicy:
         )
 
 
-class ProvisioningReservationKind(str, Enum):
-    ACQUIRED = "ACQUIRED"
-    EXISTING = "EXISTING"
-    LIMIT_WAIT = "LIMIT_WAIT"
-    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
+ProvisioningReservationKind = WorkerProvisioningReservationKind
+ProvisioningReservationRecord = WorkerProvisioningReservationRecord
+ProvisioningReservationResult = WorkerProvisioningReservationResult
 
 
-@dataclass(frozen=True, slots=True)
-class ProvisioningReservationRecord:
-    reservation_id: str
-    session_id: str
-    task_id: str
-    runtime_kind: str
-    state: str
-    worker_id: str | None
-    acquired_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True, slots=True)
-class ProvisioningReservationResult:
-    kind: ProvisioningReservationKind
-    record: ProvisioningReservationRecord | None
-    reason_code: str
+def _reservation_store_error_code(code: str) -> str:
+    return {
+        "PROVISIONING_RESERVATION_DATA_INVALID": "PROVISIONING_RECORD_INVALID",
+    }.get(code, code)
 
 
 class SQLiteWorkerProvisioningReservations:
-    """Bounded provisioning reservations tied to one worker-lease SQLite authority."""
+    """Compatibility adapter over the existing SQLiteWorkerLeaseStore authority."""
 
     def __init__(self, lease_store: SQLiteWorkerLeaseStore) -> None:
         if not isinstance(lease_store, SQLiteWorkerLeaseStore):
             raise ValueError("lease_store must be SQLiteWorkerLeaseStore")
         self._lease_store = lease_store
         self.database_path = lease_store.database_path
-        self.initialize()
-
-    @contextmanager
-    def _connect(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(self.database_path, timeout=5.0)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA busy_timeout = 5000")
-        try:
-            yield connection
-        finally:
-            connection.close()
-
-    def initialize(self) -> None:
-        with self._connect() as connection:
-            try:
-                connection.executescript(
-                    """
-                    CREATE TABLE IF NOT EXISTS worker_provisioning_reservations (
-                        reservation_id TEXT PRIMARY KEY,
-                        session_id TEXT NOT NULL,
-                        task_id TEXT NOT NULL,
-                        runtime_kind TEXT NOT NULL,
-                        state TEXT NOT NULL,
-                        worker_id TEXT,
-                        acquired_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    );
-                    CREATE UNIQUE INDEX IF NOT EXISTS ux_worker_provisioning_owner_task
-                        ON worker_provisioning_reservations(session_id, task_id)
-                        WHERE state != 'RELEASED';
-                    """
-                )
-                connection.commit()
-            except sqlite3.Error as exc:
-                connection.rollback()
-                raise ElasticCapacityError("PROVISIONING_STORE_INIT_FAILED") from exc
-
-    @staticmethod
-    def _record(row: sqlite3.Row) -> ProvisioningReservationRecord:
-        try:
-            state = row["state"]
-            if state not in {"ACTIVE", "PROVISIONED", "RECOVERY_REQUIRED", "RELEASED"}:
-                raise ValueError("state invalid")
-            reservation_id = _text(row["reservation_id"], "reservation_id")
-            session_id = _text(row["session_id"], "session_id")
-            task_id = _text(row["task_id"], "task_id")
-            runtime_kind = _text(row["runtime_kind"], "runtime_kind", max_length=128)
-            worker_id = (
-                None
-                if row["worker_id"] is None
-                else _text(row["worker_id"], "worker_id")
-            )
-            acquired = _timestamp(row["acquired_at"], "acquired_at")
-            updated = _timestamp(row["updated_at"], "updated_at")
-        except (KeyError, IndexError, TypeError, ValueError) as exc:
-            raise ElasticCapacityError("PROVISIONING_RECORD_INVALID") from exc
-        return ProvisioningReservationRecord(
-            reservation_id=reservation_id,
-            session_id=session_id,
-            task_id=task_id,
-            runtime_kind=runtime_kind,
-            state=state,
-            worker_id=worker_id,
-            acquired_at=acquired,
-            updated_at=updated,
-        )
 
     def acquire(
         self,
@@ -231,98 +169,29 @@ class SQLiteWorkerProvisioningReservations:
         runtime_kind: str,
         max_extra_workers: int,
         now: object,
+        project_id: str | None = None,
+        worktree: str | None = None,
+        mutable_scope: tuple[str, ...] = (),
     ) -> ProvisioningReservationResult:
-        reservation_id = _text(reservation_id, "reservation_id")
-        session_id = _text(session_id, "session_id")
-        task_id = _text(task_id, "task_id")
-        runtime_kind = _text(runtime_kind, "runtime_kind", max_length=128)
-        if (
-            not isinstance(max_extra_workers, int)
-            or isinstance(max_extra_workers, bool)
-            or max_extra_workers < 1
-            or max_extra_workers > 99
-        ):
-            raise ValueError("max_extra_workers must be between 1 and 99")
-        observed_at = _timestamp(now, "now")
-        with self._connect() as connection:
-            try:
-                connection.execute("BEGIN IMMEDIATE")
-                existing_row = connection.execute(
-                    "SELECT * FROM worker_provisioning_reservations "
-                    "WHERE session_id = ? AND task_id = ? AND state != 'RELEASED'",
-                    (session_id, task_id),
-                ).fetchone()
-                if existing_row is not None:
-                    existing = self._record(existing_row)
-                    connection.rollback()
-                    return ProvisioningReservationResult(
-                        ProvisioningReservationKind.EXISTING,
-                        existing,
-                        "PROVISIONING_ALREADY_ACTIVE",
-                    )
-                count_row = connection.execute(
-                    "SELECT COUNT(*) AS total FROM worker_provisioning_reservations "
-                    "WHERE state IN ('ACTIVE','PROVISIONED','RECOVERY_REQUIRED')"
-                ).fetchone()
-                count = None if count_row is None else count_row["total"]
-                if not isinstance(count, int) or count < 0:
-                    connection.rollback()
-                    return ProvisioningReservationResult(
-                        ProvisioningReservationKind.RECOVERY_REQUIRED,
-                        None,
-                        "PROVISIONING_COUNT_INVALID",
-                    )
-                if count >= max_extra_workers:
-                    connection.rollback()
-                    return ProvisioningReservationResult(
-                        ProvisioningReservationKind.LIMIT_WAIT,
-                        None,
-                        "ELASTIC_CAPACITY_LIMIT_REACHED",
-                    )
-                connection.execute(
-                    "INSERT INTO worker_provisioning_reservations("
-                    "reservation_id, session_id, task_id, runtime_kind, state, worker_id, acquired_at, updated_at) "
-                    "VALUES(?, ?, ?, ?, 'ACTIVE', NULL, ?, ?)",
-                    (
-                        reservation_id,
-                        session_id,
-                        task_id,
-                        runtime_kind,
-                        observed_at,
-                        observed_at,
-                    ),
-                )
-                row = connection.execute(
-                    "SELECT * FROM worker_provisioning_reservations WHERE reservation_id = ?",
-                    (reservation_id,),
-                ).fetchone()
-                if row is None:
-                    connection.rollback()
-                    return ProvisioningReservationResult(
-                        ProvisioningReservationKind.RECOVERY_REQUIRED,
-                        None,
-                        "PROVISIONING_RECORD_MISSING",
-                    )
-                record = self._record(row)
-                connection.commit()
-                return ProvisioningReservationResult(
-                    ProvisioningReservationKind.ACQUIRED,
-                    record,
-                    "PROVISIONING_RESERVED",
-                )
-            except ElasticCapacityError:
-                connection.rollback()
+        try:
+            return self._lease_store.acquire_provisioning_reservation(
+                reservation_id=reservation_id,
+                session_id=session_id,
+                task_id=task_id,
+                runtime_kind=runtime_kind,
+                max_extra_workers=max_extra_workers,
+                now=now,
+                project_id=project_id,
+                worktree=worktree,
+                mutable_scope=mutable_scope,
+            )
+        except Exception as exc:
+            if isinstance(exc, ElasticCapacityError):
                 raise
-            except sqlite3.IntegrityError:
-                connection.rollback()
-                return ProvisioningReservationResult(
-                    ProvisioningReservationKind.RECOVERY_REQUIRED,
-                    None,
-                    "PROVISIONING_RESERVATION_CONFLICT",
-                )
-            except sqlite3.Error as exc:
-                connection.rollback()
-                raise ElasticCapacityError("PROVISIONING_STORE_WRITE_FAILED") from exc
+            code = getattr(exc, "code", None)
+            if isinstance(code, str) and code:
+                raise ElasticCapacityError(_reservation_store_error_code(code)) from exc
+            raise
 
     def _transition(
         self,
@@ -334,55 +203,20 @@ class SQLiteWorkerProvisioningReservations:
         now: object,
         worker_id: str | None = None,
     ) -> ProvisioningReservationRecord:
-        reservation_id = _text(reservation_id, "reservation_id")
-        session_id = _text(session_id, "session_id")
-        task_id = _text(task_id, "task_id")
-        observed_at = _timestamp(now, "now")
-        if state not in {"PROVISIONED", "RECOVERY_REQUIRED", "RELEASED"}:
-            raise ValueError("provisioning transition state invalid")
-        if worker_id is not None:
-            worker_id = _text(worker_id, "worker_id")
-        with self._connect() as connection:
-            try:
-                connection.execute("BEGIN IMMEDIATE")
-                row = connection.execute(
-                    "SELECT * FROM worker_provisioning_reservations WHERE reservation_id = ?",
-                    (reservation_id,),
-                ).fetchone()
-                if row is None:
-                    connection.rollback()
-                    raise ElasticCapacityError("PROVISIONING_RESERVATION_NOT_FOUND")
-                current = self._record(row)
-                if current.session_id != session_id or current.task_id != task_id:
-                    connection.rollback()
-                    raise ElasticCapacityError("PROVISIONING_OWNER_MISMATCH")
-                if current.state == state and current.worker_id == worker_id:
-                    connection.rollback()
-                    return current
-                if current.state != "ACTIVE":
-                    connection.rollback()
-                    raise ElasticCapacityError("PROVISIONING_RESERVATION_STATE_MISMATCH")
-                connection.execute(
-                    "UPDATE worker_provisioning_reservations "
-                    "SET state = ?, worker_id = ?, updated_at = ? WHERE reservation_id = ?",
-                    (state, worker_id, observed_at, reservation_id),
-                )
-                updated = connection.execute(
-                    "SELECT * FROM worker_provisioning_reservations WHERE reservation_id = ?",
-                    (reservation_id,),
-                ).fetchone()
-                if updated is None:
-                    connection.rollback()
-                    raise ElasticCapacityError("PROVISIONING_RESERVATION_NOT_FOUND")
-                record = self._record(updated)
-                connection.commit()
-                return record
-            except ElasticCapacityError:
-                connection.rollback()
-                raise
-            except sqlite3.Error as exc:
-                connection.rollback()
-                raise ElasticCapacityError("PROVISIONING_STORE_WRITE_FAILED") from exc
+        try:
+            return self._lease_store.transition_provisioning_reservation(
+                reservation_id,
+                session_id=session_id,
+                task_id=task_id,
+                state=state,
+                now=now,
+                worker_id=worker_id,
+            )
+        except Exception as exc:
+            code = getattr(exc, "code", None)
+            if isinstance(code, str) and code:
+                raise ElasticCapacityError(_reservation_store_error_code(code)) from exc
+            raise
 
     def mark_provisioned(
         self,
@@ -398,6 +232,24 @@ class SQLiteWorkerProvisioningReservations:
             session_id=session_id,
             task_id=task_id,
             state="PROVISIONED",
+            worker_id=worker_id,
+            now=now,
+        )
+
+    def mark_capacity(
+        self,
+        reservation_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+        worker_id: str,
+        now: object,
+    ) -> ProvisioningReservationRecord:
+        return self._transition(
+            reservation_id,
+            session_id=session_id,
+            task_id=task_id,
+            state="CAPACITY",
             worker_id=worker_id,
             now=now,
         )
@@ -437,16 +289,13 @@ class SQLiteWorkerProvisioningReservations:
         )
 
     def list_consuming(self) -> tuple[ProvisioningReservationRecord, ...]:
-        with self._connect() as connection:
-            try:
-                rows = connection.execute(
-                    "SELECT * FROM worker_provisioning_reservations "
-                    "WHERE state IN ('ACTIVE','PROVISIONED','RECOVERY_REQUIRED') "
-                    "ORDER BY reservation_id"
-                ).fetchall()
-            except sqlite3.Error as exc:
-                raise ElasticCapacityError("PROVISIONING_STORE_READ_FAILED") from exc
-        return tuple(self._record(row) for row in rows)
+        try:
+            return self._lease_store.list_provisioning_reservations(consuming_only=True)
+        except Exception as exc:
+            code = getattr(exc, "code", None)
+            if isinstance(code, str) and code:
+                raise ElasticCapacityError(_reservation_store_error_code(code)) from exc
+            raise
 
 
 @dataclass(frozen=True, slots=True)
@@ -518,8 +367,13 @@ class ElasticWorkerProvisioner(Protocol):
 class WorkerSupplyAssemblerPort(Protocol):
     def assemble(self, worker_id: str) -> WorkerSupplyRecord: ...
 
+    def assemble_for_owner(
+        self, worker_id: str, *, session_id: str, task_id: str
+    ) -> WorkerSupplyRecord: ...
+
 
 class ElasticCapacityOutcomeKind(str, Enum):
+    PROVISIONED_READY = "PROVISIONED_READY"
     PROVISIONED_AND_LEASED = "PROVISIONED_AND_LEASED"
     POLICY_DISABLED = "POLICY_DISABLED"
     POLICY_BLOCKED = "POLICY_BLOCKED"
@@ -534,6 +388,7 @@ class ElasticCapacityOutcome:
     reason_code: str
     reservation_id: str | None = None
     worker_id: str | None = None
+    supply: WorkerSupplyRecord | None = None
     lease_outcome: WorkerLeaseOutcome | None = None
 
 
@@ -565,6 +420,8 @@ class ElasticWorkerCapacityCoordinator:
             raise ValueError("provisioner must provide provision")
         if not callable(getattr(candidate_assembler, "assemble", None)):
             raise ValueError("candidate_assembler must provide assemble")
+        if not callable(getattr(candidate_assembler, "assemble_for_owner", None)):
+            raise ValueError("candidate_assembler must provide assemble_for_owner")
         if not callable(reservation_id_factory) or not callable(clock):
             raise ValueError("reservation_id_factory and clock must be callable")
         self._broker = broker
@@ -627,7 +484,7 @@ class ElasticWorkerCapacityCoordinator:
             worker_id=worker_id,
         )
 
-    def expand(
+    def provision_ready(
         self,
         plan: SchedulePlan,
         lease_request: WorkerLeaseRequest,
@@ -635,6 +492,7 @@ class ElasticWorkerCapacityCoordinator:
         runtime_kind: str,
         policy: ElasticCapacityPolicy,
     ) -> ElasticCapacityOutcome:
+        """Reserve, provision, and re-observe one worker without pre-leasing it."""
         if not isinstance(plan, SchedulePlan):
             raise ValueError("plan must be SchedulePlan")
         if not isinstance(lease_request, WorkerLeaseRequest):
@@ -668,7 +526,6 @@ class ElasticWorkerCapacityCoordinator:
             "reservation_id",
             max_length=256,
         )
-        now = self._clock()
         try:
             result = self._reservations.acquire(
                 reservation_id=reservation_id,
@@ -676,65 +533,39 @@ class ElasticWorkerCapacityCoordinator:
                 task_id=lease_request.task_id,
                 runtime_kind=runtime_kind,
                 max_extra_workers=policy.max_extra_workers,
-                now=now,
+                now=self._clock(),
+                project_id=lease_request.project_id,
+                worktree=lease_request.worktree,
+                mutable_scope=lease_request.mutable_scope,
             )
         except Exception:
-            return self._recovery(
-                reservation_id,
-                "PROVISIONING_RESERVATION_EXCEPTION",
-            )
+            return self._recovery(reservation_id, "PROVISIONING_RESERVATION_EXCEPTION")
         if not isinstance(result, ProvisioningReservationResult):
-            return self._recovery(
-                reservation_id,
-                "PROVISIONING_RESERVATION_RESULT_INVALID",
-            )
+            return self._recovery(reservation_id, "PROVISIONING_RESERVATION_RESULT_INVALID")
         if not isinstance(result.kind, ProvisioningReservationKind):
-            return self._recovery(
-                reservation_id,
-                "PROVISIONING_RESERVATION_OUTCOME_UNSUPPORTED",
-            )
-        if result.record is not None and not isinstance(
-            result.record, ProvisioningReservationRecord
-        ):
-            return self._recovery(
-                reservation_id,
-                "PROVISIONING_RESERVATION_RECORD_INVALID",
-            )
+            return self._recovery(reservation_id, "PROVISIONING_RESERVATION_OUTCOME_UNSUPPORTED")
+        if result.record is not None and not isinstance(result.record, ProvisioningReservationRecord):
+            return self._recovery(reservation_id, "PROVISIONING_RESERVATION_RECORD_INVALID")
         if result.kind is ProvisioningReservationKind.LIMIT_WAIT:
             if result.record is not None:
-                return self._recovery(
-                    reservation_id,
-                    "PROVISIONING_RESERVATION_RECORD_UNEXPECTED",
-                )
+                return self._recovery(reservation_id, "PROVISIONING_RESERVATION_RECORD_UNEXPECTED")
             return ElasticCapacityOutcome(
                 ElasticCapacityOutcomeKind.LIMIT_WAIT,
-                _safe_reason_code(
-                    result.reason_code,
-                    "ELASTIC_CAPACITY_LIMIT_REACHED",
-                ),
+                _safe_reason_code(result.reason_code, "ELASTIC_CAPACITY_LIMIT_REACHED"),
             )
         if result.kind is not ProvisioningReservationKind.ACQUIRED:
-            return self._recovery(
-                reservation_id,
-                "PROVISIONING_RECONCILE_REQUIRED",
-            )
+            return self._recovery(reservation_id, "PROVISIONING_RECONCILE_REQUIRED")
         if result.record is None:
-            return self._recovery(
-                reservation_id,
-                "PROVISIONING_RESERVATION_RECORD_MISSING",
-            )
+            return self._recovery(reservation_id, "PROVISIONING_RESERVATION_RECORD_MISSING")
         if not self._reservation_identity_matches(
             result.record,
             reservation_id=reservation_id,
             lease_request=lease_request,
             runtime_kind=runtime_kind,
         ):
-            return self._recovery(
-                reservation_id,
-                "PROVISIONING_RESERVATION_IDENTITY_MISMATCH",
-            )
+            return self._recovery(reservation_id, "PROVISIONING_RESERVATION_IDENTITY_MISMATCH")
 
-        provision_request = ElasticProvisionRequest(
+        request = ElasticProvisionRequest(
             session_id=lease_request.session_id,
             task_id=lease_request.task_id,
             project_id=lease_request.project_id,
@@ -747,31 +578,23 @@ class ElasticWorkerCapacityCoordinator:
             transport_authorization_ref=policy.transport_authorization_ref,
         )
         try:
-            provisioned = self._provisioner.provision(provision_request)
+            provisioned = self._provisioner.provision(request)
         except Exception:
             try:
                 self._mark_recovery(reservation_id, lease_request)
             except Exception:
                 pass
-            return self._recovery(
-                reservation_id,
-                "PROVISIONING_UNCERTAIN",
-            )
+            return self._recovery(reservation_id, "PROVISIONING_UNCERTAIN")
         if not isinstance(provisioned, ElasticProvisionedWorker):
             try:
                 self._mark_recovery(reservation_id, lease_request)
             except Exception:
                 pass
-            return self._recovery(
-                reservation_id,
-                "PROVISIONING_RESULT_INVALID",
-            )
+            return self._recovery(reservation_id, "PROVISIONING_RESULT_INVALID")
         if provisioned.runtime_kind != runtime_kind:
             try:
                 self._mark_recovery(
-                    reservation_id,
-                    lease_request,
-                    worker_id=provisioned.worker_id,
+                    reservation_id, lease_request, worker_id=provisioned.worker_id
                 )
             except Exception:
                 pass
@@ -786,9 +609,7 @@ class ElasticWorkerCapacityCoordinator:
         ):
             try:
                 self._mark_recovery(
-                    reservation_id,
-                    lease_request,
-                    worker_id=provisioned.worker_id,
+                    reservation_id, lease_request, worker_id=provisioned.worker_id
                 )
             except Exception:
                 pass
@@ -797,7 +618,6 @@ class ElasticWorkerCapacityCoordinator:
                 "REMOTE_CONNECTOR_UNAUTHORIZED",
                 worker_id=provisioned.worker_id,
             )
-
         try:
             self._reservations.mark_provisioned(
                 reservation_id,
@@ -812,62 +632,459 @@ class ElasticWorkerCapacityCoordinator:
                 "PROVISIONING_STATE_PERSISTENCE_FAILED",
                 worker_id=provisioned.worker_id,
             )
-
         try:
-            supply = self._assembler.assemble(provisioned.worker_id)
+            supply = self._assembler.assemble_for_owner(
+                provisioned.worker_id,
+                session_id=lease_request.session_id,
+                task_id=lease_request.task_id,
+            )
         except Exception:
+            try:
+                self._mark_recovery(
+                    reservation_id, lease_request, worker_id=provisioned.worker_id
+                )
+            except Exception:
+                pass
             return self._recovery(
                 reservation_id,
                 "PROVISIONED_WORKER_OBSERVATION_FAILED",
                 worker_id=provisioned.worker_id,
             )
         if not isinstance(supply, WorkerSupplyRecord) or supply.worker_id != provisioned.worker_id:
+            try:
+                self._mark_recovery(
+                    reservation_id, lease_request, worker_id=provisioned.worker_id
+                )
+            except Exception:
+                pass
             return self._recovery(
                 reservation_id,
                 "PROVISIONED_WORKER_OBSERVATION_INVALID",
                 worker_id=provisioned.worker_id,
             )
+        return ElasticCapacityOutcome(
+            ElasticCapacityOutcomeKind.PROVISIONED_READY,
+            "ELASTIC_WORKER_REOBSERVED",
+            reservation_id=reservation_id,
+            worker_id=provisioned.worker_id,
+            supply=supply,
+        )
 
+    def finalize_capacity(
+        self,
+        reservation_id: str,
+        lease_request: WorkerLeaseRequest,
+        *,
+        worker_id: str,
+    ) -> ProvisioningReservationRecord:
+        return self._reservations.mark_capacity(
+            reservation_id,
+            session_id=lease_request.session_id,
+            task_id=lease_request.task_id,
+            worker_id=worker_id,
+            now=self._clock(),
+        )
+
+    def expand(
+        self,
+        plan: SchedulePlan,
+        lease_request: WorkerLeaseRequest,
+        *,
+        runtime_kind: str,
+        policy: ElasticCapacityPolicy,
+    ) -> ElasticCapacityOutcome:
+        """Compatibility seam: provision safely, then lease through the existing broker."""
+        prepared = self.provision_ready(
+            plan,
+            lease_request,
+            runtime_kind=runtime_kind,
+            policy=policy,
+        )
+        if prepared.kind is not ElasticCapacityOutcomeKind.PROVISIONED_READY:
+            return prepared
+        if prepared.supply is None or prepared.worker_id is None:
+            return self._recovery(
+                prepared.reservation_id or "unknown-reservation",
+                "PROVISIONED_WORKER_OBSERVATION_INVALID",
+            )
         retry_request = replace(
             lease_request,
-            ordered_worker_ids=(provisioned.worker_id,),
+            ordered_worker_ids=(prepared.worker_id,),
+            required_runtime_id=prepared.supply.candidate.runtime_id,
         )
         try:
             lease_outcome = self._broker.acquire(
                 retry_request,
-                (supply.candidate,),
+                (prepared.supply.candidate,),
             )
         except Exception:
+            try:
+                self._mark_recovery(
+                    prepared.reservation_id or "unknown-reservation",
+                    lease_request,
+                    worker_id=prepared.worker_id,
+                )
+            except Exception:
+                pass
             return self._recovery(
-                reservation_id,
+                prepared.reservation_id or "unknown-reservation",
                 "PROVISIONED_WORKER_LEASE_EXCEPTION",
-                worker_id=provisioned.worker_id,
+                worker_id=prepared.worker_id,
             )
         if not isinstance(lease_outcome, WorkerLeaseOutcome):
+            try:
+                self._mark_recovery(
+                    prepared.reservation_id or "unknown-reservation",
+                    lease_request,
+                    worker_id=prepared.worker_id,
+                )
+            except Exception:
+                pass
             return self._recovery(
-                reservation_id,
+                prepared.reservation_id or "unknown-reservation",
                 "PROVISIONED_WORKER_LEASE_RESULT_INVALID",
-                worker_id=provisioned.worker_id,
+                worker_id=prepared.worker_id,
             )
         if (
             lease_outcome.kind is not LeaseOutcomeKind.LEASED
             or lease_outcome.lease is None
-            or lease_outcome.lease.worker_id != provisioned.worker_id
+            or lease_outcome.lease.worker_id != prepared.worker_id
         ):
+            try:
+                self._mark_recovery(
+                    prepared.reservation_id or "unknown-reservation",
+                    lease_request,
+                    worker_id=prepared.worker_id,
+                )
+            except Exception:
+                pass
             return self._recovery(
-                reservation_id,
+                prepared.reservation_id or "unknown-reservation",
                 "PROVISIONED_WORKER_NOT_LEASED",
-                worker_id=provisioned.worker_id,
+                worker_id=prepared.worker_id,
+                lease_outcome=lease_outcome,
+            )
+        try:
+            self.finalize_capacity(
+                prepared.reservation_id or "unknown-reservation",
+                retry_request,
+                worker_id=prepared.worker_id,
+            )
+        except Exception:
+            return self._recovery(
+                prepared.reservation_id or "unknown-reservation",
+                "PROVISIONING_CAPACITY_PERSISTENCE_FAILED",
+                worker_id=prepared.worker_id,
                 lease_outcome=lease_outcome,
             )
         return ElasticCapacityOutcome(
             ElasticCapacityOutcomeKind.PROVISIONED_AND_LEASED,
             "ELASTIC_WORKER_LEASED",
-            reservation_id=reservation_id,
-            worker_id=provisioned.worker_id,
+            reservation_id=prepared.reservation_id,
+            worker_id=prepared.worker_id,
+            supply=prepared.supply,
             lease_outcome=lease_outcome,
         )
 
+
+
+class ProductionElasticExecutionKind(str, Enum):
+    FIXED_POOL_EXECUTED = "FIXED_POOL_EXECUTED"
+    ELASTIC_EXECUTED = "ELASTIC_EXECUTED"
+    WAIT = "WAIT"
+    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
+
+
+@dataclass(frozen=True, slots=True)
+class ProductionElasticExecutionResult:
+    kind: ProductionElasticExecutionKind
+    reason_code: str
+    initial_plan: SchedulePlan
+    final_plan: SchedulePlan | None = None
+    batch_result: ParallelReadyBatchResult | None = None
+    elastic_outcome: ElasticCapacityOutcome | None = None
+
+
+class ProductionWorkerSupplyAssemblerPort(WorkerSupplyAssemblerPort, Protocol):
+    def assemble_all(self) -> tuple[WorkerSupplyRecord, ...]: ...
+
+    def assemble_all_for_owner(
+        self, *, session_id: str, task_id: str
+    ) -> tuple[WorkerSupplyRecord, ...]: ...
+
+
+class ProductionElasticWorkerExecutor:
+    """One bounded production pass: observe ? schedule ? optional expand ? execute."""
+
+    def __init__(
+        self,
+        *,
+        candidate_assembler: ProductionWorkerSupplyAssemblerPort,
+        capacity_coordinator: ElasticWorkerCapacityCoordinator,
+        parallel_executor: ParallelReadyExecutor,
+    ) -> None:
+        if not callable(getattr(candidate_assembler, "assemble_all", None)):
+            raise ValueError("candidate_assembler must provide assemble_all")
+        if not callable(getattr(candidate_assembler, "assemble_all_for_owner", None)):
+            raise ValueError("candidate_assembler must provide assemble_all_for_owner")
+        if not isinstance(capacity_coordinator, ElasticWorkerCapacityCoordinator):
+            raise ValueError("capacity_coordinator must be ElasticWorkerCapacityCoordinator")
+        if not isinstance(parallel_executor, ParallelReadyExecutor):
+            raise ValueError("parallel_executor must be ParallelReadyExecutor")
+        self._assembler = candidate_assembler
+        self._capacity = capacity_coordinator
+        self._executor = parallel_executor
+
+    @staticmethod
+    def _batch_kind(
+        batch: ParallelReadyBatchResult,
+        *,
+        success_kind: ProductionElasticExecutionKind,
+    ) -> tuple[ProductionElasticExecutionKind, str]:
+        kinds = {item.kind for item in batch.outcomes}
+        if kinds and kinds == {ParallelReadyOutcomeKind.RUN_COMPLETED}:
+            return success_kind, "PARALLEL_READY_RUN_COMPLETED"
+        recovery = {
+            ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED,
+            ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
+            ParallelReadyOutcomeKind.LEASE_RECOVERY_REQUIRED,
+            ParallelReadyOutcomeKind.LEASE_EXISTING_RECONCILE,
+        }
+        if kinds & recovery:
+            return ProductionElasticExecutionKind.RECOVERY_REQUIRED, "PARALLEL_READY_RECOVERY_REQUIRED"
+        return ProductionElasticExecutionKind.WAIT, "PARALLEL_READY_WAIT"
+
+    def _supply_snapshot(self) -> WorkerSupplySnapshot:
+        records = self._assembler.assemble_all()
+        if not isinstance(records, tuple):
+            raise ValueError("assemble_all must return a tuple")
+        return WorkerSupplySnapshot.from_records(records)
+
+    def _supply_snapshot_for_owner(
+        self, *, session_id: str, task_id: str
+    ) -> WorkerSupplySnapshot:
+        records = self._assembler.assemble_all_for_owner(
+            session_id=session_id, task_id=task_id
+        )
+        if not isinstance(records, tuple):
+            raise ValueError("assemble_all_for_owner must return a tuple")
+        return WorkerSupplySnapshot.from_records(records)
+
+    def _execute_plan(
+        self,
+        plan: SchedulePlan,
+        contracts_by_node: Mapping[str, ParallelReadyNodeContract],
+        supply: WorkerSupplySnapshot,
+        *,
+        provider_inflight: Mapping[str, int],
+        batch_id: str | None,
+    ) -> ParallelReadyBatchResult:
+        selected_contracts = {
+            item.node_id: contracts_by_node[item.node_id]
+            for item in plan.selected
+        }
+        tasks = assemble_parallel_ready_tasks(plan, selected_contracts, supply)
+        return self._executor.execute(
+            plan,
+            tasks,
+            provider_inflight=provider_inflight,
+            batch_id=batch_id,
+        )
+
+    def execute_once(
+        self,
+        graph: TaskGraph,
+        ready: ReadySetResult,
+        contracts_by_node: Mapping[str, ParallelReadyNodeContract],
+        *,
+        schedule_policy: SchedulePolicy,
+        provider_inflight: Mapping[str, int],
+        runtime_kind: str,
+        elastic_policy: ElasticCapacityPolicy,
+        running_write_sets: dict[str, tuple[str, ...]] | None = None,
+        eligibility: dict[str, NodeEligibility] | None = None,
+        batch_id: str | None = None,
+    ) -> ProductionElasticExecutionResult:
+        if not isinstance(graph, TaskGraph):
+            raise ValueError("graph must be TaskGraph")
+        if not isinstance(ready, ReadySetResult):
+            raise ValueError("ready must be ReadySetResult")
+        if not isinstance(contracts_by_node, Mapping):
+            raise ValueError("contracts_by_node must be a mapping")
+        if not set(ready.ready_ids).issubset(contracts_by_node):
+            raise ValueError("missing production contract for ready node")
+        if not isinstance(schedule_policy, SchedulePolicy):
+            raise ValueError("schedule_policy must be SchedulePolicy")
+        if not isinstance(elastic_policy, ElasticCapacityPolicy):
+            raise ValueError("elastic_policy must be ElasticCapacityPolicy")
+        if eligibility is None or not set(ready.ready_ids).issubset(eligibility):
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "SCHEDULER_ELIGIBILITY_EVIDENCE_MISSING",
+                SchedulePlan((), (), "eligibility-evidence-missing"),
+            )
+        effective_eligibility = dict(eligibility)
+        for node_id in ready.ready_ids:
+            contract = contracts_by_node[node_id]
+            current = effective_eligibility[node_id]
+            if not isinstance(current, NodeEligibility):
+                return ProductionElasticExecutionResult(
+                    ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                    "SCHEDULER_ELIGIBILITY_EVIDENCE_INVALID",
+                    SchedulePlan((), (), "eligibility-evidence-invalid"),
+                )
+            if not contract.dispatch_gate.allowed and not current.gate_refused:
+                effective_eligibility[node_id] = NodeEligibility(
+                    gate_refused=True,
+                    human_approval_pending=current.human_approval_pending,
+                    provider_unavailable=current.provider_unavailable,
+                    rate_limited=current.rate_limited,
+                )
+        try:
+            initial_supply = self._supply_snapshot()
+        except Exception:
+            empty = SchedulePlan((), (), "worker-supply-recovery")
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "WORKER_SUPPLY_OBSERVATION_FAILED",
+                empty,
+            )
+        initial_plan = schedule_once(
+            graph,
+            ready,
+            initial_supply.scheduler_workers,
+            schedule_policy,
+            running_write_sets=running_write_sets,
+            eligibility=effective_eligibility,
+        )
+        if initial_plan.selected:
+            try:
+                batch = self._execute_plan(
+                    initial_plan,
+                    contracts_by_node,
+                    initial_supply,
+                    provider_inflight=provider_inflight,
+                    batch_id=batch_id,
+                )
+            except Exception:
+                return ProductionElasticExecutionResult(
+                    ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                    "PARALLEL_READY_EXECUTION_EXCEPTION",
+                    initial_plan,
+                )
+            kind, reason = self._batch_kind(
+                batch, success_kind=ProductionElasticExecutionKind.FIXED_POOL_EXECUTED
+            )
+            return ProductionElasticExecutionResult(
+                kind, reason, initial_plan, final_plan=initial_plan, batch_result=batch
+            )
+        if not _capacity_only(initial_plan):
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.WAIT,
+                "SCHEDULER_BLOCK_NOT_CAPACITY",
+                initial_plan,
+            )
+        blocked_node = initial_plan.blocked[0].node_id
+        contract = contracts_by_node.get(blocked_node)
+        if not isinstance(contract, ParallelReadyNodeContract):
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "ELASTIC_TASK_CONTRACT_MISSING",
+                initial_plan,
+            )
+        elastic = self._capacity.provision_ready(
+            initial_plan,
+            contract.lease_request,
+            runtime_kind=runtime_kind,
+            policy=elastic_policy,
+        )
+        if elastic.kind is not ElasticCapacityOutcomeKind.PROVISIONED_READY:
+            kind = (
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED
+                if elastic.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
+                else ProductionElasticExecutionKind.WAIT
+            )
+            return ProductionElasticExecutionResult(
+                kind,
+                elastic.reason_code,
+                initial_plan,
+                elastic_outcome=elastic,
+            )
+        try:
+            final_supply = self._supply_snapshot_for_owner(
+                session_id=contract.lease_request.session_id,
+                task_id=contract.lease_request.task_id,
+            )
+        except Exception:
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "PROVISIONED_WORKER_FULL_REOBSERVATION_FAILED",
+                initial_plan,
+                elastic_outcome=elastic,
+            )
+        final_plan = schedule_once(
+            graph,
+            ready,
+            final_supply.scheduler_workers,
+            schedule_policy,
+            running_write_sets=running_write_sets,
+            eligibility=effective_eligibility,
+        )
+        if (
+            len(final_plan.selected) != 1
+            or final_plan.selected[0].node_id != blocked_node
+            or final_plan.selected[0].worker_id != elastic.worker_id
+        ):
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "PROVISIONED_WORKER_RESCHEDULE_DRIFT",
+                initial_plan,
+                final_plan=final_plan,
+                elastic_outcome=elastic,
+            )
+        try:
+            batch = self._execute_plan(
+                final_plan,
+                contracts_by_node,
+                final_supply,
+                provider_inflight=provider_inflight,
+                batch_id=batch_id,
+            )
+        except Exception:
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "PARALLEL_READY_EXECUTION_EXCEPTION",
+                initial_plan,
+                final_plan=final_plan,
+                elastic_outcome=elastic,
+            )
+        kind, reason = self._batch_kind(
+            batch, success_kind=ProductionElasticExecutionKind.ELASTIC_EXECUTED
+        )
+        if kind is ProductionElasticExecutionKind.ELASTIC_EXECUTED:
+            try:
+                self._capacity.finalize_capacity(
+                    elastic.reservation_id or "unknown-reservation",
+                    contract.lease_request,
+                    worker_id=elastic.worker_id or "unknown-worker",
+                )
+            except Exception:
+                return ProductionElasticExecutionResult(
+                    ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                    "PROVISIONING_CAPACITY_PERSISTENCE_FAILED",
+                    initial_plan,
+                    final_plan=final_plan,
+                    batch_result=batch,
+                    elastic_outcome=elastic,
+                )
+        return ProductionElasticExecutionResult(
+            kind,
+            reason,
+            initial_plan,
+            final_plan=final_plan,
+            batch_result=batch,
+            elastic_outcome=elastic,
+        )
 
 def build_sqlite_elastic_worker_capacity_coordinator(
     *,

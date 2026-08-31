@@ -109,3 +109,11 @@ AHA-5 permits one mutable file per agent task. Multi-file parallel fan-out belon
 - `wo115-glm-review-001` and `wo115-glm-rereview-002` are historical ignored evidence only; both are verified and must not be reused after HEAD changes.
 - Human fallback carried task pointers only; GPT read/validated result artifacts directly and folded accepted findings into tracked SSoT.
 - No successor lane is claimed here. Future agents must re-enter CURRENT-WORK/handoff/work-order/claims before claiming AHA-6B or another slice.
+
+## Worker loss / fallback handoff rule
+
+A worker becoming unreachable is never permission to replay its mutable lane. First persist task/status/HEAD/evidence and classify ownership as `RECOVERY_REQUIRED` when completion is ambiguous. A replacement worker is eligible only after a fresh repo/worktree/claim/dirty/runtime preflight proves it idle and non-overlapping.
+
+Fallback workers consume the same durable task contract; do not create a shadow TODO/handoff. The replacement reads the active WO + `CURRENT-WORK.md` + `handoff.md` + exact `runs/<task-id>/task.md`, and writes only the contract's declared result/evidence destination. If the old worker later returns, it has no mutation authority until the current lane owner releases it.
+
+Current WO-P1-116 snapshot (2026-08-31): Worker5 is the only clean/idle fallback candidate. Worker1 targets the protected dirty root, Worker2 has an open pharmacy cycle, Worker3 is dirty, Worker4 is reserved for P0 WO-P1-096. No worker was rebound or interrupted.
