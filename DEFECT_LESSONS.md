@@ -557,10 +557,10 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 **Symptom:** a provider child could echo its credential to stdout/stderr. The returned `ClaudeCodeRunnerResult` was redacted, but durable `stdout.log` / `stderr.log` already contained plaintext bytes.
 
-**Root cause:** the detached helper inherited durable file handles directly, while redaction existed only after artifact collection. The first streaming repair also used buffered `read(64 KiB)`, delaying output until EOF for long-running children.
+**Root cause:** the detached helper inherited durable file handles directly, while redaction existed only after artifact collection. The first streaming repair also used buffered `read(64 KiB)`, delaying output until EOF for long-running children. A later adversarial test proved another lifecycle hazard: a descendant can inherit the target pipe handles after the direct child exits, so an unbounded drain can wait forever for EOF.
 
-**Fix:** credential-bearing children now use in-memory stdout/stderr pipes in `supervised_child.py`; a bounded streaming redactor handles cross-chunk matches and forwards only sanitized bytes to durable handles. `read1()` consumes available pipe bytes without waiting for EOF; terminal result publication waits for both drains. Oversized redaction values fail before launch.
+**Fix:** credential-bearing children now use in-memory stdout/stderr pipes in `supervised_child.py`; a bounded streaming redactor handles cross-chunk matches and forwards only sanitized bytes to durable handles. `read1()` consumes available pipe bytes without waiting for EOF. After the direct child exits, drain completion has a finite budget; inherited descendant pipe-holds become `OUTPUT_CAPTURE_DRAIN_TIMEOUT` with no terminal result, and daemon capture threads cannot pin the helper process after fail-closed return. Oversized redaction values fail before launch.
 
 **Lesson:** return-time redaction is not a persistence boundary. Secret-bearing subprocess output must be sanitized before the first durable write, with chunk-boundary tests and live-child/timeout evidence proving no write-then-scrub window.
 
-**Verify:** real Windows child echo test, held-live durable-log test, timeout -> reattach test, fragmented-stream unit test, capture-failure no-result test; related supervised/native regression 119 passed before final audit.
+**Verify:** real Windows child echo test, held-live durable-log test, timeout -> reattach test, fragmented-stream unit test, capture-failure no-result test; related supervised/native regression 120 passed after bounded-drain hardening.

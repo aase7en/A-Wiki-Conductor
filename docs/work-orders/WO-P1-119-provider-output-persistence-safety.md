@@ -53,7 +53,8 @@ This lane may run in parallel with WO-P1-117 and WO-P1-120 because source owners
 - Live-child test proves sanitized bytes are present while the target is still running; timeout -> reattach preserves sanitization; fragmented secret bytes are redacted across chunk boundaries.
 - Capture failure publishes no terminal result. Redaction values over 16 KiB fail closed before target launch.
 - A first pump implementation exposed a `BufferedReader.read(64 KiB)` live-stream delay; replacing it with `read1()` restored prompt sanitized persistence without weakening confidentiality.
-- Related supervised/native regression: `119 passed`; compileall and `git diff --check` PASS before final commit.
+- GPT adversarial review then reproduced descendant pipe-hold risk: after the direct child exits, an inherited stdout/stderr handle could prevent EOF forever. Drain completion is now bounded; timeout returns `OUTPUT_CAPTURE_DRAIN_TIMEOUT`, publishes no terminal result, and daemon capture threads cannot pin helper shutdown.
+- Related supervised/native regression after bounded-drain hardening: `120 passed`; compileall and `git diff --check` PASS.
 - Full local suite: `1794 passed, 5 skipped, 2 failed`; both failures are the pre-existing optional GPU/Pillow/OpenGL environment gaps in `tests/test_gpu_particle_logo.py`, outside WO-P1-119 scope and identical in class to prior accepted local baselines.
-- Source/test implementation commit `a6fc29d12976742baf67a93f455588070de8d607` is pushed on `fix/wo-p1-119-provider-output-persistence-safety`; no history rewrite is permitted.
+- Initial source/test implementation commit `a6fc29d12976742baf67a93f455588070de8d607` and bounded-drain hardening commit `a34ecc6fa61d59bf5545b0dc77dbe4fda13a0737` are pushed on `fix/wo-p1-119-provider-output-persistence-safety`; no history rewrite is permitted.
 - Remaining gates: checkpoint docs commit/push -> exact-SHA independent review -> 3-OS CI -> merge/post-main proof.
