@@ -3,16 +3,16 @@
 This file is a compact lane index, not the project source of truth.
 Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work order → runtime/Git evidence.
 
-## Active lane checkpoint — 2026-08-31
+## Active lane checkpoint — 2026-09-01
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
-| Released predecessor | GPT-5.6 Sol | WO-P1-117 | provider dispatch/admission lifetime | MERGED #160; late Ultra findings moved to WO121 |
-| Released repair | GPT-5.6 Sol + GLM rereview | WO-P1-121 | dispatch completion evidence binding | MERGED #164 as `1b0468fa` / GLM_004_PASS / POST_MAIN_CI_RUNNING |
-| Review gate | GPT-5.6 Sol integrator + Ultra rereview | WO-P1-118A | provider generation/CAS + pure trust/egress evaluator | PR #165 / HEAD `2bfcdab` / ULTRA_003_REPAIRED / ULTRA_004_AND_WINDOWS_CI_PENDING |
-| Blocked integration | GPT-5.6 Sol | WO-P1-118B | pre-admission/pre-elastic/pre-secret enforcement | BLOCKED_ON_118A_AND_120 |
+| Released predecessor | GPT-5.6 Sol | WO-P1-117 | provider dispatch/admission lifetime | MERGED #160; late defects repaired by WO121 |
+| Released repair | GPT-5.6 Sol + GLM rereview | WO-P1-121 | dispatch completion evidence binding | MERGED #164 `1b0468fa` / GLM_004_PASS / POST_MAIN_GREEN |
+| Released provider seam | GPT-5.6 Sol + Ultra rereview | WO-P1-118A | provider generation/CAS + pure trust/egress evaluator | MERGED #165 `0ff914ef` / ULTRA_004_PASS / CI_GREEN |
+| Review gate | GPT-5.6 Sol + Ultra rereview | WO-P1-120 | elastic capacity fencing + recovery hardening | PR #162 / HEAD `899d002` / UNION_359_PASS / ULTRA_002_AND_WINDOWS_CI_PENDING |
+| Blocked integration | GPT-5.6 Sol | WO-P1-118B | pre-admission/pre-elastic/pre-secret enforcement | BLOCKED_ON_WO120 |
 | Released | GPT-5.6 Sol + GLM review | WO-P1-119 | provider output persistence safety | MERGED `887ef3c9` / POST_MAIN_GREEN |
-| Integration queue | GPT-5.6 Sol | WO-P1-120 | elastic capacity fencing + recovery hardening | PR #162 / PROSPECTIVE_2BFCDAB_ONLY_DEFECT_CONFLICT / REFRESH_AFTER_165 |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / NO CURRENT PROOF |
 | Future | provider-neutral | AHA-7 write/Test/Disable provider controls | released provider safety contracts | AFTER_118B |
 | Future | provider-neutral | AHA-8 additional providers | one adapter at a time | DEFERRED |

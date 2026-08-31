@@ -1,37 +1,35 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-31 — WO121 merged; WO118A Ultra-003 repaired
+Last updated: 2026-09-01 — WO121/WO118A merged; WO120 final rereview pending
 
 ## Current objective
 
-Close WO118A/PR165 with exact-head Ultra evidence, then refresh/re-review/merge WO120 and execute WO118B. Keep P0 WO096 separate.
+Close WO120/PR162 with exact-head Ultra evidence and post-main proof, then execute WO118B. Keep P0 WO096 separate.
 
 ## Repository / release identity
 
-- authoritative remote main: `1b0468fae2f2a3b60a1037d343330466e27b7306`; protected root checkout is stale/dirty and MUST NOT be mutated;
-- PR #164 / WO121: MERGED as `1b0468fa...`; GLM rereview 004 PASS, P0/P1/P2=0; post-main CI `33404736157` running;
-- PR #165 / WO118A: DRAFT head `2bfcdabbb88058784be52cb990ce927b89cd376f`; Ultra review003 P2s repaired; packet `runs/wo118a-independent-review-004/task.md` SHA `c54264a6041cdf2d2c69a4a605a54fcd536759da5ef7eacefaa813cb0e895238`; exact-head Windows/full CI and Ultra004 pending;
-- PR #162 / WO120: DRAFT head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; prospective merge against `2bfcdab...` conflicts only in `DEFECT_LESSONS.md`.
+- authoritative remote main: `0ff914efa2887a0f9c6d330859fa4e49ed921d89`; protected root checkout is stale/dirty and MUST NOT be mutated;
+- PR #164 / WO121: MERGED as `1b0468fa...`; GLM rereview004 PASS; post-main CI `33404736157` SUCCESS;
+- PR #165 / WO118A: MERGED as `0ff914ef...`; Ultra rereview004 PASS at exact `2bfcdab...`, P0/P1/P2=0; exact-head 3-OS CI SUCCESS; WO118B remains pending;
+- PR #162 / WO120: DRAFT final candidate `899d002745b7ae56704c8a6614e7b9a957ab0ba6`; final union `359 passed`; packet `runs/wo120-ultra-rereview-002/task.md` SHA `63751963056bd463b9d456de25e4026afbb148ef6537109f165fcc5a2e22062c`; Ubuntu/macOS CI green, Windows/full + Ultra review pending.
 
 ## Ownership / claims
 
-- No live mutable source claim remains for WO121 or WO118A; reviewed/pushed heads are immutable until a new evidence-backed repair claim.
-- GPT integrator owns SSoT, review adjudication, cross-PR reconciliation and merge authority.
-- WO118B may not start before WO118A and WO120 release required seams.
+- No live mutable source claims remain; pushed exact heads are immutable until an evidence-backed repair claim is required.
+- GPT integrator owns SSoT, review adjudication, merge/release and WO118B architecture.
+- WO118B may start only after WO120 releases worker/elastic seams.
 
 ## Verified evidence
 
-- WO121: GLM exact-head rereview 004 PASS; parallel 57 and related 162 fresh reviewer tests; exact-head CI green; merged main `1b0468fa...`.
-- WO118A latest repair: Ultra003 RED 2 failures, targeted GREEN 2; focused 70; related 196; merged-main union 280; full pre-refresh local 1846 passed / 4 skipped / 2 known GPU dependency failures; static/scope/secret gates PASS.
-- WO120 old-head review remains PASS at 230 tests but must be repeated after final main refresh. Prospective exact merge proof shows only the lesson-file conflict.
+- WO121: exact-head GLM PASS; parallel 57, related 162 reviewer tests; post-main CI green.
+- WO118A: Ultra004 PASS; review003 F1/F2 independently closed; exact-head CI green; merge commit `0ff914ef...`.
+- WO120: latest crash-window RED proved stale unbound ACTIVE/RECOVERY could release capacity from owner+age; repair requires runtime-absence evidence while explicit known-pre-provision `release_unstarted()` remains valid. Focused+related 209; refreshed union 263; final post-WO118A union 359; compile/diff gates PASS.
 
 ## Next safe actions
 
-1. Complete WO121 post-main CI.
-2. Ingest Ultra WO118A rereview004 + exact-head CI; merge/post-main prove only if both pass.
-3. Refresh #162 after #165 merges; resolve only actual lesson conflict, rerun union tests and obtain diverse exact-head review.
-4. After #162 merges, execute WO118B pre-admission/pre-elastic/pre-secret/pre-launch generation+policy enforcement.
-5. Keep WO096 blocked pending explicit maintenance authority.
+1. Ingest Ultra WO120 rereview002 + exact-head CI; merge #162 only if P0/P1/P2=0 and identity/hash match, then require post-main CI.
+2. Execute WO118B after #162 merges: generation/policy denial must precede admission, lease, elastic expansion, credential access and launch.
+3. Keep WO096 blocked pending explicit maintenance authority.
 
 ## Accepted predecessor
 
