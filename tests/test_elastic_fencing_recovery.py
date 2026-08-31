@@ -847,7 +847,8 @@ def test_reconcile_releases_stale_provisioned_and_recovery_residue(tmp_path: Pat
         now=NOW, worker_id=NEW_WORKER,
     )
     released = store.reconcile_stale_provisioning(
-        "r-1", session_id="s-1", task_id="t-1", now=LATER, stale_after_seconds=3600
+        "r-1", session_id="s-1", task_id="t-1", now=LATER, stale_after_seconds=3600,
+        worker_decommissioned=True,
     )
     assert released.state == "RELEASED"
     again = store.reconcile_stale_provisioning(
@@ -874,3 +875,108 @@ def test_adapter_reconcile_maps_typed_errors(tmp_path: Path) -> None:
             "r-1", session_id="s-1", task_id="t-1",
             now=NOW + timedelta(seconds=60), stale_after_seconds=3600,
         )
+
+
+# ---------------------------------------------------------------------------
+# Repair 002 — Blocker A: bound residue needs decommission evidence
+# ---------------------------------------------------------------------------
+
+
+def test_reconcile_refuses_bound_worker_without_decommission_evidence(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    _acquired(store)
+    store.transition_provisioning_reservation(
+        "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
+        now=NOW, worker_id=NEW_WORKER,
+    )
+    with pytest.raises(
+        WorkerLeaseError, match="PROVISIONING_WORKER_DECOMMISSION_EVIDENCE_REQUIRED"
+    ):
+        store.reconcile_stale_provisioning(
+            "r-1", session_id="s-1", task_id="t-1",
+            now=LATER, stale_after_seconds=3600,
+        )
+    second = store.acquire_provisioning_reservation(
+        reservation_id="r-2", session_id="s-2", task_id="t-2",
+        runtime_kind="serena-local", max_extra_workers=1, now=LATER,
+    )
+    assert second.kind.value == "LIMIT_WAIT", "bound residue must keep consuming budget"
+
+    third = store.acquire_provisioning_reservation(
+        reservation_id="r-3", session_id="s-3", task_id="t-3",
+        runtime_kind="serena-local", max_extra_workers=3, now=NOW,
+    )
+    assert third.kind.value == "ACQUIRED"
+    store.transition_provisioning_reservation(
+        "r-3", session_id="s-3", task_id="t-3", state="RECOVERY_REQUIRED",
+        now=NOW, worker_id="a-worker-10",
+    )
+    with pytest.raises(
+        WorkerLeaseError, match="PROVISIONING_WORKER_DECOMMISSION_EVIDENCE_REQUIRED"
+    ):
+        store.reconcile_stale_provisioning(
+            "r-3", session_id="s-3", task_id="t-3",
+            now=LATER, stale_after_seconds=3600,
+        )
+    still_bound = store.acquire_provisioning_reservation(
+        reservation_id="r-4", session_id="s-4", task_id="t-4",
+        runtime_kind="serena-local", max_extra_workers=2, now=LATER,
+    )
+    assert still_bound.kind.value == "LIMIT_WAIT", (
+        "bound recovery residue must keep consuming budget too"
+    )
+
+
+def test_reconcile_releases_bound_residue_only_with_decommission_evidence(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    _acquired(store)
+    store.transition_provisioning_reservation(
+        "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
+        now=NOW, worker_id=NEW_WORKER,
+    )
+    released = store.reconcile_stale_provisioning(
+        "r-1", session_id="s-1", task_id="t-1",
+        now=LATER, stale_after_seconds=3600, worker_decommissioned=True,
+    )
+    assert released.state == "RELEASED"
+    second = store.acquire_provisioning_reservation(
+        reservation_id="r-2", session_id="s-2", task_id="t-2",
+        runtime_kind="serena-local", max_extra_workers=1, now=LATER,
+    )
+    assert second.kind.value == "ACQUIRED"
+
+
+# ---------------------------------------------------------------------------
+# Repair 002 — Blocker B: mark_provisioned conflict persists recovery state
+# ---------------------------------------------------------------------------
+
+
+def test_mark_provisioned_conflict_persists_recovery_state(tmp_path: Path) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    center = MutableControlCenter()
+    assembler = _assembler(store, center)
+    coordinator = _coordinator(
+        store, provisioner=RegisteringProvisioner(center), assembler=assembler
+    )
+    rival = _broker(store).acquire(
+        _request("rival-s", "rival-t", NEW_WORKER), (_hand_candidate(NEW_WORKER),)
+    )
+    assert rival.kind is LeaseOutcomeKind.LEASED
+    outcome = coordinator.provision_ready(
+        _capacity_plan(),
+        _request("owner-s", "owner-t", NEW_WORKER),
+        runtime_kind="serena-local",
+        policy=_policy(),
+        eligibility={"node-1": NodeEligibility()},
+    )
+    assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
+    assert outcome.reason_code == "PROVISIONING_WORKER_LEASE_CONFLICT"
+    reservations = store.list_provisioning_reservations(consuming_only=True)
+    assert len(reservations) == 1
+    assert reservations[0].state == "RECOVERY_REQUIRED", (
+        "durable state must explain replay-unsafety instead of remaining ACTIVE"
+    )

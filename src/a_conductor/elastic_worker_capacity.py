@@ -306,6 +306,7 @@ class SQLiteWorkerProvisioningReservations:
         task_id: str,
         now: object,
         stale_after_seconds: int,
+        worker_decommissioned: bool = False,
     ) -> ProvisioningReservationRecord:
         try:
             return self._lease_store.reconcile_stale_provisioning(
@@ -314,6 +315,7 @@ class SQLiteWorkerProvisioningReservations:
                 task_id=task_id,
                 now=now,
                 stale_after_seconds=stale_after_seconds,
+                worker_decommissioned=worker_decommissioned,
             )
         except Exception as exc:
             code = getattr(exc, "code", None)
@@ -680,6 +682,12 @@ class ElasticWorkerCapacityCoordinator:
                 now=self._clock(),
             )
         except ElasticCapacityError as exc:
+            try:
+                self._mark_recovery(
+                    reservation_id, lease_request, worker_id=provisioned.worker_id
+                )
+            except Exception:
+                pass
             return self._recovery(
                 reservation_id,
                 _safe_reason_code(
@@ -689,6 +697,12 @@ class ElasticWorkerCapacityCoordinator:
                 worker_id=provisioned.worker_id,
             )
         except Exception:
+            try:
+                self._mark_recovery(
+                    reservation_id, lease_request, worker_id=provisioned.worker_id
+                )
+            except Exception:
+                pass
             return self._recovery(
                 reservation_id,
                 "PROVISIONING_STATE_PERSISTENCE_FAILED",
