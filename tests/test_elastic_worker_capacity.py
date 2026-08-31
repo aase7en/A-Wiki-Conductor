@@ -4,14 +4,20 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+import sqlite3
 from threading import Barrier
 
+import pytest
+
 from a_conductor.elastic_worker_capacity import (
+    ElasticCapacityError,
     ElasticCapacityOutcomeKind,
     ElasticCapacityPolicy,
     ElasticProvisionedWorker,
     ElasticWorkerCapacityCoordinator,
     ProvisioningReservationKind,
+    ProvisioningReservationRecord,
+    ProvisioningReservationResult,
     SQLiteWorkerProvisioningReservations,
 )
 from a_conductor.graph.scheduler import (
@@ -122,7 +128,7 @@ def supply(worker_id: str = "a-worker-09") -> WorkerSupplyRecord:
     )
 
 
-def make_coordinator(tmp_path: Path, *, provisioner=None, assembler=None):
+def make_coordinator(tmp_path: Path, *, provisioner=None, assembler=None, reservations=None):
     lease_store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     ids = iter((f"lease-{i}" for i in range(1, 20)))
     broker = WorkerLeaseBroker(
@@ -130,16 +136,16 @@ def make_coordinator(tmp_path: Path, *, provisioner=None, assembler=None):
         lease_id_factory=lambda: next(ids),
         clock=lambda: NOW,
     )
-    reservations = SQLiteWorkerProvisioningReservations(lease_store)
+    active_reservations = reservations or SQLiteWorkerProvisioningReservations(lease_store)
     return ElasticWorkerCapacityCoordinator(
         broker=broker,
-        reservations=reservations,
+        reservations=active_reservations,
         provisioner=provisioner
         or FakeProvisioner(ElasticProvisionedWorker("a-worker-09", "serena-local")),
         candidate_assembler=assembler or FakeAssembler(supply()),
         reservation_id_factory=lambda: "provision-1",
         clock=lambda: NOW,
-    ), reservations
+    ), active_reservations
 
 
 def policy(*, enabled=True, limit=1, allow_remote=False):
@@ -285,3 +291,104 @@ def test_runtime_kind_outside_policy_does_not_reserve_or_provision(tmp_path: Pat
     assert outcome.reason_code == "RUNTIME_KIND_NOT_ALLOWED"
     assert provisioner.calls == []
     assert reservations.list_consuming() == ()
+
+
+def test_corrupt_persisted_reservation_text_is_typed_invalid_data(tmp_path: Path) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    reservations = SQLiteWorkerProvisioningReservations(store)
+    result = reservations.acquire(
+        reservation_id="r-1",
+        session_id="s-1",
+        task_id="t-1",
+        runtime_kind="serena-local",
+        max_extra_workers=1,
+        now=NOW,
+    )
+    assert result.record is not None
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE worker_provisioning_reservations SET runtime_kind = ? WHERE reservation_id = ?",
+            ("bad\nkind", "r-1"),
+        )
+        connection.commit()
+
+    with pytest.raises(ElasticCapacityError, match="PROVISIONING_RECORD_INVALID"):
+        reservations.list_consuming()
+
+
+class BadReservationAuthority(SQLiteWorkerProvisioningReservations):
+    def __init__(self, lease_store, result):
+        super().__init__(lease_store)
+        self.result = result
+
+    def acquire(self, **kwargs):
+        return self.result
+
+
+def test_capacity_wait_reason_code_is_sanitized(tmp_path: Path) -> None:
+    lease_store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    authority = BadReservationAuthority(
+        lease_store,
+        ProvisioningReservationResult(
+            ProvisioningReservationKind.LIMIT_WAIT,
+            None,
+            "BAD\nREASON",
+        ),
+    )
+    service, _ = make_coordinator(tmp_path, reservations=authority)
+
+    outcome = service.expand(
+        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+    )
+    assert outcome.kind is ElasticCapacityOutcomeKind.LIMIT_WAIT
+    assert outcome.reason_code == "ELASTIC_CAPACITY_LIMIT_REACHED"
+
+
+def test_acquired_reservation_identity_mismatch_fails_before_provisioner(tmp_path: Path) -> None:
+    lease_store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    wrong = ProvisioningReservationRecord(
+        reservation_id="different",
+        session_id="wrong-session",
+        task_id="wrong-task",
+        runtime_kind="wrong-runtime",
+        state="ACTIVE",
+        worker_id=None,
+        acquired_at="2026-08-31T01:00:00Z",
+        updated_at="2026-08-31T01:00:00Z",
+    )
+    authority = BadReservationAuthority(
+        lease_store,
+        ProvisioningReservationResult(
+            ProvisioningReservationKind.ACQUIRED,
+            wrong,
+            "PROVISIONING_RESERVED",
+        ),
+    )
+    provisioner = FakeProvisioner(ElasticProvisionedWorker("a-worker-09", "serena-local"))
+    service, _ = make_coordinator(
+        tmp_path, reservations=authority, provisioner=provisioner
+    )
+
+    outcome = service.expand(
+        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+    )
+    assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
+    assert outcome.reason_code == "PROVISIONING_RESERVATION_IDENTITY_MISMATCH"
+    assert provisioner.calls == []
+
+
+def test_future_or_malformed_reservation_kind_fails_closed(tmp_path: Path) -> None:
+    lease_store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    malformed = ProvisioningReservationResult(  # type: ignore[arg-type]
+        "FUTURE_KIND",
+        None,
+        "future",
+    )
+    authority = BadReservationAuthority(lease_store, malformed)
+    service, _ = make_coordinator(tmp_path, reservations=authority)
+
+    outcome = service.expand(
+        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+    )
+    assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
+    assert outcome.reason_code == "PROVISIONING_RESERVATION_OUTCOME_UNSUPPORTED"
