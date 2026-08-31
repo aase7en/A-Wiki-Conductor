@@ -2,7 +2,7 @@
 
 Date: 2026-08-30
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / CLAIMED / SHAPING_COMPLETE / RED_GATE
+Status: COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED
 Repository: `aase7en/A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-elastic-capacity`
 Branch: `feat/wo-p1-116-elastic-worker-capacity`
@@ -144,4 +144,13 @@ Verification: related `163 passed`; compileall/diff-check pass; spawned cross-pr
 
 Worker lane preflight found Worker5 clean/idle and therefore the only fallback candidate, but its project was not rebound because no safe direct SunDay-Worker invocation surface is available in this chat. Workers 1-4 remain unavailable for reassignment for protected/active/dirty/P0 reasons. RDC remains the execution fallback.
 
-Next gate: source/SSoT audit ? checkpoint commit/push ? exact-SHA independent GLM read-only review via ignored `runs/` packet ? repair/re-review if source changes ? PR #157 remote diff/CI/re-audit.
+Historical pre-release gate is superseded by the final release checkpoint below.
+
+## Final release checkpoint — 2026-08-31
+
+- Exact reviewed implementation head: `d06129ac943ceaa30c398d744b07a0fec9b505e1`.
+- Independent GLM-5.3 MAX review: validated PASS; P0/P1/P2 = `0`; four P3 hardening notes are non-blocking follow-up candidates.
+- Exact-head PR #157 CI `33352780461`: SUCCESS on Windows/Ubuntu/macOS including Windows Frozen Setup E2E.
+- PR #157 merged as `af5a5068aea37ce82875e4b6fff40ac19ac112c5`.
+- Post-main CI `33354156749`: SUCCESS on Windows/Ubuntu/macOS including packaging, Portable smoke and Frozen Setup E2E.
+- Claim released; no successor mutable AHA lane is claimed by this closeout.

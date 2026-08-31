@@ -286,7 +286,7 @@ Accepted provider SQLite state, A-Wiki Drive secret-reference boundary and super
 ### AHA-6A.1 - Production provider admission/runtime wiring [COMPLETE - WO-P1-115 / PR #155]
 Before elastic capacity or operator UI, wire the accepted WO-P1-114 resolver into an authorized runtime assembly that can locate the private Drive root without hardcoding, produce fresh provider health plus the complete required quota tuple, and serialize or atomically reserve same-provider admission across concurrent batches. Reuse existing authorities; do not add a second capacity store/semaphore, quota model, provider registry or secret system. Live dispatch stays fail-closed until all three gates are deterministic and tested.
 
-### AHA-6B - Elastic worker capacity [ACTIVE - WO-P1-116]
+### AHA-6B - Elastic worker capacity [COMPLETE - WO-P1-116 / PR #157]
 Build the missing production worker/task supply seam first, then allow policy-bounded expansion only from typed capacity exhaustion. Elastic provisioning must atomically reserve capacity in the existing worker authority, re-observe exact health/ownership/Git identity, and re-enter the existing broker before execution. Remote connector/tunnel creation is disabled by default and requires explicit transport authority.
 
 ### AHA-7 — Operator UI

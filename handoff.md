@@ -1,53 +1,21 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-30 - WO-P1-116 / AHA-6B ACTIVE / CLAIMED / RED_GATE
+Last updated: 2026-08-31 - WO-P1-116 / AHA-6B COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED
 
 ## Current objective
 
-Execute WO-P1-116 / AHA-6B: assemble production worker/scheduler/lease candidates from durable + live evidence and add policy-bounded elastic worker capacity without creating a second scheduler/lease/registry. `WO-P1-096` remains the higher P0 release blocker; Worker4 is now an isolated v0.0.13 soak target, but remote MCP-after-TTL proof is still required. Automatic GLM/provider dispatch remains fail-closed until active route + complete reset-bearing five-hour quota evidence exist.
+WO-P1-116 / AHA-6B is COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED. Preserve the accepted scheduler/broker/lease authority. P0 WO-P1-096 remains the highest unresolved release gate. Parallel Ultra/GLM shaping may continue read-only under ignored `runs/`; no successor mutable lane exists until integrator validation and a fresh WO/claim.
 
 ## Repository state
 
-- Active work order: `docs/work-orders/WO-P1-116-elastic-worker-capacity.md` - ACTIVE / CLAIMED / SHAPING_COMPLETE / RED_GATE.
-- Worktree `A:\GitHub\A-Wiki-Conductor-elastic-capacity`; branch `feat/wo-p1-116-elastic-worker-capacity`; exact base `origin/main@23243651d51780b76dce15cdb24eaba90fce9a99`; clean at claim.
-- WO-P1-115 implementation/closeout worktrees and branches are cleaned; no WO-P1-115 local/remote branch remains.
-- A-Wiki remote/reuse gate refreshed; live A-Wiki claims `0`; A-Wiki local checkout remains dirty/read-only.
-- North Star is clean and file-level non-overlapping; GitHub open Conductor PRs `0` at claim.
-- Worker4 maintenance evidence: isolated staged tunnel-client v0.0.13 is READY beyond ten minutes with instance config restored byte-for-byte; Workers 1/2/3/5 remain untouched. This is partial P0 evidence only because remote MCP-after-TTL has not been exercised.
-- Latest completed work order: `docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.
-- Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`; branch `feat/wo-p1-115-provider-admission-runtime`; base `origin/main@5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`; clean at claim.
-- Predecessor WO-P1-114 implementation + closeout are merged, post-main green and cleaned; no WO-P1-114 branches/worktrees remain.
-- Reuse gate: A-Wiki remote main `71406f8a25079f364face422012e4bdeac5f483e`; secret authority is `docs/protocols/secrets-global-env.md`; A-Wiki local checkout remains dirty/read-only.
-- GitHub open PRs at claim: 0; A-Wiki live claims: 0; North Star worktree clean and file-level non-overlapping.
-- Implementation head `4e66cdeefbc31bd0513c8bd32ff322dc6230641b` is pushed; source/tests are frozen for independent review. Focused `59 passed`; related `253 passed`; full local `1750 passed / 4 skipped / 2 known GPU dependency failures`; compile/diff/scope/secret/encoding audit PASS.
-- Installed-style DB-copy E2E preserved 12 existing tables, added 4 provider tables and left the live DB unchanged; cross-process admission E2E returned exactly `ADMITTED,CAPACITY_WAIT`.
-- Automatic GLM remains fail-closed: current loopback route is not proven active, and official Z.ai `/api/monitor/usage/quota/limit` still lacks reset time required by the full five-hour tuple. One-way ignored `runs/` task/result bridge remains fallback.
-- Historical review task `wo115-glm-review-001` is complete and superseded; its result remains ignored evidence only. GPT validated exact task/HEAD/hashes and owns tracked repair/SSoT/PR/merge action.
-- Review `wo115-glm-review-001` validated PASS with zero P0/P1/P2. Repair `cf9676a6d4b9ce988f849426d514a823df034d18` closes two quota-evidence P3s; other P3s are already-covered/deferred/documented as bounded above. Post-repair gates: focused 62, related 256, full 1753/4/2 known GPU-only failures; E2E/audits PASS.
-- Re-review `wo115-glm-rereview-002` validated PASS on exact HEAD `5c16ed5248eda5dd0f8094520e45915fe436093e` with zero P0/P1/P2. The quota-tolerance P3 is deferred as conservative fail-closed hardening; the claimed missing multithread test is contradicted by the tracked `ThreadPoolExecutor + Barrier` race test. Next gate is PR/CI/re-audit/merge; neither review packet may be reused after a tracked HEAD change.
-- AHA-5 implementation PR `#149` — MERGED as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`.
-- AHA-5 closeout PR `#150` — MERGED as current base `64b6ef839f16a270295fb2c24649d01e0f54d862`.
-- Post-main CI `33286026232` — SUCCESS on Windows/Ubuntu/macOS; Windows Frozen Setup E2E PASS.
-- AHA-5 implementation + closeout worktrees/branches cleaned after exact tree-equality proof.
-- Previous completed work order: `docs/work-orders/WO-P1-113-aha6-parallel-ready-execution.md` — COMPLETE / RELEASED.
-- Worktree: `A:\GitHub\A-Wiki-Conductor-aha6-parallel`.
-- Branch: `feat/wo-p1-113-aha6-parallel-ready` @ `64b6ef839f16a270295fb2c24649d01e0f54d862`.
-- Root checkout remains protected/dirty and is not the mutation surface.
-- AHA-6 implementation checkpoint: `bad6567a7909f6cceb34d6debff20a23e5c42484` — pushed to the active feature branch.
-- Focused AHA-6 13 passed; relevant scheduler/dispatch/chaos/lease/provider/harness/AHA-5 regression 193 passed; compile/diff/secret audit PASS.
-- Independent GLM review authority used durable `runs/` task/result files with no human result copy-back; review and repair re-review are now complete.
-- Full local suite: 1696 passed, 5 skipped, 2 known local GPU dependency failures outside AHA-6 scope; related AHA-6 suite remains 193 passed.
-- Auto GLM is not assembled in the installed app: no provider tables in the real control DB and no concrete production environment-reference resolver; quota evidence is also unavailable. Do not dispatch automatically.
-- One-direction bridges `aha6-glm-review-001` and `aha6-glm-rereview-002` both completed; automatic provider dispatch remains fail-closed until its separate secret/quota assembly gates are proven.
-- GLM review `aha6-glm-review-001` at `ae3dae595b6acc173657e15120c48068fcc4af7a` returned `CHANGES_REQUIRED`; identity/task SHA/source SHA/test SHA were validated before accepting findings.
-- Accepted P2 repair: malformed `LEASED` outcomes no longer raise batch-wide; missing lease / worker drift become typed recovery while siblings retain outcomes. Repair commit: `2a4d8fd786a9d3086a8cd2a298b8ee8cfcb6adc8`.
-- Post-repair evidence: focused 16 passed; related regression 196 passed; full local 1698 passed, 5 skipped, only the same two known GPU/OpenGL/Tcl environment failures outside AHA-6 scope.
-- Cross-batch provider capacity is not globally reserved by this thin seam. Production wiring is blocked until batch admission is serialized per provider or an existing atomic provider-capacity authority supplies/reserves the snapshot; do not create a duplicate semaphore/store.
-- Exact-repair-HEAD re-review `aha6-glm-rereview-002` returned `PASS` with zero findings at `960bf95de9c135a44a1afb33d488f7b4973dd6c6`; task/source/test/prior-result hashes matched.
-- Final local PR audit: related regression 196 passed; compileall/diff-check/scope/secret scans PASS.
-- PR #151 exact reviewed head `5cc2425580c1724ae34f5f836a2211ee6af06b1d` passed CI `33293013006` on Windows/Ubuntu/macOS including Windows Frozen Setup E2E, then merged as `7825afa0ae946d0389b5c6b2955a63a8ae36f54b`.
-- Post-main CI `33293299053` on merge SHA `7825afa0ae946d0389b5c6b2955a63a8ae36f54b` passed Windows/Ubuntu/macOS including Frozen Setup E2E.
-- Docs-only closeout uses `A:\GitHub\A-Wiki-Conductor-aha6-closeout` / `docs/wo-p1-113-aha6-closeout` from exact merged main. After closeout merge/post-main proof, remove only the clean AHA-6 implementation+closeout worktrees/branches after ancestry/tree-equality/no-unique-diff proof.
+- PR #157 merged as `af5a5068aea37ce82875e4b6fff40ac19ac112c5`.
+- Exact reviewed head `d06129ac943ceaa30c398d744b07a0fec9b505e1`; GLM-5.3 MAX review validated PASS; P0/P1/P2 = 0; four P3 notes are follow-up candidates.
+- Exact-head CI `33352780461` and post-main CI `33354156749` passed Windows/Ubuntu/macOS including Windows packaging and Frozen Setup E2E.
+- Closeout branch starts from exact merged main; shared root remains stale/dirty/protected; live A-Wiki claims were 0 at preflight.
+- Read-only P0 refresh: Worker4 is READY, but no live tunnel-client process uses the staged v0.0.13 executable. The prior staged-v0.0.13 soak is not current operational evidence.
+- Real hosted/remote MCP-after-TTL success on v0.0.13 remains unproven. No live worker/process was mutated during this refresh.
+- Next safe feature action: ingest/validate Ultra + GLM results, then run a fresh main/reuse/claims/worktree gate before claiming AHA-7/AHA-8 or bounded hardening.
+- Next P0 action remains an explicitly authorized isolated v0.0.13 remote-after-TTL maintenance proof.
 
 ## Accepted predecessor
 
