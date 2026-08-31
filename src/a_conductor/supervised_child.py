@@ -18,6 +18,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 from threading import Thread
 from typing import BinaryIO, Callable, Mapping, Sequence
 
@@ -214,6 +215,7 @@ def read_supervised_child_result(
 
 _REDACTED = b"[REDACTED]"
 _CAPTURE_CHUNK_BYTES = 64 * 1024
+_CAPTURE_DRAIN_TIMEOUT_SECONDS = 5.0
 _MAX_REDACTION_SECRET_BYTES = 16 * 1024
 _SENSITIVE_ENVIRONMENT_KEYS = ("ANTHROPIC_AUTH_TOKEN",)
 
@@ -323,9 +325,19 @@ def run_supervised_child(
             raise SupervisedChildError("OUTPUT_CAPTURE_SETUP_FAILED")
         stdout_target = getattr(sys.stdout, "buffer", sys.stdout)
         stderr_target = getattr(sys.stderr, "buffer", sys.stderr)
+        # Daemon threads are intentional: a descendant may inherit a pipe handle.
+        # The bounded join below must still allow this helper process to exit fail-closed.
         capture_threads = [
-            Thread(target=_pump_redacted, args=(stdout_pipe, stdout_target, secrets, capture_errors)),
-            Thread(target=_pump_redacted, args=(stderr_pipe, stderr_target, secrets, capture_errors)),
+            Thread(
+                target=_pump_redacted,
+                args=(stdout_pipe, stdout_target, secrets, capture_errors),
+                daemon=True,
+            ),
+            Thread(
+                target=_pump_redacted,
+                args=(stderr_pipe, stderr_target, secrets, capture_errors),
+                daemon=True,
+            ),
         ]
         for thread in capture_threads:
             thread.start()
@@ -333,8 +345,12 @@ def run_supervised_child(
         exit_code = _require_exit_code(child.wait())
     except Exception as exc:
         raise SupervisedChildError("CHILD_WAIT_FAILED") from exc
+    drain_deadline = time.monotonic() + _CAPTURE_DRAIN_TIMEOUT_SECONDS
     for thread in capture_threads:
-        thread.join()
+        remaining = max(0.0, drain_deadline - time.monotonic())
+        thread.join(remaining)
+    if any(thread.is_alive() for thread in capture_threads):
+        raise SupervisedChildError("OUTPUT_CAPTURE_DRAIN_TIMEOUT")
     if capture_errors:
         raise SupervisedChildError("OUTPUT_CAPTURE_FAILED") from capture_errors[0]
     finished_at = _require_text(now_factory(), "finished_at")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -171,6 +172,24 @@ class PipeChild(FakeChild):
         self.stderr = io.BytesIO(stderr)
 
 
+
+class DelayedEofPipe:
+    def __init__(self, delay_seconds: float) -> None:
+        self._delay_seconds = delay_seconds
+        self._done = False
+
+    def read1(self, size: int) -> bytes:
+        if not self._done:
+            self._done = True
+            time.sleep(self._delay_seconds)
+        return b""
+
+    def read(self, size: int = -1) -> bytes:
+        return self.read1(size)
+
+    def close(self) -> None:
+        return None
+
 def test_capture_failure_publishes_no_terminal_result(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "synthetic-secret")
     factory = FakePopenFactory(PipeChild())
@@ -230,3 +249,23 @@ def test_oversized_redaction_value_fails_before_child_launch(tmp_path: Path, mon
             now_factory=clock_values("start"),
         )
     assert factory.calls == []
+
+
+
+def test_capture_drain_is_bounded_when_descendant_keeps_pipe_open(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "synthetic-secret")
+    monkeypatch.setattr(supervised_child, "_CAPTURE_DRAIN_TIMEOUT_SECONDS", 0.05, raising=False)
+    child = PipeChild()
+    child.stdout = DelayedEofPipe(0.35)
+    child.stderr = io.BytesIO(b"")
+    factory = FakePopenFactory(child)
+    result_path = tmp_path / "result.json"
+    started = time.monotonic()
+    with pytest.raises(SupervisedChildError, match="OUTPUT_CAPTURE_DRAIN_TIMEOUT"):
+        run_supervised_child(
+            execution_id="exec-drain-timeout", pid_path=tmp_path / "child.pid",
+            result_path=result_path, cwd=tmp_path, target_argv=("python.exe", "-V"),
+            popen_factory=factory, now_factory=clock_values("start", "finish"),
+        )
+    assert time.monotonic() - started < 0.25
+    assert not result_path.exists()
