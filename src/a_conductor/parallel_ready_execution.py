@@ -233,9 +233,33 @@ def _safe_exception_reason(exc: Exception, fallback: str) -> str:
     return _safe_reason_code(getattr(exc, "code", None), fallback)
 
 
-def _typed_dispatch_policy(result: object) -> tuple[bool, bool, str] | None:
+def _dispatch_job_matches_task(result: GraphDispatchResult, task: ParallelReadyTask, lease: WorkerLease) -> bool:
+    job = result.job
+    request = task.dispatch_request
+    if (
+        job.job_id != request.key.job_id
+        or job.project_id != request.project_id
+        or job.work_order_ref != request.work_order_ref
+        or job.max_attempts != request.max_attempts
+    ):
+        return False
+    worker_bound_states = {
+        TaskState.CLAIMED, TaskState.GATING, TaskState.EXECUTING,
+        TaskState.VERIFYING, TaskState.REVIEW_PENDING, TaskState.CHANGES_REQUIRED,
+        TaskState.REPAIRING, TaskState.RECOVERY_NEEDED,
+    }
+    if job.state in worker_bound_states:
+        return job.worker_id == lease.worker_id
+    return job.worker_id is None
+
+
+def _typed_dispatch_policy(
+    result: object, task: ParallelReadyTask, lease: WorkerLease
+) -> tuple[bool, bool, str]:
     if not isinstance(result, GraphDispatchResult):
-        return None
+        return False, False, "DISPATCH_RESULT_UNSUPPORTED"
+    if not _dispatch_job_matches_task(result, task, lease):
+        return False, False, "DISPATCH_RESULT_IDENTITY_MISMATCH"
     reason = _safe_reason_code(result.reason_code, "DISPATCH_RESULT_RECONCILE_REQUIRED")
     if result.action is GraphDispatchAction.EXECUTED:
         execution = result.execution
@@ -243,6 +267,7 @@ def _typed_dispatch_policy(result: object) -> tuple[bool, bool, str] | None:
             return False, False, "DISPATCH_EXECUTION_EVIDENCE_MISSING"
         if (
             result.job.state is TaskState.VERIFYING
+            and result.job.attempt_count >= 1
             and execution.job == result.job
             and execution.success
             and not execution.recovery_required
@@ -252,7 +277,11 @@ def _typed_dispatch_policy(result: object) -> tuple[bool, bool, str] | None:
             return True, True, reason
         return False, False, "DISPATCH_EXECUTION_EVIDENCE_INVALID"
     if result.action is GraphDispatchAction.EXISTING:
+        if result.execution is not None:
+            return False, False, "DISPATCH_NONEXECUTION_EVIDENCE_INVALID"
         if result.job.state in {TaskState.VERIFYING, TaskState.REVIEW_PENDING, TaskState.COMPLETE}:
+            if result.job.attempt_count < 1:
+                return False, False, "DISPATCH_EXISTING_STATE_INVALID"
             return True, True, reason
         if result.job.state in {TaskState.FAILED, TaskState.CANCELLED}:
             return False, True, reason
@@ -260,15 +289,18 @@ def _typed_dispatch_policy(result: object) -> tuple[bool, bool, str] | None:
     if result.action is GraphDispatchAction.RECONCILE:
         return False, False, reason
     if result.action is GraphDispatchAction.BLOCKED:
+        if result.execution is not None:
+            return False, False, "DISPATCH_NONEXECUTION_EVIDENCE_INVALID"
         if result.job.state is TaskState.BLOCKED:
             return False, True, reason
         return False, False, "DISPATCH_BLOCKED_STATE_INVALID"
     if result.action is GraphDispatchAction.OFFERED:
+        if result.execution is not None:
+            return False, False, "DISPATCH_NONEXECUTION_EVIDENCE_INVALID"
         if result.job.state is TaskState.CLAIMED:
             return False, True, reason
         return False, False, "DISPATCH_OFFERED_STATE_INVALID"
     return False, False, "DISPATCH_ACTION_UNSUPPORTED"
-
 
 def _lease_wait_outcome(node_id: str, outcome: WorkerLeaseOutcome) -> ParallelReadyOutcome:
     mapping = {
@@ -569,8 +601,8 @@ class ParallelReadyExecutor:
                             provider_admission=admission,
                         )
                         continue
-                    typed_policy = _typed_dispatch_policy(runner_result)
-                    if typed_policy is not None and not typed_policy[0]:
+                    typed_policy = _typed_dispatch_policy(runner_result, task, lease_outcome.lease)
+                    if not typed_policy[0]:
                         _, release_admission, typed_reason = typed_policy
                         if release_admission:
                             release_reason = self._release_provider_admission(

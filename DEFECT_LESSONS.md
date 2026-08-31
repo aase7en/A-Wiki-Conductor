@@ -576,3 +576,15 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** return-time redaction is not a persistence boundary. Secret-bearing subprocess output must be sanitized before the first durable write, with chunk-boundary tests and live-child/timeout evidence proving no write-then-scrub window.
 
 **Verify:** real Windows child echo test, held-live durable-log test, timeout -> reattach test, fragmented-stream unit test, capture-failure no-result test; related supervised/native regression 120 passed after bounded-drain hardening.
+
+## #37: Durable completion evidence must bind to the exact dispatched task and lease (2026-08-31)
+
+**Symptom:** an independent post-merge WO117 review proved seven normal-return cases could release provider admission while the actual job remained `EXECUTING`: unsupported `None`/dictionary returns, internally consistent evidence for another job, and non-executing actions carrying contradictory nested execution evidence.
+
+**Root cause:** the consumer validated parts of the typed result internally but did not bind the returned job to the current dispatch request and acquired worker lease. Non-`GraphDispatchResult` values also bypassed typed refusal and fell through to completion.
+
+**Fix:** every normal return now passes one fail-closed consumer policy. Unsupported shapes are recovery; typed evidence must match job/project/work-order/max-attempt identity and canonical worker ownership; `EXECUTED` requires a real attempt plus successful matching execution evidence; `EXISTING`/`BLOCKED`/`OFFERED` reject any nested execution payload.
+
+**Lesson:** internal consistency is not provenance. Completion/release authority must bind evidence to the exact operation being consumed; foreign-but-valid evidence and unknown return shapes remain uncertainty and must keep capacity reserved.
+
+**Verify:** current-main RED = 10 failures/1 positive control; repaired WO121 focused = 13 passed, full parallel suite = 56 passed, impact-expanded frontier regression = 366 passed; compileall/diff/UTF-8 gates PASS.
