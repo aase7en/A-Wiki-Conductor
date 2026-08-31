@@ -804,7 +804,7 @@ class SQLiteWorkerLeaseStore:
                 allowed_transitions = {
                     "ACTIVE": {"PROVISIONED", "RECOVERY_REQUIRED", "RELEASED"},
                     "PROVISIONED": {"CAPACITY", "RECOVERY_REQUIRED"},
-                    "CAPACITY": {"RELEASED"},
+                    "CAPACITY": set(),
                     "RECOVERY_REQUIRED": set(),
                 }
                 if target not in allowed_transitions.get(current.state, set()):

@@ -975,3 +975,23 @@ def test_generic_transition_cannot_release_recovery_required(tmp_path: Path) -> 
         )
     record = store.list_provisioning_reservations(consuming_only=True)[0]
     assert record.state == "RECOVERY_REQUIRED"
+
+
+def test_release_unstarted_cannot_retire_capacity(tmp_path: Path) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    _acquired(store)
+    store.transition_provisioning_reservation(
+        "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
+        now=NOW, worker_id=NEW_WORKER,
+    )
+    store.transition_provisioning_reservation(
+        "r-1", session_id="s-1", task_id="t-1", state="CAPACITY",
+        now=NOW, worker_id=NEW_WORKER,
+    )
+    reservations = SQLiteWorkerProvisioningReservations(store)
+    with pytest.raises(ElasticCapacityError, match="PROVISIONING_RESERVATION_STATE_MISMATCH"):
+        reservations.release_unstarted(
+            "r-1", session_id="s-1", task_id="t-1", now=LATER
+        )
+    record = store.list_provisioning_reservations(consuming_only=True)[0]
+    assert record.state == "CAPACITY"

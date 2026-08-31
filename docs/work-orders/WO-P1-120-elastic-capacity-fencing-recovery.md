@@ -64,6 +64,7 @@ May run concurrently with WO-P1-117 and WO-P1-119. If the R6 RED test requires c
 - GPT integrator found two blockers in that result: bound PROVISIONED residue could release budget without proof the worker disappeared, and a mark-provisioned lease conflict returned recovery while durable reservation remained ACTIVE.
 - GLM repair `a1b7ac438364cf41c8804add3e6183f39f8870b0` fixed durable conflict recovery and changed bound stale release to require `worker_decommissioned=True`.
 - GPT adversarial review rejected that boolean as decommission authority and found a second bypass: the generic transition matrix still allowed `RECOVERY_REQUIRED -> RELEASED` without reconciliation.
-- RED proved both bypasses. Final local repair removes the boolean escape, refuses all bound stale-residue release until a typed runtime/decommission observation seam exists, and forbids generic `RECOVERY_REQUIRED -> RELEASED`. Unbound stale residue remains evidence-gated releasable; CAPACITY retirement remains separate.
-- Focused + related worker/elastic/parallel regression after the integrator repair: `228 passed`; compileall and `git diff --check` PASS.
+- RED proved both bypasses. Final local repair removes the boolean escape, refuses all bound stale-residue release until a typed runtime/decommission observation seam exists, and forbids generic `RECOVERY_REQUIRED -> RELEASED`. Unbound stale residue remains evidence-gated releasable.
+- A final GPT authority audit then proved `release_unstarted()` could retire a successful `CAPACITY` record through the generic transition table. RED reproduced it; `CAPACITY -> RELEASED` is now forbidden until a separate typed retirement lifecycle exists.
+- Focused + related worker/elastic/parallel regression after all integrator repairs: `229 passed`; compileall and `git diff --check` PASS.
 - Remaining gates: source/docs commit + push -> exact-SHA independent review -> 3-OS CI -> merge/post-main verification.

@@ -555,12 +555,12 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 ## #37: Recovery assertions are not decommission authority (2026-08-31)
 
-**Symptom:** a stale bound provisioning reservation could free elastic-capacity budget either by passing a caller boolean `worker_decommissioned=True` or by using the generic `RECOVERY_REQUIRED -> RELEASED` transition, even though neither path proved the worker had actually disappeared.
+**Symptom:** bounded elastic capacity could be freed without lifecycle evidence through three generic escape hatches: a caller boolean `worker_decommissioned=True`, `RECOVERY_REQUIRED -> RELEASED`, or `release_unstarted()` applied to a successful `CAPACITY` reservation. None proved the worker/capacity had actually been retired.
 
 **Root cause:** recovery cleanup exposed assertion-shaped inputs and a generic state transition where the capacity authority required evidence. The API encoded intent to release, not provenance that release was safe.
 
-**Fix:** bound provisioning residue now always remains consuming under stale reconciliation until a future typed runtime/decommission observation seam can provide verifiable evidence. The boolean escape was removed. Generic `RECOVERY_REQUIRED -> RELEASED` is forbidden; unbound stale residue may still release through exact-owner + staleness reconciliation, while CAPACITY retirement remains separate.
+**Fix:** bound provisioning residue now always remains consuming under stale reconciliation until a future typed runtime/decommission observation seam can provide verifiable evidence. The boolean escape was removed. Generic `RECOVERY_REQUIRED -> RELEASED` and `CAPACITY -> RELEASED` are forbidden; unbound stale residue may still release through exact-owner + staleness reconciliation. CAPACITY retirement remains a separate lifecycle decision with no generic release path.
 
 **Lesson:** booleans and caller claims are not ownership/decommission evidence. Any action that frees bounded capacity after uncertainty must consume typed provenance from an authoritative observation path, or fail closed.
 
-**Verify:** RED tests prove the boolean escape and generic recovery-release bypass on the prior repair; final worker/elastic/parallel regression = 228 passed.
+**Verify:** RED tests prove the boolean escape, generic recovery-release bypass, and `release_unstarted()` CAPACITY-retirement bypass; final worker/elastic/parallel regression = 229 passed.
