@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from threading import Barrier
@@ -29,6 +30,23 @@ from a_conductor.serena_config_store import SQLiteSerenaConfigStore
 
 
 NOW = datetime(2026, 8, 28, 1, 30, tzinfo=timezone.utc)
+
+
+def _acquire_after_expiry_in_process(database, start_event, output, execution_id):
+    try:
+        store = SQLiteProviderConfigStore(database)
+        if not start_event.wait(10):
+            output.put(("error", "start-timeout", None))
+            return
+        result = store.acquire_admission(
+            provider_id="provider-test", execution_id=execution_id,
+            batch_id=f"batch-{execution_id}", expected_max_concurrency=1,
+            now=NOW + timedelta(seconds=2), ttl_seconds=600,
+        )
+        admission_id = None if result.admission is None else result.admission.admission_id
+        output.put((result.kind.value, result.reason_code, admission_id))
+    except BaseException as exc:
+        output.put(("error", f"{type(exc).__name__}:{exc}", None))
 
 def make_profile() -> ProviderConfiguration:
     return ProviderConfiguration(
@@ -295,6 +313,37 @@ def test_legacy_expired_admission_remains_capacity_consuming_until_exact_release
     )
     assert released.status == "RELEASED"
 
+
+
+def test_expired_unknown_admission_blocks_spawned_processes(tmp_path) -> None:
+    database = str(tmp_path / "control.sqlite")
+    store = _admission_store(database, iter(("admission-old",)))
+    store.save_provider(make_profile())
+    old = store.acquire_admission(
+        provider_id="provider-test", execution_id="execution-old",
+        batch_id="batch-old", expected_max_concurrency=1, now=NOW, ttl_seconds=1,
+    )
+    assert old.admission is not None
+    ctx = multiprocessing.get_context("spawn")
+    start_event = ctx.Event()
+    output = ctx.Queue()
+    processes = tuple(
+        ctx.Process(target=_acquire_after_expiry_in_process, args=(database, start_event, output, f"new-{i}"))
+        for i in (1, 2)
+    )
+    for process in processes:
+        process.start()
+    start_event.set()
+    for process in processes:
+        process.join(15)
+        assert process.exitcode == 0
+    results = [output.get(timeout=5) for _ in processes]
+    assert {item[0] for item in results} == {"RECOVERY_REQUIRED"}
+    assert {item[1] for item in results} == {"PROVIDER_ADMISSION_EXPIRED_RECONCILE"}
+    assert {item[2] for item in results} == {old.admission.admission_id}
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT admission_id, status FROM provider_admissions").fetchall()
+    assert rows == [(old.admission.admission_id, "ACTIVE")]
 
 def test_corrupt_provider_admission_timestamp_fails_as_typed_store_error(tmp_path) -> None:
     database = tmp_path / "control.sqlite"
