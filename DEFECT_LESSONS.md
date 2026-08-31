@@ -599,4 +599,4 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 **Lesson:** booleans, elapsed time, missing worker ids, and caller claims are not ownership/decommission evidence. Any action that frees bounded capacity after uncertainty must consume typed provenance from an authoritative observation path, or fail closed.
 
-**Verify:** prior RED tests prove the boolean escape, generic recovery-release bypass, and CAPACITY-retirement bypass. The crash-window audit added two REDs for stale unbound `ACTIVE`/`RECOVERY_REQUIRED`; after repair those plus the explicit `release_unstarted()` positive control pass. Focused+related WO120 regression = 209 passed; actual refreshed-main union regression = 263 passed; compileall and `git diff --check` PASS.
+**Verify:** prior RED tests prove the boolean escape, generic recovery-release bypass, and CAPACITY-retirement bypass. The crash-window audit added two REDs for stale unbound `ACTIVE`/`RECOVERY_REQUIRED`; after repair those plus the explicit `release_unstarted()` positive control pass. Focused+related WO120 regression = 209 passed; final post-WO118A refreshed-main union regression = 359 passed; compileall and `git diff --check` PASS.
