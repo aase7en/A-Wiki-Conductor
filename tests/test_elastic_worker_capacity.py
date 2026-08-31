@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Barrier
@@ -77,11 +77,6 @@ def candidate(worker_id: str = "a-worker-09") -> WorkerLeaseCandidate:
         dirty_state="CLEAN",
         mutation_authorized=True,
     )
-
-
-@dataclass(frozen=True)
-class FakeScheduler:
-    state: str = "READY"
 
 
 class FakeAssembler:
@@ -237,9 +232,7 @@ def test_provisioning_uncertainty_consumes_slot_and_prevents_blind_retry(tmp_pat
     assert first.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
     assert reservations.list_consuming()[0].state == "RECOVERY_REQUIRED"
 
-    other_request = lease_request()
-    object.__setattr__(other_request, "session_id", "session-2")
-    object.__setattr__(other_request, "task_id", "task-2")
+    other_request = replace(lease_request(), session_id="session-2", task_id="task-2")
     second = service.expand(
         capacity_plan(), other_request, runtime_kind="serena-local", policy=policy()
     )
@@ -266,7 +259,7 @@ def test_unexpected_remote_connector_is_recovery_when_policy_does_not_allow_it(t
 
 def test_reobserved_worker_that_fails_existing_broker_is_not_silently_retried(tmp_path: Path) -> None:
     bad = supply("a-worker-09")
-    object.__setattr__(bad.candidate, "head", "b" * 40)
+    bad = replace(bad, candidate=replace(bad.candidate, head="b" * 40))
     service, reservations = make_coordinator(
         tmp_path, assembler=FakeAssembler(bad)
     )
