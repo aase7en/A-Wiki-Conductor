@@ -12,10 +12,15 @@ import pytest
 from a_conductor.claude_code_harness import HarnessDispatch, MutationIntent, TaskPacketFile
 from a_conductor.graph.dispatch import (
     DispatchGateDecision,
+    GraphDispatchAction,
     GraphDispatchKey,
     GraphDispatchMode,
     GraphDispatchRequest,
+    GraphDispatchResult,
 )
+from a_conductor.domain import TaskState
+from a_conductor.job_execution import JobExecutionOutcome
+from a_conductor.job_state import new_job_state
 from a_conductor.graph.scheduler import SchedulePlan, SelectedAssignment
 from a_conductor.parallel_ready_execution import (
     GraphDispatchParallelRunner,
@@ -756,6 +761,247 @@ class FailingAdmissionRunner:
     def run(self, task: ParallelReadyTask, lease):
         raise RuntimeError("uncertain transport")
 
+
+class ReconcileDispatchRunner:
+    def run(self, task: ParallelReadyTask, lease):
+        job = new_job_state(
+            job_id=task.dispatch_request.key.job_id,
+            work_order_ref=task.dispatch_request.work_order_ref,
+            project_id=task.dispatch_request.project_id,
+        )
+        job = replace(job, state=TaskState.EXECUTING, worker_id=lease.worker_id, version=2)
+        return GraphDispatchResult(
+            GraphDispatchAction.RECONCILE,
+            job,
+            "JOB_STATE_EXECUTING",
+        )
+
+
+
+
+
+class InvalidExecutedEvidenceRunner:
+    def run(self, task: ParallelReadyTask, lease):
+        job = new_job_state(
+            job_id=task.dispatch_request.key.job_id,
+            work_order_ref=task.dispatch_request.work_order_ref,
+            project_id=task.dispatch_request.project_id,
+        )
+        job = replace(job, state=TaskState.VERIFYING, worker_id=lease.worker_id, version=2)
+        execution = JobExecutionOutcome(False, job, None, "BACKEND_FAILED", True)
+        return GraphDispatchResult(
+            GraphDispatchAction.EXECUTED, job, "EXECUTION_REACHED_VERIFYING", execution=execution
+        )
+
+class ExecutedDispatchRunner:
+    def run(self, task: ParallelReadyTask, lease):
+        job = new_job_state(
+            job_id=task.dispatch_request.key.job_id,
+            work_order_ref=task.dispatch_request.work_order_ref,
+            project_id=task.dispatch_request.project_id,
+        )
+        job = replace(job, state=TaskState.VERIFYING, worker_id=lease.worker_id, version=2)
+        execution = JobExecutionOutcome(True, job, "evidence:typed-executed", None, False)
+        return GraphDispatchResult(
+            GraphDispatchAction.EXECUTED, job, "EXECUTION_REACHED_VERIFYING", execution=execution
+        )
+
+class TypedDispatchRunner:
+    def __init__(self, action: GraphDispatchAction, state: TaskState, reason: str) -> None:
+        self.action = action
+        self.state = state
+        self.reason = reason
+
+    def run(self, task: ParallelReadyTask, lease):
+        job = new_job_state(
+            job_id=task.dispatch_request.key.job_id,
+            work_order_ref=task.dispatch_request.work_order_ref,
+            project_id=task.dispatch_request.project_id,
+        )
+        job = replace(job, state=self.state, worker_id=lease.worker_id, version=2)
+        return GraphDispatchResult(self.action, job, self.reason)
+
+
+def _execute_typed_dispatch(tmp_path: Path, *, action: GraphDispatchAction, state: TaskState, reason: str):
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    broker, _ = _broker(tmp_path / "lease-typed-action")
+    task = _task(
+        node_id="typed-action", worker_id="a-worker-01",
+        worktree=r"A:\Work\typed-action", branch="feat/typed-action",
+        mutable_scope=("src/typed_action.py",), profile=profile,
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker, runner=TypedDispatchRunner(action, state, reason),
+        clock=lambda: NOW, provider_admission_store=SQLiteProviderConfigStore(database),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task}, provider_inflight={"cointh-glm": 0},
+        batch_id="batch-typed-action",
+    )
+    return result.outcomes[0], database
+
+def test_typed_dispatch_reconcile_retains_provider_admission_and_is_not_completed(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    broker, _ = _broker(tmp_path / "lease-typed-reconcile")
+    task = _task(
+        node_id="typed-dispatch-reconcile",
+        worker_id="a-worker-01",
+        worktree=r"A:\Work\typed-dispatch-reconcile",
+        branch="feat/typed-dispatch-reconcile",
+        mutable_scope=("src/typed_reconcile.py",),
+        profile=profile,
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=ReconcileDispatchRunner(),
+        clock=lambda: NOW,
+        provider_admission_store=SQLiteProviderConfigStore(database),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-typed-reconcile",
+    )
+    outcome = result.outcomes[0]
+    assert outcome.kind is ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED
+    assert outcome.reason_code == "JOB_STATE_EXECUTING"
+    assert isinstance(outcome.runner_result, GraphDispatchResult)
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("ACTIVE",)]
+
+
+
+
+
+def test_typed_executed_with_failed_execution_evidence_fails_closed(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    broker, _ = _broker(tmp_path / "lease-invalid-evidence")
+    task = _task(
+        node_id="typed-invalid-evidence", worker_id="a-worker-01",
+        worktree=r"A:\Work\typed-invalid-evidence", branch="feat/typed-invalid-evidence",
+        mutable_scope=("src/typed_invalid_evidence.py",), profile=profile,
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker, runner=InvalidExecutedEvidenceRunner(), clock=lambda: NOW,
+        provider_admission_store=SQLiteProviderConfigStore(database),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task}, provider_inflight={"cointh-glm": 0},
+        batch_id="batch-invalid-evidence",
+    )
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "DISPATCH_EXECUTION_EVIDENCE_INVALID"
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("ACTIVE",)]
+
+def test_typed_executed_with_execution_evidence_releases_admission(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    broker, _ = _broker(tmp_path / "lease-typed-executed")
+    task = _task(
+        node_id="typed-executed", worker_id="a-worker-01",
+        worktree=r"A:\Work\typed-executed", branch="feat/typed-executed",
+        mutable_scope=("src/typed_executed.py",), profile=profile,
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker, runner=ExecutedDispatchRunner(), clock=lambda: NOW,
+        provider_admission_store=SQLiteProviderConfigStore(database),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task}, provider_inflight={"cointh-glm": 0},
+        batch_id="batch-typed-executed",
+    )
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.RUN_COMPLETED
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("RELEASED",)]
+
+def test_typed_executed_without_execution_evidence_fails_closed(tmp_path: Path) -> None:
+    outcome, database = _execute_typed_dispatch(
+        tmp_path, action=GraphDispatchAction.EXECUTED,
+        state=TaskState.VERIFYING, reason="EXECUTION_REACHED_VERIFYING",
+    )
+    assert outcome.kind is ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED
+    assert outcome.reason_code == "DISPATCH_EXECUTION_EVIDENCE_MISSING"
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("ACTIVE",)]
+
+
+
+@pytest.mark.parametrize(
+    ("action", "state", "reason"),
+    [
+        (GraphDispatchAction.BLOCKED, TaskState.BLOCKED, "DISPATCH_BLOCKED"),
+        (GraphDispatchAction.OFFERED, TaskState.CLAIMED, "INTERACTIVE_PULL_OFFERED"),
+    ],
+)
+def test_typed_nonexecuting_action_is_recovery_but_releases_capacity(
+    tmp_path: Path, action: GraphDispatchAction, state: TaskState, reason: str
+) -> None:
+    outcome, database = _execute_typed_dispatch(
+        tmp_path, action=action, state=state, reason=reason
+    )
+    assert outcome.kind is ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED
+    assert outcome.reason_code == reason
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("RELEASED",)]
+
+
+@pytest.mark.parametrize(
+    ("action", "reason", "expected_reason"),
+    [
+        (GraphDispatchAction.BLOCKED, "DISPATCH_BLOCKED", "DISPATCH_BLOCKED_STATE_INVALID"),
+        (GraphDispatchAction.OFFERED, "INTERACTIVE_PULL_OFFERED", "DISPATCH_OFFERED_STATE_INVALID"),
+    ],
+)
+def test_typed_nonexecuting_action_with_executing_state_retains_capacity(
+    tmp_path: Path, action: GraphDispatchAction, reason: str, expected_reason: str
+) -> None:
+    outcome, database = _execute_typed_dispatch(
+        tmp_path, action=action, state=TaskState.EXECUTING, reason=reason
+    )
+    assert outcome.kind is ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED
+    assert outcome.reason_code == expected_reason
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("ACTIVE",)]
+
+def test_typed_existing_failed_is_not_reported_as_completed(tmp_path: Path) -> None:
+    outcome, database = _execute_typed_dispatch(
+        tmp_path, action=GraphDispatchAction.EXISTING,
+        state=TaskState.FAILED, reason="JOB_ALREADY_FAILED",
+    )
+    assert outcome.kind is ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED
+    assert outcome.reason_code == "JOB_ALREADY_FAILED"
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("RELEASED",)]
+
+
+def test_typed_existing_verifying_is_idempotent_completed_stage(tmp_path: Path) -> None:
+    outcome, database = _execute_typed_dispatch(
+        tmp_path, action=GraphDispatchAction.EXISTING,
+        state=TaskState.VERIFYING, reason="JOB_ALREADY_VERIFYING",
+    )
+    assert outcome.kind is ParallelReadyOutcomeKind.RUN_COMPLETED
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("RELEASED",)]
 
 def test_runner_uncertainty_retains_provider_admission_for_reconcile(tmp_path: Path) -> None:
     database = tmp_path / "control.sqlite"

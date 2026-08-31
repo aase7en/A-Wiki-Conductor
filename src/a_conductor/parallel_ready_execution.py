@@ -17,9 +17,12 @@ from typing import Callable, Mapping, Protocol
 from .claude_code_harness import HarnessDispatch, TaskPacketFile
 from .graph.dispatch import (
     DispatchGateDecision,
+    GraphDispatchAction,
     GraphDispatchMode,
     GraphDispatchRequest,
+    GraphDispatchResult,
 )
+from .domain import TaskState
 from .graph.scheduler import SchedulePlan, SelectedAssignment
 from .provider_config_store import (
     ProviderAdmissionKind,
@@ -228,6 +231,43 @@ def _safe_reason_code(code: object, fallback: str) -> str:
 
 def _safe_exception_reason(exc: Exception, fallback: str) -> str:
     return _safe_reason_code(getattr(exc, "code", None), fallback)
+
+
+def _typed_dispatch_policy(result: object) -> tuple[bool, bool, str] | None:
+    if not isinstance(result, GraphDispatchResult):
+        return None
+    reason = _safe_reason_code(result.reason_code, "DISPATCH_RESULT_RECONCILE_REQUIRED")
+    if result.action is GraphDispatchAction.EXECUTED:
+        execution = result.execution
+        if execution is None:
+            return False, False, "DISPATCH_EXECUTION_EVIDENCE_MISSING"
+        if (
+            result.job.state is TaskState.VERIFYING
+            and execution.job == result.job
+            and execution.success
+            and not execution.recovery_required
+            and execution.error_code is None
+            and execution.evidence_ref is not None
+        ):
+            return True, True, reason
+        return False, False, "DISPATCH_EXECUTION_EVIDENCE_INVALID"
+    if result.action is GraphDispatchAction.EXISTING:
+        if result.job.state in {TaskState.VERIFYING, TaskState.REVIEW_PENDING, TaskState.COMPLETE}:
+            return True, True, reason
+        if result.job.state in {TaskState.FAILED, TaskState.CANCELLED}:
+            return False, True, reason
+        return False, False, "DISPATCH_EXISTING_STATE_INVALID"
+    if result.action is GraphDispatchAction.RECONCILE:
+        return False, False, reason
+    if result.action is GraphDispatchAction.BLOCKED:
+        if result.job.state is TaskState.BLOCKED:
+            return False, True, reason
+        return False, False, "DISPATCH_BLOCKED_STATE_INVALID"
+    if result.action is GraphDispatchAction.OFFERED:
+        if result.job.state is TaskState.CLAIMED:
+            return False, True, reason
+        return False, False, "DISPATCH_OFFERED_STATE_INVALID"
+    return False, False, "DISPATCH_ACTION_UNSUPPORTED"
 
 
 def _lease_wait_outcome(node_id: str, outcome: WorkerLeaseOutcome) -> ParallelReadyOutcome:
@@ -526,6 +566,26 @@ class ParallelReadyExecutor:
                             ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED,
                             reason,
                             lease_outcome=lease_outcome,
+                            provider_admission=admission,
+                        )
+                        continue
+                    typed_policy = _typed_dispatch_policy(runner_result)
+                    if typed_policy is not None and not typed_policy[0]:
+                        _, release_admission, typed_reason = typed_policy
+                        if release_admission:
+                            release_reason = self._release_provider_admission(
+                                task, batch_id or "", admission, self._clock()
+                            )
+                            if release_reason is not None:
+                                outcomes[node_id] = ParallelReadyOutcome(
+                                    node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
+                                    release_reason, lease_outcome=lease_outcome, runner_result=runner_result,
+                                    provider_admission=admission,
+                                )
+                                continue
+                        outcomes[node_id] = ParallelReadyOutcome(
+                            node_id, ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED, typed_reason,
+                            lease_outcome=lease_outcome, runner_result=runner_result,
                             provider_admission=admission,
                         )
                         continue

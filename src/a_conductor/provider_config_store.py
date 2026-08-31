@@ -406,19 +406,10 @@ class SQLiteProviderConfigStore:
                 if not bool(profile["enabled"]):
                     raise ProviderConfigStoreError("PROVIDER_ADMISSION_PROVIDER_DISABLED")
                 active_rows = connection.execute(
-                    "SELECT * FROM provider_admissions WHERE provider_id=? AND status='ACTIVE'",
+                    "SELECT * FROM provider_admissions WHERE provider_id=? AND status IN ('ACTIVE','EXPIRED')",
                     (provider_id,),
                 ).fetchall()
                 active_records = tuple(self._admission_from_row(row) for row in active_rows)
-                expired_ids = tuple(
-                    record.admission_id for record in active_records if record.expires_at <= now
-                )
-                if expired_ids:
-                    connection.executemany(
-                        "UPDATE provider_admissions SET status='EXPIRED', reconciled_at=? "
-                        "WHERE admission_id=? AND status='ACTIVE'",
-                        ((now_text, admission_id) for admission_id in expired_ids),
-                    )
                 prior = connection.execute(
                     "SELECT * FROM provider_admissions WHERE provider_id=? AND execution_id=?",
                     (provider_id, execution_id),
@@ -433,12 +424,25 @@ class SQLiteProviderConfigStore:
                             record,
                         )
                     connection.commit()
+                    if record.status == "EXPIRED" or (record.status == "ACTIVE" and record.expires_at <= now):
+                        return ProviderAdmissionResult(
+                            ProviderAdmissionKind.RECOVERY_REQUIRED,
+                            "PROVIDER_ADMISSION_EXPIRED_RECONCILE",
+                            record,
+                        )
                     kind = ProviderAdmissionKind.EXISTING if record.status == "ACTIVE" else ProviderAdmissionKind.RECOVERY_REQUIRED
                     reason = "PROVIDER_ADMISSION_ALREADY_ACTIVE" if record.status == "ACTIVE" else "PROVIDER_ADMISSION_TERMINAL_RECONCILE"
                     return ProviderAdmissionResult(kind, reason, record)
-                active = sum(record.expires_at > now for record in active_records)
+                active = len(active_records)
                 if active >= expected_max_concurrency:
+                    stale = next((record for record in active_records if record.status == "EXPIRED" or record.expires_at <= now), None)
                     connection.commit()
+                    if stale is not None:
+                        return ProviderAdmissionResult(
+                            ProviderAdmissionKind.RECOVERY_REQUIRED,
+                            "PROVIDER_ADMISSION_EXPIRED_RECONCILE",
+                            stale,
+                        )
                     return ProviderAdmissionResult(
                         ProviderAdmissionKind.CAPACITY_WAIT,
                         "PROVIDER_CAPACITY_EXHAUSTED",
@@ -510,10 +514,10 @@ class SQLiteProviderConfigStore:
                 record = self._admission_from_row(row)
                 if (record.provider_id, record.execution_id, record.batch_id) != (provider_id, execution_id, batch_id):
                     raise ProviderConfigStoreError("PROVIDER_ADMISSION_IDENTITY_MISMATCH")
-                if record.status != "ACTIVE":
+                if record.status not in {"ACTIVE", "EXPIRED"}:
                     raise ProviderConfigStoreError("PROVIDER_ADMISSION_NOT_ACTIVE")
                 connection.execute(
-                    "UPDATE provider_admissions SET status='RELEASED', released_at=?, reconciled_at=? WHERE admission_id=? AND status='ACTIVE'",
+                    "UPDATE provider_admissions SET status='RELEASED', released_at=?, reconciled_at=? WHERE admission_id=? AND status IN ('ACTIVE','EXPIRED')",
                     (now_text, now_text, admission_id),
                 )
                 updated = connection.execute(
