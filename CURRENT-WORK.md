@@ -1,12 +1,12 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-31 (GPT-5.6 Sol - WO-P1-116 / AHA-6B COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED)
+Last updated: 2026-08-31 (GPT-5.6 Sol - POST-AHA-6B FRONTIER SAFETY SHAPING / PREPARED LANES)
 
 ## Current phase
 
-**WO-P1-116 / AHA-6B is released. No successor mutable feature lane is claimed by this closeout. P0 WO-P1-096 remains the highest unresolved release gate.**
+**AHA-6B is released. Ultra + GLM results are validated and the next safety-first lanes are READY_FOR_CLAIM after exact closeout-main post-main CI turned green. P0 WO-P1-096 remains the highest unresolved release gate.**
 
-P0 release gate `WO-P1-096` remains higher priority. Read-only refresh shows Worker4 READY but no live staged-v0.0.13 tunnel-client process; the real remote MCP-after-TTL proof remains unproven. No live Worker was mutated.
+P0 WO-P1-096 remains separate: Worker4 is READY but no live staged-v0.0.13 process exists; remote MCP-after-TTL proof on v0.0.13 remains unproven and still requires explicit maintenance authority.
 
 Accepted AHA-6B closeout state:
 - implementation PR `#157` merged as `af5a5068aea37ce82875e4b6fff40ac19ac112c5`;
@@ -17,7 +17,11 @@ Accepted AHA-6B closeout state:
 
 ## Active work order
 
-No successor feature work order is claimed. Parallel Ultra/GLM shaping is read-only under ignored `runs/` artifacts until integrator validation and a fresh claim/reuse/worktree gate.
+No implementation lane is claimed yet. Prepared safety slices:
+- `WO-P1-117` provider dispatch outcome + admission lifetime — proposed GPT integrator owner; P1.
+- `WO-P1-118` config generation + trust/egress policy — QUEUED behind 117 due shared provider-store scope; P1.
+- `WO-P1-119` provider output persistence safety — proposed GPT-5.6 Sol Ultra owner; P1; disjoint.
+- `WO-P1-120` elastic fencing/recovery hardening — proposed GLM-5.3 MAX owner under exact bounded packet; P2/P3; disjoint.
 
 ## Latest completed work order
 
@@ -27,10 +31,12 @@ Independent GLM-5.3 MAX review passed on exact reviewed head `d06129ac943ceaa30c
 
 ## Immediate execution frontier
 
-1. WO-P1-116 is released; do not reopen its reviewed source SHA for incidental hardening.
-2. P0 WO-P1-096 remains open. Worker4 is READY, but no live staged-v0.0.13 process exists; remote MCP-after-TTL proof on v0.0.13 is still missing.
-3. GPT-5.6 Sol Ultra and GLM-5.3 MAX may continue read-only shaping under ignored `runs/`; their output is advisory until identity/scope/evidence are validated.
-4. Any next mutable feature lane requires a fresh main/reuse/claim/worktree gate. P0 live-worker mutation still requires explicit maintenance authority.
+1. Closeout PR #158 is merged as `fd2f443b6e93abbc766bfcdc41e31424f35013e8`; its exact post-main CI is the baseline gate before implementation claims.
+2. Ultra `gpt56-ultra-frontier-001` identity is validated; GPT independently confirmed source-level R1/R2/R3/R4/R5 and R9, with R6 retained as a RED-first interleaving hypothesis.
+3. GLM `glm53-capacity-hardening-001` is validated; its four AHA-6B P3 findings were independently confirmed.
+4. Safety ordering: WO-P1-117 + WO-P1-119 + WO-P1-120 may run concurrently after baseline/claim/worktree gates; WO-P1-118 follows 117 because both own `provider_config_store.py`.
+5. AHA-7 read-only operator status and no-relay F4/F5/F6 remain downstream of these trust boundaries; broad AHA-8 provider breadth is later.
+6. P0 WO-P1-096 maintenance remains independent and cannot borrow a live worker/tunnel without explicit authority.
 
 ## Source-of-truth rule
 

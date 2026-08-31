@@ -7,6 +7,10 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
+| Integrator | GPT-5.6 Sol | WO-P1-117 | provider dispatch outcome + admission lifetime safety | READY_FOR_CLAIM |
+| Queue | provider-neutral | WO-P1-118 | config-generation binding + trust/egress policy | QUEUED / AFTER_117 |
+| Parallel lane | GPT-5.6 Sol Ultra proposed | WO-P1-119 | provider output persistence safety | READY_FOR_CLAIM |
+| Parallel lane | GLM-5.3 MAX proposed | WO-P1-120 | elastic capacity fencing + recovery hardening | READY_FOR_CLAIM |
 | Integrator | GPT-5.6 Sol | WO-P1-116 / AHA-6B | production candidate assembly + bounded elastic capacity + focused tests + SSoT | VERIFIED / RELEASED |
 | Integrator | GPT-5.6 Sol | WO-P1-115 / AHA-6A.1 | provider admission/runtime wiring + tests + bounded SSoT | RELEASED |
 | GLM review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-review-001` | read-only `runs/wo115-glm-review-001/result.json` only | VERIFIED PASS / REPAIR ACCEPTED |
@@ -123,3 +127,12 @@ Current WO-P1-116 snapshot (2026-08-31): Worker5 is the only clean/idle fallback
 - Exact reviewed head `d06129ac943ceaa30c398d744b07a0fec9b505e1`; GLM-5.3 MAX validated PASS with P0/P1/P2 = `0` and four P3 notes.
 - PR #157 exact-head CI `33352780461` passed, merged as `af5a5068aea37ce82875e4b6fff40ac19ac112c5`, and post-main CI `33354156749` passed all three OS jobs including Windows Frozen Setup E2E.
 - Claim released. Ultra/GLM follow-up artifacts under ignored `runs/` remain read-only/advisory until integrator validation and a fresh successor claim.
+
+
+### Post-AHA-6B frontier validation — 2026-08-31
+
+- Ultra `gpt56-ultra-frontier-001` task SHA `1e36b8462d6b5ff64fb40ab07349c2ca2ef1ed9ca0cbc532b28202f584ccabc6` was validated against the exact task file; analysis HEAD matched reviewed AHA-6B head `d06129ac...` and the lane stayed read-only.
+- GPT source adjudication confirmed Ultra R1/R2/R3/R4/R5 and R9. R6 remains a barrier-test hypothesis and is not treated as reproduced until WO-P1-120 RED evidence exists.
+- GLM `glm53-capacity-hardening-001` stayed read-only and its four P3 findings were independently confirmed against source.
+- Parallel implementation is authorized only after exact main baseline CI is green and each lane receives its own worktree/branch/task identity. Shared SSoT remains integrator-owned.
+- 117/119/120 are disjoint by source scope; 118 is intentionally serialized behind 117 due shared provider-store ownership.

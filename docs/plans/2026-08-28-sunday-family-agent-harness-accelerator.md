@@ -289,8 +289,11 @@ Before elastic capacity or operator UI, wire the accepted WO-P1-114 resolver int
 ### AHA-6B - Elastic worker capacity [COMPLETE - WO-P1-116 / PR #157]
 Build the missing production worker/task supply seam first, then allow policy-bounded expansion only from typed capacity exhaustion. Elastic provisioning must atomically reserve capacity in the existing worker authority, re-observe exact health/ownership/Git identity, and re-enter the existing broker before execution. Remote connector/tunnel creation is disabled by default and requires explicit transport authority.
 
+### Post-AHA-6B safety gate — WO-P1-117/118/119/120 [READY / CLAIM-GATED]
+Before production no-relay assembly or AHA-7 write controls, close source-confirmed trust boundaries: durable dispatch/provider-admission lifetime (117), provider configuration generation + trust/egress policy (118), provider output persistence redaction (119), and elastic fencing/recovery (120). 117/119/120 may run concurrently after exact claims; 118 follows 117 because both own provider-store scope.
+
 ### AHA-7 — Operator UI
-Sunday Family Models & Agents configuration/status, selection reason, quota/health/trust, disable/fallback controls.
+Sunday Family Models & Agents configuration/status, selection reason, quota/health/trust, disable/fallback controls. A read-only truthful status slice may be shaped while safety WOs run, but write/Test/Disable controls consume the accepted provider policy/runtime contracts and must not become a second router.
 
 ### AHA-8 — Additional providers
 OpenAI-compatible, Anthropic first-party, Gemini, local/Ollama/llama.cpp, and other adapters only after the provider contract proves stable.
