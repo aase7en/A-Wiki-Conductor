@@ -1169,3 +1169,371 @@ def test_admitted_result_with_invalid_record_never_starts_runner(tmp_path: Path)
     assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED
     assert result.outcomes[0].reason_code == "PROVIDER_ADMISSION_RECORD_INVALID"
     assert runner.calls == []
+
+
+
+def test_production_task_binding_uses_selected_fresh_candidate() -> None:
+    from a_conductor.worker_candidate_assembly import (
+        ParallelReadyNodeContract,
+        WorkerSupplySnapshot,
+        assemble_parallel_ready_tasks,
+    )
+
+    worktree = r"A:\Work\bound"
+    branch = "feat/bound"
+    template = _task(
+        node_id="bound", worker_id="a-worker-01", worktree=worktree,
+        branch=branch, mutable_scope=("src/bound.py",),
+    )
+    contract = ParallelReadyNodeContract(
+        dispatch_key=template.dispatch_request.key,
+        project_id=template.dispatch_request.project_id,
+        work_order_ref=template.dispatch_request.work_order_ref,
+        operation_ref=template.dispatch_request.operation_ref,
+        dispatch_gate=template.dispatch_gate,
+        lease_request=template.lease_request,
+        provider_profile=template.provider_profile,
+        provider_observation=template.provider_observation,
+        harness_dispatch=template.harness_dispatch,
+        task_packet=template.task_packet,
+        require_quota=template.require_quota,
+    )
+    selected = SelectedAssignment(node_id="bound", worker_id="a-worker-02")
+    plan = SchedulePlan(selected=(selected,), blocked=(), capacity_evidence="1/1")
+    fresh = _candidate("a-worker-02", worktree, branch)
+    supply = WorkerSupplySnapshot(scheduler_workers=(), lease_candidates=(fresh,))
+
+    tasks = assemble_parallel_ready_tasks(plan, {"bound": contract}, supply)
+    bound = tasks["bound"]
+    assert bound.assignment == selected
+    assert bound.candidates == (fresh,)
+    assert bound.lease_request.ordered_worker_ids == ("a-worker-02",)
+    assert bound.lease_request.required_runtime_id == fresh.runtime_id
+    assert bound.dispatch_request.assignment == selected
+
+
+def test_production_task_binding_fails_closed_when_selected_worker_is_stale() -> None:
+    from a_conductor.worker_candidate_assembly import (
+        ParallelReadyNodeContract,
+        WorkerSupplySnapshot,
+        assemble_parallel_ready_tasks,
+    )
+
+    template = _task(
+        node_id="bound", worker_id="a-worker-01", worktree=r"A:\Work\bound",
+        branch="feat/bound", mutable_scope=("src/bound.py",),
+    )
+    contract = ParallelReadyNodeContract(
+        dispatch_key=template.dispatch_request.key,
+        project_id=template.dispatch_request.project_id,
+        work_order_ref=template.dispatch_request.work_order_ref,
+        operation_ref=template.dispatch_request.operation_ref,
+        dispatch_gate=template.dispatch_gate,
+        lease_request=template.lease_request,
+        provider_profile=template.provider_profile,
+        provider_observation=template.provider_observation,
+        harness_dispatch=template.harness_dispatch,
+        task_packet=template.task_packet,
+        require_quota=template.require_quota,
+    )
+    selected = SelectedAssignment(node_id="bound", worker_id="a-worker-09")
+    plan = SchedulePlan(selected=(selected,), blocked=(), capacity_evidence="0/1")
+    supply = WorkerSupplySnapshot(
+        scheduler_workers=(),
+        lease_candidates=(_candidate("a-worker-01", r"A:\Work\bound", "feat/bound"),),
+    )
+    with pytest.raises(ValueError, match="selected worker missing"):
+        assemble_parallel_ready_tasks(plan, {"bound": contract}, supply)
+
+
+
+def test_production_elastic_path_reuses_scheduler_broker_and_runner(tmp_path: Path) -> None:
+    from a_conductor.elastic_worker_capacity import (
+        ElasticCapacityPolicy,
+        ElasticProvisionedWorker,
+        ElasticWorkerCapacityCoordinator,
+        ProductionElasticExecutionKind,
+        ProductionElasticWorkerExecutor,
+        SQLiteWorkerProvisioningReservations,
+    )
+    from a_conductor.graph.domain import TaskGraph, TaskNode
+    from a_conductor.graph.ready import compute_ready_set
+    from a_conductor.graph.scheduler import NodeEligibility, SchedulePolicy, WorkerSnapshot
+    from a_conductor.worker_candidate_assembly import (
+        ParallelReadyNodeContract,
+        WorkerSupplyRecord,
+    )
+
+    worktree = r"A:\Repo"
+    branch = "feat/test"
+    database = tmp_path / "leases.sqlite"
+    store = SQLiteWorkerLeaseStore(database)
+    ids = iter((f"lease-{i}" for i in range(1, 5)))
+    broker = WorkerLeaseBroker(
+        store=store, lease_id_factory=lambda: next(ids), clock=lambda: NOW
+    )
+
+    fixed_candidate = replace(
+        _candidate("a-worker-01", worktree, branch),
+        reserved=True,
+        active_task=True,
+    )
+    fixed_record = WorkerSupplyRecord(
+        worker_id="a-worker-01",
+        scheduler=WorkerSnapshot(
+            worker_id="a-worker-01",
+            state="READY",
+            capabilities=fixed_candidate.capabilities,
+            reserved=True,
+            project="a-sunday-conductor",
+            workspace=worktree,
+            mutation_authorized=False,
+        ),
+        candidate=fixed_candidate,
+        reason_code="READY",
+    )
+
+    class StatefulAssembler:
+        def __init__(self) -> None:
+            self.record = None
+            self.all_calls = 0
+            self.one_calls = []
+
+        def assemble_all(self):
+            self.all_calls += 1
+            if self.record is None:
+                return (fixed_record,)
+            blocked = replace(
+                self.record,
+                scheduler=replace(
+                    self.record.scheduler, reserved=True, mutation_authorized=False
+                ),
+                candidate=replace(
+                    self.record.candidate, reserved=True, active_task=True
+                ),
+            )
+            return (fixed_record, blocked)
+
+        def assemble_all_for_owner(self, *, session_id, task_id):
+            assert (session_id, task_id) == ("session-aha6", "task-elastic-node")
+            return (fixed_record,) if self.record is None else (fixed_record, self.record)
+
+        def assemble(self, worker_id):
+            raise AssertionError("generic observation must not bypass provisioning reservation")
+
+        def assemble_for_owner(self, worker_id, *, session_id, task_id):
+            self.one_calls.append(worker_id)
+            assert (session_id, task_id) == ("session-aha6", "task-elastic-node")
+            if self.record is None or self.record.worker_id != worker_id:
+                raise RuntimeError("worker not observed")
+            return self.record
+
+    assembler = StatefulAssembler()
+
+    class Provisioner:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def provision(self, request):
+            self.calls.append(request)
+            fresh = _candidate("a-worker-09", worktree, branch)
+            assembler.record = WorkerSupplyRecord(
+                worker_id="a-worker-09",
+                scheduler=WorkerSnapshot(
+                    worker_id="a-worker-09",
+                    state="READY",
+                    capabilities=fresh.capabilities,
+                    reserved=False,
+                    project="a-sunday-conductor",
+                    workspace=worktree,
+                    mutation_authorized=True,
+                ),
+                candidate=fresh,
+                reason_code="READY",
+            )
+            return ElasticProvisionedWorker("a-worker-09", "serena-local")
+
+    provisioner = Provisioner()
+    capacity = ElasticWorkerCapacityCoordinator(
+        broker=broker,
+        reservations=SQLiteWorkerProvisioningReservations(store),
+        provisioner=provisioner,
+        candidate_assembler=assembler,
+        reservation_id_factory=lambda: "reservation-1",
+        clock=lambda: NOW,
+    )
+
+    class Runner:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def run(self, task, lease):
+            self.calls.append((task.assignment.node_id, lease.worker_id))
+            return {"executed": task.assignment.node_id}
+
+    runner = Runner()
+    executor = ParallelReadyExecutor(broker=broker, runner=runner, clock=lambda: NOW)
+    production = ProductionElasticWorkerExecutor(
+        candidate_assembler=assembler,
+        capacity_coordinator=capacity,
+        parallel_executor=executor,
+    )
+
+    graph = TaskGraph()
+    graph.add_node(
+        TaskNode(
+            id="elastic-node",
+            objective="execute on bounded elastic worker",
+            write_set=("src/elastic.py",),
+            model_requirement=r"project:a-sunday-conductor|ws:A:\Repo",
+        )
+    )
+    ready = compute_ready_set(graph, {})
+    template = _task(
+        node_id="elastic-node",
+        worker_id="placeholder",
+        worktree=worktree,
+        branch=branch,
+        mutable_scope=("src/elastic.py",),
+    )
+    contract = ParallelReadyNodeContract(
+        dispatch_key=template.dispatch_request.key,
+        project_id=template.dispatch_request.project_id,
+        work_order_ref=template.dispatch_request.work_order_ref,
+        operation_ref=template.dispatch_request.operation_ref,
+        dispatch_gate=template.dispatch_gate,
+        lease_request=template.lease_request,
+        provider_profile=template.provider_profile,
+        provider_observation=template.provider_observation,
+        harness_dispatch=template.harness_dispatch,
+        task_packet=template.task_packet,
+        require_quota=template.require_quota,
+    )
+
+    result = production.execute_once(
+        graph,
+        ready,
+        {"elastic-node": contract},
+        schedule_policy=SchedulePolicy(max_parallel=1),
+        provider_inflight={"cointh-glm": 0},
+        runtime_kind="serena-local",
+        elastic_policy=ElasticCapacityPolicy(
+            enabled=True,
+            max_extra_workers=1,
+            permitted_runtime_kinds=("serena-local",),
+        ),
+        eligibility={"elastic-node": NodeEligibility()},
+        batch_id=None,
+    )
+
+    assert result.kind is ProductionElasticExecutionKind.ELASTIC_EXECUTED
+    assert result.initial_plan.selected == ()
+    assert result.initial_plan.blocked[0].kind.value == "CAPACITY"
+    assert "workers_ready=0/1" in result.initial_plan.capacity_evidence
+    assert result.final_plan is not None
+    assert result.final_plan.selected[0].worker_id == "a-worker-09"
+    assert runner.calls == [("elastic-node", "a-worker-09")]
+    assert provisioner.calls and assembler.one_calls == ["a-worker-09"]
+    active = store.list_active()
+    assert len(active) == 1 and active[0].worker_id == "a-worker-09"
+    reservations = store.list_provisioning_reservations(consuming_only=True)
+    assert len(reservations) == 1 and reservations[0].state == "CAPACITY"
+
+
+
+def test_production_elastic_requires_scheduler_eligibility_before_provisioning(tmp_path: Path) -> None:
+    from a_conductor.elastic_worker_capacity import (
+        ElasticCapacityPolicy,
+        ElasticWorkerCapacityCoordinator,
+        ProductionElasticExecutionKind,
+        ProductionElasticWorkerExecutor,
+        SQLiteWorkerProvisioningReservations,
+    )
+    from a_conductor.graph.domain import TaskGraph, TaskNode
+    from a_conductor.graph.ready import compute_ready_set
+    from a_conductor.graph.scheduler import SchedulePolicy
+    from a_conductor.worker_candidate_assembly import ParallelReadyNodeContract
+
+    class EmptyAssembler:
+        def assemble_all(self):
+            return ()
+
+        def assemble_all_for_owner(self, *, session_id, task_id):
+            return ()
+
+        def assemble(self, worker_id):
+            raise AssertionError("no worker should be provisioned")
+
+        def assemble_for_owner(self, worker_id, *, session_id, task_id):
+            raise AssertionError("no worker should be provisioned")
+
+    class ExplodingProvisioner:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def provision(self, request):
+            self.calls.append(request)
+            raise AssertionError("provisioning must not run without eligibility evidence")
+
+    assembler = EmptyAssembler()
+    provisioner = ExplodingProvisioner()
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    broker = WorkerLeaseBroker(
+        store=store, lease_id_factory=lambda: "lease-1", clock=lambda: NOW
+    )
+    capacity = ElasticWorkerCapacityCoordinator(
+        broker=broker,
+        reservations=SQLiteWorkerProvisioningReservations(store),
+        provisioner=provisioner,
+        candidate_assembler=assembler,
+        reservation_id_factory=lambda: "reservation-1",
+        clock=lambda: NOW,
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=BarrierRunner(parties=1),
+        clock=lambda: NOW,
+    )
+    production = ProductionElasticWorkerExecutor(
+        candidate_assembler=assembler,
+        capacity_coordinator=capacity,
+        parallel_executor=executor,
+    )
+    graph = TaskGraph()
+    graph.add_node(TaskNode(id="node", objective="bounded task"))
+    ready = compute_ready_set(graph, {})
+    template = _task(
+        node_id="node", worker_id="placeholder", worktree=r"A:\Repo",
+        branch="feat/test", mutable_scope=("src/x.py",),
+    )
+    contract = ParallelReadyNodeContract(
+        dispatch_key=template.dispatch_request.key,
+        project_id=template.dispatch_request.project_id,
+        work_order_ref=template.dispatch_request.work_order_ref,
+        operation_ref=template.dispatch_request.operation_ref,
+        dispatch_gate=template.dispatch_gate,
+        lease_request=template.lease_request,
+        provider_profile=template.provider_profile,
+        provider_observation=template.provider_observation,
+        harness_dispatch=template.harness_dispatch,
+        task_packet=template.task_packet,
+        require_quota=template.require_quota,
+    )
+
+    result = production.execute_once(
+        graph,
+        ready,
+        {"node": contract},
+        schedule_policy=SchedulePolicy(max_parallel=1),
+        provider_inflight={"cointh-glm": 0},
+        runtime_kind="serena-local",
+        elastic_policy=ElasticCapacityPolicy(
+            enabled=True,
+            max_extra_workers=1,
+            permitted_runtime_kinds=("serena-local",),
+        ),
+    )
+    assert result.kind is ProductionElasticExecutionKind.RECOVERY_REQUIRED
+    assert result.reason_code == "SCHEDULER_ELIGIBILITY_EVIDENCE_MISSING"
+    assert provisioner.calls == []
+    assert store.list_provisioning_reservations(consuming_only=True) == ()

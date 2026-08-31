@@ -59,6 +59,37 @@ class LeaseReconciliationKind(str, Enum):
     QUARANTINED = "QUARANTINED"
 
 
+class WorkerProvisioningReservationKind(str, Enum):
+    ACQUIRED = "ACQUIRED"
+    EXISTING = "EXISTING"
+    LIMIT_WAIT = "LIMIT_WAIT"
+    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerProvisioningReservationRecord:
+    reservation_id: str
+    session_id: str
+    task_id: str
+    runtime_kind: str
+    state: str
+    worker_id: str | None
+    acquired_at: str
+    updated_at: str
+    project_id: str | None = None
+    worktree_key: str | None = None
+    mutable_scope: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerProvisioningReservationResult:
+    kind: WorkerProvisioningReservationKind
+    record: WorkerProvisioningReservationRecord | None
+    reason_code: str
+
+
+
+
 class CandidateRejectionKind(str, Enum):
     CANDIDATE_MISSING = "CANDIDATE_MISSING"
     ACTIVE_TASK = "ACTIVE_TASK"
@@ -512,8 +543,45 @@ class SQLiteWorkerLeaseStore:
                     ON worker_leases(worker_id) WHERE released_at IS NULL;
                 CREATE UNIQUE INDEX IF NOT EXISTS ux_worker_leases_active_owner_task
                     ON worker_leases(session_id, task_id) WHERE released_at IS NULL;
+
+                CREATE TABLE IF NOT EXISTS worker_provisioning_reservations (
+                    reservation_id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    runtime_kind TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    worker_id TEXT,
+                    acquired_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    project_id TEXT,
+                    worktree_key TEXT,
+                    mutable_scope_json TEXT NOT NULL DEFAULT '[]'
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_worker_provisioning_owner_task
+                    ON worker_provisioning_reservations(session_id, task_id)
+                    WHERE state != 'RELEASED';
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_worker_provisioning_active_worker
+                    ON worker_provisioning_reservations(worker_id)
+                    WHERE state != 'RELEASED' AND worker_id IS NOT NULL;
                 """
             )
+            reservation_columns = {
+                row["name"]
+                for row in connection.execute(
+                    "PRAGMA table_info(worker_provisioning_reservations)"
+                )
+            }
+            reservation_migrations = {
+                "project_id": "TEXT",
+                "worktree_key": "TEXT",
+                "mutable_scope_json": "TEXT NOT NULL DEFAULT '[]'",
+            }
+            for name, sql_type in reservation_migrations.items():
+                if name not in reservation_columns:
+                    connection.execute(
+                        f"ALTER TABLE worker_provisioning_reservations "
+                        f"ADD COLUMN {name} {sql_type}"
+                    )
             columns = {row["name"] for row in connection.execute("PRAGMA table_info(worker_leases)")}
             migrations = {
                 "heartbeat_at": "TEXT",
@@ -551,6 +619,237 @@ class SQLiteWorkerLeaseStore:
                     (ttl, row["lease_id"]),
                 )
             connection.commit()
+
+    @staticmethod
+    def _provisioning_record_from_row(
+        row: sqlite3.Row,
+    ) -> WorkerProvisioningReservationRecord:
+        try:
+            state = _text(row["state"], "state", max_length=32).upper()
+            if state not in {
+                "ACTIVE", "PROVISIONED", "CAPACITY", "RECOVERY_REQUIRED", "RELEASED"
+            }:
+                raise ValueError("provisioning reservation state invalid")
+            reservation_id = _text(row["reservation_id"], "reservation_id", max_length=128)
+            session_id = _text(row["session_id"], "session_id", max_length=128)
+            task_id = _text(row["task_id"], "task_id", max_length=256)
+            runtime_kind = _text(row["runtime_kind"], "runtime_kind", max_length=128)
+            worker_id = _optional_text(row["worker_id"], "worker_id")
+            acquired_at = _timestamp(row["acquired_at"], "acquired_at")
+            updated_at = _timestamp(row["updated_at"], "updated_at")
+            _timestamp_datetime(acquired_at, "acquired_at")
+            _timestamp_datetime(updated_at, "updated_at")
+            project_id = _optional_text(row["project_id"], "project_id")
+            worktree_key = _optional_text(row["worktree_key"], "worktree_key")
+            mutable_scope = _decode_scope(row["mutable_scope_json"] or "[]")
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise WorkerLeaseError("PROVISIONING_RESERVATION_DATA_INVALID") from exc
+        return WorkerProvisioningReservationRecord(
+            reservation_id=reservation_id,
+            session_id=session_id,
+            task_id=task_id,
+            runtime_kind=runtime_kind,
+            state=state,
+            worker_id=worker_id,
+            acquired_at=acquired_at,
+            updated_at=updated_at,
+            project_id=project_id,
+            worktree_key=worktree_key,
+            mutable_scope=mutable_scope,
+        )
+
+    def acquire_provisioning_reservation(
+        self,
+        *,
+        reservation_id: str,
+        session_id: str,
+        task_id: str,
+        runtime_kind: str,
+        max_extra_workers: int,
+        now: object,
+        project_id: str | None = None,
+        worktree: str | None = None,
+        mutable_scope: Sequence[str] = (),
+    ) -> WorkerProvisioningReservationResult:
+        reservation_id = _text(reservation_id, "reservation_id", max_length=128)
+        session_id = _text(session_id, "session_id", max_length=128)
+        task_id = _text(task_id, "task_id", max_length=256)
+        runtime_kind = _text(runtime_kind, "runtime_kind", max_length=128)
+        project_id = _optional_text(project_id, "project_id")
+        worktree_key = None if worktree is None else windows_worktree_key(
+            _text(worktree, "worktree", max_length=512)
+        )
+        reservation_scope = _scope(mutable_scope, "mutable_scope")
+        if (
+            isinstance(max_extra_workers, bool)
+            or not isinstance(max_extra_workers, int)
+            or not 1 <= max_extra_workers <= 99
+        ):
+            raise ValueError("max_extra_workers must be between 1 and 99")
+        observed_at = _timestamp(now, "now")
+        _timestamp_datetime(observed_at, "now")
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                existing_row = connection.execute(
+                    "SELECT * FROM worker_provisioning_reservations "
+                    "WHERE session_id=? AND task_id=? AND state != 'RELEASED'",
+                    (session_id, task_id),
+                ).fetchone()
+                if existing_row is not None:
+                    existing = self._provisioning_record_from_row(existing_row)
+                    connection.rollback()
+                    if (
+                        existing.runtime_kind != runtime_kind
+                        or existing.project_id != project_id
+                        or existing.worktree_key != worktree_key
+                        or existing.mutable_scope != reservation_scope
+                    ):
+                        raise WorkerLeaseError("PROVISIONING_RESERVATION_CONFLICT")
+                    return WorkerProvisioningReservationResult(
+                        WorkerProvisioningReservationKind.EXISTING,
+                        existing,
+                        "PROVISIONING_ALREADY_ACTIVE",
+                    )
+                active_rows = connection.execute(
+                    "SELECT * FROM worker_provisioning_reservations "
+                    "WHERE state IN ('ACTIVE','PROVISIONED','CAPACITY','RECOVERY_REQUIRED')"
+                ).fetchall()
+                for row in active_rows:
+                    self._provisioning_record_from_row(row)
+                if len(active_rows) >= max_extra_workers:
+                    connection.rollback()
+                    return WorkerProvisioningReservationResult(
+                        WorkerProvisioningReservationKind.LIMIT_WAIT,
+                        None,
+                        "ELASTIC_CAPACITY_LIMIT_REACHED",
+                    )
+                connection.execute(
+                    "INSERT INTO worker_provisioning_reservations("
+                    "reservation_id,session_id,task_id,runtime_kind,state,worker_id,"
+                    "acquired_at,updated_at,project_id,worktree_key,mutable_scope_json) "
+                    "VALUES(?,?,?,?, 'ACTIVE', NULL, ?, ?, ?, ?, ?)",
+                    (
+                        reservation_id, session_id, task_id, runtime_kind,
+                        observed_at, observed_at, project_id, worktree_key,
+                        json.dumps(reservation_scope),
+                    ),
+                )
+                row = connection.execute(
+                    "SELECT * FROM worker_provisioning_reservations WHERE reservation_id=?",
+                    (reservation_id,),
+                ).fetchone()
+                if row is None:
+                    connection.rollback()
+                    return WorkerProvisioningReservationResult(
+                        WorkerProvisioningReservationKind.RECOVERY_REQUIRED,
+                        None,
+                        "PROVISIONING_RECORD_MISSING",
+                    )
+                record = self._provisioning_record_from_row(row)
+                connection.commit()
+                return WorkerProvisioningReservationResult(
+                    WorkerProvisioningReservationKind.ACQUIRED,
+                    record,
+                    "PROVISIONING_RESERVED",
+                )
+            except WorkerLeaseError:
+                connection.rollback()
+                raise
+            except sqlite3.IntegrityError as exc:
+                connection.rollback()
+                raise WorkerLeaseError("PROVISIONING_RESERVATION_CONFLICT") from exc
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise WorkerLeaseError("LEASE_STORE_WRITE_FAILED") from exc
+
+    def transition_provisioning_reservation(
+        self,
+        reservation_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+        state: str,
+        now: object,
+        worker_id: str | None = None,
+    ) -> WorkerProvisioningReservationRecord:
+        reservation_id = _text(reservation_id, "reservation_id", max_length=128)
+        session_id = _text(session_id, "session_id", max_length=128)
+        task_id = _text(task_id, "task_id", max_length=256)
+        target = _text(state, "state", max_length=32).upper()
+        if target not in {"PROVISIONED", "CAPACITY", "RECOVERY_REQUIRED", "RELEASED"}:
+            raise ValueError("provisioning transition state invalid")
+        observed_at = _timestamp(now, "now")
+        _timestamp_datetime(observed_at, "now")
+        worker_id = _optional_text(worker_id, "worker_id")
+        if target in {"PROVISIONED", "CAPACITY"} and worker_id is None:
+            raise ValueError("provisioned/capacity reservation requires worker_id")
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT * FROM worker_provisioning_reservations WHERE reservation_id=?",
+                    (reservation_id,),
+                ).fetchone()
+                if row is None:
+                    connection.rollback()
+                    raise WorkerLeaseError("PROVISIONING_RESERVATION_NOT_FOUND")
+                current = self._provisioning_record_from_row(row)
+                if current.session_id != session_id or current.task_id != task_id:
+                    connection.rollback()
+                    raise WorkerLeaseError("PROVISIONING_OWNER_MISMATCH")
+                if current.state == target and current.worker_id == worker_id:
+                    connection.rollback()
+                    return current
+                allowed_transitions = {
+                    "ACTIVE": {"PROVISIONED", "RECOVERY_REQUIRED", "RELEASED"},
+                    "PROVISIONED": {"CAPACITY", "RECOVERY_REQUIRED"},
+                    "CAPACITY": {"RELEASED"},
+                    "RECOVERY_REQUIRED": {"RELEASED"},
+                }
+                if target not in allowed_transitions.get(current.state, set()):
+                    connection.rollback()
+                    raise WorkerLeaseError("PROVISIONING_RESERVATION_STATE_MISMATCH")
+                connection.execute(
+                    "UPDATE worker_provisioning_reservations "
+                    "SET state=?, worker_id=?, updated_at=? WHERE reservation_id=?",
+                    (target, worker_id, observed_at, reservation_id),
+                )
+                updated = connection.execute(
+                    "SELECT * FROM worker_provisioning_reservations WHERE reservation_id=?",
+                    (reservation_id,),
+                ).fetchone()
+                if updated is None:
+                    connection.rollback()
+                    raise WorkerLeaseError("PROVISIONING_RESERVATION_NOT_FOUND")
+                record = self._provisioning_record_from_row(updated)
+                connection.commit()
+                return record
+            except WorkerLeaseError:
+                connection.rollback()
+                raise
+            except sqlite3.IntegrityError as exc:
+                connection.rollback()
+                raise WorkerLeaseError("PROVISIONING_RESERVATION_WORKER_CONFLICT") from exc
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise WorkerLeaseError("LEASE_STORE_WRITE_FAILED") from exc
+
+    def list_provisioning_reservations(
+        self,
+        *,
+        consuming_only: bool = False,
+    ) -> tuple[WorkerProvisioningReservationRecord, ...]:
+        with self._connect() as connection:
+            try:
+                sql = "SELECT * FROM worker_provisioning_reservations"
+                if consuming_only:
+                    sql += " WHERE state IN ('ACTIVE','PROVISIONED','CAPACITY','RECOVERY_REQUIRED')"
+                sql += " ORDER BY acquired_at, reservation_id"
+                rows = connection.execute(sql).fetchall()
+            except sqlite3.Error as exc:
+                raise WorkerLeaseError("LEASE_STORE_READ_FAILED") from exc
+        return tuple(self._provisioning_record_from_row(row) for row in rows)
 
     def find_active_owner_task(self, session_id: str, task_id: str) -> WorkerLease | None:
         session_id = _text(session_id, "session_id", max_length=128)

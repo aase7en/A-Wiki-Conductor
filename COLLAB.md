@@ -34,6 +34,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
+| `WO-P1-116` / AHA-6B worker supply + elastic capacity | GPT-5.6 Sol integrator | 2026-08-30 | Isolated `A-Wiki-Conductor-elastic-capacity` / `feat/wo-p1-116-elastic-worker-capacity`; additive candidate/capacity seams + focused tests + bounded worker-lease reservation extension if RED requires it. Scheduler/UI/North Star/live connectors/secrets/A-Wiki mutation forbidden. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; runtime/execution integration lineage, preserved for later reconciliation. |
 
 ### Recently closed / released claims

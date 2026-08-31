@@ -65,11 +65,11 @@ Recommended immediate GLM mutation lane: **none while AHA-4A / PR #131 is active
 1. **AHA-3 COMPLETE** — PR #116 merged `ab28dc7`; fake-runner/read-only harness, focused regressions, scope/secret checks, and 3-OS CI passed.
 2. **GE-6 COMPLETE** — PR #104 merged as `023c7b65` after exact-head 3-OS CI green.
 3. **AHA-4 COMPLETE** — durable graph dispatch merged via PR #119 as `5cc417c9`; no second scheduler/lifecycle/store was introduced.
-4. **AHA-4A ACTIVE / PROTECTED** — WO-P1-102 / draft PR #131 owns worker eligibility + atomic lease broker + ordered fallback. Its isolated worktree contains protected local changes; no other agent may rebind or mutate that scope.
-5. After AHA-4A is accepted and ownership released, implement **AHA-4B** heartbeat/expiry/quarantine/stale-owner recovery with chaos tests for crash/disconnect/dirty worktree.
+4. **AHA-4A COMPLETE** — WO-P1-102 / PR #131 worker eligibility + atomic lease broker + ordered fallback are merged/released.
+5. **AHA-4B COMPLETE** — WO-P1-111 / PR #147 heartbeat/expiry/quarantine/stale-owner recovery are merged/released.
 6. Prove **AHA-5** GPT-plan/review ↔ GLM-implement/repair vertical slice without manual prompt copying.
 7. Prove **AHA-6** two independent READY tasks in isolated worktrees; assert no lease/scope collisions.
-8. Add **AHA-6B** elastic capacity only if fixed-pool benchmark is green.
+8. **AHA-6B ACTIVE / WO-P1-116** — assemble production worker/task candidates, then add bounded elastic capacity with atomic provisioning reservation and re-preflight through the accepted broker.
 9. Build **AHA-7** Models & Agents UI on the existing command center; no second dashboard.
 10. Add **AHA-8** providers one adapter at a time with the same contract tests.
 11. Run full E2E/chaos/security/release audit; update README checklist from evidence; release the next verified version.

@@ -1,13 +1,19 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-30 - WO-P1-115 / AHA-6A.1 COMPLETE / RELEASED
+Last updated: 2026-08-30 - WO-P1-116 / AHA-6B ACTIVE / CLAIMED / RED_GATE
 
 ## Current objective
 
-Preserve the released WO-P1-115 / AHA-6A.1 evidence, finish docs-only closeout/cleanup, then re-enter actual roadmap and claims before opening any successor lane. Automatic GLM/provider execution remains fail-closed until an exact active provider route and complete reset-bearing five-hour quota evidence are proven. `WO-P1-096` remains the higher P0 release blocker pending explicit live-Worker maintenance authority.
+Execute WO-P1-116 / AHA-6B: assemble production worker/scheduler/lease candidates from durable + live evidence and add policy-bounded elastic worker capacity without creating a second scheduler/lease/registry. `WO-P1-096` remains the higher P0 release blocker; Worker4 is now an isolated v0.0.13 soak target, but remote MCP-after-TTL proof is still required. Automatic GLM/provider dispatch remains fail-closed until active route + complete reset-bearing five-hour quota evidence exist.
 
 ## Repository state
 
+- Active work order: `docs/work-orders/WO-P1-116-elastic-worker-capacity.md` - ACTIVE / CLAIMED / SHAPING_COMPLETE / RED_GATE.
+- Worktree `A:\GitHub\A-Wiki-Conductor-elastic-capacity`; branch `feat/wo-p1-116-elastic-worker-capacity`; exact base `origin/main@23243651d51780b76dce15cdb24eaba90fce9a99`; clean at claim.
+- WO-P1-115 implementation/closeout worktrees and branches are cleaned; no WO-P1-115 local/remote branch remains.
+- A-Wiki remote/reuse gate refreshed; live A-Wiki claims `0`; A-Wiki local checkout remains dirty/read-only.
+- North Star is clean and file-level non-overlapping; GitHub open Conductor PRs `0` at claim.
+- Worker4 maintenance evidence: isolated staged tunnel-client v0.0.13 is READY beyond ten minutes with instance config restored byte-for-byte; Workers 1/2/3/5 remain untouched. This is partial P0 evidence only because remote MCP-after-TTL has not been exercised.
 - Latest completed work order: `docs/work-orders/WO-P1-115-provider-admission-runtime-wiring.md` - COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.
 - Worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission`; branch `feat/wo-p1-115-provider-admission-runtime`; base `origin/main@5a66e100b2f48c061b0677f0b2f39d1b9f23e80b`; clean at claim.
 - Predecessor WO-P1-114 implementation + closeout are merged, post-main green and cleaned; no WO-P1-114 branches/worktrees remain.
@@ -135,3 +141,14 @@ No successor AHA lane is claimed. The next accelerator slice requires a new work
 - Closeout branch/worktree: `docs/wo-p1-115-provider-admission-closeout` / `A:\GitHub\A-Wiki-Conductor-provider-admission-closeout` from exact merged main.
 - After closeout merge/post-main proof, remove only WO-P1-115 implementation/closeout worktrees and branches after clean/ancestry/no-unique-commit/tree-diff proof. Preserve root/North-Star/other worktrees.
 - No successor accelerator claim exists yet. Re-enter actual roadmap/claims after cleanup; WO-P1-096 remains P0 when maintenance authority becomes available.
+
+## WO-P1-116 implementation checkpoint ? 2026-08-31
+
+- Active worktree/branch: `A:\GitHub\A-Wiki-Conductor-elastic-capacity` / `feat/wo-p1-116-elastic-worker-capacity`; tracked base remains `origin/main@23243651d51780b76dce15cdb24eaba90fce9a99` and PR #157 is still draft until exact-SHA review/CI gates complete.
+- Recovery reconciled stale partial scratch to remote `d52a054f393c2e7864a2cec5e186c76a66e17c20` non-force; preserved abandoned scratch outside repo at `A:\GitHub\_recovery\WO-P1-116-20260831-092824`.
+- Implemented production candidate/task assembly, existing-lease-store provisioning reservations, cross-process bounded capacity, owner-scoped provisioned-worker re-observation, production schedule?expand?reschedule?broker?runner composition, and default-disabled remote connector authorization.
+- Defects #32-#34 capture eligibility-before-expansion, reservation visibility/owner handoff, and durable recovery-state requirements.
+- Deterministic local evidence: focused/related `163 passed`; compileall/diff-check pass; spawned-process `max_extra=1` race has one ACQUIRED/one LIMIT_WAIT; realistic fixed-pool E2E starts with one reserved existing worker and executes on exactly one added worker.
+- CI-topology local evidence: GUI 277 passed, local-instance 23 passed, supervised 11 passed, isolated core passed through 30 files; run then hit shared Hermes-vEnv GPU dependency gaps outside WO scope. Exact-head GitHub CI must remain final full-suite authority.
+- Worker routing snapshot: Worker5 clean/no READY mutable Sunday-Estate lane and is fallback candidate only; Worker1 protected-root dirty; Worker2 active pharmacy cycle; Worker3 dirty; Worker4 reserved for WO-P1-096 P0. No worker/project rebind occurred.
+- Next safe action: final audit ? commit/push exact source/SSoT ? generate ignored exact-SHA GLM read-only review packet. Automatic GLM route is still fail-closed; human may relay only `???? runs/<task-id>/task.md ?????????`, and GPT reads/validates `result.json` itself.

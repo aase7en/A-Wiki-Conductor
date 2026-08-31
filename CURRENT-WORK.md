@@ -1,12 +1,12 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-30 (GPT-5.6 Sol - WO-P1-115 / AHA-6A.1 COMPLETE / RELEASED)
+Last updated: 2026-08-31 (GPT-5.6 Sol - WO-P1-116 / AHA-6B IMPLEMENTED / LOCAL_AUDIT / REVIEW_PREP)
 
 ## Current phase
 
-**LATEST COMPLETED ACCELERATOR SLICE: WO-P1-115 / AHA-6A.1 provider admission + production runtime wiring.**
+**PRIMARY SAFE NEW-FEATURE PRIORITY: WO-P1-116 / AHA-6B production worker supply + elastic capacity.**
 
-P0 release gate `WO-P1-096` remains higher priority but is externally blocked pending a spare Tunnel ID or explicit maintenance authorization for one live Worker; this work order does not disrupt live connectors.
+P0 release gate `WO-P1-096` remains higher priority. Worker4 is now an isolated v0.0.13 maintenance target and is READY beyond the default ten-minute TTL, but a real remote MCP request after TTL is still unproven; uptime alone does not close the P0. Workers 1/2/3/5 remain untouched.
 
 Accepted AHA-5 closeout state:
 - implementation PR `#149` merged as `f648e04eba647d3a40b6aaa8353c90714f0a2ea1`;
@@ -14,6 +14,11 @@ Accepted AHA-5 closeout state:
 - post-main CI `33286026232`: SUCCESS on Windows/Ubuntu/macOS;
 - Windows Frozen Setup install/uninstall E2E: PASS;
 - AHA-5 implementation + closeout worktrees/branches cleaned after tree-equality proof.
+
+## Active work order
+
+`docs/work-orders/WO-P1-116-elastic-worker-capacity.md` - ACTIVE / CLAIMED / IMPLEMENTED / LOCAL_AUDIT / REVIEW_PREP.
+Worktree: `A:\GitHub\A-Wiki-Conductor-elastic-capacity`; branch `feat/wo-p1-116-elastic-worker-capacity`; base `origin/main@23243651d51780b76dce15cdb24eaba90fce9a99`.
 
 ## Latest completed work order
 
@@ -23,13 +28,14 @@ Closeout worktree: `A:\GitHub\A-Wiki-Conductor-provider-admission-closeout`; bra
 
 ## Immediate execution frontier
 
-1. WO-P1-115 implementation/review loop is released: GLM review + re-review both PASS with P0/P1/P2 = `0`; accepted quota-evidence repairs are in the merged lineage.
-2. PR `#155` exact head `7959ff9d8a300b2920a2ef1014c63db64b19518c` passed CI `33312763072`, then merged as `a758f9e882db03e988d67a3f04f69862dd9195c2`.
-3. Post-main CI `33313201851` on the exact merge SHA passed Windows/Ubuntu/macOS including Frozen Setup install/uninstall E2E.
-4. Local acceptance remains focused `62 passed`, related `256 passed`, full `1753 passed / 4 skipped / 2 known GPU dependency failures`; installed-DB-copy and cross-process admission E2E PASS.
-5. Automatic live GLM remains fail-closed: no proven active provider route and no complete reset-bearing five-hour quota tuple. AHA-6A.1 completion does not weaken that gate.
-6. `WO-P1-096` remains the higher P0 release blocker whenever a spare Tunnel ID or explicit maintenance authorization becomes available.
-7. No successor AHA lane is claimed by this closeout. After closeout merge/post-main proof and cleanup, re-enter roadmap/claims; AHA-6B is only a candidate new work order after a fresh reuse/ownership gate.
+1. WO-P1-116 production worker/task supply, existing-store provisioning reservations, owner-scoped re-observation, and bounded production elastic execution are implemented locally in the isolated worktree.
+2. Atomic capacity authority is `SQLiteWorkerLeaseStore` with `BEGIN IMMEDIATE`; `max_extra_workers=1` has a spawned cross-process one-winner proof. No second scheduler/registry/lease/task/provider authority exists.
+3. Realistic E2E now starts with one fixed worker already reserved (`workers_ready=0/1`), provisions exactly one local/semantic worker, re-observes it under exact owner identity, re-runs the existing scheduler, leases through the existing broker, and reaches the existing runner.
+4. Trust-boundary repairs: scheduler eligibility is mandatory before capacity expansion; provisioning reservations are visible to generic candidate assembly; post-provision ambiguity is durably `RECOVERY_REQUIRED`; successful extra capacity becomes `CAPACITY` without permanently reserving the worker.
+5. Current local evidence: related regression `163 passed`; compileall and `git diff --check` pass. CI-topology local run passed GUI `277`, local-instance `23`, supervised `11`, and isolated core through 30 files before the shared Hermes venv hit known GPU dependency gaps (`OpenGL` unavailable); no WO file touches GPU/UI.
+6. Worker preflight: Worker5 is the only clean/idle fallback candidate; Worker2 has an open pharmacy cycle, Worker3 is dirty, Worker4 remains the P0 connector-soak lane, and Worker1 points at the protected dirty root. No Worker was rebound or interrupted.
+7. GLM-5.3 MAX remains suitable for bounded read-only adversarial review after an exact committed SHA; automatic dispatch remains fail-closed, so the accepted fallback is one human pointer to `runs/<task-id>/task.md`, with GPT reading `result.json` directly.
+8. Next gate: final diff/secret/scope audit -> checkpoint commit/push -> exact-SHA GLM independent review -> repair/re-review if needed -> PR #157 exact-head CI/re-audit -> merge/post-main proof.
 
 ## Source-of-truth rule
 

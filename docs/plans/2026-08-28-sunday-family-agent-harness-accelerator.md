@@ -268,11 +268,11 @@ PR #116 merged as `ab28dc7` after Windows/Ubuntu/macOS CI green. The adapter is 
 ### AHA-4 — Durable dispatch integration [COMPLETE]
 GE-6 scheduler correctness merged via PR #104 (`023c7b65`), and durable graph-dispatch integration merged via PR #119 (`5cc417c9`) after 3-OS CI green. Stable execution identity, duplicate protection, transport-loss reconciliation, and bounded evidence now wrap the accepted durable job-control seams; AHA-4A extends this with worker leases/fallback rather than creating a second scheduler.
 
-### AHA-4A — Worker lease broker + automatic fallback [ACTIVE / PROTECTED PR #131]
-WO-P1-102 / draft PR #131 owns the current implementation in isolated worktree `A-Wiki-Conductor-aha4a-lease`. That worktree has protected local changes beyond the remote PR head, so other agents must not rebind, overwrite, or mutate its scope. Extend the existing worker registry/assignment authority with atomic leases, eligibility preflight, ownership/scope checks, and policy-driven fallback across eligible semantic workers. A busy/owned/dirty/incompatible worker is skipped, never rebound or interrupted. Eligible shell/read-only work may fall back to RDC; otherwise queue/wait. See `docs/plans/2026-08-28-worker-auto-fallback-and-glm-benchmark.md`.
+### AHA-4A — Worker lease broker + automatic fallback [COMPLETE - WO-P1-102 / PR #131]
+WO-P1-102 / PR #131 is merged and released. The accepted broker extends the existing worker registry/assignment authority with atomic leases, eligibility preflight, ownership/scope checks, and policy-driven fallback; busy/owned/dirty/incompatible workers are skipped, never rebound or interrupted. Extend the existing worker registry/assignment authority with atomic leases, eligibility preflight, ownership/scope checks, and policy-driven fallback across eligible semantic workers. A busy/owned/dirty/incompatible worker is skipped, never rebound or interrupted. Eligible shell/read-only work may fall back to RDC; otherwise queue/wait. See `docs/plans/2026-08-28-worker-auto-fallback-and-glm-benchmark.md`.
 
-### AHA-4B — Lease heartbeat + stale-owner recovery
-Add heartbeat/expiry, quarantine for ambiguous dirty state, stale-owner reconciliation, fairness, and backpressure before broad autonomous parallelism. Recovery must reconcile actual runtime/worktree state before lease reuse.
+### AHA-4B — Lease heartbeat + stale-owner recovery [COMPLETE - WO-P1-111 / PR #147]
+Accepted heartbeat/expiry/quarantine/reconciliation behavior is merged and released; later lanes consume it rather than creating another recovery authority.
 
 ### AHA-5 — GPT <-> GLM review/repair loop
 One vertical repository slice: GPT plan/review, GLM implement/repair, deterministic verifier, durable checkpoints.
@@ -286,8 +286,8 @@ Accepted provider SQLite state, A-Wiki Drive secret-reference boundary and super
 ### AHA-6A.1 - Production provider admission/runtime wiring [COMPLETE - WO-P1-115 / PR #155]
 Before elastic capacity or operator UI, wire the accepted WO-P1-114 resolver into an authorized runtime assembly that can locate the private Drive root without hardcoding, produce fresh provider health plus the complete required quota tuple, and serialize or atomically reserve same-provider admission across concurrent batches. Reuse existing authorities; do not add a second capacity store/semaphore, quota model, provider registry or secret system. Live dispatch stays fail-closed until all three gates are deterministic and tested.
 
-### AHA-6B - Elastic worker capacity
-Only after fixed-pool lease correctness and the provider execution assembly boundary are proven, allow policy-bounded creation of additional worker instances when all eligible workers are leased. New capacity must inherit the same health, ownership, scope, checkpoint, and release gates.
+### AHA-6B - Elastic worker capacity [ACTIVE - WO-P1-116]
+Build the missing production worker/task supply seam first, then allow policy-bounded expansion only from typed capacity exhaustion. Elastic provisioning must atomically reserve capacity in the existing worker authority, re-observe exact health/ownership/Git identity, and re-enter the existing broker before execution. Remote connector/tunnel creation is disabled by default and requires explicit transport authority.
 
 ### AHA-7 — Operator UI
 Sunday Family Models & Agents configuration/status, selection reason, quota/health/trust, disable/fallback controls.
