@@ -10,7 +10,7 @@ Close WO121/PR164 and WO118A/PR165 with exact-head independent evidence, then re
 
 - authoritative remote main: `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; protected root checkout is stale/dirty and MUST NOT be mutated;
 - PR #164 / WO121: DRAFT head `fdf8e78048eda9f503db70707d2e2521cdb3c85b`; exact-head 3-OS CI SUCCESS; Ultra rereview packet `runs/wo121-ultra-rereview-001/task.md`; result pending;
-- PR #165 / WO118A: DRAFT head `036acf29b240264fe448b03d0366a96e0f87a693`; worktree clean/pushed; independent packet `runs/wo118a-independent-review-001/task.md` SHA `c315a8b3ef630450aec09bd08ebd310de0baafb5d51c6d5d0140ff5b28eb5b43`; CI/review pending;
+- PR #165 / WO118A: DRAFT head `729c3133a2c9281fe768793756099c21a2edd933`; worktree clean/pushed; packet `runs/wo118a-independent-review-002/task.md` SHA `e667128ca4f65f207bfd25f1ce127286e88871547ae66cce3ffc2b51d0cbe7ed`; prior packet 001 is superseded; CI/review pending;
 - PR #162 / WO120: DRAFT head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; defer final main refresh until #164/#165 stabilize.
 
 ## Ownership / claims
@@ -22,7 +22,7 @@ Close WO121/PR164 and WO118A/PR165 with exact-head independent evidence, then re
 ## Verified evidence
 
 - WO121: current-main RED 10 failed/1 control pass; repaired focused 13, parallel 56, impact-expanded 366; compile/diff/UTF-8/secret gates PASS; exact-head CI SUCCESS.
-- WO118A: integrator fault injection found and repaired generation rollback/corruption/overflow/missing-row CAS and local-egress metadata bypass; focused 61, related 191, Claude launch-adjacent 71, post-main union 306; compile/diff/UTF-8/secret gates PASS.
+- WO118A: integrator fault injection found and repaired generation rollback/corruption/overflow/missing-row CAS and local-egress metadata bypass; focused 61, related 191, Claude launch-adjacent 71, post-main union 306; second trust/egress RED repaired and broader stack 254 passed; compile/diff/UTF-8/secret gates PASS.
 - WO120 old-head review remains PASS at 230 tests but must be repeated after final main refresh.
 
 ## Next safe actions
