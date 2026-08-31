@@ -216,3 +216,27 @@ def test_public_external_passes_only_when_network_permits() -> None:
         profile(), ENDPOINT, task(policy=TaskNetworkPolicy.INHERIT)
     )
     assert unresolved.allowed is False
+
+
+@pytest.mark.parametrize(
+    "boundary", [EgressBoundary.LOCAL_MACHINE, EgressBoundary.NO_EGRESS]
+)
+def test_local_or_no_egress_boundary_rejects_external_endpoint_mismatch(boundary) -> None:
+    decision = evaluate_provider_policy(
+        profile(egress_boundary=boundary),
+        ENDPOINT,
+        task(privacy=TaskPrivacyClass.SECRET, policy=TaskNetworkPolicy.DENIED),
+    )
+    assert decision.allowed is False
+    assert decision.reason_code == "PROVIDER_EGRESS_ENDPOINT_MISMATCH"
+
+
+def test_local_boundary_accepts_explicit_loopback_endpoint() -> None:
+    local_endpoint = ProviderEndpointConfig("endpoint:glm", "http://127.0.0.1:3456/v1")
+    decision = evaluate_provider_policy(
+        profile(egress_boundary=EgressBoundary.LOCAL_MACHINE),
+        local_endpoint,
+        task(privacy=TaskPrivacyClass.SECRET, policy=TaskNetworkPolicy.DENIED),
+    )
+    assert decision.allowed is True
+    assert decision.reason_code == "POLICY_ALLOWED_LOCAL_EGRESS"

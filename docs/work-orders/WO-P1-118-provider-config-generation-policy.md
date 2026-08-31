@@ -70,3 +70,31 @@ With persisted provider state, changing the endpoint and credential reference wh
 ### Ordering
 
 `WO-P1-117` is merged and its post-main CI is green. 118A may proceed now. 118B remains blocked until WO-P1-120 / PR #162 releases `worker_candidate_assembly.py` and related capacity seams.
+
+## Integrator repair checkpoint — 2026-08-31
+
+GLM implementation commit `438c0a7ca2368888d35098e3f98fd9502f6f9be8` was independently source-reviewed before acceptance. The reported 51 focused / 166 related tests were not treated as authority.
+
+Deterministic integrator fault injection found two release-blocking classes:
+
+1. **Generation integrity rollback / coercion:** repeated `initialize()` rewrote stored generation `0` to `1`; a generation-1 stale observation became READY again after a generation-2 profile was corrupted to zero. Text generations leaked raw `ValueError`, float `1.5` was coerced through `int()`, and `2^63-1 + 1` became SQLite REAL.
+2. **Policy metadata/route mismatch:** `LOCAL_MACHINE` / `NO_EGRESS` trusted the declared boundary without checking a supplied endpoint; a SECRET + network-DENIED task was allowed when the profile claimed local egress but the endpoint was external HTTPS.
+
+A separate CAS hole was also reproduced: supplying `expected_generation=1` after the provider/endpoint row disappeared silently recreated generation 1 instead of failing stale.
+Repair stays inside the accepted 118A authority:
+- legacy `NULL -> 1` migration occurs only in the transaction where the generation column is first added; later corruption is never auto-healed;
+- stored generations are exact SQLite integers in `1..2^63-1`, with typed `PROVIDER_GENERATION_INVALID` / `PROVIDER_GENERATION_EXHAUSTED`; no numeric coercion;
+- expected-generation updates cannot recreate a missing row and every CAS update verifies `rowcount == 1`;
+- endpoint fan-out validates and bounds every referencing provider generation before any mutation, then advances endpoint/providers atomically;
+- `LOCAL_MACHINE` / `NO_EGRESS` with a supplied non-loopback endpoint fails `PROVIDER_EGRESS_ENDPOINT_MISMATCH`; explicit loopback and endpoint-less local seams retain intended eligibility.
+
+Verification after repair:
+- generation-integrity RED set: 7 passed after initially reproducing all defects;
+- provider policy: 12 passed;
+- full 118A focused suite: 61 passed;
+- provider/admission/parallel/graph/lease related suite: 191 passed;
+- no live provider, credential, installed control DB, Worker or tunnel was touched.
+
+**118A is not overall WO118 completion.** Production callers still omit `expected_configuration_generation`, `is_provider_ready(... expected_generation=...)`, and `evaluate_provider_policy()` has no production caller. Resolver -> credential/launch TOCTOU and pre-elastic enforcement remain binding WO118B acceptance work after WO120 releases the shared candidate/elastic seam.
+
+Status: **WO-P1-118A INTEGRATOR_REPAIRED / REVIEW_PENDING; WO-P1-118B BLOCKED_ON_WO-P1-120.**

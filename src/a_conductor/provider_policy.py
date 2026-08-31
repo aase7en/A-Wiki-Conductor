@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from ipaddress import ip_address
 from urllib.parse import urlsplit
 
 from .provider_configuration import (
@@ -88,6 +89,17 @@ def _endpoint_host(endpoint: ProviderEndpointConfig | None) -> str | None:
     return host.casefold().rstrip(".")
 
 
+def _host_is_loopback(host: str | None) -> bool:
+    if host is None:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 def evaluate_provider_policy(
     profile: ProviderConfiguration,
     endpoint: ProviderEndpointConfig | None,
@@ -110,8 +122,12 @@ def evaluate_provider_policy(
 
     boundary = profile.egress_boundary
     if boundary in (EgressBoundary.LOCAL_MACHINE, EgressBoundary.NO_EGRESS):
-        # Local/no-egress paths stay subject to known trust metadata above but
-        # never require an external host allowlist.
+        # If an endpoint is present, declared local/no-egress metadata must agree
+        # with the actual route. A mislabeled external URL must never inherit the
+        # more-permissive local policy path.
+        host = _endpoint_host(endpoint)
+        if endpoint is not None and not _host_is_loopback(host):
+            return _deny("PROVIDER_EGRESS_ENDPOINT_MISMATCH")
         return _ALLOWED_LOCAL
 
     host = _endpoint_host(endpoint)

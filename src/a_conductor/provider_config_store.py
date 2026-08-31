@@ -23,6 +23,9 @@ from .provider_configuration import (
 )
 
 
+_MAX_PROVIDER_GENERATION = (1 << 63) - 1
+
+
 class ProviderConfigStoreError(RuntimeError):
     def __init__(self, code: str) -> None:
         self.code = code
@@ -147,6 +150,7 @@ class SQLiteProviderConfigStore:
                 # Conservative in-place migration for installed databases created
                 # before generations existed: existing rows become generation 1;
                 # legacy observations/admissions keep NULL (unknown) generations.
+                added_generation_columns: set[str] = set()
                 for table in (
                     "provider_configurations",
                     "provider_endpoints",
@@ -164,14 +168,16 @@ class SQLiteProviderConfigStore:
                         connection.execute(
                             f"ALTER TABLE {table} ADD COLUMN {column} INTEGER"
                         )
-                connection.execute(
-                    "UPDATE provider_configurations SET generation=1 "
-                    "WHERE generation IS NULL OR generation < 1"
-                )
-                connection.execute(
-                    "UPDATE provider_endpoints SET generation=1 "
-                    "WHERE generation IS NULL OR generation < 1"
-                )
+                        if table in {"provider_configurations", "provider_endpoints"}:
+                            added_generation_columns.add(table)
+                if "provider_configurations" in added_generation_columns:
+                    connection.execute(
+                        "UPDATE provider_configurations SET generation=1 WHERE generation IS NULL"
+                    )
+                if "provider_endpoints" in added_generation_columns:
+                    connection.execute(
+                        "UPDATE provider_endpoints SET generation=1 WHERE generation IS NULL"
+                    )
                 connection.commit()
             except sqlite3.Error as exc:
                 connection.rollback()
@@ -181,9 +187,33 @@ class SQLiteProviderConfigStore:
     def _validated_expected_generation(value: int | None) -> int | None:
         if value is None:
             return None
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-            raise ValueError("expected generation must be a positive integer or None")
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or not 1 <= value <= _MAX_PROVIDER_GENERATION
+        ):
+            raise ValueError("expected generation must be a bounded positive integer or None")
         return value
+
+    @staticmethod
+    def _stored_generation(value: object, *, allow_none: bool = False) -> int | None:
+        if value is None and allow_none:
+            return None
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or not 1 <= value <= _MAX_PROVIDER_GENERATION
+        ):
+            raise ProviderConfigStoreError("PROVIDER_GENERATION_INVALID")
+        return value
+
+    @classmethod
+    def _next_generation(cls, value: object) -> int:
+        current = cls._stored_generation(value)
+        assert current is not None
+        if current >= _MAX_PROVIDER_GENERATION:
+            raise ProviderConfigStoreError("PROVIDER_GENERATION_EXHAUSTED")
+        return current + 1
 
     def save_endpoint(
         self,
@@ -210,6 +240,8 @@ class SQLiteProviderConfigStore:
                     (endpoint.endpoint_ref,),
                 ).fetchone()
                 if row is None:
+                    if expected is not None:
+                        raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
                     connection.execute(
                         "INSERT INTO provider_endpoints(endpoint_ref, base_url, generation) "
                         "VALUES(?, ?, 1)",
@@ -217,32 +249,43 @@ class SQLiteProviderConfigStore:
                     )
                     connection.commit()
                     return 1
-                current = row["generation"]
-                if current is None or int(current) < 1:
-                    connection.rollback()
-                    raise ProviderConfigStoreError("PROVIDER_GENERATION_INVALID")
+                current = self._stored_generation(row["generation"])
+                assert current is not None
                 if expected is None:
-                    connection.rollback()
                     raise ProviderConfigStoreError("PROVIDER_GENERATION_EXPECTED")
-                if int(expected) != int(current):
-                    connection.rollback()
+                if expected != current:
                     raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
-                connection.execute(
-                    "UPDATE provider_endpoints SET base_url=?, generation=generation+1 "
+                next_endpoint_generation = self._next_generation(current)
+                provider_rows = connection.execute(
+                    "SELECT provider_id, generation FROM provider_configurations WHERE endpoint_ref=?",
+                    (endpoint.endpoint_ref,),
+                ).fetchall()
+                provider_updates = []
+                for provider_row in provider_rows:
+                    provider_generation = self._stored_generation(provider_row["generation"])
+                    assert provider_generation is not None
+                    provider_updates.append((
+                        provider_row["provider_id"],
+                        provider_generation,
+                        self._next_generation(provider_generation),
+                    ))
+                updated_endpoint = connection.execute(
+                    "UPDATE provider_endpoints SET base_url=?, generation=? "
                     "WHERE endpoint_ref=? AND generation=?",
-                    (endpoint.base_url, endpoint.endpoint_ref, int(current)),
+                    (endpoint.base_url, next_endpoint_generation, endpoint.endpoint_ref, current),
                 )
-                connection.execute(
-                    "UPDATE provider_configurations SET generation=generation+1 "
-                    "WHERE endpoint_ref=?",
-                    (endpoint.endpoint_ref,),
-                )
-                updated = connection.execute(
-                    "SELECT generation FROM provider_endpoints WHERE endpoint_ref = ?",
-                    (endpoint.endpoint_ref,),
-                ).fetchone()
+                if updated_endpoint.rowcount != 1:
+                    raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
+                for provider_id, provider_generation, next_provider_generation in provider_updates:
+                    updated_provider = connection.execute(
+                        "UPDATE provider_configurations SET generation=? "
+                        "WHERE provider_id=? AND generation=?",
+                        (next_provider_generation, provider_id, provider_generation),
+                    )
+                    if updated_provider.rowcount != 1:
+                        raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
                 connection.commit()
-                return int(updated["generation"])
+                return next_endpoint_generation
             except ProviderConfigStoreError:
                 connection.rollback()
                 raise
@@ -290,6 +333,8 @@ class SQLiteProviderConfigStore:
                     (profile.provider_id,),
                 ).fetchone()
                 if row is None:
+                    if expected is not None:
+                        raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
                     connection.execute(
                         """
                         INSERT INTO provider_configurations(
@@ -317,23 +362,20 @@ class SQLiteProviderConfigStore:
                     )
                     connection.commit()
                     return 1
-                current = row["generation"]
-                if current is None or int(current) < 1:
-                    connection.rollback()
-                    raise ProviderConfigStoreError("PROVIDER_GENERATION_INVALID")
+                current = self._stored_generation(row["generation"])
+                assert current is not None
                 if expected is None:
-                    connection.rollback()
                     raise ProviderConfigStoreError("PROVIDER_GENERATION_EXPECTED")
-                if int(expected) != int(current):
-                    connection.rollback()
+                if expected != current:
                     raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
-                connection.execute(
+                next_generation = self._next_generation(current)
+                updated_provider = connection.execute(
                     """
                     UPDATE provider_configurations SET
                         schema_version=?, display_name=?, provider_type=?,
                         protocol_family=?, endpoint_ref=?, credential_ref=?, trust_class=?,
                         egress_boundary=?, harness_strategies_json=?, max_concurrency=?,
-                        models_json=?, enabled=?, generation=generation+1
+                        models_json=?, enabled=?, generation=?
                     WHERE provider_id=? AND generation=?
                     """,
                     (
@@ -349,16 +391,15 @@ class SQLiteProviderConfigStore:
                         profile.max_concurrency,
                         json.dumps(payload["models"], separators=(",", ":")),
                         int(profile.enabled),
+                        next_generation,
                         profile.provider_id,
-                        int(current),
+                        current,
                     ),
                 )
-                updated = connection.execute(
-                    "SELECT generation FROM provider_configurations WHERE provider_id = ?",
-                    (profile.provider_id,),
-                ).fetchone()
+                if updated_provider.rowcount != 1:
+                    raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
                 connection.commit()
-                return int(updated["generation"])
+                return next_generation
             except ProviderConfigStoreError:
                 connection.rollback()
                 raise
@@ -384,10 +425,12 @@ class SQLiteProviderConfigStore:
             schema_version=row["schema_version"],
         )
 
-    @staticmethod
-    def _observation_from_row(row: sqlite3.Row) -> ProviderObservation:
+    @classmethod
+    def _observation_from_row(cls, row: sqlite3.Row) -> ProviderObservation:
         quota = None if row["quota_json"] is None else json.loads(row["quota_json"])
-        generation = row["configuration_generation"]
+        generation = cls._stored_generation(
+            row["configuration_generation"], allow_none=True
+        )
         return ProviderObservation(
             provider_id=row["provider_id"],
             health=row["health"],
@@ -396,7 +439,7 @@ class SQLiteProviderConfigStore:
             latency_ms=row["latency_ms"],
             quota=quota,
             schema_version=row["schema_version"],
-            configuration_generation=None if generation is None else int(generation),
+            configuration_generation=generation,
         )
 
     def get_provider(self, provider_id: str) -> ProviderConfiguration | None:
@@ -442,12 +485,9 @@ class SQLiteProviderConfigStore:
                 if provider is None:
                     connection.rollback()
                     raise ProviderConfigStoreError("PROVIDER_OBSERVATION_PROVIDER_NOT_FOUND")
-                current = provider["generation"]
-                if current is None or int(current) < 1:
-                    connection.rollback()
-                    raise ProviderConfigStoreError("PROVIDER_GENERATION_INVALID")
-                if int(observation.configuration_generation) != int(current):
-                    connection.rollback()
+                current = self._stored_generation(provider["generation"])
+                assert current is not None
+                if observation.configuration_generation != current:
                     raise ProviderConfigStoreError("PROVIDER_OBSERVATION_GENERATION_STALE")
                 connection.execute(
                     """
@@ -495,18 +535,7 @@ class SQLiteProviderConfigStore:
                 raise ProviderConfigStoreError("CONFIG_STORE_READ_FAILED") from exc
         if row is None:
             return None
-        quota = None if row["quota_json"] is None else json.loads(row["quota_json"])
-        generation = row["configuration_generation"]
-        return ProviderObservation(
-            provider_id=row["provider_id"],
-            health=row["health"],
-            observed_at=row["observed_at"],
-            provenance=row["provenance"],
-            latency_ms=row["latency_ms"],
-            quota=quota,
-            schema_version=row["schema_version"],
-            configuration_generation=None if generation is None else int(generation),
-        )
+        return self._observation_from_row(row)
 
     def load_provider_snapshot(self, provider_id: str) -> "ProviderConfigurationSnapshot | None":
         """Read profile, endpoint, current generation and latest observation together.
@@ -529,8 +558,7 @@ class SQLiteProviderConfigStore:
                 generation: int | None = None
                 profile = None
                 if profile_row is not None:
-                    raw_generation = profile_row["generation"]
-                    generation = None if raw_generation is None else int(raw_generation)
+                    generation = self._stored_generation(profile_row["generation"])
                     endpoint_row = connection.execute(
                         "SELECT * FROM provider_endpoints WHERE endpoint_ref = ?",
                         (profile_row["endpoint_ref"],),
@@ -541,6 +569,9 @@ class SQLiteProviderConfigStore:
                     ).fetchone()
                     profile = self._profile_from_row(profile_row)
                 connection.commit()
+            except ProviderConfigStoreError:
+                connection.rollback()
+                raise
             except sqlite3.Error as exc:
                 connection.rollback()
                 raise ProviderConfigStoreError("CONFIG_STORE_READ_FAILED") from exc
@@ -609,10 +640,8 @@ class SQLiteProviderConfigStore:
             status=row["status"],
             released_at=cls._parse_time(row["released_at"]),
             reconciled_at=cls._parse_time(row["reconciled_at"]),
-            configuration_generation=(
-                None
-                if row["configuration_generation"] is None
-                else int(row["configuration_generation"])
+            configuration_generation=cls._stored_generation(
+                row["configuration_generation"], allow_none=True
             ),
         )
 
@@ -673,12 +702,11 @@ class SQLiteProviderConfigStore:
                     raise ProviderConfigStoreError("PROVIDER_ADMISSION_PROFILE_DRIFT")
                 if not bool(profile["enabled"]):
                     raise ProviderConfigStoreError("PROVIDER_ADMISSION_PROVIDER_DISABLED")
-                current_generation = profile["generation"]
-                if current_generation is None or int(current_generation) < 1:
-                    raise ProviderConfigStoreError("PROVIDER_GENERATION_INVALID")
+                current_generation = self._stored_generation(profile["generation"])
+                assert current_generation is not None
                 if (
                     expected_generation is not None
-                    and int(expected_generation) != int(current_generation)
+                    and expected_generation != current_generation
                 ):
                     raise ProviderConfigStoreError("PROVIDER_ADMISSION_GENERATION_STALE")
                 active_rows = connection.execute(
