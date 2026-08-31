@@ -1,9 +1,10 @@
 """Internal detached supervisor helper for one validated target subprocess.
 
 The helper is intentionally stdlib-only so it can be executed by absolute
-script path without relying on PYTHONPATH. It never persists the target argv,
-environment, stdout, or stderr. Those streams are inherited from the helper's
-already-sanitized/redirection context.
+script path without relying on PYTHONPATH. It never persists target argv or
+environment. Credential-bearing target streams are captured in memory, redacted
+before forwarding to inherited durable handles, and fully drained before the
+terminal result is published.
 """
 
 from __future__ import annotations
@@ -15,8 +16,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
-from typing import Callable, Mapping, Sequence
+from threading import Thread
+from typing import BinaryIO, Callable, Mapping, Sequence
 
 
 SUPERVISED_RESULT_SCHEMA_VERSION = 1
@@ -209,6 +212,75 @@ def read_supervised_child_result(
     return result
 
 
+_REDACTED = b"[REDACTED]"
+_CAPTURE_CHUNK_BYTES = 64 * 1024
+_MAX_REDACTION_SECRET_BYTES = 16 * 1024
+_SENSITIVE_ENVIRONMENT_KEYS = ("ANTHROPIC_AUTH_TOKEN",)
+
+
+def _secret_bytes_from_environment() -> tuple[bytes, ...]:
+    values: list[bytes] = []
+    for key in _SENSITIVE_ENVIRONMENT_KEYS:
+        value = os.environ.get(key)
+        if value:
+            encoded = value.encode("utf-8")
+            if len(encoded) > _MAX_REDACTION_SECRET_BYTES:
+                raise SupervisedChildError("REDACTION_SECRET_TOO_LARGE")
+            if encoded and encoded not in values:
+                values.append(encoded)
+    return tuple(sorted(values, key=len, reverse=True))
+
+
+class _StreamingRedactor:
+    def __init__(self, secrets: tuple[bytes, ...]) -> None:
+        self._secrets = tuple(secret for secret in secrets if secret)
+        self._pending = bytearray()
+        self._max_secret = max((len(secret) for secret in self._secrets), default=1)
+
+    def feed(self, chunk: bytes, *, final: bool = False) -> bytes:
+        self._pending.extend(chunk)
+        limit = len(self._pending) if final else max(0, len(self._pending) - self._max_secret + 1)
+        output = bytearray()
+        index = 0
+        while index < limit:
+            matched = next((secret for secret in self._secrets if self._pending.startswith(secret, index)), None)
+            if matched is not None:
+                output.extend(_REDACTED)
+                index += len(matched)
+            else:
+                output.append(self._pending[index])
+                index += 1
+        del self._pending[:index]
+        return bytes(output)
+
+
+def _pump_redacted(source: BinaryIO, target: BinaryIO, secrets: tuple[bytes, ...], errors: list[BaseException]) -> None:
+    redactor = _StreamingRedactor(secrets)
+    write_failed = False
+    try:
+        reader = getattr(source, "read1", None)
+        if not callable(reader):
+            reader = source.read
+        while True:
+            chunk = reader(_CAPTURE_CHUNK_BYTES)
+            if not chunk:
+                break
+            sanitized = redactor.feed(chunk)
+            if sanitized and not write_failed:
+                try:
+                    target.write(sanitized)
+                    target.flush()
+                except BaseException as exc:
+                    errors.append(exc)
+                    write_failed = True
+        tail = redactor.feed(b"", final=True)
+        if tail and not write_failed:
+            target.write(tail)
+            target.flush()
+    except BaseException as exc:
+        errors.append(exc)
+
+
 def run_supervised_child(
     *,
     execution_id: str,
@@ -225,13 +297,16 @@ def run_supervised_child(
     if not working_directory.is_dir():
         raise ValueError("cwd must be an existing directory")
     started_at = _require_text(now_factory(), "started_at")
+    secrets = _secret_bytes_from_environment()
+    popen_kwargs = {
+        "cwd": str(working_directory),
+        "shell": False,
+        "stdin": subprocess.DEVNULL,
+    }
+    if secrets:
+        popen_kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
-        child = popen_factory(
-            list(argv),
-            cwd=str(working_directory),
-            shell=False,
-            stdin=subprocess.DEVNULL,
-        )
+        child = popen_factory(list(argv), **popen_kwargs)
     except Exception as exc:
         raise SupervisedChildError("CHILD_START_FAILED") from exc
     try:
@@ -239,10 +314,29 @@ def run_supervised_child(
         _write_pid_atomic(Path(pid_path), child_pid)
     except (TypeError, ValueError, SupervisedChildError) as exc:
         raise SupervisedChildError("CHILD_PID_PERSIST_FAILED") from exc
+    capture_errors: list[BaseException] = []
+    capture_threads: list[Thread] = []
+    if secrets:
+        stdout_pipe = getattr(child, "stdout", None)
+        stderr_pipe = getattr(child, "stderr", None)
+        if stdout_pipe is None or stderr_pipe is None:
+            raise SupervisedChildError("OUTPUT_CAPTURE_SETUP_FAILED")
+        stdout_target = getattr(sys.stdout, "buffer", sys.stdout)
+        stderr_target = getattr(sys.stderr, "buffer", sys.stderr)
+        capture_threads = [
+            Thread(target=_pump_redacted, args=(stdout_pipe, stdout_target, secrets, capture_errors)),
+            Thread(target=_pump_redacted, args=(stderr_pipe, stderr_target, secrets, capture_errors)),
+        ]
+        for thread in capture_threads:
+            thread.start()
     try:
         exit_code = _require_exit_code(child.wait())
     except Exception as exc:
         raise SupervisedChildError("CHILD_WAIT_FAILED") from exc
+    for thread in capture_threads:
+        thread.join()
+    if capture_errors:
+        raise SupervisedChildError("OUTPUT_CAPTURE_FAILED") from capture_errors[0]
     finished_at = _require_text(now_factory(), "finished_at")
     result = SupervisedChildResult(
         schema_version=SUPERVISED_RESULT_SCHEMA_VERSION,
