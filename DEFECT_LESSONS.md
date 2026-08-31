@@ -564,3 +564,15 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** timeouts and typed return objects are not completion authority. Capacity may be released only from durable, identity-bound post-execution evidence or a proven non-executing/terminal state; uncertainty must remain capacity-consuming and fail closed.
 
 **Verify:** RED reproduced all four defects; spawned-process stale-capacity fencing stayed single-owner; impact-expanded provider/harness/lease/elastic regression = 210 passed before source freeze.
+
+## #36: Credential-bearing child output must be sanitized before durable persistence (2026-08-31)
+
+**Symptom:** a provider child could echo its credential to stdout/stderr. The returned `ClaudeCodeRunnerResult` was redacted, but durable `stdout.log` / `stderr.log` already contained plaintext bytes.
+
+**Root cause:** the detached helper inherited durable file handles directly, while redaction existed only after artifact collection. The first streaming repair also used buffered `read(64 KiB)`, delaying output until EOF for long-running children. A later adversarial test proved another lifecycle hazard: a descendant can inherit the target pipe handles after the direct child exits, so an unbounded drain can wait forever for EOF.
+
+**Fix:** credential-bearing children now use in-memory stdout/stderr pipes in `supervised_child.py`; a bounded streaming redactor handles cross-chunk matches and forwards only sanitized bytes to durable handles. `read1()` consumes available pipe bytes without waiting for EOF. After the direct child exits, drain completion has a finite budget; inherited descendant pipe-holds become `OUTPUT_CAPTURE_DRAIN_TIMEOUT` with no terminal result, and daemon capture threads cannot pin the helper process after fail-closed return. Oversized redaction values fail before launch.
+
+**Lesson:** return-time redaction is not a persistence boundary. Secret-bearing subprocess output must be sanitized before the first durable write, with chunk-boundary tests and live-child/timeout evidence proving no write-then-scrub window.
+
+**Verify:** real Windows child echo test, held-live durable-log test, timeout -> reattach test, fragmented-stream unit test, capture-failure no-result test; related supervised/native regression 120 passed after bounded-drain hardening.

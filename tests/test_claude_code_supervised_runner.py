@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import os
+import sys
+import time
 from pathlib import Path
+
+import pytest
 
 from a_conductor.claude_code_harness import (
     ClaudeCodeInvocation,
@@ -96,6 +102,238 @@ def test_resolves_refs_at_boundary_and_redacts_returned_streams(tmp_path: Path) 
         ("ANTHROPIC_AUTH_TOKEN", secret),
     )
     assert resolver.calls == ["endpoint:glm", "secret-ref:glm/token"]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows supervised integration")
+def test_real_provider_output_is_redacted_before_durable_persistence(tmp_path: Path) -> None:
+    from a_conductor.execution_store import SQLiteExecutionStore
+    from a_conductor.owned_process import WindowsOwnedProcessController
+    from a_conductor.supervised_execution import SupervisedExecutionService
+    from a_conductor.windows_io import LoopbackReadyzHttpProbe, StrictPowerShellInspectionRunner
+    from a_conductor.windows_observer import WindowsRuntimeObserver
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    runtime_python = getattr(sys, "_base_executable", sys.executable)
+    python_name = Path(runtime_python).name
+    secret = "wo119-synthetic-provider-auth-only-91ddf051"
+    resolver = MappingResolver({
+        "endpoint:glm": "https://provider.invalid/v1",
+        "secret-ref:glm/token": secret,
+    })
+    store = SQLiteExecutionStore(tmp_path / "executions.sqlite")
+    observer = WindowsRuntimeObserver(
+        runner=StrictPowerShellInspectionRunner(),
+        http_probe=LoopbackReadyzHttpProbe(),
+    )
+    supervised = SupervisedExecutionService(
+        store=store,
+        controller=WindowsOwnedProcessController(observer=observer),
+        observer=observer,
+        allowed_target_executables=(python_name,),
+        python_executable=runtime_python,
+        startup_poll_attempts=100,
+        startup_poll_delay_seconds=0.02,
+    )
+    runner = build_supervised_claude_code_runner(
+        project_root=repo,
+        execution_store=store,
+        supervised=supervised,
+        reference_resolver=resolver,
+        job_id="job-wo119-output-persistence-test",
+        work_order_ref="docs/work-orders/WO-P1-119-provider-output-persistence-safety.md",
+        project_id="wo119-isolated-test",
+        worker_id="wo119-test-worker",
+        branch="test/wo119",
+        head_before="a" * 40,
+        endpoint_ref="endpoint:glm",
+        credential_ref="secret-ref:glm/token",
+        claude_executable=python_name,
+        poll_interval_seconds=0.02,
+    )
+    # The fake credential travels only through the approved environment binding.
+    # Real child output goes through the canonical detached supervisor and files.
+    child_code = (
+        "import os; token=os.environ['ANTHROPIC_AUTH_TOKEN'].encode('utf-8'); "
+        "os.write(1,b'out-before\\n'+token+b'\\nout-after\\n'); "
+        "os.write(2,b'err-before\\n'+token+b'\\nerr-after\\n')"
+    )
+    base = invocation(repo)
+    request = ClaudeCodeInvocation(
+        argv=(runtime_python, "-c", child_code),
+        cwd=base.cwd,
+        timeout_seconds=30,
+        max_output_bytes=base.max_output_bytes,
+        environment_bindings=base.environment_bindings,
+    )
+    assert secret not in "\x00".join(request.argv)
+
+    result = runner.run(request)
+
+    assert result.exit_code == 0, result.stderr
+    assert result.timed_out is False
+    assert result.stdout == "out-before\n[REDACTED]\nout-after\n"
+    assert result.stderr == "err-before\n[REDACTED]\nerr-after\n"
+    artifact_paths = sorted((repo / "runs").glob("exec-*/*.log"))
+    assert len(artifact_paths) == 2
+    assert len({path.parent for path in artifact_paths}) == 1
+    assert {path.name for path in artifact_paths} == {"stdout.log", "stderr.log"}
+    persisted = {path.name: path.read_bytes() for path in artifact_paths}
+    assert b"out-before\n" in persisted["stdout.log"]
+    assert b"out-after\n" in persisted["stdout.log"]
+    assert b"err-before\n" in persisted["stderr.log"]
+    assert b"err-after\n" in persisted["stderr.log"]
+    leaked = {name: secret.encode("utf-8") in raw for name, raw in persisted.items()}
+    assert not any(leaked.values()), f"Fake credential persisted in durable streams: {leaked}"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows supervised integration")
+def test_live_provider_logs_are_sanitized_before_persistence(tmp_path: Path) -> None:
+    from a_conductor.execution_store import SQLiteExecutionStore
+    from a_conductor.owned_process import WindowsOwnedProcessController
+    from a_conductor.supervised_execution import SupervisedExecutionService
+    from a_conductor.windows_io import LoopbackReadyzHttpProbe, StrictPowerShellInspectionRunner
+    from a_conductor.windows_observer import WindowsRuntimeObserver
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    runtime_python = getattr(sys, "_base_executable", sys.executable)
+    python_name = Path(runtime_python).name
+    marker_value = "wo119-sensitive-marker-8b461"
+    resolver = MappingResolver({"endpoint:glm": "https://provider.invalid/v1", "secret-ref:glm/token": marker_value})
+
+    store = SQLiteExecutionStore(tmp_path / "executions.sqlite")
+    observer = WindowsRuntimeObserver(
+        runner=StrictPowerShellInspectionRunner(), http_probe=LoopbackReadyzHttpProbe()
+    )
+    supervised = SupervisedExecutionService(
+        store=store, controller=WindowsOwnedProcessController(observer=observer), observer=observer,
+        allowed_target_executables=(python_name,), python_executable=runtime_python,
+        startup_poll_attempts=100, startup_poll_delay_seconds=0.02,
+    )
+    runner = build_supervised_claude_code_runner(
+        project_root=repo, execution_store=store, supervised=supervised,
+        reference_resolver=resolver, job_id="job-wo119-live-test",
+        work_order_ref="docs/work-orders/WO-P1-119-provider-output-persistence-safety.md",
+        project_id="wo119-live-test", worker_id="wo119-live-worker",
+        branch="test/wo119-live", head_before="b" * 40,
+        endpoint_ref="endpoint:glm", credential_ref="secret-ref:glm/token",
+        claude_executable=python_name, poll_interval_seconds=0.02,
+    )
+
+    ready_flag = repo / "child-ready.flag"
+    child_code = (
+        "import os,pathlib,time; v=os.environ['ANTHROPIC_AUTH_TOKEN'].encode('utf-8'); "
+        "os.write(1,b'live-before\\n'+v+b'\\n'); os.write(2,b'live-err\\n'+v+b'\\n'); "
+        f"pathlib.Path({str(ready_flag)!r}).write_text('ready',encoding='utf-8'); "
+        "time.sleep(1.5); os.write(1,b'live-after\\n')"
+    )
+    base = invocation(repo)
+    request = ClaudeCodeInvocation(
+        argv=(runtime_python, "-c", child_code), cwd=base.cwd, timeout_seconds=30,
+        max_output_bytes=base.max_output_bytes, environment_bindings=base.environment_bindings,
+    )
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(runner.run, request)
+        deadline = time.monotonic() + 8
+        while not ready_flag.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert ready_flag.exists()
+        assert not future.done()
+
+        log_paths = sorted((repo / "runs").glob("exec-*/*.log"))
+        while len(log_paths) < 2 and time.monotonic() < deadline:
+            time.sleep(0.02)
+            log_paths = sorted((repo / "runs").glob("exec-*/*.log"))
+        assert len(log_paths) == 2
+        live_bytes = b""
+        while b"[REDACTED]" not in live_bytes and time.monotonic() < deadline:
+            live_bytes = b"".join(path.read_bytes() for path in log_paths)
+            assert marker_value.encode("utf-8") not in live_bytes
+            if b"[REDACTED]" not in live_bytes:
+                time.sleep(0.02)
+        assert b"[REDACTED]" in live_bytes
+        assert not future.done()
+        result = future.result(timeout=8)
+    assert result.exit_code == 0
+    assert marker_value not in result.stdout
+    assert marker_value not in result.stderr
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows supervised integration")
+def test_timeout_and_reattach_keep_durable_provider_output_sanitized(tmp_path: Path) -> None:
+    from a_conductor.execution_store import SQLiteExecutionStore
+    from a_conductor.owned_process import WindowsOwnedProcessController
+    from a_conductor.supervised_execution import SupervisedExecutionService
+    from a_conductor.windows_io import LoopbackReadyzHttpProbe, StrictPowerShellInspectionRunner
+    from a_conductor.windows_observer import WindowsRuntimeObserver
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    runtime_python = getattr(sys, "_base_executable", sys.executable)
+    python_name = Path(runtime_python).name
+    marker_value = "wo119-timeout-marker-31ac7"
+    resolver = MappingResolver({"endpoint:glm": "https://provider.invalid/v1", "secret-ref:glm/token": marker_value})
+
+    store = SQLiteExecutionStore(tmp_path / "executions.sqlite")
+    observer = WindowsRuntimeObserver(
+        runner=StrictPowerShellInspectionRunner(), http_probe=LoopbackReadyzHttpProbe()
+    )
+    supervised = SupervisedExecutionService(
+        store=store, controller=WindowsOwnedProcessController(observer=observer), observer=observer,
+        allowed_target_executables=(python_name,), python_executable=runtime_python,
+        startup_poll_attempts=100, startup_poll_delay_seconds=0.02,
+    )
+    runner = build_supervised_claude_code_runner(
+        project_root=repo, execution_store=store, supervised=supervised,
+        reference_resolver=resolver, job_id="job-wo119-timeout-test",
+        work_order_ref="docs/work-orders/WO-P1-119-provider-output-persistence-safety.md",
+        project_id="wo119-timeout-test", worker_id="wo119-timeout-worker",
+        branch="test/wo119-timeout", head_before="c" * 40,
+        endpoint_ref="endpoint:glm", credential_ref="secret-ref:glm/token",
+        claude_executable=python_name, poll_interval_seconds=0.02,
+    )
+
+    release = repo / "release-child"
+    child_code = (
+        "import os,time,pathlib; v=os.environ['ANTHROPIC_AUTH_TOKEN'].encode('utf-8'); "
+        "os.write(1,b'timeout-before\\n'+v+b'\\n'); os.write(2,b'timeout-err\\n'+v+b'\\n'); "
+        f"p=pathlib.Path({str(release)!r}); "
+        "[time.sleep(0.05) for _ in iter(p.exists, True)]; os.write(1,b'timeout-after\\n')"
+    )
+    base = invocation(repo)
+    first_request = ClaudeCodeInvocation(
+        argv=(runtime_python, "-c", child_code), cwd=base.cwd, timeout_seconds=1,
+        max_output_bytes=base.max_output_bytes, environment_bindings=base.environment_bindings,
+    )
+    first = runner.run(first_request)
+    assert first.timed_out is True
+    assert first.exit_code is None
+    live_paths = sorted((repo / "runs").glob("exec-*/*.log"))
+    assert len(live_paths) == 2
+    deadline = time.monotonic() + 8
+    durable = b""
+    while b"[REDACTED]" not in durable and time.monotonic() < deadline:
+        durable = b"".join(path.read_bytes() for path in live_paths)
+        assert marker_value.encode("utf-8") not in durable
+        if b"[REDACTED]" not in durable:
+            time.sleep(0.02)
+    assert b"[REDACTED]" in durable
+
+    release.write_text("release", encoding="utf-8")
+    second_request = ClaudeCodeInvocation(
+        argv=first_request.argv, cwd=first_request.cwd, timeout_seconds=30,
+        max_output_bytes=first_request.max_output_bytes,
+        environment_bindings=first_request.environment_bindings,
+    )
+    second = runner.run(second_request)
+    assert second.timed_out is False
+    assert second.exit_code == 0
+    assert marker_value not in second.stdout
+    assert marker_value not in second.stderr
+    final_bytes = b"".join(path.read_bytes() for path in live_paths)
+    assert marker_value.encode("utf-8") not in final_bytes
+    assert b"timeout-after\n" in final_bytes
 
 
 def test_rejects_unknown_binding_before_native_execution(tmp_path: Path) -> None:
