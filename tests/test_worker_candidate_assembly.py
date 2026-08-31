@@ -65,8 +65,10 @@ class FakeGitStateObserver:
 class FakeLeaseStore:
     def __init__(self, leases: tuple[WorkerLease, ...] = ()) -> None:
         self.leases = leases
+        self.calls = 0
 
     def list_active(self) -> tuple[WorkerLease, ...]:
+        self.calls += 1
         return self.leases
 
 
@@ -271,3 +273,54 @@ def test_assemble_all_is_failure_isolated_and_keeps_one_record_per_worker() -> N
     assert records[0].reason_code == "READY"
     assert records[1].reason_code == "ASSIGNMENT_MISSING"
     assert records[1].scheduler.state == "UNKNOWN"
+
+
+class SingleSnapshotControlCenter:
+    def __init__(self, value: ControlCenterSnapshot) -> None:
+        self.value = value
+        self.calls = 0
+
+    def snapshot(self) -> ControlCenterSnapshot:
+        self.calls += 1
+        if self.calls > 1:
+            raise AssertionError("assemble_all re-read control center snapshot")
+        return self.value
+
+
+class SingleSnapshotLeaseStore(FakeLeaseStore):
+    def list_active(self) -> tuple[WorkerLease, ...]:
+        if self.calls > 0:
+            raise AssertionError("assemble_all re-read active lease snapshot")
+        return super().list_active()
+
+
+def test_assemble_all_captures_one_durable_worker_and_lease_snapshot() -> None:
+    second = WorkerScreenRow(
+        worker_id="a-worker-02",
+        display_name="A-Worker 2",
+        state=WorkerState.READY,
+        runtime_id=None,
+        assignment_id=None,
+        project_id=None,
+        project_display_name=None,
+        project_root_path=None,
+        mutation_allowed=None,
+    )
+    center = SingleSnapshotControlCenter(
+        ControlCenterSnapshot(projects=(), workers=(row(), second), online=True)
+    )
+    leases = SingleSnapshotLeaseStore((lease(),))
+    service = WorkerCandidateAssembler(
+        control_center=center,
+        config_store=FakeConfigStore(binding()),
+        lifecycle_context_provider=FakeContextProvider(context()),
+        git_state_observer=FakeGitStateObserver(GitWorktreeState("feat/test", HEAD, "CLEAN")),
+        lease_store=leases,
+        capability_resolver=FakeCapabilityResolver(),
+    )
+
+    records = service.assemble_all()
+    assert center.calls == 1
+    assert leases.calls == 1
+    assert records[0].candidate.reserved is True
+    assert records[1].reason_code == "ASSIGNMENT_MISSING"
