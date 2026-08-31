@@ -1,31 +1,35 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-31 (GPT-5.6 Sol — frontier safety integration after PR #161)
+Last updated: 2026-08-31 (GPT-5.6 Sol — WO121 post-merge repair + WO118A integrator hardening)
 
 ## Current phase
 
-**Post-AHA-6B frontier safety integration. WO-P1-117 and WO-P1-119 are merged; WO-P1-118A is the active provider-generation/policy implementation lane; WO-P1-120 is review-green on its old head but awaits refresh onto current main before final independent review/merge. P0 WO-P1-096 remains the stable-release blocker.**
+**Post-AHA-6B frontier safety integration. WO117/WO119 are merged. Ultra's late WO117 review found real post-merge dispatch-evidence defects now isolated as WO-P1-121 / PR #164. WO118A is integrator-repaired in PR #165 and awaits exact-head CI/review. WO120 remains queued for refresh after these fronts stabilize. WO118B remains blocked until WO118A and WO120 are accepted. P0 WO-P1-096 remains a separate operational release blocker.**
 
-Accepted frontier state:
-- PR #160 / WO-P1-117 merged as `76123743df90e2fddfb37cbaf94826bf6f50bba1`; exact-head review P0/P1/P2=0 and post-main CI SUCCESS.
-- PR #161 / WO-P1-119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; exact post-main revalidation PASS (206 tests, P0-P3=0). Post-main push CI `33376099903` completed SUCCESS; WO-P1-119 is fully released.
-- WO-P1-118 is split durably: 118A provider generation/CAS + pure trust/egress policy is active in `A:\GitHub\A-Wiki-Conductor-provider-generation-policy`; 118B pre-elastic wiring is blocked until WO-P1-120 releases its candidate/elastic scope.
-- PR #162 / WO-P1-120 head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5` has 3-OS CI green and exact-head GLM re-review PASS (230 tests, P0/P1/P2=0), but must be refreshed onto current main and independently re-reviewed before merge.
-- Synthetic final-tree proof for #160+#161+#162: 366 focused tests passed; full suite 1834 passed / 5 skipped / 2 known local GPU-dependency failures only.
-- P0 WO-P1-096 remains operationally open: current hosted/remote MCP-after-TTL success on tunnel-client v0.0.13 is still unproven and requires explicit maintenance authority.
+Accepted / active frontier state:
+- PR #160 / WO117 merged as `76123743df90e2fddfb37cbaf94826bf6f50bba1`; later Ultra CHANGES_REQUIRED was reproduced on merged main and is not dismissed.
+- PR #161 / WO119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI SUCCESS.
+- PR #164 / WO121 head `fdf8e78048eda9f503db70707d2e2521cdb3c85b`: post-merge dispatch evidence binding repair; RED 10 failed/1 control pass, repaired parallel 56 and frontier 366 pass; 3-OS exact-head CI SUCCESS; Ultra exact-head rereview pending.
+- PR #165 / WO118A head `036acf29b240264fe448b03d0366a96e0f87a693`: generation/CAS + observation/admission generation seam + pure trust/egress policy. GPT integrator repaired generation rollback/corruption/overflow/missing-row CAS and local-egress metadata bypass; post-main union 306 passed; exact-head CI/review pending.
+- PR #162 / WO120 remains open at `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; old-head review/CI green, but final refresh/review should occur after #164/#165 to avoid repeated main reconciliation and lesson-number churn.
+- WO118B remains blocked: production must enforce accepted generation + policy before admission/lease/elastic expansion/credential resolution/launch.
+- P0 WO096 remains operationally open: hosted remote MCP-after-TTL v0.0.13 proof is still absent and requires explicit maintenance authority.
 
 ## Active work orders
 
-1. `WO-P1-118A` — GLM-5.3 MAX bounded implementation under claim `51e7c75537f1`; packet `runs/wo118a-glm-impl-001/task.md`; no 118B wiring in this lane.
-2. `WO-P1-120` — final integration pending main refresh after WO118A releases overlapping provider-store claim; then exact-head CI + independent review + merge.
-3. `WO-P1-096` — P0 operational release gate; no live tunnel/worker mutation without explicit maintenance authority.
+1. `WO-P1-121` — PR #164; exact-head CI green, Ultra rereview pending.
+2. `WO-P1-118A` — PR #165; implementation/integrator repair pushed; exact-head CI + independent review pending.
+3. `WO-P1-120` — PR #162; final main refresh / diverse exact-head review pending after #164/#165.
+4. `WO-P1-118B` — blocked until 118A and 120 release required seams.
+5. `WO-P1-096` — P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
 
 ## Immediate execution frontier
 
-1. Validate WO118A result from actual source/tests; repair only evidence-backed defects, then release its claim.
-2. Refresh PR #162 onto then-current main, resolve only known `DEFECT_LESSONS.md` append collision, rerun union regression, regenerate exact-head independent review, and merge only after green gates.
-3. After #162 releases `worker_candidate_assembly.py`, execute WO118B so trust/egress denial occurs before admission, lease, elastic expansion, credential resolution, or launch.
-4. Only after 117/118/119/120 are accepted may AHA-7 write/Test/Disable controls consume the stable provider safety contract; AHA-8 provider breadth remains later.
+1. Validate Ultra rereview of WO121; merge PR #164 only after exact-head review + CI, then require post-main proof.
+2. Obtain independent exact-head review of PR #165; repair only evidence-backed defects; merge/post-main prove WO118A.
+3. Refresh PR #162 onto then-current main, resolve only deterministic SSoT append conflicts, rerun union regression, regenerate diverse exact-head review, merge/post-main prove WO120.
+4. Start WO118B only after 118A+120 release their seams; denial must precede provider admission, worker lease, elastic expansion, credential access and process launch.
+5. Keep WO096 separately blocked until authorized hosted remote MCP-after-TTL evidence exists.
 
 ## Source-of-truth rule
 

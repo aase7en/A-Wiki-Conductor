@@ -1,41 +1,37 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-08-31 — frontier safety integration after PR #161 merge
+Last updated: 2026-08-31 — WO121 repair + WO118A integrator-hardening frontier
 
 ## Current objective
 
-Finish the post-AHA-6B trust-boundary sequence without human result copy-back: validate WO118A, refresh/re-review/merge WO120, then wire WO118B before AHA-7 provider controls. Preserve the separate P0 WO-P1-096 operational gate.
+Close WO121/PR164 and WO118A/PR165 with exact-head independent evidence, then refresh/re-review/merge WO120 and execute WO118B. Keep P0 WO096 separate.
 
 ## Repository / release identity
 
-- authoritative remote main: `887ef3c9c640a612dffc1a3baeab42b70f6aa12f` (PR #161 merge at this checkpoint);
-- protected root checkout is stale/dirty and MUST NOT be mutated;
-- PR #160 / WO117: MERGED `76123743df90e2fddfb37cbaf94826bf6f50bba1`, post-main CI green;
-- PR #161 / WO119: MERGED `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI run `33376099903` completed SUCCESS;
-- PR #162 / WO120: OPEN DRAFT, head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`, old-head CI/review green; refresh onto current main still required;
-- WO118A worktree `A:\GitHub\A-Wiki-Conductor-provider-generation-policy`, branch `fix/wo-p1-118-provider-generation-policy`, start HEAD `4c60d2fd19474f8b9e84058642e598b277ee7af4`.
+- authoritative remote main: `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; protected root checkout is stale/dirty and MUST NOT be mutated;
+- PR #164 / WO121: DRAFT head `fdf8e78048eda9f503db70707d2e2521cdb3c85b`; exact-head 3-OS CI SUCCESS; Ultra rereview packet `runs/wo121-ultra-rereview-001/task.md`; result pending;
+- PR #165 / WO118A: DRAFT head `036acf29b240264fe448b03d0366a96e0f87a693`; worktree clean/pushed; independent packet `runs/wo118a-independent-review-001/task.md` SHA `c315a8b3ef630450aec09bd08ebd310de0baafb5d51c6d5d0140ff5b28eb5b43`; CI/review pending;
+- PR #162 / WO120: DRAFT head `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; defer final main refresh until #164/#165 stabilize.
 
 ## Ownership / claims
 
-- GLM-5.3 MAX owns only WO118A source/test scope under claim `51e7c75537f1`.
-- WO118A exact packet: `runs/wo118a-glm-impl-001/task.md` in the provider-generation worktree; result destination `runs/wo118a-glm-impl-001/result.md`.
-- GPT integrator owns architecture, trust-boundary adjudication, exact-SHA review packets, cross-PR reconciliation and merge authority.
-- WO120 main refresh is intentionally paused while WO118A owns `provider_config_store.py`; do not treat a mechanical merge of main as permission to overlap the active claim.
+- No live mutable source claims remain for WO121 or WO118A; both heads are pushed and pinned for review.
+- GPT integrator owns SSoT, review adjudication, cross-PR reconciliation and merge authority.
+- WO118B may not start before WO118A and WO120 release required seams.
 
 ## Verified evidence
 
-- WO117 independent review: PASS, 102 tests, P0/P1/P2=0.
-- WO119 final post-main branch revalidation: PASS, 206 tests, P0-P3=0.
-- WO120 old-head re-review: PASS, 230 tests, P0/P1/P2=0; final diverse review must be repeated after main refresh.
-- Synthetic #160+#161+#162 tree: 16/16 canonical non-shared blobs matched; 366 focused passed; full 1834 passed / 5 skipped / 2 known GPU-environment failures.
-- WO118 generation bug reproduced deterministically: configuration changed while an old provider observation remained apparently READY. No live credential/provider was used.
+- WO121: current-main RED 10 failed/1 control pass; repaired focused 13, parallel 56, impact-expanded 366; compile/diff/UTF-8/secret gates PASS; exact-head CI SUCCESS.
+- WO118A: integrator fault injection found and repaired generation rollback/corruption/overflow/missing-row CAS and local-egress metadata bypass; focused 61, related 191, Claude launch-adjacent 71, post-main union 306; compile/diff/UTF-8/secret gates PASS.
+- WO120 old-head review remains PASS at 230 tests but must be repeated after final main refresh.
 
 ## Next safe actions
 
-1. Ingest WO118A result; independently inspect source/diff/transactions/tests before accepting GLM's verdict.
-2. Release WO118A claim only after durable checkpoint. Then refresh PR #162 with current main, preserve lessons #35/#36/#37, rerun union regression and create a new exact-head review packet.
-3. Merge #162 only after exact-head CI and independent review are green; then start WO118B against the released candidate/elastic seam.
-4. Keep WO-P1-096 blocked until authorized hosted remote MCP-after-TTL v0.0.13 evidence exists.
+1. Ingest Ultra WO121 rereview; if PASS and identity/hashes match, merge #164 and require post-main CI.
+2. Obtain independent exact-head review for #165; accept/repair from evidence only; merge/post-main prove 118A.
+3. Refresh #162 onto then-current main, reconcile lesson append deterministically, rerun union tests and obtain a diverse exact-head review.
+4. After #162 merges, execute WO118B pre-admission/pre-elastic/pre-secret/pre-launch generation+policy enforcement.
+5. Keep WO096 blocked pending explicit maintenance authority.
 
 ## Accepted predecessor
 
