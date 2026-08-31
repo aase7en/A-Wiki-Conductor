@@ -95,14 +95,18 @@ def snapshot(worker_row=None) -> ControlCenterSnapshot:
     return ControlCenterSnapshot(projects=(), workers=(worker_row or row(),), online=True)
 
 
-def binding(*, worktree: str = r"A:\Repo") -> SerenaProjectBinding:
+def binding(
+    *,
+    worktree: str = r"A:\Repo",
+    mutation_allowed: bool = True,
+) -> SerenaProjectBinding:
     return SerenaProjectBinding(
         project_id="project-1",
         worktree_path=worktree,
         identity_policy=ProjectIdentityPolicy.EXACT,
         expected_branch="feat/test",
         expected_head=HEAD,
-        mutation_allowed=True,
+        mutation_allowed=mutation_allowed,
     )
 
 
@@ -111,6 +115,8 @@ def context(
     ready: bool | None = True,
     ownership: ProcessOwnership = ProcessOwnership.OWNED,
     identity_ok: bool | None = True,
+    active_task: bool = False,
+    worker_state: WorkerState = WorkerState.READY,
 ) -> LifecycleContext:
     return LifecycleContext(
         action=LifecycleAction.START,
@@ -123,8 +129,8 @@ def context(
         worktree_binding=WorktreeBindingState.OWNED,
         ready=ready,
         project_identity_ok=identity_ok,
-        worker_state=WorkerState.READY,
-        active_task=False,
+        worker_state=worker_state,
+        active_task=active_task,
     )
 
 
@@ -196,6 +202,23 @@ def test_dirty_worktree_uses_live_dirty_evidence_and_disables_mutation_authority
     assert record.scheduler.mutation_authorized is False
     assert record.candidate.dirty_state == "DIRTY"
     assert record.candidate.mutation_authorized is True
+
+
+def test_binding_mutation_denial_overrides_worker_row_permission() -> None:
+    record = assembler(
+        project_binding=binding(mutation_allowed=False)
+    ).assemble("a-worker-01")
+
+    assert record.scheduler.mutation_authorized is False
+    assert record.candidate.mutation_authorized is False
+
+
+def test_lifecycle_active_task_blocks_candidate_without_waiting_for_lease_row() -> None:
+    record = assembler(lifecycle=context(active_task=True)).assemble("a-worker-01")
+
+    assert record.scheduler.reserved is True
+    assert record.candidate.active_task is True
+    assert record.candidate.reserved is True
 
 
 def test_actual_git_identity_is_not_replaced_by_persisted_expected_identity() -> None:
