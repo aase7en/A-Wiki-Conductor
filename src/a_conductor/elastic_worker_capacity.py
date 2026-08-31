@@ -306,7 +306,6 @@ class SQLiteWorkerProvisioningReservations:
         task_id: str,
         now: object,
         stale_after_seconds: int,
-        worker_decommissioned: bool = False,
     ) -> ProvisioningReservationRecord:
         try:
             return self._lease_store.reconcile_stale_provisioning(
@@ -315,7 +314,6 @@ class SQLiteWorkerProvisioningReservations:
                 task_id=task_id,
                 now=now,
                 stale_after_seconds=stale_after_seconds,
-                worker_decommissioned=worker_decommissioned,
             )
         except Exception as exc:
             code = getattr(exc, "code", None)

@@ -839,29 +839,14 @@ def test_reconcile_refuses_provisioned_worker_with_active_lease(tmp_path: Path) 
         )
 
 
-def test_reconcile_releases_stale_provisioned_and_recovery_residue(tmp_path: Path) -> None:
+def test_reconcile_releases_stale_unbound_recovery_residue(tmp_path: Path) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     _acquired(store, reservation_id="r-1")
     store.transition_provisioning_reservation(
-        "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
-        now=NOW, worker_id=NEW_WORKER,
-    )
-    released = store.reconcile_stale_provisioning(
-        "r-1", session_id="s-1", task_id="t-1", now=LATER, stale_after_seconds=3600,
-        worker_decommissioned=True,
-    )
-    assert released.state == "RELEASED"
-    again = store.reconcile_stale_provisioning(
-        "r-1", session_id="s-1", task_id="t-1", now=LATER, stale_after_seconds=3600
-    )
-    assert again.state == "RELEASED"
-
-    _acquired(store, reservation_id="r-2", session_id="s-2", task_id="t-2")
-    store.transition_provisioning_reservation(
-        "r-2", session_id="s-2", task_id="t-2", state="RECOVERY_REQUIRED", now=NOW
+        "r-1", session_id="s-1", task_id="t-1", state="RECOVERY_REQUIRED", now=NOW
     )
     recovered = store.reconcile_stale_provisioning(
-        "r-2", session_id="s-2", task_id="t-2", now=LATER, stale_after_seconds=3600
+        "r-1", session_id="s-1", task_id="t-1", now=LATER, stale_after_seconds=3600
     )
     assert recovered.state == "RELEASED"
 
@@ -929,25 +914,20 @@ def test_reconcile_refuses_bound_worker_without_decommission_evidence(
     )
 
 
-def test_reconcile_releases_bound_residue_only_with_decommission_evidence(
-    tmp_path: Path,
-) -> None:
+def test_reconcile_has_no_boolean_escape_for_bound_residue(tmp_path: Path) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     _acquired(store)
     store.transition_provisioning_reservation(
         "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
         now=NOW, worker_id=NEW_WORKER,
     )
-    released = store.reconcile_stale_provisioning(
-        "r-1", session_id="s-1", task_id="t-1",
-        now=LATER, stale_after_seconds=3600, worker_decommissioned=True,
-    )
-    assert released.state == "RELEASED"
-    second = store.acquire_provisioning_reservation(
-        reservation_id="r-2", session_id="s-2", task_id="t-2",
-        runtime_kind="serena-local", max_extra_workers=1, now=LATER,
-    )
-    assert second.kind.value == "ACQUIRED"
+    with pytest.raises(TypeError):
+        store.reconcile_stale_provisioning(
+            "r-1", session_id="s-1", task_id="t-1",
+            now=LATER, stale_after_seconds=3600, worker_decommissioned=True,
+        )
+    record = store.list_provisioning_reservations(consuming_only=True)[0]
+    assert record.state == "PROVISIONED"
 
 
 # ---------------------------------------------------------------------------
@@ -980,3 +960,18 @@ def test_mark_provisioned_conflict_persists_recovery_state(tmp_path: Path) -> No
     assert reservations[0].state == "RECOVERY_REQUIRED", (
         "durable state must explain replay-unsafety instead of remaining ACTIVE"
     )
+
+
+def test_generic_transition_cannot_release_recovery_required(tmp_path: Path) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    _acquired(store)
+    store.transition_provisioning_reservation(
+        "r-1", session_id="s-1", task_id="t-1", state="RECOVERY_REQUIRED",
+        now=NOW, worker_id=NEW_WORKER,
+    )
+    with pytest.raises(WorkerLeaseError, match="PROVISIONING_RESERVATION_STATE_MISMATCH"):
+        store.transition_provisioning_reservation(
+            "r-1", session_id="s-1", task_id="t-1", state="RELEASED", now=LATER
+        )
+    record = store.list_provisioning_reservations(consuming_only=True)[0]
+    assert record.state == "RECOVERY_REQUIRED"

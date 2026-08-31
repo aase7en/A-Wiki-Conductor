@@ -552,3 +552,15 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** recovery is a durable state transition, not only a return code. If a process can restart between failure and operator action, the persisted authority must still explain why replay is unsafe.
 
 **Verify:** RED tests assert both returned recovery code and persisted reservation state after observation/broker failure; cross-process capacity limits remain enforced.
+
+## #36: Recovery assertions are not decommission authority (2026-08-31)
+
+**Symptom:** a stale bound provisioning reservation could free elastic-capacity budget either by passing a caller boolean `worker_decommissioned=True` or by using the generic `RECOVERY_REQUIRED -> RELEASED` transition, even though neither path proved the worker had actually disappeared.
+
+**Root cause:** recovery cleanup exposed assertion-shaped inputs and a generic state transition where the capacity authority required evidence. The API encoded intent to release, not provenance that release was safe.
+
+**Fix:** bound provisioning residue now always remains consuming under stale reconciliation until a future typed runtime/decommission observation seam can provide verifiable evidence. The boolean escape was removed. Generic `RECOVERY_REQUIRED -> RELEASED` is forbidden; unbound stale residue may still release through exact-owner + staleness reconciliation, while CAPACITY retirement remains separate.
+
+**Lesson:** booleans and caller claims are not ownership/decommission evidence. Any action that frees bounded capacity after uncertainty must consume typed provenance from an authoritative observation path, or fail closed.
+
+**Verify:** RED tests prove the boolean escape and generic recovery-release bypass on the prior repair; final worker/elastic/parallel regression = 228 passed.

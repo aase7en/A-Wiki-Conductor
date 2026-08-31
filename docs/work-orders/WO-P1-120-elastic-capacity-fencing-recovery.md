@@ -1,8 +1,8 @@
 # WO-P1-120 — Elastic Capacity Fencing + Recovery Hardening
 
 Date: 2026-08-31
-Proposed owner: GLM-5.3 MAX under exact bounded task contract
-Status: READY_FOR_CLAIM / UNCLAIMED
+Owner: GPT-5.6 Sol integrator after GLM-5.3 MAX bounded implementation/repair
+Status: IMPLEMENTED_LOCAL / REVIEW_PREP
 Repository: `aase7en/A-Wiki-Conductor`
 Priority: P2/P3 hardening before production elastic wiring; independent of fixed-worker first canary
 
@@ -56,3 +56,14 @@ F. Add typed stale-failure-residue inspection/reconcile using deterministic owne
 ## Concurrency
 
 May run concurrently with WO-P1-117 and WO-P1-119. If the R6 RED test requires changing registry/publication semantics outside the allowed three source files, report `SCOPE_REOPEN_REQUIRED` and stop rather than expanding authority silently.
+
+
+## Implementation checkpoint — 2026-08-31
+
+- GLM first implementation `962be358f1426086b5b40b113377c82b46d7b614` reproduced and repaired the R6 publication/lease race, enforced scheduler eligibility on direct provisioning, enforced single-store composition, persisted post-provision recovery, and added stale-residue reconciliation.
+- GPT integrator found two blockers in that result: bound PROVISIONED residue could release budget without proof the worker disappeared, and a mark-provisioned lease conflict returned recovery while durable reservation remained ACTIVE.
+- GLM repair `a1b7ac438364cf41c8804add3e6183f39f8870b0` fixed durable conflict recovery and changed bound stale release to require `worker_decommissioned=True`.
+- GPT adversarial review rejected that boolean as decommission authority and found a second bypass: the generic transition matrix still allowed `RECOVERY_REQUIRED -> RELEASED` without reconciliation.
+- RED proved both bypasses. Final local repair removes the boolean escape, refuses all bound stale-residue release until a typed runtime/decommission observation seam exists, and forbids generic `RECOVERY_REQUIRED -> RELEASED`. Unbound stale residue remains evidence-gated releasable; CAPACITY retirement remains separate.
+- Focused + related worker/elastic/parallel regression after the integrator repair: `228 passed`; compileall and `git diff --check` PASS.
+- Remaining gates: source/docs commit + push -> exact-SHA independent review -> 3-OS CI -> merge/post-main verification.

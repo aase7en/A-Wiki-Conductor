@@ -805,7 +805,7 @@ class SQLiteWorkerLeaseStore:
                     "ACTIVE": {"PROVISIONED", "RECOVERY_REQUIRED", "RELEASED"},
                     "PROVISIONED": {"CAPACITY", "RECOVERY_REQUIRED"},
                     "CAPACITY": {"RELEASED"},
-                    "RECOVERY_REQUIRED": {"RELEASED"},
+                    "RECOVERY_REQUIRED": set(),
                 }
                 if target not in allowed_transitions.get(current.state, set()):
                     connection.rollback()
@@ -874,18 +874,16 @@ class SQLiteWorkerLeaseStore:
         task_id: str,
         now: object,
         stale_after_seconds: int,
-        worker_decommissioned: bool = False,
     ) -> WorkerProvisioningReservationRecord:
         """Release stale failure residue only from deterministic evidence.
 
         Age alone is never release authority: the exact owner identity must be
         supplied, the record must be a consuming failure-residue state whose
         ``updated_at`` is older than ``stale_after_seconds``, and a bound worker
-        must hold no active lease. A record whose ``worker_id`` is bound also
-        requires explicit caller-observed decommission/absence evidence
-        (``worker_decommissioned=True``); without it the release is refused so
-        a still-existing provisioned worker can never silently free budget for
-        duplicate capacity. CAPACITY records are successful-capacity
+        must hold no active lease. Bound worker residue is not releasable by
+        this API until a typed runtime/decommission observation seam exists;
+        caller assertions are not decommission authority. CAPACITY records are
+        successful-capacity
         accounting, not residue, and are never retired here.
         """
         reservation_id = _text(reservation_id, "reservation_id", max_length=128)
@@ -897,8 +895,6 @@ class SQLiteWorkerLeaseStore:
             or not 1 <= stale_after_seconds <= 31_536_000
         ):
             raise ValueError("stale_after_seconds must be between 1 and 31536000")
-        if not isinstance(worker_decommissioned, bool):
-            raise ValueError("worker_decommissioned must be bool")
         observed_at = _timestamp(now, "now")
         now_dt = _timestamp_datetime(observed_at, "now")
         with self._connect() as connection:
@@ -934,11 +930,10 @@ class SQLiteWorkerLeaseStore:
                     if active_lease is not None:
                         connection.rollback()
                         raise WorkerLeaseError("PROVISIONING_WORKER_IN_USE")
-                    if not worker_decommissioned:
-                        connection.rollback()
-                        raise WorkerLeaseError(
-                            "PROVISIONING_WORKER_DECOMMISSION_EVIDENCE_REQUIRED"
-                        )
+                    connection.rollback()
+                    raise WorkerLeaseError(
+                        "PROVISIONING_WORKER_DECOMMISSION_EVIDENCE_REQUIRED"
+                    )
                 connection.execute(
                     "UPDATE worker_provisioning_reservations "
                     "SET state='RELEASED', updated_at=? WHERE reservation_id=?",
