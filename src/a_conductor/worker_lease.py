@@ -810,6 +810,21 @@ class SQLiteWorkerLeaseStore:
                 if target not in allowed_transitions.get(current.state, set()):
                     connection.rollback()
                     raise WorkerLeaseError("PROVISIONING_RESERVATION_STATE_MISMATCH")
+                if target == "PROVISIONED":
+                    foreign_lease = connection.execute(
+                        "SELECT session_id, task_id FROM worker_leases "
+                        "WHERE worker_id = ? AND released_at IS NULL",
+                        (worker_id,),
+                    ).fetchone()
+                    if foreign_lease is not None and (
+                        foreign_lease["session_id"] != session_id
+                        or foreign_lease["task_id"] != task_id
+                    ):
+                        # Binding the reservation to a worker another session
+                        # already leased is a handoff steal; fail closed here so
+                        # publication and leasing stay mutually exclusive.
+                        connection.rollback()
+                        raise WorkerLeaseError("PROVISIONING_WORKER_LEASE_CONFLICT")
                 connection.execute(
                     "UPDATE worker_provisioning_reservations "
                     "SET state=?, worker_id=?, updated_at=? WHERE reservation_id=?",
@@ -850,6 +865,89 @@ class SQLiteWorkerLeaseStore:
             except sqlite3.Error as exc:
                 raise WorkerLeaseError("LEASE_STORE_READ_FAILED") from exc
         return tuple(self._provisioning_record_from_row(row) for row in rows)
+
+    def reconcile_stale_provisioning(
+        self,
+        reservation_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+        now: object,
+        stale_after_seconds: int,
+    ) -> WorkerProvisioningReservationRecord:
+        """Release stale failure residue only from deterministic evidence.
+
+        Age alone is never release authority: the exact owner identity must be
+        supplied, the record must be a consuming failure-residue state whose
+        ``updated_at`` is older than ``stale_after_seconds``, and a bound worker
+        must hold no active lease. CAPACITY records are successful-capacity
+        accounting, not residue, and are never retired here.
+        """
+        reservation_id = _text(reservation_id, "reservation_id", max_length=128)
+        session_id = _text(session_id, "session_id", max_length=128)
+        task_id = _text(task_id, "task_id", max_length=256)
+        if (
+            isinstance(stale_after_seconds, bool)
+            or not isinstance(stale_after_seconds, int)
+            or not 1 <= stale_after_seconds <= 31_536_000
+        ):
+            raise ValueError("stale_after_seconds must be between 1 and 31536000")
+        observed_at = _timestamp(now, "now")
+        now_dt = _timestamp_datetime(observed_at, "now")
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT * FROM worker_provisioning_reservations WHERE reservation_id=?",
+                    (reservation_id,),
+                ).fetchone()
+                if row is None:
+                    connection.rollback()
+                    raise WorkerLeaseError("PROVISIONING_RESERVATION_NOT_FOUND")
+                current = self._provisioning_record_from_row(row)
+                if current.session_id != session_id or current.task_id != task_id:
+                    connection.rollback()
+                    raise WorkerLeaseError("PROVISIONING_OWNER_MISMATCH")
+                if current.state == "RELEASED":
+                    connection.rollback()
+                    return current
+                if current.state == "CAPACITY":
+                    connection.rollback()
+                    raise WorkerLeaseError("PROVISIONING_CAPACITY_RETIREMENT_FORBIDDEN")
+                updated_dt = _timestamp_datetime(current.updated_at, "updated_at")
+                if (now_dt - updated_dt).total_seconds() < stale_after_seconds:
+                    connection.rollback()
+                    raise WorkerLeaseError("PROVISIONING_NOT_STALE")
+                if current.worker_id is not None:
+                    active_lease = connection.execute(
+                        "SELECT lease_id FROM worker_leases "
+                        "WHERE worker_id = ? AND released_at IS NULL",
+                        (current.worker_id,),
+                    ).fetchone()
+                    if active_lease is not None:
+                        connection.rollback()
+                        raise WorkerLeaseError("PROVISIONING_WORKER_IN_USE")
+                connection.execute(
+                    "UPDATE worker_provisioning_reservations "
+                    "SET state='RELEASED', updated_at=? WHERE reservation_id=?",
+                    (observed_at, reservation_id),
+                )
+                updated = connection.execute(
+                    "SELECT * FROM worker_provisioning_reservations WHERE reservation_id=?",
+                    (reservation_id,),
+                ).fetchone()
+                if updated is None:
+                    connection.rollback()
+                    raise WorkerLeaseError("PROVISIONING_RESERVATION_NOT_FOUND")
+                record = self._provisioning_record_from_row(updated)
+                connection.commit()
+                return record
+            except WorkerLeaseError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise WorkerLeaseError("LEASE_STORE_WRITE_FAILED") from exc
 
     def find_active_owner_task(self, session_id: str, task_id: str) -> WorkerLease | None:
         session_id = _text(session_id, "session_id", max_length=128)
@@ -909,6 +1007,20 @@ class SQLiteWorkerLeaseStore:
                     (lease.worker_id,),
                 ).fetchone()
                 if active_worker is not None:
+                    connection.rollback()
+                    return LeaseStoreAcquireResult(None, created=False)
+                bound_reservation = connection.execute(
+                    "SELECT session_id, task_id, state FROM worker_provisioning_reservations "
+                    "WHERE worker_id = ? AND state IN ('PROVISIONED','RECOVERY_REQUIRED')",
+                    (lease.worker_id,),
+                ).fetchone()
+                if bound_reservation is not None and (
+                    bound_reservation["state"] != "PROVISIONED"
+                    or bound_reservation["session_id"] != lease.session_id
+                    or bound_reservation["task_id"] != lease.task_id
+                ):
+                    # A non-released handoff reservation fences the worker at the
+                    # capacity authority; only the exact PROVISIONED owner may lease.
                     connection.rollback()
                     return LeaseStoreAcquireResult(None, created=False)
                 if lease.mutation_intent is LeaseMutationIntent.MUTATION:

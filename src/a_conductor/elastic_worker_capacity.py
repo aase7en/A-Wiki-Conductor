@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Callable, Mapping, Protocol
 
 from .graph.domain import TaskGraph
@@ -297,6 +298,29 @@ class SQLiteWorkerProvisioningReservations:
                 raise ElasticCapacityError(_reservation_store_error_code(code)) from exc
             raise
 
+    def reconcile_stale(
+        self,
+        reservation_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+        now: object,
+        stale_after_seconds: int,
+    ) -> ProvisioningReservationRecord:
+        try:
+            return self._lease_store.reconcile_stale_provisioning(
+                reservation_id,
+                session_id=session_id,
+                task_id=task_id,
+                now=now,
+                stale_after_seconds=stale_after_seconds,
+            )
+        except Exception as exc:
+            code = getattr(exc, "code", None)
+            if isinstance(code, str) and code:
+                raise ElasticCapacityError(_reservation_store_error_code(code)) from exc
+            raise
+
 
 @dataclass(frozen=True, slots=True)
 class ElasticProvisionRequest:
@@ -491,8 +515,15 @@ class ElasticWorkerCapacityCoordinator:
         *,
         runtime_kind: str,
         policy: ElasticCapacityPolicy,
+        eligibility: Mapping[str, NodeEligibility] | None,
     ) -> ElasticCapacityOutcome:
-        """Reserve, provision, and re-observe one worker without pre-leasing it."""
+        """Reserve, provision, and re-observe one worker without pre-leasing it.
+
+        ``eligibility`` is the same scheduler admission evidence
+        ``ProductionElasticWorkerExecutor.execute_once`` requires: provisioning
+        may only start after non-capacity gates are proven for the blocked
+        nodes, never from a plan assembled without that evidence.
+        """
         if not isinstance(plan, SchedulePlan):
             raise ValueError("plan must be SchedulePlan")
         if not isinstance(lease_request, WorkerLeaseRequest):
@@ -515,6 +546,28 @@ class ElasticWorkerCapacityCoordinator:
                 ElasticCapacityOutcomeKind.POLICY_BLOCKED,
                 "REMOTE_TRANSPORT_AUTHORIZATION_REQUIRED",
             )
+        blocked_ids = {item.node_id for item in plan.blocked}
+        if (
+            eligibility is None
+            or not isinstance(eligibility, Mapping)
+            or not blocked_ids.issubset(eligibility)
+        ):
+            return ElasticCapacityOutcome(
+                ElasticCapacityOutcomeKind.RECOVERY_REQUIRED,
+                "SCHEDULER_ELIGIBILITY_EVIDENCE_MISSING",
+            )
+        for node_id in blocked_ids:
+            evidence = eligibility[node_id]
+            if not isinstance(evidence, NodeEligibility):
+                return ElasticCapacityOutcome(
+                    ElasticCapacityOutcomeKind.RECOVERY_REQUIRED,
+                    "SCHEDULER_ELIGIBILITY_EVIDENCE_INVALID",
+                )
+            if not evidence.eligible:
+                return ElasticCapacityOutcome(
+                    ElasticCapacityOutcomeKind.NOT_CAPACITY_FAILURE,
+                    "SCHEDULER_ELIGIBILITY_REFUSED",
+                )
         if not _capacity_only(plan):
             return ElasticCapacityOutcome(
                 ElasticCapacityOutcomeKind.NOT_CAPACITY_FAILURE,
@@ -626,6 +679,15 @@ class ElasticWorkerCapacityCoordinator:
                 worker_id=provisioned.worker_id,
                 now=self._clock(),
             )
+        except ElasticCapacityError as exc:
+            return self._recovery(
+                reservation_id,
+                _safe_reason_code(
+                    getattr(exc, "code", None),
+                    "PROVISIONING_STATE_PERSISTENCE_FAILED",
+                ),
+                worker_id=provisioned.worker_id,
+            )
         except Exception:
             return self._recovery(
                 reservation_id,
@@ -685,6 +747,32 @@ class ElasticWorkerCapacityCoordinator:
             now=self._clock(),
         )
 
+    def abandon_provisioned_handoff(
+        self,
+        reservation_id: str | None,
+        lease_request: WorkerLeaseRequest,
+        *,
+        worker_id: str | None = None,
+    ) -> None:
+        """Best-effort durable RECOVERY_REQUIRED mark for an uncertain handoff.
+
+        Used on post-PROVISIONED_READY failure paths where the typed outcome is
+        already decided: the persisted reservation must still explain why
+        replay is unsafe. Never raises and never releases capacity.
+        """
+        if not reservation_id:
+            return
+        try:
+            self._reservations.mark_recovery(
+                reservation_id,
+                session_id=lease_request.session_id,
+                task_id=lease_request.task_id,
+                now=self._clock(),
+                worker_id=worker_id,
+            )
+        except Exception:
+            pass
+
     def expand(
         self,
         plan: SchedulePlan,
@@ -692,6 +780,7 @@ class ElasticWorkerCapacityCoordinator:
         *,
         runtime_kind: str,
         policy: ElasticCapacityPolicy,
+        eligibility: Mapping[str, NodeEligibility] | None,
     ) -> ElasticCapacityOutcome:
         """Compatibility seam: provision safely, then lease through the existing broker."""
         prepared = self.provision_ready(
@@ -699,10 +788,14 @@ class ElasticWorkerCapacityCoordinator:
             lease_request,
             runtime_kind=runtime_kind,
             policy=policy,
+            eligibility=eligibility,
         )
         if prepared.kind is not ElasticCapacityOutcomeKind.PROVISIONED_READY:
             return prepared
         if prepared.supply is None or prepared.worker_id is None:
+            self.abandon_provisioned_handoff(
+                prepared.reservation_id, lease_request, worker_id=prepared.worker_id
+            )
             return self._recovery(
                 prepared.reservation_id or "unknown-reservation",
                 "PROVISIONED_WORKER_OBSERVATION_INVALID",
@@ -771,6 +864,9 @@ class ElasticWorkerCapacityCoordinator:
                 worker_id=prepared.worker_id,
             )
         except Exception:
+            self.abandon_provisioned_handoff(
+                prepared.reservation_id, lease_request, worker_id=prepared.worker_id
+            )
             return self._recovery(
                 prepared.reservation_id or "unknown-reservation",
                 "PROVISIONING_CAPACITY_PERSISTENCE_FAILED",
@@ -831,6 +927,17 @@ class ProductionElasticWorkerExecutor:
             raise ValueError("capacity_coordinator must be ElasticWorkerCapacityCoordinator")
         if not isinstance(parallel_executor, ParallelReadyExecutor):
             raise ValueError("parallel_executor must be ParallelReadyExecutor")
+        assembler_authority = getattr(
+            candidate_assembler, "lease_evidence_database_path", None
+        )
+        coordinator_authority = capacity_coordinator.authority_database_path
+        if assembler_authority is not None and Path(assembler_authority) != Path(
+            coordinator_authority
+        ):
+            raise ValueError(
+                "ELASTIC_SUPPLY_AUTHORITY_MISMATCH: candidate assembly and elastic "
+                "capacity must observe one shared SQLite worker authority"
+            )
         self._assembler = candidate_assembler
         self._capacity = capacity_coordinator
         self._executor = parallel_executor
@@ -997,6 +1104,7 @@ class ProductionElasticWorkerExecutor:
             contract.lease_request,
             runtime_kind=runtime_kind,
             policy=elastic_policy,
+            eligibility=effective_eligibility,
         )
         if elastic.kind is not ElasticCapacityOutcomeKind.PROVISIONED_READY:
             kind = (
@@ -1016,6 +1124,9 @@ class ProductionElasticWorkerExecutor:
                 task_id=contract.lease_request.task_id,
             )
         except Exception:
+            self._capacity.abandon_provisioned_handoff(
+                elastic.reservation_id, contract.lease_request, worker_id=elastic.worker_id
+            )
             return ProductionElasticExecutionResult(
                 ProductionElasticExecutionKind.RECOVERY_REQUIRED,
                 "PROVISIONED_WORKER_FULL_REOBSERVATION_FAILED",
@@ -1035,6 +1146,9 @@ class ProductionElasticWorkerExecutor:
             or final_plan.selected[0].node_id != blocked_node
             or final_plan.selected[0].worker_id != elastic.worker_id
         ):
+            self._capacity.abandon_provisioned_handoff(
+                elastic.reservation_id, contract.lease_request, worker_id=elastic.worker_id
+            )
             return ProductionElasticExecutionResult(
                 ProductionElasticExecutionKind.RECOVERY_REQUIRED,
                 "PROVISIONED_WORKER_RESCHEDULE_DRIFT",
@@ -1051,6 +1165,9 @@ class ProductionElasticWorkerExecutor:
                 batch_id=batch_id,
             )
         except Exception:
+            self._capacity.abandon_provisioned_handoff(
+                elastic.reservation_id, contract.lease_request, worker_id=elastic.worker_id
+            )
             return ProductionElasticExecutionResult(
                 ProductionElasticExecutionKind.RECOVERY_REQUIRED,
                 "PARALLEL_READY_EXECUTION_EXCEPTION",
@@ -1061,7 +1178,11 @@ class ProductionElasticWorkerExecutor:
         kind, reason = self._batch_kind(
             batch, success_kind=ProductionElasticExecutionKind.ELASTIC_EXECUTED
         )
-        if kind is ProductionElasticExecutionKind.ELASTIC_EXECUTED:
+        if kind is not ProductionElasticExecutionKind.ELASTIC_EXECUTED:
+            self._capacity.abandon_provisioned_handoff(
+                elastic.reservation_id, contract.lease_request, worker_id=elastic.worker_id
+            )
+        else:
             try:
                 self._capacity.finalize_capacity(
                     elastic.reservation_id or "unknown-reservation",
@@ -1069,6 +1190,10 @@ class ProductionElasticWorkerExecutor:
                     worker_id=elastic.worker_id or "unknown-worker",
                 )
             except Exception:
+                self._capacity.abandon_provisioned_handoff(
+                    elastic.reservation_id, contract.lease_request,
+                    worker_id=elastic.worker_id,
+                )
                 return ProductionElasticExecutionResult(
                     ProductionElasticExecutionKind.RECOVERY_REQUIRED,
                     "PROVISIONING_CAPACITY_PERSISTENCE_FAILED",
@@ -1097,6 +1222,16 @@ def build_sqlite_elastic_worker_capacity_coordinator(
 ) -> ElasticWorkerCapacityCoordinator:
     """Build elastic capacity with one shared SQLite worker-capacity authority."""
     store = SQLiteWorkerLeaseStore(database_path)
+    assembler_authority = getattr(
+        candidate_assembler, "lease_evidence_database_path", None
+    )
+    if assembler_authority is not None and Path(assembler_authority) != Path(
+        store.database_path
+    ):
+        raise ValueError(
+            "ELASTIC_SUPPLY_AUTHORITY_MISMATCH: candidate assembly and elastic "
+            "capacity must observe one shared SQLite worker authority"
+        )
     broker = WorkerLeaseBroker(
         store=store,
         lease_id_factory=lease_id_factory,
