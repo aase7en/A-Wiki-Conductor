@@ -1,42 +1,35 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-08-31 (GPT-5.6 Sol - POST-AHA-6B FRONTIER SAFETY SHAPING / PREPARED LANES)
+Last updated: 2026-08-31 (GPT-5.6 Sol — WO121 post-merge repair + WO118A integrator hardening)
 
 ## Current phase
 
-**AHA-6B is released. Ultra + GLM results are validated and the next safety-first lanes are READY_FOR_CLAIM after exact closeout-main post-main CI turned green. P0 WO-P1-096 remains the highest unresolved release gate.**
+**Post-AHA-6B frontier safety integration. WO117/WO119 are merged. Ultra's late WO117 review found real post-merge dispatch-evidence defects now isolated as WO-P1-121 / PR #164. WO118A is integrator-repaired in PR #165 and awaits exact-head CI/review. WO120 remains queued for refresh after these fronts stabilize. WO118B remains blocked until WO118A and WO120 are accepted. P0 WO-P1-096 remains a separate operational release blocker.**
 
-P0 WO-P1-096 remains separate: Worker4 is READY but no live staged-v0.0.13 process exists; remote MCP-after-TTL proof on v0.0.13 remains unproven and still requires explicit maintenance authority.
+Accepted / active frontier state:
+- PR #160 / WO117 merged as `76123743df90e2fddfb37cbaf94826bf6f50bba1`; later Ultra CHANGES_REQUIRED was reproduced on merged main and is not dismissed.
+- PR #161 / WO119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI SUCCESS.
+- PR #164 / WO121 head `fdf8e78048eda9f503db70707d2e2521cdb3c85b`: post-merge dispatch evidence binding repair; RED 10 failed/1 control pass, repaired parallel 56 and frontier 366 pass; 3-OS exact-head CI SUCCESS; Ultra exact-head rereview pending.
+- PR #165 / WO118A head `729c3133a2c9281fe768793756099c21a2edd933`: generation/CAS + observation/admission generation seam + pure trust/egress policy. GPT integrator repaired generation rollback/corruption/overflow/missing-row CAS and local-egress metadata bypass; post-main union 306 passed; a second RED closed EXTERNAL_FIRST_PARTY trust-class downgrade; broader repair regression 254 passed; exact-head CI/review pending.
+- PR #162 / WO120 remains open at `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; exact merge-tree analysis proves source conflicts with #164 (`parallel_ready_execution.py` + test) and #165 (`provider_config_store.py` + test), plus `DEFECT_LESSONS.md`. Refresh must preserve then-current main safety authorities and replay only the bounded WO120 elastic/fencing delta.
+- WO118B remains blocked: production must enforce accepted generation + policy before admission/lease/elastic expansion/credential resolution/launch.
+- P0 WO096 remains operationally open: hosted remote MCP-after-TTL v0.0.13 proof is still absent and requires explicit maintenance authority.
 
-Accepted AHA-6B closeout state:
-- implementation PR `#157` merged as `af5a5068aea37ce82875e4b6fff40ac19ac112c5`;
-- exact-head CI `33352780461`: SUCCESS on Windows/Ubuntu/macOS;
-- post-main CI `33354156749`: SUCCESS on Windows/Ubuntu/macOS;
-- Windows packaging, Portable smoke and Frozen Setup install/uninstall E2E: PASS;
-- independent GLM-5.3 MAX exact-SHA review: PASS with P0/P1/P2 = 0.
+## Active work orders
 
-## Active work order
-
-No implementation lane is claimed yet. Prepared safety slices:
-- `WO-P1-117` provider dispatch outcome + admission lifetime — proposed GPT integrator owner; P1.
-- `WO-P1-118` config generation + trust/egress policy — QUEUED behind 117 due shared provider-store scope; P1.
-- `WO-P1-119` provider output persistence safety — proposed GPT-5.6 Sol Ultra owner; P1; disjoint.
-- `WO-P1-120` elastic fencing/recovery hardening — proposed GLM-5.3 MAX owner under exact bounded packet; P2/P3; disjoint.
-
-## Latest completed work order
-
-`docs/work-orders/WO-P1-116-elastic-worker-capacity.md` - COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.
-Implementation PR `#157` merged as `af5a5068aea37ce82875e4b6fff40ac19ac112c5`; exact-head CI `33352780461` and post-main CI `33354156749` passed Windows/Ubuntu/macOS including Windows Frozen Setup E2E.
-Independent GLM-5.3 MAX review passed on exact reviewed head `d06129ac943ceaa30c398d744b07a0fec9b505e1` with P0/P1/P2 = 0; four P3 notes are non-blocking follow-up candidates.
+1. `WO-P1-121` — PR #164; exact-head CI green, Ultra rereview pending.
+2. `WO-P1-118A` — PR #165; implementation/integrator repair pushed; exact-head CI + independent review pending.
+3. `WO-P1-120` — PR #162; final main refresh / diverse exact-head review pending after #164/#165.
+4. `WO-P1-118B` — blocked until 118A and 120 release required seams.
+5. `WO-P1-096` — P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
 
 ## Immediate execution frontier
 
-1. Closeout PR #158 is merged as `fd2f443b6e93abbc766bfcdc41e31424f35013e8`; its exact post-main CI is the baseline gate before implementation claims.
-2. Ultra `gpt56-ultra-frontier-001` identity is validated; GPT independently confirmed source-level R1/R2/R3/R4/R5 and R9, with R6 retained as a RED-first interleaving hypothesis.
-3. GLM `glm53-capacity-hardening-001` is validated; its four AHA-6B P3 findings were independently confirmed.
-4. Safety ordering: WO-P1-117 + WO-P1-119 + WO-P1-120 may run concurrently after baseline/claim/worktree gates; WO-P1-118 follows 117 because both own `provider_config_store.py`.
-5. AHA-7 read-only operator status and no-relay F4/F5/F6 remain downstream of these trust boundaries; broad AHA-8 provider breadth is later.
-6. P0 WO-P1-096 maintenance remains independent and cannot borrow a live worker/tunnel without explicit authority.
+1. Validate Ultra rereview of WO121; merge PR #164 only after exact-head review + CI, then require post-main proof.
+2. Obtain independent exact-head review of PR #165; repair only evidence-backed defects; merge/post-main prove WO118A.
+3. After #164/#165 stabilize, reconstruct/refresh PR #162 onto then-current main: current-main dispatch/provider-generation safety is authoritative; resolve known source conflicts deliberately, replay only bounded WO120 elastic/fencing intent, rerun union RED/regression, then regenerate diverse exact-head review.
+4. Start WO118B only after 118A+120 release their seams; denial must precede provider admission, worker lease, elastic expansion, credential access and process launch.
+5. Keep WO096 separately blocked until authorized hosted remote MCP-after-TTL evidence exists.
 
 ## Source-of-truth rule
 

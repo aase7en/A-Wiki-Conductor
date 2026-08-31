@@ -3,25 +3,19 @@
 This file is a compact lane index, not the project source of truth.
 Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work order → runtime/Git evidence.
 
-## Active lane checkpoint — 2026-08-30
+## Active lane checkpoint — 2026-08-31
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
-| Integrator | GPT-5.6 Sol | WO-P1-117 | provider dispatch outcome + admission lifetime safety | READY_FOR_CLAIM |
-| Queue | provider-neutral | WO-P1-118 | config-generation binding + trust/egress policy | QUEUED / AFTER_117 |
-| Parallel lane | GPT-5.6 Sol Ultra proposed | WO-P1-119 | provider output persistence safety | READY_FOR_CLAIM |
-| Parallel lane | GLM-5.3 MAX proposed | WO-P1-120 | elastic capacity fencing + recovery hardening | READY_FOR_CLAIM |
-| Integrator | GPT-5.6 Sol | WO-P1-116 / AHA-6B | production candidate assembly + bounded elastic capacity + focused tests + SSoT | VERIFIED / RELEASED |
-| Integrator | GPT-5.6 Sol | WO-P1-115 / AHA-6A.1 | provider admission/runtime wiring + tests + bounded SSoT | RELEASED |
-| GLM review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-review-001` | read-only `runs/wo115-glm-review-001/result.json` only | VERIFIED PASS / REPAIR ACCEPTED |
-| GLM re-review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-rereview-002` | read-only `runs/wo115-glm-rereview-002/result.json` only | VERIFIED PASS / RELEASED |
-| Integrator | GPT-5.6 Sol | WO-P1-114 / AHA-6A | provider runtime assembly + tests + bounded SSoT | RELEASED |
-| GLM review lane | GLM-5.3 MAX via one-way file bridge until auto dispatch exists | `wo114-glm-review-002` | read-only result artifact only | VERIFIED / RELEASED |
-| Integrator | GPT-5.6 Sol | WO-P1-113 / AHA-6 | thin parallel coordinator + tests + coordination SSoT | RELEASED |
-| Parallel agent lane A | provider-neutral | AHA-6 selected READY task A | one leased file/task in isolated authorized worktree | RELEASED |
-| Parallel agent lane B | provider-neutral | AHA-6 selected READY task B | one leased file/task in isolated authorized worktree | RELEASED |
-| CoinTH/GLM provider lane | GLM-5.3 MAX via Claude CLI/ZCode bridge | `aha6-glm-rereview-002` repair re-review | read-only result file only | RELEASED |
-| Future agents | provider-neutral | none | none | UNCLAIMED |
+| Released predecessor | GPT-5.6 Sol | WO-P1-117 | provider dispatch/admission lifetime | MERGED #160; late Ultra findings moved to WO121 |
+| Review gate | GPT-5.6 Sol + Ultra rereview | WO-P1-121 | dispatch completion evidence binding | PR #164 / CI_GREEN / ULTRA_REREVIEW_PENDING |
+| Review gate | GPT-5.6 Sol integrator + independent reviewer | WO-P1-118A | provider generation/CAS + pure trust/egress evaluator | PR #165 / INTEGRATOR_REPAIRED / CI_REVIEW_PENDING |
+| Blocked integration | GPT-5.6 Sol | WO-P1-118B | pre-admission/pre-elastic/pre-secret enforcement | BLOCKED_ON_118A_AND_120 |
+| Released | GPT-5.6 Sol + GLM review | WO-P1-119 | provider output persistence safety | MERGED `887ef3c9` / POST_MAIN_GREEN |
+| Integration queue | GPT-5.6 Sol | WO-P1-120 | elastic capacity fencing + recovery hardening | PR #162 / SOURCE_CONFLICTS_KNOWN / RECONSTRUCT_AFTER_164_165 |
+| P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / NO CURRENT PROOF |
+| Future | provider-neutral | AHA-7 write/Test/Disable provider controls | released provider safety contracts | AFTER_118B |
+| Future | provider-neutral | AHA-8 additional providers | one adapter at a time | DEFERRED |
 
 ### Completed GLM bridge contract
 
