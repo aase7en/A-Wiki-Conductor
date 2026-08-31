@@ -240,3 +240,32 @@ def test_local_boundary_accepts_explicit_loopback_endpoint() -> None:
     )
     assert decision.allowed is True
     assert decision.reason_code == "POLICY_ALLOWED_LOCAL_EGRESS"
+
+
+@pytest.mark.parametrize(
+    "trust_class", [ProviderTrustClass.TRUSTED_THIRD_PARTY, ProviderTrustClass.LOCAL]
+)
+def test_external_first_party_requires_first_party_trust(trust_class) -> None:
+    decision = evaluate_provider_policy(
+        profile(
+            trust_class=trust_class,
+            egress_boundary=EgressBoundary.EXTERNAL_FIRST_PARTY,
+        ),
+        ENDPOINT,
+        task(privacy=TaskPrivacyClass.SENSITIVE),
+    )
+    assert decision.allowed is False
+    assert decision.reason_code == "PROVIDER_TRUST_EGRESS_MISMATCH"
+
+
+def test_external_first_party_with_first_party_trust_stays_eligible() -> None:
+    decision = evaluate_provider_policy(
+        profile(
+            trust_class=ProviderTrustClass.FIRST_PARTY,
+            egress_boundary=EgressBoundary.EXTERNAL_FIRST_PARTY,
+        ),
+        ENDPOINT,
+        task(privacy=TaskPrivacyClass.SENSITIVE),
+    )
+    assert decision.allowed is True
+    assert decision.reason_code == "POLICY_ALLOWED_EXTERNAL_EGRESS"

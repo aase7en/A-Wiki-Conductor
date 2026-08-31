@@ -98,3 +98,13 @@ Verification after repair:
 **118A is not overall WO118 completion.** Production callers still omit `expected_configuration_generation`, `is_provider_ready(... expected_generation=...)`, and `evaluate_provider_policy()` has no production caller. Resolver -> credential/launch TOCTOU and pre-elastic enforcement remain binding WO118B acceptance work after WO120 releases the shared candidate/elastic seam.
 
 Status: **WO-P1-118A INTEGRATOR_REPAIRED / REVIEW_PENDING; WO-P1-118B BLOCKED_ON_WO-P1-120.**
+
+## Integrator trust/egress repair checkpoint — 2026-08-31
+
+A second GPT adversarial pass after the first PR #165 head found a real policy-classification downgrade: `TRUSTED_THIRD_PARTY` or `LOCAL` combined with `EXTERNAL_FIRST_PARTY` received first-party SENSITIVE treatment because `trust_class` only denied `UNKNOWN`.
+
+RED: two unsafe trust classes returned `POLICY_ALLOWED_EXTERNAL_EGRESS`; the `FIRST_PARTY + EXTERNAL_FIRST_PARTY` positive control already passed.
+
+Repair: `EXTERNAL_FIRST_PARTY` now requires `ProviderTrustClass.FIRST_PARTY`; otherwise policy fails closed with `PROVIDER_TRUST_EGRESS_MISMATCH`. Conservative `EXTERNAL_THIRD_PARTY` behavior remains unchanged, and explicit loopback local/no-egress paths remain eligible.
+
+Verification after repair: targeted `3 passed`; full policy `15 passed`; broader provider/store/runtime/parallel/graph/lease/elastic/Claude supervised stack `254 passed`. The previously generated `wo118a-independent-review-001` packet for head `036acf29...` is superseded and must not be used.

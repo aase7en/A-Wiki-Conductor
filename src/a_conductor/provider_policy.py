@@ -121,6 +121,11 @@ def evaluate_provider_policy(
         return _deny("TASK_NETWORK_POLICY_UNRESOLVED")
 
     boundary = profile.egress_boundary
+    if (
+        boundary is EgressBoundary.EXTERNAL_FIRST_PARTY
+        and profile.trust_class is not ProviderTrustClass.FIRST_PARTY
+    ):
+        return _deny("PROVIDER_TRUST_EGRESS_MISMATCH")
     if boundary in (EgressBoundary.LOCAL_MACHINE, EgressBoundary.NO_EGRESS):
         # If an endpoint is present, declared local/no-egress metadata must agree
         # with the actual route. A mislabeled external URL must never inherit the
