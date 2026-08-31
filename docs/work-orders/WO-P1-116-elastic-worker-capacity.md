@@ -116,4 +116,20 @@ E. Injected local/semantic provisioner → re-observe candidate → existing bro
 F. Partial/unknown provisioning chaos, disabled policy, limit exhaustion, no-tunnel-default tests.
 G. Broad regression/E2E/security audit → exact-SHA independent review → repair → PR/CI/re-audit/merge.
 
-Next safe action: commit/push this claim checkpoint, run focused baseline suites, then RED slice A-B.
+## Remote fallback checkpoint — 2026-08-31
+
+Remote Desktop Commander disconnected after the RED tests were created and after a partial local
+`worker_candidate_assembly.py` scratch file was written. Those local uncommitted files are **not
+authoritative** and must not be merged/replayed by guesswork. Durable authority remains this
+feature branch beginning at claim commit `6f0aa1355d668b82d6ee51c638b7a4e89f60e21c` and subsequent
+GitHub commits.
+
+While RDC is disconnected, GitHub is the only mutation surface for this WO. No second branch or
+overlapping worker lane may mutate the same source scope. When RDC reconnects, the isolated local
+worktree must fetch/recreate from the remote branch before any further mutation; abandoned local
+scratch may then be removed only after remote equivalence is verified. Worker 1–5 availability
+cannot be re-certified while the host is disconnected, so no SunDay-Worker mutation lane is
+claimed from stale READY/process evidence.
+
+Next safe action: continue RED/implementation on this single remote branch, use CI as the temporary
+deterministic execution gate, and resume local focused/E2E verification only after RDC reconnects.
