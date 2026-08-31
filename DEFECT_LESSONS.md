@@ -553,7 +553,7 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 **Verify:** RED tests assert both returned recovery code and persisted reservation state after observation/broker failure; cross-process capacity limits remain enforced.
 
-## #36: Recovery assertions are not decommission authority (2026-08-31)
+## #37: Recovery assertions are not decommission authority (2026-08-31)
 
 **Symptom:** a stale bound provisioning reservation could free elastic-capacity budget either by passing a caller boolean `worker_decommissioned=True` or by using the generic `RECOVERY_REQUIRED -> RELEASED` transition, even though neither path proved the worker had actually disappeared.
 
