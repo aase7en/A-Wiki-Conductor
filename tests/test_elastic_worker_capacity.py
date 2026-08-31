@@ -19,6 +19,7 @@ from a_conductor.elastic_worker_capacity import (
     ProvisioningReservationRecord,
     ProvisioningReservationResult,
     SQLiteWorkerProvisioningReservations,
+    build_sqlite_elastic_worker_capacity_coordinator,
 )
 from a_conductor.graph.scheduler import (
     BlockedReason,
@@ -157,6 +158,29 @@ def policy(*, enabled=True, limit=1, allow_remote=False):
     )
 
 
+def test_production_builder_uses_one_sqlite_worker_capacity_authority(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    service = build_sqlite_elastic_worker_capacity_coordinator(
+        database_path=database,
+        provisioner=FakeProvisioner(ElasticProvisionedWorker("a-worker-09", "serena-local")),
+        candidate_assembler=FakeAssembler(supply()),
+        lease_id_factory=lambda: "lease-builder",
+        reservation_id_factory=lambda: "reservation-builder",
+        clock=lambda: NOW,
+    )
+
+    assert service.authority_database_path == database
+    with sqlite3.connect(database) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+    assert "worker_leases" in tables
+    assert "worker_provisioning_reservations" in tables
+
+
 def test_disabled_or_non_capacity_failure_never_calls_provisioner(tmp_path: Path) -> None:
     provisioner = FakeProvisioner(ElasticProvisionedWorker("a-worker-09", "serena-local"))
     service, _ = make_coordinator(tmp_path, provisioner=provisioner)
@@ -260,7 +284,9 @@ def test_unexpected_remote_connector_is_recovery_when_policy_does_not_allow_it(t
 
     assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
     assert outcome.reason_code == "REMOTE_CONNECTOR_UNAUTHORIZED"
-    assert reservations.list_consuming()[0].state == "RECOVERY_REQUIRED"
+    record = reservations.list_consuming()[0]
+    assert record.state == "RECOVERY_REQUIRED"
+    assert record.worker_id == "a-worker-09"
 
 
 def test_reobserved_worker_that_fails_existing_broker_is_not_silently_retried(tmp_path: Path) -> None:
