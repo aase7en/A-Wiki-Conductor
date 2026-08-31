@@ -317,6 +317,7 @@ class ProviderObservation:
     latency_ms: int | None = None
     quota: QuotaSnapshot | None = None
     schema_version: str = "1.0.0"
+    configuration_generation: int | None = None
 
     def __post_init__(self) -> None:
         if not _PROVIDER_ID_RE.fullmatch(self.provider_id):
@@ -332,6 +333,13 @@ class ProviderObservation:
             quota = QuotaSnapshot(**quota)
         if self.schema_version != "1.0.0":
             raise ValueError("schema_version is unsupported")
+        if self.configuration_generation is not None:
+            if (
+                isinstance(self.configuration_generation, bool)
+                or not isinstance(self.configuration_generation, int)
+                or self.configuration_generation < 1
+            ):
+                raise ValueError("configuration_generation must be positive or None")
         object.__setattr__(self, "health", health)
         object.__setattr__(self, "observed_at", observed)
         object.__setattr__(self, "quota", quota)
@@ -344,6 +352,7 @@ class ProviderObservation:
             "latency_ms": self.latency_ms,
             "quota": self.quota.as_dict() if self.quota is not None else None,
             "schema_version": self.schema_version,
+            "configuration_generation": self.configuration_generation,
         }
 
 
@@ -421,6 +430,7 @@ def is_provider_ready(
     *,
     now: datetime | str,
     max_age_seconds: int = 300,
+    expected_generation: int | None = None,
 ) -> bool:
     if isinstance(max_age_seconds, bool) or max_age_seconds < 0:
         raise ValueError("max_age_seconds must be non-negative")
@@ -430,6 +440,12 @@ def is_provider_ready(
         return False
     if observation.health is not ProviderHealth.AVAILABLE:
         return False
+    if expected_generation is not None:
+        if (
+            observation.configuration_generation is None
+            or observation.configuration_generation != expected_generation
+        ):
+            return False
     current = _coerce_datetime(now, "now")
     age = (current - observation.observed_at).total_seconds()
     return 0 <= age <= max_age_seconds

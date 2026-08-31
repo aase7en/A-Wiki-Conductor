@@ -61,6 +61,7 @@ def observation() -> ProviderObservation:
         observed_at=NOW,
         provenance="fake:quota",
         quota=QuotaSnapshot("5h", limit=100, used=10, remaining=90, reset_at=NOW, reset_in_seconds=3600),
+        configuration_generation=1,
     )
 
 def seeded_store(db: Path, *, include_endpoint: bool = True) -> SQLiteProviderConfigStore:
@@ -226,6 +227,7 @@ def test_stale_provider_fails_before_secret_resolution_or_launch(tmp_path: Path)
         observed_at=datetime(2026, 8, 30, 4, 0, tzinfo=timezone.utc),
         provenance="fake:stale",
         quota=observation().quota,
+        configuration_generation=1,
     )
     store.save_observation(stale)
     drive = tmp_path / "A-Wiki-Data"
@@ -371,3 +373,91 @@ def test_refresh_zai_provider_observation_rejects_non_zai_route_without_secret_r
     assert observed.quota is None
     assert transport.calls == []
     assert store.get_observation(configured.provider_id) == observed
+
+
+def test_resolver_treats_generation_mismatched_and_legacy_observations_as_unavailable(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "control.sqlite"
+    store = seeded_store(db)
+    resolver = SQLiteClaudeCodeProviderResolver(store)
+
+    fresh = resolver.resolve("provider-glm-shared")
+    assert fresh is not None and fresh.observation is not None
+
+    store.save_provider(
+        ProviderConfiguration(**{**profile().as_dict(), "display_name": "Edited"}),
+        expected_generation=1,
+    )
+    mismatched = resolver.resolve("provider-glm-shared")
+    assert mismatched is not None
+    assert mismatched.observation is None, (
+        "generation-1 observation must be unavailable for generation-2 configuration"
+    )
+
+    import sqlite3 as _sqlite3
+
+    legacy_sql = "UPDATE provider_observations SET configuration_generation=NULL WHERE provider_id=?"
+    with _sqlite3.connect(db) as connection:
+        connection.execute(legacy_sql, ("provider-glm-shared",))
+        connection.commit()
+    legacy = resolver.resolve("provider-glm-shared")
+    assert legacy is not None and legacy.observation is None
+
+
+def test_refresh_observation_is_bound_to_captured_generation(tmp_path: Path) -> None:
+    db = tmp_path / "quota-stale.sqlite"
+    store = SQLiteProviderConfigStore(db)
+    configured = profile()
+    store.save_provider(configured)
+    store.save_endpoint(
+        ProviderEndpointConfig(configured.endpoint_ref, "https://api.z.ai/api/anthropic")
+    )
+    drive = tmp_path / "A-Wiki-Data"
+    (drive / "secrets").mkdir(parents=True)
+    (drive / "secrets" / "global.env").write_text(
+        "ANTHROPIC_API_KEY=quota-secret\n", encoding="utf-8"
+    )
+    store.save_observation(observation())
+
+    class BumpingTransport:
+        """Z.ai-shaped transport that lands a config edit mid-probe."""
+
+        def get_json(self, url, *, authorization, timeout_seconds):
+            store.save_provider(
+                ProviderConfiguration(
+                    **{**configured.as_dict(), "display_name": "Edited"}
+                ),
+                expected_generation=1,
+            )
+            return 200, {
+                "data": {
+                    "limits": [{
+                        "type": "TOKENS_LIMIT", "usage": 100, "currentValue": 40,
+                        "remaining": 60, "nextResetTime": 1788084000000,
+                    }]
+                }
+            }
+
+    from a_conductor.provider_config_store import ProviderConfigStoreError
+    import pytest as _pytest
+
+    with _pytest.raises(ProviderConfigStoreError) as stale_save:
+        refresh_zai_provider_observation(
+            database_path=db,
+            provider_id=configured.provider_id,
+            drive_root=drive,
+            clock=lambda: NOW,
+            transport=BumpingTransport(),
+        )
+    assert stale_save.value.code == "PROVIDER_OBSERVATION_GENERATION_STALE"
+
+    import sqlite3 as _sqlite3
+
+    select_sql = (
+        "SELECT configuration_generation FROM provider_observations "
+        "WHERE provider_id=?"
+    )
+    with _sqlite3.connect(db) as connection:
+        saved = connection.execute(select_sql, (configured.provider_id,)).fetchone()[0]
+    assert saved == 1, "stale in-flight probe must never publish generation-2 evidence"

@@ -39,17 +39,29 @@ class SQLiteClaudeCodeProviderResolver:
         if not isinstance(provider_id, str) or not provider_id.strip():
             raise ValueError("provider_id must not be blank")
         try:
-            profile = self._store.get_provider(provider_id.strip())
-            if profile is None:
+            snapshot = self._store.load_provider_snapshot(provider_id.strip())
+            if snapshot is None:
                 return None
-            endpoint = self._store.get_endpoint(profile.endpoint_ref)
+            profile = snapshot.profile
+            endpoint = snapshot.endpoint
             if endpoint is None or endpoint.endpoint_ref != profile.endpoint_ref:
                 return None
-            observation = self._store.get_observation(profile.provider_id)
+            observation = snapshot.observation
         except (ProviderConfigStoreError, TypeError, ValueError):
             return None
         if observation is not None and observation.provider_id != profile.provider_id:
             return None
+        if snapshot.generation is None or (
+            observation is not None
+            and (
+                observation.configuration_generation is None
+                or observation.configuration_generation != snapshot.generation
+            )
+        ):
+            # Generation-mismatched or legacy unknown observations are unavailable
+            # evidence: never authorize readiness for the current configuration,
+            # before any credential resolver is consulted.
+            observation = None
         return ClaudeCodeProviderState(
             profile=profile,
             endpoint=endpoint,
@@ -123,18 +135,19 @@ def refresh_zai_provider_observation(
         raise ValueError("clock must be callable")
     store = SQLiteProviderConfigStore(database_path)
     store.initialize()
-    profile = store.get_provider(provider_id.strip())
-    if profile is None:
+    snapshot = store.load_provider_snapshot(provider_id.strip())
+    if snapshot is None or snapshot.endpoint is None or snapshot.generation is None:
         return None
-    endpoint = store.get_endpoint(profile.endpoint_ref)
-    if endpoint is None:
-        return None
+    profile = snapshot.profile
+    endpoint = snapshot.endpoint
+    generation = snapshot.generation
     if not supports_zai_quota_endpoint(endpoint):
         observation = ProviderObservation(
             provider_id=profile.provider_id,
             health=ProviderHealth.UNAVAILABLE,
             observed_at=clock(),
             provenance="zai-quota-monitor:unsupported-route",
+            configuration_generation=generation,
         )
         store.save_observation(observation)
         return observation
@@ -167,6 +180,19 @@ def refresh_zai_provider_observation(
         probe,
         observed_at=observed_at,
         provenance="zai-quota-monitor:v1",
+    )
+    # Bind the probe result to the generation captured before the probe ran;
+    # save_observation CAS-checks it, so a configuration edit that happened
+    # during the in-flight probe makes this completion fail typed instead of
+    # authorizing the new configuration with old evidence.
+    observation = ProviderObservation(
+        provider_id=observation.provider_id,
+        health=observation.health,
+        observed_at=observation.observed_at,
+        provenance=observation.provenance,
+        latency_ms=observation.latency_ms,
+        quota=observation.quota,
+        configuration_generation=generation,
     )
     store.save_observation(observation)
     return observation
