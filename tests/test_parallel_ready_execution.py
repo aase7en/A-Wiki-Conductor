@@ -12,10 +12,14 @@ import pytest
 from a_conductor.claude_code_harness import HarnessDispatch, MutationIntent, TaskPacketFile
 from a_conductor.graph.dispatch import (
     DispatchGateDecision,
+    GraphDispatchAction,
     GraphDispatchKey,
     GraphDispatchMode,
     GraphDispatchRequest,
+    GraphDispatchResult,
 )
+from a_conductor.domain import TaskState
+from a_conductor.job_state import new_job_state
 from a_conductor.graph.scheduler import SchedulePlan, SelectedAssignment
 from a_conductor.parallel_ready_execution import (
     GraphDispatchParallelRunner,
@@ -755,6 +759,55 @@ def test_provider_global_admission_blocks_concurrent_independent_batch(tmp_path:
 class FailingAdmissionRunner:
     def run(self, task: ParallelReadyTask, lease):
         raise RuntimeError("uncertain transport")
+
+
+class ReconcileDispatchRunner:
+    def run(self, task: ParallelReadyTask, lease):
+        job = new_job_state(
+            job_id=task.dispatch_request.key.job_id,
+            work_order_ref=task.dispatch_request.work_order_ref,
+            project_id=task.dispatch_request.project_id,
+        )
+        job = replace(job, state=TaskState.EXECUTING, worker_id=lease.worker_id, version=2)
+        return GraphDispatchResult(
+            GraphDispatchAction.RECONCILE,
+            job,
+            "JOB_STATE_EXECUTING",
+        )
+
+
+def test_typed_dispatch_reconcile_retains_provider_admission_and_is_not_completed(tmp_path: Path) -> None:
+    database = tmp_path / "control.sqlite"
+    profile = _profile(max_concurrency=1)
+    SQLiteProviderConfigStore(database).save_provider(profile)
+    broker, _ = _broker(tmp_path / "lease-typed-reconcile")
+    task = _task(
+        node_id="typed-dispatch-reconcile",
+        worker_id="a-worker-01",
+        worktree=r"A:\Work\typed-dispatch-reconcile",
+        branch="feat/typed-dispatch-reconcile",
+        mutable_scope=("src/typed_reconcile.py",),
+        profile=profile,
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=ReconcileDispatchRunner(),
+        clock=lambda: NOW,
+        provider_admission_store=SQLiteProviderConfigStore(database),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-typed-reconcile",
+    )
+    outcome = result.outcomes[0]
+    assert outcome.kind is ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED
+    assert outcome.reason_code == "JOB_STATE_EXECUTING"
+    assert isinstance(outcome.runner_result, GraphDispatchResult)
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT status FROM provider_admissions").fetchall()
+    assert rows == [("ACTIVE",)]
 
 
 def test_runner_uncertainty_retains_provider_admission_for_reconcile(tmp_path: Path) -> None:

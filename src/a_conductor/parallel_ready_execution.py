@@ -17,8 +17,10 @@ from typing import Callable, Mapping, Protocol
 from .claude_code_harness import HarnessDispatch, TaskPacketFile
 from .graph.dispatch import (
     DispatchGateDecision,
+    GraphDispatchAction,
     GraphDispatchMode,
     GraphDispatchRequest,
+    GraphDispatchResult,
 )
 from .graph.scheduler import SchedulePlan, SelectedAssignment
 from .provider_config_store import (
@@ -526,6 +528,19 @@ class ParallelReadyExecutor:
                             ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED,
                             reason,
                             lease_outcome=lease_outcome,
+                            provider_admission=admission,
+                        )
+                        continue
+                    if (
+                        isinstance(runner_result, GraphDispatchResult)
+                        and runner_result.action is GraphDispatchAction.RECONCILE
+                    ):
+                        outcomes[node_id] = ParallelReadyOutcome(
+                            node_id,
+                            ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED,
+                            _safe_reason_code(runner_result.reason_code, "EXECUTION_RECONCILE_REQUIRED"),
+                            lease_outcome=lease_outcome,
+                            runner_result=runner_result,
                             provider_admission=admission,
                         )
                         continue

@@ -195,7 +195,7 @@ def test_provider_admission_release_requires_exact_identity_and_no_double_releas
     assert exc.value.code == "PROVIDER_ADMISSION_NOT_ACTIVE"
 
 
-def test_expired_admission_is_reconciled_before_new_capacity_is_granted(tmp_path) -> None:
+def test_expired_time_alone_does_not_free_unknown_provider_capacity(tmp_path) -> None:
     database = tmp_path / "control.sqlite"
     store = _admission_store(database, iter(("admission-old", "admission-new")))
     store.save_provider(make_profile())
@@ -208,8 +208,9 @@ def test_expired_admission_is_reconciled_before_new_capacity_is_granted(tmp_path
         ttl_seconds=1,
     )
     assert old.kind is ProviderAdmissionKind.ADMITTED
+    assert old.admission is not None
 
-    new = store.acquire_admission(
+    blocked = store.acquire_admission(
         provider_id="provider-test",
         execution_id="execution-new",
         batch_id="batch-new",
@@ -217,9 +218,82 @@ def test_expired_admission_is_reconciled_before_new_capacity_is_granted(tmp_path
         now=NOW + timedelta(seconds=2),
         ttl_seconds=600,
     )
-    assert new.kind is ProviderAdmissionKind.ADMITTED
+    assert blocked.kind is ProviderAdmissionKind.RECOVERY_REQUIRED
+    assert blocked.reason_code == "PROVIDER_ADMISSION_EXPIRED_RECONCILE"
+    assert blocked.admission is not None
+    assert blocked.admission.admission_id == old.admission.admission_id
+    assert store.get_admission(old.admission.admission_id).status == "ACTIVE"
+
+    released = store.release_admission(
+        old.admission.admission_id,
+        provider_id="provider-test",
+        execution_id="execution-old",
+        batch_id="batch-old",
+        now=NOW + timedelta(seconds=2),
+    )
+    assert released.status == "RELEASED"
+
+    admitted = store.acquire_admission(
+        provider_id="provider-test",
+        execution_id="execution-new",
+        batch_id="batch-new",
+        expected_max_concurrency=1,
+        now=NOW + timedelta(seconds=2),
+        ttl_seconds=600,
+    )
+    assert admitted.kind is ProviderAdmissionKind.ADMITTED
+
+
+def test_same_execution_after_ttl_requires_reconcile_instead_of_existing(tmp_path) -> None:
+    database = tmp_path / "control.sqlite"
+    store = _admission_store(database, iter(("admission-same",)))
+    store.save_provider(make_profile())
+    first = store.acquire_admission(
+        provider_id="provider-test", execution_id="execution-same",
+        batch_id="batch-same", expected_max_concurrency=1, now=NOW, ttl_seconds=1,
+    )
+    assert first.admission is not None
+    replay = store.acquire_admission(
+        provider_id="provider-test", execution_id="execution-same",
+        batch_id="batch-same", expected_max_concurrency=1,
+        now=NOW + timedelta(seconds=2), ttl_seconds=600,
+    )
+    assert replay.kind is ProviderAdmissionKind.RECOVERY_REQUIRED
+    assert replay.reason_code == "PROVIDER_ADMISSION_EXPIRED_RECONCILE"
+    assert replay.admission == first.admission
+
+
+def test_legacy_expired_admission_remains_capacity_consuming_until_exact_release(tmp_path) -> None:
+    database = tmp_path / "control.sqlite"
+    store = _admission_store(database, iter(("admission-old", "admission-new")))
+    store.save_provider(make_profile())
+    old = store.acquire_admission(
+        provider_id="provider-test", execution_id="execution-old",
+        batch_id="batch-old", expected_max_concurrency=1, now=NOW, ttl_seconds=1,
+    )
     assert old.admission is not None
-    assert store.get_admission(old.admission.admission_id).status == "EXPIRED"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "UPDATE provider_admissions SET status='EXPIRED' WHERE admission_id=?",
+            (old.admission.admission_id,),
+        )
+        connection.commit()
+
+    blocked = store.acquire_admission(
+        provider_id="provider-test", execution_id="execution-new",
+        batch_id="batch-new", expected_max_concurrency=1,
+        now=NOW + timedelta(seconds=2), ttl_seconds=600,
+    )
+    assert blocked.kind is ProviderAdmissionKind.RECOVERY_REQUIRED
+    assert blocked.admission is not None
+    assert blocked.admission.admission_id == old.admission.admission_id
+
+    released = store.release_admission(
+        old.admission.admission_id, provider_id="provider-test",
+        execution_id="execution-old", batch_id="batch-old",
+        now=NOW + timedelta(seconds=2),
+    )
+    assert released.status == "RELEASED"
 
 
 def test_corrupt_provider_admission_timestamp_fails_as_typed_store_error(tmp_path) -> None:
