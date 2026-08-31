@@ -42,6 +42,17 @@ def _text(value: str, field_name: str, *, max_length: int = 256) -> str:
     return cleaned
 
 
+def _optional_text(
+    value: str | None,
+    field_name: str,
+    *,
+    max_length: int = 256,
+) -> str | None:
+    if value is None:
+        return None
+    return _text(value, field_name, max_length=max_length)
+
+
 def _safe_reason_code(value: object, fallback: str) -> str:
     if (
         isinstance(value, str)
@@ -78,6 +89,7 @@ class ElasticCapacityPolicy:
     max_extra_workers: int
     permitted_runtime_kinds: tuple[str, ...]
     allow_remote_connector: bool = False
+    transport_authorization_ref: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.enabled, bool) or not isinstance(self.allow_remote_connector, bool):
@@ -98,6 +110,15 @@ class ElasticCapacityPolicy:
         if len(set(kinds)) != len(kinds):
             raise ValueError("permitted_runtime_kinds must not contain duplicates")
         object.__setattr__(self, "permitted_runtime_kinds", kinds)
+        object.__setattr__(
+            self,
+            "transport_authorization_ref",
+            _optional_text(
+                self.transport_authorization_ref,
+                "transport_authorization_ref",
+                max_length=256,
+            ),
+        )
 
 
 class ProvisioningReservationKind(str, Enum):
@@ -413,6 +434,7 @@ class ElasticProvisionRequest:
     expected_head: str
     required_capabilities: tuple[str, ...]
     remote_connector_allowed: bool = False
+    transport_authorization_ref: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "session_id", _text(self.session_id, "session_id"))
@@ -435,6 +457,15 @@ class ElasticProvisionRequest:
         object.__setattr__(self, "required_capabilities", capabilities)
         if not isinstance(self.remote_connector_allowed, bool):
             raise ValueError("remote_connector_allowed must be bool")
+        object.__setattr__(
+            self,
+            "transport_authorization_ref",
+            _optional_text(
+                self.transport_authorization_ref,
+                "transport_authorization_ref",
+                max_length=256,
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -580,6 +611,11 @@ class ElasticWorkerCapacityCoordinator:
                 ElasticCapacityOutcomeKind.POLICY_BLOCKED,
                 "RUNTIME_KIND_NOT_ALLOWED",
             )
+        if policy.allow_remote_connector and policy.transport_authorization_ref is None:
+            return ElasticCapacityOutcome(
+                ElasticCapacityOutcomeKind.POLICY_BLOCKED,
+                "REMOTE_TRANSPORT_AUTHORIZATION_REQUIRED",
+            )
         if not _capacity_only(plan):
             return ElasticCapacityOutcome(
                 ElasticCapacityOutcomeKind.NOT_CAPACITY_FAILURE,
@@ -667,6 +703,7 @@ class ElasticWorkerCapacityCoordinator:
             expected_head=lease_request.expected_head,
             required_capabilities=lease_request.required_capabilities,
             remote_connector_allowed=policy.allow_remote_connector,
+            transport_authorization_ref=policy.transport_authorization_ref,
         )
         try:
             provisioned = self._provisioner.provision(provision_request)
@@ -708,7 +745,10 @@ class ElasticWorkerCapacityCoordinator:
                 "PROVISIONED_RUNTIME_KIND_MISMATCH",
                 worker_id=provisioned.worker_id,
             )
-        if provisioned.remote_connector_configured and not policy.allow_remote_connector:
+        if provisioned.remote_connector_configured and (
+            not policy.allow_remote_connector
+            or policy.transport_authorization_ref is None
+        ):
             try:
                 self._reservations.mark_recovery(
                     reservation_id,
