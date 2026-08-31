@@ -69,7 +69,7 @@ Recommended immediate GLM mutation lane: **none while AHA-4A / PR #131 is active
 5. **AHA-4B COMPLETE** — WO-P1-111 / PR #147 heartbeat/expiry/quarantine/stale-owner recovery are merged/released.
 6. Prove **AHA-5** GPT-plan/review ↔ GLM-implement/repair vertical slice without manual prompt copying.
 7. Prove **AHA-6** two independent READY tasks in isolated worktrees; assert no lease/scope collisions.
-8. **AHA-6B ACTIVE / WO-P1-116** — assemble production worker/task candidates, then add bounded elastic capacity with atomic provisioning reservation and re-preflight through the accepted broker.
+8. **AHA-6B COMPLETE / WO-P1-116 / PR #157** — production worker/task candidates and bounded elastic capacity now use atomic provisioning reservation plus owner-scoped re-preflight through the accepted broker; exact-head and post-main CI are green.
 9. Build **AHA-7** Models & Agents UI on the existing command center; no second dashboard.
 10. Add **AHA-8** providers one adapter at a time with the same contract tests.
 11. Run full E2E/chaos/security/release audit; update README checklist from evidence; release the next verified version.

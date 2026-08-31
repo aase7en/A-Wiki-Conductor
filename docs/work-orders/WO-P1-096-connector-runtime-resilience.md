@@ -265,3 +265,10 @@ Only remaining WO-P1-096 acceptance action: an authorized isolated/live v0.0.13 
 - Runtime identity verified the Worker4 tunnel process executable is the staged v0.0.13 binary and `/readyz` returned HTTP 200 beyond the default ten-minute TTL.
 - This is partial acceptance evidence only. A real hosted/remote MCP request must still succeed after TTL with zero manual Start action before the live-soak gate can close.
 - Do not record or expose Tunnel IDs in tracked evidence. Workers 1/2/3/5 and the shared v0.0.11 binary remain outside this maintenance mutation lane.
+
+## Read-only live gate refresh — 2026-08-31
+
+- Worker4 health returned READY during closeout verification.
+- No currently running tunnel-client process is using the staged v0.0.13 executable; the staged file remains maintenance material only.
+- Therefore the earlier staged-v0.0.13 soak is not current operational evidence, and real hosted/remote MCP-after-TTL success on v0.0.13 remains open.
+- This refresh was read-only: no Worker, process, tunnel configuration, shared binary, or secret was changed or exposed.

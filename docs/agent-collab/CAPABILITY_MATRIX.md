@@ -91,3 +91,10 @@ Task class: production worker/candidate assembly, atomic elastic-capacity reserv
 Official Z.ai GLM-5.3 evidence was refreshed again before review routing: Terminal-Bench 3.0 `28.3`, DeepSWE v1.1 `66.9`, Z.ai Code Bench Max `34.5%`. This continues to support bounded repository archaeology/adversarial review, not architecture or merge authority.
 
 For the now-implemented concurrency slice, GPT-5.6 Sol keeps worker-capacity authority design, defect adjudication and release ownership. GLM's next useful lane is independent exact-SHA read-only review with pinned file hashes and structured `result.json`; no overlapping source mutation is permitted. Provider route/readiness/credential/quota admission remains a separate fail-closed gate from model suitability.
+
+## WO-P1-116 routing closeout - 2026-08-31
+
+- GPT-5.6 Sol retained integration/release authority; exact reviewed head passed all deterministic gates.
+- GLM-5.3 MAX independent review returned validated PASS with zero P0/P1/P2; four P3 observations are non-blocking follow-up.
+- Post-main CI `33354156749` passed Windows/Ubuntu/macOS including Windows Frozen Setup E2E on merge `af5a5068aea37ce82875e4b6fff40ac19ac112c5`.
+- Future Ultra/GLM read-only shaping may run concurrently, but tracked mutation requires a fresh work-order/claim/repository gate.

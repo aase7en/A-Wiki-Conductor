@@ -7,7 +7,7 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
-| Integrator | GPT-5.6 Sol | WO-P1-116 / AHA-6B | production candidate assembly + bounded elastic capacity + focused tests + SSoT | CLAIMED / RED_GATE |
+| Integrator | GPT-5.6 Sol | WO-P1-116 / AHA-6B | production candidate assembly + bounded elastic capacity + focused tests + SSoT | VERIFIED / RELEASED |
 | Integrator | GPT-5.6 Sol | WO-P1-115 / AHA-6A.1 | provider admission/runtime wiring + tests + bounded SSoT | RELEASED |
 | GLM review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-review-001` | read-only `runs/wo115-glm-review-001/result.json` only | VERIFIED PASS / REPAIR ACCEPTED |
 | GLM re-review lane | GLM-5.3 MAX via one-way file bridge until automatic dispatch proves ready | `wo115-glm-rereview-002` | read-only `runs/wo115-glm-rereview-002/result.json` only | VERIFIED PASS / RELEASED |
@@ -117,3 +117,9 @@ A worker becoming unreachable is never permission to replay its mutable lane. Fi
 Fallback workers consume the same durable task contract; do not create a shadow TODO/handoff. The replacement reads the active WO + `CURRENT-WORK.md` + `handoff.md` + exact `runs/<task-id>/task.md`, and writes only the contract's declared result/evidence destination. If the old worker later returns, it has no mutation authority until the current lane owner releases it.
 
 Current WO-P1-116 snapshot (2026-08-31): Worker5 is the only clean/idle fallback candidate. Worker1 targets the protected dirty root, Worker2 has an open pharmacy cycle, Worker3 is dirty, Worker4 is reserved for P0 WO-P1-096. No worker was rebound or interrupted.
+
+### WO-P1-116 released lane evidence
+
+- Exact reviewed head `d06129ac943ceaa30c398d744b07a0fec9b505e1`; GLM-5.3 MAX validated PASS with P0/P1/P2 = `0` and four P3 notes.
+- PR #157 exact-head CI `33352780461` passed, merged as `af5a5068aea37ce82875e4b6fff40ac19ac112c5`, and post-main CI `33354156749` passed all three OS jobs including Windows Frozen Setup E2E.
+- Claim released. Ultra/GLM follow-up artifacts under ignored `runs/` remain read-only/advisory until integrator validation and a fresh successor claim.
