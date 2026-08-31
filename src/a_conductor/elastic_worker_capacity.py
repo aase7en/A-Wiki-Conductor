@@ -517,6 +517,11 @@ class ElasticWorkerCapacityCoordinator:
         self._reservation_id_factory = reservation_id_factory
         self._clock = clock
 
+    @property
+    def authority_database_path(self):
+        """Database path shared by production lease and provisioning capacity authority."""
+        return self._reservations.database_path
+
     def _recovery(
         self,
         reservation_id: str,
@@ -785,3 +790,30 @@ class ElasticWorkerCapacityCoordinator:
             worker_id=provisioned.worker_id,
             lease_outcome=lease_outcome,
         )
+
+
+def build_sqlite_elastic_worker_capacity_coordinator(
+    *,
+    database_path,
+    provisioner: ElasticWorkerProvisioner,
+    candidate_assembler: WorkerSupplyAssemblerPort,
+    lease_id_factory: Callable[[], str],
+    reservation_id_factory: Callable[[], str],
+    clock: Callable[[], object],
+) -> ElasticWorkerCapacityCoordinator:
+    """Build elastic capacity with one shared SQLite worker-capacity authority."""
+    store = SQLiteWorkerLeaseStore(database_path)
+    broker = WorkerLeaseBroker(
+        store=store,
+        lease_id_factory=lease_id_factory,
+        clock=clock,
+    )
+    reservations = SQLiteWorkerProvisioningReservations(store)
+    return ElasticWorkerCapacityCoordinator(
+        broker=broker,
+        reservations=reservations,
+        provisioner=provisioner,
+        candidate_assembler=candidate_assembler,
+        reservation_id_factory=reservation_id_factory,
+        clock=clock,
+    )
