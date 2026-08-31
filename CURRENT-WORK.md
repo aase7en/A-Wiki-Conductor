@@ -11,7 +11,7 @@ Accepted / active frontier state:
 - PR #161 / WO119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI SUCCESS.
 - PR #164 / WO121 head `fdf8e78048eda9f503db70707d2e2521cdb3c85b`: post-merge dispatch evidence binding repair; RED 10 failed/1 control pass, repaired parallel 56 and frontier 366 pass; 3-OS exact-head CI SUCCESS; Ultra exact-head rereview pending.
 - PR #165 / WO118A head `036acf29b240264fe448b03d0366a96e0f87a693`: generation/CAS + observation/admission generation seam + pure trust/egress policy. GPT integrator repaired generation rollback/corruption/overflow/missing-row CAS and local-egress metadata bypass; post-main union 306 passed; exact-head CI/review pending.
-- PR #162 / WO120 remains open at `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; old-head review/CI green, but final refresh/review should occur after #164/#165 to avoid repeated main reconciliation and lesson-number churn.
+- PR #162 / WO120 remains open at `0315fc01a7670bed7c5f27ce6258dc930b2b98e5`; exact merge-tree analysis proves source conflicts with #164 (`parallel_ready_execution.py` + test) and #165 (`provider_config_store.py` + test), plus `DEFECT_LESSONS.md`. Refresh must preserve then-current main safety authorities and replay only the bounded WO120 elastic/fencing delta.
 - WO118B remains blocked: production must enforce accepted generation + policy before admission/lease/elastic expansion/credential resolution/launch.
 - P0 WO096 remains operationally open: hosted remote MCP-after-TTL v0.0.13 proof is still absent and requires explicit maintenance authority.
 
@@ -27,7 +27,7 @@ Accepted / active frontier state:
 
 1. Validate Ultra rereview of WO121; merge PR #164 only after exact-head review + CI, then require post-main proof.
 2. Obtain independent exact-head review of PR #165; repair only evidence-backed defects; merge/post-main prove WO118A.
-3. Refresh PR #162 onto then-current main, resolve only deterministic SSoT append conflicts, rerun union regression, regenerate diverse exact-head review, merge/post-main prove WO120.
+3. After #164/#165 stabilize, reconstruct/refresh PR #162 onto then-current main: current-main dispatch/provider-generation safety is authoritative; resolve known source conflicts deliberately, replay only bounded WO120 elastic/fencing intent, rerun union RED/regression, then regenerate diverse exact-head review.
 4. Start WO118B only after 118A+120 release their seams; denial must precede provider admission, worker lease, elastic expansion, credential access and process launch.
 5. Keep WO096 separately blocked until authorized hosted remote MCP-after-TTL evidence exists.
 

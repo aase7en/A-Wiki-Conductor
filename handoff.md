@@ -29,7 +29,7 @@ Close WO121/PR164 and WO118A/PR165 with exact-head independent evidence, then re
 
 1. Ingest Ultra WO121 rereview; if PASS and identity/hashes match, merge #164 and require post-main CI.
 2. Obtain independent exact-head review for #165; accept/repair from evidence only; merge/post-main prove 118A.
-3. Refresh #162 onto then-current main, reconcile lesson append deterministically, rerun union tests and obtain a diverse exact-head review.
+3. Refresh #162 only after #164/#165 stabilize. Known changed-in-both files: `parallel_ready_execution.py` + test versus #164; `provider_config_store.py` + test versus #165; plus `DEFECT_LESSONS.md`. Preserve current-main safety behavior, replay only bounded WO120 elastic/fencing intent, rerun union tests, then obtain a diverse exact-head review.
 4. After #162 merges, execute WO118B pre-admission/pre-elastic/pre-secret/pre-launch generation+policy enforcement.
 5. Keep WO096 blocked pending explicit maintenance authority.
 
