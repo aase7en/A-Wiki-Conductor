@@ -1,14 +1,14 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-01 - WO126 implemented; verification/review pending
+Last updated: 2026-09-02 - WO126 released; WO131 post-main green; WO127 + WO128-core active
 
 ## Current objective
 
-Verify and freeze the implemented WO126 read-only `MODELS & AGENTS` Settings display, then run exact-head independent review/CI before merge. Keep WO127 Edit/Disable/Test and WO128 selection/fallback observability separate, and keep WO096 blocked without explicit maintenance authority.
+Reconcile the WO131 externally merged reliability lane and record its missed independent-review gate, then execute WO127 Edit/Disable/Test with GPT while GLM-5.3 MAX runs the disjoint WO128 T0+T1 evidence core through ZCode Goal + `$a-loop`. Keep WO096 blocked unless explicit live maintenance authority is granted.
 
 ## Repository / release identity
 
-- authoritative remote main: `23b988764a3529f0721375f5d0a0c885b715ad46`; PR #178/WO125 merged from reviewed head `91f77731d472d23c624bef22891b9cd400e6c090`; exact-head CI `33528331266` and post-main CI `33534118110` are SUCCESS; protected root checkout remains dirty/protected and MUST NOT be mutated;
+- authoritative remote main: `af7a933fe27d2a3e3f29360abf9214df1e5478c5`; it contains WO126 merge `010ab4bdefbe54725388a5cea936117b8eb93b6b` and externally merged WO131. WO126 exact-head CI `33540512066` + post-main `33544097620` are SUCCESS; WO131 exact-head `33543935682` + post-main `33545560617` are SUCCESS; protected root checkout remains stale/dirty and MUST NOT be mutated;
 - PR #174 / WO124: MERGED from independently reviewed exact head `be97d313c748fe5fcce0e57ecf5dc304b863e230`; GLM review002 PASS P0/P1/P2=0; exact-head CI `33497483113` attempt 2 SUCCESS; post-main `33504441646` attempt 2 SUCCESS.
 - PR #176 / WO129: MERGED from independently reviewed exact head `661c86f9a30433006a01e996ed1ea46fde4a7e52`; GLM review001 PASS P0/P1/P2=0; exact-head CI `33503763313` SUCCESS; post-main `33509029840` SUCCESS.
 - WO122 stable external-agent mailbox remains operational: GPT/Conductor repoints one machine-local path per agent while the human prompt stays constant and the integrator consumes declared result files directly.
@@ -16,12 +16,13 @@ Verify and freeze the implemented WO126 read-only `MODELS & AGENTS` Settings dis
 
 ## Ownership / claims
 
-- GPT integrator owns dependency order, SSoT, merge/release adjudication and the WO130 docs-only closeout.
-- WO124 and WO129 product source are released on main; no new source edits belong to those completed lanes.
-- GPT Ultra WO125 architecture result at task SHA `655bacc0ef384d2818ae54d8fe9729a00061040448d817a65df1872be6db3303` is consumed: `CHANGES_REQUIRED`, P0=0, P1=4, P2=2. Review-base provider/desktop blobs are identical on current main; findings are not stale.
-- WO125 is RELEASED. GLM exact-head long-goal review PASS P0/P1/P2=0; Ultra final exact-head review exhausted quota before producing a result and is explicitly non-authoritative.
-- WO126 is implemented on `A:\GitHub\A-Wiki-Conductor-wo126-models-agents-settings`, branch `feat/wo-p1-126-models-agents-settings`, base main `23b988764...`; current source/tests remain inside the claimed UI/i18n/focused-test scope and provider/store/policy/runtime authorities are untouched.
-- The prior external claim helper is not available in the current repo/runtime surface; tracked work orders and exact worktree/scope records are the durable fallback. Never infer overlapping authority from a stale chat claim.
+- GPT integrator owns dependency order, SSoT, merge/release adjudication and this WO126 docs-only closeout.
+- WO126 product source is RELEASED on main; no further source edits belong to that lane without a new work order.
+- WO131 PR #180 merged as `af7a933fe27d2a3e3f29360abf9214df1e5478c5` before the planned independent GLM review result existed. Exact-head/post-main CI are green; the missed review is a recorded process deviation and must never be rewritten as PASS evidence.
+- WO127 shaping is complete and GPT is the intended mutable owner for `desktop_control.py` + `desktop_ui.py`/i18n/tests in its own worktree.
+- WO128 T0+T1 evidence core is claimed by GLM-5.3 MAX in `A:\GitHub\A-Wiki-Conductor-wo128-admissions-evidence-core`, branch `feat/wo-p1-128-admissions-evidence-core`, starting claim HEAD `046a935734389f124cc2042a9a60d5c4ebf6e9f7`. Mutable scope is provider-config-store read seam + pure projection/tests only; it must not touch WO127 files.
+- WO096 grants no live Worker/tunnel mutation authority.
+
 
 ## Verified evidence
 
@@ -30,15 +31,18 @@ Verify and freeze the implemented WO126 read-only `MODELS & AGENTS` Settings dis
 - WO129 local focused = 28 passed; related = 117 passed before commit and 90 passed recheck; real Windows lifecycle = 10/10; GLM repeated the real test 3/3 and scripted adversarial cases 9/9.
 - WO129 post-main CI is fully green, closing the repeated hosted-Windows post-stop observation race with a bounded/fail-closed repair.
 - WO125 RED baseline reproduced 8 intended failures; final exact-head local focused 92 passed, full repo 1973 passed / 4 skipped / 2 known optional-GPU failures, GLM independently ran 92 focused + 44 related + 12/12 adversarial reproductions, and hosted exact-head/post-main CI are green.
-- GLM Stage B shaped WO126: existing Preferences/Toplevel, one `provider_operator_rows()` read, existing background executor/Tk scheduler, explicit empty/loading/error/truth states, manual Refresh first, no mutation/router/secret path.
-- WO126 implementation verification: Python 3.13 focused panel = 10/10 PASS; ordered UI/control/i18n/singleton/button matrix = 118/118 PASS after repairing global-language test isolation; pre-freeze full repo = 1982 passed / 5 skipped / 2 known optional-GPU dependency failures only. Exact-head full + hosted CI still gate merge.
+- WO126 Python 3.13 focused panel = 10/10 PASS; ordered UI/control/i18n/singleton/button matrix = 118/118 PASS after process-global language cleanup.
+- WO126 exact feature HEAD `eee3e0e202b27c685f63c222ff10646ae667987e` passed GLM independent review with all 11 pinned file hashes verified and P0/P1/P2=0; exact-head CI `33540512066` passed Windows/Ubuntu/macOS; PR #179 merged as `010ab4bdefbe54725388a5cea936117b8eb93b6b`; post-main CI `33544097620` passed the same 3-OS matrix including Windows packaging and Frozen Setup install/uninstall E2E.
+- WO131 local execution matrix = 44/44 PASS; tied-timestamp + formerly flaky stress = 10 iterations x 2 tests all PASS; compileall/diff-check/UTF-8 PASS.
+- WO131 exact-head CI `33543935682` and post-main CI `33545560617` are SUCCESS across Windows/Ubuntu/macOS including Windows packaging/Frozen Setup E2E. PR #180 merged externally as `af7a933fe27d2a3e3f29360abf9214df1e5478c5`; no GLM review result existed before merge, so the process deviation remains explicit.
+- WO127/WO128 shaping result says both `READY_AFTER_WO126`; WO128 must render `SELECTION_REASON: UNKNOWN` and `FALLBACK_REASON: NOT_EVALUATED` rather than inventing router/fallback authority.
 
 ## Next safe actions
 
-1. Complete WO126 full-repo regression and final UTF-8/secret/diff/layout audits.
-2. Commit/freeze exact HEAD, push/open PR, then run independent exact-head review and hosted Windows/Ubuntu/macOS CI.
-3. Repair only evidence-backed defects; otherwise merge, post-main verify, and release the WO126 lane.
-4. GLM may shape WO127/WO128 read-only in parallel; no source mutation without a separate accepted work order.
+1. Finish this continuity closeout against `origin/main@af7a933...`, recording WO131 as post-main green with a missed independent-review gate.
+2. Create/claim WO127 and execute its accepted RED-first matrix with GPT; keep `desktop_ui.py` and `desktop_control.py` single-owner.
+3. In parallel, GLM-5.3 MAX executes `wo128-glm-goal-core-001` through the stable mailbox; GPT consumes `result.md` directly and remains commit/PR/merge authority.
+4. Add the reusable WO131 dedup-tie defect lesson in the next bounded shared-doc checkpoint; do not mutate the already merged source commit.
 5. Do not publish v0.7.0 until WO096 hosted remote MCP-after-TTL evidence and final release E2E are complete.
 
 ## Accepted predecessor
