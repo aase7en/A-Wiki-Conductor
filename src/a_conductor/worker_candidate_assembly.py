@@ -222,6 +222,16 @@ class WorkerCandidateAssembler:
         self._leases = lease_store
         self._capabilities = capability_resolver
 
+    @property
+    def lease_evidence_database_path(self):
+        """Authority identity of the lease/reservation evidence source, if known.
+
+        Production composition compares this with the elastic coordinator's
+        authority path so reservation visibility can never silently split
+        across two SQLite files. Non-SQLite evidence ports report None.
+        """
+        return getattr(self._leases, "database_path", None)
+
     def _snapshot(self) -> ControlCenterSnapshot:
         snapshot = self._control_center.snapshot()
         if not isinstance(snapshot, ControlCenterSnapshot):

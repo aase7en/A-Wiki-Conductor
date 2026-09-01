@@ -1,8 +1,8 @@
 # WO-P1-120 — Elastic Capacity Fencing + Recovery Hardening
 
 Date: 2026-08-31
-Proposed owner: GLM-5.3 MAX under exact bounded task contract
-Status: READY_FOR_CLAIM / UNCLAIMED
+Owner: GPT-5.6 Sol integrator after GLM-5.3 MAX bounded implementation/repair
+Status: IMPLEMENTED_LOCAL / REVIEW_PREP
 Repository: `aase7en/A-Wiki-Conductor`
 Priority: P2/P3 hardening before production elastic wiring; independent of fixed-worker first canary
 
@@ -56,3 +56,26 @@ F. Add typed stale-failure-residue inspection/reconcile using deterministic owne
 ## Concurrency
 
 May run concurrently with WO-P1-117 and WO-P1-119. If the R6 RED test requires changing registry/publication semantics outside the allowed three source files, report `SCOPE_REOPEN_REQUIRED` and stop rather than expanding authority silently.
+
+
+## Implementation checkpoint — 2026-08-31
+
+- GLM first implementation `962be358f1426086b5b40b113377c82b46d7b614` reproduced and repaired the R6 publication/lease race, enforced scheduler eligibility on direct provisioning, enforced single-store composition, persisted post-provision recovery, and added stale-residue reconciliation.
+- GPT integrator found two blockers in that result: bound PROVISIONED residue could release budget without proof the worker disappeared, and a mark-provisioned lease conflict returned recovery while durable reservation remained ACTIVE.
+- GLM repair `a1b7ac438364cf41c8804add3e6183f39f8870b0` fixed durable conflict recovery and changed bound stale release to require `worker_decommissioned=True`.
+- GPT adversarial review rejected that boolean as decommission authority and found a second bypass: the generic transition matrix still allowed `RECOVERY_REQUIRED -> RELEASED` without reconciliation.
+- RED proved both bypasses. Final local repair removes the boolean escape, refuses all bound stale-residue release until a typed runtime/decommission observation seam exists, and forbids generic `RECOVERY_REQUIRED -> RELEASED`. That conclusion was superseded by a later crash-window audit: unbound stale residue is not releasable by age alone because a worker may have been created before its identity was durably bound.
+- A final GPT authority audit then proved `release_unstarted()` could retire a successful `CAPACITY` record through the generic transition table. RED reproduced it; `CAPACITY -> RELEASED` is now forbidden until a separate typed retirement lifecycle exists.
+- Focused + related worker/elastic/parallel regression after all integrator repairs: `230 passed`; the final positive control proves legitimate ACTIVE `release_unstarted()` still releases and returns budget; compileall and `git diff --check` PASS.
+- Remaining gates: source/docs commit + push -> exact-SHA independent review -> 3-OS CI -> merge/post-main verification.
+- Later GPT crash-window audit proved stale `ACTIVE + worker_id=None` and `RECOVERY_REQUIRED + worker_id=None` can represent an uncertain post-provision outcome, so owner+age cannot prove runtime absence. RED: two unsafe stale releases failed while explicit `release_unstarted()` positive control passed. Repair returns `PROVISIONING_RUNTIME_ABSENCE_EVIDENCE_REQUIRED` for unbound stale reconcile; known pre-provision cancellation must use explicit `release_unstarted()`. Targeted 3 passed; focused+related 209 passed.
+- Exact-head rereview/CI must be regenerated after this repair and after refreshing onto current main.
+- Final refresh onto merged WO118A main `0ff914efa2887a0f9c6d330859fa4e49ed921d89` was conflict-free; combined generation/policy/dispatch/lease/elastic/Claude regression = `359 passed`. This is the exact pre-review integration tree.
+
+## Failover review 004 + release-unstarted crash repair — 2026-09-01
+
+GPT-5.6 Sol failover review (used because Ultra003 became quota-blocked; not represented as independent Ultra evidence) found a new P2 on exact head `899d002745b7ae56704c8a6614e7b9a957ab0ba6`: `release_unstarted()` could release `ACTIVE + worker_id=None`, the same durable shape possible after a worker was created but the process died before `mark_provisioned(worker_id)`. Deterministic RED released that row and admitted a second reservation at `max_extra_workers=1` while an external orphan-worker marker still existed.
+
+Repair makes pre-provision provenance durable instead of caller-asserted. New reservations start `PRE_PROVISION`; immediately before invoking the provisioner the coordinator must persist `PROVISIONING`. Only `PRE_PROVISION -> RELEASED` is allowed by `release_unstarted()`. Historical `ACTIVE` is treated as ambiguous legacy residue and cannot release; `PROVISIONING` also cannot release. Both remain capacity-consuming until a future typed runtime-absence/decommission seam proves safe retirement.
+
+Tracked RED initially failed (`DID NOT RAISE`). After repair, the crash-window refusal + safe pre-provision positive control pass; focused fencing file `27 passed`; worker/elastic/candidate focused set `58 passed`; related scheduler/dispatch/lease/elastic set `257 passed`; provider-generation/dispatch/lease/elastic frontier union `312 passed`. Full local suite after repair: `1888 passed / 5 skipped / 2 known environment failures` (`Pillow` unavailable for GPU particle sampling; `OpenGL` unavailable for real WGL framebuffer; the additional skip is local Tk/Tcl availability). No WO120/provider regression. New exact-head independent review + CI remain required after commit.

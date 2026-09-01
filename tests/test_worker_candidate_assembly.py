@@ -416,3 +416,21 @@ def test_capacity_state_counts_as_capacity_but_does_not_reserve_worker() -> None
     assert record.candidate.reserved is False
     assert record.candidate.active_task is False
     assert record.candidate.occupied_mutable_scopes == ()
+
+
+def test_assembler_exposes_lease_evidence_authority_when_known(tmp_path) -> None:
+    from a_conductor.worker_lease import SQLiteWorkerLeaseStore
+
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    known = WorkerCandidateAssembler(
+        control_center=FakeControlCenter(snapshot()),
+        config_store=FakeConfigStore(binding()),
+        lifecycle_context_provider=FakeContextProvider(context()),
+        git_state_observer=FakeGitStateObserver(
+            GitWorktreeState("feat/test", HEAD, "CLEAN")
+        ),
+        lease_store=store,
+        capability_resolver=FakeCapabilityResolver(),
+    )
+    assert known.lease_evidence_database_path == store.database_path
+    assert assembler().lease_evidence_database_path is None

@@ -588,3 +588,15 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** internal consistency is not provenance. Provider-capacity completion/release authority must bind evidence to the exact operation being consumed; foreign-but-valid evidence and unknown return shapes while an admission is held remain uncertainty and keep capacity reserved. A no-admission generic runner may still report stage completion without becoming durable lifecycle authority.
 
 **Verify:** current-main RED = 10 failures/1 positive control; after compatibility repair, full parallel suite = 57 passed and broader provider/store/runtime/graph/lease/candidate/elastic/Claude supervised regression = 284 passed; compileall/diff/UTF-8 gates PASS.
+
+## #38: Recovery assertions are not decommission authority (2026-08-31)
+
+**Symptom:** bounded elastic capacity could be freed without lifecycle evidence through three generic escape hatches: a caller boolean `worker_decommissioned=True`, `RECOVERY_REQUIRED -> RELEASED`, or `release_unstarted()` applied to a successful `CAPACITY` reservation. None proved the worker/capacity had actually been retired.
+
+**Root cause:** recovery cleanup exposed assertion-shaped inputs and a generic state transition where the capacity authority required evidence. The API encoded intent to release, not provenance that release was safe.
+
+**Fix:** ambiguous provisioning residue now remains consuming under stale reconciliation whether a worker id is bound or not. A bound worker requires typed decommission evidence; unbound ambiguous states require typed runtime-absence evidence because the worker may have been created before identity was durably persisted. New reservations use `PRE_PROVISION`, then atomically persist `PROVISIONING` before the provisioner is invoked. Only `PRE_PROVISION -> RELEASED` is a valid `release_unstarted()` path. Historical `ACTIVE`, `PROVISIONING`, `RECOVERY_REQUIRED`, and `CAPACITY` cannot be released through that generic path. The boolean escape was removed.
+
+**Lesson:** booleans, elapsed time, missing worker ids, caller claims, and an `ACTIVE` label that spans both pre-start and post-create crash windows are not ownership/decommission evidence. Persist the lifecycle boundary *before* invoking side effects: only a durable `PRE_PROVISION` state proves provisioning has not started; once `PROVISIONING` is recorded, capacity remains fail-closed until stronger evidence exists.
+
+**Verify:** prior RED tests prove the boolean escape, generic recovery-release bypass, and CAPACITY-retirement bypass. A later failover review reproduced `release_unstarted()` freeing an ambiguous unbound crash-window row while an orphan-worker marker still existed. The tracked RED failed before repair; after introducing `PRE_PROVISION -> PROVISIONING`, legacy `ACTIVE` and started `PROVISIONING` both refuse release while the true pre-provision positive control still releases. Current focused/related/frontier counts: 58 / 257 / 312 passed; full local = 1888 passed / 5 skipped / 2 known GPU environment failures. Exact-head independent review/CI remain required after commit.

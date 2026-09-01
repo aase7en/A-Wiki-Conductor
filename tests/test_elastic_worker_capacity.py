@@ -25,6 +25,7 @@ from a_conductor.registry import windows_worktree_key
 from a_conductor.graph.scheduler import (
     BlockedReason,
     BlockedReasonKind,
+    NodeEligibility,
     SchedulePlan,
 )
 from a_conductor.worker_candidate_assembly import WorkerSupplyRecord
@@ -39,6 +40,7 @@ from a_conductor.worker_lease import (
 
 NOW = datetime(2026, 8, 31, 1, 0, tzinfo=timezone.utc)
 HEAD = "a" * 40
+ELIGIBILITY = {"node-1": NodeEligibility()}
 
 
 def capacity_plan(kind: BlockedReasonKind = BlockedReasonKind.CAPACITY) -> SchedulePlan:
@@ -208,7 +210,7 @@ def test_disabled_or_non_capacity_failure_never_calls_provisioner(tmp_path: Path
     service, _ = make_coordinator(tmp_path, provisioner=provisioner)
 
     disabled = service.expand(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy(enabled=False)
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy(enabled=False)
     )
     assert disabled.kind is ElasticCapacityOutcomeKind.POLICY_DISABLED
     assert provisioner.calls == []
@@ -217,6 +219,7 @@ def test_disabled_or_non_capacity_failure_never_calls_provisioner(tmp_path: Path
         capacity_plan(BlockedReasonKind.IDENTITY),
         lease_request(),
         runtime_kind="serena-local",
+        eligibility=ELIGIBILITY,
         policy=policy(),
     )
     assert blocked.kind is ElasticCapacityOutcomeKind.NOT_CAPACITY_FAILURE
@@ -235,6 +238,7 @@ def test_remote_connector_permission_requires_explicit_transport_authority(tmp_p
         capacity_plan(),
         lease_request(),
         runtime_kind="serena-local",
+        eligibility=ELIGIBILITY,
         policy=policy(allow_remote=True),
     )
     assert blocked.kind is ElasticCapacityOutcomeKind.POLICY_BLOCKED
@@ -246,6 +250,7 @@ def test_remote_connector_permission_requires_explicit_transport_authority(tmp_p
         capacity_plan(),
         lease_request(),
         runtime_kind="serena-local",
+        eligibility=ELIGIBILITY,
         policy=policy(
             allow_remote=True,
             transport_ref="transport-auth:worker-capacity/test",
@@ -291,7 +296,7 @@ def test_provision_ready_uses_owner_scoped_reobservation(tmp_path: Path) -> None
     service, _ = make_coordinator(tmp_path, assembler=assembler)
 
     outcome = service.provision_ready(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
 
     assert outcome.kind is ElasticCapacityOutcomeKind.PROVISIONED_READY
@@ -306,7 +311,7 @@ def test_capacity_exhaustion_provisions_reobserves_then_uses_existing_broker(tmp
     )
 
     outcome = service.expand(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
 
     assert outcome.kind is ElasticCapacityOutcomeKind.PROVISIONED_AND_LEASED
@@ -328,14 +333,14 @@ def test_provisioning_uncertainty_consumes_slot_and_prevents_blind_retry(tmp_pat
     service, reservations = make_coordinator(tmp_path, provisioner=provisioner)
 
     first = service.expand(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
     assert first.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
     assert reservations.list_consuming()[0].state == "RECOVERY_REQUIRED"
 
     other_request = replace(lease_request(), session_id="session-2", task_id="task-2")
     second = service.expand(
-        capacity_plan(), other_request, runtime_kind="serena-local", policy=policy()
+        capacity_plan(), other_request, runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
     assert second.kind is ElasticCapacityOutcomeKind.LIMIT_WAIT
     assert len(provisioner.calls) == 1
@@ -350,7 +355,7 @@ def test_unexpected_remote_connector_is_recovery_when_policy_does_not_allow_it(t
     service, reservations = make_coordinator(tmp_path, provisioner=provisioner)
 
     outcome = service.expand(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
 
     assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
@@ -368,7 +373,7 @@ def test_reobserved_worker_that_fails_existing_broker_is_not_silently_retried(tm
     )
 
     outcome = service.expand(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
 
     assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
@@ -382,7 +387,7 @@ def test_post_provision_observation_failure_marks_recovery(tmp_path: Path) -> No
     )
 
     outcome = service.provision_ready(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
 
     assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
@@ -395,7 +400,7 @@ def test_post_provision_observation_failure_marks_recovery(tmp_path: Path) -> No
 def test_reservation_persists_identity_and_scope(tmp_path: Path) -> None:
     service, reservations = make_coordinator(tmp_path)
     outcome = service.provision_ready(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
     assert outcome.kind is ElasticCapacityOutcomeKind.PROVISIONED_READY
     record = reservations.list_consuming()[0]
@@ -409,7 +414,7 @@ def test_runtime_kind_outside_policy_does_not_reserve_or_provision(tmp_path: Pat
     service, reservations = make_coordinator(tmp_path, provisioner=provisioner)
 
     outcome = service.expand(
-        capacity_plan(), lease_request(), runtime_kind="remote-chatgpt", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="remote-chatgpt", eligibility=ELIGIBILITY, policy=policy()
     )
 
     assert outcome.kind is ElasticCapacityOutcomeKind.POLICY_BLOCKED
@@ -463,7 +468,7 @@ def test_capacity_wait_reason_code_is_sanitized(tmp_path: Path) -> None:
     service, _ = make_coordinator(tmp_path, reservations=authority)
 
     outcome = service.expand(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
     assert outcome.kind is ElasticCapacityOutcomeKind.LIMIT_WAIT
     assert outcome.reason_code == "ELASTIC_CAPACITY_LIMIT_REACHED"
@@ -495,7 +500,7 @@ def test_acquired_reservation_identity_mismatch_fails_before_provisioner(tmp_pat
     )
 
     outcome = service.expand(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
     assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
     assert outcome.reason_code == "PROVISIONING_RESERVATION_IDENTITY_MISMATCH"
@@ -513,7 +518,28 @@ def test_future_or_malformed_reservation_kind_fails_closed(tmp_path: Path) -> No
     service, _ = make_coordinator(tmp_path, reservations=authority)
 
     outcome = service.expand(
-        capacity_plan(), lease_request(), runtime_kind="serena-local", policy=policy()
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
     )
     assert outcome.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
     assert outcome.reason_code == "PROVISIONING_RESERVATION_OUTCOME_UNSUPPORTED"
+
+def test_successful_capacity_still_consumes_budget_for_second_owner(tmp_path: Path) -> None:
+    provisioner = FakeProvisioner(ElasticProvisionedWorker("a-worker-09", "serena-local"))
+    service, reservations = make_coordinator(
+        tmp_path, provisioner=provisioner, assembler=FakeAssembler(supply())
+    )
+
+    first = service.expand(
+        capacity_plan(), lease_request(), runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy()
+    )
+    assert first.kind is ElasticCapacityOutcomeKind.PROVISIONED_AND_LEASED
+    records = reservations.list_consuming()
+    assert len(records) == 1 and records[0].state == "CAPACITY"
+
+    second = service.expand(
+        capacity_plan(),
+        replace(lease_request(), session_id="session-2", task_id="task-2"),
+        runtime_kind="serena-local", eligibility=ELIGIBILITY, policy=policy(),
+    )
+    assert second.kind is ElasticCapacityOutcomeKind.LIMIT_WAIT
+    assert len(provisioner.calls) == 1
