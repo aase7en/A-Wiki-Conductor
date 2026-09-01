@@ -49,7 +49,7 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 
 **Current development version:** `0.7.0` - not released yet; stable publication remains gated by WO-P1-096 live connector TTL evidence.
 
-**Current program state:** Sunday Family Multi-Model Agent Harness - **AHA-6B, post-AHA-6B provider safety, and the stable external-agent mailbox are complete; AHA-7 Models & Agents operator UI is the active product frontier.**
+**Current program state:** Sunday Family Multi-Model Agent Harness - **AHA-7A truthful provider operator read model is complete; WO125 provider operator read service is the active product frontier. Ultra pre-implementation review found no P0 and identified required P1/P2 contract hardening before source implementation.**
 
 > Direction: one A-Sunday Conductor entry point recovers SSoT, routes only eligible worker/model/harness capacity, preserves durable claims/evidence, reviews and repairs results, and continues without human result copy/paste. `CONFIGURED != READY`, `READY != AUTHORIZED`, and agent `PASS` is evidence rather than merge authority.
 
@@ -63,7 +63,9 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 - [x] **Post-AHA-6B safety gate** - provider admission lifetime, generation + trust/egress enforcement, output persistence safety, elastic fencing/recovery, and dispatch evidence binding (WO117/118/119/120/121).
 - [x] **Loop Engineer protocol** - stable task/status/result destinations and bounded multi-agent lane rules (WO123).
 - [x] **Stable external-agent mailbox** - constant per-agent machine-local prompt path with exact task/result authority and no human result copy-back (WO122).
-- [ ] **AHA-7 - IN PROGRESS** - truthful Models & Agents operator read model first; Settings display then bounded Edit/Disable/Test and selection-reason/fallback observability through existing authorities only.
+- [x] **AHA-7A truthful provider read model** - configuration, runtime readiness, and task authorization are distinct; readiness/quota authority is reused and secret/endpoint values are excluded.
+- [x] **Windows owned-process reliability hardening (WO129)** - bounded post-termination UNKNOWN re-observation without retrying termination or weakening MISMATCH/PID ownership safety.
+- [ ] **AHA-7B - IN PROGRESS** - WO125 canonical provider snapshot/read service, then WO126 Settings display, WO127 bounded Edit/Disable/Test, and WO128 selection-reason/fallback observability through existing authorities only.
 - [ ] **AHA-8** - additional providers one adapter at a time after AHA-7 contracts stabilize.
 
 > **v0.7.0 release gate:** source already identifies as `0.7.0`, but GitHub Latest remains `v0.6.0`. Do not publish `v0.7.0` until WO-P1-096 proves hosted/remote MCP success after the relevant TTL on tunnel-client v0.0.13 with zero manual Start actions and completes final release E2E.

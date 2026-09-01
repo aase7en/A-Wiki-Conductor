@@ -9,11 +9,13 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 |---|---|---|---|---|
 | Released provider safety | GPT-5.6 Sol + GLM rereview | WO-P1-118B | production provider authority enforcement | MERGED #172 `9c560778` / GLM_006_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
 | Released agent ergonomics | GPT-5.6 Sol + GLM review | WO-P1-122 | stable external-agent mailbox + bridge protocol | MERGED #168 `a957868` / GLM_002_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
-| Active product frontier | GPT-5.6 Sol + GLM review | WO-P1-124 / AHA-7A | additive truthful provider operator read model | HEAD `be97d31` / 25 focused + 84 provider tests / CI_GREEN / INDEPENDENT_REVIEW_PENDING |
+| Released AHA-7A | GPT-5.6 Sol + GLM review | WO-P1-124 | truthful provider operator read model | MERGED #174 `c1cfbe7` / GLM_002_PASS / POST_MAIN_33504441646_ATTEMPT2_GREEN |
+| Released reliability | GPT-5.6 Sol + GLM review | WO-P2-129 | bounded post-termination UNKNOWN observation | MERGED #176 `fae5c0d` / GLM_001_PASS / POST_MAIN_33509029840_GREEN |
+| Active product frontier | GPT-5.6 Sol + GPT Ultra architecture review | WO-P1-125 | canonical provider bulk-read + typed corruption/secrecy boundary + DesktopControl read service | ULTRA_CHANGES_REQUIRED_ACCEPTED / P0=0 P1=4 P2=2 / ARCH_REPAIR_READY |
+| Active closeout | GPT-5.6 Sol | WO-P1-130 | SSoT + README + Defect Memory only | DOCS_ONLY_CLOSEOUT |
 | Released coordination protocol | GPT-5.6 Sol + GLM review | WO-P1-123 | Loop Engineer routing + stable task/status/result convention | MERGED #170 `5ddf533f` / POST_MAIN_GREEN |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / FIVE LIVE WORKERS READY / NO MUTATION AUTHORITY |
-| Next AHA-7 slice | GPT-5.6 Sol | WO-P1-125 provider operator read service | existing provider read model + same control DB | READY_AFTER_WO124_ACCEPTANCE |
-| Future | provider-neutral | AHA-7 Edit/Disable/Test + selection reason | accepted provider CAS/admission/runtime/scheduler authorities | CLAIM_GATED |
+| Future | provider-neutral | WO126 Settings display -> WO127 Edit/Disable/Test -> WO128 selection/fallback | accepted provider/store/policy/runtime/scheduler authorities only | CLAIM_GATED |
 | Future | provider-neutral | AHA-8 additional providers | one adapter at a time | DEFERRED |
 
 ### Completed GLM bridge contract
