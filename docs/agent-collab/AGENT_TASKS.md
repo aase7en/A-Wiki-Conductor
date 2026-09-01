@@ -3,7 +3,7 @@
 This file is a compact lane index, not the project source of truth.
 Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work order → runtime/Git evidence.
 
-## Active lane checkpoint - 2026-09-01
+## Active lane checkpoint - 2026-09-02
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
@@ -14,9 +14,12 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 | Released provider read service | GPT-5.6 Sol + GLM exact-head review | WO-P1-125 | canonical provider bulk-read + typed corruption/secrecy boundary + DesktopControl read service | MERGED #178 `23b98876` / GLM_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
 | Released closeout | GPT-5.6 Sol + GLM review | WO-P1-130 | SSoT + README + Defect Memory only | MERGED #177 `b32ddd26` / GLM_PASS / POST_MAIN_33517232490_GREEN |
 | Released coordination protocol | GPT-5.6 Sol + GLM review | WO-P1-123 | Loop Engineer routing + stable task/status/result convention | MERGED #170 `5ddf533f` / POST_MAIN_GREEN |
-| P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / FIVE LIVE WORKERS READY / NO MUTATION AUTHORITY |
-| Active product frontier | GPT-5.6 Sol | WO-P1-126 Settings display | `desktop_ui.py` + `i18n.py` + focused UI tests/docs; consume accepted provider rows only | IMPLEMENTED / VERIFYING / REVIEW_PENDING |
-| Parallel read-only shaping | GLM-5.3 MAX | WO127 Edit/Disable/Test + WO128 selection/fallback | result file only; no tracked mutation | GOAL_DISPATCHED / READ_ONLY / RESULT_PENDING |
+| Released Models & Agents display | GPT-5.6 Sol + GLM review | WO-P1-126 | read-only Settings `MODELS & AGENTS` panel | MERGED #179 `010ab4bd` / GLM_PASS / EXACT_HEAD_33540512066_AND_POST_MAIN_33544097620_GREEN |
+| Released reliability with process deviation | GPT-5.6 Sol | WO-P2-131 | execution dedup newest-tie query + focused regression only | MERGED #180 `af7a933f` / EXACT_HEAD_33543935682_GREEN / POST_MAIN_33545560617_GREEN / INDEPENDENT_REVIEW_MISSED_BEFORE_EXTERNAL_MERGE |
+| P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / NO LIVE MUTATION AUTHORITY |
+| Active product frontier | GPT-5.6 Sol | WO127 Edit/Disable/Test | isolated worktree/claim to be created; `desktop_control.py` + UI/i18n/action tests only per accepted shaping | READY_AFTER_WO126 / GPT_MUTABLE_OWNER |
+| Parallel long-goal core | GLM-5.3 MAX / ZCode Goal + `$a-loop` | WO128 T0+T1 admissions evidence core | `provider_config_store.py` + store tests + new pure projection/tests only; no UI/desktop_control/shared SSoT | CLAIMED / task `wo128-glm-goal-core-001` / result file direct-consume |
+| Completed read-only shaping | GLM-5.3 MAX | WO127 + WO128 plan | result file only | COMPLETE / BOTH_READY_AFTER_WO126 |
 | Future | provider-neutral | AHA-8 additional providers | one adapter at a time | DEFERRED |
 
 ### Completed GLM bridge contract

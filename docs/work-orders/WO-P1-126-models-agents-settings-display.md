@@ -2,7 +2,7 @@
 
 Date: 2026-09-01
 Owner: GPT-5.6 Sol integrator
-Status: IMPLEMENTED / VERIFYING / REVIEW_PENDING
+Status: RELEASED
 Priority: P1 AHA-7B
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo126-models-agents-settings`
@@ -89,3 +89,12 @@ Final pre-freeze verification checkpoint:
 - Ordered UI/control/i18n/singleton/button impact matrix: **118/118 PASS** after repairing process-global language test cleanup.
 - Pre-isolation full repo: **1982 passed / 5 skipped / 2 known optional-GPU dependency failures** (`Pillow`, `OpenGL`); exact-head full rerun remains required after commit because the test-isolation file changed.
 - No forbidden provider/store/policy/runtime source files are modified.
+
+## Final acceptance / release — 2026-09-02
+
+- Frozen feature HEAD: `eee3e0e202b27c685f63c222ff10646ae667987e`; the changed-file set remained exactly the intended 11 files and no provider/store/policy/runtime authority file changed.
+- Independent GLM-5.3 MAX task `wo126-glm-review-001`, task SHA-256 `5d5ce849018f42db9adb6043ae0457230abbaa4d0ee8ddab4684927fc877644f`, verified all 11 pinned file hashes and returned **PASS / P0=0 / P1=0 / P2=0**. Four P3 notes were accepted as non-blocking without changing the reviewed source.
+- Exact-head CI `33540512066` passed Windows, Ubuntu, and macOS, including the Windows GUI/core/package/Frozen Setup path.
+- PR #179 merged exact reviewed head as main commit `010ab4bdefbe54725388a5cea936117b8eb93b6b`.
+- Post-main CI `33544097620` passed on the merged SHA across Windows, Ubuntu, and macOS, including Windows packaging and Frozen Setup install/uninstall E2E.
+- WO126 is therefore **RELEASED**. Product frontier advances to WO127 Edit/Disable/Test, with WO128 truthful selection/fallback observability after it. WO096 remains the independent P0 v0.7.0 publication blocker.

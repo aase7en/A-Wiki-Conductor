@@ -49,7 +49,7 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 
 **Current development version:** `0.7.0` - not released yet; stable publication remains gated by WO-P1-096 live connector TTL evidence.
 
-**Current program state:** Sunday Family Multi-Model Agent Harness - **AHA-7A truthful provider operator read model is complete; WO125 provider operator read service is the active product frontier. Ultra pre-implementation review found no P0 and identified required P1/P2 contract hardening before source implementation.**
+**Current program state:** Sunday Family Multi-Model Agent Harness - **WO126 read-only `MODELS & AGENTS` Settings display is released. WO127 Edit/Disable/Test is the active GPT product slice while GLM-5.3/ZCode runs the disjoint WO128 admissions-evidence core as a bounded long-horizon lane; final WO128 UI still follows WO127.**
 
 > Direction: one A-Sunday Conductor entry point recovers SSoT, routes only eligible worker/model/harness capacity, preserves durable claims/evidence, reviews and repairs results, and continues without human result copy/paste. `CONFIGURED != READY`, `READY != AUTHORIZED`, and agent `PASS` is evidence rather than merge authority.
 
@@ -65,7 +65,7 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 - [x] **Stable external-agent mailbox** - constant per-agent machine-local prompt path with exact task/result authority and no human result copy-back (WO122).
 - [x] **AHA-7A truthful provider read model** - configuration, runtime readiness, and task authorization are distinct; readiness/quota authority is reused and secret/endpoint values are excluded.
 - [x] **Windows owned-process reliability hardening (WO129)** - bounded post-termination UNKNOWN re-observation without retrying termination or weakening MISMATCH/PID ownership safety.
-- [ ] **AHA-7B - IN PROGRESS** - WO125 canonical provider snapshot/read service, then WO126 Settings display, WO127 bounded Edit/Disable/Test, and WO128 selection-reason/fallback observability through existing authorities only.
+- [ ] **AHA-7B - IN PROGRESS** - WO125 provider read service + WO126 Settings display are complete; WO127 bounded Edit/Disable/Test and disjoint WO128 T0+T1 evidence-core work may run in parallel, then WO128 UI integrates persisted evidence only.
 - [ ] **AHA-8** - additional providers one adapter at a time after AHA-7 contracts stabilize.
 
 > **v0.7.0 release gate:** source already identifies as `0.7.0`, but GitHub Latest remains `v0.6.0`. Do not publish `v0.7.0` until WO-P1-096 proves hosted/remote MCP success after the relevant TTL on tunnel-client v0.0.13 with zero manual Start actions and completes final release E2E.
