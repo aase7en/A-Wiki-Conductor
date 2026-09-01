@@ -7,12 +7,15 @@ It owns no scheduler, provider, retry loop, Git mutation, or lease lifecycle.
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
+from hashlib import sha256
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from fnmatch import fnmatchcase
-from pathlib import PurePosixPath
-from typing import Callable, Protocol
+from pathlib import Path, PurePosixPath
+from typing import Callable, Mapping, Protocol
 
 from .native_execution import NativeExecutionError, NativeFileSystem
 from .registry import windows_worktree_key
@@ -20,6 +23,7 @@ from .worker_lease import LeaseHealth, LeaseHealthKind, LeaseMutationIntent, Wor
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _ALLOWED_STATUSES = frozenset({"CHANGES_PROPOSED", "NO_CHANGES", "BLOCKED"})
+_AGENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
 def _utc_now() -> datetime:
@@ -83,9 +87,9 @@ class AgentResultPacket:
     evidence_refs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "task_id", _text(self.task_id, "task_id", max_length=128))
-        object.__setattr__(self, "provider_id", _text(self.provider_id, "provider_id", max_length=128))
-        object.__setattr__(self, "model_id", _text(self.model_id, "model_id", max_length=128))
+        object.__setattr__(self, "task_id", _mailbox_text(self.task_id, "task_id", max_length=128))
+        object.__setattr__(self, "provider_id", _mailbox_text(self.provider_id, "provider_id", max_length=128))
+        object.__setattr__(self, "model_id", _mailbox_text(self.model_id, "model_id", max_length=128))
         if self.status not in _ALLOWED_STATUSES:
             raise ValueError("status is invalid")
         if not re.fullmatch(r"[0-9a-fA-F]{7,64}", self.base_head):
@@ -261,6 +265,177 @@ def _packet_from_mapping(decoded: dict[str, object]) -> AgentResultPacket:
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise AgentChangeError("AGENT_RESULT_INVALID") from exc
+
+
+def _agent_id(value: str) -> str:
+    agent_id = _text(value, "agent_id", max_length=64).casefold()
+    if not _AGENT_ID_RE.fullmatch(agent_id):
+        raise ValueError("agent_id is invalid")
+    return agent_id
+
+
+def _mailbox_text(value: str, field: str, *, max_length: int) -> str:
+    text = _text(value, field, max_length=max_length)
+    if any(char in text for char in ("\r", "\n", "`")):
+        raise ValueError(f"{field} is invalid")
+    return text
+
+
+def _absolute_path(value: str | Path, field: str) -> Path:
+    raw = str(value)
+    if any(char in raw for char in ("\x00", "\r", "\n")):
+        raise ValueError(f"{field} is invalid")
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        raise ValueError(f"{field} is invalid")
+    return path
+
+
+def default_agent_bridge_root(
+    *, env: Mapping[str, str] | None = None, home: Path | None = None
+) -> Path:
+    values = os.environ if env is None else env
+    override = str(values.get("A_CONDUCTOR_AGENT_BRIDGE_ROOT", "")).strip()
+    local = str(values.get("LOCALAPPDATA", "")).strip()
+    xdg = str(values.get("XDG_STATE_HOME", "")).strip()
+    if override:
+        return _absolute_path(override, "agent_bridge_root")
+    if local:
+        return _absolute_path(local, "LOCALAPPDATA") / "A-Conductor" / "agent-bridge"
+    if xdg:
+        return _absolute_path(xdg, "XDG_STATE_HOME") / "a-conductor" / "agent-bridge"
+    base = Path.home() if home is None else _absolute_path(home, "home")
+    return base / ".local" / "state" / "a-conductor" / "agent-bridge"
+
+
+def agent_mailbox_task_path(
+    agent_id: str,
+    *,
+    root: Path | None = None,
+    env: Mapping[str, str] | None = None,
+    home: Path | None = None,
+) -> Path:
+    base = default_agent_bridge_root(env=env, home=home) if root is None else _absolute_path(root, "agent_bridge_root")
+    return base / _agent_id(agent_id) / "task.md"
+
+
+@dataclass(frozen=True, slots=True)
+class AgentMailboxAssignment:
+    agent_id: str
+    task_id: str
+    provider_id: str
+    model_id: str
+    role: str
+    worktree: str
+    branch: str
+    base_head: str
+    task_ref: str
+    result_ref: str
+    task_sha256: str
+
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "agent_id", _agent_id(self.agent_id))
+        object.__setattr__(self, "task_id", _text(self.task_id, "task_id", max_length=128))
+        object.__setattr__(self, "provider_id", _text(self.provider_id, "provider_id", max_length=128))
+        object.__setattr__(self, "model_id", _text(self.model_id, "model_id", max_length=128))
+        object.__setattr__(self, "role", _mailbox_text(self.role, "role", max_length=128))
+        worktree = _absolute_path(_mailbox_text(self.worktree, "worktree", max_length=1024), "worktree")
+        task_ref = _absolute_path(_mailbox_text(self.task_ref, "task_ref", max_length=2048), "task_ref")
+        result_ref = _absolute_path(_mailbox_text(self.result_ref, "result_ref", max_length=2048), "result_ref")
+        object.__setattr__(self, "worktree", str(worktree))
+        object.__setattr__(self, "task_ref", str(task_ref))
+        object.__setattr__(self, "result_ref", str(result_ref))
+        object.__setattr__(self, "branch", _mailbox_text(self.branch, "branch", max_length=256))
+        if not re.fullmatch(r"[0-9a-fA-F]{7,64}", self.base_head):
+            raise ValueError("base_head is invalid")
+        object.__setattr__(self, "base_head", self.base_head.casefold())
+        if not _SHA256_RE.fullmatch(self.task_sha256):
+            raise ValueError("task_sha256 is invalid")
+        object.__setattr__(self, "task_sha256", self.task_sha256.casefold())
+
+
+def _mailbox_markdown(assignment: AgentMailboxAssignment) -> str:
+    return (
+        "# A-Sunday Conductor External Agent Mailbox\n\n"
+        "Schema: `agent-mailbox/v1`\n"
+        f"Agent: `{assignment.agent_id}`\n"
+        f"Task ID: `{assignment.task_id}`\n"
+        f"Provider: `{assignment.provider_id}`\n"
+        f"Model: `{assignment.model_id}`\n"
+        f"Role: `{assignment.role}`\n"
+        f"Worktree: `{assignment.worktree}`\n"
+        f"Branch: `{assignment.branch}`\n"
+        f"Base HEAD: `{assignment.base_head}`\n"
+        f"Exact task packet: `{assignment.task_ref}`\n"
+        f"Task SHA-256: `{assignment.task_sha256}`\n"
+        f"Result destination: `{assignment.result_ref}`\n\n"
+        "Read and follow only the exact task packet above. Re-check its SHA-256 before work. "
+        "Write the result only to the declared result destination. Do not edit tracked coordination "
+        "SSoT unless the exact task explicitly assigns it. Do not return the result to the human.\n"
+    )
+
+
+def publish_agent_mailbox_assignment(
+    assignment: AgentMailboxAssignment,
+    *,
+    root: Path | None = None,
+    env: Mapping[str, str] | None = None,
+    home: Path | None = None,
+) -> Path:
+    if not isinstance(assignment, AgentMailboxAssignment):
+        raise ValueError("assignment is required")
+    task_ref = Path(assignment.task_ref)
+    result_ref = Path(assignment.result_ref)
+    try:
+        task_bytes = task_ref.read_bytes()
+    except OSError as exc:
+        raise AgentChangeError("TASK_PACKET_UNAVAILABLE") from exc
+    if sha256(task_bytes).hexdigest() != assignment.task_sha256:
+        raise AgentChangeError("TASK_PACKET_HASH_MISMATCH")
+    if not result_ref.parent.is_dir():
+        raise AgentChangeError("RESULT_DESTINATION_PARENT_UNAVAILABLE")
+    target = agent_mailbox_task_path(
+        assignment.agent_id, root=root, env=env, home=home
+    )
+    content = _mailbox_markdown(assignment).encode("utf-8")
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="wb", dir=target.parent, prefix=".task-", suffix=".tmp", delete=False
+        ) as handle:
+            temp_path = Path(handle.name)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, target)
+        if target.read_bytes() != content:
+            raise AgentChangeError("AGENT_MAILBOX_VERIFY_FAILED")
+    except AgentChangeError:
+        raise
+    except OSError as exc:
+        raise AgentChangeError("AGENT_MAILBOX_PUBLISH_FAILED") from exc
+    finally:
+        candidate = locals().get("temp_path")
+        if isinstance(candidate, Path) and candidate.exists():
+            try:
+                candidate.unlink()
+            except OSError:
+                pass
+    return target
+
+
+def build_stable_mailbox_prompt(
+    agent_id: str, *, root: Path | None = None,
+    env: Mapping[str, str] | None = None, home: Path | None = None,
+) -> str:
+
+    task_path = agent_mailbox_task_path(agent_id, root=root, env=env, home=home)
+    return (
+        f"Read {task_path}. Follow only the exact task packet referenced there; "
+        "write the result to its declared destination. Do not return the result to the human."
+    )
 
 
 class AgentResultFileReader:
