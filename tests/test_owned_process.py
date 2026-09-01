@@ -438,6 +438,109 @@ def test_stop_failure_keeps_owned_pid_metadata_for_recovery(tmp_path: Path) -> N
     assert runtime.pid_path.read_text(encoding="utf-8") == "1234"
 
 
+def test_stop_retries_transient_unknown_after_successful_termination(tmp_path: Path) -> None:
+    runtime = spec(tmp_path)
+    runtime.pid_path.parent.mkdir(parents=True)
+    runtime.pid_path.write_text("1234", encoding="utf-8")
+
+    class SequencedObserver:
+        def __init__(self) -> None:
+            self.observe_count = 0
+
+        def read_pid_metadata(self, pid_path: Path) -> PidMetadataObservation:
+            return PidMetadataObservation(PidMetadataStatus.VALID, 1234)
+
+        def observe_process(self, *, pid: int, expected_executable_name: str, expected_profile_marker: str) -> ProcessObservation:
+            self.observe_count += 1
+            if self.observe_count == 1:
+                return ProcessObservation(True, pid, True, True, True)
+            if self.observe_count == 2:
+                return ProcessObservation(True, pid, None, None, None)
+            return ProcessObservation(True, pid, False, None, None)
+
+    observer = SequencedObserver()
+    terminator = FakeTerminator(result=True)
+    controller = WindowsOwnedProcessController(
+        observer=observer, spawner=FakeSpawner(), terminator=terminator
+    )
+
+    result = controller.stop(runtime)
+
+    assert result.state is OwnedProcessMutationState.STOPPED
+    assert result.reason_code == "STOPPED"
+    assert result.pid == 1234
+    assert observer.observe_count == 3
+    assert terminator.calls == [(1234, runtime.stop_timeout_seconds)]
+    assert not runtime.pid_path.exists()
+
+
+def test_stop_post_termination_mismatch_remains_immediate_recovery(tmp_path: Path) -> None:
+    runtime = spec(tmp_path)
+    runtime.pid_path.parent.mkdir(parents=True)
+    runtime.pid_path.write_text("1234", encoding="utf-8")
+
+    class MismatchAfterTerminationObserver:
+        def __init__(self) -> None:
+            self.observe_count = 0
+
+        def read_pid_metadata(self, pid_path: Path) -> PidMetadataObservation:
+            return PidMetadataObservation(PidMetadataStatus.VALID, 1234)
+
+        def observe_process(self, *, pid: int, expected_executable_name: str, expected_profile_marker: str) -> ProcessObservation:
+            self.observe_count += 1
+            if self.observe_count == 1:
+                return ProcessObservation(True, pid, True, True, True)
+            return ProcessObservation(True, pid, True, False, True)
+
+    observer = MismatchAfterTerminationObserver()
+    controller = WindowsOwnedProcessController(
+        observer=observer, spawner=FakeSpawner(), terminator=FakeTerminator(result=True)
+    )
+
+    result = controller.stop(runtime)
+
+    assert result.state is OwnedProcessMutationState.RECOVERY_REQUIRED
+    assert result.reason_code == "PROCESS_EXIT_OWNERSHIP_UNCERTAIN"
+    assert observer.observe_count == 2
+    assert runtime.pid_path.exists()
+
+
+def test_stop_persistent_unknown_after_successful_termination_stays_recovery(
+    tmp_path: Path, monkeypatch
+) -> None:
+    runtime = spec(tmp_path)
+    runtime.pid_path.parent.mkdir(parents=True)
+    runtime.pid_path.write_text("1234", encoding="utf-8")
+
+    class UnknownAfterTerminationObserver:
+        def __init__(self) -> None:
+            self.observe_count = 0
+
+        def read_pid_metadata(self, pid_path: Path) -> PidMetadataObservation:
+            return PidMetadataObservation(PidMetadataStatus.VALID, 1234)
+
+        def observe_process(self, *, pid: int, expected_executable_name: str, expected_profile_marker: str) -> ProcessObservation:
+            self.observe_count += 1
+            if self.observe_count == 1:
+                return ProcessObservation(True, pid, True, True, True)
+            return ProcessObservation(True, pid, None, None, None)
+
+    ticks = iter((0.0, 0.0, 6.0))
+    monkeypatch.setattr("a_conductor.owned_process.time.monotonic", lambda: next(ticks))
+    monkeypatch.setattr("a_conductor.owned_process.time.sleep", lambda _seconds: None)
+    observer = UnknownAfterTerminationObserver()
+    controller = WindowsOwnedProcessController(
+        observer=observer, spawner=FakeSpawner(), terminator=FakeTerminator(result=True)
+    )
+
+    result = controller.stop(runtime)
+
+    assert result.state is OwnedProcessMutationState.RECOVERY_REQUIRED
+    assert result.reason_code == "PROCESS_EXIT_OWNERSHIP_UNCERTAIN"
+    assert observer.observe_count == 2
+    assert runtime.pid_path.exists()
+
+
 def test_stop_detects_pid_metadata_change_before_cleanup(tmp_path: Path) -> None:
     runtime = spec(tmp_path)
     runtime.pid_path.parent.mkdir(parents=True)

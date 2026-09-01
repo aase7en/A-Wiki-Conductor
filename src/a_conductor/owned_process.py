@@ -446,21 +446,28 @@ class WindowsOwnedProcessController:
             )
 
         deadline = time.monotonic() + spec.stop_timeout_seconds
+        saw_unknown = False
         while time.monotonic() < deadline:
             current = self._ownership_for(spec, pid)
             if current is ProcessOwnership.STALE:
                 break
-            if current in {ProcessOwnership.MISMATCH, ProcessOwnership.UNKNOWN}:
+            if current is ProcessOwnership.MISMATCH:
                 return OwnedProcessMutationResult(
                     OwnedProcessMutationState.RECOVERY_REQUIRED,
                     "PROCESS_EXIT_OWNERSHIP_UNCERTAIN",
                     pid,
                 )
+            if current is ProcessOwnership.UNKNOWN:
+                saw_unknown = True
             time.sleep(0.05)
         else:
             return OwnedProcessMutationResult(
                 OwnedProcessMutationState.RECOVERY_REQUIRED,
-                "PROCESS_EXIT_UNCONFIRMED",
+                (
+                    "PROCESS_EXIT_OWNERSHIP_UNCERTAIN"
+                    if saw_unknown
+                    else "PROCESS_EXIT_UNCONFIRMED"
+                ),
                 pid,
             )
 
