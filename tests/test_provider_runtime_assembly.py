@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime, timezone
 from pathlib import Path
+
+import pytest
 
 from a_conductor.claude_code_harness import HarnessDispatch, MutationIntent, TaskPacketFile
 from a_conductor.claude_code_job_backend import ClaudeCodeOperationDefinition
@@ -10,6 +13,12 @@ from a_conductor.domain import RecoveryClassification
 from a_conductor.execution_store import SQLiteExecutionStore
 from a_conductor.job_execution import JobExecutionContext
 from a_conductor.provider_config_store import SQLiteProviderConfigStore
+from a_conductor.provider_execution_authority import ProviderExecutionRequirement
+from a_conductor.provider_policy import (
+    ProviderPolicyTaskSecurity,
+    TaskNetworkPolicy,
+    TaskPrivacyClass,
+)
 from a_conductor.provider_configuration import (
     EgressBoundary,
     HarnessStrategy,
@@ -98,8 +107,50 @@ def test_sqlite_provider_resolver_fails_closed_for_missing_profile_or_endpoint(t
     seeded_store(db, include_endpoint=False)
     assert resolver.resolve("provider-glm-shared") is None
 
-def operation(root: Path) -> ClaudeCodeOperationDefinition:
+def operation(
+    root: Path,
+    *,
+    provider_security: ProviderPolicyTaskSecurity | None = None,
+    expected_generation: int | None = None,
+    provider_database_path: Path | None = None,
+) -> ClaudeCodeOperationDefinition:
+    if provider_security is None:
+        provider_security = ProviderPolicyTaskSecurity(
+            privacy_class=TaskPrivacyClass.INTERNAL,
+            network_policy=TaskNetworkPolicy.ALLOWLISTED,
+            network_allowlist=("provider.example",),
+            secret_access=False,
+        )
+    if expected_generation is None:
+        expected_generation = 1
     work_order = "docs/work-orders/WO-P1-114-auto-provider-runtime-assembly.md"
+    authority_path = root / work_order
+    authority_path.parent.mkdir(parents=True, exist_ok=True)
+    authority_payload = {
+        "schema_version": "1.0.0", "task_id": "task-provider-runtime",
+        "goal": "bounded provider runtime test", "risk_class": "HIGH",
+        "authority": {"requested_by": "test", "mutation_allowed": False, "human_approval_required": False},
+        "target": {"project_id": "project-1", "identity_policy": "EXACT"},
+        "scope": {"allowed_files": [], "forbidden_files": [], "allowed_commands": [], "forbidden_commands": []},
+        "acceptance": {"criteria": ["typed result"], "verify_commands": [], "review_required": True},
+        "security": {
+            "privacy_class": provider_security.privacy_class.value,
+            "network_policy": provider_security.network_policy.value,
+            "network_allowlist": list(provider_security.network_allowlist),
+            "secret_access": provider_security.secret_access,
+        },
+        "budget": {"max_elapsed_seconds": 300},
+        "retry_policy": {"max_attempts": 1, "max_identical_failures": 1, "on_lease_expiry": "RECOVERY_REQUIRED"},
+        "escalation": {"conditions": ["SECURITY_BOUNDARY_CHANGE"]},
+        "required_evidence": ["TEST_RESULT"],
+    }
+    authority_path.write_text(json.dumps(authority_payload, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+    db_path = provider_database_path or (root / "control.sqlite")
+    requirement = ProviderExecutionRequirement.from_task_contract_file(
+        project_root=root, provider_id="provider-glm-shared", provider_authority_path=db_path,
+        expected_configuration_generation=expected_generation, task_contract_ref=work_order,
+        base_operation_ref="op:provider-runtime",
+    )
     packet_path = root / ".a-conductor" / "task-packets" / "provider-runtime.md"
     packet_path.parent.mkdir(parents=True, exist_ok=True)
     packet_path.write_text("# bounded provider runtime test\n", encoding="utf-8")
@@ -124,10 +175,13 @@ def operation(root: Path) -> ClaudeCodeOperationDefinition:
         effort_level="MAX",
     )
     return ClaudeCodeOperationDefinition(
-        operation_ref="op:provider-runtime",
+        operation_ref=requirement.operation_ref,
         dispatch=dispatch,
         packet=packet,
         worker_id="a-worker-01",
+        provider_security=provider_security,
+        expected_configuration_generation=expected_generation,
+        provider_requirement=requirement,
     )
 
 class CapturingRecoverySupervised:
@@ -161,6 +215,43 @@ def context(definition: ClaudeCodeOperationDefinition) -> JobExecutionContext:
         max_attempts=3,
     )
 
+def test_wo118b_production_builder_rejects_requirement_bound_to_different_provider_database(tmp_path: Path) -> None:
+    db = tmp_path / "canonical.sqlite"
+    other_db = tmp_path / "other.sqlite"
+    seeded_store(db)
+    seeded_store(other_db)
+    definition = operation(tmp_path / "worktree-db-mismatch", provider_database_path=other_db)
+    drive = tmp_path / "A-Wiki-Data"
+    drive.mkdir()
+    with pytest.raises(ValueError, match="PROVIDER_AUTHORITY_STORE_MISMATCH"):
+        build_sqlite_supervised_claude_job_backend(
+            database_path=db, operations=(definition,),
+            execution_store=SQLiteExecutionStore(tmp_path / "execution-db-mismatch.sqlite"),
+            supervised=CapturingRecoverySupervised(), drive_root=drive, clock=lambda: NOW,
+            claude_executable="claude", poll_interval_seconds=0.001,
+        )
+
+
+def test_wo118b_production_builder_rejects_legacy_operation_without_durable_requirement(tmp_path: Path) -> None:
+    db = tmp_path / "legacy.sqlite"
+    seeded_store(db)
+    definition = operation(tmp_path / "worktree-legacy", provider_database_path=db)
+    legacy = ClaudeCodeOperationDefinition(
+        operation_ref="op:legacy-provider-runtime", dispatch=definition.dispatch,
+        packet=definition.packet, worker_id=definition.worker_id,
+        provider_security=definition.provider_security, expected_configuration_generation=1,
+    )
+    drive = tmp_path / "A-Wiki-Data"
+    drive.mkdir()
+    with pytest.raises(ValueError, match="PROVIDER_EXECUTION_REQUIREMENT_REQUIRED"):
+        build_sqlite_supervised_claude_job_backend(
+            database_path=db, operations=(legacy,),
+            execution_store=SQLiteExecutionStore(tmp_path / "execution-legacy.sqlite"),
+            supervised=CapturingRecoverySupervised(), drive_root=drive, clock=lambda: NOW,
+            claude_executable="claude", poll_interval_seconds=0.001,
+        )
+
+
 def test_production_builder_resolves_db_endpoint_and_drive_secret_at_supervised_boundary(tmp_path: Path) -> None:
     db = tmp_path / "control.sqlite"
     seeded_store(db)
@@ -169,7 +260,7 @@ def test_production_builder_resolves_db_endpoint_and_drive_secret_at_supervised_
     (drive / "secrets" / "global.env").write_text(
         "ANTHROPIC_API_KEY=top-secret-value\n", encoding="utf-8"
     )
-    definition = operation(tmp_path / "worktree")
+    definition = operation(tmp_path / "worktree", provider_database_path=db)
     supervised = CapturingRecoverySupervised()
     backend = build_sqlite_supervised_claude_job_backend(
         database_path=db,
@@ -194,11 +285,110 @@ def test_production_builder_resolves_db_endpoint_and_drive_secret_at_supervised_
     )
     assert "top-secret-value" not in (result.evidence_ref or "")
 
+
+def _wo118b_security(*, secret: bool = False) -> ProviderPolicyTaskSecurity:
+    return ProviderPolicyTaskSecurity(
+        privacy_class=TaskPrivacyClass.SECRET if secret else TaskPrivacyClass.INTERNAL,
+        network_policy=TaskNetworkPolicy.ALLOWLISTED,
+        network_allowlist=("provider.example",),
+        secret_access=secret,
+    )
+
+
+def test_wo118b_production_policy_denial_precedes_drive_secret_resolution(tmp_path: Path) -> None:
+    db = tmp_path / "policy-denied.sqlite"
+    seeded_store(db)
+    drive = tmp_path / "A-Wiki-Data"
+    drive.mkdir()
+    definition = operation(
+        tmp_path / "worktree-policy",
+        provider_security=_wo118b_security(secret=True),
+        provider_database_path=db,
+        expected_generation=1,
+    )
+    supervised = CapturingRecoverySupervised()
+    backend = build_sqlite_supervised_claude_job_backend(
+        database_path=db,
+        operations=(definition,),
+        execution_store=SQLiteExecutionStore(tmp_path / "execution-policy.sqlite"),
+        supervised=supervised,
+        drive_root=drive,
+        clock=lambda: NOW,
+        claude_executable="claude",
+        poll_interval_seconds=0.001,
+    )
+
+    result = backend.execute(definition.operation_ref, context(definition))
+
+    assert result.success is False
+    assert result.error_code == "SECRET_TASK_EXTERNAL_DENIED"
+    assert result.recovery_classification is RecoveryClassification.NO_MUTATION
+    assert supervised.plans == []
+
+
+def test_wo118b_generation_drift_during_secret_resolution_blocks_launch(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from a_conductor.awiki_environment_resolver import AWikiEnvironmentReferenceResolver
+
+    db = tmp_path / "secret-drift.sqlite"
+    store = seeded_store(db)
+    drive = tmp_path / "A-Wiki-Data"
+    (drive / "secrets").mkdir(parents=True)
+    (drive / "secrets" / "global.env").write_text(
+        "ANTHROPIC_API_KEY=top-secret-value\n", encoding="utf-8"
+    )
+    definition = operation(
+        tmp_path / "worktree-drift",
+        provider_security=_wo118b_security(),
+        provider_database_path=db,
+        expected_generation=1,
+    )
+    supervised = CapturingRecoverySupervised()
+    original_resolve = AWikiEnvironmentReferenceResolver.resolve
+    bumped = {"done": False}
+
+    def drifting_resolve(self, reference: str):
+        value = original_resolve(self, reference)
+        if reference == profile().credential_ref and not bumped["done"]:
+            snapshot = store.load_provider_snapshot(profile().provider_id)
+            assert snapshot is not None and snapshot.generation == 1
+            store.save_provider(
+                ProviderConfiguration(**{
+                    **snapshot.profile.as_dict(),
+                    "display_name": "Changed during credential resolution",
+                }),
+                expected_generation=1,
+            )
+            bumped["done"] = True
+        return value
+
+    monkeypatch.setattr(AWikiEnvironmentReferenceResolver, "resolve", drifting_resolve)
+    backend = build_sqlite_supervised_claude_job_backend(
+        database_path=db,
+        operations=(definition,),
+        execution_store=SQLiteExecutionStore(tmp_path / "execution-drift.sqlite"),
+        supervised=supervised,
+        drive_root=drive,
+        clock=lambda: NOW,
+        claude_executable="claude",
+        poll_interval_seconds=0.001,
+    )
+
+    result = backend.execute(definition.operation_ref, context(definition))
+
+    assert bumped["done"] is True
+    assert result.success is False
+    assert result.error_code == "PROVIDER_CONFIGURATION_STALE"
+    assert result.recovery_classification is RecoveryClassification.NO_MUTATION
+    assert supervised.plans == []
+
+
 def test_production_builder_does_not_touch_secret_source_when_provider_missing(tmp_path: Path) -> None:
     db = tmp_path / "empty-control.sqlite"
     drive = tmp_path / "A-Wiki-Data"
     drive.mkdir()
-    definition = operation(tmp_path / "worktree")
+    definition = operation(tmp_path / "worktree", provider_database_path=db)
     supervised = CapturingRecoverySupervised()
     backend = build_sqlite_supervised_claude_job_backend(
         database_path=db,
@@ -232,7 +422,7 @@ def test_stale_provider_fails_before_secret_resolution_or_launch(tmp_path: Path)
     store.save_observation(stale)
     drive = tmp_path / "A-Wiki-Data"
     drive.mkdir()
-    definition = operation(tmp_path / "worktree")
+    definition = operation(tmp_path / "worktree", provider_database_path=db)
     supervised = CapturingRecoverySupervised()
     backend = build_sqlite_supervised_claude_job_backend(
         database_path=db, operations=(definition,),
@@ -251,7 +441,7 @@ def test_missing_endpoint_fails_before_secret_resolution_or_launch(tmp_path: Pat
     seeded_store(db, include_endpoint=False)
     drive = tmp_path / "A-Wiki-Data"
     drive.mkdir()
-    definition = operation(tmp_path / "worktree")
+    definition = operation(tmp_path / "worktree", provider_database_path=db)
     supervised = CapturingRecoverySupervised()
     backend = build_sqlite_supervised_claude_job_backend(
         database_path=db, operations=(definition,),
@@ -292,7 +482,7 @@ def test_production_builder_bootstraps_provider_schema_without_touching_existing
         connection.commit()
     drive = tmp_path / "A-Wiki-Data"
     drive.mkdir()
-    definition = operation(tmp_path / "worktree-bootstrap")
+    definition = operation(tmp_path / "worktree-bootstrap", provider_database_path=db)
     supervised = CapturingRecoverySupervised()
 
     build_sqlite_supervised_claude_job_backend(

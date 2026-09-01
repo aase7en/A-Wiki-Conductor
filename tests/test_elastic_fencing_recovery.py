@@ -3,6 +3,8 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import hashlib
+import json
 import sqlite3
 from threading import Barrier
 
@@ -40,16 +42,27 @@ from a_conductor.graph.scheduler import (
 )
 from a_conductor.lifecycle import LifecycleAction, LifecycleContext
 from a_conductor.parallel_ready_execution import ParallelReadyExecutor
+from a_conductor.provider_config_store import SQLiteProviderConfigStore
+from a_conductor.provider_execution_authority import (
+    ProviderExecutionRequirement,
+    _provider_authority_ref,
+)
 from a_conductor.provider_configuration import (
     EgressBoundary,
     HarnessStrategy,
     ProtocolFamily,
     ProviderConfiguration,
+    ProviderEndpointConfig,
     ProviderHealth,
     ProviderModelConfiguration,
     ProviderObservation,
     ProviderTrustClass,
     QuotaSnapshot,
+)
+from a_conductor.provider_policy import (
+    ProviderPolicyTaskSecurity,
+    TaskNetworkPolicy,
+    TaskPrivacyClass,
 )
 from a_conductor.runtime_safety import (
     PortBindingState,
@@ -333,23 +346,84 @@ def _observation(*, available: bool = True) -> ProviderObservation:
         observed_at=NOW,
         provenance="quota-preflight:test",
         quota=quota,
+        configuration_generation=1,
     )
 
 
-def _contract(*, available: bool = True) -> ParallelReadyNodeContract:
-    node_id = "n1"
+def _provider_security(*, secret: bool = False) -> ProviderPolicyTaskSecurity:
+    return ProviderPolicyTaskSecurity(
+        privacy_class=TaskPrivacyClass.SECRET if secret else TaskPrivacyClass.INTERNAL,
+        network_policy=TaskNetworkPolicy.ALLOWLISTED,
+        network_allowlist=("provider.example",),
+        secret_access=secret,
+    )
+
+
+def _provider_store(tmp_path: Path, *, available: bool = True) -> SQLiteProviderConfigStore:
+    store = SQLiteProviderConfigStore(tmp_path / "provider.sqlite")
+    configured = _profile()
+    store.save_endpoint(
+        ProviderEndpointConfig(configured.endpoint_ref, "https://provider.example/v1")
+    )
+    store.save_provider(configured)
+    store.save_observation(_observation(available=available))
+    return store
+
+
+
+
+def _provider_requirement(
+    database_path: Path, *, node_id: str = "n1", secret: bool = False
+) -> ProviderExecutionRequirement:
+    security = _provider_security(secret=secret)
+    payload = {
+        "schema_version": "1.0.0",
+        "task_id": f"task-{node_id}",
+        "goal": "bounded elastic provider execution",
+        "risk_class": "HIGH",
+        "authority": {"requested_by": "test", "mutation_allowed": False, "human_approval_required": False},
+        "target": {"project_id": "project-1", "identity_policy": "EXACT"},
+        "scope": {"allowed_files": [], "forbidden_files": [], "allowed_commands": [], "forbidden_commands": []},
+        "acceptance": {"criteria": ["typed result"], "verify_commands": [], "review_required": True},
+        "security": {
+            "privacy_class": security.privacy_class.value,
+            "network_policy": security.network_policy.value,
+            "network_allowlist": list(security.network_allowlist),
+            "secret_access": security.secret_access,
+        },
+        "budget": {"max_elapsed_seconds": 600},
+        "retry_policy": {"max_attempts": 1, "max_identical_failures": 1, "on_lease_expiry": "RECOVERY_REQUIRED"},
+        "escalation": {"conditions": ["SECURITY_BOUNDARY_CHANGE"]},
+        "required_evidence": ["TEST_RESULT"],
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return ProviderExecutionRequirement._from_task_contract_bytes(
+        provider_id="cointh-glm",
+        provider_authority_ref=_provider_authority_ref(database_path),
+        expected_configuration_generation=1,
+        task_contract_ref=f"docs/tasks/{node_id}.md",
+        authority_bytes=raw,
+        authority_sha256=hashlib.sha256(raw).hexdigest(),
+        base_operation_ref=f"operation-{node_id}",
+    )
+
+def _contract(
+    *, provider_database_path: Path, node_id: str = "n1",
+    available: bool = True, secret: bool = False
+) -> ParallelReadyNodeContract:
+    requirement = _provider_requirement(provider_database_path, node_id=node_id, secret=secret)
     graph_key = GraphDispatchKey("graph-wo120", "run-1", node_id)
     dispatch_request = GraphDispatchRequest(
         key=graph_key,
         assignment=SelectedAssignment(node_id=node_id, worker_id=NEW_WORKER),
         project_id="project-1",
         work_order_ref=f"docs/tasks/{node_id}.md",
-        operation_ref=f"operation-{node_id}",
+        operation_ref=requirement.operation_ref,
         dispatch_mode=GraphDispatchMode.PROGRAMMATIC_PUSH,
     )
     lease = WorkerLeaseRequest(
         session_id="owner-s",
-        task_id="task-n1",
+        task_id=f"task-{node_id}",
         project_id="project-1",
         ordered_worker_ids=(NEW_WORKER,),
         required_capabilities=("shell",),
@@ -387,14 +461,20 @@ def _contract(*, available: bool = True) -> ParallelReadyNodeContract:
         dispatch_key=graph_key,
         project_id="project-1",
         work_order_ref=dispatch.task_contract_ref,
-        operation_ref=f"operation-{node_id}",
+        operation_ref=requirement.operation_ref,
         dispatch_gate=DispatchGateDecision.allow(evidence_ref="evidence:preflight"),
         lease_request=lease,
         provider_profile=_profile(),
         provider_observation=_observation(available=available),
+        provider_endpoint=ProviderEndpointConfig(
+            _profile().endpoint_ref, "https://provider.example/v1"
+        ),
+        provider_security=_provider_security(secret=secret),
+        expected_configuration_generation=1,
         harness_dispatch=dispatch,
         task_packet=packet,
         require_quota=False,
+        provider_requirement=requirement,
     )
 
 
@@ -421,23 +501,25 @@ def _execute(tmp_path: Path, *, assembler_factory, provisioner_factory=None, run
         else RegisteringProvisioner(center)
     )
     coordinator = _coordinator(store, provisioner=provisioner, assembler=assembler)
+    provider_store = _provider_store(tmp_path)
     executor = ProductionElasticWorkerExecutor(
         candidate_assembler=assembler,
         capacity_coordinator=coordinator,
         parallel_executor=ParallelReadyExecutor(
-            broker=_broker(store), runner=runner or FakeRunner(), clock=lambda: NOW
+            broker=_broker(store), runner=runner or FakeRunner(), clock=lambda: NOW,
+            provider_admission_store=provider_store,
         ),
     )
     result = executor.execute_once(
         _graph(),
         compute_ready_set(_graph(), {}),
-        {"n1": _contract()},
+        {"n1": _contract(provider_database_path=provider_store.database_path)},
         schedule_policy=SchedulePolicy(max_parallel=1),
         provider_inflight={"cointh-glm": 0},
         runtime_kind="serena-local",
         elastic_policy=_policy(),
         eligibility={"n1": NodeEligibility()},
-        batch_id=None,
+        batch_id="batch-wo118b-fencing",
     )
     return result, store
 
@@ -633,36 +715,221 @@ def test_runner_failure_marks_reservation_recovery(tmp_path: Path) -> None:
     assert len(reservations) == 1 and reservations[0].state == "RECOVERY_REQUIRED"
 
 
-def test_provider_wait_after_provisioning_marks_reservation_recovery(tmp_path: Path) -> None:
+def test_provider_wait_blocks_before_elastic_provisioning(tmp_path: Path) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     center = MutableControlCenter()
     assembler = _assembler(store, center)
+    provisioner = RegisteringProvisioner(center)
     coordinator = _coordinator(
-        store, provisioner=RegisteringProvisioner(center), assembler=assembler
+        store, provisioner=provisioner, assembler=assembler
     )
+    provider_store = _provider_store(tmp_path, available=False)
     executor = ProductionElasticWorkerExecutor(
         candidate_assembler=assembler,
         capacity_coordinator=coordinator,
         parallel_executor=ParallelReadyExecutor(
-            broker=_broker(store), runner=FakeRunner(), clock=lambda: NOW
+            broker=_broker(store), runner=FakeRunner(), clock=lambda: NOW,
+            provider_admission_store=provider_store,
         ),
     )
     graph = _graph()
     result = executor.execute_once(
         graph,
         compute_ready_set(graph, {}),
-        {"n1": _contract(available=False)},
+        {"n1": _contract(provider_database_path=provider_store.database_path, available=False)},
         schedule_policy=SchedulePolicy(max_parallel=1),
         provider_inflight={"cointh-glm": 0},
         runtime_kind="serena-local",
         elastic_policy=_policy(),
         eligibility={"n1": NodeEligibility()},
-        batch_id=None,
+        batch_id="batch-provider-wait",
     )
     assert result.kind is ProductionElasticExecutionKind.WAIT
-    assert result.reason_code == "PARALLEL_READY_WAIT"
-    reservations = store.list_provisioning_reservations(consuming_only=True)
-    assert len(reservations) == 1 and reservations[0].state == "RECOVERY_REQUIRED"
+    assert result.reason_code == "PROVIDER_NOT_READY"
+    assert provisioner.calls == []
+    assert store.list_provisioning_reservations(consuming_only=True) == ()
+
+
+
+class GenerationBumpingAssembler:
+    def __init__(self, inner, provider_store: SQLiteProviderConfigStore) -> None:
+        self.inner = inner
+        self.provider_store = provider_store
+        self.bumped = False
+        self.lease_evidence_database_path = inner.lease_evidence_database_path
+
+    def assemble_all(self):
+        records = self.inner.assemble_all()
+        if not self.bumped:
+            snapshot = self.provider_store.load_provider_snapshot(_profile().provider_id)
+            assert snapshot is not None and snapshot.generation == 1
+            self.provider_store.save_provider(
+                ProviderConfiguration(**{
+                    **snapshot.profile.as_dict(),
+                    "display_name": "Changed after scheduling preflight",
+                }),
+                expected_generation=1,
+            )
+            self.bumped = True
+        return records
+
+    def assemble_all_for_owner(self, *, session_id, task_id):
+        return self.inner.assemble_all_for_owner(session_id=session_id, task_id=task_id)
+
+    def assemble(self, worker_id):
+        return self.inner.assemble(worker_id)
+
+    def assemble_for_owner(self, worker_id, *, session_id, task_id):
+        return self.inner.assemble_for_owner(
+            worker_id, session_id=session_id, task_id=task_id
+        )
+
+
+def test_wo118b_generation_drift_after_schedule_blocks_before_elastic_reservation(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases-generation-drift.sqlite")
+    center = MutableControlCenter()
+    provider_store = _provider_store(tmp_path)
+    assembler = GenerationBumpingAssembler(_assembler(store, center), provider_store)
+    provisioner = RegisteringProvisioner(center)
+    coordinator = _coordinator(store, provisioner=provisioner, assembler=assembler)
+    executor = ProductionElasticWorkerExecutor(
+        candidate_assembler=assembler,
+        capacity_coordinator=coordinator,
+        parallel_executor=ParallelReadyExecutor(
+            broker=_broker(store), runner=FakeRunner(), clock=lambda: NOW,
+            provider_admission_store=provider_store,
+        ),
+    )
+    graph = _graph()
+
+    result = executor.execute_once(
+        graph, compute_ready_set(graph, {}), {"n1": _contract(provider_database_path=provider_store.database_path)},
+        schedule_policy=SchedulePolicy(max_parallel=1),
+        provider_inflight={"cointh-glm": 0}, runtime_kind="serena-local",
+        elastic_policy=_policy(), eligibility={"n1": NodeEligibility()},
+        batch_id="batch-generation-drift",
+    )
+
+    assert assembler.bumped is True
+    assert result.kind is ProductionElasticExecutionKind.WAIT
+    assert result.reason_code == "PROVIDER_CONFIGURATION_STALE"
+    assert provisioner.calls == []
+    assert store.list_provisioning_reservations(consuming_only=True) == ()
+
+
+def test_wo118b_secret_policy_denial_blocks_elastic_provisioning(tmp_path: Path) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases-secret.sqlite")
+    center = MutableControlCenter()
+    assembler = _assembler(store, center)
+    provisioner = RegisteringProvisioner(center)
+    coordinator = _coordinator(store, provisioner=provisioner, assembler=assembler)
+    provider_store = _provider_store(tmp_path)
+    executor = ProductionElasticWorkerExecutor(
+        candidate_assembler=assembler,
+        capacity_coordinator=coordinator,
+        parallel_executor=ParallelReadyExecutor(
+            broker=_broker(store), runner=FakeRunner(), clock=lambda: NOW,
+            provider_admission_store=provider_store,
+        ),
+    )
+    graph = _graph()
+    result = executor.execute_once(
+        graph, compute_ready_set(graph, {}), {"n1": _contract(provider_database_path=provider_store.database_path, secret=True)},
+        schedule_policy=SchedulePolicy(max_parallel=1),
+        provider_inflight={"cointh-glm": 0}, runtime_kind="serena-local",
+        elastic_policy=_policy(), eligibility={"n1": NodeEligibility()},
+        batch_id="batch-secret-policy",
+    )
+    assert result.kind is ProductionElasticExecutionKind.WAIT
+    assert result.reason_code == "SECRET_TASK_EXTERNAL_DENIED"
+    assert provisioner.calls == []
+    assert store.list_provisioning_reservations(consuming_only=True) == ()
+
+
+class ProviderGenerationMutationProvisioner(RegisteringProvisioner):
+    def __init__(self, center, provider_store):
+        super().__init__(center)
+        self.provider_store = provider_store
+        self.mutation_blocked_code = None
+
+    def provision(self, request):
+        snapshot = self.provider_store.load_provider_snapshot(_profile().provider_id)
+        assert snapshot is not None and snapshot.generation == 1
+        try:
+            self.provider_store.save_provider(
+                ProviderConfiguration(**{**snapshot.profile.as_dict(), "display_name": "illegal-during-provision"}),
+                expected_generation=1,
+            )
+        except Exception as exc:
+            self.mutation_blocked_code = getattr(exc, "code", None)
+        return super().provision(request)
+
+
+def test_wo118b_active_provider_admission_fences_generation_during_elastic_provision(tmp_path: Path) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases-provider-fence.sqlite")
+    center = MutableControlCenter()
+    assembler = _assembler(store, center)
+    provider_store = _provider_store(tmp_path)
+    provisioner = ProviderGenerationMutationProvisioner(center, provider_store)
+    coordinator = _coordinator(store, provisioner=provisioner, assembler=assembler)
+    executor = ProductionElasticWorkerExecutor(
+        candidate_assembler=assembler, capacity_coordinator=coordinator,
+        parallel_executor=ParallelReadyExecutor(
+            broker=_broker(store), runner=FakeRunner(), clock=lambda: NOW,
+            provider_admission_store=provider_store,
+        ),
+    )
+    graph = _graph()
+    result = executor.execute_once(
+        graph, compute_ready_set(graph, {}),
+        {"n1": _contract(provider_database_path=provider_store.database_path)},
+        schedule_policy=SchedulePolicy(max_parallel=1),
+        provider_inflight={"cointh-glm": 0}, runtime_kind="serena-local",
+        elastic_policy=_policy(), eligibility={"n1": NodeEligibility()},
+        batch_id="batch-provider-fence-during-provision",
+    )
+    assert provisioner.calls
+    assert provisioner.mutation_blocked_code == "PROVIDER_CONFIGURATION_IN_USE"
+    snapshot = provider_store.load_provider_snapshot(_profile().provider_id)
+    assert snapshot is not None and snapshot.generation == 1
+    assert result.final_plan is not None
+
+
+def test_wo118b_policy_denied_sibling_does_not_starve_eligible_capacity_node(tmp_path: Path) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases-mixed-sibling.sqlite")
+    center = MutableControlCenter()
+    assembler = _assembler(store, center)
+    provider_store = _provider_store(tmp_path)
+    provisioner = RegisteringProvisioner(center)
+    coordinator = _coordinator(store, provisioner=provisioner, assembler=assembler)
+    executor = ProductionElasticWorkerExecutor(
+        candidate_assembler=assembler, capacity_coordinator=coordinator,
+        parallel_executor=ParallelReadyExecutor(
+            broker=_broker(store), runner=FakeRunner(), clock=lambda: NOW,
+            provider_admission_store=provider_store,
+        ),
+    )
+    graph = TaskGraph()
+    graph.add_node(TaskNode(id="n1", objective="denied sibling"))
+    graph.add_node(TaskNode(id="n2", objective="eligible capacity sibling"))
+    contracts = {
+        "n1": _contract(provider_database_path=provider_store.database_path, node_id="n1", secret=True),
+        "n2": _contract(provider_database_path=provider_store.database_path, node_id="n2"),
+    }
+    result = executor.execute_once(
+        graph, compute_ready_set(graph, {}), contracts,
+        schedule_policy=SchedulePolicy(max_parallel=1),
+        provider_inflight={"cointh-glm": 0}, runtime_kind="serena-local",
+        elastic_policy=_policy(), eligibility={"n1": NodeEligibility(), "n2": NodeEligibility()},
+        batch_id="batch-mixed-provider-policy-capacity",
+    )
+    assert provisioner.calls, "eligible capacity sibling must still provision"
+    assert result.final_plan is not None
+    assert tuple(item.node_id for item in result.final_plan.selected) == ("n2",)
+    denied = next(item for item in result.final_plan.blocked if item.node_id == "n1")
+    assert denied.kind is BlockedReasonKind.GATE_NO_GO
 
 
 def test_coordinator_persists_provisioning_before_invoking_provisioner(tmp_path: Path) -> None:

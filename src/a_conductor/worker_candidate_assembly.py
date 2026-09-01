@@ -28,7 +28,13 @@ from .native_adapters import NativeGitReadAdapter
 from .parallel_ready_execution import ParallelReadyTask
 from .native_execution import NativeExecutionError, NativeExecutionScope
 from .project_identity import GitReadOnlyRunner, StrictReadOnlyGitRunner
-from .provider_configuration import ProviderConfiguration, ProviderObservation
+from .provider_configuration import (
+    ProviderConfiguration,
+    ProviderEndpointConfig,
+    ProviderObservation,
+)
+from .provider_policy import ProviderPolicyTaskSecurity
+from .provider_execution_authority import ProviderExecutionRequirement
 from .registry import windows_worktree_key
 from .runtime_safety import PortBindingState, ProcessOwnership, TunnelBindingState
 from .serena_runtime import SerenaProjectBinding
@@ -672,10 +678,14 @@ class ParallelReadyNodeContract:
     lease_request: WorkerLeaseRequest
     provider_profile: ProviderConfiguration
     provider_observation: ProviderObservation | None
+    provider_endpoint: ProviderEndpointConfig
+    provider_security: ProviderPolicyTaskSecurity
+    expected_configuration_generation: int
     harness_dispatch: HarnessDispatch
     task_packet: TaskPacketFile
     require_quota: bool = False
     max_attempts: int = 3
+    provider_requirement: ProviderExecutionRequirement | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.dispatch_key, GraphDispatchKey):
@@ -693,12 +703,35 @@ class ParallelReadyNodeContract:
             self.provider_observation, ProviderObservation
         ):
             raise ValueError("provider_observation must be ProviderObservation or None")
+        if not isinstance(self.provider_endpoint, ProviderEndpointConfig):
+            raise ValueError("provider_endpoint must be ProviderEndpointConfig")
+        if self.provider_endpoint.endpoint_ref != self.provider_profile.endpoint_ref:
+            raise ValueError("provider endpoint identity mismatch")
+        if not isinstance(self.provider_security, ProviderPolicyTaskSecurity):
+            raise ValueError("provider_security must be ProviderPolicyTaskSecurity")
+        generation = self.expected_configuration_generation
+        if isinstance(generation, bool) or not isinstance(generation, int) or generation < 1:
+            raise ValueError("expected_configuration_generation must be positive")
         if not isinstance(self.harness_dispatch, HarnessDispatch):
             raise ValueError("harness_dispatch must be HarnessDispatch")
         if not isinstance(self.task_packet, TaskPacketFile):
             raise ValueError("task_packet must be TaskPacketFile")
         if not isinstance(self.require_quota, bool):
             raise ValueError("require_quota must be bool")
+        if self.provider_requirement is not None:
+            requirement = self.provider_requirement
+            if not isinstance(requirement, ProviderExecutionRequirement):
+                raise ValueError("provider_requirement must be ProviderExecutionRequirement")
+            if requirement.provider_id != self.provider_profile.provider_id:
+                raise ValueError("provider requirement identity mismatch")
+            if requirement.provider_security != self.provider_security:
+                raise ValueError("provider requirement security mismatch")
+            if requirement.expected_configuration_generation != self.expected_configuration_generation:
+                raise ValueError("provider requirement generation mismatch")
+            if requirement.task_contract_ref != self.work_order_ref:
+                raise ValueError("provider requirement contract mismatch")
+            if requirement.operation_ref != self.operation_ref:
+                raise ValueError("provider requirement operation mismatch")
         if isinstance(self.max_attempts, bool) or not isinstance(self.max_attempts, int) or self.max_attempts < 1:
             raise ValueError("max_attempts must be >= 1")
         if self.lease_request.project_id != self.project_id:
@@ -771,8 +804,12 @@ def assemble_parallel_ready_tasks(
             candidates=(candidate,),
             provider_profile=contract.provider_profile,
             provider_observation=contract.provider_observation,
+            provider_endpoint=contract.provider_endpoint,
+            provider_security=contract.provider_security,
+            expected_configuration_generation=contract.expected_configuration_generation,
             harness_dispatch=contract.harness_dispatch,
             task_packet=contract.task_packet,
             require_quota=contract.require_quota,
+            provider_requirement=contract.provider_requirement,
         )
     return tasks

@@ -384,10 +384,14 @@ def test_admission_expected_generation_seam(tmp_path) -> None:
     )
     assert prior.kind.value == "EXISTING"
 
-    store.save_provider(
-        ProviderConfiguration(**{**profile.as_dict(), "display_name": "Edited"}),
-        expected_generation=1,
-    )
+    # Simulate legacy/out-of-band generation drift that bypassed the public write fence.
+    # Public save_provider/save_endpoint are now required to reject this while ACTIVE.
+    with sqlite3.connect(store.database_path) as drift:
+        drift.execute(
+            "UPDATE provider_configurations SET generation=2 WHERE provider_id=?",
+            (profile.provider_id,),
+        )
+        drift.commit()
     mismatched = store.acquire_admission(
         provider_id=profile.provider_id,
         execution_id="exec-1",
@@ -962,3 +966,71 @@ def test_interrupted_legacy_generation_migration_rolls_back_and_retries(tmp_path
     with sqlite3.connect(database) as check:
         assert check.execute("SELECT generation FROM provider_endpoints WHERE endpoint_ref=?", (profile.endpoint_ref,)).fetchone()[0] == 1
         assert check.execute("SELECT value FROM unrelated_settings WHERE key='theme'").fetchone()[0] == "sunday"
+
+
+def test_generation_bound_admission_fences_provider_and_endpoint_mutation(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "fence.sqlite")
+    profile = make_profile()
+    endpoint = ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1")
+    store.save_endpoint(endpoint)
+    store.save_provider(profile)
+    admission = store.acquire_admission(
+        provider_id=profile.provider_id, execution_id="exec-fence", batch_id="batch-fence",
+        expected_max_concurrency=1, now=NOW, ttl_seconds=600,
+        expected_configuration_generation=1,
+    )
+    assert admission.kind is ProviderAdmissionKind.ADMITTED
+    with pytest.raises(ProviderConfigStoreError) as profile_busy:
+        store.save_provider(
+            ProviderConfiguration(**{**profile.as_dict(), "display_name": "must-wait"}),
+            expected_generation=1,
+        )
+    assert profile_busy.value.code == "PROVIDER_CONFIGURATION_IN_USE"
+    with pytest.raises(ProviderConfigStoreError) as endpoint_busy:
+        store.save_endpoint(
+            ProviderEndpointConfig(profile.endpoint_ref, "https://new.example.test/v1"),
+            expected_generation=1,
+        )
+    assert endpoint_busy.value.code == "PROVIDER_CONFIGURATION_IN_USE"
+    record = admission.admission
+    assert record is not None
+    store.release_admission(
+        record.admission_id, provider_id=profile.provider_id, execution_id="exec-fence",
+        batch_id="batch-fence", now=NOW + timedelta(seconds=1),
+    )
+    assert store.save_provider(
+        ProviderConfiguration(**{**profile.as_dict(), "display_name": "after-release"}),
+        expected_generation=1,
+    ) == 2
+
+
+def test_validate_admission_fence_requires_exact_active_unexpired_generation(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "validate-fence.sqlite")
+    profile = make_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    acquired = store.acquire_admission(
+        provider_id=profile.provider_id, execution_id="exec-validate", batch_id="batch-validate",
+        expected_max_concurrency=1, now=NOW, ttl_seconds=600,
+        expected_configuration_generation=1,
+    )
+    record = acquired.admission
+    assert record is not None
+    validated = store.validate_admission_fence(
+        record.admission_id, provider_id=profile.provider_id, execution_id="exec-validate",
+        batch_id="batch-validate", expected_configuration_generation=1, now=NOW,
+    )
+    assert validated == record
+    with pytest.raises(ProviderConfigStoreError) as wrong_generation:
+        store.validate_admission_fence(
+            record.admission_id, provider_id=profile.provider_id, execution_id="exec-validate",
+            batch_id="batch-validate", expected_configuration_generation=2, now=NOW,
+        )
+    assert wrong_generation.value.code == "PROVIDER_ADMISSION_GENERATION_STALE"
+    with pytest.raises(ProviderConfigStoreError) as expired:
+        store.validate_admission_fence(
+            record.admission_id, provider_id=profile.provider_id, execution_id="exec-validate",
+            batch_id="batch-validate", expected_configuration_generation=1,
+            now=NOW + timedelta(seconds=601),
+        )
+    assert expired.value.code == "PROVIDER_ADMISSION_EXPIRED_RECONCILE"

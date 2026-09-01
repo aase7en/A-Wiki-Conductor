@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import hashlib
+import json
 import sqlite3
 from threading import Barrier, Event, Lock
 
@@ -28,13 +30,20 @@ from a_conductor.parallel_ready_execution import (
     ParallelReadyOutcomeKind,
     ParallelReadyTask,
 )
-from a_conductor.provider_config_store import ProviderAdmissionKind, ProviderAdmissionResult, SQLiteProviderConfigStore
+from a_conductor.provider_config_store import ProviderAdmissionKind, ProviderAdmissionRecord, ProviderAdmissionResult, ProviderConfigStoreError, SQLiteProviderConfigStore
 from a_conductor.provider_runtime_assembly import build_sqlite_parallel_ready_executor
+from a_conductor.provider_execution_authority import (ProviderExecutionRequirement, _provider_authority_ref)
+from a_conductor.provider_policy import (
+    ProviderPolicyTaskSecurity,
+    TaskNetworkPolicy,
+    TaskPrivacyClass,
+)
 from a_conductor.provider_configuration import (
     EgressBoundary,
     HarnessStrategy,
     ProtocolFamily,
     ProviderConfiguration,
+    ProviderEndpointConfig,
     ProviderHealth,
     ProviderModelConfiguration,
     ProviderObservation,
@@ -98,6 +107,38 @@ def _observation(
     )
 
 
+
+
+def _provider_requirement_for_test(
+    database_path: Path, *, node_id: str, security: ProviderPolicyTaskSecurity | None = None
+) -> ProviderExecutionRequirement:
+    security = security or ProviderPolicyTaskSecurity(
+        privacy_class=TaskPrivacyClass.INTERNAL,
+        network_policy=TaskNetworkPolicy.ALLOWLISTED,
+        network_allowlist=("provider.example",),
+        secret_access=False,
+    )
+    payload = {
+        "schema_version": "1.0.0", "task_id": f"task-{node_id}",
+        "goal": "bounded provider execution", "risk_class": "HIGH",
+        "authority": {"requested_by": "test", "mutation_allowed": False, "human_approval_required": False},
+        "target": {"project_id": "a-sunday-conductor", "identity_policy": "EXACT"},
+        "scope": {"allowed_files": [], "forbidden_files": [], "allowed_commands": [], "forbidden_commands": []},
+        "acceptance": {"criteria": ["typed result"], "verify_commands": [], "review_required": True},
+        "security": {"privacy_class": security.privacy_class.value, "network_policy": security.network_policy.value,
+                     "network_allowlist": list(security.network_allowlist), "secret_access": security.secret_access},
+        "budget": {"max_elapsed_seconds": 600},
+        "retry_policy": {"max_attempts": 1, "max_identical_failures": 1, "on_lease_expiry": "RECOVERY_REQUIRED"},
+        "escalation": {"conditions": ["SECURITY_BOUNDARY_CHANGE"]}, "required_evidence": ["TEST_RESULT"],
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return ProviderExecutionRequirement._from_task_contract_bytes(
+        provider_id="cointh-glm", provider_authority_ref=_provider_authority_ref(database_path),
+        expected_configuration_generation=1, task_contract_ref=f"docs/tasks/{node_id}.md",
+        authority_bytes=raw, authority_sha256=hashlib.sha256(raw).hexdigest(),
+        base_operation_ref=f"operation-{node_id}",
+    )
+
 def _broker(tmp_path: Path):
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     ids = iter((f"lease-{i}" for i in range(1, 20)))
@@ -134,7 +175,13 @@ def _task(
     observation: ProviderObservation | None = None,
     require_quota: bool = True,
     gate: DispatchGateDecision | None = None,
+    provider_database_path: Path | None = None,
 ) -> ParallelReadyTask:
+    requirement = (
+        None if provider_database_path is None
+        else _provider_requirement_for_test(provider_database_path, node_id=node_id)
+    )
+    operation_ref = f"operation-{node_id}" if requirement is None else requirement.operation_ref
     assignment = SelectedAssignment(node_id=node_id, worker_id=worker_id)
     graph_key = GraphDispatchKey("graph-aha6", "run-1", node_id)
     graph_dispatch = GraphDispatchRequest(
@@ -142,7 +189,7 @@ def _task(
         assignment=assignment,
         project_id="a-sunday-conductor",
         work_order_ref=f"docs/tasks/{node_id}.md",
-        operation_ref=f"operation-{node_id}",
+        operation_ref=operation_ref,
         dispatch_mode=GraphDispatchMode.PROGRAMMATIC_PUSH,
     )
     lease = WorkerLeaseRequest(
@@ -189,6 +236,10 @@ def _task(
         candidates=(_candidate(worker_id, worktree, branch),),
         provider_profile=profile or _profile(),
         provider_observation=observation if observation is not None else _observation(),
+        provider_endpoint=(None if requirement is None else ProviderEndpointConfig((profile or _profile()).endpoint_ref, "https://provider.example/v1")),
+        provider_security=(None if requirement is None else requirement.provider_security),
+        expected_configuration_generation=(None if requirement is None else requirement.expected_configuration_generation),
+        provider_requirement=requirement,
         harness_dispatch=dispatch,
         task_packet=packet,
         require_quota=require_quota,
@@ -739,7 +790,10 @@ class BlockingAdmissionRunner:
 def test_provider_global_admission_blocks_concurrent_independent_batch(tmp_path: Path) -> None:
     database = tmp_path / "control.sqlite"
     profile = _profile(max_concurrency=1)
-    SQLiteProviderConfigStore(database).save_provider(profile)
+    provider_store = SQLiteProviderConfigStore(database)
+    provider_store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://provider.example/v1"))
+    provider_store.save_provider(profile)
+    provider_store.save_observation(replace(_observation(with_quota=True), configuration_generation=1))
     left_broker, _ = _broker(tmp_path / "left")
     right_broker, _ = _broker(tmp_path / "right")
     runner = BlockingAdmissionRunner()
@@ -755,7 +809,7 @@ def test_provider_global_admission_blocks_concurrent_independent_batch(tmp_path:
         worktree=r"A:\Work\global-left",
         branch="feat/global-left",
         mutable_scope=("src/global_left.py",),
-        profile=profile,
+        profile=profile, provider_database_path=database,
     )
     right = _task(
         node_id="global-right",
@@ -763,7 +817,7 @@ def test_provider_global_admission_blocks_concurrent_independent_batch(tmp_path:
         worktree=r"A:\Work\global-right",
         branch="feat/global-right",
         mutable_scope=("src/global_right.py",),
-        profile=profile,
+        profile=profile, provider_database_path=database,
     )
     left_plan = SchedulePlan((left.assignment,), (), "capacity=1/1")
     right_plan = SchedulePlan((right.assignment,), (), "capacity=1/1")
@@ -1486,6 +1540,11 @@ def test_production_task_binding_uses_selected_fresh_candidate() -> None:
         lease_request=template.lease_request,
         provider_profile=template.provider_profile,
         provider_observation=template.provider_observation,
+        provider_endpoint=ProviderEndpointConfig(
+            template.provider_profile.endpoint_ref, "https://provider.example/v1"
+        ),
+        provider_security=_wo118b_security(),
+        expected_configuration_generation=1,
         harness_dispatch=template.harness_dispatch,
         task_packet=template.task_packet,
         require_quota=template.require_quota,
@@ -1524,6 +1583,11 @@ def test_production_task_binding_fails_closed_when_selected_worker_is_stale() ->
         lease_request=template.lease_request,
         provider_profile=template.provider_profile,
         provider_observation=template.provider_observation,
+        provider_endpoint=ProviderEndpointConfig(
+            template.provider_profile.endpoint_ref, "https://provider.example/v1"
+        ),
+        provider_security=_wo118b_security(),
+        expected_configuration_generation=1,
         harness_dispatch=template.harness_dispatch,
         task_packet=template.task_packet,
         require_quota=template.require_quota,
@@ -1664,7 +1728,21 @@ def test_production_elastic_path_reuses_scheduler_broker_and_runner(tmp_path: Pa
             return _successful_dispatch_result(task, lease, evidence_ref=f"evidence:{task.assignment.node_id}")
 
     runner = Runner()
-    executor = ParallelReadyExecutor(broker=broker, runner=runner, clock=lambda: NOW)
+    provider_store = SQLiteProviderConfigStore(database)
+    configured_provider = _profile()
+    provider_store.save_endpoint(
+        ProviderEndpointConfig(configured_provider.endpoint_ref, "https://provider.example/v1")
+    )
+    provider_store.save_provider(configured_provider)
+    provider_store.save_observation(
+        replace(_observation(with_quota=True), configuration_generation=1)
+    )
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=runner,
+        clock=lambda: NOW,
+        provider_admission_store=provider_store,
+    )
     production = ProductionElasticWorkerExecutor(
         candidate_assembler=assembler,
         capacity_coordinator=capacity,
@@ -1688,18 +1766,25 @@ def test_production_elastic_path_reuses_scheduler_broker_and_runner(tmp_path: Pa
         branch=branch,
         mutable_scope=("src/elastic.py",),
     )
+    requirement = _provider_requirement_for_test(database, node_id="elastic-node")
     contract = ParallelReadyNodeContract(
         dispatch_key=template.dispatch_request.key,
         project_id=template.dispatch_request.project_id,
         work_order_ref=template.dispatch_request.work_order_ref,
-        operation_ref=template.dispatch_request.operation_ref,
+        operation_ref=requirement.operation_ref,
         dispatch_gate=template.dispatch_gate,
         lease_request=template.lease_request,
         provider_profile=template.provider_profile,
         provider_observation=template.provider_observation,
+        provider_endpoint=ProviderEndpointConfig(
+            template.provider_profile.endpoint_ref, "https://provider.example/v1"
+        ),
+        provider_security=requirement.provider_security,
+        expected_configuration_generation=requirement.expected_configuration_generation,
         harness_dispatch=template.harness_dispatch,
         task_packet=template.task_packet,
         require_quota=template.require_quota,
+        provider_requirement=requirement,
     )
 
     result = production.execute_once(
@@ -1715,7 +1800,7 @@ def test_production_elastic_path_reuses_scheduler_broker_and_runner(tmp_path: Pa
             permitted_runtime_kinds=("serena-local",),
         ),
         eligibility={"elastic-node": NodeEligibility()},
-        batch_id=None,
+        batch_id="batch-elastic",
     )
 
     assert result.kind is ProductionElasticExecutionKind.ELASTIC_EXECUTED
@@ -1807,6 +1892,11 @@ def test_production_elastic_requires_scheduler_eligibility_before_provisioning(t
         lease_request=template.lease_request,
         provider_profile=template.provider_profile,
         provider_observation=template.provider_observation,
+        provider_endpoint=ProviderEndpointConfig(
+            template.provider_profile.endpoint_ref, "https://provider.example/v1"
+        ),
+        provider_security=_wo118b_security(),
+        expected_configuration_generation=1,
         harness_dispatch=template.harness_dispatch,
         task_packet=template.task_packet,
         require_quota=template.require_quota,
@@ -2078,3 +2168,223 @@ def test_wo121_generic_runner_completion_remains_supported_without_provider_admi
     assert outcome.reason_code == "RUNNER_COMPLETED"
     assert outcome.runner_result == returned
     assert outcome.provider_admission is None
+
+
+class _WO118BNoLeaseBroker:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def acquire(self, request, candidates):
+        self.calls += 1
+        raise AssertionError("worker lease must not be reached")
+
+
+class _WO118BRecordingAdmissionStore:
+    def __init__(self, delegate: SQLiteProviderConfigStore, *, bump_after_admit: bool = False) -> None:
+        self.delegate = delegate
+        self.acquire_calls: list[dict[str, object]] = []
+        self.bump_after_admit = bump_after_admit
+        self.bump_error_code: str | None = None
+
+    def load_provider_snapshot(self, provider_id: str):
+        return self.delegate.load_provider_snapshot(provider_id)
+
+    def acquire_admission(self, **kwargs):
+        self.acquire_calls.append(dict(kwargs))
+        result = self.delegate.acquire_admission(**kwargs)
+        if self.bump_after_admit:
+            current = self.delegate.load_provider_snapshot(kwargs["provider_id"])
+            assert current is not None and current.generation is not None
+            edited = ProviderConfiguration(**{
+                **current.profile.as_dict(),
+                "display_name": "Generation changed after admission",
+            })
+            try:
+                self.delegate.save_provider(edited, expected_generation=current.generation)
+            except ProviderConfigStoreError as exc:
+                self.bump_error_code = exc.code
+            else:
+                self.bump_error_code = "UNEXPECTED_WRITE_ALLOWED"
+        return result
+
+    def release_admission(self, admission_id, **kwargs):
+        return self.delegate.release_admission(admission_id, **kwargs)
+
+
+def _wo118b_security(*, secret: bool = False) -> ProviderPolicyTaskSecurity:
+    return ProviderPolicyTaskSecurity(
+        privacy_class=TaskPrivacyClass.SECRET if secret else TaskPrivacyClass.INTERNAL,
+        network_policy=TaskNetworkPolicy.ALLOWLISTED,
+        network_allowlist=("provider.example",),
+        secret_access=secret,
+    )
+
+
+def _wo118b_authorized_task(tmp_path: Path, *, secret: bool = False) -> tuple[ParallelReadyTask, SQLiteProviderConfigStore]:
+    database = tmp_path / "provider-authority.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    configured = _profile(max_concurrency=1)
+    endpoint = ProviderEndpointConfig(configured.endpoint_ref, "https://provider.example/v1")
+    store.save_endpoint(endpoint)
+    store.save_provider(configured)
+    observed = replace(_observation(with_quota=False), configuration_generation=1)
+    store.save_observation(observed)
+    task = _task(
+        node_id="wo118b-authority",
+        worker_id="a-worker-01",
+        worktree=r"A:\Work\wo118b-authority",
+        branch="feat/wo118b-authority",
+        mutable_scope=("src/authority.py",),
+        profile=configured,
+        observation=observed,
+        require_quota=False,
+    )
+    task = replace(
+        task,
+        provider_endpoint=endpoint,
+        provider_security=_wo118b_security(secret=secret),
+        expected_configuration_generation=1,
+    )
+    return task, store
+
+
+def test_wo118b_secret_policy_denial_precedes_admission_and_worker_lease(tmp_path: Path) -> None:
+    task, delegate = _wo118b_authorized_task(tmp_path, secret=True)
+    admission = _WO118BRecordingAdmissionStore(delegate)
+    broker = _WO118BNoLeaseBroker()
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=BarrierRunner(parties=1),
+        clock=lambda: NOW,
+        provider_admission_store=admission,
+    )
+
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={task.provider_profile.provider_id: 0},
+        batch_id="wo118b-policy-denied",
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.DISPATCH_GATE_BLOCKED
+    assert result.outcomes[0].reason_code == "SECRET_TASK_EXTERNAL_DENIED"
+    assert admission.acquire_calls == []
+    assert broker.calls == 0
+
+
+def test_wo118b_generation_drift_precedes_admission_and_worker_lease(tmp_path: Path) -> None:
+    task, delegate = _wo118b_authorized_task(tmp_path)
+    snapshot = delegate.load_provider_snapshot(task.provider_profile.provider_id)
+    assert snapshot is not None and snapshot.generation == 1
+    delegate.save_provider(
+        ProviderConfiguration(**{**snapshot.profile.as_dict(), "display_name": "Edited"}),
+        expected_generation=1,
+    )
+    admission = _WO118BRecordingAdmissionStore(delegate)
+    broker = _WO118BNoLeaseBroker()
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=BarrierRunner(parties=1),
+        clock=lambda: NOW,
+        provider_admission_store=admission,
+    )
+
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={task.provider_profile.provider_id: 0},
+        batch_id="wo118b-generation-stale",
+    )
+
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_WAIT
+    assert result.outcomes[0].reason_code == "PROVIDER_CONFIGURATION_STALE"
+    assert admission.acquire_calls == []
+    assert broker.calls == 0
+
+
+def test_wo118b_admission_fence_blocks_generation_write_until_unused_release(tmp_path: Path) -> None:
+    task, delegate = _wo118b_authorized_task(tmp_path)
+    admission = _WO118BRecordingAdmissionStore(delegate, bump_after_admit=True)
+    broker = WaitingWorkerLeaseBroker()
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=BarrierRunner(parties=1),
+        clock=lambda: NOW,
+        provider_admission_store=admission,
+    )
+
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={task.provider_profile.provider_id: 0},
+        batch_id="wo118b-admission-fence",
+    )
+
+    assert admission.bump_error_code == "PROVIDER_CONFIGURATION_IN_USE"
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.LEASE_WAIT
+    assert admission.acquire_calls[0]["expected_configuration_generation"] == 1
+    assert _admission_statuses(delegate.database_path) == [("RELEASED",)]
+
+
+
+class _WO118BForgedAdmissionStore:
+    def __init__(self, delegate: SQLiteProviderConfigStore, *, forge_release: bool = False) -> None:
+        self.delegate = delegate
+        self.forge_release = forge_release
+
+    def load_provider_snapshot(self, provider_id: str):
+        return self.delegate.load_provider_snapshot(provider_id)
+
+    def acquire_admission(self, **kwargs):
+        result = self.delegate.acquire_admission(**kwargs)
+        if self.forge_release:
+            return result
+        record = result.admission
+        assert record is not None
+        return ProviderAdmissionResult(
+            ProviderAdmissionKind.ADMITTED, result.reason_code,
+            replace(record, provider_id="provider-foreign"),
+        )
+
+    def release_admission(self, admission_id, **kwargs):
+        if not self.forge_release:
+            raise AssertionError("foreign admission must never be released via forged identity")
+        record = self.delegate.get_admission(admission_id)
+        assert record is not None
+        return record
+
+
+def test_wo118b_foreign_admission_record_never_reaches_worker_lease(tmp_path: Path) -> None:
+    task, delegate = _wo118b_authorized_task(tmp_path)
+    broker = _WO118BNoLeaseBroker()
+    executor = ParallelReadyExecutor(
+        broker=broker, runner=BarrierRunner(parties=1), clock=lambda: NOW,
+        provider_admission_store=_WO118BForgedAdmissionStore(delegate),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={task.provider_profile.provider_id: 0},
+        batch_id="wo118b-forged-admission",
+    )
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "PROVIDER_ADMISSION_IDENTITY_MISMATCH"
+    assert broker.calls == 0
+    assert _admission_statuses(delegate.database_path) == [("ACTIVE",)]
+
+
+def test_wo118b_release_requires_exact_released_record(tmp_path: Path) -> None:
+    task, delegate = _wo118b_authorized_task(tmp_path)
+    executor = ParallelReadyExecutor(
+        broker=WaitingWorkerLeaseBroker(), runner=BarrierRunner(parties=1), clock=lambda: NOW,
+        provider_admission_store=_WO118BForgedAdmissionStore(delegate, forge_release=True),
+    )
+    result = executor.execute(
+        SchedulePlan((task.assignment,), (), "capacity=1/1"),
+        {task.assignment.node_id: task},
+        provider_inflight={task.provider_profile.provider_id: 0},
+        batch_id="wo118b-forged-release",
+    )
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "PROVIDER_ADMISSION_RELEASE_INVALID"
+    assert _admission_statuses(delegate.database_path) == [("ACTIVE",)]
