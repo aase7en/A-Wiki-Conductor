@@ -107,7 +107,7 @@ def test_ready_row_is_truthful_and_secret_free() -> None:
     assert row.configuration_generation == 7
     assert row.health is ProviderHealth.AVAILABLE
     assert row.observation_age_seconds == 30
-    assert row.provenance == "probe:test-provider-operator-view"
+    assert row.provenance == "PROBE"
     assert row.quota is snapshot.observation.quota
     assert row.models == snapshot.profile.models
 
@@ -212,3 +212,20 @@ def test_invalid_snapshot_generation_is_not_configured(generation) -> None:
     assert row.configured is False
     assert row.runtime_ready is False
     assert row.readiness_reason == "PROVIDER_GENERATION_INVALID"
+
+
+def test_wo125_raw_observation_provenance_is_withheld_from_operator_row() -> None:
+    snapshot = _snapshot()
+    hostile = replace(
+        snapshot,
+        observation=replace(
+            snapshot.observation,
+            provenance="probe:https://secret.example credential=secret-ref:provider/private",
+        ),
+    )
+
+    row = build_provider_operator_row(hostile, now=NOW)
+
+    assert row.provenance in {None, "UNKNOWN", "PROBE"}
+    assert "secret.example" not in repr(row)
+    assert "secret-ref:" not in repr(row)

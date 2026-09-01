@@ -306,3 +306,138 @@ def test_open_job_control_requires_settings_store(tmp_path):
         assert "SETTINGS_STORE_NOT_AVAILABLE" in str(exc)
     else:
         raise AssertionError("missing store accepted")
+
+
+def test_wo125_open_canonicalizes_one_control_database_identity(tmp_path, monkeypatch) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    monkeypatch.chdir(first)
+    captured: dict[str, Path] = {}
+
+    def builder(path, *, service):
+        captured["path"] = Path(path)
+        return FakeCoordinator()
+
+    desktop = DesktopControlService.open("control.sqlite", coordinator_builder=builder)
+    expected = (first / "control.sqlite").resolve(strict=False)
+
+    assert captured["path"] == expected
+    assert desktop.settings_store.database_path == expected
+    assert desktop._provider_store.database_path == expected
+    monkeypatch.chdir(second)
+    assert desktop.settings_store.database_path == expected
+    assert desktop._provider_store.database_path == expected
+
+
+def test_wo125_provider_operator_rows_requires_retained_store() -> None:
+    import pytest
+    from a_conductor.provider_config_store import ProviderConfigStoreError
+
+    service = DesktopControlService(control_center=_FakeControlCenter(), lifecycle=_FakeLifecycle())
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.provider_operator_rows()
+    assert exc.value.code == "PROVIDER_STORE_NOT_AVAILABLE"
+    assert str(exc.value) == "PROVIDER_STORE_NOT_AVAILABLE"
+
+
+def test_wo125_direct_facade_refuses_mismatched_control_database_authorities(tmp_path) -> None:
+    import pytest
+    from a_conductor.provider_config_store import SQLiteProviderConfigStore
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+
+    settings = SQLiteSerenaConfigStore(tmp_path / "settings.sqlite")
+    provider = SQLiteProviderConfigStore(tmp_path / "provider.sqlite")
+    settings.initialize()
+    provider.initialize()
+
+    with pytest.raises(ValueError, match="CONTROL_DATABASE_IDENTITY_MISMATCH"):
+        DesktopControlService(
+            control_center=_FakeControlCenter(),
+            lifecycle=_FakeLifecycle(),
+            settings_store=settings,
+            provider_store=provider,
+        )
+
+
+def _wo125_profile():
+    from a_conductor.provider_configuration import (
+        EgressBoundary, HarnessStrategy, ProtocolFamily, ProviderConfiguration,
+        ProviderModelConfiguration, ProviderTrustClass,
+    )
+    return ProviderConfiguration(
+        provider_id="provider-ui",
+        display_name="Provider UI",
+        provider_type="cloud-proxy",
+        protocol_family=ProtocolFamily.ANTHROPIC_MESSAGES,
+        endpoint_ref="provider-config:ui/base-url",
+        credential_ref="secret-ref:provider/ui/main",
+        trust_class=ProviderTrustClass.UNKNOWN,
+        egress_boundary=EgressBoundary.UNKNOWN,
+        harness_strategies=(HarnessStrategy.CLAUDE_CODE_CLI,),
+        max_concurrency=1,
+        models=(ProviderModelConfiguration(model_id="model-ui", display_name="Model UI"),),
+        enabled=True,
+    )
+
+
+def test_wo125_provider_operator_rows_reuses_store_and_sees_fresh_commits(tmp_path) -> None:
+    from datetime import datetime, timezone
+    from a_conductor.provider_config_store import SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig, ProviderHealth, ProviderObservation
+
+    now = datetime(2026, 9, 1, 13, 0, tzinfo=timezone.utc)
+    database = tmp_path / "control.sqlite"
+    provider_store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    provider_store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    provider_store.save_provider(profile)
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(),
+        provider_store=provider_store,
+        clock=lambda: now,
+    )
+
+    first = service.provider_operator_rows()
+    assert len(first) == 1
+    assert first[0].runtime_ready is False
+    assert first[0].task_authorization == "NOT_EVALUATED"
+
+    provider_store.save_observation(
+        ProviderObservation(
+            provider_id=profile.provider_id,
+            health=ProviderHealth.AVAILABLE,
+            observed_at=now,
+            provenance="probe:desktop-control-test",
+            configuration_generation=1,
+        )
+    )
+    second = service.provider_operator_rows()
+    assert second[0].runtime_ready is True
+    assert second[0].task_authorization == "NOT_EVALUATED"
+    assert second[0].provenance == "PROBE"
+
+
+def test_wo125_provider_store_bootstraps_once_not_on_operator_refresh(tmp_path, monkeypatch) -> None:
+    from a_conductor.provider_config_store import SQLiteProviderConfigStore
+
+    calls = 0
+    original = SQLiteProviderConfigStore.initialize
+
+    def counted_initialize(self):
+        nonlocal calls
+        calls += 1
+        return original(self)
+
+    monkeypatch.setattr(SQLiteProviderConfigStore, "initialize", counted_initialize)
+    service = DesktopControlService.open(
+        tmp_path / "control.sqlite",
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+
+    assert calls == 1
+    assert service.provider_operator_rows() == ()
+    assert service.provider_operator_rows() == ()
+    assert calls == 1

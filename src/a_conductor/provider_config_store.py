@@ -90,6 +90,28 @@ class SQLiteProviderConfigStore:
         finally:
             connection.close()
 
+    @contextmanager
+    def _connect_read_only(self) -> Iterator[sqlite3.Connection]:
+        database = self.database_path.expanduser().resolve(strict=False)
+        if not database.is_file():
+            raise ProviderConfigStoreError("CONFIG_STORE_UNAVAILABLE")
+        try:
+            connection = sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute("PRAGMA busy_timeout = 5000")
+            connection.execute("PRAGMA query_only = ON")
+        except (OSError, sqlite3.Error) as exc:
+            try:
+                connection.close()
+            except (NameError, Exception):
+                pass
+            raise ProviderConfigStoreError("CONFIG_STORE_UNAVAILABLE") from exc
+        try:
+            yield connection
+        finally:
+            connection.close()
+
     def initialize(self) -> None:
         with self._connect() as connection:
             try:
@@ -438,38 +460,116 @@ class SQLiteProviderConfigStore:
 
     @staticmethod
     def _profile_from_row(row: sqlite3.Row) -> ProviderConfiguration:
-        return ProviderConfiguration(
-            provider_id=row["provider_id"],
-            display_name=row["display_name"],
-            provider_type=row["provider_type"],
-            protocol_family=row["protocol_family"],
-            endpoint_ref=row["endpoint_ref"],
-            credential_ref=row["credential_ref"],
-            trust_class=row["trust_class"],
-            egress_boundary=row["egress_boundary"],
-            harness_strategies=tuple(json.loads(row["harness_strategies_json"])),
-            max_concurrency=row["max_concurrency"],
-            models=tuple(json.loads(row["models_json"])),
-            enabled=bool(row["enabled"]),
-            schema_version=row["schema_version"],
-        )
+        try:
+            enabled = row["enabled"]
+            max_concurrency = row["max_concurrency"]
+            if type(enabled) is not int or enabled not in (0, 1):
+                raise ValueError("persisted enabled is invalid")
+            if type(max_concurrency) is not int:
+                raise ValueError("persisted max_concurrency is invalid")
+            harnesses = json.loads(row["harness_strategies_json"])
+            models = json.loads(row["models_json"])
+            if not isinstance(harnesses, list) or not isinstance(models, list):
+                raise ValueError("persisted provider JSON shape is invalid")
+            for model in models:
+                if not isinstance(model, dict):
+                    raise ValueError("persisted provider model shape is invalid")
+                context_window = model.get("context_window_tokens")
+                if context_window is not None and type(context_window) is not int:
+                    raise ValueError("persisted context window is invalid")
+                if not isinstance(model.get("actor_capabilities", []), list):
+                    raise ValueError("persisted actor capabilities shape is invalid")
+                if not isinstance(model.get("supported_effort_levels", []), list):
+                    raise ValueError("persisted effort levels shape is invalid")
+            return ProviderConfiguration(
+                provider_id=row["provider_id"],
+                display_name=row["display_name"],
+                provider_type=row["provider_type"],
+                protocol_family=row["protocol_family"],
+                endpoint_ref=row["endpoint_ref"],
+                credential_ref=row["credential_ref"],
+                trust_class=row["trust_class"],
+                egress_boundary=row["egress_boundary"],
+                harness_strategies=tuple(harnesses),
+                max_concurrency=max_concurrency,
+                models=tuple(models),
+                enabled=enabled == 1,
+                schema_version=row["schema_version"],
+            )
+        except ProviderConfigStoreError:
+            raise
+        except (json.JSONDecodeError, TypeError, ValueError, KeyError, IndexError, AttributeError) as exc:
+            raise ProviderConfigStoreError("PROVIDER_CONFIGURATION_CORRUPT") from None
+
+    @classmethod
+    def _endpoint_from_row(cls, row: sqlite3.Row) -> ProviderEndpointConfig:
+        try:
+            cls._stored_generation(row["generation"])
+            return ProviderEndpointConfig(row["endpoint_ref"], row["base_url"])
+        except ProviderConfigStoreError:
+            raise
+        except (TypeError, ValueError, KeyError, IndexError, AttributeError) as exc:
+            raise ProviderConfigStoreError("PROVIDER_CONFIGURATION_CORRUPT") from None
 
     @classmethod
     def _observation_from_row(cls, row: sqlite3.Row) -> ProviderObservation:
-        quota = None if row["quota_json"] is None else json.loads(row["quota_json"])
-        generation = cls._stored_generation(
-            row["configuration_generation"], allow_none=True
-        )
-        return ProviderObservation(
-            provider_id=row["provider_id"],
-            health=row["health"],
-            observed_at=row["observed_at"],
-            provenance=row["provenance"],
-            latency_ms=row["latency_ms"],
-            quota=quota,
-            schema_version=row["schema_version"],
-            configuration_generation=generation,
-        )
+        try:
+            quota = None if row["quota_json"] is None else json.loads(row["quota_json"])
+            if quota is not None and not isinstance(quota, dict):
+                raise ValueError("persisted quota JSON shape is invalid")
+            if quota is not None:
+                reset_seconds = quota.get("reset_in_seconds")
+                if reset_seconds is not None and type(reset_seconds) is not int:
+                    raise ValueError("persisted quota reset seconds is invalid")
+            latency = row["latency_ms"]
+            if latency is not None and type(latency) is not int:
+                raise ValueError("persisted latency is invalid")
+            generation = cls._stored_generation(
+                row["configuration_generation"], allow_none=True
+            )
+            return ProviderObservation(
+                provider_id=row["provider_id"],
+                health=row["health"],
+                observed_at=row["observed_at"],
+                provenance=row["provenance"],
+                latency_ms=latency,
+                quota=quota,
+                schema_version=row["schema_version"],
+                configuration_generation=generation,
+            )
+        except ProviderConfigStoreError:
+            raise
+        except (json.JSONDecodeError, TypeError, ValueError, KeyError, IndexError, AttributeError) as exc:
+            raise ProviderConfigStoreError("PROVIDER_CONFIGURATION_CORRUPT") from None
+
+    @classmethod
+    def _snapshot_from_rows(
+        cls,
+        profile_row: sqlite3.Row,
+        endpoint_row: sqlite3.Row | None,
+        observation_row: sqlite3.Row | None,
+    ) -> ProviderConfigurationSnapshot:
+        try:
+            generation = cls._stored_generation(profile_row["generation"])
+            profile = cls._profile_from_row(profile_row)
+            endpoint = None if endpoint_row is None else cls._endpoint_from_row(endpoint_row)
+            observation = (
+                None if observation_row is None else cls._observation_from_row(observation_row)
+            )
+            if endpoint is not None and endpoint.endpoint_ref != profile.endpoint_ref:
+                raise ValueError("persisted endpoint identity mismatch")
+            if observation is not None and observation.provider_id != profile.provider_id:
+                raise ValueError("persisted observation identity mismatch")
+            return ProviderConfigurationSnapshot(
+                profile=profile,
+                endpoint=endpoint,
+                generation=generation,
+                observation=observation,
+            )
+        except ProviderConfigStoreError:
+            raise
+        except (TypeError, ValueError, KeyError, IndexError, AttributeError) as exc:
+            raise ProviderConfigStoreError("PROVIDER_CONFIGURATION_CORRUPT") from None
 
     def get_provider(self, provider_id: str) -> ProviderConfiguration | None:
         self.initialize()
@@ -567,11 +667,7 @@ class SQLiteProviderConfigStore:
         return self._observation_from_row(row)
 
     def load_provider_snapshot(self, provider_id: str) -> "ProviderConfigurationSnapshot | None":
-        """Read profile, endpoint, current generation and latest observation together.
-
-        One typed store snapshot under one read transaction; callers must not
-        reconstruct authoritative snapshots from separate reads.
-        """
+        """Read one provider snapshot after the normal bootstrap/migration boundary."""
         if not isinstance(provider_id, str) or not provider_id.strip():
             raise ValueError("provider_id must not be blank")
         self.initialize()
@@ -582,21 +678,17 @@ class SQLiteProviderConfigStore:
                     "SELECT * FROM provider_configurations WHERE provider_id = ?",
                     (provider_id.strip(),),
                 ).fetchone()
-                endpoint_row = None
-                observation_row = None
-                generation: int | None = None
-                profile = None
-                if profile_row is not None:
-                    generation = self._stored_generation(profile_row["generation"])
-                    endpoint_row = connection.execute(
-                        "SELECT * FROM provider_endpoints WHERE endpoint_ref = ?",
-                        (profile_row["endpoint_ref"],),
-                    ).fetchone()
-                    observation_row = connection.execute(
-                        "SELECT * FROM provider_observations WHERE provider_id = ?",
-                        (profile_row["provider_id"],),
-                    ).fetchone()
-                    profile = self._profile_from_row(profile_row)
+                if profile_row is None:
+                    connection.commit()
+                    return None
+                endpoint_row = connection.execute(
+                    "SELECT * FROM provider_endpoints WHERE endpoint_ref = ?",
+                    (profile_row["endpoint_ref"],),
+                ).fetchone()
+                observation_row = connection.execute(
+                    "SELECT * FROM provider_observations WHERE provider_id = ?",
+                    (profile_row["provider_id"],),
+                ).fetchone()
                 connection.commit()
             except ProviderConfigStoreError:
                 connection.rollback()
@@ -604,23 +696,50 @@ class SQLiteProviderConfigStore:
             except sqlite3.Error as exc:
                 connection.rollback()
                 raise ProviderConfigStoreError("CONFIG_STORE_READ_FAILED") from exc
-        if profile is None:
-            return None
-        if endpoint_row is None:
-            endpoint = None
-        else:
-            self._stored_generation(endpoint_row["generation"])
-            endpoint = ProviderEndpointConfig(
-                endpoint_row["endpoint_ref"], endpoint_row["base_url"]
+        return self._snapshot_from_rows(profile_row, endpoint_row, observation_row)
+
+    def list_provider_snapshots(self) -> tuple[ProviderConfigurationSnapshot, ...]:
+        """Read all configured providers coherently without schema/write side effects."""
+        with self._connect_read_only() as connection:
+            try:
+                connection.execute("BEGIN")
+                profile_rows = connection.execute(
+                    "SELECT * FROM provider_configurations "
+                    "ORDER BY provider_id COLLATE BINARY ASC"
+                ).fetchall()
+                if not profile_rows:
+                    connection.commit()
+                    return ()
+                endpoint_refs = tuple(row["endpoint_ref"] for row in profile_rows)
+                provider_ids = tuple(row["provider_id"] for row in profile_rows)
+                endpoint_marks = ",".join("?" for _ in endpoint_refs)
+                provider_marks = ",".join("?" for _ in provider_ids)
+                endpoint_rows = connection.execute(
+                    f"SELECT * FROM provider_endpoints WHERE endpoint_ref IN ({endpoint_marks})",
+                    endpoint_refs,
+                ).fetchall()
+                observation_rows = connection.execute(
+                    f"SELECT * FROM provider_observations WHERE provider_id IN ({provider_marks})",
+                    provider_ids,
+                ).fetchall()
+                connection.commit()
+            except sqlite3.Error as exc:
+                connection.rollback()
+                code = (
+                    "CONFIG_STORE_SCHEMA_UNAVAILABLE"
+                    if "no such table" in str(exc).casefold()
+                    else "CONFIG_STORE_READ_FAILED"
+                )
+                raise ProviderConfigStoreError(code) from exc
+        endpoints = {row["endpoint_ref"]: row for row in endpoint_rows}
+        observations = {row["provider_id"]: row for row in observation_rows}
+        return tuple(
+            self._snapshot_from_rows(
+                row,
+                endpoints.get(row["endpoint_ref"]),
+                observations.get(row["provider_id"]),
             )
-        observation = None if observation_row is None else self._observation_from_row(
-            observation_row
-        )
-        return ProviderConfigurationSnapshot(
-            profile=profile,
-            endpoint=endpoint,
-            generation=generation,
-            observation=observation,
+            for row in profile_rows
         )
 
     @staticmethod

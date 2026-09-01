@@ -58,6 +58,16 @@ def _validate_max_age(max_age_seconds: int) -> int:
         raise ValueError("max_age_seconds must be a non-negative integer")
     return max_age_seconds
 
+def _operator_provenance(value: str | None) -> str | None:
+    if value is None:
+        return None
+    prefix = value.partition(":")[0].strip().casefold()
+    if prefix == "probe":
+        return "PROBE"
+    if prefix == "zai-quota-monitor":
+        return "ZAI_QUOTA_MONITOR"
+    return "UNKNOWN"
+
 
 def _readiness_reason(
     snapshot: ProviderConfigurationSnapshot,
@@ -152,7 +162,7 @@ def build_provider_operator_row(
         health=None if observation is None else observation.health,
         observed_at=None if observation is None else observation.observed_at,
         observation_age_seconds=age,
-        provenance=None if observation is None else observation.provenance,
+        provenance=_operator_provenance(None if observation is None else observation.provenance),
         latency_ms=None if observation is None else observation.latency_ms,
         quota=None if observation is None else observation.quota,
     )
