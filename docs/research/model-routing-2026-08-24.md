@@ -138,3 +138,12 @@ Routing conclusion remains unchanged but is now stronger: use GPT-5.6 Sol MAX fo
 decomposition, architecture, cross-layer safety decisions, difficult debugging, visual/UX
 judgment, and final integration/E2E; use GLM-5.3 MAX as the later bounded implementation
 workhorse where acceptance tests and file claims are already explicit. Do not duplicate intent.
+
+
+## Freshness re-check — 2026-09-01
+
+Official Z.ai GLM-5.3 launch evidence was re-checked before the current delegation design. The published comparison still reports GLM-5.3 at Terminal-Bench 3.0 `28.3`, DeepSWE v1.1 `66.9`, AutomationBench `48.2`, CyberGym `84.5`, and Z.ai Code Bench Max `34.5%`. The same Z.ai table reports GPT-5.6 Sol at Terminal-Bench 3.0 `34.6` and DeepSWE v1.1 `72.7`.
+
+Routing remains evidence-based rather than vendor-ranking based: GPT-5.6 Sol MAX owns goal decomposition, architecture/trust-boundary decisions, adversarial integration, acceptance and merge authority. GLM-5.3 MAX is a strong fit for bounded implementation, deterministic repair, repository archaeology and independent review after exact scope/tests/HEAD are pinned. Deterministic tools remain preferred for mechanical verification.
+
+Source: Z.ai official GLM-5.3 launch, 2026-08-14, `https://z.ai/blog/glm-5.3`. Provider readiness, entitlement, credentials and quota are separate gates from model suitability and never follow from benchmark scores.

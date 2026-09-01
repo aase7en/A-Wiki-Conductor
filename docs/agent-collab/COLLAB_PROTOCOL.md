@@ -107,3 +107,21 @@ Rules:
 
 A lane is complete only when acceptance evidence, diff, tests/CI as required, ownership
 release and continuity checkpoint agree. `DONE` from an agent alone is insufficient.
+
+
+## 10. Stable external-agent mailbox fallback
+
+When automatic provider dispatch is unavailable, prefer one stable machine-local mailbox path per external agent over changing human-visible task pointers every round.
+
+The mailbox is an **addressing shim only**, not task authority. Default Windows location is `%LOCALAPPDATA%\A-Conductor\agent-bridge\<agent>\task.md`; an explicit bridge-root override and cross-platform user-state fallback are supported. The internal `A-Conductor` data-folder name remains unchanged.
+
+Before publishing a mailbox assignment, the integrator must first generate the exact task packet, re-read it, verify literal identity/HEAD/result destination, and verify its SHA-256 per `DEFECT_LESSONS.md #24`. The mailbox then points to that exact packet + hash and its exact result destination. Publishing replaces the same stable `task.md` atomically.
+
+Human fallback prompt therefore stays constant for that agent: `Read <stable-mailbox>/task.md. Follow only the exact task packet referenced there; write the result to its declared destination. Do not return the result to the human.`
+The mailbox may be overwritten for the next assignment only after ownership/state gates prove the prior lane is terminal or explicitly superseded. A result from an older task remains non-authoritative because task/provider/model/base-HEAD identity and exact packet hashes are still checked by the accepted bridge.
+
+Do not create per-agent roadmap, handoff, memory, scheduler or retry files beside the mailbox. Canonical history stays in the active work order, `CURRENT-WORK.md`, `handoff.md`, `DEFECT_LESSONS.md`, Git/PR/CI and deterministic evidence.
+
+Ignored exact task/result artifacts may be retained while a lane is active or under review. After accepted evidence is folded into tracked SSoT and post-merge verification is green, superseded ignored runtime artifacts may be pruned deliberately; never broad-clean worktrees or delete tracked evidence.
+
+The stable mailbox does not claim automatic model invocation. It is the low-friction human bridge until provider readiness/auth/quota and WO118B production enforcement permit no-relay dispatch.
