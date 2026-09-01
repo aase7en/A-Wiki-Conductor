@@ -11,11 +11,12 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 | Released agent ergonomics | GPT-5.6 Sol + GLM review | WO-P1-122 | stable external-agent mailbox + bridge protocol | MERGED #168 `a957868` / GLM_002_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
 | Released AHA-7A | GPT-5.6 Sol + GLM review | WO-P1-124 | truthful provider operator read model | MERGED #174 `c1cfbe7` / GLM_002_PASS / POST_MAIN_33504441646_ATTEMPT2_GREEN |
 | Released reliability | GPT-5.6 Sol + GLM review | WO-P2-129 | bounded post-termination UNKNOWN observation | MERGED #176 `fae5c0d` / GLM_001_PASS / POST_MAIN_33509029840_GREEN |
-| Active product frontier | GPT-5.6 Sol + GPT Ultra/GLM exact-head review | WO-P1-125 | canonical provider bulk-read + typed corruption/secrecy boundary + DesktopControl read service | IMPLEMENTED / CURRENT_MAIN_RECONCILED / EXACT_HEAD_REVIEW_PENDING |
+| Released provider read service | GPT-5.6 Sol + GLM exact-head review | WO-P1-125 | canonical provider bulk-read + typed corruption/secrecy boundary + DesktopControl read service | MERGED #178 `23b98876` / GLM_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
 | Released closeout | GPT-5.6 Sol + GLM review | WO-P1-130 | SSoT + README + Defect Memory only | MERGED #177 `b32ddd26` / GLM_PASS / POST_MAIN_33517232490_GREEN |
 | Released coordination protocol | GPT-5.6 Sol + GLM review | WO-P1-123 | Loop Engineer routing + stable task/status/result convention | MERGED #170 `5ddf533f` / POST_MAIN_GREEN |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / FIVE LIVE WORKERS READY / NO MUTATION AUTHORITY |
-| Future | provider-neutral | WO126 Settings display -> WO127 Edit/Disable/Test -> WO128 selection/fallback | accepted provider/store/policy/runtime/scheduler authorities only | CLAIM_GATED |
+| Active product frontier | GPT-5.6 Sol | WO-P1-126 Settings display | `desktop_ui.py` + `i18n.py` + focused UI tests/docs; consume accepted provider rows only | CLAIMED / RED_FIRST |
+| Parallel read-only shaping | GLM-5.3 MAX | WO127 Edit/Disable/Test + WO128 selection/fallback | result file only; no tracked mutation | PREPARED_BLOCKED_ON_WO125_POST_MAIN (post-main now green; result may proceed) |
 | Future | provider-neutral | AHA-8 additional providers | one adapter at a time | DEFERRED |
 
 ### Completed GLM bridge contract

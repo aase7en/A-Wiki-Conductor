@@ -1,31 +1,32 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-01 (GPT-5.6 Sol - WO125 implemented; exact-head external review pending)
+Last updated: 2026-09-01 (GPT-5.6 Sol - WO125 released; WO126 Settings display claimed)
 
 ## Current phase
 
-**AHA-7 Models & Agents is the active product frontier. WO-P1-124 truthful provider operator read model and WO-P2-129 Windows owned-process reliability hardening are released. WO-P1-125 provider operator read service has completed RED-first implementation against the accepted GPT Ultra architecture findings and is now `EXACT_HEAD_REVIEW_PENDING`; it is not merge/release authority yet. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
+**AHA-7 Models & Agents is the active product frontier. WO-P1-125 provider operator read service is accepted and released on main. WO-P1-126 read-only `MODELS & AGENTS` Settings display is now the claimed READY slice; WO127/WO128 remain separate future control/observability slices. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
 
 Accepted / active frontier state:
 - PR #174 / WO124 reviewed exact head `be97d313c748fe5fcce0e57ecf5dc304b863e230`; GLM review002 PASS with P0/P1/P2 = 0; task SHA-256 `abe750450dda09dbf423681811efd0110ecfa26914cc55828b133db48a9fcf2b`; exact-head CI `33497483113` attempt 2 SUCCESS; merged as `c1cfbe780e76d3a64fb692e91dde851824bd8033`; post-main CI `33504441646` attempt 2 SUCCESS.
 - WO124 establishes the truthful read-only operator model: `CONFIGURED != READY`, `READY != AUTHORIZED`, existing readiness/quota authority is reused, invalid generations fail closed, and secret/endpoint values are excluded.
 - PR #176 / WO129 reviewed exact head `661c86f9a30433006a01e996ed1ea46fde4a7e52`; GLM review001 PASS with P0/P1/P2 = 0; task SHA-256 `b211091c4bfdc6c063da1ad037dc2a340750a90a47d813443e27c0bfa9c26481`; exact-head CI `33503763313` SUCCESS; merged as `fae5c0d8a36a41eb172e2acb8dc88ca04658c4e9`; post-main CI `33509029840` SUCCESS including Windows Portable/Setup and Frozen install/uninstall E2E.
 - WO129 permits bounded post-termination UNKNOWN re-observation only after exact-PID termination succeeds; it never retries termination, never tolerates MISMATCH, and preserves PID metadata when exit ownership remains uncertain.
-- WO-P1-125 consumed that Ultra review and implemented the accepted contract RED-first: canonical absolute DB identity, retained one provider store, one-time bootstrap, pure read-only bulk snapshot transaction, shared typed corruption decoder, safe provenance categories, explicit empty/error taxonomy, and no N+1/cache/policy duplication. Local evidence: focused 92 passed; impact-expanded 267 passed; full repo 1966 passed / 4 skipped / 2 known optional-GPU dependency failures.
+- PR #178 / WO125 reviewed exact head `91f77731d472d23c624bef22891b9cd400e6c090`; GLM long-goal review PASS with P0/P1/P2=0; exact-head CI `33528331266` SUCCESS; merged as `23b988764a3529f0721375f5d0a0c885b715ad46`; post-main CI `33534118110` SUCCESS including Windows Portable/Setup/Frozen E2E. Ultra final review exhausted quota before writing a result and was not used as merge authority.
+- WO125 provides the canonical read-only provider snapshot + DesktopControl facade consumed by WO126. GLM Stage B shaped WO126 into an implementation-ready async Settings slice; future GLM shaping of WO127/WO128 is read-only and claim-gated.
 - P0 WO096 remains operationally open: all five Workers were last observed READY on shared tunnel-client 0.0.11; staged 0.0.13 exists, but hosted remote MCP-after-TTL proof still requires explicit maintenance authority for a Worker or a spare Tunnel ID.
 
 ## Active work orders
 
-1. `WO-P1-125` - IMPLEMENTED / EXACT_HEAD_REVIEW_PENDING: source/tests are repaired and current-main reconciled; Ultra adversarial review + GLM independent review + PR CI still gate merge.
+1. `WO-P1-126` - CLAIMED / RED_FIRST: Settings/Advanced read-only `MODELS & AGENTS` display consuming the accepted WO125 facade.
 2. `WO-P1-096` - P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
-3. `WO-P1-130` - RELEASED: PR #177 merged as `b32ddd26e6153e0b60855448f2240dd059281f8c`; post-main CI `33517232490` SUCCESS.
+3. `WO-P1-125` - RELEASED: PR #178 merged as `23b988764a3529f0721375f5d0a0c885b715ad46`; GLM PASS; exact-head and post-main CI green.
 
 ## Immediate execution frontier
 
-1. Freeze WO125 on current main after final deterministic/audit checks; no more architecture expansion without a reproduced defect.
-2. Route the exact frozen WO125 head to GPT Ultra for adversarial closure of P1/P2 and to GLM for independent verification; agent PASS is evidence, not merge authority.
-3. If both reviews and exact-head CI are green, remote-diff audit -> merge -> post-main verify -> durable WO125 closeout.
-4. Then claim WO126 Settings/Advanced `MODELS & AGENTS` async display as a consumer of the accepted read service; keep WO127/WO128 separate.
+1. RED-first WO126 Settings display on the existing Preferences/Toplevel seam; no provider/store/policy/runtime mutation.
+2. Reuse `_background_executor` + `_schedule_after` with single-flight/stale-completion guards; render explicit loading/empty/error/truth states.
+3. Verify no endpoint/credential/raw provenance leakage and preserve `CONFIGURED != READY != AUTHORIZED`.
+4. In parallel, GLM may shape WO127 Edit/Disable/Test and WO128 selection/fallback observability read-only; implementation remains claim-gated.
 5. Keep WO096 separately blocked until authorized hosted remote MCP-after-TTL v0.0.13 evidence exists.
 
 ## Source-of-truth rule
