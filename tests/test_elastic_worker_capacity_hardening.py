@@ -56,7 +56,7 @@ def test_provisioning_transition_requires_exact_owner_task_identity(tmp_path) ->
         )
 
     record = reservations.list_consuming()[0]
-    assert record.state == "ACTIVE"
+    assert record.state == "PRE_PROVISION"
     assert record.session_id == "session-1"
     assert record.task_id == "task-1"
 

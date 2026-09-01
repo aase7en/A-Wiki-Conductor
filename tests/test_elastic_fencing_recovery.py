@@ -3,6 +3,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import sqlite3
 from threading import Barrier
 
 import pytest
@@ -251,6 +252,18 @@ class RegisteringProvisioner:
         return ElasticProvisionedWorker(self.worker_id, "serena-local")
 
 
+class StateObservingProvisioner(RegisteringProvisioner):
+    def __init__(self, center, store):
+        super().__init__(center)
+        self.store = store
+        self.states_seen = []
+
+    def provision(self, request):
+        records = self.store.list_provisioning_reservations(consuming_only=True)
+        self.states_seen.append(records[0].state)
+        return super().provision(request)
+
+
 class FailingProvisioner:
     def __init__(self) -> None:
         self.calls = []
@@ -445,6 +458,7 @@ def test_store_level_capacity_reservation_still_consumes_budget(tmp_path: Path) 
         now=NOW,
     )
     assert first.kind.value == "ACQUIRED"
+    _provisioning_started(store)
     store.transition_provisioning_reservation(
         "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
         now=NOW, worker_id=NEW_WORKER,
@@ -651,6 +665,20 @@ def test_provider_wait_after_provisioning_marks_reservation_recovery(tmp_path: P
     assert len(reservations) == 1 and reservations[0].state == "RECOVERY_REQUIRED"
 
 
+def test_coordinator_persists_provisioning_before_invoking_provisioner(tmp_path: Path) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    center = MutableControlCenter()
+    provisioner = StateObservingProvisioner(center, store)
+    coordinator = _coordinator(store, provisioner=provisioner, assembler=_assembler(store, center))
+    outcome = coordinator.provision_ready(
+        _capacity_plan(), _request("owner-s", "owner-t", NEW_WORKER),
+        runtime_kind="serena-local", policy=_policy(),
+        eligibility={"node-1": NodeEligibility()},
+    )
+    assert provisioner.states_seen == ["PROVISIONING"]
+    assert outcome.kind is ElasticCapacityOutcomeKind.PROVISIONED_READY
+
+
 # ---------------------------------------------------------------------------
 # Slice E — publication / mark-provisioned interleaving cannot steal the worker
 # ---------------------------------------------------------------------------
@@ -662,6 +690,7 @@ def test_store_refuses_foreign_lease_on_owner_provisioned_worker(tmp_path: Path)
         reservation_id="r-1", session_id="owner-s", task_id="owner-t",
         runtime_kind="serena-local", max_extra_workers=1, now=NOW,
     )
+    _provisioning_started(store, session_id="owner-s", task_id="owner-t")
     store.transition_provisioning_reservation(
         "r-1", session_id="owner-s", task_id="owner-t", state="PROVISIONED",
         now=NOW, worker_id=NEW_WORKER,
@@ -688,6 +717,7 @@ def test_store_mark_provisioned_refuses_foreign_active_lease(tmp_path: Path) -> 
     )
     assert rival.kind is LeaseOutcomeKind.LEASED
     with pytest.raises(WorkerLeaseError, match="PROVISIONING_WORKER_LEASE_CONFLICT"):
+        _provisioning_started(store, session_id="owner-s", task_id="owner-t")
         store.transition_provisioning_reservation(
             "r-1", session_id="owner-s", task_id="owner-t", state="PROVISIONED",
             now=NOW, worker_id=NEW_WORKER,
@@ -759,6 +789,13 @@ def test_publication_before_mark_provisioned_cannot_be_stolen(tmp_path: Path) ->
 # ---------------------------------------------------------------------------
 
 
+def _provisioning_started(store, *, reservation_id="r-1", session_id="s-1", task_id="t-1"):
+    return store.transition_provisioning_reservation(
+        reservation_id, session_id=session_id, task_id=task_id,
+        state="PROVISIONING", now=NOW,
+    )
+
+
 def _acquired(store, *, reservation_id="r-1", session_id="s-1", task_id="t-1"):
     result = store.acquire_provisioning_reservation(
         reservation_id=reservation_id,
@@ -808,6 +845,7 @@ def test_reconcile_refuses_wrong_owner(tmp_path: Path) -> None:
 def test_reconcile_never_retires_capacity_by_age(tmp_path: Path) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     _acquired(store)
+    _provisioning_started(store)
     store.transition_provisioning_reservation(
         "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
         now=NOW, worker_id=NEW_WORKER,
@@ -825,6 +863,7 @@ def test_reconcile_never_retires_capacity_by_age(tmp_path: Path) -> None:
 def test_reconcile_refuses_provisioned_worker_with_active_lease(tmp_path: Path) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     _acquired(store)
+    _provisioning_started(store)
     store.transition_provisioning_reservation(
         "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
         now=NOW, worker_id=NEW_WORKER,
@@ -872,6 +911,7 @@ def test_reconcile_refuses_bound_worker_without_decommission_evidence(
 ) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     _acquired(store)
+    _provisioning_started(store)
     store.transition_provisioning_reservation(
         "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
         now=NOW, worker_id=NEW_WORKER,
@@ -917,6 +957,7 @@ def test_reconcile_refuses_bound_worker_without_decommission_evidence(
 def test_reconcile_has_no_boolean_escape_for_bound_residue(tmp_path: Path) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     _acquired(store)
+    _provisioning_started(store)
     store.transition_provisioning_reservation(
         "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
         now=NOW, worker_id=NEW_WORKER,
@@ -980,6 +1021,7 @@ def test_generic_transition_cannot_release_recovery_required(tmp_path: Path) -> 
 def test_release_unstarted_cannot_retire_capacity(tmp_path: Path) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
     _acquired(store)
+    _provisioning_started(store)
     store.transition_provisioning_reservation(
         "r-1", session_id="s-1", task_id="t-1", state="PROVISIONED",
         now=NOW, worker_id=NEW_WORKER,
@@ -995,6 +1037,47 @@ def test_release_unstarted_cannot_retire_capacity(tmp_path: Path) -> None:
         )
     record = store.list_provisioning_reservations(consuming_only=True)[0]
     assert record.state == "CAPACITY"
+
+
+def test_release_unstarted_refuses_provisioning_started_state(tmp_path: Path) -> None:
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    _acquired(store)
+    _provisioning_started(store)
+    reservations = SQLiteWorkerProvisioningReservations(store)
+    with pytest.raises(ElasticCapacityError, match="PROVISIONING_RESERVATION_STATE_MISMATCH"):
+        reservations.release_unstarted(
+            "r-1", session_id="s-1", task_id="t-1", now=LATER
+        )
+    record = store.list_provisioning_reservations(consuming_only=True)[0]
+    assert record.state == "PROVISIONING" and record.worker_id is None
+    second = store.acquire_provisioning_reservation(
+        reservation_id="r-2", session_id="s-2", task_id="t-2",
+        runtime_kind="serena-local", max_extra_workers=1, now=LATER,
+    )
+    assert second.kind.value == "LIMIT_WAIT"
+
+
+def test_release_unstarted_refuses_ambiguous_legacy_active_crash_window(tmp_path: Path) -> None:
+    database = tmp_path / "leases.sqlite"
+    store = SQLiteWorkerLeaseStore(database)
+    _acquired(store)
+    # ACTIVE + no worker id is indistinguishable from the historical crash window
+    # where provisioning created a worker but died before mark_provisioned().
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "UPDATE worker_provisioning_reservations SET state='ACTIVE', worker_id=NULL "
+            "WHERE reservation_id='r-1'"
+        )
+    reservations = SQLiteWorkerProvisioningReservations(store)
+    with pytest.raises(ElasticCapacityError, match="PROVISIONING_RESERVATION_STATE_MISMATCH"):
+        reservations.release_unstarted(
+            "r-1", session_id="s-1", task_id="t-1", now=LATER
+        )
+    second = store.acquire_provisioning_reservation(
+        reservation_id="r-2", session_id="s-2", task_id="t-2",
+        runtime_kind="serena-local", max_extra_workers=1, now=LATER,
+    )
+    assert second.kind.value == "LIMIT_WAIT"
 
 
 def test_release_unstarted_still_releases_active_reservation(tmp_path: Path) -> None:

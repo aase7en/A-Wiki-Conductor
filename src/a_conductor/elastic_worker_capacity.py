@@ -219,6 +219,22 @@ class SQLiteWorkerProvisioningReservations:
                 raise ElasticCapacityError(_reservation_store_error_code(code)) from exc
             raise
 
+    def mark_provisioning_started(
+        self,
+        reservation_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+        now: object,
+    ) -> ProvisioningReservationRecord:
+        return self._transition(
+            reservation_id,
+            session_id=session_id,
+            task_id=task_id,
+            state="PROVISIONING",
+            now=now,
+        )
+
     def mark_provisioned(
         self,
         reservation_id: str,
@@ -489,7 +505,7 @@ class ElasticWorkerCapacityCoordinator:
             and record.session_id == lease_request.session_id
             and record.task_id == lease_request.task_id
             and record.runtime_kind == runtime_kind
-            and record.state == "ACTIVE"
+            and record.state == "PRE_PROVISION"
             and record.worker_id is None
         )
 
@@ -630,6 +646,17 @@ class ElasticWorkerCapacityCoordinator:
             remote_connector_allowed=policy.allow_remote_connector,
             transport_authorization_ref=policy.transport_authorization_ref,
         )
+        try:
+            self._reservations.mark_provisioning_started(
+                reservation_id,
+                session_id=lease_request.session_id,
+                task_id=lease_request.task_id,
+                now=self._clock(),
+            )
+        except Exception:
+            return self._recovery(
+                reservation_id, "PROVISIONING_START_PERSISTENCE_FAILED"
+            )
         try:
             provisioned = self._provisioner.provision(request)
         except Exception:

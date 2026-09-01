@@ -627,7 +627,7 @@ class SQLiteWorkerLeaseStore:
         try:
             state = _text(row["state"], "state", max_length=32).upper()
             if state not in {
-                "ACTIVE", "PROVISIONED", "CAPACITY", "RECOVERY_REQUIRED", "RELEASED"
+                "PRE_PROVISION", "ACTIVE", "PROVISIONING", "PROVISIONED", "CAPACITY", "RECOVERY_REQUIRED", "RELEASED"
             }:
                 raise ValueError("provisioning reservation state invalid")
             reservation_id = _text(row["reservation_id"], "reservation_id", max_length=128)
@@ -713,7 +713,7 @@ class SQLiteWorkerLeaseStore:
                     )
                 active_rows = connection.execute(
                     "SELECT * FROM worker_provisioning_reservations "
-                    "WHERE state IN ('ACTIVE','PROVISIONED','CAPACITY','RECOVERY_REQUIRED')"
+                    "WHERE state IN ('PRE_PROVISION','ACTIVE','PROVISIONING','PROVISIONED','CAPACITY','RECOVERY_REQUIRED')"
                 ).fetchall()
                 for row in active_rows:
                     self._provisioning_record_from_row(row)
@@ -728,7 +728,7 @@ class SQLiteWorkerLeaseStore:
                     "INSERT INTO worker_provisioning_reservations("
                     "reservation_id,session_id,task_id,runtime_kind,state,worker_id,"
                     "acquired_at,updated_at,project_id,worktree_key,mutable_scope_json) "
-                    "VALUES(?,?,?,?, 'ACTIVE', NULL, ?, ?, ?, ?, ?)",
+                    "VALUES(?,?,?,?, 'PRE_PROVISION', NULL, ?, ?, ?, ?, ?)",
                     (
                         reservation_id, session_id, task_id, runtime_kind,
                         observed_at, observed_at, project_id, worktree_key,
@@ -777,7 +777,7 @@ class SQLiteWorkerLeaseStore:
         session_id = _text(session_id, "session_id", max_length=128)
         task_id = _text(task_id, "task_id", max_length=256)
         target = _text(state, "state", max_length=32).upper()
-        if target not in {"PROVISIONED", "CAPACITY", "RECOVERY_REQUIRED", "RELEASED"}:
+        if target not in {"PROVISIONING", "PROVISIONED", "CAPACITY", "RECOVERY_REQUIRED", "RELEASED"}:
             raise ValueError("provisioning transition state invalid")
         observed_at = _timestamp(now, "now")
         _timestamp_datetime(observed_at, "now")
@@ -802,7 +802,9 @@ class SQLiteWorkerLeaseStore:
                     connection.rollback()
                     return current
                 allowed_transitions = {
-                    "ACTIVE": {"PROVISIONED", "RECOVERY_REQUIRED", "RELEASED"},
+                    "PRE_PROVISION": {"PROVISIONING", "RECOVERY_REQUIRED", "RELEASED"},
+                    "ACTIVE": {"RECOVERY_REQUIRED"},
+                    "PROVISIONING": {"PROVISIONED", "RECOVERY_REQUIRED"},
                     "PROVISIONED": {"CAPACITY", "RECOVERY_REQUIRED"},
                     "CAPACITY": set(),
                     "RECOVERY_REQUIRED": set(),
@@ -859,7 +861,7 @@ class SQLiteWorkerLeaseStore:
             try:
                 sql = "SELECT * FROM worker_provisioning_reservations"
                 if consuming_only:
-                    sql += " WHERE state IN ('ACTIVE','PROVISIONED','CAPACITY','RECOVERY_REQUIRED')"
+                    sql += " WHERE state IN ('PRE_PROVISION','ACTIVE','PROVISIONING','PROVISIONED','CAPACITY','RECOVERY_REQUIRED')"
                 sql += " ORDER BY acquired_at, reservation_id"
                 rows = connection.execute(sql).fetchall()
             except sqlite3.Error as exc:
