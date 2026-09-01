@@ -1,10 +1,10 @@
-# WO-P1-124 ? AHA-7A Truthful Provider Operator Read Model
+# WO-P1-124 - AHA-7A Truthful Provider Operator Read Model
 
 Date: 2026-09-01
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / RED-FIRST
+Status: IMPLEMENTED / SELF_REVIEWED / INDEPENDENT_REVIEW_PENDING
 Priority: P1 AHA-7 first READY slice
-Base: `origin/main@b1024b354a6fc45faad618a055a55aef3d9954f5`
+Base: `origin/main@9c56077817ead3974d7d335daed52c2862a1c82a`
 Branch: `feat/wo-p1-124-aha7-provider-read-model`
 
 ## Goal
@@ -19,9 +19,9 @@ The roadmap explicitly permits this read-only truthful slice while WO118B is und
 
 ## Mutable scope
 
-- `src/a_conductor/provider_operator_view.py` ? NEW only
-- `tests/test_provider_operator_view.py` ? NEW only
-- this work order ? NEW only
+- `src/a_conductor/provider_operator_view.py` - NEW only
+- `tests/test_provider_operator_view.py` - NEW only
+- this work order - NEW only
 
 Forbidden until a later claimed lane: `provider_config_store.py`, provider policy/runtime execution files, `desktop_control.py`, `desktop_ui.py`, CURRENT-WORK/handoff, scheduler/router/secret/runtime mutation.
 
@@ -37,7 +37,7 @@ Forbidden until a later claimed lane: `provider_config_store.py`, provider polic
 8. Before PR/merge, rebase/reconcile onto exact post-WO118B main and rerun evidence; this pre-merge lane cannot authorize AHA-7 write controls.
 
 
-## Implementation checkpoint ? 2026-09-01
+## Implementation checkpoint - 2026-09-01
 
 RED first failed at import because no operator read-model existed. GREEN adds one presentation-only module that consumes `ProviderConfigurationSnapshot` and delegates runtime readiness to accepted `is_provider_ready()` with exact configuration generation and freshness.
 
@@ -45,4 +45,4 @@ Deep bug hunt pinned a critical semantic boundary: runtime readiness is not task
 
 Evidence: focused operator view 21 passed; provider configuration/store/policy + operator matrix 78 passed; compileall, `git diff --check`, UTF-8 and added-line secret scan PASS. No existing tracked source was modified outside the three-file claim.
 
-Status: **IMPLEMENTED / SELF_REVIEWED / BLOCKED_ON_WO118B_POST_MAIN_REBASE**. Before PR, fetch exact post-WO118B main, rebase/reconcile, rerun focused + related evidence, then create an independent review packet. No UI wiring or write/Test/Disable control is authorized by this checkpoint.
+Status: IMPLEMENTED / SELF_REVIEWED / INDEPENDENT_REVIEW_PENDING
