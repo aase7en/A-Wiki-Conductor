@@ -637,3 +637,16 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** a transient observation failure after an already-authorized side effect is not permission to repeat the side effect. Re-observe boundedly when observation is side-effect free, but keep ownership-transition evidence fail closed and retain durable metadata until absence is proven.
 
 **Verify:** RED reproduced `UNKNOWN -> STALE` failing too early; repaired focused suite = 28 passed, related matrices = 117 passed before commit and 90 passed recheck, real Windows lifecycle = 10/10 locally; GLM independently reran the real test 3/3 plus 9/9 adversarial cases; exact-head CI `33503763313` and post-main CI `33509029840` are green.
+
+
+## #42: Operator reads must not inherit migration writes, lexical DB identity, or raw persistence payloads (2026-09-01)
+
+**Symptom:** WO125 Ultra review and RED probes found four boundaries that could make a read-only Models & Agents view lie or leak: a relative control-DB path could drift after cwd change into a second empty SQLite authority; the existing snapshot read ran schema DDL plus `BEGIN IMMEDIATE`; malformed persisted JSON/URL/scalars escaped as raw exceptions; and raw observation provenance could carry endpoint/credential-like text into the operator row/repr.
+
+**Root cause:** execution-oriented persistence helpers were reused as if they were a pure presentation read contract. Bootstrap/migration, database identity, typed corruption decoding, and UI-safe data minimization were separate concerns but had not been separated at the facade boundary.
+
+**Fix:** canonicalize the control DB once at `DesktopControlService.open()`, retain one provider store, initialize it once, and make bulk provider listing use an existing-file read-only deferred transaction with fixed-count SELECTs. Single/list reads share a strict snapshot decoder; invalid generations keep their specific typed code, other participating corruption becomes code-only `PROVIDER_CONFIGURATION_CORRUPT` with raw decoder causes suppressed. Cross-DB injected facades are refused, and raw provenance is reduced to a safe category before crossing the operator facade.
+
+**Lesson:** a screen that only reads data still participates in control-plane authority. Read paths must not create/migrate databases, acquire writer intent, reconstruct mixed-time state, silently collapse corruption to empty, or carry raw persistence text into UI/loggable objects. Canonical identity + one coherent read transaction + typed decoding + sink-safe projection are one boundary.
+
+**Verify:** initial WO125 RED = 8 intended failures; deep bug hunt added cross-DB and cause-chain REDs plus strict nested integer validation; focused current suite = 92 passed; impact-expanded provider/runtime/elastic/Claude matrix = 267 passed; WAL interleaving proves all-old then all-new snapshots, never mixed; full local source checkpoint = 1966 passed / 4 skipped / 2 known optional-GPU dependency failures only. Exact-head external review/CI still gate merge.

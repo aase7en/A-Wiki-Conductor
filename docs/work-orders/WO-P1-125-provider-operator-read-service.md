@@ -2,12 +2,12 @@
 
 Date: 2026-09-01
 Owner: GPT-5.6 Sol integrator
-Status: CLAIMED / RED_FIRST
+Status: IMPLEMENTED / EXACT_HEAD_REVIEW_PENDING
 Priority: P1 AHA-7 next READY source slice
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo125-provider-read-service`
 Branch: `feat/wo-p1-125-provider-operator-read-service`
-Base: `origin/main@fae5c0d8a36a41eb172e2acb8dc88ca04658c4e9`
+Base: `origin/main@fae5c0d8a36a41eb172e2acb8dc88ca04658c4e9`; reconciled with `origin/main@b32ddd26e6153e0b60855448f2240dd059281f8c`
 
 ## Dependency / parallel-lane boundary
 
@@ -104,10 +104,18 @@ Accepted Ultra P1/P2 repairs now implemented:
 
 Verification on base `fae5c0d8...`:
 - original RED matrix: 8 intended failures;
-- focused suite after repair: 89 passed;
-- impact-expanded provider/runtime/elastic/Claude matrix: 264 passed;
+- focused suite after repair: 92 passed;
+- impact-expanded provider/runtime/elastic/Claude matrix: 267 passed;
 - realistic WAL interleaving: all-old snapshot followed by all-new snapshot, never mixed;
 - full local: 1966 passed / 4 skipped / 2 known optional-GPU dependency failures (Pillow/OpenGL only);
 - compileall, diff-check, UTF-8 and added-line secret-value audit: PASS.
 
 Next: commit this bounded checkpoint, merge current `origin/main` after WO130 docs-only closeout, update shared continuity/Defect Memory, then rerun exact-head verification before external review.
+
+## Current-main reconciliation checkpoint - 2026-09-01
+
+- implementation checkpoint commit: `9c6e1b509145204e116ae6794522ecb9780f72fc`;
+- merged docs-only main `b32ddd26e6153e0b60855448f2240dd059281f8c` with zero mutable overlap -> reconciliation head `131b511f730112ba903dbc0f34c66532cc11a8f2`;
+- predecessor WO130 post-main CI `33517232490` SUCCESS including Windows packaging/Frozen E2E;
+- source behavior unchanged by reconciliation; shared SSoT/Defect Memory can now be updated without closeout-lane conflict;
+- exact-head external review and PR CI remain mandatory before merge.

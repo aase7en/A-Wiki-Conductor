@@ -418,3 +418,26 @@ def test_wo125_provider_operator_rows_reuses_store_and_sees_fresh_commits(tmp_pa
     assert second[0].runtime_ready is True
     assert second[0].task_authorization == "NOT_EVALUATED"
     assert second[0].provenance == "PROBE"
+
+
+def test_wo125_provider_store_bootstraps_once_not_on_operator_refresh(tmp_path, monkeypatch) -> None:
+    from a_conductor.provider_config_store import SQLiteProviderConfigStore
+
+    calls = 0
+    original = SQLiteProviderConfigStore.initialize
+
+    def counted_initialize(self):
+        nonlocal calls
+        calls += 1
+        return original(self)
+
+    monkeypatch.setattr(SQLiteProviderConfigStore, "initialize", counted_initialize)
+    service = DesktopControlService.open(
+        tmp_path / "control.sqlite",
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+
+    assert calls == 1
+    assert service.provider_operator_rows() == ()
+    assert service.provider_operator_rows() == ()
+    assert calls == 1

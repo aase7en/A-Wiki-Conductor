@@ -1419,11 +1419,7 @@ def test_wo125_corrupt_sqlite_file_is_typed_failure_not_empty(tmp_path) -> None:
     with pytest.raises(ProviderConfigStoreError) as exc:
         store.list_provider_snapshots()
 
-    assert exc.value.code in {
-        "CONFIG_STORE_UNAVAILABLE",
-        "CONFIG_STORE_READ_FAILED",
-        "CONFIG_STORE_SCHEMA_UNAVAILABLE",
-    }
+    assert exc.value.code == "CONFIG_STORE_READ_FAILED"
 
 
 def test_wo125_single_and_list_snapshot_decoders_match(tmp_path) -> None:
@@ -1459,3 +1455,46 @@ def test_wo125_list_preserves_missing_endpoint_observation_and_disabled_provider
     assert snapshots[0].profile.enabled is False
     assert snapshots[0].endpoint is None
     assert snapshots[0].observation is None
+
+
+def test_wo125_busy_database_is_typed_failure_not_empty(tmp_path) -> None:
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    store.initialize()
+    profile = make_profile()
+    store.save_provider(profile)
+
+    blocker = sqlite3.connect(database, timeout=0.1)
+    try:
+        blocker.execute("BEGIN EXCLUSIVE")
+        with pytest.raises(ProviderConfigStoreError) as exc:
+            store.list_provider_snapshots()
+        assert exc.value.code == "CONFIG_STORE_READ_FAILED"
+    finally:
+        blocker.rollback()
+        blocker.close()
+
+
+def test_wo125_decoder_rejects_non_integer_quota_reset_seconds(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    store.save_observation(
+        ProviderObservation(
+            provider_id=profile.provider_id,
+            health=ProviderHealth.AVAILABLE,
+            observed_at=NOW,
+            provenance="probe:test",
+            configuration_generation=1,
+        )
+    )
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE provider_observations SET quota_json=? WHERE provider_id=?",
+            ('{"window_type":"5h","reset_in_seconds":1.5}', profile.provider_id),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_snapshots()
+    assert exc.value.code == "PROVIDER_CONFIGURATION_CORRUPT"

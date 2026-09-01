@@ -517,6 +517,10 @@ class SQLiteProviderConfigStore:
             quota = None if row["quota_json"] is None else json.loads(row["quota_json"])
             if quota is not None and not isinstance(quota, dict):
                 raise ValueError("persisted quota JSON shape is invalid")
+            if quota is not None:
+                reset_seconds = quota.get("reset_in_seconds")
+                if reset_seconds is not None and type(reset_seconds) is not int:
+                    raise ValueError("persisted quota reset seconds is invalid")
             latency = row["latency_ms"]
             if latency is not None and type(latency) is not int:
                 raise ValueError("persisted latency is invalid")
