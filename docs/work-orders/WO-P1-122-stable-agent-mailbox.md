@@ -61,3 +61,13 @@ Operational proof: the current WO120 Ultra exact-head review packet was regenera
 No automatic provider execution is claimed. This removes changing human-visible task pointers while preserving exact per-task evidence authority. A reusable `DEFECT_LESSONS` entry for mailbox prompt metadata should be folded only after WO120 releases the shared lesson file, avoiding a manufactured conflict on PR #162.
 
 Status: **IMPLEMENTED / SELF-REVIEWED / PR+INDEPENDENT-REVIEW PENDING.**
+
+## Current-main reconciliation checkpoint ? 2026-09-01
+
+The implementation was cleanly rebased from historical base `ba177341...` onto accepted main `b1024b354a6fc45faad618a055a55aef3d9954f5` after WO123 release. Scope remains exactly five declared files; no conflict and no additional authority/store/router was introduced.
+
+Current-main verification: agent bridge + native/supervised/lease regression `207 passed`; `python -m compileall -q src/a_conductor` PASS; `git diff --check` PASS.
+
+Machine-local realistic proof used the rebased mailbox API to publish the active WO118B GLM rereview pointer to the stable path `%LOCALAPPDATA%\A-Conductor\agent-bridge\glm\task.md`. The mailbox re-hashed the exact task packet before atomic replacement and points to exact review HEAD `cb758520...`, task SHA `d26b3af6...`, and the declared result destination. Human-visible GLM prompt is now stable across future assignments; only the pointer envelope changes. No credential or tracked SSoT was written to the mailbox.
+
+Status: **CURRENT_MAIN_RECONCILED / EXACT_HEAD_INDEPENDENT_REVIEW_PENDING**.
