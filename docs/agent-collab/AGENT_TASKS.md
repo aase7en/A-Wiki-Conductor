@@ -3,19 +3,17 @@
 This file is a compact lane index, not the project source of truth.
 Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work order → runtime/Git evidence.
 
-## Active lane checkpoint — 2026-09-01
+## Active lane checkpoint - 2026-09-01
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
-| Released predecessor | GPT-5.6 Sol | WO-P1-117 | provider dispatch/admission lifetime | MERGED #160; late defects repaired by WO121 |
-| Released repair | GPT-5.6 Sol + GLM rereview | WO-P1-121 | dispatch completion evidence binding | MERGED #164 `1b0468fa` / GLM_004_PASS / POST_MAIN_GREEN |
-| Released provider seam | GPT-5.6 Sol + Ultra rereview | WO-P1-118A | provider generation/CAS + pure trust/egress evaluator | MERGED #165 `0ff914ef` / ULTRA_004_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
-| Released capacity seam | GPT-5.6 Sol + GLM rereview | WO-P1-120 | elastic capacity fencing + recovery hardening | MERGED #162 `d939a902` / GLM_005_PASS_P0P1P2_0 / EXACT_HEAD_AND_POST_MAIN_GREEN |
-| Released coordination protocol | GPT-5.6 Sol + GLM review | WO-P1-123 | Loop Engineer routing + stable no-copy-back mailbox | MERGED #170 `5ddf533f` / GLM_PASS_P0P1P2_0 / POST_MAIN_GREEN |
-| Ready integration | GPT-5.6 Sol | WO-P1-118B | pre-admission/pre-elastic/pre-secret/pre-launch enforcement | READY_AFTER_WO120 / FRESH_CLAIM_REQUIRED |
-| Released | GPT-5.6 Sol + GLM review | WO-P1-119 | provider output persistence safety | MERGED `887ef3c9` / POST_MAIN_GREEN |
-| P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / NO CURRENT PROOF |
-| Future | provider-neutral | AHA-7 write/Test/Disable provider controls | released provider safety contracts | AFTER_118B |
+| Released provider safety | GPT-5.6 Sol + GLM rereview | WO-P1-118B | production provider authority enforcement | MERGED #172 `9c560778` / GLM_006_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
+| Review-ready ergonomics | GPT-5.6 Sol + external reviewer | WO-P1-122 | stable external-agent mailbox + bridge protocol | HEAD `f2967a4` / CI `33495011125` GREEN / INDEPENDENT_REVIEW_PENDING |
+| Active product frontier | GPT-5.6 Sol | WO-P1-124 / AHA-7A | additive truthful provider operator read model | HEAD `0862da1` / 21 focused + 80 provider tests / REVIEW_PENDING |
+| Released coordination protocol | GPT-5.6 Sol + GLM review | WO-P1-123 | Loop Engineer routing + stable task/status/result convention | MERGED #170 `5ddf533f` / POST_MAIN_GREEN |
+| P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / FIVE LIVE WORKERS READY / NO MUTATION AUTHORITY |
+| Next AHA-7 slice | provider-neutral | AHA-7B Settings read surface | existing provider read model + control DB service | AFTER_WO124_ACCEPTANCE |
+| Future | provider-neutral | AHA-7 Edit/Disable/Test + selection reason | accepted provider CAS/admission/runtime/scheduler authorities | CLAIM_GATED |
 | Future | provider-neutral | AHA-8 additional providers | one adapter at a time | DEFERRED |
 
 ### Completed GLM bridge contract

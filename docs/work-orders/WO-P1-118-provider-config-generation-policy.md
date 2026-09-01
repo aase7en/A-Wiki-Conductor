@@ -146,7 +146,7 @@ Status: **WO-P1-118A ULTRA-003 REPAIRED / NEW EXACT-HEAD REREVIEW REQUIRED.** WO
 - Exact-head CI `33405254844` passed Windows/Ubuntu/macOS. PR #165 merged as `0ff914efa2887a0f9c6d330859fa4e49ed921d89`; exact post-main CI `33417911998` passed all three OS jobs, including Windows packaging, Portable smoke and Frozen Setup install/uninstall E2E.
 - **WO-P1-118A is COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.** This does not complete WO118: WO118B policy/generation enforcement before admission, lease, elastic expansion, credential access and launch remains blocked on accepted WO-P1-120.
 
-## WO-P1-118B integrator + Ultra repair checkpoint ? 2026-09-01
+## WO-P1-118B integrator + Ultra repair checkpoint - 2026-09-01
 
 WO120 is released, so 118B was claimed in isolated worktree `A:\GitHub\A-Wiki-Conductor-wo118b-enforcement`. GLM pre-implementation review returned `RED_PLAN_READY` with no P0/P1/P2; Ultra adversarial review returned `CHANGES_REQUIRED` and identified durable-authority, dedup, admission-evidence, TOCTOU and mixed-node elastic gaps. GPT MAX owns the repair while Ultra is unavailable by usage limit.
 
@@ -161,9 +161,9 @@ Accepted repairs:
 
 Deterministic evidence so far: provider execution authority 6 tests including store mismatch/dedup identity; elastic fencing 31 passed including mutation-during-provision and mixed-sibling starvation; provider/parallel/Claude boundary matrix 144 passed; expanded 16-file frontier matrix 301 passed; compileall and `git diff --check` pass. A stale full-suite started before the final canonical-DB repair was explicitly terminated and is not evidence. Final current-code full-suite, current-main reconciliation, exact-head independent rereview, CI and post-main verification remain required.
 
-Status: **WO-P1-118B INTEGRATOR_REPAIRED / EXACT_HEAD_REVIEW_PENDING ? DO NOT MERGE YET.**
+Status: **WO-P1-118B INTEGRATOR_REPAIRED / EXACT_HEAD_REVIEW_PENDING - DO NOT MERGE YET.**
 
-## WO-P1-118B current-main verification checkpoint ? 2026-09-01
+## WO-P1-118B current-main verification checkpoint - 2026-09-01
 
 Implementation was checkpointed, then cleanly rebased onto post-WO123-closeout main `b1024b354a6fc45faad618a055a55aef3d9954f5`; the source diff remained the same 18 claimed files with no merge conflict. Rebased implementation commit before this evidence-only checkpoint: `f3b91bd`.
 
@@ -179,3 +179,12 @@ Current-main verification after rebase:
 The binding Loop Engineer `detect_changes()` step was attempted with GitNexus but A-Conductor has no GitNexus index yet (`Repository "." not found`); no index was created inside the release worktree. Existing deterministic diff/impact matrices remain the evidence for this slice, and indexing A-Conductor is a separate tooling hardening item rather than permission to mutate the release lane.
 
 Next gates: freeze final SHA, push/open PR, remote diff audit, fresh exact-head GLM independent rereview (Ultra unavailable by 5h limit), 3-OS CI, integrator re-audit, merge, post-main verify, then SSoT closeout.
+
+
+## WO-P1-118B final release checkpoint - 2026-09-01
+
+- Final implementation head `cb758520db918ddebf48c89f260e329cf985f53e` was independently rereviewed by GLM-5.3 MAX through task `wo118b-glm-rereview-006`; verdict PASS with P0/P1/P2 = 0.
+- Review task SHA-256: `d26b3af68d6713d4e58a849f20435b84f985c50dff88aafafff58697fdfe0742`; all 18 pinned changed-file hashes and exact Git tree identity were independently revalidated by the integrator before merge.
+- Exact-head CI `33489865664` passed Windows/macOS/Ubuntu. PR #172 merged as `9c56077817ead3974d7d335daed52c2862a1c82a`. Post-main CI `33493978374` passed all jobs, including Windows Portable/Setup build, archive validation, Portable smoke and Frozen Setup install/uninstall E2E.
+- GLM P3 notes remain successor hardening only: eventually invert legacy authority defaults after all in-tree callers migrate; consider narrowing non-requirement dataclass equality; reduce synthetic admission-validation duplication; preserve malformed guard reason diagnostics. None is a release-safety blocker.
+- **WO-P1-118 is COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.** AHA-7 may consume the accepted authorities; it must not create a second provider router/store/secret path.

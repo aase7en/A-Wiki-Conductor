@@ -45,29 +45,28 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 
 ## Project Status & Roadmap
 
-**Latest public release:** `v0.6.0` — Terminal Command Center + Real Monitor
+**Latest public release:** `v0.6.0` - Terminal Command Center + Real Monitor
 
-**Current development version:** `0.7.0` — not released yet
+**Current development version:** `0.7.0` - not released yet; stable publication remains gated by WO-P1-096 live connector TTL evidence.
 
-**Current program state:** Sunday Family Multi-Model Agent Harness — **AHA-4 durable supervised backend assembly is merged; AHA-4A worker leasing is active in Draft PR #131**
+**Current program state:** Sunday Family Multi-Model Agent Harness - **AHA-6B and the post-AHA-6B provider safety integration are complete; AHA-7 Models & Agents operator UI is the active product frontier.** Stable external-agent mailbox ergonomics are being finalized in parallel.
 
-> Direction: move from manually selecting individual workers/plugins toward one A-Sunday Conductor entry point that recovers SSoT, selects an eligible worker/model/harness, verifies evidence, falls back safely, and continues without prompt copy/paste.
+> Direction: one A-Sunday Conductor entry point recovers SSoT, routes only eligible worker/model/harness capacity, preserves durable claims/evidence, reviews and repairs results, and continues without human result copy/paste. `CONFIGURED != READY`, `READY != AUTHORIZED`, and agent `PASS` is evidence rather than merge authority.
 
 ### Delivery checklist
 
-- [x] **v0.6.0 released** — terminal command center, real monitor, worker/connector management, Second Brain, installer/portable builds.
-- [x] **AHA-0** — capability vocabulary gate (`CAPABLE != AUTHORIZED`).
-- [x] **AHA-1** — provider/harness/trust/quota/dispatch contracts.
-- [x] **AHA-2** — secure provider configuration + observed health/quota; `CONFIGURED != READY`.
-- [x] **AHA-3** — bounded Claude Code harness adapter merged in PR #116 (`ab28dc7`); fake-runner/read-only gates and 3-OS CI proven.
-- [x] **AHA-4** — durable graph dispatch + Claude durable backend + supervised runner + production assembly merged through PR #130.
-- [ ] **AHA-4A — ACTIVE** — atomic worker lease broker work is owned by Draft PR #131; not complete until that lane passes its own review/CI/merge gates.
-- [ ] **AHA-4B** — heartbeat, stale-owner recovery, quarantine, fairness/backpressure.
-- [ ] **AHA-5** — GPT plan/review ↔ GLM implement/repair loop without human prompt copying.
-- [ ] **AHA-6** — parallel independent READY tasks through isolated worktrees/scopes.
-- [ ] **AHA-6B** — optional elastic worker capacity after fixed-pool correctness is proven.
-- [ ] **AHA-7** — Models & Agents operator UI with health/quota/trust/selection reason.
-- [ ] **AHA-8** — additional providers only after the contract is stable.
+- [x] **v0.6.0 released** - terminal command center, real monitor, worker/connector management, Second Brain, installer/portable builds.
+- [x] **AHA-0 / AHA-1 / AHA-2 / AHA-3** - capability vocabulary, provider/harness/trust/quota contracts, secure provider configuration, and bounded Claude Code harness.
+- [x] **AHA-4 / 4A / 4B** - durable dispatch, supervised backend, atomic worker leasing/fallback, heartbeat and stale-owner recovery.
+- [x] **AHA-5** - durable GPT <-> external-agent review/repair bridge with file-first no-copy-back results.
+- [x] **AHA-6 / 6A / 6A.1 / 6B** - parallel READY execution, provider runtime assembly/admission, and policy-bounded elastic worker capacity.
+- [x] **Post-AHA-6B safety gate** - provider admission lifetime, generation + trust/egress enforcement, output persistence safety, elastic fencing/recovery, and dispatch evidence binding (WO117/118/119/120/121).
+- [x] **Loop Engineer protocol** - stable task/status/result destinations and bounded multi-agent lane rules (WO123).
+- [ ] **Stable external-agent mailbox** - constant per-agent machine-local prompt path; WO122 exact-head CI is green and independent review/merge is pending.
+- [ ] **AHA-7 - IN PROGRESS** - truthful Models & Agents operator read model first; Settings display then bounded Edit/Disable/Test and selection-reason/fallback observability through existing authorities only.
+- [ ] **AHA-8** - additional providers one adapter at a time after AHA-7 contracts stabilize.
+
+> **v0.7.0 release gate:** source already identifies as `0.7.0`, but GitHub Latest remains `v0.6.0`. Do not publish `v0.7.0` until WO-P1-096 proves hosted/remote MCP success after the relevant TTL on tunnel-client v0.0.13 with zero manual Start actions and completes final release E2E.
 
 <details>
 <summary><strong>Target autonomous loop</strong></summary>
