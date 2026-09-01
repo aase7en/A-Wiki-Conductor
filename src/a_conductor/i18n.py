@@ -183,6 +183,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "th": "เปลี่ยนคำอธิบายทันที และจำค่าไว้สำหรับครั้งถัดไป",
         "en": "Help text updates immediately and the choice is saved for next launch",
     },
+    "prefs.models_agents.header": {"th": "> MODELS & AGENTS", "en": "> MODELS & AGENTS"},
+    "prefs.models_agents.loading": {"th": "กำลังโหลดสถานะ provider...", "en": "Loading provider status..."},
+    "prefs.models_agents.empty": {"th": "NO PROVIDERS — ยังไม่มี provider ที่ตั้งค่าไว้", "en": "NO PROVIDERS - no providers are configured yet"},
+    "prefs.models_agents.error": {"th": "Provider status unavailable", "en": "Provider status unavailable"},
 }
 
 # Chinese is intentionally concentrated on operator guidance/tooltips. Entries

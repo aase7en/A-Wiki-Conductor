@@ -1,10 +1,10 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-01 - WO125 released; WO126 Settings display claimed
+Last updated: 2026-09-01 - WO126 implemented; verification/review pending
 
 ## Current objective
 
-Implement WO126 read-only `MODELS & AGENTS` Settings display RED-first from the accepted WO125 provider facade. Keep WO127 Edit/Disable/Test and WO128 selection/fallback observability separate, and keep WO096 blocked without explicit maintenance authority.
+Verify and freeze the implemented WO126 read-only `MODELS & AGENTS` Settings display, then run exact-head independent review/CI before merge. Keep WO127 Edit/Disable/Test and WO128 selection/fallback observability separate, and keep WO096 blocked without explicit maintenance authority.
 
 ## Repository / release identity
 
@@ -20,7 +20,7 @@ Implement WO126 read-only `MODELS & AGENTS` Settings display RED-first from the 
 - WO124 and WO129 product source are released on main; no new source edits belong to those completed lanes.
 - GPT Ultra WO125 architecture result at task SHA `655bacc0ef384d2818ae54d8fe9729a00061040448d817a65df1872be6db3303` is consumed: `CHANGES_REQUIRED`, P0=0, P1=4, P2=2. Review-base provider/desktop blobs are identical on current main; findings are not stale.
 - WO125 is RELEASED. GLM exact-head long-goal review PASS P0/P1/P2=0; Ultra final exact-head review exhausted quota before producing a result and is explicitly non-authoritative.
-- WO126 is claimed on `A:\GitHub\A-Wiki-Conductor-wo126-models-agents-settings`, branch `feat/wo-p1-126-models-agents-settings`, base `23b988764...`; mutable scope is desktop UI/i18n/focused tests + bounded docs/SSoT only. Provider/store/policy/runtime authorities are forbidden.
+- WO126 is implemented on `A:\GitHub\A-Wiki-Conductor-wo126-models-agents-settings`, branch `feat/wo-p1-126-models-agents-settings`, base main `23b988764...`; current source/tests remain inside the claimed UI/i18n/focused-test scope and provider/store/policy/runtime authorities are untouched.
 - The prior external claim helper is not available in the current repo/runtime surface; tracked work orders and exact worktree/scope records are the durable fallback. Never infer overlapping authority from a stale chat claim.
 
 ## Verified evidence
@@ -31,12 +31,13 @@ Implement WO126 read-only `MODELS & AGENTS` Settings display RED-first from the 
 - WO129 post-main CI is fully green, closing the repeated hosted-Windows post-stop observation race with a bounded/fail-closed repair.
 - WO125 RED baseline reproduced 8 intended failures; final exact-head local focused 92 passed, full repo 1973 passed / 4 skipped / 2 known optional-GPU failures, GLM independently ran 92 focused + 44 related + 12/12 adversarial reproductions, and hosted exact-head/post-main CI are green.
 - GLM Stage B shaped WO126: existing Preferences/Toplevel, one `provider_operator_rows()` read, existing background executor/Tk scheduler, explicit empty/loading/error/truth states, manual Refresh first, no mutation/router/secret path.
+- WO126 implementation verification: Python 3.13 focused panel = 10/10 PASS; ordered UI/control/i18n/singleton/button matrix = 118/118 PASS after repairing global-language test isolation; pre-freeze full repo = 1982 passed / 5 skipped / 2 known optional-GPU dependency failures only. Exact-head full + hosted CI still gate merge.
 
 ## Next safe actions
 
-1. Create RED tests for WO126 empty/loading/error/truth states, single-flight refresh, stale completion and dialog-close safety.
-2. Implement the smallest Settings panel using the existing Preferences + background executor + `_schedule_after`; no provider/store/policy/runtime edits.
-3. Run focused GUI + related regressions, realistic delayed-executor/copied-DB smoke, secret/i18n/layout audits, then exact-head independent review/CI.
+1. Complete WO126 full-repo regression and final UTF-8/secret/diff/layout audits.
+2. Commit/freeze exact HEAD, push/open PR, then run independent exact-head review and hosted Windows/Ubuntu/macOS CI.
+3. Repair only evidence-backed defects; otherwise merge, post-main verify, and release the WO126 lane.
 4. GLM may shape WO127/WO128 read-only in parallel; no source mutation without a separate accepted work order.
 5. Do not publish v0.7.0 until WO096 hosted remote MCP-after-TTL evidence and final release E2E are complete.
 

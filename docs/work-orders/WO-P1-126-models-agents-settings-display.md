@@ -2,7 +2,7 @@
 
 Date: 2026-09-01
 Owner: GPT-5.6 Sol integrator
-Status: CLAIMED / RED_FIRST
+Status: IMPLEMENTED / VERIFYING / REVIEW_PENDING
 Priority: P1 AHA-7B
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo126-models-agents-settings`
@@ -66,3 +66,26 @@ GLM long-goal task `wo125-glm-goal-review-001`, task SHA `2c5eb5c8507f46d8243e21
 RED evidence -> smallest UI repair -> focused tests -> GUI/related regression -> realistic delayed-executor and copied-SQLite smoke -> self review -> independent exact-head review -> diff/UTF-8/secret/compile audits -> PR/CI -> latest-SHA re-audit -> merge -> post-main -> SSoT checkpoint.
 
 P0/P1/P2 findings block merge. Optional auto-refresh is deferred unless deterministic evidence shows it is needed; manual Refresh is sufficient for the first accepted slice.
+## RED / repair checkpoint — 2026-09-01
+
+Initial focused RED: **5 failed**. The failures proved the panel/fetch seam did not exist: no provider read was submitted, no panel widget existed, no typed error state existed, and delayed-refresh ownership was absent.
+
+Smallest repair added only the existing Settings/Preferences UI seam plus existing `_background_executor` / `_schedule_after` reuse. No provider/store/policy/runtime authority file was touched.
+
+First repaired focused run: 4 passed / 1 local Tk-environment skip. Expanded truth-state tests then found one real display defect: invalid persisted generation `0` was rendered as `-` because the formatter used truthiness rather than `None` identity.
+The generation defect was repaired RED-first: only `None` maps to `-`; invalid numeric generation values remain visible for truthful diagnostics.
+
+Current deterministic evidence:
+- focused WO126 panel: **9 passed / 1 local Tk-environment skip**;
+- expanded desktop/UI/control/i18n/singleton/button matrix: **117 passed / 1 local Tk-environment skip**;
+- `compileall` PASS;
+- `git diff --check` PASS.
+
+The local skip is a broken/missing Tk library in the current uv Python runtime, not an assertion failure. Hosted Windows GUI CI remains required before merge.
+Additional local GUI evidence: Python 3.13 with a complete Tk runtime ran 	ests/test_models_agents_panel.py as **10 passed**. This confirms the uv-Python skip is environment-specific; hosted Windows GUI CI remains required.
+
+Final pre-freeze verification checkpoint:
+- Python 3.13 focused panel suite: **10/10 PASS** with complete Tk.
+- Ordered UI/control/i18n/singleton/button impact matrix: **118/118 PASS** after repairing process-global language test cleanup.
+- Pre-isolation full repo: **1982 passed / 5 skipped / 2 known optional-GPU dependency failures** (`Pillow`, `OpenGL`); exact-head full rerun remains required after commit because the test-isolation file changed.
+- No forbidden provider/store/policy/runtime source files are modified.

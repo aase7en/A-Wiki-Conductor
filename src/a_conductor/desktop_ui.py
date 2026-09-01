@@ -841,6 +841,12 @@ class AConductorDesktopApp:
         self._active_drift_count = 0
         self._worker_registry_expanded = False
         self._preferences_window: tk.Toplevel | None = None
+        self._models_agents_refresh_pending = False
+        self._models_agents_request_id = 0
+        self._models_agents_future: Future | None = None
+        self._models_agents_last_rows: tuple = ()
+        self._models_agents_last_error: str | None = None
+        self._models_agents_loading = False
 
         self._configure_root()
         self._configure_styles()
@@ -3936,7 +3942,8 @@ class AConductorDesktopApp:
         window.title(APP_NAME + " — " + tr("win.settings"))
         window.configure(bg=self.theme.panel)
         window.transient(self.root)
-        window.resizable(True, False)
+        window.resizable(True, True)
+        window.minsize(560, 520)
         self._preferences_window = window
         window.bind("<Destroy>", self._on_preferences_destroy, add="+")
         frame = tk.Frame(window, bg=self.theme.panel, padx=16, pady=14)
@@ -4047,14 +4054,146 @@ class AConductorDesktopApp:
         )
         self._language_status_label.grid(row=5, column=0, sticky="w", pady=(2, 8))
 
-        self._button(frame, tr("btn.close"), lambda: window.destroy() if window.winfo_exists() else None).grid(
-            row=6, column=0, sticky="w"
-        )
+        models_frame = tk.Frame(frame, bg=self.theme.background, highlightthickness=1, highlightbackground=self.theme.border, padx=10, pady=8)
+        models_frame.grid(row=6, column=0, sticky="nsew", pady=(6, 10))
+        models_frame.grid_columnconfigure(0, weight=1)
+        self._models_agents_header_label = tk.Label(models_frame, text=tr("prefs.models_agents.header"), bg=self.theme.background, fg=self.theme.accent, font=(self.theme.monospace_font, 9, "bold"), anchor="w")
+        self._models_agents_header_label.grid(row=0, column=0, sticky="w")
+        self._models_agents_refresh_button = self._button(models_frame, "Refresh", self._refresh_models_agents_panel)
+        self._models_agents_refresh_button.grid(row=0, column=1, sticky="e", padx=(8, 0))
+        self._models_agents_text = tk.Text(models_frame, height=10, width=72, bg=self.theme.background, fg=self.theme.foreground, insertbackground=self.theme.accent, wrap="word", borderwidth=0, highlightthickness=0, font=(self.theme.monospace_font, 8), padx=0, pady=6, takefocus=True)
+        self._models_agents_text.grid(row=1, column=0, columnspan=2, sticky="nsew")
+        self._models_agents_text.configure(state="disabled")
+        self._models_agents_last_rows = ()
+        self._models_agents_last_error = None
+        self._models_agents_loading = True
+        self._render_models_agents_panel()
+        self._refresh_models_agents_panel()
+        self._button(frame, tr("btn.close"), lambda: window.destroy() if window.winfo_exists() else None).grid(row=7, column=0, sticky="w")
         return window
+
+    @staticmethod
+    def _models_agents_enum_text(value) -> str:
+        return "-" if value is None else str(getattr(value, "value", value))
+
+    @staticmethod
+    def _models_agents_error_code(exc: Exception) -> str:
+        code = getattr(exc, "code", None)
+        allowed = {"PROVIDER_STORE_NOT_AVAILABLE", "CONFIG_STORE_SCHEMA_UNAVAILABLE", "CONFIG_STORE_READ_FAILED", "PROVIDER_CONFIGURATION_CORRUPT"}
+        return code if isinstance(code, str) and code in allowed else "PROVIDER_READ_FAILED"
+
+    def _models_agents_window_alive(self) -> bool:
+        window = self._preferences_window
+        if window is None:
+            return False
+        try:
+            return bool(window.winfo_exists())
+        except tk.TclError:
+            return False
+
+    def _format_models_agents_row(self, row) -> str:
+        configured = "CONFIGURED" if bool(getattr(row, "configured", False)) else "NOT CONFIGURED"
+        ready = "READY" if bool(getattr(row, "runtime_ready", False)) else "NOT READY"
+        enabled = "ENABLED" if bool(getattr(row, "enabled", False)) else "DISABLED"
+        trust = self._models_agents_enum_text(getattr(row, "trust_class", None))
+        egress = self._models_agents_enum_text(getattr(row, "egress_boundary", None))
+        health = self._models_agents_enum_text(getattr(row, "health", None))
+        reason = str(getattr(row, "readiness_reason", "UNKNOWN"))
+        authorization = str(getattr(row, "task_authorization", "NOT_EVALUATED"))
+        generation = getattr(row, "configuration_generation", None)
+        provenance = getattr(row, "provenance", None) or "-"
+        age = getattr(row, "observation_age_seconds", None)
+        age_text = "-" if age is None else f"{float(age):.1f}s"
+        models = ", ".join(str(getattr(item, "model_id", item)) for item in getattr(row, "models", ())) or "-"
+        harnesses = ", ".join(self._models_agents_enum_text(item) for item in getattr(row, "harness_strategies", ())) or "-"
+        quota = getattr(row, "quota", None)
+        if quota is None:
+            quota_text = "-"
+        else:
+            remaining = getattr(quota, "remaining", None)
+            reset_in = getattr(quota, "reset_in_seconds", None)
+            reset_at = getattr(quota, "reset_at", None)
+            reset = f"{reset_in}s" if reset_in is not None else (str(reset_at) if reset_at is not None else "-")
+            quota_text = f"remaining={remaining if remaining is not None else '-'} reset={reset}"
+        return (f"{getattr(row, 'display_name', getattr(row, 'provider_id', 'Provider'))}  [{enabled} | {configured} | {ready} | AUTH={authorization}]\n"
+                f"  reason={reason} health={health} trust={trust} egress={egress} generation={generation if generation is not None else '-'}\n"
+                f"  models={models} harness={harnesses} quota={quota_text} provenance={provenance} age={age_text}")
+
+    def _render_models_agents_panel(self) -> None:
+        widget = getattr(self, "_models_agents_text", None)
+        if widget is None:
+            return
+        try:
+            if not widget.winfo_exists():
+                return
+            if self._models_agents_loading:
+                content = tr("prefs.models_agents.loading")
+            elif self._models_agents_last_error is not None:
+                content = f"{tr('prefs.models_agents.error')} [{self._models_agents_last_error}]"
+            elif not self._models_agents_last_rows:
+                content = tr("prefs.models_agents.empty")
+            else:
+                content = "\n\n".join(self._format_models_agents_row(row) for row in self._models_agents_last_rows)
+            widget.configure(state="normal")
+            widget.delete("1.0", "end")
+            widget.insert("1.0", content)
+            widget.configure(state="disabled")
+        except tk.TclError:
+            return
+
+    def _refresh_models_agents_panel(self) -> None:
+        if not self._models_agents_window_alive() or self._models_agents_refresh_pending:
+            return
+        fetcher = getattr(self.service, "provider_operator_rows", None)
+        self._models_agents_request_id += 1
+        request_id = self._models_agents_request_id
+        self._models_agents_refresh_pending = True
+        self._models_agents_loading = True
+        self._models_agents_last_error = None
+        self._render_models_agents_panel()
+        if not callable(fetcher):
+            self._models_agents_refresh_pending = False
+            self._models_agents_loading = False
+            self._models_agents_last_error = "PROVIDER_STORE_NOT_AVAILABLE"
+            self._render_models_agents_panel()
+            return
+        try:
+            future = self._background_executor.submit(fetcher)
+        except Exception as exc:
+            self._models_agents_refresh_pending = False
+            self._models_agents_loading = False
+            self._models_agents_last_error = self._models_agents_error_code(exc)
+            self._render_models_agents_panel()
+            return
+        self._models_agents_future = future
+        self._schedule_after(0, self._poll_models_agents_future, request_id, future)
+
+    def _poll_models_agents_future(self, request_id: int, future: Future) -> None:
+        if request_id != self._models_agents_request_id:
+            return
+        if not future.done():
+            self._schedule_after(25, self._poll_models_agents_future, request_id, future)
+            return
+        self._models_agents_refresh_pending = False
+        self._models_agents_future = None
+        self._models_agents_loading = False
+        if not self._models_agents_window_alive():
+            return
+        try:
+            self._models_agents_last_rows = tuple(future.result())
+            self._models_agents_last_error = None
+        except Exception as exc:
+            self._models_agents_last_rows = ()
+            self._models_agents_last_error = self._models_agents_error_code(exc)
+        self._render_models_agents_panel()
 
     def _on_preferences_destroy(self, event) -> None:
         if event.widget is self._preferences_window:
             self._preferences_window = None
+            self._models_agents_request_id += 1
+            self._models_agents_refresh_pending = False
+            self._models_agents_future = None
+            self._models_agents_loading = False
 
     def _save_shutdown_preference(self, setter, var: tk.BooleanVar) -> None:
         try:
@@ -4092,6 +4231,10 @@ class AConductorDesktopApp:
                     self._shutdown_checkbox.configure(text=tr("prefs.shutdown"))
                     self._language_label.configure(text=tr("prefs.language"))
                     self._language_status_label.configure(text=tr("prefs.language.restart"))
+                    header = getattr(self, "_models_agents_header_label", None)
+                    if header is not None:
+                        header.configure(text=tr("prefs.models_agents.header"))
+                    self._render_models_agents_panel()
             except tk.TclError:
                 pass
         self._refresh_memory_status()

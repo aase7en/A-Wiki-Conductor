@@ -15,8 +15,8 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 | Released closeout | GPT-5.6 Sol + GLM review | WO-P1-130 | SSoT + README + Defect Memory only | MERGED #177 `b32ddd26` / GLM_PASS / POST_MAIN_33517232490_GREEN |
 | Released coordination protocol | GPT-5.6 Sol + GLM review | WO-P1-123 | Loop Engineer routing + stable task/status/result convention | MERGED #170 `5ddf533f` / POST_MAIN_GREEN |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / FIVE LIVE WORKERS READY / NO MUTATION AUTHORITY |
-| Active product frontier | GPT-5.6 Sol | WO-P1-126 Settings display | `desktop_ui.py` + `i18n.py` + focused UI tests/docs; consume accepted provider rows only | CLAIMED / RED_FIRST |
-| Parallel read-only shaping | GLM-5.3 MAX | WO127 Edit/Disable/Test + WO128 selection/fallback | result file only; no tracked mutation | PREPARED_BLOCKED_ON_WO125_POST_MAIN (post-main now green; result may proceed) |
+| Active product frontier | GPT-5.6 Sol | WO-P1-126 Settings display | `desktop_ui.py` + `i18n.py` + focused UI tests/docs; consume accepted provider rows only | IMPLEMENTED / VERIFYING / REVIEW_PENDING |
+| Parallel read-only shaping | GLM-5.3 MAX | WO127 Edit/Disable/Test + WO128 selection/fallback | result file only; no tracked mutation | GOAL_DISPATCHED / READ_ONLY / RESULT_PENDING |
 | Future | provider-neutral | AHA-8 additional providers | one adapter at a time | DEFERRED |
 
 ### Completed GLM bridge contract

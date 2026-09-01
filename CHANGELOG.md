@@ -5,6 +5,7 @@ All notable changes to A-Sunday Conductor are documented here.
 ## [0.7.0] — Unreleased
 
 ### Added
+- **Models & Agents Settings status** — read-only provider rows now show configured vs ready vs authorization, health, trust/egress, generation, model/harness, quota, safe provenance, and observation age through an async single-flight refresh without exposing endpoint or credential values (WO-P1-126).
 - **Live AI Execution Slots** — the primary runtime table now separates CONNECTION, ACTIVE PROJECT, and BOUND PROJECT and marks `[DRIFT]` when Serena runtime activation no longer matches connector binding (PR #101).
 - **PROJECT DISK particle magnitude** — exact async folder size remains authoritative with a bounded 24-dot monochrome logarithmic magnitude cue; no extra scan/thread/timer/GPU loop (PR #103).
 - **Embedded offline HTML Guide** — Markdown remains the content SSoT while TkinterWeb renders six beginner sections in-app with fail-closed HTML sanitization and a Markdown fallback; frozen packaging includes TkinterWeb/Markdown runtime assets (PR #105).

@@ -170,7 +170,7 @@ Caveats: more tokens and possible context mixing — best when a task truly need
 > The button only copies text — the app never activates Serena on the agent's behalf or edits project files.
 
 ### 4.5 Guide + Settings + language
-Top-right: **Guide** opens this guide (language follows the app language). **Settings** has: **supervised mode**, **stop-all-connectors-on-exit** (default ON — closing the app stops every connector and reaps stale processes), and **Language / ภาษา** (Thai / 中文 / English — three languages, help text refreshes immediately with no restart; button labels stay English by design). The window title always carries the version, e.g. `A-Sunday Conductor v0.7.0`.
+Top-right: **Guide** opens this guide (language follows the app language). **Settings** has: **supervised mode**, **stop-all-connectors-on-exit**, **Language**, and a read-only **MODELS & AGENTS** status panel. The provider panel refreshes asynchronously and shows configured/ready/authorization, health, trust/egress, generation, model/harness, quota, safe provenance, and observation age without displaying endpoint or credential values. **Refresh** is manual in this first slice. The window title always carries the version, e.g. `A-Sunday Conductor v0.7.0`.
 
 ### 4.6 Hand-holding: which chat is which connector / port / project?
 

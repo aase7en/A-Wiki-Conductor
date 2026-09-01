@@ -1,10 +1,10 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-01 (GPT-5.6 Sol - WO125 released; WO126 Settings display claimed)
+Last updated: 2026-09-01 (GPT-5.6 Sol - WO126 implemented; verification/review pending)
 
 ## Current phase
 
-**AHA-7 Models & Agents is the active product frontier. WO-P1-125 provider operator read service is accepted and released on main. WO-P1-126 read-only `MODELS & AGENTS` Settings display is now the claimed READY slice; WO127/WO128 remain separate future control/observability slices. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
+**AHA-7 Models & Agents is the active product frontier. WO-P1-125 provider operator read service is accepted and released on main. WO-P1-126 read-only `MODELS & AGENTS` Settings display is implemented on its isolated branch and is in deterministic verification; WO127/WO128 remain separate future control/observability slices. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
 
 Accepted / active frontier state:
 - PR #174 / WO124 reviewed exact head `be97d313c748fe5fcce0e57ecf5dc304b863e230`; GLM review002 PASS with P0/P1/P2 = 0; task SHA-256 `abe750450dda09dbf423681811efd0110ecfa26914cc55828b133db48a9fcf2b`; exact-head CI `33497483113` attempt 2 SUCCESS; merged as `c1cfbe780e76d3a64fb692e91dde851824bd8033`; post-main CI `33504441646` attempt 2 SUCCESS.
@@ -17,15 +17,15 @@ Accepted / active frontier state:
 
 ## Active work orders
 
-1. `WO-P1-126` - CLAIMED / RED_FIRST: Settings/Advanced read-only `MODELS & AGENTS` display consuming the accepted WO125 facade.
+1. `WO-P1-126` - IMPLEMENTED / VERIFYING: Settings/Advanced read-only `MODELS & AGENTS` display; focused 9 passed + 1 local Tk-environment skip, expanded UI/control matrix 117 passed + 1 local Tk-environment skip; full repo/review/CI still gate merge.
 2. `WO-P1-096` - P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
 3. `WO-P1-125` - RELEASED: PR #178 merged as `23b988764a3529f0721375f5d0a0c885b715ad46`; GLM PASS; exact-head and post-main CI green.
 
 ## Immediate execution frontier
 
-1. RED-first WO126 Settings display on the existing Preferences/Toplevel seam; no provider/store/policy/runtime mutation.
-2. Reuse `_background_executor` + `_schedule_after` with single-flight/stale-completion guards; render explicit loading/empty/error/truth states.
-3. Verify no endpoint/credential/raw provenance leakage and preserve `CONFIGURED != READY != AUTHORIZED`.
+1. Finish full-repo verification and audits for the frozen WO126 source/tests candidate.
+2. Freeze exact HEAD, run independent review + hosted CI, and merge only with P0/P1/P2=0.
+3. Preserve no endpoint/credential/raw provenance leakage and `CONFIGURED != READY != AUTHORIZED`; no provider/store/policy/runtime mutation.
 4. In parallel, GLM may shape WO127 Edit/Disable/Test and WO128 selection/fallback observability read-only; implementation remains claim-gated.
 5. Keep WO096 separately blocked until authorized hosted remote MCP-after-TTL v0.0.13 evidence exists.
 
