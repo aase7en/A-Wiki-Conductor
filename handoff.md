@@ -1,36 +1,42 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-01 — WO120 released; WO118B ready
+Last updated: 2026-09-01 - WO118B released; WO122/WO124 next lanes
 
 ## Current objective
 
-Start WO118B from fresh post-WO120 main authority. Keep P0 WO096 separate.
+Finish WO122 stable external-agent mailbox exact-head review/merge in parallel with WO124 AHA-7A truthful provider operator read-model review/PR. Keep WO096 separate and blocked without explicit maintenance authority.
 
 ## Repository / release identity
 
-- authoritative remote main: `d939a902a0eacae29f417dd1c3581f0f48d4ced0`; protected root checkout remains dirty and MUST NOT be mutated;
-- PR #164 / WO121: MERGED as `1b0468fa...`; GLM rereview004 PASS; post-main CI `33404736157` SUCCESS;
-- PR #165 / WO118A: MERGED as `0ff914ef...`; Ultra rereview004 PASS at exact `2bfcdab...`; exact-head CI `33405254844` SUCCESS; post-main CI `33417911998` SUCCESS;
-- PR #162 / WO120: MERGED as `d939a902a0eacae29f417dd1c3581f0f48d4ced0` from exact reviewed head `9c3160e4ca4e4baaf9d7cd229a1059f787faac0e`; GLM rereview005 PASS P0/P1/P2=0; task SHA `ef1e85582e4920543bd357e5d077603d332272311a058981fb128cdb84dc808c`; all 9 pinned hashes independently matched; exact-head CI `33463646577` SUCCESS; post-main CI `33466111330` SUCCESS across Windows/macOS/Ubuntu including Windows packaging/Frozen Setup E2E.
+- authoritative remote main: `9c56077817ead3974d7d335daed52c2862a1c82a`; protected root checkout remains dirty/protected and MUST NOT be mutated;
+- PR #172 / WO118B: MERGED from reviewed exact head `cb758520db918ddebf48c89f260e329cf985f53e`; GLM rereview006 PASS P0/P1/P2=0; exact-head CI `33489865664` SUCCESS; post-main CI `33493978374` SUCCESS across Windows/macOS/Ubuntu including packaging and Frozen Setup E2E;
+- PR #168 / WO122: exact head `f2967a4cfd87a62a33ab20481bf6b9655104f14c`, base `9c560778...`, exact-head CI `33495011125` SUCCESS; independent rereview pending;
+- WO124 branch: `feat/wo-p1-124-aha7-provider-read-model`, head `0862da1a98397ea94f40810452465b87ed45d057`, post-rebase focused 21 passed and provider matrix 80 passed; no PR yet.
 
 ## Ownership / claims
 
-- WO120 implementation/review is released; historical Ultra003 at `899d002...` is superseded and cannot authorize later work.
-- GPT integrator owns SSoT, merge/release adjudication and WO118B architecture.
-- The existing WO118B GLM prep artifact is read-only planning only. Before source mutation, release/reacquire with a fresh exact post-WO120 worktree, branch, HEAD and bounded mutable scope.
+- WO118B implementation and Ultra-repair claims may be released after this tracked closeout is merged.
+- GPT integrator owns SSoT, merge/release adjudication and AHA-7 dependency order.
+- WO122 owns only its five mailbox/protocol files in its isolated worktree.
+- WO124 owns only the additive provider operator read-model module, its tests and its work order.
+- External GLM review lanes are read-only and write only their declared `result.md`; stable mailbox pointer is machine-local under the A-Conductor agent-bridge root.
 
 ## Verified evidence
 
-- WO121: exact-head GLM PASS; post-main CI green.
-- WO118A: Ultra004 PASS; exact-head/post-main CI green.
-- WO120: failover RED exposed the release-unstarted crash window; durable `PRE_PROVISION -> PROVISIONING -> PROVISIONED` repair closed it. GLM rereview005 independently re-derived PASS with zero P0/P1/P2 and two non-blocking P3 notes. Exact-head CI `33463646577` and post-main CI `33466111330` are green on all three OS jobs.
+- WO118B exact implementation identity was independently revalidated against the remote PR tree before merge; merge tree equals reviewed PR tree and changed-file count remained 18.
+- WO118B local full suite before merge: 1911 passed, 5 skipped, 2 known local GPU dependency failures outside the slice; post-main GitHub CI is fully green.
+- WO122 deep audit reproduced and repaired a Markdown mailbox injection gap in task/provider/model metadata; post-rebase related regression 224 passed and exact-head CI is green.
+- WO124 RED-first implementation keeps `configured`, runtime readiness and task authorization distinct, reuses existing quota/readiness authority and exposes no credential or endpoint values.
+- README release audit confirms source/development version remains 0.7.0 while GitHub Latest remains v0.6.0; publishing v0.7.0 is still blocked by WO096.
 
 ## Next safe actions
 
-1. Create a fresh WO118B worktree/branch from exact main `d939a902...`; re-read entry/AGENTS/SSoT/defect lessons/work order and acquire non-overlapping source claims.
-2. Execute WO118B RED-first at the four enforcement seams: pre-admission, pre-elastic, pre-secret and pre-launch generation/policy revalidation.
-3. Independent exact-head review + 3-OS CI + merge + post-main proof before AHA-7.
-4. Keep WO096 blocked pending explicit maintenance authority.
+1. Close this WO118B docs/README checkpoint PR and release its historical source claims.
+2. Repoint stable GLM mailbox to a fresh exact-head WO122 independent review packet; consume result directly, revalidate evidence, then merge/post-main if PASS.
+3. Open/review WO124 from exact current main after any intervening docs/mailbox merge reconciliation; then implement AHA-7 Settings display as a separate bounded lane.
+4. Do not implement AHA-7 Edit/Disable/Test by bypassing provider CAS/admission/policy/runtime authorities.
+5. Do not publish v0.7.0 until WO096 hosted remote MCP-after-TTL evidence and final release E2E are complete.
+
 ## Accepted predecessor
 
 AHA-4B PR #147 merged as `7f9a16f6dfafe17f3795167da22d4886945611e0`.
@@ -124,7 +130,7 @@ No successor AHA lane is claimed. The next accelerator slice requires a new work
 - After closeout merge/post-main proof, remove only WO-P1-115 implementation/closeout worktrees and branches after clean/ancestry/no-unique-commit/tree-diff proof. Preserve root/North-Star/other worktrees.
 - No successor accelerator claim exists yet. Re-enter actual roadmap/claims after cleanup; WO-P1-096 remains P0 when maintenance authority becomes available.
 
-## WO-P1-116 implementation checkpoint ? 2026-08-31
+## WO-P1-116 implementation checkpoint - 2026-08-31
 
 - Active worktree/branch: `A:\GitHub\A-Wiki-Conductor-elastic-capacity` / `feat/wo-p1-116-elastic-worker-capacity`; tracked base remains `origin/main@23243651d51780b76dce15cdb24eaba90fce9a99` and PR #157 is still draft until exact-SHA review/CI gates complete.
 - Recovery reconciled stale partial scratch to remote `d52a054f393c2e7864a2cec5e186c76a66e17c20` non-force; preserved abandoned scratch outside repo at `A:\GitHub\_recovery\WO-P1-116-20260831-092824`.
