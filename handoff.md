@@ -1,40 +1,41 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-01 - WO122 released; WO124 review active; WO125 next
+Last updated: 2026-09-01 - WO124 + WO129 released; WO125 Ultra architecture review active
 
 ## Current objective
 
-Finish WO124 AHA-7A exact-head independent review/merge/post-main, then start WO125 provider operator read service RED-first. Keep WO096 separate and blocked without explicit maintenance authority.
+GPT Ultra WO125 pre-implementation architecture/security review returned `CHANGES_REQUIRED` (P0=0, P1=4, P2=2) and the findings are accepted. Create/claim the durable WO125 work order and implement the tightened provider operator read-service contract RED-first on a fresh accepted-main worktree. Keep WO096 separate and blocked without explicit maintenance authority.
 
 ## Repository / release identity
 
-- authoritative remote main: `a9578681076442f54f62a2da9308cdd7505d5e4b`; protected root checkout remains dirty/protected and MUST NOT be mutated;
-- PR #168 / WO122: MERGED from independently reviewed exact head `f2967a4cfd87a62a33ab20481bf6b9655104f14c`; GLM review002 PASS P0/P1/P2=0; exact-head CI `33495011125` SUCCESS; post-main CI `33498867661` SUCCESS.
-- WO122 stable mailbox is operational at one machine-local path per agent; GPT/Conductor repoints the envelope while the human prompt remains constant and result content is consumed directly from the declared destination.
-- PR #174 / WO124: Draft at exact head `be97d313c748fe5fcce0e57ecf5dc304b863e230`; focused 25 passed, provider matrix 84 passed; CI `33497483113` attempt 2 SUCCESS; independent GLM review002 pending.
-- Current-main synthetic integration of `a957868... + be97d31...` is conflict-free with zero mutable overlap and passes 25 focused + 84 provider tests.
+- authoritative remote main: `fae5c0d8a36a41eb172e2acb8dc88ca04658c4e9`; protected root checkout remains dirty/protected and MUST NOT be mutated;
+- PR #174 / WO124: MERGED from independently reviewed exact head `be97d313c748fe5fcce0e57ecf5dc304b863e230`; GLM review002 PASS P0/P1/P2=0; exact-head CI `33497483113` attempt 2 SUCCESS; post-main `33504441646` attempt 2 SUCCESS.
+- PR #176 / WO129: MERGED from independently reviewed exact head `661c86f9a30433006a01e996ed1ea46fde4a7e52`; GLM review001 PASS P0/P1/P2=0; exact-head CI `33503763313` SUCCESS; post-main `33509029840` SUCCESS.
+- WO122 stable external-agent mailbox remains operational: GPT/Conductor repoints one machine-local path per agent while the human prompt stays constant and the integrator consumes declared result files directly.
+- source/development version remains `0.7.0`; GitHub Latest remains `v0.6.0`; stable publication remains blocked by WO096.
 
 ## Ownership / claims
 
-- GPT integrator owns SSoT, merge/release adjudication and AHA-7 dependency order.
-- WO122 implementation claim is released; this closeout lane owns only WO122/SSoT/README/defect-memory documentation.
-- WO124 owns only the additive provider operator read-model module, its tests and its work order.
-- External GLM review lanes are read-only and write only their declared `result.md`; the stable mailbox currently points to WO124 review002.
+- GPT integrator owns dependency order, SSoT, merge/release adjudication and the WO130 docs-only closeout.
+- WO124 and WO129 product source are released on main; no new source edits belong to those completed lanes.
+- GPT Ultra WO125 architecture result at task SHA `655bacc0ef384d2818ae54d8fe9729a00061040448d817a65df1872be6db3303` is consumed: `CHANGES_REQUIRED`, P0=0, P1=4, P2=2. Review-base provider/desktop blobs are identical on current main; findings are not stale.
+- WO125 implementation has no tracked source mutation authority until a fresh bounded work order/worktree records the accepted Ultra contract: canonical DB path; one-time bootstrap; pure read-only bulk transaction; shared fail-closed decoder; safe provenance; explicit empty/error taxonomy.
+- The prior external claim helper is not available in the current repo/runtime surface; tracked work orders and exact worktree/scope records are the durable fallback. Never infer overlapping authority from a stale chat claim.
 
 ## Verified evidence
 
-- WO118B exact implementation identity was independently revalidated against the remote PR tree before merge; merge tree equals reviewed PR tree and changed-file count remained 18.
-- WO118B local full suite before merge: 1911 passed, 5 skipped, 2 known local GPU dependency failures outside the slice; post-main GitHub CI is fully green.
-- WO122 deep audit reproduced and repaired a Markdown mailbox injection gap in task/provider/model metadata; GLM independently re-derived PASS, exact-head/post-main CI are green, and merged-main realistic proof confirms stable pointer replacement without result copy-back.
-- WO124 RED-first implementation keeps `configured`, runtime readiness and task authorization distinct, reuses existing quota/readiness authority, exposes no credential or endpoint values, and now rejects invalid snapshot generations as not configured.
-- README release audit confirms source/development version remains 0.7.0 while GitHub Latest remains v0.6.0; publishing v0.7.0 is still blocked by WO096.
+- WO124 focused operator view = 25 passed; provider matrix = 84 passed; GLM independently re-ran both plus 12/12 adversarial reproductions.
+- WO124 post-main attempt 1 hit the known unrelated Windows owned-process transient; attempt 2 passed the same main SHA through full Windows packaging/Frozen E2E without AHA-7 product changes.
+- WO129 local focused = 28 passed; related = 117 passed before commit and 90 passed recheck; real Windows lifecycle = 10/10; GLM repeated the real test 3/3 and scripted adversarial cases 9/9.
+- WO129 post-main CI is fully green, closing the repeated hosted-Windows post-stop observation race with a bounded/fail-closed repair.
+- WO125 preimplementation baseline on merged AHA-7A main: provider + desktop-control matrix 108 passed. Its prepared RED contract requires one read transaction/connection, no N+1 snapshot reconstruction, canonical same control DB, fail-closed corrupt generation handling, and no secret/endpoint exposure through the facade.
 
 ## Next safe actions
 
-1. Consume WO124 review002 from its result file; independently revalidate reviewed HEAD/task SHA/pinned hashes/CI/current-main merge-tree before merge.
-2. If WO124 PASS P0/P1/P2=0, mark PR #174 ready, merge exact `be97d31...`, post-main verify, then close its SSoT.
-3. Claim WO125 only after WO124 acceptance; implement provider snapshot list + DesktopControl read service before any Tk Settings mutation.
-4. Do not implement AHA-7 Edit/Disable/Test by bypassing provider CAS/admission/policy/runtime authorities.
+1. Create fresh WO125 implementation worktree from accepted main, record the durable claimed work order, prove zero overlap, and run the accepted Ultra RED tests before source changes.
+2. Implement the smallest store/facade/projection safety seam that closes all accepted P1/P2 findings without entering Tk/UI, provider mutation, routing, policy, secret, or runtime-launch scope.
+3. Self-review + deterministic regression + deep bug hunt, then freeze exact head for Ultra adversarial review and GLM independent review before PR merge.
+4. After WO125 post-main acceptance, move to WO126 Settings/Advanced `MODELS & AGENTS` async display; mutation/Test/selection reasons remain later bounded slices.
 5. Do not publish v0.7.0 until WO096 hosted remote MCP-after-TTL evidence and final release E2E are complete.
 
 ## Accepted predecessor

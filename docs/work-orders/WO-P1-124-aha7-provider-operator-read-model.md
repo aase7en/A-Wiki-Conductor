@@ -2,7 +2,7 @@
 
 Date: 2026-09-01
 Owner: GPT-5.6 Sol integrator
-Status: IMPLEMENTED / SELF_REVIEWED / INDEPENDENT_REVIEW_PENDING
+Status: COMPLETE / RELEASED
 Priority: P1 AHA-7 first READY slice
 Base: `origin/main@9c56077817ead3974d7d335daed52c2862a1c82a`
 Branch: `feat/wo-p1-124-aha7-provider-read-model`
@@ -45,7 +45,7 @@ Deep bug hunt pinned a critical semantic boundary: runtime readiness is not task
 
 Evidence before the final adversarial generation repair: focused operator view 21 passed; provider configuration/store/policy + operator matrix 78 passed; compileall, `git diff --check`, UTF-8 and added-line secret scan PASS. No existing tracked source was modified outside the three-file claim.
 
-Status: IMPLEMENTED / SELF_REVIEWED / INDEPENDENT_REVIEW_PENDING
+Status: COMPLETE / RELEASED
 
 
 ## Deep bug hunt - invalid snapshot generation
@@ -55,3 +55,12 @@ Before independent review, GPT adversarial probing constructed otherwise valid `
 RED: all four invalid-generation cases failed the required `configured=False` assertion. Repair adds presentation-boundary generation validation matching the accepted positive signed-64-bit store invariant and returns `PROVIDER_GENERATION_INVALID`; `None` retains the separate `PROVIDER_GENERATION_UNKNOWN` reason. No store/runtime policy was changed.
 
 Post-repair evidence: focused operator view `25 passed`; provider configuration/store/policy + operator matrix `84 passed`; compileall and `git diff --check` PASS after EOF normalization. The previously prepared WO124 review packet at head `92849864...` is superseded and must not be dispatched.
+
+
+## Release closeout - 2026-09-01
+
+Independent GLM review002 verified exact head `be97d313c748fe5fcce0e57ecf5dc304b863e230`, task SHA `abe750450dda09dbf423681811efd0110ecfa26914cc55828b133db48a9fcf2b`, and all three pinned file hashes. Verdict: PASS, P0/P1/P2=0. Reviewer reran 25 focused + 84 provider tests and 12/12 adversarial reproductions.
+
+PR #174 exact-head CI `33497483113` attempt 2 passed Windows/macOS/Ubuntu. The reviewed head merged as `c1cfbe780e76d3a64fb692e91dde851824bd8033`. Post-main run `33504441646` attempt 1 hit the unrelated hosted-Windows owned-process transient later fixed by WO129; attempt 2 on the same main SHA passed all three OS plus Windows Portable/Setup and Frozen install/uninstall E2E.
+
+Status: COMPLETE / RELEASED. WO125 may consume this read model; later UI/mutation/test/selection slices must not promote runtime readiness into task authorization or expose secret/endpoint values.

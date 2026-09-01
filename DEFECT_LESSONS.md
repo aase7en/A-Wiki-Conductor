@@ -624,3 +624,16 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** prompt envelopes are executable coordination surfaces. Validate for the destination syntax, not only the source data type. Stable pointers may change contents atomically, but untrusted metadata must never be able to rewrite the instructions surrounding the pointer.
 
 **Verify:** RED reproduced metadata injection; focused mailbox suite = 24 passed, integrator focused matrix = 115 passed, GLM adversarial review blocked 12 injection attempts and re-proved failed-publish preservation, exact-head CI `33495011125` and post-main CI `33498867661` are green.
+
+
+## #41: Post-termination observation uncertainty may be re-observed, but termination authority must not be retried (2026-09-01)
+
+**Symptom:** unrelated hosted-Windows CI runs intermittently returned `RECOVERY_REQUIRED` from a real owned-process stop even after exact-PID termination had succeeded; immediate re-runs passed without product changes.
+
+**Root cause:** the stop path treated one post-termination `UNKNOWN` process observation as final ownership uncertainty. Windows CIM/process inspection can transiently fail or return incomplete facts after the exact target has already been terminated.
+
+**Fix:** only after the exact-PID terminator returns success, remember `UNKNOWN` and continue re-observing inside the existing stop deadline. Never invoke termination a second time. `MISMATCH` remains immediate `PROCESS_EXIT_OWNERSHIP_UNCERTAIN`; persistent UNKNOWN remains recovery; unchanged exact PID metadata is still required before cleanup and is preserved on uncertainty.
+
+**Lesson:** a transient observation failure after an already-authorized side effect is not permission to repeat the side effect. Re-observe boundedly when observation is side-effect free, but keep ownership-transition evidence fail closed and retain durable metadata until absence is proven.
+
+**Verify:** RED reproduced `UNKNOWN -> STALE` failing too early; repaired focused suite = 28 passed, related matrices = 117 passed before commit and 90 passed recheck, real Windows lifecycle = 10/10 locally; GLM independently reran the real test 3/3 plus 9/9 adversarial cases; exact-head CI `33503763313` and post-main CI `33509029840` are green.
