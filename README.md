@@ -49,7 +49,7 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 
 **Current development version:** `0.7.0` - not released yet; stable publication remains gated by WO-P1-096 live connector TTL evidence.
 
-**Current program state:** Sunday Family Multi-Model Agent Harness - **AHA-6B and the post-AHA-6B provider safety integration are complete; AHA-7 Models & Agents operator UI is the active product frontier.** Stable external-agent mailbox ergonomics are being finalized in parallel.
+**Current program state:** Sunday Family Multi-Model Agent Harness - **AHA-6B, post-AHA-6B provider safety, and the stable external-agent mailbox are complete; AHA-7 Models & Agents operator UI is the active product frontier.**
 
 > Direction: one A-Sunday Conductor entry point recovers SSoT, routes only eligible worker/model/harness capacity, preserves durable claims/evidence, reviews and repairs results, and continues without human result copy/paste. `CONFIGURED != READY`, `READY != AUTHORIZED`, and agent `PASS` is evidence rather than merge authority.
 
@@ -62,7 +62,7 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 - [x] **AHA-6 / 6A / 6A.1 / 6B** - parallel READY execution, provider runtime assembly/admission, and policy-bounded elastic worker capacity.
 - [x] **Post-AHA-6B safety gate** - provider admission lifetime, generation + trust/egress enforcement, output persistence safety, elastic fencing/recovery, and dispatch evidence binding (WO117/118/119/120/121).
 - [x] **Loop Engineer protocol** - stable task/status/result destinations and bounded multi-agent lane rules (WO123).
-- [ ] **Stable external-agent mailbox** - constant per-agent machine-local prompt path; WO122 exact-head CI is green and independent review/merge is pending.
+- [x] **Stable external-agent mailbox** - constant per-agent machine-local prompt path with exact task/result authority and no human result copy-back (WO122).
 - [ ] **AHA-7 - IN PROGRESS** - truthful Models & Agents operator read model first; Settings display then bounded Edit/Disable/Test and selection-reason/fallback observability through existing authorities only.
 - [ ] **AHA-8** - additional providers one adapter at a time after AHA-7 contracts stabilize.
 

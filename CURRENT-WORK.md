@@ -1,29 +1,29 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-01 (GPT-5.6 Sol - WO118B released; AHA-7A / WO124 active frontier)
+Last updated: 2026-09-01 (GPT-5.6 Sol - WO122 released; AHA-7A / WO124 independent review pending)
 
 ## Current phase
 
-**Post-AHA-6B provider safety integration is accepted. WO-P1-118B is COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED. AHA-7 operator UI is now the active product frontier, beginning with the truthful read-only provider status model in WO-P1-124. WO-P1-122 stable external-agent mailbox remains a separate review-ready ergonomics lane. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
+**Post-AHA-6B provider safety integration and WO-P1-122 stable external-agent mailbox are accepted and released. AHA-7 operator UI is the active product frontier: WO-P1-124 truthful read-only provider status model is at exact-head independent review, with WO-P1-125 provider operator read service next after acceptance. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
 
 Accepted / active frontier state:
 - PR #172 / WO118B reviewed at exact head `cb758520db918ddebf48c89f260e329cf985f53e`; GLM rereview006 PASS with P0/P1/P2 = 0; task SHA-256 `d26b3af68d6713d4e58a849f20435b84f985c50dff88aafafff58697fdfe0742`; exact-head CI `33489865664` SUCCESS on Windows/macOS/Ubuntu; merged as `9c56077817ead3974d7d335daed52c2862a1c82a`; post-main CI `33493978374` SUCCESS including Windows Portable/Setup and Frozen install/uninstall E2E.
 - WO118B closes production generation + trust/egress enforcement before provider admission, elastic provision, worker lease, credential resolution and native launch; durable execution identity and provider-admission fencing are part of the accepted authority.
-- PR #168 / WO122 stable external-agent mailbox is rebased onto `9c560778...`; current exact head `f2967a4cfd87a62a33ab20481bf6b9655104f14c`; local related regression `224 passed`; exact-head CI `33495011125` SUCCESS. Independent exact-head review is the remaining merge gate.
-- WO-P1-124 / AHA-7A truthful provider operator read model is implemented on isolated branch head `0862da1a98397ea94f40810452465b87ed45d057`; post-WO118B focused `21 passed`, provider-related `80 passed`; no secret/base-URL exposure and no routing/store mutation. Independent review + PR/CI remain.
+- PR #168 / WO122 stable external-agent mailbox was independently reviewed at exact head `f2967a4cfd87a62a33ab20481bf6b9655104f14c`; GLM review002 PASS with P0/P1/P2 = 0; exact-head CI `33495011125` SUCCESS; merged as `a9578681076442f54f62a2da9308cdd7505d5e4b`; post-main CI `33498867661` SUCCESS. A merged-main realistic mailbox proof and focused `24 passed` confirm constant per-agent pointer path and update-in-place behavior.
+- WO-P1-124 / AHA-7A truthful provider operator read model current exact head is `be97d313c748fe5fcce0e57ecf5dc304b863e230`; deep audit added invalid-generation fail-closed behavior; focused `25 passed`, provider matrix `84 passed`; exact-head CI `33497483113` attempt 2 SUCCESS after one unrelated hosted-Windows lifecycle transient. Independent GLM review002 is pending.
 - P0 WO096 remains operationally open: all five Workers were observed READY on 2026-09-01 using shared tunnel-client 0.0.11; staged maintenance binary 0.0.13 exists, but hosted remote MCP-after-TTL proof still requires explicit maintenance authority for a Worker or a spare Tunnel ID.
 
 ## Active work orders
 
-1. `WO-P1-122` - REVIEW_READY: stable external-agent mailbox; exact-head CI green; independent exact-head review then merge/post-main.
-2. `WO-P1-124` - IMPLEMENTED / REVIEW_PENDING: AHA-7A truthful read-only provider operator model.
+1. `WO-P1-124` - IMPLEMENTED / EXACT_HEAD_REVIEW_PENDING: AHA-7A truthful read-only provider operator model.
+2. `WO-P1-125` - READY_AFTER_WO124_ACCEPTANCE: provider operator read service on the existing control DB.
 3. `WO-P1-096` - P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
 
 ## Immediate execution frontier
 
-1. Independent exact-head review WO122 through the stable GLM mailbox; merge only after identity/hash/CI revalidation.
-2. Independent review + PR/CI for WO124; then continue AHA-7 Settings read surface before Edit/Disable/Test controls.
-3. Keep AHA-7 UI as a consumer of accepted provider/store/policy/scheduler authorities; do not build a second router or secret path.
+1. Consume WO124 GLM review002 from its stable result path; merge only after exact identity/hash/CI/current-main reconciliation.
+2. After WO124 post-main acceptance, claim WO125 RED-first: deterministic provider snapshot listing + DesktopControl read service using the same SQLite authority.
+3. Keep later AHA-7 Settings/Edit/Disable/Test surfaces as consumers of accepted provider/store/policy/scheduler authorities; do not build a second router or secret path.
 4. Keep WO096 separately blocked until authorized hosted remote MCP-after-TTL v0.0.13 evidence exists.
 
 ## Source-of-truth rule

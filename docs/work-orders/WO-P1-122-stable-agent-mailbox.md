@@ -2,7 +2,7 @@
 
 Date: 2026-09-01
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / IMPLEMENTATION
+Status: COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED
 Repository: `aase7en/A-Wiki-Conductor`
 Branch: `feat/wo-p1-122-stable-agent-mailbox`
 Priority: P1 ergonomics; disjoint from WO120/WO118B safety source
@@ -80,3 +80,12 @@ GPT adversarial review found a real Markdown prompt-injection gap after the curr
 RED-first repair extends the existing mailbox-injection test across all six Markdown-bearing metadata fields and changes only the three assignment identity fields to `_mailbox_text()`. The generic packet validator remains unchanged; no task lifecycle, router, result reader, or mailbox location semantics changed.
 
 Post-repair evidence on current main base: `tests/test_agent_change_packets.py` = 24 passed; related agent/native/supervised/lease matrix = 221 passed; compileall, `git diff --check`, and UTF-8 audit PASS. Prior PR #168 CI at `8fd3c10...` is stale after this repair and must be replaced by exact-head CI + independent review before merge.
+
+## Final release checkpoint - 2026-09-01
+
+- Independent GLM review002 revalidated exact head `f2967a4cfd87a62a33ab20481bf6b9655104f14c`, task SHA-256 `7c8b9eb24d5d53c7f97354138f7015319040f322d61d47e553086ed63d522e29`, and all five pinned changed-file hashes; verdict PASS with P0/P1/P2 = 0.
+- Integrator independently revalidated the same task/hash/remote identity, current-main zero-overlap merge-tree, and a focused 115-test matrix before merge. Exact-head CI `33495011125` passed Windows/macOS/Ubuntu.
+- PR #168 merged as `a9578681076442f54f62a2da9308cdd7505d5e4b`. Post-main CI `33498867661` passed all jobs including Windows packaging, Portable smoke and Frozen Setup install/uninstall E2E.
+- A realistic merged-main proof published two assignments to one temporary `glm/task.md` path and verified update-in-place plus declared result destination; focused merged-main mailbox tests = 24 passed.
+- Reviewer P3 notes remain defense-in-depth only: post-replace readback mismatch cannot restore the prior envelope, and mailbox-safe id validation narrows hypothetical legacy ids containing backticks. In-tree producers use bounded ids and no P0/P1/P2 bypass exists.
+- **WO-P1-122 is COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.** The stable per-agent machine-local mailbox is the accepted human-relay surface; exact task packets and result destinations remain per-task authority.
