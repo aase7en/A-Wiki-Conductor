@@ -336,9 +336,9 @@ class AgentMailboxAssignment:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "agent_id", _agent_id(self.agent_id))
-        object.__setattr__(self, "task_id", _text(self.task_id, "task_id", max_length=128))
-        object.__setattr__(self, "provider_id", _text(self.provider_id, "provider_id", max_length=128))
-        object.__setattr__(self, "model_id", _text(self.model_id, "model_id", max_length=128))
+        object.__setattr__(self, "task_id", _mailbox_text(self.task_id, "task_id", max_length=128))
+        object.__setattr__(self, "provider_id", _mailbox_text(self.provider_id, "provider_id", max_length=128))
+        object.__setattr__(self, "model_id", _mailbox_text(self.model_id, "model_id", max_length=128))
         object.__setattr__(self, "role", _mailbox_text(self.role, "role", max_length=128))
         worktree = _absolute_path(_mailbox_text(self.worktree, "worktree", max_length=1024), "worktree")
         task_ref = _absolute_path(_mailbox_text(self.task_ref, "task_ref", max_length=2048), "task_ref")

@@ -71,3 +71,12 @@ Current-main verification: agent bridge + native/supervised/lease regression `20
 Machine-local realistic proof used the rebased mailbox API to publish the active WO118B GLM rereview pointer to the stable path `%LOCALAPPDATA%\A-Conductor\agent-bridge\glm\task.md`. The mailbox re-hashed the exact task packet before atomic replacement and points to exact review HEAD `cb758520...`, task SHA `d26b3af6...`, and the declared result destination. Human-visible GLM prompt is now stable across future assignments; only the pointer envelope changes. No credential or tracked SSoT was written to the mailbox.
 
 Status: **CURRENT_MAIN_RECONCILED / EXACT_HEAD_INDEPENDENT_REVIEW_PENDING**.
+
+
+## Deep-audit repair checkpoint ? 2026-09-01
+
+GPT adversarial review found a real Markdown prompt-injection gap after the current-main rebase: `AgentMailboxAssignment.task_id`, `provider_id`, and `model_id` were embedded inside mailbox backticks but still used generic `_text()` validation, so newline/backtick content could escape the envelope. The existing test covered only role/branch/task_ref and did not pin these three fields.
+
+RED-first repair extends the existing mailbox-injection test across all six Markdown-bearing metadata fields and changes only the three assignment identity fields to `_mailbox_text()`. The generic packet validator remains unchanged; no task lifecycle, router, result reader, or mailbox location semantics changed.
+
+Post-repair evidence on current main base: `tests/test_agent_change_packets.py` = 24 passed; related agent/native/supervised/lease matrix = 221 passed; compileall, `git diff --check`, and UTF-8 audit PASS. Prior PR #168 CI at `8fd3c10...` is stale after this repair and must be replaced by exact-head CI + independent review before merge.
