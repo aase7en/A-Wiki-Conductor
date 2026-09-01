@@ -44,6 +44,26 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 - Worker4 v0.0.13 live soak is a separate P0 evidence lane and grants no mutation authority over Workers 1/2/3/5 or shared tunnel binaries.
 - Automatic GLM dispatch remains fail-closed; provider readiness/quota evidence is independent from worker elasticity.
 
+## Binding Loop Engineer cycle
+
+Unless a work order narrows the sequence, execute:
+
+`RECOVER SSoT -> VERIFY ACTUAL STATE -> REPO + OWNERSHIP GATE -> ROUTE -> Grill-with-docs (when requirements are unsettled) -> Brainstorm/Research (when needed) -> Spec -> Tickets/Dependency Graph -> CLAIM READY LANE -> Impact Analysis -> Implement -> Self Review -> Independent Review -> Deterministic Test -> Realistic E2E / Deep Bug Hunt -> Defect Memory -> Audit -> detect_changes() -> Commit -> PR -> Remote Diff Audit -> CI -> Re-audit latest SHA -> Merge -> Fetch/Reconcile -> Post-merge Verify -> STATE/JOB checkpoint -> NEXT READY NODE -> loop`.
+
+Do not skip an earlier safety gate merely because a later test is green. `DONE`/`PASS` from an agent is evidence, not merge authority.
+
+## Stable agent mailbox - update in place
+
+For one logical lane/task ID, reuse the same durable destinations:
+- `runs/<task-id>/task.md` - integrator-owned exact task contract/pointer; regenerate only when identity/HEAD/scope changes.
+- `runs/<task-id>/status.json` - current machine-readable status/checkpoint when used by the lane.
+- `runs/<task-id>/result.md` or `result.json` - agent-owned latest result; update/replace this file rather than creating numbered result files for every conversational turn.
+- tracked WO/SSoT receives only adjudicated checkpoints, not raw chat transcripts.
+
+Before doing work, every agent re-reads the active WO, lane index, exact task packet, current result/status, Git identity and live claims. If another agent already completed a step, verify/reuse it instead of rebuilding it.
+
+When automatic dispatch is unavailable, the only human relay should normally be: `<MODEL>: Read <absolute task.md> and execute it.` The task packet must name the stable result/status destination. The integrator polls/reads that destination itself; the human never copies the agent result back into chat.
+
 ## Required lane record
 
 Every mutable lane must identify:
