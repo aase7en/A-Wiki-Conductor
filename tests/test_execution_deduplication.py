@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import replace
 from pathlib import Path
 
@@ -236,6 +237,27 @@ def test_newest_equivalent_record_is_authoritative_for_duplicate_decision(tmp_pa
     store = SQLiteExecutionStore(tmp_path / "control.sqlite")
     store.create(record_from_spec(fp_spec, execution_id="exec-old", state=ExecutionProcessState.FAILED))
     newest = store.create(record_from_spec(fp_spec, execution_id="exec-new", state=ExecutionProcessState.RUNNING))
+
+    assessment = DuplicateExecutionGuard(store=store).assess(fp_spec)
+
+    assert assessment.decision is DuplicateExecutionDecision.ATTACH_RUNNING
+    assert assessment.record == newest
+
+
+def test_newest_equivalent_record_uses_insertion_order_when_created_at_ties(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    fp_spec = spec(repo)
+    database_path = tmp_path / "control.sqlite"
+    store = SQLiteExecutionStore(database_path)
+    store.create(record_from_spec(fp_spec, execution_id="zz-old", state=ExecutionProcessState.FAILED))
+    newest = store.create(record_from_spec(fp_spec, execution_id="aa-new", state=ExecutionProcessState.RUNNING))
+
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "UPDATE execution_records SET created_at = ? WHERE execution_id IN (?, ?)",
+            ("2026-09-01T00:00:00.000Z", "zz-old", "aa-new"),
+        )
 
     assessment = DuplicateExecutionGuard(store=store).assess(fp_spec)
 

@@ -396,7 +396,7 @@ class SQLiteExecutionStore:
                     "stdout_ref, stderr_ref, result_ref, report_ref, transport_state, "
                     "execution_state, pid, exit_code, started_at, finished_at, version "
                     "FROM execution_records WHERE command_fingerprint = ? "
-                    "ORDER BY created_at DESC, execution_id DESC",
+                    "ORDER BY created_at DESC, rowid DESC",
                     (fingerprint,),
                 ).fetchall()
                 return tuple(self._row_to_record(row) for row in rows)
