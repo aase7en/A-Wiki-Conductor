@@ -201,3 +201,14 @@ def test_naive_clock_fails_closed() -> None:
 def test_invalid_freshness_window_fails_closed(bad) -> None:
     with pytest.raises(ValueError, match="max_age_seconds"):
         build_provider_operator_row(_snapshot(), now=NOW, max_age_seconds=bad)
+
+@pytest.mark.parametrize("generation", [0, -1, True, 1 << 63])
+def test_invalid_snapshot_generation_is_not_configured(generation) -> None:
+    row = build_provider_operator_row(
+        _snapshot(generation=generation, observation_generation=7),
+        now=NOW,
+    )
+
+    assert row.configured is False
+    assert row.runtime_ready is False
+    assert row.readiness_reason == "PROVIDER_GENERATION_INVALID"

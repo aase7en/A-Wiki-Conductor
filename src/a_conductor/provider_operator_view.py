@@ -71,7 +71,12 @@ def _readiness_reason(
     generation = snapshot.generation
 
     endpoint_valid = endpoint is not None and endpoint.endpoint_ref == profile.endpoint_ref
-    configured = endpoint_valid and generation is not None
+    generation_valid = (
+        isinstance(generation, int)
+        and not isinstance(generation, bool)
+        and 1 <= generation < (1 << 63)
+    )
+    configured = endpoint_valid and generation_valid
 
     age = None
     if observation is not None:
@@ -83,6 +88,8 @@ def _readiness_reason(
         return configured, False, "PROVIDER_ENDPOINT_REF_MISMATCH", age
     if generation is None:
         return configured, False, "PROVIDER_GENERATION_UNKNOWN", age
+    if not generation_valid:
+        return configured, False, "PROVIDER_GENERATION_INVALID", age
     if not profile.enabled:
         return configured, False, "PROVIDER_DISABLED", age
     if observation is None:

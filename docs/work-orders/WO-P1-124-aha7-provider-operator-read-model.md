@@ -43,6 +43,15 @@ RED first failed at import because no operator read-model existed. GREEN adds on
 
 Deep bug hunt pinned a critical semantic boundary: runtime readiness is not task authorization. A provider with UNKNOWN trust/egress may still be runtime-healthy, but the row remains `task_authorization=NOT_EVALUATED`; task policy requires later task context and existing policy authority. Naive clocks fail closed. The row shape deliberately omits credential refs, endpoint/base URL and the raw provider profile.
 
-Evidence: focused operator view 21 passed; provider configuration/store/policy + operator matrix 78 passed; compileall, `git diff --check`, UTF-8 and added-line secret scan PASS. No existing tracked source was modified outside the three-file claim.
+Evidence before the final adversarial generation repair: focused operator view 21 passed; provider configuration/store/policy + operator matrix 78 passed; compileall, `git diff --check`, UTF-8 and added-line secret scan PASS. No existing tracked source was modified outside the three-file claim.
 
 Status: IMPLEMENTED / SELF_REVIEWED / INDEPENDENT_REVIEW_PENDING
+
+
+## Deep bug hunt - invalid snapshot generation
+
+Before independent review, GPT adversarial probing constructed otherwise valid `ProviderConfigurationSnapshot` values with generation `0`, `-1`, boolean `True`, and `2^63`. Because the snapshot dataclass itself is intentionally a lightweight read carrier, the presentation layer reported `configured=True` even though the accepted SQLite authority would reject those generations. Runtime readiness stayed false, but the operator-facing configured claim was not truthful for a malformed injected snapshot.
+
+RED: all four invalid-generation cases failed the required `configured=False` assertion. Repair adds presentation-boundary generation validation matching the accepted positive signed-64-bit store invariant and returns `PROVIDER_GENERATION_INVALID`; `None` retains the separate `PROVIDER_GENERATION_UNKNOWN` reason. No store/runtime policy was changed.
+
+Post-repair evidence: focused operator view `25 passed`; provider configuration/store/policy + operator matrix `84 passed`; compileall and `git diff --check` PASS after EOF normalization. The previously prepared WO124 review packet at head `92849864...` is superseded and must not be dispatched.
