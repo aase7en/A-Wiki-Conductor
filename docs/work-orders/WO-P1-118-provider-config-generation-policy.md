@@ -2,7 +2,7 @@
 
 Date: 2026-08-31
 Owner: split — GLM-5.3 MAX (118A implementation), GPT-5.6 Sol integrator (118B architecture/merge)
-Status: ACTIVE — WO-P1-118A COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED; WO-P1-118B BLOCKED_ON_WO-P1-120
+Status: COMPLETE - WO-P1-118A + WO-P1-118B MERGED / POST_MAIN_GREEN / RELEASED
 Repository: `aase7en/A-Wiki-Conductor`
 Priority: P1 before automatic live provider dispatch
 
