@@ -441,3 +441,354 @@ def test_wo125_provider_store_bootstraps_once_not_on_operator_refresh(tmp_path, 
     assert service.provider_operator_rows() == ()
     assert service.provider_operator_rows() == ()
     assert calls == 1
+
+
+def test_wo127_update_provider_profile_preserves_identity_and_cas(tmp_path) -> None:
+    from a_conductor.provider_config_store import SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store,
+    )
+
+    generation = service.update_provider_profile(
+        profile.provider_id,
+        expected_generation=1,
+        display_name="Provider Renamed",
+        max_concurrency=3,
+    )
+
+    saved = store.get_provider(profile.provider_id)
+    assert generation == 2
+    assert saved is not None
+    assert saved.display_name == "Provider Renamed"
+    assert saved.max_concurrency == 3
+    assert saved.provider_id == profile.provider_id
+    assert saved.endpoint_ref == profile.endpoint_ref
+    assert saved.credential_ref == profile.credential_ref
+
+
+def test_wo127_update_provider_profile_stale_generation_fails_without_overwrite(tmp_path) -> None:
+    import pytest
+    from a_conductor.provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store,
+    )
+    service.update_provider_profile(profile.provider_id, expected_generation=1, display_name="Winner")
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.update_provider_profile(profile.provider_id, expected_generation=1, display_name="Loser")
+
+    assert exc.value.code == "PROVIDER_GENERATION_STALE"
+    assert store.get_provider(profile.provider_id).display_name == "Winner"
+
+
+def test_wo127_disable_and_reenable_preserve_configured_profile(tmp_path) -> None:
+    from a_conductor.provider_config_store import SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store,
+    )
+    gen2 = service.set_provider_enabled(profile.provider_id, enabled=False, expected_generation=1)
+    disabled = store.get_provider(profile.provider_id)
+    assert gen2 == 2
+    assert disabled is not None and disabled.enabled is False
+    assert service.provider_operator_rows()[0].configured is True
+    assert service.provider_operator_rows()[0].runtime_ready is False
+    assert service.provider_operator_rows()[0].readiness_reason == "PROVIDER_DISABLED"
+
+    gen3 = service.set_provider_enabled(profile.provider_id, enabled=True, expected_generation=2)
+    enabled = store.get_provider(profile.provider_id)
+    assert gen3 == 3
+    assert enabled is not None and enabled.enabled is True
+
+
+def test_wo127_invalid_profile_update_maps_to_typed_error(tmp_path) -> None:
+    import pytest
+    from a_conductor.provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store,
+    )
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.update_provider_profile(profile.provider_id, expected_generation=1, display_name="")
+    assert exc.value.code == "PROVIDER_PROFILE_INVALID"
+    assert store.get_provider(profile.provider_id).display_name == profile.display_name
+
+
+def test_wo127_test_provider_uses_canonical_runtime_refresh_and_maps_missing(tmp_path, monkeypatch) -> None:
+    import pytest
+    from datetime import datetime, timezone
+    from a_conductor.provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig, ProviderHealth, ProviderObservation
+    import a_conductor.provider_runtime_assembly as runtime_assembly
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    now = datetime(2026, 9, 2, 0, 0, tzinfo=timezone.utc)
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store, clock=lambda: now,
+    )
+    calls = []
+
+    def fake_refresh(**kwargs):
+        calls.append(kwargs)
+        return ProviderObservation(
+            provider_id=profile.provider_id, health=ProviderHealth.AVAILABLE,
+            observed_at=now, provenance="probe:test", configuration_generation=1,
+        )
+
+    monkeypatch.setattr(runtime_assembly, "refresh_zai_provider_observation", fake_refresh)
+    result = service.test_provider(profile.provider_id)
+    assert result.health is ProviderHealth.AVAILABLE
+    assert calls[0]["database_path"] == store.database_path.resolve(strict=False)
+    assert calls[0]["provider_id"] == profile.provider_id
+    assert calls[0]["clock"] is service._clock
+
+    monkeypatch.setattr(runtime_assembly, "refresh_zai_provider_observation", lambda **kwargs: None)
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.test_provider("provider-missing")
+    assert exc.value.code == "PROVIDER_TEST_TARGET_UNAVAILABLE"
+
+
+def test_wo127_update_refused_while_provider_admission_is_active(tmp_path) -> None:
+    import pytest
+    from datetime import datetime, timezone
+    from a_conductor.provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    now = datetime(2026, 9, 2, 0, 0, tzinfo=timezone.utc)
+    acquired = store.acquire_admission(
+        provider_id=profile.provider_id, execution_id="exec-active", batch_id="batch-active",
+        expected_max_concurrency=1, now=now, ttl_seconds=300,
+        expected_configuration_generation=1,
+    )
+    assert acquired.admission is not None
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store,
+    )
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.update_provider_profile(profile.provider_id, expected_generation=1, display_name="Blocked")
+    assert exc.value.code == "PROVIDER_CONFIGURATION_IN_USE"
+    assert store.load_provider_snapshot(profile.provider_id).generation == 1
+
+
+def test_wo127_missing_provider_never_resurrects_on_edit(tmp_path) -> None:
+    import pytest
+    from a_conductor.provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    store.initialize()
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store,
+    )
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.update_provider_profile("provider-ui", expected_generation=1, display_name="No resurrection")
+    assert exc.value.code == "PROVIDER_GENERATION_STALE"
+    assert store.get_provider("provider-ui") is None
+
+
+def test_wo127_test_provider_propagates_generation_stale_without_retry(tmp_path, monkeypatch) -> None:
+    import pytest
+    from a_conductor.provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+    import a_conductor.provider_runtime_assembly as runtime_assembly
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    store.initialize()
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store,
+    )
+    calls = 0
+    def stale(**kwargs):
+        nonlocal calls
+        calls += 1
+        raise ProviderConfigStoreError("PROVIDER_OBSERVATION_GENERATION_STALE")
+    monkeypatch.setattr(runtime_assembly, "refresh_zai_provider_observation", stale)
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.test_provider("provider-ui")
+    assert exc.value.code == "PROVIDER_OBSERVATION_GENERATION_STALE"
+    assert calls == 1
+
+
+def test_wo127_invalid_patch_fails_before_provider_store_read() -> None:
+    import pytest
+    from a_conductor.provider_config_store import ProviderConfigStoreError
+
+    class ExplodingStore:
+        database_path = Path("never-open.sqlite")
+        calls = 0
+
+        def get_provider(self, provider_id):
+            self.calls += 1
+            raise AssertionError("store read must not happen")
+
+    store = ExplodingStore()
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(), lifecycle=_FakeLifecycle(), provider_store=store,
+    )
+    for kwargs in ({"display_name": ""}, {"max_concurrency": 0}, {"models": ()}):
+        with pytest.raises(ProviderConfigStoreError) as exc:
+            service.update_provider_profile("provider-ui", expected_generation=1, **kwargs)
+        assert exc.value.code == "PROVIDER_PROFILE_INVALID"
+    assert store.calls == 0
+
+
+def test_wo127_credential_repoint_is_verbatim_and_runtime_support_is_declared(tmp_path) -> None:
+    from a_conductor.provider_config_store import SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store,
+    )
+    supported = "secret-ref:awiki-env/KEY_X"
+    unsupported = "secret-ref:other/x"
+    assert service.provider_credential_ref_runtime_supported(supported) is True
+    assert service.provider_credential_ref_runtime_supported(unsupported) is False
+    assert service.provider_credential_ref_runtime_supported("secret-ref:awiki-env/9BAD") is False
+    assert service.update_provider_profile(profile.provider_id, expected_generation=1, credential_ref=supported) == 2
+    assert store.get_provider(profile.provider_id).credential_ref == supported
+    assert service.update_provider_profile(profile.provider_id, expected_generation=2, credential_ref=unsupported) == 3
+    assert store.get_provider(profile.provider_id).credential_ref == unsupported
+
+
+def test_wo127_expired_admission_still_fences_provider_edit(tmp_path) -> None:
+    import sqlite3
+    import pytest
+    from datetime import datetime, timezone
+    from a_conductor.provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    acquired = store.acquire_admission(
+        provider_id=profile.provider_id, execution_id="exec-expired", batch_id="batch-expired",
+        expected_max_concurrency=1, now=datetime(2026, 9, 2, tzinfo=timezone.utc),
+        ttl_seconds=1, expected_configuration_generation=1,
+    )
+    with sqlite3.connect(database) as connection:
+        connection.execute("UPDATE provider_admissions SET status='EXPIRED' WHERE admission_id=?", (acquired.admission.admission_id,))
+    service = DesktopControlService(control_center=ControlCenterService.open(SQLiteRegistryStore(database)), lifecycle=FakeCoordinator(), provider_store=store)
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.update_provider_profile(profile.provider_id, expected_generation=1, display_name="Blocked")
+    assert exc.value.code == "PROVIDER_CONFIGURATION_IN_USE"
+    assert store.load_provider_snapshot(profile.provider_id).generation == 1
+
+
+def test_wo127_disabled_provider_refuses_new_admission(tmp_path) -> None:
+    import pytest
+    from datetime import datetime, timezone
+    from a_conductor.provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)), lifecycle=FakeCoordinator(), provider_store=store,
+    )
+    service.set_provider_enabled(profile.provider_id, enabled=False, expected_generation=1)
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.acquire_admission(
+            provider_id=profile.provider_id, execution_id="exec-disabled", batch_id="batch-disabled",
+            expected_max_concurrency=1, now=datetime(2026, 9, 2, tzinfo=timezone.utc), ttl_seconds=60,
+            expected_configuration_generation=2,
+        )
+    assert exc.value.code == "PROVIDER_ADMISSION_PROVIDER_DISABLED"
+    row = service.provider_operator_rows()[0]
+    assert row.configured is True and row.readiness_reason == "PROVIDER_DISABLED"
+
+
+def test_wo127_real_sqlite_test_provider_persists_generation_bound_quota(tmp_path) -> None:
+    from dataclasses import replace
+    from datetime import datetime, timezone
+    from a_conductor.provider_config_store import SQLiteProviderConfigStore
+    from a_conductor.provider_configuration import ProviderEndpointConfig, ProviderHealth
+
+    class FakeQuotaTransport:
+        def __init__(self):
+            self.calls = []
+        def get_json(self, url, *, authorization, timeout_seconds):
+            self.calls.append((url, authorization, timeout_seconds))
+            return 200, {"data": {"limits": [{
+                "type": "TOKENS_LIMIT", "usage": 100, "currentValue": 40,
+                "remaining": 60, "nextResetTime": 1788084000000,
+            }]}}
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = replace(_wo125_profile(), credential_ref="secret-ref:awiki-env/ANTHROPIC_API_KEY")
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.z.ai/api/anthropic"))
+    store.save_provider(profile)
+    drive = tmp_path / "A-Wiki-Data"
+    (drive / "secrets").mkdir(parents=True)
+    (drive / "secrets" / "global.env").write_text("ANTHROPIC_API_KEY=test-only-secret\n", encoding="utf-8")
+    now = datetime(2026, 8, 30, 5, 0, tzinfo=timezone.utc)
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store, clock=lambda: now,
+    )
+    transport = FakeQuotaTransport()
+    observed = service.test_provider(profile.provider_id, transport=transport, drive_root=drive)
+    assert observed.health is ProviderHealth.AVAILABLE
+    assert observed.configuration_generation == 1
+    assert observed.quota is not None and observed.quota.remaining == 60
+    assert store.get_observation(profile.provider_id) == observed
+    assert transport.calls and transport.calls[0][1] == "test-only-secret"
+    assert "test-only-secret" not in observed.provenance

@@ -2,7 +2,7 @@
 
 Date: 2026-09-02
 Owner: GPT-5.6 Sol integrator
-Status: CLAIMED / RED_FIRST
+Status: IMPLEMENTED / LOCAL_VERIFIED / FREEZE_PENDING
 Priority: P1 AHA-7B
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo127-provider-actions`
@@ -29,6 +29,7 @@ Extend the accepted WO126 `MODELS & AGENTS` Settings panel with bounded provider
 - `src/a_conductor/i18n.py`
 - `tests/test_desktop_control.py`
 - `tests/test_models_agents_panel.py`
+- `tests/test_i18n.py`
 - optional new `tests/test_provider_operator_actions.py`
 - bounded `CHANGELOG.md`, `docs/USER-GUIDE.md`, `docs/USER-GUIDE-EN.md`
 - this work order only; shared SSoT remains owned by PR #181 until released.
@@ -59,3 +60,17 @@ Extend the accepted WO126 `MODELS & AGENTS` Settings panel with bounded provider
 RED-first facade tests → smallest facade implementation → GUI RED/tests → async/adversarial tests → provider/UI impact matrix → compileall → diff-check → strict UTF-8/secret/scope audit → self-review → independent exact-head review → PR/CI → re-audit → merge/post-main.
 
 P0/P1/P2 block merge. Agent or test PASS alone is not merge authority.
+
+
+## Checkpoint ? 2026-09-02 local verification
+
+- RED proved missing facade actions and missing GUI controls before production edits.
+- Facade/adversarial WO127 tests: **13 passed** on Python 3.13.
+- Provider/store/runtime impact matrix: **162 passed** in the isolated test-extra environment.
+- GUI/i18n/action bucket: **115 passed** on Python 3.13 with working Tk.
+- Models & Agents focused GUI after hardening: **15 passed**; i18n/error focused: **2 passed**.
+- Stress: 10 iterations x 4 stale/in-use/Test fence cases = PASS.
+- `compileall`, `git diff --check`, strict source scope and sensitive-term review = PASS.
+- PR #181 post-main `33571693986` is SUCCESS across Windows/Ubuntu/macOS including Windows packaging and Frozen Setup E2E; shared closeout ownership is released.
+- Parallel WO128 GLM lane remains frozen in its separate worktree; this work order did not mutate provider store/runtime/policy authority.
+- Next: exact UTF-8/scope audit, commit, reconcile the own branch onto latest main only after merge-base delta proves disjoint, rerun focused verification, then exact-head PR/independent review/CI.

@@ -531,6 +531,58 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
             "ทำอย่างไร: ลองใหม่อีกครั้ง หรือรีสตาร์ตโปรแกรมแล้วลอง",
         ),
     ),
+    "PROVIDER_STORE_NOT_AVAILABLE": (
+        "ควบคุม Provider ไม่ได้",
+        ("ไม่พบ provider store ที่ระบบเก็บไว้", "ให้เปิด Settings ใหม่หรือรีสตาร์ตโปรแกรม; ยังไม่มีการแก้ provider"),
+    ),
+    "PROVIDER_GENERATION_STALE": (
+        "ข้อมูล Provider เปลี่ยนไปแล้ว",
+        ("หน้าจอนี้ใช้ generation เก่ากว่าข้อมูลที่บันทึก", "กด Refresh ตรวจค่าล่าสุดแล้วค่อยลองใหม่"),
+    ),
+    "PROVIDER_GENERATION_EXPECTED": (
+        "ต้องมี Provider generation",
+        ("การแก้ไขแบบปลอดภัยต้องใช้ generation ที่อ่านมา", "กด Refresh แล้วลองใหม่หนึ่งครั้ง"),
+    ),
+    "PROVIDER_GENERATION_EXHAUSTED": (
+        "Provider generation เต็มแล้ว",
+        ("ตัวนับ generation ไม่สามารถเพิ่มได้อีก", "หยุดแก้ไขและเก็บฐานข้อมูลไว้ตรวจสอบ"),
+    ),
+    "PROVIDER_CONFIGURATION_IN_USE": (
+        "Provider กำลังถูกใช้งาน",
+        ("มี admission ที่ ACTIVE หรือยังไม่ reconcile", "รอให้งานจบ/reconcile แล้วกด Refresh ก่อนลองใหม่"),
+    ),
+    "PROVIDER_PROFILE_INVALID": (
+        "ข้อมูลที่แก้ไข Provider ไม่ถูกต้อง",
+        ("มีช่องที่ไ่าน validation", "แก้ค่าที่กรอกใหม่; หน้านี้จะไม่แสดง secret หรือ endpoint"),
+    ),
+    "PROVIDER_TEST_TARGET_UNAVAILABLE": (
+        "เป้าหมาย Test ไม่พร้อม",
+        ("provider, endpoint หรือ generation หายไปก่อนเริ่ม Test", "กด Refresh แล้วเลือก provider ใหม่"),
+    ),
+    "PROVIDER_OBSERVATION_GENERATION_STALE": (
+        "ผล Test ล้าสมัย",
+        ("configuration เปลี่ยนระหว่าง Test", "กด Refresh แล้ว Test ใหม่เฉพาะเมื่อ configuration ใหม่ยังต้องตรวจ"),
+    ),
+    "PROVIDER_CONFIGURATION_CORRUPT": (
+        "ข้อมูล Provider เสียหาย",
+        ("ข้อมูลที่บันทึกไม่ผ่าน typed decoding", "อย่าแก้จากหน้านี้; ใช้ recovery path ที่ระบบกำหนด"),
+    ),
+    "CONFIG_STORE_UNAVAILABLE": (
+        "????????? Provider ??????????",
+        ("????????????? control database ??? provider ???", "???? path/?????????????????? ?????? Refresh"),
+    ),
+    "CONFIG_STORE_SCHEMA_UNAVAILABLE": (
+        "Provider schema ไม่พร้อม",
+        ("ฐานข้อมูล control ไม่มี schema ที่ต้องใช้", "เปิแอปเวอร์ชันปัจจุบันกับ control database ที่ถูกต้อง"),
+    ),
+    "CONFIG_STORE_READ_FAILED": (
+        "อ่านฐานข้อมูล Provider ไม่สำเร็จ",
+        ("SQLite อ่าน provider configuration ไม่ได้", "กด Refresh; ถ้ายังซ้ำให้ตรวจ control database และ log"),
+    ),
+    "PROVIDER_ACTION_FAILED": (
+        "คำสั่ง Provider ไม่สำเร็จ",
+        ("คำสั่งจบด้วยข้อผิดพลาดที่ไม่คาดไว้", "กด Refresh และดู ACTIVITY / LOG ก่อนลองใหม่"),
+    ),
     "GENERIC": (
         "เกิดข้อผิดพลาด",
         (
@@ -847,6 +899,12 @@ class AConductorDesktopApp:
         self._models_agents_last_rows: tuple = ()
         self._models_agents_last_error: str | None = None
         self._models_agents_loading = False
+        self._models_agents_provider_ids: tuple[str, ...] = ()
+        self._models_agents_action_request_id = 0
+        self._models_agents_action_future: Future | None = None
+        self._models_agents_action_pending_provider: str | None = None
+        self._models_agents_action_message = ""
+        self._provider_edit_window: tk.Toplevel | None = None
 
         self._configure_root()
         self._configure_styles()
@@ -4061,8 +4119,25 @@ class AConductorDesktopApp:
         self._models_agents_header_label.grid(row=0, column=0, sticky="w")
         self._models_agents_refresh_button = self._button(models_frame, "Refresh", self._refresh_models_agents_panel)
         self._models_agents_refresh_button.grid(row=0, column=1, sticky="e", padx=(8, 0))
+        actions = tk.Frame(models_frame, bg=self.theme.background)
+        actions.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(7, 2))
+        actions.grid_columnconfigure(0, weight=1)
+        self._models_agents_provider_combo = ttk.Combobox(actions, state="readonly", width=42, takefocus=True)
+        self._models_agents_provider_combo.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self._models_agents_provider_combo.bind("<<ComboboxSelected>>", lambda _event: self._sync_models_agents_action_controls())
+        self._models_agents_edit_button = self._button(actions, tr("prefs.models_agents.edit"), self._open_selected_provider_edit_dialog)
+        self._models_agents_edit_button.grid(row=0, column=1, padx=(0, 4))
+        _attach_tip(self._models_agents_edit_button, lambda: tr("prefs.models_agents.edit.help"), self.theme)
+        self._models_agents_toggle_button = self._button(actions, tr("prefs.models_agents.disable"), self._toggle_selected_provider)
+        self._models_agents_toggle_button.grid(row=0, column=2, padx=(0, 4))
+        _attach_tip(self._models_agents_toggle_button, lambda: tr("prefs.models_agents.toggle.help"), self.theme)
+        self._models_agents_test_button = self._button(actions, tr("prefs.models_agents.test"), self._test_selected_provider)
+        self._models_agents_test_button.grid(row=0, column=3)
+        _attach_tip(self._models_agents_test_button, lambda: tr("prefs.models_agents.test.help"), self.theme)
+        self._models_agents_action_label = tk.Label(actions, text="", bg=self.theme.background, fg=self.theme.muted, font=(self.theme.monospace_font, 8), anchor="w")
+        self._models_agents_action_label.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(3, 0))
         self._models_agents_text = tk.Text(models_frame, height=10, width=72, bg=self.theme.background, fg=self.theme.foreground, insertbackground=self.theme.accent, wrap="word", borderwidth=0, highlightthickness=0, font=(self.theme.monospace_font, 8), padx=0, pady=6, takefocus=True)
-        self._models_agents_text.grid(row=1, column=0, columnspan=2, sticky="nsew")
+        self._models_agents_text.grid(row=2, column=0, columnspan=2, sticky="nsew")
         self._models_agents_text.configure(state="disabled")
         self._models_agents_last_rows = ()
         self._models_agents_last_error = None
@@ -4079,8 +4154,134 @@ class AConductorDesktopApp:
     @staticmethod
     def _models_agents_error_code(exc: Exception) -> str:
         code = getattr(exc, "code", None)
-        allowed = {"PROVIDER_STORE_NOT_AVAILABLE", "CONFIG_STORE_SCHEMA_UNAVAILABLE", "CONFIG_STORE_READ_FAILED", "PROVIDER_CONFIGURATION_CORRUPT"}
+        allowed = {"PROVIDER_STORE_NOT_AVAILABLE", "CONFIG_STORE_UNAVAILABLE", "CONFIG_STORE_SCHEMA_UNAVAILABLE", "CONFIG_STORE_READ_FAILED", "PROVIDER_CONFIGURATION_CORRUPT"}
         return code if isinstance(code, str) and code in allowed else "PROVIDER_READ_FAILED"
+
+    @staticmethod
+    def _models_agents_action_error_code(exc: Exception) -> str:
+        code = getattr(exc, "code", None)
+        allowed = {
+            "PROVIDER_STORE_NOT_AVAILABLE",
+            "CONFIG_STORE_UNAVAILABLE",
+            "PROVIDER_GENERATION_STALE",
+            "PROVIDER_GENERATION_EXPECTED",
+            "PROVIDER_GENERATION_EXHAUSTED",
+            "PROVIDER_CONFIGURATION_IN_USE",
+            "PROVIDER_PROFILE_INVALID",
+            "PROVIDER_TEST_TARGET_UNAVAILABLE",
+            "PROVIDER_OBSERVATION_GENERATION_STALE",
+            "PROVIDER_CONFIGURATION_CORRUPT",
+            "CONFIG_STORE_SCHEMA_UNAVAILABLE",
+            "CONFIG_STORE_READ_FAILED",
+        }
+        return code if isinstance(code, str) and code in allowed else "PROVIDER_ACTION_FAILED"
+
+    def _selected_models_agents_row(self):
+        combo = getattr(self, "_models_agents_provider_combo", None)
+        if combo is None:
+            return None
+        try:
+            index = combo.current()
+        except tk.TclError:
+            return None
+        if index < 0 or index >= len(self._models_agents_last_rows):
+            return None
+        return self._models_agents_last_rows[index]
+
+    def _sync_models_agents_action_controls(self) -> None:
+        combo = getattr(self, "_models_agents_provider_combo", None)
+        if combo is None:
+            return
+        try:
+            previous_id = None
+            previous_index = combo.current()
+            if 0 <= previous_index < len(self._models_agents_provider_ids):
+                previous_id = self._models_agents_provider_ids[previous_index]
+            rows = () if self._models_agents_loading or self._models_agents_last_error else self._models_agents_last_rows
+            ids = tuple(str(getattr(row, "provider_id", "")) for row in rows)
+            labels = tuple(
+                f"{getattr(row, 'display_name', provider_id)} [{provider_id}]"
+                for row, provider_id in zip(rows, ids)
+            )
+            self._models_agents_provider_ids = ids
+            combo.configure(values=labels)
+            if ids:
+                combo.current(ids.index(previous_id) if previous_id in ids else 0)
+            else:
+                combo.set("")
+            busy = self._models_agents_action_pending_provider is not None
+            usable = bool(ids) and not busy
+            combo.configure(state="readonly" if usable else "disabled")
+            for name in ("_models_agents_edit_button", "_models_agents_toggle_button", "_models_agents_test_button"):
+                button = getattr(self, name, None)
+                if button is not None:
+                    button.configure(state="normal" if usable else "disabled")
+            row = self._selected_models_agents_row() if ids else None
+            toggle = getattr(self, "_models_agents_toggle_button", None)
+            if toggle is not None:
+                toggle.configure(
+                    text=tr("prefs.models_agents.disable")
+                    if row is None or bool(getattr(row, "enabled", False))
+                    else tr("prefs.models_agents.enable")
+                )
+            label = getattr(self, "_models_agents_action_label", None)
+            if label is not None:
+                label.configure(text=self._models_agents_action_message)
+        except tk.TclError:
+            return
+
+    def _submit_models_agents_action(self, provider_id: str, action: str, fn, /, *args, **kwargs) -> None:
+        if not self._models_agents_window_alive() or self._models_agents_action_pending_provider is not None:
+            return
+        self._models_agents_action_request_id += 1
+        request_id = self._models_agents_action_request_id
+        self._models_agents_action_pending_provider = provider_id
+        self._models_agents_action_message = f"{action.upper()}: RUNNING"
+        self._sync_models_agents_action_controls()
+        try:
+            future = self._background_executor.submit(fn, *args, **kwargs)
+        except Exception as exc:
+            self._models_agents_action_pending_provider = None
+            code = self._models_agents_action_error_code(exc)
+            self._models_agents_action_message = code
+            self._sync_models_agents_action_controls()
+            self._handle_error(code)
+            return
+        self._models_agents_action_future = future
+        self._schedule_after(0, self._poll_models_agents_action_future, request_id, provider_id, action, future)
+
+    def _poll_models_agents_action_future(self, request_id: int, provider_id: str, action: str, future: Future) -> None:
+        if request_id != self._models_agents_action_request_id:
+            return
+        if not future.done():
+            self._schedule_after(25, self._poll_models_agents_action_future, request_id, provider_id, action, future)
+            return
+        self._models_agents_action_future = None
+        self._models_agents_action_pending_provider = None
+        if not self._models_agents_window_alive():
+            return
+        try:
+            result = future.result()
+            if action == "test":
+                provenance = getattr(result, "provenance", None)
+                if provenance == "zai-quota-monitor:unsupported-route":
+                    self._models_agents_action_message = "TEST: UNSUPPORTED"
+                else:
+                    health = self._models_agents_enum_text(getattr(result, "health", None))
+                    self._models_agents_action_message = f"TEST: {health}"
+            elif action == "edit-unsupported-credential":
+                self._models_agents_action_message = (
+                    "EDIT: SAVED [PROVIDER_CREDENTIAL_REF_UNSUPPORTED_RUNTIME] — "
+                    + tr("prefs.models_agents.unsupported_credential")
+                )
+            else:
+                self._models_agents_action_message = f"{action.upper()}: SAVED generation={result}"
+        except Exception as exc:
+            code = self._models_agents_action_error_code(exc)
+            self._models_agents_action_message = code
+            self._handle_error(code)
+        self._sync_models_agents_action_controls()
+        self._refresh_models_agents_panel()
 
     def _models_agents_window_alive(self) -> bool:
         window = self._preferences_window
@@ -4090,6 +4291,137 @@ class AConductorDesktopApp:
             return bool(window.winfo_exists())
         except tk.TclError:
             return False
+
+    def _open_selected_provider_edit_dialog(self):
+        existing = getattr(self, "_provider_edit_window", None)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.lift()
+                    existing.focus_force()
+                    return existing
+            except tk.TclError:
+                pass
+        row = self._selected_models_agents_row()
+        if row is None:
+            return None
+        provider_id = str(getattr(row, "provider_id", ""))
+        generation = getattr(row, "configuration_generation", None)
+        if not provider_id or generation is None:
+            self._models_agents_action_message = "PROVIDER_GENERATION_STALE"
+            self._sync_models_agents_action_controls()
+            return None
+        updater = getattr(self.service, "update_provider_profile", None)
+        if not callable(updater):
+            self._models_agents_action_message = "PROVIDER_STORE_NOT_AVAILABLE"
+            self._sync_models_agents_action_controls()
+            return None
+        from .provider_configuration import EgressBoundary, ProviderTrustClass
+
+        parent = self._preferences_window or self.root
+        dialog = tk.Toplevel(parent)
+        self._provider_edit_window = dialog
+        dialog.title(f"Edit Provider — {provider_id}")
+        dialog.configure(bg=self.theme.panel)
+        dialog.resizable(False, False)
+        body = tk.Frame(dialog, bg=self.theme.panel, padx=14, pady=12)
+        body.grid(row=0, column=0, sticky="nsew")
+        body.grid_columnconfigure(1, weight=1)
+        display_var = tk.StringVar(dialog, value=str(getattr(row, "display_name", "")))
+        type_var = tk.StringVar(dialog, value=str(getattr(row, "provider_type", "")))
+        trust_var = tk.StringVar(dialog, value=self._models_agents_enum_text(getattr(row, "trust_class", None)))
+        egress_var = tk.StringVar(dialog, value=self._models_agents_enum_text(getattr(row, "egress_boundary", None)))
+        concurrency_var = tk.StringVar(dialog, value=str(getattr(row, "max_concurrency", 1)))
+        credential_var = tk.StringVar(dialog, value="")
+        fields = (("Provider", provider_id), ("Display name", display_var), ("Provider type", type_var))
+        for index, (label_text, value) in enumerate(fields):
+            tk.Label(body, text=label_text, bg=self.theme.panel, fg=self.theme.muted, font=(self.theme.monospace_font, 8), anchor="w").grid(row=index, column=0, sticky="w", padx=(0, 8), pady=3)
+            if isinstance(value, tk.StringVar):
+                tk.Entry(body, textvariable=value, width=42).grid(row=index, column=1, sticky="ew", pady=3)
+            else:
+                tk.Label(body, text=value, bg=self.theme.panel, fg=self.theme.foreground, font=(self.theme.monospace_font, 8), anchor="w").grid(row=index, column=1, sticky="w", pady=3)
+        tk.Label(body, text="Trust", bg=self.theme.panel, fg=self.theme.muted, font=(self.theme.monospace_font, 8)).grid(row=3, column=0, sticky="w", pady=3)
+        ttk.Combobox(body, textvariable=trust_var, state="readonly", values=tuple(item.value for item in ProviderTrustClass), width=39).grid(row=3, column=1, sticky="ew", pady=3)
+        tk.Label(body, text="Egress", bg=self.theme.panel, fg=self.theme.muted, font=(self.theme.monospace_font, 8)).grid(row=4, column=0, sticky="w", pady=3)
+        ttk.Combobox(body, textvariable=egress_var, state="readonly", values=tuple(item.value for item in EgressBoundary), width=39).grid(row=4, column=1, sticky="ew", pady=3)
+        tk.Label(body, text="Max concurrency", bg=self.theme.panel, fg=self.theme.muted, font=(self.theme.monospace_font, 8)).grid(row=5, column=0, sticky="w", pady=3)
+        tk.Entry(body, textvariable=concurrency_var, width=42).grid(row=5, column=1, sticky="ew", pady=3)
+        tk.Label(body, text=tr("prefs.models_agents.credential.label"), bg=self.theme.panel, fg=self.theme.muted, font=(self.theme.monospace_font, 8)).grid(row=6, column=0, sticky="w", pady=3)
+        tk.Entry(body, textvariable=credential_var, width=42, show="").grid(row=6, column=1, sticky="ew", pady=3)
+        tk.Label(body, text=tr("prefs.models_agents.credential.help"), bg=self.theme.panel, fg=self.theme.muted, font=(self.theme.monospace_font, 7), wraplength=420, justify="left").grid(row=7, column=0, columnspan=2, sticky="w", pady=(1, 7))
+
+        def close_dialog() -> None:
+            try:
+                if dialog.winfo_exists():
+                    dialog.destroy()
+            except tk.TclError:
+                pass
+
+        def submit() -> None:
+            try:
+                max_concurrency = int(concurrency_var.get().strip())
+            except ValueError:
+                self._models_agents_action_message = "PROVIDER_PROFILE_INVALID"
+                self._sync_models_agents_action_controls()
+                self._handle_error("PROVIDER_PROFILE_INVALID")
+                return
+            credential_ref = credential_var.get().strip()
+            kwargs = dict(
+                expected_generation=generation,
+                display_name=display_var.get().strip(),
+                provider_type=type_var.get().strip(),
+                trust_class=trust_var.get(),
+                egress_boundary=egress_var.get(),
+                max_concurrency=max_concurrency,
+            )
+            action = "edit"
+            if credential_ref:
+                kwargs["credential_ref"] = credential_ref
+                support_checker = getattr(
+                    self.service, "provider_credential_ref_runtime_supported", None
+                )
+                if not callable(support_checker) or not support_checker(credential_ref):
+                    action = "edit-unsupported-credential"
+            close_dialog()
+            self._submit_models_agents_action(provider_id, action, updater, provider_id, **kwargs)
+
+        self._button(body, tr("prefs.models_agents.save"), submit).grid(row=8, column=0, sticky="w", pady=(4, 0))
+        self._button(body, tr("prefs.models_agents.cancel"), close_dialog).grid(row=8, column=1, sticky="e", pady=(4, 0))
+        dialog.bind("<Destroy>", lambda event: setattr(self, "_provider_edit_window", None) if event.widget is dialog else None, add="+")
+        return dialog
+
+    def _toggle_selected_provider(self) -> None:
+        row = self._selected_models_agents_row()
+        if row is None:
+            return
+        setter = getattr(self.service, "set_provider_enabled", None)
+        generation = getattr(row, "configuration_generation", None)
+        provider_id = str(getattr(row, "provider_id", ""))
+        if not callable(setter) or generation is None or not provider_id:
+            self._models_agents_action_message = "PROVIDER_STORE_NOT_AVAILABLE" if not callable(setter) else "PROVIDER_GENERATION_STALE"
+            self._sync_models_agents_action_controls()
+            return
+        enabled = not bool(getattr(row, "enabled", False))
+        self._submit_models_agents_action(
+            provider_id,
+            "enable" if enabled else "disable",
+            setter,
+            provider_id,
+            enabled=enabled,
+            expected_generation=generation,
+        )
+
+    def _test_selected_provider(self) -> None:
+        row = self._selected_models_agents_row()
+        if row is None:
+            return
+        tester = getattr(self.service, "test_provider", None)
+        provider_id = str(getattr(row, "provider_id", ""))
+        if not callable(tester) or not provider_id:
+            self._models_agents_action_message = "PROVIDER_STORE_NOT_AVAILABLE"
+            self._sync_models_agents_action_controls()
+            return
+        self._submit_models_agents_action(provider_id, "test", tester, provider_id)
 
     def _format_models_agents_row(self, row) -> str:
         configured = "CONFIGURED" if bool(getattr(row, "configured", False)) else "NOT CONFIGURED"
@@ -4138,6 +4470,7 @@ class AConductorDesktopApp:
             widget.delete("1.0", "end")
             widget.insert("1.0", content)
             widget.configure(state="disabled")
+            self._sync_models_agents_action_controls()
         except tk.TclError:
             return
 
@@ -4194,6 +4527,10 @@ class AConductorDesktopApp:
             self._models_agents_refresh_pending = False
             self._models_agents_future = None
             self._models_agents_loading = False
+            self._models_agents_action_request_id += 1
+            self._models_agents_action_future = None
+            self._models_agents_action_pending_provider = None
+            self._provider_edit_window = None
 
     def _save_shutdown_preference(self, setter, var: tk.BooleanVar) -> None:
         try:

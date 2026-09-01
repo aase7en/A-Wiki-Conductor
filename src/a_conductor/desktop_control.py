@@ -10,10 +10,11 @@ from __future__ import annotations
 import os
 import time
 from collections import deque
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Callable, Protocol
+from typing import Callable, Mapping, Protocol
 
 from .control_center import ControlCenterService
 from .connector_recovery import (
@@ -37,6 +38,13 @@ from .local_instances import (
 )
 from .persistence import SQLiteRegistryStore
 from .provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+from .provider_configuration import (
+    EgressBoundary,
+    HarnessStrategy,
+    ProviderModelConfiguration,
+    ProviderObservation,
+    ProviderTrustClass,
+)
 from .runtime_setup import RuntimeSetupError, RuntimeSetupService, SetupReadiness, WorkerSetupDraft
 from .serena_config_store import SerenaConfigStoreError, SQLiteSerenaConfigStore
 from .worker_serena_settings import WorkerSerenaSettings
@@ -395,6 +403,159 @@ class DesktopControlService:
             now=self._clock(),
             max_age_seconds=max_age_seconds,
         )
+
+    @staticmethod
+    def provider_credential_ref_runtime_supported(credential_ref: str) -> bool:
+        from .awiki_environment_resolver import _ENV_KEY_RE, _SECRET_PREFIX
+
+        if not isinstance(credential_ref, str) or not credential_ref.startswith(_SECRET_PREFIX):
+            return False
+        key = credential_ref[len(_SECRET_PREFIX) :]
+        return _ENV_KEY_RE.fullmatch(key) is not None
+
+    @staticmethod
+    def _validate_provider_profile_patch(
+        *,
+        display_name=None,
+        provider_type=None,
+        credential_ref=None,
+        trust_class=None,
+        egress_boundary=None,
+        harness_strategies=None,
+        max_concurrency=None,
+        models=None,
+        enabled=None,
+    ) -> None:
+        try:
+            if display_name is not None and (
+                not isinstance(display_name, str) or not display_name.strip() or len(display_name) > 128
+            ):
+                raise ValueError
+            if provider_type is not None and (
+                not isinstance(provider_type, str) or not provider_type.strip() or len(provider_type) > 64
+            ):
+                raise ValueError
+            if credential_ref is not None and (
+                not isinstance(credential_ref, str) or not credential_ref.strip()
+            ):
+                raise ValueError
+            if trust_class is not None:
+                ProviderTrustClass(trust_class)
+            if egress_boundary is not None:
+                EgressBoundary(egress_boundary)
+            if harness_strategies is not None:
+                values = tuple(HarnessStrategy(item) for item in harness_strategies)
+                if not values or len(set(values)) != len(values):
+                    raise ValueError
+            if isinstance(max_concurrency, bool) or (
+                max_concurrency is not None
+                and (not isinstance(max_concurrency, int) or not 1 <= max_concurrency <= 64)
+            ):
+                raise ValueError
+            if models is not None:
+                values = tuple(
+                    item if isinstance(item, ProviderModelConfiguration) else ProviderModelConfiguration(**item)
+                    for item in models
+                )
+                if not values:
+                    raise ValueError
+            if enabled is not None and not isinstance(enabled, bool):
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ProviderConfigStoreError("PROVIDER_PROFILE_INVALID") from None
+
+    def update_provider_profile(
+        self,
+        provider_id: str,
+        *,
+        expected_generation: int,
+        display_name: str | None = None,
+        provider_type: str | None = None,
+        credential_ref: str | None = None,
+        trust_class: ProviderTrustClass | str | None = None,
+        egress_boundary: EgressBoundary | str | None = None,
+        harness_strategies: tuple[HarnessStrategy | str, ...] | None = None,
+        max_concurrency: int | None = None,
+        models: tuple[ProviderModelConfiguration | dict, ...] | None = None,
+        enabled: bool | None = None,
+    ) -> int:
+        self._validate_provider_profile_patch(
+            display_name=display_name,
+            provider_type=provider_type,
+            credential_ref=credential_ref,
+            trust_class=trust_class,
+            egress_boundary=egress_boundary,
+            harness_strategies=harness_strategies,
+            max_concurrency=max_concurrency,
+            models=models,
+            enabled=enabled,
+        )
+        store = self._require_provider_store()
+        current = store.get_provider(provider_id)
+        if current is None:
+            raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
+        changes: dict[str, object] = {}
+        for name, value in (
+            ("display_name", display_name),
+            ("provider_type", provider_type),
+            ("credential_ref", credential_ref),
+            ("trust_class", trust_class),
+            ("egress_boundary", egress_boundary),
+            ("harness_strategies", harness_strategies),
+            ("max_concurrency", max_concurrency),
+            ("models", models),
+            ("enabled", enabled),
+        ):
+            if value is not None:
+                changes[name] = value
+        try:
+            updated = replace(current, **changes)
+        except (TypeError, ValueError):
+            raise ProviderConfigStoreError("PROVIDER_PROFILE_INVALID") from None
+        return store.save_provider(updated, expected_generation=expected_generation)
+
+    def set_provider_enabled(
+        self,
+        provider_id: str,
+        *,
+        enabled: bool,
+        expected_generation: int,
+    ) -> int:
+        return self.update_provider_profile(
+            provider_id,
+            expected_generation=expected_generation,
+            enabled=enabled,
+        )
+
+    def test_provider(
+        self,
+        provider_id: str,
+        *,
+        transport=None,
+        drive_root: str | Path | None = None,
+        awiki_repo_root: str | Path | None = None,
+        home: str | Path | None = None,
+        environment: Mapping[str, str] | None = None,
+        repo_env_name: str | None = None,
+    ) -> ProviderObservation:
+        from .provider_runtime_assembly import refresh_zai_provider_observation
+
+        store = self._require_provider_store()
+        database_path = Path(store.database_path).expanduser().resolve(strict=False)
+        observation = refresh_zai_provider_observation(
+            database_path=database_path,
+            provider_id=provider_id,
+            clock=self._clock,
+            transport=transport,
+            drive_root=drive_root,
+            awiki_repo_root=awiki_repo_root,
+            home=home,
+            environment=environment,
+            repo_env_name=repo_env_name,
+        )
+        if observation is None:
+            raise ProviderConfigStoreError("PROVIDER_TEST_TARGET_UNAVAILABLE")
+        return observation
 
     def worker_settings(self, worker_id: str) -> WorkerSerenaSettings:
         store = self._require_settings_store()
