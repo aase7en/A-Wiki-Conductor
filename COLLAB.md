@@ -85,6 +85,16 @@ These are shared coordination surfaces and must be changed by only one active wo
 7. Scope belongs to the work order, not to a vendor/model. Another agent may resume the same WO after verifying state.
 8. Additive-first: prefer new bounded files; shared hotspots require explicit ownership.
 
+## Integrator routing + parallel-lane contract
+
+The integrator owns dependency order, lane boundaries, merge adjudication and durable checkpoints. It may route GPT MAX, GLM-5.3 MAX, Ultra or future agents in parallel only when mutable scopes are independent and every lane has an exact worktree/branch/HEAD/task/result contract. Read-only review lanes may overlap source observation but must write only their declared result destination.
+
+Routing sequence is binding: recover SSoT and actual Git/runtime/claim state first; settle unclear requirements with docs/research/spec; build the dependency graph; claim only READY nodes; then implement/review/test/audit/commit/PR/CI/re-audit/merge/post-merge/checkpoint and select the next READY node.
+
+Agent-to-agent continuity is file-first. Each lane reuses `runs/<task-id>/task.md` plus stable `status.json` and `result.md|json` destinations. Agents update those agreed files in place; they do not create a new handoff/result file for every exchange. The integrator reads them directly and folds only verified conclusions into tracked SSoT.
+
+If the product cannot yet dispatch an external agent automatically, the human acts only as a transport for one pointer command such as `GLM-5.3 MAX: Read A:\...\runs\<task-id>\task.md and execute it.` No result copy-back is required. Automatic dispatch is a roadmap capability, not permission to weaken claim/provider/security gates.
+
 ## Pause → Resume
 
 Before pausing or delegating:
