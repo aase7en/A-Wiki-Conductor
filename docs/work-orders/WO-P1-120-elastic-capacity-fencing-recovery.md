@@ -2,7 +2,7 @@
 
 Date: 2026-08-31
 Owner: GPT-5.6 Sol integrator after GLM-5.3 MAX bounded implementation/repair
-Status: IMPLEMENTED_LOCAL / REVIEW_PREP
+Status: RELEASED
 Repository: `aase7en/A-Wiki-Conductor`
 Priority: P2/P3 hardening before production elastic wiring; independent of fixed-worker first canary
 
@@ -79,3 +79,12 @@ GPT-5.6 Sol failover review (used because Ultra003 became quota-blocked; not rep
 Repair makes pre-provision provenance durable instead of caller-asserted. New reservations start `PRE_PROVISION`; immediately before invoking the provisioner the coordinator must persist `PROVISIONING`. Only `PRE_PROVISION -> RELEASED` is allowed by `release_unstarted()`. Historical `ACTIVE` is treated as ambiguous legacy residue and cannot release; `PROVISIONING` also cannot release. Both remain capacity-consuming until a future typed runtime-absence/decommission seam proves safe retirement.
 
 Tracked RED initially failed (`DID NOT RAISE`). After repair, the crash-window refusal + safe pre-provision positive control pass; focused fencing file `27 passed`; worker/elastic/candidate focused set `58 passed`; related scheduler/dispatch/lease/elastic set `257 passed`; provider-generation/dispatch/lease/elastic frontier union `312 passed`. Full local suite after repair: `1888 passed / 5 skipped / 2 known environment failures` (`Pillow` unavailable for GPU particle sampling; `OpenGL` unavailable for real WGL framebuffer; the additional skip is local Tk/Tcl availability). No WO120/provider regression. New exact-head independent review + CI remain required after commit.
+
+## Final acceptance / release — 2026-09-01
+
+- Final reviewed source head: `9c3160e4ca4e4baaf9d7cd229a1059f787faac0e`.
+- Independent GLM-5.3 MAX rereview005: `PASS`, zero unresolved P0/P1/P2; two P3 operational notes accepted as non-blocking. Task SHA-256: `ef1e85582e4920543bd357e5d077603d332272311a058981fb128cdb84dc808c`; GPT integrator independently revalidated all 9 pinned file hashes.
+- Exact-head CI `33463646577`: SUCCESS — Windows full test/packaging/Frozen Setup E2E, macOS smoke, Ubuntu smoke.
+- PR #162 merged as `d939a902a0eacae29f417dd1c3581f0f48d4ced0` with expected head locked to `9c3160e...`.
+- Post-main CI `33466111330`: SUCCESS on Windows/macOS/Ubuntu, including Windows packaging and Frozen Setup install/uninstall E2E.
+- WO-P1-120 is RELEASED. Its worker/elastic seams may now be consumed by WO-P1-118B, but WO118B must establish a fresh exact-main worktree/claim and must not weaken the merged capacity authority.

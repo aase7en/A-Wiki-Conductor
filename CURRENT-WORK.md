@@ -1,34 +1,32 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-01 (GPT-5.6 Sol — WO121/WO118A merged; WO120 final exact-head review)
+Last updated: 2026-09-01 (GPT-5.6 Sol — WO120 released; WO118B ready)
 
 ## Current phase
 
-**Post-AHA-6B frontier safety integration. WO117/WO119/WO121 and WO118A are merged with independent evidence. WO120 is refreshed onto current main at final candidate `899d002...`; exact-head 3-OS CI is green and Ultra review remains pending. WO118B is blocked only on WO120 acceptance. P0 WO-P1-096 remains a separate operational release blocker.**
+**Post-AHA-6B frontier safety integration. WO117/WO119/WO121/WO118A/WO120 are accepted and merged with independent evidence. WO118B is now READY to implement production generation+policy enforcement. P0 WO-P1-096 remains a separate operational release blocker.**
 
 Accepted / active frontier state:
 - PR #160 / WO117 merged as `76123743df90e2fddfb37cbaf94826bf6f50bba1`; late Ultra defects were repaired separately by WO121.
 - PR #161 / WO119 merged as `887ef3c9c640a612dffc1a3baeab42b70f6aa12f`; post-main CI SUCCESS.
 - PR #164 / WO121 merged as `1b0468fae2f2a3b60a1037d343330466e27b7306`; GLM exact-head rereview PASS P0/P1/P2=0; post-main CI `33404736157` SUCCESS.
-- PR #165 / WO118A merged as `0ff914efa2887a0f9c6d330859fa4e49ed921d89`; Ultra rereview004 PASS P0/P1/P2=0 at exact `2bfcdab...`; exact-head CI `33405254844` SUCCESS; post-main CI `33417911998` SUCCESS on Windows/Ubuntu/macOS including Windows Frozen Setup E2E. WO118B production enforcement remains explicitly pending.
-- PR #162 / WO120 final candidate `899d002745b7ae56704c8a6614e7b9a957ab0ba6`: refreshed conflict-free onto WO118A main after resolving lesson #38 earlier; latest crash-window repair prevents stale unbound ACTIVE/RECOVERY reservations from freeing bounded capacity without runtime-absence evidence. Final union regression `359 passed`; exact-head CI `33418133578` SUCCESS on Windows/Ubuntu/macOS; Ultra rereview002 pending.
-- WO118B remains blocked only on accepted WO120: production must enforce generation + policy before admission/lease/elastic expansion/credential resolution/launch.
+- PR #165 / WO118A merged as `0ff914efa2887a0f9c6d330859fa4e49ed921d89`; Ultra rereview004 PASS P0/P1/P2=0 at exact `2bfcdab...`; exact-head CI `33405254844` SUCCESS; post-main CI `33417911998` SUCCESS.
+- PR #162 / WO120 reviewed at exact head `9c3160e4ca4e4baaf9d7cd229a1059f787faac0e`: GLM rereview005 PASS with zero P0/P1/P2; task SHA `ef1e85582e4920543bd357e5d077603d332272311a058981fb128cdb84dc808c`; all 9 pinned hashes independently revalidated; exact-head CI `33463646577` SUCCESS on Windows/macOS/Ubuntu; merged as `d939a902a0eacae29f417dd1c3581f0f48d4ced0`; post-main CI `33466111330` SUCCESS including Windows packaging/Frozen Setup E2E. WO120 is RELEASED.
+- WO118B is READY: production must enforce generation + policy before admission/lease/elastic expansion/credential resolution/launch. Start only from a fresh post-WO120 main worktree/claim; the old read-only prep lane is not mutation authority.
 - P0 WO096 remains operationally open: hosted remote MCP-after-TTL v0.0.13 proof is absent and requires explicit maintenance authority.
 
 ## Active work orders
 
-1. `WO-P1-120` — PR #162 head `899d002...`; exact-head CI `33418133578` green; Ultra rereview002 pending.
-2. `WO-P1-118B` — blocked until WO120 releases worker/elastic seams.
-3. `WO-P1-096` — P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
+1. `WO-P1-118B` — READY on post-WO120 main; requires fresh exact scope/claim/worktree before source mutation.
+2. `WO-P1-096` — P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
 
-Recently merged: WO121/PR164 `1b0468fa...` and WO118A/PR165 `0ff914ef...`, both with accepted independent review and green exact-head/post-main evidence.
+Recently released: WO120/PR162 `d939a902...`, WO121/PR164 `1b0468fa...`, and WO118A/PR165 `0ff914ef...`, all with accepted independent review and green exact-head/post-main evidence.
 
 ## Immediate execution frontier
 
-1. Validate Ultra rereview002 + exact-head CI for PR #162; repair only evidence-backed defects, otherwise merge/post-main prove WO120.
-2. Start WO118B immediately after WO120 release: denial/revalidation must precede provider admission, worker lease, elastic expansion, credential access and process launch.
+1. Close this WO120 SSoT checkpoint, then create a fresh WO118B implementation lane from exact post-WO120 main.
+2. Execute WO118B RED-first: denial/revalidation must precede provider admission, worker lease, elastic expansion, credential access and process launch; preserve the merged WO120 capacity authority.
 3. Keep WO096 separately blocked until authorized hosted remote MCP-after-TTL evidence exists.
-
 ## Source-of-truth rule
 
 Do **not** reconstruct task state from chat memory. Use actual repo/GitHub state → CURRENT-WORK.md → handoff.md → active work order → PROJECT-PLAN/contracts.
