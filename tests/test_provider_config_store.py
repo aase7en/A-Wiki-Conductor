@@ -1034,3 +1034,428 @@ def test_validate_admission_fence_requires_exact_active_unexpired_generation(tmp
             now=NOW + timedelta(seconds=601),
         )
     assert expired.value.code == "PROVIDER_ADMISSION_EXPIRED_RECONCILE"
+
+
+def test_wo125_list_provider_snapshots_empty_store_is_pure_read(tmp_path, monkeypatch) -> None:
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    store.initialize()
+    statements: list[str] = []
+    original_connect = sqlite3.connect
+
+    def traced_connect(*args, **kwargs):
+        connection = original_connect(*args, **kwargs)
+        connection.set_trace_callback(statements.append)
+        return connection
+
+    monkeypatch.setattr("a_conductor.provider_config_store.sqlite3.connect", traced_connect)
+    assert store.list_provider_snapshots() == ()
+    normalized = [statement.strip().upper() for statement in statements]
+    assert not any(item.startswith(("CREATE ", "ALTER ", "INSERT ", "UPDATE ", "DELETE ")) for item in normalized)
+    assert "BEGIN IMMEDIATE" not in normalized
+
+
+def test_wo125_list_missing_database_fails_typed_without_creating(tmp_path) -> None:
+    database = tmp_path / "missing-parent" / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_snapshots()
+
+    assert exc.value.code == "CONFIG_STORE_UNAVAILABLE"
+    assert str(exc.value) == "CONFIG_STORE_UNAVAILABLE"
+    assert not database.exists()
+    assert not database.parent.exists()
+
+
+def test_wo125_snapshot_decoder_maps_malformed_models_to_code_only_corruption(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE provider_configurations SET models_json='{' WHERE provider_id=?",
+            (profile.provider_id,),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.load_provider_snapshot(profile.provider_id)
+
+    assert exc.value.code == "PROVIDER_CONFIGURATION_CORRUPT"
+    assert str(exc.value) == "PROVIDER_CONFIGURATION_CORRUPT"
+
+
+def test_wo125_snapshot_decoder_maps_invalid_endpoint_to_code_only_corruption(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE provider_endpoints SET base_url='not-a-url' WHERE endpoint_ref=?",
+            (profile.endpoint_ref,),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.load_provider_snapshot(profile.provider_id)
+
+    assert exc.value.code == "PROVIDER_CONFIGURATION_CORRUPT"
+    assert str(exc.value) == "PROVIDER_CONFIGURATION_CORRUPT"
+
+
+def test_wo125_list_provider_snapshots_is_deterministic_without_public_n_plus_one(tmp_path, monkeypatch) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    base = make_profile()
+    zulu = ProviderConfiguration(
+        **{**base.as_dict(), "provider_id": "provider-zulu", "endpoint_ref": "provider-config:zulu/base-url", "credential_ref": "secret-ref:provider/zulu"}
+    )
+    alpha = ProviderConfiguration(
+        **{**base.as_dict(), "provider_id": "provider-alpha", "endpoint_ref": "provider-config:alpha/base-url", "credential_ref": "secret-ref:provider/alpha"}
+    )
+    for profile in (zulu, alpha):
+        store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+        store.save_provider(profile)
+
+    def forbidden_single_load(*args, **kwargs):
+        raise AssertionError("list_provider_snapshots must not call load_provider_snapshot")
+
+    monkeypatch.setattr(store, "load_provider_snapshot", forbidden_single_load)
+    snapshots = store.list_provider_snapshots()
+
+    assert [snapshot.profile.provider_id for snapshot in snapshots] == [
+        "provider-alpha",
+        "provider-zulu",
+    ]
+
+
+def test_wo125_decoder_corruption_suppresses_raw_cause_from_public_error(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE provider_configurations SET models_json=? WHERE provider_id=?",
+            ('{"raw-secret":"secret-ref:provider/do-not-log"', profile.provider_id),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.load_provider_snapshot(profile.provider_id)
+
+    assert exc.value.code == "PROVIDER_CONFIGURATION_CORRUPT"
+    assert exc.value.__cause__ is None
+    assert exc.value.__suppress_context__ is True
+    assert "secret-ref:" not in str(exc.value)
+
+
+def test_wo125_legacy_non_boolean_enabled_fails_typed(tmp_path) -> None:
+    database = tmp_path / "legacy.sqlite"
+    profile = make_profile()
+    with sqlite3.connect(database) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE provider_configurations (
+                provider_id TEXT PRIMARY KEY, schema_version TEXT NOT NULL,
+                display_name TEXT NOT NULL, provider_type TEXT NOT NULL,
+                protocol_family TEXT NOT NULL, endpoint_ref TEXT NOT NULL,
+                credential_ref TEXT NOT NULL, trust_class TEXT NOT NULL,
+                egress_boundary TEXT NOT NULL, harness_strategies_json TEXT NOT NULL,
+                max_concurrency INTEGER NOT NULL, models_json TEXT NOT NULL,
+                enabled INTEGER NOT NULL, generation INTEGER
+            );
+            CREATE TABLE provider_endpoints (
+                endpoint_ref TEXT PRIMARY KEY, base_url TEXT NOT NULL, generation INTEGER
+            );
+            """
+        )
+        payload = profile.as_dict()
+        connection.execute(
+            "INSERT INTO provider_configurations VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (profile.provider_id, profile.schema_version, profile.display_name, profile.provider_type,
+             profile.protocol_family.value, profile.endpoint_ref, profile.credential_ref,
+             profile.trust_class.value, profile.egress_boundary.value, '["CLAUDE_CODE_CLI"]',
+             1, '[{"model_id":"model-test","display_name":"Model Test"}]', 2, 1),
+        )
+        connection.execute(
+            "INSERT INTO provider_endpoints VALUES(?,?,1)",
+            (profile.endpoint_ref, "https://api.example.test/v1"),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        SQLiteProviderConfigStore(database).load_provider_snapshot(profile.provider_id)
+    assert exc.value.code == "PROVIDER_CONFIGURATION_CORRUPT"
+
+
+def test_wo125_invalid_persisted_generations_preserve_specific_typed_error(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE provider_configurations SET generation=0 WHERE provider_id=?",
+            (profile.provider_id,),
+        )
+        connection.commit()
+    with pytest.raises(ProviderConfigStoreError) as profile_error:
+        store.load_provider_snapshot(profile.provider_id)
+    assert profile_error.value.code == "PROVIDER_GENERATION_INVALID"
+
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE provider_configurations SET generation=1 WHERE provider_id=?",
+            (profile.provider_id,),
+        )
+        connection.execute(
+            "UPDATE provider_endpoints SET generation=0 WHERE endpoint_ref=?",
+            (profile.endpoint_ref,),
+        )
+        connection.commit()
+    with pytest.raises(ProviderConfigStoreError) as endpoint_error:
+        store.load_provider_snapshot(profile.provider_id)
+    assert endpoint_error.value.code == "PROVIDER_GENERATION_INVALID"
+
+
+def test_wo125_malformed_quota_json_fails_code_only(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    store.save_observation(
+        ProviderObservation(provider_id=profile.provider_id, health=ProviderHealth.AVAILABLE,
+                            observed_at=NOW, provenance="probe:test", configuration_generation=1)
+    )
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE provider_observations SET quota_json='[' WHERE provider_id=?",
+            (profile.provider_id,),
+        )
+        connection.commit()
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.load_provider_snapshot(profile.provider_id)
+    assert exc.value.code == "PROVIDER_CONFIGURATION_CORRUPT"
+    assert str(exc.value) == "PROVIDER_CONFIGURATION_CORRUPT"
+
+
+def test_wo125_corrupt_participating_provider_aborts_list_but_orphan_does_not(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "INSERT INTO provider_endpoints(endpoint_ref, base_url, generation) VALUES(?,?,?)",
+            ("provider-config:orphan/base-url", "not-a-url", 0),
+        )
+        connection.commit()
+
+    snapshots = store.list_provider_snapshots()
+    assert [item.profile.provider_id for item in snapshots] == [profile.provider_id]
+
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE provider_configurations SET models_json='{' WHERE provider_id=?",
+            (profile.provider_id,),
+        )
+        connection.commit()
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_snapshots()
+    assert exc.value.code == "PROVIDER_CONFIGURATION_CORRUPT"
+
+
+def test_wo125_bulk_list_uses_one_connection_and_three_selects(tmp_path) -> None:
+    from contextlib import contextmanager
+
+    class CountingStore(SQLiteProviderConfigStore):
+        read_connections = 0
+        statements: list[str] = []
+
+        @contextmanager
+        def _connect_read_only(self):
+            self.read_connections += 1
+            with super()._connect_read_only() as connection:
+                connection.set_trace_callback(self.statements.append)
+                yield connection
+
+    store = CountingStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    snapshots = store.list_provider_snapshots()
+    selects = [s for s in store.statements if s.lstrip().upper().startswith("SELECT ")]
+    assert len(snapshots) == 1
+    assert store.read_connections == 1
+    assert len(selects) == 3
+
+
+def test_wo125_wal_interleaving_never_returns_mixed_provider_generation(tmp_path) -> None:
+    from contextlib import contextmanager
+    from threading import Event, Thread
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = make_profile()
+    old_url = "https://old.example.test/v1"
+    new_url = "https://new.example.test/v1"
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, old_url))
+    store.save_provider(profile)
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("PRAGMA journal_mode=WAL").fetchone()[0].lower() == "wal"
+
+    writer_go = Event()
+    writer_done = Event()
+    writer_errors: list[BaseException] = []
+
+    class BarrierStore(SQLiteProviderConfigStore):
+        @contextmanager
+        def _connect_read_only(self):
+            with super()._connect_read_only() as connection:
+                def trace(statement: str) -> None:
+                    if statement.lstrip().upper().startswith("SELECT * FROM PROVIDER_ENDPOINTS"):
+                        writer_go.set()
+                        assert writer_done.wait(5), "writer did not commit during WAL read"
+                connection.set_trace_callback(trace)
+                yield connection
+
+    def writer() -> None:
+        try:
+            assert writer_go.wait(5), "reader never reached endpoint bulk SELECT"
+            with sqlite3.connect(database) as connection:
+                connection.execute("PRAGMA busy_timeout=5000")
+                connection.execute("BEGIN IMMEDIATE")
+                connection.execute(
+                    "UPDATE provider_endpoints SET base_url=?, generation=2 WHERE endpoint_ref=?",
+                    (new_url, profile.endpoint_ref),
+                )
+                connection.execute(
+                    "UPDATE provider_configurations SET generation=2 WHERE provider_id=?",
+                    (profile.provider_id,),
+                )
+                connection.commit()
+        except BaseException as exc:
+            writer_errors.append(exc)
+        finally:
+            writer_done.set()
+
+    thread = Thread(target=writer, daemon=True)
+    thread.start()
+    snapshot = BarrierStore(database).list_provider_snapshots()[0]
+    thread.join(timeout=5)
+
+    assert writer_errors == []
+    assert snapshot.generation == 1
+    assert snapshot.endpoint.base_url == old_url
+    latest = store.load_provider_snapshot(profile.provider_id)
+    assert latest.generation == 2
+    assert latest.endpoint.base_url == new_url
+
+
+def test_wo125_existing_but_uninitialized_database_is_schema_error_not_empty(tmp_path) -> None:
+    database = tmp_path / "control.sqlite"
+    sqlite3.connect(database).close()
+    store = SQLiteProviderConfigStore(database)
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_snapshots()
+
+    assert exc.value.code == "CONFIG_STORE_SCHEMA_UNAVAILABLE"
+    assert str(exc.value) == "CONFIG_STORE_SCHEMA_UNAVAILABLE"
+
+
+def test_wo125_decoder_rejects_non_integer_nested_context_window(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    malformed_models = (
+        '[{"model_id":"model-test","display_name":"Model Test",'
+        '"actor_capabilities":[],"supported_effort_levels":["DEFAULT"],'
+        '"context_window_tokens":1.5}]'
+    )
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE provider_configurations SET models_json=? WHERE provider_id=?",
+            (malformed_models, profile.provider_id),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.load_provider_snapshot(profile.provider_id)
+    assert exc.value.code == "PROVIDER_CONFIGURATION_CORRUPT"
+
+
+def test_wo125_invalid_observation_generation_preserves_specific_typed_error(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    store.save_observation(
+        ProviderObservation(
+            provider_id=profile.provider_id,
+            health=ProviderHealth.AVAILABLE,
+            observed_at=NOW,
+            provenance="probe:test",
+            configuration_generation=1,
+        )
+    )
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "UPDATE provider_observations SET configuration_generation=0 WHERE provider_id=?",
+            (profile.provider_id,),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_snapshots()
+    assert exc.value.code == "PROVIDER_GENERATION_INVALID"
+
+
+def test_wo125_corrupt_sqlite_file_is_typed_failure_not_empty(tmp_path) -> None:
+    database = tmp_path / "control.sqlite"
+    database.write_bytes(b"not-a-sqlite-database")
+    store = SQLiteProviderConfigStore(database)
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_snapshots()
+
+    assert exc.value.code in {
+        "CONFIG_STORE_UNAVAILABLE",
+        "CONFIG_STORE_READ_FAILED",
+        "CONFIG_STORE_SCHEMA_UNAVAILABLE",
+    }
+
+
+def test_wo125_single_and_list_snapshot_decoders_match(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    store.save_observation(
+        ProviderObservation(
+            provider_id=profile.provider_id,
+            health=ProviderHealth.AVAILABLE,
+            observed_at=NOW,
+            provenance="probe:test",
+            configuration_generation=1,
+        )
+    )
+
+    single = store.load_provider_snapshot(profile.provider_id)
+    listed = store.list_provider_snapshots()
+
+    assert single is not None
+    assert listed == (single,)
+
+
+def test_wo125_list_preserves_missing_endpoint_observation_and_disabled_provider(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "control.sqlite")
+    profile = ProviderConfiguration(**{**make_profile().as_dict(), "enabled": False})
+    store.save_provider(profile)
+
+    snapshots = store.list_provider_snapshots()
+
+    assert len(snapshots) == 1
+    assert snapshots[0].profile.enabled is False
+    assert snapshots[0].endpoint is None
+    assert snapshots[0].observation is None

@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import time
 from collections import deque
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
 from typing import Callable, Protocol
@@ -35,6 +36,7 @@ from .local_instances import (
     instance_health_state,
 )
 from .persistence import SQLiteRegistryStore
+from .provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
 from .runtime_setup import RuntimeSetupError, RuntimeSetupService, SetupReadiness, WorkerSetupDraft
 from .serena_config_store import SerenaConfigStoreError, SQLiteSerenaConfigStore
 from .worker_serena_settings import WorkerSerenaSettings
@@ -64,14 +66,23 @@ class DesktopControlService:
         lifecycle: LifecycleCommandService,
         runtime_setup: RuntimeSetupService | None = None,
         settings_store: SQLiteSerenaConfigStore | None = None,
+        provider_store: SQLiteProviderConfigStore | None = None,
+        clock: Callable[[], datetime] | None = None,
         instances_root: str | Path = DEFAULT_INSTANCES_ROOT,
         instance_orchestrator: LocalInstanceOrchestrator | None = None,
         connector_recovery: ConnectorRecoveryCoordinator | None = None,
     ) -> None:
+        if settings_store is not None and provider_store is not None:
+            settings_database = Path(settings_store.database_path).expanduser().resolve(strict=False)
+            provider_database = Path(provider_store.database_path).expanduser().resolve(strict=False)
+            if settings_database != provider_database:
+                raise ValueError("CONTROL_DATABASE_IDENTITY_MISMATCH")
         self.control_center = control_center
         self.lifecycle = lifecycle
         self.runtime_setup = runtime_setup
         self.settings_store = settings_store
+        self._provider_store = provider_store
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self.instances_root = instances_root
         self._instance_orchestrator = instance_orchestrator
         self._connector_recovery = connector_recovery
@@ -90,9 +101,11 @@ class DesktopControlService:
         coordinator_builder: Callable[..., LifecycleCoordinator] = build_local_lifecycle_coordinator,
         instances_root: str | Path | None = None,
     ) -> "DesktopControlService":
-        database = Path(database_path)
+        database = Path(database_path).expanduser().resolve(strict=False)
         control_center = ControlCenterService.open(SQLiteRegistryStore(database))
         config_store = SQLiteSerenaConfigStore(database)
+        provider_store = SQLiteProviderConfigStore(database)
+        provider_store.initialize()
         lifecycle = coordinator_builder(database, service=control_center)
         runtime_setup = RuntimeSetupService(
             control_center=control_center,
@@ -106,6 +119,7 @@ class DesktopControlService:
             lifecycle=lifecycle,
             runtime_setup=runtime_setup,
             settings_store=config_store,
+            provider_store=provider_store,
             instances_root=resolved_root,
         )
 
@@ -366,6 +380,21 @@ class DesktopControlService:
         if self.settings_store is None:
             raise SerenaConfigStoreError("SETTINGS_STORE_NOT_AVAILABLE")
         return self.settings_store
+
+    def _require_provider_store(self) -> SQLiteProviderConfigStore:
+        if self._provider_store is None:
+            raise ProviderConfigStoreError("PROVIDER_STORE_NOT_AVAILABLE")
+        return self._provider_store
+
+    def provider_operator_rows(self, *, max_age_seconds: int = 300):
+        from .provider_operator_view import build_provider_operator_rows
+
+        snapshots = self._require_provider_store().list_provider_snapshots()
+        return build_provider_operator_rows(
+            snapshots,
+            now=self._clock(),
+            max_age_seconds=max_age_seconds,
+        )
 
     def worker_settings(self, worker_id: str) -> WorkerSerenaSettings:
         store = self._require_settings_store()
