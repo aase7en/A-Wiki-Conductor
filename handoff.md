@@ -1,14 +1,14 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-01 - WO125 implemented on reconciled main; exact-head review pending
+Last updated: 2026-09-01 - WO126 implemented; verification/review pending
 
 ## Current objective
 
-Freeze and externally review WO125 provider operator read service. Implementation has closed the accepted Ultra P1/P2 architecture findings RED-first; no merge claim exists until exact-head Ultra + GLM review, CI, remote diff audit and post-main verification pass. Keep WO096 separate and blocked without explicit maintenance authority.
+Verify and freeze the implemented WO126 read-only `MODELS & AGENTS` Settings display, then run exact-head independent review/CI before merge. Keep WO127 Edit/Disable/Test and WO128 selection/fallback observability separate, and keep WO096 blocked without explicit maintenance authority.
 
 ## Repository / release identity
 
-- authoritative remote main: `b32ddd26e6153e0b60855448f2240dd059281f8c`; PR #177/WO130 is merged and post-main CI `33517232490` is SUCCESS; protected root checkout remains dirty/protected and MUST NOT be mutated;
+- authoritative remote main: `23b988764a3529f0721375f5d0a0c885b715ad46`; PR #178/WO125 merged from reviewed head `91f77731d472d23c624bef22891b9cd400e6c090`; exact-head CI `33528331266` and post-main CI `33534118110` are SUCCESS; protected root checkout remains dirty/protected and MUST NOT be mutated;
 - PR #174 / WO124: MERGED from independently reviewed exact head `be97d313c748fe5fcce0e57ecf5dc304b863e230`; GLM review002 PASS P0/P1/P2=0; exact-head CI `33497483113` attempt 2 SUCCESS; post-main `33504441646` attempt 2 SUCCESS.
 - PR #176 / WO129: MERGED from independently reviewed exact head `661c86f9a30433006a01e996ed1ea46fde4a7e52`; GLM review001 PASS P0/P1/P2=0; exact-head CI `33503763313` SUCCESS; post-main `33509029840` SUCCESS.
 - WO122 stable external-agent mailbox remains operational: GPT/Conductor repoints one machine-local path per agent while the human prompt stays constant and the integrator consumes declared result files directly.
@@ -19,7 +19,8 @@ Freeze and externally review WO125 provider operator read service. Implementatio
 - GPT integrator owns dependency order, SSoT, merge/release adjudication and the WO130 docs-only closeout.
 - WO124 and WO129 product source are released on main; no new source edits belong to those completed lanes.
 - GPT Ultra WO125 architecture result at task SHA `655bacc0ef384d2818ae54d8fe9729a00061040448d817a65df1872be6db3303` is consumed: `CHANGES_REQUIRED`, P0=0, P1=4, P2=2. Review-base provider/desktop blobs are identical on current main; findings are not stale.
-- WO125 implementation authority is bounded by `docs/work-orders/WO-P1-125-provider-operator-read-service.md` on `A:\GitHub\A-Wiki-Conductor-wo125-provider-read-service`; source checkpoint `9c6e1b5...` was merged non-destructively with current main to `131b511f...`. Mutable product scope remains only provider store/Desktop facade/operator projection + focused tests.
+- WO125 is RELEASED. GLM exact-head long-goal review PASS P0/P1/P2=0; Ultra final exact-head review exhausted quota before producing a result and is explicitly non-authoritative.
+- WO126 is implemented on `A:\GitHub\A-Wiki-Conductor-wo126-models-agents-settings`, branch `feat/wo-p1-126-models-agents-settings`, base main `23b988764...`; current source/tests remain inside the claimed UI/i18n/focused-test scope and provider/store/policy/runtime authorities are untouched.
 - The prior external claim helper is not available in the current repo/runtime surface; tracked work orders and exact worktree/scope records are the durable fallback. Never infer overlapping authority from a stale chat claim.
 
 ## Verified evidence
@@ -28,14 +29,16 @@ Freeze and externally review WO125 provider operator read service. Implementatio
 - WO124 post-main attempt 1 hit the known unrelated Windows owned-process transient; attempt 2 passed the same main SHA through full Windows packaging/Frozen E2E without AHA-7 product changes.
 - WO129 local focused = 28 passed; related = 117 passed before commit and 90 passed recheck; real Windows lifecycle = 10/10; GLM repeated the real test 3/3 and scripted adversarial cases 9/9.
 - WO129 post-main CI is fully green, closing the repeated hosted-Windows post-stop observation race with a bounded/fail-closed repair.
-- WO125 RED baseline reproduced 8 intended failures. Repaired evidence: focused 92 passed; impact-expanded provider/runtime/elastic/Claude matrix 267 passed; WAL interleaving proves all-old then all-new snapshots, never mixed; full local 1966 passed / 4 skipped / 2 known optional-GPU dependency failures; compileall/diff-check/UTF-8/added-line secret-value scan PASS.
+- WO125 RED baseline reproduced 8 intended failures; final exact-head local focused 92 passed, full repo 1973 passed / 4 skipped / 2 known optional-GPU failures, GLM independently ran 92 focused + 44 related + 12/12 adversarial reproductions, and hosted exact-head/post-main CI are green.
+- GLM Stage B shaped WO126: existing Preferences/Toplevel, one `provider_operator_rows()` read, existing background executor/Tk scheduler, explicit empty/loading/error/truth states, manual Refresh first, no mutation/router/secret path.
+- WO126 implementation verification: Python 3.13 focused panel = 10/10 PASS; ordered UI/control/i18n/singleton/button matrix = 118/118 PASS after repairing global-language test isolation; pre-freeze full repo = 1982 passed / 5 skipped / 2 known optional-GPU dependency failures only. Exact-head full + hosted CI still gate merge.
 
 ## Next safe actions
 
-1. Finish exact-head audit/checkpoint on reconciled WO125 branch and freeze SHA.
-2. Dispatch that exact SHA to GPT Ultra adversarial review (use remaining quota only here) and GLM independent review through stable mailboxes; integrator reads results directly.
-3. Repair any P0/P1/P2 finding RED-first and regenerate review identity; otherwise push/open PR, remote-diff audit and require exact-head 3-OS CI.
-4. Merge only with expected head, verify post-main, close WO125 SSoT, then claim WO126 Settings/Advanced async read-only UI.
+1. Complete WO126 full-repo regression and final UTF-8/secret/diff/layout audits.
+2. Commit/freeze exact HEAD, push/open PR, then run independent exact-head review and hosted Windows/Ubuntu/macOS CI.
+3. Repair only evidence-backed defects; otherwise merge, post-main verify, and release the WO126 lane.
+4. GLM may shape WO127/WO128 read-only in parallel; no source mutation without a separate accepted work order.
 5. Do not publish v0.7.0 until WO096 hosted remote MCP-after-TTL evidence and final release E2E are complete.
 
 ## Accepted predecessor

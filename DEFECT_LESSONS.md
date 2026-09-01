@@ -650,3 +650,26 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** a screen that only reads data still participates in control-plane authority. Read paths must not create/migrate databases, acquire writer intent, reconstruct mixed-time state, silently collapse corruption to empty, or carry raw persistence text into UI/loggable objects. Canonical identity + one coherent read transaction + typed decoding + sink-safe projection are one boundary.
 
 **Verify:** initial WO125 RED = 8 intended failures; deep bug hunt added cross-DB and cause-chain REDs plus strict nested integer validation; focused current suite = 92 passed; impact-expanded provider/runtime/elastic/Claude matrix = 267 passed; WAL interleaving proves all-old then all-new snapshots, never mixed; full local source checkpoint = 1966 passed / 4 skipped / 2 known optional-GPU dependency failures only. Exact-head external review/CI still gate merge.
+
+## #43: Truthful operator UI must preserve invalid-but-observed scalar values (2026-09-01)
+
+**Symptom:** WO126 deep bug hunt showed a provider row carrying `configuration_generation=0` and `PROVIDER_GENERATION_INVALID` was displayed as `generation=-`.
+
+**Root cause:** presentation formatting used truthiness (`generation or '-'`) instead of distinguishing missing (`None`) from an observed invalid numeric value (`0`). That erased evidence precisely when the operator needed it most.
+
+**Fix:** only `None` maps to the missing-value marker. Numeric values, including invalid zero, remain visible while `configured=False`, `runtime_ready=False`, and the typed readiness reason explain why they are invalid.
+
+**Lesson:** presentation layers must not normalize invalid observed state into missing state. `missing`, `invalid`, and `not evaluated` are separate truths and must remain separate through the final UI sink.
+
+**Verify:** RED reproduced `generation=0 -> generation=-`; repaired focused WO126 panel matrix passed with the zero value preserved and authorization/readiness still separated.
+## #44: UI tests that mutate global language must restore it (2026-09-01)
+
+**Symptom:** the new WO126 language-refresh test passed by itself but caused the later guide test to open `USER-GUIDE-EN.md` instead of the expected Thai guide.
+
+**Root cause:** the test changed process-global i18n state to English and did not restore the previous language. The failure appeared only in the ordered impact suite, not the focused file.
+
+**Fix:** capture `get_language()` before mutation and restore it in `finally`. The repaired impact matrix passes with the guide test after the new panel tests.
+
+**Lesson:** deterministic tests must clean up process-global state. Focused green is insufficient when a test mutates language, environment, registries, caches, clocks, or other shared singletons.
+
+**Verify:** ordered impact matrix reproduced the pollution as 1 failure / 117 passes; after repair the same matrix is **118/118 PASS**.
