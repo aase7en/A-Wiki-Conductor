@@ -612,3 +612,15 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** repeated validation is not a fence. Security/configuration authority that crosses side effects needs one non-forgeable durable identity plus an ownership record whose lifetime spans the side effect. Dedup keys must include the same authority identity, and mixed scheduler outcomes must preserve eligible siblings rather than collapsing the whole batch to the strongest denial.
 
 **Verify:** Task Contract/security/generation/DB identity tests, forged admission/release tests, generation mutation during provisioning, secret-time/launch-time drift, mixed denied+capacity sibling, runtime-profile dedup separation, and canonical Claude provider-DB mismatch all reproduce the unsafe boundary or fail closed after repair. Focused provider/parallel/elastic/Claude frontier reached 301 passing tests before the final full-suite/exact-head review gate.
+
+## #40: Stable agent mailbox metadata is a prompt boundary, not ordinary display text (2026-09-01)
+
+**Symptom:** WO-P1-122 deep audit proved that `task_id`, `provider_id`, and `model_id` could contain newline/backtick content and escape their Markdown inline-code fields in the stable external-agent mailbox, even though path fields and some other metadata were already hardened.
+
+**Root cause:** mailbox rendering reused generic scalar validation for identity fields. Generic task/result data may tolerate broader text, but a value embedded into a human/agent instruction envelope has a stricter grammar and therefore a different trust boundary.
+
+**Fix:** every Markdown-bearing mailbox scalar uses `_mailbox_text()` to reject CR/LF/backtick; agent IDs remain bounded slugs, absolute task/result/worktree paths are separately validated, task SHA is re-hashed before atomic replacement, and failed preflight preserves the previous mailbox bytes.
+
+**Lesson:** prompt envelopes are executable coordination surfaces. Validate for the destination syntax, not only the source data type. Stable pointers may change contents atomically, but untrusted metadata must never be able to rewrite the instructions surrounding the pointer.
+
+**Verify:** RED reproduced metadata injection; focused mailbox suite = 24 passed, integrator focused matrix = 115 passed, GLM adversarial review blocked 12 injection attempts and re-proved failed-publish preservation, exact-head CI `33495011125` and post-main CI `33498867661` are green.

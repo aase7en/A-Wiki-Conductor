@@ -8,11 +8,11 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
 | Released provider safety | GPT-5.6 Sol + GLM rereview | WO-P1-118B | production provider authority enforcement | MERGED #172 `9c560778` / GLM_006_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
-| Review-ready ergonomics | GPT-5.6 Sol + external reviewer | WO-P1-122 | stable external-agent mailbox + bridge protocol | HEAD `f2967a4` / CI `33495011125` GREEN / INDEPENDENT_REVIEW_PENDING |
-| Active product frontier | GPT-5.6 Sol | WO-P1-124 / AHA-7A | additive truthful provider operator read model | HEAD `0862da1` / 21 focused + 80 provider tests / REVIEW_PENDING |
+| Released agent ergonomics | GPT-5.6 Sol + GLM review | WO-P1-122 | stable external-agent mailbox + bridge protocol | MERGED #168 `a957868` / GLM_002_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
+| Active product frontier | GPT-5.6 Sol + GLM review | WO-P1-124 / AHA-7A | additive truthful provider operator read model | HEAD `be97d31` / 25 focused + 84 provider tests / CI_GREEN / INDEPENDENT_REVIEW_PENDING |
 | Released coordination protocol | GPT-5.6 Sol + GLM review | WO-P1-123 | Loop Engineer routing + stable task/status/result convention | MERGED #170 `5ddf533f` / POST_MAIN_GREEN |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / FIVE LIVE WORKERS READY / NO MUTATION AUTHORITY |
-| Next AHA-7 slice | provider-neutral | AHA-7B Settings read surface | existing provider read model + control DB service | AFTER_WO124_ACCEPTANCE |
+| Next AHA-7 slice | GPT-5.6 Sol | WO-P1-125 provider operator read service | existing provider read model + same control DB | READY_AFTER_WO124_ACCEPTANCE |
 | Future | provider-neutral | AHA-7 Edit/Disable/Test + selection reason | accepted provider CAS/admission/runtime/scheduler authorities | CLAIM_GATED |
 | Future | provider-neutral | AHA-8 additional providers | one adapter at a time | DEFERRED |
 
