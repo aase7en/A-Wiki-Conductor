@@ -34,3 +34,11 @@ No runtime/source/UI/provider/tunnel mutation.
 - Added integrator routing/non-overlap requirements to `COLLAB.md`.
 - Verification: `git diff --check` PASS; UTF-8 read PASS; source diff empty.
 - Independent exact-head review and CI remain required before merge.
+
+## Release evidence
+- implementation/review HEAD: `6839f1d936bfdc1c2962f006baae7a121f6731a4`
+- independent GLM-5.3 MAX review: PASS, P0/P1/P2 = 0; task SHA `00d64f4f0194c3ba10c502d232303a53a34f7b56e8ed2fb72081f3449a860c3a`
+- PR #170 merged as `5ddf533fca4d236fbd3b9fcbc092cfbd6d3341b9`
+- exact-head CI `33483988509`: Windows/macOS/Ubuntu SUCCESS
+- post-main CI `33486497661`: SUCCESS
+- GLM review claim released after result validation. P3 mailbox-history/schema/gitignore clarifications remain non-blocking successor hardening.

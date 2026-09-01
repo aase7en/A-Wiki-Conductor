@@ -11,6 +11,7 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 | Released repair | GPT-5.6 Sol + GLM rereview | WO-P1-121 | dispatch completion evidence binding | MERGED #164 `1b0468fa` / GLM_004_PASS / POST_MAIN_GREEN |
 | Released provider seam | GPT-5.6 Sol + Ultra rereview | WO-P1-118A | provider generation/CAS + pure trust/egress evaluator | MERGED #165 `0ff914ef` / ULTRA_004_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
 | Released capacity seam | GPT-5.6 Sol + GLM rereview | WO-P1-120 | elastic capacity fencing + recovery hardening | MERGED #162 `d939a902` / GLM_005_PASS_P0P1P2_0 / EXACT_HEAD_AND_POST_MAIN_GREEN |
+| Released coordination protocol | GPT-5.6 Sol + GLM review | WO-P1-123 | Loop Engineer routing + stable no-copy-back mailbox | MERGED #170 `5ddf533f` / GLM_PASS_P0P1P2_0 / POST_MAIN_GREEN |
 | Ready integration | GPT-5.6 Sol | WO-P1-118B | pre-admission/pre-elastic/pre-secret/pre-launch enforcement | READY_AFTER_WO120 / FRESH_CLAIM_REQUIRED |
 | Released | GPT-5.6 Sol + GLM review | WO-P1-119 | provider output persistence safety | MERGED `887ef3c9` / POST_MAIN_GREEN |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / NO CURRENT PROOF |
