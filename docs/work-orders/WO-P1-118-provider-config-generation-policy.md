@@ -162,3 +162,20 @@ Accepted repairs:
 Deterministic evidence so far: provider execution authority 6 tests including store mismatch/dedup identity; elastic fencing 31 passed including mutation-during-provision and mixed-sibling starvation; provider/parallel/Claude boundary matrix 144 passed; expanded 16-file frontier matrix 301 passed; compileall and `git diff --check` pass. A stale full-suite started before the final canonical-DB repair was explicitly terminated and is not evidence. Final current-code full-suite, current-main reconciliation, exact-head independent rereview, CI and post-main verification remain required.
 
 Status: **WO-P1-118B INTEGRATOR_REPAIRED / EXACT_HEAD_REVIEW_PENDING ? DO NOT MERGE YET.**
+
+## WO-P1-118B current-main verification checkpoint ? 2026-09-01
+
+Implementation was checkpointed, then cleanly rebased onto post-WO123-closeout main `b1024b354a6fc45faad618a055a55aef3d9954f5`; the source diff remained the same 18 claimed files with no merge conflict. Rebased implementation commit before this evidence-only checkpoint: `f3b91bd`.
+
+Current-main verification after rebase:
+- impacted provider/parallel/elastic/Claude matrix: `211 passed`;
+- full repository: `1911 passed, 5 skipped, 2 failed`; both failures are the same local GPU dependency gaps outside WO118B (`Pillow is required for GPU particle sampling`, `No module named OpenGL`);
+- `python -m compileall -q src/a_conductor`: PASS;
+- `git diff --check`: PASS;
+- strict UTF-8 decode of all 18 changed files: PASS;
+- refined added-line credential/private-key scan: 0 hits;
+- merge/rebase onto current main: conflict-free.
+
+The binding Loop Engineer `detect_changes()` step was attempted with GitNexus but A-Conductor has no GitNexus index yet (`Repository "." not found`); no index was created inside the release worktree. Existing deterministic diff/impact matrices remain the evidence for this slice, and indexing A-Conductor is a separate tooling hardening item rather than permission to mutate the release lane.
+
+Next gates: freeze final SHA, push/open PR, remote diff audit, fresh exact-head GLM independent rereview (Ultra unavailable by 5h limit), 3-OS CI, integrator re-audit, merge, post-main verify, then SSoT closeout.
