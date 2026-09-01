@@ -28,11 +28,21 @@ from .provider_config_store import (
     ProviderAdmissionKind,
     ProviderAdmissionRecord,
     ProviderAdmissionResult,
+    ProviderConfigurationSnapshot,
 )
 from .provider_configuration import (
     ProviderConfiguration,
+    ProviderEndpointConfig,
     ProviderObservation,
     is_provider_ready,
+)
+from .provider_execution_authority import (
+    ProviderExecutionAuthority,
+    ProviderExecutionRequirement,
+)
+from .provider_policy import (
+    ProviderPolicyTaskSecurity,
+    evaluate_provider_policy,
 )
 from .registry import windows_worktree_key
 from .worker_lease import (
@@ -94,7 +104,12 @@ class ProviderAdmissionPort(Protocol):
         expected_max_concurrency: int,
         now: object,
         ttl_seconds: int,
+        expected_configuration_generation: int | None = None,
     ) -> ProviderAdmissionResult: ...
+
+    def load_provider_snapshot(
+        self, provider_id: str
+    ) -> ProviderConfigurationSnapshot | None: ...
 
     def release_admission(
         self,
@@ -134,7 +149,11 @@ class ParallelReadyTask:
     provider_observation: ProviderObservation | None
     harness_dispatch: HarnessDispatch
     task_packet: TaskPacketFile
+    provider_endpoint: ProviderEndpointConfig | None = None
+    provider_security: ProviderPolicyTaskSecurity | None = None
+    expected_configuration_generation: int | None = None
     require_quota: bool = False
+    provider_requirement: ProviderExecutionRequirement | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.assignment, SelectedAssignment):
@@ -162,8 +181,39 @@ class ParallelReadyTask:
             raise ValueError("harness_dispatch must be HarnessDispatch")
         if not isinstance(self.task_packet, TaskPacketFile):
             raise ValueError("task_packet must be TaskPacketFile")
+        authority = (
+            self.provider_endpoint,
+            self.provider_security,
+            self.expected_configuration_generation,
+        )
+        if any(item is not None for item in authority):
+            if not all(item is not None for item in authority):
+                raise ValueError("provider execution authority must be complete")
+            if not isinstance(self.provider_endpoint, ProviderEndpointConfig):
+                raise ValueError("provider_endpoint must be ProviderEndpointConfig")
+            if self.provider_endpoint.endpoint_ref != self.provider_profile.endpoint_ref:
+                raise ValueError("provider endpoint identity mismatch")
+            if not isinstance(self.provider_security, ProviderPolicyTaskSecurity):
+                raise ValueError("provider_security must be ProviderPolicyTaskSecurity")
+            generation = self.expected_configuration_generation
+            if (
+                isinstance(generation, bool)
+                or not isinstance(generation, int)
+                or generation < 1
+            ):
+                raise ValueError("expected_configuration_generation must be positive")
         if not isinstance(self.require_quota, bool):
             raise ValueError("require_quota must be bool")
+        if self.provider_requirement is not None:
+            requirement = self.provider_requirement
+            if not isinstance(requirement, ProviderExecutionRequirement):
+                raise ValueError("provider_requirement must be ProviderExecutionRequirement")
+            if requirement.provider_id != self.provider_profile.provider_id:
+                raise ValueError("provider requirement identity mismatch")
+            if requirement.provider_security != self.provider_security:
+                raise ValueError("provider requirement security mismatch")
+            if requirement.expected_configuration_generation != self.expected_configuration_generation:
+                raise ValueError("provider requirement generation mismatch")
         dispatch = self.harness_dispatch
         graph_dispatch = self.dispatch_request
         request = self.lease_request
@@ -192,15 +242,23 @@ class ParallelReadyTask:
             raise ValueError("head identity mismatch")
         if self.task_packet.task_contract_ref != dispatch.task_contract_ref:
             raise ValueError("task packet contract mismatch")
+        if self.provider_requirement is not None:
+            if self.provider_requirement.task_contract_ref != dispatch.task_contract_ref:
+                raise ValueError("provider requirement contract mismatch")
+            if self.provider_requirement.operation_ref != graph_dispatch.operation_ref:
+                raise ValueError("provider requirement operation mismatch")
         if request.lease_ttl_seconds <= dispatch.timeout_seconds:
             raise ValueError("lease TTL must exceed execution timeout")
         object.__setattr__(self, "candidates", candidates)
 
 
-def _quota_reason(task: ParallelReadyTask) -> str | None:
+def _quota_reason(
+    task: ParallelReadyTask,
+    observation: ProviderObservation | None = None,
+) -> str | None:
     if not task.require_quota:
         return None
-    observation = task.provider_observation
+    observation = task.provider_observation if observation is None else observation
     quota = None if observation is None else observation.quota
     if quota is None:
         return "PROVIDER_QUOTA_UNKNOWN"
@@ -327,6 +385,79 @@ def _lease_wait_outcome(node_id: str, outcome: WorkerLeaseOutcome) -> ParallelRe
     return ParallelReadyOutcome(node_id, kind, reason, lease_outcome=outcome)
 
 
+@dataclass(frozen=True, slots=True)
+class ProviderAuthorityCheck:
+    allowed: bool
+    gate_refused: bool
+    provider_unavailable: bool
+    rate_limited: bool
+    reason_code: str
+    profile: ProviderConfiguration
+    endpoint: ProviderEndpointConfig | None
+    observation: ProviderObservation | None
+
+
+def _authority_outcome(node_id: str, check: ProviderAuthorityCheck) -> ParallelReadyOutcome:
+    if check.gate_refused:
+        kind = ParallelReadyOutcomeKind.DISPATCH_GATE_BLOCKED
+    elif check.rate_limited:
+        kind = ParallelReadyOutcomeKind.PROVIDER_QUOTA_WAIT
+    else:
+        kind = ParallelReadyOutcomeKind.PROVIDER_WAIT
+    return ParallelReadyOutcome(node_id, kind, check.reason_code)
+
+
+def _validate_provider_admission_record(
+    task: ParallelReadyTask, batch_id: str, admission: ProviderAdmissionRecord, now: object
+) -> str | None:
+    if not isinstance(admission, ProviderAdmissionRecord):
+        return "PROVIDER_ADMISSION_RECORD_INVALID"
+    if admission.provider_id != task.provider_profile.provider_id:
+        return "PROVIDER_ADMISSION_IDENTITY_MISMATCH"
+    if admission.execution_id != task.harness_dispatch.execution_id:
+        return "PROVIDER_ADMISSION_IDENTITY_MISMATCH"
+    if admission.batch_id != batch_id:
+        return "PROVIDER_ADMISSION_IDENTITY_MISMATCH"
+    if admission.status != "ACTIVE":
+        return "PROVIDER_ADMISSION_NOT_ACTIVE"
+    try:
+        if admission.expires_at <= now:
+            return "PROVIDER_ADMISSION_EXPIRED_RECONCILE"
+    except (TypeError, AttributeError):
+        return "PROVIDER_ADMISSION_RECORD_INVALID"
+    expected = task.expected_configuration_generation
+    if expected is not None and admission.configuration_generation != expected:
+        return "PROVIDER_ADMISSION_GENERATION_STALE"
+    return None
+
+
+def _validate_provider_release_record(
+    original: ProviderAdmissionRecord, released: object
+) -> str | None:
+    if not isinstance(released, ProviderAdmissionRecord):
+        return "PROVIDER_ADMISSION_RELEASE_INVALID"
+    if (
+        released.admission_id != original.admission_id
+        or released.provider_id != original.provider_id
+        or released.execution_id != original.execution_id
+        or released.batch_id != original.batch_id
+        or released.configuration_generation != original.configuration_generation
+        or released.status != "RELEASED"
+        or released.released_at is None
+    ):
+        return "PROVIDER_ADMISSION_RELEASE_INVALID"
+    return None
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderAdmissionReservation:
+    allowed: bool
+    reason_code: str
+    admission: ProviderAdmissionRecord | None = None
+    capacity_wait: bool = False
+    recovery_required: bool = False
+
+
 class ParallelReadyExecutor:
     def __init__(
         self,
@@ -335,6 +466,7 @@ class ParallelReadyExecutor:
         runner: ParallelReadyRunner,
         clock: Callable[[], object],
         provider_admission_store: ProviderAdmissionPort | None = None,
+        require_provider_authority: bool = False,
     ) -> None:
         if not callable(getattr(broker, "acquire", None)):
             raise ValueError("broker must provide acquire")
@@ -342,13 +474,134 @@ class ParallelReadyExecutor:
             raise ValueError("runner must provide run")
         if not callable(clock):
             raise ValueError("clock must be callable")
+        if not isinstance(require_provider_authority, bool):
+            raise ValueError("require_provider_authority must be bool")
         if provider_admission_store is not None:
             if not callable(getattr(provider_admission_store, "acquire_admission", None)) or not callable(getattr(provider_admission_store, "release_admission", None)):
                 raise ValueError("provider_admission_store must provide acquire_admission and release_admission")
+        if require_provider_authority and provider_admission_store is None:
+            raise ValueError("PROVIDER_AUTHORITY_REQUIRED: production execution requires provider authority")
         self._broker = broker
         self._runner = runner
         self._clock = clock
         self._provider_admission_store = provider_admission_store
+        self._require_provider_authority = require_provider_authority
+        self._provider_authority = None
+        if provider_admission_store is not None and callable(getattr(provider_admission_store, "load_provider_snapshot", None)):
+            try:
+                self._provider_authority = ProviderExecutionAuthority(provider_admission_store)
+            except ValueError:
+                self._provider_authority = None
+        if self._require_provider_authority and self._provider_authority is None:
+            raise ValueError("PROVIDER_AUTHORITY_REQUIRED: provider snapshot authority missing")
+
+    @property
+    def requires_provider_authority(self) -> bool:
+        return self._require_provider_authority
+
+    @property
+    def provider_authority_database_path(self):
+        return None if self._provider_authority is None else self._provider_authority.database_path
+
+    def check_provider_authority(
+        self,
+        *,
+        profile: ProviderConfiguration,
+        observation: ProviderObservation | None,
+        endpoint: ProviderEndpointConfig,
+        security: ProviderPolicyTaskSecurity,
+        expected_generation: int,
+        require_quota: bool = False,
+        requirement: ProviderExecutionRequirement | None = None,
+    ) -> ProviderAuthorityCheck:
+        if self._provider_admission_store is None:
+            return ProviderAuthorityCheck(
+                False, False, True, False, "PROVIDER_AUTHORITY_STORE_MISSING",
+                profile, endpoint, observation,
+            )
+        if requirement is not None:
+            if self._provider_authority is None:
+                return ProviderAuthorityCheck(False, False, True, False, "PROVIDER_AUTHORITY_STORE_MISSING", profile, endpoint, observation)
+            decision = self._provider_authority.authorize(
+                requirement, now=self._clock(), require_quota=require_quota
+            )
+            snapshot = decision.snapshot
+            return ProviderAuthorityCheck(
+                decision.allowed, decision.gate_refused, decision.provider_unavailable,
+                decision.rate_limited, decision.reason_code,
+                profile if snapshot is None else snapshot.profile,
+                endpoint if snapshot is None else snapshot.endpoint,
+                observation if snapshot is None else snapshot.observation,
+            )
+        reader = getattr(self._provider_admission_store, "load_provider_snapshot", None)
+        if not callable(reader):
+            return ProviderAuthorityCheck(
+                False, False, True, False, "PROVIDER_AUTHORITY_SNAPSHOT_UNAVAILABLE",
+                profile, endpoint, observation,
+            )
+        try:
+            snapshot = reader(profile.provider_id)
+        except Exception:
+            return ProviderAuthorityCheck(
+                False, False, True, False, "PROVIDER_AUTHORITY_SNAPSHOT_FAILED",
+                profile, endpoint, observation,
+            )
+        if not isinstance(snapshot, ProviderConfigurationSnapshot):
+            return ProviderAuthorityCheck(
+                False, False, True, False, "PROVIDER_CONFIGURATION_UNAVAILABLE",
+                profile, endpoint, observation,
+            )
+        if snapshot.generation != expected_generation:
+            return ProviderAuthorityCheck(
+                False, False, True, False, "PROVIDER_CONFIGURATION_STALE",
+                snapshot.profile, snapshot.endpoint, snapshot.observation,
+            )
+        if snapshot.endpoint is None:
+            return ProviderAuthorityCheck(
+                False, False, True, False, "PROVIDER_CONFIGURATION_UNAVAILABLE",
+                snapshot.profile, None, snapshot.observation,
+            )
+        if snapshot.profile != profile or snapshot.endpoint != endpoint:
+            return ProviderAuthorityCheck(
+                False, False, True, False, "PROVIDER_CONFIGURATION_DRIFT",
+                snapshot.profile, snapshot.endpoint, snapshot.observation,
+            )
+        policy = evaluate_provider_policy(snapshot.profile, snapshot.endpoint, security)
+        if not policy.allowed:
+            return ProviderAuthorityCheck(
+                False, True, False, False, policy.reason_code,
+                snapshot.profile, snapshot.endpoint, snapshot.observation,
+            )
+        now = self._clock()
+        if not is_provider_ready(
+            snapshot.profile,
+            snapshot.observation,
+            now=now,
+            expected_generation=expected_generation,
+        ):
+            return ProviderAuthorityCheck(
+                False, False, True, False, "PROVIDER_NOT_READY",
+                snapshot.profile, snapshot.endpoint, snapshot.observation,
+            )
+        if require_quota:
+            quota = None if snapshot.observation is None else snapshot.observation.quota
+            if quota is None or any(
+                item is None
+                for item in (quota.limit, quota.used, quota.remaining, quota.reset_at, quota.reset_in_seconds)
+            ):
+                return ProviderAuthorityCheck(
+                    False, False, False, True, "PROVIDER_QUOTA_UNKNOWN",
+                    snapshot.profile, snapshot.endpoint, snapshot.observation,
+                )
+            if quota.remaining is not None and quota.remaining <= 0:
+                return ProviderAuthorityCheck(
+                    False, False, False, True, "PROVIDER_QUOTA_EXHAUSTED",
+                    snapshot.profile, snapshot.endpoint, snapshot.observation,
+                )
+        return ProviderAuthorityCheck(
+            True, False, False, False, "PROVIDER_AUTHORITY_ALLOWED",
+            snapshot.profile, snapshot.endpoint, snapshot.observation,
+        )
 
     @staticmethod
     def _validate_batch(
@@ -388,6 +641,109 @@ class ParallelReadyExecutor:
             tasks.append(task)
         return tuple(tasks)
 
+    def reserve_provider_admission(
+        self,
+        *,
+        node_id: str,
+        provider_profile: ProviderConfiguration,
+        execution_id: str,
+        batch_id: str,
+        ttl_seconds: int,
+        requirement: ProviderExecutionRequirement,
+        require_quota: bool = False,
+    ) -> ProviderAdmissionReservation:
+        if self._provider_admission_store is None or self._provider_authority is None:
+            return ProviderAdmissionReservation(
+                False, "PROVIDER_AUTHORITY_STORE_MISSING", recovery_required=True
+            )
+        decision = self._provider_authority.authorize(
+            requirement, now=self._clock(), require_quota=require_quota
+        )
+        if not decision.allowed:
+            return ProviderAdmissionReservation(False, decision.reason_code)
+        snapshot = decision.snapshot
+        if snapshot is None or snapshot.profile.provider_id != provider_profile.provider_id:
+            return ProviderAdmissionReservation(
+                False, "PROVIDER_CONFIGURATION_DRIFT", recovery_required=True
+            )
+        try:
+            result = self._provider_admission_store.acquire_admission(
+                provider_id=provider_profile.provider_id,
+                execution_id=execution_id,
+                batch_id=batch_id,
+                expected_max_concurrency=snapshot.profile.max_concurrency,
+                now=self._clock(),
+                ttl_seconds=ttl_seconds,
+                expected_configuration_generation=requirement.expected_configuration_generation,
+            )
+        except Exception as exc:
+            return ProviderAdmissionReservation(
+                False, _safe_exception_reason(exc, "PROVIDER_ADMISSION_EXCEPTION"),
+                recovery_required=True,
+            )
+        if not isinstance(result, ProviderAdmissionResult) or not isinstance(result.kind, ProviderAdmissionKind):
+            return ProviderAdmissionReservation(
+                False, "PROVIDER_ADMISSION_OUTCOME_INVALID", recovery_required=True
+            )
+        if result.kind is ProviderAdmissionKind.CAPACITY_WAIT:
+            return ProviderAdmissionReservation(
+                False, _safe_reason_code(result.reason_code, "PROVIDER_CAPACITY_EXHAUSTED"),
+                capacity_wait=True,
+            )
+        if result.kind is ProviderAdmissionKind.RECOVERY_REQUIRED:
+            return ProviderAdmissionReservation(
+                False, _safe_reason_code(result.reason_code, "PROVIDER_ADMISSION_RECONCILE_REQUIRED"),
+                admission=result.admission, recovery_required=True,
+            )
+        if result.kind is ProviderAdmissionKind.EXISTING:
+            return ProviderAdmissionReservation(
+                False, "PROVIDER_ADMISSION_ALREADY_ACTIVE",
+                admission=result.admission, recovery_required=True
+            )
+        if result.kind is not ProviderAdmissionKind.ADMITTED:
+            return ProviderAdmissionReservation(
+                False, "PROVIDER_ADMISSION_OUTCOME_UNSUPPORTED", recovery_required=True
+            )
+        admission = result.admission
+        if not isinstance(admission, ProviderAdmissionRecord):
+            return ProviderAdmissionReservation(
+                False, "PROVIDER_ADMISSION_RECORD_INVALID", recovery_required=True
+            )
+        # A production pre-provision reservation may be re-read as EXISTING by the
+        # later lease/runner stage. Exact identity + ACTIVE/non-expired generation
+        # makes that reuse safe; every other EXISTING shape remains recovery.
+        synthetic_task = type("_AdmissionIdentity", (), {})()
+        synthetic_task.provider_profile = provider_profile
+        synthetic_task.harness_dispatch = type("_DispatchIdentity", (), {"execution_id": execution_id})()
+        synthetic_task.expected_configuration_generation = requirement.expected_configuration_generation
+        reason = _validate_provider_admission_record(
+            synthetic_task, batch_id, admission, self._clock()
+        )
+        if reason is not None:
+            return ProviderAdmissionReservation(
+                False, reason, admission=admission, recovery_required=True
+            )
+        return ProviderAdmissionReservation(True, "PROVIDER_ADMISSION_FENCED", admission)
+
+    def release_reserved_provider_admission(
+        self,
+        *,
+        provider_profile: ProviderConfiguration,
+        execution_id: str,
+        batch_id: str,
+        admission: ProviderAdmissionRecord,
+    ) -> str | None:
+        if self._provider_admission_store is None:
+            return "PROVIDER_AUTHORITY_STORE_MISSING"
+        try:
+            released = self._provider_admission_store.release_admission(
+                admission.admission_id, provider_id=provider_profile.provider_id,
+                execution_id=execution_id, batch_id=batch_id, now=self._clock(),
+            )
+        except Exception as exc:
+            return _safe_exception_reason(exc, "PROVIDER_ADMISSION_RELEASE_EXCEPTION")
+        return _validate_provider_release_record(admission, released)
+
     def _release_provider_admission(
         self,
         task: ParallelReadyTask,
@@ -398,7 +754,7 @@ class ParallelReadyExecutor:
         if admission is None or self._provider_admission_store is None:
             return None
         try:
-            self._provider_admission_store.release_admission(
+            released = self._provider_admission_store.release_admission(
                 admission.admission_id,
                 provider_id=task.provider_profile.provider_id,
                 execution_id=task.harness_dispatch.execution_id,
@@ -407,7 +763,7 @@ class ParallelReadyExecutor:
             )
         except Exception as exc:
             return _safe_exception_reason(exc, "PROVIDER_ADMISSION_RELEASE_EXCEPTION")
-        return None
+        return _validate_provider_release_record(admission, released)
 
     def execute(
         self,
@@ -416,6 +772,7 @@ class ParallelReadyExecutor:
         *,
         provider_inflight: Mapping[str, int],
         batch_id: str | None = None,
+        pre_acquired_admissions: Mapping[str, ProviderAdmissionRecord] | None = None,
     ) -> ParallelReadyBatchResult:
         """Execute one scheduler-owned batch against one capacity snapshot.
 
@@ -426,6 +783,12 @@ class ParallelReadyExecutor:
         provider semaphore/store.
         """
         tasks = self._validate_batch(plan, tasks_by_node, provider_inflight)
+        if pre_acquired_admissions is None:
+            pre_acquired_admissions = {}
+        elif not isinstance(pre_acquired_admissions, Mapping):
+            raise ValueError("pre_acquired_admissions must be a mapping")
+        if not set(pre_acquired_admissions).issubset({task.assignment.node_id for task in tasks}):
+            raise ValueError("pre-acquired admission node mismatch")
         if self._provider_admission_store is not None:
             if not isinstance(batch_id, str) or not batch_id.strip():
                 raise ValueError("batch_id is required with provider admission store")
@@ -439,6 +802,12 @@ class ParallelReadyExecutor:
             node_id = task.assignment.node_id
             profile = task.provider_profile
             provider_id = profile.provider_id
+            if self._require_provider_authority and task.provider_requirement is None:
+                outcomes[node_id] = ParallelReadyOutcome(
+                    node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
+                    "PROVIDER_EXECUTION_REQUIREMENT_REQUIRED",
+                )
+                continue
             if not task.dispatch_gate.allowed:
                 outcomes[node_id] = ParallelReadyOutcome(
                     node_id,
@@ -446,21 +815,39 @@ class ParallelReadyExecutor:
                     task.dispatch_gate.reason_code,
                 )
                 continue
-            if not is_provider_ready(profile, task.provider_observation, now=now):
-                outcomes[node_id] = ParallelReadyOutcome(
-                    node_id,
-                    ParallelReadyOutcomeKind.PROVIDER_WAIT,
-                    "PROVIDER_NOT_READY",
+            authority_enabled = task.provider_security is not None
+            if authority_enabled:
+                assert task.provider_endpoint is not None
+                assert task.expected_configuration_generation is not None
+                authority = self.check_provider_authority(
+                    profile=profile,
+                    observation=task.provider_observation,
+                    endpoint=task.provider_endpoint,
+                    security=task.provider_security,
+                    expected_generation=task.expected_configuration_generation,
+                    require_quota=task.require_quota,
+                    requirement=task.provider_requirement,
                 )
-                continue
-            quota_reason = _quota_reason(task)
-            if quota_reason is not None:
-                outcomes[node_id] = ParallelReadyOutcome(
-                    node_id,
-                    ParallelReadyOutcomeKind.PROVIDER_QUOTA_WAIT,
-                    quota_reason,
-                )
-                continue
+                if not authority.allowed:
+                    outcomes[node_id] = _authority_outcome(node_id, authority)
+                    continue
+                profile = authority.profile
+            else:
+                if not is_provider_ready(profile, task.provider_observation, now=now):
+                    outcomes[node_id] = ParallelReadyOutcome(
+                        node_id,
+                        ParallelReadyOutcomeKind.PROVIDER_WAIT,
+                        "PROVIDER_NOT_READY",
+                    )
+                    continue
+                quota_reason = _quota_reason(task)
+                if quota_reason is not None:
+                    outcomes[node_id] = ParallelReadyOutcome(
+                        node_id,
+                        ParallelReadyOutcomeKind.PROVIDER_QUOTA_WAIT,
+                        quota_reason,
+                    )
+                    continue
             batch_count = provider_batch_count.get(provider_id, 0)
             if provider_inflight[provider_id] + batch_count >= profile.max_concurrency:
                 outcomes[node_id] = ParallelReadyOutcome(
@@ -470,8 +857,18 @@ class ParallelReadyExecutor:
                 )
                 continue
 
-            admission = None
-            if self._provider_admission_store is not None:
+            admission = pre_acquired_admissions.get(node_id)
+            if admission is not None:
+                admission_reason = _validate_provider_admission_record(
+                    task, batch_id or "", admission, self._clock()
+                )
+                if admission_reason is not None:
+                    outcomes[node_id] = ParallelReadyOutcome(
+                        node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
+                        admission_reason, provider_admission=admission,
+                    )
+                    continue
+            elif self._provider_admission_store is not None:
                 try:
                     admission_result = self._provider_admission_store.acquire_admission(
                         provider_id=provider_id,
@@ -480,6 +877,7 @@ class ParallelReadyExecutor:
                         expected_max_concurrency=profile.max_concurrency,
                         now=now,
                         ttl_seconds=task.lease_request.lease_ttl_seconds,
+                        expected_configuration_generation=task.expected_configuration_generation,
                     )
                 except Exception as exc:
                     reason = _safe_exception_reason(exc, "PROVIDER_ADMISSION_EXCEPTION")
@@ -501,15 +899,52 @@ class ParallelReadyExecutor:
                 if admission_result.kind in {ProviderAdmissionKind.EXISTING, ProviderAdmissionKind.RECOVERY_REQUIRED}:
                     reason = _safe_reason_code(admission_result.reason_code, "PROVIDER_ADMISSION_RECONCILE_REQUIRED")
                     outcomes[node_id] = ParallelReadyOutcome(
-                        node_id,
-                        ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
-                        reason,
-                        provider_admission=admission_result.admission,
+                        node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
+                        reason, provider_admission=admission_result.admission,
                     )
                     continue
                 admission = admission_result.admission
                 if admission_result.kind is not ProviderAdmissionKind.ADMITTED or admission is None:
                     outcomes[node_id] = ParallelReadyOutcome(node_id, ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED, "PROVIDER_ADMISSION_RECORD_MISSING")
+                    continue
+                admission_reason = _validate_provider_admission_record(
+                    task, batch_id or "", admission, self._clock()
+                )
+                if admission_reason is not None:
+                    outcomes[node_id] = ParallelReadyOutcome(
+                        node_id,
+                        ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
+                        admission_reason,
+                        provider_admission=admission,
+                    )
+                    continue
+
+            if authority_enabled:
+                assert task.provider_endpoint is not None
+                assert task.provider_security is not None
+                assert task.expected_configuration_generation is not None
+                pre_lease = self.check_provider_authority(
+                    profile=task.provider_profile,
+                    observation=task.provider_observation,
+                    endpoint=task.provider_endpoint,
+                    security=task.provider_security,
+                    expected_generation=task.expected_configuration_generation,
+                    require_quota=task.require_quota,
+                    requirement=task.provider_requirement,
+                )
+                if not pre_lease.allowed:
+                    release_reason = self._release_provider_admission(
+                        task, batch_id or "", admission, self._clock()
+                    )
+                    if release_reason is not None:
+                        outcomes[node_id] = ParallelReadyOutcome(
+                            node_id,
+                            ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
+                            release_reason,
+                            provider_admission=admission,
+                        )
+                    else:
+                        outcomes[node_id] = _authority_outcome(node_id, pre_lease)
                     continue
 
             try:

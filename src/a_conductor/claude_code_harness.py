@@ -167,6 +167,7 @@ class ClaudeCodeRunnerResult:
     stdout: str
     stderr: str
     timed_out: bool
+    error_code: str | None = None
 
 
 class ClaudeCodeRunner(Protocol):
@@ -179,6 +180,7 @@ class ClaudeCodeHarnessResult:
     payload: dict[str, object] | None
     stderr: str
     exit_code: int | None
+    error_code: str | None = None
 
 
 def _redact_text(text: str, values: tuple[str, ...]) -> str:
@@ -335,27 +337,27 @@ class ClaudeCodeHarnessAdapter:
             raise ClaudeCodeHarnessError("RUNNER_RESULT_INVALID")
         if raw.timed_out:
             return ClaudeCodeHarnessResult(
-                HarnessExecutionStatus.TIMEOUT, None, "", raw.exit_code
+                HarnessExecutionStatus.TIMEOUT, None, "", raw.exit_code, raw.error_code
             )
         output_size = len(raw.stdout.encode("utf-8")) + len(raw.stderr.encode("utf-8"))
         if output_size > dispatch.max_output_bytes:
             return ClaudeCodeHarnessResult(
-                HarnessExecutionStatus.OUTPUT_LIMIT, None, "", raw.exit_code
+                HarnessExecutionStatus.OUTPUT_LIMIT, None, "", raw.exit_code, raw.error_code
             )
         stderr = _redact_text(raw.stderr, redactions)
         if raw.exit_code != 0:
             return ClaudeCodeHarnessResult(
-                HarnessExecutionStatus.FAILED, None, stderr, raw.exit_code
+                HarnessExecutionStatus.FAILED, None, stderr, raw.exit_code, raw.error_code
             )
         try:
             decoded = json.loads(raw.stdout)
         except (TypeError, json.JSONDecodeError):
             return ClaudeCodeHarnessResult(
-                HarnessExecutionStatus.OUTPUT_INVALID, None, stderr, raw.exit_code
+                HarnessExecutionStatus.OUTPUT_INVALID, None, stderr, raw.exit_code, raw.error_code
             )
         if not isinstance(decoded, dict):
             return ClaudeCodeHarnessResult(
-                HarnessExecutionStatus.OUTPUT_INVALID, None, stderr, raw.exit_code
+                HarnessExecutionStatus.OUTPUT_INVALID, None, stderr, raw.exit_code, raw.error_code
             )
         payload = _redact_json(decoded, redactions)
         status = (
@@ -363,4 +365,4 @@ class ClaudeCodeHarnessAdapter:
             if bool(payload.get("is_error"))
             else HarnessExecutionStatus.SUCCESS
         )
-        return ClaudeCodeHarnessResult(status, payload, stderr, raw.exit_code)
+        return ClaudeCodeHarnessResult(status, payload, stderr, raw.exit_code, raw.error_code)

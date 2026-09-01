@@ -66,6 +66,7 @@ class SQLiteClaudeCodeProviderResolver:
             profile=profile,
             endpoint=endpoint,
             observation=observation,
+            configuration_generation=snapshot.generation,
         )
 
 
@@ -87,6 +88,12 @@ def build_sqlite_supervised_claude_job_backend(
     """Build the accepted Claude backend from one existing control database."""
     store = SQLiteProviderConfigStore(database_path)
     store.initialize()
+    for definition in operations:
+        requirement = definition.provider_requirement
+        if requirement is None:
+            raise ValueError("PROVIDER_EXECUTION_REQUIREMENT_REQUIRED")
+        if not requirement.matches_provider_authority_path(store.database_path):
+            raise ValueError("PROVIDER_AUTHORITY_STORE_MISMATCH")
     resolved_drive = (
         Path(drive_root).expanduser().resolve(strict=False)
         if drive_root is not None
@@ -112,6 +119,7 @@ def build_sqlite_supervised_claude_job_backend(
         reference_resolver=reference_resolver,
         provider_resolver=provider_resolver,
         clock=clock,
+        require_provider_authority=True,
         claude_executable=claude_executable,
         poll_interval_seconds=poll_interval_seconds,
     )
@@ -212,4 +220,5 @@ def build_sqlite_parallel_ready_executor(
         runner=runner,
         clock=clock,
         provider_admission_store=store,
+        require_provider_authority=True,
     )

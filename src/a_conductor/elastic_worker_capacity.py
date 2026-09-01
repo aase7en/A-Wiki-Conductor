@@ -1000,6 +1000,55 @@ class ProductionElasticWorkerExecutor:
             return ProductionElasticExecutionKind.RECOVERY_REQUIRED, "PARALLEL_READY_RECOVERY_REQUIRED"
         return ProductionElasticExecutionKind.WAIT, "PARALLEL_READY_WAIT"
 
+    def _provider_eligibility(
+        self,
+        contract: ParallelReadyNodeContract,
+        current: NodeEligibility,
+    ) -> tuple[NodeEligibility, str | None]:
+        if contract.provider_requirement is None:
+            return (
+                NodeEligibility(
+                    gate_refused=current.gate_refused,
+                    human_approval_pending=current.human_approval_pending,
+                    provider_unavailable=True,
+                    rate_limited=current.rate_limited,
+                ),
+                "PROVIDER_EXECUTION_REQUIREMENT_REQUIRED",
+            )
+        try:
+            check = self._executor.check_provider_authority(
+                profile=contract.provider_profile,
+                observation=contract.provider_observation,
+                endpoint=contract.provider_endpoint,
+                security=contract.provider_security,
+                expected_generation=contract.expected_configuration_generation,
+                require_quota=contract.require_quota,
+                requirement=contract.provider_requirement,
+            )
+        except Exception:
+            return (
+                NodeEligibility(
+                    gate_refused=current.gate_refused,
+                    human_approval_pending=current.human_approval_pending,
+                    provider_unavailable=True,
+                    rate_limited=current.rate_limited,
+                ),
+                "PROVIDER_AUTHORITY_CHECK_FAILED",
+            )
+        if check.allowed:
+            return current, None
+        return (
+            NodeEligibility(
+                gate_refused=current.gate_refused or check.gate_refused,
+                human_approval_pending=current.human_approval_pending,
+                provider_unavailable=(
+                    current.provider_unavailable or check.provider_unavailable
+                ),
+                rate_limited=current.rate_limited or check.rate_limited,
+            ),
+            check.reason_code,
+        )
+
     def _supply_snapshot(self) -> WorkerSupplySnapshot:
         records = self._assembler.assemble_all()
         if not isinstance(records, tuple):
@@ -1024,6 +1073,7 @@ class ProductionElasticWorkerExecutor:
         *,
         provider_inflight: Mapping[str, int],
         batch_id: str | None,
+        pre_acquired_admissions: Mapping[str, object] | None = None,
     ) -> ParallelReadyBatchResult:
         selected_contracts = {
             item.node_id: contracts_by_node[item.node_id]
@@ -1035,6 +1085,7 @@ class ProductionElasticWorkerExecutor:
             tasks,
             provider_inflight=provider_inflight,
             batch_id=batch_id,
+            pre_acquired_admissions=pre_acquired_admissions,
         )
 
     def execute_once(
@@ -1069,7 +1120,18 @@ class ProductionElasticWorkerExecutor:
                 "SCHEDULER_ELIGIBILITY_EVIDENCE_MISSING",
                 SchedulePlan((), (), "eligibility-evidence-missing"),
             )
+        missing_requirement = [
+            node_id for node_id in ready.ready_ids
+            if contracts_by_node[node_id].provider_requirement is None
+        ]
+        if missing_requirement:
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "PROVIDER_EXECUTION_REQUIREMENT_REQUIRED",
+                SchedulePlan((), (), "provider-execution-requirement-missing"),
+            )
         effective_eligibility = dict(eligibility)
+        authority_reasons: dict[str, str] = {}
         for node_id in ready.ready_ids:
             contract = contracts_by_node[node_id]
             current = effective_eligibility[node_id]
@@ -1080,12 +1142,16 @@ class ProductionElasticWorkerExecutor:
                     SchedulePlan((), (), "eligibility-evidence-invalid"),
                 )
             if not contract.dispatch_gate.allowed and not current.gate_refused:
-                effective_eligibility[node_id] = NodeEligibility(
+                current = NodeEligibility(
                     gate_refused=True,
                     human_approval_pending=current.human_approval_pending,
                     provider_unavailable=current.provider_unavailable,
                     rate_limited=current.rate_limited,
                 )
+            current, authority_reason = self._provider_eligibility(contract, current)
+            effective_eligibility[node_id] = current
+            if authority_reason is not None:
+                authority_reasons[node_id] = authority_reason
         try:
             initial_supply = self._supply_snapshot()
         except Exception:
@@ -1124,13 +1190,30 @@ class ProductionElasticWorkerExecutor:
             return ProductionElasticExecutionResult(
                 kind, reason, initial_plan, final_plan=initial_plan, batch_result=batch
             )
-        if not _capacity_only(initial_plan):
+        elastic_blocked = [
+            item for item in initial_plan.blocked
+            if item.kind in {BlockedReasonKind.CAPACITY, BlockedReasonKind.NO_WORKERS}
+            and effective_eligibility.get(item.node_id) is not None
+            and effective_eligibility[item.node_id].eligible
+        ]
+        if not elastic_blocked:
+            blocked_authority = [
+                authority_reasons.get(item.node_id) for item in initial_plan.blocked
+            ]
+            exact_reason = (
+                blocked_authority[0]
+                if blocked_authority
+                and blocked_authority[0] is not None
+                and all(item == blocked_authority[0] for item in blocked_authority)
+                else "SCHEDULER_BLOCK_NOT_CAPACITY"
+            )
             return ProductionElasticExecutionResult(
                 ProductionElasticExecutionKind.WAIT,
-                "SCHEDULER_BLOCK_NOT_CAPACITY",
+                exact_reason,
                 initial_plan,
             )
-        blocked_node = initial_plan.blocked[0].node_id
+        target_blocked = elastic_blocked[0]
+        blocked_node = target_blocked.node_id
         contract = contracts_by_node.get(blocked_node)
         if not isinstance(contract, ParallelReadyNodeContract):
             return ProductionElasticExecutionResult(
@@ -1138,12 +1221,50 @@ class ProductionElasticWorkerExecutor:
                 "ELASTIC_TASK_CONTRACT_MISSING",
                 initial_plan,
             )
+        refreshed, authority_reason = self._provider_eligibility(
+            contract, effective_eligibility[blocked_node]
+        )
+        effective_eligibility[blocked_node] = refreshed
+        if authority_reason is not None:
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.WAIT,
+                authority_reason,
+                initial_plan,
+            )
+        if batch_id is None or not isinstance(batch_id, str) or not batch_id.strip():
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "PROVIDER_ADMISSION_BATCH_REQUIRED",
+                initial_plan,
+            )
+        assert contract.provider_requirement is not None
+        provider_fence = self._executor.reserve_provider_admission(
+            node_id=blocked_node,
+            provider_profile=contract.provider_profile,
+            execution_id=contract.harness_dispatch.execution_id,
+            batch_id=batch_id.strip(),
+            ttl_seconds=contract.lease_request.lease_ttl_seconds,
+            requirement=contract.provider_requirement,
+            require_quota=contract.require_quota,
+        )
+        if not provider_fence.allowed or provider_fence.admission is None:
+            kind = (
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED
+                if provider_fence.recovery_required
+                else ProductionElasticExecutionKind.WAIT
+            )
+            return ProductionElasticExecutionResult(
+                kind, provider_fence.reason_code, initial_plan
+            )
+        focused_plan = SchedulePlan(
+            (), (target_blocked,), initial_plan.capacity_evidence
+        )
         elastic = self._capacity.provision_ready(
-            initial_plan,
+            focused_plan,
             contract.lease_request,
             runtime_kind=runtime_kind,
             policy=elastic_policy,
-            eligibility=effective_eligibility,
+            eligibility={blocked_node: effective_eligibility[blocked_node]},
         )
         if elastic.kind is not ElasticCapacityOutcomeKind.PROVISIONED_READY:
             kind = (
@@ -1151,6 +1272,18 @@ class ProductionElasticWorkerExecutor:
                 if elastic.kind is ElasticCapacityOutcomeKind.RECOVERY_REQUIRED
                 else ProductionElasticExecutionKind.WAIT
             )
+            if kind is not ProductionElasticExecutionKind.RECOVERY_REQUIRED:
+                release_reason = self._executor.release_reserved_provider_admission(
+                    provider_profile=contract.provider_profile,
+                    execution_id=contract.harness_dispatch.execution_id,
+                    batch_id=batch_id.strip(),
+                    admission=provider_fence.admission,
+                )
+                if release_reason is not None:
+                    return ProductionElasticExecutionResult(
+                        ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                        release_reason, initial_plan, elastic_outcome=elastic,
+                    )
             return ProductionElasticExecutionResult(
                 kind,
                 elastic.reason_code,
@@ -1202,6 +1335,7 @@ class ProductionElasticWorkerExecutor:
                 final_supply,
                 provider_inflight=provider_inflight,
                 batch_id=batch_id,
+                pre_acquired_admissions={blocked_node: provider_fence.admission},
             )
         except Exception:
             self._capacity.abandon_provisioned_handoff(

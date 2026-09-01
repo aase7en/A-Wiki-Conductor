@@ -570,6 +570,60 @@ def test_harness_adapter_executes_through_supervised_mapping(tmp_path: Path) -> 
     )
 
 
+class SequenceAuthorityGuard:
+    def __init__(self, reasons):
+        self.reasons = list(reasons)
+        self.calls = 0
+
+    def check(self):
+        self.calls += 1
+        return self.reasons.pop(0) if self.reasons else None
+
+
+def test_provider_authority_denial_precedes_reference_resolution(tmp_path: Path) -> None:
+    native = RecordingNativeRunner(native_result())
+    resolver = MappingResolver({
+        "endpoint:glm": "https://provider.example/v1",
+        "secret-ref:glm/token": "must-not-read",
+    })
+    guard = SequenceAuthorityGuard(["PROVIDER_CONFIGURATION_STALE"])
+    runner = SupervisedClaudeCodeRunner(
+        project_root=tmp_path,
+        native_runner=native,
+        reference_resolver=resolver,
+        authority_guard=guard,
+    )
+
+    result = runner.run(invocation(tmp_path))
+
+    assert result.stderr == "PROVIDER_CONFIGURATION_STALE"
+    assert guard.calls == 1
+    assert resolver.calls == []
+    assert native.specs == []
+
+
+def test_provider_authority_revalidates_after_secret_resolution_before_native_launch(tmp_path: Path) -> None:
+    native = RecordingNativeRunner(native_result())
+    resolver = MappingResolver({
+        "endpoint:glm": "https://provider.example/v1",
+        "secret-ref:glm/token": "resolved-secret",
+    })
+    guard = SequenceAuthorityGuard([None, "PROVIDER_CONFIGURATION_STALE"])
+    runner = SupervisedClaudeCodeRunner(
+        project_root=tmp_path,
+        native_runner=native,
+        reference_resolver=resolver,
+        authority_guard=guard,
+    )
+
+    result = runner.run(invocation(tmp_path))
+
+    assert result.stderr == "PROVIDER_CONFIGURATION_STALE"
+    assert guard.calls == 2
+    assert resolver.calls == ["endpoint:glm", "secret-ref:glm/token"]
+    assert native.specs == []
+
+
 def test_runtime_profile_ref_uses_only_opaque_reference_identity() -> None:
     first = claude_runtime_profile_ref(
         "provider-config:glm/base-url",
@@ -588,6 +642,26 @@ def test_runtime_profile_ref_uses_only_opaque_reference_identity() -> None:
     assert first != changed
     assert "secret-ref" not in first
     assert first.startswith("runtime:claude-code:")
+
+
+def test_runtime_profile_ref_separates_provider_generation_and_requirement_identity() -> None:
+    endpoint = "provider-config:glm/base-url"
+    credential = "secret-ref:provider/glm/main"
+    base = claude_runtime_profile_ref(
+        endpoint, credential, provider_id="provider-glm",
+        configuration_generation=1, requirement_sha256="1" * 64,
+    )
+    generation2 = claude_runtime_profile_ref(
+        endpoint, credential, provider_id="provider-glm",
+        configuration_generation=2, requirement_sha256="1" * 64,
+    )
+    security_changed = claude_runtime_profile_ref(
+        endpoint, credential, provider_id="provider-glm",
+        configuration_generation=1, requirement_sha256="2" * 64,
+    )
+    assert len({base, generation2, security_changed}) == 3
+    assert all(value.startswith("runtime:claude-code:") for value in (base, generation2, security_changed))
+    assert all("provider-glm" not in value and "secret-ref" not in value for value in (base, generation2, security_changed))
 
 
 def test_builder_binds_supervised_record_to_durable_and_opaque_identity(tmp_path: Path) -> None:

@@ -28,6 +28,12 @@ from .provider_configuration import (
     ProviderEndpointConfig,
     ProviderHealth,
     ProviderObservation,
+    is_provider_ready,
+)
+from .provider_execution_authority import ProviderExecutionRequirement
+from .provider_policy import (
+    ProviderPolicyTaskSecurity,
+    evaluate_provider_policy,
 )
 
 _OPERATION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
@@ -49,6 +55,7 @@ class ClaudeCodeProviderState:
     profile: ProviderConfiguration
     endpoint: ProviderEndpointConfig
     observation: ProviderObservation | None
+    configuration_generation: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.profile, ProviderConfiguration):
@@ -61,6 +68,13 @@ class ClaudeCodeProviderState:
             raise ValueError("observation must be a ProviderObservation or None")
         if self.endpoint.endpoint_ref != self.profile.endpoint_ref:
             raise ValueError("provider endpoint does not match profile")
+        if self.configuration_generation is not None:
+            if (
+                isinstance(self.configuration_generation, bool)
+                or not isinstance(self.configuration_generation, int)
+                or self.configuration_generation < 1
+            ):
+                raise ValueError("configuration_generation must be positive or None")
 
 
 class ClaudeCodeProviderResolver(Protocol):
@@ -100,6 +114,10 @@ class ClaudeCodeOperationDefinition:
     dispatch: HarnessDispatch
     packet: TaskPacketFile
     worker_id: str
+    provider_security: ProviderPolicyTaskSecurity | None = None
+    expected_configuration_generation: int | None = None
+    require_quota: bool = False
+    provider_requirement: ProviderExecutionRequirement | None = None
 
 
     def __post_init__(self) -> None:
@@ -112,6 +130,35 @@ class ClaudeCodeOperationDefinition:
         if not isinstance(self.packet, TaskPacketFile):
             raise ValueError("packet must be a TaskPacketFile")
         _text(self.worker_id, "worker_id", max_length=128)
+        authority = (self.provider_security, self.expected_configuration_generation)
+        if any(item is not None for item in authority):
+            if not all(item is not None for item in authority):
+                raise ValueError("provider execution authority must be complete")
+            if not isinstance(self.provider_security, ProviderPolicyTaskSecurity):
+                raise ValueError("provider_security must be ProviderPolicyTaskSecurity")
+            generation = self.expected_configuration_generation
+            if (
+                isinstance(generation, bool)
+                or not isinstance(generation, int)
+                or generation < 1
+            ):
+                raise ValueError("expected_configuration_generation must be positive")
+        if not isinstance(self.require_quota, bool):
+            raise ValueError("require_quota must be bool")
+        if self.provider_requirement is not None:
+            requirement = self.provider_requirement
+            if not isinstance(requirement, ProviderExecutionRequirement):
+                raise ValueError("provider_requirement must be ProviderExecutionRequirement")
+            if requirement.provider_id != self.dispatch.provider_id:
+                raise ValueError("provider requirement identity mismatch")
+            if requirement.task_contract_ref != self.dispatch.task_contract_ref:
+                raise ValueError("provider requirement contract mismatch")
+            if requirement.operation_ref != self.operation_ref:
+                raise ValueError("provider requirement operation mismatch")
+            if requirement.provider_security != self.provider_security:
+                raise ValueError("provider requirement security mismatch")
+            if requirement.expected_configuration_generation != self.expected_configuration_generation:
+                raise ValueError("provider requirement generation mismatch")
 
 
 def _result_digest(
@@ -147,6 +194,78 @@ def _result_digest(
     }
     raw = json.dumps(digest_payload, sort_keys=True, separators=(",", ":")).encode()
     return f"claude-harness-evidence:{hashlib.sha256(raw).hexdigest()}"
+
+
+_PROVIDER_AUTHORITY_ERROR_CODES = frozenset({
+    "PROVIDER_AUTHORITY_REQUIRED",
+    "PROVIDER_AUTHORITY_CHECK_FAILED",
+    "PROVIDER_AUTHORITY_DENIED",
+    "PROVIDER_CONFIGURATION_STALE",
+    "PROVIDER_CONFIGURATION_DRIFT",
+    "PROVIDER_CONFIGURATION_UNAVAILABLE",
+    "PROVIDER_NOT_READY",
+    "PROVIDER_QUOTA_UNKNOWN",
+    "PROVIDER_QUOTA_EXHAUSTED",
+    "PROVIDER_ENDPOINT_REF_MISMATCH",
+    "PROVIDER_TRUST_UNKNOWN",
+    "PROVIDER_EGRESS_UNKNOWN",
+    "PROVIDER_TRUST_EGRESS_MISMATCH",
+    "PROVIDER_EGRESS_ENDPOINT_MISMATCH",
+    "TASK_NETWORK_POLICY_UNRESOLVED",
+    "TASK_NETWORK_DENIED",
+    "SECRET_TASK_EXTERNAL_DENIED",
+    "SENSITIVE_THIRD_PARTY_EXTERNAL_DENIED",
+    "SENSITIVE_FIRST_PARTY_ALLOWLIST_REQUIRED",
+    "INTERNAL_THIRD_PARTY_ALLOWLIST_REQUIRED",
+    "ENDPOINT_NOT_ALLOWLISTED",
+    "AUTH_FAILED",
+    "RATE_LIMITED",
+    "QUOTA_EXHAUSTED",
+    "PROVIDER_UNAVAILABLE",
+})
+
+
+def provider_execution_authority_reason(
+    definition: ClaudeCodeOperationDefinition,
+    state: ClaudeCodeProviderState,
+    *,
+    now: object,
+) -> str | None:
+    requirement = definition.provider_requirement
+    security = definition.provider_security
+    expected_generation = definition.expected_configuration_generation
+    if requirement is not None:
+        security = requirement.provider_security
+        expected_generation = requirement.expected_configuration_generation
+    if security is None and expected_generation is None:
+        return None
+    if security is None or expected_generation is None:
+        return "PROVIDER_AUTHORITY_REQUIRED"
+    if state.configuration_generation != expected_generation:
+        return "PROVIDER_CONFIGURATION_STALE"
+    policy = evaluate_provider_policy(state.profile, state.endpoint, security)
+    if not policy.allowed:
+        return policy.reason_code
+    if not is_provider_ready(
+        state.profile,
+        state.observation,
+        now=now,
+        expected_generation=expected_generation,
+    ):
+        return _provider_error_code(state)
+    if definition.require_quota:
+        quota = None if state.observation is None else state.observation.quota
+        if quota is None or any(
+            item is None
+            for item in (
+                quota.limit, quota.used, quota.remaining,
+                quota.reset_at, quota.reset_in_seconds,
+            )
+        ):
+            return "PROVIDER_QUOTA_UNKNOWN"
+        if quota.remaining is not None and quota.remaining <= 0:
+            return "PROVIDER_QUOTA_EXHAUSTED"
+    return None
 
 
 def _provider_error_code(state: ClaudeCodeProviderState) -> str:
@@ -188,6 +307,7 @@ class ClaudeCodeJobBackend:
         clock: Callable[[], object],
         adapter: ClaudeCodeHarnessAdapter | None = None,
         adapter_factory: ClaudeCodeHarnessAdapterFactory | None = None,
+        require_provider_authority: bool = False,
     ) -> None:
         if isinstance(operations, (str, bytes)):
             raise ValueError("operations must be a sequence")
@@ -206,11 +326,14 @@ class ClaudeCodeJobBackend:
             raise ValueError("provider_resolver must provide resolve")
         if not callable(clock):
             raise ValueError("clock must be callable")
+        if not isinstance(require_provider_authority, bool):
+            raise ValueError("require_provider_authority must be bool")
         self._operations = by_ref
         self._adapter = adapter
         self._adapter_factory = adapter_factory
         self._provider_resolver = provider_resolver
         self._clock = clock
+        self._require_provider_authority = require_provider_authority
 
     @staticmethod
     def _validate_identity(
@@ -237,6 +360,13 @@ class ClaudeCodeJobBackend:
         if definition is None:
             raise ValueError("CLAUDE_OPERATION_NOT_REGISTERED")
         self._validate_identity(definition, context)
+        if self._require_provider_authority and definition.provider_requirement is None:
+            return _failure(
+                definition,
+                context,
+                "PROVIDER_AUTHORITY_REQUIRED",
+                classification=RecoveryClassification.NO_MUTATION,
+            )
 
         state = self._provider_resolver.resolve(definition.dispatch.provider_id)
         if state is None:
@@ -244,6 +374,16 @@ class ClaudeCodeJobBackend:
                 definition,
                 context,
                 "PROVIDER_UNAVAILABLE",
+                classification=RecoveryClassification.NO_MUTATION,
+            )
+        authority_reason = provider_execution_authority_reason(
+            definition, state, now=self._clock()
+        )
+        if authority_reason is not None:
+            return _failure(
+                definition,
+                context,
+                authority_reason,
                 classification=RecoveryClassification.NO_MUTATION,
             )
 
@@ -304,10 +444,15 @@ class ClaudeCodeJobBackend:
             HarnessExecutionStatus.OUTPUT_LIMIT,
             HarnessExecutionStatus.OUTPUT_INVALID,
         }:
+            code = (
+                result.error_code
+                if result.error_code in _PROVIDER_AUTHORITY_ERROR_CODES
+                else "HARNESS_FAILED"
+            )
             return _failure(
                 definition,
                 context,
-                "HARNESS_FAILED",
+                code,
                 classification=RecoveryClassification.NO_MUTATION,
                 result=result,
             )

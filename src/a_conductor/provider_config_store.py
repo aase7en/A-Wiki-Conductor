@@ -217,6 +217,22 @@ class SQLiteProviderConfigStore:
             raise ProviderConfigStoreError("PROVIDER_GENERATION_EXHAUSTED")
         return current + 1
 
+    @staticmethod
+    def _assert_provider_configuration_not_in_use(
+        connection: sqlite3.Connection, provider_ids: tuple[str, ...]
+    ) -> None:
+        ids = tuple(dict.fromkeys(provider_ids))
+        if not ids:
+            return
+        placeholders = ",".join("?" for _ in ids)
+        row = connection.execute(
+            f"SELECT provider_id FROM provider_admissions "
+            f"WHERE status IN ('ACTIVE','EXPIRED') AND provider_id IN ({placeholders}) LIMIT 1",
+            ids,
+        ).fetchone()
+        if row is not None:
+            raise ProviderConfigStoreError("PROVIDER_CONFIGURATION_IN_USE")
+
     def save_endpoint(
         self,
         endpoint: ProviderEndpointConfig,
@@ -258,6 +274,9 @@ class SQLiteProviderConfigStore:
                     "SELECT provider_id, generation FROM provider_configurations WHERE endpoint_ref=?",
                     (endpoint.endpoint_ref,),
                 ).fetchall()
+                self._assert_provider_configuration_not_in_use(
+                    connection, tuple(row["provider_id"] for row in provider_rows)
+                )
                 provider_updates = []
                 for provider_row in provider_rows:
                     provider_generation = self._stored_generation(provider_row["generation"])
@@ -338,6 +357,10 @@ class SQLiteProviderConfigStore:
                     "SELECT generation FROM provider_configurations WHERE provider_id = ?",
                     (profile.provider_id,),
                 ).fetchone()
+                if row is not None:
+                    self._assert_provider_configuration_not_in_use(
+                        connection, (profile.provider_id,)
+                    )
                 if row is None:
                     if expected is not None:
                         raise ProviderConfigStoreError("PROVIDER_GENERATION_STALE")
@@ -813,6 +836,65 @@ class SQLiteProviderConfigStore:
             except sqlite3.Error as exc:
                 raise ProviderConfigStoreError("CONFIG_STORE_READ_FAILED") from exc
         return None if row is None else self._admission_from_row(row)
+
+    def validate_admission_fence(
+        self,
+        admission_id: str,
+        *,
+        provider_id: str,
+        execution_id: str,
+        batch_id: str,
+        expected_configuration_generation: int,
+        now: datetime,
+    ) -> ProviderAdmissionRecord:
+        admission_id = self._require_admission_text(admission_id, "admission_id")
+        provider_id = self._require_admission_text(provider_id, "provider_id")
+        execution_id = self._require_admission_text(execution_id, "execution_id")
+        batch_id = self._require_admission_text(batch_id, "batch_id")
+        expected = self._validated_expected_generation(expected_configuration_generation)
+        if expected is None:
+            raise ValueError("expected_configuration_generation is required")
+        now = self._require_admission_time(now, "now")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN")
+                profile = connection.execute(
+                    "SELECT generation FROM provider_configurations WHERE provider_id=?",
+                    (provider_id,),
+                ).fetchone()
+                if profile is None:
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_PROVIDER_NOT_FOUND")
+                current = self._stored_generation(profile["generation"])
+                if current != expected:
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_GENERATION_STALE")
+                row = connection.execute(
+                    "SELECT * FROM provider_admissions WHERE admission_id=?",
+                    (admission_id,),
+                ).fetchone()
+                if row is None:
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_NOT_FOUND")
+                record = self._admission_from_row(row)
+                if (record.provider_id, record.execution_id, record.batch_id) != (
+                    provider_id, execution_id, batch_id
+                ):
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_IDENTITY_MISMATCH")
+                if record.configuration_generation != expected:
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_GENERATION_STALE")
+                if record.status == "EXPIRED" or (
+                    record.status == "ACTIVE" and record.expires_at <= now
+                ):
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_EXPIRED_RECONCILE")
+                if record.status != "ACTIVE":
+                    raise ProviderConfigStoreError("PROVIDER_ADMISSION_NOT_ACTIVE")
+                connection.commit()
+                return record
+            except ProviderConfigStoreError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise ProviderConfigStoreError("CONFIG_STORE_READ_FAILED") from exc
 
     def release_admission(
         self,

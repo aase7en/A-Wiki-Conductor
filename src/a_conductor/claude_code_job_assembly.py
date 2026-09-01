@@ -14,12 +14,51 @@ from .claude_code_job_backend import (
     ClaudeCodeOperationDefinition,
     ClaudeCodeProviderResolver,
     ClaudeCodeProviderState,
+    provider_execution_authority_reason,
 )
 from .claude_code_supervised_runner import (
     EnvironmentReferenceResolver,
     build_supervised_claude_code_runner,
 )
 from .job_execution import JobExecutionContext
+
+
+class ResolverBackedProviderExecutionAuthorityGuard:
+    """Revalidate exact provider authority at secret and launch boundaries."""
+
+    def __init__(
+        self,
+        *,
+        provider_resolver: ClaudeCodeProviderResolver,
+        definition: ClaudeCodeOperationDefinition,
+        baseline: ClaudeCodeProviderState,
+        clock: Callable[[], object],
+    ) -> None:
+        self._provider_resolver = provider_resolver
+        self._definition = definition
+        self._baseline = baseline
+        self._clock = clock
+
+    def check(self) -> str | None:
+        try:
+            current = self._provider_resolver.resolve(
+                self._definition.dispatch.provider_id
+            )
+        except Exception:
+            return "PROVIDER_AUTHORITY_CHECK_FAILED"
+        if current is None:
+            return "PROVIDER_CONFIGURATION_UNAVAILABLE"
+        reason = provider_execution_authority_reason(
+            self._definition, current, now=self._clock()
+        )
+        if reason is not None:
+            return reason
+        if (
+            current.profile != self._baseline.profile
+            or current.endpoint != self._baseline.endpoint
+        ):
+            return "PROVIDER_CONFIGURATION_DRIFT"
+        return None
 
 
 class SupervisedClaudeCodeAdapterFactory:
@@ -31,11 +70,20 @@ class SupervisedClaudeCodeAdapterFactory:
         execution_store: object,
         supervised: object,
         reference_resolver: EnvironmentReferenceResolver,
+        provider_resolver: ClaudeCodeProviderResolver,
+        clock: Callable[[], object],
+        require_provider_authority: bool = False,
         claude_executable: str = "claude",
         poll_interval_seconds: float = 0.05,
     ) -> None:
         if not callable(getattr(reference_resolver, "resolve", None)):
             raise ValueError("reference_resolver must provide resolve")
+        if not callable(getattr(provider_resolver, "resolve", None)):
+            raise ValueError("provider_resolver must provide resolve")
+        if not callable(clock):
+            raise ValueError("clock must be callable")
+        if not isinstance(require_provider_authority, bool):
+            raise ValueError("require_provider_authority must be bool")
         if not isinstance(claude_executable, str) or not claude_executable.strip():
             raise ValueError("claude_executable must not be blank")
         if (
@@ -47,6 +95,9 @@ class SupervisedClaudeCodeAdapterFactory:
         self._execution_store = execution_store
         self._supervised = supervised
         self._reference_resolver = reference_resolver
+        self._provider_resolver = provider_resolver
+        self._clock = clock
+        self._require_provider_authority = require_provider_authority
         self._claude_executable = claude_executable.strip()
         self._poll_interval_seconds = float(poll_interval_seconds)
 
@@ -66,6 +117,16 @@ class SupervisedClaudeCodeAdapterFactory:
         branch = dispatch.expected_branch
         if branch is None:
             raise ClaudeCodeHarnessError("HARNESS_BRANCH_REQUIRED")
+        if self._require_provider_authority and definition.provider_requirement is None:
+            raise ClaudeCodeHarnessError("HARNESS_PROVIDER_AUTHORITY_REQUIRED")
+        authority_guard = None
+        if definition.provider_security is not None:
+            authority_guard = ResolverBackedProviderExecutionAuthorityGuard(
+                provider_resolver=self._provider_resolver,
+                definition=definition,
+                baseline=state,
+                clock=self._clock,
+            )
         try:
             runner = build_supervised_claude_code_runner(
                 project_root=dispatch.worktree_path,
@@ -80,8 +141,11 @@ class SupervisedClaudeCodeAdapterFactory:
                 head_before=dispatch.expected_head,
                 endpoint_ref=state.profile.endpoint_ref,
                 credential_ref=state.profile.credential_ref,
+                endpoint_url=state.endpoint.base_url,
+                provider_requirement=definition.provider_requirement,
                 claude_executable=self._claude_executable,
                 poll_interval_seconds=self._poll_interval_seconds,
+                authority_guard=authority_guard,
             )
         except ValueError as exc:
             raise ClaudeCodeHarnessError("HARNESS_ASSEMBLY_INVALID") from exc
@@ -96,6 +160,7 @@ def build_supervised_claude_job_backend(
     reference_resolver: EnvironmentReferenceResolver,
     provider_resolver: ClaudeCodeProviderResolver,
     clock: Callable[[], object],
+    require_provider_authority: bool = False,
     claude_executable: str = "claude",
     poll_interval_seconds: float = 0.05,
 ) -> ClaudeCodeJobBackend:
@@ -104,6 +169,9 @@ def build_supervised_claude_job_backend(
         execution_store=execution_store,
         supervised=supervised,
         reference_resolver=reference_resolver,
+        provider_resolver=provider_resolver,
+        clock=clock,
+        require_provider_authority=require_provider_authority,
         claude_executable=claude_executable,
         poll_interval_seconds=poll_interval_seconds,
     )
@@ -112,4 +180,5 @@ def build_supervised_claude_job_backend(
         adapter_factory=factory,
         provider_resolver=provider_resolver,
         clock=clock,
+        require_provider_authority=require_provider_authority,
     )

@@ -145,3 +145,20 @@ Status: **WO-P1-118A ULTRA-003 REPAIRED / NEW EXACT-HEAD REREVIEW REQUIRED.** WO
 - Reviewer-fresh verification: focused `70 passed`, related `213 passed`, independent generation probe 25 summarized cases including 12 CAS races, compile/diff/scope/secret-pattern gates PASS. Task SHA-256: `c54264a6041cdf2d2c69a4a605a54fcd536759da5ef7eacefaa813cb0e895238`; ignored local result `runs/wo118a-independent-review-004/result.md` SHA-256: `e7b530ff6eab146230266968af7f5aca01f9790625cceb14a9c816a459f5cf0c`.
 - Exact-head CI `33405254844` passed Windows/Ubuntu/macOS. PR #165 merged as `0ff914efa2887a0f9c6d330859fa4e49ed921d89`; exact post-main CI `33417911998` passed all three OS jobs, including Windows packaging, Portable smoke and Frozen Setup install/uninstall E2E.
 - **WO-P1-118A is COMPLETE / MERGED / POST_MAIN_GREEN / RELEASED.** This does not complete WO118: WO118B policy/generation enforcement before admission, lease, elastic expansion, credential access and launch remains blocked on accepted WO-P1-120.
+
+## WO-P1-118B integrator + Ultra repair checkpoint ? 2026-09-01
+
+WO120 is released, so 118B was claimed in isolated worktree `A:\GitHub\A-Wiki-Conductor-wo118b-enforcement`. GLM pre-implementation review returned `RED_PLAN_READY` with no P0/P1/P2; Ultra adversarial review returned `CHANGES_REQUIRED` and identified durable-authority, dedup, admission-evidence, TOCTOU and mixed-node elastic gaps. GPT MAX owns the repair while Ultra is unavailable by usage limit.
+
+Accepted repairs:
+- `ProviderExecutionRequirement` is derived from exact Task Contract bytes, exact security vocabulary, expected provider generation and canonical provider SQLite identity; production paths reject missing requirements.
+- operation identity and Claude supervised runtime profile include requirement/generation identity, preventing cross-generation/security dedup reuse.
+- production Claude assembly rejects a requirement bound to a different provider DB and rejects legacy caller-only security/generation wiring.
+- provider admission consumers validate exact provider/execution/batch/status/expiry/generation and exact release evidence. ACTIVE generation-bound admission fences public provider/endpoint mutation.
+- elastic production reserves provider admission before provisioning and reuses it through lease/runner, so configuration cannot change in the provision->lease gap; uncertainty retains fail-closed authority.
+- mixed scheduler output chooses an eligible CAPACITY/NO_WORKERS sibling for one bounded expansion even when another sibling is policy-denied; no second scheduler/provider router was added.
+- Claude credential boundary revalidates before secret resolution and again after secret resolution immediately before native launch; the resolved base URL is pinned to the authorized snapshot.
+
+Deterministic evidence so far: provider execution authority 6 tests including store mismatch/dedup identity; elastic fencing 31 passed including mutation-during-provision and mixed-sibling starvation; provider/parallel/Claude boundary matrix 144 passed; expanded 16-file frontier matrix 301 passed; compileall and `git diff --check` pass. A stale full-suite started before the final canonical-DB repair was explicitly terminated and is not evidence. Final current-code full-suite, current-main reconciliation, exact-head independent rereview, CI and post-main verification remain required.
+
+Status: **WO-P1-118B INTEGRATOR_REPAIRED / EXACT_HEAD_REVIEW_PENDING ? DO NOT MERGE YET.**
