@@ -1,8 +1,8 @@
-﻿# WO-P2-129 - Bounded Post-Termination UNKNOWN Observation
+# WO-P2-129 - Bounded Post-Termination UNKNOWN Observation
 
 Date: 2026-09-01
 Owner: GPT-5.6 Sol
-Status: ACTIVE / RED-FIRST
+Status: COMPLETE / RELEASED
 Priority: P2 reliability; independent from AHA-7
 Base: `origin/main@a9578681076442f54f62a2da9308cdd7505d5e4b`
 Branch: `fix/wo-p2-129-owned-process-exit-transient`
@@ -43,4 +43,13 @@ Evidence after repair:
 
 Hosted evidence that motivated the slice remains separate: unrelated run `33497112619` attempt1 and PR #174 run `33497483113` attempt1 both failed this same real lifecycle assertion, while their failed-job reruns passed without product-code changes.
 
-Status: IMPLEMENTED / SELF_REVIEW_PENDING. Defect Memory must be folded after the active WO122 closeout releases `DEFECT_LESSONS.md`; do not steal that shared scope.
+Status: COMPLETE / RELEASED. Defect Memory is folded by WO130 after accepted post-main evidence.
+
+
+## Release closeout - 2026-09-01
+
+Independent GLM review001 verified exact head `661c86f9a30433006a01e996ed1ea46fde4a7e52`, task SHA `b211091c4bfdc6c063da1ad037dc2a340750a90a47d813443e27c0bfa9c26481`, and all three pinned file hashes. Verdict: PASS, P0/P1/P2=0. Reviewer reran 28 focused + 90 related tests, the real Windows lifecycle test 3/3, and scripted adversarial cases 9/9.
+
+PR #176 exact-head CI `33503763313` passed Windows/macOS/Ubuntu. The reviewed head merged as `fae5c0d8a36a41eb172e2acb8dc88ca04658c4e9`. Post-main run `33509029840` passed all three OS plus Windows Portable/Setup and Frozen install/uninstall E2E.
+
+Status: COMPLETE / RELEASED. The repair is intentionally narrow: only post-success UNKNOWN observation is re-read inside the original deadline; no second termination attempt is allowed, MISMATCH remains immediate recovery, and uncertain exit preserves PID metadata.
