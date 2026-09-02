@@ -34,6 +34,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
+| WO-P2-140 residual owned-process stop intermittency | GPT-5.6 Sol MAX integrator after GLM handback | GPT_REVIEW_REPAIR 2026-09-03 | owned_process.py, test_owned_process.py, WO140; GLM diagnostic candidate reviewed, bounded-diagnostics P2 repaired before freeze. |
 | `WO-P1-116` / AHA-6B worker supply + elastic capacity | GPT-5.6 Sol integrator | RELEASED 2026-08-31 | PR #157 + closeout PR #158 merged; source lane released. |
 | `WO-P1-117` provider dispatch/admission safety | GPT-5.6 Sol integrator | READY_FOR_CLAIM | `parallel_ready_execution.py`, `provider_config_store.py`, focused tests; baseline CI `33357214028` green; claim requires isolated worktree + fresh preflight. |
 | `WO-P1-118` provider config generation/policy | unassigned | QUEUED | Shares `provider_config_store.py` with 117; must not start until 117 releases it. |

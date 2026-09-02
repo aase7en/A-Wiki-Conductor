@@ -348,7 +348,12 @@ def test_real_dummy_process_start_idempotent_stop(tmp_path: Path) -> None:
         assert second.pid == started_pid
 
         stopped = controller.stop(runtime)
-        assert stopped.state is OwnedProcessMutationState.STOPPED
+        # WO140: surface the full stop diagnostic on failure so a hosted
+        # RECOVERY_REQUIRED self-identifies (reason_code + ownership sequence
+        # + elapsed) instead of only the state enum.
+        assert stopped.state is OwnedProcessMutationState.STOPPED, (
+            f"real lifecycle stop diagnostics: {controller.last_stop_diagnostics}"
+        )
         assert stopped.pid == started_pid
         assert not runtime.pid_path.exists()
         observed = observer.observe_process(
@@ -525,7 +530,8 @@ def test_stop_persistent_unknown_after_successful_termination_stays_recovery(
                 return ProcessObservation(True, pid, True, True, True)
             return ProcessObservation(True, pid, None, None, None)
 
-    ticks = iter((0.0, 0.0, 6.0))
+    # WO140 diagnostics add two monotonic() calls (stop start + elapsed stamp)
+    ticks = iter((0.0, 0.0, 0.0, 6.0, 6.0))
     monkeypatch.setattr("a_conductor.owned_process.time.monotonic", lambda: next(ticks))
     monkeypatch.setattr("a_conductor.owned_process.time.sleep", lambda _seconds: None)
     observer = UnknownAfterTerminationObserver()
@@ -716,3 +722,204 @@ def test_owned_process_repr_masks_environment_override_values(tmp_path: Path) ->
     )
 
     assert secret not in repr(runtime)
+
+
+# ── WO140: stop() diagnostic surface ────────────────────────────────
+# Hosted Windows CI intermittently returns RECOVERY_REQUIRED from the real
+# lifecycle with a ~5s-bounded wall signature, and the state-only assertion
+# cannot distinguish PROCESS_STOP_FAILED / PROCESS_EXIT_OWNERSHIP_UNCERTAIN /
+# PROCESS_EXIT_UNCONFIRMED. The controller therefore records a bounded,
+# secret-free diagnostic for every stop() return so the next hosted
+# occurrence self-identifies (state, reason_code, pid, elapsed, sequence).
+
+_DIAGNOSTIC_KEYS = {
+    "state",
+    "reason_code",
+    "pid",
+    "elapsed_ms",
+    "initial_metadata_status",
+    "final_metadata_status",
+    "pre_termination_ownership",
+    "terminate_called",
+    "terminate_returned",
+    "post_termination_ownership_sequence",
+    "post_termination_observation_count",
+}
+
+
+class _DiagnosticsSequencedObserver:
+    """OWNED pre-termination, then a scripted post-termination sequence."""
+
+    def __init__(self, post_sequence: list[ProcessObservation]) -> None:
+        self.post = list(post_sequence)
+        self.observe_count = 0
+
+    def read_pid_metadata(self, pid_path: Path) -> PidMetadataObservation:
+        return PidMetadataObservation(PidMetadataStatus.VALID, 1234)
+
+    def observe_process(
+        self,
+        *,
+        pid: int,
+        expected_executable_name: str,
+        expected_profile_marker: str,
+    ) -> ProcessObservation:
+        self.observe_count += 1
+        if self.observe_count == 1:
+            return ProcessObservation(True, pid, True, True, True)
+        return self.post[min(self.observe_count - 2, len(self.post) - 1)]
+
+
+def _owned_spec_with_pid_file(tmp_path: Path) -> OwnedProcessSpec:
+    runtime = spec(tmp_path)
+    runtime.pid_path.parent.mkdir(parents=True)
+    runtime.pid_path.write_text("1234", encoding="utf-8")
+    return runtime
+
+
+def test_stop_diagnostics_absent_before_any_stop(tmp_path: Path) -> None:
+    controller = WindowsOwnedProcessController(
+        observer=FakeObserver(PidMetadataObservation(PidMetadataStatus.ABSENT, None)),
+        spawner=FakeSpawner(),
+        terminator=FakeTerminator(),
+    )
+    assert controller.last_stop_diagnostics is None
+
+
+def test_stop_diagnostics_records_unknown_then_stale_success(tmp_path: Path) -> None:
+    runtime = _owned_spec_with_pid_file(tmp_path)
+    observer = _DiagnosticsSequencedObserver([
+        ProcessObservation(True, 1234, None, None, None),  # UNKNOWN
+        ProcessObservation(True, 1234, False, None, None),  # STALE
+    ])
+    controller = WindowsOwnedProcessController(
+        observer=observer, spawner=FakeSpawner(), terminator=FakeTerminator(result=True)
+    )
+
+    result = controller.stop(runtime)
+
+    assert result.state is OwnedProcessMutationState.STOPPED
+    diag = controller.last_stop_diagnostics
+    assert set(diag) == _DIAGNOSTIC_KEYS
+    assert diag["state"] == "STOPPED"
+    assert diag["reason_code"] == "STOPPED"
+    assert diag["pid"] == 1234
+    assert diag["elapsed_ms"] >= 0.0
+    assert diag["initial_metadata_status"] == "VALID"
+    assert diag["final_metadata_status"] == "VALID"
+    assert diag["pre_termination_ownership"] == "OWNED"
+    assert diag["terminate_called"] is True
+    assert diag["terminate_returned"] is True
+    assert diag["post_termination_ownership_sequence"] == ["UNKNOWN", "STALE"]
+    assert diag["post_termination_observation_count"] == 2
+
+
+def test_stop_diagnostics_records_terminator_failure_without_observations(
+    tmp_path: Path,
+) -> None:
+    runtime = _owned_spec_with_pid_file(tmp_path)
+    observer = _DiagnosticsSequencedObserver([
+        ProcessObservation(True, 1234, False, None, None)
+    ])
+    controller = WindowsOwnedProcessController(
+        observer=observer, spawner=FakeSpawner(), terminator=FakeTerminator(result=False)
+    )
+
+    result = controller.stop(runtime)
+
+    assert result.reason_code == "PROCESS_STOP_FAILED"
+    diag = controller.last_stop_diagnostics
+    assert diag["state"] == "RECOVERY_REQUIRED"
+    assert diag["reason_code"] == "PROCESS_STOP_FAILED"
+    assert diag["terminate_called"] is True
+    assert diag["terminate_returned"] is False
+    assert diag["pre_termination_ownership"] == "OWNED"
+    assert diag["post_termination_ownership_sequence"] == []
+    assert diag["post_termination_observation_count"] == 0
+    assert diag["final_metadata_status"] is None
+
+
+def test_stop_diagnostics_records_persistent_unknown_until_deadline(
+    tmp_path: Path, monkeypatch
+) -> None:
+    runtime = _owned_spec_with_pid_file(tmp_path)
+    observer = _DiagnosticsSequencedObserver([
+        ProcessObservation(True, 1234, None, None, None),  # persistent UNKNOWN
+    ])
+    ticks = iter((0.0, 0.0, 0.0, 6.0, 6.0))
+    monkeypatch.setattr("a_conductor.owned_process.time.monotonic", lambda: next(ticks))
+    monkeypatch.setattr("a_conductor.owned_process.time.sleep", lambda _s: None)
+    controller = WindowsOwnedProcessController(
+        observer=observer, spawner=FakeSpawner(), terminator=FakeTerminator(result=True)
+    )
+
+    result = controller.stop(runtime)
+
+    assert result.reason_code == "PROCESS_EXIT_OWNERSHIP_UNCERTAIN"
+    diag = controller.last_stop_diagnostics
+    assert diag["reason_code"] == "PROCESS_EXIT_OWNERSHIP_UNCERTAIN"
+    assert diag["post_termination_observation_count"] >= 1
+    assert diag["post_termination_ownership_sequence"] == ["UNKNOWN"]
+    assert diag["final_metadata_status"] is None
+
+
+def test_stop_diagnostics_records_pre_termination_mismatch_without_terminate(
+    tmp_path: Path,
+) -> None:
+    runtime = _owned_spec_with_pid_file(tmp_path)
+    observer = FakeObserver(
+        PidMetadataObservation(PidMetadataStatus.VALID, 1234),
+        ProcessObservation(True, 1234, True, False, True),  # MISMATCH
+    )
+    terminator = FakeTerminator()
+    controller = WindowsOwnedProcessController(
+        observer=observer, spawner=FakeSpawner(), terminator=terminator
+    )
+
+    result = controller.stop(runtime)
+
+    assert result.reason_code == "PID_MISMATCH"
+    diag = controller.last_stop_diagnostics
+    assert diag["terminate_called"] is False
+    assert diag["terminate_returned"] is None
+    assert diag["pre_termination_ownership"] == "MISMATCH"
+    assert diag["post_termination_ownership_sequence"] == []
+    assert terminator.calls == []
+
+
+def test_stop_diagnostics_records_absent_metadata_not_running(tmp_path: Path) -> None:
+    runtime = spec(tmp_path)
+    observer = FakeObserver(PidMetadataObservation(PidMetadataStatus.ABSENT, None))
+    controller = WindowsOwnedProcessController(
+        observer=observer, spawner=FakeSpawner(), terminator=FakeTerminator()
+    )
+
+    result = controller.stop(runtime)
+
+    assert result.reason_code == "NOT_RUNNING"
+    diag = controller.last_stop_diagnostics
+    assert diag["state"] == "NOT_RUNNING"
+    assert diag["initial_metadata_status"] == "ABSENT"
+    assert diag["terminate_called"] is False
+    assert diag["pre_termination_ownership"] is None
+
+
+def test_stop_diagnostics_sequence_is_bounded(tmp_path: Path, monkeypatch) -> None:
+    runtime = _owned_spec_with_pid_file(tmp_path)
+    observer = _DiagnosticsSequencedObserver([
+        ProcessObservation(True, 1234, None, None, None),  # persistent UNKNOWN
+    ])
+    ticks = iter([0.0, 0.0] + [0.05 * i for i in range(1, 400)])
+    monkeypatch.setattr("a_conductor.owned_process.time.monotonic", lambda: next(ticks))
+    monkeypatch.setattr("a_conductor.owned_process.time.sleep", lambda _s: None)
+    controller = WindowsOwnedProcessController(
+        observer=observer, spawner=FakeSpawner(), terminator=FakeTerminator(result=True)
+    )
+
+    result = controller.stop(runtime)
+
+    assert result.reason_code == "PROCESS_EXIT_OWNERSHIP_UNCERTAIN"
+    diag = controller.last_stop_diagnostics
+    assert diag["post_termination_observation_count"] > 64
+    assert len(diag["post_termination_ownership_sequence"]) == 64
+    assert set(diag["post_termination_ownership_sequence"]) == {"UNKNOWN"}
