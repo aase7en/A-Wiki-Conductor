@@ -93,3 +93,27 @@ WO129 changed only post-termination UNKNOWN re-observation; it did not make the 
 - GLM-5.3 MAX / ZCode Goal + $a-loop now owns the declared mutable WO140 scope. GPT-5.6 Sol MAX remains architecture, exact-SHA acceptance, PR/CI, merge, post-main, and final authority.
 - No production/test mutation has occurred in WO140 yet. Diagnosis/root-cause + deterministic RED remain mandatory before any repair.
 - GPT must not overlap owned_process.py / test_owned_process.py while GLM ownership is active.
+
+## GLM diagnosis + diagnostic-surface checkpoint — 2026-09-03
+
+**Identity at mutation start:** branch `fix/wo-p2-140-owned-process-stop-residual`, HEAD `01789c55889d668d94827a7f6179b1d74b2541fe` (= remote branch HEAD, clean tree). Declared integrated main `a28638c0` is an ancestor. Current `origin/main` advanced to `0c437d7a` with **docs-only** commits (WO142 reconciliation) — zero drift on `owned_process.py` / `test_owned_process.py`; noted for integrator reconciliation, not a blocker.
+
+**Diagnosis (matrix executed, off-repo fault injection against the real controller):**
+- `stop()` has 9 RECOVERY_REQUIRED/REFUSED return paths. Empirically timed ~5s signatures: terminator timeout/nonzero → `PROCESS_STOP_FAILED`; persistent post-termination CIM UNKNOWN → `PROCESS_EXIT_OWNERSHIP_UNCERTAIN` (wall 5.00s); slow teardown still-OWNED → `PROCESS_EXIT_UNCONFIRMED` (wall 5.00s). All three produce exactly the hosted evidence shape (RECOVERY_REQUIRED + ~5s bounded wait + ~9s file runtime).
+- Pre-termination CIM timeout is EXCLUDED by hosted evidence: it yields `REFUSED/PROCESS_OWNERSHIP_UNKNOWN`, not RECOVERY_REQUIRED.
+- WO129 behavior verified present in this tree (UNKNOWN→STALE post-termination → STOPPED; matrix PASS).
+- Invariants held under every injected fault: terminate ≤ 1 call, never before OWNED proof, UNKNOWN/MISMATCH never STOPPED, exact-PID cleanup only after STALE + unchanged VALID metadata.
+- Documented behavior (not a defect): the post-termination poll deadline is created AFTER `terminate()` returns, so a slow-but-successful terminator still receives a full fresh observation budget (worst-case stop wall ≈ 2× stop_timeout_seconds by design).
+- **Verdict: exact hosted root cause is NOT locally provable** — three production paths match all available hosted evidence; local stress cannot reproduce (see below). Per the task rule, no invented fix.
+
+**Impact analysis (pre-edit, deterministic callers/references):** `WindowsOwnedProcessController` constructed at `lifecycle_assembly.py:354`, `serena_operations.py`, `supervised_command_runner.py:435` + test suites; no caller overrides `stop()`. The change is purely additive (new `last_stop_diagnostics` attribute + recording inside `stop()`); zero behavioral change to any return path.
+
+**RED → GREEN (diagnostic surface):**
+- RED: 7 new tests in `tests/test_owned_process.py` (`test_stop_diagnostics_*`) failed with `AttributeError: last_stop_diagnostics` before implementation.
+- Implementation: `stop()` now records `last_stop_diagnostics` on every return — `{state, reason_code, pid, elapsed_ms, initial/final_metadata_status, pre_termination_ownership, terminate_called, terminate_returned, post_termination_ownership_sequence (capped 64), post_termination_observation_count}` — secret-free (codes/pids/timings only), identical control flow.
+- GREEN: `tests/test_owned_process.py` = **35 passed** (28 pre-existing + 7 new; two pre-existing monkeypatched-tick tests recalibrated for the two added `monotonic()` calls — same behavioral assertions).
+- Real integration test upgraded: the STOPPED assertion now prints `controller.last_stop_diagnostics` on failure, so the next hosted occurrence self-identifies (state, reason_code, pid, elapsed, ownership sequence).
+
+**Verification on the candidate tree:** owned_process + windows_observer + runtime_safety = **81 passed**; related supervisor suites (`test_supervised_execution`, `test_supervised_command_runner`, `test_claude_code_supervised_runner`, `test_serena_lifecycle_backend`) = **74 passed**; off-repo fault-injection matrix = 17/17 scenarios PASS (terminator timeout/nonzero/OSError-mapped-to-False, first-CIM-timeout-then-STALE, persistent UNKNOWN, UNKNOWN→MISMATCH, STALE-after-termination, metadata INVALID/UNKNOWN/ABSENT/changed, slow terminator, unlink failure implicit via cleanup guard); real-Windows lifecycle sequential stress = **30/30 PASS** (historical window was 25) and concurrent 4-way stress = **40/40 PASS** (70 total real lifecycles, zero failures); compileall + `git diff --check` + strict UTF-8 + diff secret scan all PASS.
+
+Next safe action: GPT-5.6 Sol Max independent exact-SHA adversarial review → PR/CI/merge.

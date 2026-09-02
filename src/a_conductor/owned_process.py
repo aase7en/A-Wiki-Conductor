@@ -23,6 +23,9 @@ from .windows_observer import PidMetadataObservation, PidMetadataStatus
 _ALLOWED_ENVIRONMENT_OVERRIDES = frozenset(
     {"SERENA_HOME", "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"}
 )
+# WO140: cap the recorded post-termination ownership sequence (the count is
+# kept separately so long polls stay describable without unbounded memory).
+_MAX_STOP_DIAGNOSTIC_SEQUENCE = 64
 _SAFE_INHERITED_ENVIRONMENT_KEYS = frozenset(
     key.casefold()
     for key in {
@@ -315,6 +318,10 @@ class WindowsOwnedProcessController:
         self._observer = observer
         self._spawner = spawner or WindowsProcessSpawner()
         self._terminator = terminator or WindowsExactPidTerminator()
+        # WO140 diagnostic surface: bounded, secret-free record of the most
+        # recent stop() attempt so hosted RECOVERY_REQUIRED evidence can
+        # self-identify (state/reason_code/pid/elapsed + ownership sequence).
+        self.last_stop_diagnostics: dict[str, object] | None = None
 
     def _ownership_for(self, spec: OwnedProcessSpec, pid: int) -> ProcessOwnership:
         observation = self._observer.observe_process(
@@ -399,69 +406,105 @@ class WindowsOwnedProcessController:
         )
 
     def stop(self, spec: OwnedProcessSpec) -> OwnedProcessMutationResult:
+        # Recording is purely additive: every branch below keeps its exact
+        # original control flow and result; _stop_diag only captures which
+        # path was taken so the next hosted failure self-identifies.
+        started_at = time.monotonic()
+        initial_metadata_status: str | None = None
+        final_metadata_status: str | None = None
+        pre_termination_ownership: str | None = None
+        terminate_called = False
+        terminate_returned: bool | None = None
+        sequence: list[str] = []
+        observation_count = 0
+
+        def _stop_diag(result: OwnedProcessMutationResult) -> OwnedProcessMutationResult:
+            self.last_stop_diagnostics = {
+                "state": result.state.value,
+                "reason_code": result.reason_code,
+                "pid": result.pid,
+                "elapsed_ms": round((time.monotonic() - started_at) * 1000.0, 3),
+                "initial_metadata_status": initial_metadata_status,
+                "final_metadata_status": final_metadata_status,
+                "pre_termination_ownership": pre_termination_ownership,
+                "terminate_called": terminate_called,
+                "terminate_returned": terminate_returned,
+                "post_termination_ownership_sequence": sequence[
+                    -_MAX_STOP_DIAGNOSTIC_SEQUENCE:
+                ],
+                "post_termination_observation_count": observation_count,
+            }
+            return result
+
         metadata = self._observer.read_pid_metadata(spec.pid_path)
+        initial_metadata_status = metadata.status.value
         if metadata.status is PidMetadataStatus.ABSENT:
-            return OwnedProcessMutationResult(
+            return _stop_diag(OwnedProcessMutationResult(
                 OwnedProcessMutationState.NOT_RUNNING,
                 "NOT_RUNNING",
-            )
+            ))
         if metadata.status is PidMetadataStatus.INVALID:
-            return OwnedProcessMutationResult(
+            return _stop_diag(OwnedProcessMutationResult(
                 OwnedProcessMutationState.RECOVERY_REQUIRED,
                 "PID_METADATA_INVALID",
-            )
+            ))
         if metadata.status is PidMetadataStatus.UNKNOWN:
-            return OwnedProcessMutationResult(
+            return _stop_diag(OwnedProcessMutationResult(
                 OwnedProcessMutationState.RECOVERY_REQUIRED,
                 "PID_METADATA_UNKNOWN",
-            )
+            ))
 
         assert metadata.pid is not None
         pid = metadata.pid
         ownership = self._ownership_for(spec, pid)
+        pre_termination_ownership = ownership.value
         if ownership is ProcessOwnership.STALE:
-            return OwnedProcessMutationResult(
+            return _stop_diag(OwnedProcessMutationResult(
                 OwnedProcessMutationState.RECOVERY_REQUIRED,
                 "STALE_PID_METADATA",
                 pid,
-            )
+            ))
         if ownership is ProcessOwnership.MISMATCH:
-            return OwnedProcessMutationResult(
+            return _stop_diag(OwnedProcessMutationResult(
                 OwnedProcessMutationState.REFUSED,
                 "PID_MISMATCH",
                 pid,
-            )
+            ))
         if ownership is ProcessOwnership.UNKNOWN:
-            return OwnedProcessMutationResult(
+            return _stop_diag(OwnedProcessMutationResult(
                 OwnedProcessMutationState.REFUSED,
                 "PROCESS_OWNERSHIP_UNKNOWN",
                 pid,
-            )
+            ))
 
-        if not self._terminator.terminate(pid, spec.stop_timeout_seconds):
-            return OwnedProcessMutationResult(
+        terminate_called = True
+        terminate_returned = self._terminator.terminate(pid, spec.stop_timeout_seconds)
+        if not terminate_returned:
+            return _stop_diag(OwnedProcessMutationResult(
                 OwnedProcessMutationState.RECOVERY_REQUIRED,
                 "PROCESS_STOP_FAILED",
                 pid,
-            )
+            ))
 
         deadline = time.monotonic() + spec.stop_timeout_seconds
         saw_unknown = False
         while time.monotonic() < deadline:
             current = self._ownership_for(spec, pid)
+            observation_count += 1
+            sequence.append(current.value)
             if current is ProcessOwnership.STALE:
                 break
             if current is ProcessOwnership.MISMATCH:
-                return OwnedProcessMutationResult(
+                return _stop_diag(OwnedProcessMutationResult(
                     OwnedProcessMutationState.RECOVERY_REQUIRED,
                     "PROCESS_EXIT_OWNERSHIP_UNCERTAIN",
                     pid,
-                )
+                ))
             if current is ProcessOwnership.UNKNOWN:
                 saw_unknown = True
             time.sleep(0.05)
         else:
-            return OwnedProcessMutationResult(
+            return _stop_diag(OwnedProcessMutationResult(
                 OwnedProcessMutationState.RECOVERY_REQUIRED,
                 (
                     "PROCESS_EXIT_OWNERSHIP_UNCERTAIN"
@@ -469,27 +512,28 @@ class WindowsOwnedProcessController:
                     else "PROCESS_EXIT_UNCONFIRMED"
                 ),
                 pid,
-            )
+            ))
 
         latest = self._observer.read_pid_metadata(spec.pid_path)
+        final_metadata_status = latest.status.value
         if latest.status is not PidMetadataStatus.VALID or latest.pid != pid:
-            return OwnedProcessMutationResult(
+            return _stop_diag(OwnedProcessMutationResult(
                 OwnedProcessMutationState.RECOVERY_REQUIRED,
                 "PID_METADATA_CHANGED",
                 pid,
-            )
+            ))
 
         try:
             spec.pid_path.unlink()
         except OSError:
-            return OwnedProcessMutationResult(
+            return _stop_diag(OwnedProcessMutationResult(
                 OwnedProcessMutationState.RECOVERY_REQUIRED,
                 "PID_METADATA_CLEANUP_FAILED",
                 pid,
-            )
+            ))
 
-        return OwnedProcessMutationResult(
+        return _stop_diag(OwnedProcessMutationResult(
             OwnedProcessMutationState.STOPPED,
             "STOPPED",
             pid,
-        )
+        ))
