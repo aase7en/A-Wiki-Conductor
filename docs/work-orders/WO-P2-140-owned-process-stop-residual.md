@@ -1,9 +1,10 @@
 # WO-P2-140 ? Residual owned-process stop intermittency after WO129
 
 Date: 2026-09-02
-Owner: GLM-5.3 MAX / ZCode Goal + $a-loop
+Owner: GPT-5.6 Sol MAX (integrator/reviewer after GLM execution handback)
+GLM executor: GLM-5.3 MAX / ZCode Goal + $a-loop
 Integrator / merge authority: GPT-5.6 Sol MAX
-Status: GLM_OWNED / DIAGNOSIS
+Status: GPT_REVIEW_REPAIR / PRE_FREEZE
 Priority: P2 reliability residual
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo140-owned-process-stop-residual`
@@ -117,3 +118,12 @@ WO129 changed only post-termination UNKNOWN re-observation; it did not make the 
 **Verification on the candidate tree:** owned_process + windows_observer + runtime_safety = **81 passed**; related supervisor suites (`test_supervised_execution`, `test_supervised_command_runner`, `test_claude_code_supervised_runner`, `test_serena_lifecycle_backend`) = **74 passed**; off-repo fault-injection matrix = 17/17 scenarios PASS (terminator timeout/nonzero/OSError-mapped-to-False, first-CIM-timeout-then-STALE, persistent UNKNOWN, UNKNOWN→MISMATCH, STALE-after-termination, metadata INVALID/UNKNOWN/ABSENT/changed, slow terminator, unlink failure implicit via cleanup guard); real-Windows lifecycle sequential stress = **30/30 PASS** (historical window was 25) and concurrent 4-way stress = **40/40 PASS** (70 total real lifecycles, zero failures); compileall + `git diff --check` + strict UTF-8 + diff secret scan all PASS.
 
 Next safe action: GPT-5.6 Sol Max independent exact-SHA adversarial review → PR/CI/merge.
+
+## GPT independent review / repair checkpoint — 2026-09-03
+
+- Consumed GLM task `wo140-glm-long-diagnosis-001`, task SHA `935f6fbc62d7dd7ba0e67302290caad56ffd29d1ace45f0a09e0e8e17852c7ec`; executor candidate `a1b0b3d2150682a51f43b985104ee5b4c43a781a` was clean/pushed and correctly did not invent a causal production fix.
+- GPT independently verified the three GLM Git-blob SHA-256 pins and reconciled current `origin/main@0c437d7ab2ca6bdff99bf926bf93aa8483b25384` into this worktree before any integrator mutation.
+- GPT found one blocking P2 in the diagnostic implementation: the claimed 64-item bounded sequence used an ordinary list and sliced only when serializing. Because `stop_timeout_seconds` has no upper bound, memory during polling was not actually bounded.
+- Smallest repair: use `collections.deque(maxlen=64)` during polling and serialize `list(sequence)`. Control flow, termination count, ownership classification, result states/reason codes and exact-PID cleanup are unchanged.
+- After repair: `tests/test_owned_process.py` = 35 passed; owned-process + observer/runtime matrix = 81 passed; related supervision/lifecycle matrix = 74 passed; real Windows `test_real_dummy_process_start_idempotent_stop` = 12/12 repeated PASS.
+- GLM candidate `a1b0b3d2...` is therefore historical executor evidence, not merge authority. Next action: final scope/UTF-8/secret/diff audit, freeze a new exact SHA, then PR/CI and post-main verification.

@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import subprocess
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path, PureWindowsPath
@@ -415,7 +416,7 @@ class WindowsOwnedProcessController:
         pre_termination_ownership: str | None = None
         terminate_called = False
         terminate_returned: bool | None = None
-        sequence: list[str] = []
+        sequence: deque[str] = deque(maxlen=_MAX_STOP_DIAGNOSTIC_SEQUENCE)
         observation_count = 0
 
         def _stop_diag(result: OwnedProcessMutationResult) -> OwnedProcessMutationResult:
@@ -429,9 +430,7 @@ class WindowsOwnedProcessController:
                 "pre_termination_ownership": pre_termination_ownership,
                 "terminate_called": terminate_called,
                 "terminate_returned": terminate_returned,
-                "post_termination_ownership_sequence": sequence[
-                    -_MAX_STOP_DIAGNOSTIC_SEQUENCE:
-                ],
+                "post_termination_ownership_sequence": list(sequence),
                 "post_termination_observation_count": observation_count,
             }
             return result
