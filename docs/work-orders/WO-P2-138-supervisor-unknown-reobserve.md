@@ -2,7 +2,7 @@
 
 Date: 2026-09-02
 Owner / integrator: GPT-5.6 Sol MAX
-Status: CLAIMED / RED_FIRST_PENDING
+Status: VERIFIED / READY_FOR_INDEPENDENT_REVIEW
 Priority: P2 supervised execution reliability
 Base: `9a88b1d38d90bf8ce98dcef9a5108e270e8d2b48`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo138-supervisor-unknown-reobserve`
@@ -43,3 +43,14 @@ WO138 is source-disjoint from WO137. Either may be reviewed independently, but e
 
 ## Next
 Commit/push claim checkpoint → deterministic RED → narrow repair → focused/impact/Windows stress → freeze exact SHA → independent review when an external reviewer is available → PR/CI/merge/post-main → Defect Memory + SSoT closeout.
+## GPT repair checkpoint — 2026-09-02
+- Clean RED after fixing one test-setup mistake: 3 intended failures / 1 non-UNKNOWN guard pass. Current code returned on the first `SUPERVISOR_OWNERSHIP_UNKNOWN` instead of re-observing.
+- Repair is limited to `_poll_until_resolved()`: at most 3 consecutive UNKNOWN observations total, caller deadline checked first, and every other recovery code remains immediate fail-closed.
+- No launch, termination, collect, store, scheduler, provider, UI or graph authority changed.
+- Focused `tests/test_supervised_command_runner.py`: 15/15 PASS.
+- Related supervised/owned-process/runtime/job/execution matrix: 122/122 PASS.
+- Real Windows regression `test_supervised_mode_routes_pytest_through_durable_execution`: 20/20 PASS after repair.
+- Current tracked delta before final gate: this work order + `supervised_command_runner.py` + `test_supervised_command_runner.py` only.
+- Final CI-equivalent split-process gate on the repaired working tree: GUI 279 PASS; local-instance lifecycle 23 PASS; supervised-command 15 PASS; all 117 remaining core test files PASS in isolated processes; smoke `A-CONDUCTOR_SMOKE_OK`.
+- Final compileall, `git diff --check`, exact 3-file scope, strict UTF-8, U+FFFD/triple-question-mark and production added-line secret scans all PASS.
+- Candidate is ready to freeze. Next: commit/push exact SHA → detached Git-blob review packet → independent review → PR/CI.
