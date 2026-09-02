@@ -1,13 +1,14 @@
 # WO-P2-140 ? Residual owned-process stop intermittency after WO129
 
 Date: 2026-09-02
-Owner / integrator: GPT-5.6 Sol MAX
-Status: CLAIMED / DIAGNOSIS
+Owner: GLM-5.3 MAX / ZCode Goal + $a-loop
+Integrator / merge authority: GPT-5.6 Sol MAX
+Status: GLM_OWNED / DIAGNOSIS
 Priority: P2 reliability residual
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo140-owned-process-stop-residual`
 Branch: `fix/wo-p2-140-owned-process-stop-residual`
-Base: `origin/main@edac38d913a04d3ab2c7a95e726f77608abe49d0`
+Base: origin/main@a28638c0e5d865803b985f08eb1d1db9c9d7dfc1 (PR #191 merged)
 
 ## Trigger evidence
 
@@ -85,3 +86,10 @@ The repeated ~9s failure-file runtime versus ~2s successful runtime is consisten
 3. less likely PID metadata change/cleanup failure.
 
 WO129 changed only post-termination UNKNOWN re-observation; it did not make the real integration assertion print `reason_code`. Therefore the old and new hosted failures cannot yet prove which path occurred. No production fix is authorized by this checkpoint. Next diagnostic must surface the exact reason without weakening fail-closed behavior.
+
+## GLM ownership transfer checkpoint — 2026-09-03
+
+- Branch reconciled with origin/main@a28638c0e5d865803b985f08eb1d1db9c9d7dfc1; integration HEAD before GLM mutation: 260ce722de25fe5a2af95c7c57211857dbcaaaa7.
+- GLM-5.3 MAX / ZCode Goal + $a-loop now owns the declared mutable WO140 scope. GPT-5.6 Sol MAX remains architecture, exact-SHA acceptance, PR/CI, merge, post-main, and final authority.
+- No production/test mutation has occurred in WO140 yet. Diagnosis/root-cause + deterministic RED remain mandatory before any repair.
+- GPT must not overlap owned_process.py / test_owned_process.py while GLM ownership is active.
