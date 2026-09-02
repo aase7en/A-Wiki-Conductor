@@ -3,7 +3,7 @@
 Date: 2026-09-02
 Owner: GLM-5.3 MAX / ZCode long-goal lane
 Integrator: GPT-5.6 Sol
-Status: CLAIMED / RED_FIRST
+Status: INTEGRATOR_VERIFIED / READY_FOR_PR
 Priority: P1 AHA-7B
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo128-admissions-evidence-core`
@@ -58,3 +58,12 @@ Required adversarial cases:
 Use RED-first tests, focused + provider impact matrix, repeated equal/corrupt/stale cases, compileall, `git diff --check`, strict UTF-8 and scope audit. Do not commit/push/merge. Write the declared ignored `result.md` with exact HEAD, diff, tests, findings and remaining risks. GPT integrator remains commit/PR/merge authority.
 
 Long-goal execution should use the installed `$a-loop` workflow for decompose -> execute -> verify -> distill, but must keep this bounded WO as the only goal and must not route mutation to another model or expand scope automatically.
+
+## GPT integrator verification
+
+- GLM handoff: `READY_FOR_INTEGRATOR_REVIEW`; GPT independently reran the focused and impacted matrices.
+- GPT found and repaired a merge-blocking newest-first LIMIT defect: ISO timestamp text is not chronologically sortable when canonical rows mix whole and fractional seconds, and valid timezone offsets can also cross the LIMIT boundary incorrectly.
+- Final ordering uses `julianday(acquired_at)` as the primary instant key, normalized canonical text as deterministic sub-millisecond tie evidence, and admission ID as the stable final tie-break; malformed timestamps are prioritized to the typed decoder rather than hidden beyond LIMIT.
+- Added explicit fractional-second and timezone-offset boundary regressions.
+- Final local verification: WO128 focused 20 passed; provider impact 97 passed; broader admission/execution consumers 87 passed; compileall/diff-check/strict UTF-8/scope audit PASS.
+- GPT remains commit/PR/merge authority; exact-head CI and independent post-freeze review remain required before merge.

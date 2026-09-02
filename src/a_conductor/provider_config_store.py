@@ -25,6 +25,9 @@ from .provider_configuration import (
 
 _MAX_PROVIDER_GENERATION = (1 << 63) - 1
 
+_DEFAULT_ADMISSION_LIST_LIMIT = 50
+_MAX_ADMISSION_LIST_LIMIT = 200
+
 
 class ProviderConfigStoreError(RuntimeError):
     def __init__(self, code: str) -> None:
@@ -1061,3 +1064,74 @@ class SQLiteProviderConfigStore:
             except sqlite3.Error as exc:
                 connection.rollback()
                 raise ProviderConfigStoreError("CONFIG_STORE_WRITE_FAILED") from exc
+
+    def list_provider_admissions(
+        self,
+        *,
+        provider_id: str | None = None,
+        limit: int = _DEFAULT_ADMISSION_LIST_LIMIT,
+    ) -> tuple[ProviderAdmissionRecord, ...]:
+        """Read recent admissions coherently without schema/write side effects.
+
+        Newest-first by ``(acquired_at, admission_id)``. The store writer emits
+        UTC ISO-8601 text with either no fractional part or six microsecond
+        digits, so the SQL ordering key normalizes the no-fraction form before
+        LIMIT is applied; this prevents lexical ordering from dropping a newer
+        fractional-second row at the limit boundary. ``julianday`` is the
+        primary chronological key so valid timezone-offset rows are ordered by
+        their actual instant before the bounded LIMIT. Malformed timestamps are
+        prioritized so the shared decoder fails typed instead of returning
+        partial evidence. An optional provider filter and bounded limit are
+        validated before filesystem access. Reads use the WO125 query-only
+        connection with one SELECT and no bootstrap or write side effects.
+        """
+        if (
+            isinstance(limit, bool)
+            or not isinstance(limit, int)
+            or not 1 <= limit <= _MAX_ADMISSION_LIST_LIMIT
+        ):
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_LIST_LIMIT_INVALID")
+        if provider_id is not None and (
+            not isinstance(provider_id, str) or not provider_id.strip()
+        ):
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_FILTER_INVALID")
+        with self._connect_read_only() as connection:
+            try:
+                connection.execute("BEGIN")
+                order_clause = (
+                    "ORDER BY (julianday(acquired_at) IS NULL) DESC, "
+                    "julianday(acquired_at) DESC, "
+                    "CASE WHEN substr(acquired_at, -1) = 'Z' "
+                    "AND instr(acquired_at, '.') = 0 "
+                    "THEN substr(acquired_at, 1, length(acquired_at) - 1) || '.000000Z' "
+                    "ELSE acquired_at END DESC, "
+                    "admission_id COLLATE BINARY DESC LIMIT ?"
+                )
+                if provider_id is None:
+                    rows = connection.execute(
+                        "SELECT * FROM provider_admissions " + order_clause,
+                        (limit,),
+                    ).fetchall()
+                else:
+                    rows = connection.execute(
+                        "SELECT * FROM provider_admissions WHERE provider_id = ? "
+                        + order_clause,
+                        (provider_id.strip(), limit),
+                    ).fetchall()
+                connection.commit()
+            except sqlite3.Error as exc:
+                connection.rollback()
+                code = (
+                    "CONFIG_STORE_SCHEMA_UNAVAILABLE"
+                    if "no such table" in str(exc).casefold()
+                    else "CONFIG_STORE_READ_FAILED"
+                )
+                raise ProviderConfigStoreError(code) from exc
+        records = tuple(self._admission_from_row(row) for row in rows)
+        return tuple(
+            sorted(
+                records,
+                key=lambda record: (record.acquired_at, record.admission_id),
+                reverse=True,
+            )
+        )
