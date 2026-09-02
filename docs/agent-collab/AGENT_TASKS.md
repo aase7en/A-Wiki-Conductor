@@ -17,9 +17,11 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 | Released Models & Agents display | GPT-5.6 Sol + GLM review | WO-P1-126 | read-only Settings `MODELS & AGENTS` panel | MERGED #179 `010ab4bd` / GLM_PASS / EXACT_HEAD_33540512066_AND_POST_MAIN_33544097620_GREEN |
 | Released reliability with process deviation | GPT-5.6 Sol | WO-P2-131 | execution dedup newest-tie query + focused regression only | MERGED #180 `af7a933f` / EXACT_HEAD_33543935682_GREEN / POST_MAIN_33545560617_GREEN / INDEPENDENT_REVIEW_MISSED_BEFORE_EXTERNAL_MERGE |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | BLOCKED / NO LIVE MUTATION AUTHORITY |
-| Active product frontier | GPT-5.6 Sol | WO127 Edit/Disable/Test | isolated worktree/claim to be created; `desktop_control.py` + UI/i18n/action tests only per accepted shaping | READY_AFTER_WO126 / GPT_MUTABLE_OWNER |
-| Parallel long-goal core | GLM-5.3 MAX / ZCode Goal + `$a-loop` | WO128 T0+T1 admissions evidence core | `provider_config_store.py` + store tests + new pure projection/tests only; no UI/desktop_control/shared SSoT | CLAIMED / task `wo128-glm-goal-core-001` / result file direct-consume |
-| Completed read-only shaping | GLM-5.3 MAX | WO127 + WO128 plan | result file only | COMPLETE / BOTH_READY_AFTER_WO126 |
+| Released provider actions | GPT-5.6 Sol + GLM rereview | WO-P1-127 | Edit/Disable/Enable/Test provider actions | MERGED #182 `b0eed296` / GLM_REREVIEW_PASS / EXACT_HEAD_33582451656_AND_POST_MAIN_33585602021_GREEN |
+| Released selection/fallback core | GLM-5.3 MAX + GPT integrator | WO-P1-128 T0+T1 | bounded admissions read + pure selection/fallback evidence projection | MERGED #184 `b6d50921` / GLM_REVIEW_PASS / EXACT_HEAD_33586307363_AND_POST_MAIN_33591789871_GREEN |
+| Active product frontier | GLM-5.3 MAX / ZCode Goal + `$a-loop`; GPT integrator | WO-P1-134 Provider Evidence Detail | declared UI/control/i18n/focused-test scope in isolated worktree; no provider-store/projection authority expansion | CLAIMED / GLM_MUTABLE_OWNER / GPT_MERGE_AUTHORITY |
+| Released defect memory | GPT-5.6 Sol | WO-P3-135 | Defect Lessons #47/#48 + WO only | MERGED #186 `0ac30eb3` / EXACT_HEAD_33607169866_AND_POST_MAIN_33608067520_GREEN |
+| Separate draft roadmap | separate PR #183 lane | WO-P1-132 AiPASS roadmap | `COLLAB.md`, `PROJECT-PLAN.md`, AiPASS plan/WO132 only | DRAFT / RECONCILE_REQUIRED_BEFORE_MERGE |
 | Future | provider-neutral | AHA-8 additional providers | one adapter at a time | DEFERRED |
 
 ### Completed GLM bridge contract
