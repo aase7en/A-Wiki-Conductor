@@ -46,6 +46,7 @@ from .supervised_execution import (
 
 
 _EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
+_MAX_TRANSIENT_UNKNOWN_OBSERVATIONS = 3
 
 
 class SupervisedLauncher(Protocol):
@@ -267,6 +268,7 @@ class SupervisedCommandRunner:
         self, execution_id: str, *, timeout_seconds: int
     ) -> tuple[SupervisedInspection | None, bool]:
         start = self._clock_fn()
+        consecutive_unknown = 0
         while True:
             try:
                 inspection = self._supervised.inspect(execution_id)
@@ -281,7 +283,13 @@ class SupervisedCommandRunner:
             if self._clock_fn() - start + self._poll_interval_seconds >= timeout_seconds:
                 return inspection, True
             if inspection.recovery_required:
-                return inspection, False
+                if inspection.error_code != "SUPERVISOR_OWNERSHIP_UNKNOWN":
+                    return inspection, False
+                consecutive_unknown += 1
+                if consecutive_unknown >= _MAX_TRANSIENT_UNKNOWN_OBSERVATIONS:
+                    return inspection, False
+            else:
+                consecutive_unknown = 0
             self._sleep_fn(self._poll_interval_seconds)
 
     def run(self, spec: NativeCommandSpec) -> NativeCommandResult:
