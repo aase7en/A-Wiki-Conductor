@@ -4168,7 +4168,7 @@ class AConductorDesktopApp:
         actions.grid_columnconfigure(0, weight=1)
         self._models_agents_provider_combo = ttk.Combobox(actions, state="readonly", width=42, takefocus=True)
         self._models_agents_provider_combo.grid(row=0, column=0, sticky="ew", padx=(0, 6))
-        self._models_agents_provider_combo.bind("<<ComboboxSelected>>", lambda _event: self._sync_models_agents_action_controls())
+        self._models_agents_provider_combo.bind("<<ComboboxSelected>>", self._on_models_agents_provider_selected)
         self._models_agents_edit_button = self._button(actions, tr("prefs.models_agents.edit"), self._open_selected_provider_edit_dialog)
         self._models_agents_edit_button.grid(row=0, column=1, padx=(0, 4))
         _attach_tip(self._models_agents_edit_button, lambda: tr("prefs.models_agents.edit.help"), self.theme)
@@ -4234,6 +4234,32 @@ class AConductorDesktopApp:
         if index < 0 or index >= len(self._models_agents_last_rows):
             return None
         return self._models_agents_last_rows[index]
+
+    def _on_models_agents_provider_selected(self, _event=None) -> None:
+        self._sync_models_agents_action_controls()
+        if not self._provider_evidence_window_alive():
+            return
+        row = self._selected_models_agents_row()
+        if row is None:
+            return
+        provider_id = str(getattr(row, "provider_id", ""))
+        if not provider_id or provider_id == self._provider_evidence_provider_id:
+            return
+        fetcher = getattr(self.service, "provider_selection_evidence", None)
+        if not callable(fetcher):
+            self._invalidate_provider_evidence()
+            self._provider_evidence_provider_id = provider_id
+            self._render_provider_evidence_text(error_code="PROVIDER_STORE_NOT_AVAILABLE")
+            return
+        dialog = self._provider_evidence_window
+        try:
+            dialog.title(f"Evidence - {provider_id}")
+        except tk.TclError:
+            return
+        self._invalidate_provider_evidence()
+        self._provider_evidence_provider_id = provider_id
+        self._render_provider_evidence_text(loading=True)
+        self._submit_provider_evidence_fetch(provider_id, fetcher)
 
     def _sync_models_agents_action_controls(self) -> None:
         combo = getattr(self, "_models_agents_provider_combo", None)
