@@ -1,12 +1,16 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-02 (GPT-5.6 Sol - WO126 released; WO131/WO127 frontier)
+Last updated: 2026-09-02 (WO127 + WO128 core released; WO134 claimed)
 
 ## Current phase
 
-**AHA-7 Models & Agents remains the active product frontier. WO-P1-125 provider operator read service and WO-P1-126 read-only `MODELS & AGENTS` Settings display are accepted and released on main. Parallel P2 reliability WO-P2-131 was merged externally before its planned independent GLM review, but exact-head and post-main CI are green; the missed-review deviation remains explicit. WO127 Edit/Disable/Test is the next GPT product slice while GLM executes the disjoint WO128 T0+T1 evidence-core lane. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
+**AHA-7 Models & Agents remains the active product frontier. WO127 Edit/Disable/Test and WO128 T0+T1 truthful admissions/selection evidence core are released on main. WO134 T2–T4 is the claimed successor: provider evidence detail/UI plus exact explicit graph-context linking, while preserving `SELECTION_REASON=UNKNOWN` and `FALLBACK_REASON=NOT_EVALUATED`. P0 WO-P1-096 remains the v0.7.0 operational release blocker with no live maintenance authority.**
 
 Accepted / active frontier state:
+- PR #182 / WO127 exact head `e91647a7ccaefe522b11ba867719b3186ed5b96d` independently rereviewed PASS P0/P1/P2=0; merged as `b0eed29656cc54031b7442348449d57cf55d23be`; post-main CI `33585602021` SUCCESS including Windows packaging/Frozen Setup E2E.
+- PR #184 / WO128 T0+T1 exact head `a9f4fe6a92367650e7c22caaa9df9e8c148cf3ad`; GLM review `wo128-glm-review-002` PASS P0/P1/P2=0 with task SHA `aea91fbb23e5c9a67f637de284d3f989112f83844b9574c68500b1d4b9053c6e`; merged as `b6d50921035ae6ec6d32b6c05b3f723530b8c68d`; post-main CI `33591789871` SUCCESS.
+- Repaired eventual tree matched merged main exactly and passed 2035 tests with one headless Tk skip; the skipped `test_blurbs_i18n.py` passed 5/5 under real Python 3.13/Tk.
+- WO128 durable truth remains `SELECTION_REASON=UNKNOWN` and `FALLBACK_REASON=NOT_EVALUATED`; admissions are capacity/lifecycle evidence only.
 - PR #174 / WO124 reviewed exact head `be97d313c748fe5fcce0e57ecf5dc304b863e230`; GLM review002 PASS with P0/P1/P2 = 0; task SHA-256 `abe750450dda09dbf423681811efd0110ecfa26914cc55828b133db48a9fcf2b`; exact-head CI `33497483113` attempt 2 SUCCESS; merged as `c1cfbe780e76d3a64fb692e91dde851824bd8033`; post-main CI `33504441646` attempt 2 SUCCESS.
 - WO124 establishes the truthful read-only operator model: `CONFIGURED != READY`, `READY != AUTHORIZED`, existing readiness/quota authority is reused, invalid generations fail closed, and secret/endpoint values are excluded.
 - PR #176 / WO129 reviewed exact head `661c86f9a30433006a01e996ed1ea46fde4a7e52`; GLM review001 PASS with P0/P1/P2 = 0; task SHA-256 `b211091c4bfdc6c063da1ad037dc2a340750a90a47d813443e27c0bfa9c26481`; exact-head CI `33503763313` SUCCESS; merged as `fae5c0d8a36a41eb172e2acb8dc88ca04658c4e9`; post-main CI `33509029840` SUCCESS including Windows Portable/Setup and Frozen install/uninstall E2E.
@@ -20,18 +24,17 @@ Accepted / active frontier state:
 
 ## Active work orders
 
-1. `WO-P1-127` - NEXT GPT LANE: bounded provider Edit/Disable/Enable/Test; claim/worktree to be created from current main.
-2. `WO-P1-128 T0+T1` - CLAIMED by GLM-5.3 MAX in isolated worktree `A:\GitHub\A-Wiki-Conductor-wo128-admissions-evidence-core`; long-goal task `wo128-glm-goal-core-001`; disjoint from WO127 UI/control scope.
-3. `WO-P1-096` - P0 operational release gate; no live tunnel mutation without explicit maintenance authority.
-4. `WO-P2-131` - MERGED / POST_MAIN_GREEN with missed independent-review gate recorded as process deviation.
+1. `WO-P1-134 T2–T4` - CLAIMED for GLM-5.3 MAX / ZCode Goal + `$a-loop`; GPT-5.6 Sol retains integration/commit/PR/merge authority.
+2. `WO-P1-096` - P0 operational release gate; no live Worker/tunnel mutation without explicit maintenance authority.
+3. `WO-P2-131` - MERGED / POST_MAIN_GREEN with missed independent-review gate preserved as process deviation.
 
 ## Immediate execution frontier
 
-1. Reconcile/merge this WO126/WO131 continuity closeout against current main and record the WO131 missed-review deviation plus reusable defect lesson.
-2. Create and claim WO127 from the accepted GLM shaping result; GPT implements Edit/Disable/Enable/Test RED-first using retained CAS/in-use/provider-probe seams and no endpoint/base-URL edit, delete, secret reveal, or Tk-side network path.
-3. In parallel, GLM-5.3 MAX executes WO128 T0+T1 only through ZCode Goal + `$a-loop`; GPT reads/adjudicates its declared result and retains commit/PR/merge authority.
-4. After WO127 and the evidence core are accepted, integrate WO128 UI truthfully: `SELECTION_REASON=UNKNOWN`, `FALLBACK_REASON=NOT_EVALUATED` where no accepted authority exists.
-5. Keep WO096 separately blocked until explicit live maintenance authority or a spare Tunnel ID exists for the required v0.0.13 hosted-after-TTL proof.
+1. Execute WO134 RED-first in the isolated claimed worktree through GLM-5.3 MAX ZCode Goal + `$a-loop`; GPT reviews/adjudicates and retains commit/PR/merge authority.
+2. Preserve admissions-first → current snapshot → shared clock ordering and static `UNKNOWN` / `NOT_EVALUATED` truth.
+3. Integrate evidence detail only through existing Models & Agents async/UI and explicit Graph Monitor context; no graph/router/policy/store authority expansion.
+4. Freeze an exact implementation SHA, run deterministic + real Tk + realistic SQLite E2E, then independent exact-head review before merge.
+5. Keep WO096 separately blocked until explicit live maintenance authority exists; do not publish v0.7.0.
 
 ## Source-of-truth rule
 

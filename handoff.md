@@ -1,28 +1,25 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-02 - WO126 released; WO131 post-main green; WO127 + WO128-core active
+Last updated: 2026-09-02 - WO127 + WO128 core released; WO134 T2–T4 claimed
 
 ## Current objective
 
-Reconcile the WO131 externally merged reliability lane and record its missed independent-review gate, then execute WO127 Edit/Disable/Test with GPT while GLM-5.3 MAX runs the disjoint WO128 T0+T1 evidence core through ZCode Goal + `$a-loop`. Keep WO096 blocked unless explicit live maintenance authority is granted.
+Execute WO134 provider evidence detail/UI with GLM-5.3 MAX ZCode Goal + `$a-loop`, while GPT-5.6 Sol owns integration/review/commit/PR/merge. Preserve `SELECTION_REASON=UNKNOWN`, `FALLBACK_REASON=NOT_EVALUATED`, no new router/policy/graph authority, and keep WO096 blocked without explicit live maintenance authority.
 
 ## Repository / release identity
 
-- authoritative remote main: `af7a933fe27d2a3e3f29360abf9214df1e5478c5`; it contains WO126 merge `010ab4bdefbe54725388a5cea936117b8eb93b6b` and externally merged WO131. WO126 exact-head CI `33540512066` + post-main `33544097620` are SUCCESS; WO131 exact-head `33543935682` + post-main `33545560617` are SUCCESS; protected root checkout remains stale/dirty and MUST NOT be mutated;
-- PR #174 / WO124: MERGED from independently reviewed exact head `be97d313c748fe5fcce0e57ecf5dc304b863e230`; GLM review002 PASS P0/P1/P2=0; exact-head CI `33497483113` attempt 2 SUCCESS; post-main `33504441646` attempt 2 SUCCESS.
-- PR #176 / WO129: MERGED from independently reviewed exact head `661c86f9a30433006a01e996ed1ea46fde4a7e52`; GLM review001 PASS P0/P1/P2=0; exact-head CI `33503763313` SUCCESS; post-main `33509029840` SUCCESS.
-- WO122 stable external-agent mailbox remains operational: GPT/Conductor repoints one machine-local path per agent while the human prompt stays constant and the integrator consumes declared result files directly.
+- authoritative remote main: `b6d50921035ae6ec6d32b6c05b3f723530b8c68d`; protected root checkout remains stale/dirty and MUST NOT be mutated.
+- WO127 PR #182 merged exact reviewed head `e91647a7ccaefe522b11ba867719b3186ed5b96d`; post-main CI `33585602021` SUCCESS.
+- WO128 core PR #184 merged exact reviewed head `a9f4fe6a92367650e7c22caaa9df9e8c148cf3ad`; GLM review 002 PASS P0/P1/P2=0; post-main CI `33591789871` SUCCESS.
 - source/development version remains `0.7.0`; GitHub Latest remains `v0.6.0`; stable publication remains blocked by WO096.
 
 ## Ownership / claims
 
-- GPT integrator owns dependency order, SSoT, merge/release adjudication and this WO126 docs-only closeout.
-- WO126 product source is RELEASED on main; no further source edits belong to that lane without a new work order.
-- WO131 PR #180 merged as `af7a933fe27d2a3e3f29360abf9214df1e5478c5` before the planned independent GLM review result existed. Exact-head/post-main CI are green; the missed review is a recorded process deviation and must never be rewritten as PASS evidence.
-- WO127 shaping is complete and GPT is the intended mutable owner for `desktop_control.py` + `desktop_ui.py`/i18n/tests in its own worktree.
-- WO128 T0+T1 evidence core is claimed by GLM-5.3 MAX in `A:\GitHub\A-Wiki-Conductor-wo128-admissions-evidence-core`, branch `feat/wo-p1-128-admissions-evidence-core`, starting claim HEAD `046a935734389f124cc2042a9a60d5c4ebf6e9f7`. Mutable scope is provider-config-store read seam + pure projection/tests only; it must not touch WO127 files.
+- GPT-5.6 Sol owns dependency order, SSoT, acceptance, commit/PR/merge and release adjudication.
+- WO127 and WO128 T0+T1 source lanes are RELEASED; their old clean worktrees confer no active mutable ownership.
+- WO134 is the only mutable AHA-7 provider UI/control lane: GLM-5.3 MAX / ZCode Goal + `$a-loop` owns only its declared source/test/work-order scope in `A:\GitHub\A-Wiki-Conductor-wo134-provider-evidence-detail`.
+- Shared SSoT remains GPT-owned during GLM implementation. GLM may not mutate provider store authority, graph production, job/execution/scheduler/parallel/elastic/provider policy/readiness/runtime assembly, secrets, live DB, Workers/tunnels, WO096, or release state.
 - WO096 grants no live Worker/tunnel mutation authority.
-
 
 ## Verified evidence
 
@@ -39,10 +36,10 @@ Reconcile the WO131 externally merged reliability lane and record its missed ind
 
 ## Next safe actions
 
-1. Finish this continuity closeout against `origin/main@af7a933...`, recording WO131 as post-main green with a missed independent-review gate.
-2. Create/claim WO127 and execute its accepted RED-first matrix with GPT; keep `desktop_ui.py` and `desktop_control.py` single-owner.
-3. In parallel, GLM-5.3 MAX executes `wo128-glm-goal-core-001` through the stable mailbox; GPT consumes `result.md` directly and remains commit/PR/merge authority.
-4. Add the reusable WO131 dedup-tie defect lesson in the next bounded shared-doc checkpoint; do not mutate the already merged source commit.
+1. Verify WO134 task packet SHA + exact claim HEAD + worktree clean state, then dispatch GLM-5.3 MAX through ZCode Goal + `$a-loop`.
+2. GLM executes RED-first implementation and writes only the declared result artifact; GPT independently inspects the working tree/diff/tests before any commit.
+3. GPT performs deep bug hunt + real Tk/SQLite E2E, freezes exact SHA, dispatches independent exact-head review, then handles PR/CI/merge/post-main gates.
+4. Fold WO128 chronology/corruption/review-freeze lessons into Defect Memory during the bounded closeout after product acceptance.
 5. Do not publish v0.7.0 until WO096 hosted remote MCP-after-TTL evidence and final release E2E are complete.
 
 ## Accepted predecessor
