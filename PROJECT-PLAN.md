@@ -823,7 +823,7 @@ Required supporting work:
 
 AiPASS is a candidate **reasoning / research / review provider**, not a new execution control plane. Integration must `WRAP + EXTEND` the accepted provider configuration, execution authority, operator view, durable execution, evidence, transport-recovery, and routing seams.
 
-Reference architecture evidence from `niawjunior/aipass-bridge@e01d6734400f743c1f84222d504b8ee98fea050b` is useful for browser-held session isolation, OpenAI-compatible local chat/model projection, streaming, server-side conversation affinity, model/free-credit discovery, and the principle that observer/extension loss need not mean execution failure.
+Reference architecture evidence from `niawjunior/aipass-bridge@a24a5bb6218559e9a66b9e6644c2be1e87885bca` is useful for browser-held session isolation, OpenAI-compatible local chat/model projection, streaming, server-side conversation affinity, model/free-credit discovery, and the principle that observer/extension loss need not mean execution failure.
 
 Do **not** import its local file-agent protocol as Conductor mutation authority. AiPASS-generated change suggestions must flow back through normal repository identity, ownership, scope, materialization, test, evidence, and review gates.
 

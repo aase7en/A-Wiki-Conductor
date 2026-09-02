@@ -64,13 +64,20 @@ The protected root checkout is stale and dirty and remains untouched. This work 
 - PR #183 remains draft at `ca32390084658044ff2555167e4eb5ecf980cf42`; authoritative `origin/main` is `9a88b1d38d90bf8ce98dcef9a5108e270e8d2b48`.
 - Feature/main mutable-path overlap is 0 and `git merge-tree --write-tree origin/main HEAD` succeeds.
 - Current official AiPASS Terms still require explicit written authorization for the automated/direct API modes in §3.4; live automation remains `BLOCKED_EXTERNAL`.
-- `niawjunior/aipass-bridge` current main is `e01d6734400f743c1f84222d504b8ee98fea050b`; repository license metadata is null and root `LICENSE` is absent, so code reuse remains blocked.
+- `niawjunior/aipass-bridge` current main is `a24a5bb6218559e9a66b9e6644c2be1e87885bca`; repository license metadata is null and root `LICENSE` is absent, so code reuse remains blocked.
 - Reconcile scope stays docs-only: current priority/dependency state, current reference commit/evidence, and claim bookkeeping.
 
 ## Semantic reconcile checkpoint — 2026-09-02
 - Merged authoritative `origin/main@9a88b1d38d90bf8ce98dcef9a5108e270e8d2b48` into the draft branch; feature/main path overlap before merge was 0 and the post-merge PR delta remains exactly four roadmap/coordination docs.
 - Roadmap priority now records WO127 and WO128 T0+T1 as released, WO134 Provider Evidence Detail as the active provider frontier, and AIP-1 as next only after WO134 acceptance.
-- Current bridge reference is `niawjunior/aipass-bridge@e01d6734400f743c1f84222d504b8ee98fea050b`; repository license metadata is null and root `LICENSE` remains absent, so source copying remains blocked.
+- Current bridge reference is `niawjunior/aipass-bridge@a24a5bb6218559e9a66b9e6644c2be1e87885bca`; repository license metadata is null and root `LICENSE` remains absent, so source copying remains blocked.
 - Official AiPASS Terms effective 2026-08-19 §3.4 were refreshed; automated bot/unapproved-software or direct API/API-key/token use remains `BLOCKED_EXTERNAL` absent explicit written authorization or an official supported path.
 - No `src/**`, `tests/**`, CURRENT-WORK, handoff, live Worker/tunnel, credentials, cookies, tokens, or AiPASS automation were mutated.
 - Next gate: strict UTF-8/diff/scope/secret audit -> commit/push reconciled docs -> remote PR diff audit -> CI/review -> merge only after WO134 dependency wording remains truthful.
+
+## External evidence refresh checkpoint - 2026-09-02
+- Fresh GitHub evidence: `niawjunior/aipass-bridge` advanced to `a24a5bb6218559e9a66b9e6644c2be1e87885bca`; repository license metadata remains null and the refreshed root listing still contains no `LICENSE`, so source copying remains blocked.
+- Fresh official AiPASS Terms still show effective date 2026-08-19; section 3.4 continues to require explicit written authorization for bot/unapproved-software access and direct API/API-key/token use outside provider-defined UI. Live automation therefore remains `BLOCKED_EXTERNAL`.
+- This refresh changes evidence identity only; architecture, authorization state, dependency order, and no-live-traffic policy are unchanged. AIP-1 remains blocked behind accepted WO134.
+- Scope remains docs-only; no `src/**`, tests, CURRENT-WORK, handoff, credentials, cookies, tokens, Workers/tunnels, or AiPASS live automation are touched.
+- Next safe action: strict diff/UTF-8/secret/scope audit, commit+push exact docs SHA, refresh PR #183 CI, and keep the draft unmerged until WO134 acceptance releases the dependency.

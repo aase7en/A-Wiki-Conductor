@@ -10,7 +10,7 @@ Evaluate AiPASS as an optional **reasoning / research / review provider lane** b
 
 Classification: `WRAP + EXTEND` existing provider/runtime/recovery seams.
 
-Reference implementation refreshed: `niawjunior/aipass-bridge@e01d6734400f743c1f84222d504b8ee98fea050b`.
+Reference implementation refreshed: `niawjunior/aipass-bridge@a24a5bb6218559e9a66b9e6644c2be1e87885bca`.
 
 Useful reference properties:
 - local OpenAI-compatible chat/model surface;
@@ -212,7 +212,7 @@ WO096 remains the independent P0 release blocker throughout this sequence and mu
 ## 9. Reference evidence
 
 - A-Conductor planning base: `aase7en/A-Wiki-Conductor@9118a289b9fcd87e0bae4e4eb601cc585062856d`.
-- AiPASS bridge reference: `https://github.com/niawjunior/aipass-bridge`, refreshed at `e01d6734400f743c1f84222d504b8ee98fea050b`; repository license metadata remains null and no root `LICENSE` was found.
+- AiPASS bridge reference: `https://github.com/niawjunior/aipass-bridge`, refreshed at `a24a5bb6218559e9a66b9e6644c2be1e87885bca`; repository license metadata remains null and no root `LICENSE` was found.
 - Official AiPASS terms: `https://www.aipass.go.th/term-and-cond-th`, effective 2026-08-19; section 3.4 is the current automation/API authorization gate used by this roadmap.
 
 These external references are evidence inputs, not A-Conductor runtime dependencies.
