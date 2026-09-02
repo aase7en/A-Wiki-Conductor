@@ -10,7 +10,7 @@ Evaluate AiPASS as an optional **reasoning / research / review provider lane** b
 
 Classification: `WRAP + EXTEND` existing provider/runtime/recovery seams.
 
-Reference implementation refreshed: `niawjunior/aipass-bridge@a24a5bb6218559e9a66b9e6644c2be1e87885bca`.
+Reference implementation refreshed: `niawjunior/aipass-bridge@b1b8bab757d91c266410d58f505aeeaa218da102`.
 
 Useful reference properties:
 - local OpenAI-compatible chat/model surface;
@@ -19,7 +19,7 @@ Useful reference properties:
 - server-owned conversation history;
 - extension/transport disappearance is not automatically treated as execution failure.
 
-No `LICENSE` file was visible at the inspected repository root. This roadmap therefore permits **concept/reference study only**; source copying requires an explicit license/permission check first.
+A root `LICENSE` is now present and GitHub identifies the repository as **MIT licensed**. Source reuse is license-permitted if the MIT copyright/permission notice is preserved, but the implementation should still prefer the smallest Conductor-owned seam and avoid wholesale import. License permission is independent from AiPASS service authorization.
 ## 2. External authorization gate
 
 Official AiPASS terms currently effective from **2026-08-19** state in section 3.4 that, unless explicitly authorized in writing, users must not access the platform/account with bot-emulation or unapproved software and must not directly access/connect/use system API, API Key, or Token outside the provider-defined UI.
@@ -72,8 +72,8 @@ Reuse these existing authorities instead of recreating them:
 | 0 | WO096 connector resilience | **P0 release blocker** | existing maintenance/hosted proof gate | v0.7.0 stability; independent of AiPASS |
 | 1 | WO127 provider actions | **P1 released** | accepted / merged | stable Edit/Disable/Enable/Test control seam |
 | 2 | WO128 T0+T1 evidence core + truthful projection | **P1 released** | accepted / merged | routing/admission evidence without invented reasons |
-| 3 | WO134 Provider Evidence Detail | **P1 active** | exact-SHA review -> CI -> merge -> post-main | truthful operator evidence + explicit graph correlation |
-| 4 | AIP-1 authorization + adapter contract | **P1 next** | WO134 accepted | exact provider boundary; no live traffic |
+| 3 | WO134 Provider Evidence Detail | **P1 released** | PR #188 merged as `626bfc67e010d989a31b2a1d1d7e04f00fa938cc`; post-main `33651878707` SUCCESS | truthful operator evidence + explicit graph correlation |
+| 4 | AIP-1 authorization + adapter contract | **P1 READY_FOR_CLAIM** | WO134 dependency satisfied; re-run terms/license/reuse gate at claim | exact provider boundary; no live traffic |
 | 5 | AIP-2 fake/read-only discovery | **P1** | AIP-1 | health/models/free-credit projection without sending prompts |
 | 6 | AIP-3 resilient message adapter | **P1** | AIP-2 + deterministic fake backend | streaming/recovery semantics; live path still gated |
 | 7 | AIP-4 authorized live pilot | **P1 / BLOCKED_EXTERNAL** | written/official authorization | research/review-only live evidence |
@@ -201,8 +201,8 @@ Minimum regression matrix:
 
 ## 8. Next development sequence
 
-1. Finish WO134 Provider Evidence Detail through exact-SHA independent review, exact-head CI, merge, and post-main evidence.
-2. Open a bounded implementation WO for **AIP-1** from then-current main; re-run the reuse/claim/license/terms gate and keep live traffic disabled.
+1. WO134 Provider Evidence Detail is accepted and released on main (`626bfc67e010d989a31b2a1d1d7e04f00fa938cc`; post-main `33651878707` SUCCESS).
+2. **Next READY node:** open a bounded implementation WO for **AIP-1** from current main; re-run the reuse/claim/license/terms gate and keep live traffic disabled.
 3. Implement **AIP-2** fake/read-only discovery before any chat execution.
 4. Implement **AIP-3** resilient transport behavior entirely against deterministic fixtures first.
 5. Keep **AIP-4** blocked until external authorization is explicitly satisfied.
@@ -212,7 +212,7 @@ WO096 remains the independent P0 release blocker throughout this sequence and mu
 ## 9. Reference evidence
 
 - A-Conductor planning base: `aase7en/A-Wiki-Conductor@9118a289b9fcd87e0bae4e4eb601cc585062856d`.
-- AiPASS bridge reference: `https://github.com/niawjunior/aipass-bridge`, refreshed at `a24a5bb6218559e9a66b9e6644c2be1e87885bca`; repository license metadata remains null and no root `LICENSE` was found.
+- AiPASS bridge reference: `https://github.com/niawjunior/aipass-bridge`, refreshed at `b1b8bab757d91c266410d58f505aeeaa218da102`; GitHub reports MIT and root `LICENSE` exists (blob `17ddd0b8425c523d029917a1027d7e40a0916100`).
 - Official AiPASS terms: `https://www.aipass.go.th/term-and-cond-th`, effective 2026-08-19; section 3.4 is the current automation/API authorization gate used by this roadmap.
 
 These external references are evidence inputs, not A-Conductor runtime dependencies.

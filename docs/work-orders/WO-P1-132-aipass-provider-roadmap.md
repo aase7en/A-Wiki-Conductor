@@ -2,8 +2,8 @@
 
 Date: 2026-09-02
 Owner: GPT-5.6 Sol integrator
-Status: RECONCILED / READY_FOR_REVIEW
-Priority: P1 planning; must not preempt WO096 or active WO134 acceptance gates
+Status: VERIFIED / READY_FOR_PR
+Priority: P1 planning; WO096 remains the separate P0 release blocker
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo132-aipass-roadmap`
 Branch: `docs/wo-p1-132-aipass-provider-roadmap`
@@ -23,7 +23,7 @@ Capture a durable, priority-ordered roadmap for evaluating AiPASS as an optional
 
 ## Safety gate
 
-The protected root checkout is stale and dirty and remains untouched. This work uses a clean isolated worktree and has merged authoritative `origin/main@9a88b1d38d90bf8ce98dcef9a5108e270e8d2b48`. WO127 and WO128 core are released; WO134 is a separate active product/review lane and does not claim this docs-only scope.
+The protected root checkout is stale and dirty and remains untouched. This work uses a clean isolated worktree reconciled with authoritative `origin/main@626bfc67e010d989a31b2a1d1d7e04f00fa938cc`. WO127, WO128 and WO134 are released; PR #189 touches CURRENT-WORK/handoff/AGENT_TASKS only and does not overlap this docs-only scope.
 ## Allowed scope
 
 - `PROJECT-PLAN.md`
@@ -45,7 +45,7 @@ The protected root checkout is stale and dirty and remains untouched. This work 
 - Authorization/legal/terms and source-license gates are explicit and fail closed.
 - The roadmap defines phased read-only, fake-backend, resilience, live-pilot, cost-routing, and UI work.
 - AiPASS cannot become direct Git/filesystem mutation authority.
-- Existing `CONFIGURED != READY != AUTHORIZED` semantics are preserved and extended truthfully.
+- Existing `CONFIGURED != READY != AUTHORIZED != ADMITTED` semantics are preserved and extended truthfully.
 - No code from the reference repository is copied by this work order.
 - A future implementation can allocate bounded work orders from the roadmap without relying on this chat.
 ## Checkpoint — 2026-09-02
@@ -81,3 +81,13 @@ The protected root checkout is stale and dirty and remains untouched. This work 
 - This refresh changes evidence identity only; architecture, authorization state, dependency order, and no-live-traffic policy are unchanged. AIP-1 remains blocked behind accepted WO134.
 - Scope remains docs-only; no `src/**`, tests, CURRENT-WORK, handoff, credentials, cookies, tokens, Workers/tunnels, or AiPASS live automation are touched.
 - Next safe action: strict diff/UTF-8/secret/scope audit, commit+push exact docs SHA, refresh PR #183 CI, and keep the draft unmerged until WO134 acceptance releases the dependency.
+
+## Finalization checkpoint — 2026-09-02
+- Reconciled with authoritative main `626bfc67e010d989a31b2a1d1d7e04f00fa938cc` after WO134 / PR #188 released; WO134 post-main CI `33651878707` is SUCCESS.
+- AIP-1 dependency is satisfied and the roadmap marks it `READY_FOR_CLAIM`; live traffic remains disabled and AIP-4 remains `BLOCKED_EXTERNAL`.
+- Official AiPASS Terms effective 2026-08-19 §3.4 still require explicit written authorization for bot/unapproved-software access and direct API/API-key/token use outside provider-defined UI.
+- `niawjunior/aipass-bridge` refreshed to `b1b8bab757d91c266410d58f505aeeaa218da102`; GitHub now identifies MIT and root `LICENSE` exists at blob `17ddd0b8425c523d029917a1027d7e40a0916100`.
+- Source-license permission and service authorization are separate gates: MIT permits code reuse with notice obligations, but it does not authorize live AiPASS automation.
+- PR #189 scope was checked and is disjoint (`CURRENT-WORK.md`, `handoff.md`, `AGENT_TASKS.md`, WO139); this lane still mutates only its four roadmap/coordination docs.
+- No `src/**`, tests, CURRENT-WORK, handoff, credentials, cookies, tokens, Workers/tunnels, or live AiPASS traffic were mutated.
+- Next: strict UTF-8/diff/scope/secret audit -> commit/push exact docs head -> remote diff audit -> exact-head CI -> merge expected SHA -> post-main verify -> claim AIP-1 from then-current main.
