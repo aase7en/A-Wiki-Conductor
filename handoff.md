@@ -1,5 +1,9 @@
 # HANDOFF — A-Sunday Conductor
 
+## Context rollover authority — 2026-09-02 22:27 +07
+
+Read `docs/work-orders/WO-P3-139-session-rollover-20260902.md` before continuing. It contains exact WO134/WO137/WO138/WO132/WO096 identities, review/CI evidence, GLM mailbox state, model-routing benchmark conclusions, ownership boundaries and the ordered next-safe-action list. Protected root remains stale/dirty and must not be mutated.
+
 Last updated: 2026-09-02 - WO127/WO128 core released; WO134 active; WO136 closeout
 
 ## Current objective

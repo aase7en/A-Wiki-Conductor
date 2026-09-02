@@ -1,5 +1,9 @@
 # A-Sunday Conductor — Current Work
 
+## Session rollover — 2026-09-02 22:27 +07
+
+Authoritative rollover: `docs/work-orders/WO-P3-139-session-rollover-20260902.md`. Current remote main is `9a88b1d38d90bf8ce98dcef9a5108e270e8d2b48`. WO134 exact `13336046...` has GLM review-002 PASS P0/P1/P2=0 and is ready for GPT PR/CI adjudication. WO138 exact `8f60f045...` is frozen with full local CI-equivalent PASS and a prepared, not-yet-dispatched GLM review packet. WO137 remains unmerged until WO138 closes the separate caller UNKNOWN race. PR #183 is draft/mergeable at `584d77d...` with CI `33645644209` green. WO096 remains the P0 live-maintenance release blocker. Re-verify actual Git/PR/runtime state before mutation.
+
 Last updated: 2026-09-02 (GPT-5.6 Sol - WO127/WO128 core released; WO134 active)
 
 ## Current phase

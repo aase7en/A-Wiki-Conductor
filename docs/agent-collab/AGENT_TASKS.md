@@ -7,6 +7,7 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
 |---|---|---|---|---|
+| Session rollover | GPT-5.6 Sol MAX | WO-P3-139 | continuity docs only; no product/source authority | CLAIMED / HANDOFF_READY; see WO139 |
 | Released provider safety | GPT-5.6 Sol + GLM rereview | WO-P1-118B | production provider authority enforcement | MERGED #172 `9c560778` / GLM_006_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
 | Released agent ergonomics | GPT-5.6 Sol + GLM review | WO-P1-122 | stable external-agent mailbox + bridge protocol | MERGED #168 `a957868` / GLM_002_PASS / EXACT_HEAD_AND_POST_MAIN_GREEN |
 | Released AHA-7A | GPT-5.6 Sol + GLM review | WO-P1-124 | truthful provider operator read model | MERGED #174 `c1cfbe7` / GLM_002_PASS / POST_MAIN_33504441646_ATTEMPT2_GREEN |
