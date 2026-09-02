@@ -67,3 +67,21 @@ No production edit until all applicable items are satisfied:
 ## Initial checkpoint
 
 `SAFE_TO_MUTATE = YES` for this isolated worktree and claimed scope. No source/test mutation has occurred. Current evidence is insufficient to choose a repair; next action is diagnosis/reproducer only.
+
+## Diagnosis checkpoint 1 ? hosted timing correlation
+
+Additional deterministic evidence narrows the failure class without claiming root cause:
+
+- PR #190 CI `33653167768` attempt 1: `test_owned_process.py` = `1 failed, 27 passed in 9.64s`; the real lifecycle returned `RECOVERY_REQUIRED`.
+- Same exact head, attempt 2: the file completed `28 passed in 2.01s`.
+- Historical pre-WO129 incident `33497112619` attempt 1: `1 failed, 24 passed in 9.02s`; rerun = `25 passed in 2.25s`.
+- Historical pre-WO129 incident `33497483113` attempt 1: `1 failed, 24 passed in 9.21s`; rerun = `25 passed in 2.41s`.
+- Current-main off-repo stress after PR #190 merge: sequential real lifecycle 25/25 PASS; 4-way concurrent real lifecycle 40/40 PASS.
+
+The repeated ~9s failure-file runtime versus ~2s successful runtime is consistent with at least one bounded PowerShell/process-observation timeout plus recovery/cleanup overhead. This is an **inference**, not yet a proven reason code. Current competing causal paths remain:
+
+1. terminator subprocess timeout -> `PROCESS_STOP_FAILED`;
+2. post-termination CIM inspection timeout/UNKNOWN consuming the stop deadline -> `PROCESS_EXIT_OWNERSHIP_UNCERTAIN`;
+3. less likely PID metadata change/cleanup failure.
+
+WO129 changed only post-termination UNKNOWN re-observation; it did not make the real integration assertion print `reason_code`. Therefore the old and new hosted failures cannot yet prove which path occurred. No production fix is authorized by this checkpoint. Next diagnostic must surface the exact reason without weakening fail-closed behavior.
