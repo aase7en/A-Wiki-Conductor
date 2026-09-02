@@ -2,7 +2,7 @@
 
 Date: 2026-09-02
 Owner: GPT-5.6 Sol integrator
-Status: ROADMAP_CAPTURED / DRAFT_PR_183
+Status: RECLAIMED / SEMANTIC_RECONCILE
 Priority: P1 planning; must not preempt WO096, WO127, or WO128
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo132-aipass-roadmap`
@@ -59,3 +59,10 @@ The protected root checkout is stale and dirty and remains untouched. This work 
 - Verification: UTF-8 reads PASS; `git diff --check` PASS; changed scope is docs/roadmap only.
 - Root checkout remained untouched; no `src/**`, tests, live Worker/tunnel, credential, WO127, WO128, or WO096 mutation occurred.
 - Draft PR: #183 (docs: add AiPASS provider integration roadmap); merge remains gated by normal review/CI discipline.
+
+## Reclaim checkpoint — 2026-09-02
+- PR #183 remains draft at `ca32390084658044ff2555167e4eb5ecf980cf42`; authoritative `origin/main` is `9a88b1d38d90bf8ce98dcef9a5108e270e8d2b48`.
+- Feature/main mutable-path overlap is 0 and `git merge-tree --write-tree origin/main HEAD` succeeds.
+- Current official AiPASS Terms still require explicit written authorization for the automated/direct API modes in §3.4; live automation remains `BLOCKED_EXTERNAL`.
+- `niawjunior/aipass-bridge` current main is `e01d6734400f743c1f84222d504b8ee98fea050b`; repository license metadata is null and root `LICENSE` is absent, so code reuse remains blocked.
+- Reconcile scope stays docs-only: current priority/dependency state, current reference commit/evidence, and claim bookkeeping.

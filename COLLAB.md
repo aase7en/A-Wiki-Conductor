@@ -34,7 +34,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| WO-P1-132 AiPASS provider roadmap capture | GPT-5.6 Sol integrator | RELEASED 2026-09-02 | PROJECT-PLAN.md, new AiPASS roadmap/WO, bounded COLLAB.md bookkeeping; no source/current-frontier/live-provider mutation. |
+| WO-P1-132 AiPASS provider roadmap reconcile | GPT-5.6 Sol integrator | RECLAIMED 2026-09-02 | PROJECT-PLAN.md, AiPASS roadmap/WO, bounded COLLAB.md bookkeeping only; semantic/current-evidence reconcile, no source/current-frontier/live-provider mutation. |
 | `WO-P1-116` / AHA-6B worker supply + elastic capacity | GPT-5.6 Sol integrator | RELEASED 2026-08-31 | PR #157 + closeout PR #158 merged; source lane released. |
 | `WO-P1-117` provider dispatch/admission safety | GPT-5.6 Sol integrator | READY_FOR_CLAIM | `parallel_ready_execution.py`, `provider_config_store.py`, focused tests; baseline CI `33357214028` green; claim requires isolated worktree + fresh preflight. |
 | `WO-P1-118` provider config generation/policy | unassigned | QUEUED | Shares `provider_config_store.py` with 117; must not start until 117 releases it. |
