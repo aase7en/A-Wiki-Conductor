@@ -1,11 +1,11 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-03 - WO142 actual-state reconciliation; WO137 exact review gate
+Last updated: 2026-09-03 - WO142 final actual-state reconciliation after WO137 release
 
 ## Current actual handoff ? 2026-09-03
 
-- Remote main: `edac38d913a04d3ab2c7a95e726f77608abe49d0`; WO138 / PR #190 post-main `33656956130` SUCCESS.
-- WO137 / PR #191: latest exact head `814b2924ad78511b7dd55cd107d61cc6be0b6bee`; hosted exact-head CI `33660767850` SUCCESS; GPT 175/175 related matrix + 20/20 real-Windows durable-routing stress PASS. Stable GLM mailbox points to `wo137-glm-final-review-003`, task SHA `a6613f631981ae93db5a8ae6c2a468b4a8ef98dfd2a6345486d8619e5fe079a6`; result is required before merge.
+- Remote main: `a28638c0e5d865803b985f08eb1d1db9c9d7dfc1`; WO138 / PR #190 remains accepted with post-main `33656956130` SUCCESS; WO137 / PR #191 is now merged on top.
+- WO137 / PR #191: reviewed exact head `814b2924ad78511b7dd55cd107d61cc6be0b6bee`; exact-head CI `33660767850` SUCCESS; independent `wo137-glm-final-review-003` task SHA `a6613f631981ae93db5a8ae6c2a468b4a8ef98dfd2a6345486d8619e5fe079a6` PASS P0/P1/P2=0 with GPT-verified detached identity + 3/3 Git-blob pins. Expected-head merge commit `a28638c0e5d865803b985f08eb1d1db9c9d7dfc1`; post-main CI `33668895786` SUCCESS including Windows full suites/Portable/Setup/Frozen E2E + Ubuntu/macOS. WO137 is RELEASED together with complementary WO138.
 - WO134: PR #188 is historical merged evidence only; post-merge `WO134-R1` is reproducible and **CHANGES_REQUIRED**. Completed-cache provider switch leaves old provider/cache; pending switch invalidates the old request but submits no replacement fetch. GLM retains remediation scope; GPT must not overlap it.
 - PR #183 / WO132: DRAFT, latest observed head `085a06cf6d2d1d1e4a3b5085ad51ad3444a8b337`; latest lane refresh includes MIT evidence. Still blocked behind WO134 acceptance + current AiPASS Terms/authorization re-audit.
 - WO140: claimed diagnosis branch `8546c0b8eb9fd2fc0e9fe0b382c0e4938325cd24`; sequential 25/25 and concurrent 40/40 real lifecycle probes were green, so no speculative fix. Historical ~9s hosted failures vs ~2s reruns remain a timing clue only.
@@ -15,11 +15,11 @@ Last updated: 2026-09-03 - WO142 actual-state reconciliation; WO137 exact review
 
 ### One next safe action
 
-Validate the declared GLM result for `wo137-glm-final-review-003`. A valid PASS at exact `814b2924...` permits PR #191 expected-SHA merge; otherwise repair/re-review. In parallel, poll WO134/Review Bridge/WO140 without stealing their scopes.
+Finalize WO142 deterministic docs/scope/UTF-8/secret audit, commit/push/open its docs-only PR, require exact-head CI, re-audit and expected-head merge/post-main proof. Then create the fresh bounded WO134-R1 remediation lane from then-current main; do not merge PR #183 before that dependency is accepted.
 
 ## Current objective
 
-Keep actual merged WO127/WO128/WO135 evidence durable, finish the bounded WO136 SSoT closeout, then preserve the active WO134 GLM-owned Provider Evidence Detail lane for exact-head GPT adjudication. Keep WO096 blocked without live maintenance authority and keep PR #183/AiPASS in its separate reconcile lane.
+Keep the merged WO137+WO138 reliability state durable, publish WO142 reconciliation, then repair the reproduced WO134-R1 provider-selection evidence defect in a fresh bounded lane with GLM implementation and GPT adjudication. Keep WO096 blocked without live maintenance authority and PR #183/AiPASS dependency-blocked until WO134-R1 is accepted.
 
 ## Repository / release identity
 
