@@ -2,8 +2,8 @@
 
 Date: 2026-09-02
 Owner: GPT-5.6 Sol integrator
-Status: RECLAIMED / SEMANTIC_RECONCILE
-Priority: P1 planning; must not preempt WO096, WO127, or WO128
+Status: RECONCILED / READY_FOR_REVIEW
+Priority: P1 planning; must not preempt WO096 or active WO134 acceptance gates
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo132-aipass-roadmap`
 Branch: `docs/wo-p1-132-aipass-provider-roadmap`
@@ -23,7 +23,7 @@ Capture a durable, priority-ordered roadmap for evaluating AiPASS as an optional
 
 ## Safety gate
 
-The protected root checkout is stale and dirty and remains untouched. This work uses a clean isolated worktree from authoritative GitHub main. PR #182 / WO127 does not claim `PROJECT-PLAN.md`; WO128 is isolated to provider-store/projection scope.
+The protected root checkout is stale and dirty and remains untouched. This work uses a clean isolated worktree and has merged authoritative `origin/main@9a88b1d38d90bf8ce98dcef9a5108e270e8d2b48`. WO127 and WO128 core are released; WO134 is a separate active product/review lane and does not claim this docs-only scope.
 ## Allowed scope
 
 - `PROJECT-PLAN.md`
@@ -66,3 +66,11 @@ The protected root checkout is stale and dirty and remains untouched. This work 
 - Current official AiPASS Terms still require explicit written authorization for the automated/direct API modes in §3.4; live automation remains `BLOCKED_EXTERNAL`.
 - `niawjunior/aipass-bridge` current main is `e01d6734400f743c1f84222d504b8ee98fea050b`; repository license metadata is null and root `LICENSE` is absent, so code reuse remains blocked.
 - Reconcile scope stays docs-only: current priority/dependency state, current reference commit/evidence, and claim bookkeeping.
+
+## Semantic reconcile checkpoint — 2026-09-02
+- Merged authoritative `origin/main@9a88b1d38d90bf8ce98dcef9a5108e270e8d2b48` into the draft branch; feature/main path overlap before merge was 0 and the post-merge PR delta remains exactly four roadmap/coordination docs.
+- Roadmap priority now records WO127 and WO128 T0+T1 as released, WO134 Provider Evidence Detail as the active provider frontier, and AIP-1 as next only after WO134 acceptance.
+- Current bridge reference is `niawjunior/aipass-bridge@e01d6734400f743c1f84222d504b8ee98fea050b`; repository license metadata is null and root `LICENSE` remains absent, so source copying remains blocked.
+- Official AiPASS Terms effective 2026-08-19 §3.4 were refreshed; automated bot/unapproved-software or direct API/API-key/token use remains `BLOCKED_EXTERNAL` absent explicit written authorization or an official supported path.
+- No `src/**`, `tests/**`, CURRENT-WORK, handoff, live Worker/tunnel, credentials, cookies, tokens, or AiPASS automation were mutated.
+- Next gate: strict UTF-8/diff/scope/secret audit -> commit/push reconciled docs -> remote PR diff audit -> CI/review -> merge only after WO134 dependency wording remains truthful.

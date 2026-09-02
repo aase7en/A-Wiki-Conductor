@@ -10,7 +10,7 @@ Evaluate AiPASS as an optional **reasoning / research / review provider lane** b
 
 Classification: `WRAP + EXTEND` existing provider/runtime/recovery seams.
 
-Reference implementation inspected: `niawjunior/aipass-bridge@12b87bfd968db1e0d112eb8bd99b6481b3d7aaf7`.
+Reference implementation refreshed: `niawjunior/aipass-bridge@e01d6734400f743c1f84222d504b8ee98fea050b`.
 
 Useful reference properties:
 - local OpenAI-compatible chat/model surface;
@@ -70,15 +70,16 @@ Reuse these existing authorities instead of recreating them:
 | Order | Node | Priority | Dependency / gate | Outcome |
 |---|---|---|---|---|
 | 0 | WO096 connector resilience | **P0 release blocker** | existing maintenance/hosted proof gate | v0.7.0 stability; independent of AiPASS |
-| 1 | WO127 provider actions | **P1 active** | PR #182 review/CI/merge | stable Edit/Disable/Enable/Test control seam |
-| 2 | WO128 evidence core + truthful projection | **P1 active** | current GLM lane + GPT adjudication | routing/admission evidence without invented reasons |
-| 3 | AIP-1 authorization + adapter contract | **P1 next** | WO127 + WO128 core accepted | exact provider boundary; no live traffic |
-| 4 | AIP-2 fake/read-only discovery | **P1** | AIP-1 | health/models/free-credit projection without sending prompts |
-| 5 | AIP-3 resilient message adapter | **P1** | AIP-2 + deterministic fake backend | streaming/recovery semantics; live path still gated |
-| 6 | AIP-4 authorized live pilot | **P1 / BLOCKED_EXTERNAL** | written/official authorization | research/review-only live evidence |
-| 7 | AIP-5 cost/quota routing | **P1** | accepted live pilot + truthful quota observations | cheap/free model candidate routing |
-| 8 | AIP-6 UI/operator integration | **P1/P2** | stable adapter semantics | AiPASS truth in MODELS & AGENTS |
-| 9 | AIP-7 browser-provider generalization | **P2 optional** | second real provider proves reuse | generic abstraction only when justified |
+| 1 | WO127 provider actions | **P1 released** | accepted / merged | stable Edit/Disable/Enable/Test control seam |
+| 2 | WO128 T0+T1 evidence core + truthful projection | **P1 released** | accepted / merged | routing/admission evidence without invented reasons |
+| 3 | WO134 Provider Evidence Detail | **P1 active** | exact-SHA review -> CI -> merge -> post-main | truthful operator evidence + explicit graph correlation |
+| 4 | AIP-1 authorization + adapter contract | **P1 next** | WO134 accepted | exact provider boundary; no live traffic |
+| 5 | AIP-2 fake/read-only discovery | **P1** | AIP-1 | health/models/free-credit projection without sending prompts |
+| 6 | AIP-3 resilient message adapter | **P1** | AIP-2 + deterministic fake backend | streaming/recovery semantics; live path still gated |
+| 7 | AIP-4 authorized live pilot | **P1 / BLOCKED_EXTERNAL** | written/official authorization | research/review-only live evidence |
+| 8 | AIP-5 cost/quota routing | **P1** | accepted live pilot + truthful quota observations | cheap/free model candidate routing |
+| 9 | AIP-6 UI/operator integration | **P1/P2** | stable adapter semantics | AiPASS truth in MODELS & AGENTS |
+| 10 | AIP-7 browser-provider generalization | **P2 optional** | second real provider proves reuse | generic abstraction only when justified |
 
 Future WO numbers are intentionally allocated **at claim time**, not reserved here, to avoid collision with parallel roadmap work.
 ## 5. Execution nodes
@@ -200,19 +201,18 @@ Minimum regression matrix:
 
 ## 8. Next development sequence
 
-1. Finish WO127 through independent review, exact-head CI, merge, and post-main evidence.
-2. Finish WO128 T0+T1 evidence core, adjudicate it, then integrate truthful routing/admission evidence without invented selection/fallback reasons.
-3. Open a bounded implementation WO for **AIP-1** from then-current main; re-run the reuse/claim/license/terms gate.
-4. Implement **AIP-2** fake/read-only discovery before any chat execution.
-5. Implement **AIP-3** resilient transport behavior entirely against deterministic fixtures first.
-6. Keep **AIP-4** blocked until external authorization is explicitly satisfied.
-7. Only after an accepted live pilot, add cost/quota routing and richer operator UI.
+1. Finish WO134 Provider Evidence Detail through exact-SHA independent review, exact-head CI, merge, and post-main evidence.
+2. Open a bounded implementation WO for **AIP-1** from then-current main; re-run the reuse/claim/license/terms gate and keep live traffic disabled.
+3. Implement **AIP-2** fake/read-only discovery before any chat execution.
+4. Implement **AIP-3** resilient transport behavior entirely against deterministic fixtures first.
+5. Keep **AIP-4** blocked until external authorization is explicitly satisfied.
+6. Only after an accepted live pilot, add cost/quota routing and richer operator UI.
 
 WO096 remains the independent P0 release blocker throughout this sequence and must not be delayed or weakened by AiPASS work.
 ## 9. Reference evidence
 
 - A-Conductor planning base: `aase7en/A-Wiki-Conductor@9118a289b9fcd87e0bae4e4eb601cc585062856d`.
-- AiPASS bridge reference: `https://github.com/niawjunior/aipass-bridge`, inspected at `12b87bfd968db1e0d112eb8bd99b6481b3d7aaf7`.
+- AiPASS bridge reference: `https://github.com/niawjunior/aipass-bridge`, refreshed at `e01d6734400f743c1f84222d504b8ee98fea050b`; repository license metadata remains null and no root `LICENSE` was found.
 - Official AiPASS terms: `https://www.aipass.go.th/term-and-cond-th`, effective 2026-08-19; section 3.4 is the current automation/API authorization gate used by this roadmap.
 
 These external references are evidence inputs, not A-Conductor runtime dependencies.

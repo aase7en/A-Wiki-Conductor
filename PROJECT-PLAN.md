@@ -823,21 +823,23 @@ Required supporting work:
 
 AiPASS is a candidate **reasoning / research / review provider**, not a new execution control plane. Integration must `WRAP + EXTEND` the accepted provider configuration, execution authority, operator view, durable execution, evidence, transport-recovery, and routing seams.
 
-Reference architecture evidence from `niawjunior/aipass-bridge@12b87bfd968db1e0d112eb8bd99b6481b3d7aaf7` is useful for browser-held session isolation, OpenAI-compatible local chat/model projection, streaming, server-side conversation affinity, model/free-credit discovery, and the principle that observer/extension loss need not mean execution failure.
+Reference architecture evidence from `niawjunior/aipass-bridge@e01d6734400f743c1f84222d504b8ee98fea050b` is useful for browser-held session isolation, OpenAI-compatible local chat/model projection, streaming, server-side conversation affinity, model/free-credit discovery, and the principle that observer/extension loss need not mean execution failure.
 
 Do **not** import its local file-agent protocol as Conductor mutation authority. AiPASS-generated change suggestions must flow back through normal repository identity, ownership, scope, materialization, test, evidence, and review gates.
 
 ### Priority relative to the active frontier
 
 1. **P0:** finish WO-P1-096 connector-runtime resilience before stable v0.7.0 publication.
-2. **P1 active:** finish WO-P1-127 provider Edit/Disable/Enable/Test through review/CI/merge.
-3. **P1 active:** finish WO-P1-128 evidence core and truthful selection/fallback projection.
-4. **P1 next:** define AiPASS authorization + minimal adapter contract; no live traffic.
-5. **P1:** implement fake/read-only health + model/free-credit discovery.
-6. **P1:** implement resilient streaming/message semantics against deterministic fixtures.
-7. **P1 / BLOCKED_EXTERNAL:** run a live research/review-only pilot only after official support or explicit written authorization covers the automation mode.
-8. **P1:** after accepted live evidence, admit AiPASS into cost/quota routing with evidence-backed reasons.
-9. **P1/P2:** expose stable AiPASS status in existing `MODELS & AGENTS`; generalize a browser-provider abstraction only after a second provider proves reuse.
+2. **P1 released:** WO-P1-127 provider Edit/Disable/Enable/Test is accepted and merged.
+3. **P1 released:** WO-P1-128 T0+T1 evidence core and truthful selection/fallback projection are accepted and merged.
+4. **P1 active:** finish WO-P1-134 T2-T4 Provider Evidence Detail through exact-SHA review, CI, merge, and post-main verification.
+5. **P1 next after WO134 acceptance:** define AiPASS authorization + minimal adapter contract; no live traffic.
+6. **P1:** implement fake/read-only health + model/free-credit discovery.
+7. **P1:** implement resilient streaming/message semantics against deterministic fixtures.
+8. **P1 / BLOCKED_EXTERNAL:** run a live research/review-only pilot only after official support or explicit written authorization covers the automation mode.
+9. **P1:** after accepted live evidence, admit AiPASS into cost/quota routing with evidence-backed reasons.
+10. **P1/P2:** expose stable AiPASS status in existing `MODELS & AGENTS`.
+11. **P2 optional:** generalize a browser-provider abstraction only after a second provider proves reuse.
 ### Authorization and source-reuse gates
 
 Preserve the existing truth separation:
