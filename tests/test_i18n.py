@@ -286,3 +286,47 @@ def test_wo127_provider_teaching_errors_have_no_mojibake() -> None:
     assert ERROR_EXPLANATIONS["CONFIG_STORE_UNAVAILABLE"][0] == "เปิดฐานข้อมูล Provider ไม่ได้"
     assert "ไม่ผ่าน validation" in ERROR_EXPLANATIONS["PROVIDER_PROFILE_INVALID"][1][0]
     assert "เปิดแอป" in ERROR_EXPLANATIONS["CONFIG_STORE_SCHEMA_UNAVAILABLE"][1][1]
+
+
+# --- WO134: evidence i18n keys + teaching errors (RED-first) ---
+
+
+def test_wo134_evidence_keys_cover_all_three_languages() -> None:
+    from a_conductor.i18n import STRINGS, set_language, tr, get_language
+
+    keys = (
+        "prefs.models_agents.evidence",
+        "prefs.models_agents.evidence.help",
+        "prefs.models_agents.evidence.loading",
+        "prefs.models_agents.evidence.error",
+        "prefs.models_agents.evidence.declared",
+        "prefs.models_agents.evidence.admissions",
+    )
+    previous = get_language()
+    try:
+        for key in keys:
+            entry = STRINGS[key]
+            for language in ("th", "en", "zh-CN"):
+                assert entry.get(language, "").strip(), (key, language)
+        for language in ("th", "en", "zh-CN"):
+            set_language(language)
+            for key in keys:
+                assert tr(key).strip() and tr(key) != key, (language, key)
+    finally:
+        set_language(previous)
+
+
+def test_wo134_evidence_teaching_errors_covered_no_mojibake() -> None:
+    from a_conductor.desktop_ui import ERROR_EXPLANATIONS
+    from a_conductor.error_explanations_en import ERROR_EXPLANATIONS_EN
+
+    codes = ("PROVIDER_EVIDENCE_TARGET_UNAVAILABLE", "PROVIDER_ADMISSION_RECORD_INVALID")
+    for code in codes:
+        assert code in ERROR_EXPLANATIONS, code
+        assert code in ERROR_EXPLANATIONS_EN, code
+        for table in (ERROR_EXPLANATIONS, ERROR_EXPLANATIONS_EN):
+            title, lines = table[code]
+            text = " ".join((title, *lines))
+            assert "??" not in text and "\ufffd" not in text, (code, text)
+        # dedicated wording: target-unavailable must not reuse Test wording
+    assert "evidence" in ERROR_EXPLANATIONS_EN["PROVIDER_EVIDENCE_TARGET_UNAVAILABLE"][0].lower()

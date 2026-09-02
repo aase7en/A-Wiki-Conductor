@@ -583,6 +583,14 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
         "คำสั่ง Provider ไม่สำเร็จ",
         ("คำสั่งจบด้วยข้อผิดพลาดที่ไม่คาดไว้", "กด Refresh และดู ACTIVITY / LOG ก่อนลองใหม่"),
     ),
+    "PROVIDER_EVIDENCE_TARGET_UNAVAILABLE": (
+        "เป้าหมายหลักฐาน Provider ไม่พร้อม",
+        ("provider หายไปก่อนที่จะอ่านหลักฐานได้", "กด Refresh แล้วเลือก provider ใหม่อีกครั้ง"),
+    ),
+    "PROVIDER_ADMISSION_RECORD_INVALID": (
+        "ระเบียน admission เสียหาย",
+        ("ข้อมูล admission ที่บันทึกไว้ไม่ผ่าน typed decoding", "หยุดการอ่านหลักฐาน; ซ่อมข้อมูลที่บันทึกผ่าน recovery path ที่ระบบกำหนด"),
+    ),
     "GENERIC": (
         "เกิดข้อผิดพลาด",
         (
@@ -818,6 +826,35 @@ class DesktopTheme:
     base_font_size: int = 10
 
 
+def provider_graph_evidence_links(snapshot, graph_id: str | None, graph_run_id: str | None) -> dict[str, str]:
+    """Exact-match execution_id -> node_id map for one explicit graph/run.
+
+    Pure derivation over an existing read-only graph operator snapshot.
+    No graph search, no latest-run inference, no substring matching; missing
+    explicit context yields no links at all.
+    """
+    if (
+        not graph_id
+        or not graph_run_id
+        or snapshot is None
+        or not bool(getattr(snapshot, "runtime_evidence", False))
+    ):
+        return {}
+    from .graph.dispatch import GraphDispatchKey
+
+    links: dict[str, str] = {}
+    for node in tuple(getattr(snapshot, "nodes", ()) or ()):
+        node_id = getattr(node, "node_id", None)
+        if not isinstance(node_id, str) or not node_id.strip():
+            continue
+        try:
+            job_id = GraphDispatchKey(graph_id, graph_run_id, node_id).job_id
+        except (TypeError, ValueError):
+            continue
+        links[job_id] = node_id
+    return links
+
+
 class AConductorDesktopApp:
     SYSTEM_METRIC_INTERVAL_MS = 2500
     SYSTEM_METRIC_HISTORY_LIMIT = 60
@@ -905,6 +942,12 @@ class AConductorDesktopApp:
         self._models_agents_action_pending_provider: str | None = None
         self._models_agents_action_message = ""
         self._provider_edit_window: tk.Toplevel | None = None
+        self._provider_evidence_window: tk.Toplevel | None = None
+        self._provider_evidence_provider_id: str | None = None
+        self._provider_evidence_cache = None
+        self._provider_evidence_request_id = 0
+        self._provider_evidence_future: Future | None = None
+        self._provider_evidence_pending = False
 
         self._configure_root()
         self._configure_styles()
@@ -1748,6 +1791,7 @@ class AConductorDesktopApp:
         self._monitor_mode = "graph"
         self._graph_monitor_graph_id = graph_id
         self._graph_monitor_run_id = run_id.strip() or None
+        self._invalidate_provider_evidence_graph_links()
         self._refresh_monitor_async()
 
     def show_connector_monitor(self) -> None:
@@ -4135,7 +4179,10 @@ class AConductorDesktopApp:
         self._models_agents_test_button.grid(row=0, column=3)
         _attach_tip(self._models_agents_test_button, lambda: tr("prefs.models_agents.test.help"), self.theme)
         self._models_agents_action_label = tk.Label(actions, text="", bg=self.theme.background, fg=self.theme.muted, font=(self.theme.monospace_font, 8), anchor="w")
-        self._models_agents_action_label.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(3, 0))
+        self._models_agents_action_label.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(3, 0))
+        self._models_agents_evidence_button = self._button(actions, tr("prefs.models_agents.evidence"), self._open_selected_provider_evidence)
+        self._models_agents_evidence_button.grid(row=1, column=3, sticky="e", pady=(3, 0))
+        _attach_tip(self._models_agents_evidence_button, lambda: tr("prefs.models_agents.evidence.help"), self.theme)
         self._models_agents_text = tk.Text(models_frame, height=10, width=72, bg=self.theme.background, fg=self.theme.foreground, insertbackground=self.theme.accent, wrap="word", borderwidth=0, highlightthickness=0, font=(self.theme.monospace_font, 8), padx=0, pady=6, takefocus=True)
         self._models_agents_text.grid(row=2, column=0, columnspan=2, sticky="nsew")
         self._models_agents_text.configure(state="disabled")
@@ -4212,7 +4259,7 @@ class AConductorDesktopApp:
             busy = self._models_agents_action_pending_provider is not None
             usable = bool(ids) and not busy
             combo.configure(state="readonly" if usable else "disabled")
-            for name in ("_models_agents_edit_button", "_models_agents_toggle_button", "_models_agents_test_button"):
+            for name in ("_models_agents_edit_button", "_models_agents_toggle_button", "_models_agents_test_button", "_models_agents_evidence_button"):
                 button = getattr(self, name, None)
                 if button is not None:
                     button.configure(state="normal" if usable else "disabled")
@@ -4227,6 +4274,17 @@ class AConductorDesktopApp:
             label = getattr(self, "_models_agents_action_label", None)
             if label is not None:
                 label.configure(text=self._models_agents_action_message)
+            # provider switch discards any pending evidence fetch for the old provider
+            if self._provider_evidence_pending:
+                current_row = self._selected_models_agents_row() if ids else None
+                current_id = None if current_row is None else str(getattr(current_row, "provider_id", ""))
+                if (
+                    current_id is not None
+                    and self._provider_evidence_provider_id is not None
+                    and current_id != self._provider_evidence_provider_id
+                ):
+                    self._invalidate_provider_evidence()
+                    self._render_provider_evidence_text(loading=True)
         except tk.TclError:
             return
 
@@ -4260,8 +4318,10 @@ class AConductorDesktopApp:
         self._models_agents_action_pending_provider = None
         if not self._models_agents_window_alive():
             return
+        action_succeeded = False
         try:
             result = future.result()
+            action_succeeded = True
             if action == "test":
                 provenance = getattr(result, "provenance", None)
                 if provenance == "zai-quota-monitor:unsupported-route":
@@ -4281,7 +4341,22 @@ class AConductorDesktopApp:
             self._models_agents_action_message = code
             self._handle_error(code)
         self._sync_models_agents_action_controls()
+        if action_succeeded:
+            self._refresh_open_provider_evidence(provider_id)
         self._refresh_models_agents_panel()
+
+    def _refresh_open_provider_evidence(self, provider_id: str) -> None:
+        if (
+            not self._provider_evidence_window_alive()
+            or self._provider_evidence_provider_id != provider_id
+        ):
+            return
+        fetcher = getattr(self.service, "provider_selection_evidence", None)
+        if not callable(fetcher):
+            return
+        self._invalidate_provider_evidence()
+        self._render_provider_evidence_text(loading=True)
+        self._submit_provider_evidence_fetch(provider_id, fetcher)
 
     def _models_agents_window_alive(self) -> bool:
         window = self._preferences_window
@@ -4423,6 +4498,243 @@ class AConductorDesktopApp:
             return
         self._submit_models_agents_action(provider_id, "test", tester, provider_id)
 
+    @staticmethod
+    def _provider_evidence_error_code(exc: Exception) -> str:
+        code = getattr(exc, "code", None)
+        allowed = {
+            "PROVIDER_STORE_NOT_AVAILABLE",
+            "CONFIG_STORE_UNAVAILABLE",
+            "CONFIG_STORE_SCHEMA_UNAVAILABLE",
+            "CONFIG_STORE_READ_FAILED",
+            "PROVIDER_CONFIGURATION_CORRUPT",
+            "PROVIDER_ADMISSION_RECORD_INVALID",
+            "PROVIDER_GENERATION_INVALID",
+            "PROVIDER_EVIDENCE_TARGET_UNAVAILABLE",
+            "PROVIDER_ADMISSION_LIST_LIMIT_INVALID",
+            "PROVIDER_ADMISSION_FILTER_INVALID",
+        }
+        return code if isinstance(code, str) and code in allowed else "PROVIDER_ACTION_FAILED"
+
+    def _provider_evidence_window_alive(self) -> bool:
+        window = self._provider_evidence_window
+        if window is None:
+            return False
+        try:
+            return bool(window.winfo_exists())
+        except tk.TclError:
+            return False
+
+    def _invalidate_provider_evidence(self) -> None:
+        self._provider_evidence_request_id += 1
+        self._provider_evidence_pending = False
+        self._provider_evidence_future = None
+        self._provider_evidence_cache = None
+
+    def _provider_evidence_graph_context(self) -> tuple[str | None, str | None]:
+        return (
+            getattr(self, "_graph_monitor_graph_id", None),
+            getattr(self, "_graph_monitor_run_id", None),
+        )
+
+    def _invalidate_provider_evidence_graph_links(self) -> None:
+        cache = getattr(self, "_provider_evidence_cache", None)
+        if cache is None:
+            return
+        provider_id, row, evidence, _links, _graph_context = cache
+        self._provider_evidence_cache = (provider_id, row, evidence, {}, (None, None))
+        self._render_provider_evidence_from_cache()
+
+    def _open_selected_provider_evidence(self):
+        row = self._selected_models_agents_row()
+        if row is None:
+            return None
+        provider_id = str(getattr(row, "provider_id", ""))
+        fetcher = getattr(self.service, "provider_selection_evidence", None)
+        if not provider_id or not callable(fetcher):
+            self._models_agents_action_message = "PROVIDER_STORE_NOT_AVAILABLE"
+            self._sync_models_agents_action_controls()
+            return None
+        if self._provider_evidence_pending:
+            return self._provider_evidence_window  # single-flight: coalesce
+
+        dialog = self._provider_evidence_window
+        if dialog is None or not self._provider_evidence_window_alive():
+            parent = self._preferences_window or self.root
+            dialog = tk.Toplevel(parent)
+            dialog.configure(bg=self.theme.panel)
+            body = tk.Frame(dialog, bg=self.theme.panel, padx=12, pady=10)
+            body.pack(fill="both", expand=True)
+            self._provider_evidence_text = tk.Text(
+                body, height=18, width=78, bg=self.theme.background,
+                fg=self.theme.foreground, insertbackground=self.theme.accent,
+                wrap="word", borderwidth=0, highlightthickness=0,
+                font=(self.theme.monospace_font, 8), padx=8, pady=6, takefocus=True,
+            )
+            self._provider_evidence_text.pack(fill="both", expand=True)
+            self._provider_evidence_text.configure(state="disabled")
+            self._enable_copyable_text(self._provider_evidence_text)
+            self._provider_evidence_window = dialog
+
+            def _on_evidence_destroy(event) -> None:
+                if event.widget is dialog:
+                    self._provider_evidence_window = None
+                    self._provider_evidence_provider_id = None
+                    self._invalidate_provider_evidence()
+
+            dialog.bind("<Destroy>", _on_evidence_destroy, add="+")
+        self._provider_evidence_provider_id = provider_id
+        dialog.title(f"Evidence - {provider_id}")
+        self._render_provider_evidence_text(loading=True)
+        self._submit_provider_evidence_fetch(provider_id, fetcher)
+        return dialog
+
+    def _submit_provider_evidence_fetch(self, provider_id: str, fetcher) -> None:
+        self._provider_evidence_request_id += 1
+        request_id = self._provider_evidence_request_id
+        self._provider_evidence_pending = True
+        self._provider_evidence_cache = None
+        graph_context = self._provider_evidence_graph_context()
+
+        def _work():
+            row, evidence = fetcher(provider_id, admissions_limit=10)
+            links = self._read_provider_graph_links(*graph_context)
+            return row, evidence, links, graph_context
+
+        try:
+            future = self._background_executor.submit(_work)
+        except Exception as exc:
+            self._provider_evidence_pending = False
+            code = self._provider_evidence_error_code(exc)
+            self._render_provider_evidence_text(error_code=code)
+            self._handle_error(code)
+            return
+        self._provider_evidence_future = future
+        self._schedule_after(0, self._poll_provider_evidence_future, request_id, provider_id, future)
+
+    def _poll_provider_evidence_future(self, request_id: int, provider_id: str, future: Future) -> None:
+        if request_id != self._provider_evidence_request_id:
+            return
+        if not future.done():
+            self._schedule_after(25, self._poll_provider_evidence_future, request_id, provider_id, future)
+            return
+        self._provider_evidence_future = None
+        self._provider_evidence_pending = False
+        if not self._provider_evidence_window_alive():
+            return
+        try:
+            row, evidence, links, graph_context = future.result()
+            if graph_context != self._provider_evidence_graph_context():
+                links = {}
+                graph_context = (None, None)
+            self._provider_evidence_cache = (provider_id, row, evidence, links, graph_context)
+        except Exception as exc:
+            code = self._provider_evidence_error_code(exc)
+            self._provider_evidence_cache = None
+            self._render_provider_evidence_text(error_code=code)
+            self._handle_error(code)
+            return
+        self._render_provider_evidence_from_cache()
+
+    def _read_provider_graph_links(
+        self, graph_id: str | None, run_id: str | None
+    ) -> dict[str, str]:
+        """Background-thread read pinned to the submit-time explicit graph context."""
+        if not graph_id or not run_id:
+            return {}
+        snapshot_fn = getattr(self.service, "operator_graph_snapshot", None)
+        if not callable(snapshot_fn):
+            return {}
+        try:
+            snapshot = snapshot_fn(graph_id, run_id, event_limit=1)
+        except Exception:
+            return {}
+        return provider_graph_evidence_links(snapshot, graph_id, run_id)
+
+    def _format_provider_evidence(self, provider_id, row, evidence, links, graph_context) -> str:
+        from datetime import timezone as _tz
+
+        def _iso(value):
+            if value is None:
+                return "-"
+            try:
+                return value.astimezone(_tz.utc).isoformat().replace("+00:00", "Z")
+            except (AttributeError, ValueError, OSError):
+                return str(value)
+
+        lines = [f"PROVIDER EVIDENCE - {getattr(row, 'display_name', provider_id)} [{provider_id}]"]
+        lines.append("SELECTION_REASON=UNKNOWN    FALLBACK_REASON=NOT_EVALUATED")
+        lines.append("")
+        lines.append(tr("prefs.models_agents.evidence.admissions").upper())
+        for index, item in enumerate(evidence.admissions, start=1):
+            node_id = links.get(item.execution_id)
+            lines.append(
+                f"[{index}] {item.admission_id} status={item.status} "
+                f"generation={item.generation_relation} expiry={item.expiry_observation}"
+            )
+            lines.append(f"    execution_id={item.execution_id} batch_id={item.batch_id}")
+            lines.append(
+                f"    acquired={_iso(item.acquired_at)} expires={_iso(item.expires_at)} "
+                f"released={_iso(item.released_at)} reconciled={_iso(item.reconciled_at)}"
+            )
+            lines.append(f"    graph={node_id if node_id else 'NO_READABLE_GRAPH_EVIDENCE'}")
+        lines.append("")
+        lines.append(tr("prefs.models_agents.evidence.current").upper())
+        lines.append(
+            f"  {getattr(row, 'display_name', provider_id)}  "
+            f"[{'ENABLED' if getattr(row, 'enabled', False) else 'DISABLED'} | "
+            f"{'CONFIGURED' if getattr(row, 'configured', False) else 'NOT CONFIGURED'} | "
+            f"{'READY' if getattr(row, 'runtime_ready', False) else 'NOT READY'} | "
+            f"AUTH={getattr(row, 'task_authorization', 'NOT_EVALUATED')}]"
+        )
+        lines.append(
+            f"  reason={getattr(row, 'readiness_reason', 'UNKNOWN')} "
+            f"health={self._models_agents_enum_text(getattr(row, 'health', None))} "
+            f"generation={getattr(row, 'configuration_generation', '-')}"
+        )
+        models = ", ".join(str(getattr(m, "model_id", m)) for m in getattr(row, "models", ())) or "-"
+        harnesses = ", ".join(self._models_agents_enum_text(h) for h in getattr(row, "harness_strategies", ())) or "-"
+        lines.append(f"  {tr('prefs.models_agents.evidence.declared')}: models={models} harness={harnesses}")
+        graph_id, run_id = graph_context
+        if links and graph_id and run_id:
+            lines.append(f"  graph_context={graph_id} run={run_id}")
+        return "\n".join(lines)
+
+    def _render_provider_evidence_text(self, *, loading: bool = False, error_code: str | None = None) -> None:
+        widget = getattr(self, "_provider_evidence_text", None)
+        if widget is None:
+            return
+        try:
+            if not widget.winfo_exists():
+                return
+            if loading:
+                content = tr("prefs.models_agents.evidence.loading")
+            elif error_code is not None:
+                content = f"{tr('prefs.models_agents.evidence.error')} [{error_code}]"
+            else:
+                content = ""
+            widget.configure(state="normal")
+            widget.delete("1.0", "end")
+            widget.insert("1.0", content)
+            widget.configure(state="disabled")
+        except tk.TclError:
+            return
+
+    def _render_provider_evidence_from_cache(self) -> None:
+        cache = self._provider_evidence_cache
+        if cache is None:
+            return
+        widget = getattr(self, "_provider_evidence_text", None)
+        if widget is None or not self._provider_evidence_window_alive():
+            return
+        provider_id, row, evidence, links, graph_context = cache
+        try:
+            widget.configure(state="normal")
+            widget.delete("1.0", "end")
+            widget.insert("1.0", self._format_provider_evidence(provider_id, row, evidence, links, graph_context))
+            widget.configure(state="disabled")
+        except tk.TclError:
+            return
+
     def _format_models_agents_row(self, row) -> str:
         configured = "CONFIGURED" if bool(getattr(row, "configured", False)) else "NOT CONFIGURED"
         ready = "READY" if bool(getattr(row, "runtime_ready", False)) else "NOT READY"
@@ -4531,6 +4843,16 @@ class AConductorDesktopApp:
             self._models_agents_action_future = None
             self._models_agents_action_pending_provider = None
             self._provider_edit_window = None
+            evidence_window = self._provider_evidence_window
+            self._provider_evidence_window = None
+            self._provider_evidence_provider_id = None
+            self._invalidate_provider_evidence()
+            if evidence_window is not None:
+                try:
+                    if evidence_window.winfo_exists():
+                        evidence_window.destroy()
+                except tk.TclError:
+                    pass
 
     def _save_shutdown_preference(self, setter, var: tk.BooleanVar) -> None:
         try:
@@ -4572,6 +4894,7 @@ class AConductorDesktopApp:
                     if header is not None:
                         header.configure(text=tr("prefs.models_agents.header"))
                     self._render_models_agents_panel()
+                    self._render_provider_evidence_from_cache()
             except tk.TclError:
                 pass
         self._refresh_memory_status()
