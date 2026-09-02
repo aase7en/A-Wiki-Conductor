@@ -553,7 +553,7 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
     "PROVIDER_PROFILE_INVALID": (
         "ข้อมูลที่แก้ไข Provider ไม่ถูกต้อง",
-        ("มีช่องที่ไ่าน validation", "แก้ค่าที่กรอกใหม่; หน้านี้จะไม่แสดง secret หรือ endpoint"),
+        ("มีช่องที่ไม่ผ่าน validation", "แก้ค่าที่กรอกให้ถูกต้อง; หน้านี้จะไม่แสดง secret หรือ endpoint"),
     ),
     "PROVIDER_TEST_TARGET_UNAVAILABLE": (
         "เป้าหมาย Test ไม่พร้อม",
@@ -568,12 +568,12 @@ ERROR_EXPLANATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
         ("ข้อมูลที่บันทึกไม่ผ่าน typed decoding", "อย่าแก้จากหน้านี้; ใช้ recovery path ที่ระบบกำหนด"),
     ),
     "CONFIG_STORE_UNAVAILABLE": (
-        "????????? Provider ??????????",
-        ("????????????? control database ??? provider ???", "???? path/?????????????????? ?????? Refresh"),
+        "เปิดฐานข้อมูล Provider ไม่ได้",
+        ("ไม่พบหรือเปิด control database ของ provider ไม่ได้", "ตรวจ path/สิทธิ์ของ control database แล้วกด Refresh"),
     ),
     "CONFIG_STORE_SCHEMA_UNAVAILABLE": (
         "Provider schema ไม่พร้อม",
-        ("ฐานข้อมูล control ไม่มี schema ที่ต้องใช้", "เปิแอปเวอร์ชันปัจจุบันกับ control database ที่ถูกต้อง"),
+        ("ฐานข้อมูล control ไม่มี schema ที่ต้องใช้", "เปิดแอปเวอร์ชันปัจจุบันกับ control database ที่ถูกต้อง"),
     ),
     "CONFIG_STORE_READ_FAILED": (
         "อ่านฐานข้อมูล Provider ไม่สำเร็จ",

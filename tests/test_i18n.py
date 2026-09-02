@@ -272,3 +272,17 @@ def test_wo127_models_agents_action_keys_cover_all_three_languages() -> None:
         set_language("zh-CN")
         assert tr(key).strip() and tr(key) != key, key
     set_language("th")
+
+
+def test_wo127_provider_teaching_errors_have_no_mojibake() -> None:
+    from a_conductor.desktop_ui import ERROR_EXPLANATIONS
+
+    codes = ("PROVIDER_PROFILE_INVALID", "CONFIG_STORE_UNAVAILABLE", "CONFIG_STORE_SCHEMA_UNAVAILABLE", "CONFIG_STORE_READ_FAILED")
+    for code in codes:
+        title, lines = ERROR_EXPLANATIONS[code]
+        text = " ".join((title, *lines))
+        assert "??" not in text, code
+        assert "\ufffd" not in text, code
+    assert ERROR_EXPLANATIONS["CONFIG_STORE_UNAVAILABLE"][0] == "เปิดฐานข้อมูล Provider ไม่ได้"
+    assert "ไม่ผ่าน validation" in ERROR_EXPLANATIONS["PROVIDER_PROFILE_INVALID"][1][0]
+    assert "เปิดแอป" in ERROR_EXPLANATIONS["CONFIG_STORE_SCHEMA_UNAVAILABLE"][1][1]

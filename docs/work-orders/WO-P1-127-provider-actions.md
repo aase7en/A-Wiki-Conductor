@@ -2,12 +2,12 @@
 
 Date: 2026-09-02
 Owner: GPT-5.6 Sol integrator
-Status: IMPLEMENTED / LOCAL_VERIFIED / FREEZE_PENDING
+Status: REVIEW_REPAIR / REREVIEW_REQUIRED
 Priority: P1 AHA-7B
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo127-provider-actions`
 Branch: `feat/wo-p1-127-provider-actions`
-Base: `origin/main@af7a933fe27d2a3e3f29360abf9214df1e5478c5`
+Base: `origin/main@9118a289b9fcd87e0bae4e4eb601cc585062856d`
 
 ## Goal
 
@@ -74,3 +74,12 @@ P0/P1/P2 block merge. Agent or test PASS alone is not merge authority.
 - PR #181 post-main `33571693986` is SUCCESS across Windows/Ubuntu/macOS including Windows packaging and Frozen Setup E2E; shared closeout ownership is released.
 - Parallel WO128 GLM lane remains frozen in its separate worktree; this work order did not mutate provider store/runtime/policy authority.
 - Next: exact UTF-8/scope audit, commit, reconcile the own branch onto latest main only after merge-base delta proves disjoint, rerun focused verification, then exact-head PR/independent review/CI.
+
+## Independent review repair checkpoint ? 2026-09-02
+
+- GLM exact-head review `wo127-glm-review-001` reviewed `7591af71c8e90b05e2987646a9c84e79a672dde1` and returned `CHANGES_REQUIRED`: P0=0, P1=0, P2=1, P3=4.
+- Accepted P2: Thai teaching text for `CONFIG_STORE_UNAVAILABLE` was mojibake. GPT also repaired the adjacent Thai typos noted as P3.
+- Added `test_wo127_provider_teaching_errors_have_no_mojibake` so provider teaching rows fail on `??`/replacement-character corruption and verify repaired Thai wording.
+- Repair verification: focused i18n 3 passed; real Tk GUI/i18n bucket 93 passed; `git diff --check` PASS.
+- Functional/security/concurrency/lifecycle findings from the independent review were otherwise clean, but that result is evidence for the old head only.
+- Next gate: freeze/push repaired exact head, rerun CI, then independent exact-head rereview before merge.
