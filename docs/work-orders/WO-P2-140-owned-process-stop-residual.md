@@ -68,7 +68,7 @@ No production edit until all applicable items are satisfied:
 
 `SAFE_TO_MUTATE = YES` for this isolated worktree and claimed scope. No source/test mutation has occurred. Current evidence is insufficient to choose a repair; next action is diagnosis/reproducer only.
 
-## Diagnosis checkpoint 1 ? hosted timing correlation
+## Diagnosis checkpoint 1 - hosted timing correlation
 
 Additional deterministic evidence narrows the failure class without claiming root cause:
 
