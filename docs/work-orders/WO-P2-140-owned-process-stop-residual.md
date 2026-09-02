@@ -137,4 +137,3 @@ Next safe action: GPT-5.6 Sol Max independent exact-SHA adversarial review → P
 - GPT authored the bounded-deque repair after finding the P2 in GLM executor output. Therefore executor PASS at `a1b0b3d2...` is historical evidence only; a fresh independent exact-SHA rereview of the post-freeze candidate is mandatory before PR/CI/merge.
 
 Next safe action: create a detached read-only rereview worktree/task pinned to the final post-checkpoint SHA; do not open a PR until that independent result has P0/P1/P2=0.
-
