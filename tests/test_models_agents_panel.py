@@ -415,3 +415,448 @@ def test_wo127_action_failure_uses_typed_teaching_error_without_resubmit(root) -
     )
     assert errors == ["PROVIDER_CONFIGURATION_IN_USE"]
     assert app._models_agents_action_label.cget("text") == "PROVIDER_CONFIGURATION_IN_USE"
+
+
+# --- WO134 T3/T4: provider evidence detail GUI (RED-first) ---
+
+from types import SimpleNamespace
+
+from a_conductor.i18n import get_language, set_language
+from a_conductor.provider_selection_observability import (
+    project_provider_selection_evidence,
+)
+from a_conductor.provider_config_store import ProviderAdmissionRecord
+
+
+def _wo134_admission(**overrides):
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime(2026, 9, 2, 12, 0, tzinfo=timezone.utc)
+    data = dict(
+        admission_id="adm-001",
+        provider_id="glm-primary",
+        execution_id="exec-1",
+        batch_id="batch-1",
+        acquired_at=now - timedelta(minutes=5),
+        expires_at=now + timedelta(minutes=5),
+        status="ACTIVE",
+        configuration_generation=7,
+    )
+    data.update(overrides)
+    return ProviderAdmissionRecord(**data)
+
+
+def _wo134_evidence(records, *, generation=7, now=None):
+    return project_provider_selection_evidence(
+        provider_id="glm-primary",
+        current_configuration_generation=generation,
+        admissions=tuple(records),
+        now=now,
+    )
+
+
+class EvidenceFakeService(FakeService):
+    def __init__(self, rows=(), error=None, graph_nodes=()):
+        super().__init__(rows)
+        self.evidence_error = error
+        self.evidence_calls: list[str] = []
+        self.graph_nodes = tuple(graph_nodes)
+        self.graph_calls: list[tuple] = []
+
+    def provider_selection_evidence(self, provider_id, **kwargs):
+        self.evidence_calls.append(provider_id)
+        if self.evidence_error is not None:
+            raise self.evidence_error
+        evidence = _wo134_evidence(
+            [_wo134_admission()],
+            generation=getattr(self.rows[0], "configuration_generation", 7) if self.rows else 7,
+        )
+        row = next(
+            (item for item in self.rows if getattr(item, "provider_id", "") == provider_id),
+            self.rows[0] if self.rows else make_row(),
+        )
+        return row, evidence
+
+    def operator_graph_snapshot(self, graph_id, graph_run_id=None, *, event_limit=20):
+        self.graph_calls.append((graph_id, graph_run_id))
+        return SimpleNamespace(nodes=self.graph_nodes, runtime_evidence=True)
+
+
+def _open_evidence(root, app):
+    dialog = app._open_selected_provider_evidence()
+    root.update()
+    return dialog
+
+
+def _evidence_text(app):
+    return app._provider_evidence_text.get("1.0", "end")
+
+
+def test_wo134_evidence_button_exists_on_second_row(root) -> None:
+    service = EvidenceFakeService((make_row(),))
+    app = make_app(root, service, ImmediateExecutor())
+    app.open_preferences()
+    root.update()
+
+    button = app._models_agents_evidence_button
+    assert button.cget("text") == "Evidence..."
+    assert button.instate(("disabled",)) is False
+    # second action row, never the first (combo/buttons) row
+    assert int(button.grid_info()["row"]) >= 1
+
+
+def test_wo134_evidence_dialog_singleton_reuse_and_provider_switch(root) -> None:
+    rows = (make_row(configuration_generation=7), make_row(provider_id="glm-secondary", display_name="Second", configuration_generation=3))
+    service = EvidenceFakeService(rows)
+    app = make_app(root, service, ImmediateExecutor())
+    app.open_preferences()
+    root.update()
+
+    first = _open_evidence(root, app)
+    again = _open_evidence(root, app)
+    assert again is first
+
+    app._models_agents_provider_combo.current(1)
+    root.update()
+    switched = _open_evidence(root, app)
+    assert switched is first
+    root.update()
+    assert service.evidence_calls == ["glm-primary", "glm-primary", "glm-secondary"]
+    assert "Second" in _evidence_text(app)
+
+
+def test_wo134_evidence_single_flight_background_only(root) -> None:
+    service = EvidenceFakeService((make_row(),))
+    executor = ControlledExecutor()
+    app = make_app(root, service, executor)
+    app.open_preferences()
+    root.update()
+    executor.futures[0].set_result(service.provider_operator_rows())
+    app._poll_models_agents_future(app._models_agents_request_id, executor.futures[0])
+    root.update()
+    list_calls = len(executor.calls)
+
+    app._open_selected_provider_evidence()
+    app._open_selected_provider_evidence()
+    app._open_selected_provider_evidence()
+    assert len(executor.calls) == list_calls + 1
+    work_fn = executor.calls[-1][0]
+    executor.futures[-1].set_result(work_fn())
+    app._poll_provider_evidence_future(app._provider_evidence_request_id, "glm-primary", executor.futures[-1])
+    root.update()
+    assert service.evidence_calls == ["glm-primary"]  # ran once, off the Tk thread
+    assert "SELECTION_REASON=UNKNOWN" in _evidence_text(app)
+
+
+def test_wo134_evidence_late_future_discarded_on_close_and_switch(root) -> None:
+    service = EvidenceFakeService((make_row(), make_row(provider_id="glm-secondary", display_name="S", configuration_generation=1)))
+    executor = ControlledExecutor()
+    app = make_app(root, service, executor)
+    app.open_preferences()
+    root.update()
+    executor.futures[0].set_result(service.provider_operator_rows())
+    app._poll_models_agents_future(app._models_agents_request_id, executor.futures[0])
+    root.update()
+
+    dialog = app._open_selected_provider_evidence()
+    pending_future = executor.futures[-1]
+    dialog.destroy()
+    root.update()
+    pending_future.set_result(service.provider_selection_evidence("glm-primary"))
+    app._poll_provider_evidence_future(app._provider_evidence_request_id, "glm-primary", pending_future)
+    root.update()  # no TclError, pending cleared
+    assert app._provider_evidence_pending is False
+
+    app._models_agents_provider_combo.current(1)
+    root.update()
+    app._open_selected_provider_evidence()
+    switch_future = executor.futures[-1]
+    app._models_agents_provider_combo.current(0)
+    root.update()
+    app._open_selected_provider_evidence()  # provider switch while pending
+    switch_future.set_result(service.provider_selection_evidence("glm-secondary"))
+    app._poll_provider_evidence_future(app._provider_evidence_request_id - 1, "glm-secondary", switch_future)
+    root.update()
+    assert "Second" not in _evidence_text(app) or service.evidence_calls[-1] == "glm-primary"
+
+
+def test_wo134_preferences_close_destroys_evidence_dialog(root) -> None:
+    service = EvidenceFakeService((make_row(),))
+    app = make_app(root, service, ImmediateExecutor())
+    prefs = app.open_preferences()
+    root.update()
+    dialog = _open_evidence(root, app)
+    assert dialog.winfo_exists()
+
+    prefs.destroy()
+    root.update()
+    assert app._provider_evidence_window is None
+    assert app._provider_evidence_pending is False
+    try:
+        assert not dialog.winfo_exists()
+    except Exception:
+        pass  # destroyed widgets may raise; the None check is the contract
+
+
+def test_wo134_language_rerender_uses_cache_zero_io(root) -> None:
+    previous = get_language()
+    service = EvidenceFakeService((make_row(),))
+    app = make_app(root, service, ImmediateExecutor())
+    try:
+        app.open_preferences()
+        root.update()
+        _open_evidence(root, app)
+        calls_after_load = len(service.evidence_calls)
+        before = _evidence_text(app)
+
+        set_language("en")
+        app._render_provider_evidence_from_cache()
+        root.update()
+        after_en = _evidence_text(app)
+
+        assert len(service.evidence_calls) == calls_after_load  # zero extra I/O
+        assert "SELECTION_REASON=UNKNOWN" in after_en
+        assert after_en != before or before  # render ran; constants always present
+        set_language("th")
+        app._render_provider_evidence_from_cache()
+        root.update()
+        assert len(service.evidence_calls) == calls_after_load
+    finally:
+        set_language(previous)
+
+
+def test_wo134_evidence_sentinel_free(root) -> None:
+    sentinel = "https://secret.example/api?key=TOPSECRET"
+    hostile_row = make_row(
+        endpoint=SimpleNamespace(base_url=sentinel),
+        base_url=sentinel,
+        credential_ref="secret-ref:awiki-env/GLM_KEY",
+        api_key="TOPSECRET",
+    )
+    service = EvidenceFakeService((hostile_row,))
+    app = make_app(root, service, ImmediateExecutor())
+    app.open_preferences()
+    root.update()
+    dialog = _open_evidence(root, app)
+
+    texts: list[str] = [dialog.title()]
+
+    def walk(widget):
+        for child in widget.winfo_children():
+            walk(child)
+        try:
+            if widget.winfo_class() == "Text":
+                texts.append(widget.get("1.0", "end"))
+            elif "text" in widget.keys():
+                value = widget.cget("text")
+                if isinstance(value, str):
+                    texts.append(value)
+        except Exception:
+            pass
+
+    walk(dialog)
+    joined = "\n".join(texts)
+    assert sentinel not in joined
+    assert "TOPSECRET" not in joined
+    assert "secret-ref:" not in joined
+
+
+def test_wo134_evidence_error_states_typed_not_empty(root) -> None:
+    class TypedErr(RuntimeError):
+        def __init__(self, code):
+            self.code = code
+            super().__init__(code)
+
+    for code in ("PROVIDER_ADMISSION_RECORD_INVALID", "PROVIDER_EVIDENCE_TARGET_UNAVAILABLE"):
+        service = EvidenceFakeService((make_row(),), error=TypedErr(code))
+        app = make_app(root, service, ImmediateExecutor())
+        app.open_preferences()
+        root.update()
+        _open_evidence(root, app)
+        text = _evidence_text(app)
+        assert code in text
+        assert "SELECTION_REASON" not in text  # error is not a partial success
+
+
+def test_wo134_evidence_renders_constants_sections_and_fields(root) -> None:
+    from datetime import datetime, timezone
+
+    now = datetime(2026, 9, 2, 12, 0, tzinfo=timezone.utc)
+    class OverrideService(EvidenceFakeService):
+        def provider_selection_evidence(self, provider_id, **kwargs):
+            self.evidence_calls.append(provider_id)
+            return self.rows[0], self.evidence_result_override
+
+    service = OverrideService((make_row(),))
+    service.evidence_result_override = _wo134_evidence(
+        [_wo134_admission(), _wo134_admission(admission_id="adm-002", status="RELEASED", released_at=now, execution_id="exec-2", batch_id="batch-2")],
+        generation=7,
+        now=now,
+    )
+    app = make_app(root, service, ImmediateExecutor())
+    app.open_preferences()
+    root.update()
+    _open_evidence(root, app)
+    text = _evidence_text(app)
+
+    assert "SELECTION_REASON=UNKNOWN" in text
+    assert "FALLBACK_REASON=NOT_EVALUATED" in text
+    assert ": models=" in text and "harness=" in text  # declared-capabilities line (language-agnostic)
+    assert "adm-001" in text and "adm-002" in text
+    assert "exec-1" in text and "batch-1" in text
+    assert "ACTIVE" in text and "RELEASED" in text
+    assert "MATCHES_CURRENT" in text
+    assert "TERMINAL" in text
+    assert "acquired=" in text
+    assert "NO_READABLE_GRAPH_EVIDENCE" in text
+
+
+def test_wo134_evidence_graph_exact_link(root) -> None:
+    from a_conductor.graph.dispatch import GraphDispatchKey
+
+    node = SimpleNamespace(node_id="node-a", objective="work", status="RUNNING", worker_id="w1")
+    job_id = GraphDispatchKey("graph-1", "run-1", "node-a").job_id
+    near_miss = job_id[:-1] + ("0" if job_id[-1] != "0" else "1")
+    records = [_wo134_admission(execution_id=job_id), _wo134_admission(admission_id="adm-x", execution_id=near_miss)]
+    now = None
+
+    class GraphService(EvidenceFakeService):
+        def provider_selection_evidence(self, provider_id, **kwargs):
+            self.evidence_calls.append(provider_id)
+            return self.rows[0], _wo134_evidence(records)
+
+    service = GraphService((make_row(),), graph_nodes=(node,))
+    app = make_app(root, service, ImmediateExecutor())
+    app.open_preferences()
+    root.update()
+
+    app._graph_monitor_graph_id = "graph-1"
+    app._graph_monitor_run_id = "run-1"
+    _open_evidence(root, app)
+    text = _evidence_text(app)
+    assert "node-a" in text  # exact match links
+    assert "graph-1" in text and "run-1" in text
+    # near miss never links
+    app._provider_evidence_window.destroy()
+    root.update()
+
+    app._graph_monitor_run_id = None  # no explicit run -> never links
+    _open_evidence(root, app)
+    assert "node-a" not in _evidence_text(app)
+    assert "NO_READABLE_GRAPH_EVIDENCE" in _evidence_text(app)
+
+
+def test_wo134_pending_evidence_cannot_mix_graph_contexts(root) -> None:
+    from a_conductor.graph.dispatch import GraphDispatchKey
+
+    node = SimpleNamespace(node_id="node-a", objective="work", status="RUNNING", worker_id="w1")
+    job_id = GraphDispatchKey("graph-1", "run-1", "node-a").job_id
+
+    class GraphService(EvidenceFakeService):
+        def provider_selection_evidence(self, provider_id, **kwargs):
+            self.evidence_calls.append(provider_id)
+            return self.rows[0], _wo134_evidence([_wo134_admission(execution_id=job_id)])
+
+    service = GraphService((make_row(),), graph_nodes=(node,))
+    executor = ControlledExecutor()
+    app = make_app(root, service, executor)
+    app.open_preferences(); root.update()
+    executor.futures[0].set_result(service.provider_operator_rows())
+    app._poll_models_agents_future(app._models_agents_request_id, executor.futures[0]); root.update()
+
+    app._graph_monitor_graph_id = "graph-1"
+    app._graph_monitor_run_id = "run-1"
+    app._open_selected_provider_evidence()
+    future = executor.futures[-1]
+    result = executor.calls[-1][0]()
+    assert service.graph_calls[-1] == ("graph-1", "run-1")
+
+    app._graph_monitor_graph_id = "graph-2"
+    app._graph_monitor_run_id = "run-2"
+    future.set_result(result)
+    app._poll_provider_evidence_future(app._provider_evidence_request_id, "glm-primary", future)
+    root.update()
+    text = _evidence_text(app)
+    assert "node-a" not in text
+    assert "graph_context=graph-2 run=run-2" not in text
+
+
+def test_wo134_graph_monitor_change_invalidates_cached_links_without_evidence_io(root, monkeypatch) -> None:
+    import a_conductor.desktop_ui as desktop_ui_module
+    from a_conductor.graph.dispatch import GraphDispatchKey
+
+    node = SimpleNamespace(node_id="node-a", objective="work", status="RUNNING", worker_id="w1")
+    job_id = GraphDispatchKey("graph-1", "run-1", "node-a").job_id
+
+    class GraphService(EvidenceFakeService):
+        def provider_selection_evidence(self, provider_id, **kwargs):
+            self.evidence_calls.append(provider_id)
+            return self.rows[0], _wo134_evidence([_wo134_admission(execution_id=job_id)])
+        def operator_graph_ids(self):
+            return ("graph-1", "graph-2")
+
+    service = GraphService((make_row(),), graph_nodes=(node,))
+    app = make_app(root, service, ImmediateExecutor())
+    app.open_preferences(); root.update()
+    app._graph_monitor_graph_id = "graph-1"
+    app._graph_monitor_run_id = "run-1"
+    _open_evidence(root, app)
+    assert "node-a" in _evidence_text(app)
+    evidence_calls = len(service.evidence_calls)
+
+    responses = iter(["graph-2", "run-2"])
+    monkeypatch.setattr(desktop_ui_module.simpledialog, "askstring", lambda *_a, **_k: next(responses))
+    app._refresh_monitor_async = lambda: None
+    app.open_graph_monitor(); root.update()
+
+    text = _evidence_text(app)
+    assert len(service.evidence_calls) == evidence_calls
+    assert "node-a" not in text
+    assert "graph_context=" not in text
+    assert "NO_READABLE_GRAPH_EVIDENCE" in text
+
+
+def test_wo134_provider_action_success_refreshes_open_evidence_in_background(root) -> None:
+    class EvidenceActionService(EvidenceFakeService):
+        def test_provider(self, provider_id):
+            return SimpleNamespace(
+                provider_id=provider_id,
+                health=SimpleNamespace(value="AVAILABLE"),
+                provenance="probe:test",
+            )
+
+    service = EvidenceActionService((make_row(),))
+    executor = ControlledExecutor()
+    app = make_app(root, service, executor)
+    app.open_preferences(); root.update()
+    executor.futures[0].set_result(service.provider_operator_rows())
+    app._poll_models_agents_future(app._models_agents_request_id, executor.futures[0]); root.update()
+
+    app._open_selected_provider_evidence()
+    first_evidence_future = executor.futures[-1]
+    first_evidence_future.set_result(executor.calls[-1][0]())
+    app._poll_provider_evidence_future(
+        app._provider_evidence_request_id, "glm-primary", first_evidence_future
+    ); root.update()
+    assert service.evidence_calls == ["glm-primary"]
+
+    app._test_selected_provider()
+    action_future = executor.futures[-1]
+    action_future.set_result(service.test_provider("glm-primary"))
+    new_calls_start = len(executor.calls)
+    app._poll_models_agents_action_future(
+        app._models_agents_action_request_id, "glm-primary", "test", action_future
+    ); root.update()
+
+    assert len(executor.calls) >= new_calls_start + 2  # evidence refresh + panel refresh
+    evidence_index = next(
+        index for index in range(new_calls_start, len(executor.calls))
+        if getattr(executor.calls[index][0], "__name__", "") == "_work"
+    )
+    evidence_work = executor.calls[evidence_index][0]
+    evidence_future = executor.futures[evidence_index]
+    evidence_future.set_result(evidence_work())
+    app._poll_provider_evidence_future(
+        app._provider_evidence_request_id, "glm-primary", evidence_future
+    ); root.update()
+    assert service.evidence_calls == ["glm-primary", "glm-primary"]

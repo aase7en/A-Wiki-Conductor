@@ -527,6 +527,55 @@ class DesktopControlService:
             enabled=enabled,
         )
 
+    def provider_selection_evidence(
+        self,
+        provider_id: str,
+        *,
+        admissions_limit: int = 10,
+    ):
+        """Project one provider's truthful selection/fallback evidence.
+
+        Read order is mandatory: bounded admissions FIRST, query-only bulk
+        snapshots SECOND, so a configuration edit committed between the two
+        reads makes older admission generations compare STALE against the
+        newer snapshot instead of authorizing a mixed truth. Never uses the
+        write-capable/bootstrap single-provider snapshot reader. The pure
+        selection projection is the only shaping authority; this facade adds
+        none (selection stays UNKNOWN, fallback stays NOT_EVALUATED).
+        """
+        from .provider_selection_observability import project_provider_selection_evidence
+        from .provider_operator_view import build_provider_operator_row
+
+        if (
+            isinstance(admissions_limit, bool)
+            or not isinstance(admissions_limit, int)
+            or not 1 <= admissions_limit <= 200
+        ):
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_LIST_LIMIT_INVALID")
+        if not isinstance(provider_id, str) or not provider_id.strip():
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_FILTER_INVALID")
+        provider_id = provider_id.strip()
+        store = self._require_provider_store()
+        admissions = store.list_provider_admissions(
+            provider_id=provider_id, limit=admissions_limit
+        )
+        snapshot = None
+        for candidate in store.list_provider_snapshots():
+            if candidate.profile.provider_id == provider_id:
+                snapshot = candidate
+                break
+        if snapshot is None:
+            raise ProviderConfigStoreError("PROVIDER_EVIDENCE_TARGET_UNAVAILABLE")
+        now = self._clock()
+        row = build_provider_operator_row(snapshot, now=now)
+        evidence = project_provider_selection_evidence(
+            provider_id=provider_id,
+            current_configuration_generation=snapshot.generation,
+            admissions=admissions,
+            now=now,
+        )
+        return row, evidence
+
     def test_provider(
         self,
         provider_id: str,

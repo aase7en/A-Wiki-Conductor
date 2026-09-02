@@ -223,6 +223,37 @@ STRINGS: dict[str, dict[str, str]] = {
         "zh-CN": "警告：该 reference 可保存，但当前 runtime 无法使用。",
         "en": "Warning: this reference can be saved but is unusable by the current runtime.",
     },
+    "prefs.models_agents.evidence": {"th": "Evidence...", "zh-CN": "Evidence...", "en": "Evidence..."},
+    "prefs.models_agents.evidence.help": {
+        "th": "ดูหลักฐาน selection/fallback และ admission ล่าสุดของ provider นี้ (อ่านอย่างเดียว ไม่มีการอนุมานเหตุผล)",
+        "zh-CN": "查看该 provider 的 selection/fallback 证据与最近的 admission 记录（只读，绝不推断原因）。",
+        "en": "Read this provider's selection/fallback evidence and recent admissions; reasons are never invented.",
+    },
+    "prefs.models_agents.evidence.loading": {
+        "th": "กำลังโหลดหลักฐาน provider...",
+        "zh-CN": "正在加载 provider 证据...",
+        "en": "Loading provider evidence...",
+    },
+    "prefs.models_agents.evidence.error": {
+        "th": "หลักฐาน Provider ไม่พร้อมใช้งาน",
+        "zh-CN": "Provider 证据不可用",
+        "en": "Provider evidence unavailable",
+    },
+    "prefs.models_agents.evidence.admissions": {
+        "th": "หลักฐาน admission (สิทธิ์ใช้ความจุ เรียงใหม่สุดก่อน)",
+        "zh-CN": "Admission 证据（容量授权，最新在前）",
+        "en": "Admission evidence (capacity grants, newest first)",
+    },
+    "prefs.models_agents.evidence.current": {
+        "th": "สถานะปัจจุบันและความสามารถที่ประกาศไว้",
+        "zh-CN": "当前状态与已声明的能力",
+        "en": "Current status and declared capabilities",
+    },
+    "prefs.models_agents.evidence.declared": {
+        "th": "ประกาศไว้ (ไม่ใช่การพิสูจน์ต่อการรันแต่ละครั้ง)",
+        "zh-CN": "已声明（并非每次执行的证明）",
+        "en": "declared (not per-execution proof)",
+    },
 }
 
 # Chinese is intentionally concentrated on operator guidance/tooltips. Entries

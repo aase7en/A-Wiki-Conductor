@@ -26,6 +26,8 @@ ERROR_EXPLANATIONS_EN: dict[str, tuple[str, tuple[str, ...]]] = {
     "CONFIG_STORE_SCHEMA_UNAVAILABLE": ("Provider schema unavailable", ("What: the control database does not contain the required provider schema", "How: reopen the current app version against the correct control database")),
     "CONFIG_STORE_READ_FAILED": ("Provider database read failed", ("What: SQLite could not read the provider configuration", "How: retry Refresh; if it repeats, inspect the control database and logs")),
     "PROVIDER_ACTION_FAILED": ("Provider action failed", ("What: the provider action returned an unexpected typed boundary failure", "How: Refresh and check ACTIVITY / LOG before retrying")),
+    "PROVIDER_EVIDENCE_TARGET_UNAVAILABLE": ("Provider evidence target unavailable", ("What: the provider disappeared before its evidence could be read", "How: Refresh and select the provider again")),
+    "PROVIDER_ADMISSION_RECORD_INVALID": ("Admission evidence record invalid", ("What: a persisted admission row failed typed decoding", "How: the evidence view stopped fail-closed; repair the stored admission through the accepted recovery path")),
     "GENERIC": ("Something went wrong", ("What: an unexpected error occurred", "Try: press Refresh; if it repeats, check the log panel")),
     "SELECT_WORKER": ("No Worker selected", ("Missing: a click on a row in the WORKERS table (right side)", "How: click a Worker row once, then press the button")),
     "SELECT_PROJECT": ("No project selected", ("Missing: a selection in the PROJECTS list (left side)", "How: pick a project, then a target Worker, then press Assign")),
