@@ -792,3 +792,242 @@ def test_wo127_real_sqlite_test_provider_persists_generation_bound_quota(tmp_pat
     assert store.get_observation(profile.provider_id) == observed
     assert transport.calls and transport.calls[0][1] == "test-only-secret"
     assert "test-only-secret" not in observed.provenance
+
+
+# --- WO134 T2: provider selection evidence facade (RED-first) ---
+
+from dataclasses import replace as _wo134_replace
+
+from a_conductor.provider_config_store import (
+    ProviderConfigStoreError,
+    SQLiteProviderConfigStore,
+)
+
+
+class _WO134CallOrderStore(SQLiteProviderConfigStore):
+    def __init__(self, database):
+        super().__init__(database)
+        self.wo134_calls: list[str] = []
+
+    def list_provider_admissions(self, **kwargs):
+        self.wo134_calls.append("admissions")
+        return super().list_provider_admissions(**kwargs)
+
+    def list_provider_snapshots(self):
+        self.wo134_calls.append("snapshots")
+        return super().list_provider_snapshots()
+
+
+class _WO134RacingStore(SQLiteProviderConfigStore):
+    """Applies a generation-2 edit AFTER admissions read, BEFORE snapshot read."""
+
+    def __init__(self, database, profile):
+        super().__init__(database)
+        self._profile = profile
+        self._edited = False
+
+    def list_provider_snapshots(self):
+        if not self._edited:
+            self._edited = True
+            self.save_provider(
+                _wo134_replace(self._profile, display_name="gen-2 edit"),
+                expected_generation=1,
+            )
+        return super().list_provider_snapshots()
+
+
+def _wo134_service(tmp_path, store=None):
+    database = tmp_path / "control.sqlite"
+    store = store or SQLiteProviderConfigStore(database)
+    store.initialize()
+    return DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(),
+        provider_store=store,
+    )
+
+
+def test_wo134_evidence_reads_admissions_before_snapshots(tmp_path) -> None:
+    import pytest
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = _WO134CallOrderStore(database)
+    store.save_endpoint(ProviderEndpointConfig("provider-config:test/base-url", "https://api.example.test/v1"))
+    profile = _wo125_profile()
+    store.save_provider(profile)
+    service = _wo134_service(tmp_path, store)
+
+    row, evidence = service.provider_selection_evidence(profile.provider_id)
+
+    assert store.wo134_calls == ["admissions", "snapshots"]
+    assert evidence.selection_reason == "UNKNOWN"
+    assert evidence.fallback_reason == "NOT_EVALUATED"
+    assert row.provider_id == profile.provider_id
+    assert evidence.admissions == ()
+
+
+def test_wo134_released_generation_race_is_stale_not_matches(tmp_path) -> None:
+    from datetime import datetime, timezone
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    store.save_endpoint(ProviderEndpointConfig("provider-config:test/base-url", "https://api.example.test/v1"))
+    profile = _wo125_profile()
+    store.save_provider(profile)
+    now = datetime(2026, 9, 2, tzinfo=timezone.utc)
+    acquired = store.acquire_admission(
+        provider_id=profile.provider_id, execution_id="exec-race", batch_id="batch-race",
+        expected_max_concurrency=1, now=now, ttl_seconds=600,
+        expected_configuration_generation=1,
+    )
+    store.release_admission(
+        acquired.admission.admission_id, provider_id=profile.provider_id,
+        execution_id="exec-race", batch_id="batch-race", now=now,
+    )
+    racing = _WO134RacingStore(database, profile)
+    service = _wo134_service(tmp_path, racing)
+
+    _row, evidence = service.provider_selection_evidence(profile.provider_id)
+
+    assert len(evidence.admissions) == 1
+    assert evidence.current_configuration_generation == 2
+    assert evidence.admissions[0].configuration_generation == 1
+    assert evidence.admissions[0].generation_relation == "STALE_VS_CURRENT"
+
+
+def test_wo134_missing_target_and_invalid_inputs_fail_typed(tmp_path) -> None:
+    import pytest
+
+    service = _wo134_service(tmp_path / "missing" / "sub" / None if False else tmp_path)
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.provider_selection_evidence("provider-not-there")
+    assert exc.value.code == "PROVIDER_EVIDENCE_TARGET_UNAVAILABLE"
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.provider_selection_evidence("   ")
+    assert exc.value.code == "PROVIDER_ADMISSION_FILTER_INVALID"
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.provider_selection_evidence(_wo125_profile().provider_id, admissions_limit=0)
+    assert exc.value.code == "PROVIDER_ADMISSION_LIST_LIMIT_INVALID"
+
+
+def test_wo134_corrupt_admission_is_typed_never_partial(tmp_path) -> None:
+    import sqlite3
+    import pytest
+    from datetime import datetime, timezone
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    store.save_endpoint(ProviderEndpointConfig("provider-config:test/base-url", "https://api.example.test/v1"))
+    profile = _wo125_profile()
+    store.save_provider(profile)
+    store.acquire_admission(
+        provider_id=profile.provider_id, execution_id="exec-x", batch_id="b",
+        expected_max_concurrency=1, now=datetime(2026, 9, 2, tzinfo=timezone.utc), ttl_seconds=600,
+    )
+    with sqlite3.connect(database) as connection:
+        connection.execute("UPDATE provider_admissions SET acquired_at='garbage' WHERE execution_id='exec-x'")
+        connection.commit()
+    service = _wo134_service(tmp_path, store)
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        service.provider_selection_evidence(profile.provider_id)
+    assert exc.value.code == "PROVIDER_ADMISSION_RECORD_INVALID"
+
+
+def test_wo134_constants_invariant_under_healthy_and_failing_fixtures(tmp_path) -> None:
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+    from a_conductor.provider_configuration import (
+        ProviderEndpointConfig, ProviderHealth, ProviderObservation,
+    )
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    profile = _wo125_profile()
+    store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://api.example.test/v1"))
+    store.save_provider(profile)
+    now = datetime(2026, 9, 2, tzinfo=timezone.utc)
+    store.save_observation(ProviderObservation(
+        provider_id=profile.provider_id, health=ProviderHealth.AVAILABLE,
+        observed_at=now, provenance="probe:test", configuration_generation=1,
+    ))
+    active = store.acquire_admission(
+        provider_id=profile.provider_id, execution_id="exec-live", batch_id="b1",
+        expected_max_concurrency=1, now=now, ttl_seconds=600,
+        expected_configuration_generation=1,
+    )
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store, clock=lambda: now,
+    )
+    healthy = service.provider_selection_evidence(profile.provider_id)
+    assert healthy[0].runtime_ready is True
+    assert healthy[1].selection_reason == "UNKNOWN" and healthy[1].fallback_reason == "NOT_EVALUATED"
+
+    # failing fixture: quota-exhausted health + expired admission + drift
+    store.save_observation(ProviderObservation(
+        provider_id=profile.provider_id, health=ProviderHealth.QUOTA_EXHAUSTED,
+        observed_at=now, provenance="probe:test", configuration_generation=1,
+    ))
+    with sqlite3.connect(database) as connection:
+        connection.execute("UPDATE provider_admissions SET status='EXPIRED' WHERE admission_id=?", (active.admission.admission_id,))
+        connection.commit()
+    failing = service.provider_selection_evidence(profile.provider_id)
+    assert failing[0].runtime_ready is False
+    assert failing[1].selection_reason == "UNKNOWN" and failing[1].fallback_reason == "NOT_EVALUATED"
+    assert failing[1].admissions[0].expiry_observation == "PAST_EXPIRY_RECONCILE_REQUIRED"
+
+
+def test_wo134_single_provider_api_no_cross_provider_surface() -> None:
+    import inspect
+
+    signature = inspect.signature(DesktopControlService.provider_selection_evidence)
+    assert "provider_id" in signature.parameters
+    assert not any("providers" in name for name in signature.parameters)
+
+
+def test_wo134_real_sqlite_e2e_statuses_drift_and_relation(tmp_path) -> None:
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+    from a_conductor.provider_configuration import ProviderEndpointConfig
+
+    database = tmp_path / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+    store.save_endpoint(ProviderEndpointConfig("provider-config:test/base-url", "https://api.example.test/v1"))
+    profile = _wo125_profile()
+    store.save_provider(profile)
+    now = datetime(2026, 9, 2, tzinfo=timezone.utc)
+    first = store.acquire_admission(
+        provider_id=profile.provider_id, execution_id="exec-1", batch_id="b1",
+        expected_max_concurrency=1, now=now - timedelta(minutes=10), ttl_seconds=60,
+        expected_configuration_generation=1,
+    )
+    store.release_admission(first.admission.admission_id, provider_id=profile.provider_id,
+                            execution_id="exec-1", batch_id="b1", now=now - timedelta(minutes=9))
+    second = store.acquire_admission(
+        provider_id=profile.provider_id, execution_id="exec-2", batch_id="b2",
+        expected_max_concurrency=1, now=now, ttl_seconds=600,
+        expected_configuration_generation=1,
+    )
+    store.release_admission(second.admission.admission_id, provider_id=profile.provider_id,
+                            execution_id="exec-2", batch_id="b2", now=now)
+    store.save_provider(_wo134_replace(profile, display_name="gen 2"), expected_generation=1)
+    with sqlite3.connect(database) as connection:
+        connection.execute("UPDATE provider_admissions SET status='EXPIRED' WHERE execution_id='exec-2'")
+        connection.commit()
+    service = DesktopControlService(
+        control_center=ControlCenterService.open(SQLiteRegistryStore(database)),
+        lifecycle=FakeCoordinator(), provider_store=store, clock=lambda: now,
+    )
+    row, evidence = service.provider_selection_evidence(profile.provider_id)
+
+    assert [item.status for item in evidence.admissions] == ["EXPIRED", "RELEASED"]
+    assert all(item.generation_relation == "STALE_VS_CURRENT" for item in evidence.admissions)
+    assert evidence.admissions[0].expiry_observation == "PAST_EXPIRY_RECONCILE_REQUIRED"
+    assert evidence.admissions[1].expiry_observation == "TERMINAL"
+    assert evidence.admissions[1].released_at is not None
+    assert row.configuration_generation == 2

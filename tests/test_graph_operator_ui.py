@@ -203,3 +203,47 @@ def test_completed_graph_future_cannot_render_after_switch_to_connector(tmp_path
     assert len(scheduled) == 1
     assert scheduled[0][0] == 0
     assert scheduled[0][1].__name__ == "_refresh_monitor_async"
+
+
+# --- WO134: graph evidence exact-link reuse (RED-first) ---
+
+
+def test_wo134_graph_evidence_links_exact_match_only(tmp_path) -> None:
+    from a_conductor.desktop_ui import provider_graph_evidence_links
+    from a_conductor.graph.operator_view import read_graph_operator_snapshot
+
+    service = _service(tmp_path)
+    database = service.settings_store.database_path
+    expected_a = GraphDispatchKey("graph-1", "run-1", "a").job_id
+    SQLiteJobStore(database).create_job(
+        job_id=expected_a, work_order_ref="wo:wo134-graph", project_id="project-1"
+    )
+    snapshot = read_graph_operator_snapshot(database, "graph-1", "run-1")
+    assert snapshot.runtime_evidence is True
+
+    links = provider_graph_evidence_links(snapshot, "graph-1", "run-1")
+    expected_b = GraphDispatchKey("graph-1", "run-1", "b").job_id
+    assert links == {expected_a: "a", expected_b: "b"}
+
+    # near-miss run id derives different job ids -> no false link
+    wrong = GraphDispatchKey("graph-1", "run-2", "a").job_id
+    assert wrong not in links
+
+    # missing explicit context never links
+    assert provider_graph_evidence_links(snapshot, "graph-1", None) == {}
+    assert provider_graph_evidence_links(snapshot, None, "run-1") == {}
+    assert provider_graph_evidence_links(None, "graph-1", "run-1") == {}
+
+
+def test_wo134_graph_evidence_requires_durable_runtime_evidence(tmp_path) -> None:
+    from a_conductor.desktop_ui import provider_graph_evidence_links
+    from a_conductor.graph.operator_view import read_graph_operator_snapshot
+
+    service = _service(tmp_path)
+    snapshot = read_graph_operator_snapshot(
+        service.settings_store.database_path, "graph-1", "run-without-durable-jobs"
+    )
+    assert snapshot.runtime_evidence is False
+    assert provider_graph_evidence_links(
+        snapshot, "graph-1", "run-without-durable-jobs"
+    ) == {}

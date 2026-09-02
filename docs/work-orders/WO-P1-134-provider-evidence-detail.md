@@ -3,7 +3,7 @@
 Date: 2026-09-02
 Owner: GLM-5.3 MAX / ZCode Goal + `$a-loop`
 Integrator / merge authority: GPT-5.6 Sol
-Status: CLAIMED / RED_FIRST_PENDING
+Status: GPT_ACCEPTED / READY_FOR_FREEZE
 Priority: P1 AHA-7B
 Base: `b6d50921035ae6ec6d32b6c05b3f723530b8c68d`; WO128 post-main CI `33591789871` GREEN.
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo134-provider-evidence-detail`
@@ -84,3 +84,14 @@ Use a dedicated typed evidence-target-unavailable code for provider disappearanc
 
 ## Completion
 Commit/push exact SHA → draft PR → remote diff audit → exact-head CI → re-audit → merge expected SHA → fetch/reconcile → post-main CI/Frozen Setup E2E → Defect Memory + CURRENT-WORK/handoff/AGENT_TASKS checkpoint → next ready node.
+
+
+## GPT integrator checkpoint — 2026-09-02
+- GLM Goal implementation result: `READY_FOR_INTEGRATOR_REVIEW`, P0/P1/P2=0; GPT independently re-read the dirty scope and authority boundaries.
+- GPT deep-bug loop found and repaired additional evidence-boundary defects before freeze: stale/pending graph-context mixing, graph links without durable runtime evidence, bare Graph Monitor invalidation on partially initialized app state, and stale open-evidence data after successful provider actions. Deterministic RED tests remain in the suite.
+- Final focused control/UI/i18n/graph matrix: 93 passed. Broader provider-impact matrix before final docs: 253 passed / 1 local Tcl-Tk environment skip.
+- Final CI-equivalent Windows topology on the exact finalized working tree: GUI 281 passed; local-instance 23 passed; supervised-command 11 passed; all 117 remaining core test files passed in isolated pytest processes; smoke `A-CONDUCTOR_SMOKE_OK`.
+- One-process full pytest hit the repository-documented Windows `0x80000003` GC/faulthandler topology issue; no product assertion was used from that run. Split-process topology matches `.github/workflows/ci.yml` and is the local authority.
+- Strict UTF-8 scope scan: 12/12 files; U+FFFD=0; triple-question-mark mojibake markers=0; production secret-pattern scan=0; `git diff --check` PASS; main-delta overlap from WO134 base to current `origin/main` = 0 files.
+- Bounded docs finalization repaired the pre-existing Thai §4.5 mojibake paragraph and documents `Evidence...` truth in TH/EN plus CHANGELOG.
+- Candidate is accepted for freeze. Next: compile/diff/cached-scope audit → commit/push exact SHA → fresh exact-Git-blob independent review → PR/CI.
