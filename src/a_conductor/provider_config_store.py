@@ -25,6 +25,9 @@ from .provider_configuration import (
 
 _MAX_PROVIDER_GENERATION = (1 << 63) - 1
 
+_DEFAULT_ADMISSION_LIST_LIMIT = 50
+_MAX_ADMISSION_LIST_LIMIT = 200
+
 
 class ProviderConfigStoreError(RuntimeError):
     def __init__(self, code: str) -> None:
@@ -774,18 +777,28 @@ class SQLiteProviderConfigStore:
 
     @classmethod
     def _admission_from_row(cls, row: sqlite3.Row) -> ProviderAdmissionRecord:
+        try:
+            admission_id = cls._require_admission_text(row["admission_id"], "admission_id")
+            provider_id = cls._require_admission_text(row["provider_id"], "provider_id")
+            execution_id = cls._require_admission_text(row["execution_id"], "execution_id")
+            batch_id = cls._require_admission_text(row["batch_id"], "batch_id")
+            status = row["status"]
+            if not isinstance(status, str) or status not in {"ACTIVE", "RELEASED", "EXPIRED"}:
+                raise ValueError("status is outside the persisted admission vocabulary")
+        except (IndexError, TypeError, ValueError) as exc:
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_RECORD_INVALID") from exc
         acquired_at = cls._parse_time(row["acquired_at"])
         expires_at = cls._parse_time(row["expires_at"])
         if acquired_at is None or expires_at is None:
             raise ProviderConfigStoreError("PROVIDER_ADMISSION_RECORD_INVALID")
         return ProviderAdmissionRecord(
-            admission_id=row["admission_id"],
-            provider_id=row["provider_id"],
-            execution_id=row["execution_id"],
-            batch_id=row["batch_id"],
+            admission_id=admission_id,
+            provider_id=provider_id,
+            execution_id=execution_id,
+            batch_id=batch_id,
             acquired_at=acquired_at,
             expires_at=expires_at,
-            status=row["status"],
+            status=status,
             released_at=cls._parse_time(row["released_at"]),
             reconciled_at=cls._parse_time(row["reconciled_at"]),
             configuration_generation=cls._stored_generation(
@@ -1061,3 +1074,87 @@ class SQLiteProviderConfigStore:
             except sqlite3.Error as exc:
                 connection.rollback()
                 raise ProviderConfigStoreError("CONFIG_STORE_WRITE_FAILED") from exc
+
+    def list_provider_admissions(
+        self,
+        *,
+        provider_id: str | None = None,
+        limit: int = _DEFAULT_ADMISSION_LIST_LIMIT,
+    ) -> tuple[ProviderAdmissionRecord, ...]:
+        """Read recent admissions coherently without schema/write side effects.
+
+        Newest-first by exact decoded instant and ``admission_id``. A
+        connection-local deterministic SQLite function canonicalizes every
+        accepted aware ISO-8601 timestamp to fixed-width UTC microseconds before
+        LIMIT is applied. This avoids lexical, timezone-offset, and SQLite
+        ``julianday`` precision loss at sub-millisecond boundaries. Malformed or
+        naive timestamps receive a high sentinel so they enter the bounded
+        result and the shared decoder fails typed instead of hiding corruption.
+        An optional provider filter and bounded limit are validated before
+        filesystem access. Reads use the WO125 query-only connection with one
+        SELECT and no bootstrap or write side effects.
+        """
+        if (
+            isinstance(limit, bool)
+            or not isinstance(limit, int)
+            or not 1 <= limit <= _MAX_ADMISSION_LIST_LIMIT
+        ):
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_LIST_LIMIT_INVALID")
+        if provider_id is not None and (
+            not isinstance(provider_id, str) or not provider_id.strip()
+        ):
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_FILTER_INVALID")
+        with self._connect_read_only() as connection:
+            try:
+                connection.execute("BEGIN")
+                def _admission_time_key(value: str | None) -> str:
+                    try:
+                        parsed = self._parse_time(value)
+                    except ProviderConfigStoreError:
+                        return "\uffff"
+                    if parsed is None:
+                        return "\uffff"
+                    return (
+                        f"{parsed.year:04d}-{parsed.month:02d}-{parsed.day:02d}T"
+                        f"{parsed.hour:02d}:{parsed.minute:02d}:{parsed.second:02d}."
+                        f"{parsed.microsecond:06d}Z"
+                    )
+
+                connection.create_function(
+                    "a_conductor_admission_time_key",
+                    1,
+                    _admission_time_key,
+                    deterministic=True,
+                )
+                order_clause = (
+                    "ORDER BY a_conductor_admission_time_key(acquired_at) DESC, "
+                    "admission_id COLLATE BINARY DESC LIMIT ?"
+                )
+                if provider_id is None:
+                    rows = connection.execute(
+                        "SELECT * FROM provider_admissions " + order_clause,
+                        (limit,),
+                    ).fetchall()
+                else:
+                    rows = connection.execute(
+                        "SELECT * FROM provider_admissions WHERE provider_id = ? "
+                        + order_clause,
+                        (provider_id.strip(), limit),
+                    ).fetchall()
+                connection.commit()
+            except sqlite3.Error as exc:
+                connection.rollback()
+                code = (
+                    "CONFIG_STORE_SCHEMA_UNAVAILABLE"
+                    if "no such table" in str(exc).casefold()
+                    else "CONFIG_STORE_READ_FAILED"
+                )
+                raise ProviderConfigStoreError(code) from exc
+        records = tuple(self._admission_from_row(row) for row in rows)
+        return tuple(
+            sorted(
+                records,
+                key=lambda record: (record.acquired_at, record.admission_id),
+                reverse=True,
+            )
+        )
