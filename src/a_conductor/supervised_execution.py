@@ -366,21 +366,37 @@ class SupervisedExecutionService:
             )
 
         child_pid: int | None = None
-        try:
-            for attempt in range(self._startup_poll_attempts):
+        pid_read_error: SupervisedExecutionError | None = None
+        # The supervisor may be publishing child.pid while Windows briefly makes
+        # the file unreadable. Re-observe only this read; never repeat start().
+        for attempt in range(self._startup_poll_attempts):
+            try:
                 child_pid = _read_pid_file(spec.pid_path.parent / "child.pid")
-                if child_pid is not None:
-                    break
-                if attempt + 1 < self._startup_poll_attempts and self._startup_poll_delay_seconds:
-                    self._sleep_fn(self._startup_poll_delay_seconds)
-        except SupervisedExecutionError as exc:
-            recovered = self._mark_recovery(starting, code=exc.code)
+                pid_read_error = None
+            except SupervisedExecutionError as exc:
+                if exc.code != "CHILD_PID_READ_FAILED":
+                    recovered = self._mark_recovery(starting, code=exc.code)
+                    return SupervisedLaunchOutcome(
+                        record=recovered,
+                        supervisor_pid=mutation.pid,
+                        child_pid=None,
+                        recovery_required=True,
+                        error_code=exc.code,
+                    )
+                pid_read_error = exc
+            if child_pid is not None:
+                break
+            if attempt + 1 < self._startup_poll_attempts and self._startup_poll_delay_seconds:
+                self._sleep_fn(self._startup_poll_delay_seconds)
+
+        if child_pid is None and pid_read_error is not None:
+            recovered = self._mark_recovery(starting, code=pid_read_error.code)
             return SupervisedLaunchOutcome(
                 record=recovered,
                 supervisor_pid=mutation.pid,
                 child_pid=None,
                 recovery_required=True,
-                error_code=exc.code,
+                error_code=pid_read_error.code,
             )
 
         if child_pid is None:
