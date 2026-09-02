@@ -1,27 +1,25 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO142 actual-state reconciliation)
+Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO143 provider Evidence selection-sync remediation)
 
-## Actual-state reconciliation ? 2026-09-03
+## Actual-state reconciliation — 2026-09-03
 
-**Actual GitHub/repo/runtime evidence supersedes the older frontier text below. WO137+WO138 reliability is released; current execution is WO142 continuity publication followed by post-merge WO134-R1 remediation, while P0 WO096 remains authorization-gated.**
+**Actual GitHub/repo/runtime evidence supersedes older frontier text below. WO137+WO138 reliability and WO142 continuity are released; current dependency blocker is WO143, while WO140 runs independently under GLM and P0 WO096 remains authorization-gated.**
 
-- `origin/main = a28638c0e5d865803b985f08eb1d1db9c9d7dfc1`: WO138 / PR #190 and WO137 / PR #191 are merged together on main. WO138 post-main CI `33656956130` is SUCCESS; WO137 post-main CI `33668895786` is SUCCESS across Windows full suites + packaging/Frozen Setup and Ubuntu/macOS.
-- WO137 / PR #191 reviewed exact head `814b2924ad78511b7dd55cd107d61cc6be0b6bee` is RELEASED. Independent `wo137-glm-final-review-003` task SHA `a6613f631981ae93db5a8ae6c2a468b4a8ef98dfd2a6345486d8619e5fe079a6` PASS P0/P1/P2=0 was independently identity-verified by GPT including 3/3 Git-blob pins. Expected-head merge = `a28638c0e5d865803b985f08eb1d1db9c9d7dfc1`; post-main CI `33668895786` SUCCESS.
-- WO134 / PR #188 historically merged as `626bfc67e010d989a31b2a1d1d7e04f00fa938cc`, but **WO134-R1 is CHANGES_REQUIRED** after GPT reproduced the provider Evidence dialog selection bug on current-main-equivalent with a real Tk `<<ComboboxSelected>>` event. Durable finding: PR #188 `issuecomment-5513700777`. Historical green CI does not close this post-merge defect.
-- PR #183 / WO132 AiPASS remains DRAFT/BLOCKED. Latest observed head `085a06cf6d2d1d1e4a3b5085ad51ad3444a8b337` refreshes MIT/source evidence, but dependency still waits for accepted WO134 remediation and the official AiPASS service-authorization gate remains fail-closed absent explicit written authorization.
-- WO140 residual owned-process diagnosis is GLM-5.3 MAX / ZCode Goal + a-loop owned on fix/wo-p2-140-owned-process-stop-residual at transfer head 01789c55889d668d94827a7f6179b1d74b2541fe; task wo140-glm-long-diagnosis-001 SHA-256 935f6fbc62d7dd7ba0e67302290caad56ffd29d1ace45f0a09e0e8e17852c7ec. It runs in parallel; GPT must not overlap owned_process.py / test_owned_process.py.
-- WO096 remains the P0 v0.7.0 release blocker. Live Worker5 v0.0.13 hosted-after-TTL proof is `AUTHORIZATION_REQUIRED`; no Worker/tunnel maintenance was performed by WO142.
-- Cross-repo A-Wiki Review Bridge remains blocked at its prior candidate until a new GLM SHA closes RB-A1..A7; the future A-Conductor review-result mailbox adapter must wait for that accepted dependency.
+- `origin/main = 0c437d7ab2ca6bdff99bf926bf93aa8483b25384`: WO142 / PR #192 merged from exact head `fa7cc50eeb0154818802c3e718cef8c79e97a98c`; exact-head CI `33670542967` and post-main CI `33671850522` are SUCCESS including Windows full split suites + Portable/Setup/Frozen E2E and Ubuntu/macOS.
+- WO143 / WO134-R1 remediation is claimed in `A:\GitHub\A-Wiki-Conductor-wo143-provider-evidence-selection-sync`, branch `fix/wo-p1-143-provider-evidence-selection-sync`, claim SHA `ef317e7980142b2408c1493ab0dc79610e12d600`. RED real-event tests failed exactly 3/3 before repair; current GREEN evidence includes focused 3/3, full panel 31/31, related UI/control/i18n/graph 145/145, CI-topology GUI 281/281, 10 repeated focused iterations, and async real-Tk 20-switch E2E PASS. Candidate is pre-freeze; independent review is still required.
+- WO140 residual owned-process diagnosis remains GLM-5.3 MAX / ZCode Goal + `$a-loop` owned on `fix/wo-p2-140-owned-process-stop-residual` at transfer head `01789c55889d668d94827a7f6179b1d74b2541fe`; task SHA-256 `935f6fbc62d7dd7ba0e67302290caad56ffd29d1ace45f0a09e0e8e17852c7ec`. GPT must not overlap `owned_process.py` / `test_owned_process.py`.
+- PR #183 / WO132 AiPASS remains DRAFT/BLOCKED behind accepted WO143 and a fresh current Terms/upstream audit. AIP-4 live automation remains fail-closed without explicit authorization.
+- WO096 remains the P0 v0.7.0 release blocker. No live Worker/tunnel Start/Stop/upgrade/rebind authority is granted; stable v0.7.0 must not publish.
+- Cross-repo A-Wiki Review Bridge remains dependency-gated; do not create a parallel review authority.
 
 ### Immediate execution order
 
-1. Finalize WO142 deterministic docs audit, exact-head commit/push, docs-only PR, CI/re-audit/expected-head merge and post-main proof.
-2. Enter a fresh bounded WO134-R1 remediation worktree from then-current main; accept only a new remediation SHA that closes real provider-switch completed-cache, pending-future and rapid-switch E2E under fresh independent review.
-3. Keep PR #183 dependency-blocked until WO134-R1 is accepted; then re-audit its latest exact SHA/current upstream/current Terms before merge.
-4. Continue Review Bridge polling; after acceptance, shape only the thin mailbox adapter through approved `conductor/` boundaries.
-5. Poll/consume WO140 GLM result without overlapping its mutable scope; independently review any exact candidate before PR/CI.
-6. Keep WO096 live maintenance stopped at the explicit authorization gate.
+1. Finish WO143 final scope/UTF-8/secret/diff audit, freeze exact SHA, and obtain independent exact-SHA review before PR/CI/merge/post-main.
+2. Poll/consume WO140 GLM result independently; any repair/new SHA requires GPT adjudication before PR/CI.
+3. After WO143 acceptance, re-audit PR #183 latest exact SHA against then-current main, current AiPASS upstream/license/source evidence, and current official Terms; merge only if still truthful.
+4. Then shape AIP-1 typed external-automation authorization boundary from then-current main; keep all live AiPASS traffic blocked.
+5. Continue Review Bridge dependency polling and keep WO096 at its explicit maintenance gate.
 
 ## Current phase
 

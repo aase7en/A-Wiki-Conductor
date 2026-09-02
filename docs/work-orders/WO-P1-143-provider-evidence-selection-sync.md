@@ -76,3 +76,15 @@ Existing `tests/test_models_agents_panel.py` baseline: `27 passed, 1 local Tcl/T
 ## Next safe action
 
 Add deterministic real-event regression tests and prove they fail against the untouched production code. Only then implement the smallest selection-sync seam.
+## Implementation checkpoint — 2026-09-03
+
+- Claim commit/push: `ef317e7980142b2408c1493ab0dc79610e12d600`; worktree remained clean before RED mutation.
+- RED: `python -m pytest tests/test_models_agents_panel.py -q -k wo143` produced exactly `3 failed, 28 deselected`; failures matched completed-cache stale owner, missing pending replacement fetch, and rapid-switch missing requests.
+- Repair changes only the real provider combobox event seam in `desktop_ui.py`; existing evidence read/store/graph authority is unchanged.
+- GREEN focused: `3 passed, 28 deselected`.
+- Full panel file: `30 passed, 1 local Tcl/Tk installation skip`.
+- Related desktop-control/UI/i18n/graph matrix: `145 passed`.
+- Repeated real event set: 10/10 iterations PASS.
+- Defect Lesson #49 records the helper-path-vs-real-event testing failure mode.
+
+Next: exact CI-topology GUI/related regression, compile/diff/UTF-8/secret/scope audit, realistic E2E/self-review, then freeze commit/push and prepare exact Git-blob independent review after the active WO140 GLM mailbox lane releases.

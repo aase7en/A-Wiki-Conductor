@@ -525,6 +525,118 @@ def test_wo134_evidence_dialog_singleton_reuse_and_provider_switch(root) -> None
     assert "Second" in _evidence_text(app)
 
 
+def test_wo143_real_provider_selection_event_refreshes_completed_evidence(root) -> None:
+    rows = (
+        make_row(configuration_generation=7),
+        make_row(provider_id="glm-secondary", display_name="Second", configuration_generation=3),
+    )
+    service = EvidenceFakeService(rows)
+    app = make_app(root, service, ImmediateExecutor())
+    app.open_preferences()
+    root.update()
+
+    dialog = _open_evidence(root, app)
+    assert service.evidence_calls == ["glm-primary"]
+
+    app._models_agents_provider_combo.current(1)
+    app._models_agents_provider_combo.event_generate("<<ComboboxSelected>>")
+    root.update()
+
+    assert app._provider_evidence_window is dialog
+    assert app._provider_evidence_provider_id == "glm-secondary"
+    assert dialog.title() == "Evidence - glm-secondary"
+    assert service.evidence_calls == ["glm-primary", "glm-secondary"]
+    assert "Second" in _evidence_text(app)
+
+
+def test_wo143_real_provider_selection_event_replaces_pending_evidence_fetch(root) -> None:
+    rows = (
+        make_row(configuration_generation=7),
+        make_row(provider_id="glm-secondary", display_name="Second", configuration_generation=3),
+    )
+    service = EvidenceFakeService(rows)
+    executor = ControlledExecutor()
+    app = make_app(root, service, executor)
+    app.open_preferences()
+    root.update()
+    executor.futures[0].set_result(service.provider_operator_rows())
+    app._poll_models_agents_future(app._models_agents_request_id, executor.futures[0])
+    root.update()
+
+    app._open_selected_provider_evidence()
+    primary_future = executor.futures[1]
+    primary_request_id = app._provider_evidence_request_id
+
+    app._models_agents_provider_combo.current(1)
+    app._models_agents_provider_combo.event_generate("<<ComboboxSelected>>")
+    root.update()
+
+    assert len(executor.calls) == 3
+    assert app._provider_evidence_provider_id == "glm-secondary"
+    assert app._provider_evidence_pending is True
+    secondary_request_id = app._provider_evidence_request_id
+
+    primary_future.set_result(executor.calls[1][0]())
+    app._poll_provider_evidence_future(primary_request_id, "glm-primary", primary_future)
+    root.update()
+    assert app._provider_evidence_provider_id == "glm-secondary"
+    assert "Second" not in _evidence_text(app)
+
+    secondary_future = executor.futures[2]
+    secondary_future.set_result(executor.calls[2][0]())
+    app._poll_provider_evidence_future(secondary_request_id, "glm-secondary", secondary_future)
+    root.update()
+    assert service.evidence_calls == ["glm-primary", "glm-secondary"]
+    assert "Second" in _evidence_text(app)
+
+
+def test_wo143_rapid_provider_selection_event_keeps_latest_request_authoritative(root) -> None:
+    rows = (
+        make_row(configuration_generation=7),
+        make_row(provider_id="glm-secondary", display_name="Second", configuration_generation=3),
+    )
+    service = EvidenceFakeService(rows)
+    executor = ControlledExecutor()
+    app = make_app(root, service, executor)
+    app.open_preferences()
+    root.update()
+    executor.futures[0].set_result(service.provider_operator_rows())
+    app._poll_models_agents_future(app._models_agents_request_id, executor.futures[0])
+    root.update()
+
+    app._open_selected_provider_evidence()
+    app._models_agents_provider_combo.current(1)
+    app._models_agents_provider_combo.event_generate("<<ComboboxSelected>>")
+    root.update()
+    secondary_request_id = app._provider_evidence_request_id
+
+    app._models_agents_provider_combo.current(0)
+    app._models_agents_provider_combo.event_generate("<<ComboboxSelected>>")
+    root.update()
+
+    assert len(executor.calls) == 4
+    assert app._provider_evidence_provider_id == "glm-primary"
+    latest_request_id = app._provider_evidence_request_id
+
+    secondary_future = executor.futures[2]
+    secondary_future.set_result(executor.calls[2][0]())
+    app._poll_provider_evidence_future(secondary_request_id, "glm-secondary", secondary_future)
+    root.update()
+    assert app._provider_evidence_provider_id == "glm-primary"
+
+    latest_future = executor.futures[3]
+    latest_future.set_result(executor.calls[3][0]())
+    app._poll_provider_evidence_future(latest_request_id, "glm-primary", latest_future)
+    root.update()
+    assert "GLM 5.3" in _evidence_text(app)
+    assert "Second" not in _evidence_text(app)
+
+    calls_after_latest = len(executor.calls)
+    app._models_agents_provider_combo.event_generate("<<ComboboxSelected>>")
+    root.update()
+    assert len(executor.calls) == calls_after_latest
+
+
 def test_wo134_evidence_single_flight_background_only(root) -> None:
     service = EvidenceFakeService((make_row(),))
     executor = ControlledExecutor()
