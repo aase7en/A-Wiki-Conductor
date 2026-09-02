@@ -4,7 +4,7 @@ Date: 2026-09-02
 Owner: GPT-5.6 Sol MAX (integrator/reviewer after GLM execution handback)
 GLM executor: GLM-5.3 MAX / ZCode Goal + $a-loop
 Integrator / merge authority: GPT-5.6 Sol MAX
-Status: GPT_REVIEW_REPAIR / PRE_FREEZE
+Status: READY_FOR_INDEPENDENT_REREVIEW
 Priority: P2 reliability residual
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo140-owned-process-stop-residual`
@@ -127,3 +127,14 @@ Next safe action: GPT-5.6 Sol Max independent exact-SHA adversarial review → P
 - Smallest repair: use `collections.deque(maxlen=64)` during polling and serialize `list(sequence)`. Control flow, termination count, ownership classification, result states/reason codes and exact-PID cleanup are unchanged.
 - After repair: `tests/test_owned_process.py` = 35 passed; owned-process + observer/runtime matrix = 81 passed; related supervision/lifecycle matrix = 74 passed; real Windows `test_real_dummy_process_start_idempotent_stop` = 12/12 repeated PASS.
 - GLM candidate `a1b0b3d2...` is therefore historical executor evidence, not merge authority. Next action: final scope/UTF-8/secret/diff audit, freeze a new exact SHA, then PR/CI and post-main verification.
+
+## GPT final freeze audit — 2026-09-03
+
+- GPT repair head before this docs-only freeze checkpoint: `2238259e264991e1249d1439b206dc9b252c3051`; local == remote and worktree clean.
+- Exact repaired-code verification: `tests/test_owned_process.py` **35/35 PASS**; owned-process + observer/runtime matrix **81/81 PASS**; related supervised/lifecycle matrix **74/74 PASS**; additional fresh real-Windows lifecycle stress **15/15 PASS**.
+- Final gates: `git diff --check origin/main...HEAD` PASS; compileall PASS; strict UTF-8/U+FFFD check PASS for all four feature-scope blobs; diff secret-pattern scan **0 hits**; feature scope exactly `COLLAB.md`, WO140, `src/a_conductor/owned_process.py`, and `tests/test_owned_process.py`.
+- Stable repaired code pins before docs-only freeze: `src/a_conductor/owned_process.py` SHA-256 `78dbf0547caa04529d34715a79b2fbe4d2be82f7beca8459c5b01b78e07ca17a`; `tests/test_owned_process.py` SHA-256 `aa0fbd02a088be327733be65ae4defb56866f69eb3233f95a9160e55885262ae`.
+- GPT authored the bounded-deque repair after finding the P2 in GLM executor output. Therefore executor PASS at `a1b0b3d2...` is historical evidence only; a fresh independent exact-SHA rereview of the post-freeze candidate is mandatory before PR/CI/merge.
+
+Next safe action: create a detached read-only rereview worktree/task pinned to the final post-checkpoint SHA; do not open a PR until that independent result has P0/P1/P2=0.
+
