@@ -2,7 +2,7 @@
 
 Date: 2026-09-02
 Owner: GPT-5.6 Sol integrator
-Status: ROADMAP_CAPTURED / LOCAL_VERIFIED / PR_PENDING
+Status: ROADMAP_CAPTURED / DRAFT_PR_183
 Priority: P1 planning; must not preempt WO096, WO127, or WO128
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo132-aipass-roadmap`
@@ -58,3 +58,4 @@ The protected root checkout is stale and dirty and remains untouched. This work 
 - Reference repo inspected at `12b87bfd968db1e0d112eb8bd99b6481b3d7aaf7`; no root `LICENSE` file was visible, so this work copies no source code.
 - Verification: UTF-8 reads PASS; `git diff --check` PASS; changed scope is docs/roadmap only.
 - Root checkout remained untouched; no `src/**`, tests, live Worker/tunnel, credential, WO127, WO128, or WO096 mutation occurred.
+- Draft PR: #183 (docs: add AiPASS provider integration roadmap); merge remains gated by normal review/CI discipline.
