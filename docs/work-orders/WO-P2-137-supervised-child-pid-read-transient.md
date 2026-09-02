@@ -46,3 +46,13 @@ Treat a transient `OSError` while reading startup `child.pid` as bounded not-rea
 5. Existing fast/nonzero/timeout/attach lifecycle tests remain green.
 6. Repeated real-Windows supervised suite and the formerly failing cases are stable.
 7. Focused + related + compileall + diff/UTF-8/scope audit pass before exact-SHA review/CI.
+
+## Implementation checkpoint — 2026-09-02
+
+Root cause was proven from post-main CI stderr SHA-256: the failed result maps exactly to `SUPERVISED_LAUNCH_FAILED:CHILD_PID_READ_FAILED`. A single transient Windows `OSError` while reading `child.pid` was converted to permanent recovery immediately despite an existing startup poll budget.
+
+RED: two deterministic tests proved transient and persistent read failures were each attempted only once. Repair retries only typed `CHILD_PID_READ_FAILED` inside the existing startup poll budget; `controller.start()` remains exactly-once, malformed PID remains immediate typed recovery, and persistent read failure remains fail-closed after budget exhaustion. A guard also proves read-error then absent file returns the existing STARTING truth instead of stale recovery.
+
+Evidence on the repaired working tree: focused supervised execution/runner 29 passed; related supervisor/recovery/owned-process matrix 94 passed; real Windows supervised-command suite stress 20 iterations x 11 tests = 220/220 passed. Before repair the same suite reproduced locally at iteration 5. One-process full-suite runs still hit documented environment/topology issues: optional GPU/Tk dependency failures in one interpreter and the known Windows 0x80000003 breakpoint when Tk/subprocess-heavy suites share a process. Hosted split-process CI remains the full-suite authority.
+
+Next gate: static/scope audit -> commit/push exact SHA -> independent GLM-5.3 MAX long adversarial review -> repair if needed -> PR/exact-head CI/merge/post-main proof. GPT remains integration and merge authority.

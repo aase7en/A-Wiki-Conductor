@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import a_conductor.supervised_execution as supervised_execution_module
 from a_conductor.execution_record import (
     ExecutionProcessState,
     TransportState,
@@ -173,6 +174,91 @@ def test_launch_persists_record_uses_owned_supervisor_and_returns_without_collec
     assert secret_arg.encode() not in (tmp_path / "executions.sqlite").read_bytes()
     assert store.get("exec-001") == outcome.record
     assert not (tmp_path / "runs/exec-001/result.json").exists()
+
+
+def test_launch_retries_transient_child_pid_read_failure_without_relaunch(tmp_path: Path, monkeypatch) -> None:
+    controller = FakeController(child_pid=2222)
+    service, _ = make_service(tmp_path, controller=controller)
+    original = supervised_execution_module._read_pid_file
+    calls = 0
+
+    def flaky_read(path: Path):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise SupervisedExecutionError("CHILD_PID_READ_FAILED", recovery_required=True)
+        return original(path)
+
+    monkeypatch.setattr(supervised_execution_module, "_read_pid_file", flaky_read)
+    outcome = service.launch(make_plan(tmp_path))
+
+    assert calls == 2
+    assert len(controller.start_calls) == 1
+    assert outcome.recovery_required is False
+    assert outcome.child_pid == 2222
+    assert outcome.record.execution_state is ExecutionProcessState.RUNNING
+
+
+def test_launch_persistent_child_pid_read_failure_exhausts_budget_without_relaunch(tmp_path: Path, monkeypatch) -> None:
+    controller = FakeController(child_pid=2222)
+    service, _ = make_service(tmp_path, controller=controller)
+    calls = 0
+
+    def failing_read(_path: Path):
+        nonlocal calls
+        calls += 1
+        raise SupervisedExecutionError("CHILD_PID_READ_FAILED", recovery_required=True)
+
+    monkeypatch.setattr(supervised_execution_module, "_read_pid_file", failing_read)
+    outcome = service.launch(make_plan(tmp_path))
+
+    assert calls == 2
+    assert len(controller.start_calls) == 1
+    assert outcome.recovery_required is True
+    assert outcome.error_code == "CHILD_PID_READ_FAILED"
+    assert outcome.record.execution_state is ExecutionProcessState.RECOVERY_REQUIRED
+
+
+def test_launch_transient_read_then_absent_child_pid_preserves_starting(tmp_path: Path, monkeypatch) -> None:
+    controller = FakeController(child_pid=None)
+    service, _ = make_service(tmp_path, controller=controller)
+    calls = 0
+
+    def transient_then_absent(_path: Path):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise SupervisedExecutionError("CHILD_PID_READ_FAILED", recovery_required=True)
+        return None
+
+    monkeypatch.setattr(supervised_execution_module, "_read_pid_file", transient_then_absent)
+    outcome = service.launch(make_plan(tmp_path))
+
+    assert calls == 2
+    assert len(controller.start_calls) == 1
+    assert outcome.recovery_required is False
+    assert outcome.child_pid is None
+    assert outcome.record.execution_state is ExecutionProcessState.STARTING
+
+
+def test_launch_invalid_child_pid_remains_immediate_recovery(tmp_path: Path, monkeypatch) -> None:
+    controller = FakeController(child_pid=2222)
+    service, _ = make_service(tmp_path, controller=controller)
+    calls = 0
+
+    def invalid_read(_path: Path):
+        nonlocal calls
+        calls += 1
+        raise SupervisedExecutionError("CHILD_PID_INVALID", recovery_required=True)
+
+    monkeypatch.setattr(supervised_execution_module, "_read_pid_file", invalid_read)
+    outcome = service.launch(make_plan(tmp_path))
+
+    assert calls == 1
+    assert len(controller.start_calls) == 1
+    assert outcome.recovery_required is True
+    assert outcome.error_code == "CHILD_PID_INVALID"
+    assert outcome.record.execution_state is ExecutionProcessState.RECOVERY_REQUIRED
 
 
 def test_launch_rejects_shell_intermediary_before_controller(tmp_path: Path) -> None:
