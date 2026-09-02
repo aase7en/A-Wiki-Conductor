@@ -1,25 +1,26 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO143 provider Evidence selection-sync remediation)
+Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO144 post-reliability actual-state closeout)
 
 ## Actual-state reconciliation — 2026-09-03
 
-**Actual GitHub/repo/runtime evidence supersedes older frontier text below. WO137+WO138 reliability and WO142 continuity are released; current dependency blocker is WO143, while WO140 runs independently under GLM and P0 WO096 remains authorization-gated.**
+**Actual GitHub/repo/runtime evidence supersedes older frontier text below. WO140 and WO143 are released; PR #183/AiPASS is the next bounded product-planning lane, while WO096 remains the independent P0 operational release gate.**
 
-- `origin/main = 0c437d7ab2ca6bdff99bf926bf93aa8483b25384`: WO142 / PR #192 merged from exact head `fa7cc50eeb0154818802c3e718cef8c79e97a98c`; exact-head CI `33670542967` and post-main CI `33671850522` are SUCCESS including Windows full split suites + Portable/Setup/Frozen E2E and Ubuntu/macOS.
-- WO143 / WO134-R1 remediation is claimed in `A:\GitHub\A-Wiki-Conductor-wo143-provider-evidence-selection-sync`, branch `fix/wo-p1-143-provider-evidence-selection-sync`, claim SHA `ef317e7980142b2408c1493ab0dc79610e12d600`. RED real-event tests failed exactly 3/3 before repair; current GREEN evidence includes focused 3/3, full panel 31/31, related UI/control/i18n/graph 145/145, CI-topology GUI 281/281, 10 repeated focused iterations, and async real-Tk 20-switch E2E PASS. Candidate is pre-freeze; independent review is still required.
-- WO140 residual owned-process diagnosis remains GLM-5.3 MAX / ZCode Goal + `$a-loop` owned on `fix/wo-p2-140-owned-process-stop-residual` at transfer head `01789c55889d668d94827a7f6179b1d74b2541fe`; task SHA-256 `935f6fbc62d7dd7ba0e67302290caad56ffd29d1ace45f0a09e0e8e17852c7ec`. GPT must not overlap `owned_process.py` / `test_owned_process.py`.
-- PR #183 / WO132 AiPASS remains DRAFT/BLOCKED behind accepted WO143 and a fresh current Terms/upstream audit. AIP-4 live automation remains fail-closed without explicit authorization.
-- WO096 remains the P0 v0.7.0 release blocker. No live Worker/tunnel Start/Stop/upgrade/rebind authority is granted; stable v0.7.0 must not publish.
-- Cross-repo A-Wiki Review Bridge remains dependency-gated; do not create a parallel review authority.
+- `origin/main = 272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`: WO143 / PR #194 merged from exact reviewed head `720d0328c02f7068d34cc3a5ae31418a9b1ede4b`.
+- WO140 / PR #193 is RELEASED. GLM diagnosis candidate was independently reviewed by GPT; GPT found and repaired one P2 bounded-memory defect with `deque(maxlen=64)`. Final head `2238259e264991e1249d1439b206dc9b252c3051`; exact-head CI `33678036552` SUCCESS; merge `787e9be2f108ce3f323bebc20127eb03c2958bfc`; post-main CI `33679432865` SUCCESS.
+- WO143 / WO134-R1 is RELEASED. Original reviewed feature head `9c41da768713e3ad1c6d948f420b1110ea49afe6`; after WO140 main drift, merge-composed exact head `720d0328c02f7068d34cc3a5ae31418a9b1ede4b` preserved all 7 reviewed feature blobs byte-identically. GLM exact-head rereview PASS P0/P1/P2/P3=0; exact-head CI `33680012267` SUCCESS; PR #194 merged as `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`; post-main CI `33681115738` SUCCESS, completing the release verification gate.
+- PR #183 / WO132 AiPASS is next after WO144. Draft head `085a06cf6d2d1d1e4a3b5085ad51ad3444a8b337`; prior CI `33662059825` green. Fresh audit confirms `niawjunior/aipass-bridge@b1b8bab757d91c266410d58f505aeeaa218da102` and MIT LICENSE blob `17ddd0b8425c523d029917a1027d7e40a0916100`; official AiPASS Terms effective 2026-08-19 still require written authorization for bot/unapproved-software or direct API/API-key/token use outside the defined UI. Live automation remains fail-closed. Current PR #183 conflict is confined to `COLLAB.md`; roadmap text needs WO143/current-main reconciliation.
+- WO096 remains the P0 v0.7.0 operational release blocker. Read-only fleet refresh: 18011/18013/18014 listening; 18012/18015 stopped; shared live tunnel-client remains 0.0.11. Stopped does not mean available: Worker2 retains pharmacy cycle `PO-2026-08-26-001` / `RECONCILE_RECEIPT`; Worker5 retains sunday-estate worktree/branch continuity. No live maintenance authority is inferred.
+- A-Wiki Review Bridge remains dependency-blocked. Candidate `45d1c236602b0b96dcaa4f795ebf06d27a35c123` / PR #50 is Draft/UNSTABLE with Loop Gate and Core CI failures. Do not implement a parallel ReviewBus or bind to Draft API as accepted authority.
+- Protected root checkout remains stale/dirty; use isolated worktrees only.
 
 ### Immediate execution order
 
-1. Finish WO143 final scope/UTF-8/secret/diff audit, freeze exact SHA, and obtain independent exact-SHA review before PR/CI/merge/post-main.
-2. Poll/consume WO140 GLM result independently; any repair/new SHA requires GPT adjudication before PR/CI.
-3. After WO143 acceptance, re-audit PR #183 latest exact SHA against then-current main, current AiPASS upstream/license/source evidence, and current official Terms; merge only if still truthful.
-4. Then shape AIP-1 typed external-automation authorization boundary from then-current main; keep all live AiPASS traffic blocked.
-5. Continue Review Bridge dependency polling and keep WO096 at its explicit maintenance gate.
+1. Complete WO143 post-main CI `33681115738`; finalize WO144 docs-only reconciliation, exact-head CI, expected-head merge and post-main verification.
+2. Reconcile PR #183 against current main, preserve coordination history, refresh WO143 dependency wording and current AiPASS evidence, then require new exact-head CI.
+3. After PR #183 acceptance, claim AIP-1 from current main; reuse existing provider/task authorization and add only a bounded fail-closed service-authorization seam. Keep live AiPASS blocked.
+4. Continue read-only A-Wiki Review Bridge polling; implement adapter only after accepted exact A-Wiki SHA/API.
+5. Keep WO096 fail-closed until explicit maintenance authority exists; do not publish stable v0.7.0.
 
 ## Current phase
 
