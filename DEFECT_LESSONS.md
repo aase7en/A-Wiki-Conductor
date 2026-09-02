@@ -701,3 +701,31 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** evidence is historical authority, not a box to fill after the fact. A later test, review, or green main branch may reduce product risk, but it does not prove a prior gate happened. Preserve process deviations so future automation can distinguish "verified later" from "verified before merge."
 
 **Verify:** PR #180 merged at main SHA `af7a933fe27d2a3e3f29360abf9214df1e5478c5`; post-main CI `33545560617` was green, while the prepared retrospective GLM result file did not exist. The closeout therefore recorded the missed gate instead of claiming GLM PASS.
+
+---
+
+## #47: Bounded evidence reads must order by canonical instants before LIMIT (2026-09-02)
+
+**Symptom:** WO128 adversarial probes showed that recent-admission queries could return the wrong bounded window when timestamps differed by fractional seconds, timezone offset text, or sub-millisecond instants. Lexical ISO text and SQLite `julianday()` precision were both insufficient for exact newest-first evidence.
+
+**Root cause:** LIMIT was being asked to choose rows before the persisted timestamp had been converted into the same semantic time domain used by the decoder. A deterministic SQL order can still be wrong when textual representation or numeric conversion loses instant authority.
+
+**Fix:** register a connection-local deterministic SQLite function that decodes accepted aware timestamps through the canonical Python parser and emits fixed-width UTC microseconds before ORDER/LIMIT. Malformed or naive order-key timestamps receive a high sentinel so they enter the bounded window and fail typed instead of hiding beyond LIMIT. Same-instant ties use deterministic binary `admission_id` only after instant equality is established.
+
+**Lesson:** a bounded evidence read is only truthful if semantic normalization happens before row selection. Do not apply `ORDER BY ... LIMIT` to timestamp text, coarse numeric conversions, or other storage encodings whose order is not identical to the domain order. Corrupt order keys must fail closed inside the selected window, not disappear behind it.
+
+**Verify:** WO128 RED/GREEN covered whole/fractional seconds, timezone offsets, sub-millisecond ordering, same-instant offset ties, malformed/naive timestamps, bounded LIMIT behavior, and one-SELECT/read-only constraints. Repaired WO128 head `a9f4fe6a92367650e7c22caaa9df9e8c148cf3ad` passed focused `26`, provider/store/runtime `150`, broader execution/parallel `167`, exact-head CI `33586307363`, independent GLM review PASS, and post-main CI after PR #184 merge.
+
+---
+
+## #48: Persisted evidence decoders must revalidate writer invariants (2026-09-02)
+
+**Symptom:** WO128 direct persistence probes inserted blank/whitespace `admission_id`, `provider_id`, `execution_id`, or `batch_id`, and an invalid persisted status. `list_provider_admissions()` decoded those rows as ordinary evidence instead of failing with a typed corruption error.
+
+**Root cause:** the read decoder trusted constraints normally enforced by the writer/domain constructor. Persisted state can still be corrupted by old versions, manual SQL, disabled constraints, partial migrations, or external tooling; writer validation is not a durable read-time guarantee.
+
+**Fix:** the canonical admission row decoder now revalidates all persisted identity fields with the same nonblank text contract and validates status against the exact durable enum set. Violations map to typed `PROVIDER_ADMISSION_RECORD_INVALID`; generation corruption keeps its more specific existing typed code. Projection code remains a consumer of store-typed records rather than duplicating persistence validation.
+
+**Lesson:** durable storage is an untrusted boundary even when every current writer is strict. Any field whose invariant affects identity, ownership, authorization, ordering, or execution evidence must be revalidated while decoding persisted rows, with corruption mapped to stable typed errors. Database constraints and constructor checks are defense layers, not substitutes for read-boundary validation.
+
+**Verify:** tracked RED added four blank-identity cases plus invalid persisted status and produced 5 expected failures before repair. After repair those 5 cases passed; focused WO128 = `26 passed`, provider/store/runtime impact = `150 passed`, broader execution/parallel consumers = `167 passed`, and the eventual merged tree remained green through exact-head and post-main CI.
