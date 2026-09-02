@@ -1,10 +1,31 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-02 (GPT-5.6 Sol - WO127/WO128 core released; WO134 active)
+Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO142 actual-state reconciliation)
+
+## Actual-state reconciliation ? 2026-09-03
+
+**Actual GitHub/repo/runtime evidence supersedes the older frontier text below. WO137+WO138 reliability is released; current execution is WO142 continuity publication followed by post-merge WO134-R1 remediation, while P0 WO096 remains authorization-gated.**
+
+- `origin/main = a28638c0e5d865803b985f08eb1d1db9c9d7dfc1`: WO138 / PR #190 and WO137 / PR #191 are merged together on main. WO138 post-main CI `33656956130` is SUCCESS; WO137 post-main CI `33668895786` is SUCCESS across Windows full suites + packaging/Frozen Setup and Ubuntu/macOS.
+- WO137 / PR #191 reviewed exact head `814b2924ad78511b7dd55cd107d61cc6be0b6bee` is RELEASED. Independent `wo137-glm-final-review-003` task SHA `a6613f631981ae93db5a8ae6c2a468b4a8ef98dfd2a6345486d8619e5fe079a6` PASS P0/P1/P2=0 was independently identity-verified by GPT including 3/3 Git-blob pins. Expected-head merge = `a28638c0e5d865803b985f08eb1d1db9c9d7dfc1`; post-main CI `33668895786` SUCCESS.
+- WO134 / PR #188 historically merged as `626bfc67e010d989a31b2a1d1d7e04f00fa938cc`, but **WO134-R1 is CHANGES_REQUIRED** after GPT reproduced the provider Evidence dialog selection bug on current-main-equivalent with a real Tk `<<ComboboxSelected>>` event. Durable finding: PR #188 `issuecomment-5513700777`. Historical green CI does not close this post-merge defect.
+- PR #183 / WO132 AiPASS remains DRAFT/BLOCKED. Latest observed head `085a06cf6d2d1d1e4a3b5085ad51ad3444a8b337` refreshes MIT/source evidence, but dependency still waits for accepted WO134 remediation and the official AiPASS service-authorization gate remains fail-closed absent explicit written authorization.
+- WO140 residual owned-process diagnosis is GLM-5.3 MAX / ZCode Goal + a-loop owned on fix/wo-p2-140-owned-process-stop-residual at transfer head 01789c55889d668d94827a7f6179b1d74b2541fe; task wo140-glm-long-diagnosis-001 SHA-256 935f6fbc62d7dd7ba0e67302290caad56ffd29d1ace45f0a09e0e8e17852c7ec. It runs in parallel; GPT must not overlap owned_process.py / test_owned_process.py.
+- WO096 remains the P0 v0.7.0 release blocker. Live Worker5 v0.0.13 hosted-after-TTL proof is `AUTHORIZATION_REQUIRED`; no Worker/tunnel maintenance was performed by WO142.
+- Cross-repo A-Wiki Review Bridge remains blocked at its prior candidate until a new GLM SHA closes RB-A1..A7; the future A-Conductor review-result mailbox adapter must wait for that accepted dependency.
+
+### Immediate execution order
+
+1. Finalize WO142 deterministic docs audit, exact-head commit/push, docs-only PR, CI/re-audit/expected-head merge and post-main proof.
+2. Enter a fresh bounded WO134-R1 remediation worktree from then-current main; accept only a new remediation SHA that closes real provider-switch completed-cache, pending-future and rapid-switch E2E under fresh independent review.
+3. Keep PR #183 dependency-blocked until WO134-R1 is accepted; then re-audit its latest exact SHA/current upstream/current Terms before merge.
+4. Continue Review Bridge polling; after acceptance, shape only the thin mailbox adapter through approved `conductor/` boundaries.
+5. Poll/consume WO140 GLM result without overlapping its mutable scope; independently review any exact candidate before PR/CI.
+6. Keep WO096 live maintenance stopped at the explicit authorization gate.
 
 ## Current phase
 
-**AHA-7 Models & Agents remains the active product frontier. WO127 provider Edit/Disable/Enable/Test and WO128 T0+T1 selection/fallback evidence core are accepted, independently reviewed at their final exact heads, merged, and post-main green. WO134 T2-T4 Provider Evidence Detail is the active product lane under GLM-5.3 MAX / ZCode Goal ownership with GPT as integrator/merge authority. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
+**AHA-7 Models & Agents remains the active product frontier. WO127 and WO128 are accepted/released. WO134 historical T2-T4 evidence detail merged, but post-merge WO134-R1 is now the active dependency-blocking product defect and requires a fresh bounded remediation SHA; historical review/CI cannot close it. GPT remains integrator/merge authority. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
 
 Accepted / active frontier state:
 - PR #174 / WO124 reviewed exact head `be97d313c748fe5fcce0e57ecf5dc304b863e230`; GLM review002 PASS with P0/P1/P2 = 0; task SHA-256 `abe750450dda09dbf423681811efd0110ecfa26914cc55828b133db48a9fcf2b`; exact-head CI `33497483113` attempt 2 SUCCESS; merged as `c1cfbe780e76d3a64fb692e91dde851824bd8033`; post-main CI `33504441646` attempt 2 SUCCESS.
