@@ -1073,17 +1073,16 @@ class SQLiteProviderConfigStore:
     ) -> tuple[ProviderAdmissionRecord, ...]:
         """Read recent admissions coherently without schema/write side effects.
 
-        Newest-first by ``(acquired_at, admission_id)``. The store writer emits
-        UTC ISO-8601 text with either no fractional part or six microsecond
-        digits, so the SQL ordering key normalizes the no-fraction form before
-        LIMIT is applied; this prevents lexical ordering from dropping a newer
-        fractional-second row at the limit boundary. ``julianday`` is the
-        primary chronological key so valid timezone-offset rows are ordered by
-        their actual instant before the bounded LIMIT. Malformed timestamps are
-        prioritized so the shared decoder fails typed instead of returning
-        partial evidence. An optional provider filter and bounded limit are
-        validated before filesystem access. Reads use the WO125 query-only
-        connection with one SELECT and no bootstrap or write side effects.
+        Newest-first by exact decoded instant and ``admission_id``. A
+        connection-local deterministic SQLite function canonicalizes every
+        accepted aware ISO-8601 timestamp to fixed-width UTC microseconds before
+        LIMIT is applied. This avoids lexical, timezone-offset, and SQLite
+        ``julianday`` precision loss at sub-millisecond boundaries. Malformed or
+        naive timestamps receive a high sentinel so they enter the bounded
+        result and the shared decoder fails typed instead of hiding corruption.
+        An optional provider filter and bounded limit are validated before
+        filesystem access. Reads use the WO125 query-only connection with one
+        SELECT and no bootstrap or write side effects.
         """
         if (
             isinstance(limit, bool)
@@ -1098,13 +1097,27 @@ class SQLiteProviderConfigStore:
         with self._connect_read_only() as connection:
             try:
                 connection.execute("BEGIN")
+                def _admission_time_key(value: str | None) -> str:
+                    try:
+                        parsed = self._parse_time(value)
+                    except ProviderConfigStoreError:
+                        return "\uffff"
+                    if parsed is None:
+                        return "\uffff"
+                    return (
+                        f"{parsed.year:04d}-{parsed.month:02d}-{parsed.day:02d}T"
+                        f"{parsed.hour:02d}:{parsed.minute:02d}:{parsed.second:02d}."
+                        f"{parsed.microsecond:06d}Z"
+                    )
+
+                connection.create_function(
+                    "a_conductor_admission_time_key",
+                    1,
+                    _admission_time_key,
+                    deterministic=True,
+                )
                 order_clause = (
-                    "ORDER BY (julianday(acquired_at) IS NULL) DESC, "
-                    "julianday(acquired_at) DESC, "
-                    "CASE WHEN substr(acquired_at, -1) = 'Z' "
-                    "AND instr(acquired_at, '.') = 0 "
-                    "THEN substr(acquired_at, 1, length(acquired_at) - 1) || '.000000Z' "
-                    "ELSE acquired_at END DESC, "
+                    "ORDER BY a_conductor_admission_time_key(acquired_at) DESC, "
                     "admission_id COLLATE BINARY DESC LIMIT ?"
                 )
                 if provider_id is None:

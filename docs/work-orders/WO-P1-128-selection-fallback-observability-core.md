@@ -63,7 +63,7 @@ Long-goal execution should use the installed `$a-loop` workflow for decompose ->
 
 - GLM handoff: `READY_FOR_INTEGRATOR_REVIEW`; GPT independently reran the focused and impacted matrices.
 - GPT found and repaired a merge-blocking newest-first LIMIT defect: ISO timestamp text is not chronologically sortable when canonical rows mix whole and fractional seconds, and valid timezone offsets can also cross the LIMIT boundary incorrectly.
-- Final ordering uses `julianday(acquired_at)` as the primary instant key, normalized canonical text as deterministic sub-millisecond tie evidence, and admission ID as the stable final tie-break; malformed timestamps are prioritized to the typed decoder rather than hidden beyond LIMIT.
-- Added explicit fractional-second and timezone-offset boundary regressions.
-- Final local verification: WO128 focused 20 passed; provider impact 97 passed; broader admission/execution consumers 87 passed; compileall/diff-check/strict UTF-8/scope audit PASS.
+- Final ordering uses a connection-local deterministic SQLite function backed by the existing typed datetime decoder to canonicalize accepted timestamps to fixed-width UTC microseconds before LIMIT, with admission ID as the stable exact-instant tie-break; malformed/naive timestamps are prioritized to the typed decoder rather than hidden beyond LIMIT. This supersedes an intermediate `julianday` repair after GPT proved SQLite precision loss at sub-millisecond offset boundaries.
+- Added explicit fractional-second, timezone-offset, and sub-millisecond offset boundary regressions.
+- Final local verification: WO128 focused 21 passed; provider impact 97 passed; broader admission/execution consumers 87 passed; compileall/diff-check/strict UTF-8/scope audit PASS.
 - GPT remains commit/PR/merge authority; exact-head CI and independent post-freeze review remain required before merge.

@@ -1746,3 +1746,36 @@ def test_wo128_list_admissions_timezone_offset_limit_boundary_is_chronological(t
     assert len(rows) == 50
     assert rows[0].admission_id == "offset-newest"
     assert rows[0].acquired_at == datetime(2026, 9, 2, 11, 0, 0, 500000, tzinfo=timezone.utc)
+
+
+def test_wo128_list_admissions_submillisecond_offset_limit_boundary_is_exact(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "submillisecond-offset-limit.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    with sqlite3.connect(store.database_path) as connection:
+        for index in range(50):
+            connection.execute(
+                "INSERT INTO provider_admissions("
+                "admission_id, provider_id, execution_id, batch_id, acquired_at, expires_at, status, configuration_generation"
+                ") VALUES(?, ?, ?, ?, ?, ?, 'RELEASED', 1)",
+                (
+                    f"older-subms-{index:02d}", profile.provider_id, f"exec-subms-{index}", f"batch-subms-{index}",
+                    "2026-09-02T11:00:00.000100Z", "2026-09-02T12:00:00Z",
+                ),
+            )
+        connection.execute(
+            "INSERT INTO provider_admissions("
+            "admission_id, provider_id, execution_id, batch_id, acquired_at, expires_at, status, configuration_generation"
+            ") VALUES(?, ?, ?, ?, ?, ?, 'RELEASED', 1)",
+            (
+                "offset-subms-newest", profile.provider_id, "exec-subms-newest", "batch-subms-newest",
+                "2026-09-02T04:00:00.000200-07:00", "2026-09-02T05:00:00-07:00",
+            ),
+        )
+        connection.commit()
+
+    rows = store.list_provider_admissions(provider_id=profile.provider_id, limit=50)
+
+    assert len(rows) == 50
+    assert rows[0].admission_id == "offset-subms-newest"
+    assert rows[0].acquired_at == datetime(2026, 9, 2, 11, 0, 0, 200, tzinfo=timezone.utc)
