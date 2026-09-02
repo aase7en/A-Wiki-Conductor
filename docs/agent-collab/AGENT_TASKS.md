@@ -3,6 +3,20 @@
 This file is a compact lane index, not the project source of truth.
 Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work order → runtime/Git evidence.
 
+## Active lane checkpoint - 2026-09-03
+
+| Lane | Owner / provider | Task | Mutable scope | Status |
+|---|---|---|---|---|
+| SSoT reconciliation | GPT-5.6 Sol MAX | WO-P3-142 | `CURRENT-WORK.md`, `handoff.md`, this lane index, WO142 only | VERIFIED / READY_FOR_DOCS_PR |
+| Released complementary reliability | GPT integrator + GLM independent reviewer | WO-P2-137 / PR #191 | exact 3-file WO137 repair composed with released WO138 | REVIEW `814b2924...` PASS P0/P1/P2=0 / MERGED `a28638c0` / POST_MAIN `33668895786` GREEN |
+| Released complementary reliability | GPT-5.6 Sol MAX | WO-P2-138 / PR #190 | supervised command polling boundary | MERGED `edac38d9` / POST_MAIN `33656956130` GREEN |
+| Provider evidence post-merge remediation | GLM-5.3 MAX / ZCode Goal; GPT integrator | WO134-R1 successor lane | provider Evidence selection-sync UI/control/focused tests only; fresh worktree required | CHANGES_REQUIRED / R1 REPRODUCED / NEXT DEPENDENCY-BLOCKING LANE |
+| Residual owned-process diagnosis | GLM-5.3 MAX / ZCode Goal + a-loop; GPT integrator | WO-P2-140 | owned_process.py, test_owned_process.py, WO140 after causal RED | GLM_OWNED 01789c55 / TASK_SHA 935f6fbc... / GPT_NO_OVERLAP |
+| Separate AiPASS roadmap | separate PR #183 lane | WO-P1-132 | PR-declared docs scope only | DRAFT `085a06cf` / WO134_DEPENDENCY_BLOCKED / TERMS_AUTH_FAIL_CLOSED |
+| P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | AUTHORIZATION_REQUIRED / NO LIVE MUTATION |
+
+Cross-repo dependency: A-Wiki Review Bridge remains blocked at its prior candidate until a new exact SHA closes RB-A1..A7. A-Conductor must not create a parallel ReviewBus/lifecycle authority or implement the mailbox adapter before that dependency is accepted.
+
 ## Active lane checkpoint - 2026-09-02
 
 | Lane | Owner / provider | Task | Mutable scope | Status |

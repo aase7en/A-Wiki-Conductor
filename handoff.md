@@ -1,10 +1,25 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-02 - WO127/WO128 core released; WO134 active; WO136 closeout
+Last updated: 2026-09-03 - WO142 final actual-state reconciliation after WO137 release
+
+## Current actual handoff ? 2026-09-03
+
+- Remote main: `a28638c0e5d865803b985f08eb1d1db9c9d7dfc1`; WO138 / PR #190 remains accepted with post-main `33656956130` SUCCESS; WO137 / PR #191 is now merged on top.
+- WO137 / PR #191: reviewed exact head `814b2924ad78511b7dd55cd107d61cc6be0b6bee`; exact-head CI `33660767850` SUCCESS; independent `wo137-glm-final-review-003` task SHA `a6613f631981ae93db5a8ae6c2a468b4a8ef98dfd2a6345486d8619e5fe079a6` PASS P0/P1/P2=0 with GPT-verified detached identity + 3/3 Git-blob pins. Expected-head merge commit `a28638c0e5d865803b985f08eb1d1db9c9d7dfc1`; post-main CI `33668895786` SUCCESS including Windows full suites/Portable/Setup/Frozen E2E + Ubuntu/macOS. WO137 is RELEASED together with complementary WO138.
+- WO134: PR #188 is historical merged evidence only; post-merge `WO134-R1` is reproducible and **CHANGES_REQUIRED**. Completed-cache provider switch leaves old provider/cache; pending switch invalidates the old request but submits no replacement fetch. GLM retains remediation scope; GPT must not overlap it.
+- PR #183 / WO132: DRAFT, latest observed head `085a06cf6d2d1d1e4a3b5085ad51ad3444a8b337`; latest lane refresh includes MIT evidence. Still blocked behind WO134 acceptance + current AiPASS Terms/authorization re-audit.
+- WO140: GLM-owned diagnosis transfer head 01789c55889d668d94827a7f6179b1d74b2541fe; task wo140-glm-long-diagnosis-001 SHA 935f6fbc62d7dd7ba0e67302290caad56ffd29d1ace45f0a09e0e8e17852c7ec. Sequential 25/25 and concurrent 40/40 probes were green before handoff; no speculative fix is authorized. GPT does not overlap its owned-process source/test scope.
+- WO096: P0 operational release gate; Worker5/Worker2 currently have no listeners in the last read-only observation, while the running A-Sunday Conductor binary predates current CR-2/CR-4 recovery source. v0.0.13 live hosted-after-TTL proof remains `AUTHORIZATION_REQUIRED`.
+- A-Wiki Review Bridge: no accepted new SHA yet; RB-A1..A7 remain blockers. Do not implement the cross-repo adapter until Review Bridge is accepted.
+- Primary root checkout remains stale/dirty/protected; use isolated worktrees only.
+
+### One next safe action
+
+Finalize WO142 deterministic docs/scope/UTF-8/secret audit, commit/push/open its docs-only PR, require exact-head CI, re-audit and expected-head merge/post-main proof. Then create the fresh bounded WO134-R1 remediation lane from then-current main; do not merge PR #183 before that dependency is accepted.
 
 ## Current objective
 
-Keep actual merged WO127/WO128/WO135 evidence durable, finish the bounded WO136 SSoT closeout, then preserve the active WO134 GLM-owned Provider Evidence Detail lane for exact-head GPT adjudication. Keep WO096 blocked without live maintenance authority and keep PR #183/AiPASS in its separate reconcile lane.
+Keep the merged WO137+WO138 reliability state durable, publish WO142 reconciliation, then repair the reproduced WO134-R1 provider-selection evidence defect in a fresh bounded lane with GLM implementation and GPT adjudication. Keep WO096 blocked without live maintenance authority and PR #183/AiPASS dependency-blocked until WO134-R1 is accepted.
 
 ## Repository / release identity
 
