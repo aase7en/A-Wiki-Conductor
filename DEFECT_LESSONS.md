@@ -673,3 +673,31 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** deterministic tests must clean up process-global state. Focused green is insufficient when a test mutates language, environment, registries, caches, clocks, or other shared singletons.
 
 **Verify:** ordered impact matrix reproduced the pollution as 1 failure / 117 passes; after repair the same matrix is **118/118 PASS**.
+
+---
+
+## #45: Opaque IDs are not chronology when millisecond timestamps tie (2026-09-02)
+
+**Symptom:** WO131 reproduced an execution deduplication flake when two equivalent records had the same millisecond `created_at`; ordering by `created_at DESC, execution_id DESC` could select the older row solely because its opaque ID was lexically larger.
+
+**Root cause:** the query used a deterministic but semantically false tie-break. Millisecond timestamps can collide, and an opaque execution identifier carries identity, not insertion chronology.
+
+**Fix:** keep `created_at DESC` as the primary order and use same-table SQLite insertion chronology (`rowid DESC`) as the bounded tie-break where no durable monotonic sequence exists. The regression forces identical timestamps and deliberately reverses lexical execution-ID order so an ID-based repair cannot pass accidentally.
+
+**Lesson:** deterministic ordering is not automatically truthful ordering. When selecting "newest," every tie-break must itself carry chronology authority; never substitute lexical order of UUIDs, hashes, opaque IDs, or names.
+
+**Verify:** WO131 exact feature commit `554c2b1003d12cd211712393ecf61c034b1a8003` passed its focused/stress checks and exact-head CI before PR #180 merged. If future migrations, table rebuilds, copies, or other storage operations can make `rowid` unsuitable as durable chronology, introduce an explicit monotonic sequence instead of extending this workaround.
+
+---
+
+## #46: Missing review evidence must stay missing after an external merge (2026-09-02)
+
+**Symptom:** PR #180 was merged externally before the planned independent GLM review result existed. Product evidence later remained strong, including green post-main CI, but the intended pre-merge review gate had not actually occurred.
+
+**Root cause:** merge authority and review workflow were separate control surfaces. Once the PR merged outside the planned integrator sequence, later success could verify product state but could not retroactively create the missing review event.
+
+**Fix:** reconcile durable SSoT to the facts: mark the change merged/post-main-green, explicitly record that the independent-review gate was missed, and continue from actual repository state. Never create, backdate, or paraphrase a nonexistent PASS result to make the process appear complete.
+
+**Lesson:** evidence is historical authority, not a box to fill after the fact. A later test, review, or green main branch may reduce product risk, but it does not prove a prior gate happened. Preserve process deviations so future automation can distinguish "verified later" from "verified before merge."
+
+**Verify:** PR #180 merged at main SHA `af7a933fe27d2a3e3f29360abf9214df1e5478c5`; post-main CI `33545560617` was green, while the prepared retrospective GLM result file did not exist. The closeout therefore recorded the missed gate instead of claiming GLM PASS.
