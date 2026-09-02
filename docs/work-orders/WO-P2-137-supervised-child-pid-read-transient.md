@@ -2,7 +2,7 @@
 
 Date: 2026-09-02
 Owner: GPT-5.6 Sol integrator
-Status: CLAIMED / RED_FIRST_PENDING
+Status: INTEGRATED_CURRENT_MAIN / READY_FOR_EXACT_SHA_REVIEW
 Priority: P2 reliability; blocks WO136 post-main closeout
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo137-supervised-unknown-observation`
@@ -56,3 +56,11 @@ RED: two deterministic tests proved transient and persistent read failures were 
 Evidence on the repaired working tree: focused supervised execution/runner 29 passed; related supervisor/recovery/owned-process matrix 94 passed; real Windows supervised-command suite stress 20 iterations x 11 tests = 220/220 passed. Before repair the same suite reproduced locally at iteration 5. One-process full-suite runs still hit documented environment/topology issues: optional GPU/Tk dependency failures in one interpreter and the known Windows 0x80000003 breakpoint when Tk/subprocess-heavy suites share a process. Hosted split-process CI remains the full-suite authority.
 
 Next gate: static/scope audit -> commit/push exact SHA -> independent GLM-5.3 MAX long adversarial review -> repair if needed -> PR/exact-head CI/merge/post-main proof. GPT remains integration and merge authority.
+
+## Current-main integration checkpoint — 2026-09-03
+
+- Reconciled cleanly with origin/main@edac38d913a04d3ab2c7a95e726f77608abe49d0, which already contains WO134 / PR #188 and complementary WO138 / PR #190.
+- Feature-vs-main scope remains exactly this work order + src/a_conductor/supervised_execution.py + 	ests/test_supervised_execution.py; main/feature mutable-path overlap before merge was zero.
+- Combined exact-tree reliability matrix: 129/129 PASS across supervised execution/runner, owned-process, recovery, job-control/job-execution, native execution and Claude durable backend tests.
+- Historical real-Windows regression 	est_supervised_mode_routes_pytest_through_durable_execution: 20/20 PASS on the integrated WO137+WO138 tree.
+- Next gate: compile/diff/UTF-8/secret/scope audit -> commit/push exact integrated SHA -> independent read-only long adversarial review -> PR/CI/merge/post-main.
