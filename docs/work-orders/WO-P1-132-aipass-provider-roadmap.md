@@ -91,3 +91,12 @@ The protected root checkout is stale and dirty and remains untouched. This work 
 - PR #189 scope was checked and is disjoint (`CURRENT-WORK.md`, `handoff.md`, `AGENT_TASKS.md`, WO139); this lane still mutates only its four roadmap/coordination docs.
 - No `src/**`, tests, CURRENT-WORK, handoff, credentials, cookies, tokens, Workers/tunnels, or live AiPASS traffic were mutated.
 - Next: strict UTF-8/diff/scope/secret audit -> commit/push exact docs head -> remote diff audit -> exact-head CI -> merge expected SHA -> post-main verify -> claim AIP-1 from then-current main.
+
+## Current-main final gate — 2026-09-03
+- Merged authoritative `origin/main@edac38d913a04d3ab2c7a95e726f77608abe49d0`; that main includes released WO134 / PR #188 and WO138 / PR #190.
+- Post-merge PR delta remains exactly four docs/coordination files: `COLLAB.md`, `PROJECT-PLAN.md`, this roadmap, and this work order.
+- Current reference evidence at this gate: `niawjunior/aipass-bridge@b1b8bab757d91c266410d58f505aeeaa218da102`; GitHub reports MIT and root `LICENSE` blob `17ddd0b8425c523d029917a1027d7e40a0916100`.
+- License permission remains separate from AiPASS service authorization; live automation stays `BLOCKED_EXTERNAL` under current Terms §3.4 absent the required supported/explicit authorization evidence.
+- AIP-1 remains `READY_FOR_CLAIM` only after this roadmap PR passes exact-head CI/merge/post-main and a fresh claim/reuse gate.
+- PR #189 is a historical rollover snapshot and is not used as current truth without reconciliation.
+- Next: final UTF-8/diff/scope audit → commit/push exact head → remote PR audit/CI → expected-SHA merge → post-main verify → release WO132 claim.
