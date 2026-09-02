@@ -10,7 +10,7 @@ Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO142 actual-state reconciliation)
 - WO137 / PR #191 reviewed exact head `814b2924ad78511b7dd55cd107d61cc6be0b6bee` is RELEASED. Independent `wo137-glm-final-review-003` task SHA `a6613f631981ae93db5a8ae6c2a468b4a8ef98dfd2a6345486d8619e5fe079a6` PASS P0/P1/P2=0 was independently identity-verified by GPT including 3/3 Git-blob pins. Expected-head merge = `a28638c0e5d865803b985f08eb1d1db9c9d7dfc1`; post-main CI `33668895786` SUCCESS.
 - WO134 / PR #188 historically merged as `626bfc67e010d989a31b2a1d1d7e04f00fa938cc`, but **WO134-R1 is CHANGES_REQUIRED** after GPT reproduced the provider Evidence dialog selection bug on current-main-equivalent with a real Tk `<<ComboboxSelected>>` event. Durable finding: PR #188 `issuecomment-5513700777`. Historical green CI does not close this post-merge defect.
 - PR #183 / WO132 AiPASS remains DRAFT/BLOCKED. Latest observed head `085a06cf6d2d1d1e4a3b5085ad51ad3444a8b337` refreshes MIT/source evidence, but dependency still waits for accepted WO134 remediation and the official AiPASS service-authorization gate remains fail-closed absent explicit written authorization.
-- WO140 residual owned-process diagnosis is claimed on `fix/wo-p2-140-owned-process-stop-residual` at `8546c0b8eb9fd2fc0e9fe0b382c0e4938325cd24`; no source/test fix is yet justified. Keep it diagnosis-only and do not let it displace the higher dependency-blocking WO134-R1 remediation.
+- WO140 residual owned-process diagnosis is GLM-5.3 MAX / ZCode Goal + a-loop owned on fix/wo-p2-140-owned-process-stop-residual at transfer head 01789c55889d668d94827a7f6179b1d74b2541fe; task wo140-glm-long-diagnosis-001 SHA-256 935f6fbc62d7dd7ba0e67302290caad56ffd29d1ace45f0a09e0e8e17852c7ec. It runs in parallel; GPT must not overlap owned_process.py / test_owned_process.py.
 - WO096 remains the P0 v0.7.0 release blocker. Live Worker5 v0.0.13 hosted-after-TTL proof is `AUTHORIZATION_REQUIRED`; no Worker/tunnel maintenance was performed by WO142.
 - Cross-repo A-Wiki Review Bridge remains blocked at its prior candidate until a new GLM SHA closes RB-A1..A7; the future A-Conductor review-result mailbox adapter must wait for that accepted dependency.
 
@@ -20,7 +20,7 @@ Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO142 actual-state reconciliation)
 2. Enter a fresh bounded WO134-R1 remediation worktree from then-current main; accept only a new remediation SHA that closes real provider-switch completed-cache, pending-future and rapid-switch E2E under fresh independent review.
 3. Keep PR #183 dependency-blocked until WO134-R1 is accepted; then re-audit its latest exact SHA/current upstream/current Terms before merge.
 4. Continue Review Bridge polling; after acceptance, shape only the thin mailbox adapter through approved `conductor/` boundaries.
-5. Resume WO140 long diagnosis after the dependency-blocking WO134-R1 lane no longer needs the GLM slot.
+5. Poll/consume WO140 GLM result without overlapping its mutable scope; independently review any exact candidate before PR/CI.
 6. Keep WO096 live maintenance stopped at the explicit authorization gate.
 
 ## Current phase
