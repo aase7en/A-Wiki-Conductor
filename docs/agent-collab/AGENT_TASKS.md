@@ -3,6 +3,20 @@
 This file is a compact lane index, not the project source of truth.
 Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work order → runtime/Git evidence.
 
+## Active lane checkpoint - 2026-09-03
+
+| Lane | Owner / provider | Task | Mutable scope | Status |
+|---|---|---|---|---|
+| SSoT reconciliation | GPT-5.6 Sol MAX | WO-P3-142 | `CURRENT-WORK.md`, `handoff.md`, this lane index, WO142 only | CLAIMED / WAITING_WO137_FINAL_REVIEW |
+| Reliability release gate | GPT integrator + GLM independent reviewer | WO-P2-137 / PR #191 | WO137 exact 3-file feature; reviewer is read-only | HEAD `814b2924...` / CI `33660767850` GREEN / GLM_FINAL_REVIEW_PENDING |
+| Released complementary reliability | GPT-5.6 Sol MAX | WO-P2-138 / PR #190 | supervised command polling boundary | MERGED `edac38d9` / POST_MAIN `33656956130` GREEN |
+| Provider evidence post-merge remediation | GLM-5.3 MAX / ZCode Goal; GPT integrator | WO-P1-134 | existing provider Evidence UI/control/i18n/focused tests | CHANGES_REQUIRED / R1 REPRODUCED / DO_NOT_OVERLAP |
+| Residual owned-process diagnosis | GPT claim, GLM long-goal queued | WO-P2-140 | `owned_process.py`, `test_owned_process.py`, WO140 after causal RED | CLAIMED `8546c0b8` / DIAGNOSIS_ONLY / NO_SPECULATIVE_FIX |
+| Separate AiPASS roadmap | separate PR #183 lane | WO-P1-132 | PR-declared docs scope only | DRAFT `085a06cf` / WO134_DEPENDENCY_BLOCKED / TERMS_AUTH_FAIL_CLOSED |
+| P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL v0.0.13 proof | AUTHORIZATION_REQUIRED / NO LIVE MUTATION |
+
+Cross-repo dependency: A-Wiki Review Bridge remains blocked at its prior candidate until a new exact SHA closes RB-A1..A7. A-Conductor must not create a parallel ReviewBus/lifecycle authority or implement the mailbox adapter before that dependency is accepted.
+
 ## Active lane checkpoint - 2026-09-02
 
 | Lane | Owner / provider | Task | Mutable scope | Status |
