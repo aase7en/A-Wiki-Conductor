@@ -525,3 +525,109 @@ def test_result_available_wins_even_if_inspection_crosses_deadline(tmp_path: Pat
 
     assert observed is inspection
     assert timed_out is False
+
+
+class _SequenceSupervised:
+    def __init__(self, inspections):
+        self.inspections = list(inspections)
+        self.inspect_calls = 0
+    def launch(self, plan):
+        raise AssertionError("launch not expected")
+    def inspect(self, execution_id):
+        index = min(self.inspect_calls, len(self.inspections) - 1)
+        self.inspect_calls += 1
+        return self.inspections[index]
+    def collect(self, execution_id, *, expected_version):
+        raise AssertionError("collect not expected")
+
+
+def _unknown_inspection(execution_id="exec-unknown"):
+    return SupervisedInspection(
+        execution_id=execution_id,
+        state=SupervisedInspectionState.RECOVERY_REQUIRED,
+        supervisor_pid=123,
+        result_available=False,
+        recovery_required=True,
+        error_code="SUPERVISOR_OWNERSHIP_UNKNOWN",
+    )
+
+
+def test_wo138_unknown_reobserves_until_result_available(tmp_path: Path) -> None:
+    unknown = _unknown_inspection("exec-u-result")
+    result = SupervisedInspection(
+        execution_id="exec-u-result", state=SupervisedInspectionState.RESULT_AVAILABLE,
+        supervisor_pid=None, result_available=True, recovery_required=False,
+    )
+    supervised = _SequenceSupervised([unknown, result])
+    clock = _FakeClock(); sleeps=[]
+    repo = tmp_path / "repo-u-result"; repo.mkdir()
+    runner = SupervisedCommandRunner(
+        scope=build_scope(repo),
+        execution_store=SQLiteExecutionStore(tmp_path / "u-result.sqlite"),
+        supervised=supervised, poll_interval_seconds=0.02,
+        sleep_fn=lambda seconds: sleeps.append(seconds), clock_fn=clock, **IDENTITY,
+    )
+    Path(runner._repo_root).mkdir(parents=True, exist_ok=True)
+    observed, timed_out = runner._poll_until_resolved("exec-u-result", timeout_seconds=10)
+    assert observed is result
+    assert timed_out is False
+    assert supervised.inspect_calls == 2
+    assert sleeps == [0.02]
+
+
+def test_wo138_persistent_unknown_is_bounded_to_three_observations(tmp_path: Path) -> None:
+    unknown = _unknown_inspection("exec-u-persist")
+    supervised = _SequenceSupervised([unknown])
+    clock = _FakeClock(); sleeps=[]
+    repo = tmp_path / "repo-u-persist"; repo.mkdir()
+    runner = SupervisedCommandRunner(
+        scope=build_scope(repo), execution_store=SQLiteExecutionStore(tmp_path / "u-persist.sqlite"),
+        supervised=supervised, poll_interval_seconds=0.02,
+        sleep_fn=lambda seconds: sleeps.append(seconds), clock_fn=clock, **IDENTITY,
+    )
+    observed, timed_out = runner._poll_until_resolved("exec-u-persist", timeout_seconds=10)
+    assert observed is unknown
+    assert timed_out is False
+    assert supervised.inspect_calls == 3
+    assert sleeps == [0.02, 0.02]
+
+
+def test_wo138_unknown_then_exited_missing_fails_closed_on_second_observation(tmp_path: Path) -> None:
+    unknown = _unknown_inspection("exec-u-exited")
+    exited = SupervisedInspection(
+        execution_id="exec-u-exited", state=SupervisedInspectionState.SUPERVISOR_EXITED_RESULT_MISSING,
+        supervisor_pid=123, result_available=False, recovery_required=True,
+        error_code="SUPERVISOR_EXITED_RESULT_MISSING",
+    )
+    supervised = _SequenceSupervised([unknown, exited])
+    clock = _FakeClock(); sleeps=[]
+    repo = tmp_path / "repo-u-exited"; repo.mkdir()
+    runner = SupervisedCommandRunner(
+        scope=build_scope(repo), execution_store=SQLiteExecutionStore(tmp_path / "u-exited.sqlite"),
+        supervised=supervised, poll_interval_seconds=0.02,
+        sleep_fn=lambda seconds: sleeps.append(seconds), clock_fn=clock, **IDENTITY,
+    )
+    observed, timed_out = runner._poll_until_resolved("exec-u-exited", timeout_seconds=10)
+    assert observed is exited
+    assert timed_out is False
+    assert supervised.inspect_calls == 2
+    assert sleeps == [0.02]
+
+
+def test_wo138_non_unknown_recovery_is_not_retried(tmp_path: Path) -> None:
+    mismatch = SupervisedInspection(
+        execution_id="exec-mismatch", state=SupervisedInspectionState.RECOVERY_REQUIRED,
+        supervisor_pid=123, result_available=False, recovery_required=True,
+        error_code="SUPERVISOR_OWNERSHIP_MISMATCH",
+    )
+    supervised = _SequenceSupervised([mismatch])
+    clock = _FakeClock(); sleeps=[]
+    repo = tmp_path / "repo-mismatch"; repo.mkdir()
+    runner = SupervisedCommandRunner(
+        scope=build_scope(repo), execution_store=SQLiteExecutionStore(tmp_path / "mismatch.sqlite"),
+        supervised=supervised, poll_interval_seconds=0.02,
+        sleep_fn=lambda seconds: sleeps.append(seconds), clock_fn=clock, **IDENTITY,
+    )
+    observed, timed_out = runner._poll_until_resolved("exec-mismatch", timeout_seconds=10)
+    assert observed is mismatch and timed_out is False
+    assert supervised.inspect_calls == 1 and sleeps == []
