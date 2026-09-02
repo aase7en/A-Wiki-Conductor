@@ -1498,3 +1498,327 @@ def test_wo125_decoder_rejects_non_integer_quota_reset_seconds(tmp_path) -> None
     with pytest.raises(ProviderConfigStoreError) as exc:
         store.list_provider_snapshots()
     assert exc.value.code == "PROVIDER_CONFIGURATION_CORRUPT"
+
+
+# --- WO128 T0: read-only admissions listing seam (RED-first) ---
+
+from dataclasses import replace as _dc_replace
+from itertools import count as _count
+
+
+def _wo128_two_provider_admission_store(tmp_path):
+    counter = _count()
+    store = SQLiteProviderConfigStore(
+        tmp_path / "control.sqlite",
+        admission_id_factory=lambda: f"admission-{next(counter):03d}",
+    )
+    profile_a = make_profile()
+    profile_b = _dc_replace(make_profile(), provider_id="provider-other")
+    store.save_provider(profile_a)
+    store.save_provider(profile_b)
+    return store, profile_a, profile_b
+
+
+def test_wo128_list_admissions_read_only_seam_with_filter_and_limit(tmp_path) -> None:
+    store, profile_a, profile_b = _wo128_two_provider_admission_store(tmp_path)
+    admitted_a = store.acquire_admission(
+        provider_id=profile_a.provider_id, execution_id="exec-a",
+        batch_id="batch-a", expected_max_concurrency=1,
+        now=NOW, ttl_seconds=600,
+    )
+    admitted_b = store.acquire_admission(
+        provider_id=profile_b.provider_id, execution_id="exec-b",
+        batch_id="batch-b", expected_max_concurrency=1,
+        now=NOW + timedelta(seconds=60), ttl_seconds=600,
+    )
+    assert admitted_a.kind is ProviderAdmissionKind.ADMITTED
+    assert admitted_b.kind is ProviderAdmissionKind.ADMITTED
+
+    listed = store.list_provider_admissions()
+    assert [item.admission_id for item in listed] == [
+        admitted_b.admission.admission_id,
+        admitted_a.admission.admission_id,
+    ]
+
+    only_a = store.list_provider_admissions(provider_id=profile_a.provider_id)
+    assert [item.execution_id for item in only_a] == ["exec-a"]
+    assert all(item.provider_id == profile_a.provider_id for item in only_a)
+
+    limited = store.list_provider_admissions(limit=1)
+    assert [item.admission_id for item in limited] == [admitted_b.admission.admission_id]
+
+
+def test_wo128_list_admissions_equal_timestamp_deterministic_tie(tmp_path) -> None:
+    store, profile_a, profile_b = _wo128_two_provider_admission_store(tmp_path)
+    first = store.acquire_admission(
+        provider_id=profile_a.provider_id, execution_id="exec-a",
+        batch_id="batch-a", expected_max_concurrency=1,
+        now=NOW, ttl_seconds=600,
+    )
+    second = store.acquire_admission(
+        provider_id=profile_b.provider_id, execution_id="exec-b",
+        batch_id="batch-b", expected_max_concurrency=1,
+        now=NOW, ttl_seconds=600,
+    )
+    assert first.admission.acquired_at == second.admission.acquired_at
+
+    listed = store.list_provider_admissions()
+    assert listed[0].admission_id > listed[1].admission_id
+    assert [item.admission_id for item in listed] == sorted(
+        (first.admission.admission_id, second.admission.admission_id), reverse=True
+    )
+    assert store.list_provider_admissions() == listed
+    assert store.list_provider_admissions() == listed
+
+
+def test_wo128_list_admissions_invalid_limit_and_filter_fail_typed(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "missing" / "control.sqlite")
+    for bad_limit in (0, -1, True, "5", 1.0, 201, None):
+        with pytest.raises(ProviderConfigStoreError) as exc:
+            store.list_provider_admissions(limit=bad_limit)
+        assert exc.value.code == "PROVIDER_ADMISSION_LIST_LIMIT_INVALID"
+    for bad_filter in ("", "   ", 5, b"provider-test"):
+        with pytest.raises(ProviderConfigStoreError) as exc:
+            store.list_provider_admissions(provider_id=bad_filter)
+        assert exc.value.code == "PROVIDER_ADMISSION_FILTER_INVALID"
+
+
+def test_wo128_list_admissions_missing_database_fails_typed_without_creating(tmp_path) -> None:
+    database = tmp_path / "missing-parent" / "control.sqlite"
+    store = SQLiteProviderConfigStore(database)
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_admissions()
+
+    assert exc.value.code == "CONFIG_STORE_UNAVAILABLE"
+    assert not database.exists()
+    assert not database.parent.exists()
+
+
+def test_wo128_list_admissions_uninitialized_database_is_schema_error(tmp_path) -> None:
+    database = tmp_path / "control.sqlite"
+    sqlite3.connect(database).close()
+    store = SQLiteProviderConfigStore(database)
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_admissions()
+
+    assert exc.value.code == "CONFIG_STORE_SCHEMA_UNAVAILABLE"
+    assert str(exc.value) == "CONFIG_STORE_SCHEMA_UNAVAILABLE"
+
+
+def test_wo128_list_admissions_corrupt_row_fails_typed_whole_list(tmp_path) -> None:
+    store, profile_a, profile_b = _wo128_two_provider_admission_store(tmp_path)
+    store.acquire_admission(
+        provider_id=profile_a.provider_id, execution_id="exec-a",
+        batch_id="batch-a", expected_max_concurrency=1,
+        now=NOW, ttl_seconds=600,
+    )
+    healthy = store.acquire_admission(
+        provider_id=profile_b.provider_id, execution_id="exec-b",
+        batch_id="batch-b", expected_max_concurrency=1,
+        now=NOW, ttl_seconds=600,
+    )
+
+    target = healthy.admission.admission_id
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute("UPDATE provider_admissions SET acquired_at='not-a-timestamp' WHERE admission_id=?", (target,))
+        connection.commit()
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_admissions()
+    assert exc.value.code == "PROVIDER_ADMISSION_RECORD_INVALID"
+
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute("UPDATE provider_admissions SET acquired_at=?, configuration_generation=0 WHERE admission_id=?", (NOW.isoformat(), target))
+        connection.commit()
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_admissions()
+    assert exc.value.code == "PROVIDER_GENERATION_INVALID"
+
+
+@pytest.mark.parametrize("field_name", ("admission_id", "provider_id", "execution_id", "batch_id"))
+def test_wo128_list_admissions_blank_persisted_identity_fails_typed(tmp_path, field_name) -> None:
+    store, profile_a, _ = _wo128_two_provider_admission_store(tmp_path)
+    admitted = store.acquire_admission(
+        provider_id=profile_a.provider_id, execution_id="exec-corrupt-text",
+        batch_id="batch-corrupt-text", expected_max_concurrency=1,
+        now=NOW, ttl_seconds=600,
+    )
+    target = admitted.admission.admission_id
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            f"UPDATE provider_admissions SET {field_name}='   ' WHERE admission_id=?",
+            (target,),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_admissions()
+
+    assert exc.value.code == "PROVIDER_ADMISSION_RECORD_INVALID"
+
+
+def test_wo128_list_admissions_invalid_persisted_status_fails_typed(tmp_path) -> None:
+    store, profile_a, _ = _wo128_two_provider_admission_store(tmp_path)
+    admitted = store.acquire_admission(
+        provider_id=profile_a.provider_id, execution_id="exec-corrupt-status",
+        batch_id="batch-corrupt-status", expected_max_concurrency=1,
+        now=NOW, ttl_seconds=600,
+    )
+    target = admitted.admission.admission_id
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute("PRAGMA ignore_check_constraints = ON")
+        connection.execute(
+            "UPDATE provider_admissions SET status='RUNNING' WHERE admission_id=?",
+            (target,),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_admissions()
+
+    assert exc.value.code == "PROVIDER_ADMISSION_RECORD_INVALID"
+
+def test_wo128_list_admissions_is_pure_read_fixed_count_sql_no_bootstrap(tmp_path, monkeypatch) -> None:
+    from contextlib import contextmanager
+    import hashlib
+
+    class CountingStore(SQLiteProviderConfigStore):
+        read_connections = 0
+        statements: list[str] = []
+
+        @contextmanager
+        def _connect_read_only(self):
+            self.read_connections += 1
+            with super()._connect_read_only() as connection:
+                connection.set_trace_callback(self.statements.append)
+                yield connection
+
+    store = CountingStore(tmp_path / "control.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    store.acquire_admission(
+        provider_id=profile.provider_id, execution_id="exec-1",
+        batch_id="batch-1", expected_max_concurrency=1,
+        now=NOW, ttl_seconds=600,
+    )
+    before = hashlib.sha256(store.database_path.read_bytes()).hexdigest()
+    store.statements.clear()
+
+    def _forbidden_initialize():
+        raise AssertionError("list must not bootstrap the database")
+
+    monkeypatch.setattr(store, "initialize", _forbidden_initialize)
+    listed = store.list_provider_admissions()
+    after = hashlib.sha256(store.database_path.read_bytes()).hexdigest()
+
+    selects = [s for s in store.statements if s.lstrip().upper().startswith("SELECT ")]
+    normalized = [s.strip().upper() for s in store.statements]
+    assert len(listed) == 1
+    assert store.read_connections == 1
+    assert len(selects) == 1
+    assert not any(
+        item.startswith(("CREATE ", "ALTER ", "INSERT ", "UPDATE ", "DELETE ", "DROP "))
+        for item in normalized
+    )
+    assert "BEGIN IMMEDIATE" not in normalized
+    assert before == after
+
+
+def test_wo128_list_admissions_fractional_second_limit_boundary_is_chronological(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "fractional-limit.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    with sqlite3.connect(store.database_path) as connection:
+        for index in range(50):
+            connection.execute(
+                "INSERT INTO provider_admissions("
+                "admission_id, provider_id, execution_id, batch_id, acquired_at, expires_at, status, configuration_generation"
+                ") VALUES(?, ?, ?, ?, ?, ?, 'RELEASED', 1)",
+                (
+                    f"whole-{index:02d}", profile.provider_id, f"exec-whole-{index}", f"batch-whole-{index}",
+                    "2026-09-02T11:00:00Z", "2026-09-02T12:00:00Z",
+                ),
+            )
+        connection.execute(
+            "INSERT INTO provider_admissions("
+            "admission_id, provider_id, execution_id, batch_id, acquired_at, expires_at, status, configuration_generation"
+            ") VALUES(?, ?, ?, ?, ?, ?, 'RELEASED', 1)",
+            (
+                "fractional-newest", profile.provider_id, "exec-fractional", "batch-fractional",
+                "2026-09-02T11:00:00.500000Z", "2026-09-02T12:00:00Z",
+            ),
+        )
+        connection.commit()
+
+    rows = store.list_provider_admissions(provider_id=profile.provider_id, limit=50)
+
+    assert len(rows) == 50
+    assert rows[0].admission_id == "fractional-newest"
+    assert rows[0].acquired_at == datetime(2026, 9, 2, 11, 0, 0, 500000, tzinfo=timezone.utc)
+
+
+def test_wo128_list_admissions_timezone_offset_limit_boundary_is_chronological(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "offset-limit.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    with sqlite3.connect(store.database_path) as connection:
+        for index in range(50):
+            connection.execute(
+                "INSERT INTO provider_admissions("
+                "admission_id, provider_id, execution_id, batch_id, acquired_at, expires_at, status, configuration_generation"
+                ") VALUES(?, ?, ?, ?, ?, ?, 'RELEASED', 1)",
+                (
+                    f"whole-offset-{index:02d}", profile.provider_id, f"exec-offset-{index}", f"batch-offset-{index}",
+                    "2026-09-02T11:00:00Z", "2026-09-02T12:00:00Z",
+                ),
+            )
+        connection.execute(
+            "INSERT INTO provider_admissions("
+            "admission_id, provider_id, execution_id, batch_id, acquired_at, expires_at, status, configuration_generation"
+            ") VALUES(?, ?, ?, ?, ?, ?, 'RELEASED', 1)",
+            (
+                "offset-newest", profile.provider_id, "exec-offset-newest", "batch-offset-newest",
+                "2026-09-02T04:00:00.500000-07:00", "2026-09-02T05:00:00-07:00",
+            ),
+        )
+        connection.commit()
+
+    rows = store.list_provider_admissions(provider_id=profile.provider_id, limit=50)
+
+    assert len(rows) == 50
+    assert rows[0].admission_id == "offset-newest"
+    assert rows[0].acquired_at == datetime(2026, 9, 2, 11, 0, 0, 500000, tzinfo=timezone.utc)
+
+
+def test_wo128_list_admissions_submillisecond_offset_limit_boundary_is_exact(tmp_path) -> None:
+    store = SQLiteProviderConfigStore(tmp_path / "submillisecond-offset-limit.sqlite")
+    profile = make_profile()
+    store.save_provider(profile)
+    with sqlite3.connect(store.database_path) as connection:
+        for index in range(50):
+            connection.execute(
+                "INSERT INTO provider_admissions("
+                "admission_id, provider_id, execution_id, batch_id, acquired_at, expires_at, status, configuration_generation"
+                ") VALUES(?, ?, ?, ?, ?, ?, 'RELEASED', 1)",
+                (
+                    f"older-subms-{index:02d}", profile.provider_id, f"exec-subms-{index}", f"batch-subms-{index}",
+                    "2026-09-02T11:00:00.000100Z", "2026-09-02T12:00:00Z",
+                ),
+            )
+        connection.execute(
+            "INSERT INTO provider_admissions("
+            "admission_id, provider_id, execution_id, batch_id, acquired_at, expires_at, status, configuration_generation"
+            ") VALUES(?, ?, ?, ?, ?, ?, 'RELEASED', 1)",
+            (
+                "offset-subms-newest", profile.provider_id, "exec-subms-newest", "batch-subms-newest",
+                "2026-09-02T04:00:00.000200-07:00", "2026-09-02T05:00:00-07:00",
+            ),
+        )
+        connection.commit()
+
+    rows = store.list_provider_admissions(provider_id=profile.provider_id, limit=50)
+
+    assert len(rows) == 50
+    assert rows[0].admission_id == "offset-subms-newest"
+    assert rows[0].acquired_at == datetime(2026, 9, 2, 11, 0, 0, 200, tzinfo=timezone.utc)

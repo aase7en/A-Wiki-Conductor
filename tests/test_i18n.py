@@ -255,3 +255,34 @@ def test_tooltip_provider_changes_language_live(root, tmp_path: Path) -> None:
     assert thai != chinese != english
     assert "启动" in chinese
     assert "Start" in english
+
+
+def test_wo127_models_agents_action_keys_cover_all_three_languages() -> None:
+    keys = (
+        "prefs.models_agents.edit", "prefs.models_agents.disable", "prefs.models_agents.enable",
+        "prefs.models_agents.test", "prefs.models_agents.save", "prefs.models_agents.cancel",
+        "prefs.models_agents.edit.help", "prefs.models_agents.toggle.help", "prefs.models_agents.test.help",
+        "prefs.models_agents.credential.label", "prefs.models_agents.credential.help",
+        "prefs.models_agents.unsupported_credential",
+    )
+    for key in keys:
+        entry = STRINGS[key]
+        assert entry.get("th", "").strip(), key
+        assert entry.get("en", "").strip(), key
+        set_language("zh-CN")
+        assert tr(key).strip() and tr(key) != key, key
+    set_language("th")
+
+
+def test_wo127_provider_teaching_errors_have_no_mojibake() -> None:
+    from a_conductor.desktop_ui import ERROR_EXPLANATIONS
+
+    codes = ("PROVIDER_PROFILE_INVALID", "CONFIG_STORE_UNAVAILABLE", "CONFIG_STORE_SCHEMA_UNAVAILABLE", "CONFIG_STORE_READ_FAILED")
+    for code in codes:
+        title, lines = ERROR_EXPLANATIONS[code]
+        text = " ".join((title, *lines))
+        assert "??" not in text, code
+        assert "\ufffd" not in text, code
+    assert ERROR_EXPLANATIONS["CONFIG_STORE_UNAVAILABLE"][0] == "เปิดฐานข้อมูล Provider ไม่ได้"
+    assert "ไม่ผ่าน validation" in ERROR_EXPLANATIONS["PROVIDER_PROFILE_INVALID"][1][0]
+    assert "เปิดแอป" in ERROR_EXPLANATIONS["CONFIG_STORE_SCHEMA_UNAVAILABLE"][1][1]

@@ -186,7 +186,43 @@ STRINGS: dict[str, dict[str, str]] = {
     "prefs.models_agents.header": {"th": "> MODELS & AGENTS", "en": "> MODELS & AGENTS"},
     "prefs.models_agents.loading": {"th": "กำลังโหลดสถานะ provider...", "en": "Loading provider status..."},
     "prefs.models_agents.empty": {"th": "NO PROVIDERS — ยังไม่มี provider ที่ตั้งค่าไว้", "en": "NO PROVIDERS - no providers are configured yet"},
-    "prefs.models_agents.error": {"th": "Provider status unavailable", "en": "Provider status unavailable"},
+    "prefs.models_agents.error": {"th": "Provider status unavailable", "zh-CN": "Provider 状态不可用", "en": "Provider status unavailable"},
+    "prefs.models_agents.edit": {"th": "Edit", "zh-CN": "Edit", "en": "Edit"},
+    "prefs.models_agents.disable": {"th": "Disable", "zh-CN": "Disable", "en": "Disable"},
+    "prefs.models_agents.enable": {"th": "Enable", "zh-CN": "Enable", "en": "Enable"},
+    "prefs.models_agents.test": {"th": "Test", "zh-CN": "Test", "en": "Test"},
+    "prefs.models_agents.save": {"th": "Save", "zh-CN": "Save", "en": "Save"},
+    "prefs.models_agents.cancel": {"th": "Cancel", "zh-CN": "Cancel", "en": "Cancel"},
+    "prefs.models_agents.edit.help": {
+        "th": "แก้เฉพาะค่าที่อนุญาต โดยใช้ generation ที่แสดงอยู่เพื่อกันการเขียนทับข้อมูลใหม่",
+        "zh-CN": "仅编辑允许的字段，并使用当前显示的 generation 防止覆盖更新。",
+        "en": "Edit only allowed fields using the visible generation to prevent overwriting newer data.",
+    },
+    "prefs.models_agents.toggle.help": {
+        "th": "ปิดหรือเปิด provider ด้วย CAS; provider ที่กำลังมีงานใช้อยู่จะถูกปฏิเสธ",
+        "zh-CN": "使用 CAS 启用或禁用 provider；正在使用中的 provider 会被拒绝修改。",
+        "en": "Enable or disable with CAS; an in-use provider is refused.",
+    },
+    "prefs.models_agents.test.help": {
+        "th": "ทดสอบผ่าน runtime probe ที่รองรับใน background; route ที่ไม่รองรับจะแสดง UNSUPPORTED",
+        "zh-CN": "在后台通过已支持的 runtime probe 测试；不支持的 route 显示 UNSUPPORTED。",
+        "en": "Test through the accepted runtime probe in the background; unsupported routes show UNSUPPORTED.",
+    },
+    "prefs.models_agents.credential.label": {
+        "th": "Credential ref ใหม่ (ไม่บังคับ)",
+        "zh-CN": "新的 Credential ref（可选）",
+        "en": "Credential ref replacement (optional)",
+    },
+    "prefs.models_agents.credential.help": {
+        "th": "เว้นว่างเพื่อคงค่าเดิม; runtime รองรับ secret-ref:awiki-env/KEY และจะไม่ resolve ตอนแก้ไข",
+        "zh-CN": "留空保留现有值；runtime 支持 secret-ref:awiki-env/KEY，编辑时不会解析 secret。",
+        "en": "Blank keeps the current reference; runtime supports secret-ref:awiki-env/KEY and never resolves it while editing.",
+    },
+    "prefs.models_agents.unsupported_credential": {
+        "th": "คำเตือน: reference นี้บันทึกได้แต่ runtime ปัจจุบันใช้ไม่ได้",
+        "zh-CN": "警告：该 reference 可保存，但当前 runtime 无法使用。",
+        "en": "Warning: this reference can be saved but is unusable by the current runtime.",
+    },
 }
 
 # Chinese is intentionally concentrated on operator guidance/tooltips. Entries

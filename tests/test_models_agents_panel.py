@@ -265,3 +265,153 @@ def test_models_agents_language_refresh_rerenders_panel_state(root) -> None:
         assert "NO PROVIDERS" in panel_text(app)
     finally:
         set_language(previous_language)
+
+
+class ActionFakeService(FakeService):
+    def __init__(self, rows=()) -> None:
+        super().__init__(rows)
+        self.action_calls: list[tuple] = []
+
+    def update_provider_profile(self, provider_id, **kwargs):
+        self.action_calls.append(("edit", provider_id, kwargs))
+        return kwargs["expected_generation"] + 1
+
+    def set_provider_enabled(self, provider_id, **kwargs):
+        self.action_calls.append(("enabled", provider_id, kwargs))
+        return kwargs["expected_generation"] + 1
+
+    def test_provider(self, provider_id):
+        self.action_calls.append(("test", provider_id, {}))
+        return SimpleNamespace(
+            provider_id=provider_id,
+            health=SimpleNamespace(value="AVAILABLE"),
+            provenance="probe:test",
+        )
+
+    def provider_credential_ref_runtime_supported(self, value):
+        prefix = "secret-ref:awiki-env/"
+        return isinstance(value, str) and value.startswith(prefix) and len(value) > len(prefix)
+
+
+def test_wo127_provider_actions_exist_and_disable_uses_visible_generation(root) -> None:
+    service = ActionFakeService((make_row(configuration_generation=7, enabled=True),))
+    app = make_app(root, service, ImmediateExecutor())
+    app.open_preferences()
+    root.update()
+
+    assert app._models_agents_provider_combo.get()
+    assert app._models_agents_edit_button.cget("text") == "Edit"
+    assert app._models_agents_toggle_button.cget("text") == "Disable"
+    assert app._models_agents_test_button.cget("text") == "Test"
+
+    app._toggle_selected_provider()
+    root.update()
+    assert service.action_calls[0] == (
+        "enabled", "glm-primary", {"enabled": False, "expected_generation": 7}
+    )
+
+
+def test_wo127_edit_dialog_never_prefills_endpoint_or_credential(root) -> None:
+    service = ActionFakeService((make_row(),))
+    app = make_app(root, service, ImmediateExecutor())
+    app.open_preferences()
+    root.update()
+
+    dialog = app._open_selected_provider_edit_dialog()
+    root.update()
+    assert dialog is not None
+    texts: list[str] = []
+    stack = [dialog]
+    while stack:
+        widget = stack.pop()
+        stack.extend(widget.winfo_children())
+        try:
+            texts.append(str(widget.cget("text")))
+        except tk.TclError:
+            pass
+        if isinstance(widget, (tk.Entry, tk.Text)):
+            try:
+                texts.append(widget.get() if isinstance(widget, tk.Entry) else widget.get("1.0", "end"))
+            except tk.TclError:
+                pass
+    combined = "\n".join(texts)
+    assert "https://" not in combined
+    assert "secret-ref:provider/ui/main" not in combined
+
+
+def test_wo127_test_action_is_single_flight_and_unsupported_is_truthful(root) -> None:
+    service = ActionFakeService((make_row(),))
+    executor = ControlledExecutor()
+    app = make_app(root, service, executor)
+    app.open_preferences()
+    root.update()
+
+    executor.futures[0].set_result(service.provider_operator_rows())
+    app._poll_models_agents_future(app._models_agents_request_id, executor.futures[0])
+    root.update()
+
+    app._test_selected_provider()
+    app._test_selected_provider()
+    assert len(executor.calls) == 2
+
+    executor.futures[1].set_result(SimpleNamespace(
+        provider_id="glm-primary",
+        health=SimpleNamespace(value="UNAVAILABLE"),
+        provenance="zai-quota-monitor:unsupported-route",
+    ))
+    app._poll_models_agents_action_future(
+        app._models_agents_action_request_id, "glm-primary", "test", executor.futures[1]
+    )
+    root.update()
+    assert "UNSUPPORTED" in app._models_agents_action_label.cget("text")
+    assert "unsupported-route" not in app._models_agents_action_label.cget("text")
+
+
+def test_wo127_delayed_action_after_preferences_close_is_ignored(root) -> None:
+    service = ActionFakeService((make_row(),))
+    executor = ControlledExecutor()
+    app = make_app(root, service, executor)
+    window = app.open_preferences()
+    root.update()
+    executor.futures[0].set_result(service.provider_operator_rows())
+    app._poll_models_agents_future(app._models_agents_request_id, executor.futures[0])
+    root.update()
+
+    app._test_selected_provider()
+    assert app._models_agents_action_pending_provider == "glm-primary"
+    action_future = executor.futures[1]
+    action_request = app._models_agents_action_request_id
+    window.destroy()
+    root.update()
+    action_future.set_result(SimpleNamespace(
+        provider_id="glm-primary",
+        health=SimpleNamespace(value="AVAILABLE"),
+        provenance="probe:test",
+    ))
+    app._poll_models_agents_action_future(action_request, "glm-primary", "test", action_future)
+    root.update()
+
+    assert app._preferences_window is None
+    assert app._models_agents_action_pending_provider is None
+
+
+def test_wo127_action_failure_uses_typed_teaching_error_without_resubmit(root) -> None:
+    service = ActionFakeService((make_row(configuration_generation=7, enabled=True),))
+    executor = ControlledExecutor()
+    app = make_app(root, service, executor)
+    app.open_preferences()
+    root.update()
+    executor.futures[0].set_result(service.provider_operator_rows())
+    app._poll_models_agents_future(app._models_agents_request_id, executor.futures[0])
+    errors: list[str] = []
+    app._handle_error = lambda code: errors.append(code)
+
+    app._toggle_selected_provider()
+    app._toggle_selected_provider()
+    assert len(executor.calls) == 2
+    executor.futures[1].set_exception(TypedProviderError("PROVIDER_CONFIGURATION_IN_USE"))
+    app._poll_models_agents_action_future(
+        app._models_agents_action_request_id, "glm-primary", "disable", executor.futures[1]
+    )
+    assert errors == ["PROVIDER_CONFIGURATION_IN_USE"]
+    assert app._models_agents_action_label.cget("text") == "PROVIDER_CONFIGURATION_IN_USE"
