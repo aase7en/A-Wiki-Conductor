@@ -2,7 +2,7 @@
 
 Date: 2026-09-02
 Owner: GPT-5.6 Sol integrator
-Status: REVIEW_REPAIR / REREVIEW_REQUIRED
+Status: RELEASED / MERGED / POST_MAIN_GREEN
 Priority: P1 AHA-7B
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo127-provider-actions`
@@ -83,3 +83,12 @@ P0/P1/P2 block merge. Agent or test PASS alone is not merge authority.
 - Repair verification: focused i18n 3 passed; real Tk GUI/i18n bucket 93 passed; `git diff --check` PASS.
 - Functional/security/concurrency/lifecycle findings from the independent review were otherwise clean, but that result is evidence for the old head only.
 - Next gate: freeze/push repaired exact head, rerun CI, then independent exact-head rereview before merge.
+
+## Final acceptance checkpoint — 2026-09-02
+
+- Final exact head: `e91647a7ccaefe522b11ba867719b3186ed5b96d`.
+- GLM exact-head rereview `wo127-glm-rereview-002`: **PASS**, P0=0, P1=0, P2=0, P3=3.
+- Exact-head CI `33582451656`: SUCCESS across Windows/Ubuntu/macOS.
+- PR #182 merged exact head as `b0eed29656cc54031b7442348449d57cf55d23be`.
+- Post-main CI `33585602021`: SUCCESS including Windows packaging and Frozen Setup install/uninstall E2E.
+- Product/source claim is released. Future provider-action mutation requires a new work order and fresh ownership gate.

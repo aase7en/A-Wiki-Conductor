@@ -3,7 +3,7 @@
 Date: 2026-09-02
 Owner: GLM-5.3 MAX / ZCode long-goal lane
 Integrator: GPT-5.6 Sol
-Status: REPAIR_VERIFIED / REVIEW_REFREEZE_PENDING
+Status: RELEASED / MERGED / POST_MAIN_GREEN
 Priority: P1 AHA-7B
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo128-admissions-evidence-core`
@@ -74,3 +74,13 @@ Long-goal execution should use the installed `$a-loop` workflow for decompose ->
 - The canonical `_admission_from_row` decoder now validates those persisted identity/status invariants and maps corruption to `PROVIDER_ADMISSION_RECORD_INVALID`; generation corruption retains its existing specific typed code. The projection remains a pure consumer of already store-typed records rather than duplicating persistence validation.
 - RED: 5/5 intended corruption cases failed before repair. GREEN: 5/5 pass after repair. Updated focused WO128 matrix: 26 passed; provider impact: 150 passed; broader execution/parallel consumers: 167 passed.
 - The superseded review mailbox was explicitly put on HOLD before source mutation; no independent WO128 review had started and no result existed. A new exact-head packet is required after commit/push/CI freeze.
+
+## Final acceptance checkpoint — 2026-09-02
+
+- Final exact head: `a9f4fe6a92367650e7c22caaa9df9e8c148cf3ad`.
+- GLM exact-head review `wo128-glm-review-002`: **PASS**, P0=0, P1=0, P2=0, P3=4.
+- Exact-head CI `33586307363`: SUCCESS across Windows/Ubuntu/macOS.
+- PR #184 merged exact head as `b6d50921035ae6ec6d32b6c05b3f723530b8c68d`.
+- Post-main CI `33591789871`: SUCCESS including Windows packaging and Frozen Setup install/uninstall E2E.
+- Truth remains `SELECTION_REASON=UNKNOWN` and `FALLBACK_REASON=NOT_EVALUATED`; no selection/fallback authority was added.
+- T0/T1 source claim is released; WO134 owns the subsequent T2-T4 UI/detail integration.
