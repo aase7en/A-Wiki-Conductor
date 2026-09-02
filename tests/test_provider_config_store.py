@@ -1636,6 +1636,49 @@ def test_wo128_list_admissions_corrupt_row_fails_typed_whole_list(tmp_path) -> N
     assert exc.value.code == "PROVIDER_GENERATION_INVALID"
 
 
+@pytest.mark.parametrize("field_name", ("admission_id", "provider_id", "execution_id", "batch_id"))
+def test_wo128_list_admissions_blank_persisted_identity_fails_typed(tmp_path, field_name) -> None:
+    store, profile_a, _ = _wo128_two_provider_admission_store(tmp_path)
+    admitted = store.acquire_admission(
+        provider_id=profile_a.provider_id, execution_id="exec-corrupt-text",
+        batch_id="batch-corrupt-text", expected_max_concurrency=1,
+        now=NOW, ttl_seconds=600,
+    )
+    target = admitted.admission.admission_id
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            f"UPDATE provider_admissions SET {field_name}='   ' WHERE admission_id=?",
+            (target,),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_admissions()
+
+    assert exc.value.code == "PROVIDER_ADMISSION_RECORD_INVALID"
+
+
+def test_wo128_list_admissions_invalid_persisted_status_fails_typed(tmp_path) -> None:
+    store, profile_a, _ = _wo128_two_provider_admission_store(tmp_path)
+    admitted = store.acquire_admission(
+        provider_id=profile_a.provider_id, execution_id="exec-corrupt-status",
+        batch_id="batch-corrupt-status", expected_max_concurrency=1,
+        now=NOW, ttl_seconds=600,
+    )
+    target = admitted.admission.admission_id
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute("PRAGMA ignore_check_constraints = ON")
+        connection.execute(
+            "UPDATE provider_admissions SET status='RUNNING' WHERE admission_id=?",
+            (target,),
+        )
+        connection.commit()
+
+    with pytest.raises(ProviderConfigStoreError) as exc:
+        store.list_provider_admissions()
+
+    assert exc.value.code == "PROVIDER_ADMISSION_RECORD_INVALID"
+
 def test_wo128_list_admissions_is_pure_read_fixed_count_sql_no_bootstrap(tmp_path, monkeypatch) -> None:
     from contextlib import contextmanager
     import hashlib

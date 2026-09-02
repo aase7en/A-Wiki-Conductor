@@ -777,18 +777,28 @@ class SQLiteProviderConfigStore:
 
     @classmethod
     def _admission_from_row(cls, row: sqlite3.Row) -> ProviderAdmissionRecord:
+        try:
+            admission_id = cls._require_admission_text(row["admission_id"], "admission_id")
+            provider_id = cls._require_admission_text(row["provider_id"], "provider_id")
+            execution_id = cls._require_admission_text(row["execution_id"], "execution_id")
+            batch_id = cls._require_admission_text(row["batch_id"], "batch_id")
+            status = row["status"]
+            if not isinstance(status, str) or status not in {"ACTIVE", "RELEASED", "EXPIRED"}:
+                raise ValueError("status is outside the persisted admission vocabulary")
+        except (IndexError, TypeError, ValueError) as exc:
+            raise ProviderConfigStoreError("PROVIDER_ADMISSION_RECORD_INVALID") from exc
         acquired_at = cls._parse_time(row["acquired_at"])
         expires_at = cls._parse_time(row["expires_at"])
         if acquired_at is None or expires_at is None:
             raise ProviderConfigStoreError("PROVIDER_ADMISSION_RECORD_INVALID")
         return ProviderAdmissionRecord(
-            admission_id=row["admission_id"],
-            provider_id=row["provider_id"],
-            execution_id=row["execution_id"],
-            batch_id=row["batch_id"],
+            admission_id=admission_id,
+            provider_id=provider_id,
+            execution_id=execution_id,
+            batch_id=batch_id,
             acquired_at=acquired_at,
             expires_at=expires_at,
-            status=row["status"],
+            status=status,
             released_at=cls._parse_time(row["released_at"]),
             reconciled_at=cls._parse_time(row["reconciled_at"]),
             configuration_generation=cls._stored_generation(

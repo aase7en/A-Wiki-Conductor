@@ -3,7 +3,7 @@
 Date: 2026-09-02
 Owner: GLM-5.3 MAX / ZCode long-goal lane
 Integrator: GPT-5.6 Sol
-Status: INTEGRATOR_VERIFIED / READY_FOR_PR
+Status: REPAIR_VERIFIED / REVIEW_REFREEZE_PENDING
 Priority: P1 AHA-7B
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo128-admissions-evidence-core`
@@ -67,3 +67,10 @@ Long-goal execution should use the installed `$a-loop` workflow for decompose ->
 - Added explicit fractional-second, timezone-offset, and sub-millisecond offset boundary regressions.
 - Final local verification: WO128 focused 21 passed; provider impact 97 passed; broader admission/execution consumers 87 passed; compileall/diff-check/strict UTF-8/scope audit PASS.
 - GPT remains commit/PR/merge authority; exact-head CI and independent post-freeze review remain required before merge.
+
+## GPT pre-review persisted-corruption repair
+
+- Before dispatching the frozen independent review, GPT adversarially inserted writer-invalid persisted admission identities and status values. RED proved `list_provider_admissions()` accepted blank `admission_id` / `provider_id` / `execution_id` / `batch_id` and an invalid persisted status instead of honoring T0 typed fail-closed corruption semantics.
+- The canonical `_admission_from_row` decoder now validates those persisted identity/status invariants and maps corruption to `PROVIDER_ADMISSION_RECORD_INVALID`; generation corruption retains its existing specific typed code. The projection remains a pure consumer of already store-typed records rather than duplicating persistence validation.
+- RED: 5/5 intended corruption cases failed before repair. GREEN: 5/5 pass after repair. Updated focused WO128 matrix: 26 passed; provider impact: 150 passed; broader execution/parallel consumers: 167 passed.
+- The superseded review mailbox was explicitly put on HOLD before source mutation; no independent WO128 review had started and no result existed. A new exact-head packet is required after commit/push/CI freeze.
