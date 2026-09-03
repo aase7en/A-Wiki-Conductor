@@ -1,6 +1,25 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO144 post-reliability actual-state closeout)
+Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO146 post-acceptance reconciliation)
+
+## WO146 authoritative actual-state override — 2026-09-03
+
+Actual Git/GitHub evidence below supersedes older frontier/status text later in this file.
+
+- `origin/main = cf2a4e7a57bfd22ec55de79c700ec3e4931dc475`; WO144 / PR #195 exact head `f2d33ed2d63454e6b7f547a016abb07f058d89be`, CI `33699856774` SUCCESS, merge `cf2a4e7a...`, post-main `33704062299` SUCCESS. WO144 is RELEASED.
+- A-Wiki Review Bridge PR #50 exact head `b04761d580ddcdc7eb682e3a6036078b3b346953` passed Core CI `33682384067`, Loop Gate `33682383989`, independent GLM rereview PASS P0/P1/P2=0, merged as `588a907200e0d4998ec4fbb7fb2178b89d9700b2`, post-main `33704270521` SUCCESS. The adapter dependency is RELEASED; A-Conductor must still reuse ReviewBus via the approved CLI boundary and must not create a second lifecycle authority.
+- PR #183 / WO132 AiPASS is the next shared-doc product-planning lane; reconcile it against current main before new CI. Live AiPASS automation remains `BLOCKED_EXTERNAL` under current Terms §3.4.
+- WO145 exact composed candidate `93f9a4089526f70a39adc3b97d3db55d6c8c6b3e` is in independent GLM review. It is a separate owned-process production lane and does not overlap PR #183 or this docs scope.
+- WO096 remains the P0 operational release blocker and live maintenance remains `AUTHORIZATION_REQUIRED`.
+- Protected root checkout remains stale/dirty; mutation stays in isolated worktrees.
+
+### Immediate execution order
+
+1. Reconcile and release PR #183 from current main with fresh exact-head CI/post-main proof.
+2. Consume WO145 independent review; if P0/P1/P2=0, open PR/CI and merge only with expected SHA.
+3. Claim the thin A-Conductor review-result mailbox adapter from accepted current main; reuse `agent-mailbox/v1`, validate assignment/result identity, and invoke only A-Wiki `conductor review` CLI.
+4. Claim AIP-1 after PR #183 acceptance; keep live AiPASS traffic disabled.
+5. Keep WO096 fail-closed until explicit maintenance authority exists.
 
 ## Actual-state reconciliation — 2026-09-03
 

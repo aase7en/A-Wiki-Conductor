@@ -1,6 +1,17 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-03 - WO144 post-WO140/WO143 actual-state closeout
+Last updated: 2026-09-03 - WO146 post-acceptance reconciliation
+
+## WO146 current handoff override — 2026-09-03
+
+- Remote main: `cf2a4e7a57bfd22ec55de79c700ec3e4931dc475` after WO144 / PR #195; exact-head CI `33699856774` and post-main `33704062299` are SUCCESS. WO144 claim is released.
+- A-Wiki Review Bridge is accepted: PR #50 head `b04761d580ddcdc7eb682e3a6036078b3b346953`, independent GLM rereview PASS P0/P1/P2=0, merge `588a907200e0d4998ec4fbb7fb2178b89d9700b2`, post-main `33704270521` SUCCESS.
+- PR #183 / WO132 remains Draft and conflicts only in `COLLAB.md`; refresh from current main, preserve both histories, then require new exact-head CI. AiPASS live automation remains `BLOCKED_EXTERNAL`.
+- WO145 candidate `93f9a4089526f70a39adc3b97d3db55d6c8c6b3e` is under independent GLM exact-SHA review; no PR yet.
+- Thin review-result mailbox adapter is now dependency-ready but unclaimed; reuse stable `agent-mailbox/v1`, do not use `AgentResultFileReader`, and forward only through the accepted A-Wiki `conductor review` CLI boundary.
+- WO096 remains `AUTHORIZATION_REQUIRED`; no live Worker/tunnel maintenance.
+
+One next safe action: reconcile PR #183 after this docs closeout, while WO145 independent review continues in parallel.
 
 ## Current actual handoff — 2026-09-03
 
