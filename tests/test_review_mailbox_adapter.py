@@ -141,7 +141,7 @@ class FakeRunner:
         return self.result
 def command_result(
     *, exit_code: int | None = 0, timed_out: bool = False,
-    stdout: str = '{"ok": true, "task_id": "task-147", "cycle": "P8-c1"}',
+    stdout: str = '{"ok": true, "schema": "awiki-review-bridge/v1", "task_id": "task-147", "cycle": "P8-c1"}',
     stdout_truncated: bool = False,
 ) -> NativeCommandResult:
     return NativeCommandResult(
@@ -194,7 +194,9 @@ def test_forwarder_uses_only_awiki_cli_and_sanitized_payload(tmp_path: Path) -> 
         (command_result(stdout_truncated=True), "AWIKI_REVIEW_FORWARD_TRUNCATED"),
         (command_result(stdout="not-json"), "AWIKI_REVIEW_RESPONSE_INVALID"),
         (command_result(stdout='{"ok": false, "task_id": "task-147"}'), "AWIKI_REVIEW_REJECTED"),
-        (command_result(stdout='{"ok": true, "task_id": "other"}'), "AWIKI_REVIEW_TASK_MISMATCH"),
+        (command_result(stdout='{"ok": true, "task_id": "task-147"}'), "AWIKI_REVIEW_SCHEMA_MISMATCH"),
+        (command_result(stdout='{"ok": true, "schema": "awiki-review-bridge/v2", "task_id": "task-147"}'), "AWIKI_REVIEW_SCHEMA_MISMATCH"),
+        (command_result(stdout='{"ok": true, "schema": "awiki-review-bridge/v1", "task_id": "other"}'), "AWIKI_REVIEW_TASK_MISMATCH"),
     ],
 )
 def test_forwarder_fails_closed_on_command_or_response_boundary(
