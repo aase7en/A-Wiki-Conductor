@@ -103,3 +103,12 @@ RED first, then focused tests, existing provider regression matrix, compile/diff
 - Focused service-authorization = **46/46 PASS**. Provider/config/store/policy/execution-authority/runtime/parallel/quota/harness matrix including focused = **246/246 PASS**. `py_compile`, `git diff --check`, strict UTF-8/U+FFFD and added-line credential scan = PASS / 0 hits.
 - GitNexus impact/detect were attempted before/after the edit, but the only available A-Conductor index is a stale sibling WO150 index and does not contain WO148 symbols; results are `UNVERIFIED ? stale sibling index/tool limitation`. No `gitnexus analyze` rerun was performed because that command was already proven to mutate agent instruction artifacts outside scope.
 - Prior exact candidate `e4e41c0...`, its CI, and any independent review pinned to it are stale. Live AiPASS remains `BLOCKED_EXTERNAL`; this pure WO still performs no store/policy/admission/runtime/live-service I/O. Fresh exact-SHA CI + independent rereview are mandatory.
+
+## GPT timezone-invariance repair checkpoint — 2026-09-03
+
+- Adversarial probe proved the same authorization instant could be accepted in UTC but rejected when represented with a negative timezone offset because chronology compared the caller-local calendar date before UTC normalization.
+- RED commit `f458a4a`: focused = **1 failed / 46 passed** on `test_authorization_evidence_is_timezone_representation_invariant`.
+- GREEN repair `78f0fa8fd728f511a588889f021a983a85276939` compares the normalized UTC observation date to the semantic Terms effective date, making authorization chronology representation-invariant.
+- Focused = **47/47 PASS**. Existing provider/config/store/policy/execution-authority/runtime/parallel/quota/harness regression = **216/216 PASS**.
+- EOF/diff hygiene normalized. Live AiPASS remains `BLOCKED_EXTERNAL`; no store/policy/admission/runtime/live-service authority was added.
+- Any CI or independent review pinned before this repair is historical only. Fresh exact-SHA CI + independent rereview remain mandatory before merge.
