@@ -1,6 +1,14 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO146 post-acceptance reconciliation)
+Last updated: 2026-09-03 (GPT-5.6 Sol - WO153 ZCode config-lock operational incident)
+
+## WO153 operational reliability override — 2026-09-03
+
+- ZCode `config.json` rename/lock failures were traced to external Windows file-handle contention, not repository corruption or malformed JSON.
+- Exact observed holder was Desktop Commander Node.js PID 15728 (`@wonderwhy-er/desktop-commander`) after broad search activity traversed `%USERPROFILE%\.zcode\v2` during ZCode writes.
+- Recovery stopped only the identity-verified child PID; afterwards exclusive open + JSON parse passed and the ZCode log produced no new lock/rename errors in the verification window.
+- Prevention is now durable in `AGENTS.md`, `DEFECT_LESSONS.md` #51, `docs/runbooks/zcode-config-lock.md`, and the read-only `scripts/diagnose_zcode_config_lock.ps1`.
+- This is an operational reliability lane only; it does not change AHA/AiPASS/product frontier ownership or authorize live provider/tunnel mutations.
 
 ## WO146 authoritative actual-state override — 2026-09-03
 
