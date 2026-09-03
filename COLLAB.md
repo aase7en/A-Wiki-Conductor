@@ -44,7 +44,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 ### Recently closed / released claims
 
-- `WO-P1-143` / PR #194 provider Evidence selection-sync remediation: latest exact candidate `720d0328c02f7068d34cc3a5ae31418a9b1ede4b` preserved all 7 reviewed feature blobs; GLM latest-SHA rereview PASS P0/P1/P2/P3=0; exact-head CI `33680012267` SUCCESS; merged as `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`; post-main `33681115738` SUCCESS. Source claim released. Source claim released.
+- `WO-P1-143` / PR #194 provider Evidence selection-sync remediation: latest exact candidate `720d0328c02f7068d34cc3a5ae31418a9b1ede4b` preserved all 7 reviewed feature blobs; GLM latest-SHA rereview PASS P0/P1/P2/P3=0; exact-head CI `33680012267` SUCCESS; merged as `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`; post-main `33681115738` SUCCESS. Source claim released.
 - `WO-P2-140` / PR #193 residual owned-process diagnostics: GPT repaired one P2 unbounded diagnostic sequence after GLM handback using `deque(maxlen=64)`. Final head `2238259e264991e1249d1439b206dc9b252c3051`; exact-head CI `33678036552` SUCCESS; merged `787e9be2f108ce3f323bebc20127eb03c2958bfc`; post-main `33679432865` SUCCESS. Source claim released.
 
 - `WO-P1-115` / PR #155 AHA-6A.1 provider admission + production runtime wiring: exact PR head `7959ff9d8a300b2920a2ef1014c63db64b19518c` passed CI `33312763072`; merged as `a758f9e882db03e988d67a3f04f69862dd9195c2`; post-main CI `33313201851` passed Windows/Ubuntu/macOS including Frozen Setup E2E. GLM review + repair re-review found zero P0/P1/P2 defects. Claim released. Automatic live provider dispatch remains fail-closed until active route + complete reset-bearing 5h quota evidence exist.
