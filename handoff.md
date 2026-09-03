@@ -1,6 +1,14 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-03 - WO146 post-acceptance reconciliation
+Last updated: 2026-09-03 - WO153 ZCode config-lock operational incident
+
+## WO153 operational incident handoff — 2026-09-03
+
+- Root cause: an external Desktop Commander Node.js process held `%USERPROFILE%\.zcode\v2\config.json` while ZCode attempted atomic temp-file replacement; this produced `EPERM`, lock wait timeouts, and reconnect/provider-state degradation.
+- Exact holder in the incident was PID 15728 and its command identity matched `@wonderwhy-er/desktop-commander`; recovery stopped only that verified child PID, never all Node/ZCode processes.
+- Post-recovery proof: `ZCODE_CONFIG_LOCK=UNLOCKED`, JSON parse OK, no remaining `.lock` directory or `config.json.*.tmp`, and no new lock/rename errors in the follow-up log window.
+- Durable prevention: do not recursively search/index live `.zcode\v2`; use `scripts/diagnose_zcode_config_lock.ps1` and `docs/runbooks/zcode-config-lock.md`.
+- Product-roadmap ownership below is unchanged by this operational incident.
 
 ## WO146 current handoff override — 2026-09-03
 
