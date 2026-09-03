@@ -36,6 +36,7 @@ def _build(*, model_id: str = "safe-model", name: str = "Safe Model", **kwargs):
         'fooAuthorization: "abcdef0123456789abcdef"',
         '{"password":"abcdef0123456789abcdef"}',
         "{'auth':'abcdef0123456789abcdef'}",
+        r'{\"password\":\"abcdef0123456789abcdef\"}',
         '{"password":"p@ss!"}',
         "xauth='short!'",
     ),
