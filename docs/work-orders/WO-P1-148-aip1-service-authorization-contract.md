@@ -1,0 +1,116 @@
+# WO-P1-148 — AIP-1 provider service-authorization contract
+
+Date: 2026-09-03
+Owner: GPT-5.6 Sol MAX
+Status: READY_FOR_INDEPENDENT_REVIEW
+Priority: P1
+Repository: `A:\\GitHub\\A-Wiki-Conductor`
+Worktree: `A:\\GitHub\\A-Wiki-Conductor-wo148-service-authorization`
+Branch: `feat/wo-p1-148-service-authorization-contract`
+Base: `origin/main@6e96b773aeb0795807cb65abce93956b7702f33e`
+
+## Prerequisite proof
+- PR #183 exact head `a84f7a8569846c196ba3000f69d9e83eb473ad96`; CI `33710739794` SUCCESS; merge `6e96b773aeb0795807cb65abce93956b7702f33e`; post-main `33712217339` SUCCESS.
+- GLM long audit `wo132-glm-aip1-audit-002`, task SHA `4a11cec8f9ddd657b3a75effddc82c525fca17ab58d99ad1cd1e6c57681c19c8`: PREAUDIT_COMPLETE, P0/P1/P2=0.
+- Fresh AiPASS Terms effective 2026-08-19 section 3.4 still require explicit written authorization for the gated automation/direct-system modes; live automation defaults `BLOCKED_EXTERNAL`.
+- Fresh upstream `niawjunior/aipass-bridge@d59f03d8c58071f0fd947e6d286194e972521544`; MIT; root LICENSE blob `17ddd0b8425c523d029917a1027d7e40a0916100`. MIT source permission is not service authorization.
+
+## Reuse-before-build
+Classification: `EXTEND` with one pure provider-neutral guard. Reuse existing provider identity/generation/readiness/task-policy/admission/runtime authorities unchanged. Do not add a second registry, policy engine, scheduler, quota/admission engine, retry state machine, memory store, credential vault, or mutation authority.
+
+## Mutable scope
+- new `src/a_conductor/provider_service_authorization.py`
+- new `tests/test_provider_service_authorization.py`
+- this work order
+- bounded `COLLAB.md` claim/release bookkeeping only
+
+Forbidden: `provider_config_store.py`, `provider_policy.py`, `provider_execution_authority.py`, `parallel_ready_execution.py`, runtime/UI/adapter files, DB migrations, Workers/tunnels, credentials/cookies/tokens, live AiPASS traffic.
+
+## Contract target
+Preserve: `CONFIGURED != READY != SERVICE_AUTHORIZED != TASK_AUTHORIZED != ADMITTED != EXECUTED`.
+The pure guard owns only SERVICE_AUTHORIZED. It performs no I/O and cannot make a provider READY, authorize a task, acquire admission, or execute anything.
+
+Modes: `FAKE`, `READ_ONLY`, `LIVE`. `FAKE` is guaranteed zero-service-I/O and needs no external authorization. `READ_ONLY` and `LIVE` require exact current service authorization; both fail closed otherwise.
+Authorization evidence is represented only by a SHA-256 digest, never raw approval text, URL query, cookie, token, header, or credential.
+
+## RED acceptance matrix
+1. FAKE is allowed without service evidence and carries an explicit no-service-I/O reason.
+2. READ_ONLY/LIVE with no record fail closed.
+3. UNKNOWN/BLOCKED_EXTERNAL fail closed.
+4. provider mismatch fails closed.
+5. requested mode mismatch fails closed.
+6. stale Terms identity fails closed.
+7. provider generation drift fails closed.
+8. expired recheck window fails closed.
+9. AUTHORIZED requires a valid evidence SHA-256.
+10. timestamps must be timezone-aware and ordered.
+11. record/decision serialization and repr expose no raw secret-bearing fields by construction.
+12. MIT/source-license evidence cannot make service authorization allowed.
+13. malformed enum/text/hash/generation inputs fail validation.
+14. pure evaluator has no filesystem/network/process/store side effects.
+
+## Verification
+RED first, then focused tests, existing provider regression matrix, compile/diff/UTF-8/secret/scope audits, independent exact-SHA review before merge. No live test is authorized in WO148.
+
+## Implementation checkpoint — 2026-09-03
+- Claim commit `33e9eb242383d1a1f7761067cd643dfb8269011d`; RED contract commit `823fcf9e8b30597cf413041913dd61a7eab450c7`; pure implementation commit `c6f55a7ce893dff7ddb035d45b25c7132f2f0064`.
+- RED proved module absence before implementation.
+- GREEN focused: `tests/test_provider_service_authorization.py` = **28/28 PASS**.
+- Existing provider configuration/store/policy/authority/admission/quota/runtime matrix = **237/237 PASS**.
+- `py_compile` PASS; `git diff --check` PASS; worktree clean before this documentation checkpoint.
+- Implementation imports only dataclasses/datetime/enum/re; no filesystem, network, process, database, credential, adapter, runtime, or live-service I/O.
+- Final feature scope remains exactly four files: new pure guard, focused tests, this WO, bounded COLLAB bookkeeping.
+- No live AiPASS test or dispatch is authorized. `READ_ONLY` and `LIVE` remain fail-closed without exact current service authorization evidence.
+- GPT authored the candidate; independent exact-SHA review is mandatory before PR merge.
+## GPT adversarial repair checkpoint — 2026-09-03
+- Primary review found one P2 contract-truth defect after the first frozen candidate: `terms_identity` accepted URL query/fragment and header-like text even though the WO promised no raw query/token/header shapes in serialized authorization metadata.
+- RED commit `b5ec90c238e06c63043fa267180437aaa3e3aa97`: focused suite = **4 failed / 28 passed**.
+- Repair commit `f047752a6d2af031b62a0bbe7cdff5fde5208a5c`: terms identity is now a bounded opaque safe-reference charset and rejects query, fragment, whitespace, and header-like forms.
+- GREEN focused = **32/32 PASS**; selected existing provider authority/config/policy/store/admission regression = **211/211 PASS**; `py_compile` + `git diff --check` PASS.
+- The earlier `provider_id` probe was reconciled against canonical provider configuration: its identifier grammar also permits hyphenated opaque IDs, so that observation is not an independent WO148 defect.
+- PR #199's prior CI on `c57175b...` is historical only; exact-head CI must rerun after this repair/final checkpoint.
+- Candidate remains pure/no-I/O and live AiPASS remains fail-closed / `BLOCKED_EXTERNAL`. Independent exact-SHA review remains mandatory.
+
+## Adversarial hardening checkpoint — opaque Terms identity
+
+- GPT follow-up probe showed the prior safe-character set still accepted URL paths, compact authorization-header shapes, `secret-ref:` references, and slash-bearing identities.
+- RED commit `e5824673661fb479553e569275be9fdb797e651c`: focused result **4 failed / 32 passed**.
+- Repair commit `3131bf9aaec2c0ce1ac733c8cc95831b5390164b` constrains `terms_identity` to an opaque identifier (`A-Za-z0-9._@-`) rather than URL/path/header/reference syntax; canonical fixture is `aipass-terms@2026-08-19`.
+- The evidence SHA remains the only evidence payload representation; neither approval text nor URL/path/header/credential values belong in the record.
+- GREEN focused = **36/36 PASS**; selected provider/config/store/policy/authority/runtime/quota regression = **211/211 PASS**; compile/diff checks PASS.
+- Any GLM review or CI of pre-repair head `cf791b4...` is historical only; a new exact-SHA review + CI are mandatory after this repair.
+
+## GPT deep audit claim ? semantic Terms identity
+
+- Exact candidate `95ae24b0c6fcaf4c9fffbc7e456508542164b8ba` is clean/local=remote. GPT probe proved the opaque-character grammar still accepts API-key/token-like strings (including `sk-ant-*`, `ghp_*`, `AIza*`, and token/cookie-shaped opaque text) and serializes them verbatim in `to_dict()` / repr.
+- This contradicts the WO contract that authorization metadata never carries raw token/credential material. Character opacity alone is not sink safety.
+- Repair remains pure/provider-neutral and within this WO + provider_service_authorization.py + focused tests. RED will require a semantic public Terms-version identifier rather than arbitrary opaque text; no store/policy/admission/runtime/live AiPASS mutation.
+
+## GPT semantic Terms identity repair checkpoint ? 2026-09-03
+
+- Exact pre-repair candidate `95ae24b0c6fcaf4c9fffbc7e456508542164b8ba` still accepted raw token/API-key-like opaque strings (`sk-ant-*`, `ghp_*`, `AIza*`, token/cookie-shaped text) as `terms_identity` and serialized them verbatim. This was a P2 contract-truth defect: opaque characters are not proof of public/non-secret provenance.
+- Claim checkpoint `0b62072149d20f3f69a501f8f2b26a99e7713715`. RED commit `efef8e9778edad18607e514dad54fc5b998b7bb0`: **8 intended failures / 1 valid semantic case PASS**.
+- GREEN repair `8ab062519f6ceeaabb484bae76c5c3474b9f7ea1`: `terms_identity` is now a bounded semantic public Terms-version identifier `<service-slug>-terms@YYYY-MM-DD`; the date must be calendar-valid. Arbitrary opaque/token/path/header/reference text no longer qualifies as Terms identity.
+- Focused = **45/45 PASS**. Provider/config/store/policy/execution-authority/runtime/parallel/quota/harness related matrix = **245/245 PASS**. Safety-focused subset = **20/20 PASS**.
+- Pure/no-I/O AST gate confirms imports are only `__future__`, dataclasses, datetime, enum, and re. `py_compile`, `git diff --check`, strict UTF-8/U+FFFD PASS.
+- GitNexus impact was attempted but the available registry has no A-Wiki-Conductor index. The attempt occurred after production edit but before commit (process deviation); result is `UNVERIFIED - repository not indexed`, not a product failure. No index/system DLL was installed.
+- Live AiPASS remains `BLOCKED_EXTERNAL`; this pure contract neither stores authorization nor wires dispatch/runtime. Independent exact-SHA review + fresh exact-head CI remain mandatory before merge.
+
+## GPT Terms chronology repair checkpoint ? 2026-09-03
+
+- Primary exact-candidate probe proved `AUTHORIZED` evidence observed before the declared Terms effective date was still accepted: evidence at `2026-08-01` authorized `aipass-terms@2026-08-19`. This is a trust-binding defect because pre-version evidence can be relabeled as current authorization.
+- RED `72592dbcbd2e563af1b85e3befb36142a8bf2cd6` reproduced the gap. Repair `b8771e3e5129014166f88c07d9b1e9f17a665ad6` requires `observed_at` calendar date to be on/after the effective date encoded by semantic `terms_identity` before an authorization record can exist.
+- Focused service-authorization = **46/46 PASS**. Provider/config/store/policy/execution-authority/runtime/parallel/quota/harness matrix including focused = **246/246 PASS**. `py_compile`, `git diff --check`, strict UTF-8/U+FFFD and added-line credential scan = PASS / 0 hits.
+- GitNexus impact/detect were attempted before/after the edit, but the only available A-Conductor index is a stale sibling WO150 index and does not contain WO148 symbols; results are `UNVERIFIED ? stale sibling index/tool limitation`. No `gitnexus analyze` rerun was performed because that command was already proven to mutate agent instruction artifacts outside scope.
+- Prior exact candidate `e4e41c0...`, its CI, and any independent review pinned to it are stale. Live AiPASS remains `BLOCKED_EXTERNAL`; this pure WO still performs no store/policy/admission/runtime/live-service I/O. Fresh exact-SHA CI + independent rereview are mandatory.
+
+## GPT timezone-invariance repair checkpoint — 2026-09-03
+
+- Adversarial probe proved the same authorization instant could be accepted in UTC but rejected when represented with a negative timezone offset because chronology compared the caller-local calendar date before UTC normalization.
+- RED commit `f458a4a`: focused = **1 failed / 46 passed** on `test_authorization_evidence_is_timezone_representation_invariant`.
+- GREEN repair `78f0fa8fd728f511a588889f021a983a85276939` compares the normalized UTC observation date to the semantic Terms effective date, making authorization chronology representation-invariant.
+- Focused = **47/47 PASS**. Existing provider/config/store/policy/execution-authority/runtime/parallel/quota/harness regression = **216/216 PASS**.
+- EOF/diff hygiene normalized. Live AiPASS remains `BLOCKED_EXTERNAL`; no store/policy/admission/runtime/live-service authority was added.
+- Any CI or independent review pinned before this repair is historical only. Fresh exact-SHA CI + independent rereview remain mandatory before merge.
+
+- [2026-09-03] GPT primary rerun at timezone-repair head `adc1c901db7024d3d1fd7bcb9c9a0ef6892309b0`: focused **47/47 PASS**; full selected provider matrix including focused **247/247 PASS**; `py_compile`, diff-check, strict UTF-8 PASS. This remains a pure contract with live AiPASS `BLOCKED_EXTERNAL`. Fresh independent exact-SHA rereview is still required.
