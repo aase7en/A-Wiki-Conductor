@@ -18,6 +18,34 @@ Primary sources: official Z.ai GLM-5.3 launch (published 2026-08-14) + official 
 These values justify trying GLM-5.3 MAX for bounded implementation/repair.
 They do not prove it is best for every task and do not replace GPT/integrator review.
 
+## Fast-execution routing refresh — 2026-09-04
+
+Fresh official ZCode evidence supports using GLM-5.3/ZCode as a sustained bounded implementation engine, not as merge/acceptance authority:
+- official ZCode documentation describes GLM-5.3 as integrated for long-horizon coding with stable 1M context and continuity across goals, files, terminal output, execution modes and Git state;
+- the same official documentation positions ZCode Agent for planning, coding, debugging, testing and change review inside one task;
+- current ZCode execution-mode guidance explicitly recommends lower-interruption modes for clear/routine work and plan/confirm-first behavior for critical or broad changes.
+
+Fresh sources:
+- `https://zcode.z.ai/en/docs/welcome` — checked 2026-09-04;
+- `https://zcode.z.ai/en/docs/agents` — checked 2026-09-04;
+- `https://zcode.z.ai/en/changelog` — checked 2026-09-04.
+
+WO154 routing profile:
+
+| Task class | Preferred role | Notes |
+|---|---|---|
+| repo archaeology / call-path tracing | GLM-5.3/ZCode | bounded read/search task; return exact symbols/files/evidence |
+| routine bounded implementation | GLM-5.3/ZCode | exact task contract + owned worktree/scope; targeted tests |
+| mechanical multi-file refactor | GLM-5.3/ZCode | deterministic diff/reference checks remain authority |
+| regression/adversarial test generation | GLM-5.3/ZCode | batch cases before independent candidate review |
+| debugging / root-cause reproduction | GLM-5.3/ZCode | prefer reproducer/evidence before repair |
+| batched repair | GLM-5.3/ZCode | repair confirmed findings together where scope is shared |
+| architecture / trust / authorization | GPT integrator | may use GLM read-only challenge/review, but GPT retains design authority |
+| cross-lane conflict / SSoT / merge / release | GPT integrator | deterministic evidence + current Git/runtime state required |
+| repetitive static/hash/test/build operations | deterministic/native tools | avoid premium-model spend when tools are sufficient |
+
+Model/provider names remain routing choices, never task semantics. Do not hard-code ZCode UI mode or thought-level labels into Conductor contracts because product options may change. Provider readiness/auth/quota/eligibility remains a separate fail-closed gate.
+
 ## Current local availability evidence
 
 - Direct Z.ai GLM-5.3 invocation previously reached the provider but returned HTTP 429 / insufficient resource package.

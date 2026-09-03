@@ -123,6 +123,18 @@ Preserve:
 
 A lost planner/worker transport cannot justify blind replay of an execution with unknown completion state.
 
+### 3.7 Risk-tier execution and verification economy
+
+ODP execution follows `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md` rather than treating every graph node as maximum-risk work.
+
+Each admitted node should carry or deterministically derive a delivery-risk tier (`R0`/`R1`/`R2`/`R3`) from its actual blast radius. The tier controls verification depth, independent-review requirement, E2E/fault coverage, and retry budget; it never weakens repository/ownership/secret/destructive-operation gates.
+
+Planner/adjudicator proposals may suggest risk, but Graph Admission owns the enforceable classification. Security/auth, concurrency/retry/idempotency, durable-state, provider-admission, process-ownership, release/installer and protocol-authority changes escalate to `R3` regardless of planner confidence.
+
+Parallel execution should respect the default delivery WIP ceiling of 3 mutable lanes + 1 independent read-only review lane unless explicit resource/policy evidence safely raises it. The goal is accepted-roadmap throughput, not maximal worker occupancy.
+
+For R2/R3, prefer one adversarial batch followed by a frozen candidate SHA and one exact-SHA independent review round; repair/rereview remains bounded by risk and actual changed boundaries.
+
 ## 4. Orchestration Packet v1 — target projection
 
 Build on existing `ExecutionRequest`, TaskGraph, provider/runtime observations, and evidence. Do not create another durable task authority.
@@ -261,6 +273,12 @@ For security, architecture, high-blast-radius, protocol, release, or other risk-
 | ODP-7 | **P1/P2** | operator observability | ODP-4/5/6 | task timeline shows roles, selected route/reason, round, blocker |
 | ODP-8 | **P1** | deterministic orchestration E2E/fault injection | ODP-1..6 | fake planner/workers/providers prove lifecycle and recovery |
 | ODP-9 | **P2 / gated** | bounded real multi-provider pilot | authorized/admitted providers + stable ODP E2E | one real goal runs plan -> parallel work -> verify -> review/adjudicate without human relay |
+
+### Delivery sequencing under fast execution
+
+The roadmap order remains dependency-driven, not strictly serial. Once prerequisites are accepted, independent READY nodes may run concurrently under the 3-mutable + 1-review WIP ceiling. Do not create parallel lanes that share mutable scope merely to increase apparent utilization.
+
+ODP-8 remains the integration/fault-injection convergence gate for ODP-1..6; ODP-9 remains gated by real provider authorization/admission. Fast execution must not bypass either acceptance boundary.
 
 ## 11. Dependency and coexistence with current frontier
 

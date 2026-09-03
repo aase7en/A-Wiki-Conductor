@@ -549,6 +549,27 @@ A-Conductor
 Evidence -> Verify -> Review -> Repair -> Continue -> Complete
 ```
 
+### Delivery Throughput Objective — Risk-Tier Fast Execution
+
+Binding process: `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md` (`WO-P1-154`).
+
+The North Star requires not only correctness and resilience but also enough delivery throughput to finish the roadmap without coordination ceremony dominating implementation. A-Conductor therefore uses risk-proportionate execution rather than one maximum-assurance path for every change.
+
+Operating rules:
+- classify work as `R0 DOCS`, `R1 LOW`, `R2 NORMAL`, or `R3 CRITICAL` and run the shortest truthful assurance path;
+- repository/ownership/secret/destructive-operation gates are never skipped;
+- use targeted/relevant tests during implementation and reserve full-suite/hosted-CI/release E2E for the frozen candidate or release boundary unless broad coupling justifies earlier execution;
+- batch adversarial cases and repair confirmed findings before independent review where practical;
+- bind independent review to a frozen exact SHA rather than repeatedly reviewing intermediate SHAs;
+- default to one feature PR per WO and avoid temporary PR/worktree proliferation unless remote CI, independent ownership, or a stacked dependency requires it;
+- cap default WIP at 3 mutable implementation lanes + 1 independent read-only review lane;
+- route repetitive implementation/test/refactor/debug mechanics to suitable bounded coding agents such as GLM-5.3/ZCode when currently eligible, while GPT integrator retains architecture, trust-boundary, SSoT, merge/release and final acceptance authority;
+- deterministic tools/evidence remain completion authority regardless of model/provider;
+- same material failure twice without new evidence enters root-cause/no-progress handling instead of blind retry;
+- checkpoint canonical SSoT at meaningful boundaries rather than after every trivial edit.
+
+Delivery target: improve accepted-roadmap throughput by approximately **2–3x** while keeping blocking-defect escape rate and safety incidents no worse than the pre-WO154 baseline. If speed only moves defects downstream, the optimization is considered unsuccessful.
+
 ### Relationship with A-Wiki Orchestrator
 
 A-Conductor and A-Wiki orchestrator are complementary layers and should be developed to cooperate rather than replace one another.
