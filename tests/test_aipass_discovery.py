@@ -459,3 +459,61 @@ def test_opaque_credential_guards_preserve_semantic_text() -> None:
         )
         assert result.state is AiPassDiscoveryState.OK
         assert result.models[0].name == safe_name
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    (
+        "OPENAI_API_KEY=abcdef0123456789",
+        "AWS_SECRET_ACCESS_KEY=abcdef0123456789",
+        "AWS_ACCESS_KEY_ID=AKIAEXAMPLE12345678",
+        "AWS_SESSION_TOKEN=abcdef0123456789",
+        "AZURE_CLIENT_SECRET=abcdef0123456789",
+        "GITHUB_TOKEN=abcdef0123456789",
+    ),
+)
+def test_prefixed_environment_credential_assignments_fall_back(unsafe_name: str) -> None:
+    result = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": "safe-model", "name": unsafe_name}]},
+        quota_payload=None,
+        observed_at=NOW,
+        now=NOW,
+        configuration_generation=1,
+    )
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert unsafe_name not in str(result.to_dict())
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    (
+        "localhost:8080",
+        "127.0.0.1:8080",
+        "api.example.com:443",
+        "api.example.com/v1",
+        "10.0.0.1",
+    ),
+)
+def test_raw_endpoint_shaped_display_names_fall_back(unsafe_name: str) -> None:
+    result = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": "safe-model", "name": unsafe_name}]},
+        quota_payload=None,
+        observed_at=NOW,
+        now=NOW,
+        configuration_generation=1,
+    )
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert unsafe_name not in str(result.to_dict())
+
+
+def test_endpoint_guard_preserves_semantic_network_text() -> None:
+    for safe_name in ("Localhost Model", "IPv4 Research", "API Example Model", "Domain Research"):
+        result = build_aipass_discovery(
+            models_payload={"object": "list", "data": [{"id": "safe-model", "name": safe_name}]},
+            quota_payload=None,
+            observed_at=NOW, now=NOW, configuration_generation=1,
+        )
+        assert result.state is AiPassDiscoveryState.OK
+        assert result.models[0].name == safe_name
