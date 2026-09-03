@@ -58,7 +58,14 @@ def test_glued_ipv4_detector_checks_valid_suffix_inside_invalid_leading_octet() 
 
 
 def test_hardening_preserves_existing_semantic_controls() -> None:
-    for safe_name in ("model-1.2.3.4", "Version 1.2.3", "IPv4 Research", "IPv6 Research"):
+    safe_names = (
+        "model-1.2.3.4",
+        "model-121.169.202.0",
+        "Version 1.2.3",
+        "IPv4 Research",
+        "IPv6 Research",
+    )
+    for safe_name in safe_names:
         result = _build(safe_name)
         assert result.state is AiPassDiscoveryState.OK
         assert result.models[0].name == safe_name
