@@ -70,3 +70,12 @@ RED first, then focused tests, existing provider regression matrix, compile/diff
 - The earlier `provider_id` probe was reconciled against canonical provider configuration: its identifier grammar also permits hyphenated opaque IDs, so that observation is not an independent WO148 defect.
 - PR #199's prior CI on `c57175b...` is historical only; exact-head CI must rerun after this repair/final checkpoint.
 - Candidate remains pure/no-I/O and live AiPASS remains fail-closed / `BLOCKED_EXTERNAL`. Independent exact-SHA review remains mandatory.
+
+## Adversarial hardening checkpoint — opaque Terms identity
+
+- GPT follow-up probe showed the prior safe-character set still accepted URL paths, compact authorization-header shapes, `secret-ref:` references, and slash-bearing identities.
+- RED commit `e5824673661fb479553e569275be9fdb797e651c`: focused result **4 failed / 32 passed**.
+- Repair commit `3131bf9aaec2c0ce1ac733c8cc95831b5390164b` constrains `terms_identity` to an opaque identifier (`A-Za-z0-9._@-`) rather than URL/path/header/reference syntax; canonical fixture is `aipass-terms@2026-08-19`.
+- The evidence SHA remains the only evidence payload representation; neither approval text nor URL/path/header/credential values belong in the record.
+- GREEN focused = **36/36 PASS**; selected provider/config/store/policy/authority/runtime/quota regression = **211/211 PASS**; compile/diff checks PASS.
+- Any GLM review or CI of pre-repair head `cf791b4...` is historical only; a new exact-SHA review + CI are mandatory after this repair.
