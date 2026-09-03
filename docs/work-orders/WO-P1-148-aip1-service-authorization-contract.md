@@ -70,4 +70,3 @@ RED first, then focused tests, existing provider regression matrix, compile/diff
 - The earlier `provider_id` probe was reconciled against canonical provider configuration: its identifier grammar also permits hyphenated opaque IDs, so that observation is not an independent WO148 defect.
 - PR #199's prior CI on `c57175b...` is historical only; exact-head CI must rerun after this repair/final checkpoint.
 - Candidate remains pure/no-I/O and live AiPASS remains fail-closed / `BLOCKED_EXTERNAL`. Independent exact-SHA review remains mandatory.
-
