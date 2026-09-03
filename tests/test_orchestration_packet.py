@@ -435,3 +435,27 @@ def test_reference_fields_accept_declared_semantic_namespaces() -> None:
         evidence_refs=("test:baseline", "evidence:transport-502"),
     )
     assert packet.to_dict()["evidence_refs"] == ["test:baseline", "evidence:transport-502"]
+
+
+def test_reference_namespaces_are_field_specific() -> None:
+    graph, states = _graph()
+    with pytest.raises(ValueError, match="repository_ref"):
+        RepositoryFacts(
+            project_id="p", repository_ref="evidence:repo-1", worktree_ref="worktree:w",
+            branch="b", head_sha="0123456", dirty=False, identity_verified=True, mutation_authorized=False,
+        )
+    with pytest.raises(ValueError, match="worktree_ref"):
+        RepositoryFacts(
+            project_id="p", repository_ref="repo:r", worktree_ref="repo:w",
+            branch="b", head_sha="0123456", dirty=False, identity_verified=True, mutation_authorized=False,
+        )
+    with pytest.raises(ValueError, match="policy_refs"):
+        build_orchestration_packet(
+            task_contract=_task_contract(), graph=graph, node_states=states, graph_id="g",
+            repository=_repo_facts(), eligible_candidates=(), policy_refs=("test:policy",),
+        )
+    with pytest.raises(ValueError, match="evidence_refs"):
+        build_orchestration_packet(
+            task_contract=_task_contract(), graph=graph, node_states=states, graph_id="g",
+            repository=_repo_facts(), eligible_candidates=(), evidence_refs=("policy:e1",),
+        )
