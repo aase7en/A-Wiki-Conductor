@@ -187,6 +187,10 @@ Parallelize only independent READY nodes from the dependency graph. Every mutabl
 
 Do not maximize worker count merely because workers exist. Throughput is measured at accepted merge/release, not active-lane count.
 
+### Accelerator-priority rule
+
+A user-approved infrastructure accelerator may temporarily supersede lower-leverage roadmap nodes when it reduces repeated human relay or coordination cost across many future nodes. The accelerator must have explicit scope, acceptance, fail-closed conditions, and a bounded exit back to the original roadmap. `WO-P1-155` Zero-Relay Accelerator is the current P0 example: eliminate manual GPT↔GLM copy/paste first, then resume ODP delivery using the accepted execution fabric.
+
 ## 9. GPT / GLM / deterministic-tool role split
 
 Routing is capability-first; model names are implementation choices, not authority.

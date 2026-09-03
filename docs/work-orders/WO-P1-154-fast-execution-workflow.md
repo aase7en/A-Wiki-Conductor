@@ -34,6 +34,8 @@ The target optimization is **remove repeated ceremony, not assurance**.
 - `docs/agent-collab/CAPABILITY_MATRIX.md`
 - `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md` (new)
 - `docs/plans/2026-09-03-orchestration-decision-plane-roadmap.md`
+- `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` (new)
+- `docs/work-orders/WO-P1-155-zero-relay-accelerator.md` (new queued P0 accelerator)
 - this work order
 
 ## Protected / deferred scope
@@ -60,6 +62,7 @@ Do not touch WO150/WO152 product source/tests or any live Worker/tunnel/provider
 10. Deterministic tools remain acceptance authority; model confidence or `DONE` is never enough.
 11. Same material failure twice without new evidence triggers root-cause/no-progress handling instead of another blind retry.
 12. SSoT checkpoints are required at meaningful boundaries (claim/ownership change, blocker, frozen candidate, merge/release, handoff/session rollover), not after every trivial edit.
+13. User-prioritized accelerator dependencies may supersede lower-leverage roadmap feature order when they demonstrably reduce repeated human relay/coordination cost without weakening safety. `WO-P1-155` Zero-Relay Accelerator is therefore P0 ahead of broad ODP continuation.
 
 ## Acceptance
 
@@ -67,6 +70,7 @@ Do not touch WO150/WO152 product source/tests or any live Worker/tunnel/provider
 - Existing collaboration protocol points to the new risk-tier flow instead of requiring the heaviest path for every material task.
 - ODP roadmap explicitly preserves risk-tier assurance and safe parallelism.
 - Capability routing documents current official ZCode evidence without turning a provider/model name into authority.
+- Zero-Relay Accelerator is captured as a bounded P0 prerequisite with explicit reuse boundary, R3 gates, fail-closed behavior and an exit back to ODP; it does not silently broaden WO154 into source/runtime mutation.
 - No source/runtime behavior changes.
 - Diff is confined to the declared docs scope and contains no secrets.
 - Markdown/UTF-8 and repository diff checks pass.

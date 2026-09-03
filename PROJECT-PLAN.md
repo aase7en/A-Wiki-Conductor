@@ -570,6 +570,20 @@ Operating rules:
 
 Delivery target: improve accepted-roadmap throughput by approximately **2–3x** while keeping blocking-defect escape rate and safety incidents no worse than the pre-WO154 baseline. If speed only moves defects downstream, the optimization is considered unsuccessful.
 
+### P0 Accelerator — Zero-Relay External-Agent Execution
+
+Binding roadmap: `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` (`WO-P1-155`).
+
+The user has explicitly prioritized eliminating manual copy/paste between GPT/A-Conductor and GLM/ZCode before broad continuation of the ODP roadmap. This is treated as an execution-fabric accelerator because every later roadmap node benefits from lower relay latency and less human context transfer.
+
+Target outcome:
+
+`task packet -> eligible/authorized GLM-capable route -> automatic supervised execution -> exact result/evidence ingestion -> verify/review -> automatic bounded repair/continue`
+
+The stable mailbox remains a fallback only. P0 success means human relay actions per accepted external-agent task = `0`. This priority does not authorize UI-click automation, secret exposure, provider-policy bypass, blind retry, or live provider execution without current readiness/auth/quota/admission evidence.
+
+Execution order is: accept WO154 + close WO153 shared-hotspot ownership -> ZRA-0 copied/sacrificial live-stack activation proof -> ZRA-1 one real authorized no-relay task -> ZRA-2 repair loop -> ZRA-3 automatic continuation -> ZRA-4 bounded parallel dispatch -> resume broad ODP delivery using the accepted zero-relay fabric.
+
 ### Relationship with A-Wiki Orchestrator
 
 A-Conductor and A-Wiki orchestrator are complementary layers and should be developed to cooperate rather than replace one another.
