@@ -57,4 +57,3 @@ RED first for identity mismatches, oversized result, task hash drift, trusted-fi
 - Realistic cross-repo E2E used detached accepted A-Wiki main `2191f2a1...`: mailbox result -> patched forwarder -> A-Wiki ingest -> trusted retest -> trusted CI -> status READY with `allow_complete=true` at reviewed head `047d9f51...`; target worktree remained clean.
 - Pre-repair E2E had failed closed as `AWIKI_REVIEW_FORWARD_FAILED`, proving the missing target argument was the actual dependency gap.
 - Candidate is now READY_FOR_INDEPENDENT_REVIEW; exact-SHA review + PR/CI + post-main remain mandatory before claim release.
-
