@@ -512,3 +512,57 @@ def test_graph_projection_rejects_secret_or_private_path_shapes(field, value):
             repository=_repo_facts(),
             eligible_candidates=(),
         )
+
+def test_task_projection_rejects_secret_or_private_path_shapes():
+    graph, states = _graph()
+    cases = []
+    task = _task_contract(); task["goal"] = "Authorization: Bearer SECRET"; cases.append(task)
+    task = _task_contract(); task["scope"]["allowed_files"] = ["C:/Users/private/.ssh/id_rsa"]; cases.append(task)
+    task = _task_contract(); task["acceptance"]["criteria"] = ["token=SECRET"]; cases.append(task)
+    task = _task_contract(); task["routing"]["preferred_surface_traits"]["max_safe_transaction_scope"] = "secret-ref:awiki/API_TOKEN"; cases.append(task)
+    for unsafe_task in cases:
+        with pytest.raises(ValueError, match="decision-safe|repo-relative"):
+            build_orchestration_packet(
+                task_contract=unsafe_task,
+                graph=graph,
+                node_states=states,
+                graph_id="graph-safe",
+                repository=_repo_facts(),
+                eligible_candidates=(),
+            )
+
+
+def test_repository_and_candidate_labels_reject_credential_shapes():
+    with pytest.raises(ValueError, match="project_id"):
+        RepositoryFacts(
+            project_id="ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
+            repository_ref="repo:test",
+            worktree_ref="worktree:test",
+            branch="main",
+            head_sha="0123456",
+            dirty=False,
+            identity_verified=True,
+            mutation_authorized=False,
+        )
+    with pytest.raises(ValueError, match="provider_id"):
+        EligibleRouteCandidate(
+            candidate_id="route",
+            actor_role="executor",
+            provider_id="AuthorizationBearerSECRET",
+        )
+
+
+def test_graph_id_and_blockers_reject_credential_shapes():
+    graph, states = _graph()
+    with pytest.raises(ValueError, match="graph_id"):
+        build_orchestration_packet(
+            task_contract=_task_contract(), graph=graph, node_states=states,
+            graph_id="ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", repository=_repo_facts(),
+            eligible_candidates=(),
+        )
+    with pytest.raises(ValueError, match="blockers"):
+        build_orchestration_packet(
+            task_contract=_task_contract(), graph=graph, node_states=states,
+            graph_id="graph-safe", repository=_repo_facts(), eligible_candidates=(),
+            blockers=("Authorization: Bearer SECRET",),
+        )
