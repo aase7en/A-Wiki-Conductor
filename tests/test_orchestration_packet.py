@@ -339,3 +339,30 @@ def test_malformed_required_evidence_fails_with_typed_value_error() -> None:
             repository=_repo_facts(),
             eligible_candidates=(),
         )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda task: task.__setitem__("schema_version", "9.9.9"), "schema_version"),
+        (lambda task: task.__setitem__("risk_class", "NOT_A_RISK"), "risk_class"),
+        (lambda task: task["authority"].__setitem__("mutation_allowed", "false"), "mutation_allowed"),
+        (lambda task: task["security"].__setitem__("secret_access", "false"), "secret_access"),
+        (lambda task: task["budget"].__setitem__("max_elapsed_seconds", -5), "max_elapsed_seconds"),
+        (lambda task: task.__setitem__("required_evidence", ["NOT_REAL"]), "required_evidence"),
+        (lambda task: task["scope"].__setitem__("scope_growth", "ALLOW_ANY"), "scope_growth"),
+    ],
+)
+def test_packet_rejects_task_contract_v1_authority_drift(mutate, match: str) -> None:
+    task = _task_contract()
+    mutate(task)
+    graph, states = _graph()
+    with pytest.raises(ValueError, match=match):
+        build_orchestration_packet(
+            task_contract=task,
+            graph=graph,
+            node_states=states,
+            graph_id="graph-odp-authority-drift",
+            repository=_repo_facts(),
+            eligible_candidates=(),
+        )
