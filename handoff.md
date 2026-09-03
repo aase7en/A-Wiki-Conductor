@@ -1,20 +1,21 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-03 - WO143 provider Evidence selection-sync pre-freeze
+Last updated: 2026-09-03 - WO144 post-WO140/WO143 actual-state closeout
 
 ## Current actual handoff — 2026-09-03
 
-- Remote main: `0c437d7ab2ca6bdff99bf926bf93aa8483b25384`; WO142 / PR #192 exact-head CI `33670542967` and post-main CI `33671850522` are SUCCESS across Windows full split suites/Portable/Setup/Frozen E2E + Ubuntu/macOS.
-- WO143 remediates the reproduced WO134-R1 real `<<ComboboxSelected>>` defect in isolated worktree `A:\GitHub\A-Wiki-Conductor-wo143-provider-evidence-selection-sync`, branch `fix/wo-p1-143-provider-evidence-selection-sync`; claim SHA `ef317e7980142b2408c1493ab0dc79610e12d600`.
-- WO143 RED was exact 3/3 failures before production repair. Current GREEN: focused 3/3, full panel 31/31, related UI/control/i18n/graph 145/145, CI-topology GUI 281/281, repeated focused 10/10, async real-Tk 20-switch E2E PASS with one dialog and zero same-provider extra I/O. Candidate is not yet independently reviewed/merged.
-- WO140 remains GLM-5.3 MAX / ZCode Goal + `$a-loop` owned at `01789c55889d668d94827a7f6179b1d74b2541fe`, task SHA `935f6fbc62d7dd7ba0e67302290caad56ffd29d1ace45f0a09e0e8e17852c7ec`; GPT does not overlap its owned-process source/test scope.
-- PR #183 / WO132 remains DRAFT/BLOCKED behind accepted WO143 and a fresh AiPASS Terms/upstream/license audit.
-- WO096 remains the P0 operational release gate; live Worker/tunnel mutation is still `AUTHORIZATION_REQUIRED`, so v0.7.0 publication remains blocked.
-- Primary root checkout remains stale/dirty/protected; use isolated worktrees only.
+- Remote main: `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88` after WO143 / PR #194.
+- WO140 / PR #193: final head `2238259e264991e1249d1439b206dc9b252c3051`; exact-head CI `33678036552` SUCCESS; merged `787e9be2f108ce3f323bebc20127eb03c2958bfc`; post-main `33679432865` SUCCESS. Released.
+- WO143 / PR #194: latest exact head `720d0328c02f7068d34cc3a5ae31418a9b1ede4b`; GLM rereview PASS P0/P1/P2/P3=0; exact-head CI `33680012267` SUCCESS; merged `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`; post-main `33681115738` SUCCESS.
+- WO144 docs-only closeout: worktree `A:\GitHub\A-Wiki-Conductor-wo144-post-reliability-closeout`, branch `docs/wo144-post-reliability-closeout-20260903`, claim `e438d2f80ef46acc00c46919b7e0102b9df07f96`.
+- PR #183 / WO132 is next after WO144; fresh upstream/license/Terms audit complete, current conflict only `COLLAB.md`, live AiPASS BLOCKED_EXTERNAL.
+- WO096 remains P0 operational gate. 18012/18015 stopped but not automatically free: Worker2 has incomplete pharmacy cycle; Worker5 has sunday-estate continuity. Shared live tunnel-client remains 0.0.11. No maintenance mutation authorized.
+- A-Wiki Review Bridge `b04761d580ddcdc7eb682e3a6036078b3b346953` / PR #50 is Draft and mergeable CLEAN; Core CI `33682384067`, Loop Gate `33682383989`, and py38 smoke are SUCCESS. Adapter dependency remains blocked only on the required fresh independent exact-SHA rereview/acceptance; no A-Conductor adapter implementation has started.
+- Primary root checkout remains protected; use isolated worktrees only.
 
 ### One next safe action
 
-Finish WO143 final audit, freeze/commit/push exact candidate, prepare a detached exact-SHA independent review packet, and dispatch it only after the active WO140 GLM mailbox lane releases. GPT continues PR/CI/merge preparation without overlapping WO140.
+Require exact-head CI and remote-diff re-audit for the final PR #195 WO144 docs candidate, then expected-head merge and post-main verification. After WO144 releases `COLLAB.md`, reconcile PR #183 from current main with fresh AiPASS authorization/source evidence. Do not touch live Workers/tunnels or implement Review Bridge before upstream acceptance.
 
 ## Current objective
 
