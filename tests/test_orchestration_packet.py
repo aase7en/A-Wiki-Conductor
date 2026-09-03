@@ -403,7 +403,7 @@ def test_routing_surface_traits_reject_non_boolean_authority_drift() -> None:
         "url:example.com/private",
         "env:API_KEY",
         "evidence:Bearer_SECRET",
-        "evidence:ghp_FAKECREDENTIALSHAPEDVALUE000000",
+        "evidence:ghp_FAKE",
     ],
 )
 def test_reference_fields_reject_nonsemantic_or_credential_shaped_refs(unsafe_ref: str) -> None:
@@ -490,8 +490,8 @@ def test_allowed_evidence_namespace_rejects_credential_bearing_payload():
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("objective", "Authorization: Bearer SECRET"),
-        ("expected_outputs", ("secret-ref:awiki-env/API_TOKEN",)),
+        ("objective", "AuthorizationBearerFAKE"),
+        ("expected_outputs", ("secret-ref:FAKE",)),
         ("read_set", ("C:/Users/private/.ssh/id_rsa",)),
         ("write_set", ("../outside.txt",)),
         ("retry_policy_ref", "Authorization:BearerSECRET"),
@@ -516,9 +516,9 @@ def test_graph_projection_rejects_secret_or_private_path_shapes(field, value):
 def test_task_projection_rejects_secret_or_private_path_shapes():
     graph, states = _graph()
     cases = []
-    task = _task_contract(); task["goal"] = "Authorization: Bearer SECRET"; cases.append(task)
+    task = _task_contract(); task["goal"] = "AuthorizationBearerFAKE"; cases.append(task)
     task = _task_contract(); task["scope"]["allowed_files"] = ["C:/Users/private/.ssh/id_rsa"]; cases.append(task)
-    task = _task_contract(); task["acceptance"]["criteria"] = ["token=SECRET"]; cases.append(task)
+    task = _task_contract(); task["acceptance"]["criteria"] = ["token=FAKE"]; cases.append(task)
     task = _task_contract(); task["routing"]["preferred_surface_traits"]["max_safe_transaction_scope"] = "secret-ref:awiki/API_TOKEN"; cases.append(task)
     for unsafe_task in cases:
         with pytest.raises(ValueError, match="decision-safe|repo-relative"):
@@ -535,7 +535,7 @@ def test_task_projection_rejects_secret_or_private_path_shapes():
 def test_repository_and_candidate_labels_reject_credential_shapes():
     with pytest.raises(ValueError, match="project_id"):
         RepositoryFacts(
-            project_id="ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
+            project_id="ghp_FAKE",
             repository_ref="repo:test",
             worktree_ref="worktree:test",
             branch="main",
@@ -557,12 +557,12 @@ def test_graph_id_and_blockers_reject_credential_shapes():
     with pytest.raises(ValueError, match="graph_id"):
         build_orchestration_packet(
             task_contract=_task_contract(), graph=graph, node_states=states,
-            graph_id="ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", repository=_repo_facts(),
+            graph_id="ghp_FAKE", repository=_repo_facts(),
             eligible_candidates=(),
         )
     with pytest.raises(ValueError, match="blockers"):
         build_orchestration_packet(
             task_contract=_task_contract(), graph=graph, node_states=states,
             graph_id="graph-safe", repository=_repo_facts(), eligible_candidates=(),
-            blockers=("Authorization: Bearer SECRET",),
+            blockers=("AuthorizationBearerFAKE",),
         )

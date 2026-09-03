@@ -36,9 +36,24 @@ _EVIDENCE_REF_NAMESPACES = frozenset({
     "transport", "gate", "recovery", "review", "checksum", "artifact", "execution",
 })
 _CREDENTIAL_PAYLOAD_RE = re.compile(
-    r"(?i)^(?:bearer(?:[_ -]|$)|basic(?:[_ -]|$)|gh[pousr]_|sk-(?:ant-)?|xox[baprs]-|akia|aiza|ya29\.|eyj)"
+    r"(?i)^(?:authorization(?:bearer|basic|[_ :.-]|$)|bearer(?:[_ :.-]|$)|basic(?:[_ :.-]|$)|"
+    r"secret(?:-ref)?(?:[_ :.-]|$)|token(?:[_ :.-]|$)|password(?:[_ :.-]|$)|"
+    r"cookie(?:[_ :.-]|$)|credential(?:[_ :.-]|$)|api[-_]?key(?:[_ :.-]|$)|"
+    r"gh[pousr]_|sk-(?:ant-)?|xox[baprs]-|akia|aiza|ya29\.|eyj)"
 )
 _DRIVE_PATH_RE = re.compile(r"(?i)^[a-z]:[/\\]")
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_UNSAFE_DECISION_TEXT_RE = re.compile(
+    r"(?i)(?:authorization\s*:|bearer\s+\S|basic\s+\S|secret-ref:|"
+    r"(?:api[-_ ]?key|token|cookie|password|credential)\s*[:=]|"
+    r"gh[pousr]_[A-Za-z0-9]|sk-(?:ant-)?[A-Za-z0-9]|xox[baprs]-|akia[A-Za-z0-9]|"
+    r"aiza[A-Za-z0-9]|ya29\.|eyj[A-Za-z0-9])"
+)
+_PRIVATE_PATH_RE = re.compile(
+    r"(?i)(?:^[a-z]:[/\\]|^[/\\]{2}|(?:^|[/\\])\.ssh(?:[/\\]|$)|"
+    r"(?:^|[/\\])\.env(?:[/\\]|$)|(?:^|[/\\])appdata(?:[/\\]|$)|"
+    r"^/(?:users|home|root|private)(?:/|$))"
+)
 _TASK_ROOT_ALLOWED = frozenset({"schema_version", "task_id", "work_order_ref", "goal", "task_type", "risk_class", "authority", "target", "scope", "acceptance", "security", "routing", "budget", "retry_policy", "escalation", "required_evidence", "metadata"})
 _RISK_CLASSES = frozenset({"LOW", "NORMAL", "HIGH", "HUMAN_REQUIRED"})
 _IDENTITY_POLICIES = frozenset({"EXACT", "AUTHORIZED_SUCCESSOR", "NO_GIT", "READ_ONLY_DISCOVERY"})
@@ -118,6 +133,44 @@ def _ref_tuple(
     )
     assert all(value is not None for value in refs)
     return tuple(value for value in refs if value is not None)
+
+
+def _decision_safe_text(value: object, field: str, *, max_length: int = 1000) -> str:
+    text = _text(value, field)
+    assert text is not None
+    if len(text) > max_length or _CONTROL_RE.search(text):
+        raise ValueError(f"{field} must be decision-safe text")
+    if (
+        "://" in text
+        or _CREDENTIAL_PAYLOAD_RE.match(text)
+        or _UNSAFE_DECISION_TEXT_RE.search(text)
+        or _PRIVATE_PATH_RE.search(text)
+    ):
+        raise ValueError(f"{field} must be decision-safe text")
+    return text
+
+
+def _decision_safe_tuple(values: Sequence[str], field: str, *, max_length: int = 256) -> tuple[str, ...]:
+    raw = _nonblank_tuple(values, field)
+    return tuple(_decision_safe_text(value, field, max_length=max_length) for value in raw)
+
+
+def _repo_scope_tuple(values: Sequence[str], field: str) -> tuple[str, ...]:
+    raw = _nonblank_tuple(values, field)
+    safe: list[str] = []
+    for value in raw:
+        normalized = value.replace("\\", "/")
+        if (
+            _DRIVE_PATH_RE.match(value)
+            or value.startswith(("/", "\\"))
+            or any(part == ".." for part in normalized.split("/"))
+            or _CONTROL_RE.search(value)
+            or _UNSAFE_DECISION_TEXT_RE.search(value)
+            or _PRIVATE_PATH_RE.search(value)
+        ):
+            raise ValueError(f"{field} must contain repo-relative decision-safe scope values")
+        safe.append(value)
+    return tuple(safe)
 
 
 def _mapping(value: object, field: str) -> Mapping[str, object]:
@@ -278,10 +331,13 @@ class RepositoryFacts:
     mutation_authorized: bool
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "project_id", _text(self.project_id, "project_id"))
+        object.__setattr__(self, "project_id", _decision_safe_text(self.project_id, "project_id", max_length=256))
         object.__setattr__(self, "repository_ref", _safe_ref(self.repository_ref, "repository_ref", allowed_namespaces=_REPOSITORY_REF_NAMESPACES, optional=True))
         object.__setattr__(self, "worktree_ref", _safe_ref(self.worktree_ref, "worktree_ref", allowed_namespaces=_WORKTREE_REF_NAMESPACES, optional=True))
-        object.__setattr__(self, "branch", _text(self.branch, "branch", optional=True))
+        object.__setattr__(
+            self, "branch",
+            None if self.branch is None else _decision_safe_text(self.branch, "branch", max_length=256),
+        )
         head = _text(self.head_sha, "head_sha", optional=True)
         if head is not None and _SHA_RE.fullmatch(head) is None:
             raise ValueError("head_sha must be 7-64 hexadecimal characters when set")
@@ -330,11 +386,17 @@ class EligibleRouteCandidate:
     evidence_refs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "candidate_id", _text(self.candidate_id, "candidate_id"))
-        object.__setattr__(self, "actor_role", _text(self.actor_role, "actor_role"))
+        object.__setattr__(self, "candidate_id", _decision_safe_text(self.candidate_id, "candidate_id", max_length=128))
+        object.__setattr__(self, "actor_role", _decision_safe_text(self.actor_role, "actor_role", max_length=128))
         for field in ("provider_id", "model_id", "cost_class", "quota_state"):
-            object.__setattr__(self, field, _text(getattr(self, field), field, optional=True))
-        object.__setattr__(self, "capabilities", _nonblank_tuple(self.capabilities, "capabilities"))
+            value = getattr(self, field)
+            object.__setattr__(
+                self, field, None if value is None else _decision_safe_text(value, field, max_length=128)
+            )
+        object.__setattr__(
+            self, "capabilities",
+            _decision_safe_tuple(self.capabilities, "capabilities", max_length=128),
+        )
         object.__setattr__(self, "evidence_refs", _ref_tuple(self.evidence_refs, "evidence_refs", allowed_namespaces=_EVIDENCE_REF_NAMESPACES))
         for field in (
             "supports_long_running",
@@ -430,7 +492,7 @@ def _project_task_contract(task_contract: Mapping[str, object]) -> dict[str, obj
     )
 
     task_id = _text(task_contract["task_id"], "task_contract.task_id")
-    goal = _text(task_contract["goal"], "task_contract.goal")
+    goal = _decision_safe_text(task_contract["goal"], "task_contract.goal", max_length=10000)
     risk_class = _text(task_contract["risk_class"], "task_contract.risk_class")
     required_evidence = _nonblank_tuple(task_contract["required_evidence"], "task_contract.required_evidence")  # type: ignore[arg-type]
 
@@ -474,10 +536,54 @@ def _project_task_contract(task_contract: Mapping[str, object]) -> dict[str, obj
         "escalation": _selected(objects["escalation"], ("conditions",)),
         "required_evidence": list(required_evidence),
     }
+    target_projection = projection["target"]
+    scope_projection = projection["scope"]
+    acceptance_projection = projection["acceptance"]
+    routing_projection = projection["routing"]
+    assert isinstance(target_projection, dict)
+    assert isinstance(scope_projection, dict)
+    assert isinstance(acceptance_projection, dict)
+    assert isinstance(routing_projection, dict)
+
+    target_projection["project_id"] = _decision_safe_text(
+        target_projection["project_id"], "task_contract.target.project_id", max_length=256
+    )
+    if target_projection.get("expected_branch") is not None:
+        target_projection["expected_branch"] = _decision_safe_text(
+            target_projection["expected_branch"], "task_contract.target.expected_branch", max_length=256
+        )
+    for field in ("allowed_files", "forbidden_files"):
+        if field in scope_projection:
+            scope_projection[field] = list(
+                _repo_scope_tuple(scope_projection[field], f"task_contract.scope.{field}")
+            )
+    if "criteria" in acceptance_projection:
+        acceptance_projection["criteria"] = list(
+            _decision_safe_tuple(acceptance_projection["criteria"], "task_contract.acceptance.criteria", max_length=1000)
+        )
+    if acceptance_projection.get("required_review_class") is not None:
+        acceptance_projection["required_review_class"] = _decision_safe_text(
+            acceptance_projection["required_review_class"],
+            "task_contract.acceptance.required_review_class",
+            max_length=128,
+        )
+    required_caps = routing_projection.get("required_capabilities")
+    if required_caps is not None:
+        routing_projection["required_capabilities"] = list(
+            _decision_safe_tuple(required_caps, "task_contract.routing.required_capabilities", max_length=128)
+        )
+    traits_projection = routing_projection.get("preferred_surface_traits")
+    if isinstance(traits_projection, dict) and traits_projection.get("max_safe_transaction_scope") is not None:
+        traits_projection["max_safe_transaction_scope"] = _decision_safe_text(
+            traits_projection["max_safe_transaction_scope"],
+            "task_contract.routing.preferred_surface_traits.max_safe_transaction_scope",
+            max_length=256,
+        )
+
     if "work_order_ref" in task_contract and task_contract["work_order_ref"] is not None:
-        projection["work_order_ref"] = _text(task_contract["work_order_ref"], "task_contract.work_order_ref")
+        projection["work_order_ref"] = _decision_safe_text(task_contract["work_order_ref"], "task_contract.work_order_ref", max_length=256)
     if "task_type" in task_contract and task_contract["task_type"] is not None:
-        projection["task_type"] = _text(task_contract["task_type"], "task_contract.task_type")
+        projection["task_type"] = _decision_safe_text(task_contract["task_type"], "task_contract.task_type", max_length=128)
 
     _json_safe(projection, "task_contract projection")
     return projection
@@ -503,17 +609,17 @@ def _project_graph(
         effective_status = node_states.get(node.id, TaskNodeStatus.TODO)
         nodes.append(
             {
-                "id": node.id,
-                "objective": node.objective,
-                "expected_outputs": list(node.expected_outputs),
-                "read_set": list(node.read_set),
-                "write_set": list(node.write_set),
+                "id": _decision_safe_text(node.id, "graph_nodes.id", max_length=128),
+                "objective": _decision_safe_text(node.objective, "graph_nodes.objective", max_length=1000),
+                "expected_outputs": list(_decision_safe_tuple(node.expected_outputs, "graph_nodes.expected_outputs")),
+                "read_set": list(_repo_scope_tuple(node.read_set, "graph_nodes.read_set")),
+                "write_set": list(_repo_scope_tuple(node.write_set, "graph_nodes.write_set")),
                 "worker_requirement": list(node.worker_requirement),
                 "priority": node.priority,
                 "timeout_seconds": node.timeout_seconds,
-                "retry_policy_ref": node.retry_policy_ref,
+                "retry_policy_ref": None if node.retry_policy_ref is None else _decision_safe_text(node.retry_policy_ref, "graph_nodes.retry_policy_ref", max_length=128),
                 "status": effective_status.value,
-                "artifacts": list(node.artifacts),
+                "artifacts": list(_decision_safe_tuple(node.artifacts, "graph_nodes.artifacts")),
             }
         )
     edges = tuple(
@@ -554,7 +660,7 @@ def build_orchestration_packet(
         raise ValueError("task_contract must be an object")
     if not isinstance(repository, RepositoryFacts):
         raise ValueError("repository must be RepositoryFacts")
-    graph_id_value = _text(graph_id, "graph_id")
+    graph_id_value = _decision_safe_text(graph_id, "graph_id", max_length=128)
     assert graph_id_value is not None
     parallelism = _positive_int(max_parallelism, "max_parallelism")
     rounds = _positive_int(max_adjudication_rounds, "max_adjudication_rounds")
@@ -580,7 +686,7 @@ def build_orchestration_packet(
         eligible_candidates=candidates,
         policy_refs=_ref_tuple(policy_refs, "policy_refs", allowed_namespaces=_POLICY_REF_NAMESPACES),
         evidence_refs=_ref_tuple(evidence_refs, "evidence_refs", allowed_namespaces=_EVIDENCE_REF_NAMESPACES),
-        blockers=_nonblank_tuple(blockers, "blockers"),
+        blockers=_decision_safe_tuple(blockers, "blockers"),
         max_parallelism=parallelism,
         max_adjudication_rounds=rounds,
     )
