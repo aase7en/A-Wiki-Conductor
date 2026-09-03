@@ -33,7 +33,7 @@ Forbidden: shared SSoT/hotspots, PR #183 files, WO145 files, existing mailbox im
 4. Sanitize to A-Wiki review fields only: task_id, reviewed_head, verdict, findings, model, task_sha256.
 5. Never forward reviewer-supplied retest/CI/READY/merge evidence.
 6. Invoke only the accepted A-Wiki `conductor review ingest` CLI through injected `NativeSubprocessRunner` with `mutation_intent=True`.
-7. Fail closed on timeout, truncation, nonzero exit, malformed/bounded JSON, or response task mismatch.
+7. Fail closed on timeout, truncation, nonzero exit, malformed/bounded JSON, response schema mismatch, or response task mismatch.
 
 ## Acceptance
 RED first for identity mismatches, oversized result, task hash drift, trusted-field stripping, exact argv/mutation intent, and bounded command failures. Then focused + related native execution/mailbox regression, realistic local A-Wiki CLI E2E, compile/diff/UTF-8/secret/scope audits. Independent exact-SHA review remains required before PR merge.
@@ -57,3 +57,11 @@ RED first for identity mismatches, oversized result, task hash drift, trusted-fi
 - Realistic cross-repo E2E used detached accepted A-Wiki main `2191f2a1...`: mailbox result -> patched forwarder -> A-Wiki ingest -> trusted retest -> trusted CI -> status READY with `allow_complete=true` at reviewed head `047d9f51...`; target worktree remained clean.
 - Pre-repair E2E had failed closed as `AWIKI_REVIEW_FORWARD_FAILED`, proving the missing target argument was the actual dependency gap.
 - Candidate is now READY_FOR_INDEPENDENT_REVIEW; exact-SHA review + PR/CI + post-main remain mandatory before claim release.
+## Checkpoint — 2026-09-03 protocol hardening after GPT exact-head review
+
+- GPT adversarial review found A-Wiki response schema was not pinned: missing schema and `awiki-review-bridge/v2` were accepted.
+- RED commit `a992262`: focused **2 failed / 22 passed** on missing/wrong schema.
+- Repair commit `aa91f80aa2343aa0e43ae6e5f4e9c612556f75bb` requires exact `awiki-review-bridge/v1`; focused **24/24 PASS**, related matrix **93/93 PASS**.
+- Realistic cross-repo E2E repeated against accepted A-Wiki main `2191f2a1...` and reached READY / `allow_complete=true` at reviewed head `aa91f80...`; target worktree remained clean.
+- `awiki_root` is a trusted operator/configuration input to the factory, never reviewer/mailbox-controlled. This WO does not create a second repository-identity authority; callers must supply the accepted A-Wiki authority root.
+- Final candidate still changes exactly three files. Independent exact-SHA review, PR CI, expected-head merge, and post-main verification remain mandatory.

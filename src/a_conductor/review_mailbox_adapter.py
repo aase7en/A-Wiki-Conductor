@@ -273,7 +273,13 @@ def build_review_result_forwarder(
     python_executable: str,
     timeout_seconds: int = 30,
 ) -> ReviewResultForwarder:
-    """Build the production adapter with one pinned A-Wiki/Python command scope."""
+    """Build the adapter for a trusted operator-supplied A-Wiki authority root.
+
+    ``awiki_root`` is configuration authority and must never come from a
+    reviewer result or mailbox payload. Repository identity remains an
+    operator/integration precondition; this adapter does not invent a second
+    A-Wiki repository-identity authority.
+    """
     if (
         not isinstance(timeout_seconds, int)
         or isinstance(timeout_seconds, bool)
