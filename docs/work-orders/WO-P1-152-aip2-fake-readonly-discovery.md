@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: CLAIMED / RED_FIRST
+Status: READY_FOR_INDEPENDENT_REVIEW
 Priority: P1
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo152-aip2-fake-discovery`
@@ -51,7 +51,7 @@ The upstream reference currently projects `/v1/models` with `id`, `name`, `free_
 
 AIP-2 must preserve only bounded safe facts needed for later routing/operator work. Dynamic model discovery remains ephemeral observation, not capability/configuration authority.
 
-Shared credit may map to one existing `QuotaSnapshot(window_type="shared_credits", unit="credits")`. Per-model `free_credit` remains model metadata. Optional video quota must not be collapsed into the shared quota.
+Shared credit may map to one existing `QuotaSnapshot(window_type="aipass_shared_credits", unit="credits")`. Per-model `free_credit` remains model metadata. Optional video quota must not be collapsed into the shared quota.
 
 ## RED-first acceptance
 - module-absent RED before production implementation;
@@ -70,3 +70,31 @@ Shared credit may map to one existing `QuotaSnapshot(window_type="shared_credits
 Focused tests, existing provider configuration/store/service-auth regressions, compile, diff-check, strict UTF-8/U+FFFD, exact three-file scope, import/AST no-I/O gate, and adversarial serialization probes.
 
 Independent GLM shaping/review may refine this contract before merge; any P0/P1/P2 finding requires RED-first repair and a new exact-SHA review.
+
+## Implementation checkpoint — 2026-09-03
+- Claim checkpoint: `d95154fcca994f8641a4ed8299e069bfebb6aa06`.
+- Module-absent RED: `4131b121cdeba0a83ec2db424022fc180c22e1e1`; collection failed only because `a_conductor.aipass_discovery` did not exist.
+- Cached-quota freshness RED: `bf12eb014ed49eb9fea2b725ff1a417264b5d971`; 2 intended failures proved stale/future `fetchedAt` was not yet authority.
+- Data-boundary RED: `466fdf74bd4ab663c2ae7e40c7b8fc99e0fe7626`; 2 intended failures proved unsafe display metadata serialization and extreme-number exception escape.
+- Source implementation: `7fcf6cff4354c7fe869edc0998634a31cbf1e525`.
+
+Implemented semantics:
+- pure supplied-payload decoder only; no network/process/browser/database/filesystem I/O;
+- deterministic model inventory sorted by exact model ID;
+- unknown `free_credit` remains `None`; unknown optional capability-like fields gain no authority;
+- unsafe display metadata falls back to exact model ID rather than crossing the projection boundary;
+- shared credits and video quota reuse `QuotaSnapshot` as separate windows;
+- quota `fetchedAt` participates in snapshot staleness and cannot be missing/future when quota facts exist;
+- numeric quota facts are finite/non-negative and bounded to the JSON/JavaScript safe-number domain;
+- discovery remains ephemeral and generation-bound; it never rewrites configured models/readiness/authorization/admission.
+
+Verification at source freeze:
+- focused `tests/test_aipass_discovery.py`: **13 passed**;
+- provider/store/runtime/service-auth impact matrix: **284 passed**;
+- `py_compile`: PASS;
+- `git diff --check`: PASS;
+- strict UTF-8/U+FFFD: PASS;
+- AST/import no-I/O gate: PASS;
+- scope remains exactly this WO + new decoder + focused test.
+
+Next gate: commit this documentation checkpoint, push a clean exact review SHA, then require fresh independent exact-SHA review with P0/P1/P2=0 before PR/merge.
