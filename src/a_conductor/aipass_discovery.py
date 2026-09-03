@@ -33,7 +33,7 @@ _EMBEDDED_IP_TOKEN_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9_.@+\-])\[?[0-9a-f:.]+\]?(?![A-Za-z0-9_.@+\-])"
 )
 _EMBEDDED_GLUED_IPV4_RE = re.compile(
-    r"(?<![._@+\-])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])"
+    r"(?<![._@+\-])\d+(?:\.\d{1,3}){3}(?![\d.])"
 )
 _MODEL_KINDS = frozenset({"chat", "image", "video", "music", "research"})
 _MAX_JSON_SAFE_NUMBER = (1 << 53) - 1
@@ -203,11 +203,14 @@ def _contains_embedded_raw_endpoint(value: str) -> bool:
             continue
         return True
     for match in _EMBEDDED_GLUED_IPV4_RE.finditer(value):
-        try:
-            ip_address(match.group(0))
-        except ValueError:
-            continue
-        return True
+        digits, tail = match.group(0).split(".", 1)
+        for width in range(min(3, len(digits)), 0, -1):
+            candidate = f"{digits[-width:]}.{tail}"
+            try:
+                ip_address(candidate)
+            except ValueError:
+                continue
+            return True
     return False
 
 
