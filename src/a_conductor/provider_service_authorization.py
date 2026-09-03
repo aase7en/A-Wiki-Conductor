@@ -7,13 +7,16 @@ External authorization evidence is represented only by a SHA-256 digest.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 import re
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
-_TERMS_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{1,255}$")
+_TERMS_ID_RE = re.compile(
+    r"^(?P<service>[a-z](?:[a-z0-9-]{0,46}[a-z0-9])?)-terms@"
+    r"(?P<effective>\d{4}-\d{2}-\d{2})$"
+)
 
 
 class ServiceAuthorizationState(str, Enum):
@@ -38,9 +41,14 @@ def _text(value: object, field: str, *, max_length: int) -> str:
 
 
 def _terms_identity(value: object) -> str:
-    text = _text(value, "terms_identity", max_length=256)
-    if not _TERMS_ID_RE.fullmatch(text):
+    text = _text(value, "terms_identity", max_length=64)
+    match = _TERMS_ID_RE.fullmatch(text)
+    if match is None:
         raise ValueError("terms_identity is invalid")
+    try:
+        date.fromisoformat(match.group("effective"))
+    except ValueError as exc:
+        raise ValueError("terms_identity is invalid") from exc
     return text
 
 
