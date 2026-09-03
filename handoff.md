@@ -1,6 +1,17 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-03 - WO144 post-WO140/WO143 actual-state closeout
+Last updated: 2026-09-03 - WO146 post-acceptance reconciliation
+
+## WO146 current handoff override — 2026-09-03
+
+- Remote main: `37039a0e1dceb6256e3ee384bd7fa6ffb2737997`. WO144 final closeout remains released; WO145 / PR #198 exact head `93f9a4089526f70a39adc3b97d3db55d6c8c6b3e` passed GLM rereview P0/P1/P2=0, GPT 160/160, exact-head CI `33706012375`, merged as `37039a0e...`, and post-main `33708033393` is SUCCESS.
+- A-Wiki Review Bridge is accepted: PR #50 head `b04761d580ddcdc7eb682e3a6036078b3b346953`, independent GLM rereview PASS P0/P1/P2=0, merge `588a907200e0d4998ec4fbb7fb2178b89d9700b2`, post-main `33704270521` SUCCESS.
+- PR #183 / WO132 remains Draft and conflicts only in `COLLAB.md`; refresh from current main, preserve both histories, then require new exact-head CI. AiPASS live automation remains `BLOCKED_EXTERNAL`.
+- WO145 / PR #198 is RELEASED. PR #197 exact-head CI `33707457065` had failed on the older main at the same Windows exact-PID terminator ambiguity (`terminate_returned=False` / `PROCESS_STOP_FAILED`); re-compose PR #197 on current main and require a new exact-head CI.
+- WO147 thin review-result mailbox adapter is CLAIMED / RED_FIRST in its isolated worktree. It reuses stable `agent-mailbox/v1`, must not use `AgentResultFileReader`, and may forward only through the accepted A-Wiki `conductor review` CLI boundary; shared SSoT and PR #183 are forbidden there.
+- WO096 remains `AUTHORIZATION_REQUIRED`; no live Worker/tunnel maintenance.
+
+One next safe action: finish PR #197 re-composition and fresh exact-head CI on main `37039a0e...`; after its post-main release, reconcile PR #183 while WO147 continues independently.
 
 ## Current actual handoff — 2026-09-03
 

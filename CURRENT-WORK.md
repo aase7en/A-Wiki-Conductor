@@ -1,6 +1,26 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO144 post-reliability actual-state closeout)
+Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO146 post-acceptance reconciliation)
+
+## WO146 authoritative actual-state override — 2026-09-03
+
+Actual Git/GitHub evidence below supersedes older frontier/status text later in this file.
+
+- `origin/main = 37039a0e1dceb6256e3ee384bd7fa6ffb2737997`; WO144 / PR #195 + closeout PR #196 remain RELEASED. WO145 / PR #198 exact head `93f9a4089526f70a39adc3b97d3db55d6c8c6b3e` passed independent GLM rereview P0/P1/P2=0, GPT 160/160 related tests, exact-head CI `33706012375`, merged as `37039a0e1dceb6256e3ee384bd7fa6ffb2737997`, and post-main CI `33708033393` SUCCESS.
+- A-Wiki Review Bridge PR #50 exact head `b04761d580ddcdc7eb682e3a6036078b3b346953` passed Core CI `33682384067`, Loop Gate `33682383989`, independent GLM rereview PASS P0/P1/P2=0, merged as `588a907200e0d4998ec4fbb7fb2178b89d9700b2`, post-main `33704270521` SUCCESS. The adapter dependency is RELEASED; A-Conductor must still reuse ReviewBus via the approved CLI boundary and must not create a second lifecycle authority.
+- PR #183 / WO132 AiPASS is the next shared-doc product-planning lane; reconcile it against current main before new CI. Live AiPASS automation remains `BLOCKED_EXTERNAL` under current Terms §3.4.
+- WO145 / PR #198 is RELEASED on main `37039a0e1dceb6256e3ee384bd7fa6ffb2737997`; post-main `33708033393` is SUCCESS. This repair addresses the Windows `terminate_returned=False` / `PROCESS_STOP_FAILED` incident that caused PR #197 run `33707457065` to fail on the older main; PR #197 must therefore be re-composed and re-tested on current main rather than rerun unchanged on the stale base.
+- WO147 thin review-mailbox adapter is CLAIMED / RED_FIRST in `A:\GitHub\A-Wiki-Conductor-wo147-review-mailbox-adapter`; mutable scope is only the new adapter, focused tests, and WO147. Shared SSoT/PR #183/WO145 are forbidden in that lane.
+- WO096 remains the P0 operational release blocker and live maintenance remains `AUTHORIZATION_REQUIRED`.
+- Protected root checkout remains stale/dirty; mutation stays in isolated worktrees.
+
+### Immediate execution order
+
+1. Reconcile and release PR #183 from current main with fresh exact-head CI/post-main proof.
+2. Re-compose PR #197 on released WO145 main `37039a0e...`, refresh this five-doc SSoT delta, and require a fresh exact-head CI before merge.
+3. Let claimed WO147 continue independently through RED?GREEN?verification?independent exact-SHA review; do not touch its mutable scope from this lane.
+4. Claim AIP-1 after PR #183 acceptance; keep live AiPASS traffic disabled.
+5. Keep WO096 fail-closed until explicit maintenance authority exists.
 
 ## Actual-state reconciliation — 2026-09-03
 
