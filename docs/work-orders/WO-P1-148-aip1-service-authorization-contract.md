@@ -112,3 +112,5 @@ RED first, then focused tests, existing provider regression matrix, compile/diff
 - Focused = **47/47 PASS**. Existing provider/config/store/policy/execution-authority/runtime/parallel/quota/harness regression = **216/216 PASS**.
 - EOF/diff hygiene normalized. Live AiPASS remains `BLOCKED_EXTERNAL`; no store/policy/admission/runtime/live-service authority was added.
 - Any CI or independent review pinned before this repair is historical only. Fresh exact-SHA CI + independent rereview remain mandatory before merge.
+
+- [2026-09-03] GPT primary rerun at timezone-repair head `adc1c901db7024d3d1fd7bcb9c9a0ef6892309b0`: focused **47/47 PASS**; full selected provider matrix including focused **247/247 PASS**; `py_compile`, diff-check, strict UTF-8 PASS. This remains a pure contract with live AiPASS `BLOCKED_EXTERNAL`. Fresh independent exact-SHA rereview is still required.
