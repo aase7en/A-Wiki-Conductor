@@ -221,3 +221,12 @@ def test_terms_identity_is_public_semantic_version_not_arbitrary_opaque_text(ter
 def test_terms_identity_accepts_bounded_service_terms_calendar_version():
     record = _record(terms_identity="example-service-terms@2026-09-03")
     assert record.terms_identity == "example-service-terms@2026-09-03"
+
+
+def test_authorization_evidence_cannot_predate_declared_terms_version():
+    with pytest.raises(ValueError, match="observed_at.*terms_identity|terms_identity.*observed_at"):
+        _record(
+            observed_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+            recheck_after=datetime(2026, 9, 10, tzinfo=timezone.utc),
+            terms_identity="aipass-terms@2026-08-19",
+        )
