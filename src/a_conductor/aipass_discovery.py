@@ -27,7 +27,7 @@ _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
 )
 _CREDENTIAL_SHAPED_RE = re.compile(
     r"(?i)(?:^|[\s._/@:+-])(?:bearer\s+[A-Za-z0-9._~+/=-]{16,}|gh[pousr]_|sk-ant-|"
-    r"xox[baprs]-|akia[0-9a-z]|aiza[0-9a-z]|ya29\.|eyj[0-9a-z])"
+    r"sk-(?:proj-|live-)?[A-Za-z0-9_]{16,}|xox[baprs]-|akia[0-9a-z]|aiza[0-9a-z]|ya29\.|eyj[0-9a-z])"
 )
 
 
