@@ -566,3 +566,20 @@ def test_graph_id_and_blockers_reject_credential_shapes():
             graph_id="graph-safe", repository=_repo_facts(), eligible_candidates=(),
             blockers=("AuthorizationBearerFAKE",),
         )
+
+
+@pytest.mark.parametrize(
+    "unsafe_ref",
+    (
+        "evidence:incident-ghp_FAKE",
+        "evidence:incident-sk-ant-FAKE",
+        "evidence:proof-Bearer_FAKE",
+    ),
+)
+def test_allowed_evidence_namespace_rejects_embedded_credential_markers(unsafe_ref: str) -> None:
+    with pytest.raises(ValueError, match="evidence_refs"):
+        EligibleRouteCandidate(
+            candidate_id="c",
+            actor_role="reviewer",
+            evidence_refs=(unsafe_ref,),
+        )
