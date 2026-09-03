@@ -13,6 +13,7 @@ import re
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_TERMS_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]{1,255}$")
 
 
 class ServiceAuthorizationState(str, Enum):
@@ -33,6 +34,13 @@ def _text(value: object, field: str, *, max_length: int) -> str:
     text = value.strip()
     if not text or len(text) > max_length or _CONTROL_RE.search(text):
         raise ValueError(f"{field} is invalid")
+    return text
+
+
+def _terms_identity(value: object) -> str:
+    text = _text(value, "terms_identity", max_length=256)
+    if not _TERMS_ID_RE.fullmatch(text):
+        raise ValueError("terms_identity is invalid")
     return text
 
 
@@ -68,9 +76,7 @@ class ProviderServiceAuthorizationRecord:
             raise ValueError("state must be ServiceAuthorizationState")
         if not isinstance(self.integration_mode, ServiceIntegrationMode):
             raise ValueError("integration_mode must be ServiceIntegrationMode")
-        object.__setattr__(
-            self, "terms_identity", _text(self.terms_identity, "terms_identity", max_length=256)
-        )
+        object.__setattr__(self, "terms_identity", _terms_identity(self.terms_identity))
         evidence = self.evidence_sha256
         if evidence is not None:
             if not isinstance(evidence, str) or not _SHA256_RE.fullmatch(evidence):
@@ -148,7 +154,7 @@ def evaluate_provider_service_authorization(
 ) -> ProviderServiceAuthorizationDecision:
     """Evaluate service permission only; never infer readiness or task authority."""
     provider = _text(provider_id, "provider_id", max_length=128)
-    terms = _text(terms_identity, "terms_identity", max_length=256)
+    terms = _terms_identity(terms_identity)
     generation = _generation(expected_configuration_generation)
     current = _aware_utc(now, "now")
     if not isinstance(requested_mode, ServiceIntegrationMode):
