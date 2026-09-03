@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: CLAIMED_P2_REPAIR
+Status: READY_FOR_INDEPENDENT_REREVIEW / POSTMAIN_DEPENDENCY_PENDING
 Priority: P1
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo152-aip2-fake-discovery`
@@ -108,8 +108,21 @@ Next gate: commit this documentation checkpoint, push a clean exact review SHA, 
 - Post-compose provider/store/runtime/service-auth matrix: **284 passed**.
 
 Review authority must pin the final checkpoint commit created after this note, not `684f1bc...` or `819772a...`.
-## GPT P2 repair claim ? 2026-09-03
+## GPT P2 repair claim - 2026-09-03
 - GPT primary adversarial probe against exact `d9343ad52cce71614009d6a4bbf49c1f1035dbd8` proved untrusted credential-shaped model metadata can cross `AiPassDiscoverySnapshot.to_dict()`: `name=ghp_*`, `name=Bearer ...`, and token-shaped `model_id` remain serialized as `DISCOVERY_OK`.
 - Prior exact-review candidate `d9343ad...` and queued `wo152-glm-final-review-002` are stale for acceptance.
 - Scope remains exactly this WO, `src/a_conductor/aipass_discovery.py`, and `tests/test_aipass_discovery.py`. No live AiPASS/provider/store/runtime mutation.
 - Next: RED-first tests for credential-shaped model ID/display metadata, then the smallest pure decoder repair.
+
+## GPT P2 repair checkpoint - 2026-09-03
+- RED `660639b57064d3495a7954f08465f8bd47660703`: 4 intended failures / 13 existing PASS proved credential-shaped model IDs and display metadata could cross serialized discovery output.
+- A self-review safe-control then proved an overbroad bearer guard would hide ordinary `Bearer Capacity`; that control failed before the guard was tightened.
+- Repair `ca046d04b44f5b29447c6855bf3ad83d0db021c6` rejects high-confidence credential-shaped model IDs, falls unsafe display names back to the safe model ID, and preserves ordinary semantic display text.
+- Current main advanced via WO151 / PR #203 to `1ae477f05e597c5027d22fdb2ca4f1496c070db7`; composed WO152 head before this documentation checkpoint is `368e020d811a837f9908ea08eea5e8e78f4a2db0`.
+- Post-compose focused `tests/test_aipass_discovery.py`: 18/18 PASS.
+- Provider/config/store/service-auth/execution-authority/runtime/parallel/harness/job/quota impact matrix: 344/344 PASS.
+- `compileall`, `git diff --check`, strict UTF-8/U+FFFD, AST/import no-I/O gate, direct serialization probes, and added-line credential scan: PASS.
+- Delta versus current main remains exactly this WO + `src/a_conductor/aipass_discovery.py` + `tests/test_aipass_discovery.py`.
+- GitNexus impact is UNVERIFIED: the available A-Wiki-Conductor index is from a stale sibling worktree and FTS has the known Windows OpenSSL DLL limitation; no repository-mutating analyze or DLL install was attempted.
+- PR #203 post-main CI `33750907975` is still pending at this checkpoint. Independent review may proceed on the final WO152 SHA, but PR/merge remains blocked until that dependency is terminal green.
+- Next safe action: fresh independent exact-SHA review with raw Git-blob pins; P0/P1/P2 must be zero before PR/merge.
