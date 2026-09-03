@@ -83,7 +83,7 @@ def test_authorization_is_bound_to_exact_integration_mode():
 
 
 def test_terms_identity_change_invalidates_authorization():
-    decision = _evaluate(_record(), terms="aipass.go.th/term-and-cond-th@future")
+    decision = _evaluate(_record(), terms="aipass-terms@future")
     assert not decision.allowed
     assert decision.reason_code == "SERVICE_AUTHORIZATION_TERMS_STALE"
 

@@ -13,7 +13,7 @@ import re
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
-_TERMS_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]{1,255}$")
+_TERMS_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{1,255}$")
 
 
 class ServiceAuthorizationState(str, Enum):
