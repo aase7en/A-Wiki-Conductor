@@ -364,3 +364,41 @@ def test_additional_credential_shape_guards_preserve_semantic_near_neighbors() -
         assert result.state is AiPassDiscoveryState.OK
         assert result.models[0].model_id == safe_value
         assert result.models[0].name == safe_value
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    (
+        " /home/alice/.ssh/id_ed25519",
+        "Model cache /home/alice/.ssh/id_ed25519",
+        r" C:\Users\alice\secret.txt",
+        r"Model cache C:\Users\alice\secret.txt",
+        r" \\server\share\secret.txt",
+        r"Model cache \\server\share\secret.txt",
+        "endpoint /v1/models",
+    ),
+)
+def test_embedded_private_path_display_names_fall_back(unsafe_name: str) -> None:
+    result = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": "safe-model", "name": unsafe_name}]},
+        quota_payload=None,
+        observed_at=NOW,
+        now=NOW,
+        configuration_generation=1,
+    )
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert unsafe_name != result.models[0].name
+
+
+def test_private_path_guard_preserves_semantic_slash_text() -> None:
+    for safe_name in ("Vision / Chat", "Home / Research", "C drive model", "Path-aware model"):
+        result = build_aipass_discovery(
+            models_payload={"object": "list", "data": [{"id": "safe-model", "name": safe_name}]},
+            quota_payload=None,
+            observed_at=NOW,
+            now=NOW,
+            configuration_generation=1,
+        )
+        assert result.state is AiPassDiscoveryState.OK
+        assert result.models[0].name == safe_name
