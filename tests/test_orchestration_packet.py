@@ -477,3 +477,38 @@ def test_packet_rejects_projected_optional_field_type_drift(mutate, match: str) 
             task_contract=task, graph=graph, node_states=states, graph_id="g",
             repository=_repo_facts(), eligible_candidates=(),
         )
+
+def test_allowed_evidence_namespace_rejects_credential_bearing_payload():
+    with pytest.raises(ValueError, match="evidence_refs"):
+        EligibleRouteCandidate(
+            candidate_id="c",
+            actor_role="reviewer",
+            evidence_refs=("evidence:AuthorizationBearerSECRET",),
+        )
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("objective", "Authorization: Bearer SECRET"),
+        ("expected_outputs", ("secret-ref:awiki-env/API_TOKEN",)),
+        ("read_set", ("C:/Users/private/.ssh/id_rsa",)),
+        ("write_set", ("../outside.txt",)),
+        ("retry_policy_ref", "Authorization:BearerSECRET"),
+        ("artifacts", ("C:/Users/private/.ssh/id_rsa",)),
+    ],
+)
+def test_graph_projection_rejects_secret_or_private_path_shapes(field, value):
+    kwargs = {"id": "unsafe", "objective": "Safe objective."}
+    kwargs[field] = value
+    graph = TaskGraph()
+    graph.add_node(TaskNode(**kwargs))
+    with pytest.raises(ValueError, match="graph_nodes|decision-safe|repo-relative|retry_policy_ref"):
+        build_orchestration_packet(
+            task_contract=_task_contract(),
+            graph=graph,
+            node_states={"unsafe": TaskNodeStatus.TODO},
+            graph_id="graph-unsafe",
+            repository=_repo_facts(),
+            eligible_candidates=(),
+        )
