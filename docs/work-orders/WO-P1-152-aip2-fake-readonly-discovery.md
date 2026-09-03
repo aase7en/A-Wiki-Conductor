@@ -200,3 +200,16 @@ Review authority must pin the final checkpoint commit created after this note, n
 - `compileall`, `git diff --check`, strict UTF-8/U+FFFD, and AST forbidden-I/O import gate: PASS.
 - Candidate `8edf7b69...` and detached review worktree `wo152-glm-final-review-007` are stale for acceptance; no review packet was published for that stale tree.
 - Next safe action: commit/push this repair freeze, create a fresh detached exact-SHA review packet with new blob pins, require hosted CI green and independent P0=P1=P2=0 before merge.
+
+## GPT P2 scale-dependent quota repair checkpoint — 2026-09-03
+- Exact candidate `267c99081d685a4e16072a4b6a4534e8a119dd86` still accepted contradictory large quota tuples because `_consistent()` used `math.isclose(..., rel_tol=1e-9)`; allowed error therefore grew with quota magnitude.
+- Deterministic reproducers included `limit=10^12, used=10^12-500, remaining=0`, `limit=10^15, used=10^15-100000, remaining=0`, and a 1,000,000-credit gap near the JSON safe-integer ceiling; all incorrectly projected `DISCOVERY_OK` before repair.
+- RED `c28892b03ca79dc3411103b0f0e66f5b73f95161`: **3 failed / 96 passed**; each failure was the intended large-quota contradiction and included valid `fetchedAt` so the test reached quota consistency rather than failing earlier.
+- Repair `a77a83a319732d11ffaa817db474a7fabb521d34` removes scale-dependent relative tolerance while preserving the existing fixed `abs_tol=1e-6` for ordinary floating arithmetic.
+- Focused `tests/test_aipass_discovery.py`: **99/99 PASS**.
+- Broad provider/config/store/service-auth/execution/runtime/parallel/harness/job/quota impact matrix: **634/634 PASS across 29 files**.
+- Full repository suite: **2260 PASS / 5 SKIP / 2 FAIL**; both failures are unchanged optional GPU environment failures (Pillow/OpenGL) and reproduce on detached `origin/main@1ae477f05e597c5027d22fdb2ca4f1496c070db7`.
+- Deterministic extra probes: valid fractional quota arithmetic stays OK; contradictory fractional/large shared and video quota fail closed; 1,000 randomized exact tuples plus randomized contradictory tuples across shared/video paths PASS.
+- `compileall`, `git diff --check`, strict UTF-8/U+FFFD, AST forbidden-I/O scan, runtime no-I/O monkeypatch probe, and exact three-file scope: PASS.
+- Review packet `wo152-glm-final-review-008` is stale for acceptance because it pins pre-repair `267c990...`.
+- Next safe action: commit/push this documentation freeze, create a fresh detached exact-SHA review with new raw blob pins, require exact-head hosted CI SUCCESS and independent GLM P0=P1=P2=0 before Ready/Merge.
