@@ -31,7 +31,7 @@ Choose the **lowest tier that truthfully covers blast radius**. Escalate immedia
 
 ### Automatic escalation triggers
 
-Escalate to at least `R2` when work changes a shared contract, serialized format, durable store semantics, cross-component integration, or multiple mutable hotspots.
+Escalate to at least `R2` when work changes a shared contract, serialized format, durable store semantics, cross-component integration, multiple mutable hotspots, binding coordination/SSoT policy, or acceptance/verification policy. Ordinary status text may be R0; changing the rules that decide ownership, completion, review, or release is not.
 
 Escalate to `R3` when work affects:
 - authorization/security/trust boundaries;
