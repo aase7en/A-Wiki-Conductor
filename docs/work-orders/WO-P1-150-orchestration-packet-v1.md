@@ -1,6 +1,6 @@
 # WO-P1-150 — ODP-1 Orchestration Packet v1
 
-Status: GPT_PRIMARY_REPAIR / TASK-CONTRACT AUTHORITY VALIDATION
+Status: READY_FOR_INDEPENDENT_REREVIEW / CI_RERUN_REQUIRED
 Lane/files:
 - `src/a_conductor/orchestration_packet.py`
 - `tests/test_orchestration_packet.py`
@@ -83,3 +83,4 @@ Also verify:
 
 - [2026-09-03] GPT RED repair cycle: authority-drift RED `c18c95f` reproduced 7/7 malformed task-contract controls being projected; GREEN `edb8dbd` added bounded validation for projected v1 authority semantics. A second adversarial probe proved raw path/credential-like free text could cross fields documented as references; RED `56ff1e5` reproduced that boundary plus non-boolean routing traits. Final repair requires bounded safe namespaced refs for repository/worktree/policy/evidence seams and validates routing control types. Focused current = 22/22 PASS; related graph/domain/ready/scheduler/dispatch/store/provider-authority matrix = 121/121 PASS; compile/diff/UTF-8 PASS. Process deviation: GitNexus impact was not run before the first production edit and must be recorded as a late gate, never rewritten as pre-edit evidence.
 - [2026-09-03] GitNexus late gate after local index: detect-changes = 4 files / 18 symbols / 5 affected flows / MEDIUM. FTS remained unavailable because the existing Windows OpenSSL runtime dependency is missing; no DLL was installed. `gitnexus analyze` unexpectedly appended GitNexus instructions to tracked `AGENTS.md` and created `.claude/**` + `CLAUDE.md`; pre-call status proved those paths were clean/absent, so GPT restored only those tool-generated artifacts. `AGENTS.md` hash is byte-equivalent to HEAD and the generated untracked artifacts are absent. This is recorded as a tool-side-effect/process deviation, not hidden as a clean pre-edit impact gate.
+- [2026-09-03] Production + contract repair frozen as `51a92f1b9395eeb42a353c68305161a23baf7052`. Current exact local evidence after repair: focused packet **22/22 PASS**; related graph/domain/ready/scheduler/dispatch/store/provider-authority **99/99 PASS** (121/121 including focused); `compileall`, `git diff --check`, strict UTF-8/U+FFFD and deterministic added-line credential scan **0 hits**. GitNexus late detect-changes = MEDIUM, 4 files / 18 symbols / 5 flows. This candidate still requires a fresh independent exact-SHA rereview and hosted CI on the final checkpoint SHA before merge. The previously dispatched GLM Phase E pin `5c6d803...` is intentionally stale and must not be treated as review of this repair.
