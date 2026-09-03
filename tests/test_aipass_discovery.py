@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from a_conductor.aipass_discovery import (
     AiPassDiscoveryState,
     build_aipass_discovery,
@@ -209,3 +211,46 @@ def test_extreme_quota_number_fails_typed_without_exception_escape() -> None:
     result = _build(quota=quota)
     assert result.state is AiPassDiscoveryState.MALFORMED
     assert result.reason_code == "QUOTA_PAYLOAD_MALFORMED"
+
+
+@pytest.mark.parametrize(
+    "unsafe_model_id",
+    (
+        "".join(("gh", "p_FAKE")),
+        "".join(("sk", "-ant-FAKE")),
+    ),
+)
+def test_credential_shaped_model_id_fails_closed_without_serialization(unsafe_model_id: str) -> None:
+    now = NOW
+    result = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": unsafe_model_id, "name": "safe"}]},
+        quota_payload=None,
+        observed_at=now,
+        now=now,
+        configuration_generation=1,
+    )
+    assert result.state is AiPassDiscoveryState.MALFORMED
+    assert result.reason_code == "MODEL_PAYLOAD_MALFORMED"
+    assert result.models == ()
+    assert unsafe_model_id not in str(result.to_dict())
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    (
+        "".join(("gh", "p_FAKE")),
+        "".join(("Bearer", " FAKE")),
+    ),
+)
+def test_credential_shaped_display_name_falls_back_without_serialization(unsafe_name: str) -> None:
+    now = NOW
+    result = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": "safe-model", "name": unsafe_name}]},
+        quota_payload=None,
+        observed_at=now,
+        now=now,
+        configuration_generation=1,
+    )
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert unsafe_name not in str(result.to_dict())
