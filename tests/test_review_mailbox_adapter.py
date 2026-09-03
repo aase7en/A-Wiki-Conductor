@@ -174,6 +174,8 @@ def test_forwarder_uses_only_awiki_cli_and_sanitized_payload(tmp_path: Path) -> 
     assert tuple(spec.argv[:7]) == (
         sys.executable, "-m", "conductor", "review", "ingest", "--task", a.task_id
     )
+    target_index = spec.argv.index("--target-repo")
+    assert spec.argv[target_index + 1] == a.worktree
     assert spec.argv[-1] == "--json"
     assert spec.mutation_intent is True
     assert spec.cwd == "."
