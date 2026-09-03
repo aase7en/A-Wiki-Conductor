@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: READY_FOR_INDEPENDENT_REVIEW
+Status: GPT_PRIMARY_REPAIR / RED_FIRST
 Priority: P1
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo147-review-mailbox-adapter`
@@ -65,3 +65,9 @@ RED first for identity mismatches, oversized result, task hash drift, trusted-fi
 - Realistic cross-repo E2E repeated against accepted A-Wiki main `2191f2a1...` and reached READY / `allow_complete=true` at reviewed head `aa91f80...`; target worktree remained clean.
 - `awiki_root` is a trusted operator/configuration input to the factory, never reviewer/mailbox-controlled. This WO does not create a second repository-identity authority; callers must supply the accepted A-Wiki authority root.
 - Final candidate still changes exactly three files. Independent exact-SHA review, PR CI, expected-head merge, and post-main verification remain mandatory.
+
+## Checkpoint ? 2026-09-03 bounded result-read repair claim
+
+- GPT exact-candidate audit reproduced a TOCTOU size-bound defect in `_result_bytes()`: a small `Path.stat().st_size` is followed by a separate whole-file `Path.read_bytes()`, so a reviewer-controlled result path can be replaced/grown between the pre-check and the read. The post-read length check rejects the payload only after memory was already consumed.
+- Repair scope remains this WO + `src/a_conductor/review_mailbox_adapter.py` + `tests/test_review_mailbox_adapter.py`; shared SSoT, mailbox authority, A-Wiki, provider/runtime/UI and live Workers remain forbidden.
+- Next: commit failing regression first, then single-descriptor bounded read (`MAX+1`) and full focused/related/E2E verification.
