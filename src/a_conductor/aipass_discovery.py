@@ -21,11 +21,24 @@ from .provider_configuration import QuotaSnapshot
 _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@+\-]{0,127}$")
 _RAW_ENDPOINT_HOST_RE = re.compile(
     r"^(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?\.)+"
-    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)\.?$",
+    r"[A-Za-z]{2,63})\.?$",
     re.IGNORECASE,
+)
+_EMBEDDED_ENDPOINT_HOST_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9._@+\-])"
+    r"(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?\.)+"
+    r"[A-Za-z]{2,63})(?![A-Za-z0-9._\-])"
+)
+_EMBEDDED_IPV4_RE = re.compile(
+    r"(?<![A-Za-z0-9._\-])(?:\d{1,3}\.){3}\d{1,3}(?![A-Za-z0-9._\-])"
+)
+_EMBEDDED_IPV6_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9_\-])(?:[0-9a-f]{1,4}:){2,}[0-9a-f:]*"
+    r"(?![A-Za-z0-9_\-])"
 )
 _MODEL_KINDS = frozenset({"chat", "image", "video", "music", "research"})
 _MAX_JSON_SAFE_NUMBER = (1 << 53) - 1
+_MAX_PROVIDER_GENERATION = (1 << 63) - 1
 _FACTORY_TOKEN = object()
 _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
     r"(?i)(?:https?://|wss?://|\bauthorization\s*[:=]|\bcookie\s*[:=]|"
@@ -44,8 +57,9 @@ _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
 _EMBEDDED_GENERIC_CREDENTIAL_RE = re.compile(
     r"(?i)(?:(?:authorization|cookie|api[_ -]?key|access[_ -]?key(?:[_ -]?id)?|"
     r"access[_ -]?token|refresh[_ -]?token|password|passphrase|client[_ -]?secret|"
-    r"private[_ -]?key|session(?:[_ -]?id)?|token|secret|credential|auth)\s*[:=]\s*"
-    r"[A-Za-z0-9._~+/=-]{16,}|(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]{16,})"
+    r"private[_ -]?key|session(?:[_ -]?id)?|token|secret|credential|auth)[\"']?\s*"
+    r"[:=]\s*[\"']?[A-Za-z0-9._~+/=-]{16,}[\"']?|"
+    r"(?:bearer|basic)\s+[\"']?[A-Za-z0-9._~+/=-]{16,}[\"']?)"
 )
 _EMBEDDED_CREDENTIAL_SHAPED_RE = re.compile(
     r"(?i)(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{16,}|"
@@ -71,6 +85,7 @@ class AiPassDiscoveryState(str, Enum):
     STALE = "STALE"
     MALFORMED = "MALFORMED"
     UNSUPPORTED = "UNSUPPORTED"
+
 
 @dataclass(frozen=True, slots=True, init=False)
 class AiPassDiscoveredModel:
@@ -142,9 +157,14 @@ class AiPassDiscoverySnapshot:
 
 
 def _time(value: datetime) -> datetime:
-    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+    if not isinstance(value, datetime) or value.tzinfo is None:
         raise ValueError("time must be timezone-aware")
-    return value.astimezone(timezone.utc)
+    try:
+        if value.utcoffset() is None:
+            raise ValueError("time must be timezone-aware")
+        return value.astimezone(timezone.utc)
+    except OverflowError as exc:
+        raise ValueError("time is outside the supported UTC range") from exc
 
 
 def _time_text(value: datetime) -> str:
@@ -171,6 +191,20 @@ def _looks_like_raw_endpoint(value: str) -> bool:
     return True
 
 
+def _contains_embedded_raw_endpoint(value: str) -> bool:
+    if _EMBEDDED_ENDPOINT_HOST_RE.search(value):
+        return True
+    for pattern in (_EMBEDDED_IPV4_RE, _EMBEDDED_IPV6_RE):
+        for match in pattern.finditer(value):
+            candidate = match.group(0).strip("[]")
+            try:
+                ip_address(candidate)
+            except ValueError:
+                continue
+            return True
+    return False
+
+
 def _display_name(value: object, *, fallback: str) -> str:
     try:
         text = _safe_text(value, maximum=128)
@@ -182,9 +216,11 @@ def _display_name(value: object, *, fallback: str) -> str:
         or _CREDENTIAL_SHAPED_RE.search(text)
         or _EMBEDDED_CREDENTIAL_SHAPED_RE.search(text)
         or _looks_like_raw_endpoint(text)
+        or _contains_embedded_raw_endpoint(text)
     ):
         return fallback
     return text
+
 
 def _number(value: object) -> int | float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -239,6 +275,7 @@ def _decode_models(payload: object) -> tuple[AiPassDiscoveredModel, ...]:
             or not _MODEL_ID_RE.fullmatch(model_id)
             or _CREDENTIAL_SHAPED_RE.search(model_id)
             or _EMBEDDED_CREDENTIAL_SHAPED_RE.search(model_id)
+            or _looks_like_raw_endpoint(model_id)
         ):
             raise ValueError("model id is invalid")
         if model_id in seen:
@@ -254,17 +291,24 @@ def _decode_models(payload: object) -> tuple[AiPassDiscoveredModel, ...]:
         is_default = raw.get("is_default")
         if is_default is not None and not isinstance(is_default, bool):
             raise ValueError("is_default is invalid")
-        models.append(AiPassDiscoveredModel(model_id, name, free_credit, kind, is_default, _token=_FACTORY_TOKEN))
+        models.append(
+            AiPassDiscoveredModel(
+                model_id, name, free_credit, kind, is_default, _token=_FACTORY_TOKEN
+            )
+        )
     return tuple(sorted(models, key=lambda item: item.model_id))
 
 
-def _quota_triplet(raw: Mapping[str, object], *, remaining_key: str) -> tuple[int | float, int | float, int | float]:
+def _quota_triplet(
+    raw: Mapping[str, object], *, remaining_key: str
+) -> tuple[int | float, int | float, int | float]:
     limit = _number(raw["limit"])
     used = _number(raw["used"])
     remaining = _number(raw[remaining_key])
     if not _consistent(limit, used, remaining):
         raise ValueError("quota tuple is contradictory")
     return limit, used, remaining
+
 
 def _decode_quota(
     payload: object,
@@ -310,6 +354,7 @@ def _decode_quota(
         )
     return shared, video, fetched_at
 
+
 def _context(
     *,
     observed_at: datetime,
@@ -320,14 +365,14 @@ def _context(
     if (
         isinstance(configuration_generation, bool)
         or not isinstance(configuration_generation, int)
-        or configuration_generation < 1
+        or not 1 <= configuration_generation <= _MAX_PROVIDER_GENERATION
     ):
         raise ValueError("configuration generation is invalid")
     if (
         isinstance(stale_after_seconds, bool)
         or not isinstance(stale_after_seconds, (int, float))
-        or not math.isfinite(stale_after_seconds)
         or stale_after_seconds < 0
+        or (isinstance(stale_after_seconds, float) and not math.isfinite(stale_after_seconds))
     ):
         raise ValueError("stale budget is invalid")
     observed = _time(observed_at)
@@ -340,6 +385,7 @@ def _context(
 
 def _empty_result(state: AiPassDiscoveryState, reason: str) -> AiPassDiscoverySnapshot:
     return AiPassDiscoverySnapshot(state=state, reason_code=reason, _token=_FACTORY_TOKEN)
+
 
 def build_aipass_discovery(
     *,
