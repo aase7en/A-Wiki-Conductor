@@ -245,3 +245,61 @@ def test_authorization_evidence_is_timezone_representation_invariant():
         terms_identity="aipass-terms@2026-08-19",
     )
     assert shifted_record.observed_at == utc_record.observed_at == instant
+
+
+def test_record_rejects_terms_for_a_different_service_identity():
+    with pytest.raises(ValueError, match="service_identity|terms_identity"):
+        ProviderServiceAuthorizationRecord(
+            provider_id="provider-aipass-primary",
+            service_identity="aipass",
+            state=ServiceAuthorizationState.AUTHORIZED,
+            integration_mode=ServiceIntegrationMode.LIVE,
+            terms_identity="other-service-terms@2026-08-19",
+            evidence_sha256=EVIDENCE,
+            observed_at=NOW,
+            recheck_after=NOW + timedelta(days=1),
+            configuration_generation=7,
+        )
+
+
+def test_record_allows_opaque_provider_id_with_matching_service_identity():
+    record = ProviderServiceAuthorizationRecord(
+        provider_id="provider-aipass-primary",
+        service_identity="aipass",
+        state=ServiceAuthorizationState.AUTHORIZED,
+        integration_mode=ServiceIntegrationMode.LIVE,
+        terms_identity=TERMS,
+        evidence_sha256=EVIDENCE,
+        observed_at=NOW,
+        recheck_after=NOW + timedelta(days=1),
+        configuration_generation=7,
+    )
+    assert record.provider_id == "provider-aipass-primary"
+    assert record.service_identity == "aipass"
+
+
+def test_evaluator_rejects_requested_service_identity_mismatch():
+    decision = evaluate_provider_service_authorization(
+        _record(),
+        provider_id="aipass",
+        service_identity="other-service",
+        requested_mode=ServiceIntegrationMode.LIVE,
+        terms_identity="other-service-terms@2026-08-19",
+        expected_configuration_generation=7,
+        now=NOW,
+    )
+    assert decision.allowed is False
+    assert decision.reason_code == "SERVICE_AUTHORIZATION_SERVICE_MISMATCH"
+
+
+def test_evaluator_rejects_terms_slug_inconsistent_with_requested_service():
+    with pytest.raises(ValueError, match="service_identity|terms_identity"):
+        evaluate_provider_service_authorization(
+            _record(),
+            provider_id="aipass",
+            service_identity="aipass",
+            requested_mode=ServiceIntegrationMode.LIVE,
+            terms_identity="other-service-terms@2026-08-19",
+            expected_configuration_generation=7,
+            now=NOW,
+        )
