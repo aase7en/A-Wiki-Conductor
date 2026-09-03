@@ -239,7 +239,7 @@ def test_credential_shaped_model_id_fails_closed_without_serialization(unsafe_mo
     "unsafe_name",
     (
         "".join(("gh", "p_FAKE")),
-        "".join(("Bearer", " FAKE")),
+        "".join(("Bearer ", "A" * 24)),
     ),
 )
 def test_credential_shaped_display_name_falls_back_without_serialization(unsafe_name: str) -> None:
@@ -254,3 +254,15 @@ def test_credential_shaped_display_name_falls_back_without_serialization(unsafe_
     assert result.state is AiPassDiscoveryState.OK
     assert result.models[0].name == "safe-model"
     assert unsafe_name not in str(result.to_dict())
+
+
+def test_semantic_bearer_display_name_is_not_mistaken_for_a_credential() -> None:
+    result = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": "safe-model", "name": "Bearer Capacity"}]},
+        quota_payload=None,
+        observed_at=NOW,
+        now=NOW,
+        configuration_generation=1,
+    )
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "Bearer Capacity"

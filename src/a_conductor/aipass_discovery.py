@@ -25,6 +25,10 @@ _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
     r"\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token)\s*[:=]|"
     r"^[A-Za-z]:[\\/]|^\\\\|^/)"
 )
+_CREDENTIAL_SHAPED_RE = re.compile(
+    r"(?i)(?:^|[\s._/@:+-])(?:bearer\s+[A-Za-z0-9._~+/=-]{16,}|gh[pousr]_|sk-ant-|"
+    r"xox[baprs]-|akia[0-9a-z]|aiza[0-9a-z]|ya29\.|eyj[0-9a-z])"
+)
 
 
 class AiPassDiscoveryState(str, Enum):
@@ -102,7 +106,7 @@ def _display_name(value: object, *, fallback: str) -> str:
         text = _safe_text(value, maximum=128)
     except ValueError:
         return fallback
-    if _PUBLIC_METADATA_FORBIDDEN_RE.search(text):
+    if _PUBLIC_METADATA_FORBIDDEN_RE.search(text) or _CREDENTIAL_SHAPED_RE.search(text):
         return fallback
     return text
 
@@ -154,7 +158,11 @@ def _decode_models(payload: object) -> tuple[AiPassDiscoveredModel, ...]:
         if not isinstance(raw, Mapping):
             raise ValueError("model record is malformed")
         model_id = raw.get("id")
-        if not isinstance(model_id, str) or not _MODEL_ID_RE.fullmatch(model_id):
+        if (
+            not isinstance(model_id, str)
+            or not _MODEL_ID_RE.fullmatch(model_id)
+            or _CREDENTIAL_SHAPED_RE.search(model_id)
+        ):
             raise ValueError("model id is invalid")
         if model_id in seen:
             raise ValueError("model id is duplicated")
