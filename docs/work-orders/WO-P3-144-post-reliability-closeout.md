@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: PR_OPEN / EXACT_HEAD_CI_REQUIRED
+Status: CLOSED / CLAIM_RELEASED
 Priority: P3 continuity
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo144-post-reliability-closeout`
@@ -31,4 +31,8 @@ Forbidden: `src/**`, `tests/**`, PR #183 files, live Workers/tunnels/binaries/cr
 - WO096 read-only fleet gate proves stopped 18012/18015 are not automatically available due separate project continuity.
 - A-Wiki Review Bridge PR #50 advanced to `b04761d580ddcdc7eb682e3a6036078b3b346953`: Draft/mergeable CLEAN with Core CI `33682384067`, Loop Gate `33682383989`, and py38 smoke SUCCESS. It remains blocked on fresh independent exact-SHA rereview/acceptance because GPT authored the latest trust-boundary repairs; no A-Conductor adapter implementation started.
 
-Next: require exact-head CI for PR #195, remote-diff re-audit, expected-head merge, and post-main verification; then reconcile PR #183.
+## Final closeout checkpoint - 2026-09-03
+
+- PR #195 exact head `f2d33ed2d63454e6b7f547a016abb07f058d89be` passed CI `33699856774`, merged as `cf2a4e7a57bfd22ec55de79c700ec3e4931dc475`, and post-main CI `33704062299` is SUCCESS.
+- Fresh official AiPASS Terms verification confirms section 3.4 contains an explicit-written-authorization exception for the listed bot/unapproved-software and direct API/API Key/Token restrictions. The earlier CURRENT-WORK statement saying no exception was evidenced was incorrect and is corrected in this closeout.
+- WO144 releases its shared coordination claim. Next safe mutable lane is PR #183 / WO132 after current-main reconciliation; WO096 and A-Wiki Review Bridge gates remain unchanged.

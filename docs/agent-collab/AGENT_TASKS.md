@@ -9,7 +9,7 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 |---|---|---|---|---|
 | Released provider Evidence remediation | GPT-5.6 Sol MAX + GLM independent rereview | WO-P1-143 / PR #194 | exact 7-file WO143 feature composed with released WO140 | GLM LATEST-SHA PASS P0/P1/P2/P3=0 / EXACT_HEAD `33680012267` GREEN / MERGED `272953a3` / POST_MAIN `33681115738` GREEN |
 | Released owned-process diagnostics | GLM executor + GPT integrator/reviewer | WO-P2-140 / PR #193 | owned-process source/test + WO140 | GPT P2 bounded-sequence repair / EXACT_HEAD `33678036552` GREEN / MERGED `787e9be2` / POST_MAIN `33679432865` GREEN |
-| Active docs-only reconciliation | GPT-5.6 Sol MAX | WO-P3-144 / PR #195 | CURRENT-WORK, handoff, COLLAB, AGENT_TASKS, WO144 only | CLAIMED `e438d2f8` / PR_OPEN / EXACT_HEAD_CI_REQUIRED |
+| Released docs-only reconciliation | GPT-5.6 Sol MAX | WO-P3-144 / PR #195 | CURRENT-WORK, handoff, COLLAB, AGENT_TASKS, WO144 only | MERGED `cf2a4e7a` / EXACT_HEAD `33699856774` GREEN / POST_MAIN `33704062299` GREEN / CLAIM_RELEASED |
 | Next AiPASS roadmap | GPT-5.6 Sol MAX | WO-P1-132 / PR #183 | existing 4-file docs scope only | DRAFT `085a06cf` / RECONCILE_CURRENT_MAIN / TERMS_AUTH_FAIL_CLOSED |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL resilient connector proof | AUTHORIZATION_REQUIRED / stopped Worker2/5 not automatically available |
 
