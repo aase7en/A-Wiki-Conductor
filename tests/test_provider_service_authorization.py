@@ -12,6 +12,7 @@ from a_conductor.provider_service_authorization import (
 )
 
 NOW = datetime(2026, 9, 3, 4, 0, tzinfo=timezone.utc)
+SERVICE = "aipass"
 TERMS = "aipass-terms@2026-08-19"
 EVIDENCE = "a" * 64
 
@@ -19,6 +20,7 @@ EVIDENCE = "a" * 64
 def _record(**overrides):
     data = {
         "provider_id": "aipass",
+        "service_identity": SERVICE,
         "state": ServiceAuthorizationState.AUTHORIZED,
         "integration_mode": ServiceIntegrationMode.LIVE,
         "terms_identity": TERMS,
@@ -32,10 +34,11 @@ def _record(**overrides):
 
 
 def _evaluate(record, *, mode=ServiceIntegrationMode.LIVE, provider_id="aipass",
-              terms=TERMS, generation=7, now=NOW):
+              service_identity=SERVICE, terms=TERMS, generation=7, now=NOW):
     return evaluate_provider_service_authorization(
         record,
         provider_id=provider_id,
+        service_identity=service_identity,
         requested_mode=mode,
         terms_identity=terms,
         expected_configuration_generation=generation,
@@ -131,7 +134,7 @@ def test_configuration_generation_must_be_positive_integer(generation):
         _record(configuration_generation=generation)
 
 
-@pytest.mark.parametrize("field", ["provider_id", "terms_identity"])
+@pytest.mark.parametrize("field", ["provider_id", "service_identity", "terms_identity"])
 def test_identity_text_must_be_bounded_nonblank_without_controls(field):
     with pytest.raises(ValueError):
         _record(**{field: " "})
@@ -189,6 +192,7 @@ def test_evaluator_rejects_malformed_call_inputs():
         evaluate_provider_service_authorization(
             None,
             provider_id="",
+            service_identity=SERVICE,
             requested_mode=ServiceIntegrationMode.FAKE,
             terms_identity=TERMS,
             expected_configuration_generation=7,
@@ -219,7 +223,10 @@ def test_terms_identity_is_public_semantic_version_not_arbitrary_opaque_text(ter
 
 
 def test_terms_identity_accepts_bounded_service_terms_calendar_version():
-    record = _record(terms_identity="example-service-terms@2026-09-03")
+    record = _record(
+        service_identity="example-service",
+        terms_identity="example-service-terms@2026-09-03",
+    )
     assert record.terms_identity == "example-service-terms@2026-09-03"
 
 
@@ -245,3 +252,84 @@ def test_authorization_evidence_is_timezone_representation_invariant():
         terms_identity="aipass-terms@2026-08-19",
     )
     assert shifted_record.observed_at == utc_record.observed_at == instant
+
+
+def test_record_rejects_terms_for_a_different_service_identity():
+    with pytest.raises(ValueError, match="service_identity|terms_identity"):
+        ProviderServiceAuthorizationRecord(
+            provider_id="provider-aipass-primary",
+            service_identity="aipass",
+            state=ServiceAuthorizationState.AUTHORIZED,
+            integration_mode=ServiceIntegrationMode.LIVE,
+            terms_identity="other-service-terms@2026-08-19",
+            evidence_sha256=EVIDENCE,
+            observed_at=NOW,
+            recheck_after=NOW + timedelta(days=1),
+            configuration_generation=7,
+        )
+
+
+def test_record_allows_opaque_provider_id_with_matching_service_identity():
+    record = ProviderServiceAuthorizationRecord(
+        provider_id="provider-aipass-primary",
+        service_identity="aipass",
+        state=ServiceAuthorizationState.AUTHORIZED,
+        integration_mode=ServiceIntegrationMode.LIVE,
+        terms_identity=TERMS,
+        evidence_sha256=EVIDENCE,
+        observed_at=NOW,
+        recheck_after=NOW + timedelta(days=1),
+        configuration_generation=7,
+    )
+    assert record.provider_id == "provider-aipass-primary"
+    assert record.service_identity == "aipass"
+
+
+def test_evaluator_rejects_requested_service_identity_mismatch():
+    decision = evaluate_provider_service_authorization(
+        _record(),
+        provider_id="aipass",
+        service_identity="other-service",
+        requested_mode=ServiceIntegrationMode.LIVE,
+        terms_identity="other-service-terms@2026-08-19",
+        expected_configuration_generation=7,
+        now=NOW,
+    )
+    assert decision.allowed is False
+    assert decision.reason_code == "SERVICE_AUTHORIZATION_SERVICE_MISMATCH"
+
+
+def test_evaluator_rejects_terms_slug_inconsistent_with_requested_service():
+    with pytest.raises(ValueError, match="service_identity|terms_identity"):
+        evaluate_provider_service_authorization(
+            _record(),
+            provider_id="aipass",
+            service_identity="aipass",
+            requested_mode=ServiceIntegrationMode.LIVE,
+            terms_identity="other-service-terms@2026-08-19",
+            expected_configuration_generation=7,
+            now=NOW,
+        )
+
+
+@pytest.mark.parametrize(
+    "service_identity",
+    [
+        "https://aipass.go.th",
+        "Authorization:BearerSECRET",
+        "secret-ref:service",
+        "aipass?token=x",
+        "aipass/service",
+        "AIPASS",
+        "aipass-",
+    ],
+)
+def test_service_identity_is_public_bounded_slug(service_identity):
+    with pytest.raises(ValueError, match="service_identity"):
+        _record(service_identity=service_identity)
+
+
+def test_serialization_carries_public_service_identity_binding():
+    record = _record()
+    assert record.to_dict()["service_identity"] == SERVICE
+    assert "service_identity='aipass'" in repr(record)

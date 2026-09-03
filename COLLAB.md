@@ -34,6 +34,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
+| `WO-P1-151` service/Terms authorization binding | GPT-5.6 Sol MAX | READY_FOR_INDEPENDENT_REVIEW 2026-09-03 | Exact repair `6b958f2...`; `provider_service_authorization.py`, focused tests, WO151, bounded `COLLAB.md`; pure/no-I/O only; no store/policy/runtime/live AiPASS. |
 | `WO-P1-116` / AHA-6B worker supply + elastic capacity | GPT-5.6 Sol integrator | RELEASED 2026-08-31 | PR #157 + closeout PR #158 merged; source lane released. |
 | `WO-P1-117` provider dispatch/admission safety | GPT-5.6 Sol integrator | READY_FOR_CLAIM | `parallel_ready_execution.py`, `provider_config_store.py`, focused tests; baseline CI `33357214028` green; claim requires isolated worktree + fresh preflight. |
 | `WO-P1-118` provider config generation/policy | unassigned | QUEUED | Shares `provider_config_store.py` with 117; must not start until 117 releases it. |

@@ -13,6 +13,7 @@ import re
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_SERVICE_ID_RE = re.compile(r"^[a-z](?:[a-z0-9-]{0,46}[a-z0-9])?$")
 _TERMS_ID_RE = re.compile(
     r"^(?P<service>[a-z](?:[a-z0-9-]{0,46}[a-z0-9])?)-terms@"
     r"(?P<effective>\d{4}-\d{2}-\d{2})$"
@@ -38,6 +39,20 @@ def _text(value: object, field: str, *, max_length: int) -> str:
     if not text or len(text) > max_length or _CONTROL_RE.search(text):
         raise ValueError(f"{field} is invalid")
     return text
+
+
+def _service_identity(value: object) -> str:
+    text = _text(value, "service_identity", max_length=48)
+    if _SERVICE_ID_RE.fullmatch(text) is None:
+        raise ValueError("service_identity is invalid")
+    return text
+
+
+def _terms_service(text: str) -> str:
+    match = _TERMS_ID_RE.fullmatch(text)
+    if match is None:
+        raise ValueError("terms_identity is invalid")
+    return match.group("service")
 
 
 def _terms_effective_date(text: str) -> date:
@@ -74,6 +89,7 @@ def _aware_utc(value: object, field: str) -> datetime:
 @dataclass(frozen=True, slots=True)
 class ProviderServiceAuthorizationRecord:
     provider_id: str
+    service_identity: str
     state: ServiceAuthorizationState
     integration_mode: ServiceIntegrationMode
     terms_identity: str
@@ -84,11 +100,16 @@ class ProviderServiceAuthorizationRecord:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "provider_id", _text(self.provider_id, "provider_id", max_length=128))
+        service = _service_identity(self.service_identity)
+        terms = _terms_identity(self.terms_identity)
+        if _terms_service(terms) != service:
+            raise ValueError("terms_identity service must match service_identity")
+        object.__setattr__(self, "service_identity", service)
+        object.__setattr__(self, "terms_identity", terms)
         if not isinstance(self.state, ServiceAuthorizationState):
             raise ValueError("state must be ServiceAuthorizationState")
         if not isinstance(self.integration_mode, ServiceIntegrationMode):
             raise ValueError("integration_mode must be ServiceIntegrationMode")
-        object.__setattr__(self, "terms_identity", _terms_identity(self.terms_identity))
         evidence = self.evidence_sha256
         if evidence is not None:
             if not isinstance(evidence, str) or not _SHA256_RE.fullmatch(evidence):
@@ -113,6 +134,7 @@ class ProviderServiceAuthorizationRecord:
     def to_dict(self) -> dict[str, object]:
         return {
             "provider_id": self.provider_id,
+            "service_identity": self.service_identity,
             "state": self.state.value,
             "integration_mode": self.integration_mode.value,
             "terms_identity": self.terms_identity,
@@ -161,6 +183,7 @@ def evaluate_provider_service_authorization(
     record: ProviderServiceAuthorizationRecord | None,
     *,
     provider_id: str,
+    service_identity: str,
     requested_mode: ServiceIntegrationMode,
     terms_identity: str,
     expected_configuration_generation: int,
@@ -168,7 +191,10 @@ def evaluate_provider_service_authorization(
 ) -> ProviderServiceAuthorizationDecision:
     """Evaluate service permission only; never infer readiness or task authority."""
     provider = _text(provider_id, "provider_id", max_length=128)
+    service = _service_identity(service_identity)
     terms = _terms_identity(terms_identity)
+    if _terms_service(terms) != service:
+        raise ValueError("terms_identity service must match service_identity")
     generation = _generation(expected_configuration_generation)
     current = _aware_utc(now, "now")
     if not isinstance(requested_mode, ServiceIntegrationMode):
@@ -185,6 +211,10 @@ def evaluate_provider_service_authorization(
     if record.provider_id != provider:
         return _decision(
             False, "SERVICE_AUTHORIZATION_PROVIDER_MISMATCH", record.state, requested_mode
+        )
+    if record.service_identity != service:
+        return _decision(
+            False, "SERVICE_AUTHORIZATION_SERVICE_MISMATCH", record.state, requested_mode
         )
     if record.integration_mode is not requested_mode:
         return _decision(
