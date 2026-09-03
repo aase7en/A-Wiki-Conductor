@@ -10,7 +10,7 @@ Evaluate AiPASS as an optional **reasoning / research / review provider lane** b
 
 Classification: `WRAP + EXTEND` existing provider/runtime/recovery seams.
 
-Reference implementation refreshed: `niawjunior/aipass-bridge@b1b8bab757d91c266410d58f505aeeaa218da102`.
+Reference implementation refreshed: `niawjunior/aipass-bridge@d59f03d8c58071f0fd947e6d286194e972521544`.
 
 Useful reference properties:
 - local OpenAI-compatible chat/model surface;
@@ -72,8 +72,8 @@ Reuse these existing authorities instead of recreating them:
 | 0 | WO096 connector resilience | **P0 release blocker** | existing maintenance/hosted proof gate | v0.7.0 stability; independent of AiPASS |
 | 1 | WO127 provider actions | **P1 released** | accepted / merged | stable Edit/Disable/Enable/Test control seam |
 | 2 | WO128 T0+T1 evidence core + truthful projection | **P1 released** | accepted / merged | routing/admission evidence without invented reasons |
-| 3 | WO134 Provider Evidence Detail | **P1 released** | PR #188 merged as `626bfc67e010d989a31b2a1d1d7e04f00fa938cc`; post-main `33651878707` SUCCESS | truthful operator evidence + explicit graph correlation |
-| 4 | AIP-1 authorization + adapter contract | **P1 READY_FOR_CLAIM** | WO134 dependency satisfied; re-run terms/license/reuse gate at claim | exact provider boundary; no live traffic |
+| 3 | WO134 + WO143 Provider Evidence Detail acceptance | **P1 released** | PR #188 provided the feature; WO143/PR #194 corrected the real `<<ComboboxSelected>>` evidence-sync defect and merged as `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`; post-main `33681115738` SUCCESS | truthful operator evidence + real-event selection ownership |
+| 4 | AIP-1 authorization + adapter contract | **P1 READY_FOR_CLAIM** | WO134 feature + WO143 corrective acceptance satisfied; re-run terms/license/reuse gate at claim | exact provider boundary; no live traffic |
 | 5 | AIP-2 fake/read-only discovery | **P1** | AIP-1 | health/models/free-credit projection without sending prompts |
 | 6 | AIP-3 resilient message adapter | **P1** | AIP-2 + deterministic fake backend | streaming/recovery semantics; live path still gated |
 | 7 | AIP-4 authorized live pilot | **P1 / BLOCKED_EXTERNAL** | written/official authorization | research/review-only live evidence |
@@ -201,7 +201,7 @@ Minimum regression matrix:
 
 ## 8. Next development sequence
 
-1. WO134 Provider Evidence Detail is accepted and released on main (`626bfc67e010d989a31b2a1d1d7e04f00fa938cc`; post-main `33651878707` SUCCESS).
+1. Provider Evidence Detail is accepted only after the WO143 corrective gate: PR #188 is the historical feature merge, while WO143/PR #194 merged as `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88` with post-main `33681115738` SUCCESS.
 2. **Next READY node:** open a bounded implementation WO for **AIP-1** from current main; re-run the reuse/claim/license/terms gate and keep live traffic disabled.
 3. Implement **AIP-2** fake/read-only discovery before any chat execution.
 4. Implement **AIP-3** resilient transport behavior entirely against deterministic fixtures first.
@@ -212,7 +212,7 @@ WO096 remains the independent P0 release blocker throughout this sequence and mu
 ## 9. Reference evidence
 
 - A-Conductor planning base: `aase7en/A-Wiki-Conductor@9118a289b9fcd87e0bae4e4eb601cc585062856d`.
-- AiPASS bridge reference: `https://github.com/niawjunior/aipass-bridge`, refreshed at `b1b8bab757d91c266410d58f505aeeaa218da102`; GitHub reports MIT and root `LICENSE` exists (blob `17ddd0b8425c523d029917a1027d7e40a0916100`).
+- AiPASS bridge reference: `https://github.com/niawjunior/aipass-bridge`, refreshed at `d59f03d8c58071f0fd947e6d286194e972521544`; GitHub reports MIT and root `LICENSE` exists (blob `17ddd0b8425c523d029917a1027d7e40a0916100`).
 - Official AiPASS terms: `https://www.aipass.go.th/term-and-cond-th`, effective 2026-08-19; section 3.4 is the current automation/API authorization gate used by this roadmap.
 
 These external references are evidence inputs, not A-Conductor runtime dependencies.

@@ -823,7 +823,7 @@ Required supporting work:
 
 AiPASS is a candidate **reasoning / research / review provider**, not a new execution control plane. Integration must `WRAP + EXTEND` the accepted provider configuration, execution authority, operator view, durable execution, evidence, transport-recovery, and routing seams.
 
-Reference architecture evidence from `niawjunior/aipass-bridge@b1b8bab757d91c266410d58f505aeeaa218da102` is useful for browser-held session isolation, OpenAI-compatible local chat/model projection, streaming, server-side conversation affinity, model/free-credit discovery, and the principle that observer/extension loss need not mean execution failure.
+Reference architecture evidence from `niawjunior/aipass-bridge@d59f03d8c58071f0fd947e6d286194e972521544` is useful for browser-held session isolation, OpenAI-compatible local chat/model projection, streaming, server-side conversation affinity, model/free-credit discovery, and the principle that observer/extension loss need not mean execution failure.
 
 Do **not** import its local file-agent protocol as Conductor mutation authority. AiPASS-generated change suggestions must flow back through normal repository identity, ownership, scope, materialization, test, evidence, and review gates.
 
@@ -832,7 +832,7 @@ Do **not** import its local file-agent protocol as Conductor mutation authority.
 1. **P0:** finish WO-P1-096 connector-runtime resilience before stable v0.7.0 publication.
 2. **P1 released:** WO-P1-127 provider Edit/Disable/Enable/Test is accepted and merged.
 3. **P1 released:** WO-P1-128 T0+T1 evidence core and truthful selection/fallback projection are accepted and merged.
-4. **P1 released:** WO-P1-134 T2-T4 Provider Evidence Detail passed exact-SHA review, exact-head CI, merge, and post-main verification.
+4. **P1 released:** WO-P1-134 Provider Evidence Detail plus WO-P1-143 real-event selection-sync correction passed exact-SHA review, merge, and post-main verification; PR #188 is historical feature evidence and PR #194 is the corrective acceptance gate.
 5. **P1 READY_FOR_CLAIM:** define AiPASS authorization + minimal adapter contract; no live traffic.
 6. **P1:** implement fake/read-only health + model/free-credit discovery.
 7. **P1:** implement resilient streaming/message semantics against deterministic fixtures.
@@ -848,7 +848,7 @@ Preserve the existing truth separation:
 
 Current official AiPASS terms effective 2026-08-19 require explicit written authorization for specified bot/unapproved-software access and direct system API/API-key/token access outside provider-defined UI. Therefore the default Conductor state for automated AiPASS execution is `AUTHORIZED = NO / BLOCKED_EXTERNAL` until an official supported path or explicit authorization is verified.
 
-The refreshed reference repository now publishes a root `LICENSE` and GitHub identifies it as MIT at `b1b8bab757d91c266410d58f505aeeaa218da102`. Source reuse is therefore license-permitted subject to preserving the MIT copyright/permission notice and normal third-party notice obligations. Prefer a minimal Conductor-owned seam and copy only when reuse is materially justified; this license permission does not authorize live AiPASS automation.
+The refreshed reference repository now publishes a root `LICENSE` and GitHub identifies it as MIT at `d59f03d8c58071f0fd947e6d286194e972521544`. Source reuse is therefore license-permitted subject to preserving the MIT copyright/permission notice and normal third-party notice obligations. Prefer a minimal Conductor-owned seam and copy only when reuse is materially justified; this license permission does not authorize live AiPASS automation.
 
 Server-side AiPASS conversation history may be used as provider-local working context only. A-Conductor durable tasks, evidence, checkpoints, repository state, and A-Wiki policy remain authoritative.
 
