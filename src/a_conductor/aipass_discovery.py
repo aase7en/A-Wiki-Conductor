@@ -33,7 +33,7 @@ _EMBEDDED_IP_TOKEN_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9_.@+\-])\[?[0-9a-f:.]+\]?(?![A-Za-z0-9_.@+\-])"
 )
 _EMBEDDED_GLUED_IPV4_RE = re.compile(
-    r"(?<![._@+\-])\d+(?:\.\d{1,3}){3}(?![\d.])"
+    r"(?<![0-9._@+\-])\d+(?:\.\d{1,3}){3}(?![\d.])"
 )
 _MODEL_KINDS = frozenset({"chat", "image", "video", "music", "research"})
 _MAX_JSON_SAFE_NUMBER = (1 << 53) - 1
