@@ -50,6 +50,13 @@ def test_glued_raw_ip_literals_fall_back(unsafe_name: str) -> None:
     assert unsafe_name not in str(result.to_dict())
 
 
+def test_glued_ipv4_detector_checks_valid_suffix_inside_invalid_leading_octet() -> None:
+    result = _build("meta910.0.0.1")
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert "10.0.0.1" not in str(result.to_dict())
+
+
 def test_hardening_preserves_existing_semantic_controls() -> None:
     for safe_name in ("model-1.2.3.4", "Version 1.2.3", "IPv4 Research", "IPv6 Research"):
         result = _build(safe_name)
