@@ -583,3 +583,12 @@ def test_allowed_evidence_namespace_rejects_embedded_credential_markers(unsafe_r
             actor_role="reviewer",
             evidence_refs=(unsafe_ref,),
         )
+
+
+def test_allowed_evidence_namespace_preserves_semantic_token_budget_ref() -> None:
+    route = EligibleRouteCandidate(
+        candidate_id="c",
+        actor_role="reviewer",
+        evidence_refs=("evidence:token-budget",),
+    )
+    assert route.evidence_refs == ("evidence:token-budget",)
