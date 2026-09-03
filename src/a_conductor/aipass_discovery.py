@@ -22,8 +22,8 @@ _MODEL_KINDS = frozenset({"chat", "image", "video", "music", "research"})
 _MAX_JSON_SAFE_NUMBER = (1 << 53) - 1
 _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
     r"(?i)(?:https?://|wss?://|\bauthorization\s*[:=]|\bcookie\s*[:=]|"
-    r"\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token)\s*[:=]|"
-    r"^[A-Za-z]:[\\/]|^\\\\|^/)"
+    r"\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token)\s*[:=]|^/|"
+    r"(?<![A-Za-z0-9])(?:[A-Za-z]:[\\/]|\\\\|/(?!\s)(?:[^/\s]+/)+[^/\s]+))"
 )
 _CREDENTIAL_SHAPED_RE = re.compile(
     r"(?i)(?:^|[\s._/@:+-])(?:bearer\s+[A-Za-z0-9._~+/=-]{16,}|gh[pousr]_|"
