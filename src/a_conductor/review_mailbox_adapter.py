@@ -222,6 +222,8 @@ class ReviewResultForwarder:
                     assignment.task_id,
                     "--file",
                     str(temp_path),
+                    "--target-repo",
+                    assignment.worktree,
                     "--json",
                 ),
                 cwd=".",
