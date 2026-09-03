@@ -9,13 +9,13 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 |---|---|---|---|---|
 | Released provider Evidence remediation | GPT-5.6 Sol MAX + GLM independent rereview | WO-P1-143 / PR #194 | exact 7-file WO143 feature composed with released WO140 | GLM LATEST-SHA PASS P0/P1/P2/P3=0 / EXACT_HEAD `33680012267` GREEN / MERGED `272953a3` / POST_MAIN `33681115738` GREEN |
 | Released owned-process diagnostics | GLM executor + GPT integrator/reviewer | WO-P2-140 / PR #193 | owned-process source/test + WO140 | GPT P2 bounded-sequence repair / EXACT_HEAD `33678036552` GREEN / MERGED `787e9be2` / POST_MAIN `33679432865` GREEN |
-| Released docs-only reconciliation | GPT-5.6 Sol MAX | WO-P3-144 / PR #195 | CURRENT-WORK, handoff, COLLAB, AGENT_TASKS, WO144 only | MERGED `cf2a4e7a` / EXACT_HEAD `33699856774` GREEN / POST_MAIN `33704062299` GREEN |
+| Released docs-only reconciliation | GPT-5.6 Sol MAX | WO-P3-144 / PR #195 + closeout PR #196 | shared continuity docs + WO144 only | PR195 MERGED `cf2a4e7a` / CLOSEOUT PR196 MERGED `727124f0` / POST_MAIN `33705838536` GREEN / CLAIM_RELEASED |
 | Next AiPASS roadmap | GPT-5.6 Sol MAX | WO-P1-132 / PR #183 | existing 4-file docs scope only | DRAFT `085a06cf` / RECONCILE_CURRENT_MAIN / TERMS_AUTH_FAIL_CLOSED |
-| Active reliability review | GPT-5.6 Sol MAX + GLM independent review | WO-P1-145 | owned_process source/test + WO145 + Defect Lessons | EXACT_HEAD `93f9a408` / GLM_REVIEW_IN_PROGRESS / NO_PR_YET |
-| Ready review-mailbox adapter | GPT-5.6 Sol MAX | unclaimed successor | new bounded adapter/test/WO only | READY_FOR_CLAIM after accepted A-Wiki `588a9072` API |
+| Reliability candidate | GPT-5.6 Sol MAX + GLM independent review | WO-P1-145 / PR #198 | owned_process source/test + WO145 + Defect Lessons | EXACT_HEAD `93f9a408` / GLM PASS P0/P1/P2=0 / CI `33706012375` GREEN / MERGE_HELD_FOR_SEQUENCE |
+| Active review-mailbox adapter | GPT-5.6 Sol MAX | WO-P1-147 | new bounded adapter/test/WO only | CLAIMED / RED_FIRST / isolated worktree active; shared SSoT forbidden |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL resilient connector proof | AUTHORIZATION_REQUIRED / stopped Worker2/5 not automatically available |
 
-Cross-repo dependency RELEASED: A-Wiki Review Bridge exact head `b04761d5...` passed independent GLM rereview P0/P1/P2=0, merged as `588a9072...`, and post-main Core CI `33704270521` is SUCCESS. The thin A-Conductor mailbox adapter is READY_FOR_CLAIM, but must reuse `agent-mailbox/v1` and the approved A-Wiki `conductor review` CLI; no parallel ReviewBus/lifecycle authority.
+Cross-repo dependency RELEASED: A-Wiki Review Bridge exact head `b04761d5...` passed independent GLM rereview P0/P1/P2=0, merged as `588a9072...`, and post-main Core CI `33704270521` is SUCCESS. WO147 now owns the thin A-Conductor mailbox adapter and must reuse `agent-mailbox/v1` plus the approved A-Wiki `conductor review` CLI; no parallel ReviewBus/lifecycle authority.
 
 ## Active lane checkpoint - 2026-09-02
 
