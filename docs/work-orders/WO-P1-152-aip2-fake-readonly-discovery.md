@@ -146,3 +146,14 @@ Review authority must pin the final checkpoint commit created after this note, n
 - `compileall`, `git diff --check`, strict UTF-8/U+FFFD, AST/import no-I/O, exact-scope audit, **34 malicious serialization checks**, and **10 semantic safe controls**: PASS.
 - `origin/main` remains `1ae477f05e597c5027d22fdb2ca4f1496c070db7`; feature delta remains exactly the WO + decoder + focused test.
 - Candidate `ceb1760...` and any review pinned to it are superseded for acceptance. The next review must pin the final documentation checkpoint commit after this note.
+
+
+## GPT P2 embedded private-path repair checkpoint - 2026-09-03
+- GPT adversarial pass after `259beabe0591836b8b93332c0f95b2d1710e36ec` proved display metadata could still carry absolute private-path/endpoint shapes when preceded by whitespace or ordinary text, including POSIX, Windows drive, UNC, and embedded `/v1/...` route shapes.
+- RED `7cdcd73`: **7 intended failures / 39 existing PASS**; semantic slash controls remained green.
+- Repair `1215d00` extends only the public-metadata path-shape guard. Path/endpoint-shaped display metadata falls back to the safe model ID while semantic text such as `Vision / Chat` remains accepted.
+- Focused discovery suite after repair: **46/46 PASS**.
+- Provider/config/store/service-auth/execution-authority/runtime/parallel/harness/job/quota matrix: **344/344 PASS**.
+- `compileall`, `git diff --check`, strict UTF-8/U+FFFD, AST/import no-I/O, exact-scope audit, path/credential adversarial probes, and semantic safe controls: PASS.
+- `origin/main` remains `1ae477f05e597c5027d22fdb2ca4f1496c070db7`; its post-main CI `33750907975` is terminal SUCCESS.
+- Candidate `259beab...` and review packet `wo152-glm-final-review-004` are superseded for acceptance. The next independent review must pin the final documentation checkpoint commit after this note.
