@@ -41,7 +41,8 @@ A local worktree alone is never sufficient evidence that equivalent work does no
 ## Safety
 
 - Never modify the A-Wiki repository merely because A-Conductor depends on it; explicit authority is required for A-Wiki mutations.
-- Never broad-kill `python.exe`, Serena, or tunnel-client processes.
+- Never broad-kill `python.exe`, Serena, tunnel-client, `node.exe`, or ZCode processes. Process operations require exact PID + command identity.
+- While ZCode is running, never run recursive/broad content searches over `%USERPROFILE%\.zcode\v2` (including Desktop Commander search). These can retain Windows file handles and block ZCode's atomic `config.json` replacement. Use a targeted single-file read, a temporary snapshot, or `scripts/diagnose_zcode_config_lock.ps1`; see `docs/runbooks/zcode-config-lock.md`.
 - Never silently `reset`, `clean`, `stash`, `checkout/switch`, `rebase`, `merge`, or force-push user work.
 - Preserve dirty/uncommitted work.
 - Worker/process operations require explicit identity and PID ownership.

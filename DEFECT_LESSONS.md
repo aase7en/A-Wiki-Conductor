@@ -756,3 +756,18 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** when a mutation transport/wrapper times out, separate “command outcome unknown” from “side effect definitely failed.” Never replay a non-idempotent side effect merely because the wrapper timed out. First use bounded observation to recover truth; cleanup still requires the original exact identity evidence.
 
 **Verify:** RED = 4 intended failures before repair; repaired owned-process suite = 40 passed, observer/runtime matrix = 86 passed, supervisor lifecycle matrix = 74 passed. A real-Windows ambiguity probe used the real exact-PID terminator once and deliberately returned `False` after successful termination: 15/15 STOPPED with STALE proof and no second kill. Normal real-Windows lifecycle stress = 30/30. Exact-SHA independent review and hosted CI remain release gates.
+
+
+---
+
+## #51: Broad search over live ZCode state can lock `config.json` and break atomic provider writes (2026-09-03)
+
+**Symptom:** ZCode repeatedly logged `EPERM: operation not permitted, rename ...tmp -> ...\.zcode\v2\config.json`, followed by `Timed out ... waiting for the ZCode file lock` / `EEXIST ... config.json.lock`. Provider/session reads degraded and the UI could appear stuck reconnecting.
+
+**Root cause:** a separate Desktop Commander Node.js process held `%USERPROFILE%\.zcode\v2\config.json` open while ZCode was performing an atomic temp-file replacement. The incident timeline also showed a broad Desktop Commander content search traversing `.zcode\v2` and reading both `config.json` and ZCode temp files during the same failure window. Windows Restart Manager identified exact holder PID `15728` as `@wonderwhy-er/desktop-commander`. This was cross-process file-handle contention, not JSON corruption, Git state, or a ZCode read-only permission problem.
+
+**Fix:** prove the exact holder first, stop only the identified Desktop Commander child PID, then re-observe the file before any other mutation. After the targeted stop, exclusive `ReadWrite` + `FileShare.None` open succeeded; no `config.json.lock` directory or orphan `config.json.*.tmp` remained; JSON parsing passed; and no new ZCode lock/rename error appeared in the following verification window. No broad `node.exe` or ZCode kill was used.
+
+**Lesson:** mutable application state directories are live synchronization boundaries. Do not recursively search/index `%USERPROFILE%\.zcode\v2` while ZCode is running. A read-oriented tool can still create availability failures if it retains a Windows handle across another process's atomic replace. Prefer a direct single-file read, targeted log query, or a copied snapshot. Never infer that a `.lock`/`.tmp` artifact is stale merely because an operation timed out.
+
+**Verify / recovery:** run `scripts/diagnose_zcode_config_lock.ps1`; if it reports `LOCKED`, identify the exact PID and owner before stopping anything. Re-run until `ZCODE_CONFIG_LOCK=UNLOCKED`, parse the JSON without printing it, then inspect the current ZCode log for new `EPERM` / `config.json.lock` errors. Full recovery procedure: `docs/runbooks/zcode-config-lock.md`; incident evidence: `docs/work-orders/WO-P1-153-zcode-config-lock-incident.md`.
