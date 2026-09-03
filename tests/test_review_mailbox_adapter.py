@@ -221,3 +221,85 @@ def test_forwarder_refuses_result_object_for_other_assignment(tmp_path: Path) ->
             runner=FakeRunner(command_result()), python_executable=sys.executable
         ).forward(other, review)
     assert_code(exc_info, "REVIEW_TASK_MISMATCH")
+
+
+def test_forwarder_rebuilds_payload_after_caller_mutates_mapping(tmp_path: Path) -> None:
+    a = assignment(tmp_path)
+    write_result(a)
+    review = ReviewMailboxResultReader().read(a)
+    review.awiki_payload["task_id"] = "forged-task"
+    review.awiki_payload["ready"] = True
+    runner = FakeRunner(command_result())
+
+    ReviewResultForwarder(
+        runner=runner, python_executable=sys.executable
+    ).forward(a, review)
+
+    assert runner.forwarded_payload["task_id"] == a.task_id
+    assert "ready" not in runner.forwarded_payload
+
+
+def test_forwarder_translates_unexpected_runner_exception(tmp_path: Path) -> None:
+    a = assignment(tmp_path)
+    write_result(a)
+    review = ReviewMailboxResultReader().read(a)
+
+    class BrokenRunner:
+        def run(self, spec):
+            raise RuntimeError("raw internal detail")
+
+    with pytest.raises(ReviewMailboxAdapterError) as exc_info:
+        ReviewResultForwarder(runner=BrokenRunner(), python_executable=sys.executable).forward(a, review)
+    assert_code(exc_info, "AWIKI_REVIEW_FORWARD_FAILED")
+
+
+def test_forwarder_rejects_non_command_result(tmp_path: Path) -> None:
+    a = assignment(tmp_path)
+    write_result(a)
+    review = ReviewMailboxResultReader().read(a)
+
+    class WrongRunner:
+        def run(self, spec):
+            return object()
+
+    with pytest.raises(ReviewMailboxAdapterError) as exc_info:
+        ReviewResultForwarder(runner=WrongRunner(), python_executable=sys.executable).forward(a, review)
+    assert_code(exc_info, "AWIKI_REVIEW_RESPONSE_INVALID")
+
+
+def test_reader_rejects_non_git_sha_assignment_for_awiki(tmp_path: Path) -> None:
+    a = replace(assignment(tmp_path), base_head="a" * 64)
+    write_result(a)
+
+    with pytest.raises(ReviewMailboxAdapterError) as exc_info:
+        ReviewMailboxResultReader().read(a)
+    assert_code(exc_info, "REVIEW_HEAD_INVALID_FOR_AWIKI")
+
+
+def test_forwarder_rechecks_task_hash_after_read(tmp_path: Path) -> None:
+    a = assignment(tmp_path)
+    write_result(a)
+    review = ReviewMailboxResultReader().read(a)
+    Path(a.task_ref).write_text("changed after read\n", encoding="utf-8")
+
+    with pytest.raises(ReviewMailboxAdapterError) as exc_info:
+        ReviewResultForwarder(
+            runner=FakeRunner(command_result()), python_executable=sys.executable
+        ).forward(a, review)
+    assert_code(exc_info, "TASK_PACKET_HASH_MISMATCH")
+
+
+def test_factory_pins_awiki_root_python_and_mutation_scope(tmp_path: Path) -> None:
+    from a_conductor.native_execution import NativeSubprocessRunner
+    from a_conductor.review_mailbox_adapter import build_review_result_forwarder
+
+    forwarder = build_review_result_forwarder(
+        awiki_root=tmp_path.resolve(), python_executable=sys.executable
+    )
+
+    assert isinstance(forwarder._runner, NativeSubprocessRunner)
+    scope = forwarder._runner._scope
+    assert Path(scope.root) == tmp_path.resolve()
+    assert scope.mutation_allowed is True
+    assert scope.allowed_executables == (Path(sys.executable).name,)
+    assert scope.max_output_bytes == MAX_REVIEW_RESULT_BYTES
