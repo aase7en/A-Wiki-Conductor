@@ -98,3 +98,13 @@ Verification at source freeze:
 - scope remains exactly this WO + new decoder + focused test.
 
 Next gate: commit this documentation checkpoint, push a clean exact review SHA, then require fresh independent exact-SHA review with P0/P1/P2=0 before PR/merge.
+## Current-main composition checkpoint — 2026-09-03
+- `origin/main` advanced to `b2b624300e9fc8d9e6486f6798b2827995585982` via accepted WO147 / PR #200 while WO152 was in verification.
+- PR #200 changed only WO147 work-order/source/test files; overlap with WO152 mutable scope = **0 files**.
+- Current main was composed into the isolated WO152 branch as `819772a18efda8979e202498c72060939e55a5c6`.
+- All three WO152 Git blobs are byte-identical to pre-compose review checkpoint `684f1bc127369e0e81e351472009adb90a0b4c38`.
+- Delta versus current `origin/main` remains exactly the WO152 work order, decoder, and focused test.
+- Post-compose focused tests: **13 passed**.
+- Post-compose provider/store/runtime/service-auth matrix: **284 passed**.
+
+Review authority must pin the final checkpoint commit created after this note, not `684f1bc...` or `819772a...`.
