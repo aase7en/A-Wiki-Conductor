@@ -266,3 +266,24 @@ def test_semantic_bearer_display_name_is_not_mistaken_for_a_credential() -> None
     )
     assert result.state is AiPassDiscoveryState.OK
     assert result.models[0].name == "Bearer Capacity"
+
+
+def test_generic_sk_secret_shaped_model_id_fails_closed_without_overrejecting_semantic_ids() -> None:
+    now = NOW
+    unsafe = "sk-proj-" + "A" * 24
+    bad = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": unsafe, "name": "safe"}]},
+        quota_payload=None,
+        observed_at=now, now=now, configuration_generation=1,
+    )
+    assert bad.state is AiPassDiscoveryState.MALFORMED
+    assert unsafe not in str(bad.to_dict())
+
+    for safe_id in ("sketch-model", "sk-model-small"):
+        good = build_aipass_discovery(
+            models_payload={"object": "list", "data": [{"id": safe_id, "name": safe_id}]},
+            quota_payload=None,
+            observed_at=now, now=now, configuration_generation=1,
+        )
+        assert good.state is AiPassDiscoveryState.OK
+        assert good.models[0].model_id == safe_id
