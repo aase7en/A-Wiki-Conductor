@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: READY_FOR_INDEPENDENT_REVIEW
+Status: GPT_PRIMARY_REPAIR / RED_FIRST
 Priority: P1
 Repository: `A:\\GitHub\\A-Wiki-Conductor`
 Worktree: `A:\\GitHub\\A-Wiki-Conductor-wo148-service-authorization`
@@ -79,3 +79,9 @@ RED first, then focused tests, existing provider regression matrix, compile/diff
 - The evidence SHA remains the only evidence payload representation; neither approval text nor URL/path/header/credential values belong in the record.
 - GREEN focused = **36/36 PASS**; selected provider/config/store/policy/authority/runtime/quota regression = **211/211 PASS**; compile/diff checks PASS.
 - Any GLM review or CI of pre-repair head `cf791b4...` is historical only; a new exact-SHA review + CI are mandatory after this repair.
+
+## GPT deep audit claim ? semantic Terms identity
+
+- Exact candidate `95ae24b0c6fcaf4c9fffbc7e456508542164b8ba` is clean/local=remote. GPT probe proved the opaque-character grammar still accepts API-key/token-like strings (including `sk-ant-*`, `ghp_*`, `AIza*`, and token/cookie-shaped opaque text) and serializes them verbatim in `to_dict()` / repr.
+- This contradicts the WO contract that authorization metadata never carries raw token/credential material. Character opacity alone is not sink safety.
+- Repair remains pure/provider-neutral and within this WO + provider_service_authorization.py + focused tests. RED will require a semantic public Terms-version identifier rather than arbitrary opaque text; no store/policy/admission/runtime/live AiPASS mutation.
