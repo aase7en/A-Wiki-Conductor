@@ -568,3 +568,59 @@ def test_discovery_snapshot_direct_constructor_fails_closed() -> None:
             configuration_generation=7,
             observed_at=NOW,
         )
+
+
+@pytest.mark.parametrize(
+    "unsafe_value",
+    (
+        "a" + "ghp_" + "A" * 36,
+        "x" + "sk-ant-" + "A" * 24,
+        "x" + "AKIA" + "B" * 16,
+        "x" + "npm_" + "B" * 32,
+        "1" + "eyJhbGciOiJIUzI1NiI",
+    ),
+)
+def test_glued_credential_shapes_fail_closed(unsafe_value: str) -> None:
+    result = _build(models=_models(_model(unsafe_value, name="safe")), quota={})
+    assert result.state is AiPassDiscoveryState.MALFORMED
+    assert unsafe_value not in str(result.to_dict())
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    (
+        "a" + "ghp_" + "A" * 36,
+        "x" + "sk-ant-" + "A" * 24,
+        "x" + "AKIA" + "B" * 16,
+        "x" + "npm_" + "B" * 32,
+    ),
+)
+def test_glued_credential_display_names_fall_back(unsafe_name: str) -> None:
+    result = _build(models=_models(_model("safe-model", name=unsafe_name)), quota={})
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert unsafe_name not in str(result.to_dict())
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    (
+        "cache/home/alice/.ssh/id_ed25519",
+        "endpoint/v1/models",
+        r"cacheC:\Users\alice\secret.txt",
+        r"cache\\server\share\secret.txt",
+    ),
+)
+def test_glued_private_path_display_names_fall_back(unsafe_name: str) -> None:
+    result = _build(models=_models(_model("safe-model", name=unsafe_name)), quota={})
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert unsafe_name not in str(result.to_dict())
+
+
+def test_glued_guards_preserve_semantic_near_neighbors() -> None:
+    for safe_value in ("highp_model", "Rakia1", "sketch-model", "cache-aware-model"):
+        result = _build(models=_models(_model(safe_value, name=safe_value)), quota={})
+        assert result.state is AiPassDiscoveryState.OK
+        assert result.models[0].model_id == safe_value
+        assert result.models[0].name == safe_value

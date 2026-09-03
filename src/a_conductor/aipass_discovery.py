@@ -39,7 +39,15 @@ _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
     r"\b(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}/[^\s/]+|\b(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}\b|"
     r"\b(?:10(?:\.\d{1,3}){3}|127(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b|"
     r"\[[0-9A-Fa-f:]+\]:\d{1,5}\b|^/|"
-    r"(?<![A-Za-z0-9])(?:[A-Za-z]:[\\/]|\\\\|/(?!\s)(?:[^/\s]+/)+[^/\s]+))"
+    r"(?:[A-Za-z]:[\\/]|\\\\|/(?!\s)(?:[^/\s]+/)+[^/\s]+))"
+)
+_EMBEDDED_CREDENTIAL_SHAPED_RE = re.compile(
+    r"(?i)(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{16,}|"
+    r"sk-ant-[A-Za-z0-9_]{16,}|sk-(?:proj-|live-)?[A-Za-z0-9_]{16,}|"
+    r"(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|glpat-[A-Za-z0-9_-]{16,}|"
+    r"npm_[A-Za-z0-9]{16,}|pypi-[A-Za-z0-9_-]{16,}|(?:akia|asia)[0-9a-z]{16}|"
+    r"aiza[0-9a-z_-]{20,}|ya29\.[0-9a-z._-]{16,}|eyj[0-9a-z._-]{16,}|"
+    r"xox[baprs]-[0-9a-z-]{16,})"
 )
 _CREDENTIAL_SHAPED_RE = re.compile(
     r"(?i)(?:^|[\s._/@:+-])(?:bearer\s+[A-Za-z0-9._~+/=-]{16,}|gh[pousr]_|"
@@ -165,6 +173,7 @@ def _display_name(value: object, *, fallback: str) -> str:
     if (
         _PUBLIC_METADATA_FORBIDDEN_RE.search(text)
         or _CREDENTIAL_SHAPED_RE.search(text)
+        or _EMBEDDED_CREDENTIAL_SHAPED_RE.search(text)
         or _looks_like_raw_endpoint(text)
     ):
         return fallback
@@ -222,6 +231,7 @@ def _decode_models(payload: object) -> tuple[AiPassDiscoveredModel, ...]:
             not isinstance(model_id, str)
             or not _MODEL_ID_RE.fullmatch(model_id)
             or _CREDENTIAL_SHAPED_RE.search(model_id)
+            or _EMBEDDED_CREDENTIAL_SHAPED_RE.search(model_id)
         ):
             raise ValueError("model id is invalid")
         if model_id in seen:

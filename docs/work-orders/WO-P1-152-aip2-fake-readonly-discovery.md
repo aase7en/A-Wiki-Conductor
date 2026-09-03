@@ -189,3 +189,14 @@ Review authority must pin the final checkpoint commit created after this note, n
 - `compileall`, `git diff --check`, strict UTF-8/U+FFFD, and AST forbidden-I/O import gate: PASS.
 - `wo152-glm-final-review-006` is superseded for acceptance because it pins pre-repair `7ebe60db...`; any result from that task is stale evidence.
 - Next safe action: commit/push this exact repair freeze, create a fresh detached exact-SHA review candidate, require hosted CI green and independent P0=P1=P2=0 before merge.
+
+## GPT P2 glued-boundary repair checkpoint — 2026-09-03
+- Post-constructor candidate `8edf7b69cbc7ab160fe3f66ee2cd989e5073d497` still serialized credential/path material when a word character was glued directly before an otherwise high-confidence credential or private-path shape.
+- Reproducers included `a+ghp_<36>`, `x+sk-ant-<24>`, `x+AKIA<16>`, `x+npm_<32>`, a glued JWT-header shape, plus `cache/home/alice/.ssh/id_ed25519`, `endpoint/v1/models`, glued Windows-drive and UNC paths.
+- RED before repair: **13 failed / 83 passed**; the dedicated semantic-near-neighbor control remained green.
+- Repair adds a separate length-qualified embedded-credential detector and removes only the leading-word lookbehind from the existing high-confidence multi-segment path alternative. Existing semantic controls such as `highp_model`, `Rakia1`, `sketch-model`, `Vision / Chat`, `Home / Research`, and credential-themed prose remain accepted.
+- Focused discovery suite after repair: **96/96 PASS**.
+- Focused + provider/config/store/service-auth/execution/runtime/parallel/harness impact matrix: **461/461 PASS**.
+- `compileall`, `git diff --check`, strict UTF-8/U+FFFD, and AST forbidden-I/O import gate: PASS.
+- Candidate `8edf7b69...` and detached review worktree `wo152-glm-final-review-007` are stale for acceptance; no review packet was published for that stale tree.
+- Next safe action: commit/push this repair freeze, create a fresh detached exact-SHA review packet with new blob pins, require hosted CI green and independent P0=P1=P2=0 before merge.
