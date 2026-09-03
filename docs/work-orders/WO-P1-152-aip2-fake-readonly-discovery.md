@@ -136,3 +136,13 @@ Review authority must pin the final checkpoint commit created after this note, n
 - compile/diff-check, strict UTF-8/U+FFFD and AST/import no-I/O gates: PASS.
 - Scope remains exactly this WO + decoder + focused test; no live AiPASS/store/config/readiness/authorization/admission/runtime mutation.
 - All earlier WO152 review tasks/candidates are superseded for acceptance; next gate is a fresh exact-SHA independent review after this checkpoint is committed and pushed.
+
+## GPT P2 expanded credential-prefix repair checkpoint - 2026-09-03
+- GPT self-audit against exact `ceb17606ed3f10d515ea4727e20acacad27ba62b` found additional high-confidence credential prefixes (`github_pat_`, Stripe-style `sk_live_` / `sk_test_` / `rk_live_` / `rk_test_`, `glpat-`, `npm_`, `pypi-`, and AWS temporary `ASIA...`) could still cross model ID/display-name serialization.
+- RED `481c145`: **18 intended failures / 20 existing PASS**; semantic near-neighbor controls remained green, proving the test boundary was not broad keyword rejection.
+- Repair `930ec4c017798a13b3de08117f6c7f5e134d5a27` extends only the high-confidence credential-shape guard. Unsafe model IDs fail typed; unsafe display names fall back to the already-safe model ID.
+- Focused discovery suite after repair: **38/38 PASS**.
+- Provider/config/store/service-auth/execution-authority/runtime/parallel/harness/job/quota matrix: **344/344 PASS**.
+- `compileall`, `git diff --check`, strict UTF-8/U+FFFD, AST/import no-I/O, exact-scope audit, **34 malicious serialization checks**, and **10 semantic safe controls**: PASS.
+- `origin/main` remains `1ae477f05e597c5027d22fdb2ca4f1496c070db7`; feature delta remains exactly the WO + decoder + focused test.
+- Candidate `ceb1760...` and any review pinned to it are superseded for acceptance. The next review must pin the final documentation checkpoint commit after this note.
