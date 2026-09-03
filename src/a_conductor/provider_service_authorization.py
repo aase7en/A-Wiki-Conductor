@@ -40,15 +40,19 @@ def _text(value: object, field: str, *, max_length: int) -> str:
     return text
 
 
-def _terms_identity(value: object) -> str:
-    text = _text(value, "terms_identity", max_length=64)
+def _terms_effective_date(text: str) -> date:
     match = _TERMS_ID_RE.fullmatch(text)
     if match is None:
         raise ValueError("terms_identity is invalid")
     try:
-        date.fromisoformat(match.group("effective"))
+        return date.fromisoformat(match.group("effective"))
     except ValueError as exc:
         raise ValueError("terms_identity is invalid") from exc
+
+
+def _terms_identity(value: object) -> str:
+    text = _text(value, "terms_identity", max_length=64)
+    _terms_effective_date(text)
     return text
 
 
@@ -94,8 +98,11 @@ class ProviderServiceAuthorizationRecord:
             raise ValueError("evidence_sha256 is required for AUTHORIZED state")
         object.__setattr__(self, "evidence_sha256", evidence)
 
-        observed = _aware_utc(self.observed_at, "observed_at")
+        original_observed = self.observed_at
+        observed = _aware_utc(original_observed, "observed_at")
         recheck = _aware_utc(self.recheck_after, "recheck_after")
+        if original_observed.date() < _terms_effective_date(self.terms_identity):
+            raise ValueError("observed_at cannot predate terms_identity effective date")
         if recheck <= observed:
             raise ValueError("recheck_after must be later than observed_at")
         object.__setattr__(self, "observed_at", observed)
