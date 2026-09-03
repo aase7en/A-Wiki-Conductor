@@ -1,6 +1,19 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-03 - WO153 ZCode config-lock operational incident
+Last updated: 2026-09-04 - WO154 Fast Execution + WO155 Zero-Relay priority
+
+## Current handoff override — 2026-09-04
+
+- Remote `main = 68079e3d00047ca9432f0aefe3ad667f892614d0` after WO153 / PR #205 merged; WO153 is RELEASED.
+- Active workflow PR #208 / WO154 is composed with that main and carries the binding R0-R3 Fast Execution policy plus WO155 Zero-Relay P0 roadmap. It remains Draft/R2 until an independent exact-SHA review passes; CI must correspond to the latest frozen SHA.
+- New top priority: `WO-P1-155` Zero-Relay Accelerator. Goal is `human relay actions per external-agent task = 0` through automatic task dispatch -> result ingestion -> review/repair -> NEXT READY continuation.
+- Do not automate ZCode UI clicks as the primary design. Reuse the accepted provider-neutral task packet, Claude-style harness, provider config/admission/policy, lease, durable result and review authorities.
+- Live `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` previously lacked provider tables; ZRA-0 must migrate/prove an isolated copy first. Never experiment on the live DB without exact backup/identity/rollback evidence.
+- ZRA sequence: `ZRA-0 migration/readiness proof -> ZRA-1 one automatic GLM task -> ZRA-2 automatic repair loop -> ZRA-3 automatic next-node continuation -> ZRA-4 bounded parallel lanes`.
+- ODP work that is not necessary for ZRA-0..3 is temporarily deprioritized. WO096 remains the independent v0.7.0 release blocker.
+- Protected root checkout remains stale/dirty. Use isolated worktrees only; preserve exact repo/worktree/branch/HEAD/dirty/owner/scope gates.
+
+One next safe action: finish PR #208 exact-SHA R2 acceptance; then claim ZRA-0 from current `origin/main` in a new isolated worktree and prove provider-stack migration/readiness on a copied database before any live mutation.
 
 ## WO153 operational incident handoff — 2026-09-03
 

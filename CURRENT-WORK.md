@@ -1,6 +1,26 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-03 (GPT-5.6 Sol - WO153 ZCode config-lock operational incident)
+Last updated: 2026-09-04 (GPT-5.6 Sol - WO154 Fast Execution + WO155 Zero-Relay priority)
+
+## WO154/WO155 authoritative execution override — 2026-09-04
+
+- Authoritative remote main after WO153 / PR #205 merge: `68079e3d00047ca9432f0aefe3ad667f892614d0`; WO153 is RELEASED and its hotspot ownership is no longer active.
+- PR #208 / WO154 is the active binding-process lane. Current branch is composed with `main@68079e3...`; it defines risk-tier R0-R3 execution, frozen-candidate review, progressive verification, WIP `3 mutable + 1 review`, and one-feature-PR-by-default policy.
+- P0 accelerator is now `WO-P1-155` / `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md`: eliminate human GPT↔GLM/external-agent copy/paste before resuming non-required ODP feature expansion.
+- Priority sequence: `WO154 accept/merge -> ZRA-0 live-stack-safe migration proof -> ZRA-1 automatic one-task dispatch -> ZRA-2 automatic result/review/repair -> ZRA-3 automatic NEXT READY continuation -> resume ODP-1..9`.
+- ZRA target metric: `human relay actions per external-agent task = 0`. ZCode UI automation is not the preferred architecture; reuse the accepted provider-neutral Claude-style harness/provider authority where eligible.
+- Current live Control Center DB must not be mutated blindly. Prior inspection showed the running DB lacked provider tables; ZRA-0 must prove migration on a copy/isolated DB before any live migration.
+- PR #208 remains R2 and requires an independent exact-SHA read-only review before merge. Same-session self-review is not sufficient independence.
+- WO096 remains an independent P0 v0.7.0 release blocker; zero-relay work does not bypass its live hosted remote MCP-after-TTL acceptance gate.
+- Protected root checkout remains stale/dirty; all mutation stays in isolated worktrees.
+
+### Immediate execution order
+
+1. Freeze/review/accept PR #208 from current main composition.
+2. Start ZRA-0 in a fresh isolated worktree from then-current `origin/main`; inspect/reuse existing AHA provider/harness authorities before writing new runtime code.
+3. Progress ZRA-1 -> ZRA-2 -> ZRA-3 under R3 trust/provider gates and deterministic evidence.
+4. Only after ZRA-3, resume ODP feature lanes not required by the zero-relay path.
+5. Keep WO096 fail-closed until its separate live authorization/evidence gate is satisfied.
 
 ## WO153 operational reliability override — 2026-09-03
 
