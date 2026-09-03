@@ -34,7 +34,6 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| WO-P3-144 post-reliability/provider closeout | GPT-5.6 Sol MAX | CLAIMED 2026-09-03 | CURRENT-WORK.md, handoff.md, COLLAB.md, docs/agent-collab/AGENT_TASKS.md, WO144 only; docs-only actual-state reconciliation, no source/runtime mutation. |
 | `WO-P1-116` / AHA-6B worker supply + elastic capacity | GPT-5.6 Sol integrator | RELEASED 2026-08-31 | PR #157 + closeout PR #158 merged; source lane released. |
 | `WO-P1-117` provider dispatch/admission safety | GPT-5.6 Sol integrator | READY_FOR_CLAIM | `parallel_ready_execution.py`, `provider_config_store.py`, focused tests; baseline CI `33357214028` green; claim requires isolated worktree + fresh preflight. |
 | `WO-P1-118` provider config generation/policy | unassigned | QUEUED | Shares `provider_config_store.py` with 117; must not start until 117 releases it. |
@@ -44,6 +43,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 ### Recently closed / released claims
 
+- `WO-P3-144` / PR #195 post-reliability closeout: exact docs head `f2d33ed2d63454e6b7f547a016abb07f058d89be`; exact-head CI `33699856774` SUCCESS; merged `cf2a4e7a57bfd22ec55de79c700ec3e4931dc475`; post-main `33704062299` SUCCESS. Final closeout also corrects the AiPASS section 3.4 evidence: explicit written authorization is the documented exception. Claim released to PR #183 / WO132 reconciliation.
 - `WO-P1-143` / PR #194 provider Evidence selection-sync remediation: latest exact candidate `720d0328c02f7068d34cc3a5ae31418a9b1ede4b` preserved all 7 reviewed feature blobs; GLM latest-SHA rereview PASS P0/P1/P2/P3=0; exact-head CI `33680012267` SUCCESS; merged as `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`; post-main `33681115738` SUCCESS. Source claim released.
 - `WO-P2-140` / PR #193 residual owned-process diagnostics: GPT repaired one P2 unbounded diagnostic sequence after GLM handback using `deque(maxlen=64)`. Final head `2238259e264991e1249d1439b206dc9b252c3051`; exact-head CI `33678036552` SUCCESS; merged `787e9be2f108ce3f323bebc20127eb03c2958bfc`; post-main `33679432865` SUCCESS. Source claim released.
 
