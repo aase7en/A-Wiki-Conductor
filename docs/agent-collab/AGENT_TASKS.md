@@ -13,7 +13,7 @@ Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work o
 | Next AiPASS roadmap | GPT-5.6 Sol MAX | WO-P1-132 / PR #183 | existing 4-file docs scope only | DRAFT `085a06cf` / RECONCILE_CURRENT_MAIN / TERMS_AUTH_FAIL_CLOSED |
 | P0 operational gate | explicit maintenance authority required | WO-P1-096 | hosted remote MCP-after-TTL resilient connector proof | AUTHORIZATION_REQUIRED / stopped Worker2/5 not automatically available |
 
-Cross-repo dependency: A-Wiki Review Bridge candidate `45d1c236...` / PR #50 remains Draft/UNSTABLE with Loop Gate and Core CI failures. A-Conductor must not create a parallel ReviewBus/lifecycle authority or implement the mailbox adapter before an accepted exact A-Wiki SHA/API exists.
+Cross-repo dependency: A-Wiki Review Bridge candidate `b04761d5...` / PR #50 is Draft and mergeable CLEAN with Core CI `33682384067`, Loop Gate `33682383989`, and py38 smoke SUCCESS; GPT-authored trust-boundary repairs still require fresh independent exact-SHA rereview before Ready/Merge. A-Conductor must not create a parallel ReviewBus/lifecycle authority or implement the mailbox adapter before an accepted exact A-Wiki SHA/API exists.
 
 ## Active lane checkpoint - 2026-09-02
 

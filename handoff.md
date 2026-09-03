@@ -10,7 +10,7 @@ Last updated: 2026-09-03 - WO144 post-WO140/WO143 actual-state closeout
 - WO144 docs-only closeout: worktree `A:\GitHub\A-Wiki-Conductor-wo144-post-reliability-closeout`, branch `docs/wo144-post-reliability-closeout-20260903`, claim `e438d2f80ef46acc00c46919b7e0102b9df07f96`.
 - PR #183 / WO132 is next after WO144; fresh upstream/license/Terms audit complete, current conflict only `COLLAB.md`, live AiPASS BLOCKED_EXTERNAL.
 - WO096 remains P0 operational gate. 18012/18015 stopped but not automatically free: Worker2 has incomplete pharmacy cycle; Worker5 has sunday-estate continuity. Shared live tunnel-client remains 0.0.11. No maintenance mutation authorized.
-- A-Wiki Review Bridge `45d1c236...` / PR #50 remains Draft/UNSTABLE with Loop Gate + Core CI failures. Adapter dependency remains blocked.
+- A-Wiki Review Bridge `b04761d580ddcdc7eb682e3a6036078b3b346953` / PR #50 is Draft and mergeable CLEAN; Core CI `33682384067`, Loop Gate `33682383989`, and py38 smoke are SUCCESS. Adapter dependency remains blocked only on the required fresh independent exact-SHA rereview/acceptance; no A-Conductor adapter implementation has started.
 - Primary root checkout remains protected; use isolated worktrees only.
 
 ### One next safe action

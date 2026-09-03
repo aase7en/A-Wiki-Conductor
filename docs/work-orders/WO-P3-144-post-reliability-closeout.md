@@ -29,6 +29,6 @@ Forbidden: `src/**`, `tests/**`, PR #183 files, live Workers/tunnels/binaries/cr
 - WO143 merged: PR #194 head `720d0328c02f7068d34cc3a5ae31418a9b1ede4b`, GLM rereview PASS P0/P1/P2/P3=0, CI `33680012267` SUCCESS, merge `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`, post-main `33681115738` SUCCESS.
 - PR #183 preflight: one merge conflict only in `COLLAB.md`; fresh AiPASS MIT/license and Terms audit complete; live automation remains fail-closed.
 - WO096 read-only fleet gate proves stopped 18012/18015 are not automatically available due separate project continuity.
-- A-Wiki Review Bridge remains blocked on PR #50 acceptance; no adapter implementation started.
+- A-Wiki Review Bridge PR #50 advanced to `b04761d580ddcdc7eb682e3a6036078b3b346953`: Draft/mergeable CLEAN with Core CI `33682384067`, Loop Gate `33682383989`, and py38 smoke SUCCESS. It remains blocked on fresh independent exact-SHA rereview/acceptance because GPT authored the latest trust-boundary repairs; no A-Conductor adapter implementation started.
 
 Next: run strict 5-file docs audit, freeze/push, PR/CI/merge/post-main, then reconcile PR #183.
