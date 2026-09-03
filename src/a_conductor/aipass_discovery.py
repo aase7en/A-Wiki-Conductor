@@ -32,6 +32,9 @@ _EMBEDDED_ENDPOINT_HOST_RE = re.compile(
 _EMBEDDED_IP_TOKEN_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9_.@+\-])\[?[0-9a-f:.]+\]?(?![A-Za-z0-9_.@+\-])"
 )
+_EMBEDDED_GLUED_IPV4_RE = re.compile(
+    r"(?<![0-9._@+\-])\d+(?:\.\d{1,3}){3}(?![\d.])"
+)
 _MODEL_KINDS = frozenset({"chat", "image", "video", "music", "research"})
 _MAX_JSON_SAFE_NUMBER = (1 << 53) - 1
 _MAX_PROVIDER_GENERATION = (1 << 63) - 1
@@ -54,7 +57,7 @@ _EMBEDDED_GENERIC_CREDENTIAL_RE = re.compile(
     r"(?i)(?:(?:authorization|cookie|api[_ -]?key|access[_ -]?key(?:[_ -]?id)?|"
     r"access[_ -]?token|refresh[_ -]?token|password|passphrase|client[_ -]?secret|"
     r"private[_ -]?key|session(?:[_ -]?id)?|token|secret|credential|auth)"
-    r"(?:\\?[\"'])?\s*[:=]|"
+    r"\s*(?:\\?[\"']\s*)?[:=]|"
     r"(?:bearer|basic)\s+[\"']?[A-Za-z0-9._~+/=-]{16,}[\"']?)"
 )
 _EMBEDDED_CREDENTIAL_SHAPED_RE = re.compile(
@@ -199,6 +202,15 @@ def _contains_embedded_raw_endpoint(value: str) -> bool:
         except ValueError:
             continue
         return True
+    for match in _EMBEDDED_GLUED_IPV4_RE.finditer(value):
+        digits, tail = match.group(0).split(".", 1)
+        for width in range(min(3, len(digits)), 0, -1):
+            candidate = f"{digits[-width:]}.{tail}"
+            try:
+                ip_address(candidate)
+            except ValueError:
+                continue
+            return True
     return False
 
 
