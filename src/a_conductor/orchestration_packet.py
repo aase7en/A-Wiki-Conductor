@@ -26,6 +26,15 @@ from .graph.ready import compute_ready_set
 
 ORCHESTRATION_PACKET_SCHEMA_VERSION = "orchestration-packet/v1"
 _SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
+_TASK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$")
+_TASK_ROOT_ALLOWED = frozenset({"schema_version", "task_id", "work_order_ref", "goal", "task_type", "risk_class", "authority", "target", "scope", "acceptance", "security", "routing", "budget", "retry_policy", "escalation", "required_evidence", "metadata"})
+_RISK_CLASSES = frozenset({"LOW", "NORMAL", "HIGH", "HUMAN_REQUIRED"})
+_IDENTITY_POLICIES = frozenset({"EXACT", "AUTHORIZED_SUCCESSOR", "NO_GIT", "READ_ONLY_DISCOVERY"})
+_SCOPE_GROWTH = frozenset({"FORBIDDEN", "AMENDMENT_REQUIRED"})
+_PRIVACY_CLASSES = frozenset({"PUBLIC", "INTERNAL", "SENSITIVE", "SECRET"})
+_NETWORK_POLICIES = frozenset({"DENIED", "ALLOWLISTED", "INHERIT"})
+_ESCALATION_CONDITIONS = frozenset({"ARCHITECTURE_DECISION", "SECURITY_BOUNDARY_CHANGE", "DESTRUCTIVE_OPERATION", "CREDENTIALS_REQUIRED", "MERGE_CONFLICT", "BASELINE_INVALID", "REPEATED_FAILURE", "SCOPE_EXPANSION", "PROVIDER_BEHAVIOR_DRIFT", "PRIVACY_RISK", "IDENTITY_MISMATCH", "UNKNOWN_RECOVERY_STATE"})
+_EVIDENCE_CLASSES = frozenset({"REPOSITORY_IDENTITY", "CHANGED_FILES", "DIFF_SUMMARY", "COMMAND_RESULT", "TEST_RESULT", "LINT_RESULT", "TYPECHECK_RESULT", "CHECKSUM", "HEALTH_CHECK", "REVIEW_RESULT", "SCOPE_DEVIATION_REPORT"})
 
 
 def _text(value: object, field: str, *, optional: bool = False) -> str | None:
@@ -66,6 +75,113 @@ def _mapping(value: object, field: str) -> Mapping[str, object]:
         raise ValueError(f"{field} must be an object")
     return value
 
+
+def _keys(value: Mapping[str, object], field: str, *, required: set[str], allowed: set[str]) -> None:
+    keys = set(value)
+    missing = required - keys
+    if missing:
+        raise ValueError(f"{field}.{sorted(missing)[0]} is required")
+    extra = keys - allowed
+    if extra:
+        raise ValueError(f"{field}.{sorted(extra)[0]} is not valid for task-contract/v1")
+
+
+def _enum(value: object, field: str, allowed: frozenset[str]) -> str:
+    text = _text(value, field)
+    assert text is not None
+    if text not in allowed:
+        raise ValueError(f"{field} is invalid")
+    return text
+
+
+def _nonnegative_int_or_none(value: object, field: str) -> None:
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{field} must be a non-negative integer or None")
+
+
+def _nonnegative_number_or_none(value: object, field: str) -> None:
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise ValueError(f"{field} must be a non-negative number or None")
+
+
+def _validate_task_contract_v1(task: Mapping[str, object]) -> None:
+    required_root = {"schema_version", "task_id", "goal", "risk_class", "authority", "target", "scope", "acceptance", "security", "budget", "retry_policy", "escalation", "required_evidence"}
+    _keys(task, "task_contract", required=required_root, allowed=set(_TASK_ROOT_ALLOWED))
+    if task.get("schema_version") != "1.0.0":
+        raise ValueError("task_contract.schema_version must be 1.0.0")
+    task_id = _text(task.get("task_id"), "task_contract.task_id")
+    assert task_id is not None
+    if _TASK_ID_RE.fullmatch(task_id) is None:
+        raise ValueError("task_contract.task_id is invalid")
+    goal = _text(task.get("goal"), "task_contract.goal")
+    assert goal is not None
+    if len(goal) > 10000:
+        raise ValueError("task_contract.goal is too long")
+    _enum(task.get("risk_class"), "task_contract.risk_class", _RISK_CLASSES)
+
+    authority = _mapping(task.get("authority"), "task_contract.authority")
+    _keys(authority, "task_contract.authority", required={"requested_by", "mutation_allowed", "human_approval_required"}, allowed={"requested_by", "approved_by", "approval_ref", "mutation_allowed", "human_approval_required"})
+    _text(authority.get("requested_by"), "task_contract.authority.requested_by")
+    _bool(authority.get("mutation_allowed"), "task_contract.authority.mutation_allowed")
+    _bool(authority.get("human_approval_required"), "task_contract.authority.human_approval_required")
+
+    target = _mapping(task.get("target"), "task_contract.target")
+    _keys(target, "task_contract.target", required={"project_id", "identity_policy"}, allowed={"project_id", "repository_identity_ref", "expected_worktree_path", "expected_branch", "expected_head", "identity_policy"})
+    _text(target.get("project_id"), "task_contract.target.project_id")
+    _enum(target.get("identity_policy"), "task_contract.target.identity_policy", _IDENTITY_POLICIES)
+    head = target.get("expected_head")
+    if head is not None and (not isinstance(head, str) or _SHA_RE.fullmatch(head) is None):
+        raise ValueError("task_contract.target.expected_head is invalid")
+
+    scope = _mapping(task.get("scope"), "task_contract.scope")
+    _keys(scope, "task_contract.scope", required={"allowed_files", "forbidden_files", "allowed_commands", "forbidden_commands"}, allowed={"allowed_files", "forbidden_files", "allowed_commands", "forbidden_commands", "max_changed_files", "max_diff_bytes", "scope_growth"})
+    for name in ("allowed_files", "forbidden_files", "allowed_commands", "forbidden_commands"):
+        _nonblank_tuple(scope.get(name), f"task_contract.scope.{name}")  # type: ignore[arg-type]
+    _nonnegative_int_or_none(scope.get("max_changed_files"), "task_contract.scope.max_changed_files")
+    _nonnegative_int_or_none(scope.get("max_diff_bytes"), "task_contract.scope.max_diff_bytes")
+    if "scope_growth" in scope:
+        _enum(scope.get("scope_growth"), "task_contract.scope.scope_growth", _SCOPE_GROWTH)
+
+    acceptance = _mapping(task.get("acceptance"), "task_contract.acceptance")
+    _keys(acceptance, "task_contract.acceptance", required={"criteria", "verify_commands", "review_required"}, allowed={"criteria", "verify_commands", "review_required", "required_review_class"})
+    criteria = _nonblank_tuple(acceptance.get("criteria"), "task_contract.acceptance.criteria")  # type: ignore[arg-type]
+    if not criteria:
+        raise ValueError("task_contract.acceptance.criteria must not be empty")
+    _nonblank_tuple(acceptance.get("verify_commands"), "task_contract.acceptance.verify_commands")  # type: ignore[arg-type]
+    _bool(acceptance.get("review_required"), "task_contract.acceptance.review_required")
+
+    security = _mapping(task.get("security"), "task_contract.security")
+    _keys(security, "task_contract.security", required={"privacy_class", "network_policy", "secret_access"}, allowed={"privacy_class", "network_policy", "network_allowlist", "secret_access"})
+    _enum(security.get("privacy_class"), "task_contract.security.privacy_class", _PRIVACY_CLASSES)
+    _enum(security.get("network_policy"), "task_contract.security.network_policy", _NETWORK_POLICIES)
+    _bool(security.get("secret_access"), "task_contract.security.secret_access")
+
+    budget = _mapping(task.get("budget"), "task_contract.budget")
+    _keys(budget, "task_contract.budget", required={"max_elapsed_seconds"}, allowed={"max_elapsed_seconds", "max_input_tokens", "max_output_tokens", "max_estimated_cost_usd"})
+    _positive_int(budget.get("max_elapsed_seconds"), "task_contract.budget.max_elapsed_seconds")
+    _nonnegative_int_or_none(budget.get("max_input_tokens"), "task_contract.budget.max_input_tokens")
+    _nonnegative_int_or_none(budget.get("max_output_tokens"), "task_contract.budget.max_output_tokens")
+    _nonnegative_number_or_none(budget.get("max_estimated_cost_usd"), "task_contract.budget.max_estimated_cost_usd")
+
+    retry = _mapping(task.get("retry_policy"), "task_contract.retry_policy")
+    _keys(retry, "task_contract.retry_policy", required={"max_attempts", "max_identical_failures", "on_lease_expiry"}, allowed={"max_attempts", "max_identical_failures", "on_lease_expiry"})
+    _positive_int(retry.get("max_attempts"), "task_contract.retry_policy.max_attempts")
+    _positive_int(retry.get("max_identical_failures"), "task_contract.retry_policy.max_identical_failures")
+    if retry.get("on_lease_expiry") != "RECOVERY_REQUIRED":
+        raise ValueError("task_contract.retry_policy.on_lease_expiry is invalid")
+
+    escalation = _mapping(task.get("escalation"), "task_contract.escalation")
+    _keys(escalation, "task_contract.escalation", required={"conditions"}, allowed={"conditions"})
+    conditions = _nonblank_tuple(escalation.get("conditions"), "task_contract.escalation.conditions")  # type: ignore[arg-type]
+    if any(item not in _ESCALATION_CONDITIONS for item in conditions):
+        raise ValueError("task_contract.escalation.conditions is invalid")
+    evidence = _nonblank_tuple(task.get("required_evidence"), "task_contract.required_evidence")  # type: ignore[arg-type]
+    if not evidence or any(item not in _EVIDENCE_CLASSES for item in evidence):
+        raise ValueError("task_contract.required_evidence is invalid")
 
 def _selected(source: Mapping[str, object], keys: Sequence[str]) -> dict[str, object]:
     return {key: deepcopy(source[key]) for key in keys if key in source}
@@ -221,6 +337,7 @@ class OrchestrationPacket:
 
 
 def _project_task_contract(task_contract: Mapping[str, object]) -> dict[str, object]:
+    _validate_task_contract_v1(task_contract)
     required_objects = (
         "authority",
         "target",
