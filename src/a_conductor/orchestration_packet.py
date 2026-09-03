@@ -36,9 +36,8 @@ _EVIDENCE_REF_NAMESPACES = frozenset({
     "transport", "gate", "recovery", "review", "checksum", "artifact", "execution",
 })
 _CREDENTIAL_PAYLOAD_RE = re.compile(
-    r"(?i)^(?:authorization(?:bearer|basic|[_ :.-]|$)|bearer(?:[_ :.-]|$)|basic(?:[_ :.-]|$)|"
-    r"secret(?:-ref)?(?:[_ :.-]|$)|token(?:[_ :.-]|$)|password(?:[_ :.-]|$)|"
-    r"cookie(?:[_ :.-]|$)|credential(?:[_ :.-]|$)|api[-_]?key(?:[_ :.-]|$)|"
+    r"(?i)(?:^|[._/@:-])(?:authorization(?:bearer|basic|[_:.-]|$)|"
+    r"bearer(?:[_:.-]|$)|basic(?:[_:.-]|$)|secret-ref(?:[_:.-]|$)|"
     r"gh[pousr]_|sk-(?:ant-)?|xox[baprs]-|akia|aiza|ya29\.|eyj)"
 )
 _DRIVE_PATH_RE = re.compile(r"(?i)^[a-z]:[/\\]")
@@ -118,7 +117,7 @@ def _safe_ref(
         or _DRIVE_PATH_RE.match(payload)
         or "://" in payload
         or any(ch in payload for ch in "?#=&")
-        or _CREDENTIAL_PAYLOAD_RE.match(payload)
+        or _CREDENTIAL_PAYLOAD_RE.search(payload)
     ):
         raise ValueError(f"{field} must be a safe namespaced reference")
     return text
