@@ -26,8 +26,8 @@ _RAW_ENDPOINT_HOST_RE = re.compile(
 )
 _EMBEDDED_ENDPOINT_HOST_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9._@+\-])"
-    r"(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?\.)+"
-    r"[A-Za-z]{2,63})(?![A-Za-z0-9._\-])"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?\.)+"
+    r"[A-Za-z]{2,63}(?![A-Za-z0-9._\-])"
 )
 _EMBEDDED_IP_TOKEN_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9_.@+\-])\[?[0-9a-f:.]+\]?(?![A-Za-z0-9_.@+\-])"
