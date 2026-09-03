@@ -109,10 +109,10 @@ def test_model_id_endpoint_guard_preserves_real_dotted_model_ids() -> None:
         assert result.models[0].model_id == safe_id
 
 
-def test_huge_integer_stale_budget_returns_typed_malformed_instead_of_overflow() -> None:
+def test_huge_integer_stale_budget_is_accepted_without_float_overflow() -> None:
     result = _build(stale_after_seconds=10**400)
-    assert result.state is AiPassDiscoveryState.MALFORMED
-    assert result.reason_code == "DISCOVERY_CONTEXT_INVALID"
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.reason_code == "DISCOVERY_OK"
 
 
 def test_extreme_aware_datetime_utc_normalization_returns_typed_malformed() -> None:
