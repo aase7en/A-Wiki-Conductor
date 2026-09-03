@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: READY_FOR_INDEPENDENT_REVIEW
+Status: CLAIMED_P2_REPAIR
 Priority: P1
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo152-aip2-fake-discovery`
@@ -108,3 +108,8 @@ Next gate: commit this documentation checkpoint, push a clean exact review SHA, 
 - Post-compose provider/store/runtime/service-auth matrix: **284 passed**.
 
 Review authority must pin the final checkpoint commit created after this note, not `684f1bc...` or `819772a...`.
+## GPT P2 repair claim ? 2026-09-03
+- GPT primary adversarial probe against exact `d9343ad52cce71614009d6a4bbf49c1f1035dbd8` proved untrusted credential-shaped model metadata can cross `AiPassDiscoverySnapshot.to_dict()`: `name=ghp_*`, `name=Bearer ...`, and token-shaped `model_id` remain serialized as `DISCOVERY_OK`.
+- Prior exact-review candidate `d9343ad...` and queued `wo152-glm-final-review-002` are stale for acceptance.
+- Scope remains exactly this WO, `src/a_conductor/aipass_discovery.py`, and `tests/test_aipass_discovery.py`. No live AiPASS/provider/store/runtime mutation.
+- Next: RED-first tests for credential-shaped model ID/display metadata, then the smallest pure decoder repair.
