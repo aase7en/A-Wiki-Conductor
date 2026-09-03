@@ -157,6 +157,20 @@ def test_source_license_fact_cannot_authorize_service_access():
     assert decision.reason_code == "SERVICE_AUTHORIZATION_BLOCKED_EXTERNAL"
 
 
+@pytest.mark.parametrize(
+    "terms_identity",
+    [
+        "https://aipass.go.th/terms?token=SECRET",
+        "https://aipass.go.th/terms#credential",
+        "Authorization: Bearer SECRET",
+        "aipass terms @ 2026-08-19",
+    ],
+)
+def test_terms_identity_rejects_secret_bearing_or_url_query_shapes(terms_identity):
+    with pytest.raises(ValueError, match="terms_identity"):
+        _record(terms_identity=terms_identity)
+
+
 def test_safe_serialization_contains_only_non_secret_contract_fields():
     record = _record()
     payload = record.to_dict()
