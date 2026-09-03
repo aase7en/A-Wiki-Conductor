@@ -26,6 +26,7 @@ from .native_execution import (
 )
 
 MAX_REVIEW_RESULT_BYTES = 64_000
+AWIKI_REVIEW_SCHEMA = "awiki-review-bridge/v1"
 
 
 class ReviewMailboxAdapterError(RuntimeError):
@@ -259,6 +260,8 @@ class ReviewResultForwarder:
             raise ReviewMailboxAdapterError("AWIKI_REVIEW_RESPONSE_INVALID")
         if response.get("ok") is not True:
             raise ReviewMailboxAdapterError("AWIKI_REVIEW_REJECTED")
+        if response.get("schema") != AWIKI_REVIEW_SCHEMA:
+            raise ReviewMailboxAdapterError("AWIKI_REVIEW_SCHEMA_MISMATCH")
         if response.get("task_id") != assignment.task_id:
             raise ReviewMailboxAdapterError("AWIKI_REVIEW_TASK_MISMATCH")
         return response
