@@ -117,6 +117,8 @@ The packet does not calculate a second readiness policy.
 
 Node summary status uses the same current-state default as that authority: absent runtime state means `TODO`. `TaskNode.model_requirement` is intentionally **not projected** because canonical ODP routing is capability/role-first rather than permanent vendor/model identity.
 
+Graph strings that do cross the packet are structurally constrained at this boundary. Node IDs/objectives/output labels/retry references/artifact labels must be bounded decision-safe text; read/write sets must remain repo-relative and traversal-free. Credential/header/key-shaped values, raw absolute/private-machine paths, control characters, and URL-like payloads fail closed before serialization. This is a structural minimization guard, not semantic DLP: ordinary bounded task language remains task semantics and must never be reinterpreted as authorization.
+
 The builder never mutates the supplied graph or node-state mapping.
 
 ## 6. Candidate precondition
@@ -141,7 +143,7 @@ Candidate identity is stable and duplicate candidate IDs fail closed. Candidate 
 - Unknown graph node-state IDs fail closed.
 - No provider/model is hard-coded by this contract.
 - No hidden chain-of-thought is requested or stored.
-- Packet references use field-specific semantic namespaces: repository identity uses `repo:` / `github:`, worktree identity uses `worktree:`, policy uses `policy:` / `awiki-policy:`, and evidence uses the declared evidence-reference namespace set. Raw paths, URL-like forms, environment/credential namespaces, credential-shaped payload prefixes, cross-field namespace substitution, and arbitrary free text are rejected before serialization.
+- Packet references use field-specific semantic namespaces: repository identity uses `repo:` / `github:`, worktree identity uses `worktree:`, policy uses `policy:` / `awiki-policy:`, and evidence uses the declared evidence-reference namespace set. Raw paths, URL-like forms, environment/credential namespaces, credential-shaped payload prefixes, and cross-field namespace substitution are rejected before serialization. Ordinary bounded task text is allowed only through the decision-safe text guard above.
 - Packet evidence references are references, not raw secret-bearing evidence payloads.
 - A packet is a decision input, never mutation authorization by itself.
 
