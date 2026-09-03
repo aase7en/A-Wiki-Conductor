@@ -12,7 +12,7 @@ from a_conductor.provider_service_authorization import (
 )
 
 NOW = datetime(2026, 9, 3, 4, 0, tzinfo=timezone.utc)
-TERMS = "aipass.go.th/term-and-cond-th@2026-08-19"
+TERMS = "aipass-terms@2026-08-19"
 EVIDENCE = "a" * 64
 
 
@@ -164,6 +164,10 @@ def test_source_license_fact_cannot_authorize_service_access():
         "https://aipass.go.th/terms#credential",
         "Authorization: Bearer SECRET",
         "aipass terms @ 2026-08-19",
+        "https://aipass.go.th/terms/TOKENSECRET",
+        "Authorization:BearerSECRET",
+        "secret-ref:awiki-env/API_TOKEN",
+        "aipass/terms@2026-08-19",
     ],
 )
 def test_terms_identity_rejects_secret_bearing_or_url_query_shapes(terms_identity):
