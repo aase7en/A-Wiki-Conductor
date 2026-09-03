@@ -1,0 +1,400 @@
+"""ODP-1 — pure Orchestration Packet v1 projection.
+
+This module is a data-minimization boundary between durable A-Conductor runtime
+state and a future non-mutating planner/adjudicator.  It does not invoke a
+model, probe a provider, select/admit a route, mutate a TaskGraph, read a
+repository, resolve credentials, or dispatch work.
+
+The packet deliberately projects an allowlisted subset of ``task-contract/v1``
+and current graph/runtime facts.  Arbitrary task metadata, requester/approver
+identity, command strings, endpoint/network targets, legacy model requirements,
+credentials, transcripts, and environment data are not copied across this
+boundary.
+"""
+
+from __future__ import annotations
+
+from copy import deepcopy
+from dataclasses import dataclass
+import json
+import re
+from typing import Mapping, Sequence
+
+from .graph.domain import TaskGraph, TaskNodeStatus
+from .graph.ready import compute_ready_set
+
+
+ORCHESTRATION_PACKET_SCHEMA_VERSION = "orchestration-packet/v1"
+_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
+
+
+def _text(value: object, field: str, *, optional: bool = False) -> str | None:
+    if value is None and optional:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field} must be a non-blank string")
+    return value.strip()
+
+
+def _bool(value: object, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{field} must be bool")
+    return value
+
+
+def _positive_int(value: object, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{field} must be a positive integer")
+    return value
+
+
+def _nonblank_tuple(values: Sequence[str], field: str) -> tuple[str, ...]:
+    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
+        raise ValueError(f"{field} must be a sequence of non-blank strings")
+    normalized: list[str] = []
+    for value in values:
+        text = _text(value, field)
+        assert text is not None
+        normalized.append(text)
+    if len(set(normalized)) != len(normalized):
+        raise ValueError(f"{field} must not contain duplicates")
+    return tuple(normalized)
+
+
+def _mapping(value: object, field: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{field} must be an object")
+    return value
+
+
+def _selected(source: Mapping[str, object], keys: Sequence[str]) -> dict[str, object]:
+    return {key: deepcopy(source[key]) for key in keys if key in source}
+
+
+def _json_safe(value: object, field: str) -> None:
+    try:
+        json.dumps(value, sort_keys=True, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field} must be JSON-safe") from exc
+
+
+@dataclass(frozen=True, slots=True)
+class RepositoryFacts:
+    """Already-observed repository/authority facts; this class performs no I/O."""
+
+    project_id: str
+    repository_ref: str | None
+    worktree_ref: str | None
+    branch: str | None
+    head_sha: str | None
+    dirty: bool
+    identity_verified: bool
+    mutation_authorized: bool
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "project_id", _text(self.project_id, "project_id"))
+        for field in ("repository_ref", "worktree_ref", "branch"):
+            object.__setattr__(self, field, _text(getattr(self, field), field, optional=True))
+        head = _text(self.head_sha, "head_sha", optional=True)
+        if head is not None and _SHA_RE.fullmatch(head) is None:
+            raise ValueError("head_sha must be 7-64 hexadecimal characters when set")
+        object.__setattr__(self, "head_sha", head)
+        _bool(self.dirty, "dirty")
+        _bool(self.identity_verified, "identity_verified")
+        _bool(self.mutation_authorized, "mutation_authorized")
+        if self.mutation_authorized and not self.identity_verified:
+            raise ValueError("mutation_authorized requires identity_verified")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "project_id": self.project_id,
+            "repository_ref": self.repository_ref,
+            "worktree_ref": self.worktree_ref,
+            "branch": self.branch,
+            "head_sha": self.head_sha,
+            "dirty": self.dirty,
+            "identity_verified": self.identity_verified,
+            "mutation_authorized": self.mutation_authorized,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class EligibleRouteCandidate:
+    """A candidate that upstream authority has already deemed eligible.
+
+    This type intentionally has no READY/AUTHORIZED/ADMITTED booleans.  ODP-1
+    does not recreate provider admission policy; callers may construct this
+    object only after those existing authorities have accepted the route.
+    """
+
+    candidate_id: str
+    actor_role: str
+    provider_id: str | None = None
+    model_id: str | None = None
+    capabilities: tuple[str, ...] = ()
+    supports_long_running: bool = False
+    supports_resume: bool = False
+    supports_background_execution: bool = False
+    supports_repo_tools: bool = False
+    requires_human_presence: bool = False
+    max_concurrency: int = 1
+    cost_class: str | None = None
+    quota_state: str | None = None
+    evidence_refs: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "candidate_id", _text(self.candidate_id, "candidate_id"))
+        object.__setattr__(self, "actor_role", _text(self.actor_role, "actor_role"))
+        for field in ("provider_id", "model_id", "cost_class", "quota_state"):
+            object.__setattr__(self, field, _text(getattr(self, field), field, optional=True))
+        object.__setattr__(self, "capabilities", _nonblank_tuple(self.capabilities, "capabilities"))
+        object.__setattr__(self, "evidence_refs", _nonblank_tuple(self.evidence_refs, "evidence_refs"))
+        for field in (
+            "supports_long_running",
+            "supports_resume",
+            "supports_background_execution",
+            "supports_repo_tools",
+            "requires_human_presence",
+        ):
+            _bool(getattr(self, field), field)
+        object.__setattr__(self, "max_concurrency", _positive_int(self.max_concurrency, "max_concurrency"))
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "candidate_id": self.candidate_id,
+            "actor_role": self.actor_role,
+            "provider_id": self.provider_id,
+            "model_id": self.model_id,
+            "capabilities": list(self.capabilities),
+            "surface_traits": {
+                "supports_long_running": self.supports_long_running,
+                "supports_resume": self.supports_resume,
+                "supports_background_execution": self.supports_background_execution,
+                "supports_repo_tools": self.supports_repo_tools,
+                "requires_human_presence": self.requires_human_presence,
+            },
+            "max_concurrency": self.max_concurrency,
+            "cost_class": self.cost_class,
+            "quota_state": self.quota_state,
+            "evidence_refs": list(self.evidence_refs),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class OrchestrationPacket:
+    task: dict[str, object]
+    graph_id: str
+    graph_nodes: tuple[dict[str, object], ...]
+    graph_edges: tuple[dict[str, object], ...]
+    ready_frontier: tuple[str, ...]
+    repository: RepositoryFacts
+    eligible_candidates: tuple[EligibleRouteCandidate, ...]
+    policy_refs: tuple[str, ...]
+    evidence_refs: tuple[str, ...]
+    blockers: tuple[str, ...]
+    max_parallelism: int
+    max_adjudication_rounds: int
+    schema_version: str = ORCHESTRATION_PACKET_SCHEMA_VERSION
+
+    def to_dict(self) -> dict[str, object]:
+        payload = {
+            "schema_version": self.schema_version,
+            "task": deepcopy(self.task),
+            "graph": {
+                "graph_id": self.graph_id,
+                "nodes": [deepcopy(node) for node in self.graph_nodes],
+                "edges": [deepcopy(edge) for edge in self.graph_edges],
+                "ready_frontier": list(self.ready_frontier),
+            },
+            "repository": self.repository.to_dict(),
+            "eligible_candidates": [candidate.to_dict() for candidate in self.eligible_candidates],
+            "policy_refs": list(self.policy_refs),
+            "evidence_refs": list(self.evidence_refs),
+            "blockers": list(self.blockers),
+            "limits": {
+                "max_parallelism": self.max_parallelism,
+                "max_adjudication_rounds": self.max_adjudication_rounds,
+            },
+        }
+        _json_safe(payload, "orchestration packet")
+        return payload
+
+
+def _project_task_contract(task_contract: Mapping[str, object]) -> dict[str, object]:
+    required_objects = (
+        "authority",
+        "target",
+        "scope",
+        "acceptance",
+        "security",
+        "budget",
+        "retry_policy",
+        "escalation",
+    )
+    for field in ("task_id", "goal", "risk_class", "required_evidence"):
+        if field not in task_contract:
+            raise ValueError(f"task_contract.{field} is required")
+    objects = {field: _mapping(task_contract.get(field), f"task_contract.{field}") for field in required_objects}
+    routing = _mapping(task_contract.get("routing", {}), "task_contract.routing")
+    routing_traits = _mapping(
+        routing.get("preferred_surface_traits", {}),
+        "task_contract.routing.preferred_surface_traits",
+    )
+
+    task_id = _text(task_contract["task_id"], "task_contract.task_id")
+    goal = _text(task_contract["goal"], "task_contract.goal")
+    risk_class = _text(task_contract["risk_class"], "task_contract.risk_class")
+    required_evidence = _nonblank_tuple(task_contract["required_evidence"], "task_contract.required_evidence")  # type: ignore[arg-type]
+
+    projection: dict[str, object] = {
+        "task_contract_schema_version": deepcopy(task_contract.get("schema_version")),
+        "task_id": task_id,
+        "goal": goal,
+        "risk_class": risk_class,
+        "authority": _selected(objects["authority"], ("mutation_allowed", "human_approval_required")),
+        "target": _selected(
+            objects["target"],
+            ("project_id", "repository_identity_ref", "expected_branch", "expected_head", "identity_policy"),
+        ),
+        "scope": _selected(
+            objects["scope"],
+            ("allowed_files", "forbidden_files", "max_changed_files", "max_diff_bytes", "scope_growth"),
+        ),
+        "acceptance": _selected(objects["acceptance"], ("criteria", "review_required", "required_review_class")),
+        "security": _selected(objects["security"], ("privacy_class", "network_policy", "secret_access")),
+        "routing": {
+            **_selected(routing, ("required_capabilities",)),
+            "preferred_surface_traits": _selected(
+                routing_traits,
+                (
+                    "supports_long_running",
+                    "supports_resume",
+                    "supports_background_execution",
+                    "supports_repo_tools",
+                    "requires_human_presence",
+                    "max_safe_transaction_scope",
+                ),
+            ),
+        },
+        "budget": _selected(
+            objects["budget"],
+            ("max_elapsed_seconds", "max_input_tokens", "max_output_tokens", "max_estimated_cost_usd"),
+        ),
+        "retry_policy": _selected(
+            objects["retry_policy"], ("max_attempts", "max_identical_failures", "on_lease_expiry")
+        ),
+        "escalation": _selected(objects["escalation"], ("conditions",)),
+        "required_evidence": list(required_evidence),
+    }
+    if "work_order_ref" in task_contract and task_contract["work_order_ref"] is not None:
+        projection["work_order_ref"] = _text(task_contract["work_order_ref"], "task_contract.work_order_ref")
+    if "task_type" in task_contract and task_contract["task_type"] is not None:
+        projection["task_type"] = _text(task_contract["task_type"], "task_contract.task_type")
+
+    _json_safe(projection, "task_contract projection")
+    return projection
+
+
+def _project_graph(
+    graph: TaskGraph,
+    node_states: Mapping[str, TaskNodeStatus],
+) -> tuple[tuple[dict[str, object], ...], tuple[dict[str, object], ...], tuple[str, ...]]:
+    if not isinstance(graph, TaskGraph):
+        raise ValueError("graph must be TaskGraph")
+    node_ids = set(graph.node_ids())
+    unknown = set(node_states) - node_ids
+    if unknown:
+        raise ValueError(f"node_states contains unknown node ids: {', '.join(sorted(unknown))}")
+    for node_id, state in node_states.items():
+        if not isinstance(state, TaskNodeStatus):
+            raise ValueError(f"node_states[{node_id!r}] must be TaskNodeStatus")
+
+    ready = compute_ready_set(graph, dict(node_states))
+    nodes: list[dict[str, object]] = []
+    for node in sorted(graph.nodes(), key=lambda item: item.id):
+        effective_status = node_states.get(node.id, TaskNodeStatus.TODO)
+        nodes.append(
+            {
+                "id": node.id,
+                "objective": node.objective,
+                "expected_outputs": list(node.expected_outputs),
+                "read_set": list(node.read_set),
+                "write_set": list(node.write_set),
+                "worker_requirement": list(node.worker_requirement),
+                "priority": node.priority,
+                "timeout_seconds": node.timeout_seconds,
+                "retry_policy_ref": node.retry_policy_ref,
+                "status": effective_status.value,
+                "artifacts": list(node.artifacts),
+            }
+        )
+    edges = tuple(
+        {
+            "from_id": edge.from_id,
+            "to_id": edge.to_id,
+            "dependency_type": edge.dep_type.value,
+        }
+        for edge in sorted(graph.edges(), key=lambda item: (item.from_id, item.to_id, item.dep_type.value))
+    )
+    _json_safe(nodes, "graph node projection")
+    _json_safe(edges, "graph edge projection")
+    return tuple(nodes), edges, tuple(sorted(ready.ready_ids))
+
+
+def build_orchestration_packet(
+    *,
+    task_contract: Mapping[str, object],
+    graph: TaskGraph,
+    node_states: Mapping[str, TaskNodeStatus],
+    graph_id: str,
+    repository: RepositoryFacts,
+    eligible_candidates: Sequence[EligibleRouteCandidate],
+    policy_refs: Sequence[str] = (),
+    evidence_refs: Sequence[str] = (),
+    blockers: Sequence[str] = (),
+    max_parallelism: int = 1,
+    max_adjudication_rounds: int = 3,
+) -> OrchestrationPacket:
+    """Build one deterministic, minimized packet from already-observed state.
+
+    Candidate eligibility is intentionally an input precondition.  This function
+    does not decide whether a provider is READY/AUTHORIZED/ADMITTED and therefore
+    cannot weaken the existing provider execution-authority boundary.
+    """
+
+    if not isinstance(task_contract, Mapping):
+        raise ValueError("task_contract must be an object")
+    if not isinstance(repository, RepositoryFacts):
+        raise ValueError("repository must be RepositoryFacts")
+    graph_id_value = _text(graph_id, "graph_id")
+    assert graph_id_value is not None
+    parallelism = _positive_int(max_parallelism, "max_parallelism")
+    rounds = _positive_int(max_adjudication_rounds, "max_adjudication_rounds")
+
+    candidates = tuple(eligible_candidates)
+    if any(not isinstance(candidate, EligibleRouteCandidate) for candidate in candidates):
+        raise ValueError("eligible_candidates must contain EligibleRouteCandidate values")
+    candidate_ids = [candidate.candidate_id for candidate in candidates]
+    if len(set(candidate_ids)) != len(candidate_ids):
+        raise ValueError("duplicate eligible candidate_id")
+    candidates = tuple(sorted(candidates, key=lambda item: item.candidate_id))
+
+    task = _project_task_contract(task_contract)
+    graph_nodes, graph_edges, ready_frontier = _project_graph(graph, node_states)
+
+    packet = OrchestrationPacket(
+        task=task,
+        graph_id=graph_id_value,
+        graph_nodes=graph_nodes,
+        graph_edges=graph_edges,
+        ready_frontier=ready_frontier,
+        repository=repository,
+        eligible_candidates=candidates,
+        policy_refs=_nonblank_tuple(policy_refs, "policy_refs"),
+        evidence_refs=_nonblank_tuple(evidence_refs, "evidence_refs"),
+        blockers=_nonblank_tuple(blockers, "blockers"),
+        max_parallelism=parallelism,
+        max_adjudication_rounds=rounds,
+    )
+    packet.to_dict()  # prove the complete boundary is JSON-safe before returning it
+    return packet
