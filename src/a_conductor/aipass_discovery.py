@@ -41,6 +41,12 @@ _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
     r"\[[0-9A-Fa-f:]+\]:\d{1,5}\b|^/|"
     r"(?:[A-Za-z]:[\\/]|\\\\|/(?!\s)(?:[^/\s]+/)+[^/\s]+))"
 )
+_EMBEDDED_GENERIC_CREDENTIAL_RE = re.compile(
+    r"(?i)(?:(?:authorization|cookie|api[_ -]?key|access[_ -]?key(?:[_ -]?id)?|"
+    r"access[_ -]?token|refresh[_ -]?token|password|passphrase|client[_ -]?secret|"
+    r"private[_ -]?key|session(?:[_ -]?id)?|token|secret|credential|auth)\s*[:=]\s*"
+    r"[A-Za-z0-9._~+/=-]{16,}|(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]{16,})"
+)
 _EMBEDDED_CREDENTIAL_SHAPED_RE = re.compile(
     r"(?i)(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{16,}|"
     r"sk-ant-[A-Za-z0-9_]{16,}|sk-(?:proj-|live-)?[A-Za-z0-9_]{16,}|"
@@ -172,6 +178,7 @@ def _display_name(value: object, *, fallback: str) -> str:
         return fallback
     if (
         _PUBLIC_METADATA_FORBIDDEN_RE.search(text)
+        or _EMBEDDED_GENERIC_CREDENTIAL_RE.search(text)
         or _CREDENTIAL_SHAPED_RE.search(text)
         or _EMBEDDED_CREDENTIAL_SHAPED_RE.search(text)
         or _looks_like_raw_endpoint(text)

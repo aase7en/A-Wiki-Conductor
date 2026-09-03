@@ -213,3 +213,14 @@ Review authority must pin the final checkpoint commit created after this note, n
 - `compileall`, `git diff --check`, strict UTF-8/U+FFFD, AST forbidden-I/O scan, runtime no-I/O monkeypatch probe, and exact three-file scope: PASS.
 - Review packet `wo152-glm-final-review-008` is stale for acceptance because it pins pre-repair `267c990...`.
 - Next safe action: commit/push this documentation freeze, create a fresh detached exact-SHA review with new raw blob pins, require exact-head hosted CI SUCCESS and independent GLM P0=P1=P2=0 before Ready/Merge.
+
+## GPT P2 generic glued-credential repair checkpoint — 2026-09-03
+- Exact pushed candidate `c2cfae0767a75885c82dcb68382b15b5d0b91a83` still serialized generic credential/auth material when a word character was glued before the sensitive key/scheme.
+- Reproducers: `xsession_id=...`, `xauth=...`, `xcookie=...`, `xpassword=...`, `xBearer <16+>`, and `xBasic <base64>`; `xclient_secret=...` was already rejected by the existing environment-secret guard.
+- RED before repair: **6 failed / 101 passed**; semantic controls remained green, including `Taxonomy`, `Authentication Model`, `Bearer Capacity`, `Basic Research`, `xBearer Capacity`, `xBasic Research`, `Session Analysis`, and `Token Budget`.
+- Repair adds one length-qualified embedded generic credential/auth-scheme detector used only for display metadata. It does not broaden model-ID syntax, duplicate sanitization in `to_dict()`, or reject credential-themed prose without credential material.
+- Focused `tests/test_aipass_discovery.py`: **107/107 PASS**.
+- Broad provider/config/store/service-auth/execution/recovery/parallel/harness/job/quota matrix: **581/581 PASS** across the independently selected existing-file set.
+- `compileall`, `git diff --check`, strict UTF-8/U+FFFD, AST forbidden-I/O import gate, runtime I/O poison, caller-input immutability, deterministic repeat-output, and exact three-file feature scope: PASS.
+- Review packets through `wo152-glm-final-review-008` are stale for acceptance because they pin pre-repair candidates.
+- Next safe action: commit/push this checkpoint, mint a fresh detached exact-SHA independent review with raw Git-blob pins, require exact-head hosted CI SUCCESS and GLM P0=P1=P2=0 before Ready/Merge.

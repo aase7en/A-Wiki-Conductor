@@ -648,3 +648,32 @@ def test_glued_guards_preserve_semantic_near_neighbors() -> None:
         assert result.state is AiPassDiscoveryState.OK
         assert result.models[0].model_id == safe_value
         assert result.models[0].name == safe_value
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    (
+        "xsession_id=abcdef0123456789abcdef",
+        "xauth=abcdef0123456789abcdef",
+        "xcookie=abcdef0123456789abcdef",
+        "xpassword=abcdef0123456789abcdef",
+        "xclient_secret=abcdef0123456789abcdef",
+        "xBearer abcdef0123456789abcdef",
+        "xBasic dXNlcjpwYXNzMTIzNDU2Nzg5",
+    ),
+)
+def test_glued_generic_credential_assignments_and_auth_schemes_fall_back(unsafe_name: str) -> None:
+    result = _build(models=_models(_model("safe-model", name=unsafe_name)), quota={})
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert unsafe_name not in str(result.to_dict())
+
+
+def test_glued_generic_credential_guard_preserves_semantic_near_neighbors() -> None:
+    for safe_name in (
+        "Taxonomy", "Authentication Model", "Bearer Capacity", "Basic Research",
+        "xBearer Capacity", "xBasic Research", "Session Analysis", "Token Budget",
+    ):
+        result = _build(models=_models(_model("safe-model", name=safe_name)), quota={})
+        assert result.state is AiPassDiscoveryState.OK
+        assert result.models[0].name == safe_name
