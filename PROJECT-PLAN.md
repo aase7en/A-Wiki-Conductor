@@ -853,3 +853,42 @@ The refreshed reference repository now publishes a root `LICENSE` and GitHub ide
 Server-side AiPASS conversation history may be used as provider-local working context only. A-Conductor durable tasks, evidence, checkpoints, repository state, and A-Wiki policy remain authoritative.
 
 Future implementation work orders must re-check current AiPASS terms, source license/permission, current provider contracts, active claims, and authoritative main before mutation. Unknown authorization, quota, cost, selection reason, or fallback reason must fail closed rather than be inferred.
+
+## 24. Orchestration Decision Plane — Capability-First Planner / Adjudicator Loop (2026-09-03)
+
+**Planning authority:** `docs/plans/2026-09-03-orchestration-decision-plane-roadmap.md`
+**Research:** `docs/research/fable-orchestrator-adoption-2026-09-03.md`
+**Roadmap-capture WO:** `docs/work-orders/WO-P1-149-orchestration-decision-plane-roadmap.md`
+
+A-Sunday Conductor will adopt the strongest transferable pattern from `codejunkie99/fable-orchestrator`: separate high-level planning/adjudication from bounded implementation, validate every proposed task graph before execution, route independent READY nodes to specialized workers, and return verified evidence for bounded re-adjudication when the decision frontier changes.
+
+This is **not** a new A-Conductor planner/model-router authority. Classification is `REUSE + WRAP + EXTEND`:
+- A-Wiki remains authority for canonical capability intent, high-level orchestration intelligence, cost/model policy, work-order/claim conventions, and review policy;
+- A-Conductor remains authority for durable TaskGraph/runtime state, graph admission, worker/provider eligibility, scheduling/execution, repository/runtime safety, evidence, recovery, and operator state;
+- decision providers produce proposals only and receive no direct workspace mutation authority;
+- independent review reuses the accepted A-Wiki ReviewBus path rather than creating a second review lifecycle.
+
+Key roadmap rules:
+1. **Role/capability first, model second.** Reuse A-Wiki capability roles such as `deterministic-executor`, `strong-reasoner`, and `strongest-independent`; resolve vendor/model only from currently capable, READY, AUTHORIZED, ADMITTED, policy-valid candidates.
+2. **Compact Orchestration Packet.** Send objective, acceptance criteria, graph frontier, repo/authority facts, protected scope, evidence, eligible candidate menu, concurrency/retry/cost/quota/durability constraints, and approvals — not whole chat history or secrets.
+3. **Graph proposal is untrusted input.** A-Conductor validates DAG structure, capability vocabulary, dependencies, ownership, repository identity, provider eligibility, budgets, stop conditions, and approval boundaries before dispatch.
+4. **Parallelism follows the READY frontier.** Existing TaskGraph/scheduler/elastic execution remain the execution machinery; no duplicate scheduler/task store is introduced.
+5. **Evidence drives adjudication.** Worker `done` is only a claim. Verified diff/test/runtime evidence determines continue/repair/review/block/complete.
+6. **Adjudication is budgeted.** Proposed initial default is at most 3 decision/adjudication rounds per task unless policy/user deliberately increases it; repeated no-progress evidence stops/escalates rather than looping indefinitely.
+7. **Independent review stays independent.** High-risk work uses an exact-artifact `strongest-independent` reviewer through the existing ReviewBus path when applicable; planner/adjudicator is not automatically the reviewer.
+8. **Truthful routing evidence.** Selection/fallback/adjudication reasons must be evidence-backed; unknown remains `UNKNOWN` / `NOT_EVALUATED` instead of being inferred.
+9. **No eligible route = typed blocker.** Never invent or silently substitute a model/provider merely to keep the loop moving.
+10. Preserve `TRANSPORT FAILURE != EXECUTION FAILURE`; ambiguous executions are reconciled before replay.
+
+Planned bounded delivery nodes:
+- `ODP-1` Orchestration Packet v1 projection;
+- `ODP-2` non-mutating decision-provider adapter seam;
+- `ODP-3` Graph Admission validator;
+- `ODP-4` capability-first eligible-candidate resolution + truthful selection/fallback evidence;
+- `ODP-5` Evidence/Adjudication envelope + bounded no-progress/retry budgets;
+- `ODP-6` accepted ReviewBus integration for independent exact-artifact review;
+- `ODP-7` operator observability in task timeline / Models & Agents;
+- `ODP-8` deterministic fake/fault-injection E2E across plan -> parallel execute -> verify -> repair/review -> resume;
+- `ODP-9` bounded real multi-provider pilot only after all participating providers are genuinely authorized/admitted.
+
+Current frontier coexistence: WO148/PR #199 provider service authorization and WO147/PR #200 ReviewBus adapter retain their existing ownership; ODP implementation must not overlap them. WO096 remains the independent P0 v0.7.0 release blocker. AiPASS remains ineligible while its authorization/admission gates are unsatisfied; ODP cannot bypass provider policy.
