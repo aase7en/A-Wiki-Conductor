@@ -27,6 +27,8 @@ from .graph.ready import compute_ready_set
 ORCHESTRATION_PACKET_SCHEMA_VERSION = "orchestration-packet/v1"
 _SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 _TASK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$")
+_REF_RE = re.compile(r"^[a-z][a-z0-9-]{1,31}:[A-Za-z0-9][A-Za-z0-9._/@:-]{0,223}$")
+_FORBIDDEN_REF_NAMESPACES = frozenset({"token", "secret", "secret-ref", "password", "cookie", "authorization", "credential", "apikey", "api-key", "bearer"})
 _TASK_ROOT_ALLOWED = frozenset({"schema_version", "task_id", "work_order_ref", "goal", "task_type", "risk_class", "authority", "target", "scope", "acceptance", "security", "routing", "budget", "retry_policy", "escalation", "required_evidence", "metadata"})
 _RISK_CLASSES = frozenset({"LOW", "NORMAL", "HIGH", "HUMAN_REQUIRED"})
 _IDENTITY_POLICIES = frozenset({"EXACT", "AUTHORIZED_SUCCESSOR", "NO_GIT", "READ_ONLY_DISCOVERY"})
@@ -68,6 +70,26 @@ def _nonblank_tuple(values: Sequence[str], field: str) -> tuple[str, ...]:
     if len(set(normalized)) != len(normalized):
         raise ValueError(f"{field} must not contain duplicates")
     return tuple(normalized)
+
+
+def _safe_ref(value: object, field: str, *, optional: bool = False) -> str | None:
+    text = _text(value, field, optional=optional)
+    if text is None:
+        return None
+    match = _REF_RE.fullmatch(text)
+    if match is None or ".." in text or "//" in text:
+        raise ValueError(f"{field} must be a safe namespaced reference")
+    namespace = text.split(":", 1)[0]
+    if namespace in _FORBIDDEN_REF_NAMESPACES:
+        raise ValueError(f"{field} must be a safe namespaced reference")
+    return text
+
+
+def _ref_tuple(values: Sequence[str], field: str) -> tuple[str, ...]:
+    raw = _nonblank_tuple(values, field)
+    refs = tuple(_safe_ref(value, field) for value in raw)
+    assert all(value is not None for value in refs)
+    return tuple(value for value in refs if value is not None)
 
 
 def _mapping(value: object, field: str) -> Mapping[str, object]:
@@ -133,6 +155,9 @@ def _validate_task_contract_v1(task: Mapping[str, object]) -> None:
     _keys(target, "task_contract.target", required={"project_id", "identity_policy"}, allowed={"project_id", "repository_identity_ref", "expected_worktree_path", "expected_branch", "expected_head", "identity_policy"})
     _text(target.get("project_id"), "task_contract.target.project_id")
     _enum(target.get("identity_policy"), "task_contract.target.identity_policy", _IDENTITY_POLICIES)
+    repository_identity_ref = target.get("repository_identity_ref")
+    if repository_identity_ref is not None:
+        _safe_ref(repository_identity_ref, "task_contract.target.repository_identity_ref")
     head = target.get("expected_head")
     if head is not None and (not isinstance(head, str) or _SHA_RE.fullmatch(head) is None):
         raise ValueError("task_contract.target.expected_head is invalid")
@@ -159,6 +184,19 @@ def _validate_task_contract_v1(task: Mapping[str, object]) -> None:
     _enum(security.get("privacy_class"), "task_contract.security.privacy_class", _PRIVACY_CLASSES)
     _enum(security.get("network_policy"), "task_contract.security.network_policy", _NETWORK_POLICIES)
     _bool(security.get("secret_access"), "task_contract.security.secret_access")
+
+    routing = _mapping(task.get("routing", {}), "task_contract.routing")
+    _keys(routing, "task_contract.routing", required=set(), allowed={"required_capabilities", "preferred_surface_traits"})
+    if "required_capabilities" in routing:
+        _nonblank_tuple(routing.get("required_capabilities"), "task_contract.routing.required_capabilities")  # type: ignore[arg-type]
+    traits = _mapping(routing.get("preferred_surface_traits", {}), "task_contract.routing.preferred_surface_traits")
+    allowed_traits = {"supports_long_running", "supports_resume", "supports_background_execution", "supports_repo_tools", "requires_human_presence", "max_safe_transaction_scope"}
+    _keys(traits, "task_contract.routing.preferred_surface_traits", required=set(), allowed=allowed_traits)
+    for field in ("supports_long_running", "supports_resume", "supports_background_execution", "supports_repo_tools", "requires_human_presence"):
+        if field in traits:
+            _bool(traits.get(field), f"task_contract.routing.preferred_surface_traits.{field}")
+    if traits.get("max_safe_transaction_scope") is not None:
+        _text(traits.get("max_safe_transaction_scope"), "task_contract.routing.preferred_surface_traits.max_safe_transaction_scope")
 
     budget = _mapping(task.get("budget"), "task_contract.budget")
     _keys(budget, "task_contract.budget", required={"max_elapsed_seconds"}, allowed={"max_elapsed_seconds", "max_input_tokens", "max_output_tokens", "max_estimated_cost_usd"})
@@ -209,8 +247,9 @@ class RepositoryFacts:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "project_id", _text(self.project_id, "project_id"))
-        for field in ("repository_ref", "worktree_ref", "branch"):
-            object.__setattr__(self, field, _text(getattr(self, field), field, optional=True))
+        object.__setattr__(self, "repository_ref", _safe_ref(self.repository_ref, "repository_ref", optional=True))
+        object.__setattr__(self, "worktree_ref", _safe_ref(self.worktree_ref, "worktree_ref", optional=True))
+        object.__setattr__(self, "branch", _text(self.branch, "branch", optional=True))
         head = _text(self.head_sha, "head_sha", optional=True)
         if head is not None and _SHA_RE.fullmatch(head) is None:
             raise ValueError("head_sha must be 7-64 hexadecimal characters when set")
@@ -264,7 +303,7 @@ class EligibleRouteCandidate:
         for field in ("provider_id", "model_id", "cost_class", "quota_state"):
             object.__setattr__(self, field, _text(getattr(self, field), field, optional=True))
         object.__setattr__(self, "capabilities", _nonblank_tuple(self.capabilities, "capabilities"))
-        object.__setattr__(self, "evidence_refs", _nonblank_tuple(self.evidence_refs, "evidence_refs"))
+        object.__setattr__(self, "evidence_refs", _ref_tuple(self.evidence_refs, "evidence_refs"))
         for field in (
             "supports_long_running",
             "supports_resume",
@@ -507,8 +546,8 @@ def build_orchestration_packet(
         ready_frontier=ready_frontier,
         repository=repository,
         eligible_candidates=candidates,
-        policy_refs=_nonblank_tuple(policy_refs, "policy_refs"),
-        evidence_refs=_nonblank_tuple(evidence_refs, "evidence_refs"),
+        policy_refs=_ref_tuple(policy_refs, "policy_refs"),
+        evidence_refs=_ref_tuple(evidence_refs, "evidence_refs"),
         blockers=_nonblank_tuple(blockers, "blockers"),
         max_parallelism=parallelism,
         max_adjudication_rounds=rounds,

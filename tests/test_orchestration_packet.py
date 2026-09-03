@@ -286,8 +286,8 @@ def test_repository_facts_reject_unverified_mutation_authority_combination() -> 
     with pytest.raises(ValueError, match="mutation_authorized requires identity_verified"):
         RepositoryFacts(
             project_id="p",
-            repository_ref="r",
-            worktree_ref="w",
+            repository_ref="repo:test",
+            worktree_ref="worktree:test",
             branch="b",
             head_sha="0123456",
             dirty=False,
@@ -296,19 +296,19 @@ def test_repository_facts_reject_unverified_mutation_authority_combination() -> 
         )
 
 
-def test_nested_routing_extras_are_not_projected_across_prompt_boundary() -> None:
+def test_nested_routing_extras_fail_closed_as_invalid_task_contract_v1() -> None:
     task = _task_contract()
     task["routing"]["preferred_surface_traits"]["private_nested"] = "PRIVATE_NESTED_TRAIT"
     graph, states = _graph()
-    payload = build_orchestration_packet(
-        task_contract=task,
-        graph=graph,
-        node_states=states,
-        graph_id="graph-odp-006",
-        repository=_repo_facts(),
-        eligible_candidates=(),
-    ).to_dict()
-    assert "PRIVATE_NESTED_TRAIT" not in json.dumps(payload, sort_keys=True)
+    with pytest.raises(ValueError, match="private_nested"):
+        build_orchestration_packet(
+            task_contract=task,
+            graph=graph,
+            node_states=states,
+            graph_id="graph-odp-006",
+            repository=_repo_facts(),
+            eligible_candidates=(),
+        )
 
 
 def test_graph_summary_uses_same_missing_state_default_as_ready_authority() -> None:
@@ -375,9 +375,9 @@ def test_reference_fields_reject_raw_paths_and_secret_bearing_values() -> None:
     with pytest.raises(ValueError, match="worktree_ref"):
         RepositoryFacts(project_id="p", repository_ref="github:aase7en/A-Wiki-Conductor", worktree_ref="secret-ref:API_TOKEN", branch="b", head_sha="0123456", dirty=False, identity_verified=True, mutation_authorized=False)
     with pytest.raises(ValueError, match="evidence_refs"):
-        EligibleRouteCandidate(candidate_id="c", actor_role="r", evidence_refs=("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",))
+        EligibleRouteCandidate(candidate_id="c", actor_role="r", evidence_refs=("secret-ref:opaque-value",))
     with pytest.raises(ValueError, match="evidence_refs"):
-        build_orchestration_packet(task_contract=_task_contract(), graph=graph, node_states=states, graph_id="g", repository=_repo_facts(), eligible_candidates=(), evidence_refs=("Bearer TOPSECRET",))
+        build_orchestration_packet(task_contract=_task_contract(), graph=graph, node_states=states, graph_id="g", repository=_repo_facts(), eligible_candidates=(), evidence_refs=("raw credential text",))
     with pytest.raises(ValueError, match="policy_refs"):
         build_orchestration_packet(task_contract=_task_contract(), graph=graph, node_states=states, graph_id="g", repository=_repo_facts(), eligible_candidates=(), policy_refs=("C:/Users/private/policy",))
     task = _task_contract()

@@ -80,6 +80,8 @@ Default `max_adjudication_rounds = 3`.
 
 Only an explicit allowlist crosses this boundary.
 
+Before projection, authority-bearing fields that cross the boundary are validated against the pinned `task-contract/v1` semantics (schema version, enums, booleans, bounds, required evidence, routing traits, and scope controls). ODP-1 is not a replacement JSON-Schema engine, but it must never project malformed control values as if they were valid authority.
+
 Projected:
 - `task_id`, `work_order_ref`, `task_type`, `goal`, `risk_class`;
 - `authority.mutation_allowed`, `authority.human_approval_required`;
@@ -139,6 +141,7 @@ Candidate identity is stable and duplicate candidate IDs fail closed. Candidate 
 - Unknown graph node-state IDs fail closed.
 - No provider/model is hard-coded by this contract.
 - No hidden chain-of-thought is requested or stored.
+- Packet evidence/policy/repository/worktree references must use bounded namespaced references; raw absolute paths, URL-like forms, credential-reference namespaces, and arbitrary free text are rejected before serialization.
 - Packet evidence references are references, not raw secret-bearing evidence payloads.
 - A packet is a decision input, never mutation authorization by itself.
 
