@@ -592,3 +592,44 @@ def test_allowed_evidence_namespace_preserves_semantic_token_budget_ref() -> Non
         evidence_refs=("evidence:token-budget",),
     )
     assert route.evidence_refs == ("evidence:token-budget",)
+
+
+@pytest.mark.parametrize(
+    "unsafe_scope",
+    ("https://x/y", "file?x=1", "file#frag", "file=x", "file&x"),
+)
+def test_repo_scope_rejects_url_and_query_marked_values(unsafe_scope: str) -> None:
+    graph, states = _graph()
+    task = _task_contract()
+    task["scope"]["allowed_files"] = [unsafe_scope]
+    with pytest.raises(ValueError, match="repo-relative"):
+        build_orchestration_packet(
+            task_contract=task, graph=graph, node_states=states,
+            graph_id="graph-safe", repository=_repo_facts(), eligible_candidates=(),
+        )
+
+    unsafe_graph = TaskGraph()
+    unsafe_graph.add_node(TaskNode(id="n", objective="safe", read_set=(unsafe_scope,)))
+    with pytest.raises(ValueError, match="repo-relative"):
+        build_orchestration_packet(
+            task_contract=_task_contract(), graph=unsafe_graph,
+            node_states={"n": TaskNodeStatus.TODO}, graph_id="graph-safe",
+            repository=_repo_facts(), eligible_candidates=(),
+        )
+
+def test_allowed_evidence_namespace_rejects_secret_ref_slash_separator() -> None:
+    with pytest.raises(ValueError, match="evidence_refs"):
+        EligibleRouteCandidate(
+            candidate_id="c",
+            actor_role="reviewer",
+            evidence_refs=("evidence:secret-ref/x",),
+        )
+
+
+def test_allowed_evidence_namespace_preserves_semantic_bearer_capacity_ref() -> None:
+    route = EligibleRouteCandidate(
+        candidate_id="c",
+        actor_role="reviewer",
+        evidence_refs=("evidence:bearer-capacity",),
+    )
+    assert route.evidence_refs == ("evidence:bearer-capacity",)
