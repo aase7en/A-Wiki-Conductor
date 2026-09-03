@@ -126,3 +126,13 @@ Review authority must pin the final checkpoint commit created after this note, n
 - GitNexus impact is UNVERIFIED: the available A-Wiki-Conductor index is from a stale sibling worktree and FTS has the known Windows OpenSSL DLL limitation; no repository-mutating analyze or DLL install was attempted.
 - PR #203 post-main CI `33750907975` is still pending at this checkpoint. Independent review may proceed on the final WO152 SHA, but PR/merge remains blocked until that dependency is terminal green.
 - Next safe action: fresh independent exact-SHA review with raw Git-blob pins; P0/P1/P2 must be zero before PR/merge.
+
+## GPT P2 generic `sk-` repair checkpoint — 2026-09-03
+- Primary near-neighbor probe after `6c1e554...` found long generic `sk-proj-...` / `sk-...` credential-shaped model IDs still serialized as `DISCOVERY_OK`.
+- RED `5992aec0a472617e072c8c8bc9e19b997df5a0ff`: 1 intended failure / 18 existing PASS; semantic controls `sketch-model` and `sk-model-small` remained required-positive cases.
+- Repair `6d8b6087b8fb154552b0a4c1b765dfb47619bdb8` adds only a high-confidence long `sk-` credential-shape detector; semantic near-neighbors remain accepted.
+- Focused discovery suite: **19/19 PASS**.
+- Provider/config/store/service-auth/execution-authority/runtime/parallel/harness/job/quota matrix: **344/344 PASS**.
+- compile/diff-check, strict UTF-8/U+FFFD and AST/import no-I/O gates: PASS.
+- Scope remains exactly this WO + decoder + focused test; no live AiPASS/store/config/readiness/authorization/admission/runtime mutation.
+- All earlier WO152 review tasks/candidates are superseded for acceptance; next gate is a fresh exact-SHA independent review after this checkpoint is committed and pushed.
