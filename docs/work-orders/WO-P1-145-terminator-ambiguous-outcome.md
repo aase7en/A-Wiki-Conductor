@@ -88,3 +88,23 @@ Next safe action: commit/push this WO claim, then create deterministic RED tests
 ## Pre-edit tool gate — 2026-09-03
 
 GitNexus CLI is available through `npx gitnexus`, but this A-Conductor worktree/repository is not indexed: `gitnexus status` returned `Repository not indexed. Run: gitnexus analyze`. A direct impact attempt could not bind this unindexed repository and listed only other indexed repos. Per policy this is `UNVERIFIED — tool/index unavailable`; no system DLL or unrelated index mutation was attempted. Deterministic caller/reference analysis remains required before edit.
+
+## RED → GREEN repair checkpoint — 2026-09-03
+
+Hosted evidence from PR #195 attempt 1 removed the prior WO140 ambiguity: `PROCESS_STOP_FAILED`, `terminate_returned=False`, `elapsed_ms=5266.0`, and zero post-termination observations prove the recurrence reached the PowerShell exact-PID terminator boundary.
+
+RED-first tests reproduced four missing semantics: failed terminator outcome followed by STALE, OWNED, UNKNOWN, and MISMATCH. Baseline: **4 failed / 35 deselected** because current code returned immediately on boolean `False` without re-observation.
+
+Repair is intentionally bounded: after the already-authorized exact-PID terminator returns `False`, perform exactly one side-effect-free exact-PID ownership observation. Never invoke termination again and never extend the mutation timeout. `OWNED` remains `PROCESS_STOP_FAILED`; `UNKNOWN`/`MISMATCH` become `PROCESS_EXIT_OWNERSHIP_UNCERTAIN`; only proven `STALE` may continue to the existing unchanged-exact-PID metadata guard and cleanup.
+
+A fifth regression proves STALE is insufficient when PID metadata changed: `1234 -> 9999` remains `PID_METADATA_CHANGED` and metadata is retained.
+Verification on the repaired working tree:
+- `tests/test_owned_process.py` = **40 passed**.
+- owned-process + Windows observer + runtime safety = **86 passed**.
+- supervised execution/command/Serena/Claude lifecycle = **74 passed**.
+- realistic native-Windows ambiguity probe: real dummy PID terminated once by the real `WindowsExactPidTerminator`, wrapper deliberately reports `False`, controller observes STALE and completes safely = **15/15 PASS**.
+- normal real Windows lifecycle = **30/30 PASS**.
+- `python -m compileall -q src/a_conductor`, `git diff --check`, strict UTF-8/U+FFFD, scope and added-line secret scans = PASS.
+- GitNexus impact remains `UNVERIFIED — A-Conductor repository not indexed`; no unrelated index/system mutation was performed.
+
+Next safe action: record Defect Lesson #50, commit/push exact candidate, then require independent exact-SHA adversarial review before PR/CI/merge.

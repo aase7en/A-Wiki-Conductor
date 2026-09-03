@@ -814,12 +814,12 @@ def test_stop_diagnostics_records_unknown_then_stale_success(tmp_path: Path) -> 
     assert diag["post_termination_observation_count"] == 2
 
 
-def test_stop_diagnostics_records_terminator_failure_without_observations(
+def test_stop_diagnostics_records_terminator_failure_after_owned_reobservation(
     tmp_path: Path,
 ) -> None:
     runtime = _owned_spec_with_pid_file(tmp_path)
     observer = _DiagnosticsSequencedObserver([
-        ProcessObservation(True, 1234, False, None, None)
+        ProcessObservation(True, 1234, True, True, True)
     ])
     controller = WindowsOwnedProcessController(
         observer=observer, spawner=FakeSpawner(), terminator=FakeTerminator(result=False)
@@ -834,8 +834,8 @@ def test_stop_diagnostics_records_terminator_failure_without_observations(
     assert diag["terminate_called"] is True
     assert diag["terminate_returned"] is False
     assert diag["pre_termination_ownership"] == "OWNED"
-    assert diag["post_termination_ownership_sequence"] == []
-    assert diag["post_termination_observation_count"] == 0
+    assert diag["post_termination_ownership_sequence"] == ["OWNED"]
+    assert diag["post_termination_observation_count"] == 1
     assert diag["final_metadata_status"] is None
 
 
@@ -1047,3 +1047,29 @@ def test_failed_terminator_reobserves_mismatch_and_fails_closed(
     assert runtime.pid_path.exists()
     diag = controller.last_stop_diagnostics
     assert diag["post_termination_ownership_sequence"] == ["MISMATCH"]
+
+
+def test_failed_terminator_stale_still_requires_unchanged_exact_pid_metadata(
+    tmp_path: Path,
+) -> None:
+    runtime = _owned_spec_with_pid_file(tmp_path)
+    observer = _FailedTerminationObserver(
+        ProcessObservation(True, 1234, False, None, None),
+        final_metadata=PidMetadataObservation(PidMetadataStatus.VALID, 9999),
+    )
+    terminator = FakeTerminator(result=False)
+    controller = WindowsOwnedProcessController(
+        observer=observer, spawner=FakeSpawner(), terminator=terminator
+    )
+
+    result = controller.stop(runtime)
+
+    assert result.state is OwnedProcessMutationState.RECOVERY_REQUIRED
+    assert result.reason_code == "PID_METADATA_CHANGED"
+    assert terminator.calls == [(1234, runtime.stop_timeout_seconds)]
+    assert observer.observe_count == 2
+    assert runtime.pid_path.exists()
+    diag = controller.last_stop_diagnostics
+    assert diag["terminate_returned"] is False
+    assert diag["post_termination_ownership_sequence"] == ["STALE"]
+    assert diag["final_metadata_status"] == "VALID"
