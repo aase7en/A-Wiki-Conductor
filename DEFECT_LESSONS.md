@@ -743,3 +743,16 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** interaction tests must enter through the same event surface the operator uses. Calling a downstream helper after manually changing widget state can hide missing bindings and stale async ownership. For stateful dialogs, selection identity, request generation, cache identity, and visible title/content must move together.
 
 **Verify:** WO143 added three RED tests using real `event_generate("<<ComboboxSelected>>")`: completed-cache switch, pending-future replacement/late-result discard, and rapid switch latest-wins plus same-provider no-op. All three failed before production repair and passed after it; the related panel/control/i18n/graph matrix passed 145/145 and the real-event focused set passed 10 consecutive iterations.
+---
+
+## #50: A timed-out mutation wrapper is an ambiguous side-effect outcome, not proof that the target is still alive (2026-09-03)
+
+**Symptom:** after WO140 added stop diagnostics, PR #195 Windows CI failed `test_real_dummy_process_start_idempotent_stop` with `RECOVERY_REQUIRED / PROCESS_STOP_FAILED`, `elapsed_ms=5266.0`, `pre_termination_ownership=OWNED`, `terminate_called=True`, `terminate_returned=False`, and zero post-termination observations. The exact rerun passed without a product change.
+
+**Root cause:** `WindowsExactPidTerminator` uses bounded PowerShell `Stop-Process`. Timeout/OSError/nonzero are collapsed to boolean `False`, while `WindowsOwnedProcessController.stop()` treated every `False` as definitive termination failure and returned immediately. A wrapper timeout does not prove whether the already-authorized exact-PID side effect happened before the wrapper exceeded its wall-clock budget.
+
+**Fix:** never retry termination. After a failed/ambiguous terminator result, re-observe the exact PID exactly once using the existing side-effect-free ownership observer. `OWNED` remains `PROCESS_STOP_FAILED`; `UNKNOWN` or `MISMATCH` remains fail-closed as `PROCESS_EXIT_OWNERSHIP_UNCERTAIN`; only proven `STALE` may continue through the existing unchanged exact-PID metadata check before cleanup.
+
+**Lesson:** when a mutation transport/wrapper times out, separate “command outcome unknown” from “side effect definitely failed.” Never replay a non-idempotent side effect merely because the wrapper timed out. First use bounded observation to recover truth; cleanup still requires the original exact identity evidence.
+
+**Verify:** RED = 4 intended failures before repair; repaired owned-process suite = 40 passed, observer/runtime matrix = 86 passed, supervisor lifecycle matrix = 74 passed. A real-Windows ambiguity probe used the real exact-PID terminator once and deliberately returned `False` after successful termination: 15/15 STOPPED with STALE proof and no second kill. Normal real-Windows lifecycle stress = 30/30. Exact-SHA independent review and hosted CI remain release gates.

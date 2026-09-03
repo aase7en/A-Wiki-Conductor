@@ -1,26 +1,45 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO144 post-reliability actual-state closeout)
+Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO146 post-acceptance reconciliation)
+
+## WO146 authoritative actual-state override — 2026-09-03
+
+Actual Git/GitHub evidence below supersedes older frontier/status text later in this file.
+
+- `origin/main = 37039a0e1dceb6256e3ee384bd7fa6ffb2737997`; WO144 / PR #195 + closeout PR #196 remain RELEASED. WO145 / PR #198 exact head `93f9a4089526f70a39adc3b97d3db55d6c8c6b3e` passed independent GLM rereview P0/P1/P2=0, GPT 160/160 related tests, exact-head CI `33706012375`, merged as `37039a0e1dceb6256e3ee384bd7fa6ffb2737997`, and post-main CI `33708033393` SUCCESS.
+- A-Wiki Review Bridge PR #50 exact head `b04761d580ddcdc7eb682e3a6036078b3b346953` passed Core CI `33682384067`, Loop Gate `33682383989`, independent GLM rereview PASS P0/P1/P2=0, merged as `588a907200e0d4998ec4fbb7fb2178b89d9700b2`, post-main `33704270521` SUCCESS. The adapter dependency is RELEASED; A-Conductor must still reuse ReviewBus via the approved CLI boundary and must not create a second lifecycle authority.
+- PR #183 / WO132 AiPASS is the next shared-doc product-planning lane; reconcile it against current main before new CI. Live AiPASS automation remains `BLOCKED_EXTERNAL` under current Terms §3.4.
+- WO145 / PR #198 is RELEASED on main `37039a0e1dceb6256e3ee384bd7fa6ffb2737997`; post-main `33708033393` is SUCCESS. This repair addresses the Windows `terminate_returned=False` / `PROCESS_STOP_FAILED` incident that caused PR #197 run `33707457065` to fail on the older main; PR #197 must therefore be re-composed and re-tested on current main rather than rerun unchanged on the stale base.
+- WO147 thin review-mailbox adapter is CLAIMED / RED_FIRST in `A:\GitHub\A-Wiki-Conductor-wo147-review-mailbox-adapter`; mutable scope is only the new adapter, focused tests, and WO147. Shared SSoT/PR #183/WO145 are forbidden in that lane.
+- WO096 remains the P0 operational release blocker and live maintenance remains `AUTHORIZATION_REQUIRED`.
+- Protected root checkout remains stale/dirty; mutation stays in isolated worktrees.
+
+### Immediate execution order
+
+1. Reconcile and release PR #183 from current main with fresh exact-head CI/post-main proof.
+2. Re-compose PR #197 on released WO145 main `37039a0e...`, refresh this five-doc SSoT delta, and require a fresh exact-head CI before merge.
+3. Let claimed WO147 continue independently through RED?GREEN?verification?independent exact-SHA review; do not touch its mutable scope from this lane.
+4. Claim AIP-1 after PR #183 acceptance; keep live AiPASS traffic disabled.
+5. Keep WO096 fail-closed until explicit maintenance authority exists.
 
 ## Actual-state reconciliation — 2026-09-03
 
 **Actual GitHub/repo/runtime evidence supersedes older frontier text below. WO140 and WO143 are released; PR #183/AiPASS is the next bounded product-planning lane, while WO096 remains the independent P0 operational release gate.**
 
-- `origin/main = 272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`: WO143 / PR #194 merged from exact reviewed head `720d0328c02f7068d34cc3a5ae31418a9b1ede4b`.
+- `origin/main = cf2a4e7a57bfd22ec55de79c700ec3e4931dc475`: WO144 / PR #195 merged from exact docs head `f2d33ed2d63454e6b7f547a016abb07f058d89be`; post-main CI `33704062299` SUCCESS. WO144 coordination claim is released by this final closeout; PR #183 / WO132 is next.
 - WO140 / PR #193 is RELEASED. GLM diagnosis candidate was independently reviewed by GPT; GPT found and repaired one P2 bounded-memory defect with `deque(maxlen=64)`. Final head `2238259e264991e1249d1439b206dc9b252c3051`; exact-head CI `33678036552` SUCCESS; merge `787e9be2f108ce3f323bebc20127eb03c2958bfc`; post-main CI `33679432865` SUCCESS.
 - WO143 / WO134-R1 is RELEASED. Original reviewed feature head `9c41da768713e3ad1c6d948f420b1110ea49afe6`; after WO140 main drift, merge-composed exact head `720d0328c02f7068d34cc3a5ae31418a9b1ede4b` preserved all 7 reviewed feature blobs byte-identically. GLM exact-head rereview PASS P0/P1/P2/P3=0; exact-head CI `33680012267` SUCCESS; PR #194 merged as `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`; post-main CI `33681115738` SUCCESS, completing the release verification gate.
-- PR #183 / WO132 AiPASS is next after WO144. Draft head `085a06cf6d2d1d1e4a3b5085ad51ad3444a8b337`; prior CI `33662059825` green. Fresh audit confirms `niawjunior/aipass-bridge@b1b8bab757d91c266410d58f505aeeaa218da102` and MIT LICENSE blob `17ddd0b8425c523d029917a1027d7e40a0916100`; official AiPASS Terms effective 2026-08-19 prohibit bot-emulation/unapproved software and direct API/API Key/Token access outside the provider-defined UI. No current official exception was evidenced in this refresh; live automation remains fail-closed until an official supported/approved integration path or changed Terms explicitly permits the intended mode. Current PR #183 conflict is confined to `COLLAB.md`; roadmap text needs WO143/current-main reconciliation.
+- PR #183 / WO132 AiPASS is next after WO144. Draft head `085a06cf6d2d1d1e4a3b5085ad51ad3444a8b337`; prior CI `33662059825` green. Fresh audit confirms `niawjunior/aipass-bridge@b1b8bab757d91c266410d58f505aeeaa218da102` and MIT LICENSE blob `17ddd0b8425c523d029917a1027d7e40a0916100`; official AiPASS Terms effective 2026-08-19 section 3.4 prohibit bot-emulation/unapproved software and direct API/API Key/Token access outside the provider-defined UI **unless explicitly authorized in writing by the project**. Live automation remains fail-closed until an official supported path or explicit written authorization covers the intended mode. Current PR #183 conflict is confined to `COLLAB.md`; roadmap text needs WO143/current-main reconciliation.
 - WO096 remains the P0 v0.7.0 operational release blocker. Read-only fleet refresh: 18011/18013/18014 listening; 18012/18015 stopped; shared live tunnel-client remains 0.0.11. Stopped does not mean available: Worker2 retains pharmacy cycle `PO-2026-08-26-001` / `RECONCILE_RECEIPT`; Worker5 retains sunday-estate worktree/branch continuity. No live maintenance authority is inferred.
 - A-Wiki Review Bridge remains dependency-blocked on independent acceptance only. Current candidate `b04761d580ddcdc7eb682e3a6036078b3b346953` / PR #50 is Draft, mergeable CLEAN; Core CI `33682384067`, Loop Gate `33682383989`, and py38 smoke are SUCCESS. The bridge repairs were GPT-authored, so a fresh independent exact-SHA rereview with P0/P1/P2=0 is still mandatory before Ready/Merge. Do not implement a parallel ReviewBus or bind to the Draft API as accepted authority.
 - Protected root checkout remains stale/dirty; use isolated worktrees only.
 
 ### Immediate execution order
 
-1. Complete PR #195 exact-head CI for the final WO144 docs candidate, remote-diff re-audit, expected-head merge, and post-main verification; WO143 post-main `33681115738` is already SUCCESS.
-2. Reconcile PR #183 against current main, preserve coordination history, refresh WO143 dependency wording and current AiPASS evidence, then require new exact-head CI.
-3. After PR #183 acceptance, claim AIP-1 from current main; reuse existing provider/task authorization and add only a bounded fail-closed service-authorization seam. Keep live AiPASS blocked.
-4. Continue read-only A-Wiki Review Bridge polling; implement adapter only after accepted exact A-Wiki SHA/API.
-5. Keep WO096 fail-closed until explicit maintenance authority exists; do not publish stable v0.7.0.
+1. Reconcile PR #183 against current main `cf2a4e7a57bfd22ec55de79c700ec3e4931dc475`, preserve released WO140/WO143/WO144 history, and refresh current AiPASS evidence before new exact-head CI.
+2. After PR #183 acceptance, claim AIP-1 from then-current main with a fresh reuse/authorization gate and no live traffic.
+3. Continue read-only A-Wiki Review Bridge polling; implement adapter only after accepted exact A-Wiki SHA/API.
+4. Keep WO096 fail-closed until explicit maintenance authority exists; do not publish stable v0.7.0.
 
 ## Current phase
 

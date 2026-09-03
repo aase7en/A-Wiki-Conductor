@@ -479,39 +479,52 @@ class WindowsOwnedProcessController:
         terminate_called = True
         terminate_returned = self._terminator.terminate(pid, spec.stop_timeout_seconds)
         if not terminate_returned:
-            return _stop_diag(OwnedProcessMutationResult(
-                OwnedProcessMutationState.RECOVERY_REQUIRED,
-                "PROCESS_STOP_FAILED",
-                pid,
-            ))
-
-        deadline = time.monotonic() + spec.stop_timeout_seconds
-        saw_unknown = False
-        while time.monotonic() < deadline:
+            # A failed/timeout wrapper result does not prove the exact PID still
+            # exists. Re-observe once without repeating the termination side
+            # effect; only proven STALE may continue to guarded metadata cleanup.
             current = self._ownership_for(spec, pid)
             observation_count += 1
             sequence.append(current.value)
-            if current is ProcessOwnership.STALE:
-                break
-            if current is ProcessOwnership.MISMATCH:
+            if current is ProcessOwnership.OWNED:
+                return _stop_diag(OwnedProcessMutationResult(
+                    OwnedProcessMutationState.RECOVERY_REQUIRED,
+                    "PROCESS_STOP_FAILED",
+                    pid,
+                ))
+            if current in (ProcessOwnership.UNKNOWN, ProcessOwnership.MISMATCH):
                 return _stop_diag(OwnedProcessMutationResult(
                     OwnedProcessMutationState.RECOVERY_REQUIRED,
                     "PROCESS_EXIT_OWNERSHIP_UNCERTAIN",
                     pid,
                 ))
-            if current is ProcessOwnership.UNKNOWN:
-                saw_unknown = True
-            time.sleep(0.05)
         else:
-            return _stop_diag(OwnedProcessMutationResult(
-                OwnedProcessMutationState.RECOVERY_REQUIRED,
-                (
-                    "PROCESS_EXIT_OWNERSHIP_UNCERTAIN"
-                    if saw_unknown
-                    else "PROCESS_EXIT_UNCONFIRMED"
-                ),
-                pid,
-            ))
+            deadline = time.monotonic() + spec.stop_timeout_seconds
+            saw_unknown = False
+            while time.monotonic() < deadline:
+                current = self._ownership_for(spec, pid)
+                observation_count += 1
+                sequence.append(current.value)
+                if current is ProcessOwnership.STALE:
+                    break
+                if current is ProcessOwnership.MISMATCH:
+                    return _stop_diag(OwnedProcessMutationResult(
+                        OwnedProcessMutationState.RECOVERY_REQUIRED,
+                        "PROCESS_EXIT_OWNERSHIP_UNCERTAIN",
+                        pid,
+                    ))
+                if current is ProcessOwnership.UNKNOWN:
+                    saw_unknown = True
+                time.sleep(0.05)
+            else:
+                return _stop_diag(OwnedProcessMutationResult(
+                    OwnedProcessMutationState.RECOVERY_REQUIRED,
+                    (
+                        "PROCESS_EXIT_OWNERSHIP_UNCERTAIN"
+                        if saw_unknown
+                        else "PROCESS_EXIT_UNCONFIRMED"
+                    ),
+                    pid,
+                ))
 
         latest = self._observer.read_pid_metadata(spec.pid_path)
         final_metadata_status = latest.status.value
