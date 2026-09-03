@@ -230,3 +230,19 @@ def test_authorization_evidence_cannot_predate_declared_terms_version():
             recheck_after=datetime(2026, 9, 10, tzinfo=timezone.utc),
             terms_identity="aipass-terms@2026-08-19",
         )
+
+def test_authorization_evidence_is_timezone_representation_invariant():
+    instant = datetime(2026, 8, 19, 0, 30, tzinfo=timezone.utc)
+    shifted = instant.astimezone(timezone(timedelta(hours=-4)))
+    utc_record = _record(
+        observed_at=instant,
+        recheck_after=instant + timedelta(hours=1),
+        terms_identity="aipass-terms@2026-08-19",
+    )
+    shifted_record = _record(
+        observed_at=shifted,
+        recheck_after=shifted + timedelta(hours=1),
+        terms_identity="aipass-terms@2026-08-19",
+    )
+    assert shifted_record.observed_at == utc_record.observed_at == instant
+
