@@ -5,6 +5,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from a_conductor.aipass_discovery import (
+    AiPassDiscoveredModel,
+    AiPassDiscoverySnapshot,
     AiPassDiscoveryState,
     build_aipass_discovery,
 )
@@ -549,3 +551,20 @@ def test_standalone_endpoint_guard_preserves_semantic_text() -> None:
         )
         assert result.state is AiPassDiscoveryState.OK
         assert result.models[0].name == safe_name
+
+
+def test_discovery_model_direct_constructor_fails_closed() -> None:
+    with pytest.raises(ValueError, match="factory"):
+        AiPassDiscoveredModel("safe-model", "Safe Model", None, "chat", False)
+
+
+def test_discovery_snapshot_direct_constructor_fails_closed() -> None:
+    safe_model = _build(quota={}).models[0]
+    with pytest.raises(ValueError, match="factory"):
+        AiPassDiscoverySnapshot(
+            AiPassDiscoveryState.OK,
+            "DISCOVERY_OK",
+            (safe_model,),
+            configuration_generation=7,
+            observed_at=NOW,
+        )

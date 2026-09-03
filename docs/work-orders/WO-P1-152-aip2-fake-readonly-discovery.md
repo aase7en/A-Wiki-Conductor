@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: READY_FOR_INDEPENDENT_REREVIEW / POSTMAIN_DEPENDENCY_PENDING
+Status: READY_FOR_INDEPENDENT_REREVIEW / HOSTED_CI_PENDING
 Priority: P1
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo152-aip2-fake-discovery`
@@ -178,3 +178,14 @@ Review authority must pin the final checkpoint commit created after this note, n
 - Strict UTF-8/U+FFFD, `compileall`, `git diff --check`, AST/import no-I/O, exact-scope audit, opaque-secret/path/endpoint adversarial probes, and semantic safe controls: PASS.
 - `wo152-glm-final-review-005` reviewed stale candidate `4f17d834...` and returned CHANGES_REQUIRED only for Basic-auth display metadata; current repair lineage closes that P2 and supersedes review 005 for acceptance.
 - Next gate: push the final documentation freeze, require fresh exact-SHA hosted CI and independent GLM Goal Mode + `[a-loop]` review with P0=P1=P2=0 before merge.
+
+## GPT P2 factory-authority repair checkpoint — 2026-09-03
+- Exact candidate `7ebe60db3cc468fd8395a86505fc3ffa4d30c9c1` still allowed direct construction of `AiPassDiscoveredModel` / `AiPassDiscoverySnapshot`; forged session/credential-shaped metadata could therefore bypass decoder guards and serialize through `to_dict()`.
+- Deterministic reproducer serialized `name=session_id=sentinel-secret` from a directly constructed snapshot, violating the WO serialized-discovery boundary.
+- RED before production repair: **2 failed / 80 passed**; only the two direct-constructor authority tests failed.
+- Repair reuses the accepted `ProviderExecutionRequirement` factory-authority pattern: `@dataclass(..., init=False)` plus one private `_FACTORY_TOKEN`; only the internal pure decoder supplies the token. No sanitizer/validator was duplicated in `to_dict()`.
+- Focused discovery suite after repair: **82/82 PASS**.
+- Focused + provider/config/store/service-auth/execution/runtime/parallel/harness impact matrix: **447/447 PASS**.
+- `compileall`, `git diff --check`, strict UTF-8/U+FFFD, and AST forbidden-I/O import gate: PASS.
+- `wo152-glm-final-review-006` is superseded for acceptance because it pins pre-repair `7ebe60db...`; any result from that task is stale evidence.
+- Next safe action: commit/push this exact repair freeze, create a fresh detached exact-SHA review candidate, require hosted CI green and independent P0=P1=P2=0 before merge.

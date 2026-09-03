@@ -26,6 +26,7 @@ _RAW_ENDPOINT_HOST_RE = re.compile(
 )
 _MODEL_KINDS = frozenset({"chat", "image", "video", "music", "research"})
 _MAX_JSON_SAFE_NUMBER = (1 << 53) - 1
+_FACTORY_TOKEN = object()
 _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
     r"(?i)(?:https?://|wss?://|\bauthorization\s*[:=]|\bcookie\s*[:=]|"
     r"\b(?:api[_ -]?key|access[_ -]?key(?:[_ -]?id)?|access[_ -]?token|refresh[_ -]?token|password|passphrase|"
@@ -57,13 +58,23 @@ class AiPassDiscoveryState(str, Enum):
     MALFORMED = "MALFORMED"
     UNSUPPORTED = "UNSUPPORTED"
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class AiPassDiscoveredModel:
     model_id: str
     name: str
     free_credit: bool | None
     kind: str | None
     is_default: bool | None
+
+    def __init__(
+        self, model_id: str, name: str, free_credit: bool | None,
+        kind: str | None, is_default: bool | None, *, _token: object | None = None,
+    ) -> None:
+        if _token is not _FACTORY_TOKEN:
+            raise ValueError("discovery model must be factory-created")
+        for field, value in locals().copy().items():
+            if field not in {"self", "_token"}:
+                object.__setattr__(self, field, value)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -75,7 +86,7 @@ class AiPassDiscoveredModel:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class AiPassDiscoverySnapshot:
     state: AiPassDiscoveryState
     reason_code: str
@@ -85,6 +96,21 @@ class AiPassDiscoverySnapshot:
     configuration_generation: int | None = None
     observed_at: datetime | None = None
     quota_fetched_at: datetime | None = None
+
+    def __init__(
+        self, state: AiPassDiscoveryState, reason_code: str,
+        models: tuple[AiPassDiscoveredModel, ...] = (),
+        shared_quota: QuotaSnapshot | None = None,
+        video_quota: QuotaSnapshot | None = None,
+        configuration_generation: int | None = None,
+        observed_at: datetime | None = None,
+        quota_fetched_at: datetime | None = None, *, _token: object | None = None,
+    ) -> None:
+        if _token is not _FACTORY_TOKEN:
+            raise ValueError("discovery snapshot must be factory-created")
+        for field, value in locals().copy().items():
+            if field not in {"self", "_token"}:
+                object.__setattr__(self, field, value)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -211,7 +237,7 @@ def _decode_models(payload: object) -> tuple[AiPassDiscoveredModel, ...]:
         is_default = raw.get("is_default")
         if is_default is not None and not isinstance(is_default, bool):
             raise ValueError("is_default is invalid")
-        models.append(AiPassDiscoveredModel(model_id, name, free_credit, kind, is_default))
+        models.append(AiPassDiscoveredModel(model_id, name, free_credit, kind, is_default, _token=_FACTORY_TOKEN))
     return tuple(sorted(models, key=lambda item: item.model_id))
 
 
@@ -296,7 +322,7 @@ def _context(
 
 
 def _empty_result(state: AiPassDiscoveryState, reason: str) -> AiPassDiscoverySnapshot:
-    return AiPassDiscoverySnapshot(state=state, reason_code=reason)
+    return AiPassDiscoverySnapshot(state=state, reason_code=reason, _token=_FACTORY_TOKEN)
 
 def build_aipass_discovery(
     *,
@@ -356,4 +382,5 @@ def build_aipass_discovery(
         configuration_generation=configuration_generation,
         observed_at=observed,
         quota_fetched_at=quota_fetched_at,
+        _token=_FACTORY_TOKEN,
     )
