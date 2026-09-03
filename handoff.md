@@ -1,10 +1,36 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-02 - WO127/WO128 core released; WO134 active; WO136 closeout
+Last updated: 2026-09-03 - WO146 post-acceptance reconciliation
+
+## WO146 current handoff override — 2026-09-03
+
+- Remote main: `37039a0e1dceb6256e3ee384bd7fa6ffb2737997`. WO144 final closeout remains released; WO145 / PR #198 exact head `93f9a4089526f70a39adc3b97d3db55d6c8c6b3e` passed GLM rereview P0/P1/P2=0, GPT 160/160, exact-head CI `33706012375`, merged as `37039a0e...`, and post-main `33708033393` is SUCCESS.
+- A-Wiki Review Bridge is accepted: PR #50 head `b04761d580ddcdc7eb682e3a6036078b3b346953`, independent GLM rereview PASS P0/P1/P2=0, merge `588a907200e0d4998ec4fbb7fb2178b89d9700b2`, post-main `33704270521` SUCCESS.
+- PR #183 / WO132 remains Draft and conflicts only in `COLLAB.md`; refresh from current main, preserve both histories, then require new exact-head CI. AiPASS live automation remains `BLOCKED_EXTERNAL`.
+- WO145 / PR #198 is RELEASED. PR #197 exact-head CI `33707457065` had failed on the older main at the same Windows exact-PID terminator ambiguity (`terminate_returned=False` / `PROCESS_STOP_FAILED`); re-compose PR #197 on current main and require a new exact-head CI.
+- WO147 thin review-result mailbox adapter is CLAIMED / RED_FIRST in its isolated worktree. It reuses stable `agent-mailbox/v1`, must not use `AgentResultFileReader`, and may forward only through the accepted A-Wiki `conductor review` CLI boundary; shared SSoT and PR #183 are forbidden there.
+- WO096 remains `AUTHORIZATION_REQUIRED`; no live Worker/tunnel maintenance.
+
+One next safe action: finish PR #197 re-composition and fresh exact-head CI on main `37039a0e...`; after its post-main release, reconcile PR #183 while WO147 continues independently.
+
+## Current actual handoff — 2026-09-03
+
+- Remote main: `cf2a4e7a57bfd22ec55de79c700ec3e4931dc475` after WO144 / PR #195; exact-head CI `33699856774` and post-main CI `33704062299` SUCCESS.
+- WO140 / PR #193: final head `2238259e264991e1249d1439b206dc9b252c3051`; exact-head CI `33678036552` SUCCESS; merged `787e9be2f108ce3f323bebc20127eb03c2958bfc`; post-main `33679432865` SUCCESS. Released.
+- WO143 / PR #194: latest exact head `720d0328c02f7068d34cc3a5ae31418a9b1ede4b`; GLM rereview PASS P0/P1/P2/P3=0; exact-head CI `33680012267` SUCCESS; merged `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`; post-main `33681115738` SUCCESS.
+- WO144 docs-only closeout is RELEASED by this final closeout: PR #195 head `f2d33ed2d63454e6b7f547a016abb07f058d89be`, merge `cf2a4e7a57bfd22ec55de79c700ec3e4931dc475`, post-main `33704062299` SUCCESS. The earlier CURRENT-WORK statement that no section 3.4 written-authorization exception was evidenced was corrected against the current official Terms.
+- PR #183 / WO132 is next after WO144; fresh upstream/license/Terms audit complete, current conflict only `COLLAB.md`, live AiPASS BLOCKED_EXTERNAL.
+- WO096 remains P0 operational gate. 18012/18015 stopped but not automatically free: Worker2 has incomplete pharmacy cycle; Worker5 has sunday-estate continuity. Shared live tunnel-client remains 0.0.11. No maintenance mutation authorized.
+- A-Wiki Review Bridge `b04761d580ddcdc7eb682e3a6036078b3b346953` / PR #50 is Draft and mergeable CLEAN; Core CI `33682384067`, Loop Gate `33682383989`, and py38 smoke are SUCCESS. Adapter dependency remains blocked only on the required fresh independent exact-SHA rereview/acceptance; no A-Conductor adapter implementation has started.
+- Primary root checkout remains protected; use isolated worktrees only.
+
+### One next safe action
+
+Reconcile PR #183 from current main after this WO144 release, preserving released coordination history and the current AiPASS section 3.4 written-authorization gate. Do not touch live Workers/tunnels or implement Review Bridge before upstream acceptance.
 
 ## Current objective
 
-Keep actual merged WO127/WO128/WO135 evidence durable, finish the bounded WO136 SSoT closeout, then preserve the active WO134 GLM-owned Provider Evidence Detail lane for exact-head GPT adjudication. Keep WO096 blocked without live maintenance authority and keep PR #183/AiPASS in its separate reconcile lane.
+Accept WO143 with exact-SHA independent review + CI/post-main proof, then unblock PR #183 for a fresh external-policy/source audit and proceed to AIP-1. Preserve WO140 GLM ownership and keep WO096 fail-closed.
 
 ## Repository / release identity
 

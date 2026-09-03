@@ -729,3 +729,30 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** durable storage is an untrusted boundary even when every current writer is strict. Any field whose invariant affects identity, ownership, authorization, ordering, or execution evidence must be revalidated while decoding persisted rows, with corruption mapped to stable typed errors. Database constraints and constructor checks are defense layers, not substitutes for read-boundary validation.
 
 **Verify:** tracked RED added four blank-identity cases plus invalid persisted status and produced 5 expected failures before repair. After repair those 5 cases passed; focused WO128 = `26 passed`, provider/store/runtime impact = `150 passed`, broader execution/parallel consumers = `167 passed`, and the eventual merged tree remained green through exact-head and post-main CI.
+
+---
+
+## #49: UI helper-path tests do not prove real widget event wiring (2026-09-03)
+
+**Symptom:** WO134 tests passed while an open Provider Evidence dialog stayed on the old provider after the operator changed the MODELS & AGENTS combobox. A pending old evidence read was invalidated, but no replacement read was submitted.
+
+**Root cause:** the provider-switch test changed the combobox and then manually called the Evidence-opening helper. Production `<<ComboboxSelected>>` was wired only to generic action-control sync, so the test bypassed the actual event contract. Completed cache was never invalidated; pending state was invalidated without transferring evidence ownership or starting the new provider fetch.
+
+**Fix:** bind the real provider selection event to a bounded handler that first syncs controls, then—only when the Evidence window is already open and the selected provider actually changed—invalidates stale request/cache state, transfers the dialog owner/title, renders loading, and submits one background replacement fetch. Existing request-generation guards discard late old futures; selecting the same provider does no extra I/O.
+
+**Lesson:** interaction tests must enter through the same event surface the operator uses. Calling a downstream helper after manually changing widget state can hide missing bindings and stale async ownership. For stateful dialogs, selection identity, request generation, cache identity, and visible title/content must move together.
+
+**Verify:** WO143 added three RED tests using real `event_generate("<<ComboboxSelected>>")`: completed-cache switch, pending-future replacement/late-result discard, and rapid switch latest-wins plus same-provider no-op. All three failed before production repair and passed after it; the related panel/control/i18n/graph matrix passed 145/145 and the real-event focused set passed 10 consecutive iterations.
+---
+
+## #50: A timed-out mutation wrapper is an ambiguous side-effect outcome, not proof that the target is still alive (2026-09-03)
+
+**Symptom:** after WO140 added stop diagnostics, PR #195 Windows CI failed `test_real_dummy_process_start_idempotent_stop` with `RECOVERY_REQUIRED / PROCESS_STOP_FAILED`, `elapsed_ms=5266.0`, `pre_termination_ownership=OWNED`, `terminate_called=True`, `terminate_returned=False`, and zero post-termination observations. The exact rerun passed without a product change.
+
+**Root cause:** `WindowsExactPidTerminator` uses bounded PowerShell `Stop-Process`. Timeout/OSError/nonzero are collapsed to boolean `False`, while `WindowsOwnedProcessController.stop()` treated every `False` as definitive termination failure and returned immediately. A wrapper timeout does not prove whether the already-authorized exact-PID side effect happened before the wrapper exceeded its wall-clock budget.
+
+**Fix:** never retry termination. After a failed/ambiguous terminator result, re-observe the exact PID exactly once using the existing side-effect-free ownership observer. `OWNED` remains `PROCESS_STOP_FAILED`; `UNKNOWN` or `MISMATCH` remains fail-closed as `PROCESS_EXIT_OWNERSHIP_UNCERTAIN`; only proven `STALE` may continue through the existing unchanged exact-PID metadata check before cleanup.
+
+**Lesson:** when a mutation transport/wrapper times out, separate “command outcome unknown” from “side effect definitely failed.” Never replay a non-idempotent side effect merely because the wrapper timed out. First use bounded observation to recover truth; cleanup still requires the original exact identity evidence.
+
+**Verify:** RED = 4 intended failures before repair; repaired owned-process suite = 40 passed, observer/runtime matrix = 86 passed, supervisor lifecycle matrix = 74 passed. A real-Windows ambiguity probe used the real exact-PID terminator once and deliberately returned `False` after successful termination: 15/15 STOPPED with STALE proof and no second kill. Normal real-Windows lifecycle stress = 30/30. Exact-SHA independent review and hosted CI remain release gates.
