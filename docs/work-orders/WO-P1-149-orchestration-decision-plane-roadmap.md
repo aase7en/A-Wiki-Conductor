@@ -1,6 +1,6 @@
 # WO-P1-149 — Orchestration Decision Plane roadmap capture
 
-Status: DOCS_ONLY / IMPLEMENTING ROADMAP CAPTURE
+Status: DOCS_ONLY / READY_FOR_REVIEW
 Lane/files:
 - `PROJECT-PLAN.md`
 - `docs/research/fable-orchestrator-adoption-2026-09-03.md`
@@ -77,3 +77,4 @@ Additional gates:
 
 - [2026-09-03] GPT-5.6 Sol: recovered actual state. Protected root `main` is stale/dirty with user-owned `assets/donate-promptpay-qr.png`; mutation forbidden there. Fetched `origin/main@6e96b773aeb0795807cb65abce93956b7702f33e` (PR #183 merge). Open PR #199/WO148 owns provider service authorization + `COLLAB.md`; PR #200/WO147 owns ReviewBus adapter. Created isolated clean worktree `A:\GitHub\A-Wiki-Conductor-wo149-orchestration-decision-plane` on branch `docs/wo-p1-149-orchestration-decision-plane-roadmap` at `6e96b77`. A-Wiki local claim `403dc41e4dbd` acquired for exactly the four docs files above. Reuse gate: `REUSE + WRAP + EXTEND`; A-Wiki remains high-level orchestration/model-policy authority, Conductor remains runtime/graph/provider/evidence authority. No production mutation authorized by this WO.
 - [2026-09-03] GPT-5.6 Sol: roadmap capture implemented in exactly four declared docs files. `git diff --check` PASS; UTF-8 decode/U+FFFD gate PASS; added-line credential-shaped scan PASS; private-user-path scan PASS; `origin/main` remained `6e96b773aeb0795807cb65abce93956b7702f33e` after fresh fetch. ODP implementation remains future bounded work and must use separate WOs/claims; this WO performed no `src/**`, `tests/**`, live provider/Worker, A-Wiki, COLLAB/CURRENT-WORK/handoff mutation.
+- [2026-09-03] GPT primary docs review corrected a contract-truth mismatch before acceptance: the roadmap no longer labels itself APPROVED while PR #201 is still Draft/unmerged. Status is now candidate/review-required; ODP-1..ODP-9 remain future slices requiring separate claims. Upstream Fable pin and REUSE+WRAP+EXTEND architecture remain unchanged.

@@ -1,6 +1,6 @@
 # Orchestration Decision Plane Roadmap — 2026-09-03
 
-Status: APPROVED ROADMAP CAPTURE / IMPLEMENTATION REQUIRES SEPARATE CLAIMS
+Status: CANDIDATE ROADMAP CAPTURE / PR REVIEW REQUIRED / IMPLEMENTATION REQUIRES SEPARATE CLAIMS
 Planning work order: `WO-P1-149`
 Research basis: `docs/research/fable-orchestrator-adoption-2026-09-03.md`
 Classification: `REUSE + WRAP + EXTEND`
