@@ -43,7 +43,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 ### Recently closed / released claims
 
-- `WO-P1-148` AIP-1 pure service-authorization contract: candidate frozen for independent exact-SHA review; focused 28/28 and provider regression 237/237 PASS; no live/store/policy/admission/runtime mutation. Source claim released to review.
+- `WO-P1-148` AIP-1 pure service-authorization contract: GPT primary review repaired one P2 unsafe `terms_identity` shape; RED 4 failed/28 passed, repaired focused 32/32 + selected provider regression 211/211 PASS. No live/store/policy/admission/runtime mutation. Candidate is being re-frozen for independent exact-SHA review.
 - `WO-P1-132` / PR #183 AiPASS roadmap: exact docs head `a84f7a8569846c196ba3000f69d9e83eb473ad96`; exact-head CI `33710739794` SUCCESS; merged as `6e96b773aeb0795807cb65abce93956b7702f33e`; post-main `33712217339` SUCCESS. Roadmap claim released to WO148 AIP-1.
 - `WO-P3-144` / PR #195 post-reliability closeout: exact docs head `f2d33ed2d63454e6b7f547a016abb07f058d89be`; exact-head CI `33699856774` SUCCESS; merged `cf2a4e7a57bfd22ec55de79c700ec3e4931dc475`; post-main `33704062299` SUCCESS. Final closeout also corrects the AiPASS section 3.4 evidence: explicit written authorization is the documented exception. Claim released to PR #183 / WO132 reconciliation.
 - `WO-P1-143` / PR #194 provider Evidence selection-sync remediation: latest exact candidate `720d0328c02f7068d34cc3a5ae31418a9b1ede4b` preserved all 7 reviewed feature blobs; GLM latest-SHA rereview PASS P0/P1/P2/P3=0; exact-head CI `33680012267` SUCCESS; merged as `272953a366f93a7f7dbd8e1e8060fc0f1bacdb88`; post-main `33681115738` SUCCESS. Source claim released.

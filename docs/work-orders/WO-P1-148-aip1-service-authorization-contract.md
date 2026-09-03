@@ -62,3 +62,12 @@ RED first, then focused tests, existing provider regression matrix, compile/diff
 - Final feature scope remains exactly four files: new pure guard, focused tests, this WO, bounded COLLAB bookkeeping.
 - No live AiPASS test or dispatch is authorized. `READ_ONLY` and `LIVE` remain fail-closed without exact current service authorization evidence.
 - GPT authored the candidate; independent exact-SHA review is mandatory before PR merge.
+## GPT adversarial repair checkpoint — 2026-09-03
+- Primary review found one P2 contract-truth defect after the first frozen candidate: `terms_identity` accepted URL query/fragment and header-like text even though the WO promised no raw query/token/header shapes in serialized authorization metadata.
+- RED commit `b5ec90c238e06c63043fa267180437aaa3e3aa97`: focused suite = **4 failed / 28 passed**.
+- Repair commit `f047752a6d2af031b62a0bbe7cdff5fde5208a5c`: terms identity is now a bounded opaque safe-reference charset and rejects query, fragment, whitespace, and header-like forms.
+- GREEN focused = **32/32 PASS**; selected existing provider authority/config/policy/store/admission regression = **211/211 PASS**; `py_compile` + `git diff --check` PASS.
+- The earlier `provider_id` probe was reconciled against canonical provider configuration: its identifier grammar also permits hyphenated opaque IDs, so that observation is not an independent WO148 defect.
+- PR #199's prior CI on `c57175b...` is historical only; exact-head CI must rerun after this repair/final checkpoint.
+- Candidate remains pure/no-I/O and live AiPASS remains fail-closed / `BLOCKED_EXTERNAL`. Independent exact-SHA review remains mandatory.
+
