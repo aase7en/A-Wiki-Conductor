@@ -26,8 +26,11 @@ _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
     r"^[A-Za-z]:[\\/]|^\\\\|^/)"
 )
 _CREDENTIAL_SHAPED_RE = re.compile(
-    r"(?i)(?:^|[\s._/@:+-])(?:bearer\s+[A-Za-z0-9._~+/=-]{16,}|gh[pousr]_|sk-ant-|"
-    r"sk-(?:proj-|live-)?[A-Za-z0-9_]{16,}|xox[baprs]-|akia[0-9a-z]|aiza[0-9a-z]|ya29\.|eyj[0-9a-z])"
+    r"(?i)(?:^|[\s._/@:+-])(?:bearer\s+[A-Za-z0-9._~+/=-]{16,}|gh[pousr]_|"
+    r"github_pat_[A-Za-z0-9_]{16,}|sk-ant-|sk-(?:proj-|live-)?[A-Za-z0-9_]{16,}|"
+    r"(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|glpat-[A-Za-z0-9_-]{16,}|"
+    r"npm_[A-Za-z0-9]{16,}|pypi-[A-Za-z0-9_-]{16,}|akia[0-9a-z]|asia[0-9a-z]{16}|"
+    r"aiza[0-9a-z]|ya29\.|eyj[0-9a-z]|xox[baprs]-)"
 )
 
 
