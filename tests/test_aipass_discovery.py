@@ -402,3 +402,60 @@ def test_private_path_guard_preserves_semantic_slash_text() -> None:
         )
         assert result.state is AiPassDiscoveryState.OK
         assert result.models[0].name == safe_name
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    (
+        "Basic dXNlcjpwYXNzd29yZA==",
+        "-----BEGIN PRIVATE KEY-----",
+        "password=SuperSecretValue123",
+        "client_secret=SuperSecretValue123",
+        "client-secret: SuperSecretValue123",
+        "session=abcdef0123456789abcdef",
+        "session_id=abcdef0123456789abcdef",
+        "token=abcdef0123456789abcdef",
+        "secret=abcdef0123456789abcdef",
+        "private_key=abcdef0123456789abcdef",
+        "passphrase=abcdef0123456789abcdef",
+        "credential=abcdef0123456789abcdef",
+        "auth=abcdef0123456789abcdef",
+        "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDemo",
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDemoKeyMaterial",
+    ),
+)
+def test_opaque_credential_material_display_names_fall_back(unsafe_name: str) -> None:
+    result = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": "safe-model", "name": unsafe_name}]},
+        quota_payload=None,
+        observed_at=NOW,
+        now=NOW,
+        configuration_generation=1,
+    )
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert unsafe_name not in str(result.to_dict())
+
+
+def test_opaque_credential_guards_preserve_semantic_text() -> None:
+    safe_names = (
+        "Basic Research",
+        "Password Manager",
+        "Client Secret Rotation",
+        "Session Analysis",
+        "Token Budget",
+        "Private Key Concepts",
+        "SSH Research",
+        "Credential Policy",
+        "Auth Model",
+    )
+    for safe_name in safe_names:
+        result = build_aipass_discovery(
+            models_payload={"object": "list", "data": [{"id": "safe-model", "name": safe_name}]},
+            quota_payload=None,
+            observed_at=NOW,
+            now=NOW,
+            configuration_generation=1,
+        )
+        assert result.state is AiPassDiscoveryState.OK
+        assert result.models[0].name == safe_name
