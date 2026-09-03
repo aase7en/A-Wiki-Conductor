@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: CLAIMED / RED_FIRST
+Status: READY_FOR_INDEPENDENT_REVIEW
 Priority: P1
 Repository: `A:\\GitHub\\A-Wiki-Conductor`
 Worktree: `A:\\GitHub\\A-Wiki-Conductor-wo148-service-authorization`
@@ -51,3 +51,14 @@ Authorization evidence is represented only by a SHA-256 digest, never raw approv
 
 ## Verification
 RED first, then focused tests, existing provider regression matrix, compile/diff/UTF-8/secret/scope audits, independent exact-SHA review before merge. No live test is authorized in WO148.
+
+## Implementation checkpoint — 2026-09-03
+- Claim commit `33e9eb242383d1a1f7761067cd643dfb8269011d`; RED contract commit `823fcf9e8b30597cf413041913dd61a7eab450c7`; pure implementation commit `c6f55a7ce893dff7ddb035d45b25c7132f2f0064`.
+- RED proved module absence before implementation.
+- GREEN focused: `tests/test_provider_service_authorization.py` = **28/28 PASS**.
+- Existing provider configuration/store/policy/authority/admission/quota/runtime matrix = **237/237 PASS**.
+- `py_compile` PASS; `git diff --check` PASS; worktree clean before this documentation checkpoint.
+- Implementation imports only dataclasses/datetime/enum/re; no filesystem, network, process, database, credential, adapter, runtime, or live-service I/O.
+- Final feature scope remains exactly four files: new pure guard, focused tests, this WO, bounded COLLAB bookkeeping.
+- No live AiPASS test or dispatch is authorized. `READ_ONLY` and `LIVE` remain fail-closed without exact current service authorization evidence.
+- GPT authored the candidate; independent exact-SHA review is mandatory before PR merge.
