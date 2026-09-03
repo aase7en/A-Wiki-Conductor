@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: GPT_PRIMARY_REPAIR / RED_FIRST
+Status: READY_FOR_INDEPENDENT_REVIEW
 Priority: P1
 Repository: `A:\\GitHub\\A-Wiki-Conductor`
 Worktree: `A:\\GitHub\\A-Wiki-Conductor-wo148-service-authorization`
@@ -85,3 +85,13 @@ RED first, then focused tests, existing provider regression matrix, compile/diff
 - Exact candidate `95ae24b0c6fcaf4c9fffbc7e456508542164b8ba` is clean/local=remote. GPT probe proved the opaque-character grammar still accepts API-key/token-like strings (including `sk-ant-*`, `ghp_*`, `AIza*`, and token/cookie-shaped opaque text) and serializes them verbatim in `to_dict()` / repr.
 - This contradicts the WO contract that authorization metadata never carries raw token/credential material. Character opacity alone is not sink safety.
 - Repair remains pure/provider-neutral and within this WO + provider_service_authorization.py + focused tests. RED will require a semantic public Terms-version identifier rather than arbitrary opaque text; no store/policy/admission/runtime/live AiPASS mutation.
+
+## GPT semantic Terms identity repair checkpoint ? 2026-09-03
+
+- Exact pre-repair candidate `95ae24b0c6fcaf4c9fffbc7e456508542164b8ba` still accepted raw token/API-key-like opaque strings (`sk-ant-*`, `ghp_*`, `AIza*`, token/cookie-shaped text) as `terms_identity` and serialized them verbatim. This was a P2 contract-truth defect: opaque characters are not proof of public/non-secret provenance.
+- Claim checkpoint `0b62072149d20f3f69a501f8f2b26a99e7713715`. RED commit `efef8e9778edad18607e514dad54fc5b998b7bb0`: **8 intended failures / 1 valid semantic case PASS**.
+- GREEN repair `8ab062519f6ceeaabb484bae76c5c3474b9f7ea1`: `terms_identity` is now a bounded semantic public Terms-version identifier `<service-slug>-terms@YYYY-MM-DD`; the date must be calendar-valid. Arbitrary opaque/token/path/header/reference text no longer qualifies as Terms identity.
+- Focused = **45/45 PASS**. Provider/config/store/policy/execution-authority/runtime/parallel/quota/harness related matrix = **245/245 PASS**. Safety-focused subset = **20/20 PASS**.
+- Pure/no-I/O AST gate confirms imports are only `__future__`, dataclasses, datetime, enum, and re. `py_compile`, `git diff --check`, strict UTF-8/U+FFFD PASS.
+- GitNexus impact was attempted but the available registry has no A-Wiki-Conductor index. The attempt occurred after production edit but before commit (process deviation); result is `UNVERIFIED - repository not indexed`, not a product failure. No index/system DLL was installed.
+- Live AiPASS remains `BLOCKED_EXTERNAL`; this pure contract neither stores authorization nor wires dispatch/runtime. Independent exact-SHA review + fresh exact-head CI remain mandatory before merge.
