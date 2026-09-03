@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: READY_FOR_INDEPENDENT_REVIEW / BLOCKED_ON_AWIKI_CASE_SAFETY
+Status: READY_FOR_INDEPENDENT_REREVIEW / CI_RERUN_REQUIRED
 Priority: P1
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo147-review-mailbox-adapter`
@@ -81,3 +81,9 @@ RED first for identity mismatches, oversized result, task hash drift, trusted-fi
 - Realistic cross-repo E2E against detached accepted A-Wiki main `2191f2a1ff4bccc5ebb08b1d2bc87fdbe7ca0826`: open -> mailbox result -> WO147 forwarder -> A-Wiki ingest -> trusted retest -> trusted CI -> status `READY` with `allow_complete=true` at exact target head `629d253a...`; target remained git-clean and no review `.tmp` was written into the target.
 - Defect prevention is Tier-1 executable memory: `test_reader_result_read_is_single_descriptor_and_bounded`. No broader checker or second I/O authority is needed.
 - Independent exact-SHA review remains mandatory. PR/merge is additionally blocked until the forward-only A-Wiki TR-R3 case-safety repair is independently accepted/merged/post-main verified; PR #51 main remains functionally usable for E2E but has the separately tracked case-sensitive namespace defect.
+
+## Checkpoint ? 2026-09-03 A-Wiki case-safety dependency closed
+
+- Forward-only A-Wiki case-safety PR #52 exact head `093baf2603b6ee4ba8ab3da3b5228141761af43d` passed independent GLM review with P0/P1/P2=0, exact-head CI green, merged as `2b728b0671600f2e42645ef2263980006da2c855`, and post-main A-Wiki Core CI `33725727422` is SUCCESS.
+- The prior WO147 adapter candidate `8869ec020bc98f3e0b3a8ed403426045d94bef98` independently passed GLM Phase B with P0/P1/P2=0 (focused 25/25, related 69/69, real subprocess mailbox?A-Wiki E2E). Its production/test blobs are unchanged by this checkpoint.
+- This docs-only update removes the now-resolved A-Wiki case-safety blocker. Because exact-SHA review is binding, `8869ec...` review evidence is historical for the new checkpoint SHA; fresh exact-SHA rereview + hosted CI remain required before merge.
