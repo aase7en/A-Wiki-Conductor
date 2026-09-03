@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import re
+from ipaddress import ip_address
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -18,11 +19,25 @@ from .provider_configuration import QuotaSnapshot
 
 
 _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@+\-]{0,127}$")
+_RAW_ENDPOINT_HOST_RE = re.compile(
+    r"^(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?\.)+"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)\.?$",
+    re.IGNORECASE,
+)
 _MODEL_KINDS = frozenset({"chat", "image", "video", "music", "research"})
 _MAX_JSON_SAFE_NUMBER = (1 << 53) - 1
 _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
     r"(?i)(?:https?://|wss?://|\bauthorization\s*[:=]|\bcookie\s*[:=]|"
-    r"\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token)\s*[:=]|^/|"
+    r"\b(?:api[_ -]?key|access[_ -]?key(?:[_ -]?id)?|access[_ -]?token|refresh[_ -]?token|password|passphrase|"
+    r"client[_ -]?secret|private[_ -]?key|session(?:[_ -]?id)?|token|secret|credential|auth)\s*[:=]|"
+    r"\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)*_(?:api_key|token|password|passwd|secret|client_secret|private_key|access_key(?:_id)?|session_token)\s*[:=]|"
+    r"\bbasic\s+(?=[A-Za-z0-9+/=]{20,})(?=[A-Za-z0-9+/]*[0-9+/=])[A-Za-z0-9+/]+={0,2}\b|"
+    r"-----BEGIN (?:(?:RSA|EC|OPENSSH|ENCRYPTED) )?PRIVATE KEY-----|"
+    r"\bssh-(?:rsa|ed25519)\s+(?=[A-Za-z0-9+/=]{20,})(?=[A-Za-z0-9+/]*[0-9+/=])[A-Za-z0-9+/]+={0,2}|"
+    r"\b(?:localhost|(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}):\d{1,5}\b|"
+    r"\b(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}/[^\s/]+|\b(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}\b|"
+    r"\b(?:10(?:\.\d{1,3}){3}|127(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b|"
+    r"\[[0-9A-Fa-f:]+\]:\d{1,5}\b|^/|"
     r"(?<![A-Za-z0-9])(?:[A-Za-z]:[\\/]|\\\\|/(?!\s)(?:[^/\s]+/)+[^/\s]+))"
 )
 _CREDENTIAL_SHAPED_RE = re.compile(
@@ -104,12 +119,28 @@ def _safe_text(value: object, *, maximum: int) -> str:
     return value
 
 
+def _looks_like_raw_endpoint(value: str) -> bool:
+    text = value.strip()
+    if _RAW_ENDPOINT_HOST_RE.fullmatch(text):
+        return True
+    candidate = text[1:-1] if text.startswith("[") and text.endswith("]") else text
+    try:
+        ip_address(candidate)
+    except ValueError:
+        return False
+    return True
+
+
 def _display_name(value: object, *, fallback: str) -> str:
     try:
         text = _safe_text(value, maximum=128)
     except ValueError:
         return fallback
-    if _PUBLIC_METADATA_FORBIDDEN_RE.search(text) or _CREDENTIAL_SHAPED_RE.search(text):
+    if (
+        _PUBLIC_METADATA_FORBIDDEN_RE.search(text)
+        or _CREDENTIAL_SHAPED_RE.search(text)
+        or _looks_like_raw_endpoint(text)
+    ):
         return fallback
     return text
 
