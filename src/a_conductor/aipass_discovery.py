@@ -29,12 +29,8 @@ _EMBEDDED_ENDPOINT_HOST_RE = re.compile(
     r"(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?\.)+"
     r"[A-Za-z]{2,63})(?![A-Za-z0-9._\-])"
 )
-_EMBEDDED_IPV4_RE = re.compile(
-    r"(?<![A-Za-z0-9._\-])(?:\d{1,3}\.){3}\d{1,3}(?![A-Za-z0-9._\-])"
-)
-_EMBEDDED_IPV6_RE = re.compile(
-    r"(?i)(?<![A-Za-z0-9_\-])(?:[0-9a-f]{1,4}:){2,}[0-9a-f:]*"
-    r"(?![A-Za-z0-9_\-])"
+_EMBEDDED_IP_TOKEN_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9_.@+\-])\[?[0-9a-f:.]+\]?(?![A-Za-z0-9_.@+\-])"
 )
 _MODEL_KINDS = frozenset({"chat", "image", "video", "music", "research"})
 _MAX_JSON_SAFE_NUMBER = (1 << 53) - 1
@@ -57,8 +53,7 @@ _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
 _EMBEDDED_GENERIC_CREDENTIAL_RE = re.compile(
     r"(?i)(?:(?:authorization|cookie|api[_ -]?key|access[_ -]?key(?:[_ -]?id)?|"
     r"access[_ -]?token|refresh[_ -]?token|password|passphrase|client[_ -]?secret|"
-    r"private[_ -]?key|session(?:[_ -]?id)?|token|secret|credential|auth)[\"']?\s*"
-    r"[:=]\s*[\"']?[A-Za-z0-9._~+/=-]{16,}[\"']?|"
+    r"private[_ -]?key|session(?:[_ -]?id)?|token|secret|credential|auth)[\"']?\s*[:=]|"
     r"(?:bearer|basic)\s+[\"']?[A-Za-z0-9._~+/=-]{16,}[\"']?)"
 )
 _EMBEDDED_CREDENTIAL_SHAPED_RE = re.compile(
@@ -194,14 +189,15 @@ def _looks_like_raw_endpoint(value: str) -> bool:
 def _contains_embedded_raw_endpoint(value: str) -> bool:
     if _EMBEDDED_ENDPOINT_HOST_RE.search(value):
         return True
-    for pattern in (_EMBEDDED_IPV4_RE, _EMBEDDED_IPV6_RE):
-        for match in pattern.finditer(value):
-            candidate = match.group(0).strip("[]")
-            try:
-                ip_address(candidate)
-            except ValueError:
-                continue
-            return True
+    for match in _EMBEDDED_IP_TOKEN_RE.finditer(value):
+        candidate = match.group(0).strip("[]")
+        if "." not in candidate and ":" not in candidate:
+            continue
+        try:
+            ip_address(candidate)
+        except ValueError:
+            continue
+        return True
     return False
 
 
