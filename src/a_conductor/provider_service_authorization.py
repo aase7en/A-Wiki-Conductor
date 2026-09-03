@@ -98,10 +98,9 @@ class ProviderServiceAuthorizationRecord:
             raise ValueError("evidence_sha256 is required for AUTHORIZED state")
         object.__setattr__(self, "evidence_sha256", evidence)
 
-        original_observed = self.observed_at
-        observed = _aware_utc(original_observed, "observed_at")
+        observed = _aware_utc(self.observed_at, "observed_at")
         recheck = _aware_utc(self.recheck_after, "recheck_after")
-        if original_observed.date() < _terms_effective_date(self.terms_identity):
+        if observed.date() < _terms_effective_date(self.terms_identity):
             raise ValueError("observed_at cannot predate terms_identity effective date")
         if recheck <= observed:
             raise ValueError("recheck_after must be later than observed_at")

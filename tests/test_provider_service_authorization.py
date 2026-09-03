@@ -245,4 +245,3 @@ def test_authorization_evidence_is_timezone_representation_invariant():
         terms_identity="aipass-terms@2026-08-19",
     )
     assert shifted_record.observed_at == utc_record.observed_at == instant
-
