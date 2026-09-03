@@ -210,7 +210,7 @@ def _reset_at(value: object) -> datetime | None:
 
 
 def _consistent(limit: int | float, used: int | float, remaining: int | float) -> bool:
-    return math.isclose(limit, used + remaining, rel_tol=1e-9, abs_tol=1e-6)
+    return math.isclose(limit, used + remaining, rel_tol=0.0, abs_tol=1e-6)
 
 
 def _decode_models(payload: object) -> tuple[AiPassDiscoveredModel, ...]:
