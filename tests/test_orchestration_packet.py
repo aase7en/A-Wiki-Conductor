@@ -459,3 +459,21 @@ def test_reference_namespaces_are_field_specific() -> None:
             task_contract=_task_contract(), graph=graph, node_states=states, graph_id="g",
             repository=_repo_facts(), eligible_candidates=(), evidence_refs=("policy:e1",),
         )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda task: task["target"].__setitem__("expected_branch", ["not", "a", "branch"]), "expected_branch"),
+        (lambda task: task["acceptance"].__setitem__("required_review_class", {"forged": True}), "required_review_class"),
+    ],
+)
+def test_packet_rejects_projected_optional_field_type_drift(mutate, match: str) -> None:
+    task = _task_contract()
+    mutate(task)
+    graph, states = _graph()
+    with pytest.raises(ValueError, match=match):
+        build_orchestration_packet(
+            task_contract=task, graph=graph, node_states=states, graph_id="g",
+            repository=_repo_facts(), eligible_candidates=(),
+        )
