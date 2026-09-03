@@ -198,3 +198,26 @@ def test_evaluator_rejects_malformed_call_inputs():
         _evaluate(None, generation=0, mode=ServiceIntegrationMode.FAKE)
     with pytest.raises(ValueError, match="timezone-aware"):
         _evaluate(None, now=NOW.replace(tzinfo=None), mode=ServiceIntegrationMode.FAKE)
+
+
+@pytest.mark.parametrize(
+    "terms_identity",
+    [
+        "sk-ant-api03-1234567890abcdefghijklmnop",
+        "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
+        "AIzaABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
+        "tokenSECRETvalue1234567890",
+        "cookieSESSIONvalue1234567890",
+        "genericopaquevalue",
+        "aipass@2026-08-19",
+        "aipass-terms@2026-99-99",
+    ],
+)
+def test_terms_identity_is_public_semantic_version_not_arbitrary_opaque_text(terms_identity):
+    with pytest.raises(ValueError, match="terms_identity"):
+        _record(terms_identity=terms_identity)
+
+
+def test_terms_identity_accepts_bounded_service_terms_calendar_version():
+    record = _record(terms_identity="example-service-terms@2026-09-03")
+    assert record.terms_identity == "example-service-terms@2026-09-03"
