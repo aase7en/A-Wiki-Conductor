@@ -36,6 +36,8 @@ def _build(*, model_id: str = "safe-model", name: str = "Safe Model", **kwargs):
         'fooAuthorization: "abcdef0123456789abcdef"',
         '{"password":"abcdef0123456789abcdef"}',
         "{'auth':'abcdef0123456789abcdef'}",
+        '{"password":"p@ss!"}',
+        "xauth='short!'",
     ),
 )
 def test_quoted_or_object_shaped_generic_credentials_fall_back(unsafe_name: str) -> None:
@@ -63,6 +65,8 @@ def test_configuration_generation_matches_canonical_bounded_domain() -> None:
     (
         "backend 8.8.8.8",
         "node 2001:db8::1",
+        "node fe80::1",
+        "node ::1",
         "server example.com",
         "endpoint api.example.com",
     ),
