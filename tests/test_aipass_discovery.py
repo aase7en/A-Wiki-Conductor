@@ -42,10 +42,14 @@ def _quota() -> dict:
 
 
 def _build(models: object = None, quota: object = None, **kwargs):
+    observed_at = kwargs.pop("observed_at", NOW)
+    if quota is None:
+        quota = _quota()
+        quota["fetchedAt"] = int(observed_at.timestamp() * 1000)
     return build_aipass_discovery(
         models_payload=_models(_model()) if models is None else models,
-        quota_payload=_quota() if quota is None else quota,
-        observed_at=kwargs.pop("observed_at", NOW),
+        quota_payload=quota,
+        observed_at=observed_at,
         now=kwargs.pop("now", NOW),
         configuration_generation=kwargs.pop("configuration_generation", 7),
         stale_after_seconds=kwargs.pop("stale_after_seconds", 60),
@@ -174,3 +178,34 @@ def test_future_or_unbounded_quota_fetched_at_fails_closed() -> None:
         assert result.state is AiPassDiscoveryState.MALFORMED
         assert result.reason_code == "QUOTA_PAYLOAD_MALFORMED"
         assert result.shared_quota is None
+
+
+def test_untrusted_display_metadata_cannot_serialize_secret_or_endpoint_shapes() -> None:
+    unsafe_names = (
+        "Authorization: Bearer TOPSECRET",
+        "https://bridge.example.invalid/private",
+        r"C:\\Users\\name\\secret.txt",
+    )
+    for name in unsafe_names:
+        model = _model("model-a", name=name)
+        model["description"] = "Cookie=session-secret"
+        result = _build(models=_models(model), quota={})
+        assert result.state is AiPassDiscoveryState.OK
+        assert result.models[0].name == "model-a"
+        encoded = str(result.to_dict())
+        assert "TOPSECRET" not in encoded
+        assert "bridge.example.invalid" not in encoded
+        assert "session-secret" not in encoded
+
+
+def test_extreme_quota_number_fails_typed_without_exception_escape() -> None:
+    huge = 10**400
+    quota = {
+        "limit": huge,
+        "used": 0,
+        "available": huge,
+        "fetchedAt": int(NOW.timestamp() * 1000),
+    }
+    result = _build(quota=quota)
+    assert result.state is AiPassDiscoveryState.MALFORMED
+    assert result.reason_code == "QUOTA_PAYLOAD_MALFORMED"
