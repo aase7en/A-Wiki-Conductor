@@ -307,3 +307,59 @@ def test_factory_pins_awiki_root_python_and_mutation_scope(tmp_path: Path) -> No
     assert scope.mutation_allowed is True
     assert scope.allowed_executables == (Path(sys.executable).name,)
     assert scope.max_output_bytes == MAX_REVIEW_RESULT_BYTES
+
+
+def test_reader_result_read_is_single_descriptor_and_bounded(tmp_path: Path, monkeypatch) -> None:
+    """The result size check and read must bind to one opened file descriptor.
+
+    A separate path stat followed by whole-file read is TOCTOU: the reviewer can
+    replace/grow result_ref after the pre-check. Read at most MAX+1 from the same
+    descriptor so oversize is detected without an unbounded memory read.
+    """
+    import os as _os
+    import stat as _stat
+    from types import SimpleNamespace
+
+    a = assignment(tmp_path)
+    result_path = write_result(a)
+    raw = result_path.read_bytes()
+    sentinel_fd = 987654
+    read_sizes = []
+    original_open = _os.open
+    original_fstat = _os.fstat
+    original_fdopen = _os.fdopen
+
+    class FakeHandle:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self, size=-1):
+            read_sizes.append(size)
+            return raw
+
+    def fake_open(path, flags, *args, **kwargs):
+        if Path(path) == result_path:
+            return sentinel_fd
+        return original_open(path, flags, *args, **kwargs)
+
+    def fake_fstat(fd):
+        if fd == sentinel_fd:
+            return SimpleNamespace(st_mode=_stat.S_IFREG, st_size=len(raw))
+        return original_fstat(fd)
+
+    def fake_fdopen(fd, *args, **kwargs):
+        if fd == sentinel_fd:
+            return FakeHandle()
+        return original_fdopen(fd, *args, **kwargs)
+
+    monkeypatch.setattr(_os, "open", fake_open)
+    monkeypatch.setattr(_os, "fstat", fake_fstat)
+    monkeypatch.setattr(_os, "fdopen", fake_fdopen)
+
+    review = ReviewMailboxResultReader().read(a)
+
+    assert review.task_id == a.task_id
+    assert read_sizes == [MAX_REVIEW_RESULT_BYTES + 1]
