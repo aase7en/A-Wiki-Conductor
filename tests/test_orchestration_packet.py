@@ -366,3 +366,29 @@ def test_packet_rejects_task_contract_v1_authority_drift(mutate, match: str) -> 
             repository=_repo_facts(),
             eligible_candidates=(),
         )
+
+
+def test_reference_fields_reject_raw_paths_and_secret_bearing_values() -> None:
+    graph, states = _graph()
+    with pytest.raises(ValueError, match="repository_ref"):
+        RepositoryFacts(project_id="p", repository_ref="C:/Users/private/repo", worktree_ref="worktree:wo", branch="b", head_sha="0123456", dirty=False, identity_verified=True, mutation_authorized=False)
+    with pytest.raises(ValueError, match="worktree_ref"):
+        RepositoryFacts(project_id="p", repository_ref="github:aase7en/A-Wiki-Conductor", worktree_ref="secret-ref:API_TOKEN", branch="b", head_sha="0123456", dirty=False, identity_verified=True, mutation_authorized=False)
+    with pytest.raises(ValueError, match="evidence_refs"):
+        EligibleRouteCandidate(candidate_id="c", actor_role="r", evidence_refs=("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",))
+    with pytest.raises(ValueError, match="evidence_refs"):
+        build_orchestration_packet(task_contract=_task_contract(), graph=graph, node_states=states, graph_id="g", repository=_repo_facts(), eligible_candidates=(), evidence_refs=("Bearer TOPSECRET",))
+    with pytest.raises(ValueError, match="policy_refs"):
+        build_orchestration_packet(task_contract=_task_contract(), graph=graph, node_states=states, graph_id="g", repository=_repo_facts(), eligible_candidates=(), policy_refs=("C:/Users/private/policy",))
+    task = _task_contract()
+    task["target"]["repository_identity_ref"] = "C:/Users/private/repo"
+    with pytest.raises(ValueError, match="repository_identity_ref"):
+        build_orchestration_packet(task_contract=task, graph=graph, node_states=states, graph_id="g", repository=_repo_facts(), eligible_candidates=())
+
+
+def test_routing_surface_traits_reject_non_boolean_authority_drift() -> None:
+    task = _task_contract()
+    task["routing"]["preferred_surface_traits"]["supports_repo_tools"] = "false"
+    graph, states = _graph()
+    with pytest.raises(ValueError, match="supports_repo_tools"):
+        build_orchestration_packet(task_contract=task, graph=graph, node_states=states, graph_id="g", repository=_repo_facts(), eligible_candidates=())
