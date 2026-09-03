@@ -37,7 +37,7 @@ def _quota() -> dict:
         "available": 9833,
         "periodEndsAt": "2026-09-30T17:00:00Z",
         "video": {"limit": 10, "used": 2, "remaining": 8, "period": "month"},
-        "fetchedAt": 1788441600000,
+        "fetchedAt": int(NOW.timestamp() * 1000),
     }
 
 
@@ -152,3 +152,25 @@ def test_generation_and_time_contract_fail_closed_before_projection() -> None:
     result = _build(observed_at=NOW + timedelta(seconds=1), now=NOW)
     assert result.state is AiPassDiscoveryState.MALFORMED
     assert result.reason_code == "DISCOVERY_CONTEXT_INVALID"
+
+
+def test_cached_quota_age_participates_in_snapshot_staleness() -> None:
+    quota = _quota()
+    quota["fetchedAt"] = int((NOW - timedelta(seconds=61)).timestamp() * 1000)
+    result = _build(quota=quota, observed_at=NOW, now=NOW, stale_after_seconds=60)
+    assert result.state is AiPassDiscoveryState.STALE
+    assert result.reason_code == "DISCOVERY_STALE"
+    assert result.shared_quota is not None
+    assert result.quota_fetched_at == NOW - timedelta(seconds=61)
+
+
+def test_future_or_unbounded_quota_fetched_at_fails_closed() -> None:
+    future = _quota()
+    future["fetchedAt"] = int((NOW + timedelta(seconds=1)).timestamp() * 1000)
+    missing = _quota()
+    missing.pop("fetchedAt")
+    for quota in (future, missing):
+        result = _build(quota=quota)
+        assert result.state is AiPassDiscoveryState.MALFORMED
+        assert result.reason_code == "QUOTA_PAYLOAD_MALFORMED"
+        assert result.shared_quota is None
