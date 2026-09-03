@@ -53,7 +53,8 @@ _PUBLIC_METADATA_FORBIDDEN_RE = re.compile(
 _EMBEDDED_GENERIC_CREDENTIAL_RE = re.compile(
     r"(?i)(?:(?:authorization|cookie|api[_ -]?key|access[_ -]?key(?:[_ -]?id)?|"
     r"access[_ -]?token|refresh[_ -]?token|password|passphrase|client[_ -]?secret|"
-    r"private[_ -]?key|session(?:[_ -]?id)?|token|secret|credential|auth)[\"']?\s*[:=]|"
+    r"private[_ -]?key|session(?:[_ -]?id)?|token|secret|credential|auth)"
+    r"(?:\\?[\"'])?\s*[:=]|"
     r"(?:bearer|basic)\s+[\"']?[A-Za-z0-9._~+/=-]{16,}[\"']?)"
 )
 _EMBEDDED_CREDENTIAL_SHAPED_RE = re.compile(
