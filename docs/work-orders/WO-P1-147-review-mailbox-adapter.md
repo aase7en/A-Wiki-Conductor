@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: GPT_PRIMARY_REPAIR / RED_FIRST
+Status: READY_FOR_INDEPENDENT_REVIEW / BLOCKED_ON_AWIKI_CASE_SAFETY
 Priority: P1
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo147-review-mailbox-adapter`
@@ -71,3 +71,13 @@ RED first for identity mismatches, oversized result, task hash drift, trusted-fi
 - GPT exact-candidate audit reproduced a TOCTOU size-bound defect in `_result_bytes()`: a small `Path.stat().st_size` is followed by a separate whole-file `Path.read_bytes()`, so a reviewer-controlled result path can be replaced/grown between the pre-check and the read. The post-read length check rejects the payload only after memory was already consumed.
 - Repair scope remains this WO + `src/a_conductor/review_mailbox_adapter.py` + `tests/test_review_mailbox_adapter.py`; shared SSoT, mailbox authority, A-Wiki, provider/runtime/UI and live Workers remain forbidden.
 - Next: commit failing regression first, then single-descriptor bounded read (`MAX+1`) and full focused/related/E2E verification.
+
+## Checkpoint ? 2026-09-03 bounded result-read repair GREEN
+
+- RED commit `337d5c2515fecbd62182e064684862224513321a`: single-descriptor/bounded-read regression failed because current `_result_bytes()` did not call a bounded descriptor read (`read_sizes=[]`) and instead used separate path stat + whole-file `Path.read_bytes()`.
+- GREEN production commit `629d253a5f11f34e26ef432911b054191f50bf74`: result files now use one descriptor (`os.open` -> `os.fstat` -> regular-file/size validation -> `read(MAX_REVIEW_RESULT_BYTES + 1)`), so path replacement/growth after open cannot redirect an unbounded whole-file read. Non-regular and oversized inputs remain fail-closed.
+- Focused `tests/test_review_mailbox_adapter.py` = **25/25 PASS**. Related adapter/native/mailbox/native-operations matrix = **94/94 PASS**. `py_compile`, `git diff --check`, and strict UTF-8/U+FFFD gates PASS.
+- GitNexus impact was attempted before production mutation but A-Conductor is not indexed in the available GitNexus registry; recorded as `UNVERIFIED - repository not indexed`, not a product failure. No index/system DLL installation was performed.
+- Realistic cross-repo E2E against detached accepted A-Wiki main `2191f2a1ff4bccc5ebb08b1d2bc87fdbe7ca0826`: open -> mailbox result -> WO147 forwarder -> A-Wiki ingest -> trusted retest -> trusted CI -> status `READY` with `allow_complete=true` at exact target head `629d253a...`; target remained git-clean and no review `.tmp` was written into the target.
+- Defect prevention is Tier-1 executable memory: `test_reader_result_read_is_single_descriptor_and_bounded`. No broader checker or second I/O authority is needed.
+- Independent exact-SHA review remains mandatory. PR/merge is additionally blocked until the forward-only A-Wiki TR-R3 case-safety repair is independently accepted/merged/post-main verified; PR #51 main remains functionally usable for E2E but has the separately tracked case-sensitive namespace defect.
