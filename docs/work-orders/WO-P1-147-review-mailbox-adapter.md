@@ -37,3 +37,13 @@ Forbidden: shared SSoT/hotspots, PR #183 files, WO145 files, existing mailbox im
 
 ## Acceptance
 RED first for identity mismatches, oversized result, task hash drift, trusted-field stripping, exact argv/mutation intent, and bounded command failures. Then focused + related native execution/mailbox regression, realistic local A-Wiki CLI E2E, compile/diff/UTF-8/secret/scope audits. Independent exact-SHA review remains required before PR merge.
+
+
+## Checkpoint — 2026-09-03 dependency-blocked unit layer
+
+- RED contract was committed first (`b006fd8e`, then hardening RED `23a1a404`).
+- Current adapter unit layer is GREEN: `tests/test_review_mailbox_adapter.py tests/test_native_execution.py tests/test_agent_change_packets.py` = **76 passed**; `py_compile` PASS.
+- Adapter validates mailbox task/provider/model/base-head/task-hash, strips reviewer-forged trusted fields, rebuilds the A-Wiki payload, and uses the existing bounded `NativeSubprocessRunner`; it does not use `AgentResultFileReader`.
+- Realistic E2E is intentionally BLOCKED: accepted A-Wiki `conductor review` still binds Git truth to A-Wiki itself. GPT opened the existing A-Wiki Review Bridge follow-up lane on `feat/wo-review-target-repo-20260903`; RED there is **9 failed / 62 passed** at `de390f7516563e120aca1e3e3a3ca9c782a989b2`.
+- Do not open a WO147 PR or claim completion until the A-Wiki target-repo seam is independently accepted/merged and this adapter forwards `--target-repo <assignment.worktree>` through that approved CLI.
+- Next safe action after A-Wiki acceptance: update the forwarder argv, run cross-repo realistic open→ingest→retest→CI→READY E2E, then independent exact-SHA review.
