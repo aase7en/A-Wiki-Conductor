@@ -84,3 +84,7 @@ Before production edit:
 `SAFE_TO_MUTATE = YES` only for this isolated worktree and the declared WO145 scope after this claim checkpoint is committed. Primary checkout remains protected.
 
 Next safe action: commit/push this WO claim, then create deterministic RED tests before touching production code.
+
+## Pre-edit tool gate — 2026-09-03
+
+GitNexus CLI is available through `npx gitnexus`, but this A-Conductor worktree/repository is not indexed: `gitnexus status` returned `Repository not indexed. Run: gitnexus analyze`. A direct impact attempt could not bind this unindexed repository and listed only other indexed repos. Per policy this is `UNVERIFIED — tool/index unavailable`; no system DLL or unrelated index mutation was attempted. Deterministic caller/reference analysis remains required before edit.
