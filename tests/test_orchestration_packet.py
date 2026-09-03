@@ -392,3 +392,46 @@ def test_routing_surface_traits_reject_non_boolean_authority_drift() -> None:
     graph, states = _graph()
     with pytest.raises(ValueError, match="supports_repo_tools"):
         build_orchestration_packet(task_contract=task, graph=graph, node_states=states, graph_id="g", repository=_repo_facts(), eligible_candidates=())
+
+
+@pytest.mark.parametrize(
+    "unsafe_ref",
+    [
+        "file:C:/Users/private/repo",
+        "path:C:/Users/private/repo",
+        "https:example.com/private",
+        "url:example.com/private",
+        "env:API_KEY",
+        "evidence:Bearer_SECRET",
+        "evidence:ghp_FAKECREDENTIALSHAPEDVALUE000000",
+    ],
+)
+def test_reference_fields_reject_nonsemantic_or_credential_shaped_refs(unsafe_ref: str) -> None:
+    graph, states = _graph()
+    with pytest.raises(ValueError, match="safe namespaced reference"):
+        build_orchestration_packet(
+            task_contract=_task_contract(),
+            graph=graph,
+            node_states=states,
+            graph_id="g",
+            repository=_repo_facts(),
+            eligible_candidates=(),
+            evidence_refs=(unsafe_ref,),
+        )
+
+
+def test_reference_fields_accept_declared_semantic_namespaces() -> None:
+    graph, states = _graph()
+    packet = build_orchestration_packet(
+        task_contract=_task_contract(),
+        graph=graph,
+        node_states=states,
+        graph_id="g",
+        repository=_repo_facts(),
+        eligible_candidates=(EligibleRouteCandidate(
+            candidate_id="c", actor_role="r", evidence_refs=("provider-observation:42",)
+        ),),
+        policy_refs=("awiki-policy:v1",),
+        evidence_refs=("test:baseline", "evidence:transport-502"),
+    )
+    assert packet.to_dict()["evidence_refs"] == ["test:baseline", "evidence:transport-502"]
