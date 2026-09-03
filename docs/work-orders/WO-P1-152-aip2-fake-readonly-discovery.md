@@ -168,3 +168,13 @@ Review authority must pin the final checkpoint commit created after this note, n
 - `compileall`, `git diff --check`, strict UTF-8/U+FFFD, AST/import no-I/O and exact-scope gates: PASS.
 - Delta versus `origin/main@1ae477f05e597c5027d22fdb2ca4f1496c070db7` remains exactly WO152 + decoder + focused tests. Prior review tasks through `wo152-glm-final-review-005` are stale for acceptance because they pin earlier candidates.
 - Next gate: freeze this checkpoint, push exact SHA, then require fresh exact-SHA GLM Goal Mode + `[a-loop]` review with P0=P1=P2=0 and exact-head hosted CI before merge.
+
+## GPT final broad verification checkpoint - 2026-09-03
+- Candidate before this documentation freeze: 9b763532ed74c24ac05bd1d5467ea03fa2d66b58.
+- Focused 	ests/test_aipass_discovery.py: **80/80 PASS**.
+- Provider/config/store/service-auth/execution-authority/runtime/parallel/harness/job/quota matrix (12 files): **305/305 PASS**.
+- Full repository suite: **2242 PASS / 4 SKIP / 2 FAIL**; the only failures are GPU particle tests requiring unavailable optional Pillow/OpenGL runtime components.
+- Both GPU failures reproduce unchanged on detached origin/main@1ae477f05e597c5027d22fdb2ca4f1496c070db7; therefore they are classified BASELINE_ENVIRONMENT, not WO152 regressions.
+- Strict UTF-8/U+FFFD, compileall, git diff --check, AST/import no-I/O, exact-scope audit, opaque-secret/path/endpoint adversarial probes, and semantic safe controls: PASS.
+- wo152-glm-final-review-005 reviewed stale candidate 4f17d834... and returned CHANGES_REQUIRED only for Basic-auth display metadata; current repair lineage closes that P2 and supersedes review 005 for acceptance.
+- Next gate: push the final documentation freeze, require fresh exact-SHA hosted CI and independent GLM Goal Mode + [a-loop] review with P0=P1=P2=0 before merge.
