@@ -157,3 +157,14 @@ Review authority must pin the final checkpoint commit created after this note, n
 - `compileall`, `git diff --check`, strict UTF-8/U+FFFD, AST/import no-I/O, exact-scope audit, path/credential adversarial probes, and semantic safe controls: PASS.
 - `origin/main` remains `1ae477f05e597c5027d22fdb2ca4f1496c070db7`; its post-main CI `33750907975` is terminal SUCCESS.
 - Candidate `259beab...` and review packet `wo152-glm-final-review-004` are superseded for acceptance. The next independent review must pin the final documentation checkpoint commit after this note.
+
+## GPT P2 opaque-secret/raw-endpoint repair checkpoint - 2026-09-03
+- GPT adversarial review after `4f17d83412dde19d7d0968423cf1df1505799f35` proved additional display metadata could cross serialization: Basic-auth material, PEM/SSH key material, credential assignments, prefixed environment-secret assignments, host/port/path endpoints, and standalone hostname/IP/IPv6 endpoint values.
+- Test checkpoints: `11d959c8d9cd3b5e37d15d9728a36ec774cfa7c9`, `3bccfcb31d0817f0543de02aba3bf4989af82c2b`, and `863a8d1f4c662873995b80afed48bff2e583cefe`.
+- Consolidated detached RED at `863a8d1...`: **31 intended failures / 49 existing PASS**; semantic credential/network text controls remained PASS.
+- Repair `5a7cadd9d0d21f4fbd6f24b9ff74c6b90e38db8e` adds bounded high-confidence secret/endpoint guards plus pure stdlib exact IP/hostname recognition; no I/O or provider authority was added.
+- Final focused discovery suite: **80/80 PASS**.
+- Fresh post-repair provider/config/store/service-auth/execution-authority/runtime/parallel/harness/job/quota matrix: **344/344 PASS**.
+- `compileall`, `git diff --check`, strict UTF-8/U+FFFD, AST/import no-I/O and exact-scope gates: PASS.
+- Delta versus `origin/main@1ae477f05e597c5027d22fdb2ca4f1496c070db7` remains exactly WO152 + decoder + focused tests. Prior review tasks through `wo152-glm-final-review-005` are stale for acceptance because they pin earlier candidates.
+- Next gate: freeze this checkpoint, push exact SHA, then require fresh exact-SHA GLM Goal Mode + `[a-loop]` review with P0=P1=P2=0 and exact-head hosted CI before merge.
