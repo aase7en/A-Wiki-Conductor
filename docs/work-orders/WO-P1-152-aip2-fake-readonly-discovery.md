@@ -171,7 +171,7 @@ Review authority must pin the final checkpoint commit created after this note, n
 
 ## GPT final broad verification checkpoint - 2026-09-03
 - Candidate before this documentation freeze: `9b763532ed74c24ac05bd1d5467ea03fa2d66b58`.
-- Focused 	ests/test_aipass_discovery.py: **80/80 PASS**.
+- Focused `tests/test_aipass_discovery.py`: **80/80 PASS**.
 - Provider/config/store/service-auth/execution-authority/runtime/parallel/harness/job/quota matrix (12 files): **305/305 PASS**.
 - Full repository suite: **2242 PASS / 4 SKIP / 2 FAIL**; the only failures are GPU particle tests requiring unavailable optional Pillow/OpenGL runtime components.
 - Both GPU failures reproduce unchanged on detached `origin/main@1ae477f05e597c5027d22fdb2ca4f1496c070db7`; therefore they are classified BASELINE_ENVIRONMENT, not WO152 regressions.
