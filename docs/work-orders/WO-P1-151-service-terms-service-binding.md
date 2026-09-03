@@ -48,3 +48,18 @@ No provider config/store migration, policy/runtime/admission/UI changes, no live
 
 ## Next safe action
 Commit/push claim, add deterministic RED tests only, prove failure, then minimally extend the pure service-authorization contract.
+
+## Implementation checkpoint - 2026-09-03
+- Claim: `b3928c10afa126dd39485a3990c5592d0614d968`.
+- RED: `604de66cda27d9e24d261ab62c267faea71c1185`; focused = 4 intended failures / 47 existing PASS.
+- Repair: `6b958f2dfcdb6295d755dfa3681b32a653ef37fe`.
+- Contract now carries explicit public `service_identity`; Terms service slug must match it at record construction and evaluation.
+- Provider IDs remain opaque/provider-neutral and are not required to equal service identity.
+- Cross-service probe: `False / SERVICE_AUTHORIZATION_SERVICE_MISMATCH`; matching service remains `SERVICE_AUTHORIZATION_ALLOWED`.
+- Focused = 60/60 PASS; provider configuration/store/policy/execution-authority/runtime/parallel/harness/job-backend/quota = 215/215 PASS.
+- `py_compile`, `git diff --check`, strict UTF-8/U+FFFD PASS; module imports remain only `__future__`, dataclasses, datetime, enum, re.
+- GitNexus pre-edit impact was attempted; available index is a stale sibling WO150 index and does not contain WO151 symbols. Evidence = `UNVERIFIED - stale index/tool limitation`; FTS has the known missing OpenSSL runtime dependency. No `analyze` or DLL installation was performed.
+- No runtime/store/policy/admission/UI/live AiPASS path was added or touched.
+- Exact candidate requires fresh independent exact-SHA review and hosted CI before PR/merge.
+
+Next safe action: independent read-only review of the exact final checkpoint SHA after this documentation update.
