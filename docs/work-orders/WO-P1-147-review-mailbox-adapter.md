@@ -2,12 +2,12 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: CLAIMED / RED_FIRST
+Status: READY_FOR_INDEPENDENT_REVIEW
 Priority: P1
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo147-review-mailbox-adapter`
 Branch: `feat/wo-p1-147-review-mailbox-adapter`
-Base: `origin/main@cf2a4e7a57bfd22ec55de79c700ec3e4931dc475`
+Base reconciled: `origin/main@6e96b773aeb0795807cb65abce93956b7702f33e` via merge commit `f8402d3ea8500b7014bea0ec273c046548c63100`
 
 ## Dependency proof
 A-Wiki Review Bridge exact head `b04761d580ddcdc7eb682e3a6036078b3b346953` passed independent rereview P0/P1/P2=0, merged as `588a907200e0d4998ec4fbb7fb2178b89d9700b2`, and post-main Core CI `33704270521` is SUCCESS.
@@ -47,3 +47,14 @@ RED first for identity mismatches, oversized result, task hash drift, trusted-fi
 - Realistic E2E is intentionally BLOCKED: accepted A-Wiki `conductor review` still binds Git truth to A-Wiki itself. GPT opened the existing A-Wiki Review Bridge follow-up lane on `feat/wo-review-target-repo-20260903`; RED there is **9 failed / 62 passed** at `de390f7516563e120aca1e3e3a3ca9c782a989b2`.
 - Do not open a WO147 PR or claim completion until the A-Wiki target-repo seam is independently accepted/merged and this adapter forwards `--target-repo <assignment.worktree>` through that approved CLI.
 - Next safe action after A-Wiki acceptance: update the forwarder argv, run cross-repo realistic open→ingest→retest→CI→READY E2E, then independent exact-SHA review.
+## Checkpoint — 2026-09-03 target-repo dependency accepted / realistic E2E GREEN
+
+- A-Wiki target-repo repair PR #51 exact head `8875ecf85b023da32530064d07437d47c49eef38` passed independent GLM rereview P0/P1/P2=0 and all PR gates, merged as `2191f2a1ff4bccc5ebb08b1d2bc87fdbe7ca0826`; post-main Core CI `33715627421` SUCCESS.
+- WO147 was reconciled with current A-Conductor main in merge commit `f8402d3ea8500b7014bea0ec273c046548c63100`; feature delta remained exactly this WO + adapter + focused tests.
+- New target-forwarding RED commit `7c14041`: focused result **1 failed / 21 passed** because `--target-repo` was absent.
+- Source repair commit `047d9f51e4342f27c3ade5b1194605b05aa6bd17`: forwards only `--target-repo <assignment.worktree>` to the accepted A-Wiki CLI. No new review lifecycle or authority.
+- GREEN focused = **22/22 PASS**. Related mailbox/native/agent-change/native-operations matrix = **91/91 PASS**. `py_compile`, `git diff --check`, UTF-8/U+FFFD, and three-file scope gates PASS.
+- Realistic cross-repo E2E used detached accepted A-Wiki main `2191f2a1...`: mailbox result -> patched forwarder -> A-Wiki ingest -> trusted retest -> trusted CI -> status READY with `allow_complete=true` at reviewed head `047d9f51...`; target worktree remained clean.
+- Pre-repair E2E had failed closed as `AWIKI_REVIEW_FORWARD_FAILED`, proving the missing target argument was the actual dependency gap.
+- Candidate is now READY_FOR_INDEPENDENT_REVIEW; exact-SHA review + PR/CI + post-main remain mandatory before claim release.
+
