@@ -152,6 +152,30 @@ def test_quota_contradiction_negative_and_nonfinite_fail_closed_without_partial_
         assert result.shared_quota is None
 
 
+@pytest.mark.parametrize(
+    ("limit", "used", "remaining"),
+    (
+        (10**12, 10**12 - 500, 0),
+        (10**15, 10**15 - 100_000, 0),
+        ((1 << 53) - 1, (1 << 53) - 1 - 1_000_000, 0),
+    ),
+)
+def test_large_quota_contradictions_do_not_gain_relative_tolerance(
+    limit: int, used: int, remaining: int,
+) -> None:
+    result = _build(
+        quota={
+            "limit": limit,
+            "used": used,
+            "available": remaining,
+            "fetchedAt": int(NOW.timestamp() * 1000),
+        }
+    )
+    assert result.state is AiPassDiscoveryState.MALFORMED
+    assert result.reason_code == "QUOTA_PAYLOAD_MALFORMED"
+    assert result.shared_quota is None
+
+
 def test_generation_and_time_contract_fail_closed_before_projection() -> None:
     for generation in (0, -1, True):
         result = _build(configuration_generation=generation)
