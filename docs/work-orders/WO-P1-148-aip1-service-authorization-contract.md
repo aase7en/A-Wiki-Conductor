@@ -95,3 +95,11 @@ RED first, then focused tests, existing provider regression matrix, compile/diff
 - Pure/no-I/O AST gate confirms imports are only `__future__`, dataclasses, datetime, enum, and re. `py_compile`, `git diff --check`, strict UTF-8/U+FFFD PASS.
 - GitNexus impact was attempted but the available registry has no A-Wiki-Conductor index. The attempt occurred after production edit but before commit (process deviation); result is `UNVERIFIED - repository not indexed`, not a product failure. No index/system DLL was installed.
 - Live AiPASS remains `BLOCKED_EXTERNAL`; this pure contract neither stores authorization nor wires dispatch/runtime. Independent exact-SHA review + fresh exact-head CI remain mandatory before merge.
+
+## GPT Terms chronology repair checkpoint ? 2026-09-03
+
+- Primary exact-candidate probe proved `AUTHORIZED` evidence observed before the declared Terms effective date was still accepted: evidence at `2026-08-01` authorized `aipass-terms@2026-08-19`. This is a trust-binding defect because pre-version evidence can be relabeled as current authorization.
+- RED `72592dbcbd2e563af1b85e3befb36142a8bf2cd6` reproduced the gap. Repair `b8771e3e5129014166f88c07d9b1e9f17a665ad6` requires `observed_at` calendar date to be on/after the effective date encoded by semantic `terms_identity` before an authorization record can exist.
+- Focused service-authorization = **46/46 PASS**. Provider/config/store/policy/execution-authority/runtime/parallel/quota/harness matrix including focused = **246/246 PASS**. `py_compile`, `git diff --check`, strict UTF-8/U+FFFD and added-line credential scan = PASS / 0 hits.
+- GitNexus impact/detect were attempted before/after the edit, but the only available A-Conductor index is a stale sibling WO150 index and does not contain WO148 symbols; results are `UNVERIFIED ? stale sibling index/tool limitation`. No `gitnexus analyze` rerun was performed because that command was already proven to mutate agent instruction artifacts outside scope.
+- Prior exact candidate `e4e41c0...`, its CI, and any independent review pinned to it are stale. Live AiPASS remains `BLOCKED_EXTERNAL`; this pure WO still performs no store/policy/admission/runtime/live-service I/O. Fresh exact-SHA CI + independent rereview are mandatory.
