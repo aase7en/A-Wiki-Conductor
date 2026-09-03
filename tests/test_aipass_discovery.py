@@ -517,3 +517,35 @@ def test_endpoint_guard_preserves_semantic_network_text() -> None:
         )
         assert result.state is AiPassDiscoveryState.OK
         assert result.models[0].name == safe_name
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    (
+        "8.8.8.8",
+        "api.example.com",
+        "example.com",
+        "::1",
+        "2001:db8::1",
+    ),
+)
+def test_standalone_raw_endpoint_values_fall_back(unsafe_name: str) -> None:
+    result = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": "safe-model", "name": unsafe_name}]},
+        quota_payload=None,
+        observed_at=NOW, now=NOW, configuration_generation=1,
+    )
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert unsafe_name not in str(result.to_dict())
+
+
+def test_standalone_endpoint_guard_preserves_semantic_text() -> None:
+    for safe_name in ("Domain Research", "IPv4 Research", "IPv6 Research", "API Example Model"):
+        result = build_aipass_discovery(
+            models_payload={"object": "list", "data": [{"id": "safe-model", "name": safe_name}]},
+            quota_payload=None,
+            observed_at=NOW, now=NOW, configuration_generation=1,
+        )
+        assert result.state is AiPassDiscoveryState.OK
+        assert result.models[0].name == safe_name
