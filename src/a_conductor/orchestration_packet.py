@@ -186,6 +186,8 @@ def _validate_task_contract_v1(task: Mapping[str, object]) -> None:
     repository_identity_ref = target.get("repository_identity_ref")
     if repository_identity_ref is not None:
         _safe_ref(repository_identity_ref, "task_contract.target.repository_identity_ref", allowed_namespaces=_REPOSITORY_REF_NAMESPACES)
+    if target.get("expected_branch") is not None:
+        _text(target.get("expected_branch"), "task_contract.target.expected_branch")
     head = target.get("expected_head")
     if head is not None and (not isinstance(head, str) or _SHA_RE.fullmatch(head) is None):
         raise ValueError("task_contract.target.expected_head is invalid")
@@ -206,6 +208,8 @@ def _validate_task_contract_v1(task: Mapping[str, object]) -> None:
         raise ValueError("task_contract.acceptance.criteria must not be empty")
     _nonblank_tuple(acceptance.get("verify_commands"), "task_contract.acceptance.verify_commands")  # type: ignore[arg-type]
     _bool(acceptance.get("review_required"), "task_contract.acceptance.review_required")
+    if acceptance.get("required_review_class") is not None:
+        _text(acceptance.get("required_review_class"), "task_contract.acceptance.required_review_class")
 
     security = _mapping(task.get("security"), "task_contract.security")
     _keys(security, "task_contract.security", required={"privacy_class", "network_policy", "secret_access"}, allowed={"privacy_class", "network_policy", "network_allowlist", "secret_access"})
