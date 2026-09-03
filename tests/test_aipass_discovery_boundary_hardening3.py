@@ -26,6 +26,14 @@ def _build(name: str):
         "nodefe80::1",
         "node2001::1",
         "nodefd00::1",
+        "node2001:db8::1",
+        "NODEFE80::1",
+        "NodeFe80::1",
+        "node::1",
+        "node0:0:0:0:0:0:0:1",
+        "node::ffff:192.0.2.1",
+        "node1e80::1",
+        "aaaafe80::1",
     ),
 )
 def test_fully_glued_ipv6_literals_fall_back(unsafe_name: str) -> None:
@@ -47,6 +55,9 @@ def test_ipv6_hardening_preserves_semantic_hex_colon_text() -> None:
         "build 1:2:3",
         "port:443",
         "ratio 16:9",
+        "Time 23:59:59",
+        "MAC 00:11:22:33:44:55",
+        "x:y:z notes",
     ):
         result = _build(safe_name)
         assert result.state is AiPassDiscoveryState.OK

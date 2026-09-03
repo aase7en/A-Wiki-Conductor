@@ -35,6 +35,7 @@ _EMBEDDED_IP_TOKEN_RE = re.compile(
 _EMBEDDED_GLUED_IPV4_RE = re.compile(
     r"(?<![0-9._@+\-])\d+(?:\.\d{1,3}){3}(?![\d.])"
 )
+_EMBEDDED_HEX_COLON_RUN_RE = re.compile(r"[0-9A-Fa-f:.]+")
 _MODEL_KINDS = frozenset({"chat", "image", "video", "music", "research"})
 _MAX_JSON_SAFE_NUMBER = (1 << 53) - 1
 _MAX_PROVIDER_GENERATION = (1 << 63) - 1
@@ -206,6 +207,21 @@ def _contains_embedded_raw_endpoint(value: str) -> bool:
         digits, tail = match.group(0).split(".", 1)
         for width in range(min(3, len(digits)), 0, -1):
             candidate = f"{digits[-width:]}.{tail}"
+            try:
+                ip_address(candidate)
+            except ValueError:
+                continue
+            return True
+    # A fully glued IPv6 literal (e.g. "nodefe80::1") hides behind word
+    # characters the lookbehind guards cannot see through. Hex/colon runs are
+    # re-anchored at every suffix and validated by ip_address() alone, so only
+    # genuine address suffixes match; hex-free "::" prose cannot.
+    for match in _EMBEDDED_HEX_COLON_RUN_RE.finditer(value):
+        run_text = match.group(0)
+        for start in range(len(run_text)):
+            candidate = run_text[start:]
+            if ":" not in candidate or not candidate.strip(":."):
+                break
             try:
                 ip_address(candidate)
             except ValueError:
