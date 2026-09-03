@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 Owner: GPT-5.6 Sol MAX
-Status: IMPLEMENTED / READY_FOR_PR
+Status: PR_OPEN / EXACT_HEAD_CI_REQUIRED
 Priority: P3 continuity
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\A-Wiki-Conductor-wo144-post-reliability-closeout`
@@ -31,4 +31,4 @@ Forbidden: `src/**`, `tests/**`, PR #183 files, live Workers/tunnels/binaries/cr
 - WO096 read-only fleet gate proves stopped 18012/18015 are not automatically available due separate project continuity.
 - A-Wiki Review Bridge PR #50 advanced to `b04761d580ddcdc7eb682e3a6036078b3b346953`: Draft/mergeable CLEAN with Core CI `33682384067`, Loop Gate `33682383989`, and py38 smoke SUCCESS. It remains blocked on fresh independent exact-SHA rereview/acceptance because GPT authored the latest trust-boundary repairs; no A-Conductor adapter implementation started.
 
-Next: run strict 5-file docs audit, freeze/push, PR/CI/merge/post-main, then reconcile PR #183.
+Next: require exact-head CI for PR #195, remote-diff re-audit, expected-head merge, and post-main verification; then reconcile PR #183.

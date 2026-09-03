@@ -15,7 +15,7 @@ Last updated: 2026-09-03 - WO144 post-WO140/WO143 actual-state closeout
 
 ### One next safe action
 
-When post-main CI `33681115738` is green, freeze/merge WO144 docs-only actual-state reconciliation. Then reconcile PR #183 from current main with fresh AiPASS authorization/source evidence. Do not touch live Workers/tunnels or implement Review Bridge before upstream acceptance.
+Require exact-head CI and remote-diff re-audit for the final PR #195 WO144 docs candidate, then expected-head merge and post-main verification. After WO144 releases `COLLAB.md`, reconcile PR #183 from current main with fresh AiPASS authorization/source evidence. Do not touch live Workers/tunnels or implement Review Bridge before upstream acceptance.
 
 ## Current objective
 

@@ -16,7 +16,7 @@ Last updated: 2026-09-03 (GPT-5.6 Sol MAX - WO144 post-reliability actual-state 
 
 ### Immediate execution order
 
-1. Complete WO143 post-main CI `33681115738`; finalize WO144 docs-only reconciliation, exact-head CI, expected-head merge and post-main verification.
+1. Complete PR #195 exact-head CI for the final WO144 docs candidate, remote-diff re-audit, expected-head merge, and post-main verification; WO143 post-main `33681115738` is already SUCCESS.
 2. Reconcile PR #183 against current main, preserve coordination history, refresh WO143 dependency wording and current AiPASS evidence, then require new exact-head CI.
 3. After PR #183 acceptance, claim AIP-1 from current main; reuse existing provider/task authorization and add only a bounded fail-closed service-authorization seam. Keep live AiPASS blocked.
 4. Continue read-only A-Wiki Review Bridge polling; implement adapter only after accepted exact A-Wiki SHA/API.
