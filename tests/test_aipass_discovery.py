@@ -287,3 +287,80 @@ def test_generic_sk_secret_shaped_model_id_fails_closed_without_overrejecting_se
         )
         assert good.state is AiPassDiscoveryState.OK
         assert good.models[0].model_id == safe_id
+
+
+@pytest.mark.parametrize(
+    "unsafe_value",
+    (
+        "github_pat_" + "A" * 32,
+        "sk_live_" + "A" * 24,
+        "sk_test_" + "A" * 24,
+        "rk_live_" + "A" * 24,
+        "rk_test_" + "A" * 24,
+        "glpat-" + "A" * 24,
+        "npm_" + "A" * 32,
+        "pypi-" + "A" * 32,
+        "ASIA" + "A" * 16,
+    ),
+)
+def test_additional_high_confidence_credential_shapes_fail_closed(unsafe_value: str) -> None:
+    result = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": unsafe_value, "name": "safe"}]},
+        quota_payload=None,
+        observed_at=NOW,
+        now=NOW,
+        configuration_generation=1,
+    )
+    assert result.state is AiPassDiscoveryState.MALFORMED
+    assert result.models == ()
+    assert unsafe_value not in str(result.to_dict())
+
+
+@pytest.mark.parametrize(
+    "unsafe_value",
+    (
+        "github_pat_" + "B" * 32,
+        "sk_live_" + "B" * 24,
+        "sk_test_" + "B" * 24,
+        "rk_live_" + "B" * 24,
+        "rk_test_" + "B" * 24,
+        "glpat-" + "B" * 24,
+        "npm_" + "B" * 32,
+        "pypi-" + "B" * 32,
+        "ASIA" + "B" * 16,
+    ),
+)
+def test_additional_high_confidence_credential_display_names_fall_back(unsafe_value: str) -> None:
+    result = build_aipass_discovery(
+        models_payload={"object": "list", "data": [{"id": "safe-model", "name": unsafe_value}]},
+        quota_payload=None,
+        observed_at=NOW,
+        now=NOW,
+        configuration_generation=1,
+    )
+    assert result.state is AiPassDiscoveryState.OK
+    assert result.models[0].name == "safe-model"
+    assert unsafe_value not in str(result.to_dict())
+
+
+def test_additional_credential_shape_guards_preserve_semantic_near_neighbors() -> None:
+    safe_values = (
+        "github_pat_model",
+        "sk_live_model",
+        "rk_live_model",
+        "glpat-model",
+        "npm_model",
+        "pypi-model",
+        "asia-model",
+    )
+    for safe_value in safe_values:
+        result = build_aipass_discovery(
+            models_payload={"object": "list", "data": [{"id": safe_value, "name": safe_value}]},
+            quota_payload=None,
+            observed_at=NOW,
+            now=NOW,
+            configuration_generation=1,
+        )
+        assert result.state is AiPassDiscoveryState.OK
+        assert result.models[0].model_id == safe_value
+        assert result.models[0].name == safe_value
