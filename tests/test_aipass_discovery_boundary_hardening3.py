@@ -36,7 +36,18 @@ def test_fully_glued_ipv6_literals_fall_back(unsafe_name: str) -> None:
 
 
 def test_ipv6_hardening_preserves_semantic_hex_colon_text() -> None:
-    for safe_name in ("IPv6 Research", "Release fe80 notes", "Model 2001 series"):
+    for safe_name in (
+        "IPv6 Research",
+        "Release fe80 notes",
+        "Model 2001 series",
+        "sha256:deadbeef",
+        "face:1 notes",
+        "release:2026",
+        "HTTP 200: OK",
+        "build 1:2:3",
+        "port:443",
+        "ratio 16:9",
+    ):
         result = _build(safe_name)
         assert result.state is AiPassDiscoveryState.OK
         assert result.models[0].name == safe_name
