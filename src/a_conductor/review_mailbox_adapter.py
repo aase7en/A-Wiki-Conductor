@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -80,16 +81,29 @@ def _verify_task_packet(assignment: AgentMailboxAssignment) -> None:
 
 
 def _result_bytes(path: Path) -> bytes:
+    fd: int | None = None
     try:
-        if not path.is_file():
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0)
+        fd = os.open(path, flags)
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
             raise ReviewMailboxAdapterError("REVIEW_RESULT_UNAVAILABLE")
-        if path.stat().st_size > MAX_REVIEW_RESULT_BYTES:
+        if info.st_size > MAX_REVIEW_RESULT_BYTES:
             raise ReviewMailboxAdapterError("REVIEW_RESULT_TOO_LARGE")
-        raw = path.read_bytes()
+        handle = os.fdopen(fd, "rb", closefd=True)
+        fd = None
+        with handle:
+            raw = handle.read(MAX_REVIEW_RESULT_BYTES + 1)
     except ReviewMailboxAdapterError:
         raise
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         raise ReviewMailboxAdapterError("REVIEW_RESULT_UNAVAILABLE") from exc
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
     if len(raw) > MAX_REVIEW_RESULT_BYTES:
         raise ReviewMailboxAdapterError("REVIEW_RESULT_TOO_LARGE")
     return raw
