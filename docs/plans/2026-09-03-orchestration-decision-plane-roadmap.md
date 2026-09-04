@@ -278,7 +278,7 @@ For security, architecture, high-blast-radius, protocol, release, or other risk-
 
 The roadmap order remains dependency-driven, not strictly serial. Once prerequisites are accepted, independent READY nodes may run concurrently under the 3-mutable + 1-review WIP ceiling. Do not create parallel lanes that share mutable scope merely to increase apparent utilization.
 
-**P0 accelerator override (2026-09-04):** broad ODP continuation is intentionally subordinated to `WO-P1-155` / `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` through ZRA-3. The reason is leverage: eliminating GPT↔GLM human relay first reduces the execution cost of ODP-1..9 themselves. ODP-1 may be reconciled/readied in parallel only when it does not consume a mutable lane needed by the zero-relay accelerator.
+**P0 accelerator override (2026-09-04):** broad ODP continuation is intentionally subordinated to `WO-P1-155` / `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` through ZRA-4. The reason is leverage: eliminating GPT↔GLM human relay and proving bounded parallel isolation first reduces the execution cost of ODP-1..9 themselves. ODP reconciliation/readiness may proceed in parallel only when it does not consume a mutable lane needed by the zero-relay accelerator or violate ownership/dependency gates.
 
 ODP-8 remains the integration/fault-injection convergence gate for ODP-1..6; ODP-9 remains gated by real provider authorization/admission. Fast execution and the zero-relay accelerator must not bypass either acceptance boundary.
 

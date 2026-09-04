@@ -52,7 +52,7 @@ A local worktree alone is never sufficient evidence that equivalent work does no
 ## Development discipline
 
 - Binding delivery policy: `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`. Classify work R0/R1/R2/R3 and use the shortest assurance loop that truthfully matches blast radius; repository/ownership/secret/destructive-operation gates never weaken.
-- Current P0 delivery accelerator: `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` / `WO-P1-155`. Until ZRA-3 is accepted, prefer eliminating human GPT↔external-agent relay before starting new ODP feature lanes that are not required by the zero-relay path.
+- Current P0 delivery accelerator: `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` / `WO-P1-155`. Until ZRA-4 bounded-parallel acceptance is complete, prefer eliminating human GPT↔external-agent relay before starting broad ODP feature lanes that are not required by the zero-relay path. ODP reconciliation/readiness may still proceed in parallel when it does not consume a required mutable lane or violate ownership/dependency gates.
 - Every multi-step implementation chunk must have a work order.
 - Keep tasks bounded and resumable.
 - Production code requires defined acceptance criteria and verification; prefer failing-test-first for behavior changes.
