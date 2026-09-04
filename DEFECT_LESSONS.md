@@ -282,13 +282,13 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 ---
 
-## #6: tunnel-client หลุดแล้ว Sunday Worker หายทั้งตัว (2026-09-04)
+## #52: tunnel-client teardown can remove the whole Sunday Worker (2026-09-04)
 
 **อาการ:** Worker 1–5 หายเป็นช่วง ๆ แล้วฝั่ง ChatGPT เห็น `MCP Session terminated`, 404 หรือ 429; ต้องปลุก Worker ใหม่จึงกลับมาทำงานได้
 
 **Root cause ที่ยืนยันแล้ว:** process tree ปัจจุบันคือ `start.ps1 -> tunnel-client.exe -> serena.exe` ดังนั้นเมื่อ tunnel-client ออก Serena child จะเสีย transport และตายตามได้ทันที ขณะเดียวกัน EXE ที่ใช้งานจริงถูก build วันที่ 2026-08-26 แต่ source ของ bounded connector auto-recovery ถูกเพิ่มวันที่ 2026-08-28 จึงยังไม่ได้ deploy ลง runtime จริง; live DB ยังไม่มี `instance_recovery` table แม้ Worker 1–5 ตั้ง autostart=1 ทั้งหมด
 
-**Trigger ที่น่าสงสัยที่สุดตอนนี้:** Worker ทั้ง 5 ยังใช้ shared `tunnel-client 0.0.11+8d55683...` ซึ่ง WO-P1-097 เคยจัดว่าต่ำกว่า safe floor และกำหนด `>=0.0.12`; work order เดิมบันทึกว่า upstream v0.0.12 แก้ shared stdio MCP session deadline behavior ที่ตรงกับ failure family นี้ การอัปเกรด live binary ถูกเลื่อนไว้เพื่อไม่รบกวน active workers และยังไม่ได้ทำบนเครื่องนี้ ส่วน ESET/network/gateway ยังเป็น possible co-trigger แต่ยังไม่มี log มัดโดยตรง; CPU/RAM exhaustion ไม่มีหลักฐานสนับสนุนเป็นสาเหตุหลัก
+**Current trigger evidence:** At incident start all five Workers used shared tunnel-client 0.0.11, already below the WO-P1-097 safe floor (>=0.0.12). W1 was later moved to the checksum-verified 0.0.14 canary and remained healthy through the bounded observation window; W4 on 0.0.11 then reproduced the TTL/deadline -> closed-stdio -> tunnel-shutdown chain at 18:31, while W2/W3/W5 on 0.0.11 remained alive. Treat this as a trigger-dependent legacy-version failure family, not a fixed-uptime crash. ESET/network/gateway remain possible co-triggers without direct proof; CPU/RAM exhaustion is not supported as the primary cause.
 
 **วิธีแก้ที่ต้องใช้:** ใช้ recovery authority เดิมชุดเดียว `ConnectorRecoveryCoordinator + ConnectorRecoveryStore/SQLiteSerenaConfigStore + instance orchestrator`; ห้ามสร้าง retry/store/circuit authority ชุดที่สอง แยก unexpected crash ออกจาก manual stop, restart เฉพาะ exact worker launch spec แบบ bounded, แล้วตรวจ MCP/project/worktree/task/claim ใหม่ก่อน AVAILABLE งานที่ outcome ยัง UNKNOWN ห้าม blind replay
 

@@ -1,7 +1,7 @@
 # WO-P1-156 Live Tunnel Upgrade + Logical-Worker Chaos Runbook
 
 Date: 2026-09-04
-Status: PREPARED / NOT YET EXECUTED
+Status: PREPARED / W1 CANARY EXECUTED / FULL FLEET + INSTALLED SELF-HEAL NOT YET EXECUTED
 Authority: GPT-5.6 Sol MAX acceptance/integration; implementation candidate must be independently reconciled before use.
 Incident: `docs/incidents/2026-09-04-worker-tunnel-teardown.md`
 
@@ -9,19 +9,23 @@ Incident: `docs/incidents/2026-09-04-worker-tunnel-teardown.md`
 
 Close the recurring Sunday Worker disappearance by addressing both confirmed deployment gaps:
 
-1. the live fleet still uses shared `tunnel-client 0.0.11`, already classified below the repository safe floor by WO-P1-097;
+1. the live fleet still has unresolved legacy `tunnel-client 0.0.11` controls; W1 alone is on the isolated checksum-verified 0.0.14 canary and W4 is currently down after its 18:31 control failure;
 2. the installed A-Sunday Conductor predates the accepted bounded connector auto-recovery source path.
 
 This runbook is an operational acceptance procedure, not a new recovery authority.
 
 ## Proven current facts
 
-- Worker 1–5 bind the same legacy binary:
+- W1 canary binds the checksum-verified 0.0.14 binary:
+  `C:\AI\dwb-serena-tunnel-starter\canary\0.0.14\tunnel-client\tunnel-client.exe`
+- W2/W3/W5 remain live on the shared legacy binary; W4 remains configured to it but was down at the 19:53 checkpoint after the 18:31 failure:
   `C:\AI\dwb-serena-tunnel-starter\tunnel-client\tunnel-client.exe`
-- live version:
+- shared legacy version:
   `0.0.11+8d55683eeef80bc5e360d95abf4692454fafc615`
-- live SHA-256:
+- shared legacy SHA-256:
   `7D3C7D492CE84B52835E11865A835A8A5BCD4A669DEE84E169AA11B314DC952A`
+- W1 canary version / SHA-256:
+  `0.0.14` / `FCC85A69EC0AD82518E4F8964F60C45E31787957782A0FC9C1B0C44E82D61B9B`
 - repository safe floor:
   `>=0.0.12`
 - temp-only checksum-verified installer proof on 2026-09-04 resolved:
