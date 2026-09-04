@@ -45,6 +45,8 @@ Scope freeze: reliability defect only; no unrelated feature work.
    - live DB does not contain the source-era `instance_recovery` table.
    - On a copied live DB, `SQLiteSerenaConfigStore.initialize()` adds `instance_recovery`, preserves existing table row counts, and returns `PRAGMA integrity_check = ok`.
    - The live DB was not mutated by this proof.
+   - `origin/main@68079e3` baseline recovery suites passed `52/52` across connector recovery, visibility, desktop control, config-store, and instance-monitor tests.
+   - `desktop_control.instance_states_cancellable()` already invokes `reconcile_instance_recovery()` from the health loop, confirming that the self-heal path is wired in current source rather than merely designed on paper.
 
 6. **ESET is a possible upstream trigger, not a confirmed root cause.**
    - ESET Service, Firewall Helper, and Inspect Connector are active.
