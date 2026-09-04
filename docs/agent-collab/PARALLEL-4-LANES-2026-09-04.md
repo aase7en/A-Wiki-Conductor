@@ -188,3 +188,12 @@ Before changing lane ownership:
 - persist checkpoint;
 - prove no uncheckpointed mutation;
 - release claim explicitly.
+## GPT-A checkpoint — 2026-09-04 ~13:00 +07
+
+- GPT-B advanced PR #209 beyond the initial W1 switch: remote head observed `cad47bc92a72d3125d851a3b536f7e120676631f` (`docs: checkpoint recovery build and W1 W4 canary evidence`). GPT-A will not mutate PR #209.
+- W1 live instance currently binds the isolated canary path `C:\\AI\\dwb-serena-tunnel-starter\\canary\\0.0.14\\tunnel-client\\tunnel-client.exe`; observed tunnel PID 11956; shared legacy `C:\\AI\\dwb-serena-tunnel-starter\\tunnel-client\\tunnel-client.exe` remains 0.0.11 for the non-canary fleet.
+- Clean detached `origin/main@68079e3` build lane produced frozen artifacts with CI-pinned PyInstaller 6.22.2: Portable SHA-256 `26817C8EB8F2BF8AA8C5898C5640C033CBC5CE4809D9E276FF05251028CE4526`; Setup SHA-256 `261A9D87F0B34ECC046981867788D2003504E3333CE2CD84B45D4694ACC509D2`.
+- Frozen Portable smoke on a temporary database returned exit 0; DB `PRAGMA integrity_check=ok`; `instance_recovery` table present; temporary DB removed. Portable archive contains connector recovery / config store / desktop control / local instance modules. Setup archive contains required portable payload/branding/docs/notices. No live DB or installed build was mutated by GPT-A.
+- WO156 GLM-A next task remains production wiring from exact `55de87f`; transient ownership/task holds must not persist manual-stop `recovery_suppressed`; direct coordinator chaos is CORE_PROCESS_PROOF only.
+- GLM-B is assigned PR #208 independent exact-SHA review on base `68079e3` -> candidate `0fd540c`; candidate must remain tracked-clean and unmodified.
+- Do not merge PR #209 or PR #211 before PR #208 exact-SHA review/merge gate, because changing `main` first would invalidate/rebase the frozen PR208 review base.
