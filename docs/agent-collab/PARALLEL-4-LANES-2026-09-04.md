@@ -168,6 +168,8 @@ After PR208 merge:
 
 Reliability work may run in parallel because it protects the execution substrate, but it must not silently reorder product-roadmap acceptance.
 
+- GPT-A PR #208 pre-review found a probable P1 continuity blocker: the frozen policy itself is safety-consistent, but its tracked `CURRENT-WORK.md` / `handoff.md` / WO155 claim/status still say the next safe action is ZRA-0 and WO155 is queued. Actual state has ZRA-0 verified, WO155 preview at `653eba9...` with unresolved R3 blockers, active WO156/PR209/PR211 parallel lanes, and ODP-1 owned elsewhere. Do not mutate PR208 while GLM-B reviews `0fd540c`; after the independent verdict, refresh only the stale SSoT/claim boundaries, freeze a new SHA, and require focused rereview + exact-head CI before merge.
+
 ## Cross-lane handoff protocol
 
 Every lane result must report:
