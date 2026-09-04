@@ -235,3 +235,21 @@ Do not deliberately reproduce the TTL/deadline trigger on a Worker that owns an 
 ### ESET evidence for this recurrence
 
 Windows Application/System events inspected for 18:29-18:34 contained no matching Error/Warning that tied ESET, AV, or an OS crash directly to the W4 exit. ESET_TRIGGER remains UNCONFIRMED. Do not weaken endpoint security based on the current evidence.
+
+## GPT R3 architecture correction - connector recovery is not task replay
+
+The incident recovery sequence deliberately separates logical Worker process self-heal from task continuation:
+
+1. classify an ambiguous interrupted task as UNKNOWN;
+2. do not replay it;
+3. recover the exact Worker launch specification through the existing connector recovery authority;
+4. re-verify MCP/project/worktree/dirty/task/claim state;
+5. only then mark the Worker AVAILABLE for new or resumed work.
+
+Therefore ownership-unsafe or task-state-unknown evidence is an availability/replay/reassignment gate, not automatically a connector-process restart veto. Manual Stop remains the durable suppress/restart veto already owned by ConnectorRecoveryCoordinator.
+
+Candidate 719f30e adds recovery_hold_provider to DesktopControlService and treats ownership_unsafe, task_state_unknown and quarantined as pre-recovery holds. GPT R3 review found that DesktopControlService.open() does not assemble this provider. A read-only inspection of the current live Control Center DB also found no lease tables or Serena worker-config rows that could be safely guessed into such a provider.
+
+Do not repair this gap by inventing a second ownership/task authority in DesktopControlService. The minimal architecture-preserving direction is to keep unexpected connector STOPPED self-heal on the existing ConnectorRecoveryCoordinator path, keep manual Stop suppression there, and perform ownership/task/dirty-state gates before replay, reassignment, mutation, or AVAILABLE. Any explicit process-quarantine veto must come from an already accepted authority with a proven instance-to-worker identity mapping.
+
+This means WO156 may require little or no new production recovery code beyond what is already on current source; the remaining critical gap is reviewed deployment plus installed exact-PID self-heal acceptance. The copied-live-DB test remains useful integration evidence, but its injected hold seam is not proof of production composition.
