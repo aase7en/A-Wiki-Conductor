@@ -176,3 +176,8 @@ Operational execution runbook: `docs/runbooks/wo156-live-tunnel-upgrade-and-chao
 ## Close condition
 
 Close this incident only when a reviewed installed build self-recovers an intentionally interrupted Worker through the existing A-Conductor recovery authority, with deterministic evidence and no manual relay.
+## 2026-09-04 GPT review of GLM single-authority candidate
+
+Candidate `55de87f04dde7b0682026ef2c45ce17096de66db` successfully removes the duplicate durable recovery/backoff/circuit authorities and passes the required 145-test regression battery. It is not yet accepted for production because the new `worker_resilience.py` policy functions have no production caller outside tests/module-internal use. The GLM W1 chaos harness manually creates a `ConnectorRecoveryCoordinator` with an in-memory store and invokes `observe()` directly; therefore that evidence proves the recovery core can restart the exact Worker pair, but does not prove the installed A-Sunday Conductor health loop detects and self-heals the failure automatically.
+
+Close-gate consequence: the next accepted candidate must prove the production observation path, durable real store, and installed build path rather than only a direct coordinator harness.
