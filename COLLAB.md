@@ -34,6 +34,8 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
+| `WO-P1-154` fast execution / risk-tier workflow | GPT-5.6 Sol integrator | REVIEW_REPAIR ACTIVE 2026-09-04 (R2 binding process change) | Docs-only. Initial claim excluded `AGENTS.md`/`CURRENT-WORK.md`/`handoff.md`/`DEFECT_LESSONS.md` while WO153 owned them; after WO153 / PR #205 merged+RELEASED (base `68079e3`), a dated scope amendment added `AGENTS.md`/`CURRENT-WORK.md`/`handoff.md` for the continuity fold-back; `DEFECT_LESSONS.md` stayed excluded/untouched; all product source/tests excluded throughout. Independent GLM exact-SHA review of `0fd540c` returned P0=0/P1=0/P2=4; GPT-A accepted that review and opened the bounded repair gate. Repair branch `fix/wo-p1-154-review-scope-ssot`; NOT accepted until focused rereview + exact-head CI + GPT-A merge gate. Four-lane coordination detail lives in PR #211 SSoT. |
+| `WO-P1-155` Zero-Relay Accelerator | GPT-5.6 Sol gate authority; GLM preview/review lanes | PREVIEW / SHAPING EVIDENCE — NOT ACCEPTED 2026-09-04 | ZRA-0 prerequisite migration mechanism/evidence is pre-proven on sacrificial/valid-registry DBs with live DB untouched, but formal ZRA-0 node acceptance remains PENDING after PR208 merge/reconciliation. ZRA-1 preview/transport-harness evidence only; full authorized/admitted production acceptance PENDING (`653eba9` NOT accepted). ZRA-2..4 production acceptance PENDING. Issues #212–#216 are durable shaping claims/evidence, not proof of completed implementation. WO153 hotspot release already satisfied in `68079e3`. |
 | `WO-P1-151` service/Terms authorization binding | GPT-5.6 Sol MAX | READY_FOR_INDEPENDENT_REVIEW 2026-09-03 | Exact repair `6b958f2...`; `provider_service_authorization.py`, focused tests, WO151, bounded `COLLAB.md`; pure/no-I/O only; no store/policy/runtime/live AiPASS. |
 | `WO-P1-116` / AHA-6B worker supply + elastic capacity | GPT-5.6 Sol integrator | RELEASED 2026-08-31 | PR #157 + closeout PR #158 merged; source lane released. |
 | `WO-P1-117` provider dispatch/admission safety | GPT-5.6 Sol integrator | READY_FOR_CLAIM | `parallel_ready_execution.py`, `provider_config_store.py`, focused tests; baseline CI `33357214028` green; claim requires isolated worktree + fresh preflight. |
@@ -93,11 +95,17 @@ These are shared coordination surfaces and must be changed by only one active wo
 7. Scope belongs to the work order, not to a vendor/model. Another agent may resume the same WO after verifying state.
 8. Additive-first: prefer new bounded files; shared hotspots require explicit ownership.
 
+## Fast execution / risk-tier binding
+
+`docs/agent-collab/FAST_EXECUTION_PROTOCOL.md` is the binding delivery-speed policy introduced by WO154. Use the shortest R0/R1/R2/R3 loop that truthfully matches risk; safety/ownership/secret gates remain mandatory. Default WIP is at most 3 mutable implementation lanes + 1 independent read-only review lane. Freeze a candidate SHA before independent review, batch adversarial findings before review where practical, and avoid repeated full-suite/hosted-CI runs on intermediate SHAs unless risk or failure evidence justifies them.
+
+One logical WO should normally produce one feature PR. Extra RED/adversarial/repair PRs require a concrete remote-CI, independent-ownership, or stacked-dependency reason. Throughput is measured at accepted merge/release, not number of active worktrees.
+
 ## Integrator routing + parallel-lane contract
 
 The integrator owns dependency order, lane boundaries, merge adjudication and durable checkpoints. It may route GPT MAX, GLM-5.3 MAX, Ultra or future agents in parallel only when mutable scopes are independent and every lane has an exact worktree/branch/HEAD/task/result contract. Read-only review lanes may overlap source observation but must write only their declared result destination.
 
-Routing sequence is binding: recover SSoT and actual Git/runtime/claim state first; settle unclear requirements with docs/research/spec; build the dependency graph; claim only READY nodes; then implement/review/test/audit/commit/PR/CI/re-audit/merge/post-merge/checkpoint and select the next READY node.
+Routing sequence is binding: recover SSoT and actual Git/runtime/claim state first; settle only material ambiguity; build the dependency graph; classify each READY node R0/R1/R2/R3; claim only non-overlapping READY nodes; then execute the tier-specific loop in `FAST_EXECUTION_PROTOCOL.md`. Do not mechanically force every node through the heaviest review/full-suite/E2E path. Exact-head CI, independent review, post-merge proof and release E2E remain mandatory when the node's risk tier requires them.
 
 Agent-to-agent continuity is file-first. Each lane reuses `runs/<task-id>/task.md` plus stable `status.json` and `result.md|json` destinations. Agents update those agreed files in place; they do not create a new handoff/result file for every exchange. The integrator reads them directly and folds only verified conclusions into tracked SSoT.
 

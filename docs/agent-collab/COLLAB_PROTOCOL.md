@@ -83,6 +83,8 @@ Only independent READY tasks may run in parallel. Each gets a distinct worktree/
 or a proven non-overlapping mutable scope. AHA-5 intentionally allows one mutable file
 per agent task; AHA-6 owns broader fan-out/fan-in scheduling and collision safety.
 
+Default WIP limit from `FAST_EXECUTION_PROTOCOL.md`: at most **3 mutable implementation lanes + 1 independent read-only review lane**. Extra worker capacity should remain available for recovery/blocker work rather than maximizing active worktree count. Throughput is measured at accepted merge/release, not number of busy workers.
+
 ## 7. Provider selection gate
 
 Before delegating to a named external model, record recent trustworthy evidence that the
@@ -91,9 +93,13 @@ mutation authority or overrides deterministic review.
 
 ## 8. One-goal orchestration + loop-engineer cycle
 
-A human may state the goal once. The integrator owns decomposition, model routing, task packets, result ingestion and SSoT fold-back. For material work use this ordered loop:
+A human may state the goal once. The integrator owns decomposition, model routing, task packets, result ingestion and SSoT fold-back. Delivery is risk-tiered by `FAST_EXECUTION_PROTOCOL.md`; do **not** mechanically run the maximum-assurance path for every material task.
 
-`recover SSoT/actual Git -> Grill Me with docs -> brainstorm -> explicit plan/task gate -> implement -> independent exact-SHA review -> root-cause debug -> targeted + realistic E2E/adversarial tests -> evidence report -> defect-prevention memory -> audit -> active-WO branch/PR -> exact-head CI/CD -> re-audit -> authorized merge/fetch proof -> cleanup proof`.
+Common front door:
+
+`recover SSoT/actual Git -> resolve only material ambiguity -> explicit bounded task/claim -> classify R0/R1/R2/R3 -> run the tier-specific loop -> checkpoint accepted evidence -> select next READY node`.
+
+R2/R3 retain frozen exact-SHA independent review, bounded repair/rereview, exact-head CI and realistic E2E/fault/release verification where applicable. R0/R1 may use shorter deterministic paths when their actual blast radius remains low.
 
 Rules:
 - verify the local `grill-with-docs` against its upstream GitHub source when materially planning; record date/ref or mark `UPSTREAM_UNVERIFIED`;
@@ -102,6 +108,10 @@ Rules:
 - branch names come from the active WO; never hard-code a generic health branch over unrelated work;
 - provider/model benchmarks route work only after freshness/task-fit review; provider readiness/auth/quota remains a separate gate;
 - review and CI evidence are pinned to exact SHA; transport/tool failures are not product failures or passes.
+- prefer one adversarial batch before external independent review; do not create a PR per defect by default.
+- freeze one candidate SHA after targeted/related verification and known adversarial repairs; independent review should target that candidate rather than each intermediate commit.
+- repeat broad/full verification only when the risk tier, changed boundary, new failure evidence, or release gate requires it.
+- canonical SSoT is checkpointed at claim transfer, material blocker/decision, frozen candidate, merge/release, and handoff/session rollover rather than after every trivial edit.
 
 ## 9. Completion
 
