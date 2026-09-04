@@ -190,7 +190,7 @@ This establishes live compatibility of 0.0.14 and creates a useful canary agains
 
 A detached clean build from `origin/main@68079e3` was created in an isolated Python 3.13.13 environment using the CI-pinned `PyInstaller==6.22.2`. The recovery baseline passed 52/52 in that environment. Portable SHA-256 is `26817C8EB8F2BF8AA8C5898C5640C033CBC5CE4809D9E276FF05251028CE4526`; frozen smoke exits 0 and its archive contains the production recovery modules. Setup SHA-256 is `261A9D87F0B34ECC046981867788D2003504E3333CE2CD84B45D4694ACC509D2`; required payload archive checks pass. These artifacts are PREPARED/NOT INSTALLED.
 
-For trigger discrimination, W1 now runs the verified 0.0.14 canary while W4 remains a 0.0.11 control. Both target A-Conductor. W4's 0.0.11 history contains spontaneous exits at 10:21:31 and 11:02:36; W1 0.0.14 has remained healthy since its canary start at 12:46:55 through the current observation window. This is accumulating comparative evidence, not yet a statistical or causal proof.
+For trigger discrimination (2026-09-04 observation window), W1 ran the verified 0.0.14 canary while W4 remained a 0.0.11 control. Both target A-Conductor. W4's 0.0.11 history contains spontaneous exits at 10:21:31 and 11:02:36; W1 0.0.14 remained healthy from its canary start at 12:46:55 through the 2026-09-04 observation window. This is accumulating comparative evidence, not yet a statistical or causal proof.
 
 ## 2026-09-04 18:31 recurrence and A/B update
 

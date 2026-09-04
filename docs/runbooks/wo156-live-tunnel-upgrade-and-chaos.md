@@ -9,16 +9,16 @@ Incident: `docs/incidents/2026-09-04-worker-tunnel-teardown.md`
 
 Close the recurring Sunday Worker disappearance by addressing both confirmed deployment gaps:
 
-1. the live fleet still has unresolved legacy `tunnel-client 0.0.11` controls; W1 alone is on the isolated checksum-verified 0.0.14 canary and W4 is currently down after its 18:31 control failure;
+1. the live fleet still has unresolved legacy `tunnel-client 0.0.11` controls; at the 2026-09-04 19:53 +07 observation W1 alone was on the isolated checksum-verified 0.0.14 canary and W4 was down after its 18:31 control failure (re-observe current state before any action — never act on this snapshot);
 2. the installed A-Sunday Conductor predates the accepted bounded connector auto-recovery source path.
 
 This runbook is an operational acceptance procedure, not a new recovery authority.
 
-## Proven current facts
+## Proven facts (as observed 2026-09-04; re-verify before any operational step)
 
 - W1 canary binds the checksum-verified 0.0.14 binary:
   `C:\AI\dwb-serena-tunnel-starter\canary\0.0.14\tunnel-client\tunnel-client.exe`
-- W2/W3/W5 remain live on the shared legacy binary; W4 remains configured to it but was down at the 19:53 checkpoint after the 18:31 failure:
+- W2/W3/W5 were live on the shared legacy binary and W4 was configured to it but down, at the 19:53 +07 checkpoint after the 18:31 failure (observation-scoped; re-verify):
   `C:\AI\dwb-serena-tunnel-starter\tunnel-client\tunnel-client.exe`
 - shared legacy version:
   `0.0.11+8d55683eeef80bc5e360d95abf4692454fafc615`
@@ -103,9 +103,15 @@ Do not replace the shared live binary while any Worker still owns a process usin
 
 ## Phase 3 — Controlled fleet drain
 
-Because all five Workers bind the same shared legacy executable, replacement requires a controlled drain.
+Replacement of the shared legacy executable requires a controlled drain.
 
-For each Worker, one at a time:
+**DRAIN_SET is NOT a fixed list.** Derive it from fresh actual evidence immediately before draining:
+
+- DRAIN_SET = Workers whose currently verified tunnel-client **executable path** is the shared legacy binary being replaced (re-observe the path per Worker via exact process identity — do not assume from config or history).
+- W1 (isolated checksum-verified 0.0.14 canary) is **not** in DRAIN_SET merely because it is a Sunday Worker; leave the canary untouched unless a separate explicit transition/rollback decision includes W1.
+- For each Worker in DRAIN_SET, before any stop, re-observe: executable path, exact PID, process start identity, task/ownership status, and Worker state.
+
+For each Worker in DRAIN_SET, one at a time:
 
 1. persist task/claim/continuity state;
 2. verify exact wrapper/tunnel/Serena process identity;
@@ -113,7 +119,7 @@ For each Worker, one at a time:
 4. verify that Worker's wrapper/tunnel/Serena processes are gone;
 5. verify no unrelated process was terminated.
 
-After all five are drained:
+After every Worker in DRAIN_SET is drained:
 
 - verify ports 18011–18015 have no stale listeners;
 - verify no `tunnel-client.exe` process command line references a Sunday Worker profile;
@@ -162,10 +168,12 @@ Do not auto-resume an ambiguous task.
 
 Only use a reviewed candidate containing:
 
-- existing `ConnectorRecoveryCoordinator` authority;
+- the **existing accepted `ConnectorRecoveryCoordinator` authority from then-current accepted main**;
 - durable `SQLiteSerenaConfigStore` recovery state;
 - existing `LocalInstanceOrchestrator`;
-- accepted WO156 extensions only.
+- plus any **separately accepted** changes.
+
+WO156's final Approach B adds evidence/regression closure only — it does not add a second recovery authority and does not imply a mandatory WO156 production recovery extension.
 
 Before first live launch:
 
