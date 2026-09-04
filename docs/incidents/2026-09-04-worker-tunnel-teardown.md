@@ -48,7 +48,14 @@ Scope freeze: reliability defect only; no unrelated feature work.
    - `origin/main@68079e3` baseline recovery suites passed `52/52` across connector recovery, visibility, desktop control, config-store, and instance-monitor tests.
    - `desktop_control.instance_states_cancellable()` already invokes `reconcile_instance_recovery()` from the health loop, confirming that the self-heal path is wired in current source rather than merely designed on paper.
 
-6. **ESET is a possible upstream trigger, not a confirmed root cause.**
+6. **The live fleet still uses a tunnel-client version already classified unsafe by this repository.**
+   - shared live binary: `C:\\AI\\dwb-serena-tunnel-starter\\tunnel-client\\tunnel-client.exe`
+   - observed version on 2026-09-04: `0.0.11+8d55683eeef80bc5e360d95abf4692454fafc615`
+   - SHA-256: `7D3C7D492CE84B52835E11865A835A8A5BCD4A669DEE84E169AA11B314DC952A`
+   - WO-P1-097 previously classified `0.0.11` below the minimum safe version and set the floor to `>=0.0.12`; that work order records that upstream v0.0.12 preserves shared stdio MCP sessions after non-initialize response deadlines, matching the captured deadline/closed-stdio/tunnel-shutdown failure family.
+   - WO-P1-097 intentionally did not replace the live shared binary because doing so while active workers were using it would create an outage. The deferred operational upgrade therefore remained unresolved on this machine.
+
+7. **ESET is a possible upstream trigger, not a confirmed root cause.**
    - ESET Service, Firewall Helper, and Inspect Connector are active.
    - inspected Windows Application/System logs around the Worker 4 failures contained no event directly naming ESET/tunnel-client blocking or termination.
    - ESET warnlog metadata changed near the incident window, but no direct `tunnel-client` / `Serena` / `blocked` / `firewall` string evidence was found.
@@ -66,12 +73,12 @@ and
 
 ### Not yet confirmed
 
-The initiating cause of tunnel-client exit. Ranked hypotheses remain:
+The initiating cause of tunnel-client exit is not yet proven to a single event, but the evidence ranking has materially changed:
 
-1. transient network/tunnel transport failure,
-2. remote gateway/session disruption,
-3. ESET network/process inspection interference,
-4. tunnel-client defect,
+1. **live tunnel-client 0.0.11 defect / known-unsafe version** — strongest current hypothesis because the fleet still runs the exact version WO-P1-097 already classified below the safe floor and the upstream fix family matches the observed closed-stdio/tunnel-shutdown behavior;
+2. transient network/tunnel transport failure that exercises the old-client defect;
+3. remote gateway/session disruption that exercises the old-client defect;
+4. ESET network/process inspection interference;
 5. other host/environment failure.
 
 CPU/RAM exhaustion currently has weak/negative evidence.
@@ -99,14 +106,23 @@ The host `start.ps1` may stay one-shot if A-Conductor owns restart policy. It mu
 - retain only missing multi-layer classification, repository/ownership gate, exact identity, fleet correlation, and safe remote-session dispositions;
 - persist only bounded reason codes, never raw credentials/errors.
 
-### P0-B — Deploy the recovery source path
+### P0-B — Upgrade the known-bad live tunnel-client safely
+
+- treat live `0.0.11` as an unresolved operational defect already identified by WO-P1-097;
+- resolve/download a repository-verified supported tunnel-client `>=0.0.12` using the existing installer/version-validation path rather than a hand-picked unverified binary;
+- do not replace the shared binary while active Worker processes hold it;
+- first prove the candidate in an isolated/sacrificial instance, then drain/restart Workers one at a time with exact ownership checks;
+- after upgrade, prove every restarted Worker reports the supported version and preserve rollback evidence for the prior binary without reusing it as normal runtime;
+- do not mask an old-client defect with more retry loops.
+
+### P0-C — Deploy the recovery source path
 
 - build from a reviewed source SHA containing the existing connector recovery path plus accepted WO156 repairs;
 - migration proof must run on a copy before any live DB migration;
 - deployment must initialize `instance_recovery` without altering existing logical data;
 - verify health loop calls the existing recovery coordinator for unexpected STOPPED states.
 
-### P0-C — Logical Worker self-heal
+### P0-D — Logical Worker self-heal
 
 For an unexpected tunnel-client exit:
 
@@ -120,7 +136,7 @@ For an unexpected tunnel-client exit:
 
 Manual stop must remain suppressed and must not auto-restart.
 
-### P0-D — Trigger diagnosis without weakening security
+### P0-E — Trigger diagnosis without weakening security
 
 - add/retain timestamps, exact process identity, tunnel exit reason code, network state, and recovery outcome;
 - use reason codes rather than raw stderr in durable state;

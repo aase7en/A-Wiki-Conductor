@@ -288,7 +288,7 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 **Root cause ที่ยืนยันแล้ว:** process tree ปัจจุบันคือ `start.ps1 -> tunnel-client.exe -> serena.exe` ดังนั้นเมื่อ tunnel-client ออก Serena child จะเสีย transport และตายตามได้ทันที ขณะเดียวกัน EXE ที่ใช้งานจริงถูก build วันที่ 2026-08-26 แต่ source ของ bounded connector auto-recovery ถูกเพิ่มวันที่ 2026-08-28 จึงยังไม่ได้ deploy ลง runtime จริง; live DB ยังไม่มี `instance_recovery` table แม้ Worker 1–5 ตั้ง autostart=1 ทั้งหมด
 
-**ยังไม่ยืนยัน:** ตัวกระตุ้นแรกที่ทำให้ tunnel-client ออก อาจเป็น network/tunnel/gateway, ESET หรือ tunnel-client defect; ปัจจุบันไม่มีหลักฐานว่า CPU/RAM exhaustion เป็นสาเหตุหลัก และยังไม่มี log ที่มัด ESET โดยตรง
+**Trigger ที่น่าสงสัยที่สุดตอนนี้:** Worker ทั้ง 5 ยังใช้ shared `tunnel-client 0.0.11+8d55683...` ซึ่ง WO-P1-097 เคยจัดว่าต่ำกว่า safe floor และกำหนด `>=0.0.12`; work order เดิมบันทึกว่า upstream v0.0.12 แก้ shared stdio MCP session deadline behavior ที่ตรงกับ failure family นี้ การอัปเกรด live binary ถูกเลื่อนไว้เพื่อไม่รบกวน active workers และยังไม่ได้ทำบนเครื่องนี้ ส่วน ESET/network/gateway ยังเป็น possible co-trigger แต่ยังไม่มี log มัดโดยตรง; CPU/RAM exhaustion ไม่มีหลักฐานสนับสนุนเป็นสาเหตุหลัก
 
 **วิธีแก้ที่ต้องใช้:** ใช้ recovery authority เดิมชุดเดียว `ConnectorRecoveryCoordinator + ConnectorRecoveryStore/SQLiteSerenaConfigStore + instance orchestrator`; ห้ามสร้าง retry/store/circuit authority ชุดที่สอง แยก unexpected crash ออกจาก manual stop, restart เฉพาะ exact worker launch spec แบบ bounded, แล้วตรวจ MCP/project/worktree/task/claim ใหม่ก่อน AVAILABLE งานที่ outcome ยัง UNKNOWN ห้าม blind replay
 
