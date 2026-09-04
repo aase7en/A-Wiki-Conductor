@@ -34,6 +34,21 @@
 >   labeled as such) and PRODUCTION_PATH_PROOF (hermetic temp-DB tests);
 >   INSTALLED_E2E not run, not claimed.
 
+## Final-repair verification checkpoint — 2026-09-04 (GLM-A resume, Approach B frozen)
+
+> State: **REVIEW_PENDING / READY_FOR_GPT_REVIEW** (acceptance authority: Issue #217 / GPT-A).
+> Frozen candidate: the commit containing this checkpoint (parent `b8a145b9a6db4ca7e27fb105077094ce7ea3dd42`; supersedes reviewed-candidate `719f30e` and intermediate `55de87f`).
+
+Resumed lane recovery (verified, not redone — Approach B repair `23e77ad` + `b8a145b` already on branch/remote when this session began):
+
+- Structural verification against base `main@68079e3d00047ca9432f0aefe3ad667f892614d0`: branch delta is **exactly two files** (this doc + `tests/test_worker_resilience.py`). `COLLAB.md` delta = 0 (R3 P2 shared-file finding closed). `src/a_conductor/desktop_control.py` delta = 0 (no hold seam; installed assembly claim closed). `src/a_conductor/worker_resilience.py` absent; `grep -r "recovery_hold|worker_resilience" src/` = 0 hits (single ConnectorRecovery authority; no second store/backoff/circuit/budget; fail-closed crash finding moot — seam deleted, per binding Approach B).
+- Hermetic CI portability (R3 P1): the copied-live-DB test is gone; the three remaining tests are host-independent (`test_hermetic_legacy_db_migration_preserves_preexisting_data`, `test_production_refresh_recovers_exactly_once_with_durable_state`, `test_manual_stop_suppresses_automatic_recovery`). No "byte-identical" wording remains (R3 P2 — claim was removed with the live-DB proof rather than re-asserted).
+- Local Windows verification at `b8a145b` (this session, worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo156-worker-resilience`): focused `tests/test_worker_resilience.py` **3/3 PASS** (19.5s); related battery **86/86 PASS** (24.6s) across `test_worker_resilience`, `test_connector_recovery`, `test_connector_recovery_visibility`, `test_desktop_control`, `test_desktop_control_recovery`, `test_recovery_reconciliation`, `test_execution_deduplication`.
+- GitHub CI on exact head `b8a145b` (run `33886704593`): `test` **PASS** (16m3s), `cross-platform-smoke (ubuntu-latest)` **PASS**, `cross-platform-smoke (macos-latest)` **PASS** — direct evidence the Windows runner `FileNotFoundError` class (prior failing run `33872995947`) is eliminated and Linux/macOS no longer dereference Windows live paths.
+- Not claimed: INSTALLED_E2E (installed app predates recovery source — deployment gap owned by GPT-A); no live DB/worker/tunnel/process touched by this repair; no merge, no main push, no PR #208/#209 mutation; zero file overlap with other lanes.
+
+GPT-A decision requested: accept/reject this final candidate in Issue #217; installed-E2E/deployment and tunnel-client fleet rollout remain separate GPT-A operational gates.
+
 ## Incident summary (evidence-based)
 
 - Observed remotely: Workers 1–4 `MCP Session terminated`; Worker 5 SSE probe 429/sometimes 404.
