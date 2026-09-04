@@ -26,10 +26,21 @@
 >   the runner and was removed).
 > - The remaining permanent defect is an **operational/deployment gap**, not a
 >   source gap: the installed app that produced the incident predates the
->   accepted recovery source; the incident-evidence fleet still runs
->   tunnel-client 0.0.11 while the source updater rejects <0.0.12 and the
->   preferred verified upstream remains v0.0.13. Installed E2E / live rollout
->   is a separate operational gate owned by GPT-A.
+>   accepted recovery source, and **source acceptance ≠ installed E2E** — no
+>   new build has been installed. Fleet tunnel-client state at the recorded
+>   2026-09-04 checkpoint (per GPT-B canary evidence and PR #209): **W1 was
+>   switched to the checksum-verified tunnel-client 0.0.14 canary**
+>   (SHA-256 `FCC85A69EC0AD82518E4F8964F60C45E31787957782A0FC9C1B0C44E82D61B9B`)
+>   and remained compatible with `/readyz` and remote MCP during the observed
+>   window; **W2/W3/W5 were retained as legacy 0.0.11 negative controls**;
+>   **W4** was restarted from its durable spec and remains WO096-reserved —
+>   its current health/version must be read from PR #209 incident evidence,
+>   not assumed healthy or current-version here. The source updater requires
+>   **>=0.0.12**; v0.0.13 is **not** the current universal fleet truth. The
+>   0.0.14 canary evidence does **not** prove that version alone caused every
+>   old failure — the defect remains trigger-dependent on
+>   TTL/deadline/closed-stdio evidence. Installed E2E / fleet rollout remains
+>   a separate operational gate owned by GPT-A.
 > - Chaos evidence classification: CORE_PROCESS_PROOF (earlier W1 harness,
 >   labeled as such) and PRODUCTION_PATH_PROOF (hermetic temp-DB tests);
 >   INSTALLED_E2E not run, not claimed.
