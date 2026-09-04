@@ -80,4 +80,4 @@ Chat context is transport context, not durable state. If a ChatGPT/session conte
 - exact next safe action;
 - forbidden actions/ownership constraints.
 
-The new session must be able to resume by reading `AGENTS.md -> PROJECT-PLAN.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active work order` without requiring the user to reconstruct prior chat context.
+The new session must be able to resume without prior chat by using the universal startup core: `00-AGENT-ENTRY.md -> PROJECT-GRAPH.yaml -> AGENTS.md -> actual Git/runtime/claim state -> CURRENT-WORK.md -> handoff.md -> active work order -> task-relevant graph nodes`. Before any `src/a_conductor/` mutation it must also read `DEFECT_LESSONS.md`. `PROJECT-PLAN.md`, `DESIGN.md`, and `COLLAB.md` remain authoritative but are loaded when the project graph selects architecture/roadmap, UI/UX, or coordination scope.

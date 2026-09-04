@@ -31,6 +31,8 @@ The workflow must reduce prompt relay and repeated ceremony without weakening re
 - docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md
 - this work order
 - one new concise agent-entry protocol under docs/agent-collab/
+- docs/USER-GUIDE.md
+- docs/contracts/recovery-reconciliation.md
 
 ## Forbidden scope
 
@@ -82,7 +84,8 @@ Implemented policy/docs changes:
 - updated Fast Execution, provider-neutral collaboration, capability routing, top-level collaboration and product plan to the same GLM-first/GPT-governance model;
 - updated Zero-Relay roadmap maturity language so the current WO155 preview is treated as prototype/callability evidence, not production acceptance;
 - preserved current live `CURRENT-WORK.md` / `handoff.md` ownership with GPT-A; no mutation of those shared hotspots in this lane.
+- synchronized developer/recovery entry wording in `docs/USER-GUIDE.md` and `docs/contracts/recovery-reconciliation.md` after fresh-agent contradiction audit.
 
 Current workflow can be used before Zero-Relay is complete through one-pointer human relay. Zero-Relay later removes only the transport step.
 
-Deterministic docs validation passed: diff-check, strict UTF-8, YAML parse, required-path check, and secret-shape scan. Freeze exact SHA after this checkpoint commit; independent exact-SHA review remains required before merge.
+Deterministic docs validation passed across the 13-file canonical set: diff-check, strict UTF-8, YAML parse, required-path/reference check, secret-shape scan, and canonical old-entry contradiction search. Independent exact-SHA review remains required before merge.
