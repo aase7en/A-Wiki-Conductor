@@ -37,14 +37,17 @@ The target optimization is **remove repeated ceremony, not assurance**.
 - `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` (new)
 - `docs/work-orders/WO-P1-155-zero-relay-accelerator.md` (new queued P0 accelerator)
 - this work order
+- scope amendment (2026-09-04, post-WO153-release, per chronology below): `AGENTS.md`, `CURRENT-WORK.md`, `handoff.md` — continuity fold-back only
 
-## Protected / deferred scope
+## Protected / deferred scope — scope chronology (review repair 2026-09-04)
 
-Do not edit the following from WO154 because open WO153 already owns them:
-- `AGENTS.md`
-- `CURRENT-WORK.md`
-- `handoff.md`
-- `DEFECT_LESSONS.md`
+Scope history, recorded as chronology (GLM-B WO154-B1 repair):
+
+1. **Initial WO154 claim (2026-09-04, pre-amendment):** `AGENTS.md`, `CURRENT-WORK.md`, `handoff.md` and `DEFECT_LESSONS.md` were excluded because open WO153 owned those shared hotspots.
+2. **WO153 / PR #205 merged and RELEASED in base `68079e3...` before the final WO154 continuity fold-back**, releasing those hotspots.
+3. **Dated scope amendment (2026-09-04, before the final fold-back commit):** WO154 scope was amended to include the required continuity fold-back files — `AGENTS.md`, `CURRENT-WORK.md`, `handoff.md`.
+4. **`DEFECT_LESSONS.md` remained excluded and untouched** by WO154.
+5. The final candidate diff is therefore within the amended scope, not the initial one.
 
 Do not touch WO150/WO152 product source/tests or any live Worker/tunnel/provider state.
 
@@ -93,4 +96,10 @@ Do not touch WO150/WO152 product source/tests or any live Worker/tunnel/provider
 
 ## Checkpoint
 
-WO154 is intentionally disjoint from WO153. `CURRENT-WORK.md` and `handoff.md` fold-back are deferred until WO153 releases those hotspot files; this work order is the authoritative checkpoint for WO154 meanwhile. The exact frozen commit SHA is recorded in the assurance packet/PR after commit, avoiding a self-referential SHA edit.
+WO154 was initially disjoint from WO153 while WO153 owned the shared hotspots. WO153 / PR #205 merged and RELEASED (already in base `68079e3...`) before the final WO154 continuity fold-back; the dated scope amendment above then added `AGENTS.md`, `CURRENT-WORK.md`, `handoff.md` so the fold-back was in scope. `DEFECT_LESSONS.md` stayed excluded and untouched. This work order is the authoritative checkpoint for WO154; the exact frozen commit SHA is recorded in the assurance packet/PR after commit, avoiding a self-referential SHA edit.
+
+## Review-repair checkpoint — 2026-09-04 (GLM-1)
+
+- Independent GLM-B exact-SHA review of candidate `0fd540c622d4539a2e809b8a441661896179f2ad` returned **BLOCKED (P2=1, finding WO154-B1)**: the initial declared-scope text contradicted the actual final diff (the contradiction is resolved by the scope chronology above, not by erasing history).
+- Status after this repair: **READY_FOR_FOCUSED_REREVIEW / R2 BINDING PROCESS CHANGE** — NOT accepted. The new repaired SHA requires focused independent rereview + exact-head CI + GPT-A merge gate.
+- Continuity truth (`CURRENT-WORK.md`, `handoff.md`, WO155 docs, Zero-Relay roadmap) refreshed in the same repair commit against reverified actual state (see those files).

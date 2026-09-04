@@ -1,8 +1,20 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-04 (GPT-5.6 Sol - WO154 Fast Execution + WO155 Zero-Relay priority)
+Last updated: 2026-09-04 (GLM-1 - PR208 review repair / actual-state reconciliation)
 
-## WO154/WO155 authoritative execution override — 2026-09-04
+## PR208 review-repair + actual-state override — 2026-09-04 (authoritative, supersedes stale text below)
+
+- **PR #208 / WO154 is in REVIEW_REPAIR.** GLM-B exact-SHA review of `0fd540c622d4539a2e809b8a441661896179f2ad` = BLOCKED P2=1 (WO154-B1 stale scope-chronology contradiction); GPT-A additionally found stale continuity truth. Repair branch `fix/wo-p1-154-review-scope-ssot` (docs-only) amends the scope chronology and refreshes this SSoT. The new repaired SHA requires focused independent rereview + exact-head CI + GPT-A merge gate. NOT accepted.
+- **ZRA-0 = COMPLETE_VERIFIED** (sacrificial-DB migration/readiness proof; live DB untouched). Do not restart ZRA-0.
+- **WO155 status: PREVIEW/REPAIR evidence exists — NOT merely QUEUED and NOT accepted.** ZRA one-shot transport/harness proof exists; **ZRA-1 full authorized/admitted production acceptance remains PENDING** (GPT R3 unresolved blockers: session-event identity, process-reap evidence, task-packet TOCTOU, streaming-output bounds, overclaimed ZRA-1/ZRA-3 authority). `653eba9` is NOT accepted. **ZRA-3 production continuation PENDING.** Tracked production acceptance stays gated by PR208 accepted/merged; preparatory preview work does not bypass that dependency.
+- **WO156 = frozen / REVIEW_BLOCKED at last observed head `141c37c60d3d2e88ef8089f83ef37db5ec13a38e`; PAUSED while PR208 repair takes precedence.** Not accepted by GPT-A. The base-main production self-heal path is real: desktop UI 15s refresh → `refresh_instances()` → `instance_states_cancellable()` → `instance_health_state()` → `reconcile_instance_recovery()` → `ConnectorRecoveryCoordinator` → `SQLiteSerenaConfigStore` → `LocalInstanceOrchestrator`. Operational deployment/canary is a separate lane.
+- **Lane ownership:** GPT-B owns PR #209 (recurring Worker incident + tunnel-client canary evidence, head `cad47bc92a72d3125d851a3b536f7e120676631f`, reverified 2026-09-04). PR #211 is the 4-lane coordination SSoT (head `e3549a8152c9acc273a5fdc104ca946898a69abc`, reverified). The W1 canary uses an isolated tunnel-client 0.0.14 path — do not mutate. GPT-A owns integration/review/merge/release gates. Another GPT lane owns ODP-1.
+- **PR #204 is green-CI (`9c90c873493b657cced86652c09c0e19920d99c8`) but NOT merge-ready**: its final scope requires exactly 3 files while the merge-base..HEAD diff still contains 6 files including 3 staging tests — blocked by final-scope consolidation.
+- Protected root checkout remains stale/dirty and is NOT a mutation surface; all mutation stays in isolated worktrees.
+
+**One next safe action:** PR208 docs repair → freeze new SHA → focused independent rereview → exact-head CI → GPT-A merge gate → fresh actual-state reconciliation → resume next frozen roadmap node.
+
+## WO154/WO155 execution override — 2026-09-04 (historical; sequencing superseded above)
 
 - Authoritative remote main after WO153 / PR #205 merge: `68079e3d00047ca9432f0aefe3ad667f892614d0`; WO153 is RELEASED and its hotspot ownership is no longer active.
 - PR #208 / WO154 is the active binding-process lane. Current branch is composed with `main@68079e3...`; it defines risk-tier R0-R3 execution, frozen-candidate review, progressive verification, WIP `3 mutable + 1 review`, and one-feature-PR-by-default policy.
@@ -14,10 +26,10 @@ Last updated: 2026-09-04 (GPT-5.6 Sol - WO154 Fast Execution + WO155 Zero-Relay 
 - WO096 remains an independent P0 v0.7.0 release blocker; zero-relay work does not bypass its live hosted remote MCP-after-TTL acceptance gate.
 - Protected root checkout remains stale/dirty; all mutation stays in isolated worktrees.
 
-### Immediate execution order
+### Immediate execution order (superseded by the PR208 review-repair override above)
 
 1. Freeze/review/accept PR #208 from current main composition.
-2. Start ZRA-0 in a fresh isolated worktree from then-current `origin/main`; inspect/reuse existing AHA provider/harness authorities before writing new runtime code.
+2. ~~Start ZRA-0~~ SUPERSEDED — ZRA-0 is COMPLETE_VERIFIED; do not restart it. Next after PR208 acceptance: fresh actual-state reconciliation, then the next frozen roadmap node per the override above.
 3. Progress ZRA-1 -> ZRA-2 -> ZRA-3 under R3 trust/provider gates and deterministic evidence.
 4. Only after ZRA-3, resume ODP feature lanes not required by the zero-relay path.
 5. Keep WO096 fail-closed until its separate live authorization/evidence gate is satisfied.

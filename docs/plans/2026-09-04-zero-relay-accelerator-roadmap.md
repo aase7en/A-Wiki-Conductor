@@ -88,11 +88,11 @@ Do not automate ZCode UI clicks by default. UI automation is brittle and must no
 
 ```text
 WO154 fast workflow accepted
-  -> WO153 ZCode lock closeout releases shared SSoT hotspots
-  -> ZRA-0 migration/activation proof
-  -> ZRA-1 single real no-relay task
-  -> ZRA-2 repair loop
-  -> ZRA-3 automatic continuation
+  -> (satisfied) WO153 ZCode lock closeout merged+RELEASED in main 68079e3; shared SSoT hotspots released before the WO154 fold-back
+  -> (COMPLETE_VERIFIED) ZRA-0 migration/activation proof on sacrificial DB
+  -> ZRA-1 single real no-relay task  [preview/transport-harness evidence exists; FULL authorized/admitted production acceptance PENDING — do not treat as done]
+  -> ZRA-2 repair loop [only to the level actually proven; do not overclaim]
+  -> ZRA-3 automatic continuation [production continuation PENDING]
   -> ZRA-4 bounded parallel dispatch
   -> resume ODP roadmap using zero-relay execution fabric
   -> ZRA-5 ODP integration as the routing seam becomes ready

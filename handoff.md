@@ -1,8 +1,17 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-04 - WO154 Fast Execution + WO155 Zero-Relay priority
+Last updated: 2026-09-04 - GLM-1 PR208 review repair / actual-state reconciliation
 
-## Current handoff override — 2026-09-04
+## PR208 review-repair handoff override — 2026-09-04 (authoritative)
+
+- PR #208 / WO154 is in REVIEW_REPAIR: GLM-B review of `0fd540c` = BLOCKED P2=1 (WO154-B1) + stale continuity truth; repaired docs-only on branch `fix/wo-p1-154-review-scope-ssot` (scope chronology + SSoT refresh). New SHA requires focused independent rereview + exact-head CI + GPT-A merge gate. NOT accepted.
+- ZRA-0 = COMPLETE_VERIFIED — do not restart. WO155 is NOT merely QUEUED and NOT accepted: ZRA-1 has preview/transport-harness evidence only; FULL authorized/admitted production acceptance PENDING (R3 blockers: session-event identity, process-reap evidence, task-packet TOCTOU, streaming-output bounds, overclaimed ZRA-1/ZRA-3 authority; `653eba9` NOT accepted). ZRA-3 production continuation PENDING. Production acceptance gated by PR208 accepted/merged.
+- WO156 frozen/REVIEW_BLOCKED at `141c37c60d3d2e88ef8089f83ef37db5ec13a38e` (not accepted; paused for PR208 repair). Base-main self-heal path: UI 15s refresh → `refresh_instances()` → `instance_states_cancellable()` → `instance_health_state()` → `reconcile_instance_recovery()` → `ConnectorRecoveryCoordinator` → `SQLiteSerenaConfigStore` → `LocalInstanceOrchestrator`. Deployment/canary is a separate lane.
+- Lanes: GPT-B owns PR209 (`cad47bc9`, canary evidence, reverified); PR211 4-lane SSoT (`e3549a8`, reverified); W1 canary isolated 0.0.14 path — do not mutate; GPT-A owns merge/release gates; another GPT lane owns ODP-1. PR204 green-CI at `9c90c87` but scope-blocked (3-file final scope vs 6-file diff). Protected root checkout stale/dirty — not a mutation surface.
+
+One next safe action: PR208 docs repair → freeze new SHA → focused independent rereview → exact-head CI → GPT-A merge gate → fresh actual-state reconciliation → resume next frozen roadmap node.
+
+## Previous handoff override — 2026-09-04 (historical; superseded above)
 
 - Remote `main = 68079e3d00047ca9432f0aefe3ad667f892614d0` after WO153 / PR #205 merged; WO153 is RELEASED.
 - Active workflow PR #208 / WO154 is composed with that main and carries the binding R0-R3 Fast Execution policy plus WO155 Zero-Relay P0 roadmap. It remains Draft/R2 until an independent exact-SHA review passes; CI must correspond to the latest frozen SHA.
