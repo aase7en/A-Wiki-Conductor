@@ -57,18 +57,18 @@ Root-cause classification: PROBABLE (H2 mechanism CONFIRMED at the wrapper-ampli
 
 All five workers restarted ONLY from their existing durable launch specifications (`Start-Sunday-Worker-N.cmd`), one at a time, verified after each: W1 PID 15428 @18011, W2 12144 @18012, W3 30440 @18013, W4 14224 @18014, W5 27784 @18015 (all `/readyz` → `ready`, tunnel pid files present, fresh tunnel sessions established — W5 included). No broad kills, no endpoint recreation, no config edits, no live-DB writes, no task replay. Task-level ownership notes preserved: W2 pharmacy cycle and W5 estate continuity remain task-quarantined from automatic dispatch (restoring a surface ≠ resuming a task); W4 remains WO096-reserved.
 
-## Implementation (this candidate)
+## [SUPERSEDED / historical evidence] Implementation (the removed first-candidate design)
 
 - New `src/a_conductor/worker_resilience.py`: independent per-layer health probes → single derived worker state (11 states, classification priority pinned by tests); restart-scoped recovery actions (429→BACKOFF_WAIT zero restarts; 404→RECONCILE_ENDPOINT zero recreation; stale→RECONNECT_SESSION; tunnel→RESTART_TUNNEL only; MCP→RESTART_COMPONENT; process→RESTART_FROM_SPEC gated on durable spec + budget; ownership/task-ambiguous→AWAIT_OPERATOR, no replay); `BackoffSchedule` (exponential, capped, jittered, Retry-After honored); `WorkerCircuit` (threshold→OPEN, cooldown→HALF_OPEN, close only after stable healthy window, half-open failure reopens immediately); `RestartBudget` (exhausted ⇒ QUARANTINE); `WorkerProcessIdentity` (pid + start epoch + executable + command hash ⇒ PID reuse rejected); `WorkerRecoveryState`/`WorkerRecoveryStore` (durable, atomic, secret-free by construction); idempotent `record_recovery_event`.
 - New `tests/test_worker_resilience.py`: the mandated adversarial battery (simultaneous transport failure ⇒ zero worker restart via action mapping; 429/404 policies; tunnel/MCP/process scoping; anti-flap circuit transitions; budget→quarantine; restart-state restore; PID-reuse rejection; no-broad-kill source scan; secret-free serialization).
 - REUSE (no second authorities): pure policy layer over the existing instance lifecycle (`instance_monitor` read_pid/log seams, Start/Stop instance specs, worker registry, leases/claims, orchestrator stop authority) — this module adds no scheduler/registry/lease/retry-process authority.
 
-## Verification
+## [SUPERSEDED / historical evidence] Verification (of the removed design)
 
 - RED: battery failed on module absence before implementation.
 - GREEN: `tests/test_worker_resilience.py` **33/33 PASS**; related regression `test_instance_monitor.py test_worker_lease.py test_worker_lease_recovery.py` **79/79 PASS**; `compileall`, `git diff --check`, strict UTF-8/no-U+FFFD PASS.
 
-## Out of scope / next integration step
+## [SUPERSEDED / historical evidence] Out of scope / next integration step (of the removed design)
 
 Wiring the policy layer into the running app's monitor loop (probe collectors + action executor + store path under `%LOCALAPPDATA%\A-Conductor\`) is the next bounded slice; requires GPT review of this candidate first. The wrapper script (`start.ps1`) hardening (tunnel-only restart instead of instance teardown) is a separate host-script change outside this repo candidate.
 

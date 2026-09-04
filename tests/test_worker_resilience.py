@@ -251,5 +251,11 @@ def test_manual_stop_suppresses_automatic_recovery(tmp_path):
     store2 = SQLiteSerenaConfigStore(tmp_path / "manual.sqlite")
     health2 = HealthServer()
     svc2, store2, orchestrator2 = _service(tmp_path, health2, store2)
-    _refresh(svc2)
-    assert orchestrator2.start_calls == []               # survives restart
+    health2.stop()  # reopened with the connector genuinely STOPPED
+    for _ in range(3):                                   # repeated refreshes
+        states2 = _refresh(svc2)
+        assert states2[0][1] is InstanceHealthState.STOPPED  # observed stopped
+        assert orchestrator2.start_calls == []           # zero auto restarts
+    reopened = store2.get_connector_recovery(NAME)
+    assert reopened.recovery_suppressed is True          # durable suppression
+    assert reopened.state is not ConnectorRecoveryState.READY
