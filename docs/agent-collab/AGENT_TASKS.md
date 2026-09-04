@@ -1,7 +1,7 @@
 # Agent Lane Index
 
 This file is a compact lane index, not the project source of truth.
-Authoritative state remains `CURRENT-WORK.md` → `handoff.md` → active work order → runtime/Git evidence.
+Authority order is: actual runtime/Git/process/DB state first; then the active claim/lease and exact work order; then `CURRENT-WORK.md` / `handoff.md` continuity summaries. Chat/session memory is never authority.
 
 ## Active lane checkpoint - 2026-09-03
 
