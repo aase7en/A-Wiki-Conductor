@@ -8,6 +8,10 @@ import pytest
 
 from a_conductor.worker_resilience import (
     BackoffSchedule,
+    RepositoryGate,
+    detect_fleet_outage,
+    plan_parallel_recovery,
+    worker_available_for_work,
     CircuitStatus,
     RecoveryAction,
     RestartBudget,
@@ -337,3 +341,100 @@ def test_logs_and_states_contain_no_credentials_or_tunnel_ids():
     # tunnel_ref is an opaque profile reference, never the tunnel token/id value
     assert "tunnel" in text  # reference kept
     assert "eyJ" not in text and "tdp-" not in text
+
+
+# ---------------- verifier-mandated explicit cases 2, 9, 20, 21, 22 ----------------
+
+def test_case2_simultaneous_five_worker_transport_failure_zero_worker_restart():
+    """All five workers lose transport in one probe round: not a single
+    action may restart a local worker process/component."""
+    states = {
+        "sunday-worker-1": WorkerDerivedState.REMOTE_SESSION_STALE,
+        "sunday-worker-2": WorkerDerivedState.TUNNEL_DOWN,
+        "sunday-worker-3": WorkerDerivedState.RATE_LIMITED,
+        "sunday-worker-4": WorkerDerivedState.ENDPOINT_MISSING,
+        "sunday-worker-5": WorkerDerivedState.REMOTE_SESSION_STALE,
+    }
+    plan = plan_parallel_recovery(
+        states,
+        circuit_by_worker={w: _circuit() for w in states},
+        budget_by_worker={w: RestartBudget(limit=3) for w in states},
+    )
+    assert set(plan) == set(states)
+    for action in plan.values():
+        assert action not in (RecoveryAction.RESTART_FROM_SPEC, RecoveryAction.RESTART_COMPONENT)
+
+
+def test_case9_unknown_dirty_state_blocks_restart_and_reassignment():
+    unknown_dirty = RepositoryGate(dirty_state_known=False, dirty_safe=False,
+                                   ownership_safe=True, task_state_known=True)
+    assert recovery_action(
+        WorkerDerivedState.PROCESS_DOWN, circuit=_circuit(),
+        budget=RestartBudget(limit=3), durable_launch_spec=True,
+        gate=unknown_dirty,
+    ) is RecoveryAction.AWAIT_OPERATOR
+    assert worker_available_for_work(WorkerDerivedState.HEALTHY, unknown_dirty) is False
+
+
+def test_case20_recovered_worker_must_pass_repository_ownership_gate_before_mutation():
+    good_gate = RepositoryGate(dirty_state_known=True, dirty_safe=True,
+                               ownership_safe=True, task_state_known=True)
+    dirty_unsafe = RepositoryGate(dirty_state_known=True, dirty_safe=False,
+                                  ownership_safe=True, task_state_known=True)
+    ownership_unsafe = RepositoryGate(dirty_state_known=True, dirty_safe=True,
+                                      ownership_safe=False, task_state_known=True)
+    assert worker_available_for_work(WorkerDerivedState.HEALTHY, good_gate) is True
+    assert worker_available_for_work(WorkerDerivedState.HEALTHY, dirty_unsafe) is False
+    assert worker_available_for_work(WorkerDerivedState.HEALTHY, ownership_unsafe) is False
+    assert worker_available_for_work(WorkerDerivedState.SUSPECT, good_gate) is False
+
+
+def test_case21_parallel_recovery_no_ownership_collision():
+    states = {
+        f"sunday-worker-{n}": WorkerDerivedState.PROCESS_DOWN for n in range(1, 6)
+    }
+    plan_a = plan_parallel_recovery(
+        states,
+        circuit_by_worker={w: _circuit() for w in states},
+        budget_by_worker={w: RestartBudget(limit=3) for w in states},
+        durable_spec_by_worker={w: True for w in states},
+    )
+    plan_b = plan_parallel_recovery(
+        states,
+        circuit_by_worker={w: _circuit() for w in states},
+        budget_by_worker={w: RestartBudget(limit=3) for w in states},
+        durable_spec_by_worker={w: True for w in states},
+    )
+    assert plan_a == plan_b                      # deterministic, replay-stable
+    assert set(plan_a) == set(states)            # every worker exactly one action
+    assert len(plan_a) == len(states)            # no worker planned twice
+    incomplete = {w: _circuit() for w in states}
+    incomplete.pop("sunday-worker-3")  # a worker without its circuit is a hard error
+    with pytest.raises(ValueError):
+        plan_parallel_recovery(
+            states,
+            circuit_by_worker=incomplete,
+            budget_by_worker={w: RestartBudget(limit=3) for w in states},
+        )
+
+
+def test_case22_outage_detected_deterministically_before_manual_intervention():
+    one_probe_round = {
+        "w1": _probes(remote_session_ready=False),
+        "w2": _probes(tunnel_reachable=False),
+        "w3": _probes(),
+        "w4": _probes(remote_http_status=429),
+        "w5": _probes(),
+    }
+    report = detect_fleet_outage(one_probe_round, min_affected=2)
+    assert report is not None
+    assert set(report.affected_workers) == {"w1", "w2", "w4"}
+    assert report.layers == ("REMOTE_SESSION", "TUNNEL", "RATE_LIMIT")
+    assert detect_fleet_outage(
+        {"w1": _probes(), "w2": _probes()}, min_affected=2
+    ) is None  # single-worker blip is not a fleet outage
+    assert detect_fleet_outage(
+        {"w1": _probes(mcp_ready=False), "w2": _probes(mcp_ready=False)},
+        min_affected=2,
+        transport_only=True,
+    ) is None  # local MCP failures are not a shared-transport outage

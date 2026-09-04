@@ -131,6 +131,7 @@ def recovery_action(
     circuit: "WorkerCircuit",
     budget: RestartBudget,
     durable_launch_spec: bool = False,
+    gate: "RepositoryGate | None" = None,
 ) -> RecoveryAction:
     if not isinstance(state, WorkerDerivedState):
         raise ValueError("state must be WorkerDerivedState")
@@ -138,6 +139,8 @@ def recovery_action(
         raise ValueError("circuit must be WorkerCircuit")
     if not isinstance(budget, RestartBudget):
         raise ValueError("budget must be RestartBudget")
+    if gate is not None and not isinstance(gate, RepositoryGate):
+        raise ValueError("gate must be RepositoryGate")
     if circuit.status is CircuitStatus.OPEN:
         return RecoveryAction.QUARANTINE
     if state is WorkerDerivedState.QUARANTINED:
@@ -154,6 +157,11 @@ def recovery_action(
         return RecoveryAction.RECONNECT_SESSION
     if state is WorkerDerivedState.TUNNEL_DOWN:
         return RecoveryAction.RESTART_TUNNEL
+    if gate is not None and not gate.mutation_permitted:
+        # Unknown/unsafe dirty state or ownership blocks every restart or
+        # reassignment of the local worker, independent of budget/spec.
+        if state in (WorkerDerivedState.MCP_DOWN, WorkerDerivedState.PROCESS_DOWN):
+            return RecoveryAction.AWAIT_OPERATOR
     if state is WorkerDerivedState.MCP_DOWN:
         return RecoveryAction.RESTART_COMPONENT
     if state is WorkerDerivedState.PROCESS_DOWN:
@@ -476,3 +484,126 @@ def record_recovery_event(
                 _SEEN_EVENTS.pop(oldest, None)
         _SEEN_EVENTS[key] = None
     return True
+
+
+@dataclass(frozen=True, slots=True)
+class RepositoryGate:
+    """Per-worker repository/ownership gate: mutation is permitted only when
+    the dirty state is known AND safe AND ownership/task state is known-safe."""
+
+    dirty_state_known: bool
+    dirty_safe: bool
+    ownership_safe: bool
+    task_state_known: bool
+
+    @property
+    def mutation_permitted(self) -> bool:
+        return (
+            self.dirty_state_known
+            and self.dirty_safe
+            and self.ownership_safe
+            and self.task_state_known
+        )
+
+
+def worker_available_for_work(
+    state: WorkerDerivedState, gate: RepositoryGate
+) -> bool:
+    """A recovered worker may accept work only when it is HEALTHY and the
+    repository/ownership gate permits mutation (Phase E availability rule)."""
+    if not isinstance(state, WorkerDerivedState):
+        raise ValueError("state must be WorkerDerivedState")
+    if not isinstance(gate, RepositoryGate):
+        raise ValueError("gate must be RepositoryGate")
+    return state is WorkerDerivedState.HEALTHY and gate.mutation_permitted
+
+
+def plan_parallel_recovery(
+    states_by_worker,
+    *,
+    circuit_by_worker,
+    budget_by_worker,
+    durable_spec_by_worker=None,
+    gates_by_worker=None,
+):
+    """Plan one bounded action per worker independently and deterministically.
+
+    No cross-worker interference: every input worker receives exactly one
+    action and planning is a pure function of its inputs (replay-stable).
+    A worker missing its circuit or budget is a hard input error, never a
+    silent skip, so independent recoveries cannot collide through omissions.
+    """
+    if not isinstance(states_by_worker, dict) or not states_by_worker:
+        raise ValueError("states_by_worker must be a non-empty mapping")
+    specs = durable_spec_by_worker or {}
+    gates = gates_by_worker or {}
+    plan = {}
+    for worker, state in states_by_worker.items():
+        circuit = circuit_by_worker.get(worker)
+        if not isinstance(circuit, WorkerCircuit):
+            raise ValueError(f"circuit missing for worker {worker!r}")
+        budget = budget_by_worker.get(worker)
+        if not isinstance(budget, RestartBudget):
+            raise ValueError(f"budget missing for worker {worker!r}")
+        plan[worker] = recovery_action(
+            state,
+            circuit=circuit,
+            budget=budget,
+            durable_launch_spec=bool(specs.get(worker, False)),
+            gate=gates.get(worker),
+        )
+    return plan
+
+
+_TRANSPORT_STATE_LAYERS = (
+    (WorkerDerivedState.TUNNEL_DOWN, "TUNNEL"),
+    (WorkerDerivedState.REMOTE_SESSION_STALE, "REMOTE_SESSION"),
+    (WorkerDerivedState.RATE_LIMITED, "RATE_LIMIT"),
+    (WorkerDerivedState.ENDPOINT_MISSING, "ENDPOINT"),
+)
+_SHARED_TRANSPORT_LAYERS = frozenset({"TUNNEL", "REMOTE_SESSION"})
+
+
+@dataclass(frozen=True, slots=True)
+class FleetOutageReport:
+    affected_workers: tuple[str, ...]
+    layers: tuple[str, ...]
+
+
+def detect_fleet_outage(
+    probes_by_worker,
+    *,
+    min_affected: int = 2,
+    transport_only: bool = False,
+) -> FleetOutageReport | None:
+    """Deterministically flag a shared-transport outage from ONE probe round.
+
+    A fleet outage exists when at least `min_affected` workers show a
+    transport-layer failure simultaneously (same probe round) — detected by
+    the monitoring loop before any operator notices missing surfaces. With
+    `transport_only`, only shared-transport layers (tunnel / remote session)
+    count; rate limits and endpoint misses are excluded.
+    """
+    if not isinstance(probes_by_worker, dict) or not probes_by_worker:
+        raise ValueError("probes_by_worker must be a non-empty mapping")
+    if isinstance(min_affected, bool) or not isinstance(min_affected, int) or min_affected < 1:
+        raise ValueError("min_affected must be positive")
+    layer_by_state = dict(_TRANSPORT_STATE_LAYERS)
+    affected: list[str] = []
+    layers: list[str] = []
+    for worker in sorted(probes_by_worker):
+        probes = probes_by_worker[worker]
+        if not isinstance(probes, WorkerHealthProbes):
+            raise ValueError("probe payload must be WorkerHealthProbes")
+        state = classify_worker(probes, first_failure_seen=False)
+        layer = layer_by_state.get(state)
+        if layer is None:
+            continue
+        if transport_only and layer not in _SHARED_TRANSPORT_LAYERS:
+            continue
+        affected.append(worker)
+        if layer not in layers:
+            layers.append(layer)
+    if len(affected) < min_affected:
+        return None
+    return FleetOutageReport(affected_workers=tuple(affected), layers=tuple(layers))
