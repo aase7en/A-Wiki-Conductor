@@ -3,6 +3,21 @@
 This file records routing evidence, not permanent model rankings.
 Re-check current upstream evidence before delegating material work to a named model.
 
+## Binding default execution policy
+
+For bounded READY repository implementation, GLM/ZCode is the preferred primary execution engine when current capability, readiness, authorization, admission, policy, ownership and result-destination gates all pass.
+
+This is a throughput routing default, not a permanent model ranking and not mutation authority.
+
+- GPT/integrator: architecture, trust/security boundaries, dependency order, risk classification, work-order/claim boundaries, cross-lane conflict, SSoT, final defect adjudication, acceptance, merge and release.
+- GLM/ZCode: repo archaeology, bounded implementation, mechanical refactor, test generation, debugging, batched repair and long-running goal/skills execution inside the exact assigned contract.
+- Independent reviewer: exact-SHA challenge/review for R2/R3 as required; no mutation of the frozen candidate.
+- Deterministic/native tools: tests, builds, hashes, schema/process/Git identity, CI and release evidence.
+
+R3 work is never delegated as "GLM first, GPT later" without GPT/integrator authority/failure-model framing before mutation. The intended pattern is GPT frames the trust boundary, GLM executes the bounded implementation, deterministic/independent evidence challenges it, and GPT accepts or rejects it.
+
+When automatic dispatch is unavailable, do not synthesize a long bespoke prompt from chat. Point the external agent at the durable WO/task packet. Zero-Relay later automates that same pointer/result path after R3 acceptance.
+
 ## Current researched candidate — GLM-5.3 MAX
 
 Research date: 2026-08-30.

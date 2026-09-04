@@ -4,17 +4,23 @@ Purpose: let GPT, GLM, Claude, Codex, local models, and future agents work on on
 
 ## 1. Entry sequence
 
-Before non-trivial work, read:
-1. `00-AGENT-ENTRY.md`
-2. `PROJECT-PLAN.md` + `DESIGN.md`
-3. `COLLAB.md`
-4. `CURRENT-WORK.md`
-5. `handoff.md`
-6. active `docs/work-orders/<id>.md`
-7. `DEFECT_LESSONS.md` before `src/` mutation
-8. this lane index only when multi-agent work is active
+All execution surfaces use the same startup core:
 
-Actual repo/runtime state overrides stale summaries.
+1. `00-AGENT-ENTRY.md`
+2. `PROJECT-GRAPH.yaml`
+3. `AGENTS.md`
+4. actual repository/worktree/remote/branch/HEAD/dirty/claim state
+5. `CURRENT-WORK.md`
+6. `handoff.md`
+7. active work order under `docs/work-orders/`
+8. task-relevant nodes selected by `PROJECT-GRAPH.yaml`
+9. `DEFECT_LESSONS.md` before `src/a_conductor/` mutation
+
+Actual repo/runtime state overrides stale summaries and chat memory.
+
+Do not mechanically require the full `PROJECT-PLAN.md` + `DESIGN.md` corpus for every task. The project graph makes them mandatory only when architecture/roadmap/trust-policy or UI/UX scope requires them.
+
+Default delivery ownership is `GPT governance -> GLM/ZCode bounded execution -> deterministic evidence -> independent review as required -> GPT acceptance/merge`. This role split is a routing default, not a provider authority bypass.
 
 ## 2. Safety gate
 

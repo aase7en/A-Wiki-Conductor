@@ -1,7 +1,7 @@
 # COLLAB — A-Conductor Multi-Agent Coordination
 
 > Binding coordination standard: A-Wiki `docs/protocols/cross-agent-work-orders.md`.
-> Every ChatGPT/GPT Work/A-Worker/Serena/Codex/external agent must read this file before non-trivial work.
+> Universal entry is `00-AGENT-ENTRY.md` -> `PROJECT-GRAPH.yaml` -> `AGENTS.md`. Read this file when the project graph selects multi-agent coordination, claims, delegation, or handoff.
 
 ## Lanes
 
@@ -35,6 +35,7 @@ These are shared coordination surfaces and must be changed by only one active wo
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
 | `WO-P1-154` fast execution / risk-tier workflow | GPT-5.6 Sol integrator | ACTIVE 2026-09-04 | Docs-only: `COLLAB.md`, `PROJECT-PLAN.md`, `docs/agent-collab/COLLAB_PROTOCOL.md`, `docs/agent-collab/CAPABILITY_MATRIX.md`, new `FAST_EXECUTION_PROTOCOL.md`, ODP roadmap, new Zero-Relay roadmap/WO155 planning docs, WO154. Explicitly excludes WO153-owned `AGENTS.md` / `CURRENT-WORK.md` / `handoff.md` / `DEFECT_LESSONS.md` and all product source/tests. |
+| `WO-P1-157` GLM-first execution / universal entry | GPT-B | ACTIVE / STACKED_AFTER_PR208 2026-09-04 | Docs/process only on branch `docs/wo-p1-157-glm-first-entry`, based on frozen PR208 head `0fd540c`; updates universal entry, Fast Execution role routing, collaboration/capability policy and Zero-Relay maturity wording. Does not mutate PR208 candidate, live `CURRENT-WORK.md`/`handoff.md`, WO155/WO156/ODP source, runtime, DB or credentials. Merge order: PR208 -> WO157. |
 | `WO-P1-155` Zero-Relay Accelerator | unassigned | QUEUED / P0 ACCELERATOR 2026-09-04 | User-prioritized zero-copy/paste GPT↔GLM execution fabric. No product-source claim until WO154 accepted, WO153 releases shared hotspots, and a fresh current-main repo/ownership gate pins ZRA-0 scope. |
 | `WO-P1-151` service/Terms authorization binding | GPT-5.6 Sol MAX | READY_FOR_INDEPENDENT_REVIEW 2026-09-03 | Exact repair `6b958f2...`; `provider_service_authorization.py`, focused tests, WO151, bounded `COLLAB.md`; pure/no-I/O only; no store/policy/runtime/live AiPASS. |
 | `WO-P1-116` / AHA-6B worker supply + elastic capacity | GPT-5.6 Sol integrator | RELEASED 2026-08-31 | PR #157 + closeout PR #158 merged; source lane released. |
@@ -100,6 +101,24 @@ These are shared coordination surfaces and must be changed by only one active wo
 `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md` is the binding delivery-speed policy introduced by WO154. Use the shortest R0/R1/R2/R3 loop that truthfully matches risk; safety/ownership/secret gates remain mandatory. Default WIP is at most 3 mutable implementation lanes + 1 independent read-only review lane. Freeze a candidate SHA before independent review, batch adversarial findings before review where practical, and avoid repeated full-suite/hosted-CI runs on intermediate SHAs unless risk or failure evidence justifies them.
 
 One logical WO should normally produce one feature PR. Extra RED/adversarial/repair PRs require a concrete remote-CI, independent-ownership, or stacked-dependency reason. Throughput is measured at accepted merge/release, not number of active worktrees.
+
+## GLM-first execution / GPT-governance default
+
+For READY bounded implementation, the default routing preference is now:
+
+`GPT frames contract/authority -> GLM/ZCode executes the owned lane -> deterministic evidence -> independent review when required -> GPT accepts/merges`
+
+This exploits ZCode goal/skills/long-running execution without spending GPT chat turns on repetitive implementation mechanics.
+
+Rules:
+- GLM/ZCode may continue implement/test/debug/repair/retest inside its exact WO without repeated human `continue` prompts.
+- GPT owns dependency order, risk tier, architecture/trust boundaries, claim/scope, cross-lane conflict, SSoT, final defect adjudication, merge and release.
+- R3 requires GPT authority/failure-model framing before GLM mutation; GPT is not merely an after-the-fact reviewer.
+- The durable WO/task packet is the prompt contract. Prefer one pointer command over regenerated long prompts.
+- Automatic Zero-Relay is optional transport acceleration. Until accepted, the human relays one pointer command; the integrator reads result/evidence directly from the declared destination.
+- Provider/model readiness never grants ownership, secret, destructive, replay or merge authority.
+
+Every new lane/session must enter through `00-AGENT-ENTRY.md` -> `PROJECT-GRAPH.yaml` -> `AGENTS.md` -> actual Git/claim state -> continuity core before mutation.
 
 ## Integrator routing + parallel-lane contract
 

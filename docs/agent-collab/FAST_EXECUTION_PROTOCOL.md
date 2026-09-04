@@ -5,6 +5,25 @@ Owner: GPT integrator / A-Sunday Conductor coordination layer
 Introduced by: `WO-P1-154`
 Goal: increase effective delivery throughput without reducing final assurance.
 
+## 0. Universal entry + GLM-first execution
+
+Every non-trivial lane begins with the binding startup path in `00-AGENT-ENTRY.md` and `docs/agent-collab/AGENT_ENTRY_PROTOCOL.md`:
+
+`ENTRY -> PROJECT GRAPH -> AGENTS -> ACTUAL GIT/CLAIM -> CURRENT-WORK -> HANDOFF -> ACTIVE WO -> TASK-RELEVANT NODES -> RISK/CLAIM`
+
+Do not force every agent to reload the full product/design corpus. `PROJECT-GRAPH.yaml` selects the additional authoritative nodes required by the task. `PROJECT-PLAN.md` is mandatory for architecture/roadmap/trust-policy work; `DESIGN.md` is mandatory for UI/UX; `DEFECT_LESSONS.md` remains mandatory before `src/a_conductor/` mutation.
+
+Default routing after a task is READY and safely claimed:
+
+- `R0`: current integrator/native tools may finish directly when this is cheapest;
+- `R1`: GLM/ZCode is the preferred implementation engine; GPT performs lightweight acceptance;
+- `R2`: GPT defines contract/boundaries -> GLM/ZCode implements and repairs -> independent exact-SHA review -> GPT accepts/merges;
+- `R3`: GPT defines authority/failure model before mutation -> GLM/ZCode performs bounded implementation -> strongest deterministic/adversarial review -> GPT final acceptance/release.
+
+GLM/ZCode may use its supported goal/skills loop to continue implementation, test, debug, repair and retest without waiting for repeated human `continue` messages. The WO/task packet is the authority. Harness features such as `/goal` or skills improve execution efficiency but do not grant scope, secret, destructive, replay, merge or acceptance authority.
+
+Do not regenerate long bespoke prompts when a durable task packet exists. Until Zero-Relay is accepted, use one pointer command to that packet. After Zero-Relay acceptance the same packet may be dispatched automatically; transport automation never changes the safety gates below.
+
 ## 1. Non-negotiable invariants
 
 Fast mode removes repeated ceremony. It does not remove:

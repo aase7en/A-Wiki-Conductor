@@ -2,7 +2,7 @@
 
 Date: 2026-09-04
 Owner: GPT-B / this chat
-Status: ACTIVE / STACKED_AFTER_PR208
+Status: READY_FOR_INDEPENDENT_REVIEW / STACKED_AFTER_PR208
 Priority: P0 delivery-throughput hardening
 Repository: A:\GitHub\A-Wiki-Conductor
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry
@@ -20,6 +20,8 @@ The workflow must reduce prompt relay and repeated ceremony without weakening re
 
 ## Allowed mutable scope
 
+- 00-AGENT-ENTRY.md
+- PROJECT-GRAPH.yaml
 - AGENTS.md
 - PROJECT-PLAN.md
 - COLLAB.md
@@ -66,3 +68,21 @@ The workflow must reduce prompt relay and repeated ceremony without weakening re
 - diff-check and strict UTF-8 pass.
 - independent exact-SHA review required because this is R2.
 - merge order: PR208 -> WO157.
+
+
+## Implementation checkpoint - 2026-09-04
+
+Claim established first on remote branch `docs/wo-p1-157-glm-first-entry` at commit `f2ba49f`.
+
+Implemented policy/docs changes:
+- added universal front door `00-AGENT-ENTRY.md`;
+- added task-selective `PROJECT-GRAPH.yaml`;
+- added `docs/agent-collab/AGENT_ENTRY_PROTOCOL.md`;
+- updated `AGENTS.md` so every execution surface uses the same startup core;
+- updated Fast Execution, provider-neutral collaboration, capability routing, top-level collaboration and product plan to the same GLM-first/GPT-governance model;
+- updated Zero-Relay roadmap maturity language so the current WO155 preview is treated as prototype/callability evidence, not production acceptance;
+- preserved current live `CURRENT-WORK.md` / `handoff.md` ownership with GPT-A; no mutation of those shared hotspots in this lane.
+
+Current workflow can be used before Zero-Relay is complete through one-pointer human relay. Zero-Relay later removes only the transport step.
+
+Deterministic docs validation passed: diff-check, strict UTF-8, YAML parse, required-path check, and secret-shape scan. Freeze exact SHA after this checkpoint commit; independent exact-SHA review remains required before merge.

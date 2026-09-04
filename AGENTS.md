@@ -4,15 +4,28 @@ A-Wiki Conductor is the project/repository name. **A-Sunday Conductor** is the p
 
 **Important/secret files live in the private Drive layer** `L:\My Drive\A-Wiki-Data` (junction `drive/` from A-Wiki): Tunnel IDs → `secrets/a-conductor-tunnels.md`, connector-deletion zip backups → `backups/a-conductor-instances/` (the app writes there automatically when the folder exists). Read that layer's `AGENTS.md` + `LAYOUT.md` before touching it; never copy secrets into this repo.
 
-Before any non-trivial work, every ChatGPT session, GPT Work task, A-Worker, Serena session, Codex task, or external AI/coding agent must read, in order:
+Before any non-trivial work, every ChatGPT session, GPT Work/Codex task, A-Worker, Serena/SunDay Worker session, ZCode/GLM goal, local model, or external coding agent must use the same startup path:
 
-1. `PROJECT-PLAN.md` — authoritative product vision, architecture, roadmap, constraints.
-2. `DESIGN.md` — authoritative product UI/interaction direction, responsive rules, Sunday Family logo/motion, and performance contract.
-3. `COLLAB.md` — A-Wiki cross-agent lanes, claims, work-order rules, pause/resume.
-4. `CURRENT-WORK.md` — current phase, active work order, checklist, blockers.
-5. `handoff.md` — latest verified resume state.
-6. The active `docs/work-orders/<id>.md`.
-7. `DEFECT_LESSONS.md` — บทเรียนจากข้อผิดพลาดที่เคยเกิดจริง (อ่านก่อนแก้โค้ดใน src/)
+1. `00-AGENT-ENTRY.md` - universal front door and role split.
+2. `PROJECT-GRAPH.yaml` - select only the workflow/design/architecture nodes relevant to the task.
+3. `AGENTS.md` - this repository contract.
+4. Verify actual repository/worktree/remote/branch/HEAD/dirty state plus current claim/ownership before trusting summaries.
+5. Read the continuity core: `CURRENT-WORK.md`, `handoff.md`, and the active work order under `docs/work-orders/`.
+6. Read the task-relevant nodes selected by `PROJECT-GRAPH.yaml`.
+7. Read `DEFECT_LESSONS.md` before any `src/a_conductor/` mutation.
+8. Classify R0/R1/R2/R3, prove non-overlap, claim the lane, then run the shortest truthful loop in `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`.
+
+`PROJECT-PLAN.md` and `DESIGN.md` are no longer mandatory large reads for every task. They remain authoritative and become mandatory when the project graph selects architecture/roadmap or UI/UX nodes. This reduces repeated startup cost without weakening continuity or safety.
+
+Default delivery model:
+
+`GPT GOVERNANCE -> GLM/ZCODE EXECUTION -> DETERMINISTIC VERIFY -> INDEPENDENT REVIEW AS REQUIRED -> GPT ACCEPT/MERGE`
+
+- GLM/ZCode is the preferred primary implementation engine for bounded READY work when capability/readiness/authorization/policy gates permit it.
+- GPT/integrator retains architecture, trust-boundary, dependency-order, SSoT, final defect adjudication, merge, release, and acceptance authority.
+- R3 work requires GPT/integrator authority/failure-model framing before mutation as well as final GPT acceptance.
+- A durable WO/task packet is the prompt contract. Do not regenerate a long bespoke prompt when a one-line pointer to that packet is sufficient.
+- Until Zero-Relay is accepted, the human fallback is one pointer command only; result copy-back is not required when the integrator can read the result destination directly.
 
 ## Core continuity rule
 
