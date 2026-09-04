@@ -549,6 +549,41 @@ A-Conductor
 Evidence -> Verify -> Review -> Repair -> Continue -> Complete
 ```
 
+### Delivery Throughput Objective — Risk-Tier Fast Execution
+
+Binding process: `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md` (`WO-P1-154`).
+
+The North Star requires not only correctness and resilience but also enough delivery throughput to finish the roadmap without coordination ceremony dominating implementation. A-Conductor therefore uses risk-proportionate execution rather than one maximum-assurance path for every change.
+
+Operating rules:
+- classify work as `R0 DOCS`, `R1 LOW`, `R2 NORMAL`, or `R3 CRITICAL` and run the shortest truthful assurance path;
+- repository/ownership/secret/destructive-operation gates are never skipped;
+- use targeted/relevant tests during implementation and reserve full-suite/hosted-CI/release E2E for the frozen candidate or release boundary unless broad coupling justifies earlier execution;
+- batch adversarial cases and repair confirmed findings before independent review where practical;
+- bind independent review to a frozen exact SHA rather than repeatedly reviewing intermediate SHAs;
+- default to one feature PR per WO and avoid temporary PR/worktree proliferation unless remote CI, independent ownership, or a stacked dependency requires it;
+- cap default WIP at 3 mutable implementation lanes + 1 independent read-only review lane;
+- route repetitive implementation/test/refactor/debug mechanics to suitable bounded coding agents such as GLM-5.3/ZCode when currently eligible, while GPT integrator retains architecture, trust-boundary, SSoT, merge/release and final acceptance authority;
+- deterministic tools/evidence remain completion authority regardless of model/provider;
+- same material failure twice without new evidence enters root-cause/no-progress handling instead of blind retry;
+- checkpoint canonical SSoT at meaningful boundaries rather than after every trivial edit.
+
+Delivery target: improve accepted-roadmap throughput by approximately **2–3x** while keeping blocking-defect escape rate and safety incidents no worse than the pre-WO154 baseline. If speed only moves defects downstream, the optimization is considered unsuccessful.
+
+### P0 Accelerator — Zero-Relay External-Agent Execution
+
+Binding roadmap: `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` (`WO-P1-155`).
+
+The user has explicitly prioritized eliminating manual copy/paste between GPT/A-Conductor and GLM/ZCode before broad continuation of the ODP roadmap. This is treated as an execution-fabric accelerator because every later roadmap node benefits from lower relay latency and less human context transfer.
+
+Target outcome:
+
+`task packet -> eligible/authorized GLM-capable route -> automatic supervised execution -> exact result/evidence ingestion -> verify/review -> automatic bounded repair/continue`
+
+The stable mailbox remains a fallback only. P0 success means human relay actions per accepted external-agent task = `0`. This priority does not authorize UI-click automation, secret exposure, provider-policy bypass, blind retry, or live provider execution without current readiness/auth/quota/admission evidence.
+
+Execution order is: accept WO154 + close WO153 shared-hotspot ownership -> ZRA-0 copied/sacrificial live-stack activation proof -> ZRA-1 one real authorized no-relay task -> ZRA-2 repair loop -> ZRA-3 automatic continuation -> ZRA-4 bounded parallel dispatch -> resume broad ODP delivery using the accepted zero-relay fabric.
+
 ### Relationship with A-Wiki Orchestrator
 
 A-Conductor and A-Wiki orchestrator are complementary layers and should be developed to cooperate rather than replace one another.
