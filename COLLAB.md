@@ -7,6 +7,7 @@
 
 | Lane | Theme | Owned scope | Must not touch without a separate claim |
 |---|---|---|---|
+| `WO-P1-156` worker/MCP transport resilience | GLM-5.3 MAX / ZCode | CLAIMED — frozen candidate 2026-09-04 | Incident recovery COMPLETE (5/5 workers restored from durable specs); new `worker_resilience.py` policy layer + 33 focused tests frozen in `A:\GitHub\_worktrees\A-Wiki-Conductor-wo156-worker-resilience` from main `68079e3`. Awaiting GPT review; no merge authority. |
 | `WO-P1-022` | ChatGPT / Sunday-Conducter | 2026-08-20 | `src/a_conductor/tunnel_boundaries.py`, `src/a_conductor/owned_process.py`, `src/a_conductor/__init__.py`, `tests/test_tunnel_boundaries.py`, `tests/test_owned_process.py`, `COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-022-tunnel-preflight-references.md` |
 | ARCH | architecture, contracts, ADRs, plans | `PROJECT-PLAN.md`, `docs/contracts/**`, `schemas/**`, architecture ADRs | runtime/UI implementation |
 | RUNTIME | worker/runtime/process/Serena adapters | future runtime/process source + runtime tests | UI and architecture hotspot files |
