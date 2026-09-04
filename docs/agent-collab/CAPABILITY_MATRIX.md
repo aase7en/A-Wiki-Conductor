@@ -61,7 +61,7 @@ WO154 routing profile:
 
 Model/provider names remain routing choices, never task semantics. Do not hard-code ZCode UI mode or thought-level labels into Conductor contracts because product options may change. Provider readiness/auth/quota/eligibility remains a separate fail-closed gate.
 
-## Current local availability evidence
+## Historical local availability evidence (pre-2026-09-04 queued ZCode execution)
 
 - Direct Z.ai GLM-5.3 invocation previously reached the provider but returned HTTP 429 / insufficient resource package.
 - Installed ZCode 0.16.5 previously reported `builtin:zai-coding-plan` unavailable with `coding_plan_not_entitled`; Start Plan exposed GLM-5.3-Flash rather than full GLM-5.3.
@@ -70,6 +70,12 @@ Model/provider names remain routing choices, never task semantics. Do not hard-c
 - Current Claude CLI configuration still points to an unavailable loopback route, and current router configuration exposes no proven live GLM/CoinTH profile. Earlier GLM-proxy readiness is historical, not current readiness.
 - Official Z.ai quota tooling still exposes `/api/monitor/usage/quota/limit`, but current upstream issue evidence says that endpoint lacks reset time. Because Conductor requires the full five-hour tuple, automatic dispatch remains fail-closed; the one-direction file bridge is the current safe fallback.
 - Model suitability, provider route/readiness, quota evidence, credential resolution and atomic provider admission remain independent authorities.
+
+## Current execution-surface evidence — 2026-09-04
+
+- GLM-5.3 on ZCode is operational as a sustained **human-routed queued external worker** in this project: the WO156 queue produced successive exact candidates on PR #218 and completed an independent read-only review of PR #208. This proves long-horizon queued execution capability on the user's ZCode surface.
+- That evidence does **not** prove A-Conductor automatic/headless dispatch into ZCode. `CAPABLE` and `HUMAN_ROUTED_EXECUTION_AVAILABLE` are separate from `AUTOMATIC_PROVIDER_ROUTE_READY`.
+- Automatic A-Conductor dispatch remains fail-closed on the existing provider-route, readiness, authorization, quota, credential-resolution, admission, task/result identity, and recovery authorities. Do not infer route readiness from model capability or successful human-routed ZCode work.
 
 ## Routing decision record
 

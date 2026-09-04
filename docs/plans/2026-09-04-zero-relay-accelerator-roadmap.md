@@ -66,13 +66,13 @@ Reuse existing accepted components; do not create a second scheduler/router/prov
 
 The stable mailbox remains the fallback when no callable provider route is eligible. It must not become a second task authority.
 
-## 4. Current actual-state evidence — 2026-09-04
+## 4. Execution-surface evidence — 2026-09-04 (dated snapshot; capability != automatic route readiness)
 
 Read-only host inspection from WO154 found:
 
 - current source contains provider configuration/admission/runtime assembly and supervised Claude Code harness paths;
 - `Claude Code 2.1.178` is installed and callable on this host;
-- `ZCode` is not currently exposed as a CLI on PATH;
+- `ZCode` was not exposed as a CLI on PATH in the captured shell snapshot; separately, later 2026-09-04 durable evidence proves GLM-5.3/ZCode queued human-routed execution is operational. This does not establish a supported automatic/headless A-Conductor dispatch API;
 - the current shell exposes no GLM/Anthropic provider route variables;
 - live `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` is schema version 1 and currently contains the older Control Center tables only; provider tables are absent in that live DB;
 - therefore current installed/live runtime is not yet exercising the accepted provider execution stack even though current source contains it.
@@ -109,17 +109,17 @@ Do not automate ZCode UI clicks by default. UI automation is brittle and must no
 
 ```text
 WO154 fast workflow accepted
-  -> WO153 ZCode lock closeout releases shared SSoT hotspots
-  -> ZRA-0 migration/activation proof
-  -> ZRA-1 single real no-relay task
-  -> ZRA-2 repair loop
-  -> ZRA-3 automatic continuation
+  -> (satisfied) WO153 ZCode lock closeout merged+RELEASED in main 68079e3; shared SSoT hotspots released before the WO154 fold-back
+  -> ZRA-0 formal acceptance [prerequisite sacrificial/valid-registry migration mechanism + evidence pre-proven; formal node remains dependency-gated until post-PR208 reconciliation]
+  -> ZRA-1 single real no-relay task  [preview/transport-harness evidence exists; FULL authorized/admitted production acceptance PENDING — do not treat as done]
+  -> ZRA-2 repair loop [only to the level actually proven; do not overclaim]
+  -> ZRA-3 automatic continuation [production continuation PENDING]
   -> ZRA-4 bounded parallel dispatch
   -> resume ODP roadmap using zero-relay execution fabric
   -> ZRA-5 ODP integration as the routing seam becomes ready
 ```
 
-ODP-1 may be reconciled/readied in parallel only when it does not consume a mutable lane needed by this P0 accelerator. Do not continue broad ODP feature expansion ahead of ZRA-1..3.
+ODP reconciliation/readiness may proceed in parallel only when it does not consume a mutable lane needed by this P0 accelerator or violate ownership/dependency gates. Do not continue broad ODP feature expansion ahead of ZRA-4 acceptance; ZRA-5 remains the later ODP integration seam.
 
 ## 8. Fail-closed conditions
 

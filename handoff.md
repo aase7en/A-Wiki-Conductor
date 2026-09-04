@@ -1,8 +1,17 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-04 - WO154 Fast Execution + WO155 Zero-Relay priority
+Last updated: 2026-09-04 - GLM-1 PR208 review repair / actual-state reconciliation
 
-## Current handoff override — 2026-09-04
+## PR208 review-repair handoff override — 2026-09-04 (authoritative)
+
+- PR #208 / WO154 is in REVIEW_REPAIR: independent GLM review of `0fd540c` returned P0=0/P1=0/P2=4; GPT-A accepted that review and opened `GPT1-WO154-REPAIR-001`, with one added capability-vs-route-readiness freshness repair. Owned branch: `fix/wo-p1-154-review-scope-ssot`. New SHA requires focused independent rereview + exact-head CI + GPT-A merge gate. NOT accepted.
+- ZRA-0 prerequisite migration mechanism/evidence is pre-proven on sacrificial/valid-registry DBs with live DB untouched, but the formal ZRA-0 node is NOT accepted/closed; it remains the first post-PR208 reconciliation node. WO155 itself is NOT accepted: ZRA-1 has preview/transport-harness evidence only; FULL authorized/admitted production acceptance PENDING (`653eba9` NOT accepted); ZRA-2..4 production acceptance PENDING.
+- WO156 / PR #218 frozen at `b8a145b9a6db4ca7e27fb105077094ce7ea3dd42`: GPT-A source/evidence rereview PASS; independent local recovery battery 124/124 + compileall/diff/UTF-8 PASS; no product-source delta. macOS/Ubuntu exact-head CI green; Windows main job was still running at the latest checkpoint. Deployment/canary remains a separate operational gate.
+- Lanes: GPT-B owns PR209 (`1b3f0609`, incident/canary docs; GPT-A docs/runbook audit PASS, exact-head Windows CI pending at latest checkpoint); PR211 4-lane SSoT (`e3549a8`); W1 canary isolated 0.0.14 path — do not mutate; GPT-A owns merge/release gates; another GPT lane owns ODP-1. PR204 remains green-CI at `9c90c87` but scope-blocked (3-file final scope vs 6-file diff). Protected root checkout stale/dirty — not a mutation surface.
+
+One next safe action: PR208 docs repair → freeze new SHA → focused independent rereview → exact-head CI → GPT-A merge gate → fresh actual-state reconciliation → resume next frozen roadmap node.
+
+## Previous handoff override — 2026-09-04 (historical; superseded above)
 
 - Remote `main = 68079e3d00047ca9432f0aefe3ad667f892614d0` after WO153 / PR #205 merged; WO153 is RELEASED.
 - Active workflow PR #208 / WO154 is composed with that main and carries the binding R0-R3 Fast Execution policy plus WO155 Zero-Relay P0 roadmap. It remains Draft/R2 until an independent exact-SHA review passes; CI must correspond to the latest frozen SHA.

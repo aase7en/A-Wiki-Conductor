@@ -2,12 +2,13 @@
 
 Date: 2026-09-04
 Owner: GPT-5.6 Sol integrator
-Status: READY_FOR_INDEPENDENT_REVIEW / R2 BINDING PROCESS CHANGE
+Status: REVIEW_REPAIR / R2 BINDING PROCESS CHANGE — independent review complete, repaired candidate pending focused rereview + exact-head CI
 Priority: P1 delivery throughput
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo154-fast-workflow`
 Branch: `docs/wo-p1-154-fast-execution-workflow`
-Base: `origin/main@1ae477f05e597c5027d22fdb2ca4f1496c070db7`
+Original claim base: `origin/main@1ae477f05e597c5027d22fdb2ca4f1496c070db7`
+Final review/merge base: `origin/main@68079e3d00047ca9432f0aefe3ad667f892614d0`
 Classification: `REUSE + WRAP + EXTEND`
 
 ## Goal
@@ -37,14 +38,17 @@ The target optimization is **remove repeated ceremony, not assurance**.
 - `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` (new)
 - `docs/work-orders/WO-P1-155-zero-relay-accelerator.md` (new queued P0 accelerator)
 - this work order
+- scope amendment (2026-09-04, post-WO153-release, per chronology below): `AGENTS.md`, `CURRENT-WORK.md`, `handoff.md` — continuity fold-back only
 
-## Protected / deferred scope
+## Protected / deferred scope — scope chronology (review repair 2026-09-04)
 
-Do not edit the following from WO154 because open WO153 already owns them:
-- `AGENTS.md`
-- `CURRENT-WORK.md`
-- `handoff.md`
-- `DEFECT_LESSONS.md`
+Scope history, recorded as chronology (GLM-B WO154-B1 repair):
+
+1. **Initial WO154 claim (2026-09-04, pre-amendment):** `AGENTS.md`, `CURRENT-WORK.md`, `handoff.md` and `DEFECT_LESSONS.md` were excluded because open WO153 owned those shared hotspots.
+2. **WO153 / PR #205 merged and RELEASED in base `68079e3...` before the final WO154 continuity fold-back**, releasing those hotspots.
+3. **Dated scope amendment (2026-09-04, before the final fold-back commit):** WO154 scope was amended to include the required continuity fold-back files — `AGENTS.md`, `CURRENT-WORK.md`, `handoff.md`.
+4. **`DEFECT_LESSONS.md` remained excluded and untouched** by WO154.
+5. The final candidate diff is therefore within the amended scope, not the initial one.
 
 Do not touch WO150/WO152 product source/tests or any live Worker/tunnel/provider state.
 
@@ -83,14 +87,22 @@ Do not touch WO150/WO152 product source/tests or any live Worker/tunnel/provider
 - verify no overlap with currently fetched WO150/WO152/WO153 changed-file sets
 - because this changes binding delivery/assurance policy, classify WO154 as `R2`; freeze an exact candidate SHA and require an independent read-only policy review before merge.
 
-## Verification checkpoint — pre-freeze 2026-09-04
+## [SUPERSEDED / pre-final-scope] Verification checkpoint — pre-freeze 2026-09-04
 
 - `git diff --check`: PASS.
-- UTF-8 decode across all 7 WO154 files: PASS.
+- Historical check only: UTF-8 decode passed for the then-current 7-file subset. This does **not** cover the final 12-file candidate and must not be used as final acceptance evidence.
 - secret-pattern scan: PASS.
 - changed-file overlap against fetched WO150/WO152/WO153 branches: `NO_OVERLAP` for every compared branch.
 - ZCode CLI is not available on this host (`ZCODE_CLI_NOT_AVAILABLE`), so an automatic independent GLM review cannot be invoked from this execution surface. R2 merge therefore remains blocked until a separate read-only reviewer examines the frozen candidate.
 
 ## Checkpoint
 
-WO154 is intentionally disjoint from WO153. `CURRENT-WORK.md` and `handoff.md` fold-back are deferred until WO153 releases those hotspot files; this work order is the authoritative checkpoint for WO154 meanwhile. The exact frozen commit SHA is recorded in the assurance packet/PR after commit, avoiding a self-referential SHA edit.
+WO154 was initially disjoint from WO153 while WO153 owned the shared hotspots. WO153 / PR #205 merged and RELEASED (already in base `68079e3...`) before the final WO154 continuity fold-back; the dated scope amendment above then added `AGENTS.md`, `CURRENT-WORK.md`, `handoff.md` so the fold-back was in scope. `DEFECT_LESSONS.md` stayed excluded and untouched. This work order is the authoritative checkpoint for WO154; the exact frozen commit SHA is recorded in the assurance packet/PR after commit, avoiding a self-referential SHA edit.
+
+## Review-repair checkpoint — 2026-09-04 (GLM-1)
+
+- Independent GLM exact-SHA review of candidate `0fd540c622d4539a2e809b8a441661896179f2ad` returned **CHANGES_REQUIRED, P0=0/P1=0/P2=4**: (1) declared-scope/final-diff chronology contradiction, (2) stale verification evidence for a 7-file subset instead of the final 12-file candidate, (3) ZRA-3 vs ZRA-4 broad-ODP resume-boundary inconsistency, and (4) WO153/ZRA-0 chronology presented incorrectly. GPT-A accepted the review as qualifying independent evidence.
+- GPT-A added one bounded freshness repair: separate proven GLM-5.3/ZCode human-routed queued execution capability from unproven automatic/headless A-Conductor route readiness; historical local provider snapshots are no longer labeled current capability evidence.
+- This repair preserves the final 12-file docs-only scope, marks historical checks as historical, aligns the canonical accelerator order `ZRA-0 -> ZRA-1 -> ZRA-2 -> ZRA-3 -> ZRA-4 -> broad ODP` with ZRA-5 later, records WO153 as RELEASED, and records ZRA-0 prerequisite migration evidence without falsely closing the formal node.
+- Status after this repair: **READY_FOR_FOCUSED_REREVIEW / R2 BINDING PROCESS CHANGE** — NOT accepted. The new repaired SHA requires focused independent rereview + exact-head CI + GPT-A merge gate.
+- Repair-worktree pre-freeze verification: final diff vs `main@68079e3...` = exactly the 12 declared docs files; `git diff --check` PASS; strict UTF-8/no-U+FFFD across all 12 PASS; added-line secret-shape scan 0 hits; `tests/test_operator_protocol.py` **37/37 PASS**; stale-status sweep for `ZRA-0 COMPLETE_VERIFIED`, `Current local availability evidence`, and ZRA-3 broad-ODP resume wording returned no hits. Exact frozen SHA is recorded in the PR/review evidence after commit to avoid a self-referential file edit.

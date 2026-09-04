@@ -1,8 +1,8 @@
 # WO-P1-155 — Zero-Relay Accelerator
 
 Date: 2026-09-04
-Owner: unassigned until WO154/WO153 release and fresh repo/ownership gate
-Status: QUEUED / P0 ACCELERATOR
+Owner: GPT-5.6 Sol integrator (gate authority); GLM preview/repair evidence exists (see First implementation claim status truth below)
+Status: PREVIEW / REVIEW-REPAIR EVIDENCE EXISTS — NOT ACCEPTED (ZRA-0 prerequisite migration mechanism/evidence pre-proven, but formal ZRA-0 node acceptance remains PENDING after PR208 accepted/merged; ZRA-1 full production acceptance PENDING)
 Priority: P0 delivery accelerator
 Repository: `A:\GitHub\A-Wiki-Conductor`
 Roadmap: `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md`
@@ -24,12 +24,9 @@ Do not create a second provider registry, scheduler, task authority, retry syste
 
 ## First implementation claim
 
-`ZRA-0` only after:
-1. WO154 fast-execution policy is accepted/merged;
-2. WO153 releases shared SSoT hotspots;
-3. fresh `origin/main`, worktree/branch/HEAD/dirty/claim/overlap gate passes;
-4. current live installed/runtime version is reconciled against source;
-5. no credential contents are required for copied/sacrificial DB migration proof.
+Historical claim gate (kept as chronology): `ZRA-0` required (1) WO154 acceptance, (2) WO153 hotspot release, (3) fresh repo/ownership gate, (4) installed/runtime reconciliation, (5) no credential contents for sacrificial-DB proof.
+
+**Status truth (review repair 2026-09-04):** condition (2) is satisfied (WO153 merged+RELEASED in `68079e3`); condition (1) remains open — PR #208 is in REVIEW_REPAIR, and tracked production acceptance stays gated on PR208 accepted/merged; preparatory preview work does not bypass that dependency. **ZRA-0 prerequisite migration mechanism/evidence is pre-proven** on sacrificial/valid-registry DBs with live DB untouched, but the formal ZRA-0 node is **NOT yet accepted/closed** under Issue #212 and must be reconciled against the post-PR208 main before closure. **ZRA-1 = preview/transport-harness evidence exists** (one-shot app-server session proof); FULL authorized/admitted production ZRA-1 acceptance remains PENDING, with unresolved review blockers (session-event identity, process-reap evidence, task-packet TOCTOU, streaming-output bounds, overclaimed ZRA-1/ZRA-3 authority) — `653eba9` is NOT accepted. **ZRA-2** only to the level actually proven. **ZRA-3** and **ZRA-4** production acceptance remain PENDING.
 
 ## Initial mutable scope
 
@@ -47,4 +44,4 @@ To be pinned by the ZRA-0 claim after current-main archaeology. Do not infer a b
 
 ## Acceptance frontier
 
-The accelerator is useful after ZRA-1 proves one real authorized no-relay task, but the P0 slice is not complete until ZRA-3 proves automatic result ingestion, bounded repair and continuation with no human relay.
+The accelerator is useful after ZRA-1 proves one real authorized no-relay task, but broad ODP resumes only after ZRA-4 proves automatic result ingestion, bounded repair, continuation, and bounded parallel lane isolation with no human relay. ZRA-5 remains the later ODP integration seam.
