@@ -54,6 +54,7 @@ Scope freeze: reliability defect only; no unrelated feature work.
    - SHA-256: `7D3C7D492CE84B52835E11865A835A8A5BCD4A669DEE84E169AA11B314DC952A`
    - WO-P1-097 previously classified `0.0.11` below the minimum safe version and set the floor to `>=0.0.12`; that work order records that upstream v0.0.12 preserves shared stdio MCP sessions after non-initialize response deadlines, matching the captured deadline/closed-stdio/tunnel-shutdown failure family.
    - WO-P1-097 intentionally did not replace the live shared binary because doing so while active workers were using it would create an outage. The deferred operational upgrade therefore remained unresolved on this machine.
+   - 2026-09-04 safe temp verification used the existing `Installer.install_tunnel_client(target_dir=...)` path without touching the live binary. The repository-verified latest candidate resolved to `0.0.14`, SHA-256 `FCC85A69EC0AD82518E4F8964F60C45E31787957782A0FC9C1B0C44E82D61B9B`; checksum validation passed and the temporary directory was removed.
 
 7. **ESET is a possible upstream trigger, not a confirmed root cause.**
    - ESET Service, Firewall Helper, and Inspect Connector are active.
