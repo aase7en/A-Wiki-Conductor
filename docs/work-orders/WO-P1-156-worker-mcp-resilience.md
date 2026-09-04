@@ -1,13 +1,38 @@
 # WO-P1-156 — Worker / MCP Transport Resilience Incident
 
-Date: 2026-09-04
-Owner: GLM-5.3 MAX / ZCode (incident investigator + implementer); GPT-5.6 Sol MAX remains acceptance authority
-Status: FROZEN CANDIDATE (implementation slice) / incident recovery COMPLETE
-Priority: P0 reliability defect (frozen-roadmap dependency, not a new feature)
-Repository: `A:\GitHub\A-Wiki-Conductor`
-Worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo156-worker-resilience`
-Branch: `fix/wo-p1-156-worker-resilience`
-Base: `origin/main@68079e3d00047ca9432f0aefe3ad667f892614d0`
+> **CURRENT TRUTH (2026-09-04, final repair / PR #218 — read this first).**
+> All earlier checkpoints below are **SUPERSEDED / historical evidence**.
+>
+> - The existing recovery authority on main already provides connector
+>   self-heal: `DesktopControlService.instance_states_cancellable` →
+>   `instance_health_state` → `reconcile_instance_recovery` →
+>   `ConnectorRecoveryCoordinator` → `SQLiteSerenaConfigStore` →
+>   `LocalInstanceOrchestrator`. It restarts only the connector instance from
+>   its durable spec; it does not dispatch/replay tasks or model execution
+>   (task/execution ambiguity has separate authorities: `transport_recovery.py`,
+>   `execution_deduplication.py`, `recovery_reconciliation.py`).
+> - **WO156 adds NO second recovery authority.** The branch-only
+>   `worker_resilience.py` policy module and the `recovery_hold_provider`
+>   production seam were removed in the final repair (Approach B, binding);
+>   `desktop_control.py` and `COLLAB.md` carry no WO156 delta vs base.
+> - Final PR delta is exactly two files: this work order and
+>   `tests/test_worker_resilience.py` (hermetic evidence/regression over the
+>   EXISTING authority: synthetic legacy-DB in-place migration preserving
+>   pre-existing data; production refresh exactly-once recovery with durable
+>   `restart_count`; no replay across service recreation; manual STOP durable
+>   suppression). Permanent CI is host-independent — no live
+>   `%LOCALAPPDATA%\A-Conductor\control-center.sqlite` dependency (the earlier
+>   copied-live-DB test failed Windows CI 33872995947 with FileNotFoundError on
+>   the runner and was removed).
+> - The remaining permanent defect is an **operational/deployment gap**, not a
+>   source gap: the installed app that produced the incident predates the
+>   accepted recovery source; the incident-evidence fleet still runs
+>   tunnel-client 0.0.11 while the source updater rejects <0.0.12 and the
+>   preferred verified upstream remains v0.0.13. Installed E2E / live rollout
+>   is a separate operational gate owned by GPT-A.
+> - Chaos evidence classification: CORE_PROCESS_PROOF (earlier W1 harness,
+>   labeled as such) and PRODUCTION_PATH_PROOF (hermetic temp-DB tests);
+>   INSTALLED_E2E not run, not claimed.
 
 ## Incident summary (evidence-based)
 
@@ -51,7 +76,7 @@ Wiring the policy layer into the running app's monitor loop (probe collectors + 
 
 Merges/pushes, broad kills, secret exposure, ZCode config edits, live-DB writes, new roadmap features, bypassing Zero-Relay/Fast-Roadmap ordering, self-acceptance.
 
-## Verification-slice checkpoint — 2026-09-04 (post-verifier)
+## [SUPERSEDED / historical evidence] Verification-slice checkpoint — 2026-09-04 (post-verifier)
 
 - Phase E executed per worker (all 5): post-restart process identity recorded (PID/PPID/executable/command/start time — tunnel-client.exe PIDs 15428/12144/30440/14224/27784, staggered starts 09:51:17–09:53:52 local); `/readyz` HTTP 200 on 18011–18015; MCP JSON-RPC is NOT exposed on the local port (`/` = Serena Web UI, `/mcp` = 404 — MCP flows through the tunnel session), so tool-level `initial_instructions`/`get_current_config` are exercised by the remote operator session, not locally — Active Project verified via the durable instance binding (`instance.ps1` ProjectPath + profile) instead.
 - Repository state per worker project: W1/W4 → A-Wiki-Conductor root `main@f4ecf9a`, dirty 1 known file (donate-qr asset; protected-root policy); W3 → env-wastewater-webapp `main@7d73814`, dirty 16 (project-local WIP; not safe for blind reassignment); W5 → sunday-estate-webapp `main@0096e65`, dirty 1 (estate continuity); W2 → Drive pharmacy folder is not a git repository (Drive-layer governed; PLAN/PROJECT docs present).
@@ -60,7 +85,7 @@ Merges/pushes, broad kills, secret exposure, ZCode config edits, live-DB writes,
 - Adversarial cases 2, 9, 20, 21, 22 added as EXPLICIT tests (RED first on missing APIs, then GREEN): five-worker simultaneous transport failure → zero worker-process restarts; unknown dirty state blocks restart/reassignment; recovered worker must pass the repository/ownership gate before mutation; parallel recovery planning is per-worker, deterministic, replay-stable and hard-errors on omissions (no ownership collision); deterministic single-probe-round fleet-outage detection (transport-only mode distinguishes shared-transport from local failures). New APIs: `RepositoryGate`, `worker_available_for_work`, `plan_parallel_recovery`, `detect_fleet_outage`, `recovery_action(gate=...)`.
 - Verification at this checkpoint: focused **38/38 PASS**; related regression **79/79 PASS**; compileall/diff-check/strict-UTF-8 PASS. Frozen candidate superseded by the next commit; review must pin the final SHA below.
 
-## GPT-review repair checkpoint — 2026-09-04
+## [SUPERSEDED / historical evidence] GPT-review repair checkpoint — 2026-09-04
 
 - All six review findings repaired RED-first (battery failed on missing APIs before implementation):
   - P1 SECURITY: persistence boundary now sanitizes — `sanitize_worker_recovery_state` (reuses `claude_code_harness._redact_text` for known values) plus a structural credential-shape detector (Authorization/Bearer/cookie/assignment keys/sk-/ghp_/github_pat_/ya29./xox/URL-userinfo) that neutralizes any matching free-text field wholesale; `WorkerRecoveryStore.upsert(state, redaction_values=...)` persists only the sanitized copy; adversarial test upserts deliberately credential-bearing `failure_reason`/`endpoint_ref`/`tunnel_ref` and inspects the persisted FILE.
@@ -72,7 +97,7 @@ Merges/pushes, broad kills, secret exposure, ZCode config edits, live-DB writes,
 - Incident during repair (recorded): a patch truncation removed the f6f9b4c tail section; restored verbatim from the frozen commit before continuing (verified by diff review + full suite).
 - Verification: `tests/test_worker_resilience.py` **42/42 PASS**; related `test_instance_monitor + test_worker_lease + test_worker_lease_recovery` **78 passed / 1 pre-existing skip**; `compileall src/a_conductor` PASS; `git diff --check` PASS; strict UTF-8 PASS. Frozen candidate: next commit; supersedes `f6f9b4c` for review.
 
-## Authority-reconciliation checkpoint — 2026-09-04 (second GPT review)
+## [SUPERSEDED / historical evidence] Authority-reconciliation checkpoint — 2026-09-04 (second GPT review)
 
 - Reconciled around the ONE recovery authority already in the base (`connector_recovery.py`, in-base since 18ce7f3/0a3dc4d/dd1d404; `instance_recovery` table in `SQLiteSerenaConfigStore`).
 - Classification: REMOVED `WorkerRecoveryStore` (+JSON persistence, durable-event ledger, sanitizer), `BackoffSchedule`, `WorkerCircuit`, `RestartBudget` — all second-authority duplicates of coordinator/store responsibilities. KEPT as pure policy: `WorkerHealthProbes`/`classify_worker`/`WorkerDerivedState`, `RepositoryGate`/`worker_available_for_work`, `WorkerProcessIdentity`, `detect_fleet_outage` (+TRANSPORT_AMPLIFIED). EXTENDED: `CoordinatorDisposition`/`coordinator_disposition` bridge (closed-set reason codes; 429/404/stale → READY observations with recorded reason → zero restarts; tunnel/MCP/process → UNEXPECTED_STOPPED → exactly one authority-governed recovery; ownership/ambiguity/quarantine → suppress), `ObservationDeduper` transition gate (duplicate down-state observations never re-report → no duplicate restarts), `plan_parallel_recovery` over dispositions.
@@ -83,7 +108,7 @@ Merges/pushes, broad kills, secret exposure, ZCode config edits, live-DB writes,
 - ESET: present (`ekrn` PID 2596) but ZERO ESET/ekrn provider events or AV detections matching tunnel/serena in the Application log over 3 days → **ESET_TRIGGER=UNCONFIRMED**. Proposed smallest A/B (operator-executed, no exclusions, no engine changes): enable ESET per-process/detection logging export for one monitored window; correlate each empty-code tunnel exit timestamp against the ESET detection log — a single co-timestamped detection confirms; absence across ≥3 exits rejects.
 - Frozen candidate: next commit (supersedes b46f7dd for review).
 
-## GLM-A R3 repair checkpoint — 2026-09-04 (third GPT review)
+## [SUPERSEDED / historical evidence] GLM-A R3 repair checkpoint — 2026-09-04 (third GPT review)
 
 - Blocking findings repaired:
   - P1 no-production-caller: `worker_resilience.py` reduced to the production-wired policy only — `recovery_hold_active()` + the EXTERNAL_CONTROL_SURFACE contract. All consumer-less shapes DELETED: classify_worker/WorkerHealthProbes/WorkerDerivedState, CoordinatorDisposition bridge, plan_parallel_recovery, ObservationDeduper, RepositoryGate/worker_available_for_work, WorkerProcessIdentity, detect_fleet_outage/FleetOutageReport. Production call graph (existing, now the only path): `DesktopControlService.instance_states_cancellable` → `instance_health_state` (real /readyz HTTP probe) → `reconcile_instance_recovery` → `ConnectorRecoveryCoordinator` → `SQLiteSerenaConfigStore.instance_recovery` → `LocalInstanceOrchestrator`.
@@ -95,7 +120,7 @@ Merges/pushes, broad kills, secret exposure, ZCode config edits, live-DB writes,
 - Overlap: changed files are `src/a_conductor/desktop_control.py`, `src/a_conductor/worker_resilience.py`, `tests/test_worker_resilience.py` (+this doc). PR #209 (`docs/wo-p1-156-worker-tunnel-incident` @ cad47bc9) is docs-only — zero file overlap; PR #208 (0fd540c) untouched; no live surfaces touched.
 - Frozen candidate: next commit (supersedes 55de87f for review).
 
-## PRODUCTION_PATH_PROOF checkpoint — 2026-09-04 (GLM1 evidence elevation)
+## [SUPERSEDED / historical evidence] PRODUCTION_PATH_PROOF checkpoint — 2026-09-04 (GLM1 evidence elevation)
 
 - Elevated the production-path proof to a **real copied/sacrificial Control Center DB**: read-only SQLite backup of the live DB (opened only `mode=ro`) into a temp copy; the live DB is asserted byte-identical (mtime+size) before vs after the whole test.
 - The copied DB is the genuine legacy schema (12 tables, `workers` present, **no `instance_recovery`**) — the production `SQLiteSerenaConfigStore.initialize()` migrates the copy in-place (adds `instance_recovery`, drops nothing), then the real `DesktopControlService.instance_states_cancellable` refresh loop drives: real `/readyz` HTTP observation → existing `ConnectorRecoveryCoordinator` → exactly one recovery with durable `restart_count` **inside the copy**; transient ownership hold performs zero new restarts and never persists manual-stop suppression (`recovery_suppressed` False); hold clears → exactly one new recovery (`restart_count` 2); manual-stop durability and same-DB service recreation already proven in the prior battery.

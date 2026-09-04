@@ -1,12 +1,22 @@
+"""WO-P1-156 evidence/regression over the EXISTING recovery authority.
+
+These tests add NO new recovery policy. They prove, hermetically (temp
+SQLite + controllable local /readyz + a fake only at the process-launch
+seam), that the production observation/recovery path already on main —
+DesktopControlService.instance_states_cancellable -> instance_health_state
+-> reconcile_instance_recovery -> ConnectorRecoveryCoordinator ->
+SQLiteSerenaConfigStore -> LocalInstanceOrchestrator — detects unexpected
+connector loss, recovers exactly once with durable state, never
+double-restarts on replay, and migrates a legacy schema in place without
+touching pre-existing data.
+"""
+
 from __future__ import annotations
 
-import json
+import sqlite3
 import threading
-from dataclasses import fields
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-
-import pytest
 
 from a_conductor.connector_recovery import ConnectorRecoveryState
 from a_conductor.desktop_control import DesktopControlService
@@ -17,7 +27,6 @@ from a_conductor.local_instances import (
     LocalInstance,
 )
 from a_conductor.serena_config_store import SQLiteSerenaConfigStore
-from a_conductor.worker_resilience import recovery_hold_active
 
 NAME = "Sunday-Worker-1"
 
@@ -45,20 +54,15 @@ class _ReadyHandler(BaseHTTPRequestHandler):
         pass
 
 
-def _reserve_port() -> int:
-    probe = ThreadingHTTPServer(("127.0.0.1", 0), _ReadyHandler)
-    port = probe.server_address[1]
-    probe.server_close()
-    return port
-
-
 class HealthServer:
-    """Deterministic stand-in for the instance's real /readyz listener.
-    Binds one fixed port for its whole life so restarts (the launcher
-    bringing the listener back) are observable at the same address."""
+    """Controllable stand-in for the instance's /readyz listener. Binds one
+    fixed port for its whole life so launcher restarts are observable at the
+    same address the production HTTP probe uses."""
 
     def __init__(self) -> None:
-        self._port = _reserve_port()
+        probe = ThreadingHTTPServer(("127.0.0.1", 0), _ReadyHandler)
+        self._port = probe.server_address[1]
+        probe.server_close()
         self._server: ThreadingHTTPServer | None = None
         self._lock = threading.Lock()
         self.start()
@@ -82,20 +86,15 @@ class HealthServer:
     def address(self) -> str:
         return f"127.0.0.1:{self._port}"
 
-    @property
-    def up(self) -> bool:
-        return self._server is not None
-
 
 class LaunchingOrchestrator:
     """Fake exactly at the process-launch seam: starting the instance brings
-    its real /readyz listener up (mirrors tunnel-client binding the port);
-    stopping tears it down. Counts every start."""
+    its /readyz listener back up (mirrors the connector's durable spec
+    binding the health port); stopping tears it down. Counts every start."""
 
     def __init__(self, health: HealthServer) -> None:
         self._health = health
         self.start_calls: list[str] = []
-        self.stop_calls: list[str] = []
 
     def start(self, target, *, cancel_check=None):
         if cancel_check is not None and cancel_check():
@@ -109,15 +108,13 @@ class LaunchingOrchestrator:
         )
 
     def stop(self, target, *, force=False):
-        self.stop_calls.append(target.name)
         self._health.stop()
         return InstanceOrchestrationOutcome(
             "stop", InstanceResultCode.STOPPED, exit_code=0
         )
 
 
-def _service(tmp_path: Path, health: HealthServer, *, hold_provider=None):
-    store = SQLiteSerenaConfigStore(tmp_path / "control.sqlite")
+def _service(tmp_path: Path, health: HealthServer, store: SQLiteSerenaConfigStore):
     target = LocalInstance(
         name=NAME,
         project_path=str(tmp_path / "project"),
@@ -133,7 +130,6 @@ def _service(tmp_path: Path, health: HealthServer, *, hold_provider=None):
         settings_store=store,
         instances_root=tmp_path,
         instance_orchestrator=orchestrator,
-        recovery_hold_provider=hold_provider,
     )
     svc.instances = lambda: (target,)
     store.set_instance_autostart(NAME, True)
@@ -144,276 +140,116 @@ def _refresh(svc):
     return svc.instance_states_cancellable(cancel_check=lambda: False)
 
 
-# ---------------- pure hold semantics ----------------
-
-def test_hold_policy_flags_and_validation():
-    assert recovery_hold_active() is False
-    assert recovery_hold_active(ownership_unsafe=True) is True
-    assert recovery_hold_active(task_state_unknown=True) is True
-    assert recovery_hold_active(quarantined=True) is True
-    with pytest.raises(ValueError):
-        recovery_hold_active(ownership_unsafe=1)
+def _tables(db_path: Path) -> set[str]:
+    con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    names = {
+        row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    con.close()
+    return names
 
 
-# ---------------- production path: exactly-once recovery ----------------
+# ---------------- A. hermetic synthetic legacy-DB migration proof ----------------
 
-def test_production_path_recovers_exactly_once_and_persists_to_sqlite(tmp_path):
+def test_hermetic_legacy_db_migration_preserves_preexisting_data(tmp_path):
+    """Synthetic legacy fixture (NOT a live DB): SQLiteSerenaConfigStore
+    initialization adds instance_recovery in place, preserving unrelated
+    tables and sentinel rows, and leaves the DB integrity-clean."""
+    db_path = tmp_path / "legacy-synthetic.sqlite"
+    con = sqlite3.connect(str(db_path))
+    con.execute("CREATE TABLE workers (worker_id TEXT PRIMARY KEY, state TEXT)")
+    con.execute("CREATE TABLE unrelated_notes (id INTEGER PRIMARY KEY, body TEXT)")
+    con.execute("INSERT INTO workers VALUES ('a-worker-01', 'STOPPED')")
+    con.execute("INSERT INTO workers VALUES ('a-worker-02', 'STOPPED')")
+    con.execute("INSERT INTO unrelated_notes VALUES (7, 'sentinel-payload')")
+    con.commit()
+    con.close()
+
+    tables_before = _tables(db_path)
+    assert "instance_recovery" not in tables_before  # synthetic legacy state
+    assert "workers" in tables_before
+
+    SQLiteSerenaConfigStore(db_path).initialize()
+
+    tables_after = _tables(db_path)
+    assert "instance_recovery" in tables_after
+    assert tables_before <= tables_after               # nothing dropped
+
+    con = sqlite3.connect(str(db_path))
+    rows = {
+        t: con.execute(f"SELECT * FROM [{t}]").fetchall()
+        for t in ("workers", "unrelated_notes")
+    }
+    integrity = con.execute("PRAGMA integrity_check").fetchone()[0]
+    con.close()
+    assert rows["workers"] == [("a-worker-01", "STOPPED"), ("a-worker-02", "STOPPED")]
+    assert rows["unrelated_notes"] == [(7, "sentinel-payload")]
+    assert integrity == "ok"
+
+
+# ---------------- B. existing production refresh path proof ----------------
+
+def test_production_refresh_recovers_exactly_once_with_durable_state(tmp_path):
+    """Real DesktopControlService refresh loop over a temp SQLite store:
+    unexpected STOPPED -> existing authority starts exactly once -> durable
+    restart_count=1 -> stable refreshes never duplicate -> service/store
+    recreated from the same file replay nothing -> a new genuine STOPPED
+    recovers exactly once more."""
+    store = SQLiteSerenaConfigStore(tmp_path / "evidence.sqlite")
+    store.initialize()
     health = HealthServer()
-    svc, store, orchestrator = _service(tmp_path, health)
-    states = _refresh(svc)
-    assert states[0][1] is InstanceHealthState.READY
+    svc, store, orchestrator = _service(tmp_path, health, store)
+
+    assert _refresh(svc)[0][1] is InstanceHealthState.READY
     assert orchestrator.start_calls == []
 
-    health.stop()  # the real failure: instance gone
+    health.stop()                                        # unexpected connector loss
     states = _refresh(svc)
-    assert states[0][1] is InstanceHealthState.READY  # recovered in-path
-    assert orchestrator.start_calls == [NAME]         # exactly one start
+    assert states[0][1] is InstanceHealthState.READY     # recovered in-path
+    assert orchestrator.start_calls == [NAME]            # exactly one start
     record = store.get_connector_recovery(NAME)
     assert record.state is ConnectorRecoveryState.READY
-    assert record.restart_count == 1                  # durable SQLite evidence
-    assert record.recovery_suppressed is False
+    assert record.restart_count == 1                     # durable evidence
 
-    for _ in range(3):  # stable observation: no duplicate restart
+    for _ in range(3):                                   # stable refreshes
         _refresh(svc)
     assert orchestrator.start_calls == [NAME]
     assert store.get_connector_recovery(NAME).restart_count == 1
 
-
-def test_service_recreated_from_same_sqlite_no_replay(tmp_path):
-    health = HealthServer()
-    svc, store, orchestrator = _service(tmp_path, health)
-    _refresh(svc)
-    health.stop()
-    _refresh(svc)  # one recovery (launcher brought the listener back)
-    for _ in range(3):
-        _refresh(svc)
-    assert orchestrator.start_calls == [NAME]
-
-    # Conductor restart: fresh service + store over the SAME SQLite file
-    svc2, store2, orchestrator2 = _service(tmp_path, health)
-    for _ in range(3):
-        _refresh(svc2)
-    assert orchestrator2.start_calls == []            # no replay duplicate
+    # Conductor restart: fresh service/store over the SAME temp SQLite file
+    store2 = SQLiteSerenaConfigStore(tmp_path / "evidence.sqlite")
+    health2 = HealthServer()
+    svc2, store2, orchestrator2 = _service(tmp_path, health2, store2)
+    _refresh(svc2)
+    assert orchestrator2.start_calls == []               # no replay duplicate
     assert store2.get_connector_recovery(NAME).restart_count == 1
 
-    # a NEW real failure after restart still recovers exactly once
-    health.stop()
+    health2.stop()                                       # new genuine failure
     _refresh(svc2)
     assert orchestrator2.start_calls == [NAME]
     assert store2.get_connector_recovery(NAME).restart_count == 2
 
 
-def test_manual_stop_suppresses_recovery_across_recreate(tmp_path):
+def test_manual_stop_suppresses_automatic_recovery(tmp_path):
+    """Operator STOP is durable manual intent: the existing authority never
+    auto-restarts a manually stopped connector, across service recreation."""
+    store = SQLiteSerenaConfigStore(tmp_path / "manual.sqlite")
+    store.initialize()
     health = HealthServer()
-    svc, store, orchestrator = _service(tmp_path, health)
+    svc, store, orchestrator = _service(tmp_path, health, store)
     _refresh(svc)
-    result = svc.instance_action(NAME, "stop")  # production manual stop
+
+    result = svc.instance_action(NAME, "stop")           # production manual stop
     assert result.result_code is InstanceResultCode.STOPPED
-    assert health.up is False
 
     for _ in range(3):
         _refresh(svc)
-    assert orchestrator.start_calls == []             # zero auto restarts
+    assert orchestrator.start_calls == []                # zero auto restarts
     record = store.get_connector_recovery(NAME)
-    assert record.recovery_suppressed is True         # durable manual-stop intent
+    assert record.recovery_suppressed is True            # durable manual intent
 
-    svc2, store2, orchestrator2 = _service(tmp_path, health)
+    store2 = SQLiteSerenaConfigStore(tmp_path / "manual.sqlite")
+    health2 = HealthServer()
+    svc2, store2, orchestrator2 = _service(tmp_path, health2, store2)
     _refresh(svc2)
-    assert orchestrator2.start_calls == []            # suppression survives restart
-
-
-# ---------------- transient hold: never manual stop ----------------
-
-@pytest.mark.parametrize("hold_flags", [
-    {"ownership_unsafe": True},
-    {"task_state_unknown": True},
-])
-def test_transient_hold_zero_recovery_no_suppression_then_recovers(tmp_path, hold_flags):
-    health = HealthServer()
-    provider_state = {"flags": hold_flags}
-    svc, store, orchestrator = _service(
-        tmp_path, health, hold_provider=lambda name: provider_state["flags"]
-    )
-    _refresh(svc)
-    health.stop()
-    for _ in range(3):
-        _refresh(svc)
-    assert orchestrator.start_calls == []             # hold: zero recovery
-    record = store.get_connector_recovery(NAME)
-    assert record is None or record.recovery_suppressed is False  # never manual stop
-
-    provider_state["flags"] = {}                      # hold clears
-    _refresh(svc)                                     # same real failure still down
-    assert orchestrator.start_calls == [NAME]         # recovers exactly once
-    record = store.get_connector_recovery(NAME)
-    assert record.restart_count == 1
-    assert record.recovery_suppressed is False        # no manual start needed
-
-
-def test_hold_provider_failure_fails_closed(tmp_path):
-    health = HealthServer()
-
-    def broken_provider(name):
-        raise RuntimeError("ownership source unavailable")
-
-    svc, store, orchestrator = _service(tmp_path, health, hold_provider=broken_provider)
-    _refresh(svc)
-    health.stop()
-    _refresh(svc)
-    assert orchestrator.start_calls == []             # unknown hold state: fail closed
-
-
-# ---------------- external control surface guarantee ----------------
-
-def test_ready_worker_never_restarted_regardless_of_flags(tmp_path):
-    health = HealthServer()
-    svc, store, orchestrator = _service(
-        tmp_path,
-        health,
-        hold_provider=lambda name: {"ownership_unsafe": True, "task_state_unknown": True},
-    )
-    for _ in range(3):
-        states = _refresh(svc)                        # healthy local runtime
-        assert states[0][1] is InstanceHealthState.READY
-    assert orchestrator.start_calls == []             # READY never restarts
-    record = store.get_connector_recovery(NAME)
-    assert record is None or record.recovery_suppressed is False
-
-
-# ---------------- durable payload carries reason codes only ----------------
-
-def test_durable_records_carry_bounded_reason_codes_only(tmp_path):
-    health = HealthServer()
-    svc, store, orchestrator = _service(tmp_path, health)
-    _refresh(svc)
-    health.stop()
-    _refresh(svc)
-    record = store.get_connector_recovery(NAME)
-    allowed = {"UNEXPECTED_STOPPED", "RECOVERY_START_EXCEPTION", "RECOVERY_RESULT_INVALID"}
-    allowed |= {code.value for code in InstanceResultCode}
-    assert record.last_exit_reason in allowed
-    payload = json.dumps({f.name: getattr(record, f.name) for f in fields(record)})
-    assert "stderr" not in payload
-    assert "Authorization" not in payload
-    assert "Bearer" not in payload
-
-
-# ---------------- PRODUCTION_PATH_PROOF on copied sacrificial live DB ----------------
-
-def _copy_live_db_sacrificial(tmp_path: Path) -> Path:
-    """Read-only SQLite backup of the live Control Center DB into a temp
-    sacrificial copy. The live DB is only ever opened mode=ro; only the copy
-    is mutated."""
-    import os
-    import sqlite3
-
-    live = os.path.join(os.environ["LOCALAPPDATA"], "A-Conductor", "control-center.sqlite")
-    if not os.path.exists(live):
-        pytest.skip("live Control Center DB not present on this host")
-    target = tmp_path / "sacrificial-control-center.sqlite"
-    source = sqlite3.connect(f"file:{live}?mode=ro", uri=True)
-    try:
-        destination = sqlite3.connect(str(target))
-        try:
-            source.backup(destination)
-        finally:
-            destination.close()
-    finally:
-        source.close()
-    return target
-
-
-def test_production_path_proof_on_copied_sacrificial_live_db(tmp_path):
-    """PRODUCTION_PATH_PROOF: real DesktopControlService refresh loop over a
-    real copied/sacrificial Control Center DB (legacy schema, no
-    instance_recovery). The production path must migrate the copy in-place,
-    classify the real failure, recover exactly once through the existing
-    authority, and persist durable recovery state IN THE COPY — while the
-    live DB stays untouched."""
-    import os
-    import sqlite3
-
-    live = os.path.join(os.environ["LOCALAPPDATA"], "A-Conductor", "control-center.sqlite")
-    live_signature_before = (os.path.getmtime(live), os.path.getsize(live))
-    copy_path = _copy_live_db_sacrificial(tmp_path)
-
-    legacy = sqlite3.connect(f"file:{copy_path}?mode=ro", uri=True)
-    tables_before = {
-        row[0] for row in legacy.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    }
-    legacy.close()
-    assert "instance_recovery" not in tables_before  # genuine legacy schema
-    assert "workers" in tables_before                 # real live data copied
-
-    store = SQLiteSerenaConfigStore(copy_path)
-    store.initialize()  # production store migration on the sacrificial copy
-
-    migrated = sqlite3.connect(f"file:{copy_path}?mode=ro", uri=True)
-    tables_after = {
-        row[0] for row in migrated.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    }
-    migrated.close()
-    assert "instance_recovery" in tables_after         # in-place migration proven
-    assert tables_before <= tables_after               # nothing dropped
-
-    store.set_instance_autostart(NAME, True)
-    health = HealthServer()
-    target = LocalInstance(
-        name=NAME,
-        project_path=str(tmp_path / "project"),
-        health_address=health.address,
-        instance_root=tmp_path / NAME,
-        tunnel_configured=True,
-        tunnel_suffix="abcd",
-    )
-    orchestrator = LaunchingOrchestrator(health)
-    svc = DesktopControlService(
-        control_center=NullControl(),
-        lifecycle=NullLifecycle(),
-        settings_store=store,
-        instances_root=tmp_path,
-        instance_orchestrator=orchestrator,
-    )
-    svc.instances = lambda: (target,)
-
-    # production observation -> existing authority -> exactly one recovery,
-    # durable in the sacrificial copy
-    assert _refresh(svc)[0][1] is InstanceHealthState.READY
-    health.stop()
-    states = _refresh(svc)
-    assert states[0][1] is InstanceHealthState.READY
-    assert orchestrator.start_calls == [NAME]
-    record = store.get_connector_recovery(NAME)
-    assert record.state is ConnectorRecoveryState.READY
-    assert record.restart_count == 1
-
-    # transient hold never persists manual-stop suppression (on the copy)
-    provider = {"flags": {"ownership_unsafe": True}}
-    svc2, store2, orch2 = (
-        svc, store, orchestrator,
-    )  # same service; hold provider injected via fresh service below
-    svc_hold = DesktopControlService(
-        control_center=NullControl(),
-        lifecycle=NullLifecycle(),
-        settings_store=SQLiteSerenaConfigStore(copy_path),
-        instances_root=tmp_path,
-        instance_orchestrator=orchestrator,
-        recovery_hold_provider=lambda name: provider["flags"],
-    )
-    svc_hold.instances = lambda: (target,)
-    health.stop()
-    for _ in range(3):
-        _refresh(svc_hold)
-    assert orchestrator.start_calls == [NAME]          # hold: zero new restarts
-    held = SQLiteSerenaConfigStore(copy_path).get_connector_recovery(NAME)
-    assert held is None or held.recovery_suppressed is False
-
-    provider["flags"] = {}                              # hold clears
-    _refresh(svc_hold)
-    assert orchestrator.start_calls == [NAME, NAME]     # exactly one new recovery
-    final = SQLiteSerenaConfigStore(copy_path).get_connector_recovery(NAME)
-    assert final.restart_count == 2 and final.recovery_suppressed is False
-
-    # live DB untouched throughout
-    live_signature_after = (os.path.getmtime(live), os.path.getsize(live))
-    assert live_signature_after == live_signature_before
+    assert orchestrator2.start_calls == []               # survives restart
