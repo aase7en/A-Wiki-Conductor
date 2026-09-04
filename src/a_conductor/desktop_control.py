@@ -78,6 +78,7 @@ class DesktopControlService:
         clock: Callable[[], datetime] | None = None,
         instances_root: str | Path = DEFAULT_INSTANCES_ROOT,
         instance_orchestrator: LocalInstanceOrchestrator | None = None,
+        recovery_hold_provider: Callable[[str], dict[str, bool]] | None = None,
         connector_recovery: ConnectorRecoveryCoordinator | None = None,
     ) -> None:
         if settings_store is not None and provider_store is not None:
@@ -93,6 +94,7 @@ class DesktopControlService:
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self.instances_root = instances_root
         self._instance_orchestrator = instance_orchestrator
+        self._recovery_hold_provider = recovery_hold_provider
         self._connector_recovery = connector_recovery
         self._pending_instance_starts: set[str] = set()
         self._pending_instance_starts_lock = Lock()
@@ -719,7 +721,7 @@ class DesktopControlService:
             health = instance_health_state(instance)
             if cancel_check():
                 break
-            if self.settings_store is not None:
+            if self.settings_store is not None and not self._recovery_hold(instance.name):
                 record = self.reconcile_instance_recovery(
                     instance.name, health, cancel_check=cancel_check
                 )
@@ -772,6 +774,26 @@ class DesktopControlService:
         if cancel_check is None:
             return self._orchestrator().start(target)
         return self._orchestrator().start(target, cancel_check=cancel_check)
+
+    def _recovery_hold(self, instance_name: str) -> bool:
+        """Transient recovery hold: defer recovery, never persist suppression.
+
+        Evaluated fresh each refresh through the injected provider; when the
+        hold clears, the next refresh recovers the same real failure through
+        the normal authority path.
+        """
+        provider = self._recovery_hold_provider
+        if provider is None:
+            return False
+        try:
+            flags = provider(instance_name)
+        except Exception:
+            return True  # unknown hold state fails closed
+        if not isinstance(flags, dict):
+            return True
+        from .worker_resilience import recovery_hold_active
+
+        return recovery_hold_active(**flags)
 
     def reconcile_instance_recovery(
         self,

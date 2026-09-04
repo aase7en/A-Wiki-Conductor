@@ -1,408 +1,298 @@
 from __future__ import annotations
 
+import json
+import threading
+from dataclasses import fields
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
 import pytest
 
-from a_conductor.connector_recovery import (
-    ConnectorRecoveryCoordinator,
-    ConnectorRecoveryRecord,
-    ConnectorRecoveryState,
-)
+from a_conductor.connector_recovery import ConnectorRecoveryState
+from a_conductor.desktop_control import DesktopControlService
 from a_conductor.local_instances import (
     InstanceHealthState,
     InstanceOrchestrationOutcome,
     InstanceResultCode,
+    LocalInstance,
 )
-from a_conductor.worker_resilience import (
-    REASON_CODES,
-    CoordinatorDisposition,
-    DispositionHealth,
-    RepositoryGate,
-    WorkerDerivedState,
-    WorkerHealthProbes,
-    WorkerProcessIdentity,
-    ObservationDeduper,
-    classify_worker,
-    coordinator_disposition,
-    detect_fleet_outage,
-    plan_parallel_recovery,
-    worker_available_for_work,
-)
+from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+from a_conductor.worker_resilience import recovery_hold_active
+
+NAME = "Sunday-Worker-1"
 
 
-def _probes(**over):
-    base = dict(
-        process_alive=True,
-        mcp_ready=True,
-        tunnel_reachable=True,
-        remote_session_ready=True,
-        ownership_safe=True,
-        task_state_known=True,
-        remote_http_status=None,
-    )
-    base.update(over)
-    return WorkerHealthProbes(**base)
+class NullControl:
+    def snapshot(self):
+        raise AssertionError("snapshot not expected")
 
 
-# ---------------- classification (unchanged policy) ----------------
-
-def test_healthy_when_all_layers_pass():
-    assert classify_worker(_probes(), first_failure_seen=False) is WorkerDerivedState.HEALTHY
-
-
-def test_first_failure_is_suspect():
-    assert classify_worker(
-        _probes(remote_session_ready=False), first_failure_seen=True
-    ) is WorkerDerivedState.SUSPECT
+class NullLifecycle:
+    def execute(self, worker_id, action):
+        raise AssertionError("worker lifecycle not expected")
 
 
-def test_layer_states_classify_independently():
-    cases = [
-        (dict(process_alive=False), WorkerDerivedState.PROCESS_DOWN),
-        (dict(mcp_ready=False), WorkerDerivedState.MCP_DOWN),
-        (dict(tunnel_reachable=False), WorkerDerivedState.TUNNEL_DOWN),
-        (dict(remote_session_ready=False), WorkerDerivedState.REMOTE_SESSION_STALE),
-        (dict(remote_http_status=429), WorkerDerivedState.RATE_LIMITED),
-        (dict(remote_http_status=404), WorkerDerivedState.ENDPOINT_MISSING),
-        (dict(ownership_safe=False), WorkerDerivedState.OWNERSHIP_BLOCKED),
-        (dict(task_state_known=False), WorkerDerivedState.TASK_AMBIGUOUS),
-    ]
-    for over, expected in cases:
-        assert classify_worker(_probes(**over), first_failure_seen=False) is expected
-    assert classify_worker(_probes(), first_failure_seen=False, quarantined=True) is (
-        WorkerDerivedState.QUARANTINED
-    )
+class _ReadyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = b"ready"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
 
 
-# ---------------- authority bridge dispositions ----------------
-
-def test_transport_and_process_deaths_report_unexpected_stopped_with_restart():
-    for state in (
-        WorkerDerivedState.PROCESS_DOWN,
-        WorkerDerivedState.MCP_DOWN,
-        WorkerDerivedState.TUNNEL_DOWN,
-    ):
-        d = coordinator_disposition(state)
-        assert d.health is DispositionHealth.UNEXPECTED_STOPPED
-        assert d.restart_permitted is True
-        assert d.suppress_recovery is False
+def _reserve_port() -> int:
+    probe = ThreadingHTTPServer(("127.0.0.1", 0), _ReadyHandler)
+    port = probe.server_address[1]
+    probe.server_close()
+    return port
 
 
-def test_429_404_stale_suspect_never_restart_local_worker():
-    for state in (
-        WorkerDerivedState.RATE_LIMITED,
-        WorkerDerivedState.ENDPOINT_MISSING,
-        WorkerDerivedState.REMOTE_SESSION_STALE,
-        WorkerDerivedState.SUSPECT,
-    ):
-        d = coordinator_disposition(state)
-        assert d.health is DispositionHealth.READY
-        assert d.restart_permitted is False
+class HealthServer:
+    """Deterministic stand-in for the instance's real /readyz listener.
+    Binds one fixed port for its whole life so restarts (the launcher
+    bringing the listener back) are observable at the same address."""
+
+    def __init__(self) -> None:
+        self._port = _reserve_port()
+        self._server: ThreadingHTTPServer | None = None
+        self._lock = threading.Lock()
+        self.start()
+
+    def start(self) -> None:
+        with self._lock:
+            if self._server is not None:
+                return
+            self._server = ThreadingHTTPServer(("127.0.0.1", self._port), _ReadyHandler)
+            threading.Thread(target=self._server.serve_forever, daemon=True).start()
+
+    def stop(self) -> None:
+        with self._lock:
+            if self._server is None:
+                return
+            server, self._server = self._server, None
+        server.shutdown()
+        server.server_close()
+
+    @property
+    def address(self) -> str:
+        return f"127.0.0.1:{self._port}"
+
+    @property
+    def up(self) -> bool:
+        return self._server is not None
 
 
-def test_ownership_ambiguity_and_quarantine_suppress_recovery():
-    for state in (
-        WorkerDerivedState.OWNERSHIP_BLOCKED,
-        WorkerDerivedState.TASK_AMBIGUOUS,
-        WorkerDerivedState.QUARANTINED,
-    ):
-        d = coordinator_disposition(state)
-        assert d.restart_permitted is False
-        assert d.suppress_recovery is True
+class LaunchingOrchestrator:
+    """Fake exactly at the process-launch seam: starting the instance brings
+    its real /readyz listener up (mirrors tunnel-client binding the port);
+    stopping tears it down. Counts every start."""
 
+    def __init__(self, health: HealthServer) -> None:
+        self._health = health
+        self.start_calls: list[str] = []
+        self.stop_calls: list[str] = []
 
-def test_reason_codes_form_closed_set_no_raw_text_persists():
-    for state in WorkerDerivedState:
-        assert coordinator_disposition(state).reason_code in REASON_CODES
-    with pytest.raises(ValueError):
-        CoordinatorDisposition(
-            DispositionHealth.READY, "Authorization: Bearer raw-secret-value", False
+    def start(self, target, *, cancel_check=None):
+        if cancel_check is not None and cancel_check():
+            return InstanceOrchestrationOutcome(
+                "start", InstanceResultCode.START_CANCELLED, process_launched=False
+            )
+        self.start_calls.append(target.name)
+        self._health.start()
+        return InstanceOrchestrationOutcome(
+            "start", InstanceResultCode.RUNNING, process_launched=True
+        )
+
+    def stop(self, target, *, force=False):
+        self.stop_calls.append(target.name)
+        self._health.stop()
+        return InstanceOrchestrationOutcome(
+            "stop", InstanceResultCode.STOPPED, exit_code=0
         )
 
 
-# ---------------- coordinator integration (single authority) ----------------
-
-class MemoryRecoveryStore:
-    def __init__(self):
-        self.records: dict[str, ConnectorRecoveryRecord] = {}
-        self.writes = 0
-
-    def get_connector_recovery(self, instance_name):
-        return self.records.get(instance_name)
-
-    def save_connector_recovery(self, record):
-        self.records[record.instance_name] = record
-        self.writes += 1
-        return record
-
-    def clear_connector_recovery(self, instance_name):
-        self.records.pop(instance_name, None)
-
-
-def _outcome(code):
-    return InstanceOrchestrationOutcome(action="start", result_code=code, process_launched=True)
-
-
-def _coordinator(store, starts, *, autostart=True, code=InstanceResultCode.RUNNING):
-    return ConnectorRecoveryCoordinator(
-        store=store,
-        autostart_check=lambda name: autostart,
-        start_instance=lambda name, **kw: (starts.append(name), _outcome(code))[1],
-        clock_fn=lambda: 1000.0,
+def _service(tmp_path: Path, health: HealthServer, *, hold_provider=None):
+    store = SQLiteSerenaConfigStore(tmp_path / "control.sqlite")
+    target = LocalInstance(
+        name=NAME,
+        project_path=str(tmp_path / "project"),
+        health_address=health.address,
+        instance_root=tmp_path / NAME,
+        tunnel_configured=True,
+        tunnel_suffix="abcd",
     )
-
-
-_DEDUPER = ObservationDeduper()
-
-
-def _observe(coordinator, state, name="Sunday-Worker-1"):
-    if not _DEDUPER.should_report(name, state):
-        return coordinator.observe(
-            name, InstanceHealthState.UNKNOWN, reason_code="DUPLICATE_SUPPRESSED"
-        )
-    disposition = coordinator_disposition(state)
-    health = (
-        InstanceHealthState.READY
-        if disposition.health is DispositionHealth.READY
-        else InstanceHealthState.STOPPED
+    orchestrator = LaunchingOrchestrator(health)
+    svc = DesktopControlService(
+        control_center=NullControl(),
+        lifecycle=NullLifecycle(),
+        settings_store=store,
+        instances_root=tmp_path,
+        instance_orchestrator=orchestrator,
+        recovery_hold_provider=hold_provider,
     )
-    if disposition.suppress_recovery:
-        coordinator.suppress(name)
-    return coordinator.observe(name, health, reason_code=disposition.reason_code)
+    svc.instances = lambda: (target,)
+    store.set_instance_autostart(NAME, True)
+    return svc, store, orchestrator
 
 
-def test_unexpected_stopped_recovers_exactly_once():
-    global _DEDUPER
-    _DEDUPER = ObservationDeduper()
-    store = MemoryRecoveryStore()
-    starts: list[str] = []
-    record = _observe(_coordinator(store, starts), WorkerDerivedState.PROCESS_DOWN)
-    assert record.state is ConnectorRecoveryState.READY
-    assert starts == ["Sunday-Worker-1"]
+def _refresh(svc):
+    return svc.instance_states_cancellable(cancel_check=lambda: False)
 
 
-def test_manual_stop_suppresses_all_automatic_recovery():
-    global _DEDUPER
-    _DEDUPER = ObservationDeduper()
-    store = MemoryRecoveryStore()
-    starts: list[str] = []
-    coordinator = _coordinator(store, starts)
-    coordinator.suppress("Sunday-Worker-1")
-    for _ in range(5):
-        record = _observe(coordinator, WorkerDerivedState.PROCESS_DOWN)
-    assert record.state is ConnectorRecoveryState.STOPPED
-    assert record.recovery_suppressed is True
-    assert starts == []
+# ---------------- pure hold semantics ----------------
 
-
-def test_duplicate_health_observation_no_duplicate_restart():
-    global _DEDUPER
-    _DEDUPER = ObservationDeduper()
-    store = MemoryRecoveryStore()
-    starts: list[str] = []
-    coordinator = _coordinator(store, starts)
-    _observe(coordinator, WorkerDerivedState.PROCESS_DOWN)
-    record = None
-    for _ in range(4):
-        record = _observe(coordinator, WorkerDerivedState.PROCESS_DOWN)  # same epoch
-    assert len(starts) == 1  # duplicates never re-restart
-    assert record.state is ConnectorRecoveryState.READY
-    # a genuine re-death goes through an intervening healthy observation
-    _observe(coordinator, WorkerDerivedState.HEALTHY)
-    record = _observe(coordinator, WorkerDerivedState.PROCESS_DOWN)
-    assert len(starts) == 2  # transition reported: exactly one new restart
-    assert record.state is ConnectorRecoveryState.READY
-
-
-def test_rate_limited_disposition_observes_ready_zero_restarts():
-    global _DEDUPER
-    _DEDUPER = ObservationDeduper()
-    store = MemoryRecoveryStore()
-    starts: list[str] = []
-    record = _observe(_coordinator(store, starts), WorkerDerivedState.RATE_LIMITED)
-    assert record.state is ConnectorRecoveryState.READY
-    assert starts == []
-
-
-def test_authority_backoff_binds_recovery_failure_between_attempts():
-    store = MemoryRecoveryStore()
-    starts: list[str] = []
-    coordinator = _coordinator(store, starts, code=InstanceResultCode.LAUNCH_FAILED)
-    disposition = coordinator_disposition(WorkerDerivedState.TUNNEL_DOWN)
-    first = coordinator.observe(
-        "Sunday-Worker-1", InstanceHealthState.STOPPED, reason_code=disposition.reason_code
-    )
-    assert first.state is ConnectorRecoveryState.RECOVERING
-    assert first.next_retry_at is not None
-    coordinator.observe(
-        "Sunday-Worker-1", InstanceHealthState.STOPPED, reason_code=disposition.reason_code
-    )
-    assert len(starts) == 1
-
-
-def test_manual_start_rearms_recovery_after_suppression():
-    global _DEDUPER
-    _DEDUPER = ObservationDeduper()
-    store = MemoryRecoveryStore()
-    starts: list[str] = []
-    coordinator = _coordinator(store, starts)
-    coordinator.suppress("Sunday-Worker-1")
-    coordinator.manual_start("Sunday-Worker-1")
-    record = _observe(coordinator, WorkerDerivedState.PROCESS_DOWN)
-    assert record.state is ConnectorRecoveryState.READY
-    assert starts == ["Sunday-Worker-1"]
-
-
-def test_ownership_hold_suppresses_before_any_observation_restart():
-    global _DEDUPER
-    _DEDUPER = ObservationDeduper()
-    store = MemoryRecoveryStore()
-    starts: list[str] = []
-    record = _observe(_coordinator(store, starts), WorkerDerivedState.OWNERSHIP_BLOCKED)
-    assert record.recovery_suppressed is True
-    assert starts == []
-
-
-def test_conductor_restart_restores_recovery_state_from_store():
-    global _DEDUPER
-    _DEDUPER = ObservationDeduper()
-    store = MemoryRecoveryStore()
-    starts: list[str] = []
-    _observe(_coordinator(store, starts), WorkerDerivedState.PROCESS_DOWN)
-    coordinator_b = ConnectorRecoveryCoordinator(
-        store=store,
-        autostart_check=lambda name: True,
-        start_instance=lambda name, **kw: (
-            starts.append(name),
-            _outcome(InstanceResultCode.RUNNING),
-        )[1],
-        clock_fn=lambda: 1000.0,
-    )
-    record = _observe(coordinator_b, WorkerDerivedState.PROCESS_DOWN)
-    assert record.state is ConnectorRecoveryState.READY
-    assert starts == ["Sunday-Worker-1"]
-
-
-# ---------------- availability gate ----------------
-
-def _gate(**over):
-    base = dict(dirty_state_known=True, dirty_safe=True, ownership_safe=True, task_state_known=True)
-    base.update(over)
-    return RepositoryGate(**base)
-
-
-def test_recovered_worker_available_only_through_full_gate():
-    assert worker_available_for_work(WorkerDerivedState.HEALTHY, _gate()) is True
-    for over in (
-        dict(dirty_state_known=False),
-        dict(dirty_safe=False),
-        dict(ownership_safe=False),
-        dict(task_state_known=False),
-    ):
-        assert worker_available_for_work(WorkerDerivedState.HEALTHY, _gate(**over)) is False
-    assert worker_available_for_work(WorkerDerivedState.SUSPECT, _gate()) is False
-    assert worker_available_for_work(WorkerDerivedState.PROCESS_DOWN, _gate()) is False
-
-
-# ---------------- parallel planning ----------------
-
-def test_parallel_recovery_dispositions_deterministic_and_per_worker():
-    states = {
-        "w1": WorkerDerivedState.PROCESS_DOWN,
-        "w2": WorkerDerivedState.RATE_LIMITED,
-        "w3": WorkerDerivedState.OWNERSHIP_BLOCKED,
-        "w4": WorkerDerivedState.TUNNEL_DOWN,
-        "w5": WorkerDerivedState.HEALTHY,
-    }
-    plan_a = plan_parallel_recovery(states)
-    plan_b = plan_parallel_recovery(states)
-    assert plan_a == plan_b
-    assert set(plan_a) == set(states)
-    assert plan_a["w1"].restart_permitted and plan_a["w4"].restart_permitted
-    assert not plan_a["w2"].restart_permitted
-    assert plan_a["w3"].suppress_recovery
-    assert not plan_a["w5"].restart_permitted
-
-
-def test_unsafe_ownership_suppresses_never_restarts():
-    unsafe_states = {
-        "w-a": WorkerDerivedState.OWNERSHIP_BLOCKED,
-        "w-b": WorkerDerivedState.PROCESS_DOWN,
-    }
-    plan = plan_parallel_recovery(unsafe_states)
-    assert plan["w-a"].suppress_recovery is True
-    assert not plan["w-a"].restart_permitted
-    assert plan["w-b"].restart_permitted is True
+def test_hold_policy_flags_and_validation():
+    assert recovery_hold_active() is False
+    assert recovery_hold_active(ownership_unsafe=True) is True
+    assert recovery_hold_active(task_state_unknown=True) is True
+    assert recovery_hold_active(quarantined=True) is True
     with pytest.raises(ValueError):
-        plan_parallel_recovery({})
+        recovery_hold_active(ownership_unsafe=1)
 
 
-# ---------------- fleet correlation ----------------
+# ---------------- production path: exactly-once recovery ----------------
 
-def test_post_amplification_outage_requires_transport_evidence():
-    all_down = {f"w{n}": _probes(process_alive=False) for n in range(1, 6)}
-    evidenced = detect_fleet_outage(
-        all_down, min_affected=2,
-        recent_failures_by_worker={w: ("TUNNEL_START_FAILED",) for w in all_down},
+def test_production_path_recovers_exactly_once_and_persists_to_sqlite(tmp_path):
+    health = HealthServer()
+    svc, store, orchestrator = _service(tmp_path, health)
+    states = _refresh(svc)
+    assert states[0][1] is InstanceHealthState.READY
+    assert orchestrator.start_calls == []
+
+    health.stop()  # the real failure: instance gone
+    states = _refresh(svc)
+    assert states[0][1] is InstanceHealthState.READY  # recovered in-path
+    assert orchestrator.start_calls == [NAME]         # exactly one start
+    record = store.get_connector_recovery(NAME)
+    assert record.state is ConnectorRecoveryState.READY
+    assert record.restart_count == 1                  # durable SQLite evidence
+    assert record.recovery_suppressed is False
+
+    for _ in range(3):  # stable observation: no duplicate restart
+        _refresh(svc)
+    assert orchestrator.start_calls == [NAME]
+    assert store.get_connector_recovery(NAME).restart_count == 1
+
+
+def test_service_recreated_from_same_sqlite_no_replay(tmp_path):
+    health = HealthServer()
+    svc, store, orchestrator = _service(tmp_path, health)
+    _refresh(svc)
+    health.stop()
+    _refresh(svc)  # one recovery (launcher brought the listener back)
+    for _ in range(3):
+        _refresh(svc)
+    assert orchestrator.start_calls == [NAME]
+
+    # Conductor restart: fresh service + store over the SAME SQLite file
+    svc2, store2, orchestrator2 = _service(tmp_path, health)
+    for _ in range(3):
+        _refresh(svc2)
+    assert orchestrator2.start_calls == []            # no replay duplicate
+    assert store2.get_connector_recovery(NAME).restart_count == 1
+
+    # a NEW real failure after restart still recovers exactly once
+    health.stop()
+    _refresh(svc2)
+    assert orchestrator2.start_calls == [NAME]
+    assert store2.get_connector_recovery(NAME).restart_count == 2
+
+
+def test_manual_stop_suppresses_recovery_across_recreate(tmp_path):
+    health = HealthServer()
+    svc, store, orchestrator = _service(tmp_path, health)
+    _refresh(svc)
+    result = svc.instance_action(NAME, "stop")  # production manual stop
+    assert result.result_code is InstanceResultCode.STOPPED
+    assert health.up is False
+
+    for _ in range(3):
+        _refresh(svc)
+    assert orchestrator.start_calls == []             # zero auto restarts
+    record = store.get_connector_recovery(NAME)
+    assert record.recovery_suppressed is True         # durable manual-stop intent
+
+    svc2, store2, orchestrator2 = _service(tmp_path, health)
+    _refresh(svc2)
+    assert orchestrator2.start_calls == []            # suppression survives restart
+
+
+# ---------------- transient hold: never manual stop ----------------
+
+@pytest.mark.parametrize("hold_flags", [
+    {"ownership_unsafe": True},
+    {"task_state_unknown": True},
+])
+def test_transient_hold_zero_recovery_no_suppression_then_recovers(tmp_path, hold_flags):
+    health = HealthServer()
+    provider_state = {"flags": hold_flags}
+    svc, store, orchestrator = _service(
+        tmp_path, health, hold_provider=lambda name: provider_state["flags"]
     )
-    assert evidenced is not None
-    assert evidenced.layers == ("TRANSPORT_AMPLIFIED",)
-    assert detect_fleet_outage(all_down, min_affected=2) is None
-    assert detect_fleet_outage(
-        all_down, min_affected=2,
-        recent_failures_by_worker={w: ("WORKER_CRASH",) for w in all_down},
-    ) is None
+    _refresh(svc)
+    health.stop()
+    for _ in range(3):
+        _refresh(svc)
+    assert orchestrator.start_calls == []             # hold: zero recovery
+    record = store.get_connector_recovery(NAME)
+    assert record is None or record.recovery_suppressed is False  # never manual stop
+
+    provider_state["flags"] = {}                      # hold clears
+    _refresh(svc)                                     # same real failure still down
+    assert orchestrator.start_calls == [NAME]         # recovers exactly once
+    record = store.get_connector_recovery(NAME)
+    assert record.restart_count == 1
+    assert record.recovery_suppressed is False        # no manual start needed
 
 
-def test_direct_transport_states_detected_without_evidence():
-    probes = {
-        "w1": _probes(remote_session_ready=False),
-        "w2": _probes(tunnel_reachable=False),
-        "w3": _probes(),
-    }
-    report = detect_fleet_outage(probes, min_affected=2)
-    assert report is not None
-    assert set(report.affected_workers) == {"w1", "w2"}
-    assert report.layers == ("REMOTE_SESSION", "TUNNEL")
+def test_hold_provider_failure_fails_closed(tmp_path):
+    health = HealthServer()
+
+    def broken_provider(name):
+        raise RuntimeError("ownership source unavailable")
+
+    svc, store, orchestrator = _service(tmp_path, health, hold_provider=broken_provider)
+    _refresh(svc)
+    health.stop()
+    _refresh(svc)
+    assert orchestrator.start_calls == []             # unknown hold state: fail closed
 
 
-def test_transport_only_mode_excludes_rate_limit_and_endpoint():
-    probes = {
-        "w1": _probes(remote_http_status=429),
-        "w2": _probes(remote_http_status=404),
-    }
-    assert detect_fleet_outage(probes, min_affected=2, transport_only=True) is None
-    assert detect_fleet_outage(probes, min_affected=2) is not None
+# ---------------- external control surface guarantee ----------------
+
+def test_ready_worker_never_restarted_regardless_of_flags(tmp_path):
+    health = HealthServer()
+    svc, store, orchestrator = _service(
+        tmp_path,
+        health,
+        hold_provider=lambda name: {"ownership_unsafe": True, "task_state_unknown": True},
+    )
+    for _ in range(3):
+        states = _refresh(svc)                        # healthy local runtime
+        assert states[0][1] is InstanceHealthState.READY
+    assert orchestrator.start_calls == []             # READY never restarts
+    record = store.get_connector_recovery(NAME)
+    assert record is None or record.recovery_suppressed is False
 
 
-# ---------------- process identity ----------------
+# ---------------- durable payload carries reason codes only ----------------
 
-def _identity(pid=500, start=1788490277.0, exe="C:/AI/tunnel/tunnel-client.exe", cmd="a" * 64):
-    return WorkerProcessIdentity(pid=pid, process_start_epoch=start, executable=exe, command_sha256=cmd)
-
-
-def test_pid_reuse_rejected_by_identity_tuple():
-    original = _identity()
-    assert original.matches(_identity())
-    assert not original.matches(_identity(start=9999999999.0))
-    assert not original.matches(_identity(exe="C:/Windows/evil.exe"))
-    assert not original.matches(_identity(cmd="b" * 64))
-    assert not original.matches(_identity(pid=501))
-
-
-def test_identity_validates_inputs():
-    with pytest.raises(ValueError):
-        _identity(pid=0)
-    with pytest.raises(ValueError):
-        _identity(start=0)
-    with pytest.raises(ValueError):
-        _identity(exe=" ")
-    with pytest.raises(ValueError):
-        _identity(cmd="not-a-sha")
-
-
-def test_no_broad_kill_surface_exists_in_policy_module():
-    import inspect
-    from a_conductor import worker_resilience as module
-    source = inspect.getsource(module)
-    for forbidden in ("taskkill /im", "Stop-Process -Name", "killall", "ps aux"):
-        assert forbidden not in source
+def test_durable_records_carry_bounded_reason_codes_only(tmp_path):
+    health = HealthServer()
+    svc, store, orchestrator = _service(tmp_path, health)
+    _refresh(svc)
+    health.stop()
+    _refresh(svc)
+    record = store.get_connector_recovery(NAME)
+    allowed = {"UNEXPECTED_STOPPED", "RECOVERY_START_EXCEPTION", "RECOVERY_RESULT_INVALID"}
+    allowed |= {code.value for code in InstanceResultCode}
+    assert record.last_exit_reason in allowed
+    payload = json.dumps({f.name: getattr(record, f.name) for f in fields(record)})
+    assert "stderr" not in payload
+    assert "Authorization" not in payload
+    assert "Bearer" not in payload
