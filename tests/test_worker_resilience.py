@@ -296,3 +296,124 @@ def test_durable_records_carry_bounded_reason_codes_only(tmp_path):
     assert "stderr" not in payload
     assert "Authorization" not in payload
     assert "Bearer" not in payload
+
+
+# ---------------- PRODUCTION_PATH_PROOF on copied sacrificial live DB ----------------
+
+def _copy_live_db_sacrificial(tmp_path: Path) -> Path:
+    """Read-only SQLite backup of the live Control Center DB into a temp
+    sacrificial copy. The live DB is only ever opened mode=ro; only the copy
+    is mutated."""
+    import os
+    import sqlite3
+
+    live = os.path.join(os.environ["LOCALAPPDATA"], "A-Conductor", "control-center.sqlite")
+    if not os.path.exists(live):
+        pytest.skip("live Control Center DB not present on this host")
+    target = tmp_path / "sacrificial-control-center.sqlite"
+    source = sqlite3.connect(f"file:{live}?mode=ro", uri=True)
+    try:
+        destination = sqlite3.connect(str(target))
+        try:
+            source.backup(destination)
+        finally:
+            destination.close()
+    finally:
+        source.close()
+    return target
+
+
+def test_production_path_proof_on_copied_sacrificial_live_db(tmp_path):
+    """PRODUCTION_PATH_PROOF: real DesktopControlService refresh loop over a
+    real copied/sacrificial Control Center DB (legacy schema, no
+    instance_recovery). The production path must migrate the copy in-place,
+    classify the real failure, recover exactly once through the existing
+    authority, and persist durable recovery state IN THE COPY — while the
+    live DB stays untouched."""
+    import os
+    import sqlite3
+
+    live = os.path.join(os.environ["LOCALAPPDATA"], "A-Conductor", "control-center.sqlite")
+    live_signature_before = (os.path.getmtime(live), os.path.getsize(live))
+    copy_path = _copy_live_db_sacrificial(tmp_path)
+
+    legacy = sqlite3.connect(f"file:{copy_path}?mode=ro", uri=True)
+    tables_before = {
+        row[0] for row in legacy.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    legacy.close()
+    assert "instance_recovery" not in tables_before  # genuine legacy schema
+    assert "workers" in tables_before                 # real live data copied
+
+    store = SQLiteSerenaConfigStore(copy_path)
+    store.initialize()  # production store migration on the sacrificial copy
+
+    migrated = sqlite3.connect(f"file:{copy_path}?mode=ro", uri=True)
+    tables_after = {
+        row[0] for row in migrated.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    migrated.close()
+    assert "instance_recovery" in tables_after         # in-place migration proven
+    assert tables_before <= tables_after               # nothing dropped
+
+    store.set_instance_autostart(NAME, True)
+    health = HealthServer()
+    target = LocalInstance(
+        name=NAME,
+        project_path=str(tmp_path / "project"),
+        health_address=health.address,
+        instance_root=tmp_path / NAME,
+        tunnel_configured=True,
+        tunnel_suffix="abcd",
+    )
+    orchestrator = LaunchingOrchestrator(health)
+    svc = DesktopControlService(
+        control_center=NullControl(),
+        lifecycle=NullLifecycle(),
+        settings_store=store,
+        instances_root=tmp_path,
+        instance_orchestrator=orchestrator,
+    )
+    svc.instances = lambda: (target,)
+
+    # production observation -> existing authority -> exactly one recovery,
+    # durable in the sacrificial copy
+    assert _refresh(svc)[0][1] is InstanceHealthState.READY
+    health.stop()
+    states = _refresh(svc)
+    assert states[0][1] is InstanceHealthState.READY
+    assert orchestrator.start_calls == [NAME]
+    record = store.get_connector_recovery(NAME)
+    assert record.state is ConnectorRecoveryState.READY
+    assert record.restart_count == 1
+
+    # transient hold never persists manual-stop suppression (on the copy)
+    provider = {"flags": {"ownership_unsafe": True}}
+    svc2, store2, orch2 = (
+        svc, store, orchestrator,
+    )  # same service; hold provider injected via fresh service below
+    svc_hold = DesktopControlService(
+        control_center=NullControl(),
+        lifecycle=NullLifecycle(),
+        settings_store=SQLiteSerenaConfigStore(copy_path),
+        instances_root=tmp_path,
+        instance_orchestrator=orchestrator,
+        recovery_hold_provider=lambda name: provider["flags"],
+    )
+    svc_hold.instances = lambda: (target,)
+    health.stop()
+    for _ in range(3):
+        _refresh(svc_hold)
+    assert orchestrator.start_calls == [NAME]          # hold: zero new restarts
+    held = SQLiteSerenaConfigStore(copy_path).get_connector_recovery(NAME)
+    assert held is None or held.recovery_suppressed is False
+
+    provider["flags"] = {}                              # hold clears
+    _refresh(svc_hold)
+    assert orchestrator.start_calls == [NAME, NAME]     # exactly one new recovery
+    final = SQLiteSerenaConfigStore(copy_path).get_connector_recovery(NAME)
+    assert final.restart_count == 2 and final.recovery_suppressed is False
+
+    # live DB untouched throughout
+    live_signature_after = (os.path.getmtime(live), os.path.getsize(live))
+    assert live_signature_after == live_signature_before
