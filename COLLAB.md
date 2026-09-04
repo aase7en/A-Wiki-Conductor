@@ -142,7 +142,7 @@ Before pausing or delegating:
 
 Resume sequence:
 
-`AGENTS.md -> PROJECT-PLAN.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active work order -> actual repository/runtime reconciliation`
+`00-AGENT-ENTRY.md -> PROJECT-GRAPH.yaml -> AGENTS.md -> actual repository/runtime/Git/claim reconciliation -> CURRENT-WORK.md -> handoff.md -> active work order -> task-relevant graph nodes`
 
 Never blindly repeat a mutation merely because the previous agent/session disappeared.
 

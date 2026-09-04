@@ -2,7 +2,7 @@
 
 Date: 2026-09-04
 Owner: GPT-B / this chat
-Status: READY_FOR_INDEPENDENT_REVIEW / STACKED_AFTER_PR208
+Status: READY_FOR_FOCUSED_REREVIEW / STACKED_AFTER_PR208
 Priority: P0 delivery-throughput hardening
 Repository: A:\GitHub\A-Wiki-Conductor
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry
@@ -89,3 +89,5 @@ Implemented policy/docs changes:
 Current workflow can be used before Zero-Relay is complete through one-pointer human relay. Zero-Relay later removes only the transport step.
 
 Deterministic docs validation passed across the 13-file canonical set: diff-check, strict UTF-8, YAML parse, required-path/reference check, secret-shape scan, and canonical old-entry contradiction search. Independent exact-SHA review remains required before merge.
+
+- GLM independent R2 review of e486350/13a5f62 found WO157-F1 (P2): COLLAB.md Pause/Resume still prescribed the superseded entry order. This lane repaired that one canonical line; exact old-entry remnants are now zero under the focused sweep, UTF-8/YAML/diff-check pass, and focused exact-SHA re-review is required.
