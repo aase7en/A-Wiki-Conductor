@@ -181,3 +181,8 @@ Close this incident only when a reviewed installed build self-recovers an intent
 Candidate `55de87f04dde7b0682026ef2c45ce17096de66db` successfully removes the duplicate durable recovery/backoff/circuit authorities and passes the required 145-test regression battery. It is not yet accepted for production because the new `worker_resilience.py` policy functions have no production caller outside tests/module-internal use. The GLM W1 chaos harness manually creates a `ConnectorRecoveryCoordinator` with an in-memory store and invokes `observe()` directly; therefore that evidence proves the recovery core can restart the exact Worker pair, but does not prove the installed A-Sunday Conductor health loop detects and self-heals the failure automatically.
 
 Close-gate consequence: the next accepted candidate must prove the production observation path, durable real store, and installed build path rather than only a direct coordinator harness.
+## W1 live canary — tunnel-client 0.0.14
+
+A bounded W1-only A/B canary was completed without touching W2/W3/W5 or the shared 0.0.11 binary. W1 was stopped through its exact guarded instance stop path, `instance.ps1` was backed up, and only W1's `$TunnelClientPath` was changed to the checksum-verified 0.0.14 canary path. Doctor passed after the old listener was drained. The new process pair is tunnel PID 11956 -> Serena PID 2640; exactly one W1 tunnel process exists, `/readyz` is healthy, and the ChatGPT remote MCP successfully reconnected and returned `get_current_config`.
+
+This establishes live compatibility of 0.0.14 and creates a useful canary against the remaining 0.0.11 fleet. It is evidence for the upgrade path, not yet proof that 0.0.11 is the sole initiating cause.
