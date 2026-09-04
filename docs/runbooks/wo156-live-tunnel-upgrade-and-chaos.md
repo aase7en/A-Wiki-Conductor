@@ -266,3 +266,23 @@ Do not normalize the old 0.0.11 binary as a long-term accepted state after rollb
 ## Close condition
 
 WO156/incident can close only when the installed reviewed build + supported tunnel-client pass the isolated logical-Worker self-heal chaos cycle and the critical adversarial checks without human relay.
+
+## A/B interpretation gate - added after 18:31 control recurrence
+
+The W1 0.0.14 canary and W4 0.0.11 control now have a useful divergence, but operational evidence must not be over-interpreted.
+
+Current bounded evidence:
+
+- W1 0.0.14: still LISTEN/remote-reachable after the canary start at 12:46:55;
+- W4 0.0.11: exact TTL/deadline -> closed-stdio -> tunnel shutdown -> Serena exit 120 chain at 18:31;
+- W2/W3/W5 0.0.11: still alive through the same later checkpoint.
+
+Interpretation:
+
+- supported: legacy 0.0.11 is associated with the already-known TTL/deadline failure family;
+- supported: 0.0.14 is compatible with the live W1 profile and has survived the observed canary window;
+- not supported: every 0.0.11 instance fails after a fixed uptime;
+- not yet proven: 0.0.14 eliminates every possible initiating trigger;
+- not yet proven: ESET is the initiating cause.
+
+A future trigger reproducer must use an idle/sacrificial, explicitly claimed Worker. Never inject TTL/deadline/session disruption into a Worker with active work, unknown task outcome, dirty protected worktree, or overlapping mutable scope.

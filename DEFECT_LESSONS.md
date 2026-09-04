@@ -789,3 +789,9 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** mutable application state directories are live synchronization boundaries. Do not recursively search/index `%USERPROFILE%\.zcode\v2` while ZCode is running. A read-oriented tool can still create availability failures if it retains a Windows handle across another process's atomic replace. Prefer a direct single-file read, targeted log query, or a copied snapshot. Never infer that a `.lock`/`.tmp` artifact is stale merely because an operation timed out.
 
 **Verify / recovery:** run `scripts/diagnose_zcode_config_lock.ps1`; if it reports `LOCKED`, identify the exact PID and owner before stopping anything. Re-run until `ZCODE_CONFIG_LOCK=UNLOCKED`, parse the JSON without printing it, then inspect the current ZCode log for new `EPERM` / `config.json.lock` errors. Full recovery procedure: `docs/runbooks/zcode-config-lock.md`; incident evidence: `docs/work-orders/WO-P1-153-zcode-config-lock-incident.md`.
+
+### 2026-09-04 18:31 recurrence refinement
+
+A later W4 control failure captured the same mechanism more precisely: MCP connection TTL reached -> stdio write file already closed -> tunnel shutdown -> Serena exit 120 / stdout-flush OSError 22 -> TUNNEL_START_FAILED. W1 on the checksum-verified 0.0.14 canary remained healthy through the same observation window, while W2/W3/W5 on 0.0.11 also remained alive.
+
+**Refined lesson:** do not model the legacy 0.0.11 defect as a fixed-uptime crash. Current evidence is consistent with a trigger-dependent deadline/session condition that exercises the old shared-stdio behavior. Version upgrade remains required because 0.0.11 is below the accepted safe floor, but causal testing must preserve negative controls and must not inject the trigger into a Worker with active/ambiguous work.
