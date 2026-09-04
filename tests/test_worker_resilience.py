@@ -1,32 +1,32 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-
 import pytest
 
+from a_conductor.connector_recovery import (
+    ConnectorRecoveryCoordinator,
+    ConnectorRecoveryRecord,
+    ConnectorRecoveryState,
+)
+from a_conductor.local_instances import (
+    InstanceHealthState,
+    InstanceOrchestrationOutcome,
+    InstanceResultCode,
+)
 from a_conductor.worker_resilience import (
-    BackoffSchedule,
-    sanitize_worker_recovery_state,
+    REASON_CODES,
+    CoordinatorDisposition,
+    DispositionHealth,
     RepositoryGate,
-    detect_fleet_outage,
-    plan_parallel_recovery,
-    worker_available_for_work,
-    CircuitStatus,
-    RecoveryAction,
-    RestartBudget,
-    WorkerCircuit,
     WorkerDerivedState,
     WorkerHealthProbes,
     WorkerProcessIdentity,
-    WorkerRecoveryState,
-    WorkerRecoveryStore,
+    ObservationDeduper,
     classify_worker,
-    recovery_action,
+    coordinator_disposition,
+    detect_fleet_outage,
+    plan_parallel_recovery,
+    worker_available_for_work,
 )
-
-NOW = datetime(2026, 9, 4, 3, 0, tzinfo=timezone.utc)
 
 
 def _probes(**over):
@@ -43,544 +43,366 @@ def _probes(**over):
     return WorkerHealthProbes(**base)
 
 
-def _circuit(**over):
-    return WorkerCircuit(failure_threshold=3, cooldown_seconds=60, stable_window_seconds=120, **over)
-
-
-# ---------------- classification ----------------
+# ---------------- classification (unchanged policy) ----------------
 
 def test_healthy_when_all_layers_pass():
     assert classify_worker(_probes(), first_failure_seen=False) is WorkerDerivedState.HEALTHY
 
 
-def test_first_failure_is_suspect_not_down():
-    assert classify_worker(_probes(remote_session_ready=False), first_failure_seen=True) is (
-        WorkerDerivedState.SUSPECT
-    )
-
-
-def test_process_down_outranks_other_layers():
-    assert classify_worker(_probes(process_alive=False, mcp_ready=False), first_failure_seen=False) is (
-        WorkerDerivedState.PROCESS_DOWN
-    )
-
-
-def test_mcp_down_with_live_process():
-    assert classify_worker(_probes(mcp_ready=False), first_failure_seen=False) is WorkerDerivedState.MCP_DOWN
-
-
-def test_tunnel_down_with_local_mcp_alive():
-    assert classify_worker(_probes(tunnel_reachable=False), first_failure_seen=False) is WorkerDerivedState.TUNNEL_DOWN
-
-
-def test_remote_429_is_rate_limited_not_down():
-    assert classify_worker(_probes(remote_http_status=429), first_failure_seen=False) is WorkerDerivedState.RATE_LIMITED
-
-
-def test_remote_404_is_endpoint_missing():
-    assert classify_worker(_probes(remote_http_status=404), first_failure_seen=False) is WorkerDerivedState.ENDPOINT_MISSING
-
-
-def test_remote_session_stale_with_healthy_local_stack():
-    assert classify_worker(_probes(remote_session_ready=False), first_failure_seen=False) is (
-        WorkerDerivedState.REMOTE_SESSION_STALE
-    )
-
-
-def test_ownership_blocked():
-    assert classify_worker(_probes(ownership_safe=False), first_failure_seen=False) is WorkerDerivedState.OWNERSHIP_BLOCKED
-
-
-def test_task_unknown_is_task_ambiguous():
-    assert classify_worker(_probes(task_state_known=False), first_failure_seen=False) is WorkerDerivedState.TASK_AMBIGUOUS
-
-
-def test_quarantined_sticks_until_circuit_resets():
+def test_first_failure_is_suspect():
     assert classify_worker(
-        _probes(), first_failure_seen=False, quarantined=True
-    ) is WorkerDerivedState.QUARANTINED
+        _probes(remote_session_ready=False), first_failure_seen=True
+    ) is WorkerDerivedState.SUSPECT
 
 
-# ---------------- recovery policy ----------------
-
-def test_rate_limited_zero_restart_backoff_only():
-    state = WorkerDerivedState.RATE_LIMITED
-    assert recovery_action(state, circuit=_circuit(), budget=RestartBudget(limit=3)) is (
-        RecoveryAction.BACKOFF_WAIT
+def test_layer_states_classify_independently():
+    cases = [
+        (dict(process_alive=False), WorkerDerivedState.PROCESS_DOWN),
+        (dict(mcp_ready=False), WorkerDerivedState.MCP_DOWN),
+        (dict(tunnel_reachable=False), WorkerDerivedState.TUNNEL_DOWN),
+        (dict(remote_session_ready=False), WorkerDerivedState.REMOTE_SESSION_STALE),
+        (dict(remote_http_status=429), WorkerDerivedState.RATE_LIMITED),
+        (dict(remote_http_status=404), WorkerDerivedState.ENDPOINT_MISSING),
+        (dict(ownership_safe=False), WorkerDerivedState.OWNERSHIP_BLOCKED),
+        (dict(task_state_known=False), WorkerDerivedState.TASK_AMBIGUOUS),
+    ]
+    for over, expected in cases:
+        assert classify_worker(_probes(**over), first_failure_seen=False) is expected
+    assert classify_worker(_probes(), first_failure_seen=False, quarantined=True) is (
+        WorkerDerivedState.QUARANTINED
     )
 
 
-def test_endpoint_missing_reconciles_without_recreation():
-    assert recovery_action(
-        WorkerDerivedState.ENDPOINT_MISSING, circuit=_circuit(), budget=RestartBudget(limit=3)
-    ) is RecoveryAction.RECONCILE_ENDPOINT
+# ---------------- authority bridge dispositions ----------------
 
-
-def test_stale_session_reconnects_without_restart():
-    assert recovery_action(
-        WorkerDerivedState.REMOTE_SESSION_STALE, circuit=_circuit(), budget=RestartBudget(limit=3)
-    ) is RecoveryAction.RECONNECT_SESSION
-
-
-def test_tunnel_down_restarts_only_tunnel():
-    assert recovery_action(
-        WorkerDerivedState.TUNNEL_DOWN, circuit=_circuit(), budget=RestartBudget(limit=3)
-    ) is RecoveryAction.RESTART_TUNNEL
-
-
-def test_mcp_down_restarts_component_only():
-    assert recovery_action(
-        WorkerDerivedState.MCP_DOWN, circuit=_circuit(), budget=RestartBudget(limit=3)
-    ) is RecoveryAction.RESTART_COMPONENT
-
-
-def test_process_down_requires_durable_spec_and_budget():
-    assert recovery_action(
+def test_transport_and_process_deaths_report_unexpected_stopped_with_restart():
+    for state in (
         WorkerDerivedState.PROCESS_DOWN,
-        circuit=_circuit(),
-        budget=RestartBudget(limit=3),
-        durable_launch_spec=True,
-    ) is RecoveryAction.RESTART_FROM_SPEC
-    assert recovery_action(
-        WorkerDerivedState.PROCESS_DOWN,
-        circuit=_circuit(),
-        budget=RestartBudget(limit=3),
-        durable_launch_spec=False,
-    ) is RecoveryAction.AWAIT_OPERATOR
+        WorkerDerivedState.MCP_DOWN,
+        WorkerDerivedState.TUNNEL_DOWN,
+    ):
+        d = coordinator_disposition(state)
+        assert d.health is DispositionHealth.UNEXPECTED_STOPPED
+        assert d.restart_permitted is True
+        assert d.suppress_recovery is False
 
 
-def test_task_ambiguous_and_ownership_blocked_never_restart_or_replay():
-    assert recovery_action(
-        WorkerDerivedState.TASK_AMBIGUOUS, circuit=_circuit(), budget=RestartBudget(limit=3)
-    ) is RecoveryAction.AWAIT_OPERATOR
-    assert recovery_action(
-        WorkerDerivedState.OWNERSHIP_BLOCKED, circuit=_circuit(), budget=RestartBudget(limit=3)
-    ) is RecoveryAction.AWAIT_OPERATOR
+def test_429_404_stale_suspect_never_restart_local_worker():
+    for state in (
+        WorkerDerivedState.RATE_LIMITED,
+        WorkerDerivedState.ENDPOINT_MISSING,
+        WorkerDerivedState.REMOTE_SESSION_STALE,
+        WorkerDerivedState.SUSPECT,
+    ):
+        d = coordinator_disposition(state)
+        assert d.health is DispositionHealth.READY
+        assert d.restart_permitted is False
 
 
-def test_open_circuit_forces_quarantine_even_if_probes_now_pass():
-    circuit = _circuit()
-    for _ in range(3):
-        circuit.record_failure(now=NOW)
-    assert circuit.status is CircuitStatus.OPEN
-    assert recovery_action(
-        WorkerDerivedState.HEALTHY, circuit=circuit, budget=RestartBudget(limit=3)
-    ) is RecoveryAction.QUARANTINE
+def test_ownership_ambiguity_and_quarantine_suppress_recovery():
+    for state in (
+        WorkerDerivedState.OWNERSHIP_BLOCKED,
+        WorkerDerivedState.TASK_AMBIGUOUS,
+        WorkerDerivedState.QUARANTINED,
+    ):
+        d = coordinator_disposition(state)
+        assert d.restart_permitted is False
+        assert d.suppress_recovery is True
 
 
-def test_exhausted_budget_quarantines_instead_of_restarting():
-    budget = RestartBudget(limit=2, used=2)
-    assert recovery_action(
-        WorkerDerivedState.PROCESS_DOWN,
-        circuit=_circuit(),
-        budget=budget,
-        durable_launch_spec=True,
-    ) is RecoveryAction.QUARANTINE
-
-
-def test_suspect_reprobes_cheaply():
-    assert recovery_action(
-        WorkerDerivedState.SUSPECT, circuit=_circuit(), budget=RestartBudget(limit=3)
-    ) is RecoveryAction.REPROBE
-
-
-# ---------------- backoff ----------------
-
-def test_backoff_is_exponential_capped_and_jittered():
-    schedule = BackoffSchedule(base_seconds=1.0, cap_seconds=300.0, jitter_fraction=0.0)
-    assert schedule.delay_seconds(attempt=0) == 1.0
-    assert schedule.delay_seconds(attempt=3) == 8.0
-    assert schedule.delay_seconds(attempt=30) == 300.0
-    jittered = BackoffSchedule(base_seconds=1.0, cap_seconds=300.0, jitter_fraction=0.25)
-    for attempt in range(6):
-        low, high = schedule.delay_seconds(attempt=attempt), jittered.delay_seconds(attempt=attempt)
-        assert 0.75 * low <= high <= 1.25 * low
-
-
-def test_backoff_honors_retry_after():
-    schedule = BackoffSchedule(base_seconds=1.0, cap_seconds=300.0, jitter_fraction=0.0)
-    assert schedule.delay_seconds(attempt=1, retry_after_seconds=42.0) == 42.0
-
-
-# ---------------- circuit / anti-flap ----------------
-
-def test_circuit_opens_on_threshold_and_flapping():
-    circuit = _circuit()
-    circuit.record_failure(now=NOW)
-    circuit.record_failure(now=NOW)
-    assert circuit.status is CircuitStatus.CLOSED
-    circuit.record_failure(now=NOW)
-    assert circuit.status is CircuitStatus.OPEN
-
-
-def test_circuit_half_opens_after_cooldown_not_before():
-    circuit = _circuit()
-    for _ in range(3):
-        circuit.record_failure(now=NOW)
-    assert circuit.status_after(now=NOW + timedelta(seconds=59)) is CircuitStatus.OPEN
-    assert circuit.status_after(now=NOW + timedelta(seconds=61)) is CircuitStatus.HALF_OPEN
-
-
-def test_circuit_closes_only_after_stable_healthy_window():
-    circuit = _circuit()
-    for _ in range(3):
-        circuit.record_failure(now=NOW)
-    opened_at = NOW
-    # probe success inside half-open starts the stable window but does not close
-    assert circuit.record_probe_success(now=opened_at + timedelta(seconds=61)) is CircuitStatus.HALF_OPEN
-    assert circuit.status_after(now=opened_at + timedelta(seconds=100)) is CircuitStatus.HALF_OPEN
-    assert circuit.status_after(now=opened_at + timedelta(seconds=200)) is CircuitStatus.CLOSED
-
-
-def test_probe_failure_during_half_open_reopens_immediately():
-    circuit = _circuit()
-    for _ in range(3):
-        circuit.record_failure(now=NOW)
-    later = NOW + timedelta(seconds=61)
-    circuit.record_probe_success(now=later)
-    assert circuit.record_failure(now=later + timedelta(seconds=1)) is CircuitStatus.OPEN
-
-
-# ---------------- durable state ----------------
-
-def _identity(pid=111):
-    return WorkerProcessIdentity(
-        pid=pid,
-        process_start_epoch=1788490277.0,
-        executable="C:/AI/dwb-serena-tunnel-starter/tunnel-client/tunnel-client.exe",
-        command_sha256="a" * 64,
-    )
-
-
-def _recovery_state(worker="sunday-worker-1"):
-    return WorkerRecoveryState(
-        worker_id=worker,
-        launch_spec_fingerprint="spec-sha",
-        identity=_identity(),
-        endpoint_ref="http://127.0.0.1:18011/readyz",
-        tunnel_ref="tunnel-profile:serena-sunday-worker-1",
-        project="A:/GitHub/A-Wiki-Conductor",
-        worktree="A:/GitHub/A-Wiki-Conductor",
-        branch="main",
-        head="68079e3d00047ca9432f0aefe3ad667f892614d0",
-        active_task=None,
-        claim_ref=None,
-        last_healthy_at=NOW,
-        failure_layer="TUNNEL",
-        failure_reason="TUNNEL_START_FAILED",
-        recovery_attempts=1,
-        circuit_state="CLOSED",
-        last_execution_identity=None,
-    )
-
-
-def test_recovery_state_roundtrip_without_secrets(tmp_path):
-    state = _recovery_state()
-    data = json.dumps(state.as_dict())
-    for forbidden in ("api", "token", "secret", "key="):
-        assert forbidden not in data.lower() or "endpoint_ref" in data
-    restored = WorkerRecoveryState.from_dict(json.loads(data))
-    assert restored == state
-
-
-def test_store_persists_and_restores_across_conductor_restart(tmp_path):
-    store = WorkerRecoveryStore(tmp_path / "recovery.json")
-    state = _recovery_state()
-    store.upsert(state)
-    fresh = WorkerRecoveryStore(tmp_path / "recovery.json")
-    assert fresh.load()[("sunday-worker-1",)] if False else fresh.load()["sunday-worker-1"] == state
-
-
-def test_p1_durable_event_dedupe_survives_process_restart(tmp_path):
-    path = tmp_path / "recovery.json"
-    store = WorkerRecoveryStore(path)
-    state = _recovery_state()
-    store.upsert(state)
-    assert store.record_event("sunday-worker-1", "evt-1", now=NOW) is True
-    assert store.record_event("sunday-worker-1", "evt-1", now=NOW + timedelta(seconds=5)) is False
-    # simulate Conductor restart: a fresh store instance on the same path
-    restarted = WorkerRecoveryStore(path)
-    assert restarted.record_event("sunday-worker-1", "evt-1", now=NOW + timedelta(hours=1)) is False
-    assert restarted.record_event("sunday-worker-1", "evt-2", now=NOW + timedelta(hours=1)) is True
-
-
-# ---------------- process identity guard ----------------
-
-def test_pid_reuse_rejected_by_start_time_or_command_identity():
-    original = _identity(pid=500)
-    reused_pid_new_start = WorkerProcessIdentity(
-        pid=500,
-        process_start_epoch=9999999999.0,
-        executable=original.executable,
-        command_sha256=original.command_sha256,
-    )
-    wrong_exe = WorkerProcessIdentity(
-        pid=500,
-        process_start_epoch=original.process_start_epoch,
-        executable="C:/Windows/System32/evil.exe",
-        command_sha256=original.command_sha256,
-    )
-    wrong_cmd = WorkerProcessIdentity(
-        pid=500,
-        process_start_epoch=original.process_start_epoch,
-        executable=original.executable,
-        command_sha256="b" * 64,
-    )
-    assert original.matches(original)
-    assert not original.matches(reused_pid_new_start)
-    assert not original.matches(wrong_exe)
-    assert not original.matches(wrong_cmd)
-
-
-def test_broad_kill_path_impossible_no_taskkill_by_name_api():
-    import inspect
-    from a_conductor import worker_resilience as module
-    source = inspect.getsource(module)
-    for forbidden in ("taskkill /im", "taskkill /f /im", "Stop-Process -Name",
-                      "ps aux | kill", "killall"):
-        assert forbidden not in source
-
-
-def test_p2_secret_adversarial_payloads_never_reach_persisted_file(tmp_path):
-    secrets = (
-        "sk-ant-api03-abcdef0123456789abcdef",
-        "ghp_abcdef0123456789abcdef0123456789abcdef",
-        "Bearer abcdef0123456789abcdef",
-    )
-    state = WorkerRecoveryState(
-        worker_id="sunday-worker-1",
-        launch_spec_fingerprint="spec-sha",
-        identity=_identity(),
-        endpoint_ref="http://user:supersecret@127.0.0.1:18011/readyz",
-        tunnel_ref=f"tunnel profile {secrets[1]}",
-        project=None, worktree=None, branch=None, head=None,
-        active_task=None, claim_ref=None,
-        last_healthy_at=NOW,
-        failure_layer="TUNNEL",
-        failure_reason=f"Authorization: {secrets[2]} rejected; key={secrets[0]}",
-        recovery_attempts=1,
-        circuit_state="CLOSED",
-        last_execution_identity=None,
-    )
-    store = WorkerRecoveryStore(tmp_path / "recovery.json")
-    store.upsert(state, redaction_values=(secrets[0], secrets[2], "supersecret"))
-    file_text = (tmp_path / "recovery.json").read_text(encoding="utf-8")
-    for secret in (*secrets, "supersecret"):
-        assert secret not in file_text, secret[:10]
-    assert "[REDACTED]" in file_text
-    loaded = store.load()["sunday-worker-1"]
-    for secret in (*secrets, "supersecret"):
-        assert secret not in json.dumps(loaded.as_dict())
-
-
-# ---------------- verifier-mandated explicit cases 2, 9, 20, 21, 22 ----------------
-
-def test_case2_simultaneous_five_worker_transport_failure_zero_worker_restart():
-    """All five workers lose transport in one probe round: not a single
-    action may restart a local worker process/component."""
-    states = {
-        "sunday-worker-1": WorkerDerivedState.REMOTE_SESSION_STALE,
-        "sunday-worker-2": WorkerDerivedState.TUNNEL_DOWN,
-        "sunday-worker-3": WorkerDerivedState.RATE_LIMITED,
-        "sunday-worker-4": WorkerDerivedState.ENDPOINT_MISSING,
-        "sunday-worker-5": WorkerDerivedState.REMOTE_SESSION_STALE,
-    }
-    plan = plan_parallel_recovery(
-        states,
-        circuit_by_worker={w: _circuit() for w in states},
-        budget_by_worker={w: RestartBudget(limit=3) for w in states},
-    )
-    assert set(plan) == set(states)
-    for action in plan.values():
-        assert action not in (RecoveryAction.RESTART_FROM_SPEC, RecoveryAction.RESTART_COMPONENT)
-
-
-def test_case9_unknown_dirty_state_blocks_restart_and_reassignment():
-    unknown_dirty = RepositoryGate(dirty_state_known=False, dirty_safe=False,
-                                   ownership_safe=True, task_state_known=True)
-    assert recovery_action(
-        WorkerDerivedState.PROCESS_DOWN, circuit=_circuit(),
-        budget=RestartBudget(limit=3), durable_launch_spec=True,
-        gate=unknown_dirty,
-    ) is RecoveryAction.AWAIT_OPERATOR
-    assert worker_available_for_work(WorkerDerivedState.HEALTHY, unknown_dirty) is False
-
-
-def test_case20_recovered_worker_must_pass_repository_ownership_gate_before_mutation():
-    good_gate = RepositoryGate(dirty_state_known=True, dirty_safe=True,
-                               ownership_safe=True, task_state_known=True)
-    dirty_unsafe = RepositoryGate(dirty_state_known=True, dirty_safe=False,
-                                  ownership_safe=True, task_state_known=True)
-    ownership_unsafe = RepositoryGate(dirty_state_known=True, dirty_safe=True,
-                                      ownership_safe=False, task_state_known=True)
-    assert worker_available_for_work(WorkerDerivedState.HEALTHY, good_gate) is True
-    assert worker_available_for_work(WorkerDerivedState.HEALTHY, dirty_unsafe) is False
-    assert worker_available_for_work(WorkerDerivedState.HEALTHY, ownership_unsafe) is False
-    assert worker_available_for_work(WorkerDerivedState.SUSPECT, good_gate) is False
-
-
-def test_case21_parallel_recovery_no_ownership_collision():
-    states = {
-        f"sunday-worker-{n}": WorkerDerivedState.PROCESS_DOWN for n in range(1, 6)
-    }
-    plan_a = plan_parallel_recovery(
-        states,
-        circuit_by_worker={w: _circuit() for w in states},
-        budget_by_worker={w: RestartBudget(limit=3) for w in states},
-        durable_spec_by_worker={w: True for w in states},
-    )
-    plan_b = plan_parallel_recovery(
-        states,
-        circuit_by_worker={w: _circuit() for w in states},
-        budget_by_worker={w: RestartBudget(limit=3) for w in states},
-        durable_spec_by_worker={w: True for w in states},
-    )
-    assert plan_a == plan_b                      # deterministic, replay-stable
-    assert set(plan_a) == set(states)            # every worker exactly one action
-    assert len(plan_a) == len(states)            # no worker planned twice
-    incomplete = {w: _circuit() for w in states}
-    incomplete.pop("sunday-worker-3")  # a worker without its circuit is a hard error
+def test_reason_codes_form_closed_set_no_raw_text_persists():
+    for state in WorkerDerivedState:
+        assert coordinator_disposition(state).reason_code in REASON_CODES
     with pytest.raises(ValueError):
-        plan_parallel_recovery(
-            states,
-            circuit_by_worker=incomplete,
-            budget_by_worker={w: RestartBudget(limit=3) for w in states},
+        CoordinatorDisposition(
+            DispositionHealth.READY, "Authorization: Bearer raw-secret-value", False
         )
 
 
-def test_case22_outage_detected_deterministically_before_manual_intervention():
-    one_probe_round = {
+# ---------------- coordinator integration (single authority) ----------------
+
+class MemoryRecoveryStore:
+    def __init__(self):
+        self.records: dict[str, ConnectorRecoveryRecord] = {}
+        self.writes = 0
+
+    def get_connector_recovery(self, instance_name):
+        return self.records.get(instance_name)
+
+    def save_connector_recovery(self, record):
+        self.records[record.instance_name] = record
+        self.writes += 1
+        return record
+
+    def clear_connector_recovery(self, instance_name):
+        self.records.pop(instance_name, None)
+
+
+def _outcome(code):
+    return InstanceOrchestrationOutcome(action="start", result_code=code, process_launched=True)
+
+
+def _coordinator(store, starts, *, autostart=True, code=InstanceResultCode.RUNNING):
+    return ConnectorRecoveryCoordinator(
+        store=store,
+        autostart_check=lambda name: autostart,
+        start_instance=lambda name, **kw: (starts.append(name), _outcome(code))[1],
+        clock_fn=lambda: 1000.0,
+    )
+
+
+_DEDUPER = ObservationDeduper()
+
+
+def _observe(coordinator, state, name="Sunday-Worker-1"):
+    if not _DEDUPER.should_report(name, state):
+        return coordinator.observe(
+            name, InstanceHealthState.UNKNOWN, reason_code="DUPLICATE_SUPPRESSED"
+        )
+    disposition = coordinator_disposition(state)
+    health = (
+        InstanceHealthState.READY
+        if disposition.health is DispositionHealth.READY
+        else InstanceHealthState.STOPPED
+    )
+    if disposition.suppress_recovery:
+        coordinator.suppress(name)
+    return coordinator.observe(name, health, reason_code=disposition.reason_code)
+
+
+def test_unexpected_stopped_recovers_exactly_once():
+    global _DEDUPER
+    _DEDUPER = ObservationDeduper()
+    store = MemoryRecoveryStore()
+    starts: list[str] = []
+    record = _observe(_coordinator(store, starts), WorkerDerivedState.PROCESS_DOWN)
+    assert record.state is ConnectorRecoveryState.READY
+    assert starts == ["Sunday-Worker-1"]
+
+
+def test_manual_stop_suppresses_all_automatic_recovery():
+    global _DEDUPER
+    _DEDUPER = ObservationDeduper()
+    store = MemoryRecoveryStore()
+    starts: list[str] = []
+    coordinator = _coordinator(store, starts)
+    coordinator.suppress("Sunday-Worker-1")
+    for _ in range(5):
+        record = _observe(coordinator, WorkerDerivedState.PROCESS_DOWN)
+    assert record.state is ConnectorRecoveryState.STOPPED
+    assert record.recovery_suppressed is True
+    assert starts == []
+
+
+def test_duplicate_health_observation_no_duplicate_restart():
+    global _DEDUPER
+    _DEDUPER = ObservationDeduper()
+    store = MemoryRecoveryStore()
+    starts: list[str] = []
+    coordinator = _coordinator(store, starts)
+    _observe(coordinator, WorkerDerivedState.PROCESS_DOWN)
+    record = None
+    for _ in range(4):
+        record = _observe(coordinator, WorkerDerivedState.PROCESS_DOWN)  # same epoch
+    assert len(starts) == 1  # duplicates never re-restart
+    assert record.state is ConnectorRecoveryState.READY
+    # a genuine re-death goes through an intervening healthy observation
+    _observe(coordinator, WorkerDerivedState.HEALTHY)
+    record = _observe(coordinator, WorkerDerivedState.PROCESS_DOWN)
+    assert len(starts) == 2  # transition reported: exactly one new restart
+    assert record.state is ConnectorRecoveryState.READY
+
+
+def test_rate_limited_disposition_observes_ready_zero_restarts():
+    global _DEDUPER
+    _DEDUPER = ObservationDeduper()
+    store = MemoryRecoveryStore()
+    starts: list[str] = []
+    record = _observe(_coordinator(store, starts), WorkerDerivedState.RATE_LIMITED)
+    assert record.state is ConnectorRecoveryState.READY
+    assert starts == []
+
+
+def test_authority_backoff_binds_recovery_failure_between_attempts():
+    store = MemoryRecoveryStore()
+    starts: list[str] = []
+    coordinator = _coordinator(store, starts, code=InstanceResultCode.LAUNCH_FAILED)
+    disposition = coordinator_disposition(WorkerDerivedState.TUNNEL_DOWN)
+    first = coordinator.observe(
+        "Sunday-Worker-1", InstanceHealthState.STOPPED, reason_code=disposition.reason_code
+    )
+    assert first.state is ConnectorRecoveryState.RECOVERING
+    assert first.next_retry_at is not None
+    coordinator.observe(
+        "Sunday-Worker-1", InstanceHealthState.STOPPED, reason_code=disposition.reason_code
+    )
+    assert len(starts) == 1
+
+
+def test_manual_start_rearms_recovery_after_suppression():
+    global _DEDUPER
+    _DEDUPER = ObservationDeduper()
+    store = MemoryRecoveryStore()
+    starts: list[str] = []
+    coordinator = _coordinator(store, starts)
+    coordinator.suppress("Sunday-Worker-1")
+    coordinator.manual_start("Sunday-Worker-1")
+    record = _observe(coordinator, WorkerDerivedState.PROCESS_DOWN)
+    assert record.state is ConnectorRecoveryState.READY
+    assert starts == ["Sunday-Worker-1"]
+
+
+def test_ownership_hold_suppresses_before_any_observation_restart():
+    global _DEDUPER
+    _DEDUPER = ObservationDeduper()
+    store = MemoryRecoveryStore()
+    starts: list[str] = []
+    record = _observe(_coordinator(store, starts), WorkerDerivedState.OWNERSHIP_BLOCKED)
+    assert record.recovery_suppressed is True
+    assert starts == []
+
+
+def test_conductor_restart_restores_recovery_state_from_store():
+    global _DEDUPER
+    _DEDUPER = ObservationDeduper()
+    store = MemoryRecoveryStore()
+    starts: list[str] = []
+    _observe(_coordinator(store, starts), WorkerDerivedState.PROCESS_DOWN)
+    coordinator_b = ConnectorRecoveryCoordinator(
+        store=store,
+        autostart_check=lambda name: True,
+        start_instance=lambda name, **kw: (
+            starts.append(name),
+            _outcome(InstanceResultCode.RUNNING),
+        )[1],
+        clock_fn=lambda: 1000.0,
+    )
+    record = _observe(coordinator_b, WorkerDerivedState.PROCESS_DOWN)
+    assert record.state is ConnectorRecoveryState.READY
+    assert starts == ["Sunday-Worker-1"]
+
+
+# ---------------- availability gate ----------------
+
+def _gate(**over):
+    base = dict(dirty_state_known=True, dirty_safe=True, ownership_safe=True, task_state_known=True)
+    base.update(over)
+    return RepositoryGate(**base)
+
+
+def test_recovered_worker_available_only_through_full_gate():
+    assert worker_available_for_work(WorkerDerivedState.HEALTHY, _gate()) is True
+    for over in (
+        dict(dirty_state_known=False),
+        dict(dirty_safe=False),
+        dict(ownership_safe=False),
+        dict(task_state_known=False),
+    ):
+        assert worker_available_for_work(WorkerDerivedState.HEALTHY, _gate(**over)) is False
+    assert worker_available_for_work(WorkerDerivedState.SUSPECT, _gate()) is False
+    assert worker_available_for_work(WorkerDerivedState.PROCESS_DOWN, _gate()) is False
+
+
+# ---------------- parallel planning ----------------
+
+def test_parallel_recovery_dispositions_deterministic_and_per_worker():
+    states = {
+        "w1": WorkerDerivedState.PROCESS_DOWN,
+        "w2": WorkerDerivedState.RATE_LIMITED,
+        "w3": WorkerDerivedState.OWNERSHIP_BLOCKED,
+        "w4": WorkerDerivedState.TUNNEL_DOWN,
+        "w5": WorkerDerivedState.HEALTHY,
+    }
+    plan_a = plan_parallel_recovery(states)
+    plan_b = plan_parallel_recovery(states)
+    assert plan_a == plan_b
+    assert set(plan_a) == set(states)
+    assert plan_a["w1"].restart_permitted and plan_a["w4"].restart_permitted
+    assert not plan_a["w2"].restart_permitted
+    assert plan_a["w3"].suppress_recovery
+    assert not plan_a["w5"].restart_permitted
+
+
+def test_unsafe_ownership_suppresses_never_restarts():
+    unsafe_states = {
+        "w-a": WorkerDerivedState.OWNERSHIP_BLOCKED,
+        "w-b": WorkerDerivedState.PROCESS_DOWN,
+    }
+    plan = plan_parallel_recovery(unsafe_states)
+    assert plan["w-a"].suppress_recovery is True
+    assert not plan["w-a"].restart_permitted
+    assert plan["w-b"].restart_permitted is True
+    with pytest.raises(ValueError):
+        plan_parallel_recovery({})
+
+
+# ---------------- fleet correlation ----------------
+
+def test_post_amplification_outage_requires_transport_evidence():
+    all_down = {f"w{n}": _probes(process_alive=False) for n in range(1, 6)}
+    evidenced = detect_fleet_outage(
+        all_down, min_affected=2,
+        recent_failures_by_worker={w: ("TUNNEL_START_FAILED",) for w in all_down},
+    )
+    assert evidenced is not None
+    assert evidenced.layers == ("TRANSPORT_AMPLIFIED",)
+    assert detect_fleet_outage(all_down, min_affected=2) is None
+    assert detect_fleet_outage(
+        all_down, min_affected=2,
+        recent_failures_by_worker={w: ("WORKER_CRASH",) for w in all_down},
+    ) is None
+
+
+def test_direct_transport_states_detected_without_evidence():
+    probes = {
         "w1": _probes(remote_session_ready=False),
         "w2": _probes(tunnel_reachable=False),
         "w3": _probes(),
-        "w4": _probes(remote_http_status=429),
-        "w5": _probes(),
     }
-    report = detect_fleet_outage(one_probe_round, min_affected=2)
+    report = detect_fleet_outage(probes, min_affected=2)
     assert report is not None
-    assert set(report.affected_workers) == {"w1", "w2", "w4"}
-    assert report.layers == ("REMOTE_SESSION", "TUNNEL", "RATE_LIMIT")
-    assert detect_fleet_outage(
-        {"w1": _probes(), "w2": _probes()}, min_affected=2
-    ) is None  # single-worker blip is not a fleet outage
-    assert detect_fleet_outage(
-        {"w1": _probes(mcp_ready=False), "w2": _probes(mcp_ready=False)},
-        min_affected=2,
-        transport_only=True,
-    ) is None  # local MCP failures are not a shared-transport outage
+    assert set(report.affected_workers) == {"w1", "w2"}
+    assert report.layers == ("REMOTE_SESSION", "TUNNEL")
 
 
-# ---------------- GPT-review repair slice (P1 x4, P2 x2) ----------------
-
-def test_p1_persistence_boundary_rejects_credential_bearing_text(tmp_path):
-    """Sanitizer must structurally neutralize credential shapes even when the
-    caller provides no explicit redaction values (persistence boundary)."""
-    state = WorkerRecoveryState(
-        worker_id="sunday-worker-2",
-        launch_spec_fingerprint="spec-sha",
-        identity=_identity(),
-        endpoint_ref="http://127.0.0.1:18012/readyz",
-        tunnel_ref="tunnel-profile:serena-sunday-worker-2",
-        project=None, worktree=None, branch=None, head=None,
-        active_task=None, claim_ref=None,
-        last_healthy_at=NOW,
-        failure_layer="REMOTE",
-        failure_reason="xauth=abcdef0123456789abcdef and cookie: ZZZabcdef0123456789",
-        recovery_attempts=0,
-        circuit_state="CLOSED",
-        last_execution_identity=None,
-    )
-    clean = sanitize_worker_recovery_state(state)
-    text = json.dumps(clean.as_dict())
-    for marker in ("abcdef0123456789abcdef", "xauth=", "cookie:"):
-        assert marker not in text
-    assert "[REDACTED]" in text
-
-
-def test_p1_concurrent_multi_worker_upsert_is_lossless(tmp_path):
-    """Same-process parallel recoveries: every worker's update survives,
-    the file stays valid JSON, and no update is silently lost."""
-    import threading
-    path = tmp_path / "recovery.json"
-    store = WorkerRecoveryStore(path)
-    workers = [f"sunday-worker-{n}" for n in range(1, 6)]
-    barrier = threading.Barrier(len(workers) * 2)
-    errors: list[Exception] = []
-
-    def writer(worker: str, suffix: str) -> None:
-        try:
-            barrier.wait()
-            for round_no in range(4):
-                local = WorkerRecoveryStore(path)
-                local.upsert(_recovery_state(worker=worker))
-        except Exception as exc:  # noqa: BLE001 - recorded for assertion
-            errors.append(exc)
-
-    threads = [
-        threading.Thread(target=writer, args=(w, s))
-        for w in workers
-        for s in ("a", "b")
-    ]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    assert errors == []
-    final = WorkerRecoveryStore(path).load()
-    assert set(final) == set(workers)  # lossless across concurrent writers
-    for worker in workers:
-        assert final[worker].failure_reason == "TUNNEL_START_FAILED"
-
-
-def test_p1_post_amplification_outage_detection():
-    """The real WO156 chain: tunnel exits -> wrapper exits -> Serena dies ->
-    the next probe round sees PROCESS_DOWN everywhere. With durable recent
-    transport-failure evidence the detector must still fire; without that
-    evidence simultaneous process deaths must NOT be called a network outage."""
-    all_process_down = {f"w{n}": _probes(process_alive=False) for n in range(1, 6)}
-    with_transport_evidence = {
-        w: ("TUNNEL_START_FAILED",) for w in all_process_down
+def test_transport_only_mode_excludes_rate_limit_and_endpoint():
+    probes = {
+        "w1": _probes(remote_http_status=429),
+        "w2": _probes(remote_http_status=404),
     }
-    report = detect_fleet_outage(
-        all_process_down, min_affected=2, recent_failures_by_worker=with_transport_evidence
-    )
-    assert report is not None
-    assert set(report.affected_workers) == set(all_process_down)
-    assert report.layers == ("TRANSPORT_AMPLIFIED",)
-
-    # independent deaths with no transport evidence: not a shared-transport outage
-    assert detect_fleet_outage(all_process_down, min_affected=2) is None
-    assert detect_fleet_outage(
-        all_process_down, min_affected=2,
-        recent_failures_by_worker={w: ("WORKER_CRASH",) for w in all_process_down},
-    ) is None
-
-    # mixed evidence: only evidenced workers count toward the outage
-    mixed = detect_fleet_outage(
-        all_process_down, min_affected=2,
-        recent_failures_by_worker={"w1": ("TUNNEL_START_FAILED",), "w2": ("TUNNEL_START_FAILED",)},
-    )
-    assert mixed is not None and set(mixed.affected_workers) == {"w1", "w2"}
+    assert detect_fleet_outage(probes, min_affected=2, transport_only=True) is None
+    assert detect_fleet_outage(probes, min_affected=2) is not None
 
 
-def test_p2_overlapping_unsafe_ownership_gates_block_all_restarts():
-    """Two workers down with overlapping/unsafe ownership: NEITHER may get an
-    automatic restart/reassignment action; only a proven-safe worker may."""
-    unsafe = RepositoryGate(dirty_state_known=False, dirty_safe=False,
-                            ownership_safe=False, task_state_known=False)
-    states = {"w-a": WorkerDerivedState.PROCESS_DOWN, "w-b": WorkerDerivedState.PROCESS_DOWN}
-    common = dict(
-        circuit_by_worker={w: _circuit() for w in states},
-        budget_by_worker={w: RestartBudget(limit=3) for w in states},
-        durable_spec_by_worker={w: True for w in states},
-    )
-    blocked = plan_parallel_recovery(states, gates_by_worker={w: unsafe for w in states}, **common)
-    assert set(blocked.values()) == {RecoveryAction.AWAIT_OPERATOR}
+# ---------------- process identity ----------------
 
-    safe = RepositoryGate(dirty_state_known=True, dirty_safe=True,
-                          ownership_safe=True, task_state_known=True)
-    partial = plan_parallel_recovery(
-        states, gates_by_worker={"w-a": unsafe, "w-b": safe}, **common
-    )
-    assert partial["w-a"] is RecoveryAction.AWAIT_OPERATOR
-    assert partial["w-b"] is RecoveryAction.RESTART_FROM_SPEC
+def _identity(pid=500, start=1788490277.0, exe="C:/AI/tunnel/tunnel-client.exe", cmd="a" * 64):
+    return WorkerProcessIdentity(pid=pid, process_start_epoch=start, executable=exe, command_sha256=cmd)
+
+
+def test_pid_reuse_rejected_by_identity_tuple():
+    original = _identity()
+    assert original.matches(_identity())
+    assert not original.matches(_identity(start=9999999999.0))
+    assert not original.matches(_identity(exe="C:/Windows/evil.exe"))
+    assert not original.matches(_identity(cmd="b" * 64))
+    assert not original.matches(_identity(pid=501))
+
+
+def test_identity_validates_inputs():
+    with pytest.raises(ValueError):
+        _identity(pid=0)
+    with pytest.raises(ValueError):
+        _identity(start=0)
+    with pytest.raises(ValueError):
+        _identity(exe=" ")
+    with pytest.raises(ValueError):
+        _identity(cmd="not-a-sha")
+
+
+def test_no_broad_kill_surface_exists_in_policy_module():
+    import inspect
+    from a_conductor import worker_resilience as module
+    source = inspect.getsource(module)
+    for forbidden in ("taskkill /im", "Stop-Process -Name", "killall", "ps aux"):
+        assert forbidden not in source
