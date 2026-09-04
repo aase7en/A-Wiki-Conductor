@@ -171,6 +171,8 @@ The incident remains OPEN until all applicable gates pass:
 - never broad-kill Python, Serena, Node, ZCode, or tunnel-client processes;
 - reconcile task outcome before replaying interrupted work.
 
+Operational execution runbook: `docs/runbooks/wo156-live-tunnel-upgrade-and-chaos.md`
+
 ## Close condition
 
 Close this incident only when a reviewed installed build self-recovers an intentionally interrupted Worker through the existing A-Conductor recovery authority, with deterministic evidence and no manual relay.
