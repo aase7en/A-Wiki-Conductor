@@ -1,18 +1,21 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-04 (GLM-1 - PR208 review repair / actual-state reconciliation)
+Last updated: 2026-09-05 (GPT-B - post-PR208 merge / WO157 reconciliation)
 
-## PR208 review-repair + actual-state override — 2026-09-04 (authoritative, supersedes stale text below)
+## Post-PR208 merge actual-state override - 2026-09-05 (authoritative)
 
-- **PR #208 / WO154 is in REVIEW_REPAIR.** Independent GLM exact-SHA review of `0fd540c622d4539a2e809b8a441661896179f2ad` returned P0=0/P1=0/P2=4: scope chronology, final-candidate verification evidence, ZRA-3/ZRA-4 resume-boundary inconsistency, and WO153/ZRA-0 chronology truth. GPT-A accepted the review and separately found stale capability-vs-route-readiness wording. Repair branch `fix/wo-p1-154-review-scope-ssot` is the owned docs-only repair lane. A new repaired SHA still requires focused independent rereview + exact-head CI + GPT-A merge gate. NOT accepted.
-- **ZRA-0 prerequisite migration mechanism/evidence is pre-proven, but the formal ZRA-0 node is NOT accepted/closed.** GPT-A sacrificial/valid-registry rehearsal on `main@68079e3` preserved existing registry/unrelated data, added provider schema with zero fabricated provider rows, and returned `integrity_check=ok`; the empty-registry case intentionally seeds 3 default workers and must be treated as documented bootstrap, not data loss. Live DB untouched. Formal ZRA-0 acceptance remains the first post-PR208 reconciliation node under Issue #212.
-- **WO155 status: PREVIEW/REPAIR evidence exists — NOT merely QUEUED and NOT accepted.** ZRA one-shot transport/harness proof exists; **ZRA-1 full authorized/admitted production acceptance remains PENDING** (GPT R3 unresolved blockers: session-event identity, process-reap evidence, task-packet TOCTOU, streaming-output bounds, overclaimed ZRA-1/ZRA-3 authority). `653eba9` is NOT accepted. **ZRA-3 production continuation PENDING.** Tracked production acceptance stays gated by PR208 accepted/merged; preparatory preview work does not bypass that dependency.
-- **WO156 / PR #218 is frozen at `b8a145b9a6db4ca7e27fb105077094ce7ea3dd42`.** GPT-A exact-SHA source/evidence rereview = PASS with independent local battery 124/124, compileall/diff/UTF-8 PASS; no `src/a_conductor` delta remains and the two prior P2 findings are repaired. Exact-head macOS/Ubuntu checks are green; Windows main CI was still IN_PROGRESS at the latest checkpoint. Installed live canary/chaos remains a separate operational release gate.
-- **Lane ownership:** GPT-B owns PR #209 (recurring Worker incident + tunnel-client canary evidence, head `1b3f060941e5f488340e38ef49139d284da86371`; GPT-A docs/runbook audit PASS, exact-head Windows CI still running at latest checkpoint). PR #211 is the 4-lane coordination SSoT (head `e3549a8152c9acc273a5fdc104ca946898a69abc`). The W1 canary uses an isolated tunnel-client 0.0.14 path — do not mutate. GPT-A owns integration/review/merge/release gates. Another GPT lane owns ODP-1.
-- **PR #204 is green-CI (`9c90c873493b657cced86652c09c0e19920d99c8`) but NOT merge-ready**: its final scope requires exactly 3 files while the merge-base..HEAD diff still contains 6 files including 3 staging tests — blocked by final-scope consolidation.
-- Protected root checkout remains stale/dirty and is NOT a mutation surface; all mutation stays in isolated worktrees.
+- main = `25c08c91317a4d3640ce2308e6166edd382bbad7`; PR #208 / WO154 is MERGED / RELEASED. Repaired head `5124ed18409d71df7b98e4455f0a4a2df6428695` passed independent rereview P0/P1/P2=0 and exact-head CI before merge.
+- WO157 / PR #219 is the active workflow-successor lane. GPT-B recomposed it onto current main; new exact SHA still requires focused rereview + CI before acceptance.
+- Formal ZRA-0 is NOT accepted/closed. Sacrificial migration mechanism/evidence is pre-proven with live DB untouched. WO155 `653eba9` remains preview/shaping evidence only.
+- WO156 / PR #218 latest observed head is `249b255d77422ecc452db5db979efe9660fddc76`; existing ConnectorRecovery remains source authority. Installed exact-PID self-heal is a separate GPT-A operational gate.
+- PR #209 head `1b3f060941e5f488340e38ef49139d284da86371` has exact-head CI PASS and its PR208 dependency is satisfied. GPT-A merge adjudication remains pending.
+- PR #211 coordination SSoT head is `053fa2a5cca6fbef701213d1684cb02290173327`. W1 0.0.14 canary remains protected.
+- PR #204 / WO152 remains scope-blocked at `9c90c873493b657cced86652c09c0e19920d99c8`; consolidation analysis says no production source repair is needed. Defer mutation until after ZRA-0..4.
+- Protected root checkout remains stale/dirty; use isolated worktrees only.
 
-**One next safe action:** PR208 docs repair → freeze new SHA → focused independent rereview → exact-head CI → GPT-A merge gate → fresh actual-state reconciliation → resume next frozen roadmap node.
+Canonical order: `WO157 binding + reliability adjudication -> ZRA-0 -> ZRA-1 -> ZRA-2 -> ZRA-3 -> ZRA-4 -> WO152/#204 -> ODP-1..8 -> ZRA-5 -> ODP-9 -> WO096/release`.
+
+One next safe action: freeze/review/CI WO157 on current main, then GPT-A acceptance; PR218/PR209 adjudication may proceed in parallel without live runtime mutation.
 
 ## WO154/WO155 execution override — 2026-09-04 (historical; sequencing superseded above)
 

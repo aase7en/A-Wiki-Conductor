@@ -2,13 +2,14 @@
 
 Date: 2026-09-04
 Owner: GPT-B / this chat
-Status: READY_FOR_FOCUSED_REREVIEW / STACKED_AFTER_PR208
+Status: RECOMPOSED_ON_MAIN / READY_FOR_FOCUSED_REREVIEW
 Priority: P0 delivery-throughput hardening
 Repository: A:\GitHub\A-Wiki-Conductor
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry
 Branch: docs/wo-p1-157-glm-first-entry
-Base: 0fd540c622d4539a2e809b8a441661896179f2ad
-Dependency: PR #208 must be accepted/merged before WO157
+Original stacked base: 0fd540c622d4539a2e809b8a441661896179f2ad
+Current base after PR208 merge: 25c08c91317a4d3640ce2308e6166edd382bbad7
+Dependency: PR #208 SATISFIED - merged as 25c08c91317a4d3640ce2308e6166edd382bbad7
 Risk: R2 process/governance change
 Classification: EXTEND existing Fast Execution protocol; no new scheduler/router/runtime authority
 
@@ -24,6 +25,8 @@ The workflow must reduce prompt relay and repeated ceremony without weakening re
 - PROJECT-GRAPH.yaml
 - AGENTS.md
 - PROJECT-PLAN.md
+- CURRENT-WORK.md
+- handoff.md
 - COLLAB.md
 - docs/agent-collab/FAST_EXECUTION_PROTOCOL.md
 - docs/agent-collab/COLLAB_PROTOCOL.md
@@ -36,7 +39,6 @@ The workflow must reduce prompt relay and repeated ceremony without weakening re
 
 ## Forbidden scope
 
-- CURRENT-WORK.md / handoff.md live coordination state unless GPT-A explicitly transfers ownership
 - PR #208 candidate branch
 - PR #209 branch
 - PR #211 coordination branch
@@ -88,6 +90,14 @@ Implemented policy/docs changes:
 
 Current workflow can be used before Zero-Relay is complete through one-pointer human relay. Zero-Relay later removes only the transport step.
 
-Deterministic docs validation passed across the 13-file canonical set: diff-check, strict UTF-8, YAML parse, required-path/reference check, secret-shape scan, and canonical old-entry contradiction search. Independent exact-SHA review remains required before merge.
+Deterministic docs validation passed across the 15-file canonical set: diff-check, strict UTF-8, YAML parse, required-path/reference check, secret-shape scan, and canonical old-entry contradiction search. Independent exact-SHA review remains required before merge.
 
 - GLM independent R2 review of e486350/13a5f62 found WO157-F1 (P2): COLLAB.md Pause/Resume still prescribed the superseded entry order. This lane repaired that one canonical line; exact old-entry remnants are now zero under the focused sweep, UTF-8/YAML/diff-check pass, and focused exact-SHA re-review is required.
+
+## Recomposition checkpoint - 2026-09-05
+
+- PR #208 / WO154 is merged and released on `main@25c08c91317a4d3640ce2308e6166edd382bbad7`.
+- PR208 merge released the shared continuity hotspots; WO157 scope is explicitly amended to fold current truth into `CURRENT-WORK.md` and `handoff.md` before freeze.
+- WO157 was recomposed by non-force merge of that exact main commit; no rebase/reset/clean/stash/force-push used.
+- Known `COLLAB.md` claims-table conflict was resolved by preserving merged PR208 truth, retaining WO155 preview/shaping status, and updating WO157 to current-main successor status.
+- Post-merge semantic validation PASS on the 15-file docs-only delta: old-entry remnants 0, strict UTF-8/no-U+FFFD PASS, secret-shape PASS, YAML/path references PASS, git diff-check PASS, operator protocol 37/37 PASS. Exact-head CI + focused independent rereview remain required before PR219 acceptance.
