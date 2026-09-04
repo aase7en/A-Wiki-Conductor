@@ -8,6 +8,7 @@ import pytest
 
 from a_conductor.worker_resilience import (
     BackoffSchedule,
+    sanitize_worker_recovery_state,
     RepositoryGate,
     detect_fleet_outage,
     plan_parallel_recovery,
@@ -22,7 +23,6 @@ from a_conductor.worker_resilience import (
     WorkerRecoveryState,
     WorkerRecoveryStore,
     classify_worker,
-    record_recovery_event,
     recovery_action,
 )
 
@@ -291,11 +291,17 @@ def test_store_persists_and_restores_across_conductor_restart(tmp_path):
     assert fresh.load()[("sunday-worker-1",)] if False else fresh.load()["sunday-worker-1"] == state
 
 
-def test_duplicate_recovery_events_are_idempotent():
+def test_p1_durable_event_dedupe_survives_process_restart(tmp_path):
+    path = tmp_path / "recovery.json"
+    store = WorkerRecoveryStore(path)
     state = _recovery_state()
-    first = record_recovery_event(state, event_id="evt-1", now=NOW)
-    second = record_recovery_event(state, event_id="evt-1", now=NOW + timedelta(seconds=5))
-    assert first is True and second is False
+    store.upsert(state)
+    assert store.record_event("sunday-worker-1", "evt-1", now=NOW) is True
+    assert store.record_event("sunday-worker-1", "evt-1", now=NOW + timedelta(seconds=5)) is False
+    # simulate Conductor restart: a fresh store instance on the same path
+    restarted = WorkerRecoveryStore(path)
+    assert restarted.record_event("sunday-worker-1", "evt-1", now=NOW + timedelta(hours=1)) is False
+    assert restarted.record_event("sunday-worker-1", "evt-2", now=NOW + timedelta(hours=1)) is True
 
 
 # ---------------- process identity guard ----------------
@@ -335,12 +341,36 @@ def test_broad_kill_path_impossible_no_taskkill_by_name_api():
         assert forbidden not in source
 
 
-def test_logs_and_states_contain_no_credentials_or_tunnel_ids():
-    state = _recovery_state()
-    text = json.dumps(state.as_dict())
-    # tunnel_ref is an opaque profile reference, never the tunnel token/id value
-    assert "tunnel" in text  # reference kept
-    assert "eyJ" not in text and "tdp-" not in text
+def test_p2_secret_adversarial_payloads_never_reach_persisted_file(tmp_path):
+    secrets = (
+        "sk-ant-api03-abcdef0123456789abcdef",
+        "ghp_abcdef0123456789abcdef0123456789abcdef",
+        "Bearer abcdef0123456789abcdef",
+    )
+    state = WorkerRecoveryState(
+        worker_id="sunday-worker-1",
+        launch_spec_fingerprint="spec-sha",
+        identity=_identity(),
+        endpoint_ref="http://user:supersecret@127.0.0.1:18011/readyz",
+        tunnel_ref=f"tunnel profile {secrets[1]}",
+        project=None, worktree=None, branch=None, head=None,
+        active_task=None, claim_ref=None,
+        last_healthy_at=NOW,
+        failure_layer="TUNNEL",
+        failure_reason=f"Authorization: {secrets[2]} rejected; key={secrets[0]}",
+        recovery_attempts=1,
+        circuit_state="CLOSED",
+        last_execution_identity=None,
+    )
+    store = WorkerRecoveryStore(tmp_path / "recovery.json")
+    store.upsert(state, redaction_values=(secrets[0], secrets[2], "supersecret"))
+    file_text = (tmp_path / "recovery.json").read_text(encoding="utf-8")
+    for secret in (*secrets, "supersecret"):
+        assert secret not in file_text, secret[:10]
+    assert "[REDACTED]" in file_text
+    loaded = store.load()["sunday-worker-1"]
+    for secret in (*secrets, "supersecret"):
+        assert secret not in json.dumps(loaded.as_dict())
 
 
 # ---------------- verifier-mandated explicit cases 2, 9, 20, 21, 22 ----------------
@@ -438,3 +468,119 @@ def test_case22_outage_detected_deterministically_before_manual_intervention():
         min_affected=2,
         transport_only=True,
     ) is None  # local MCP failures are not a shared-transport outage
+
+
+# ---------------- GPT-review repair slice (P1 x4, P2 x2) ----------------
+
+def test_p1_persistence_boundary_rejects_credential_bearing_text(tmp_path):
+    """Sanitizer must structurally neutralize credential shapes even when the
+    caller provides no explicit redaction values (persistence boundary)."""
+    state = WorkerRecoveryState(
+        worker_id="sunday-worker-2",
+        launch_spec_fingerprint="spec-sha",
+        identity=_identity(),
+        endpoint_ref="http://127.0.0.1:18012/readyz",
+        tunnel_ref="tunnel-profile:serena-sunday-worker-2",
+        project=None, worktree=None, branch=None, head=None,
+        active_task=None, claim_ref=None,
+        last_healthy_at=NOW,
+        failure_layer="REMOTE",
+        failure_reason="xauth=abcdef0123456789abcdef and cookie: ZZZabcdef0123456789",
+        recovery_attempts=0,
+        circuit_state="CLOSED",
+        last_execution_identity=None,
+    )
+    clean = sanitize_worker_recovery_state(state)
+    text = json.dumps(clean.as_dict())
+    for marker in ("abcdef0123456789abcdef", "xauth=", "cookie:"):
+        assert marker not in text
+    assert "[REDACTED]" in text
+
+
+def test_p1_concurrent_multi_worker_upsert_is_lossless(tmp_path):
+    """Same-process parallel recoveries: every worker's update survives,
+    the file stays valid JSON, and no update is silently lost."""
+    import threading
+    path = tmp_path / "recovery.json"
+    store = WorkerRecoveryStore(path)
+    workers = [f"sunday-worker-{n}" for n in range(1, 6)]
+    barrier = threading.Barrier(len(workers) * 2)
+    errors: list[Exception] = []
+
+    def writer(worker: str, suffix: str) -> None:
+        try:
+            barrier.wait()
+            for round_no in range(4):
+                local = WorkerRecoveryStore(path)
+                local.upsert(_recovery_state(worker=worker))
+        except Exception as exc:  # noqa: BLE001 - recorded for assertion
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=writer, args=(w, s))
+        for w in workers
+        for s in ("a", "b")
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == []
+    final = WorkerRecoveryStore(path).load()
+    assert set(final) == set(workers)  # lossless across concurrent writers
+    for worker in workers:
+        assert final[worker].failure_reason == "TUNNEL_START_FAILED"
+
+
+def test_p1_post_amplification_outage_detection():
+    """The real WO156 chain: tunnel exits -> wrapper exits -> Serena dies ->
+    the next probe round sees PROCESS_DOWN everywhere. With durable recent
+    transport-failure evidence the detector must still fire; without that
+    evidence simultaneous process deaths must NOT be called a network outage."""
+    all_process_down = {f"w{n}": _probes(process_alive=False) for n in range(1, 6)}
+    with_transport_evidence = {
+        w: ("TUNNEL_START_FAILED",) for w in all_process_down
+    }
+    report = detect_fleet_outage(
+        all_process_down, min_affected=2, recent_failures_by_worker=with_transport_evidence
+    )
+    assert report is not None
+    assert set(report.affected_workers) == set(all_process_down)
+    assert report.layers == ("TRANSPORT_AMPLIFIED",)
+
+    # independent deaths with no transport evidence: not a shared-transport outage
+    assert detect_fleet_outage(all_process_down, min_affected=2) is None
+    assert detect_fleet_outage(
+        all_process_down, min_affected=2,
+        recent_failures_by_worker={w: ("WORKER_CRASH",) for w in all_process_down},
+    ) is None
+
+    # mixed evidence: only evidenced workers count toward the outage
+    mixed = detect_fleet_outage(
+        all_process_down, min_affected=2,
+        recent_failures_by_worker={"w1": ("TUNNEL_START_FAILED",), "w2": ("TUNNEL_START_FAILED",)},
+    )
+    assert mixed is not None and set(mixed.affected_workers) == {"w1", "w2"}
+
+
+def test_p2_overlapping_unsafe_ownership_gates_block_all_restarts():
+    """Two workers down with overlapping/unsafe ownership: NEITHER may get an
+    automatic restart/reassignment action; only a proven-safe worker may."""
+    unsafe = RepositoryGate(dirty_state_known=False, dirty_safe=False,
+                            ownership_safe=False, task_state_known=False)
+    states = {"w-a": WorkerDerivedState.PROCESS_DOWN, "w-b": WorkerDerivedState.PROCESS_DOWN}
+    common = dict(
+        circuit_by_worker={w: _circuit() for w in states},
+        budget_by_worker={w: RestartBudget(limit=3) for w in states},
+        durable_spec_by_worker={w: True for w in states},
+    )
+    blocked = plan_parallel_recovery(states, gates_by_worker={w: unsafe for w in states}, **common)
+    assert set(blocked.values()) == {RecoveryAction.AWAIT_OPERATOR}
+
+    safe = RepositoryGate(dirty_state_known=True, dirty_safe=True,
+                          ownership_safe=True, task_state_known=True)
+    partial = plan_parallel_recovery(
+        states, gates_by_worker={"w-a": unsafe, "w-b": safe}, **common
+    )
+    assert partial["w-a"] is RecoveryAction.AWAIT_OPERATOR
+    assert partial["w-b"] is RecoveryAction.RESTART_FROM_SPEC

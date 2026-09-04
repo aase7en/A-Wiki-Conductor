@@ -15,17 +15,36 @@ returned actions through the existing instance lifecycle seams.
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
+import tempfile
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, Sequence
+
+from .claude_code_harness import _redact_text
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
-_SEEN_EVENTS_LIMIT = 1024
+_CREDENTIAL_TEXT_RE = re.compile(
+    r"(?i)(?:authorization\s*[:=]|bearer\s+[A-Za-z0-9._~+/=-]{12,}|"
+    r"cookie\s*[:=]|set-cookie\s*[:=]|"
+    r"(?:api[_ -]?key|access[_ -]?key(?:[_ -]?id)?|access[_ -]?token|refresh[_ -]?token|"
+    r"client[_ -]?secret|private[_ -]?key|password|passwd|passphrase|secret|token|auth|credential)"
+    r"\s*[:=]\s*[^\s]{4,}|"
+    r"sk-ant-[A-Za-z0-9_-]{8,}|sk-(?:proj-|live-|test-)?[A-Za-z0-9_]{16,}|"
+    r"gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{12,}|"
+    r"ya29\.[A-Za-z0-9._-]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|"
+    r"[A-Za-z][A-Za-z0-9+.-]*://[^\s/:@]+:[^\s/@]+@)"
+)
+_TRANSPORT_EVIDENCE_RE = re.compile(
+    r"(?i)(?:TUNNEL_START_FAILED|TUNNEL_[A-Z_]*|REMOTE_SESSION[A-Z_]*|"
+    r"RATE_LIMIT|ENDPOINT_MISSING|HTTP 429|HTTP 404|SESSION_TERMINATED)"
+)
+_MAX_STORE_EVENTS = 256
 
 
 class WorkerDerivedState(str, Enum):
@@ -432,29 +451,69 @@ class WorkerRecoveryState:
 
 
 class WorkerRecoveryStore:
-    """Durable recovery-state persistence; JSON, atomic, secret-free by contract."""
+    """Durable recovery-state persistence; JSON, atomic, secret-free by contract.
 
-    def __init__(self, path: Path | str) -> None:
+    Concurrency boundary (explicit): same-process concurrent upserts and event
+    records on one path are serialized through a per-path lock and unique
+    temporary files, so parallel in-process recoveries are lossless. There is
+    NO cross-process locking: exactly one Conductor process may own a store
+    path. A second process mutating the same file is an ownership violation
+    outside this store's authority.
+    """
+
+    def __init__(self, path: Path | str, *, max_events: int = _MAX_STORE_EVENTS) -> None:
         self._path = Path(path)
+        self._max_events = max_events
+        self._lock = _store_lock(self._path)
 
-    def upsert(self, state: WorkerRecoveryState) -> None:
+    # -- raw payload helpers (callers hold the lock) --
+    def _read_raw(self) -> dict[str, Any]:
+        if not self._path.is_file():
+            return {"workers": {}, "events": {}}
+        raw = json.loads(self._path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError("recovery store payload is invalid")
+        raw.setdefault("workers", {})
+        raw.setdefault("events", {})
+        return raw
+
+    def _write_raw(self, payload: dict[str, Any]) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        handle, temp_name = tempfile.mkstemp(
+            dir=str(self._path.parent), prefix=self._path.name + ".", suffix=".tmp"
+        )
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as stream:
+                json.dump(payload, stream, indent=2, sort_keys=True)
+                stream.flush()
+            os.replace(temp_name, self._path)
+        except BaseException:
+            try:
+                os.unlink(temp_name)
+            except OSError:
+                pass
+            raise
+
+    def upsert(
+        self,
+        state: WorkerRecoveryState,
+        *,
+        redaction_values: tuple[str, ...] = (),
+    ) -> None:
+        """Persist one worker's state, sanitized at this boundary: credential
+        shapes and supplied secret values never reach the file."""
         if not isinstance(state, WorkerRecoveryState):
             raise ValueError("state must be WorkerRecoveryState")
-        data = self.load()
-        data[state.worker_id] = state
-        payload = {"workers": {key: value.as_dict() for key, value in data.items()}}
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self._path.with_suffix(self._path.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
-        )
-        temporary.replace(self._path)
+        safe = sanitize_worker_recovery_state(state, redaction_values)
+        with self._lock:
+            payload = self._read_raw()
+            payload["workers"][safe.worker_id] = safe.as_dict()
+            self._write_raw(payload)
 
     def load(self) -> dict[str, WorkerRecoveryState]:
-        if not self._path.is_file():
-            return {}
-        raw = json.loads(self._path.read_text(encoding="utf-8"))
-        workers = raw.get("workers", {})
+        with self._lock:
+            payload = self._read_raw()
+        workers = payload["workers"]
         if not isinstance(workers, dict):
             raise ValueError("recovery store payload is invalid")
         return {
@@ -462,28 +521,84 @@ class WorkerRecoveryStore:
             for key, value in workers.items()
         }
 
+    def record_event(self, worker_id: str, event_id: str, *, now: datetime) -> bool:
+        """Durably idempotent recovery event: True only on first sight, across
+        process restarts, with bounded retention (oldest events dropped)."""
+        if not isinstance(worker_id, str) or not worker_id.strip():
+            raise ValueError("worker_id is invalid")
+        if not isinstance(event_id, str) or not event_id.strip():
+            raise ValueError("event_id is invalid")
+        stamp = _iso(_parse_iso(now.isoformat()))
+        with self._lock:
+            payload = self._read_raw()
+            events: dict[str, dict[str, str]] = payload["events"]
+            worker_events = events.setdefault(worker_id, {})
+            if event_id in worker_events:
+                return False
+            worker_events[event_id] = stamp or ""
+            flat = [
+                (worker, event, when)
+                for worker, by_event in events.items()
+                for event, when in by_event.items()
+            ]
+            if len(flat) > self._max_events:
+                flat.sort(key=lambda item: item[2])
+                for worker, event, _ in flat[: len(flat) - self._max_events]:
+                    events[worker].pop(event, None)
+                    if not events[worker]:
+                        events.pop(worker, None)
+            self._write_raw(payload)
+        return True
 
-_SEEN_EVENTS: dict[tuple[str, str], None] = {}
-_SEEN_EVENTS_LOCK = threading.Lock()
+
+_STORE_LOCKS: dict[str, threading.Lock] = {}
+_STORE_LOCKS_GUARD = threading.Lock()
 
 
-def record_recovery_event(
-    state: WorkerRecoveryState, *, event_id: str, now: datetime
-) -> bool:
-    """Idempotent recovery-event recorder (process-scoped; durable
-    idempotency belongs to WorkerRecoveryStore). True on first sight."""
-    if not isinstance(event_id, str) or not event_id.strip():
-        raise ValueError("event_id is invalid")
-    _parse_iso(now.isoformat())
-    key = (state.worker_id, event_id)
-    with _SEEN_EVENTS_LOCK:
-        if key in _SEEN_EVENTS:
-            return False
-        if len(_SEEN_EVENTS) >= _SEEN_EVENTS_LIMIT:
-            for oldest in list(_SEEN_EVENTS)[: len(_SEEN_EVENTS) - _SEEN_EVENTS_LIMIT + 1]:
-                _SEEN_EVENTS.pop(oldest, None)
-        _SEEN_EVENTS[key] = None
-    return True
+def _store_lock(path: Path) -> threading.Lock:
+    key = str(path).casefold()
+    with _STORE_LOCKS_GUARD:
+        return _STORE_LOCKS.setdefault(key, threading.Lock())
+
+
+_FREE_TEXT_FIELDS = (
+    "endpoint_ref",
+    "tunnel_ref",
+    "project",
+    "worktree",
+    "branch",
+    "active_task",
+    "claim_ref",
+    "failure_layer",
+    "failure_reason",
+    "last_execution_identity",
+)
+
+
+def _sanitize_free_text(value: object, redaction_values: tuple[str, ...]) -> object:
+    if not isinstance(value, str) or not value:
+        return value
+    text = _redact_text(value, tuple(v for v in redaction_values if v))
+    if _CREDENTIAL_TEXT_RE.search(text):
+        return "[REDACTED]"
+    return text
+
+
+def sanitize_worker_recovery_state(
+    state: WorkerRecoveryState,
+    redaction_values: tuple[str, ...] = (),
+) -> WorkerRecoveryState:
+    """Return a persistence-safe copy: known secret values are redacted and
+    any credential-bearing free-text field is neutralized wholesale."""
+    if not isinstance(state, WorkerRecoveryState):
+        raise ValueError("state must be WorkerRecoveryState")
+    changes = {
+        name: _sanitize_free_text(getattr(state, name), redaction_values)
+        for name in _FREE_TEXT_FIELDS
+    }
+    from dataclasses import replace
+    return replace(state, **changes)
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -575,6 +690,7 @@ def detect_fleet_outage(
     *,
     min_affected: int = 2,
     transport_only: bool = False,
+    recent_failures_by_worker: Mapping[str, Sequence[str]] | None = None,
 ) -> FleetOutageReport | None:
     """Deterministically flag a shared-transport outage from ONE probe round.
 
@@ -583,12 +699,20 @@ def detect_fleet_outage(
     the monitoring loop before any operator notices missing surfaces. With
     `transport_only`, only shared-transport layers (tunnel / remote session)
     count; rate limits and endpoint misses are excluded.
+
+    Post-amplification support: the WO156 wrapper tears the whole instance
+    down when a tunnel exits, so the probe round AFTER an outage may see
+    PROCESS_DOWN everywhere. A PROCESS_DOWN worker is attributed to the
+    shared-transport outage (layer TRANSPORT_AMPLIFIED) only when its durable
+    recent failure evidence names a transport-layer cause; simultaneous
+    process deaths without such evidence are never called a network outage.
     """
     if not isinstance(probes_by_worker, dict) or not probes_by_worker:
         raise ValueError("probes_by_worker must be a non-empty mapping")
     if isinstance(min_affected, bool) or not isinstance(min_affected, int) or min_affected < 1:
         raise ValueError("min_affected must be positive")
     layer_by_state = dict(_TRANSPORT_STATE_LAYERS)
+    recent = recent_failures_by_worker or {}
     affected: list[str] = []
     layers: list[str] = []
     for worker in sorted(probes_by_worker):
@@ -597,9 +721,16 @@ def detect_fleet_outage(
             raise ValueError("probe payload must be WorkerHealthProbes")
         state = classify_worker(probes, first_failure_seen=False)
         layer = layer_by_state.get(state)
+        if layer is None and state is WorkerDerivedState.PROCESS_DOWN:
+            evidence = recent.get(worker) or ()
+            if any(
+                isinstance(item, str) and _TRANSPORT_EVIDENCE_RE.search(item)
+                for item in evidence
+            ):
+                layer = "TRANSPORT_AMPLIFIED"
         if layer is None:
             continue
-        if transport_only and layer not in _SHARED_TRANSPORT_LAYERS:
+        if transport_only and layer not in _SHARED_TRANSPORT_LAYERS and layer != "TRANSPORT_AMPLIFIED":
             continue
         affected.append(worker)
         if layer not in layers:
