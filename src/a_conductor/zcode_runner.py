@@ -158,16 +158,48 @@ class ZCodeSecretResolver(Protocol):
 class ZCodeTransportFactory(Protocol):
     """Repository-owned seam: starts the app-server child and returns a
     transport carrying REAL process metadata. The resolved credential is
-    supplied through the closed factory context, never persisted."""
+    supplied through the closed ``credential`` channel into the accepted
+    ephemeral runtime environment — process memory only, never persisted."""
 
     def open_transport(
         self,
         *,
         argv: tuple[str, ...],
         environment: dict[str, str],
+        credential: "ZCodeEphemeralCredential",
         execution_id: str,
         run_dir_ref: str,
     ) -> object: ...
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class ZCodeEphemeralCredential:
+    """Typed ephemeral credential envelope: memory-only delivery channel.
+
+    The value exists only inside this object for the duration of one launch.
+    ``repr`` is disabled so debug output can never print the secret; the
+    envelope exposes only the delivery-target key. The factory copies the
+    value into the child environment (or another accepted ephemeral channel)
+    and the envelope is dropped immediately after.
+    """
+
+    delivery_key: str  # environment variable name the child expects
+
+    _value: str = ""
+
+    def __post_init__(self) -> None:
+        import re as _re
+
+        if not isinstance(self.delivery_key, str) or not _re.fullmatch(
+            r"[A-Z][A-Z0-9_]{0,63}", self.delivery_key
+        ):
+            raise ValueError("delivery_key is invalid")
+        if not isinstance(self._value, str) or not self._value:
+            raise ValueError("credential value is required")
+
+    @property
+    def environment_entry(self) -> tuple[str, str]:
+        return (self.delivery_key, self._value)
 
 
 class ZCodeFilesystem(Protocol):
@@ -229,6 +261,7 @@ class ZCodeBackendAdapter:
         bundle_js: str,
         max_response_bytes: int = ZCODE_MAX_RESPONSE_BYTES,
         deadline_seconds: float = 300.0,
+        credential_delivery_key: str = "ANTHROPIC_API_KEY",
     ) -> None:
         self._transport_factory = transport_factory
         self._fs = filesystem
@@ -240,6 +273,11 @@ class ZCodeBackendAdapter:
         if not isinstance(secret_reference, str) or not secret_reference.startswith("secret-ref:"):
             raise ValueError("secret_reference must use the accepted secret-ref authority")
         self._secret_reference = secret_reference
+        # validate the delivery-key grammar eagerly (bounded env-var name)
+        ZCodeEphemeralCredential(
+            delivery_key=credential_delivery_key, _value="probe-non-empty"
+        )
+        self._credential_delivery_key = credential_delivery_key
         self._packet = packet
         self._workspace = workspace
         self._executable = executable
@@ -301,15 +339,31 @@ class ZCodeBackendAdapter:
             raise ZCodeRunError("ZCODE_SECRET_RESOLUTION_FAILED") from exc
         if not isinstance(secret_value, str) or not secret_value:
             raise ZCodeRunError("ZCODE_SECRET_RESOLUTION_FAILED")
+        # typed ephemeral envelope: memory-only channel to the repository-
+        # owned transport factory. Non-serializable by construction; the
+        # value is dropped when this method returns.
+        try:
+            credential = ZCodeEphemeralCredential(
+                delivery_key=self._credential_delivery_key, _value=secret_value
+            )
+        except ValueError as exc:
+            raise ZCodeRunError("ZCODE_SECRET_RESOLUTION_FAILED") from exc
         environment = {"ELECTRON_RUN_AS_NODE": "1"}
-        # the closed factory seam carries the credential into the child env;
-        # it never enters the durable record, artifacts, argv, or identity
-        transport = self._transport_factory.open_transport(
-            argv=argv,
-            environment=environment,
-            execution_id=execution_id,
-            run_dir_ref=run_rel,
-        )
+        # the closed factory seam receives ONLY the base environment plus the
+        # typed credential envelope; the secret never enters argv, the
+        # durable record, artifacts, or identity, and never replaces a
+        # ZCode-config credential (no fallback path exists in this module)
+        try:
+            transport = self._transport_factory.open_transport(
+                argv=argv,
+                environment=environment,
+                credential=credential,
+                execution_id=execution_id,
+                run_dir_ref=run_rel,
+            )
+        finally:
+            credential = None
+            secret_value = ""
 
         # child identity: REAL process metadata or fail closed — never 1s
         child_pid = getattr(transport, "child_pid", None)

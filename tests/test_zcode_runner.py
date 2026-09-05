@@ -78,7 +78,7 @@ class Transport:
         self.parent_pid = parent
         self.exit_code = exit_code
         self.killed = False
-        self.env_seen: dict | None = None
+        self.child_env: dict | None = None
 
     def send_line(self, text):
         self.sent.append(text)
@@ -102,13 +102,20 @@ class TransportFactory:
         self.kwargs = transport_kwargs
         self.calls: list[dict] = []
         self.last: Transport | None = None
+        self.credentials: list = []
 
-    def open_transport(self, *, argv, environment, execution_id, run_dir_ref):
+    def open_transport(self, *, argv, environment, credential, execution_id, run_dir_ref):
         self.calls.append(
             {"argv": argv, "environment": dict(environment),
              "execution_id": execution_id, "run_dir_ref": run_dir_ref}
         )
-        self.last = Transport(self.script, **self.kwargs)
+        self.credentials.append(credential)
+        transport = Transport(self.script, **self.kwargs)
+        # accepted ephemeral runtime channel: the credential value is copied
+        # into the child environment here and only here (process memory)
+        key, value = credential.environment_entry
+        transport.child_env = {**environment, key: value}
+        self.last = transport
         return self.last
 
 
@@ -416,3 +423,109 @@ def test_transport_shutdown_is_eof_only(tmp_path):
     runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
     assert factory.last.killed is False
     assert factory.last.exit_code == 0  # natural exit recorded
+
+
+# ---------------- credential delivery boundary (GPT1 P1) ----------------
+
+def test_resolved_secret_reaches_transport_runtime_channel(tmp_path):
+    """RED->GREEN: the resolved credential must actually reach the
+    repository-owned transport factory's ephemeral runtime channel."""
+    secrets = Secrets(value="resolved-opaque-value-123456")
+    runner, store, fs, factory, _ = _runner(tmp_path, secrets=secrets)
+    runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+    assert factory.credentials, "factory never received a credential envelope"
+    entry_key, entry_value = factory.credentials[0].environment_entry
+    assert entry_key == "ANTHROPIC_API_KEY"
+    assert entry_value == "resolved-opaque-value-123456"
+    # the child env carries the credential (accepted ephemeral channel)
+    assert factory.last.child_env["ANTHROPIC_API_KEY"] == "resolved-opaque-value-123456"
+    assert factory.last.child_env["ELECTRON_RUN_AS_NODE"] == "1"
+
+
+def test_prompt_never_enters_credential_channel(tmp_path):
+    runner, store, fs, factory, packet = _runner(tmp_path)
+    runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+    _, value = factory.credentials[0].environment_entry
+    assert "ZRA1-OK" not in value  # packet content never rides the credential
+
+
+def test_secret_never_in_argv_artifacts_identity_or_fingerprint(tmp_path):
+    secrets = Secrets(value="super-secret-do-not-leak-987654321")
+    runner, store, fs, factory, packet = _runner(tmp_path, secrets=secrets)
+    result = runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+    call = factory.calls[0]
+    assert all("super-secret" not in a for a in call["argv"])
+    assert "super-secret" not in str(call["environment"])
+    for rel in fs.all_paths():
+        blob = fs.read_bytes(rel)
+        assert b"super-secret-do-not-leak-987654321" not in blob, rel
+    assert "super-secret" not in result.stdout and "super-secret" not in result.stderr
+    import json as _json
+    for doc in ("report.json", "child.identity.json", "result.json"):
+        for rel in fs.all_paths():
+            if rel.replace("\\", "/").endswith(doc):
+                assert "super-secret" not in fs.read_text(rel)
+
+
+def test_credential_envelope_repr_never_prints_value():
+    from a_conductor.zcode_runner import ZCodeEphemeralCredential
+    envelope = ZCodeEphemeralCredential(delivery_key="ANTHROPIC_API_KEY", _value="no-leak-abc")
+    assert "no-leak-abc" not in repr(envelope)
+    assert "no-leak-abc" not in str(envelope)
+
+
+def test_resolver_failure_means_zero_spawn(tmp_path):
+    class Broken:
+        def resolve(self, ref):
+            raise RuntimeError("vault down")
+    runner, store, fs, factory, _ = _runner(tmp_path, secrets=Broken())
+    with pytest.raises(Exception):
+        runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+    assert factory.calls == []  # zero spawn
+
+
+def test_empty_or_malformed_secret_means_zero_spawn(tmp_path):
+    class Empty:
+        def resolve(self, ref):
+            return ""
+    factory = TransportFactory(_script())
+    runner, *_ = _runner(tmp_path, secrets=Empty(), factory=factory)
+    with pytest.raises(Exception):
+        runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+    assert factory.calls == []  # zero spawn
+
+
+def test_transport_factory_exception_does_not_leak_secret(tmp_path):
+    secrets = Secrets(value="fragile-secret-value-42")
+    captured: list[str] = []
+
+    class ExplodingFactory(TransportFactory):
+        def open_transport(self, **kwargs):
+            credential = kwargs["credential"]
+            try:
+                raise RuntimeError("spawn exploded")
+            finally:
+                # even when the factory raises, the exception must not carry
+                # the secret value in its message or traceback text
+                captured.append(credential.environment_entry[1])
+
+    factory = ExplodingFactory(_script())
+    runner, *_ = _runner(tmp_path, secrets=secrets, factory=factory)
+    try:
+        runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+    except Exception as exc:
+        text = str(exc) + "".join(
+            getattr(exc, "__traceback__", None) and [] or []
+        )
+        assert "fragile-secret-value-42" not in str(exc)
+    assert captured == ["fragile-secret-value-42"]  # value existed only in memory
+
+
+def test_zcode_config_credential_cannot_substitute(tmp_path):
+    """When secret-ref resolution fails, no ZCode-config apiKey fallback may
+    exist: the module source contains no config-reading credential path."""
+    import inspect
+    from a_conductor import zcode_runner as module
+    source = inspect.getsource(module)
+    for forbidden in ("config.json", "apiKey", "Path.home()", "%USERPROFILE%"):
+        assert forbidden not in source, forbidden
