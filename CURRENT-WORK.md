@@ -32,7 +32,7 @@ One next safe action: freeze/review/CI WO157 on current main, then GPT-A accepta
 ### Immediate execution order (superseded by the PR208 review-repair override above)
 
 1. Freeze/review/accept PR #208 from current main composition.
-2. ~~Start ZRA-0~~ SUPERSEDED — ZRA-0 is COMPLETE_VERIFIED; do not restart it. Next after PR208 acceptance: fresh actual-state reconciliation, then the next frozen roadmap node per the override above.
+2. FORMAL ZRA-0 ACCEPTANCE REMAINS PENDING. Its prerequisite migration mechanism/evidence is pre-proven; do not treat that proof as node acceptance. Follow the authoritative override above.
 3. Progress ZRA-1 -> ZRA-2 -> ZRA-3 -> ZRA-4 under R3 trust/provider gates and deterministic evidence.
 4. Only after ZRA-4, resume broad ODP feature lanes not required by the zero-relay path; reconciliation/readiness work may proceed in parallel when it does not consume required mutable lanes.
 5. Keep WO096 fail-closed until its separate live authorization/evidence gate is satisfied.
