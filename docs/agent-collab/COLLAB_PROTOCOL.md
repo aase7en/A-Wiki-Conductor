@@ -11,20 +11,20 @@ All execution surfaces use the same startup core:
 3. `AGENTS.md`
 4. actual repository/worktree/remote/branch/HEAD/dirty/claim state
 5. `CURRENT-WORK.md`
-6. `handoff.md`
-7. active work order under `docs/work-orders/`
+6. active work order under `docs/work-orders/` when one exists or has already been claimed
+7. `handoff.md` only for resume/transfer work, unclear continuity, or when `CURRENT-WORK.md` points to it for material context
 8. task-relevant nodes selected by `PROJECT-GRAPH.yaml`
 9. `DEFECT_LESSONS.md` before `src/a_conductor/` mutation
 
-Actual repo/runtime state overrides stale summaries and chat memory.
+Actual repo/runtime state overrides stale summaries and chat memory about state; it never overrides user authority, safety constraints, or binding repository policy.
 
 Do not mechanically require the full `PROJECT-PLAN.md` + `DESIGN.md` corpus for every task. The project graph makes them mandatory only when architecture/roadmap/trust-policy or UI/UX scope requires them.
 
-Default delivery ownership is `GPT governance -> GLM/ZCode bounded execution -> deterministic evidence -> independent review as required -> GPT acceptance/merge`. This role split is a routing default, not a provider authority bypass.
+Default delivery ownership is `GPT governance -> capability-selected bounded execution -> deterministic evidence -> independent review as required -> GPT acceptance/merge`. The capability matrix currently prefers GLM/ZCode for many bounded READY implementation tasks; provider identity is a routing preference, not an architectural dependency or authority bypass.
 
 ## 2. Safety gate
 
-Mutation requires all of:
+Product/source mutation requires all of:
 - exact repository/worktree/remote/branch/HEAD;
 - known dirty-state ownership;
 - task owner and active bounded claim/lease;
@@ -34,6 +34,8 @@ Mutation requires all of:
 - durable result/evidence destination.
 
 If any item is uncertain: `SAFE_TO_MUTATE = NO`.
+
+Bootstrap exception: when a genuinely new task has no work order/claim yet, a clean isolated docs-only governance lane may create the initial WO/claim and nothing else. Product/source/runtime mutation remains blocked until the full gate is rerun and passes.
 
 ## 3. Task → result protocol
 
@@ -93,9 +95,11 @@ Default WIP limit from `FAST_EXECUTION_PROTOCOL.md`: at most **3 mutable impleme
 
 ## 7. Provider selection gate
 
+Route by task class and risk first, then choose the cheapest capable authorized executor using current evidence in `CAPABILITY_MATRIX.md`. Evaluate capability, readiness, authorization, cost, availability, ownership and result-destination fit separately.
+
 Before delegating to a named external model, record recent trustworthy evidence that the
 model is suitable for the task class. Benchmark evidence informs routing; it never grants
-mutation authority or overrides deterministic review.
+mutation authority or overrides deterministic review. A provider preference may change without changing lifecycle semantics.
 
 ## 8. One-goal orchestration + loop-engineer cycle
 
@@ -103,7 +107,7 @@ A human may state the goal once. The integrator owns decomposition, model routin
 
 Common front door:
 
-`recover SSoT/actual Git -> resolve only material ambiguity -> explicit bounded task/claim -> classify R0/R1/R2/R3 -> run the tier-specific loop -> checkpoint accepted evidence -> select next READY node`.
+`recover minimum SSoT/actual Git -> resolve only material ambiguity -> explicit bounded task/claim -> classify R0/R1/R2/R3 -> run the tier-specific loop -> checkpoint accepted evidence -> select next READY node`.
 
 R2/R3 retain frozen exact-SHA independent review, bounded repair/rereview, exact-head CI and realistic E2E/fault/release verification where applicable. R0/R1 may use shorter deterministic paths when their actual blast radius remains low.
 
