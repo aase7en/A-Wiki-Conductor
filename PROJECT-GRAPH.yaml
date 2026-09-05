@@ -1,0 +1,62 @@
+version: 1
+project: A-Wiki-Conductor
+product: A-Sunday Conductor
+entry:
+  first: 00-AGENT-ENTRY.md
+  then:
+    - PROJECT-GRAPH.yaml
+    - AGENTS.md
+continuity_core:
+  mandatory:
+    - CURRENT-WORK.md
+    - handoff.md
+    - active_work_order
+workflow_nodes:
+  fast_execution:
+    when: any non-trivial delivery work
+    read:
+      - docs/agent-collab/FAST_EXECUTION_PROTOCOL.md
+      - docs/agent-collab/COLLAB_PROTOCOL.md
+  multi_agent_coordination:
+    when: parallel lanes, delegation, claim transfer, review handoff
+    read:
+      - COLLAB.md
+      - docs/agent-collab/COLLAB_PROTOCOL.md
+      - docs/agent-collab/CAPABILITY_MATRIX.md
+  architecture:
+    when: product architecture, roadmap, trust boundary, durable workflow policy
+    read:
+      - PROJECT-PLAN.md
+  ui_design:
+    when: UI, UX, interaction, responsive behavior, motion, branding
+    read:
+      - DESIGN.md
+  source_mutation:
+    when: any src/a_conductor mutation
+    read:
+      - DEFECT_LESSONS.md
+  zero_relay:
+    when: external-agent automatic dispatch, ZCode/GLM result ingestion, repair/continue automation
+    read:
+      - docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md
+      - docs/work-orders/WO-P1-155-zero-relay-accelerator.md
+  release:
+    when: installer, frozen build, release, deployment, post-main verification
+    read:
+      - PROJECT-PLAN.md
+      - DEFECT_LESSONS.md
+rules:
+  actual_state_over_chat_memory: true
+  claim_before_mutation: true
+  safe_to_mutate_requires_known_identity_and_ownership: true
+  deterministic_evidence_is_completion_authority: true
+  default_wip:
+    mutable_lanes: 3
+    independent_read_only_review_lanes: 1
+routing:
+  bounded_ready_implementation_default: GLM_ZCode
+  architecture_trust_ssot_acceptance_merge_default: GPT_integrator
+  deterministic_mechanics_default: native_tools
+  zero_relay_transport:
+    before_acceptance: one_pointer_command
+    after_r3_acceptance: automatic_dispatch

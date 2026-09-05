@@ -4,6 +4,27 @@ Status: P0 ACCELERATOR / USER-PRIORITIZED
 Planning work order: `WO-P1-155`
 Classification: `REUSE + WRAP + EXTEND`
 
+## Current maturity checkpoint - 2026-09-04
+
+Zero-Relay has an advanced preview but is **not production-ready**.
+
+Current preview evidence on the stacked WO155 branch demonstrates:
+- one real installed ZCode app-server callability pilot;
+- deterministic exactly-one repair behavior;
+- deterministic continuation to the next READY task;
+- focused and related regression tests around the preview adapter/state machine.
+
+This is prototype/fabric evidence, not final ZRA-1..3 production acceptance. R3 review has unresolved boundaries including supervised process ownership/reaping truth, bounded stdout/result memory, repair-context truncation, exact provider/model/credential identity binding, and use of production authorization/admission/policy/secret-resolution assembly rather than synthetic pilot observations.
+
+Therefore:
+- label the existing real pilot as `LIVE_CALLABILITY_PROOF` until production authority is exercised;
+- do not treat deterministic ZRA-2/ZRA-3 state-machine tests as live scheduler/lease integration;
+- do not block the GLM-first delivery workflow on Zero-Relay completion;
+- use the one-pointer human bridge immediately: GPT/integrator writes the durable task packet, the user sends one short pointer to ZCode/GLM, and the integrator reads the declared result directly;
+- when Zero-Relay passes R3 gates, replace only that transport step with automatic dispatch/result ingestion.
+
+The workflow authority and safety gates are identical before and after Zero-Relay. Zero-Relay is a latency accelerator, not a new scheduler, task authority, secret authority, or acceptance authority.
+
 ## 1. Product outcome
 
 Remove the human from the message-bus role between GPT/A-Conductor and GLM/ZCode.

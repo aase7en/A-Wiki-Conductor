@@ -570,6 +570,19 @@ Operating rules:
 
 Delivery target: improve accepted-roadmap throughput by approximately **2–3x** while keeping blocking-defect escape rate and safety incidents no worse than the pre-WO154 baseline. If speed only moves defects downstream, the optimization is considered unsuccessful.
 
+### Primary delivery operating model
+
+The preferred implementation model is **GLM-first execution / GPT-first governance**.
+
+- GPT/integrator defines architecture/trust boundaries, dependency order, risk tier, work-order/claim scope, acceptance criteria, cross-lane conflict handling, SSoT, merge/release and final acceptance.
+- GLM/ZCode is the default primary implementation engine for bounded READY work when current capability/readiness/authorization/admission/policy gates pass. It may use supported goal/skills execution to continue implementation, targeted tests, debugging, repair and retest without repeated human `continue` messages.
+- Deterministic/native tools remain evidence authority for tests, builds, hashes, schema/process/Git identity, CI and release proof.
+- R3 work requires GPT/integrator authority/failure-model framing before implementation as well as final GPT acceptance after deterministic/independent review.
+- The durable WO/task packet is the implementation prompt contract. Avoid regenerating long bespoke prompts in chat when a pointer to the packet is enough.
+- Until Zero-Relay is accepted, the human fallback is one pointer command only and the integrator reads the result destination directly. Zero-Relay later automates the same contract without changing ownership/security/replay/review gates.
+
+Universal startup is defined by `00-AGENT-ENTRY.md`, `PROJECT-GRAPH.yaml`, `AGENTS.md`, and `docs/agent-collab/AGENT_ENTRY_PROTOCOL.md`. Large product/design documents are task-selective through the graph rather than mandatory startup reads for every low-risk task.
+
 ### P0 Accelerator — Zero-Relay External-Agent Execution
 
 Binding roadmap: `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` (`WO-P1-155`).
