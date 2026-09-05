@@ -282,6 +282,24 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 ---
 
+## #52: tunnel-client teardown can remove the whole Sunday Worker (2026-09-04)
+
+**อาการ:** Worker 1–5 หายเป็นช่วง ๆ แล้วฝั่ง ChatGPT เห็น `MCP Session terminated`, 404 หรือ 429; ต้องปลุก Worker ใหม่จึงกลับมาทำงานได้
+
+**Root cause ที่ยืนยันแล้ว:** process tree ปัจจุบันคือ `start.ps1 -> tunnel-client.exe -> serena.exe` ดังนั้นเมื่อ tunnel-client ออก Serena child จะเสีย transport และตายตามได้ทันที ขณะเดียวกัน EXE ที่ใช้งานจริงถูก build วันที่ 2026-08-26 แต่ source ของ bounded connector auto-recovery ถูกเพิ่มวันที่ 2026-08-28 จึงยังไม่ได้ deploy ลง runtime จริง; live DB ยังไม่มี `instance_recovery` table แม้ Worker 1–5 ตั้ง autostart=1 ทั้งหมด
+
+**Current trigger evidence:** At incident start all five Workers used shared tunnel-client 0.0.11, already below the WO-P1-097 safe floor (>=0.0.12). W1 was later moved to the checksum-verified 0.0.14 canary and remained healthy through the bounded observation window; W4 on 0.0.11 then reproduced the TTL/deadline -> closed-stdio -> tunnel-shutdown chain at 18:31, while W2/W3/W5 on 0.0.11 remained alive. Treat this as a trigger-dependent legacy-version failure family, not a fixed-uptime crash. ESET/network/gateway remain possible co-triggers without direct proof; CPU/RAM exhaustion is not supported as the primary cause.
+
+**วิธีแก้ที่ต้องใช้:** ใช้ recovery authority เดิมชุดเดียว `ConnectorRecoveryCoordinator + ConnectorRecoveryStore/SQLiteSerenaConfigStore + instance orchestrator`; ห้ามสร้าง retry/store/circuit authority ชุดที่สอง แยก unexpected crash ออกจาก manual stop, restart เฉพาะ exact worker launch spec แบบ bounded, แล้วตรวจ MCP/project/worktree/task/claim ใหม่ก่อน AVAILABLE งานที่ outcome ยัง UNKNOWN ห้าม blind replay
+
+**Lesson:** source มี self-heal ไม่ได้แปลว่าเครื่องจริงมี self-heal ต้อง verify deployed binary + schema + installed E2E ด้วย และ transport process ที่เป็น parent ของ execution runtime ต้องถูกออกแบบเป็น logical-worker failure domain ไม่ใช่ถือว่า process เดียวตายแล้วงานจบ
+
+**ตรวจสอบ:** ทำ chaos test บน Worker แบบ isolated โดย terminate เฉพาะ exact tunnel-client PID แล้วต้องเห็น logical Worker กลับ READY ผ่าน recovery authority เดิมโดยไม่ broad-kill/duplicate process; manual STOP ต้องไม่ restart; network disconnect/reconnect และ 404/429 ต้องไม่เกิด restart storm; migration ของ `instance_recovery` ต้องผ่านบนสำเนา live DB ก่อน live deployment
+
+รายละเอียดและหลักฐาน: `docs/incidents/2026-09-04-worker-tunnel-teardown.md`
+
+---
+
 ## กติกาการเพิ่ม lesson ใหม่:
 
 1. บันทึกเมื่อ: พบ defect ที่ผู้ใช้จริงรายงาน (ไม่ใช่แค่ test fail)
@@ -771,3 +789,9 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 **Lesson:** mutable application state directories are live synchronization boundaries. Do not recursively search/index `%USERPROFILE%\.zcode\v2` while ZCode is running. A read-oriented tool can still create availability failures if it retains a Windows handle across another process's atomic replace. Prefer a direct single-file read, targeted log query, or a copied snapshot. Never infer that a `.lock`/`.tmp` artifact is stale merely because an operation timed out.
 
 **Verify / recovery:** run `scripts/diagnose_zcode_config_lock.ps1`; if it reports `LOCKED`, identify the exact PID and owner before stopping anything. Re-run until `ZCODE_CONFIG_LOCK=UNLOCKED`, parse the JSON without printing it, then inspect the current ZCode log for new `EPERM` / `config.json.lock` errors. Full recovery procedure: `docs/runbooks/zcode-config-lock.md`; incident evidence: `docs/work-orders/WO-P1-153-zcode-config-lock-incident.md`.
+
+### 2026-09-04 18:31 recurrence refinement
+
+A later W4 control failure captured the same mechanism more precisely: MCP connection TTL reached -> stdio write file already closed -> tunnel shutdown -> Serena exit 120 / stdout-flush OSError 22 -> TUNNEL_START_FAILED. W1 on the checksum-verified 0.0.14 canary remained healthy through the same observation window, while W2/W3/W5 on 0.0.11 also remained alive.
+
+**Refined lesson:** do not model the legacy 0.0.11 defect as a fixed-uptime crash. Current evidence is consistent with a trigger-dependent deadline/session condition that exercises the old shared-stdio behavior. Version upgrade remains required because 0.0.11 is below the accepted safe floor, but causal testing must preserve negative controls and must not inject the trigger into a Worker with active/ambiguous work.
