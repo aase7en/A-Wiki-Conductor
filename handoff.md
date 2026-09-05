@@ -4,17 +4,17 @@ Last updated: 2026-09-05 - GPT-B post-PR208 merge / WO157 reconciliation
 
 ## Post-PR208 merge handoff override - 2026-09-05 (authoritative)
 
-- Main is `aa257f47ac3d0979c9b749896745cab6ce197975`; PR #208 / WO154 is MERGED/RELEASED after repaired head `5124ed18409d71df7b98e4455f0a4a2df6428695` passed independent rereview and exact-head CI.
+- Main is `f0ddd0b9245cef7a7525a670f470e1de595d4615`; PR #208 / WO154 is MERGED/RELEASED after repaired head `5124ed18409d71df7b98e4455f0a4a2df6428695` passed independent rereview and exact-head CI.
 - WO157 / PR #219 is GPT-B active docs/process successor, recomposed onto current main. Universal entry + task-selective reading + GLM-first bounded execution / GPT-governance need a new exact-SHA focused rereview + CI before acceptance.
 - Formal ZRA-0 remains pending; WO155 `653eba9` is preview/shaping evidence only. No production ZRA-1..4 acceptance is implied.
 - WO156 / PR #218 is MERGED / RELEASED as `aa257f47ac3d0979c9b749896745cab6ce197975` from accepted head `a1c37b03b3fad6e1485d4f925ac3fb7d018d236e`. Existing ConnectorRecovery remains source authority; installed exact-PID self-heal is still a separate GPT-A operational gate.
-- PR209 `2983733059518730be4fb8a5f600c0523f3c02e8` has exact-head CI PASS and PR208 dependency satisfied; GPT-A merge adjudication pending. PR211 coordination head is `053fa2a5cca6fbef701213d1684cb02290173327`. W1 0.0.14 canary remains protected.
+- PR209 incident/runbook evidence is MERGED / RELEASED as `f0ddd0b9245cef7a7525a670f470e1de595d4615` from head `d0a2331fb5861e20c9ee26e32749aaf2f8bb11bf`; installed exact-PID self-heal E2E remains separate and pending. PR211 coordination head is `053fa2a5cca6fbef701213d1684cb02290173327`. W1 0.0.14 canary remains protected.
 - PR204/WO152 remains scope-blocked at `9c90c873493b657cced86652c09c0e19920d99c8`; consolidation analysis says no production source repair is needed. Defer mutation until after ZRA-0..4.
 - Protected root checkout remains stale/dirty; continue only in isolated claimed worktrees.
 
-Canonical order: `WO157 binding + reliability adjudication -> ZRA-0 -> ZRA-1 -> ZRA-2 -> ZRA-3 -> ZRA-4 -> WO152/#204 -> ODP-1..8 -> ZRA-5 -> ODP-9 -> WO096/release`.
+Canonical order: `WO157 binding -> formal ZRA-0 -> ZRA-1 -> ZRA-2 -> ZRA-3 -> ZRA-4 -> WO152/#204 -> ODP-1..8 -> ZRA-5 -> ODP-9 -> WO096/release`.
 
-One next safe action: freeze/review/CI WO157 on current main, then GPT-A acceptance; PR209 adjudication may proceed in parallel without live runtime mutation.
+One next safe action: freeze/review/CI WO157 on current main, then GPT-A acceptance; installed self-heal E2E planning may proceed in parallel without live runtime mutation.
 
 ## Previous handoff override — 2026-09-04 (historical; superseded above)
 

@@ -8,8 +8,8 @@ Repository: A:\GitHub\A-Wiki-Conductor
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry
 Branch: docs/wo-p1-157-glm-first-entry
 Original stacked base: 0fd540c622d4539a2e809b8a441661896179f2ad
-Current base after PR218 merge: aa257f47ac3d0979c9b749896745cab6ce197975
-Dependencies: PR #208 and PR #218 SATISFIED; current main is aa257f47ac3d0979c9b749896745cab6ce197975
+Current base after PR209 merge: f0ddd0b9245cef7a7525a670f470e1de595d4615
+Dependencies: PR #208, PR #218 and PR #209 SATISFIED; current main is f0ddd0b9245cef7a7525a670f470e1de595d4615
 Risk: R2 process/governance change
 Classification: EXTEND existing Fast Execution protocol; no new scheduler/router/runtime authority
 
@@ -96,8 +96,8 @@ Deterministic docs validation passed across the 15-file canonical set: diff-chec
 
 ## Recomposition checkpoint - 2026-09-05
 
-- PR #208 / WO154 is merged/released; PR #218 / WO156 is also merged/released. Current main is `aa257f47ac3d0979c9b749896745cab6ce197975`.
+- PR #208 / WO154 is merged/released; PR #218 / WO156 is also merged/released. Current main is `f0ddd0b9245cef7a7525a670f470e1de595d4615`; PR #209 incident/runbook evidence is also merged while installed self-heal E2E remains pending.
 - PR208 merge released the shared continuity hotspots; WO157 scope is explicitly amended to fold current truth into `CURRENT-WORK.md` and `handoff.md` before freeze.
-- WO157 was recomposed again by non-force merge of current main `aa257f47ac3d0979c9b749896745cab6ce197975`; no rebase/reset/clean/stash/force-push used.
+- WO157 was recomposed again by non-force merge of current main `f0ddd0b9245cef7a7525a670f470e1de595d4615`; no rebase/reset/clean/stash/force-push used.
 - Known `COLLAB.md` claims-table conflict was resolved by preserving merged PR208 truth, retaining WO155 preview/shaping status, and updating WO157 to current-main successor status.
 - Post-merge semantic validation PASS on the 15-file docs-only delta: old-entry remnants 0, strict UTF-8/no-U+FFFD PASS, secret-shape PASS, YAML/path references PASS, git diff-check PASS, operator protocol 37/37 PASS. Exact-head CI + focused independent rereview remain required before PR219 acceptance.
