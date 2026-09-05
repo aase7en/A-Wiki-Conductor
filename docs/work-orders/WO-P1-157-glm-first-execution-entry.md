@@ -1,4 +1,4 @@
-# WO-P1-157   GLM-First Execution + Universal Agent Entry
+# WO-P1-157 — GLM-First Execution + Universal Agent Entry
 
 Date: 2026-09-04
 Owner: GPT-B / this chat
@@ -8,8 +8,8 @@ Repository: A:\GitHub\A-Wiki-Conductor
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry
 Branch: docs/wo-p1-157-glm-first-entry
 Original stacked base: 0fd540c622d4539a2e809b8a441661896179f2ad
-Current base after PR208 merge: 25c08c91317a4d3640ce2308e6166edd382bbad7
-Dependency: PR #208 SATISFIED - merged as 25c08c91317a4d3640ce2308e6166edd382bbad7
+Current base after PR218 merge: aa257f47ac3d0979c9b749896745cab6ce197975
+Dependencies: PR #208 and PR #218 SATISFIED; current main is aa257f47ac3d0979c9b749896745cab6ce197975
 Risk: R2 process/governance change
 Classification: EXTEND existing Fast Execution protocol; no new scheduler/router/runtime authority
 
@@ -96,8 +96,8 @@ Deterministic docs validation passed across the 15-file canonical set: diff-chec
 
 ## Recomposition checkpoint - 2026-09-05
 
-- PR #208 / WO154 is merged and released on `main@25c08c91317a4d3640ce2308e6166edd382bbad7`.
+- PR #208 / WO154 is merged/released; PR #218 / WO156 is also merged/released. Current main is `aa257f47ac3d0979c9b749896745cab6ce197975`.
 - PR208 merge released the shared continuity hotspots; WO157 scope is explicitly amended to fold current truth into `CURRENT-WORK.md` and `handoff.md` before freeze.
-- WO157 was recomposed by non-force merge of that exact main commit; no rebase/reset/clean/stash/force-push used.
+- WO157 was recomposed again by non-force merge of current main `aa257f47ac3d0979c9b749896745cab6ce197975`; no rebase/reset/clean/stash/force-push used.
 - Known `COLLAB.md` claims-table conflict was resolved by preserving merged PR208 truth, retaining WO155 preview/shaping status, and updating WO157 to current-main successor status.
 - Post-merge semantic validation PASS on the 15-file docs-only delta: old-entry remnants 0, strict UTF-8/no-U+FFFD PASS, secret-shape PASS, YAML/path references PASS, git diff-check PASS, operator protocol 37/37 PASS. Exact-head CI + focused independent rereview remain required before PR219 acceptance.

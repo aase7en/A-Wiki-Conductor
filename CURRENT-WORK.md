@@ -4,18 +4,18 @@ Last updated: 2026-09-05 (GPT-B - post-PR208 merge / WO157 reconciliation)
 
 ## Post-PR208 merge actual-state override - 2026-09-05 (authoritative)
 
-- main = `25c08c91317a4d3640ce2308e6166edd382bbad7`; PR #208 / WO154 is MERGED / RELEASED. Repaired head `5124ed18409d71df7b98e4455f0a4a2df6428695` passed independent rereview P0/P1/P2=0 and exact-head CI before merge.
+- main = `aa257f47ac3d0979c9b749896745cab6ce197975`; PR #208 / WO154 is MERGED / RELEASED. Repaired head `5124ed18409d71df7b98e4455f0a4a2df6428695` passed independent rereview P0/P1/P2=0 and exact-head CI before merge.
 - WO157 / PR #219 is the active workflow-successor lane. GPT-B recomposed it onto current main; new exact SHA still requires focused rereview + CI before acceptance.
 - Formal ZRA-0 is NOT accepted/closed. Sacrificial migration mechanism/evidence is pre-proven with live DB untouched. WO155 `653eba9` remains preview/shaping evidence only.
-- WO156 / PR #218 latest observed head is `249b255d77422ecc452db5db979efe9660fddc76`; existing ConnectorRecovery remains source authority. Installed exact-PID self-heal is a separate GPT-A operational gate.
-- PR #209 head `1b3f060941e5f488340e38ef49139d284da86371` has exact-head CI PASS and its PR208 dependency is satisfied. GPT-A merge adjudication remains pending.
+- WO156 / PR #218 is MERGED / RELEASED on `main@aa257f47ac3d0979c9b749896745cab6ce197975` from accepted head `a1c37b03b3fad6e1485d4f925ac3fb7d018d236e`. Existing ConnectorRecovery remains source authority; installed exact-PID self-heal is still a separate GPT-A operational gate.
+- PR #209 head `2983733059518730be4fb8a5f600c0523f3c02e8` has exact-head CI PASS and its PR208 dependency is satisfied. GPT-A merge adjudication remains pending.
 - PR #211 coordination SSoT head is `053fa2a5cca6fbef701213d1684cb02290173327`. W1 0.0.14 canary remains protected.
 - PR #204 / WO152 remains scope-blocked at `9c90c873493b657cced86652c09c0e19920d99c8`; consolidation analysis says no production source repair is needed. Defer mutation until after ZRA-0..4.
 - Protected root checkout remains stale/dirty; use isolated worktrees only.
 
 Canonical order: `WO157 binding + reliability adjudication -> ZRA-0 -> ZRA-1 -> ZRA-2 -> ZRA-3 -> ZRA-4 -> WO152/#204 -> ODP-1..8 -> ZRA-5 -> ODP-9 -> WO096/release`.
 
-One next safe action: freeze/review/CI WO157 on current main, then GPT-A acceptance; PR218/PR209 adjudication may proceed in parallel without live runtime mutation.
+One next safe action: freeze/review/CI WO157 on current main, then GPT-A acceptance; PR209 adjudication may proceed in parallel without live runtime mutation.
 
 ## WO154/WO155 execution override — 2026-09-04 (historical; sequencing superseded above)
 
@@ -153,8 +153,8 @@ Do **not** reconstruct task state from chat memory. Use actual repo/GitHub state
 
 ## v0.2.3: private Drive data layer (2026-08-22)
 
-- Secrets now live in the A-Wiki-Data Drive layer: `L:\My Drive\A-Wiki-Data\secrets-conductor-tunnels.md` holds all five Tunnel IDs (mapping worker/port/plugin); the Drive layer's `LAYOUT.md` records the two new roles.
-- Connector-deletion zip backups automatically target `L:\My Drive\A-Wiki-Dataackups-conductor-instances\` when it exists (`default_backup_dir()` in desktop_control, Drive-first with LOCALAPPDATA fallback); the existing smoketest zip was moved there.
+- Secrets now live in the A-Wiki-Data Drive layer: `L:\My Drive\A-Wiki-Data\secrets\a-conductor-tunnels.md` holds all five Tunnel IDs (mapping worker/port/plugin); the Drive layer's `LAYOUT.md` records the two new roles.
+- Connector-deletion zip backups automatically target `L:\My Drive\A-Wiki-Data\backups\a-conductor-instances\` when it exists (`default_backup_dir()` in desktop_control, Drive-first with LOCALAPPDATA fallback); the existing smoketest zip was moved there.
 - Repo AGENTS.md now points every agent at the Drive layer + its AGENTS/LAYOUT rules before touching important/secret files.
 
 ## v0.2.4: A-Doctor deep-audit fixes (2026-08-22)
