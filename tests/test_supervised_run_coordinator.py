@@ -34,8 +34,10 @@ from a_conductor.supervised_execution import (
     SupervisedCollectOutcome,
 )
 from a_conductor.supervised_run_coordinator import (
+    SupervisedBackendPolicy,
     SupervisedRunCoordinator,
     SupervisedRunIdentity,
+    native_backend_policy,
 )
 
 
@@ -367,3 +369,83 @@ def test_no_duplicate_authority_introduced():
         # no scheduler/thread spawn text in the coordinator
     assert "threading" not in source
     assert "Scheduler" not in source
+
+
+# ---------------- backend-policy seam (GPT1 Q20 CHANGES_REQUIRED) ----------------
+
+def test_coordinator_accepts_non_native_backend_policy(tmp_path):
+    """The coordinator must represent a non-native backend: caller-supplied
+    operation_ref, report_ref, artifact refs, agent identity and command
+    summary flow into the durable record without any native hard-coding."""
+    repo, store, supervised, _, coordinator = _harness(tmp_path)
+    argv = ("C:/ZCode/ZCode.exe", "zcode.cjs", "app-server", "--stdio",
+            "--surface", "desktop")
+
+    def zcode_op_ref(a):
+        return "zcode:task-packet-sha256:abcd1234"
+
+    def zcode_summary(a):
+        return "zcode app-server turn (task abcd1234)"
+
+    def zcode_report(run_rel):
+        return f"{run_rel}/report.json"
+
+    policy = SupervisedBackendPolicy(
+        derive_operation_ref=zcode_op_ref,
+        command_summary=zcode_summary,
+        agent_ref="agent:zcode-app-server",
+        report_ref=zcode_report,
+    )
+    zcode_coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=SupervisedRunIdentity(
+            job_id="job-1", work_order_ref="WO-P1-158", project_id="p1",
+            worker_id="w1", backend_id="zcode-app-server", branch="main",
+            head_before="b" * 40, runtime_profile_ref="rt:zcode",
+            repo_root=str(repo),
+        ),
+        backend_policy=policy,
+        poll_interval_seconds=0.01,
+    )
+    fingerprint_before = zcode_coordinator.fingerprint_for_argv(argv)
+    zcode_coordinator.run(argv, timeout_seconds=30)
+    record = store.find_by_fingerprint(fingerprint_before)[0]
+    assert record.operation_ref == "zcode:task-packet-sha256:abcd1234"
+    assert record.agent_ref == "agent:zcode-app-server"
+    assert record.command_summary == "zcode app-server turn (task abcd1234)"
+    assert record.report_ref.endswith("/report.json")
+    assert record.stdout_ref.endswith("/stdout.log")   # default artifact refs
+    assert record.result_ref.endswith("/result.json")
+    assert record.backend_id == "zcode-app-server"
+
+
+def test_native_default_policy_is_byte_identical_to_historical_behavior(tmp_path):
+    """Default (no policy) coordinator must keep exact native outputs."""
+    repo, store, supervised, runner, coordinator = _harness(tmp_path)
+    argv = ARGV
+    import hashlib as _h
+    expected_op = f"native:{_h.sha256(chr(0).join(argv).encode()).hexdigest()[:16]}"
+    assert coordinator.operation_ref(argv) == expected_op
+    assert coordinator.fingerprint_for_argv(argv) == runner.fingerprint_for(
+        __import__("a_conductor.native_execution", fromlist=["NativeCommandSpec"]).NativeCommandSpec(argv=argv)
+    )
+    coordinator.run(argv, timeout_seconds=30)
+    record = store.find_by_fingerprint(coordinator.fingerprint_for_argv(argv))[0]
+    assert record.agent_ref == "agent:supervised-native"
+    assert record.command_summary == " ".join(argv[:3])[:200]
+    assert record.report_ref is None
+
+
+def test_policy_validates_callables_and_agent_ref(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    with pytest.raises(ValueError):
+        SupervisedBackendPolicy(
+            derive_operation_ref="not-callable", command_summary=lambda a: "s"
+        )
+    with pytest.raises(ValueError):
+        SupervisedBackendPolicy(
+            derive_operation_ref=lambda a: "x", command_summary=lambda a: "s",
+            agent_ref=" ",
+        )

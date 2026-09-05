@@ -97,6 +97,69 @@ class SupervisedRunIdentity:
             _require_text(getattr(self, name), name)
 
 
+@dataclass(frozen=True, slots=True)
+class SupervisedBackendPolicy:
+    """Backend-specific durable metadata the coordinator applies per run.
+
+    The coordinator owns the common lifecycle (fingerprint, dedup guard,
+    record creation, launch, poll/timeout, collect/version CAS); the backend
+    owns identity/artifact policy: operation_ref derivation, command summary,
+    agent identity, and artifact reference layout. The default reproduces the
+    historical native behavior byte-for-byte.
+    """
+
+    derive_operation_ref: Callable[[tuple[str, ...]], str]
+    command_summary: Callable[[tuple[str, ...]], str]
+    agent_ref: str = "agent:supervised-native"
+    report_ref: Callable[[str], str | None] | None = None
+    stdout_ref: Callable[[str], str] | None = None
+    stderr_ref: Callable[[str], str] | None = None
+    result_ref: Callable[[str], str] | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("derive_operation_ref", "command_summary"):
+            if not callable(getattr(self, name)):
+                raise ValueError(f"{name} must be callable")
+        _require_text(self.agent_ref, "agent_ref")
+
+        def _report(run_rel: str) -> None:
+            return None
+
+        def _stdout(run_rel: str) -> str:
+            return f"{run_rel}/stdout.log"
+
+        def _stderr(run_rel: str) -> str:
+            return f"{run_rel}/stderr.log"
+
+        def _result(run_rel: str) -> str:
+            return f"{run_rel}/result.json"
+
+        for name, default in (
+            ("report_ref", _report),
+            ("stdout_ref", _stdout),
+            ("stderr_ref", _stderr),
+            ("result_ref", _result),
+        ):
+            if getattr(self, name) is None or not callable(getattr(self, name)):
+                object.__setattr__(self, name, default)
+
+
+def native_backend_policy() -> SupervisedBackendPolicy:
+    """Historical native policy: byte-identical to the pre-extraction runner."""
+
+    def _operation_ref(argv: tuple[str, ...]) -> str:
+        digest = hashlib.sha256("\x00".join(argv).encode("utf-8")).hexdigest()[:16]
+        return f"native:{digest}"
+
+    def _summary(argv: tuple[str, ...]) -> str:
+        return " ".join(argv[:3])[:200]
+
+    return SupervisedBackendPolicy(
+        derive_operation_ref=_operation_ref,
+        command_summary=_summary,
+    )
+
+
 class SupervisedRunCoordinator:
     """Own the fingerprint/dedup/launch/poll/collect lifecycle for one backend."""
 
@@ -106,7 +169,8 @@ class SupervisedRunCoordinator:
         execution_store: SupervisedExecutionFingerprintStore,
         supervised: SupervisedLauncher,
         identity: SupervisedRunIdentity,
-        agent_ref: str = "agent:supervised-native",
+        backend_policy: SupervisedBackendPolicy | None = None,
+        agent_ref: str | None = None,
         poll_interval_seconds: float = 0.05,
         sleep_fn: Callable[[float], None] = time.sleep,
         clock_fn: Callable[[], float] = time.monotonic,
@@ -120,7 +184,6 @@ class SupervisedRunCoordinator:
                 raise ValueError(f"supervised must provide {method_name}")
         if not isinstance(identity, SupervisedRunIdentity):
             raise ValueError("identity must be a SupervisedRunIdentity")
-        _require_text(agent_ref, "agent_ref")
         if (
             not isinstance(poll_interval_seconds, (int, float))
             or isinstance(poll_interval_seconds, bool)
@@ -135,7 +198,19 @@ class SupervisedRunCoordinator:
         self._supervised = supervised
         self._guard = DuplicateExecutionGuard(store=execution_store)
         self._identity = identity
-        self._agent_ref = agent_ref
+        self._policy = backend_policy or native_backend_policy()
+        if agent_ref is not None:
+            _require_text(agent_ref, "agent_ref")
+            self._policy = SupervisedBackendPolicy(
+                derive_operation_ref=self._policy.derive_operation_ref,
+                command_summary=self._policy.command_summary,
+                agent_ref=agent_ref,
+                report_ref=self._policy.report_ref,
+                stdout_ref=self._policy.stdout_ref,
+                stderr_ref=self._policy.stderr_ref,
+                result_ref=self._policy.result_ref,
+            )
+        self._agent_ref = self._policy.agent_ref
         self._repo_root = Path(identity.repo_root).expanduser().resolve(strict=False)
         self._poll_interval_seconds = float(poll_interval_seconds)
         self._sleep_fn = sleep_fn
@@ -147,8 +222,7 @@ class SupervisedRunCoordinator:
         return self._identity
 
     def operation_ref(self, argv: tuple[str, ...]) -> str:
-        digest = hashlib.sha256("\x00".join(argv).encode("utf-8")).hexdigest()[:16]
-        return f"native:{digest}"
+        return self._policy.derive_operation_ref(argv)
 
     def fingerprint_spec(self, argv: tuple[str, ...]) -> ExecutionFingerprintSpec:
         return ExecutionFingerprintSpec(
@@ -284,13 +358,13 @@ class SupervisedRunCoordinator:
                 head_before=self._identity.head_before,
                 operation_ref=self.operation_ref(argv),
                 command_fingerprint=fingerprint,
-                command_summary=" ".join(argv[:3])[:200],
+                command_summary=self._policy.command_summary(argv),
                 runtime_profile_ref=self._identity.runtime_profile_ref,
                 run_dir_ref=run_rel,
-                stdout_ref=f"{run_rel}/stdout.log",
-                stderr_ref=f"{run_rel}/stderr.log",
-                result_ref=f"{run_rel}/result.json",
-                report_ref=None,
+                stdout_ref=self._policy.stdout_ref(run_rel),
+                stderr_ref=self._policy.stderr_ref(run_rel),
+                result_ref=self._policy.result_ref(run_rel),
+                report_ref=self._policy.report_ref(run_rel),
                 transport_state=TransportState.CONNECTED,
                 execution_state=ExecutionProcessState.QUEUED,
             )

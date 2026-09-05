@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.1.0",
+  "provider_id": "zcode-glm-runtime",
+  "display_name": "GLM Shared Provider",
+  "provider_type": "cloud-proxy",
+  "protocol_family": "ANTHROPIC_MESSAGES",
+  "endpoint_ref": "provider-config:glm-shared/base-url",
+  "credential_ref": "secret-ref:provider/glm-shared/main",
+  "trust_class": "TRUSTED_THIRD_PARTY",
+  "harness_strategies": [
+    "ZCODE_APP_SERVER"
+  ],
+  "max_concurrency": 1,
+  "models": [
+    {
+      "model_id": "glm-5.3",
+      "display_name": "GLM-5.3",
+      "actor_capabilities": [
+        {
+          "capability": "documentation",
+          "evidence_level": "DECLARED",
+          "source": "operator-config"
+        },
+        {
+          "capability": "deep-reasoning",
+          "evidence_level": "UNKNOWN",
+          "source": "awaiting-verification"
+        }
+      ],
+      "supported_effort_levels": [
+        "LOW",
+        "HIGH",
+        "MAX"
+      ],
+      "context_window_tokens": null,
+      "runtime_binding": {
+        "harness_strategy": "ZCODE_APP_SERVER",
+        "runtime_provider_ref": "zcode-runtime/glm-main",
+        "runtime_model_ref": "zcode-runtime/glm-5.3"
+      }
+    }
+  ],
+  "enabled": true,
+  "egress_boundary": "EXTERNAL_THIRD_PARTY"
+}

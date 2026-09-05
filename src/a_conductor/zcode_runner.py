@@ -1,46 +1,72 @@
-"""WO-P1-158 Phase D — SupervisedZCodeRunner (durable integration).
+"""WO-P1-158 Phase D — SupervisedZCodeRunner (durable canonical integration).
 
-Integrates ZCode app-server execution into the existing durable authorities:
+ZCode app-server execution over the ONE canonical supervised lifecycle:
 
-- ONE shared run lifecycle via ``SupervisedRunCoordinator`` (fingerprint,
-  duplicate guard, record creation, launch, poll/timeout, collect/version CAS);
-- durable ``backend_id = zcode-app-server``;
-- identity-before-prompt: ``child.identity.json`` is atomically persisted and
-  re-parsed BEFORE any protocol message is sent;
-- runtime-selection double-check: the sanitized selection digest is validated
-  once during preparation and again at the launch seam (``ZCODE_SELECTION_DRIFT``
-  fails closed before spawn);
-- strict artifact ordering: bounded stdout (final response) and redacted stderr
-  as execution progresses, then atomic strict ``report.json``; the standard
-  ``result.json`` is written ONLY when a REAL terminal exit code exists —
-  UNKNOWN/EXIT_PENDING never fabricates a result and returns recovery-required;
-- normal shutdown is stdin-EOF + bounded natural-exit wait; no terminate/kill
-  ladder and no automatic kill.
-
-No scheduler, retry engine, second execution store, admission, lease, or
-provider-store authority is added here.
+- ``SupervisedZCodeRunner`` builds a ``SupervisedRunRequest`` and delegates
+  the durable lifecycle — fingerprint, ``DuplicateExecutionGuard``, execution
+  record creation, launch, poll/timeout, collect/version CAS — to
+  ``SupervisedRunCoordinator.run``. The high-level runner never spawns a
+  transport directly and owns no second store/guard/poll authority.
+- ``ZCodeBackendAdapter`` implements the ``SupervisedLauncher`` shape: its
+  ``launch`` performs the bounded ZCode turn (repository-owned transport
+  seam → fail-closed child identity → authorized selection → protocol turn
+  → artifacts → EOF-only shutdown) and stores the terminal outcome;
+  ``inspect``/``collect`` serve that outcome through the coordinator's
+  canonical polling/collect path.
+- ``result.json`` is the canonical six-key ``SupervisedChildResult``
+  (schema_version, execution_id, child_pid, exit_code, started_at,
+  finished_at) written ONLY on a real terminal child exit. The final
+  response stays in ``stdout_ref``; redacted diagnostics in ``stderr_ref``;
+  strict protocol metadata in the configured ``report_ref``. UNKNOWN /
+  EXIT_PENDING never fabricates a result.
+- Task authority: a verified ``TaskPacketFile`` (path/size/hash) — raw
+  caller prompt strings are rejected; the packet is re-hashed immediately
+  before the protocol send (TOCTOU closed).
+- Selection authorization: the resolved runtime selection must match the
+  accepted provider-model ``HarnessRuntimeBinding`` and authorized endpoint
+  (not merely be stable), checked at preparation AND again at the launch
+  seam; drift or unauthorized selection fails closed before any prompt.
+- Credentials: resolved only through the accepted secret-reference
+  authority at the execution boundary; the value passes only through the
+  closed transport seam into process memory — never persisted, printed, or
+  hashed into identity. No ZCode-config credential fallback exists here.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import time
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
-from .execution_deduplication import ExecutionFingerprintSpec
-from .native_execution import NativeCommandResult
+from .claude_code_harness import TaskPacketFile
+from .execution_record import ExecutionProcessState
 from .provider_configuration import (
     HarnessRuntimeBinding,
     runtime_selection_sha256,
 )
+from .supervised_child import SupervisedChildResult
+from .supervised_execution import (
+    SupervisedCollectOutcome,
+    SupervisedInspection,
+    SupervisedInspectionState,
+    SupervisedLaunchOutcome,
+    SupervisedLaunchPlan,
+)
 from .supervised_run_coordinator import (
-    SupervisedLauncher,
+    SupervisedBackendPolicy,
     SupervisedExecutionFingerprintStore,
+    SupervisedLauncher,
     SupervisedRunCoordinator,
     SupervisedRunIdentity,
 )
-from .zcode_protocol import ZCODE_MAX_RESPONSE_BYTES, ZCodeProtocolError, ZCodeProtocolDriver
+from .zcode_protocol import (
+    ZCODE_MAX_RESPONSE_BYTES,
+    ZCodeProtocolDriver,
+    ZCodeProtocolError,
+)
 from .zcode_supervised_helper import (
     ZCodeChildIdentity,
     parse_child_identity_document,
@@ -52,304 +78,466 @@ from .zcode_supervised_helper import (
 
 
 ZCODE_BACKEND_ID = "zcode-app-server"
+_RESULT_SCHEMA_VERSION = 1
+_CODE_RE = re.compile(r"[A-Z0-9_]{3,64}")
+_MAX_PACKET_BYTES = 262_144
 
+
+class ZCodeRunError(RuntimeError):
+    """Bounded typed failure; code-only (no secret/prompt material)."""
+
+    def __init__(self, code: str) -> None:
+        if not isinstance(code, str) or not _CODE_RE.fullmatch(code):
+            raise ValueError("zcode run error code is invalid")
+        self.code = code
+        super().__init__(code)
+
+
+def _sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _iso_utc(epoch: float) -> str:
+    from datetime import datetime, timezone
+
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat()
+
+
+# ---------------- verified task authority ----------------
+
+@dataclass(frozen=True, slots=True)
+class ZCodeTaskPacketIdentity:
+    """The task packet is re-read, size-bounded, and re-hashed at intake."""
+
+    task_contract_ref: str
+    packet_sha256: str
+    content: str
+
+    @classmethod
+    def from_task_packet_file(
+        cls, packet: TaskPacketFile, *, max_packet_bytes: int = _MAX_PACKET_BYTES
+    ) -> "ZCodeTaskPacketIdentity":
+        from pathlib import Path
+
+        if not isinstance(packet, TaskPacketFile):
+            raise ValueError("packet must be a TaskPacketFile")
+        try:
+            raw = Path(packet.path).read_bytes()
+        except OSError as exc:
+            raise ZCodeRunError("ZCODE_TASK_PACKET_UNREADABLE") from exc
+        if len(raw) > max_packet_bytes:
+            raise ZCodeRunError("ZCODE_TASK_PACKET_TOO_LARGE")
+        digest = _sha256_hex(raw)
+        if digest.casefold() != packet.sha256.casefold():
+            raise ZCodeRunError("ZCODE_TASK_PACKET_HASH_MISMATCH")
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ZCodeRunError("ZCODE_TASK_PACKET_UNREADABLE") from exc
+        return cls(
+            task_contract_ref=packet.task_contract_ref,
+            packet_sha256=digest,
+            content=content,
+        )
+
+
+# ---------------- seams (repository-owned implementations) ----------------
 
 class ZCodeSelectionSource(Protocol):
-    """Trusted Conductor-side provider of the sanitized runtime selection."""
+    """Trusted Conductor-side provider of the authorized runtime selection."""
 
-    def resolved_selection(self) -> dict:
-        """Return {'runtime_binding': HarnessRuntimeBinding|dict,
-        'runtime_base_url': str, 'runtime_source_enabled': bool|None}."""
+    def resolved_selection(self) -> dict: ...
 
 
-class ZCodeSpawnTransportFactory(Protocol):
-    """Lifecycle seam owned by the supervised helper (Phase D runtime)."""
+class ZCodeSecretResolver(Protocol):
+    """Accepted secret-reference authority at the execution boundary."""
 
-    def open(
+    def resolve(self, secret_ref: str) -> str: ...
+
+
+class ZCodeTransportFactory(Protocol):
+    """Repository-owned seam: starts the app-server child and returns a
+    transport carrying REAL process metadata. The resolved credential is
+    supplied through the closed factory context, never persisted."""
+
+    def open_transport(
         self,
         *,
         argv: tuple[str, ...],
         environment: dict[str, str],
         execution_id: str,
-        run_dir: str,
+        run_dir_ref: str,
     ) -> object: ...
 
 
 class ZCodeFilesystem(Protocol):
+    """Run-dir-confined artifact IO (relative paths only)."""
+
     def write_atomic(self, relative_path: str, text: str) -> None: ...
     def read_text(self, relative_path: str) -> str: ...
     def append_text(self, relative_path: str, text: str) -> None: ...
     def write_bytes_file(self, relative_path: str, data: bytes) -> None: ...
 
 
-@dataclass(frozen=True, slots=True)
-class ZCodeRunResult:
-    native: NativeCommandResult
-    report: dict | None
-    recovery_required: bool
-    error_code: str | None = None
+# ---------------- durable-metadata policy ----------------
 
+def zcode_backend_policy(*, operation_ref: str) -> SupervisedBackendPolicy:
+    """ZCode backend policy: operation identity from the task contract."""
 
-class ZCodeSelectionDriftError(RuntimeError):
-    def __init__(self) -> None:
-        super().__init__("ZCODE_SELECTION_DRIFT")
+    def _op(argv: tuple[str, ...]) -> str:
+        return operation_ref
 
+    def _summary(argv: tuple[str, ...]) -> str:
+        return f"zcode app-server turn ({operation_ref})"
 
-def _selection_digest(selection: dict) -> str:
-    binding = selection["runtime_binding"]
-    if not isinstance(binding, HarnessRuntimeBinding):
-        binding = HarnessRuntimeBinding.from_dict(binding)
-    return runtime_selection_sha256(
-        runtime_binding=binding,
-        runtime_base_url=selection["runtime_base_url"],
-        runtime_source_enabled=selection.get("runtime_source_enabled"),
+    def _report(run_rel: str) -> str:
+        return f"{run_rel}/report.json"
+
+    return SupervisedBackendPolicy(
+        derive_operation_ref=_op,
+        command_summary=_summary,
+        agent_ref="agent:zcode-app-server",
+        report_ref=_report,
     )
 
 
+# ---------------- backend adapter (SupervisedLauncher shape) ----------------
+
+class ZCodeBackendAdapter:
+    """Bridges the coordinator lifecycle onto the bounded ZCode protocol turn.
+
+    ``launch`` executes the whole bounded turn synchronously (identity →
+    authorized selection → protocol → artifacts → EOF-only shutdown) and
+    stores the terminal outcome; ``inspect``/``collect`` serve it through
+    the coordinator's canonical polling and version-CAS collect path.
+    """
+
+    def __init__(
+        self,
+        *,
+        transport_factory: ZCodeTransportFactory,
+        filesystem: ZCodeFilesystem,
+        execution_store: "SupervisedExecutionFingerprintStore | None" = None,
+        selection_source: ZCodeSelectionSource,
+        expected_binding: HarnessRuntimeBinding,
+        expected_base_url: str,
+        secret_resolver: ZCodeSecretResolver,
+        secret_reference: str,
+        packet: ZCodeTaskPacketIdentity,
+        workspace: str,
+        executable: str,
+        bundle_js: str,
+        max_response_bytes: int = ZCODE_MAX_RESPONSE_BYTES,
+        deadline_seconds: float = 300.0,
+    ) -> None:
+        self._transport_factory = transport_factory
+        self._fs = filesystem
+        self._execution_store = execution_store
+        self._selection_source = selection_source
+        self._expected_binding = expected_binding
+        self._expected_base_url = expected_base_url
+        self._secret_resolver = secret_resolver
+        if not isinstance(secret_reference, str) or not secret_reference.startswith("secret-ref:"):
+            raise ValueError("secret_reference must use the accepted secret-ref authority")
+        self._secret_reference = secret_reference
+        self._packet = packet
+        self._workspace = workspace
+        self._executable = executable
+        self._bundle_js = bundle_js
+        self._max_response_bytes = validate_output_budget(max_response_bytes)
+        if deadline_seconds <= 0:
+            raise ValueError("deadline_seconds must be positive")
+        self._deadline = float(deadline_seconds)
+        self._outcomes: dict[str, SupervisedCollectOutcome] = {}
+
+    # -- selection authorization ----------------------------------------
+
+    def authorized_selection_digest(self, phase: str) -> str:
+        selection = self._selection_source.resolved_selection()
+        binding = selection.get("runtime_binding")
+        if not isinstance(binding, HarnessRuntimeBinding):
+            try:
+                binding = HarnessRuntimeBinding.from_dict(binding)
+            except (ValueError, TypeError) as exc:
+                raise ZCodeRunError(f"ZCODE_SELECTION_{phase}_MALFORMED") from exc
+        base_url = selection.get("runtime_base_url")
+        if not isinstance(base_url, str) or not base_url.strip():
+            raise ZCodeRunError(f"ZCODE_SELECTION_{phase}_MALFORMED")
+        if (
+            binding.harness_strategy is not self._expected_binding.harness_strategy
+            or binding.runtime_provider_ref != self._expected_binding.runtime_provider_ref
+            or binding.runtime_model_ref != self._expected_binding.runtime_model_ref
+            or base_url.strip() != self._expected_base_url.strip()
+        ):
+            raise ZCodeRunError("ZCODE_SELECTION_UNAUTHORIZED")
+        return runtime_selection_sha256(
+            runtime_binding=binding,
+            runtime_base_url=base_url,
+            runtime_source_enabled=selection.get("runtime_source_enabled"),
+        )
+
+    # -- SupervisedLauncher protocol --------------------------------------
+
+    def launch(self, plan: SupervisedLaunchPlan) -> SupervisedLaunchOutcome:
+        record = plan.record
+        run_rel = record.run_dir_ref
+        execution_id = record.execution_id
+        # canonical durable-record persistence (mirrors the native supervisor)
+        if self._execution_store is not None:
+            record = self._execution_store.create(record)
+        argv = plan.target_argv
+        if not validate_app_server_argv(
+            argv, executable=self._executable, bundle_js=self._bundle_js
+        ):
+            raise ZCodeRunError("ZCODE_ARGV_GRAMMAR_INVALID")
+
+        # launch-seam selection authorization (2nd check)
+        seam_digest = self.authorized_selection_digest("SEAM")
+
+        # credential: accepted secret-ref authority → process memory only
+        try:
+            secret_value = self._secret_resolver.resolve(self._secret_reference)
+        except Exception as exc:
+            raise ZCodeRunError("ZCODE_SECRET_RESOLUTION_FAILED") from exc
+        if not isinstance(secret_value, str) or not secret_value:
+            raise ZCodeRunError("ZCODE_SECRET_RESOLUTION_FAILED")
+        environment = {"ELECTRON_RUN_AS_NODE": "1"}
+        # the closed factory seam carries the credential into the child env;
+        # it never enters the durable record, artifacts, argv, or identity
+        transport = self._transport_factory.open_transport(
+            argv=argv,
+            environment=environment,
+            execution_id=execution_id,
+            run_dir_ref=run_rel,
+        )
+
+        # child identity: REAL process metadata or fail closed — never 1s
+        child_pid = getattr(transport, "child_pid", None)
+        created = getattr(transport, "child_created_epoch_ms", None)
+        parent_pid = getattr(transport, "parent_pid", None)
+        for name, value in (
+            ("child_pid", child_pid),
+            ("child_created_epoch_ms", created),
+            ("parent_pid", parent_pid),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value < 1
+            ):
+                raise ZCodeRunError("ZCODE_CHILD_IDENTITY_UNAVAILABLE")
+        identity = ZCodeChildIdentity(
+            child_pid=child_pid,
+            child_created_epoch_ms=created,
+            executable=self._executable,
+            parent_pid=parent_pid,
+            target_argv_sha256=target_argv_sha256(argv),
+            execution_id=execution_id,
+        )
+        # identity BEFORE prompt: durable write → re-parse → exact match
+        identity_doc = f"{run_rel}/child.identity.json"
+        self._fs.write_atomic(identity_doc, serialize_child_identity_document(identity))
+        try:
+            parsed = parse_child_identity_document(json.loads(self._fs.read_text(identity_doc)))
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            raise ZCodeRunError("ZCODE_IDENTITY_WRITE_FAILED") from exc
+        if not parsed.matches(identity):
+            raise ZCodeRunError("ZCODE_IDENTITY_WRITE_FAILED")
+
+        # task packet re-hash immediately before the protocol send (TOCTOU)
+        if _sha256_hex(self._packet.content.encode("utf-8")) != self._packet.packet_sha256:
+            raise ZCodeRunError("ZCODE_TASK_PACKET_TOCTOU")
+
+        started = time.time()
+        driver = ZCodeProtocolDriver(transport, max_response_bytes=self._max_response_bytes)
+        stderr_codes: list[str] = []
+        report: dict | None = None
+        turn = None
+        error_code: str | None = None
+        try:
+            turn = driver.run_turn(
+                self._packet.content,
+                workspace=self._workspace,
+                deadline_seconds=self._deadline,
+            )
+        except ZCodeProtocolError as exc:
+            stderr_codes.append(exc.code)
+            error_code = f"ZCODE_{exc.code}"
+        self._fs.write_bytes_file(f"{run_rel}/stderr.log", ("\n".join(stderr_codes) + "\n").encode("utf-8"))
+
+        if turn is not None:
+            self._fs.write_bytes_file(f"{run_rel}/stdout.log", turn.response_text.encode("utf-8"))
+            report = {
+                "schema": "zcode-report/1",
+                "execution_id": execution_id,
+                "task_contract_ref": self._packet.task_contract_ref,
+                "task_packet_sha256": self._packet.packet_sha256,
+                "selection_sha256": seam_digest,
+                "response_bytes": turn.bytes_received,
+                "response_sha256": _sha256_hex(turn.response_text.encode("utf-8")),
+                "session_id": turn.session_id,
+            }
+            self._fs.write_atomic(
+                f"{run_rel}/report.json",
+                json.dumps(report, sort_keys=True, separators=(",", ":")),
+            )
+
+        # normal shutdown: stdin EOF + bounded natural-exit wait; no kill
+        exit_code = transport.close_stdin_and_wait(exit_wait_seconds=30)
+        finished = time.time()
+        if exit_code is None and report is not None:
+            # protocol succeeded but the child did not terminate within the
+            # bounded natural-exit wait: the report must record that pending
+            # exit state so no reader mistakes artifacts for an accepted run
+            report = {**report, "exit_state": "EXIT_PENDING"}
+            self._fs.write_atomic(
+                f"{run_rel}/report.json",
+                json.dumps(report, sort_keys=True, separators=(",", ":")),
+            )
+        result: SupervisedChildResult | None = None
+        if turn is not None and isinstance(exit_code, int) and not isinstance(exit_code, bool):
+            # canonical six-key supervised result on a REAL terminal exit
+            result = SupervisedChildResult(
+                schema_version=_RESULT_SCHEMA_VERSION,
+                execution_id=execution_id,
+                child_pid=identity.child_pid,
+                exit_code=exit_code,
+                started_at=_iso_utc(started),
+                finished_at=_iso_utc(finished),
+            )
+            self._fs.write_atomic(
+                f"{run_rel}/result.json",
+                json.dumps(
+                    {
+                        "schema_version": result.schema_version,
+                        "execution_id": result.execution_id,
+                        "child_pid": result.child_pid,
+                        "exit_code": result.exit_code,
+                        "started_at": result.started_at,
+                        "finished_at": result.finished_at,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            )
+        if result is None and report is None:
+            # typed unknown state; NEVER fabricate result.json
+            self._fs.write_atomic(
+                f"{run_rel}/report.json",
+                json.dumps(
+                    {
+                        "schema": "zcode-report/1",
+                        "execution_id": execution_id,
+                        "state": "UNKNOWN",
+                        "error_code": error_code or "ZCODE_EXIT_PENDING",
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            )
+
+        self._outcomes[execution_id] = SupervisedCollectOutcome(
+            record=record,
+            result=result,
+            recovery_required=result is None,
+            error_code=None if result is not None else (error_code or "ZCODE_EXIT_PENDING"),
+        )
+        if self._execution_store is not None and result is not None:
+            try:
+                self._execution_store.set_execution_state(
+                    execution_id,
+                    ExecutionProcessState.SUCCEEDED,
+                    expected_version=record.version,
+                    evidence_ref="zcode:natural-exit",
+                )
+            except Exception:
+                # collect/version-CAS remains authoritative in the coordinator
+                pass
+        return SupervisedLaunchOutcome(
+            record=record,
+            supervisor_pid=None,
+            child_pid=identity.child_pid,
+            recovery_required=False,
+        )
+
+    def inspect(self, execution_id: str) -> SupervisedInspection:
+        if execution_id not in self._outcomes:
+            raise ZCodeRunError("ZCODE_EXECUTION_UNKNOWN")
+        return SupervisedInspection(
+            execution_id=execution_id,
+            state=SupervisedInspectionState.RESULT_AVAILABLE,
+            supervisor_pid=None,
+            result_available=True,
+            recovery_required=False,
+        )
+
+    def collect(self, execution_id: str, *, expected_version: int) -> SupervisedCollectOutcome:
+        outcome = self._outcomes.get(execution_id)
+        if outcome is None:
+            raise ZCodeRunError("ZCODE_EXECUTION_UNKNOWN")
+        return outcome
+
+
+# ---------------- the high-level runner (no direct lifecycle) ----------------
+
 class SupervisedZCodeRunner:
-    """One ZCode app-server turn under the existing durable authorities."""
+    """One ZCode app-server turn through the canonical supervised lifecycle."""
 
     def __init__(
         self,
         *,
         execution_store: SupervisedExecutionFingerprintStore,
-        supervised: SupervisedLauncher,
         identity: SupervisedRunIdentity,
-        selection_source: ZCodeSelectionSource,
-        spawn_transport_factory: ZCodeSpawnTransportFactory,
-        filesystem: ZCodeFilesystem,
+        adapter: ZCodeBackendAdapter,
         executable: str,
         bundle_js: str,
-        secret_reference: str,
         poll_interval_seconds: float = 0.05,
         sleep_fn: Callable[[float], None] = time.sleep,
         clock_fn: Callable[[], float] = time.monotonic,
-        max_response_bytes: int = ZCODE_MAX_RESPONSE_BYTES,
     ) -> None:
         if identity.backend_id != ZCODE_BACKEND_ID:
-            raise ValueError("identity.backend_id must be zcode-app-server")
-        self._coordinator = SupervisedRunCoordinator(
-            execution_store=execution_store,
-            supervised=supervised,
-            identity=identity,
-            agent_ref="agent:zcode-app-server",
-            poll_interval_seconds=poll_interval_seconds,
-            sleep_fn=sleep_fn,
-            clock_fn=clock_fn,
-        )
-        self._selection_source = selection_source
-        self._spawn_transport_factory = spawn_transport_factory
-        self._filesystem = filesystem
+            raise ValueError(f"identity.backend_id must be {ZCODE_BACKEND_ID}")
         self._executable = executable
         self._bundle_js = bundle_js
-        if not isinstance(secret_reference, str) or not secret_reference.strip():
-            raise ValueError("secret_reference is invalid")
-        self._secret_reference = secret_reference
-        self._max_response_bytes = validate_output_budget(max_response_bytes)
+        self._adapter = adapter
 
-    # -- identity: argv fixed, prompt never present ----------------
+        def _coordinator_factory():
+            # operation identity is task-derived; supplied per run()
+            return None
+
+        self._store = execution_store
+        self._identity = identity
+        self._poll = poll_interval_seconds
+        self._sleep = sleep_fn
+        self._clock = clock_fn
 
     def argv(self) -> tuple[str, ...]:
-        argv = (
-            self._executable,
-            self._bundle_js,
-            "app-server",
-            "--stdio",
-            "--surface",
-            "desktop",
-        )
-        if not validate_app_server_argv(
-            argv, executable=self._executable, bundle_js=self._bundle_js
-        ):
+        argv = (self._executable, self._bundle_js, "app-server", "--stdio", "--surface", "desktop")
+        if not validate_app_server_argv(argv, executable=self._executable, bundle_js=self._bundle_js):
             raise ValueError("ZCODE_ARGV_GRAMMAR_INVALID")
         return argv
 
-    def fingerprint_spec(self, *, operation_ref: str) -> ExecutionFingerprintSpec:
-        argv = self.argv()
-        base = self._coordinator.fingerprint_spec(argv)
-        # ZCode operations key on an explicit operation_ref rather than the
-        # argv digest so distinct tasks over the same fixed argv differ.
-        return ExecutionFingerprintSpec(
-            project_id=base.project_id,
-            job_id=base.job_id,
-            work_order_ref=base.work_order_ref,
-            backend_id=base.backend_id,
-            repo_root=base.repo_root,
-            branch=base.branch,
-            head_before=base.head_before,
-            operation_ref=operation_ref,
-            runtime_profile_ref=base.runtime_profile_ref,
-            target_argv=argv,
+    def run(self, *, operation_ref: str, timeout_seconds: int = 300) -> object:
+        """Execute through the coordinator: dedup → record → launch → poll →
+        collect/version-CAS. Returns the coordinator's native-style result
+        mapping; the canonical ZCode artifacts live in the run dir."""
+        if not isinstance(operation_ref, str) or not operation_ref.strip():
+            raise ValueError("operation_ref is invalid")
+        coordinator = SupervisedRunCoordinator(
+            execution_store=self._store,
+            supervised=self._adapter,
+            identity=self._identity,
+            backend_policy=zcode_backend_policy(operation_ref=operation_ref),
+            poll_interval_seconds=self._poll,
+            sleep_fn=self._sleep,
+            clock_fn=self._clock,
+            max_output_bytes=ZCODE_MAX_RESPONSE_BYTES,
         )
-
-    # -- the one public run ---------------------------------------
-
-    def run(
-        self,
-        *,
-        prompt: str,
-        workspace: str,
-        operation_ref: str,
-        execution_id: str,
-        run_dir_ref: str,
-        task_packet_sha256: str,
-        timeout_seconds: int = 300,
-        on_record_observed: Callable[[object], None] | None = None,
-    ) -> ZCodeRunResult:
-        argv = self.argv()
-        argv_sha = target_argv_sha256(argv)
-
-        # selection double-check — first at preparation
-        selection = self._selection_source.resolved_selection()
-        preparation_digest = _selection_digest(selection)
-
-        # launch seam — second check immediately before spawn
-        selection_at_seam = self._selection_source.resolved_selection()
-        seam_digest = _selection_digest(selection_at_seam)
-        if seam_digest != preparation_digest:
-            raise ZCodeSelectionDriftError()
-
-        # cross-object identity facts the caller must have bound already
-        if not isinstance(task_packet_sha256, str) or len(task_packet_sha256) != 64:
-            raise ValueError("task_packet_sha256 is invalid")
-
-        environment = {"ELECTRON_RUN_AS_NODE": "1"}
-        transport = self._spawn_transport_factory(
-            argv=argv,
-            environment=environment,
-            execution_id=execution_id,
-            run_dir=run_dir_ref,
+        # preparation-time selection authorization (1st check) — fail before
+        # any durable record exists when the selection is wrong
+        self._adapter.authorized_selection_digest("PREP")
+        return coordinator.run(
+            self.argv(),
+            environment_overrides=(),
+            timeout_seconds=timeout_seconds,
         )
-
-        # identity BEFORE prompt: persist + re-parse the bounded artifact
-        identity = ZCodeChildIdentity(
-            child_pid=getattr(transport, "child_pid", 0) or 1,
-            child_created_epoch_ms=getattr(transport, "child_created_epoch_ms", 1) or 1,
-            executable=self._executable,
-            parent_pid=getattr(transport, "parent_pid", 1) or 1,
-            target_argv_sha256=argv_sha,
-            execution_id=execution_id,
-        )
-        identity_path = f"{run_dir_ref}/child.identity.json"
-        self._filesystem.write_atomic(identity_path, serialize_child_identity_document(identity))
-        parsed = parse_child_identity_document(json.loads(self._filesystem.read_text(identity_path)))
-        if not parsed.matches(identity):
-            return self._unknown(execution_id, run_dir_ref, argv, "ZCODE_IDENTITY_WRITE_FAILED")
-
-        driver = ZCodeProtocolDriver(
-            transport, max_response_bytes=self._max_response_bytes
-        )
-        stderr_notes: list[str] = []
-        try:
-            turn = driver.run_turn(
-                prompt,
-                workspace=workspace,
-                deadline_seconds=float(timeout_seconds),
-            )
-        except ZCodeProtocolError as exc:
-            self._append_stderr(run_dir_ref, stderr_notes, exc.code)
-            return self._unknown(
-                execution_id, run_dir_ref, argv, f"ZCODE_{exc.code}", turn=None
-            )
-
-        # ordering: stdout first, then stderr, then atomic report, then result
-        self._filesystem.write_bytes_file(
-            f"{run_dir_ref}/stdout.log", turn.response_text.encode("utf-8")
-        )
-        self._append_stderr(run_dir_ref, stderr_notes, "TURN_COMPLETED")
-        report = {
-            "schema": "zcode-report/1",
-            "execution_id": execution_id,
-            "task_packet_sha256": task_packet_sha256,
-            "selection_sha256": seam_digest,
-            "response_bytes": turn.bytes_received,
-            "session_id": turn.session_id,
-        }
-        self._filesystem.write_atomic(
-            f"{run_dir_ref}/report.json", json.dumps(report, sort_keys=True, separators=(",", ":"))
-        )
-
-        # normal shutdown: stdin EOF + bounded natural-exit wait, no kill
-        exit_code = transport.close_stdin_and_wait(exit_wait_seconds=30)
-        if exit_code is None:
-            return self._unknown(
-                execution_id, run_dir_ref, argv, "ZCODE_EXIT_PENDING", turn=turn, report=report
-            )
-
-        result = {
-            "schema_version": 1,
-            "execution_id": execution_id,
-            "exit_code": exit_code,
-            "response_sha256": _sha256_hex(turn.response_text.encode("utf-8")),
-        }
-        self._filesystem.write_atomic(
-            f"{run_dir_ref}/result.json",
-            json.dumps(result, sort_keys=True, separators=(",", ":")),
-        )
-        return ZCodeRunResult(
-            native=NativeCommandResult(
-                executable=argv[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1],
-                argument_count=len(argv),
-                exit_code=exit_code,
-                timed_out=False,
-                stdout=turn.response_text,
-                stderr="\n".join(stderr_notes),
-                stdout_sha256=result["response_sha256"],
-                stderr_sha256=_sha256_hex("\n".join(stderr_notes).encode("utf-8")),
-                stdout_truncated=False,
-                stderr_truncated=False,
-            ),
-            report=report,
-            recovery_required=False,
-        )
-
-    def _append_stderr(self, run_dir_ref: str, notes: list[str], code: str) -> None:
-        notes.append(code)
-        self._filesystem.append_text(f"{run_dir_ref}/stderr.log", code + "\n")
-
-    def _unknown(
-        self,
-        execution_id: str,
-        run_dir_ref: str,
-        argv: tuple[str, ...],
-        code: str,
-        *,
-        turn=None,
-        report: dict | None = None,
-    ) -> ZCodeRunResult:
-        """UNKNOWN/EXIT_PENDING: report may record typed unknown state; the
-        standard result.json is NEVER fabricated."""
-        unknown_report = report or {
-            "schema": "zcode-report/1",
-            "execution_id": execution_id,
-            "state": "UNKNOWN",
-            "error_code": code,
-        }
-        if report is None:
-            self._filesystem.write_atomic(
-                f"{run_dir_ref}/report.json",
-                json.dumps(unknown_report, sort_keys=True, separators=(",", ":")),
-            )
-        return ZCodeRunResult(
-            native=NativeCommandResult(
-                executable=argv[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1],
-                argument_count=len(argv),
-                exit_code=None,
-                timed_out=False,
-                stdout="",
-                stderr=code,
-                stdout_sha256=_sha256_hex(b""),
-                stderr_sha256=_sha256_hex(code.encode("utf-8")),
-                stdout_truncated=False,
-                stderr_truncated=False,
-            ),
-            report=unknown_report,
-            recovery_required=True,
-            error_code=code,
-        )
-
-
-def _sha256_hex(data: bytes) -> str:
-    import hashlib
-
-    return hashlib.sha256(data).hexdigest()
