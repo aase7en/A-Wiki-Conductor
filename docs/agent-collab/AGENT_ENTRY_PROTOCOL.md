@@ -13,24 +13,28 @@ For any non-trivial work:
 3. `AGENTS.md`
 4. actual repo/worktree/remote/branch/HEAD/dirty/claim state
 5. `CURRENT-WORK.md`
-6. `handoff.md`
-7. active `docs/work-orders/<id>.md`
+6. active `docs/work-orders/<id>.md` when one exists or has already been claimed
+7. `handoff.md` only for resume/transfer work, unclear continuity, or when `CURRENT-WORK.md` points to it for material context
 8. task-relevant nodes selected by `PROJECT-GRAPH.yaml`
 9. `DEFECT_LESSONS.md` before `src/a_conductor/` mutation
 
 Do not require `PROJECT-PLAN.md` and `DESIGN.md` for every task. Read them when the project graph says the task touches architecture/roadmap or UI/UX. This preserves context quality while reducing repeated startup cost.
 
-## 2. Authority order
+If a new task has no work order yet, product/source mutation is blocked, but a bounded docs-only governance bootstrap may create the initial WO/claim in a clean isolated scope. Re-run the full mutation gate immediately after bootstrap. The bootstrap exception never grants product/source/runtime mutation authority.
 
-When sources disagree:
+## 2. Authority and state truth
 
-1. actual Git/runtime/process/DB state
+Safety, legal/user authority, and binding repository policy constrain all actions. Actual Git/runtime/process/DB evidence determines what state really exists inside those constraints; it never overrides them.
+
+When state-bearing sources disagree, use this truth order:
+
+1. actual Git/runtime/process/DB evidence
 2. active claim/lease and exact work order
-3. `CURRENT-WORK.md` + `handoff.md`
-4. binding repository policy/protocol files
+3. `CURRENT-WORK.md`
+4. `handoff.md` when applicable to the active resume/transfer context
 5. chat/session memory
 
-Chat memory is never authority.
+Chat memory is never state authority.
 
 ## 3. Default routing model
 
@@ -38,15 +42,17 @@ Chat memory is never authority.
 
 Owns architecture/trust boundaries, dependency graph/risk tier, work-order/claim boundaries, cross-lane conflict/SSoT, acceptance criteria, final defect adjudication, merge, release, and live acceptance.
 
-GPT should not spend premium reasoning on repetitive implementation/test/refactor mechanics when a bounded GLM/ZCode lane can do them safely.
+GPT should not spend premium reasoning on repetitive implementation/test/refactor mechanics when a bounded execution lane can do them safely.
 
-### GLM / ZCode
+### Capability-selected implementation executor
 
-Default primary execution engine for bounded READY implementation when capable, ready, authorized, admitted, policy-allowed, and assigned an exact non-overlapping worktree/scope.
+Select the executor by task class, risk, capability, readiness, authorization, cost, availability, ownership, and result-destination gates using `CAPABILITY_MATRIX.md`.
 
-Use the harness's supported goal/skills loop to continue `implement -> targeted test -> debug -> repair -> retest` until the contract is satisfied or a real blocker/stop condition is reached.
+GLM/ZCode is the current preferred candidate for bounded READY implementation when those gates pass; it is not a permanent architectural dependency.
 
-GLM/ZCode does not self-grant broader scope, merge authority, secret access, destructive authority, retry after ambiguous execution, or acceptance authority.
+The selected executor may continue `implement -> targeted test -> debug -> repair -> retest` until the contract is satisfied or a real blocker/stop condition is reached.
+
+No implementation model self-grants broader scope, merge authority, secret access, destructive authority, retry after ambiguous execution, or acceptance authority.
 
 ### Deterministic/native tools
 
@@ -55,9 +61,9 @@ Preferred for tests, builds, hashes, schema checks, static checks, exact Git/pro
 ## 4. Risk-tier routing
 
 - R0: direct bounded docs/admin work is usually cheapest on the current integrator/tool surface.
-- R1: GLM/ZCode default for implementation; GPT performs lightweight final acceptance.
-- R2: GPT defines contract/architecture boundaries -> GLM/ZCode implements -> independent exact-SHA review -> GPT accepts.
-- R3: GPT defines authority/failure model before mutation -> GLM/ZCode bounded implementation -> adversarial/deterministic evidence -> strongest independent review -> GPT final acceptance/release.
+- R1: use the cheapest capable authorized executor; GPT performs lightweight final acceptance.
+- R2: GPT defines contract/architecture boundaries -> capability-selected executor implements -> independent exact-SHA review -> GPT accepts.
+- R3: GPT defines authority/failure model before mutation -> capability-selected bounded implementation -> adversarial/deterministic evidence -> strongest independent review -> GPT final acceptance/release.
 
 A model name never lowers the risk tier.
 
@@ -90,4 +96,4 @@ Continue automatically across safe micro-steps. Stop and checkpoint only when ow
 
 Before ownership/session transfer persist task/status, repo/worktree/branch/HEAD, dirty state, completed evidence, blockers/decisions, current owner/claim, and exact next safe action.
 
-A fresh agent with no chat history must be able to resume from the mandatory startup core.
+A fresh agent with no chat history must be able to resume from the mandatory startup core plus the conditional handoff context when applicable.

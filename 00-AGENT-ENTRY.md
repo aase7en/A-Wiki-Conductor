@@ -12,24 +12,24 @@ Use this order before mutation:
 1. Read this file.
 2. Read `PROJECT-GRAPH.yaml` to select only the workflow nodes relevant to the task.
 3. Read repo-local `AGENTS.md`.
-4. Verify actual repository/worktree/remote/branch/HEAD/dirty state and current claim/ownership. Actual state overrides chat memory and stale summaries.
-5. Read the continuity core:
-   - `CURRENT-WORK.md`
-   - `handoff.md`
-   - the active `docs/work-orders/<id>.md`
-6. Read only the task-relevant nodes selected by `PROJECT-GRAPH.yaml`.
-7. Before any `src/a_conductor/` mutation, read `DEFECT_LESSONS.md`.
-8. Classify R0/R1/R2/R3, claim a non-overlapping scope, then execute the shortest truthful loop in `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`.
+4. Verify actual repository/worktree/remote/branch/HEAD/dirty state and current claim/ownership. Actual state overrides chat memory and stale summaries about state; it does not override user authority, safety constraints, or binding repository policy.
+5. Read `CURRENT-WORK.md`.
+6. Read the active `docs/work-orders/<id>.md` when one exists or has already been claimed. Read `handoff.md` only for resume/transfer work, unclear continuity, or when `CURRENT-WORK.md` points to it for material context.
+7. Read only the task-relevant nodes selected by `PROJECT-GRAPH.yaml`.
+8. Before any `src/a_conductor/` mutation, read `DEFECT_LESSONS.md`.
+9. Classify R0/R1/R2/R3, claim a non-overlapping scope, then execute the shortest truthful loop in `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`.
 
-If the active work order cannot be identified, ownership is ambiguous, or dirty state is unexplained:
+If ownership is ambiguous or dirty state is unexplained:
 
 `SAFE_TO_MUTATE = NO`
 
+If no active work order exists for a new task, product/source mutation remains blocked. A bounded docs-only governance bootstrap may create the initial work order/claim in a clean isolated scope; immediately re-run the mutation gate after that bootstrap. This exception never grants product/source/runtime mutation authority.
+
 ## Default delivery model
 
-`GPT GOVERNANCE -> GLM/ZCODE EXECUTION -> DETERMINISTIC VERIFY -> INDEPENDENT REVIEW AS REQUIRED -> GPT ACCEPT/MERGE`
+`GPT GOVERNANCE -> CAPABILITY-SELECTED EXECUTION -> DETERMINISTIC VERIFY -> INDEPENDENT REVIEW AS REQUIRED -> GPT ACCEPT/MERGE`
 
-- GLM/ZCode is the default primary implementation engine for bounded READY work when it is capable, ready, authorized, and the route is allowed.
+- The implementation executor is selected by task class, risk, capability, readiness, authorization, cost, and availability using `docs/agent-collab/CAPABILITY_MATRIX.md`; GLM/ZCode is the current preferred candidate for bounded READY implementation when those gates pass.
 - GPT/integrator owns architecture, trust boundaries, dependency order, claims, cross-lane conflict, SSoT, acceptance, merge, and release.
 - R3 work must have GPT/integrator trust/authority framing before implementation and final GPT acceptance after deterministic/independent evidence.
 - Deterministic tools/tests/CI are completion authority. Agent confidence or `DONE` is never sufficient.
@@ -49,6 +49,6 @@ After Zero-Relay passes its R3 gates, A-Conductor may dispatch the same packet a
 
 ## Universal execution loop
 
-`RECOVER -> VERIFY ACTUAL STATE -> READ CONTINUITY -> CLASSIFY -> CLAIM -> ROUTE -> EXECUTE -> TARGETED VERIFY -> FREEZE -> REVIEW/CI BY RISK -> GPT ACCEPT/MERGE -> CHECKPOINT`
+`RECOVER -> VERIFY ACTUAL STATE -> READ MINIMUM CONTINUITY -> CLASSIFY -> CLAIM -> ROUTE -> EXECUTE -> TARGETED VERIFY -> FREEZE -> REVIEW/CI BY RISK -> GPT ACCEPT/MERGE -> CHECKPOINT`
 
 Do not ask the user to type `continue` between safe bounded micro-steps. Stop only at a real blocker, an authority/ownership ambiguity, a required approval boundary, or a completed acceptance gate.

@@ -9,8 +9,9 @@ entry:
 continuity_core:
   mandatory:
     - CURRENT-WORK.md
-    - handoff.md
-    - active_work_order
+  conditional:
+    active_work_order: when one exists or has already been claimed
+    handoff: resume, transfer, unclear continuity, or CURRENT-WORK explicitly points to it
 workflow_nodes:
   fast_execution:
     when: any non-trivial delivery work
@@ -47,14 +48,25 @@ workflow_nodes:
       - DEFECT_LESSONS.md
 rules:
   actual_state_over_chat_memory: true
-  claim_before_mutation: true
+  actual_state_does_not_override_user_safety_or_binding_policy: true
+  claim_before_product_or_source_mutation: true
+  governance_bootstrap_exception: bounded docs-only creation of initial work-order/claim in clean isolated scope; rerun mutation gate immediately
   safe_to_mutate_requires_known_identity_and_ownership: true
   deterministic_evidence_is_completion_authority: true
   default_wip:
     mutable_lanes: 3
     independent_read_only_review_lanes: 1
 routing:
-  bounded_ready_implementation_default: GLM_ZCode
+  bounded_ready_implementation_default: capability_matrix_selected_executor
+  current_preferred_candidate: GLM_ZCode
+  selection_factors:
+    - risk
+    - task_class
+    - capability
+    - readiness
+    - authorization
+    - cost
+    - availability
   architecture_trust_ssot_acceptance_merge_default: GPT_integrator
   deterministic_mechanics_default: native_tools
   zero_relay_transport:
