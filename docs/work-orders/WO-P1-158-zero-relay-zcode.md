@@ -50,3 +50,13 @@ test_execution_deduplication + test_execution_artifacts + test_supervised_run_co
 Second runner/execution store/poll loop/collect-CAS/guard; ZCode live process before
 Phase D gates; task content in argv; secrets in durable state; scheduler/lease/
 admission/ReviewBus changes; GPT2 WO157; PR219/220; live DB.
+
+## Phase B — provider runtime binding (frozen 2026-09-05)
+
+- `HarnessStrategy.ZCODE_APP_SERVER` added as the typed strategy (app-server is never generic LOCAL_CLI).
+- NEW `HarnessRuntimeBinding` (harness_strategy + runtime_provider_ref + runtime_model_ref, opaque stable refs, bounded charset, dict round-trip with exact-key validation).
+- `ProviderModelConfiguration.runtime_binding` travels inside existing `models_json` — **no DB DDL**. `ProviderConfiguration` schema gate is now `1.0.0 | 1.1.0` with the rule: 1.0.0 + any binding ⇒ reject. ProviderObservation stays 1.0.0-only.
+- Generation authority: binding changes flow through the canonical `save_provider` CAS path — binding change bumps generation (proved 1→2→3); stale expected_generation fails typed.
+- NEW `runtime_selection_sha256`: canonical sanitized digest over strategy + refs + base URL + enabled-state only; secrets/prompts/config-repr excluded by construction (digest composition test pins the exact canonical bytes); display name is never binding authority.
+- NEW `tests/test_provider_runtime_binding.py` (16 tests): 1.0 legacy decode w/ empty bindings, 1.1 round trip through real SQLite store, 1.0+binding reject, malformed refs/strategies/extra-keys reject, unknown schema reject, generation bump, stale CAS reject, digest stability/field-sensitivity/secret-exclusion, display-name non-authority, corrupt models_json fail-closed.
+- Verification: binding suite **16/16**; provider configuration/config-store/policy/execution-authority regression **115/115 total**; compileall/diff-check PASS. No live provider, no ZCode process, no Worker mutation.
