@@ -11,13 +11,102 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from ipaddress import ip_address
-from typing import Protocol
+from typing import Mapping, Protocol
 from urllib.parse import urlsplit
 
 
 _PROVIDER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$")
 _CREDENTIAL_REF_RE = re.compile(r"^secret-ref:[A-Za-z0-9][A-Za-z0-9._:/-]{2,255}$")
 _REFERENCE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{2,511}$")
+
+_RUNTIME_BINDING_REF_RE = re.compile(r"^[a-z0-9][a-z0-9._:/-]{1,127}$")
+_SCHEMA_VERSIONS = frozenset({"1.0.0", "1.1.0"})
+
+
+@dataclass(frozen=True, slots=True)
+class HarnessRuntimeBinding:
+    """Typed per-model runtime binding for schema-1.1.0 provider profiles.
+
+    Refs are opaque stable identifiers resolved against accepted provider /
+    endpoint authority at the launch seam; display names are never matched.
+    """
+
+    harness_strategy: HarnessStrategy
+    runtime_provider_ref: str
+    runtime_model_ref: str
+
+    def __post_init__(self) -> None:
+        strategy = self.harness_strategy
+        if not isinstance(strategy, HarnessStrategy):
+            try:
+                strategy = HarnessStrategy(strategy)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("harness_strategy is invalid") from exc
+        object.__setattr__(self, "harness_strategy", strategy)
+        for name in ("runtime_provider_ref", "runtime_model_ref"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not _RUNTIME_BINDING_REF_RE.fullmatch(value):
+                raise ValueError(f"{name} is invalid")
+            object.__setattr__(self, name, value)
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "harness_strategy": self.harness_strategy.value,
+            "runtime_provider_ref": self.runtime_provider_ref,
+            "runtime_model_ref": self.runtime_model_ref,
+        }
+
+    @classmethod
+    def from_dict(cls, data: object) -> "HarnessRuntimeBinding":
+        if not isinstance(data, Mapping):
+            raise ValueError("runtime binding is invalid")
+        allowed = {"harness_strategy", "runtime_provider_ref", "runtime_model_ref"}
+        keys = set(data.keys())
+        if keys != allowed:
+            raise ValueError("runtime binding is invalid")
+        return cls(
+            harness_strategy=data["harness_strategy"],
+            runtime_provider_ref=data["runtime_provider_ref"],
+            runtime_model_ref=data["runtime_model_ref"],
+        )
+
+
+def _sanitized_selection_bytes(
+    *,
+    runtime_binding: HarnessRuntimeBinding,
+    runtime_base_url: str,
+    runtime_source_enabled: bool | None,
+) -> bytes:
+    """Canonical non-secret selection bytes for the selection digest.
+
+    Only approved public fields participate; secrets, prompts, config reprs
+    and raw config objects are excluded by construction."""
+    parts = (
+        runtime_binding.harness_strategy.value,
+        runtime_binding.runtime_provider_ref,
+        runtime_binding.runtime_model_ref,
+        runtime_base_url.strip(),
+        "" if runtime_source_enabled is None else ("enabled" if runtime_source_enabled else "disabled"),
+    )
+    return "".join(parts).encode("utf-8")
+
+
+def runtime_selection_sha256(
+    *,
+    runtime_binding: HarnessRuntimeBinding,
+    runtime_base_url: str,
+    runtime_source_enabled: bool | None = None,
+) -> str:
+    """Sanitized runtime-selection digest (never contains secret values)."""
+    import hashlib
+
+    return hashlib.sha256(
+        _sanitized_selection_bytes(
+            runtime_binding=runtime_binding,
+            runtime_base_url=runtime_base_url,
+            runtime_source_enabled=runtime_source_enabled,
+        )
+    ).hexdigest()
 _EVIDENCE_LEVELS = frozenset({"DECLARED", "OBSERVED", "VERIFIED", "UNKNOWN"})
 _EFFORT_LEVELS = frozenset({"LOW", "HIGH", "MAX", "DEFAULT"})
 
@@ -90,6 +179,7 @@ class HarnessStrategy(str, Enum):
     CLAUDE_CODE_CLI = "CLAUDE_CODE_CLI"
     DIRECT_API = "DIRECT_API"
     LOCAL_CLI = "LOCAL_CLI"
+    ZCODE_APP_SERVER = "ZCODE_APP_SERVER"
 
 
 class ProviderHealth(str, Enum):
@@ -138,6 +228,7 @@ class ProviderModelConfiguration:
     actor_capabilities: tuple[ActorCapabilityEvidence, ...] = ()
     supported_effort_levels: tuple[str, ...] = ()
     context_window_tokens: int | None = None
+    runtime_binding: "HarnessRuntimeBinding | None" = None
 
     def __post_init__(self) -> None:
         _require_text(self.model_id, "model_id", max_length=128)
@@ -156,6 +247,10 @@ class ProviderModelConfiguration:
         if self.context_window_tokens is not None:
             if isinstance(self.context_window_tokens, bool) or self.context_window_tokens < 1:
                 raise ValueError("context_window_tokens must be positive or None")
+        binding = self.runtime_binding
+        if binding is not None and not isinstance(binding, HarnessRuntimeBinding):
+            binding = HarnessRuntimeBinding.from_dict(binding)
+        object.__setattr__(self, "runtime_binding", binding)
         object.__setattr__(self, "actor_capabilities", capabilities)
         object.__setattr__(self, "supported_effort_levels", efforts)
 
@@ -166,6 +261,7 @@ class ProviderModelConfiguration:
             "actor_capabilities": [item.as_dict() for item in self.actor_capabilities],
             "supported_effort_levels": list(self.supported_effort_levels),
             "context_window_tokens": self.context_window_tokens,
+            "runtime_binding": None if self.runtime_binding is None else self.runtime_binding.as_dict(),
         }
 
 
@@ -213,8 +309,12 @@ class ProviderConfiguration:
             raise ValueError("max_concurrency must be between 1 and 64")
         if not isinstance(self.enabled, bool):
             raise ValueError("enabled must be boolean")
-        if self.schema_version != "1.0.0":
+        if self.schema_version not in _SCHEMA_VERSIONS:
             raise ValueError("schema_version is unsupported")
+        if self.schema_version == "1.0.0" and any(
+            model.runtime_binding is not None for model in models
+        ):
+            raise ValueError("runtime bindings require schema_version 1.1.0")
         object.__setattr__(self, "protocol_family", protocol)
         object.__setattr__(self, "trust_class", trust)
         object.__setattr__(self, "egress_boundary", egress)
