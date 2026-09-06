@@ -144,7 +144,10 @@ def test_project_identity_comes_from_lease_not_hardcoded(tmp_path):
     runner = _assemble_full(tmp_path)  # lease project_id == "zcode" (fixture)
     assert runner._identity.project_id == "zcode"
     # with a DIFFERENT lease project, the durable identity follows the lease
-    runner2 = _assemble_full(tmp_path, lease_overrides={"project_id": "proj-real"})
+    runner2 = _assemble_full(
+        tmp_path, project_id="proj-real",
+        lease_overrides={"project_id": "proj-real"},
+    )
     assert runner2._identity.project_id == "proj-real"
     assert runner2._identity.project_id != "zcode"  # no synthetic hard-code
 
@@ -176,8 +179,9 @@ def test_mutable_scope_overlapping_forbidden_scope_rejected(tmp_path):
         _assemble_full(
             tmp_path,
             lease_overrides={
-                # allowed covers it broadly (fnmatch pattern) ...
+                # allowed + mutable cover it broadly (fnmatch patterns) ...
                 "allowed_scope": ("src/*", "secrets/*"),
+                "mutable_scope": ("secrets/*",),
                 # ... but the lease explicitly forbids this subtree
                 "forbidden_scope": ("secrets/tokens.py",),
             },
@@ -280,3 +284,185 @@ def test_endpoint_parameter_is_named_as_assertion_not_authority():
     assert "authorized_base_url" not in params  # authority-suggesting name gone
     doc = fn.__doc__ or ""
     assert "snapshot" in doc and "authority" in doc
+
+
+# ---------------- CANONICAL AUTHORITY FINAL REPAIR (review 5560911492) ----------------
+
+def _canonical_admission_fixture(tmp_path, *, execution_id="exec-canonical-0001",
+                                 batch_id="batch-canonical-0001"):
+    """Acquire a REAL admission from the canonical SQLiteProviderConfigStore."""
+    from datetime import datetime, timedelta, timezone
+
+    from a_conductor.provider_config_store import ProviderAdmissionKind, SQLiteProviderConfigStore
+
+    store = SQLiteProviderConfigStore(tmp_path / "provider-store.sqlite")
+    generation = store.save_provider(_profile())  # schema 1.1.0 + runtime binding
+    now = datetime.now(timezone.utc)
+    result = store.acquire_admission(
+        provider_id="zcode-glm",
+        execution_id=execution_id,
+        batch_id=batch_id,
+        expected_max_concurrency=1,
+        now=now,
+        ttl_seconds=600,
+        expected_configuration_generation=generation,
+    )
+    return store, generation, result
+
+
+def test_real_store_admission_record_is_accepted_by_assembly(tmp_path):
+    """Canonical authority -> actual record -> ZCode assembly (integration).
+
+    SQLiteProviderConfigStore.acquire_admission returns kind ADMITTED while
+    persisting ProviderAdmissionRecord(status='ACTIVE'); that EXACT canonical
+    record must be accepted by the assembly when every identity matches."""
+    from a_conductor.provider_config_store import ProviderAdmissionKind
+
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+
+    store, generation, result = _canonical_admission_fixture(tmp_path)
+    assert result.kind is ProviderAdmissionKind.ADMITTED
+    record = result.admission
+    assert record is not None and record.status == "ACTIVE"  # canonical state
+    runner = _assemble_full(
+        tmp_path,
+        admission_override=record,
+        dispatch_batch_id=record.batch_id,
+        dispatch_execution_id=record.execution_id,
+    )
+    assert runner is not None
+
+
+def test_real_store_released_admission_rejected(tmp_path):
+    from a_conductor.provider_config_store import ProviderAdmissionKind
+
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+
+    store, generation, result = _canonical_admission_fixture(tmp_path)
+    record = result.admission
+    store.release_admission(
+        record.admission_id, provider_id=record.provider_id,
+        execution_id=record.execution_id, batch_id=record.batch_id,
+        now=record.expires_at + __import__("datetime").timedelta(seconds=1),
+    )
+    released = store.get_admission(record.admission_id)
+    assert released is not None and released.status != "ACTIVE"
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(
+            tmp_path,
+            admission_override=released,
+            dispatch_batch_id=released.batch_id,
+            dispatch_execution_id=released.execution_id,
+        )
+    assert e.value.code in ("ZCODE_ADMISSION_NOT_ACTIVE", "ZCODE_ADMISSION_RELEASED")
+
+
+def test_real_store_expired_admission_rejected(tmp_path):
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+
+    store, generation, result = _canonical_admission_fixture(
+        tmp_path, execution_id="exec-exp", batch_id="batch-exp"
+    )
+    record = result.admission
+    expired = __import__("dataclasses").replace(
+        record, expires_at=record.acquired_at  # already past
+    )
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(
+            tmp_path,
+            dispatch_batch_id=expired.batch_id,
+            dispatch_execution_id=expired.execution_id,
+            admission_override=expired,
+        )
+    assert e.value.code == "ZCODE_ADMISSION_EXPIRED"
+
+
+def test_active_but_wrong_provider_generation_batch_execution_rejected(tmp_path):
+    import dataclasses
+
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+
+    _, _, result = _canonical_admission_fixture(tmp_path)
+    record = result.admission
+    # wrong provider
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(tmp_path, admission_override=dataclasses.replace(record, provider_id="other"))
+    assert e.value.code == "ZCODE_ADMISSION_PROVIDER_MISMATCH"
+    # wrong generation
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(tmp_path, admission_override=dataclasses.replace(record, configuration_generation=99))
+    assert e.value.code == "ZCODE_ADMISSION_GENERATION_DRIFT"
+    # wrong batch (execution binding isolated)
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(tmp_path, admission_override=record,
+                       dispatch_batch_id="batch-OTHER",
+                       dispatch_execution_id=record.execution_id)
+    assert e.value.code == "ZCODE_ADMISSION_BATCH_MISMATCH"
+    # wrong execution (batch binding isolated)
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(tmp_path, admission_override=record,
+                       dispatch_batch_id=record.batch_id,
+                       dispatch_execution_id="exec-OTHER")
+    assert e.value.code == "ZCODE_ADMISSION_EXECUTION_MISMATCH"
+
+
+# ---- item 2: required dispatch project id ----
+
+def test_missing_dispatch_project_fails_closed(tmp_path):
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(tmp_path, project_id=None)
+    assert e.value.code == "ZCODE_DISPATCH_CONTEXT_MISSING"
+
+
+def test_blank_dispatch_project_fails_closed(tmp_path):
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(tmp_path, project_id="   ")
+    assert e.value.code == "ZCODE_DISPATCH_CONTEXT_MISSING"
+
+
+# ---- item 3: required explicit mutation scope ----
+
+def test_missing_mutation_scope_fails_closed(tmp_path):
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(tmp_path, requested_mutable_scope=None)
+    assert e.value.code == "ZCODE_MUTABLE_SCOPE_REQUIRED"
+
+
+def test_empty_mutation_scope_fails_closed(tmp_path):
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(tmp_path, requested_mutable_scope=())
+    assert e.value.code == "ZCODE_MUTABLE_SCOPE_REQUIRED"
+
+
+def test_scope_outside_lease_mutable_scope_rejected(tmp_path):
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(
+            tmp_path,
+            lease_overrides={
+                "allowed_scope": ("src/*", "docs/*"),   # allowed covers docs...
+                "mutable_scope": ("src/a_conductor/*",),  # ...but lease mutable set does NOT
+            },
+            requested_mutable_scope=("docs/README.md",),
+        )
+    assert e.value.code == "ZCODE_SCOPE_OUTSIDE_MUTABLE"
+
+
+# ---- item 4: required dispatch execution id ----
+
+def test_missing_dispatch_execution_id_fails_closed(tmp_path):
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(tmp_path, dispatch_execution_id=None)
+    assert e.value.code == "ZCODE_DISPATCH_CONTEXT_MISSING"
+
+
+def test_blank_dispatch_execution_id_fails_closed(tmp_path):
+    from tests.test_zcode_authority_bound_assembly import _assemble_full
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble_full(tmp_path, dispatch_execution_id="  ")
+    assert e.value.code == "ZCODE_DISPATCH_CONTEXT_MISSING"

@@ -93,9 +93,9 @@ def _lease(tmp_path: Path, **overrides) -> WorkerLease:
         branch="feat/wo-p1-158-zcode-zero-relay",
         expected_head="h" * 40,
         required_capabilities=("code",),
-        allowed_scope=("src/a_conductor",),
-        forbidden_scope=("secrets",),
-        mutable_scope=("src/a_conductor/zcode_runner.py",),
+        allowed_scope=("src/a_conductor", "src/a_conductor/*"),
+        forbidden_scope=("secrets", "secrets/*"),
+        mutable_scope=("src/a_conductor/*",),
         mutation_intent=LeaseMutationIntent.MUTATION,
         acquired_at=_now().isoformat(),
         heartbeat_at=_now().isoformat(),
@@ -120,7 +120,7 @@ def _admission(**overrides) -> ProviderAdmissionRecord:
         batch_id="batch-0001",
         acquired_at=_now(),
         expires_at=_now() + timedelta(minutes=10),
-        status="ADMITTED",
+        status="ACTIVE",  # canonical SQLiteProviderConfigStore record state
         released_at=None,
         reconciled_at=None,
         configuration_generation=1,
@@ -183,8 +183,9 @@ def _authorities(tmp_path: Path, *, lease=_DEFAULT, admission=_DEFAULT, snapshot
         lease_evidence=_lease(tmp_path) if lease is _DEFAULT else lease,
         admission_evidence=_admission() if admission is _DEFAULT else admission,
         dispatch_batch_id="batch-0001",
-        project_id="",
-        requested_mutable_scope=(),
+        dispatch_execution_id="exec-pending",  # matches _admission default
+        project_id="zcode",
+        requested_mutable_scope=("src/a_conductor/zcode_runner.py",),
         worker_id="a-worker-01",
         repo_root=str(repo_root or tmp_path),
         branch=branch or "feat/wo-p1-158-zcode-zero-relay",
@@ -300,10 +301,21 @@ def test_wrong_provider_admission_rejected(tmp_path):
     assert e.value.code == "ZCODE_ADMISSION_PROVIDER_MISMATCH"
 
 
-def test_admission_not_admitted_rejected(tmp_path):
+def test_admission_not_active_rejected(tmp_path):
+    """Canonical record states are ACTIVE/RELEASED/EXPIRED only; a non-ACTIVE
+    record (e.g. EXPIRED state with future expiry, or any other value) can
+    never authorize production dispatch."""
     with pytest.raises(ZCodeAssemblyError) as e:
-        _assemble(tmp_path, admission=_admission(status="CAPACITY_WAIT"))
-    assert e.value.code == "ZCODE_ADMISSION_NOT_ADMITTED"
+        _assemble(tmp_path, admission=_admission(status="RELEASED"))
+    assert e.value.code == "ZCODE_ADMISSION_NOT_ACTIVE"
+
+
+def test_admission_released_record_rejected(tmp_path):
+    from dataclasses import replace
+
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble(tmp_path, admission=replace(_admission(), released_at=_now()))
+    assert e.value.code == "ZCODE_ADMISSION_RELEASED"
 
 
 def test_admission_generation_drift_rejected(tmp_path):
@@ -360,11 +372,14 @@ def test_valid_exact_authority_chain_succeeds(tmp_path):
 # ---------------- shared full-context assembly helper ----------------
 
 def _assemble_full(tmp_path, *, dispatch_batch_id="batch-0001",
-                   dispatch_execution_id=None, project_id="",
-                   requested_mutable_scope=(), lease_overrides=None,
+                   dispatch_execution_id="exec-bound-0001", project_id="zcode",
+                   requested_mutable_scope=("src/a_conductor/zcode_runner.py",),
+                   lease_overrides=None, admission_override=None,
                    base_url="http://127.0.0.1:1"):
-    """Assembly with the complete trusted dispatch context bound (used by the
-    final targeted repair matrix)."""
+    """Assembly with the complete trusted dispatch context bound (used by
+    the final targeted repair matrix). The default admission carries the
+    canonical ACTIVE state and its OWN execution binding; dispatch
+    expectations vary independently in the tests."""
     lease = _lease(tmp_path, **(lease_overrides or {}))
     authorities = ZCodeExecutionAuthorities(
         provider_snapshot=Snapshot(1, _profile()),
@@ -374,13 +389,12 @@ def _assemble_full(tmp_path, *, dispatch_batch_id="batch-0001",
         supervised_observer=_Obs(),
         python_executable="python.exe",
         lease_evidence=lease,
-        # the admission carries its OWN canonical execution binding; the
-        # dispatch context expectation varies independently in the tests
-        admission_evidence=_admission(execution_id="exec-bound-0001"),
+        admission_evidence=admission_override if admission_override is not None
+        else _admission(execution_id="exec-bound-0001"),
         dispatch_batch_id=dispatch_batch_id,
         dispatch_execution_id=dispatch_execution_id,
         project_id=project_id,
-        requested_mutable_scope=tuple(requested_mutable_scope),
+        requested_mutable_scope=requested_mutable_scope,
         worker_id="a-worker-01",
         repo_root=str(tmp_path),
         branch="feat/wo-p1-158-zcode-zero-relay",

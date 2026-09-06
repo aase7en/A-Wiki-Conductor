@@ -209,9 +209,9 @@ def build_lease(tmp_path: Path) -> WorkerLease:
         branch=BRANCH,
         expected_head=HEAD,
         required_capabilities=("code",),
-        allowed_scope=("src/a_conductor",),
-        forbidden_scope=("secrets",),
-        mutable_scope=("src/a_conductor/zcode_runner.py",),
+        allowed_scope=("src/a_conductor", "src/a_conductor/*"),
+        forbidden_scope=("secrets", "secrets/*"),
+        mutable_scope=("src/a_conductor/*",),
         mutation_intent=LeaseMutationIntent.MUTATION,
         acquired_at=now,
         heartbeat_at=now,
@@ -227,11 +227,11 @@ def build_admission() -> ProviderAdmissionRecord:
     return ProviderAdmissionRecord(
         admission_id="provider-admission-e2e-0001",
         provider_id="zcode-glm",
-        execution_id="exec-pending",
+        execution_id="exec-e2e-bound-0001",
         batch_id="batch-e2e-0001",
         acquired_at=now,
         expires_at=now + timedelta(minutes=10),
-        status="ADMITTED",
+        status="ACTIVE",  # canonical SQLiteProviderConfigStore record state
         configuration_generation=1,
     )
 
@@ -258,6 +258,9 @@ def build_real_service_authorities(tmp_path: Path) -> ZCodeExecutionAuthorities:
         lease_evidence=build_lease(tmp_path),
         admission_evidence=build_admission(),
         dispatch_batch_id="batch-e2e-0001",
+        dispatch_execution_id="exec-e2e-bound-0001",
+        project_id="zcode",
+        requested_mutable_scope=("src/a_conductor/zcode_runner.py",),
         worker_id="a-worker-01",
         repo_root=str(tmp_path),
         branch=BRANCH,

@@ -1,6 +1,11 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-06 (GLM-1 - WO158 / PR221 final targeted repair r5: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE)
+Last updated: 2026-09-07 (GLM-1 - WO158 / PR221 canonical authority final repair r6: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE)
+
+## WO158 canonical authority final repair r6 — review 5560911492 — 2026-09-07 (GLM-1)
+
+- r5 remains frozen at `0a123e8` (CI green). r6 closes the four fail-closed authority defects RED-first: (1) canonical admission status semantics — assembly requires `status='ACTIVE'` + released rule; REAL SQLiteProviderConfigStore integration evidence (save → acquire → ADMITTED kind → ACTIVE record accepted as-is; RELEASED/EXPIRED/wrong-provider/generation/batch/execution rejected); impossible `ADMITTED` fixtures removed; canonical store untouched. (2) dispatch project id REQUIRED (missing/blank ⇒ `ZCODE_DISPATCH_CONTEXT_MISSING`; mismatch ⇒ `ZCODE_PROJECT_MISMATCH`; identity uses the verified value). (3) explicit non-empty mutation scope REQUIRED, verified against allowed + lease-mutable + forbidden scopes via existing authority. (4) dispatch execution id REQUIRED with unconditional admission binding.
+- Evidence: final-repair 30/30; authority 22/22; E2E 9/9; batteries 270/270 + 263/263; hygiene PASS; scope 1 production + 4 test files. Stop state READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at the r6 head; GLM1 does not merge.
 
 ## WO158 final targeted repair r5 — review 5560480061 — 2026-09-06 (GLM-1)
 

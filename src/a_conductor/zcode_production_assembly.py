@@ -110,9 +110,9 @@ class ZCodeExecutionAuthorities:
     lease_evidence: object | None = None   # accepted canonical WorkerLease (REQUIRED)
     admission_evidence: object | None = None  # accepted canonical ProviderAdmissionRecord (REQUIRED)
     dispatch_batch_id: str = ""                    # independently-derived dispatch batch identity (REQUIRED)
-    dispatch_execution_id: str | None = None       # optional execution binding from the dispatch context
-    project_id: str = ""                           # dispatch-context project identity (vs lease)
-    requested_mutable_scope: tuple[str, ...] = ()  # declared mutation targets (vs lease scope authority)
+    dispatch_execution_id: str | None = None       # REQUIRED execution binding from the dispatch context
+    project_id: str = ""                           # REQUIRED dispatch-context project identity (vs lease)
+    requested_mutable_scope: tuple[str, ...] = ()  # REQUIRED declared mutation targets (vs lease scope authority)
     worker_id: str = ""
     repo_root: str = ""
     branch: str = ""
@@ -211,6 +211,17 @@ def assemble_zcode_execution(
         packet, trusted_root=authorities.repo_root
     )
 
+    # 4.5 the FULL independently-derived dispatch context is REQUIRED (blank
+    # or missing batch/execution/project identity fails closed BEFORE any
+    # lease/admission authority is consumed — never optional)
+    if (
+        not isinstance(authorities.dispatch_batch_id, str)
+        or not authorities.dispatch_batch_id.strip()
+        or not (authorities.dispatch_execution_id or "").strip()
+        or not (authorities.project_id or "").strip()
+    ):
+        raise ZCodeAssemblyError("ZCODE_DISPATCH_CONTEXT_MISSING")
+
     # 5. LEASE authority: the assembly consumes the accepted CANONICAL
     #    WorkerLease record (the higher-level broker's authority) and binds
     #    it to THIS execution context. It never acquires or schedules leases
@@ -232,7 +243,7 @@ def assemble_zcode_execution(
         raise ZCodeAssemblyError("ZCODE_LEASE_WORKTREE_MISMATCH")
     if lease.task_id != packet.task_contract_ref:
         raise ZCodeAssemblyError("ZCODE_LEASE_TASK_MISMATCH")
-    if authorities.project_id and authorities.project_id != lease.project_id:
+    if authorities.project_id != lease.project_id:
         raise ZCodeAssemblyError("ZCODE_PROJECT_MISMATCH")
     # this production path executes a mutation-capable agent task: a
     # READ_ONLY lease can never authorize it
@@ -244,15 +255,20 @@ def assemble_zcode_execution(
 
     from .worker_lease import _mutable_scope_is_authorized
 
+    # the mutation-capable path REQUIRES an explicit non-empty requested
+    # scope — an omitted scope can never bypass the write-set authority
     requested_scope = tuple(authorities.requested_mutable_scope or ())
-    if requested_scope:
-        if not _mutable_scope_is_authorized(lease.allowed_scope, requested_scope):
-            raise ZCodeAssemblyError("ZCODE_SCOPE_NOT_AUTHORIZED")
-        for expression in requested_scope:
-            if expression in lease.forbidden_scope or any(
-                fnmatchcase(expression, pattern) for pattern in lease.forbidden_scope
-            ):
-                raise ZCodeAssemblyError("ZCODE_SCOPE_FORBIDDEN")
+    if not requested_scope:
+        raise ZCodeAssemblyError("ZCODE_MUTABLE_SCOPE_REQUIRED")
+    if not _mutable_scope_is_authorized(lease.allowed_scope, requested_scope):
+        raise ZCodeAssemblyError("ZCODE_SCOPE_NOT_AUTHORIZED")
+    if not _mutable_scope_is_authorized(lease.mutable_scope, requested_scope):
+        raise ZCodeAssemblyError("ZCODE_SCOPE_OUTSIDE_MUTABLE")
+    for expression in requested_scope:
+        if expression in lease.forbidden_scope or any(
+            fnmatchcase(expression, pattern) for pattern in lease.forbidden_scope
+        ):
+            raise ZCodeAssemblyError("ZCODE_SCOPE_FORBIDDEN")
     if lease.released_at is not None or lease.quarantined_at is not None:
         raise ZCodeAssemblyError("ZCODE_LEASE_NOT_ACTIVE")
     if lease.expires_at is not None:
@@ -271,8 +287,6 @@ def assemble_zcode_execution(
     #    expected identity comes from the higher-level coordinator, NEVER
     #    from the admission record itself, so an unrelated active admission
     #    for the same provider/generation cannot authorize this execution).
-    if not isinstance(authorities.dispatch_batch_id, str) or not authorities.dispatch_batch_id.strip():
-        raise ZCodeAssemblyError("ZCODE_DISPATCH_CONTEXT_MISSING")
     admission = authorities.admission_evidence
     if admission is None:
         raise ZCodeAssemblyError("ZCODE_PROVIDER_ADMISSION_MISSING")
@@ -280,8 +294,13 @@ def assemble_zcode_execution(
         raise ZCodeAssemblyError("ZCODE_ADMISSION_INVALID")
     if admission.provider_id != profile.provider_id:
         raise ZCodeAssemblyError("ZCODE_ADMISSION_PROVIDER_MISMATCH")
-    if admission.status != "ADMITTED":
-        raise ZCodeAssemblyError("ZCODE_ADMISSION_NOT_ADMITTED")
+    # canonical record semantics: SQLiteProviderConfigStore persists
+    # status='ACTIVE' (ADMITTED is the RESULT kind, not a record state —
+    # the schema CHECK only allows ACTIVE/RELEASED/EXPIRED)
+    if admission.status != "ACTIVE":
+        raise ZCodeAssemblyError("ZCODE_ADMISSION_NOT_ACTIVE")
+    if admission.released_at is not None:
+        raise ZCodeAssemblyError("ZCODE_ADMISSION_RELEASED")
     if (
         admission.configuration_generation is None
         or int(admission.configuration_generation) != int(expected_generation)
@@ -293,10 +312,9 @@ def assemble_zcode_execution(
         raise ZCodeAssemblyError("ZCODE_ADMISSION_EXPIRED")
     if admission.batch_id != authorities.dispatch_batch_id:
         raise ZCodeAssemblyError("ZCODE_ADMISSION_BATCH_MISMATCH")
-    if (
-        authorities.dispatch_execution_id is not None
-        and admission.execution_id != authorities.dispatch_execution_id
-    ):
+    # execution binding is REQUIRED and must match the independently-derived
+    # dispatch execution identity exactly (canonical records always carry one)
+    if admission.execution_id != authorities.dispatch_execution_id:
         raise ZCodeAssemblyError("ZCODE_ADMISSION_EXECUTION_MISMATCH")
 
     # 7. ENDPOINT authority: the observed truth is the provider-snapshot

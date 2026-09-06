@@ -1,6 +1,13 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-06 - GLM-1 WO158 / PR221 final targeted repair r5 COMPLETE: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE
+Last updated: 2026-09-07 - GLM-1 WO158 / PR221 canonical authority final repair r6 COMPLETE: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE
+
+## WO158 / PR221 r6 handoff override - 2026-09-07 (authoritative for this lane)
+
+- Binding review 5560911492 items are ALL closed on `feat/wo-p1-158-zcode-zero-relay` at the r6 head (single commit on top of `0a123e8`; exact SHA in PR #221). Canonical admission semantics consumed (ACTIVE + released rule; REAL store integration evidence in `tests/test_zcode_final_targeted_repair.py`); dispatch context (batch/execution/project) and explicit mutation scope are all REQUIRED fail-closed; lease-mutable-scope authority enforced.
+- Resume rule: re-pin `origin/main` + PR #221 head + latest GPT1 comments FIRST. After GPT1 acceptance+merge, the next queue goal is the A-Wiki #54 addressed-blocker fix (A:\GitHub\A-Wiki, clean isolated worktree, GLM1 Q25 claim) - not before.
+
+One next safe action: GPT1 exact-SHA rereview/acceptance of the r6 head on PR #221.
 
 ## WO158 / PR221 r5 handoff override - 2026-09-06 (authoritative for this lane)
 
