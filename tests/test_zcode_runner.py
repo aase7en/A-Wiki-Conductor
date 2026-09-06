@@ -356,10 +356,12 @@ def test_secret_resolution_failure_fails_closed(tmp_path):
     class Broken:
         def resolve(self, ref):
             raise RuntimeError("vault down")
-    runner, *_ = _runner(tmp_path, secrets=Broken())
-    with pytest.raises(ZCodeRunError) as exc:
-        runner.run(operation_ref=None)
-    assert exc.value.code == "ZCODE_SECRET_RESOLUTION_FAILED"
+    factory = TransportFactory(_script())
+    runner, *_ = _runner(tmp_path, secrets=Broken(), factory=factory)
+    result = runner.run(operation_ref=None)  # normalized failure, no raise
+    assert result.exit_code is None
+    assert "ZCODE_SECRET_RESOLUTION_FAILED" in result.stderr
+    assert factory.calls == []  # zero spawn
 
 
 # ---------------- child identity ----------------
@@ -367,11 +369,9 @@ def test_secret_resolution_failure_fails_closed(tmp_path):
 def test_missing_child_metadata_fails_closed_before_prompt(tmp_path):
     factory = TransportFactory(_script(), pid=None)
     runner, store, fs, *_ = _runner(tmp_path, factory=factory)
-    with pytest.raises(ZCodeRunError) as exc:
-        runner.run(operation_ref=None)
-    assert exc.value.code == "ZCODE_CHILD_IDENTITY_UNAVAILABLE"
-    # zero prompt dispatch: no protocol send happened
-    assert factory.last is None or factory.last.sent == []
+    result = runner.run(operation_ref=None)  # normalized failure, no raise
+    assert "ZCODE_CHILD_IDENTITY_UNAVAILABLE" in result.stderr
+    assert factory.last is None or factory.last.sent == []  # zero protocol sends
 
 
 def test_identity_document_is_bounded_and_prompt_free(tmp_path):
@@ -482,8 +482,8 @@ def test_resolver_failure_means_zero_spawn(tmp_path):
         def resolve(self, ref):
             raise RuntimeError("vault down")
     runner, store, fs, factory, _ = _runner(tmp_path, secrets=Broken())
-    with pytest.raises(Exception):
-        runner.run(operation_ref=None)
+    result = runner.run(operation_ref=None)  # normalized failure, no raise
+    assert "ZCODE_SECRET_RESOLUTION_FAILED" in result.stderr
     assert factory.calls == []  # zero spawn
 
 
@@ -493,8 +493,8 @@ def test_empty_or_malformed_secret_means_zero_spawn(tmp_path):
             return ""
     factory = TransportFactory(_script())
     runner, *_ = _runner(tmp_path, secrets=Empty(), factory=factory)
-    with pytest.raises(Exception):
-        runner.run(operation_ref=None)
+    result = runner.run(operation_ref=None)
+    assert "ZCODE_SECRET_RESOLUTION_FAILED" in result.stderr
     assert factory.calls == []  # zero spawn
 
 
@@ -562,10 +562,8 @@ def test_q27_file_changed_after_intake_rejects_before_protocol(tmp_path):
             runtime_profile_ref="rt", repo_root=str(tmp_path)),
         adapter=adapter, executable=EXEC, bundle_js=BUNDLE, poll_interval_seconds=0.01,
     )
-    with pytest.raises(Exception) as exc:
-        runner.run(operation_ref=None)
-    assert "ZCODE_TASK_PACKET_TOCTOU" in str(exc.value) or "TOCTOU" in str(exc.value)
-    assert 'TOCTOU' in str(exc.value)  # typed pre-protocol rejection
+    result = runner.run(operation_ref=None)  # normalized failure, no raise
+    assert "ZCODE_TASK_PACKET_TOCTOU" in result.stderr  # typed pre-protocol
 
 
 def test_q27_same_bytes_unchanged_accepted(tmp_path):

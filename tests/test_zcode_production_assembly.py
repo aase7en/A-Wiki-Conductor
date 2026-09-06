@@ -281,8 +281,8 @@ def test_secret_resolver_failure_zero_spawn(tmp_path):
     base = _authorities(tmp_path)
     authorities = replace(base, secret_resolver=Broken())
     runner = _assemble(tmp_path, authorities=authorities)
-    with pytest.raises(Exception):
-        runner.run(operation_ref=None)
+    result = runner.run(operation_ref=None)  # normalized failure, no raise
+    assert "ZCODE_SECRET_RESOLUTION_FAILED" in result.stderr
     assert authorities.transport_factory.calls == []
 
 

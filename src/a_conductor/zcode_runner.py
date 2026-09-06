@@ -50,6 +50,7 @@ from .provider_configuration import (
 from .supervised_child import SupervisedChildResult
 from .supervised_execution import (
     SupervisedCollectOutcome,
+    SupervisedExecutionError,
     SupervisedInspection,
     SupervisedInspectionState,
     SupervisedLaunchOutcome,
@@ -83,14 +84,18 @@ _CODE_RE = re.compile(r"[A-Z0-9_]{3,64}")
 _MAX_PACKET_BYTES = 262_144
 
 
-class ZCodeRunError(RuntimeError):
-    """Bounded typed failure; code-only (no secret/prompt material)."""
+class ZCodeRunError(SupervisedExecutionError):
+    """Bounded typed failure; code-only (no secret/prompt material).
+
+    Subclasses the generic supervised error so the shared coordinator's
+    EXISTING catch maps ZCode backend failures into the durable supervised
+    contract — no ZCode-specific catches are added anywhere else.
+    """
 
     def __init__(self, code: str) -> None:
         if not isinstance(code, str) or not _CODE_RE.fullmatch(code):
             raise ValueError("zcode run error code is invalid")
-        self.code = code
-        super().__init__(code)
+        super().__init__(code, recovery_required=True)
 
 
 def _sha256_hex(data: bytes) -> str:
@@ -573,8 +578,35 @@ class ZCodeBackendAdapter:
         )
 
     def inspect(self, execution_id: str) -> SupervisedInspection:
-        if execution_id not in self._outcomes:
-            raise ZCodeRunError("ZCODE_EXECUTION_UNKNOWN")
+        """Durable-first inspect: no process-local map is authoritative.
+
+        An execution that exists durably but not in this process (restart /
+        cross-process attach) resolves from the durable store + artifacts:
+        a canonical result.json means RESULT_AVAILABLE; otherwise the child
+        is re-observed via the recovery consumer semantics (evidence only).
+        """
+        try:
+            outcome = self._outcomes.get(execution_id) or self._load_durable_outcome(execution_id)
+        except ZCodeRunError:
+            raise
+        except Exception as exc:  # map backend errors at the backend boundary
+            raise SupervisedExecutionError("ZCODE_INSPECT_FAILED") from exc
+        if outcome is None:
+            # distinguish durable-exists vs truly unknown via the store
+            try:
+                record = self._execution_store.get(execution_id) if self._execution_store else None
+            except Exception:
+                # durable row absent (store raises for missing) => unknown
+                raise ZCodeRunError("ZCODE_EXECUTION_UNKNOWN")
+            if record is None:
+                raise ZCodeRunError("ZCODE_EXECUTION_UNKNOWN")
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.SUPERVISOR_EXITED_RESULT_MISSING,
+                supervisor_pid=None,
+                result_available=False,
+                recovery_required=True,
+            )
         return SupervisedInspection(
             execution_id=execution_id,
             state=SupervisedInspectionState.RESULT_AVAILABLE,
@@ -583,10 +615,51 @@ class ZCodeBackendAdapter:
             recovery_required=False,
         )
 
+    def _load_durable_outcome(self, execution_id: str) -> SupervisedCollectOutcome | None:
+        """Reconstruct the collect outcome from DURABLE artifacts only.
+
+        Requires a canonical six-key result.json for a completed outcome;
+        no in-memory state is required for correctness after a restart.
+        """
+        from pathlib import Path
+
+        if self._execution_store is None:
+            return self._outcomes.get(execution_id)
+        try:
+            record = self._execution_store.get(execution_id)
+        except Exception:
+            return None  # no durable row => unknown, caller raises typed
+        root = Path(record.repo_root)
+        result_path = root / record.result_ref
+        if not result_path.is_file():
+            return None
+        document = json.loads(result_path.read_text(encoding="utf-8"))
+        result = SupervisedChildResult(**document)
+        return SupervisedCollectOutcome(
+            record=record, result=result, recovery_required=False
+        )
+
     def collect(self, execution_id: str, *, expected_version: int) -> SupervisedCollectOutcome:
-        outcome = self._outcomes.get(execution_id)
+        """Version-honoring collect: CAS against the durable store version.
+
+        An expected_version that does not match the durable record's current
+        version fails closed — no silent collect, no blind replay.
+        """
+        try:
+            outcome = self._outcomes.get(execution_id) or self._load_durable_outcome(execution_id)
+        except ZCodeRunError:
+            raise
+        except Exception as exc:  # map backend errors at the backend boundary
+            raise SupervisedExecutionError("ZCODE_COLLECT_FAILED") from exc
         if outcome is None:
             raise ZCodeRunError("ZCODE_EXECUTION_UNKNOWN")
+        if self._execution_store is not None:
+            try:
+                record = self._execution_store.get(execution_id)
+            except Exception:
+                raise ZCodeRunError("ZCODE_EXECUTION_UNKNOWN")
+            if record.version != expected_version:
+                raise SupervisedExecutionError("ZCODE_VERSION_CONFLICT")
         return outcome
 
 
