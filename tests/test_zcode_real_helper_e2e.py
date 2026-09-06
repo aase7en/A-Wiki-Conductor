@@ -430,3 +430,44 @@ def test_helper_source_has_no_kill_ladder() -> None:
     )
     for banned in (".terminate(", ".kill(", "taskkill", "TerminateProcess", "Stop-Process"):
         assert banned not in source, banned
+
+
+@NT_ONLY
+def test_restart_after_complete_collects_durably_no_respawn(tmp_path: Path) -> None:
+    """Restart/recovery after the real helper E2E: a FRESH session (new
+    authorities/runner over the SAME durable store) re-runs the same task —
+    dedup reuses the completed execution, collects the canonical result from
+    durable artifacts, and spawns ZERO additional children."""
+    result, _, _, receipts = _run_e2e(tmp_path)
+    assert result.exit_code == 0
+    spawns_after_first = (receipts / "spawn.pid").read_text(encoding="utf-8").split()
+    assert len(spawns_after_first) == 1
+
+    # fresh process/session: brand-new authorities + runner over the same DB
+    runtime_python = getattr(sys, "_base_executable", sys.executable)
+    fake_script = tmp_path / "fake" / "fake_app_server.py"
+    authorities = build_real_service_authorities(tmp_path)
+    runner = assemble_zcode_execution(
+        authorities=authorities,
+        packet=_packet(tmp_path),
+        model_id="glm-5.3",
+        expected_generation=1,
+        authorized_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path),
+        executable=runtime_python,
+        bundle_js=str(fake_script),
+        deadline_seconds=30.0,
+    )
+    second = runner.run(timeout_seconds=90)
+    assert second.exit_code == 0
+    assert second.stdout == RESPONSE_TEXT  # collected from durable artifacts
+    spawns_after_restart = (receipts / "spawn.pid").read_text(encoding="utf-8").split()
+    assert len(spawns_after_restart) == 1  # zero respawn — reuse, not replay
+
+    import sqlite3
+
+    con = sqlite3.connect(tmp_path / "control.sqlite")
+    rows = con.execute("SELECT COUNT(*) FROM execution_records").fetchone()[0]
+    con.close()
+    assert rows == 1  # exactly one durable execution

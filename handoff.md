@@ -1,6 +1,14 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-06 - GLM-1 WO158 / PR221 real specialized-helper happy path
+Last updated: 2026-09-06 - GLM-1 WO158 / PR221 repair COMPLETE (slices 1-4): READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE
+
+## WO158 / PR221 final handoff override - 2026-09-06 (authoritative for this lane)
+
+- All four GPT1 repair slices (binding review 5558197043) are executed and frozen on `feat/wo-p1-158-zcode-zero-relay`: slice 1 `cf7ef9a` (real specialized-helper happy path E2E + production service composition; CI green), slice 2 `958f051` (full task identity + ATTACH_RUNNING + CAS truth; CI green), slice 3 `c9e527a` (authority-bound lease/admission/endpoint assembly), slice 4 = the final deep truth audit + source freeze (call-graph audit, dead-authority scan all-negative, real restart E2E, batteries 245/245 + 263/263, hygiene PASS).
+- Stop state: **READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE** - GPT1 owns exact-SHA acceptance and merge. PROOF_C remains NOT_RUN/GPT1_AUTH_REQUIRED; live provider dispatch remains separately gated. ZCodeBackendAdapter is a declared non-production seam (the production assembly never constructs it).
+- Resume rule for any new session: re-pin `origin/main` + PR #221 head + latest GPT1 comments FIRST (actual state overrides this note). If GPT1 accepts and merges PR221, the next queue goal is the A-Wiki #54 addressed-blocker fix (repository A:\GitHub\A-Wiki, clean isolated worktree, GLM1 Q25 claim) - do NOT start it before PR221 is clean/frozen per its own gate.
+
+One next safe action: GPT1 exact-SHA rereview/acceptance of the PR221 final head.
 
 ## WO158 / PR221 real specialized-helper happy path handoff — 2026-09-06 (authoritative for this lane)
 

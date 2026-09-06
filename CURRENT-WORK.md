@@ -1,6 +1,11 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-06 (GLM-1 - WO158 / PR221 repair slices 1-3: real helper E2E + identity/ATTACH/CAS + authority-bound assembly)
+Last updated: 2026-09-06 (GLM-1 - WO158 / PR221 repair slices 1-4 COMPLETE: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE)
+
+## WO158 final slice 4 - deep truth audit + source freeze - 2026-09-06 (GLM-1)
+
+- Slices 1-3 frozen green (`cf7ef9a`, `958f051`, `c9e527a`; slice-2 CI green). Slice 4 = the full call-graph audit (20 steps, module/symbol/owner/evidence/fail-closed each) + dead/split-authority scan (16 candidate defects, all negative with closure evidence) + NEW real restart-after-complete E2E (fresh session reuses the durable execution, zero respawn) + full verification battery 245/245 + 263/263 + hygiene PASS. Honest declaration: ZCodeBackendAdapter remains a non-production seam (never constructed by the assembly).
+- **Stop state: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE** at the final head (see WO repair-r4 checkpoint). PROOF_C NOT_RUN/GPT1_AUTH_REQUIRED; live dispatch separately gated; GLM1 does not merge.
 
 ## WO158 repair slice 3 — authority-bound assembly — 2026-09-06 (GLM-1)
 
