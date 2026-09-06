@@ -67,8 +67,10 @@
       "enum": [
         "CLAUDE_CODE_CLI",
         "DIRECT_API",
-        "LOCAL_CLI"
-      ]
+        "LOCAL_CLI",
+        "ZCODE_APP_SERVER"
+      ],
+      "description": "ZCODE_APP_SERVER added in contract revision with provider-profile 1.1.0 (typed runtime bindings). Existing 1.0.0 dispatch artifacts remain valid."
     },
     "effort_level": {
       "enum": [

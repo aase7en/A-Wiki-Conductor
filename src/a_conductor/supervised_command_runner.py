@@ -5,66 +5,32 @@ commands execute through the supervised execution service (durable execution
 record, duplicate-execution protection, bounded collect) instead of a bare
 subprocess call. Transport-loss recovery, retry, and failover decisions stay
 outside this module.
+
+The run lifecycle itself (fingerprint, dedup guard, record creation, launch,
+poll/timeout, collect/version CAS, artifact mapping) lives in the shared
+``SupervisedRunCoordinator`` so future supervised backends reuse one authority.
+This module is the spec/scope-validating adapter for native commands.
 """
 
 from __future__ import annotations
 
-import hashlib
 import time
-import uuid
 from pathlib import Path, PureWindowsPath
-from typing import Callable, Protocol, Sequence
+from typing import Callable, Sequence
 
-from .execution_deduplication import (
-    DuplicateExecutionAssessment,
-    DuplicateExecutionDecision,
-    DuplicateExecutionGuard,
-    ExecutionFingerprintSpec,
-    compute_execution_fingerprint,
-)
-from .execution_record import (
-    DurableExecutionRecord,
-    ExecutionProcessState,
-    TransportState,
-    new_execution_record,
-)
-from .execution_store import ExecutionStoreError
+from .execution_deduplication import compute_execution_fingerprint
 from .native_execution import (
     NativeCommandResult,
     NativeCommandSpec,
     NativeExecutionError,
     NativeExecutionScope,
 )
-from .supervised_execution import (
-    SupervisedCollectOutcome,
-    SupervisedExecutionError,
-    SupervisedInspection,
-    SupervisedInspectionState,
-    SupervisedLaunchOutcome,
-    SupervisedLaunchPlan,
+from .supervised_run_coordinator import (
+    SupervisedLauncher,
+    SupervisedExecutionFingerprintStore,
+    SupervisedRunCoordinator,
+    SupervisedRunIdentity,
 )
-
-
-_EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
-_MAX_TRANSIENT_UNKNOWN_OBSERVATIONS = 3
-
-
-class SupervisedLauncher(Protocol):
-    def launch(self, plan: SupervisedLaunchPlan) -> SupervisedLaunchOutcome: ...
-    def inspect(self, execution_id: str) -> SupervisedInspection: ...
-    def collect(self, execution_id: str, *, expected_version: int) -> SupervisedCollectOutcome: ...
-
-
-class SupervisedExecutionFingerprintStore(Protocol):
-    def create(self, record: DurableExecutionRecord) -> DurableExecutionRecord: ...
-    def get(self, execution_id: str) -> DurableExecutionRecord: ...
-    def find_by_fingerprint(self, fingerprint: str) -> tuple[DurableExecutionRecord, ...]: ...
-
-
-def _require_text(value: str, field_name: str) -> str:
-    if not isinstance(value, str) or not value.strip() or "\x00" in value:
-        raise ValueError(f"{field_name} must be a non-blank string")
-    return value
 
 
 class SupervisedCommandRunner:
@@ -90,44 +56,30 @@ class SupervisedCommandRunner:
     ) -> None:
         if not isinstance(scope, NativeExecutionScope):
             raise ValueError("scope must be a NativeExecutionScope")
-        for method_name in ("create", "get", "find_by_fingerprint"):
-            if not callable(getattr(execution_store, method_name, None)):
-                raise ValueError(f"execution_store must provide {method_name}")
-        for method_name in ("launch", "inspect", "collect"):
-            if not callable(getattr(supervised, method_name, None)):
-                raise ValueError(f"supervised must provide {method_name}")
-        _require_text(job_id, "job_id")
-        _require_text(work_order_ref, "work_order_ref")
-        _require_text(project_id, "project_id")
-        _require_text(worker_id, "worker_id")
-        _require_text(backend_id, "backend_id")
-        _require_text(branch, "branch")
-        _require_text(head_before, "head_before")
-        _require_text(runtime_profile_ref, "runtime_profile_ref")
-        if (
-            not isinstance(poll_interval_seconds, (int, float))
-            or isinstance(poll_interval_seconds, bool)
-            or poll_interval_seconds <= 0
-        ):
-            raise ValueError("poll_interval_seconds must be > 0")
-        if not callable(sleep_fn) or not callable(clock_fn):
-            raise ValueError("sleep_fn and clock_fn must be callable")
         self._scope = scope
-        self._store = execution_store
-        self._supervised = supervised
-        self._guard = DuplicateExecutionGuard(store=execution_store)
-        self._repo_root = Path(scope.root).expanduser().resolve(strict=False)
-        self._job_id = job_id
-        self._work_order_ref = work_order_ref
-        self._project_id = project_id
-        self._worker_id = worker_id
-        self._backend_id = backend_id
-        self._branch = branch
-        self._head_before = head_before
-        self._runtime_profile_ref = runtime_profile_ref
-        self._poll_interval_seconds = float(poll_interval_seconds)
-        self._sleep_fn = sleep_fn
-        self._clock_fn = clock_fn
+        repo_root = Path(scope.root).expanduser().resolve(strict=False)
+        # Kept as an attribute so existing behavior probes (tests) observing
+        # the runner's resolved repo root keep working against the adapter.
+        self._repo_root = repo_root
+        self._coordinator = SupervisedRunCoordinator(
+            execution_store=execution_store,
+            supervised=supervised,
+            identity=SupervisedRunIdentity(
+                job_id=job_id,
+                work_order_ref=work_order_ref,
+                project_id=project_id,
+                worker_id=worker_id,
+                backend_id=backend_id,
+                branch=branch,
+                head_before=head_before,
+                runtime_profile_ref=runtime_profile_ref,
+                repo_root=str(repo_root),
+            ),
+            poll_interval_seconds=poll_interval_seconds,
+            sleep_fn=sleep_fn,
+            clock_fn=clock_fn,
+            max_output_bytes=scope.max_output_bytes,
+        )
 
     def _validated_argv(self, spec: NativeCommandSpec) -> tuple[str, ...]:
         if isinstance(spec.argv, (str, bytes)) or not isinstance(spec.argv, Sequence):
@@ -185,112 +137,14 @@ class SupervisedCommandRunner:
             normalized.append((key, value))
         return tuple(normalized)
 
-    def _operation_ref(self, argv: tuple[str, ...]) -> str:
-        digest = hashlib.sha256("\x00".join(argv).encode("utf-8")).hexdigest()[:16]
-        return f"native:{digest}"
-
-    def _fingerprint_spec(self, argv: tuple[str, ...]) -> ExecutionFingerprintSpec:
-        return ExecutionFingerprintSpec(
-            project_id=self._project_id,
-            job_id=self._job_id,
-            work_order_ref=self._work_order_ref,
-            backend_id=self._backend_id,
-            repo_root=str(self._repo_root),
-            branch=self._branch,
-            head_before=self._head_before,
-            operation_ref=self._operation_ref(argv),
-            runtime_profile_ref=self._runtime_profile_ref,
-            target_argv=argv,
+    def _poll_until_resolved(self, execution_id: str, *, timeout_seconds: int):
+        # Behavior-preserving delegation for existing lifecycle probes.
+        return self._coordinator._poll_until_resolved(
+            execution_id, timeout_seconds=timeout_seconds
         )
 
     def fingerprint_for(self, spec: NativeCommandSpec) -> str:
-        return compute_execution_fingerprint(self._fingerprint_spec(self._validated_argv(spec)))
-
-    def _failure_result(
-        self,
-        argv: tuple[str, ...],
-        *,
-        error_code: str,
-    ) -> NativeCommandResult:
-        stderr = error_code.encode("utf-8")
-        return NativeCommandResult(
-            executable=PureWindowsPath(argv[0]).name,
-            argument_count=len(argv),
-            exit_code=None,
-            timed_out=False,
-            stdout="",
-            stderr=error_code,
-            stdout_sha256=_EMPTY_SHA256,
-            stderr_sha256=hashlib.sha256(stderr).hexdigest(),
-            stdout_truncated=False,
-            stderr_truncated=False,
-        )
-
-    def _read_artifact(self, path: Path) -> tuple[str, str, bool]:
-        try:
-            raw = path.read_bytes()
-        except FileNotFoundError:
-            return "", _EMPTY_SHA256, False
-        digest = hashlib.sha256(raw).hexdigest()
-        cap = self._scope.max_output_bytes
-        truncated = len(raw) > cap
-        if truncated:
-            raw = raw[-cap:]
-        return raw.decode("utf-8", errors="replace"), digest, truncated
-
-    def _mapped_result(
-        self,
-        argv: tuple[str, ...],
-        record: DurableExecutionRecord,
-        *,
-        exit_code: int,
-    ) -> NativeCommandResult:
-        stdout, stdout_sha, stdout_truncated = self._read_artifact(
-            self._repo_root / record.stdout_ref
-        )
-        stderr, stderr_sha, stderr_truncated = self._read_artifact(
-            self._repo_root / record.stderr_ref
-        )
-        return NativeCommandResult(
-            executable=PureWindowsPath(argv[0]).name,
-            argument_count=len(argv),
-            exit_code=exit_code,
-            timed_out=False,
-            stdout=stdout,
-            stderr=stderr,
-            stdout_sha256=stdout_sha,
-            stderr_sha256=stderr_sha,
-            stdout_truncated=stdout_truncated,
-            stderr_truncated=stderr_truncated,
-        )
-
-    def _poll_until_resolved(
-        self, execution_id: str, *, timeout_seconds: int
-    ) -> tuple[SupervisedInspection | None, bool]:
-        start = self._clock_fn()
-        consecutive_unknown = 0
-        while True:
-            try:
-                inspection = self._supervised.inspect(execution_id)
-            except SupervisedExecutionError:
-                return None, False
-            if inspection.state is SupervisedInspectionState.RESULT_AVAILABLE:
-                return inspection, False
-            # A caller deadline covers inspection latency too. A late transient
-            # recovery classification must not turn an elapsed caller timeout
-            # into a false non-timeout result; durable execution state remains
-            # available for the next attach/recovery attempt.
-            if self._clock_fn() - start + self._poll_interval_seconds >= timeout_seconds:
-                return inspection, True
-            if inspection.recovery_required:
-                if inspection.error_code != "SUPERVISOR_OWNERSHIP_UNKNOWN":
-                    return inspection, False
-                consecutive_unknown += 1
-                if consecutive_unknown >= _MAX_TRANSIENT_UNKNOWN_OBSERVATIONS:
-                    return inspection, False
-            else:
-                consecutive_unknown = 0
-            self._sleep_fn(self._poll_interval_seconds)
+        return self._coordinator.fingerprint_for_argv(self._validated_argv(spec))
 
     def run(self, spec: NativeCommandSpec) -> NativeCommandResult:
         if not isinstance(spec, NativeCommandSpec):
@@ -298,106 +152,14 @@ class SupervisedCommandRunner:
         argv = self._validated_argv(spec)
         environment_overrides = self._validated_environment_overrides(spec)
         cwd = self._scope.resolve_relative(spec.cwd, must_exist=True)
-        if cwd != self._repo_root:
+        if cwd != Path(self._coordinator.identity.repo_root):
             raise NativeExecutionError("CWD_UNSUPPORTED")
 
-        fingerprint = compute_execution_fingerprint(self._fingerprint_spec(argv))
-        assessment: DuplicateExecutionAssessment = self._guard.assess(self._fingerprint_spec(argv))
-        if assessment.decision is DuplicateExecutionDecision.BLOCKED_UNKNOWN:
-            return self._failure_result(argv, error_code="SUPERVISED_DUPLICATE_BLOCKED")
-
-        execution_id: str | None = None
-        if assessment.decision in (
-            DuplicateExecutionDecision.ATTACH_RUNNING,
-            DuplicateExecutionDecision.REUSE_COMPLETED,
-        ):
-            if assessment.record is None:
-                return self._failure_result(argv, error_code="SUPERVISED_ATTACH_RECORD_MISSING")
-            execution_id = assessment.record.execution_id
-        else:
-            execution_id = f"exec-{uuid.uuid4().hex[:16]}"
-            run_rel = f"runs/{execution_id}"
-            record = new_execution_record(
-                execution_id=execution_id,
-                job_id=self._job_id,
-                work_order_ref=self._work_order_ref,
-                project_id=self._project_id,
-                worker_id=self._worker_id,
-                backend_id=self._backend_id,
-                agent_ref="agent:supervised-native",
-                repo_root=str(self._repo_root),
-                branch=self._branch,
-                head_before=self._head_before,
-                operation_ref=self._operation_ref(argv),
-                command_fingerprint=fingerprint,
-                command_summary=" ".join(argv[:3])[:200],
-                runtime_profile_ref=self._runtime_profile_ref,
-                run_dir_ref=run_rel,
-                stdout_ref=f"{run_rel}/stdout.log",
-                stderr_ref=f"{run_rel}/stderr.log",
-                result_ref=f"{run_rel}/result.json",
-                report_ref=None,
-                transport_state=TransportState.CONNECTED,
-                execution_state=ExecutionProcessState.QUEUED,
-            )
-            plan = SupervisedLaunchPlan(
-                record=record,
-                runtime_root=self._repo_root,
-                target_argv=argv,
-                target_executable_name=PureWindowsPath(argv[0]).name,
-                environment_overrides=environment_overrides,
-            )
-            try:
-                outcome = self._supervised.launch(plan)
-            except SupervisedExecutionError as exc:
-                return self._failure_result(argv, error_code=f"SUPERVISED_LAUNCH_FAILED:{exc.code}")
-            if outcome.recovery_required:
-                code = outcome.error_code or "SUPERVISED_LAUNCH_FAILED"
-                return self._failure_result(argv, error_code=f"SUPERVISED_LAUNCH_FAILED:{code}")
-
-        inspection, timed_out = self._poll_until_resolved(
-            execution_id, timeout_seconds=spec.timeout_seconds
+        return self._coordinator.run(
+            argv,
+            environment_overrides=environment_overrides,
+            timeout_seconds=spec.timeout_seconds,
         )
-        if inspection is None:
-            return self._failure_result(argv, error_code="SUPERVISED_INSPECT_FAILED")
-        if timed_out:
-            record = self._store.get(execution_id)
-            stdout, stdout_sha, stdout_truncated = self._read_artifact(
-                self._repo_root / record.stdout_ref
-            )
-            stderr, stderr_sha, stderr_truncated = self._read_artifact(
-                self._repo_root / record.stderr_ref
-            )
-            return NativeCommandResult(
-                executable=PureWindowsPath(argv[0]).name,
-                argument_count=len(argv),
-                exit_code=None,
-                timed_out=True,
-                stdout=stdout,
-                stderr=stderr,
-                stdout_sha256=stdout_sha,
-                stderr_sha256=stderr_sha,
-                stdout_truncated=stdout_truncated,
-                stderr_truncated=stderr_truncated,
-            )
-        if inspection.recovery_required:
-            code = inspection.error_code or "SUPERVISOR_RECOVERY_REQUIRED"
-            return self._failure_result(argv, error_code=f"SUPERVISED_RECOVERY_REQUIRED:{code}")
-
-        try:
-            current = self._store.get(execution_id)
-            collected = self._supervised.collect(
-                execution_id,
-                expected_version=current.version,
-            )
-        except ExecutionStoreError:
-            return self._failure_result(argv, error_code="SUPERVISED_VERSION_CONFLICT")
-        except SupervisedExecutionError as exc:
-            return self._failure_result(argv, error_code=f"SUPERVISED_COLLECT_FAILED:{exc.code}")
-        if collected.result is None:
-            code = collected.error_code or "SUPERVISED_COLLECT_FAILED"
-            return self._failure_result(argv, error_code=f"SUPERVISED_COLLECT_FAILED:{code}")
-        return self._mapped_result(argv, collected.record, exit_code=collected.result.exit_code)
 
 
 def build_supervised_native_adapter_resolver(

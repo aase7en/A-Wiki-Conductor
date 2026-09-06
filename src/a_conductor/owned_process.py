@@ -22,7 +22,17 @@ from .windows_observer import PidMetadataObservation, PidMetadataStatus
 
 
 _ALLOWED_ENVIRONMENT_OVERRIDES = frozenset(
-    {"SERENA_HOME", "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"}
+    {
+        "SERENA_HOME", "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN",
+        # WO158 ZCode helper runtime channel: bounded verified task-packet
+        # metadata + the accepted credential delivery key (explicitly the
+        # ANTHROPIC_API_KEY channel; the legacy ANTHROPIC_AUTH_TOKEN is NOT
+        # delivered to the app-server child by the specialized helper).
+        "ZCODE_TASK_PACKET_PATH", "ZCODE_TASK_PACKET_SHA256",
+        "ZCODE_TASK_PACKET_TRUSTED_ROOT", "ZCODE_TASK_PACKET_MAX_BYTES",
+        "ZCODE_OUTPUT_BUDGET", "ZCODE_DEADLINE_SECONDS",
+        "ZCODE_CREDENTIAL_DELIVERY_KEY", "ANTHROPIC_API_KEY",
+    }
 )
 # WO140: cap the recorded post-termination ownership sequence (the count is
 # kept separately so long polls stay describable without unbounded memory).

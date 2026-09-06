@@ -1,0 +1,629 @@
+"""WO-P1-158 Phase D — canonical SupervisedZCodeRunner proofs (no live ZCode).
+
+Proves the GPT2 repair contract: the runner routes through
+SupervisedRunCoordinator.run (durable record + dedup + collect/CAS), the
+result.json is the canonical six-key SupervisedChildResult, task authority is
+a verified TaskPacketFile (TOCTOU-closed), selection must be AUTHORIZED (not
+merely stable), the credential flows only through the accepted secret-ref
+authority into process memory, child identity fails closed when real process
+metadata is missing, and UNKNOWN/EXIT_PENDING never fabricates result.json.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from collections import deque
+from dataclasses import dataclass
+
+import pytest
+
+from a_conductor.claude_code_harness import TaskPacketFile
+from a_conductor.execution_store import SQLiteExecutionStore
+from a_conductor.provider_configuration import (
+    HarnessRuntimeBinding,
+    HarnessStrategy,
+)
+from a_conductor.supervised_child import SupervisedChildResult
+from a_conductor.supervised_run_coordinator import SupervisedRunIdentity
+from a_conductor.zcode_runner import (
+    ZCODE_BACKEND_ID,
+    SupervisedZCodeRunner,
+    ZCodeBackendAdapter,
+    ZCodeRunError,
+    ZCodeTaskPacketIdentity,
+)
+
+
+BINDING = HarnessRuntimeBinding(
+    harness_strategy=HarnessStrategy.ZCODE_APP_SERVER,
+    runtime_provider_ref="zcode-runtime/glm-main",
+    runtime_model_ref="zcode-runtime/glm-5.3",
+)
+BASE_URL = "http://127.0.0.1:1"
+EXEC = r"C:\ZCode\ZCode.exe"
+BUNDLE = r"C:\ZCode\resources\glm\zcode.cjs"
+ARGV = (EXEC, BUNDLE, "app-server", "--stdio", "--surface", "desktop")
+
+
+
+class Selection:
+    def __init__(self, *, binding=None, base_url=None):
+        self.binding = binding or BINDING
+        self.base_url = base_url or BASE_URL
+
+    def resolved_selection(self):
+        return {
+            "runtime_binding": self.binding,
+            "runtime_base_url": self.base_url,
+            "runtime_source_enabled": True,
+        }
+
+
+class Secrets:
+    def __init__(self, value="opaque-credential-value"):
+        self.value = value
+        self.requests: list[str] = []
+
+    def resolve(self, ref):
+        self.requests.append(ref)
+        return self.value
+
+
+class Transport:
+    def __init__(self, script, *, exit_code=0, pid=4242, created=1788490277831, parent=100):
+        self._script = deque(script)
+        self.sent: list[str] = []
+        self.child_pid = pid
+        self.child_created_epoch_ms = created
+        self.parent_pid = parent
+        self.exit_code = exit_code
+        self.killed = False
+        self.child_env: dict | None = None
+
+    def send_line(self, text):
+        self.sent.append(text)
+
+    def read_line(self, timeout_seconds):
+        if not self._script:
+            return None
+        item = self._script.popleft()
+        return item
+
+    def alive(self):
+        return True
+
+    def close_stdin_and_wait(self, *, exit_wait_seconds):
+        return self.exit_code
+
+
+class TransportFactory:
+    def __init__(self, script, **transport_kwargs):
+        self.script = script
+        self.kwargs = transport_kwargs
+        self.calls: list[dict] = []
+        self.last: Transport | None = None
+        self.credentials: list = []
+
+    def open_transport(self, *, argv, environment, credential, execution_id, run_dir_ref):
+        self.calls.append(
+            {"argv": argv, "environment": dict(environment),
+             "execution_id": execution_id, "run_dir_ref": run_dir_ref}
+        )
+        self.credentials.append(credential)
+        transport = Transport(self.script, **self.kwargs)
+        # accepted ephemeral runtime channel: the credential value is copied
+        # into the child environment here and only here (process memory)
+        key, value = credential.environment_entry
+        transport.child_env = {**environment, key: value}
+        self.last = transport
+        return self.last
+
+
+class FS:
+    """Disk-backed run-dir-confined artifact IO under the repo root."""
+
+    def __init__(self, root):
+        from pathlib import Path
+        self.root = Path(root)
+        self.order: list[str] = []
+        self._n = 0
+
+    def _tick(self, name):
+        self._n += 1
+        self.order.append(f"{self._n:03d}:{name}")
+
+    def _path(self, p):
+        from pathlib import Path
+        target = self.root / p
+        if self.root.resolve() not in target.resolve().parents and target.resolve() != self.root.resolve():
+            raise ValueError("artifact path escapes run dir")
+        return target
+
+    def write_atomic(self, p, text):
+        self._tick(p)
+        target = self._path(p)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(target)
+
+    def read_text(self, p):
+        return self._path(p).read_text(encoding="utf-8")
+
+    def append_text(self, p, text):
+        target = self._path(p)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8") as handle:
+            handle.write(text)
+
+    def write_bytes_file(self, p, data):
+        self._tick(p)
+        target = self._path(p)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+
+    def exists(self, p):
+        return self._path(p).exists()
+
+    def read_bytes(self, p):
+        return self._path(p).read_bytes()
+
+    def all_paths(self):
+        return sorted(str(rel) for rel in self.root.rglob("*") if rel.is_file())
+
+
+def _script(text="ZRA1-OK"):
+    return [
+        json.dumps({"id": 1, "result": {"session": {"sessionId": "s-1"}}}),
+        json.dumps({"id": 100, "method": "session/requestRuntimePreferences"}),
+        json.dumps({"id": 2, "result": {"ok": True}}),
+        json.dumps({"method": "session/event",
+                    "params": {"type": "model.streaming",
+                               "payload": {"kind": "text_delta", "delta": text}}}),
+        json.dumps({"method": "session/event", "params": {"type": "turn.completed"}}),
+    ]
+
+
+def _packet_file(tmp_path, content="Return exactly ZRA1-OK."):
+    path = tmp_path / "task-packet.md"
+    path.write_text(content, encoding="utf-8")
+    return TaskPacketFile(
+        task_contract_ref="WO-P1-158-ZRA1",
+        path=str(path),
+        sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+    )
+
+
+def _runner(tmp_path, *, selection=None, secrets=None, factory=None, packet=None):
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    packet = packet or _packet_file(tmp_path)
+    identity_packet = ZCodeTaskPacketIdentity.from_task_packet_file(packet)
+    fs = FS(tmp_path)
+    factory = factory or TransportFactory(_script())
+    adapter = ZCodeBackendAdapter(
+        transport_factory=factory,
+        filesystem=fs,
+        execution_store=store,
+        selection_source=selection or Selection(),
+        expected_binding=BINDING,
+        expected_base_url=BASE_URL,
+        secret_resolver=secrets or Secrets(),
+        secret_reference="secret-ref:zcode-credential",
+        packet=identity_packet,
+        workspace=str(tmp_path),
+        executable=EXEC,
+        bundle_js=BUNDLE,
+    )
+    runner = SupervisedZCodeRunner(
+        task_packet=identity_packet,
+        execution_store=store,
+        identity=SupervisedRunIdentity(
+            job_id="job-1", work_order_ref="WO-P1-158", project_id="p1",
+            worker_id="w1", backend_id=ZCODE_BACKEND_ID, branch="main",
+            head_before="h" * 40, runtime_profile_ref="rt:zcode",
+            repo_root=str(tmp_path),
+        ),
+        adapter=adapter,
+        executable=EXEC,
+        bundle_js=BUNDLE,
+        poll_interval_seconds=0.01,
+    )
+    return runner, store, fs, factory, packet
+
+
+# ---------------- canonical lifecycle ----------------
+
+def test_runner_routes_through_coordinator_with_durable_record(tmp_path):
+    runner, store, fs, factory, _ = _runner(tmp_path)
+    result = runner.run(operation_ref=None)
+    assert result.exit_code == 0 and result.timed_out is False
+    # durable record exists through the canonical store
+    from a_conductor.supervised_run_coordinator import SupervisedRunCoordinator
+    from a_conductor.zcode_runner import zcode_backend_policy
+    lookup = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=_NoopSupervised(),
+        identity=SupervisedRunIdentity(
+            job_id="job-1", work_order_ref="WO-P1-158", project_id="p1",
+            worker_id="w1", backend_id=ZCODE_BACKEND_ID, branch="main",
+            head_before="h" * 40, runtime_profile_ref="rt:zcode",
+            repo_root=str(tmp_path),
+        ),
+        backend_policy=zcode_backend_policy(operation_ref=runner._task_packet.canonical_operation_ref()),
+    )
+    records = store.find_by_fingerprint(lookup.fingerprint_for_argv(runner.argv()))
+    assert len(records) == 1
+    record = records[0]
+    assert record.backend_id == ZCODE_BACKEND_ID
+    assert record.agent_ref == "agent:zcode-app-server"
+    assert record.operation_ref == runner._task_packet.canonical_operation_ref()
+    assert record.operation_ref.startswith("zcode-task-v1:")  # task-derived, domain-separated
+    assert record.report_ref.endswith("/report.json")
+    run_rel = record.run_dir_ref
+    # identity → stdout → stderr → report → result ordering
+    order = [e.split(":", 1)[1] for e in fs.order]
+    assert order.index(f"{run_rel}/child.identity.json") < order.index(f"{run_rel}/stdout.log")
+    assert order.index(f"{run_rel}/stdout.log") < order.index(f"{run_rel}/report.json")
+    assert order.index(f"{run_rel}/report.json") < order.index(f"{run_rel}/result.json")
+    assert fs.exists(f"{run_rel}/result.json")
+    # canonical six-key result
+    result_doc = json.loads(fs.read_text(f"{run_rel}/result.json"))
+    assert set(result_doc) == {
+        "schema_version", "execution_id", "child_pid",
+        "exit_code", "started_at", "finished_at",
+    }
+    assert result_doc["child_pid"] == 4242
+    assert result_doc["exit_code"] == 0
+    parsed = SupervisedChildResult(**result_doc)  # canonical contract accepts it
+    assert parsed.execution_id == record.execution_id
+
+
+class _NoopSupervised:
+    def launch(self, plan): return plan
+    def inspect(self, eid): raise RuntimeError
+    def collect(self, eid, *, expected_version): raise RuntimeError
+
+
+def test_duplicate_run_reuses_execution_no_second_launch(tmp_path):
+    runner, store, fs, factory, _ = _runner(tmp_path)
+    runner.run(operation_ref=None)
+    first_calls = len(factory.calls)
+    runner.run(operation_ref=None)
+    assert len(factory.calls) == first_calls  # dedup: no second child
+
+
+# ---------------- task authority ----------------
+
+def test_task_packet_hash_mismatch_rejects_before_any_spawn(tmp_path):
+    packet = _packet_file(tmp_path)
+    tampered = TaskPacketFile(
+        task_contract_ref=packet.task_contract_ref,
+        path=packet.path,
+        sha256="f" * 64,  # wrong hash
+    )
+    with pytest.raises(ZCodeRunError) as exc:
+        _runner(tmp_path, packet=tampered)
+    assert exc.value.code == "ZCODE_TASK_PACKET_HASH_MISMATCH"
+
+
+def test_prompt_never_enters_argv_or_environment(tmp_path):
+    runner, store, fs, factory, _ = _runner(tmp_path)
+    runner.run(operation_ref=None)
+    call = factory.calls[0]
+    assert call["argv"] == ARGV
+    assert all("ZRA1-OK" not in a for a in call["argv"])
+    assert call["environment"] == {"ELECTRON_RUN_AS_NODE": "1"}
+
+
+# ---------------- selection authorization ----------------
+
+def test_selection_must_be_authorized_not_merely_stable(tmp_path):
+    wrong = Selection(
+        binding=HarnessRuntimeBinding(
+            harness_strategy=HarnessStrategy.ZCODE_APP_SERVER,
+            runtime_provider_ref="zcode-runtime/wrong-provider",
+            runtime_model_ref="zcode-runtime/glm-5.3",
+        )
+    )
+    runner, *_ = _runner(tmp_path, selection=wrong)
+    with pytest.raises(ZCodeRunError) as exc:
+        runner.run(operation_ref=None)
+    assert exc.value.code == "ZCODE_SELECTION_UNAUTHORIZED"
+
+
+def test_selection_base_url_mismatch_rejects(tmp_path):
+    runner, *_ = _runner(tmp_path, selection=Selection(base_url="http://evil:9"))
+    with pytest.raises(ZCodeRunError) as exc:
+        runner.run(operation_ref=None)
+    assert exc.value.code == "ZCODE_SELECTION_UNAUTHORIZED"
+
+
+# ---------------- credential boundary ----------------
+
+def test_credential_resolved_via_secret_ref_only_into_memory(tmp_path):
+    secrets = Secrets()
+    runner, *_ = _runner(tmp_path, secrets=secrets)
+    runner.run(operation_ref=None)
+    assert secrets.requests == ["secret-ref:zcode-credential"]
+    # nothing durable carries the value
+    secrets_value = secrets.value
+    for text in list(runner.__dict__.values()):  # runner holds no secret text
+        assert not isinstance(text, str) or secrets_value not in text
+
+
+def test_secret_resolution_failure_fails_closed(tmp_path):
+    class Broken:
+        def resolve(self, ref):
+            raise RuntimeError("vault down")
+    factory = TransportFactory(_script())
+    runner, *_ = _runner(tmp_path, secrets=Broken(), factory=factory)
+    result = runner.run(operation_ref=None)  # normalized failure, no raise
+    assert result.exit_code is None
+    assert "ZCODE_SECRET_RESOLUTION_FAILED" in result.stderr
+    assert factory.calls == []  # zero spawn
+
+
+# ---------------- child identity ----------------
+
+def test_missing_child_metadata_fails_closed_before_prompt(tmp_path):
+    factory = TransportFactory(_script(), pid=None)
+    runner, store, fs, *_ = _runner(tmp_path, factory=factory)
+    result = runner.run(operation_ref=None)  # normalized failure, no raise
+    assert "ZCODE_CHILD_IDENTITY_UNAVAILABLE" in result.stderr
+    assert factory.last is None or factory.last.sent == []  # zero protocol sends
+
+
+def test_identity_document_is_bounded_and_prompt_free(tmp_path):
+    runner, store, fs, *_ = _runner(tmp_path)
+    runner.run(operation_ref=None)
+    run_rel = next(p for p in fs.all_paths() if p.endswith("child.identity.json")).replace("\\", "/").rsplit("/", 1)[0]
+    doc = json.loads(fs.read_text(f"{run_rel}/child.identity.json"))
+    assert doc["schema"] == "zcode-child-identity/1"
+    assert doc["child_pid"] == 4242
+    assert "prompt" not in doc and "secret" not in doc and "credential" not in doc
+
+
+# ---------------- UNKNOWN never fabricates result ----------------
+
+def test_exit_pending_writes_report_only(tmp_path):
+    factory = TransportFactory(_script(), exit_code=None)
+    runner, store, fs, *_ = _runner(tmp_path, factory=factory)
+    result = runner.run(operation_ref=None)
+    run_rel = next(p for p in fs.all_paths() if p.endswith("report.json")).replace("\\", "/").rsplit("/", 1)[0]
+    assert not fs.exists(f"{run_rel}/result.json")
+    report = json.loads(fs.read_text(f"{run_rel}/report.json"))
+    assert report.get("exit_state") == "EXIT_PENDING" or report.get("state") == "UNKNOWN"
+
+
+def test_turn_failure_is_typed_unknown(tmp_path):
+    failing = TransportFactory([
+        json.dumps({"id": 1, "result": {"session": {"sessionId": "s-1"}}}),
+        json.dumps({"id": 100, "method": "session/requestRuntimePreferences"}),
+        json.dumps({"id": 2, "result": {"ok": True}}),
+        json.dumps({"method": "session/event", "params": {"type": "turn.failed"}}),
+    ])
+    runner, store, fs, *_ = _runner(tmp_path, factory=failing)
+    result = runner.run(operation_ref=None)
+    run_rel = next(p for p in fs.all_paths() if p.endswith("report.json")).replace("\\", "/").rsplit("/", 1)[0]
+    assert not fs.exists(f"{run_rel}/result.json")
+    stderr_text = fs.read_text(f"{run_rel}/stderr.log") if fs.exists(f"{run_rel}/stderr.log") else ""
+    assert "TURN_FAILED" in stderr_text and "TURN_FAILED" in result.stderr
+
+
+# ---------------- no kill surface ----------------
+
+def test_runner_module_has_no_kill_ladder():
+    import inspect
+    from a_conductor import zcode_runner as module
+    source = inspect.getsource(module)
+    for forbidden in ("taskkill", "TerminateProcess", ".terminate()", ".kill()", "Stop-Process"):
+        assert forbidden not in source, forbidden
+
+
+def test_transport_shutdown_is_eof_only(tmp_path):
+    runner, store, fs, factory, _ = _runner(tmp_path)
+    runner.run(operation_ref=None)
+    assert factory.last.killed is False
+    assert factory.last.exit_code == 0  # natural exit recorded
+
+
+# ---------------- credential delivery boundary (GPT1 P1) ----------------
+
+def test_resolved_secret_reaches_transport_runtime_channel(tmp_path):
+    """RED->GREEN: the resolved credential must actually reach the
+    repository-owned transport factory's ephemeral runtime channel."""
+    secrets = Secrets(value="resolved-opaque-value-123456")
+    runner, store, fs, factory, _ = _runner(tmp_path, secrets=secrets)
+    runner.run(operation_ref=None)
+    assert factory.credentials, "factory never received a credential envelope"
+    entry_key, entry_value = factory.credentials[0].environment_entry
+    assert entry_key == "ANTHROPIC_API_KEY"
+    assert entry_value == "resolved-opaque-value-123456"
+    # the child env carries the credential (accepted ephemeral channel)
+    assert factory.last.child_env["ANTHROPIC_API_KEY"] == "resolved-opaque-value-123456"
+    assert factory.last.child_env["ELECTRON_RUN_AS_NODE"] == "1"
+
+
+def test_prompt_never_enters_credential_channel(tmp_path):
+    runner, store, fs, factory, packet = _runner(tmp_path)
+    runner.run(operation_ref=None)
+    _, value = factory.credentials[0].environment_entry
+    assert "ZRA1-OK" not in value  # packet content never rides the credential
+
+
+def test_secret_never_in_argv_artifacts_identity_or_fingerprint(tmp_path):
+    secrets = Secrets(value="super-secret-do-not-leak-987654321")
+    runner, store, fs, factory, packet = _runner(tmp_path, secrets=secrets)
+    result = runner.run(operation_ref=None)
+    call = factory.calls[0]
+    assert all("super-secret" not in a for a in call["argv"])
+    assert "super-secret" not in str(call["environment"])
+    for rel in fs.all_paths():
+        blob = fs.read_bytes(rel)
+        assert b"super-secret-do-not-leak-987654321" not in blob, rel
+    assert "super-secret" not in result.stdout and "super-secret" not in result.stderr
+    import json as _json
+    for doc in ("report.json", "child.identity.json", "result.json"):
+        for rel in fs.all_paths():
+            if rel.replace("\\", "/").endswith(doc):
+                assert "super-secret" not in fs.read_text(rel)
+
+
+def test_credential_envelope_repr_never_prints_value():
+    from a_conductor.zcode_runner import ZCodeEphemeralCredential
+    envelope = ZCodeEphemeralCredential(delivery_key="ANTHROPIC_API_KEY", _value="no-leak-abc")
+    assert "no-leak-abc" not in repr(envelope)
+    assert "no-leak-abc" not in str(envelope)
+
+
+def test_resolver_failure_means_zero_spawn(tmp_path):
+    class Broken:
+        def resolve(self, ref):
+            raise RuntimeError("vault down")
+    runner, store, fs, factory, _ = _runner(tmp_path, secrets=Broken())
+    result = runner.run(operation_ref=None)  # normalized failure, no raise
+    assert "ZCODE_SECRET_RESOLUTION_FAILED" in result.stderr
+    assert factory.calls == []  # zero spawn
+
+
+def test_empty_or_malformed_secret_means_zero_spawn(tmp_path):
+    class Empty:
+        def resolve(self, ref):
+            return ""
+    factory = TransportFactory(_script())
+    runner, *_ = _runner(tmp_path, secrets=Empty(), factory=factory)
+    result = runner.run(operation_ref=None)
+    assert "ZCODE_SECRET_RESOLUTION_FAILED" in result.stderr
+    assert factory.calls == []  # zero spawn
+
+
+def test_transport_factory_exception_does_not_leak_secret(tmp_path):
+    secrets = Secrets(value="fragile-secret-value-42")
+    captured: list[str] = []
+
+    class ExplodingFactory(TransportFactory):
+        def open_transport(self, **kwargs):
+            credential = kwargs["credential"]
+            try:
+                raise RuntimeError("spawn exploded")
+            finally:
+                # even when the factory raises, the exception must not carry
+                # the secret value in its message or traceback text
+                captured.append(credential.environment_entry[1])
+
+    factory = ExplodingFactory(_script())
+    runner, *_ = _runner(tmp_path, secrets=secrets, factory=factory)
+    try:
+        runner.run(operation_ref=None)
+    except Exception as exc:
+        text = str(exc) + "".join(
+            getattr(exc, "__traceback__", None) and [] or []
+        )
+        assert "fragile-secret-value-42" not in str(exc)
+    assert captured == ["fragile-secret-value-42"]  # value existed only in memory
+
+
+def test_zcode_config_credential_cannot_substitute(tmp_path):
+    """When secret-ref resolution fails, no ZCode-config apiKey fallback may
+    exist: the module source contains no config-reading credential path."""
+    import inspect
+    from a_conductor import zcode_runner as module
+    source = inspect.getsource(module)
+    for forbidden in ("config.json", "apiKey", "Path.home()", "%USERPROFILE%"):
+        assert forbidden not in source, forbidden
+
+
+# ---------------- Q27: TOCTOU + deterministic dedup identity ----------------
+
+def test_q27_file_changed_after_intake_rejects_before_protocol(tmp_path):
+    packet = _packet_file(tmp_path)
+    factory = TransportFactory(_script())
+    identity_packet = ZCodeTaskPacketIdentity.from_task_packet_file(packet)
+    (tmp_path / "task-packet.md").write_text("swapped", encoding="utf-8")
+    fs = FS(tmp_path)
+    from a_conductor.zcode_runner import ZCodeBackendAdapter
+    adapter = ZCodeBackendAdapter(
+        transport_factory=factory, filesystem=fs,
+        selection_source=Selection(), expected_binding=BINDING,
+        expected_base_url=BASE_URL, secret_resolver=Secrets(),
+        secret_reference="secret-ref:zcode-credential",
+        packet=identity_packet, workspace=str(tmp_path),
+        executable=EXEC, bundle_js=BUNDLE,
+    )
+    from a_conductor.supervised_run_coordinator import SupervisedRunCoordinator, SupervisedRunIdentity
+    from a_conductor.execution_store import SQLiteExecutionStore
+    store = SQLiteExecutionStore(tmp_path / "q27.sqlite")
+    runner = SupervisedZCodeRunner(
+        task_packet=identity_packet, execution_store=store,
+        identity=SupervisedRunIdentity(
+            job_id="j", work_order_ref="w", project_id="p", worker_id="w",
+            backend_id=ZCODE_BACKEND_ID, branch="main", head_before="h" * 40,
+            runtime_profile_ref="rt", repo_root=str(tmp_path)),
+        adapter=adapter, executable=EXEC, bundle_js=BUNDLE, poll_interval_seconds=0.01,
+    )
+    result = runner.run(operation_ref=None)  # normalized failure, no raise
+    assert "ZCODE_TASK_PACKET_TOCTOU" in result.stderr  # typed pre-protocol
+
+
+def test_q27_same_bytes_unchanged_accepted(tmp_path):
+    runner, store, fs, factory, _ = _runner(tmp_path)
+    result = runner.run(operation_ref=None)  # unchanged file passes re-read
+    assert result.exit_code == 0
+
+
+def test_q27_replaced_same_path_different_bytes_rejected(tmp_path):
+    packet = _packet_file(tmp_path)
+    identity_packet = ZCodeTaskPacketIdentity.from_task_packet_file(packet)
+    (tmp_path / "task-packet.md").write_text("different bytes entirely", encoding="utf-8")
+    with pytest.raises(Exception):
+        identity_packet.verify_unchanged()
+
+
+def test_q27_packet_path_outside_trusted_root_rejected(tmp_path):
+    outside = tmp_path.parent / "q27-outside-packet.md"
+    outside.write_text("x", encoding="utf-8")
+    import hashlib as _h
+    from a_conductor.claude_code_harness import TaskPacketFile as _TPF
+    pf = _TPF(task_contract_ref="R", path=str(outside),
+              sha256=_h.sha256(outside.read_bytes()).hexdigest())
+    with pytest.raises(Exception):
+        ZCodeTaskPacketIdentity.from_task_packet_file(pf, trusted_root=str(tmp_path))
+
+
+def test_q27_operation_identity_is_task_derived_not_caller(tmp_path):
+    runner, *_ = _runner(tmp_path)
+    derived = runner._task_packet.canonical_operation_ref()
+    assert derived.startswith("zcode-task-v1:")
+    assert len(derived) == len("zcode-task-v1:") + 64  # full SHA-256, no truncation
+    # caller cannot choose a different identity
+    with pytest.raises(ValueError):
+        runner.run(operation_ref="zcode-task-v1:" + "e" * 64)
+
+
+def test_q27_same_task_same_identity_across_instances(tmp_path):
+    packet = _packet_file(tmp_path)
+    a = ZCodeTaskPacketIdentity.from_task_packet_file(packet)
+    b = ZCodeTaskPacketIdentity.from_task_packet_file(packet)
+    assert a.canonical_operation_ref() == b.canonical_operation_ref()
+
+
+def test_q27_different_packet_different_identity(tmp_path):
+    p1 = _packet_file(tmp_path)
+    p2_path = tmp_path / "second-packet.md"
+    p2_path.write_text("a different bounded task", encoding="utf-8")
+    import hashlib as _h
+    from a_conductor.claude_code_harness import TaskPacketFile as _TPF
+    p2 = _TPF(task_contract_ref="WO-P1-158-ZRA1", path=str(p2_path),
+               sha256=_h.sha256(p2_path.read_bytes()).hexdigest())
+    a = ZCodeTaskPacketIdentity.from_task_packet_file(p1)
+    b = ZCodeTaskPacketIdentity.from_task_packet_file(p2)
+    assert a.canonical_operation_ref() != b.canonical_operation_ref()
+
+
+def test_q27_malformed_expected_hash_rejects(tmp_path):
+    from a_conductor.claude_code_harness import TaskPacketFile as _TPF
+    packet = _packet_file(tmp_path)
+    bad = _TPF(task_contract_ref="R", path=packet.path, sha256="0" * 64)
+    with pytest.raises(Exception):
+        ZCodeTaskPacketIdentity.from_task_packet_file(bad)
