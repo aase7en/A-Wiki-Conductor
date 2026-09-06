@@ -72,10 +72,18 @@ class SupervisedLaunchPlan:
     target_argv: tuple[str, ...]
     target_executable_name: str
     environment_overrides: tuple[tuple[str, str], ...] = field(default=(), repr=False)
+    helper_kind: "SupervisedHelperKind | str" = "GENERIC_NATIVE"
 
     def __post_init__(self) -> None:
         if not isinstance(self.record, DurableExecutionRecord):
             raise ValueError("record must be a DurableExecutionRecord")
+        kind = self.helper_kind
+        if not isinstance(kind, SupervisedHelperKind):
+            try:
+                kind = SupervisedHelperKind(kind)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("helper_kind must be a SupervisedHelperKind") from exc
+        object.__setattr__(self, "helper_kind", kind)
         root = Path(self.runtime_root).expanduser().resolve(strict=False)
         if not root.is_dir():
             raise ValueError("runtime_root must be an existing directory")
@@ -415,7 +423,19 @@ class SupervisedExecutionService:
         )
 
     def launch(self, plan: SupervisedLaunchPlan) -> SupervisedLaunchOutcome:
-        spec = self._build_owned_spec(plan)
+        kind = plan.helper_kind
+        if kind not in self._helper_kinds:
+            return SupervisedLaunchOutcome(
+                record=plan.record,
+                supervisor_pid=None,
+                child_pid=None,
+                recovery_required=True,
+                error_code="HELPER_KIND_NOT_ENABLED",
+            )
+        if kind is SupervisedHelperKind.ZCODE_APP_SERVER_V1:
+            spec = self._build_zcode_helper_spec(plan, kind)
+        else:
+            spec = self._build_owned_spec(plan)
         created = self._store.create(plan.record)
         starting = self._store.set_execution_state(
             created.execution_id,

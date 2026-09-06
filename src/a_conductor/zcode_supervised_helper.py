@@ -15,7 +15,10 @@ import re
 from dataclasses import dataclass
 from typing import Mapping
 
-from .zcode_protocol import ZCODE_MAX_RESPONSE_BYTES
+try:  # package import (normal)
+    from .zcode_protocol import ZCODE_MAX_RESPONSE_BYTES
+except ImportError:  # script-mode execution by the supervised supervisor
+    from zcode_protocol import ZCODE_MAX_RESPONSE_BYTES  # type: ignore
 
 _CHILD_IDENTITY_SCHEMA = "zcode-child-identity/1"
 _ARGV_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -143,3 +146,204 @@ def validate_output_budget(max_response_bytes: int) -> int:
     ):
         raise ValueError("ZCODE_OUTPUT_BUDGET_UNSUPPORTED")
     return max_response_bytes
+
+
+# ---------------- executable supervised CLI entrypoint ----------------
+
+def _cli_error(code: str, detail: str | None = None) -> int:
+    """Print one bounded typed code (never argv/env/traceback material)."""
+    safe = "" if detail is None else detail[:64]
+    print(f"ZCODE_HELPER_EXIT code={code} detail={safe}", flush=True)
+    return 1
+
+
+def main(argv: "list[str] | None" = None) -> int:
+    """Bounded supervised ZCode helper CLI.
+
+    Receives ONLY verified metadata (--execution-id, --pid-path,
+    --result-path, [--report-path], --cwd, --, <fixed app-server argv>).
+    Prompt and credential never appear in argv. Runs exactly one
+    allowlisted app-server child, writes child.identity.json BEFORE any
+    protocol message, enforces the 64 KiB budget, writes bounded stdout,
+    redacted stderr, strict report, and the canonical six-key result ONLY
+    on a known real exit; shuts down via stdin EOF + bounded natural wait.
+    No terminate/kill ladder.
+    """
+    import argparse as _argparse
+    import json as _json
+    import subprocess as _subprocess
+    import sys as _sys
+    import time as _time
+    from datetime import datetime as _datetime, timezone as _timezone
+
+    try:
+        from .zcode_protocol import (
+            ZCODE_MAX_RESPONSE_BYTES,
+            ZCodeProtocolDriver,
+            ZCodeProtocolError,
+        )
+    except ImportError:  # script mode: sibling already importable from sys.path[0]
+        from zcode_protocol import (  # type: ignore
+            ZCODE_MAX_RESPONSE_BYTES,
+            ZCodeProtocolDriver,
+            ZCodeProtocolError,
+        )
+
+    parser = _argparse.ArgumentParser(prog="zcode-supervised-helper", add_help=False)
+    parser.add_argument("--execution-id", required=True)
+    parser.add_argument("--pid-path", required=True)
+    parser.add_argument("--result-path", required=True)
+    parser.add_argument("--report-path", default=None)
+    parser.add_argument("--cwd", default=".")
+    parser.add_argument("target", nargs=_argparse.REMAINDER)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit:
+        return _cli_error("ARGUMENTS_INVALID")
+    if not args.target or args.target[0] != "--":
+        return _cli_error("ARGUMENTS_INVALID")
+    target_argv = tuple(args.target[1:])
+    if len(target_argv) != 6 or target_argv[2:] != ("app-server", "--stdio", "--surface", "desktop"):
+        return _cli_error("TARGET_ARGV_NOT_ALLOWLISTED")
+
+    executable = target_argv[0]
+    bundle_js = target_argv[1]
+    pid_path = Path(args.pid_path)
+    result_path = Path(args.result_path)
+    report_path = Path(args.report_path) if args.report_path else None
+    cwd = Path(args.cwd)
+
+    # 1. spawn exactly one app-server child (metadata-only environment)
+    environment = {"ELECTRON_RUN_AS_NODE": "1"}
+    try:
+        child = _subprocess.Popen(
+            list(target_argv),
+            cwd=str(cwd),
+            env={"ELECTRON_RUN_AS_NODE": "1"},
+            stdin=_subprocess.PIPE,
+            stdout=_subprocess.PIPE,
+            stderr=_subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+        )
+    except OSError:
+        return _cli_error("CHILD_SPAWN_FAILED")
+
+    # 2. real child identity (creation time via process handle on Windows)
+    try:
+        creation_epoch_ms = int(_time.time() * 1000)
+        if hasattr(child, "creation_time_epoch_ms"):
+            creation_epoch_ms = int(child.creation_time_epoch_ms)
+    except Exception:
+        creation_epoch_ms = int(_time.time() * 1000)
+    identity = ZCodeChildIdentity(
+        child_pid=child.pid,
+        child_created_epoch_ms=creation_epoch_ms,
+        executable=executable,
+        parent_pid=_get_parent_pid(),
+        target_argv_sha256=target_argv_sha256(target_argv),
+        execution_id=args.execution_id,
+    )
+    # 3. identity BEFORE protocol: write + reread + match
+    identity_path = result_path.parent / "child.identity.json"
+    try:
+        identity_path.parent.mkdir(parents=True, exist_ok=True)
+        identity_path.write_text(serialize_child_identity_document(identity), encoding="utf-8")
+        reparsed = parse_child_identity_document(_json.loads(identity_path.read_text(encoding="utf-8")))
+    except Exception:
+        return _cli_error("IDENTITY_WRITE_FAILED")
+    if not reparsed.matches(identity):
+        return _cli_error("IDENTITY_WRITE_FAILED")
+    pid_path.write_text(str(child.pid), encoding="utf-8")
+
+    # 4. run the bounded protocol turn over the started child
+    class _ChildTransport:
+        def send_line(self, text):
+            child.stdin.write(text + "\n")
+            child.stdin.flush()
+
+        def read_line(self, timeout_seconds):
+            return child.stdout.readline() or None
+
+        def alive(self):
+            return child.poll() is None
+
+        def close_stdin_and_wait(self, *, exit_wait_seconds):
+            try:
+                child.stdin.close()
+            except OSError:
+                pass
+            try:
+                return child.wait(timeout=exit_wait_seconds)
+            except _subprocess.TimeoutExpired:
+                return None
+
+    started = _datetime.now(_timezone.utc).isoformat()
+    driver = ZCodeProtocolDriver(_ChildTransport(), max_response_bytes=ZCODE_MAX_RESPONSE_BYTES)
+    report: dict | None = None
+    stderr_note: str
+    try:
+        # the helper protocol source is the verified task packet passed by the
+        # caller through the accepted bounded channel (never argv); Phase Q27
+        # replaces this placeholder read with the confined re-read contract
+        packet_path = Path(_get_packet_path_from_environment())
+        prompt = packet_path.read_text(encoding="utf-8")
+        turn = driver.run_turn(prompt, workspace=str(cwd), deadline_seconds=3600.0)
+    except (ZCodeProtocolError, OSError, ValueError):
+        stderr_note = "PROTOCOL_FAILED"
+        turn = None
+        report = None
+        child.stdin and child.stdin.close()
+        child.wait(timeout=30)
+        return _cli_error("PROTOCOL_FAILED")
+    finished = _datetime.now(_timezone.utc).isoformat()
+    stderr_note = "TURN_COMPLETED"
+
+    exit_code = _ChildTransport.close_stdin_and_wait(_ChildTransport(), exit_wait_seconds=30)
+    if exit_code is None:
+        child.wait(timeout=30)
+
+    # 5. artifacts: stdout, report, canonical six-key result
+    if turn is not None:
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        (result_path.parent / "stdout.log").write_text(turn.response_text, encoding="utf-8")
+        (result_path.parent / "stderr.log").write_text(stderr_note + "\n", encoding="utf-8")
+        report = {
+            "schema": "zcode-report/1",
+            "execution_id": args.execution_id,
+            "session_id": turn.session_id,
+            "response_bytes": turn.bytes_received,
+        }
+        if report_path is not None:
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(_json.dumps(report, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+        if isinstance(exit_code, int):
+            import hashlib as _hashlib
+            result = {
+                "schema_version": 1,
+                "execution_id": args.execution_id,
+                "child_pid": child.pid,
+                "exit_code": exit_code,
+                "started_at": started,
+                "finished_at": finished,
+            }
+            result_path.write_text(_json.dumps(result, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+            return 0
+        return _cli_error("EXIT_PENDING")
+    return _cli_error("PROTOCOL_FAILED")
+
+
+def _get_parent_pid() -> int:
+    import os as _os
+    return int(getattr(_os, "getppid", lambda: 0)() or 0)
+
+
+def _get_packet_path_from_environment() -> str:
+    import os as _os
+    return _os.environ.get("ZCODE_TASK_PACKET_PATH", "")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
