@@ -30,16 +30,20 @@ import pytest
 
 from a_conductor.claude_code_harness import TaskPacketFile
 from a_conductor.execution_store import SQLiteExecutionStore
+from a_conductor.provider_config_store import ProviderAdmissionRecord
 from a_conductor.provider_configuration import (
     ActorCapabilityEvidence,
     EgressBoundary,
     HarnessRuntimeBinding,
     HarnessStrategy,
     ProviderConfiguration,
+    ProviderEndpointConfig,
     ProviderModelConfiguration,
     ProviderTrustClass,
     ProtocolFamily,
 )
+from a_conductor.registry import windows_worktree_key
+from a_conductor.worker_lease import LeaseMutationIntent, WorkerLease
 from a_conductor.zcode_production_assembly import ZCodeExecutionAuthorities, assemble_zcode_execution
 
 BINDING = HarnessRuntimeBinding(
@@ -48,9 +52,13 @@ BINDING = HarnessRuntimeBinding(
     runtime_model_ref="zcode-runtime/glm-5.3",
 )
 BASE_URL = "http://127.0.0.1:1"
+ENDPOINT = ProviderEndpointConfig(endpoint_ref="zcode-desktop", base_url=BASE_URL)
 SECRET = "wo158-e2e-opaque-secret-1f4a9c"
 PROMPT_MARKER = "ZRA1-E2E-PROMPT-MARKER-4815162342"
 RESPONSE_TEXT = "ZRA1-REAL-HELPER-OK"
+BRANCH = "feat/wo-p1-158-zcode-zero-relay"
+HEAD = "h" * 40
+TASK_REF = "WO-P1-158-ZRA1-E2E"
 
 FAKE_APP_SERVER = r'''
 import json, os, sys, time
@@ -115,9 +123,10 @@ sys.exit(0)
 
 
 class Snapshot:
-    def __init__(self, generation, profile):
+    def __init__(self, generation, profile, endpoint=ENDPOINT):
         self.generation = generation
         self.profile = profile
+        self.endpoint = endpoint
 
 
 class Secrets:
@@ -177,8 +186,51 @@ def _packet(tmp_path: Path, text: str | None = None) -> TaskPacketFile:
     )
 
 
+def build_lease(tmp_path: Path) -> WorkerLease:
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc).isoformat()
+    return WorkerLease(
+        lease_id="lease-e2e-0001",
+        worker_id="a-worker-01",
+        session_id="sess-e2e",
+        task_id=TASK_REF,
+        project_id="zcode",
+        runtime_id=None,
+        worktree_key=windows_worktree_key(str(tmp_path)),
+        branch=BRANCH,
+        expected_head=HEAD,
+        required_capabilities=("code",),
+        allowed_scope=("src/a_conductor",),
+        forbidden_scope=("secrets",),
+        mutable_scope=("src/a_conductor/zcode_runner.py",),
+        mutation_intent=LeaseMutationIntent.MUTATION,
+        acquired_at=now,
+        heartbeat_at=now,
+        lease_ttl_seconds=600,
+        expires_at=(datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+    )
+
+
+def build_admission() -> ProviderAdmissionRecord:
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    return ProviderAdmissionRecord(
+        admission_id="provider-admission-e2e-0001",
+        provider_id="zcode-glm",
+        execution_id="exec-pending",
+        batch_id="batch-e2e-0001",
+        acquired_at=now,
+        expires_at=now + timedelta(minutes=10),
+        status="ADMITTED",
+        configuration_generation=1,
+    )
+
+
 def build_real_service_authorities(tmp_path: Path) -> ZCodeExecutionAuthorities:
-    """REAL owned-process authorities (Windows) for the production service."""
+    """REAL owned-process authorities (Windows) + accepted typed lease and
+    provider-admission records for the production service path."""
     from a_conductor.owned_process import WindowsOwnedProcessController
     from a_conductor.windows_io import LoopbackReadyzHttpProbe, StrictPowerShellInspectionRunner
     from a_conductor.windows_observer import WindowsRuntimeObserver
@@ -195,10 +247,12 @@ def build_real_service_authorities(tmp_path: Path) -> ZCodeExecutionAuthorities:
         supervised_controller=WindowsOwnedProcessController(observer=observer),
         supervised_observer=observer,
         python_executable=runtime_python,
+        lease_evidence=build_lease(tmp_path),
+        admission_evidence=build_admission(),
         worker_id="a-worker-01",
         repo_root=str(tmp_path),
-        branch="feat/wo-p1-158-zcode-zero-relay",
-        head="h" * 40,
+        branch=BRANCH,
+        head=HEAD,
         dirty=False,
     )
 

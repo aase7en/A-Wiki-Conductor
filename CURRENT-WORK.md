@@ -1,6 +1,12 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-06 (GLM-1 - WO158 / PR221 repair slices 1-2: real helper E2E + full identity/ATTACH/CAS)
+Last updated: 2026-09-06 (GLM-1 - WO158 / PR221 repair slices 1-3: real helper E2E + identity/ATTACH/CAS + authority-bound assembly)
+
+## WO158 repair slice 3 — authority-bound assembly — 2026-09-06 (GLM-1)
+
+- Slices 1-2 frozen with green exact-head CI (`cf7ef9a`, `958f051`).
+- Slice 3 (review item 8, RED-first 21-test matrix): assembly consumes ONLY the canonical `WorkerLease` (worker/worktree-key/task/active/expiry bound; None/truthy fail closed) and canonical `ProviderAdmissionRecord` (provider/status/generation/expiry bound; None/truthy fail closed); worktree gate compares OBSERVED context vs the LEASE authority (caller expected-pair removed); endpoint truth = provider-snapshot `ProviderEndpointConfig` (caller defines only the request; `endpoint_base_url` param removed).
+- Evidence: matrix 21/21; zcode+supervised 244/244; worker/provider 213/213; hygiene PASS. Remaining: PROOF_C + final call-graph truth audit (slice 4).
 
 ## WO158 repair slice 2 — full task identity + ATTACH_RUNNING + CAS truth — 2026-09-06 (GLM-1)
 

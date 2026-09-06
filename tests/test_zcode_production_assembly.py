@@ -194,24 +194,31 @@ def _assemble(tmp_path, *, generation=1, expected_generation=1, packet=None, aut
 
 # ---- git/worktree gate -------------------------------------------------
 
-def test_head_drift_rejected():
+def _context_lease(tmp_path):
+    from tests.test_zcode_real_helper_e2e import build_lease
+    return build_lease(tmp_path)
+
+
+def test_head_drift_rejected_against_lease(tmp_path):
     with pytest.raises(ZCodeAssemblyError) as e:
-        verify_execution_context(branch="b", head="a" * 40, dirty=False,
-                                 expected_branch="b", expected_head="b" * 40)
+        verify_execution_context(branch="feat/wo-p1-158-zcode-zero-relay",
+                                 head="a" * 40, dirty=False,
+                                 lease=_context_lease(tmp_path))
     assert e.value.code == "ZCODE_HEAD_DRIFT"
 
 
-def test_branch_mismatch_rejected():
+def test_branch_drift_rejected_against_lease(tmp_path):
     with pytest.raises(ZCodeAssemblyError) as e:
         verify_execution_context(branch="x", head="h" * 40, dirty=False,
-                                 expected_branch="b", expected_head="h" * 40)
-    assert e.value.code == "ZCODE_BRANCH_MISMATCH"
+                                 lease=_context_lease(tmp_path))
+    assert e.value.code == "ZCODE_BRANCH_DRIFT"
 
 
-def test_dirty_worktree_rejected():
+def test_dirty_worktree_rejected_against_lease(tmp_path):
     with pytest.raises(ZCodeAssemblyError) as e:
-        verify_execution_context(branch="b", head="h" * 40, dirty=True,
-                                 expected_branch="b", expected_head="h" * 40)
+        verify_execution_context(branch="feat/wo-p1-158-zcode-zero-relay",
+                                 head="h" * 40, dirty=True,
+                                 lease=_context_lease(tmp_path))
     assert e.value.code == "ZCODE_WORKTREE_DIRTY"
 
 
@@ -240,8 +247,30 @@ def test_wrong_provider_model_rejected(tmp_path):
 def test_missing_service_authorities_rejected(tmp_path):
     """The production lifecycle REQUIRES the real supervised-service
     authorities; there is no alternate in-process transport fallback."""
+    from tests.test_zcode_authority_bound_assembly import _Controller, _Obs, _Store
+    from tests.test_zcode_real_helper_e2e import Snapshot as _E2ESnapshot
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    from tests.test_zcode_real_helper_e2e import _profile as _e2e_profile
+    from tests.test_zcode_real_helper_e2e import build_admission, build_lease
+    authorities = ZCodeExecutionAuthorities(
+        provider_snapshot=_E2ESnapshot(1, _e2e_profile()),
+        secret_resolver=Secrets(),
+        execution_store=_Store(),
+        supervised_controller=None,
+        supervised_observer=None,
+        python_executable="",
+        lease_evidence=build_lease(tmp_path),
+        admission_evidence=build_admission(),
+        worker_id="a-worker-01", repo_root=str(tmp_path),
+        branch="feat/wo-p1-158-zcode-zero-relay", head="h" * 40, dirty=False,
+    )
     with pytest.raises(ZCodeAssemblyError) as e:
-        _assemble(tmp_path)
+        assemble_zcode_execution(
+            authorities=authorities, packet=_e2e_packet(tmp_path), model_id="glm-5.3",
+            expected_generation=1, authorized_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
     assert e.value.code == "ZCODE_SERVICE_AUTHORITY_MISSING"
 
 
@@ -249,7 +278,7 @@ NT_ONLY = pytest.mark.skipif(os.name != "nt", reason="Windows real-helper integr
 
 
 def _service_assemble(tmp_path, *, mode: str = "ok", authorities=None,
-                      base_url: str = BASE_URL, endpoint_base_url: str | None = None):
+                      base_url: str = BASE_URL):
     """Assemble through the REAL supervised-service authorities + the
     deterministic fake app-server (same primitive as the E2E suite)."""
     import sys as _sys
@@ -273,23 +302,17 @@ def _service_assemble(tmp_path, *, mode: str = "ok", authorities=None,
         workspace=str(tmp_path),
         executable=runtime_python,
         bundle_js=str(fake_script),
-        endpoint_base_url=endpoint_base_url,
         deadline_seconds=20.0,
     )
 
 
 @NT_ONLY
-def test_wrong_base_url_rejected_at_run(tmp_path):
-    from a_conductor.zcode_runner import ZCodeRunError
-
-    runner = _service_assemble(
-        tmp_path, base_url="http://evil:9", endpoint_base_url=BASE_URL,
-    )
-    # PREP-time authorization fails closed with a typed error BEFORE any
-    # durable record or child exists
-    with pytest.raises(ZCodeRunError) as e:
-        runner.run(operation_ref=None)
-    assert e.value.code == "ZCODE_SELECTION_UNAUTHORIZED"
+def test_wrong_base_url_rejected_by_endpoint_authority(tmp_path):
+    """The caller-requested route must match the provider-snapshot endpoint
+    authority AT ASSEMBLY — no caller-vs-caller string comparison."""
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _service_assemble(tmp_path, base_url="http://evil:9")
+    assert e.value.code == "ZCODE_ENDPOINT_UNAUTHORIZED"
     assert not (tmp_path / "receipts" / "spawn.pid").exists()  # zero spawn
 
 
@@ -406,14 +429,29 @@ def test_q29_git_gate_executed_in_assembly(tmp_path):
 def test_q29_head_drift_rejected_in_assembly(tmp_path):
     from dataclasses import replace
     from a_conductor.zcode_production_assembly import ZCodeAssemblyError
-    base = _authorities(tmp_path)
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    from tests.test_zcode_real_helper_e2e import build_lease
+    from tests.test_zcode_authority_bound_assembly import _Controller, _Obs, _Store
+    from tests.test_zcode_real_helper_e2e import Snapshot as _E2ESnapshot
+    from tests.test_zcode_real_helper_e2e import _profile as _e2e_profile
+    drifted = ZCodeExecutionAuthorities(
+        provider_snapshot=_E2ESnapshot(1, _e2e_profile()),
+        secret_resolver=Secrets(),
+        execution_store=_Store(),
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        lease_evidence=build_lease(tmp_path),
+        admission_evidence=None,
+        worker_id="a-worker-01", repo_root=str(tmp_path),
+        branch="feat/wo-p1-158-zcode-zero-relay", head="b" * 40, dirty=False,
+    )
     with pytest.raises(ZCodeAssemblyError) as e:
         assemble_zcode_execution(
-            authorities=base, packet=_packet(tmp_path), model_id="glm-5.3",
+            authorities=drifted, packet=_e2e_packet(tmp_path), model_id="glm-5.3",
             expected_generation=1, authorized_base_url=BASE_URL,
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
-            expected_head="b" * 40,
         )
     assert e.value.code == "ZCODE_HEAD_DRIFT"
 
@@ -421,8 +459,9 @@ def test_q29_head_drift_rejected_in_assembly(tmp_path):
 def test_q29_missing_lease_evidence_rejects(tmp_path):
     from dataclasses import replace
     from a_conductor.zcode_production_assembly import ZCodeAssemblyError
+    from tests.test_zcode_real_helper_e2e import build_admission
     base = _authorities(tmp_path)
-    no_lease = replace(base, lease_evidence=False)
+    no_lease = replace(base, lease_evidence=False, admission_evidence=build_admission())
     with pytest.raises(ZCodeAssemblyError) as e:
         assemble_zcode_execution(
             authorities=no_lease, packet=_packet(tmp_path), model_id="glm-5.3",
@@ -430,33 +469,37 @@ def test_q29_missing_lease_evidence_rejects(tmp_path):
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
-    assert e.value.code == "ZCODE_LEASE_ADMISSION_MISSING"
+    assert e.value.code == "ZCODE_LEASE_INVALID"
 
 
 def test_q29_missing_provider_admission_rejects(tmp_path):
     from dataclasses import replace
     from a_conductor.zcode_production_assembly import ZCodeAssemblyError
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    from tests.test_zcode_real_helper_e2e import build_lease
     base = _authorities(tmp_path)
-    no_adm = replace(base, admission_evidence=False)
+    no_adm = replace(base, lease_evidence=build_lease(tmp_path), admission_evidence=False)
     with pytest.raises(ZCodeAssemblyError) as e:
         assemble_zcode_execution(
-            authorities=no_adm, packet=_packet(tmp_path), model_id="glm-5.3",
+            authorities=no_adm, packet=_e2e_packet(tmp_path), model_id="glm-5.3",
             expected_generation=1, authorized_base_url=BASE_URL,
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
-    assert e.value.code == "ZCODE_PROVIDER_ADMISSION_MISSING"
+    assert e.value.code == "ZCODE_ADMISSION_INVALID"
 
 
 @NT_ONLY
 def test_q29_positive_evidence_accepts_and_confines_packet(tmp_path):
+    from tests.test_zcode_real_helper_e2e import build_admission, build_lease
     from tests.test_zcode_real_helper_e2e import build_real_service_authorities
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
 
     base = build_real_service_authorities(tmp_path)
-    ok = replace(base, lease_evidence=True, admission_evidence=True)
+    ok = replace(base, lease_evidence=build_lease(tmp_path), admission_evidence=build_admission())
     runner = assemble_zcode_execution(
         authorities=ok,
-        packet=_packet(tmp_path),
+        packet=_e2e_packet(tmp_path),  # task ref must match the lease task_id
         model_id="glm-5.3",
         expected_generation=1,
         authorized_base_url=BASE_URL,

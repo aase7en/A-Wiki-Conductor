@@ -126,35 +126,34 @@ def assemble_zcode_execution(
     workspace: str,
     executable: str,
     bundle_js: str,
-    endpoint_base_url: str | None = None,
-    expected_branch: str | None = None,
-    expected_head: str | None = None,
     deadline_seconds: float = 300.0,
 ) -> SupervisedZCodeRunner:
     """Compose one authorized ZCode execution; fail closed before any spawn.
 
-    Every gate below must pass or NO child exists:
-    git/worktree identity (branch/HEAD/dirty) → provider generation CAS →
-    ZCODE strategy + per-model runtime binding → verified TaskPacketFile
-    intake (confined path/size/hash) → REAL supervised-service authorities →
-    lease admission evidence → provider admission evidence → secret-ref
-    authority wiring → the specialized-helper production lifecycle.
+    Every gate below must pass or NO child exists: observed dirty state →
+    provider generation CAS → ZCODE strategy + per-model runtime binding →
+    verified TaskPacketFile intake → the CANONICAL WorkerLease record bound
+    to worker/worktree/branch/HEAD/task/active/expiry → the CANONICAL
+    ProviderAdmissionRecord bound to provider/status/generation/expiry →
+    the provider-snapshot ENDPOINT authority (the caller's requested route
+    must match it — caller-string-vs-caller-string authorization is gone) →
+    REAL supervised-service authorities → the specialized-helper lifecycle.
     """
 
+    from datetime import datetime, timezone as _tz
+
+    from .provider_config_store import ProviderAdmissionRecord
+    from .registry import windows_worktree_key
     from .supervised_run_coordinator import SupervisedRunIdentity
+    from .worker_lease import WorkerLease
 
     snapshot = authorities.provider_snapshot
     generation = getattr(snapshot, "generation", None)
     profile = getattr(snapshot, "profile", None)
 
-    # 1. git/worktree gate — executed, not documented-only
-    verify_execution_context(
-        branch=authorities.branch,
-        head=authorities.head,
-        dirty=authorities.dirty,
-        expected_branch=expected_branch if expected_branch is not None else authorities.branch,
-        expected_head=expected_head if expected_head is not None else authorities.head,
-    )
+    # 1. observed dirty state fails closed before anything else
+    if authorities.dirty:
+        raise ZCodeAssemblyError("ZCODE_WORKTREE_DIRTY")
 
     # 2. provider generation gate (existing CAS authority provides the number)
     if generation is None or expected_generation is None or int(generation) != int(expected_generation):
@@ -170,24 +169,72 @@ def assemble_zcode_execution(
         packet, trusted_root=authorities.repo_root
     )
 
-    # 5. lease admission evidence: the assembly CONSUMES the accepted
-    #    broker's records; it never re-acquires or schedules leases itself.
-    lease_evidence = getattr(authorities, "lease_evidence", None)
-    if lease_evidence is not None and not lease_evidence:
+    # 5. LEASE authority: the assembly consumes the accepted CANONICAL
+    #    WorkerLease record (the higher-level broker's authority) and binds
+    #    it to THIS execution context. It never acquires or schedules leases
+    #    itself, and nothing except a real WorkerLease satisfies the gate.
+    lease = authorities.lease_evidence
+    if lease is None:
         raise ZCodeAssemblyError("ZCODE_LEASE_ADMISSION_MISSING")
+    if not isinstance(lease, WorkerLease):
+        raise ZCodeAssemblyError("ZCODE_LEASE_INVALID")
+    verify_execution_context(
+        branch=authorities.branch,
+        head=authorities.head,
+        dirty=authorities.dirty,
+        lease=lease,
+    )
+    if lease.worker_id != authorities.worker_id:
+        raise ZCodeAssemblyError("ZCODE_LEASE_WORKER_MISMATCH")
+    if lease.worktree_key != windows_worktree_key(authorities.repo_root):
+        raise ZCodeAssemblyError("ZCODE_LEASE_WORKTREE_MISMATCH")
+    if lease.task_id != packet.task_contract_ref:
+        raise ZCodeAssemblyError("ZCODE_LEASE_TASK_MISMATCH")
+    if lease.released_at is not None or lease.quarantined_at is not None:
+        raise ZCodeAssemblyError("ZCODE_LEASE_NOT_ACTIVE")
+    if lease.expires_at is not None:
+        try:
+            expires = datetime.fromisoformat(str(lease.expires_at).replace("Z", "+00:00"))
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=_tz.utc)
+        except ValueError:
+            raise ZCodeAssemblyError("ZCODE_LEASE_INVALID") from None
+        if expires <= datetime.now(_tz.utc):
+            raise ZCodeAssemblyError("ZCODE_LEASE_EXPIRED")
 
-    # 6. provider admission evidence: same consume-don't-reacquire rule.
-    admission_evidence = getattr(authorities, "admission_evidence", None)
-    if admission_evidence is not None and not admission_evidence:
+    # 6. PROVIDER ADMISSION authority: same consume-don't-reacquire rule —
+    #    only the canonical ProviderAdmissionRecord satisfies the gate.
+    admission = authorities.admission_evidence
+    if admission is None:
         raise ZCodeAssemblyError("ZCODE_PROVIDER_ADMISSION_MISSING")
+    if not isinstance(admission, ProviderAdmissionRecord):
+        raise ZCodeAssemblyError("ZCODE_ADMISSION_INVALID")
+    if admission.provider_id != profile.provider_id:
+        raise ZCodeAssemblyError("ZCODE_ADMISSION_PROVIDER_MISMATCH")
+    if admission.status != "ADMITTED":
+        raise ZCodeAssemblyError("ZCODE_ADMISSION_NOT_ADMITTED")
+    if (
+        admission.configuration_generation is None
+        or int(admission.configuration_generation) != int(expected_generation)
+    ):
+        raise ZCodeAssemblyError("ZCODE_ADMISSION_GENERATION_DRIFT")
+    if admission.expires_at is None or admission.expires_at.tzinfo is None:
+        raise ZCodeAssemblyError("ZCODE_ADMISSION_INVALID")
+    if admission.expires_at <= datetime.now(_tz.utc):
+        raise ZCodeAssemblyError("ZCODE_ADMISSION_EXPIRED")
 
-    # The selection source reports the ENDPOINT-AUTHORITY truth; the
-    # launcher's expected_base_url is the dispatch-declared authorization.
-    # They must agree or ZCODE_SELECTION_UNAUTHORIZED fails closed at run.
-    resolved_endpoint = endpoint_base_url if endpoint_base_url is not None else authorized_base_url
-    selection = _AuthorizedSelection(snapshot, binding, resolved_endpoint)
+    # 7. ENDPOINT authority: the observed truth is the provider-snapshot
+    #    endpoint configuration. The caller's requested route must match it
+    #    exactly; the caller can never define both sides of the comparison.
+    endpoint = getattr(snapshot, "endpoint", None)
+    endpoint_base_url = getattr(endpoint, "base_url", None)
+    if not isinstance(endpoint_base_url, str) or not endpoint_base_url.strip():
+        raise ZCodeAssemblyError("ZCODE_ENDPOINT_AUTHORITY_MISSING")
+    if authorized_base_url.strip() != endpoint_base_url.strip():
+        raise ZCodeAssemblyError("ZCODE_ENDPOINT_UNAUTHORIZED")
+    selection = _AuthorizedSelection(snapshot, binding, endpoint_base_url)
 
-    # 7. REAL production supervised lifecycle: the specialized helper through
+    # 8. REAL production supervised lifecycle: the specialized helper through
     #    SupervisedExecutionService + ZCODE_APP_SERVER_V1. The service
     #    authorities are MANDATORY — no in-process transport fallback exists.
     if (
@@ -218,7 +265,7 @@ def assemble_zcode_execution(
         service=service,
         selection_source=selection,
         expected_binding=binding,
-        expected_base_url=authorized_base_url,
+        expected_base_url=endpoint_base_url,  # snapshot endpoint authority
         secret_resolver=authorities.secret_resolver,
         secret_reference=secret_reference,
         packet=packet_identity,
@@ -251,13 +298,19 @@ def assemble_zcode_execution(
 
 def verify_execution_context(
     *,
-    branch: str, head: str, dirty: bool,
-    expected_branch: str, expected_head: str,
+    branch: str,
+    head: str,
+    dirty: bool,
+    lease: "object",
 ) -> None:
-    """Git/worktree gate: drift, mismatch, or dirty fails closed."""
+    """Worktree gate: OBSERVED context vs the LEASE authority record.
+
+    The lease is the canonical accepted authority for branch/HEAD; the
+    caller never supplies the expected pair. Drift or mismatch fails
+    closed before any child exists."""
     if dirty:
         raise ZCodeAssemblyError("ZCODE_WORKTREE_DIRTY")
-    if branch != expected_branch:
-        raise ZCodeAssemblyError("ZCODE_BRANCH_MISMATCH")
-    if head.casefold() != expected_head.casefold():
+    if branch != lease.branch:
+        raise ZCodeAssemblyError("ZCODE_BRANCH_DRIFT")
+    if head.casefold() != str(lease.expected_head).casefold():
         raise ZCodeAssemblyError("ZCODE_HEAD_DRIFT")
