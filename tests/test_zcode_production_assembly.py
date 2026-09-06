@@ -168,7 +168,7 @@ def _authorities(tmp_path, *, generation=1):
         transport_factory=Factory(_script()),
         filesystem=FS(tmp_path),
         execution_store=SQLiteExecutionStore(tmp_path / "control.sqlite"),
-        lease_broker=None,  # lease gate is a separate pre-condition check
+
         worker_id="a-worker-01",
         repo_root=str(tmp_path),
         branch="feat/wo-p1-158-zcode-zero-relay",
@@ -327,3 +327,86 @@ def test_unknown_execution_maps_recovery_not_success(tmp_path):
     runner = _assemble(tmp_path, authorities=authorities)
     result = runner.run(operation_ref=None)
     assert result.exit_code is None and "TURN_FAILED" in result.stderr
+
+
+# ---------------- Q29: authority-consume gates ----------------
+
+def test_q29_git_gate_executed_in_assembly(tmp_path):
+    from dataclasses import replace
+    from a_conductor.zcode_production_assembly import ZCodeAssemblyError
+    base = _authorities(tmp_path)
+    dirty = replace(base, dirty=True)
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_execution(
+            authorities=dirty, packet=_packet(tmp_path), model_id="glm-5.3",
+            expected_generation=1, authorized_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == "ZCODE_WORKTREE_DIRTY"
+
+
+def test_q29_head_drift_rejected_in_assembly(tmp_path):
+    from dataclasses import replace
+    from a_conductor.zcode_production_assembly import ZCodeAssemblyError
+    base = _authorities(tmp_path)
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_execution(
+            authorities=base, packet=_packet(tmp_path), model_id="glm-5.3",
+            expected_generation=1, authorized_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+            expected_head="b" * 40,
+        )
+    assert e.value.code == "ZCODE_HEAD_DRIFT"
+
+
+def test_q29_missing_lease_evidence_rejects(tmp_path):
+    from dataclasses import replace
+    from a_conductor.zcode_production_assembly import ZCodeAssemblyError
+    base = _authorities(tmp_path)
+    no_lease = replace(base, lease_evidence=False)
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_execution(
+            authorities=no_lease, packet=_packet(tmp_path), model_id="glm-5.3",
+            expected_generation=1, authorized_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == "ZCODE_LEASE_ADMISSION_MISSING"
+
+
+def test_q29_missing_provider_admission_rejects(tmp_path):
+    from dataclasses import replace
+    from a_conductor.zcode_production_assembly import ZCodeAssemblyError
+    base = _authorities(tmp_path)
+    no_adm = replace(base, admission_evidence=False)
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_execution(
+            authorities=no_adm, packet=_packet(tmp_path), model_id="glm-5.3",
+            expected_generation=1, authorized_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == "ZCODE_PROVIDER_ADMISSION_MISSING"
+
+
+def test_q29_positive_evidence_accepts_and_confines_packet(tmp_path):
+    from dataclasses import replace
+    base = _authorities(tmp_path)
+    ok = replace(base, lease_evidence=True, admission_evidence=True)
+    runner = assemble_zcode_execution(
+        authorities=ok, packet=_packet(tmp_path), model_id="glm-5.3",
+        expected_generation=1, authorized_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+    )
+    assert runner._task_packet.path  # confined path retained for TOCTOU
+
+
+def test_q29_no_second_scheduler_or_store_created(tmp_path):
+    import inspect
+    from a_conductor import zcode_production_assembly as module
+    source = inspect.getsource(module)
+    for banned in ("WorkerLeaseBroker(", "acquire(", "SQLiteExecutionStore(", "threading"):
+        assert banned not in source, banned

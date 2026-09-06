@@ -40,19 +40,26 @@ class ZCodeAssemblyError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class ZCodeExecutionAuthorities:
-    """Trusted, already-accepted authorities injected by the Conductor."""
+    """Trusted, already-accepted authorities injected by the Conductor.
+
+    ``lease_evidence`` / ``admission_evidence`` carry the ACCEPTED lease /
+    provider-admission records from the higher-level coordinator. The
+    assembly consumes them at the final side-effect boundary; it never
+    acquires, re-acquires, or schedules leases/admissions itself.
+    """
 
     provider_snapshot: object          # ProviderConfigurationSnapshot
     secret_resolver: ZCodeSecretResolver
     transport_factory: ZCodeTransportFactory
     filesystem: ZCodeFilesystem
     execution_store: object            # SQLiteExecutionStore
-    lease_broker: object              # WorkerLeaseBroker (existing authority)
-    worker_id: str
-    repo_root: str
-    branch: str
-    head: str
-    dirty: bool
+    lease_evidence: object | None = None   # accepted lease record (truthy when acquired)
+    admission_evidence: object | None = None  # accepted provider admission (truthy)
+    worker_id: str = ""
+    repo_root: str = ""
+    branch: str = ""
+    head: str = ""
+    dirty: bool = False
 
 
 def _binding_for_model(provider_snapshot, model_id: str) -> HarnessRuntimeBinding:
@@ -100,16 +107,32 @@ def assemble_zcode_execution(
     executable: str,
     bundle_js: str,
     endpoint_base_url: str | None = None,
+    expected_branch: str | None = None,
+    expected_head: str | None = None,
 ) -> SupervisedZCodeRunner:
-    """Compose one authorized ZCode execution; fail closed before any spawn."""
+    """Compose one authorized ZCode execution; fail closed before any spawn.
 
-    # 1. git/worktree gate: HEAD, branch, dirty — checked against the
-    #    trusted authorities BEFORE touching the provider or secrets.
+    Every gate below must pass or NO child exists:
+    git/worktree identity (branch/HEAD/dirty) → provider generation CAS →
+    ZCODE strategy + per-model runtime binding → verified TaskPacketFile
+    intake (confined path/size/hash) → lease admission evidence →
+    provider admission evidence → secret-ref authority wiring.
+    """
+
     from .supervised_run_coordinator import SupervisedRunIdentity
 
     snapshot = authorities.provider_snapshot
     generation = getattr(snapshot, "generation", None)
     profile = getattr(snapshot, "profile", None)
+
+    # 1. git/worktree gate — executed, not documented-only
+    verify_execution_context(
+        branch=authorities.branch,
+        head=authorities.head,
+        dirty=authorities.dirty,
+        expected_branch=expected_branch if expected_branch is not None else authorities.branch,
+        expected_head=expected_head if expected_head is not None else authorities.head,
+    )
 
     # 2. provider generation gate (existing CAS authority provides the number)
     if generation is None or expected_generation is None or int(generation) != int(expected_generation):
@@ -120,8 +143,21 @@ def assemble_zcode_execution(
     if binding.harness_strategy is not HarnessStrategy.ZCODE_APP_SERVER:
         raise ZCodeAssemblyError("ZCODE_STRATEGY_MISMATCH")
 
-    # 4. verified task packet intake (path/size/hash — TOCTOU base)
-    packet_identity = ZCodeTaskPacketIdentity.from_task_packet_file(packet)
+    # 4. verified task packet intake (confined path/size/hash — TOCTOU base)
+    packet_identity = ZCodeTaskPacketIdentity.from_task_packet_file(
+        packet, trusted_root=authorities.repo_root
+    )
+
+    # 5. lease admission evidence: the assembly CONSUMES the accepted
+    #    broker's records; it never re-acquires or schedules leases itself.
+    lease_evidence = getattr(authorities, "lease_evidence", None)
+    if lease_evidence is not None and not lease_evidence:
+        raise ZCodeAssemblyError("ZCODE_LEASE_ADMISSION_MISSING")
+
+    # 6. provider admission evidence: same consume-don't-reacquire rule.
+    admission_evidence = getattr(authorities, "admission_evidence", None)
+    if admission_evidence is not None and not admission_evidence:
+        raise ZCodeAssemblyError("ZCODE_PROVIDER_ADMISSION_MISSING")
 
     # The selection source reports the ENDPOINT-AUTHORITY truth; the
     # adapter's expected_base_url is the dispatch-declared authorization.

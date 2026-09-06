@@ -324,10 +324,12 @@ class ZCodeBackendAdapter:
         max_response_bytes: int = ZCODE_MAX_RESPONSE_BYTES,
         deadline_seconds: float = 300.0,
         credential_delivery_key: str = "ANTHROPIC_API_KEY",
+        child_observer=None,
     ) -> None:
         self._transport_factory = transport_factory
         self._fs = filesystem
         self._execution_store = execution_store
+        self._child_observer = child_observer
         self._selection_source = selection_source
         self._expected_binding = expected_binding
         self._expected_base_url = expected_base_url
@@ -638,6 +640,25 @@ class ZCodeBackendAdapter:
         return SupervisedCollectOutcome(
             record=record, result=result, recovery_required=False
         )
+
+    def recover(self, execution_id: str):
+        """Production recovery composition: reconcile the durable
+        child.identity.json evidence against live process truth under the
+        existing recovery authority. Evidence only — never kills/replays."""
+        from .zcode_child_recovery import (
+            ZCodeChildRecoveryKind,
+            read_child_identity_from_run_dir,
+            reconcile_zcode_child,
+        )
+
+        if self._execution_store is None or self._child_observer is None:
+            return ZCodeChildRecoveryKind.RECOVERY_REQUIRED
+        record = self._execution_store.get(execution_id)
+        run_dir = record.run_dir_ref
+        document = read_child_identity_from_run_dir(
+            __import__("pathlib").Path(record.repo_root) / run_dir
+        )
+        return reconcile_zcode_child(document, observer=self._child_observer).kind
 
     def collect(self, execution_id: str, *, expected_version: int) -> SupervisedCollectOutcome:
         """Version-honoring collect: CAS against the durable store version.
