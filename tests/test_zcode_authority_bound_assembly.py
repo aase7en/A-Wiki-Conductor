@@ -182,6 +182,9 @@ def _authorities(tmp_path: Path, *, lease=_DEFAULT, admission=_DEFAULT, snapshot
         python_executable="python.exe",
         lease_evidence=_lease(tmp_path) if lease is _DEFAULT else lease,
         admission_evidence=_admission() if admission is _DEFAULT else admission,
+        dispatch_batch_id="batch-0001",
+        project_id="",
+        requested_mutable_scope=(),
         worker_id="a-worker-01",
         repo_root=str(repo_root or tmp_path),
         branch=branch or "feat/wo-p1-158-zcode-zero-relay",
@@ -196,7 +199,7 @@ def _assemble(tmp_path: Path, *, authorities=None, base_url="http://127.0.0.1:1"
         packet=_packet(tmp_path),
         model_id="glm-5.3",
         expected_generation=1,
-        authorized_base_url=base_url,
+        expected_base_url=base_url,
         secret_reference="secret-ref:zcode-credential",
         workspace=str(tmp_path),
         executable=EXEC,
@@ -322,7 +325,7 @@ def test_wrong_model_rejected(tmp_path):
             packet=_packet(tmp_path),
             model_id="not-a-model",
             expected_generation=1,
-            authorized_base_url="http://127.0.0.1:1",
+            expected_base_url="http://127.0.0.1:1",
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
@@ -352,3 +355,46 @@ def test_valid_exact_authority_chain_succeeds(tmp_path):
     runner = _assemble(tmp_path)
     assert runner is not None
     assert runner._task_packet.path
+
+
+# ---------------- shared full-context assembly helper ----------------
+
+def _assemble_full(tmp_path, *, dispatch_batch_id="batch-0001",
+                   dispatch_execution_id=None, project_id="",
+                   requested_mutable_scope=(), lease_overrides=None,
+                   base_url="http://127.0.0.1:1"):
+    """Assembly with the complete trusted dispatch context bound (used by the
+    final targeted repair matrix)."""
+    lease = _lease(tmp_path, **(lease_overrides or {}))
+    authorities = ZCodeExecutionAuthorities(
+        provider_snapshot=Snapshot(1, _profile()),
+        secret_resolver=_Secrets(),
+        execution_store=_Store(),
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        lease_evidence=lease,
+        # the admission carries its OWN canonical execution binding; the
+        # dispatch context expectation varies independently in the tests
+        admission_evidence=_admission(execution_id="exec-bound-0001"),
+        dispatch_batch_id=dispatch_batch_id,
+        dispatch_execution_id=dispatch_execution_id,
+        project_id=project_id,
+        requested_mutable_scope=tuple(requested_mutable_scope),
+        worker_id="a-worker-01",
+        repo_root=str(tmp_path),
+        branch="feat/wo-p1-158-zcode-zero-relay",
+        head="h" * 40,
+        dirty=False,
+    )
+    return assemble_zcode_execution(
+        authorities=authorities,
+        packet=_packet(tmp_path),  # task ref matches the fixture lease task_id
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=base_url,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path),
+        executable=EXEC,
+        bundle_js=BUNDLE,
+    )

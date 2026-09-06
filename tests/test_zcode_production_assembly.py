@@ -184,7 +184,7 @@ def _assemble(tmp_path, *, generation=1, expected_generation=1, packet=None, aut
         packet=packet or _packet(tmp_path),
         model_id="glm-5.3",
         expected_generation=expected_generation,
-        authorized_base_url=BASE_URL,
+        expected_base_url=BASE_URL,
         secret_reference="secret-ref:zcode-credential",
         workspace=str(tmp_path),
         executable=EXEC,
@@ -237,7 +237,7 @@ def test_wrong_provider_model_rejected(tmp_path):
             packet=_packet(tmp_path),
             model_id="not-a-model",
             expected_generation=1,
-            authorized_base_url=BASE_URL,
+            expected_base_url=BASE_URL,
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
@@ -261,13 +261,14 @@ def test_missing_service_authorities_rejected(tmp_path):
         python_executable="",
         lease_evidence=build_lease(tmp_path),
         admission_evidence=build_admission(),
+        dispatch_batch_id="batch-e2e-0001",
         worker_id="a-worker-01", repo_root=str(tmp_path),
         branch="feat/wo-p1-158-zcode-zero-relay", head="h" * 40, dirty=False,
     )
     with pytest.raises(ZCodeAssemblyError) as e:
         assemble_zcode_execution(
             authorities=authorities, packet=_e2e_packet(tmp_path), model_id="glm-5.3",
-            expected_generation=1, authorized_base_url=BASE_URL,
+            expected_generation=1, expected_base_url=BASE_URL,
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
@@ -297,7 +298,7 @@ def _service_assemble(tmp_path, *, mode: str = "ok", authorities=None,
         packet=_e2e_packet(tmp_path),
         model_id="glm-5.3",
         expected_generation=1,
-        authorized_base_url=base_url,
+        expected_base_url=base_url,
         secret_reference="secret-ref:zcode-credential",
         workspace=str(tmp_path),
         executable=runtime_python,
@@ -325,7 +326,7 @@ def test_task_packet_tamper_rejected_before_spawn(tmp_path):
     with pytest.raises(Exception):
         assemble_zcode_execution(
             authorities=authorities, packet=packet, model_id="glm-5.3",
-            expected_generation=1, authorized_base_url=BASE_URL,
+            expected_generation=1, expected_base_url=BASE_URL,
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
@@ -419,7 +420,7 @@ def test_q29_git_gate_executed_in_assembly(tmp_path):
     with pytest.raises(ZCodeAssemblyError) as e:
         assemble_zcode_execution(
             authorities=dirty, packet=_packet(tmp_path), model_id="glm-5.3",
-            expected_generation=1, authorized_base_url=BASE_URL,
+            expected_generation=1, expected_base_url=BASE_URL,
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
@@ -443,13 +444,14 @@ def test_q29_head_drift_rejected_in_assembly(tmp_path):
         python_executable="python.exe",
         lease_evidence=build_lease(tmp_path),
         admission_evidence=None,
+        dispatch_batch_id="batch-e2e-0001",
         worker_id="a-worker-01", repo_root=str(tmp_path),
         branch="feat/wo-p1-158-zcode-zero-relay", head="b" * 40, dirty=False,
     )
     with pytest.raises(ZCodeAssemblyError) as e:
         assemble_zcode_execution(
             authorities=drifted, packet=_e2e_packet(tmp_path), model_id="glm-5.3",
-            expected_generation=1, authorized_base_url=BASE_URL,
+            expected_generation=1, expected_base_url=BASE_URL,
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
@@ -461,11 +463,12 @@ def test_q29_missing_lease_evidence_rejects(tmp_path):
     from a_conductor.zcode_production_assembly import ZCodeAssemblyError
     from tests.test_zcode_real_helper_e2e import build_admission
     base = _authorities(tmp_path)
-    no_lease = replace(base, lease_evidence=False, admission_evidence=build_admission())
+    no_lease = replace(base, lease_evidence=False, admission_evidence=build_admission(),
+                       dispatch_batch_id="batch-e2e-0001")
     with pytest.raises(ZCodeAssemblyError) as e:
         assemble_zcode_execution(
             authorities=no_lease, packet=_packet(tmp_path), model_id="glm-5.3",
-            expected_generation=1, authorized_base_url=BASE_URL,
+            expected_generation=1, expected_base_url=BASE_URL,
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
@@ -478,11 +481,12 @@ def test_q29_missing_provider_admission_rejects(tmp_path):
     from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
     from tests.test_zcode_real_helper_e2e import build_lease
     base = _authorities(tmp_path)
-    no_adm = replace(base, lease_evidence=build_lease(tmp_path), admission_evidence=False)
+    no_adm = replace(base, lease_evidence=build_lease(tmp_path), admission_evidence=False,
+                     dispatch_batch_id="batch-e2e-0001")
     with pytest.raises(ZCodeAssemblyError) as e:
         assemble_zcode_execution(
             authorities=no_adm, packet=_e2e_packet(tmp_path), model_id="glm-5.3",
-            expected_generation=1, authorized_base_url=BASE_URL,
+            expected_generation=1, expected_base_url=BASE_URL,
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
@@ -496,13 +500,14 @@ def test_q29_positive_evidence_accepts_and_confines_packet(tmp_path):
     from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
 
     base = build_real_service_authorities(tmp_path)
-    ok = replace(base, lease_evidence=build_lease(tmp_path), admission_evidence=build_admission())
+    ok = replace(base, lease_evidence=build_lease(tmp_path), admission_evidence=build_admission(),
+                dispatch_batch_id="batch-e2e-0001")
     runner = assemble_zcode_execution(
         authorities=ok,
         packet=_e2e_packet(tmp_path),  # task ref must match the lease task_id
         model_id="glm-5.3",
         expected_generation=1,
-        authorized_base_url=BASE_URL,
+        expected_base_url=BASE_URL,
         secret_reference="secret-ref:zcode-credential",
         workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
     )

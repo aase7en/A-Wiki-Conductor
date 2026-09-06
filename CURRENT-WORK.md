@@ -1,6 +1,11 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-06 (GLM-1 - WO158 / PR221 repair slices 1-4 COMPLETE: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE)
+Last updated: 2026-09-06 (GLM-1 - WO158 / PR221 final targeted repair r5: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE)
+
+## WO158 final targeted repair r5 — review 5560480061 — 2026-09-06 (GLM-1)
+
+- Slices 1-4 remain frozen (`cf7ef9a`→`2de584a`, CI green). r5 closes every remaining item of binding review 5560480061, RED-first: derived `zcode-runtime-v1:<full sha>` runtime identity (no caller parameter; same-packet/two-model no-reuse proven live); admission bound to the independently-derived dispatch context (batch/execution); lease project identity into the durable record (hard-code removed), READ_ONLY rejection, and allowed/forbidden scope enforcement via the existing authority; bounded reader with typed `CHILD_OUTPUT_OVERFLOW` (deterministic flooding-child E2E); `finished_at` captured only at the real terminal-exit boundary (delayed-exit E2E); argv-evidence truth (Option B: launch evidence, not live-verified); `expected_base_url` assertion naming.
+- Evidence: final-repair suite 19/19; E2E 9/9; focused battery 258/258 + 289/289; hygiene PASS. Stop state READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at the r5 head; GLM1 does not merge.
 
 ## WO158 final slice 4 - deep truth audit + source freeze - 2026-09-06 (GLM-1)
 

@@ -4,12 +4,19 @@ Pure restart-reconciliation under the EXISTING recovery authority: reads the
 durable identity document, re-observes the actual running child through an
 injected observer (same primitives the supervisor uses), and classifies:
 
-- exact match (PID + creation time + executable + parent + argv sha) ⇒ ATTACH
+- exact match (PID + creation time + executable + parent) ⇒ ATTACH
 - PID alive but any identity fact mismatched (incl. PID reuse) ⇒ RECOVERY_REQUIRED
 - PID gone / malformed document / unreadable ⇒ RECOVERY_REQUIRED (no attach)
 
-No kill authority, no replay authority, no polling thread, no new store: the
-document is evidence for reconciliation only.
+Evidence-truth contract: ``target_argv_sha256`` in the durable document is
+LAUNCH evidence — written by the helper from the exact allowlisted argv at
+spawn time — and is NOT re-observed live, because the OS observer can only
+independently corroborate PID, creation time, executable, and parent across
+the supported platforms. Live restart identity authority therefore uses
+ONLY those observable facts; persisted-but-not-reobserved evidence is never
+described or tested as live-verified. No kill authority, no replay
+authority, no polling thread, no new store: the document is evidence for
+reconciliation only.
 """
 
 from __future__ import annotations
@@ -58,7 +65,11 @@ def reconcile_zcode_child(
     *,
     observer: ZCodeChildProcessObserver,
 ) -> ZCodeChildRecoveryDecision:
-    """Reconcile one durable identity document against live process truth."""
+    """Reconcile one durable identity document against live process truth.
+
+    Compares ONLY the facts the OS observer can independently corroborate
+    (PID, creation time, executable, parent). The persisted argv digest is
+    launch evidence and is intentionally not part of the live check."""
     try:
         identity = parse_child_identity_document(identity_document)
     except (ValueError, TypeError) as exc:

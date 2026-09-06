@@ -109,6 +109,9 @@ for line in sys.stdin:
                 json.dump({"received_at_ns": time.time_ns(), "content": content}, f)
         if mode == "quiet":
             pass
+        elif mode == "flood":
+            out({"method": "session/event", "params": {"type": "model.streaming",
+                "payload": {"kind": "text_delta", "delta": "f" * 200000}}})
         elif mode == "huge":
             out({"method": "session/event", "params": {"type": "model.streaming",
                 "payload": {"kind": "text_delta", "delta": "x" * (64 * 1024 + 1)}}})
@@ -118,6 +121,11 @@ for line in sys.stdin:
             out({"method": "session/event", "params": {"type": "model.streaming",
                 "payload": {"kind": "text_delta", "delta": "%s"}}})
             out({"method": "session/event", "params": {"type": "turn.completed"}})
+if mode == "delayed" and receipt_dir:
+    import time as _t
+    _t.sleep(2.0)
+    with open(os.path.join(receipt_dir, "exit_receipt.json"), "w", encoding="utf-8") as f:
+        f.write(str(_t.time_ns()))
 sys.exit(0)
 '''.replace("%s", RESPONSE_TEXT)
 
@@ -249,6 +257,7 @@ def build_real_service_authorities(tmp_path: Path) -> ZCodeExecutionAuthorities:
         python_executable=runtime_python,
         lease_evidence=build_lease(tmp_path),
         admission_evidence=build_admission(),
+        dispatch_batch_id="batch-e2e-0001",
         worker_id="a-worker-01",
         repo_root=str(tmp_path),
         branch=BRANCH,
@@ -268,7 +277,7 @@ def _run_e2e(tmp_path: Path, *, mode: str = "ok", deadline_seconds: float = 30.0
         packet=packet,
         model_id="glm-5.3",
         expected_generation=1,
-        authorized_base_url=BASE_URL,
+        expected_base_url=BASE_URL,
         secret_reference="secret-ref:zcode-credential",
         workspace=str(tmp_path),
         executable=runtime_python,
@@ -452,7 +461,7 @@ def test_restart_after_complete_collects_durably_no_respawn(tmp_path: Path) -> N
         packet=_packet(tmp_path),
         model_id="glm-5.3",
         expected_generation=1,
-        authorized_base_url=BASE_URL,
+        expected_base_url=BASE_URL,
         secret_reference="secret-ref:zcode-credential",
         workspace=str(tmp_path),
         executable=runtime_python,
@@ -471,3 +480,103 @@ def test_restart_after_complete_collects_durably_no_respawn(tmp_path: Path) -> N
     rows = con.execute("SELECT COUNT(*) FROM execution_records").fetchone()[0]
     con.close()
     assert rows == 1  # exactly one durable execution
+
+
+@NT_ONLY
+def test_flooding_child_becomes_typed_overflow_e2e(tmp_path: Path) -> None:
+    """P2-1: the bounded reader cannot grow without bound — a flooding child
+    (single giant line) becomes a TYPED overflow failure; no result is
+    fabricated, shutdown stays safe, diagnostics leak nothing."""
+    result, elapsed, _, receipts = _run_e2e(tmp_path, mode="flood")
+    run_dir = _run_dir_files(tmp_path / "control.sqlite", tmp_path)
+    assert result.exit_code is None
+    stderr_log = (run_dir / "stderr.log").read_text(encoding="utf-8", errors="replace")
+    assert "ZCODE_HELPER_EXIT code=CHILD_OUTPUT_OVERFLOW" in stderr_log, stderr_log
+    assert "Traceback" not in stderr_log
+    # diagnostics carry neither the credential nor the prompt
+    assert SECRET not in stderr_log
+    assert PROMPT_MARKER not in stderr_log
+    assert not (run_dir / "result.json").exists()
+    assert elapsed < 60.0  # bounded, no hang
+
+
+@NT_ONLY
+def test_finished_at_follows_real_terminal_exit_e2e(tmp_path: Path) -> None:
+    """P2-2: finished_at corresponds to the KNOWN terminal-exit boundary. The
+    child completes the protocol, then delays its natural exit by 2s and
+    receipts the exit instant; the canonical finished_at must be >= that
+    receipt (a pre-exit capture would precede it)."""
+    from datetime import datetime
+
+    result, _, _, receipts = _run_e2e(tmp_path, mode="delayed", deadline_seconds=30.0)
+    run_dir = _run_dir_files(tmp_path / "control.sqlite", tmp_path)
+    assert result.exit_code == 0
+    receipt_ns = int((receipts / "exit_receipt.json").read_text(encoding="utf-8").strip())
+    receipt_ms = receipt_ns / 1_000_000
+    result_doc = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
+    finished_ms = datetime.fromisoformat(result_doc["finished_at"]).timestamp() * 1000
+    started_ms = datetime.fromisoformat(result_doc["started_at"]).timestamp() * 1000
+    assert started_ms < receipt_ms <= finished_ms, (started_ms, receipt_ms, finished_ms)
+
+
+@NT_ONLY
+def test_same_packet_two_models_no_reuse_e2e(tmp_path: Path) -> None:
+    """P1-1 critical negative: the SAME verified TaskPacket under a DIFFERENT
+    model/runtime binding in the SAME provider generation must NOT reuse the
+    previous execution — two spawns, two durable rows."""
+    import sqlite3
+    from dataclasses import replace as _replace
+
+    from a_conductor.provider_configuration import HarnessRuntimeBinding as _B
+
+    result, _, _, receipts = _run_e2e(tmp_path)
+    assert result.exit_code == 0
+    assert len((receipts / "spawn.pid").read_text(encoding="utf-8").split()) == 1
+
+    two_model_profile = _replace(
+        _profile(),
+        models=(
+            _profile().models[0],
+            ProviderModelConfiguration(
+                model_id="glm-4.7",
+                display_name="GLM 4.7",
+                actor_capabilities=(ActorCapabilityEvidence("code", "DECLARED", "wo158"),),
+                runtime_binding=_B(
+                    harness_strategy=HarnessStrategy.ZCODE_APP_SERVER,
+                    runtime_provider_ref="zcode-runtime/glm-main",
+                    runtime_model_ref="zcode-runtime/glm-4.7",
+                ),
+            ),
+        ),
+    )
+    authorities = build_real_service_authorities(tmp_path)
+    authorities = _replace(
+        authorities, provider_snapshot=Snapshot(1, two_model_profile)
+    )
+    runtime_python = getattr(sys, "_base_executable", sys.executable)
+    fake_script = tmp_path / "fake" / "fake_app_server.py"
+    runner = assemble_zcode_execution(
+        authorities=authorities,
+        packet=_packet(tmp_path),
+        model_id="glm-4.7",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path),
+        executable=runtime_python,
+        bundle_js=str(fake_script),
+        deadline_seconds=30.0,
+    )
+    second = runner.run(timeout_seconds=90)
+    assert second.exit_code == 0
+    # NOT reused: a second real child spawned and a second durable row exists
+    spawns = (receipts / "spawn.pid").read_text(encoding="utf-8").split()
+    assert len(spawns) == 2, spawns
+    con = sqlite3.connect(tmp_path / "control.sqlite")
+    rows = con.execute("SELECT COUNT(*) FROM execution_records").fetchone()[0]
+    refs = con.execute(
+        "SELECT runtime_profile_ref FROM execution_records"
+    ).fetchall()
+    con.close()
+    assert rows == 2, rows
+    assert len({r[0] for r in refs}) == 2  # two distinct derived runtime identities

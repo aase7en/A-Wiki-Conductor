@@ -130,9 +130,12 @@ class ZCodeChildIdentity:
         }
 
     def matches(self, other: "ZCodeChildIdentity") -> bool:
-        """Exact PID-reuse-proof identity: same PID AND same creation time AND
-        same executable AND same argv hash. Same PID with a different creation
-        time is a MISMATCH."""
+        """Exact self-evidence match (write-then-reread at launch): same PID
+        AND creation time AND executable AND launch argv digest. Live restart
+        reconciliation corroborates only the OS-observable facts (see
+        zcode_child_recovery); target_argv_sha256 is durable LAUNCH evidence,
+        not live-verified. Same PID with a different creation time is a
+        MISMATCH."""
         if not isinstance(other, ZCodeChildIdentity):
             return False
         return (
@@ -407,19 +410,67 @@ def main(argv: "list[str] | None" = None) -> int:
             return _fail("IDENTITY_WRITE_FAILED")
         _write_atomic(pid_path, str(child.pid))
 
-        # 4. bounded transport: one blocking reader thread feeding a queue so
-        #    read_line(timeout_seconds) ACTUALLY respects its timeout (a raw
-        #    readline() would block forever on a silent child).
-        lines: "_queue.Queue[str | None]" = _queue.Queue()
+        # 4. bounded transport: one blocking reader thread feeding a SMALL
+        #    bounded queue so read_line(timeout_seconds) ACTUALLY respects
+        #    its timeout, memory can never grow without bound, and a
+        #    flooding child becomes a TYPED overflow failure (never silent
+        #    frame loss, never unbounded buffering, never a hang).
+        _MAX_PENDING_LINES = 32
+        _MAX_LINE_CHARS = 131_072  # per-line cap: bounds a single huge line
+        lines: "_queue.Queue[str | None]" = _queue.Queue(maxsize=_MAX_PENDING_LINES)
+        overflowed = _threading.Event()
+
+        def _offer(item: str | None) -> bool:
+            """Non-dropping offer: True if accepted; on a full bounded
+            buffer, record overflow and STOP reading (the turn fails typed
+            — frames are never silently discarded)."""
+            while True:
+                try:
+                    lines.put_nowait(item)
+                    return True
+                except _queue.Full:
+                    if overflowed.is_set():
+                        return False  # already failing; stop producing
+                    overflowed.set()
+                    try:
+                        lines.put_nowait(None)  # wake the consumer
+                    except _queue.Full:
+                        pass
+                    return False
 
         def _reader(stream, sink: "_queue.Queue[str | None]") -> None:
             try:
-                for line in stream:
-                    sink.put(line)
+                while True:
+                    chunk = stream.readline(4096)
+                    if not chunk:
+                        break
+                    if chunk.endswith("\n"):
+                        if not _offer(chunk):
+                            return
+                        continue
+                    # accumulate a (possibly long) line under the line cap
+                    parts = [chunk]
+                    total = len(chunk)
+                    while not chunk.endswith("\n"):
+                        chunk = stream.readline(4096)
+                        if not chunk:
+                            break
+                        parts.append(chunk)
+                        total += len(chunk)
+                        if total > _MAX_LINE_CHARS:
+                            overflowed.set()
+                            try:
+                                sink.put_nowait(None)
+                            except _queue.Full:
+                                pass
+                            return
+                    if not _offer("".join(parts)):
+                        return
             except (OSError, ValueError):
                 pass
             finally:
-                sink.put(None)  # stream closed / child exited
+                if not overflowed.is_set():
+                    _offer(None)  # stream closed / child exited
 
         reader_thread = _threading.Thread(
             target=_reader, args=(child.stdout, lines), daemon=True
@@ -432,11 +483,17 @@ def main(argv: "list[str] | None" = None) -> int:
                 child.stdin.flush()
 
             def read_line(self, timeout_seconds):
+                if overflowed.is_set() and lines.empty():
+                    raise ZCodeProtocolError("CHILD_OUTPUT_OVERFLOW")
                 try:
                     line = lines.get(timeout=max(0.0, float(timeout_seconds)))
                 except _queue.Empty:
+                    if overflowed.is_set():
+                        raise ZCodeProtocolError("CHILD_OUTPUT_OVERFLOW") from None
                     return None
                 if line is None or line == "":
+                    if overflowed.is_set():
+                        raise ZCodeProtocolError("CHILD_OUTPUT_OVERFLOW")
                     return None
                 return line.rstrip("\r\n") or None
 
@@ -482,8 +539,6 @@ def main(argv: "list[str] | None" = None) -> int:
         except (OSError, ValueError):
             _natural_shutdown()
             return _fail("PROTOCOL_FAILED")
-        finished = _datetime.now(_timezone.utc).isoformat()
-
         # 6. bounded natural shutdown — known exit or RECOVERY_REQUIRED
         exit_code = _natural_shutdown()
         if not isinstance(exit_code, int):
@@ -501,6 +556,11 @@ def main(argv: "list[str] | None" = None) -> int:
             if report_path is not None:
                 _write_atomic(report_path, json.dumps(report, sort_keys=True, separators=(",", ":")))
             return _fail("EXIT_PENDING")
+
+        # truthful completion boundary: finished_at corresponds to the
+        # KNOWN terminal exit event observed above — never a pre-exit
+        # timestamp pretending completion occurred
+        finished = _datetime.now(_timezone.utc).isoformat()
 
         # 7. canonical artifacts, strict order: report BEFORE result; the
         #    six-key result exists ONLY on the real terminal exit above.

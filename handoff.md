@@ -1,6 +1,14 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-06 - GLM-1 WO158 / PR221 repair COMPLETE (slices 1-4): READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE
+Last updated: 2026-09-06 - GLM-1 WO158 / PR221 final targeted repair r5 COMPLETE: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE
+
+## WO158 / PR221 r5 handoff override - 2026-09-06 (authoritative for this lane)
+
+- Binding review 5560480061 items are ALL closed on `feat/wo-p1-158-zcode-zero-relay` at the r5 head (single commit on top of `2de584a`; exact SHA in PR #221). RED-first matrix in `tests/test_zcode_final_targeted_repair.py` (19/19) plus three new real E2E proofs (flooding-child typed overflow; finished_at at the real terminal-exit boundary; same-packet/two-model no-reuse with distinct derived runtime identities).
+- All r1-r4 accepted closures preserved (verified by the unchanged suites). r5 additionally: derived `zcode-runtime-v1` runtime identity; dispatch-context-bound admission; lease project/intent/scope binding; bounded reader; truthful finished_at; argv launch-evidence truth; `expected_base_url` assertion naming.
+- Resume rule: re-pin `origin/main` + PR #221 head + latest GPT1 comments FIRST. Next queue goal after GPT1 acceptance+merge is the A-Wiki #54 addressed-blocker fix (A:\GitHub\A-Wiki, clean isolated worktree, GLM1 Q25 claim) - not before.
+
+One next safe action: GPT1 exact-SHA rereview/acceptance of the r5 head on PR #221.
 
 ## WO158 / PR221 final handoff override - 2026-09-06 (authoritative for this lane)
 
