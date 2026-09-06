@@ -160,6 +160,7 @@ def assemble_zcode_execution(
         adapter=adapter,
         executable=executable,
         bundle_js=bundle_js,
+        task_packet=packet_identity,
     )
 
 

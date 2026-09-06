@@ -107,22 +107,38 @@ def _iso_utc(epoch: float) -> str:
 
 @dataclass(frozen=True, slots=True)
 class ZCodeTaskPacketIdentity:
-    """The task packet is re-read, size-bounded, and re-hashed at intake."""
+    """The task packet is re-read, size-bounded, and re-hashed at intake.
+
+    The authoritative confined path + expected SHA are retained so the
+    final pre-send check re-reads the REAL file — never cached content.
+    """
 
     task_contract_ref: str
     packet_sha256: str
     content: str
+    path: str = ""
+    trusted_root: str = ""
 
     @classmethod
     def from_task_packet_file(
-        cls, packet: TaskPacketFile, *, max_packet_bytes: int = _MAX_PACKET_BYTES
+        cls, packet: TaskPacketFile, *, max_packet_bytes: int = _MAX_PACKET_BYTES,
+        trusted_root: str | None = None,
     ) -> "ZCodeTaskPacketIdentity":
         from pathlib import Path
 
         if not isinstance(packet, TaskPacketFile):
             raise ValueError("packet must be a TaskPacketFile")
+        path = Path(packet.path)
+        if trusted_root is not None:
+            root = Path(trusted_root).expanduser().resolve(strict=False)
+            try:
+                resolved = path.expanduser().resolve(strict=False)
+                resolved.relative_to(root)
+            except ValueError as exc:
+                raise ZCodeRunError("ZCODE_TASK_PACKET_OUTSIDE_TRUSTED_ROOT") from exc
+            path = resolved
         try:
-            raw = Path(packet.path).read_bytes()
+            raw = path.read_bytes()
         except OSError as exc:
             raise ZCodeRunError("ZCODE_TASK_PACKET_UNREADABLE") from exc
         if len(raw) > max_packet_bytes:
@@ -138,7 +154,48 @@ class ZCodeTaskPacketIdentity:
             task_contract_ref=packet.task_contract_ref,
             packet_sha256=digest,
             content=content,
+            path=str(path),
+            trusted_root=str(trusted_root) if trusted_root is not None else "",
         )
+
+    def verify_unchanged(
+        self, *, max_packet_bytes: int = _MAX_PACKET_BYTES
+    ) -> str:
+        """Final pre-send TOCTOU check: re-read the REAL confined file.
+
+        The bytes that pass this check — and only those bytes — become the
+        protocol input. Never trusts cached ``content``.
+        """
+        from pathlib import Path
+
+        if not self.path:
+            raise ZCodeRunError("ZCODE_TASK_PACKET_UNREADABLE")
+        path = Path(self.path).expanduser().resolve(strict=False)
+        if self.trusted_root:
+            root = Path(self.trusted_root).expanduser().resolve(strict=False)
+            try:
+                path.relative_to(root)
+            except ValueError as exc:
+                raise ZCodeRunError("ZCODE_TASK_PACKET_OUTSIDE_TRUSTED_ROOT") from exc
+        if not path.is_file():
+            raise ZCodeRunError("ZCODE_TASK_PACKET_UNREADABLE")
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise ZCodeRunError("ZCODE_TASK_PACKET_UNREADABLE") from exc
+        if len(raw) > max_packet_bytes:
+            raise ZCodeRunError("ZCODE_TASK_PACKET_TOO_LARGE")
+        if _sha256_hex(raw).casefold() != self.packet_sha256.casefold():
+            raise ZCodeRunError("ZCODE_TASK_PACKET_TOCTOU")
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ZCodeRunError("ZCODE_TASK_PACKET_UNREADABLE") from exc
+
+    def canonical_operation_ref(self) -> str:
+        """Deterministic operation identity derived from trusted task identity:
+        task_contract_ref + verified packet SHA — callers cannot choose it."""
+        return f"zcode:{self.task_contract_ref}:{self.packet_sha256[:16]}"
 
 
 # ---------------- seams (repository-owned implementations) ----------------
@@ -398,9 +455,10 @@ class ZCodeBackendAdapter:
         if not parsed.matches(identity):
             raise ZCodeRunError("ZCODE_IDENTITY_WRITE_FAILED")
 
-        # task packet re-hash immediately before the protocol send (TOCTOU)
-        if _sha256_hex(self._packet.content.encode("utf-8")) != self._packet.packet_sha256:
-            raise ZCodeRunError("ZCODE_TASK_PACKET_TOCTOU")
+        # task packet final pre-send TOCTOU check: re-read the REAL confined
+        # file (path/symlink/size/hash/UTF-8). Only the exact verified bytes
+        # that pass here become the protocol input — never cached content.
+        verified_prompt = self._packet.verify_unchanged()
 
         started = time.time()
         driver = ZCodeProtocolDriver(transport, max_response_bytes=self._max_response_bytes)
@@ -410,7 +468,7 @@ class ZCodeBackendAdapter:
         error_code: str | None = None
         try:
             turn = driver.run_turn(
-                self._packet.content,
+                verified_prompt,
                 workspace=self._workspace,
                 deadline_seconds=self._deadline,
             )
@@ -545,15 +603,19 @@ class SupervisedZCodeRunner:
         adapter: ZCodeBackendAdapter,
         executable: str,
         bundle_js: str,
+        task_packet: ZCodeTaskPacketIdentity,
         poll_interval_seconds: float = 0.05,
         sleep_fn: Callable[[float], None] = time.sleep,
         clock_fn: Callable[[], float] = time.monotonic,
     ) -> None:
         if identity.backend_id != ZCODE_BACKEND_ID:
             raise ValueError(f"identity.backend_id must be {ZCODE_BACKEND_ID}")
+        if not isinstance(task_packet, ZCodeTaskPacketIdentity):
+            raise ValueError("task_packet must be a ZCodeTaskPacketIdentity")
         self._executable = executable
         self._bundle_js = bundle_js
         self._adapter = adapter
+        self._task_packet = task_packet
 
         def _coordinator_factory():
             # operation identity is task-derived; supplied per run()
@@ -571,17 +633,26 @@ class SupervisedZCodeRunner:
             raise ValueError("ZCODE_ARGV_GRAMMAR_INVALID")
         return argv
 
-    def run(self, *, operation_ref: str, timeout_seconds: int = 300) -> object:
+    def run(self, *, operation_ref: str | None = None, timeout_seconds: int = 300) -> object:
         """Execute through the coordinator: dedup → record → launch → poll →
         collect/version-CAS. Returns the coordinator's native-style result
-        mapping; the canonical ZCode artifacts live in the run dir."""
-        if not isinstance(operation_ref, str) or not operation_ref.strip():
-            raise ValueError("operation_ref is invalid")
+        mapping; the canonical ZCode artifacts live in the run dir.
+
+        Operation identity is DERIVED from the verified task identity
+        (task_contract_ref + packet SHA). A caller ``operation_ref`` is
+        accepted only as a diagnostic label when it exactly matches the
+        derived identity; it can never choose a different dedup identity.
+        """
+        derived = self._task_packet.canonical_operation_ref()
+        if operation_ref is not None and operation_ref != derived:
+            raise ValueError(
+                "operation_ref must match the derived task identity: " + derived
+            )
         coordinator = SupervisedRunCoordinator(
             execution_store=self._store,
             supervised=self._adapter,
             identity=self._identity,
-            backend_policy=zcode_backend_policy(operation_ref=operation_ref),
+            backend_policy=zcode_backend_policy(operation_ref=derived),
             poll_interval_seconds=self._poll,
             sleep_fn=self._sleep,
             clock_fn=self._clock,

@@ -251,7 +251,7 @@ def test_wrong_base_url_rejected_at_run(tmp_path):
         endpoint_base_url=BASE_URL,  # endpoint authority reports the truth
     )
     with pytest.raises(Exception):
-        runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+        runner.run(operation_ref=None)
     assert authorities.transport_factory.calls == []  # zero spawn
 
 
@@ -282,7 +282,7 @@ def test_secret_resolver_failure_zero_spawn(tmp_path):
     authorities = replace(base, secret_resolver=Broken())
     runner = _assemble(tmp_path, authorities=authorities)
     with pytest.raises(Exception):
-        runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+        runner.run(operation_ref=None)
     assert authorities.transport_factory.calls == []
 
 
@@ -291,7 +291,7 @@ def test_full_chain_executes_and_no_credential_or_prompt_leak(tmp_path):
     base = _authorities(tmp_path)
     authorities = replace(base, secret_resolver=secrets)
     runner = _assemble(tmp_path, authorities=authorities)
-    result = runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+    result = runner.run(operation_ref=None)
     assert result.exit_code == 0 and "ZRA1-OK" in result.stdout
     assert secrets.requests == ["secret-ref:zcode-credential"]
     # credential reached the runtime channel but nothing durable
@@ -309,9 +309,9 @@ def test_full_chain_executes_and_no_credential_or_prompt_leak(tmp_path):
 def test_duplicate_fingerprint_zero_second_spawn(tmp_path):
     authorities = _authorities(tmp_path)
     runner = _assemble(tmp_path, authorities=authorities)
-    runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+    runner.run(operation_ref=None)
     first = len(authorities.transport_factory.calls)
-    runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+    runner.run(operation_ref=None)
     assert len(authorities.transport_factory.calls) == first  # dedup reuses
 
 
@@ -325,5 +325,5 @@ def test_unknown_execution_maps_recovery_not_success(tmp_path):
     base = _authorities(tmp_path)
     authorities = replace(base, transport_factory=failing)
     runner = _assemble(tmp_path, authorities=authorities)
-    result = runner.run(operation_ref="zcode:WO-P1-158-ZRA1")
+    result = runner.run(operation_ref=None)
     assert result.exit_code is None and "TURN_FAILED" in result.stderr
