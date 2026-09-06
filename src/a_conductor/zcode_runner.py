@@ -295,6 +295,43 @@ def zcode_backend_policy(*, operation_ref: str) -> SupervisedBackendPolicy:
     )
 
 
+# ---------------- selection authorization (single authority) ----------------
+
+def authorize_zcode_selection(
+    *,
+    selection_source: ZCodeSelectionSource,
+    expected_binding: HarnessRuntimeBinding,
+    expected_base_url: str,
+    phase: str,
+) -> str:
+    """Resolve + authorize the runtime selection against the accepted
+    provider-model binding and endpoint. Stable-but-wrong selections fail
+    closed ``ZCODE_SELECTION_UNAUTHORIZED``. Shared by every launcher so the
+    preparation and launch-seam checks can never drift apart."""
+    selection = selection_source.resolved_selection()
+    binding = selection.get("runtime_binding")
+    if not isinstance(binding, HarnessRuntimeBinding):
+        try:
+            binding = HarnessRuntimeBinding.from_dict(binding)
+        except (ValueError, TypeError) as exc:
+            raise ZCodeRunError(f"ZCODE_SELECTION_{phase}_MALFORMED") from exc
+    base_url = selection.get("runtime_base_url")
+    if not isinstance(base_url, str) or not base_url.strip():
+        raise ZCodeRunError(f"ZCODE_SELECTION_{phase}_MALFORMED")
+    if (
+        binding.harness_strategy is not expected_binding.harness_strategy
+        or binding.runtime_provider_ref != expected_binding.runtime_provider_ref
+        or binding.runtime_model_ref != expected_binding.runtime_model_ref
+        or base_url.strip() != expected_base_url.strip()
+    ):
+        raise ZCodeRunError("ZCODE_SELECTION_UNAUTHORIZED")
+    return runtime_selection_sha256(
+        runtime_binding=binding,
+        runtime_base_url=base_url,
+        runtime_source_enabled=selection.get("runtime_source_enabled"),
+    )
+
+
 # ---------------- backend adapter (SupervisedLauncher shape) ----------------
 
 class ZCodeBackendAdapter:
@@ -355,27 +392,11 @@ class ZCodeBackendAdapter:
     # -- selection authorization ----------------------------------------
 
     def authorized_selection_digest(self, phase: str) -> str:
-        selection = self._selection_source.resolved_selection()
-        binding = selection.get("runtime_binding")
-        if not isinstance(binding, HarnessRuntimeBinding):
-            try:
-                binding = HarnessRuntimeBinding.from_dict(binding)
-            except (ValueError, TypeError) as exc:
-                raise ZCodeRunError(f"ZCODE_SELECTION_{phase}_MALFORMED") from exc
-        base_url = selection.get("runtime_base_url")
-        if not isinstance(base_url, str) or not base_url.strip():
-            raise ZCodeRunError(f"ZCODE_SELECTION_{phase}_MALFORMED")
-        if (
-            binding.harness_strategy is not self._expected_binding.harness_strategy
-            or binding.runtime_provider_ref != self._expected_binding.runtime_provider_ref
-            or binding.runtime_model_ref != self._expected_binding.runtime_model_ref
-            or base_url.strip() != self._expected_base_url.strip()
-        ):
-            raise ZCodeRunError("ZCODE_SELECTION_UNAUTHORIZED")
-        return runtime_selection_sha256(
-            runtime_binding=binding,
-            runtime_base_url=base_url,
-            runtime_source_enabled=selection.get("runtime_source_enabled"),
+        return authorize_zcode_selection(
+            selection_source=self._selection_source,
+            expected_binding=self._expected_binding,
+            expected_base_url=self._expected_base_url,
+            phase=phase,
         )
 
     # -- SupervisedLauncher protocol --------------------------------------
@@ -682,6 +703,135 @@ class ZCodeBackendAdapter:
             if record.version != expected_version:
                 raise SupervisedExecutionError("ZCODE_VERSION_CONFLICT")
         return outcome
+
+
+# ---------------- production service lifecycle launcher ----------------
+
+class ZCodeServiceLifecycleLauncher:
+    """THE production ZCode launcher: composes the REAL
+    ``SupervisedExecutionService`` with the CLOSED
+    ``SupervisedHelperKind.ZCODE_APP_SERVER_V1`` helper kind.
+
+    ``launch`` performs the launch-seam authorization (selection + argv
+    grammar + secret-ref resolution), then injects the accepted bounded
+    runtime metadata + credential into the helper's environment through the
+    service plan and delegates process authority entirely to the service —
+    the specialized helper subprocess is spawned by the repository-owned
+    owned-process controller, never by this class. The credential exists in
+    supervisor process memory only between resolution and the service
+    ``launch`` call; it is never persisted, printed, or hashed.
+    """
+
+    def __init__(
+        self,
+        *,
+        service,
+        selection_source: ZCodeSelectionSource,
+        expected_binding: HarnessRuntimeBinding,
+        expected_base_url: str,
+        secret_resolver: ZCodeSecretResolver,
+        secret_reference: str,
+        packet: ZCodeTaskPacketIdentity,
+        executable: str,
+        bundle_js: str,
+        max_response_bytes: int = ZCODE_MAX_RESPONSE_BYTES,
+        deadline_seconds: float = 300.0,
+        max_packet_bytes: int = _MAX_PACKET_BYTES,
+        credential_delivery_key: str = "ANTHROPIC_API_KEY",
+    ) -> None:
+        for method_name in ("launch", "inspect", "collect"):
+            if not callable(getattr(service, method_name, None)):
+                raise ValueError(f"service must provide {method_name}")
+        self._service = service
+        self._selection_source = selection_source
+        self._expected_binding = expected_binding
+        self._expected_base_url = expected_base_url
+        self._secret_resolver = secret_resolver
+        if not isinstance(secret_reference, str) or not secret_reference.startswith("secret-ref:"):
+            raise ValueError("secret_reference must use the accepted secret-ref authority")
+        self._secret_reference = secret_reference
+        if not isinstance(packet, ZCodeTaskPacketIdentity):
+            raise ValueError("packet must be a ZCodeTaskPacketIdentity")
+        self._packet = packet
+        self._executable = executable
+        self._bundle_js = bundle_js
+        self._max_response_bytes = validate_output_budget(max_response_bytes)
+        if deadline_seconds <= 0:
+            raise ValueError("deadline_seconds must be positive")
+        self._deadline = float(deadline_seconds)
+        self._max_packet_bytes = int(max_packet_bytes)
+        # validate the delivery-key grammar eagerly (must also be within the
+        # owned-process environment-override allowlist or launch fails closed)
+        ZCodeEphemeralCredential(
+            delivery_key=credential_delivery_key, _value="probe-non-empty"
+        )
+        self._credential_delivery_key = credential_delivery_key
+
+    def authorized_selection_digest(self, phase: str) -> str:
+        return authorize_zcode_selection(
+            selection_source=self._selection_source,
+            expected_binding=self._expected_binding,
+            expected_base_url=self._expected_base_url,
+            phase=phase,
+        )
+
+    def _helper_environment(self) -> tuple[tuple[str, str], ...]:
+        """Accepted non-persistent runtime channel for the specialized helper.
+
+        Bounded verified task-packet metadata + the resolved credential. The
+        prompt bytes themselves never ride this channel — the helper re-opens
+        and re-verifies the real packet file at send time."""
+        try:
+            secret_value = self._secret_resolver.resolve(self._secret_reference)
+        except Exception as exc:
+            raise ZCodeRunError("ZCODE_SECRET_RESOLUTION_FAILED") from exc
+        if not isinstance(secret_value, str) or not secret_value:
+            raise ZCodeRunError("ZCODE_SECRET_RESOLUTION_FAILED")
+        try:
+            credential = ZCodeEphemeralCredential(
+                delivery_key=self._credential_delivery_key, _value=secret_value
+            )
+            delivery_key, delivery_value = credential.environment_entry
+            return (
+                ("ZCODE_TASK_PACKET_PATH", self._packet.path),
+                ("ZCODE_TASK_PACKET_SHA256", self._packet.packet_sha256),
+                ("ZCODE_TASK_PACKET_TRUSTED_ROOT", self._packet.trusted_root),
+                ("ZCODE_TASK_PACKET_MAX_BYTES", str(self._max_packet_bytes)),
+                ("ZCODE_OUTPUT_BUDGET", str(self._max_response_bytes)),
+                ("ZCODE_DEADLINE_SECONDS", repr(self._deadline)),
+                ("ZCODE_CREDENTIAL_DELIVERY_KEY", delivery_key),
+                (delivery_key, delivery_value),
+            )
+        finally:
+            # drop the in-memory credential references when this frame exits
+            credential = None
+            secret_value = ""
+
+    # -- SupervisedLauncher protocol --------------------------------------
+
+    def launch(self, plan: SupervisedLaunchPlan) -> SupervisedLaunchOutcome:
+        from dataclasses import replace as _dc_replace
+        from .supervised_execution import SupervisedHelperKind
+
+        argv = plan.target_argv
+        if not validate_app_server_argv(
+            argv, executable=self._executable, bundle_js=self._bundle_js
+        ):
+            raise ZCodeRunError("ZCODE_ARGV_GRAMMAR_INVALID")
+        # launch-seam selection authorization (2nd check) — before any spawn
+        self.authorized_selection_digest("SEAM")
+        helper_plan = _dc_replace(
+            plan,
+            helper_kind=SupervisedHelperKind.ZCODE_APP_SERVER_V1,
+            environment_overrides=self._helper_environment(),
+        )
+        return self._service.launch(helper_plan)
+
+    def inspect(self, execution_id: str) -> SupervisedInspection:
+        return self._service.inspect(execution_id)
+
+    def collect(self, execution_id: str, *, expected_version: int) -> SupervisedCollectOutcome:
+        return self._service.collect(execution_id, expected_version=expected_version)
 
 
 # ---------------- the high-level runner (no direct lifecycle) ----------------

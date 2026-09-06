@@ -1,6 +1,15 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-04 - GLM-1 PR208 review repair / actual-state reconciliation
+Last updated: 2026-09-06 - GLM-1 WO158 / PR221 real specialized-helper happy path
+
+## WO158 / PR221 real specialized-helper happy path handoff — 2026-09-06 (authoritative for this lane)
+
+- Binding state: GPT1 review comment 5558197043 = CHANGES_REQUIRED at `37ef02014ca89898566749d63d0b3a80df9c1bca` (PR #221 head at slice start). GLM-1 executed slice-1 repair on `feat/wo-p1-158-zcode-zero-relay` in worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo158-zra1`; the exact frozen SHA is the new branch head pushed to PR #221 (see the WO158 checkpoint `GPT1 repair-r1` in `docs/work-orders/WO-P1-158-zero-relay-zcode.md` for full evidence).
+- What changed: helper CLI rewritten (env-channel task authority + pre-send packet re-verify + explicit-only credential child env + OS-exact child identity + bounded deadline/read timeouts); NEW `zcode_process_truth.py`; production assembly now composes the REAL `SupervisedExecutionService` + `ZCODE_APP_SERVER_V1` specialized helper (service authorities mandatory; adapter no longer the production launcher); env-override allowlist extended with the closed ZCODE_* set.
+- Evidence: real fake-child E2E 5/5 (deterministic), touched suites 36/36, regression batteries 247 + 175 + 153 all PASS; compileall/diff-check/UTF-8/secret-scan PASS. No live provider dispatch; no merge by GLM1.
+- Resume rule for any new session: re-pin `origin/main` + PR #221 head + latest GPT1 comments FIRST (actual state overrides this note). Remaining declared slices: full task identity (un-truncate packet digest), cross-process ATTACH_RUNNING, typed CAS failure, authority-bound lease/admission/endpoint evidence, final call-graph truth audit (Prompt 4). PROOF_C and live dispatch remain GPT1-authorized gates.
+
+One next safe action: GPT1 exact-SHA rereview of the pushed repair head on PR #221.
 
 ## PR208 review-repair handoff override — 2026-09-04 (authoritative)
 

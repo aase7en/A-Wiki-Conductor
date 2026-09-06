@@ -149,7 +149,8 @@ def test_cli_rejects_non_allowlisted_argv(tmp_path):
         capture_output=True, text=True, timeout=30,
         cwd=str(Path(__file__).resolve().parents[1]),
     )
-    assert "ZCODE_HELPER_EXIT code=TARGET_ARGV_NOT_ALLOWLISTED" in result.stdout
+    # typed codes go to stderr (stdout is reserved for the bounded response)
+    assert "ZCODE_HELPER_EXIT code=TARGET_ARGV_NOT_ALLOWLISTED" in result.stderr
 
 
 # 8/9. identity-before-protocol enforced in the CLI source

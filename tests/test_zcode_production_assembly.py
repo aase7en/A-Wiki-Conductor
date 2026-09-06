@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections import deque
 from dataclasses import dataclass, replace
 
@@ -224,8 +225,6 @@ def test_provider_generation_drift_rejected(tmp_path):
 
 def test_wrong_provider_model_rejected(tmp_path):
     with pytest.raises(ZCodeAssemblyError) as e:
-        _assemble(tmp_path)
-        # model mismatch: request a model the profile does not carry
         assemble_zcode_execution(
             authorities=_authorities(tmp_path),
             packet=_packet(tmp_path),
@@ -238,21 +237,60 @@ def test_wrong_provider_model_rejected(tmp_path):
     assert e.value.code == "ZCODE_RUNTIME_BINDING_MISSING"
 
 
-def test_wrong_base_url_rejected_at_run(tmp_path):
-    authorities = _authorities(tmp_path)
-    runner = assemble_zcode_execution(
-        authorities=authorities,
-        packet=_packet(tmp_path),
+def test_missing_service_authorities_rejected(tmp_path):
+    """The production lifecycle REQUIRES the real supervised-service
+    authorities; there is no alternate in-process transport fallback."""
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble(tmp_path)
+    assert e.value.code == "ZCODE_SERVICE_AUTHORITY_MISSING"
+
+
+NT_ONLY = pytest.mark.skipif(os.name != "nt", reason="Windows real-helper integration")
+
+
+def _service_assemble(tmp_path, *, mode: str = "ok", authorities=None,
+                      base_url: str = BASE_URL, endpoint_base_url: str | None = None):
+    """Assemble through the REAL supervised-service authorities + the
+    deterministic fake app-server (same primitive as the E2E suite)."""
+    import sys as _sys
+
+    from tests.test_zcode_real_helper_e2e import (
+        _packet as _e2e_packet,
+        _write_fake_app_server,
+        build_real_service_authorities,
+    )
+
+    runtime_python = getattr(_sys, "_base_executable", _sys.executable)
+    fake_script = _write_fake_app_server(tmp_path / "fake", tmp_path / "receipts", mode)
+    resolved = authorities if authorities is not None else build_real_service_authorities(tmp_path)
+    return assemble_zcode_execution(
+        authorities=resolved,
+        packet=_e2e_packet(tmp_path),
         model_id="glm-5.3",
         expected_generation=1,
-        authorized_base_url="http://evil:9",
+        authorized_base_url=base_url,
         secret_reference="secret-ref:zcode-credential",
-        workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
-        endpoint_base_url=BASE_URL,  # endpoint authority reports the truth
+        workspace=str(tmp_path),
+        executable=runtime_python,
+        bundle_js=str(fake_script),
+        endpoint_base_url=endpoint_base_url,
+        deadline_seconds=20.0,
     )
-    with pytest.raises(Exception):
+
+
+@NT_ONLY
+def test_wrong_base_url_rejected_at_run(tmp_path):
+    from a_conductor.zcode_runner import ZCodeRunError
+
+    runner = _service_assemble(
+        tmp_path, base_url="http://evil:9", endpoint_base_url=BASE_URL,
+    )
+    # PREP-time authorization fails closed with a typed error BEFORE any
+    # durable record or child exists
+    with pytest.raises(ZCodeRunError) as e:
         runner.run(operation_ref=None)
-    assert authorities.transport_factory.calls == []  # zero spawn
+    assert e.value.code == "ZCODE_SELECTION_UNAUTHORIZED"
+    assert not (tmp_path / "receipts" / "spawn.pid").exists()  # zero spawn
 
 
 # ---- task authority ------------------------------------------------------
@@ -273,60 +311,79 @@ def test_task_packet_tamper_rejected_before_spawn(tmp_path):
 
 # ---- credential + selection ----------------------------------------------
 
+@NT_ONLY
 def test_secret_resolver_failure_zero_spawn(tmp_path):
+    from tests.test_zcode_real_helper_e2e import Secrets as _E2ESecrets, build_real_service_authorities
+
     class Broken:
         def resolve(self, ref):
             raise RuntimeError("down")
-    from a_conductor.zcode_production_assembly import ZCodeExecutionAuthorities
-    base = _authorities(tmp_path)
-    authorities = replace(base, secret_resolver=Broken())
-    runner = _assemble(tmp_path, authorities=authorities)
+
+    authorities = replace(build_real_service_authorities(tmp_path), secret_resolver=Broken())
+    runner = _service_assemble(tmp_path, authorities=authorities)
     result = runner.run(operation_ref=None)  # normalized failure, no raise
+    assert result.exit_code is None
     assert "ZCODE_SECRET_RESOLUTION_FAILED" in result.stderr
-    assert authorities.transport_factory.calls == []
+    assert not (tmp_path / "receipts" / "spawn.pid").exists()  # zero spawn
 
 
+@NT_ONLY
 def test_full_chain_executes_and_no_credential_or_prompt_leak(tmp_path):
-    secrets = Secrets(value="zz-leak-probe-42")
-    base = _authorities(tmp_path)
-    authorities = replace(base, secret_resolver=secrets)
-    runner = _assemble(tmp_path, authorities=authorities)
+    import sqlite3
+
+    from tests.test_zcode_real_helper_e2e import (
+        PROMPT_MARKER, RESPONSE_TEXT, Secrets as _E2ESecrets, build_real_service_authorities,
+    )
+
+    probe = "zz-leak-probe-42"
+    authorities = replace(build_real_service_authorities(tmp_path), secret_resolver=_E2ESecrets(value=probe))
+    runner = _service_assemble(tmp_path, authorities=authorities)
     result = runner.run(operation_ref=None)
-    assert result.exit_code == 0 and "ZRA1-OK" in result.stdout
-    assert secrets.requests == ["secret-ref:zcode-credential"]
-    # credential reached the runtime channel but nothing durable
-    assert authorities.transport_factory.last.child_env["ANTHROPIC_API_KEY"] == "zz-leak-probe-42"
-    for rel in authorities.filesystem.root.rglob("*"):
-        if rel.is_file():
-            assert b"zz-leak-probe-42" not in rel.read_bytes(), rel
-    # prompt never in argv
-    call = authorities.transport_factory.calls[0]
-    assert all("ZRA1-OK" not in a for a in call["argv"])
+    assert result.exit_code == 0 and RESPONSE_TEXT in result.stdout
+    assert authorities.secret_resolver.requests == ["secret-ref:zcode-credential"]
+    # credential reached the REAL child environment (and only there)
+    child_env = json.loads((tmp_path / "receipts" / "child_env.json").read_text(encoding="utf-8"))
+    assert child_env["env"]["ANTHROPIC_API_KEY"] == probe
+    # nothing durable under the repo carries the credential: every file
+    # outside the receipt/fake probes (which live outside the run artifacts)
+    # must be byte-clean of the secret
+    for rel in tmp_path.rglob("*"):
+        if rel.is_file() and "receipts" not in rel.parts:
+            assert probe.encode() not in rel.read_bytes(), rel
+    # prompt never rides any argv surface (helper argv is metadata-only)
+    con = sqlite3.connect(tmp_path / "control.sqlite")
+    summary = con.execute(
+        "SELECT command_summary FROM execution_records LIMIT 1"
+    ).fetchone()[0]
+    con.close()
+    assert PROMPT_MARKER not in summary
+    assert PROMPT_MARKER not in json.dumps(child_env["argv"])
 
 
 # ---- dedup / attach / UNKNOWN -------------------------------------------
 
+@NT_ONLY
 def test_duplicate_fingerprint_zero_second_spawn(tmp_path):
-    authorities = _authorities(tmp_path)
-    runner = _assemble(tmp_path, authorities=authorities)
-    runner.run(operation_ref=None)
-    first = len(authorities.transport_factory.calls)
-    runner.run(operation_ref=None)
-    assert len(authorities.transport_factory.calls) == first  # dedup reuses
+    runner = _service_assemble(tmp_path)
+    first = runner.run(operation_ref=None)
+    assert first.exit_code == 0
+    second = runner.run(operation_ref=None)
+    assert second.exit_code == 0
+    # dedup reuses the completed execution: still exactly one child spawn
+    spawns = (tmp_path / "receipts" / "spawn.pid").read_text(encoding="utf-8").split()
+    assert len(spawns) == 1, spawns
 
 
+@NT_ONLY
 def test_unknown_execution_maps_recovery_not_success(tmp_path):
-    failing = Factory([
-        json.dumps({"id": 1, "result": {"session": {"sessionId": "s"}}}),
-        json.dumps({"id": 100, "method": "session/requestRuntimePreferences"}),
-        json.dumps({"id": 2, "result": {"ok": True}}),
-        json.dumps({"method": "session/event", "params": {"type": "turn.failed"}}),
-    ])
-    base = _authorities(tmp_path)
-    authorities = replace(base, transport_factory=failing)
-    runner = _assemble(tmp_path, authorities=authorities)
+    runner = _service_assemble(tmp_path, mode="fail")
     result = runner.run(operation_ref=None)
-    assert result.exit_code is None and "TURN_FAILED" in result.stderr
+    assert result.exit_code is None
+    assert result.stderr.startswith("SUPERVISOR_RECOVERY_REQUIRED")
+    run_dir = next((tmp_path / "runs").glob("exec-*"))
+    stderr_log = (run_dir / "stderr.log").read_text(encoding="utf-8", errors="replace")
+    assert "ZCODE_HELPER_EXIT code=TURN_FAILED" in stderr_log, stderr_log
+    assert not (run_dir / "result.json").exists()  # never fabricated
 
 
 # ---------------- Q29: authority-consume gates ----------------
@@ -391,13 +448,18 @@ def test_q29_missing_provider_admission_rejects(tmp_path):
     assert e.value.code == "ZCODE_PROVIDER_ADMISSION_MISSING"
 
 
+@NT_ONLY
 def test_q29_positive_evidence_accepts_and_confines_packet(tmp_path):
-    from dataclasses import replace
-    base = _authorities(tmp_path)
+    from tests.test_zcode_real_helper_e2e import build_real_service_authorities
+
+    base = build_real_service_authorities(tmp_path)
     ok = replace(base, lease_evidence=True, admission_evidence=True)
     runner = assemble_zcode_execution(
-        authorities=ok, packet=_packet(tmp_path), model_id="glm-5.3",
-        expected_generation=1, authorized_base_url=BASE_URL,
+        authorities=ok,
+        packet=_packet(tmp_path),
+        model_id="glm-5.3",
+        expected_generation=1,
+        authorized_base_url=BASE_URL,
         secret_reference="secret-ref:zcode-credential",
         workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
     )

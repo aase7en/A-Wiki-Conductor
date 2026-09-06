@@ -1,6 +1,16 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-04 (GLM-1 - PR208 review repair / actual-state reconciliation)
+Last updated: 2026-09-06 (GLM-1 - WO158 / PR221 real specialized-helper happy path)
+
+## WO158 / PR221 real specialized-helper happy path — 2026-09-06 (GLM-1, binding review 5558197043 slice 1)
+
+- **PR #221 / WO-P1-158** was CHANGES_REQUIRED at `37ef020` (binding GPT1 review 5558197043): the real valid-helper happy path crashed pre-spawn (`NameError: Path`), production assembly still used the in-process adapter lifecycle, helper runtime handoff/identity/deadline were incomplete. Repair executed RED-first on branch `feat/wo-p1-158-zcode-zero-relay` (worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo158-zra1`).
+- The REAL production chain now executes E2E and is proven by `tests/test_zcode_real_helper_e2e.py`: production assembly -> `SupervisedRunCoordinator` -> `SupervisedExecutionService` -> `ZCODE_APP_SERVER_V1` -> real `zcode_supervised_helper.py` subprocess -> exactly one fake app-server child -> protocol -> canonical artifacts -> durable collect, with all 14 acceptance points (packet re-verify TOCTOU, identity-before-send, exact OS child identity incl. creation time + helper parent PID, explicit-only credential child env, bounded deadline actually honored by `read_line(timeout)`, 64 KiB budget, report-before-result, six-key result only on real exit, no kill ladder, no traceback).
+- NEW `zcode_process_truth.observe_child_process` (Windows kernel32 ctypes / Linux /proc / macOS ps, fail-closed). `assemble_zcode_execution` now REQUIRES real supervised-service authorities (typed `ZCODE_SERVICE_AUTHORITY_MISSING` otherwise); `ZCodeBackendAdapter` is no longer the production launcher.
+- Verification: E2E + assembly + helper-execution 36/36 (deterministic re-run); zcode+supervised 247/247; provider/harness/claude 175/175; worker/lease 153/153; compileall / `git diff --check` / strict UTF-8 / added-line secret scan (0 hits) PASS. No live provider dispatch.
+- Declared remaining (later slices): full collision-resistant task identity (packet SHA still truncated `[:16]`); cross-process ATTACH_RUNNING composition; typed launch-side CAS failure (adapter still swallows `SUCCEEDED` transition failure); authority-bound lease/admission/endpoint evidence (`None` still passes the consume gates); PROOF_C NOT_RUN/GPT1_AUTH_REQUIRED. GLM1 does not merge; GPT1 owns acceptance.
+
+**One next safe action:** freeze this repair SHA on PR #221 -> GPT1 exact-SHA rereview -> (if accepted) Prompt-2 slices (task identity / ATTACH / CAS truth).
 
 ## PR208 review-repair + actual-state override — 2026-09-04 (authoritative, supersedes stale text below)
 

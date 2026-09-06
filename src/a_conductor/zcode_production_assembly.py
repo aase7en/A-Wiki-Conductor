@@ -4,12 +4,21 @@ Builds the accepted ZCode execution path from EXISTING authorities only:
 verified TaskPacketFile, provider configuration + typed runtime binding +
 generation (existing store/CAS), authorized endpoint/base URL, accepted
 secret-reference resolver, worker lease (existing broker), provider
-admission (existing authority), and the canonical supervised lifecycle
-(shared coordinator → closed helper kind → specialized helper).
+admission (existing authority), and the canonical supervised lifecycle:
 
-Adds NO scheduler, task store, lease store, provider store, dedup engine,
-retry engine, process supervisor, or review authority. Every fault fails
-closed with a typed code BEFORE any child exists.
+    assemble_zcode_execution
+    -> SupervisedZCodeRunner
+    -> SupervisedRunCoordinator
+    -> ZCodeServiceLifecycleLauncher
+    -> SupervisedExecutionService (helper kind ZCODE_APP_SERVER_V1)
+    -> zcode_supervised_helper.py (real specialized helper subprocess)
+    -> app-server child
+
+The specialized helper is the ONLY production process lifecycle for ZCode
+execution; no in-process transport adapter is constructed here. Adds NO
+scheduler, task store, lease store, provider store, dedup engine, retry
+engine, process supervisor, or review authority. Every fault fails closed
+with a typed code BEFORE any child exists.
 """
 
 from __future__ import annotations
@@ -22,11 +31,11 @@ from .provider_configuration import HarnessRuntimeBinding, HarnessStrategy
 from .zcode_runner import (
     ZCODE_BACKEND_ID,
     SupervisedZCodeRunner,
-    ZCodeBackendAdapter,
     ZCodeFilesystem,
     ZCodeRunError,
     ZCodeSecretResolver,
     ZCodeSelectionSource,
+    ZCodeServiceLifecycleLauncher,
     ZCodeTaskPacketIdentity,
     ZCodeTransportFactory,
 )
@@ -46,13 +55,23 @@ class ZCodeExecutionAuthorities:
     provider-admission records from the higher-level coordinator. The
     assembly consumes them at the final side-effect boundary; it never
     acquires, re-acquires, or schedules leases/admissions itself.
+
+    ``supervised_controller`` / ``supervised_observer`` / ``python_executable``
+    are the REAL owned-process authorities required to construct the
+    production ``SupervisedExecutionService``; without them the assembly
+    fails closed — there is no alternate in-process lifecycle.
     """
 
     provider_snapshot: object          # ProviderConfigurationSnapshot
     secret_resolver: ZCodeSecretResolver
-    transport_factory: ZCodeTransportFactory
-    filesystem: ZCodeFilesystem
     execution_store: object            # SQLiteExecutionStore
+    # adapter-era seams (optional): the production specialized-helper path
+    # does not consume them; they remain for non-production adapter callers.
+    transport_factory: ZCodeTransportFactory | None = None
+    filesystem: ZCodeFilesystem | None = None
+    supervised_controller: object | None = None   # OwnedProcessController (REQUIRED)
+    supervised_observer: object | None = None     # SupervisedProcessObserver (REQUIRED)
+    python_executable: str = ""                    # REQUIRED for the real helper
     lease_evidence: object | None = None   # accepted lease record (truthy when acquired)
     admission_evidence: object | None = None  # accepted provider admission (truthy)
     worker_id: str = ""
@@ -109,14 +128,16 @@ def assemble_zcode_execution(
     endpoint_base_url: str | None = None,
     expected_branch: str | None = None,
     expected_head: str | None = None,
+    deadline_seconds: float = 300.0,
 ) -> SupervisedZCodeRunner:
     """Compose one authorized ZCode execution; fail closed before any spawn.
 
     Every gate below must pass or NO child exists:
     git/worktree identity (branch/HEAD/dirty) → provider generation CAS →
     ZCODE strategy + per-model runtime binding → verified TaskPacketFile
-    intake (confined path/size/hash) → lease admission evidence →
-    provider admission evidence → secret-ref authority wiring.
+    intake (confined path/size/hash) → REAL supervised-service authorities →
+    lease admission evidence → provider admission evidence → secret-ref
+    authority wiring → the specialized-helper production lifecycle.
     """
 
     from .supervised_run_coordinator import SupervisedRunIdentity
@@ -160,24 +181,49 @@ def assemble_zcode_execution(
         raise ZCodeAssemblyError("ZCODE_PROVIDER_ADMISSION_MISSING")
 
     # The selection source reports the ENDPOINT-AUTHORITY truth; the
-    # adapter's expected_base_url is the dispatch-declared authorization.
+    # launcher's expected_base_url is the dispatch-declared authorization.
     # They must agree or ZCODE_SELECTION_UNAUTHORIZED fails closed at run.
     resolved_endpoint = endpoint_base_url if endpoint_base_url is not None else authorized_base_url
     selection = _AuthorizedSelection(snapshot, binding, resolved_endpoint)
 
-    adapter = ZCodeBackendAdapter(
-        transport_factory=authorities.transport_factory,
-        filesystem=authorities.filesystem,
-        execution_store=authorities.execution_store,
+    # 7. REAL production supervised lifecycle: the specialized helper through
+    #    SupervisedExecutionService + ZCODE_APP_SERVER_V1. The service
+    #    authorities are MANDATORY — no in-process transport fallback exists.
+    if (
+        authorities.supervised_controller is None
+        or authorities.supervised_observer is None
+        or not isinstance(authorities.python_executable, str)
+        or not authorities.python_executable.strip()
+    ):
+        raise ZCodeAssemblyError("ZCODE_SERVICE_AUTHORITY_MISSING")
+
+    from .supervised_execution import SupervisedExecutionService, SupervisedHelperKind
+
+    try:
+        service = SupervisedExecutionService(
+            store=authorities.execution_store,
+            controller=authorities.supervised_controller,
+            observer=authorities.supervised_observer,
+            allowed_target_executables=(Path(executable).name,),
+            python_executable=authorities.python_executable,
+            startup_poll_attempts=100,
+            startup_poll_delay_seconds=0.05,
+            helper_kinds={SupervisedHelperKind.ZCODE_APP_SERVER_V1},
+        )
+    except (TypeError, ValueError) as exc:
+        raise ZCodeAssemblyError("ZCODE_SERVICE_AUTHORITY_INVALID") from exc
+
+    launcher = ZCodeServiceLifecycleLauncher(
+        service=service,
         selection_source=selection,
         expected_binding=binding,
         expected_base_url=authorized_base_url,
         secret_resolver=authorities.secret_resolver,
         secret_reference=secret_reference,
         packet=packet_identity,
-        workspace=workspace,
         executable=executable,
         bundle_js=bundle_js,
+        deadline_seconds=deadline_seconds,
     )
     identity = SupervisedRunIdentity(
         job_id=f"job:{packet.task_contract_ref}",
@@ -193,7 +239,7 @@ def assemble_zcode_execution(
     return SupervisedZCodeRunner(
         execution_store=authorities.execution_store,
         identity=identity,
-        adapter=adapter,
+        adapter=launcher,
         executable=executable,
         bundle_js=bundle_js,
         task_packet=packet_identity,

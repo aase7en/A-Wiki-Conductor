@@ -325,6 +325,7 @@ class SupervisedExecutionService:
             command=tuple(command),
             expected_executable_name=self._python_name,
             expected_profile_marker=record.execution_id,
+            environment_overrides=plan.environment_overrides,
         )
 
     def _validate_plan(self, plan: SupervisedLaunchPlan) -> tuple[Path, Path, Path, Path, Path, Path]:
