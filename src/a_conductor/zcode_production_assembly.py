@@ -32,6 +32,7 @@ from .zcode_runner import (
     ZCODE_BACKEND_ID,
     SupervisedZCodeRunner,
     ZCodeFilesystem,
+    ZCodeProcessTruthChildObserver,
     ZCodeRunError,
     ZCodeSecretResolver,
     ZCodeSelectionSource,
@@ -224,6 +225,8 @@ def assemble_zcode_execution(
         executable=executable,
         bundle_js=bundle_js,
         deadline_seconds=deadline_seconds,
+        execution_store=authorities.execution_store,
+        child_observer=ZCodeProcessTruthChildObserver(),
     )
     identity = SupervisedRunIdentity(
         job_id=f"job:{packet.task_contract_ref}",

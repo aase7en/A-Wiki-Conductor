@@ -258,7 +258,7 @@ def test_runner_routes_through_coordinator_with_durable_record(tmp_path):
     assert record.backend_id == ZCODE_BACKEND_ID
     assert record.agent_ref == "agent:zcode-app-server"
     assert record.operation_ref == runner._task_packet.canonical_operation_ref()
-    assert record.operation_ref.startswith("zcode:WO-P1-158-ZRA1:")  # task-derived
+    assert record.operation_ref.startswith("zcode-task-v1:")  # task-derived, domain-separated
     assert record.report_ref.endswith("/report.json")
     run_rel = record.run_dir_ref
     # identity → stdout → stderr → report → result ordering
@@ -594,10 +594,11 @@ def test_q27_packet_path_outside_trusted_root_rejected(tmp_path):
 def test_q27_operation_identity_is_task_derived_not_caller(tmp_path):
     runner, *_ = _runner(tmp_path)
     derived = runner._task_packet.canonical_operation_ref()
-    assert derived.startswith("zcode:WO-P1-158-ZRA1:")
+    assert derived.startswith("zcode-task-v1:")
+    assert len(derived) == len("zcode-task-v1:") + 64  # full SHA-256, no truncation
     # caller cannot choose a different identity
     with pytest.raises(ValueError):
-        runner.run(operation_ref="zcode:evil")
+        runner.run(operation_ref="zcode-task-v1:" + "e" * 64)
 
 
 def test_q27_same_task_same_identity_across_instances(tmp_path):

@@ -198,9 +198,21 @@ class ZCodeTaskPacketIdentity:
             raise ZCodeRunError("ZCODE_TASK_PACKET_UNREADABLE") from exc
 
     def canonical_operation_ref(self) -> str:
-        """Deterministic operation identity derived from trusted task identity:
-        task_contract_ref + verified packet SHA — callers cannot choose it."""
-        return f"zcode:{self.task_contract_ref}:{self.packet_sha256[:16]}"
+        """Deterministic collision-resistant operation identity derived with
+        explicit domain separation — SHA-256 over the canonical byte encoding
+        ``"zcode-task-v1" || task_contract_ref || NUL || full packet_sha256``
+        (NO truncation). Callers cannot choose or influence it."""
+        if not isinstance(self.packet_sha256, str) or not re.fullmatch(
+            r"[0-9a-fA-F]{64}", self.packet_sha256
+        ):
+            raise ZCodeRunError("ZCODE_TASK_PACKET_DIGEST_INVALID")
+        digest = hashlib.sha256(
+            b"zcode-task-v1"
+            + self.task_contract_ref.encode("utf-8")
+            + b"\x00"
+            + self.packet_sha256.strip().lower().encode("ascii")
+        ).hexdigest()
+        return f"zcode-task-v1:{digest}"
 
 
 # ---------------- seams (repository-owned implementations) ----------------
@@ -591,8 +603,23 @@ class ZCodeBackendAdapter:
                     evidence_ref="zcode:natural-exit",
                 )
             except Exception:
-                # collect/version-CAS remains authoritative in the coordinator
-                pass
+                # DURABLE TRUTH: a run whose SUCCEEDED transition failed
+                # (version conflict, store fault, stale record) can NEVER
+                # report success. The canonical artifacts remain on disk for
+                # reconcile/collect, but this outcome is typed recovery.
+                self._outcomes[execution_id] = SupervisedCollectOutcome(
+                    record=record,
+                    result=None,
+                    recovery_required=True,
+                    error_code="ZCODE_DURABLE_STATE_TRANSITION_FAILED",
+                )
+                return SupervisedLaunchOutcome(
+                    record=record,
+                    supervisor_pid=None,
+                    child_pid=identity.child_pid,
+                    recovery_required=True,
+                    error_code="ZCODE_DURABLE_STATE_TRANSITION_FAILED",
+                )
         return SupervisedLaunchOutcome(
             record=record,
             supervisor_pid=None,
@@ -609,7 +636,11 @@ class ZCodeBackendAdapter:
         is re-observed via the recovery consumer semantics (evidence only).
         """
         try:
-            outcome = self._outcomes.get(execution_id) or self._load_durable_outcome(execution_id)
+            cached = self._outcomes.get(execution_id)
+            outcome = cached if (cached is not None and cached.result is not None) \
+                else self._load_durable_outcome(execution_id)
+            if outcome is None and cached is not None:
+                outcome = cached
         except ZCodeRunError:
             raise
         except Exception as exc:  # map backend errors at the backend boundary
@@ -688,7 +719,11 @@ class ZCodeBackendAdapter:
         version fails closed — no silent collect, no blind replay.
         """
         try:
-            outcome = self._outcomes.get(execution_id) or self._load_durable_outcome(execution_id)
+            cached = self._outcomes.get(execution_id)
+            outcome = cached if (cached is not None and cached.result is not None) \
+                else self._load_durable_outcome(execution_id)
+            if outcome is None and cached is not None:
+                outcome = cached
         except ZCodeRunError:
             raise
         except Exception as exc:  # map backend errors at the backend boundary
@@ -707,6 +742,16 @@ class ZCodeBackendAdapter:
 
 # ---------------- production service lifecycle launcher ----------------
 
+class ZCodeProcessTruthChildObserver:
+    """Real-OS child observer (the accepted ZCodeChildProcessObserver shape)
+    backed by zcode_process_truth — evidence only, no process authority."""
+
+    def observe_child(self, pid: int) -> dict | None:
+        from .zcode_process_truth import observe_child_process
+
+        return observe_child_process(pid)
+
+
 class ZCodeServiceLifecycleLauncher:
     """THE production ZCode launcher: composes the REAL
     ``SupervisedExecutionService`` with the CLOSED
@@ -720,6 +765,14 @@ class ZCodeServiceLifecycleLauncher:
     owned-process controller, never by this class. The credential exists in
     supervisor process memory only between resolution and the service
     ``launch`` call; it is never persisted, printed, or hashed.
+
+    ``inspect`` is durable-first AND child-reconciling: when no canonical
+    result exists and the service classifies recovery, the durable
+    ``child.identity.json`` is reconciled against ACTUAL live process truth
+    (PID + creation time + executable + parent). An EXACT live child yields
+    ``ATTACH_RUNNING`` — never a premature result-missing verdict; PID
+    reuse/mismatch/unknown keeps the recovery classification. No replay, no
+    spawn, no new process registry.
     """
 
     def __init__(
@@ -738,11 +791,15 @@ class ZCodeServiceLifecycleLauncher:
         deadline_seconds: float = 300.0,
         max_packet_bytes: int = _MAX_PACKET_BYTES,
         credential_delivery_key: str = "ANTHROPIC_API_KEY",
+        execution_store=None,
+        child_observer=None,
     ) -> None:
         for method_name in ("launch", "inspect", "collect"):
             if not callable(getattr(service, method_name, None)):
                 raise ValueError(f"service must provide {method_name}")
         self._service = service
+        self._execution_store = execution_store
+        self._child_observer = child_observer
         self._selection_source = selection_source
         self._expected_binding = expected_binding
         self._expected_base_url = expected_base_url
@@ -828,7 +885,47 @@ class ZCodeServiceLifecycleLauncher:
         return self._service.launch(helper_plan)
 
     def inspect(self, execution_id: str) -> SupervisedInspection:
-        return self._service.inspect(execution_id)
+        """Durable-first + child-reconciling inspection.
+
+        A canonical result wins immediately. A recovery classification with
+        no result is NOT final: the durable child identity is reconciled
+        against actual live process truth — an exact live child is
+        ATTACH_RUNNING; anything else (gone / PID reuse / executable or
+        parent mismatch / unreadable evidence) keeps the recovery verdict.
+        Reconciliation is evidence-only: no launch, no replay, no kill."""
+        inspection = self._service.inspect(execution_id)
+        if inspection.result_available or not inspection.recovery_required:
+            return inspection
+        if self._attach_confirmed_by_live_child(execution_id):
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.ATTACH_RUNNING,
+                supervisor_pid=None,
+                result_available=False,
+                recovery_required=False,
+            )
+        return inspection
+
+    def _attach_confirmed_by_live_child(self, execution_id: str) -> bool:
+        if self._execution_store is None or self._child_observer is None:
+            return False
+        from pathlib import Path as _Path
+
+        from .zcode_child_recovery import (
+            read_child_identity_from_run_dir,
+            reconcile_zcode_child,
+        )
+
+        try:
+            record = self._execution_store.get(execution_id)
+            document = read_child_identity_from_run_dir(
+                _Path(record.repo_root) / record.run_dir_ref
+            )
+            decision = reconcile_zcode_child(document, observer=self._child_observer)
+            return decision.attach
+        except Exception:
+            # evidence unavailable => the recovery classification stands
+            return False
 
     def collect(self, execution_id: str, *, expected_version: int) -> SupervisedCollectOutcome:
         return self._service.collect(execution_id, expected_version=expected_version)

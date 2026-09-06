@@ -1,6 +1,12 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-06 (GLM-1 - WO158 / PR221 real specialized-helper happy path)
+Last updated: 2026-09-06 (GLM-1 - WO158 / PR221 repair slices 1-2: real helper E2E + full identity/ATTACH/CAS)
+
+## WO158 repair slice 2 — full task identity + ATTACH_RUNNING + CAS truth — 2026-09-06 (GLM-1)
+
+- Slice 1 (`cf7ef9a2334b203ffffc9f449c6d783e17c6a118`) is frozen with exact-head CI green (test 13m38s + ubuntu/macos smoke) and PR221 evidence comment 5560113468.
+- Slice 2 (review 5558197043 items 5-7) executed RED-first: `zcode-task-v1:<full SHA-256>` domain-separated task identity (no `[:16]` truncation); `ATTACH_RUNNING` cross-process child reconciliation in the production launcher (exact live child ⇒ attach; reuse/mismatch/gone ⇒ recovery; result.json always wins); adapter SUCCEEDED-transition CAS failure now typed `ZCODE_DURABLE_STATE_TRANSITION_FAILED` — never apparent success; durable-first retry collects without duplicate execution.
+- Evidence: new identity/attach/CAS suite 16/16; zcode+supervised battery 223/223; hygiene PASS. Remaining declared: authority-bound lease/admission/endpoint evidence (None passes consume gates), PROOF_C.
 
 ## WO158 / PR221 real specialized-helper happy path — 2026-09-06 (GLM-1, binding review 5558197043 slice 1)
 
