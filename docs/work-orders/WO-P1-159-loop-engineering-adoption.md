@@ -1,8 +1,30 @@
 # WO-P1-159 — Loop Engineering Adoption Foundation
 
-Status: ACTIVE / R2 FOUNDATION
-Owner: GPT-5.6 Sol
+Status: ACTIVE / R2 FOUNDATION — RECOMPOSED onto main@8ffd12f8 (2026-09-07)
+Owner: GPT-5.6 Sol (design); 2026-09-07 recomposition executed by GLM/ZCode
+under the user's explicit execution packet (bounded: merge-current-main,
+retest CI failure, record identity resolution — no design change)
 Date: 2026-09-06
+
+## Work-order identity record (2026-09-07)
+
+- The historical WO-ID collision with the ZRA-2 reservation is resolved by the
+  authoritative record in Issue #214: **WO-P1-159 stays with Loop Engineering /
+  PR #222** ("The historical ZRA-2 implementation label `WO-P1-159` cannot be
+  reused: open draft PR #222 already owns WO-P1-159"), and **ZRA-2 is
+  renumbered to WO-P1-165** (branch `feat/wo-p1-165-zra2-review-repair-loop`).
+  This work order keeps WO-P1-159; the branch name
+  `feat/wo-p1-159-loop-engineering-adoption` is the correct current identity,
+  not a historical leftover.
+- CI-failure retest (2026-09-07, real Windows host): the historical Windows
+  `test` failure `tests/test_owned_process.py::test_real_dummy_process_start_idempotent_stop`
+  (`PROCESS_STOP_FAILED`, run `34014619536`) was re-run at the recomposed state
+  (main `8ffd12f8` + this PR's delta): **PASS in 6.00s**. This PR's delta
+  (pure `loop_guard.py` + schema + docs + credits) does not touch
+  owned-process code (`src/a_conductor/owned_process.py` changed +11/−1 on
+  main since the old base), so no Loop Engineering patch is justified. Hosted
+  CI at the frozen head is the final adjudicator; a recurrence would be a
+  pre-existing owned-process/runner issue for that lane, not this scope.
 
 ## Goal
 
@@ -96,6 +118,18 @@ Implementation evidence:
   changes no GPU/logo/runtime dependency file. Existing project handoff also
   records the same class of known optional-GPU local failures.
 - Fresh `origin/main` remains base `f0ddd0b9245cef7a7525a670f470e1de595d4615`.
+  (Superseded 2026-09-07: recomposed by merging `origin/main@8ffd12f8` —
+  merge commit on this branch; clean auto-merge, no conflicts.)
+
+## Recomposition checkpoint (2026-09-07, GLM/ZCode)
+
+- Non-destructive `git merge origin/main` (`8ffd12f8`) into this branch:
+  clean, no conflicts, no force, no rebase. The 8-file lane delta is
+  unchanged; main brought in the ZCode harness + WO162/163/164 docs chain.
+- Local Windows retest of the historically failing owned-process test: PASS
+  (see identity record above).
+- Status: `RECOMPOSED_FROZEN_CANDIDATE` awaiting independent R2 review +
+  exact-head CI. No self-review/merge.
 
 Current status: `FROZEN_CANDIDATE / SELF_REVIEW_PASS`, not merge-ready.
 Cached scope review: 8 intended files only; no unstaged delta and no shared
