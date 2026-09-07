@@ -1,15 +1,16 @@
-# WO-P1-157 — GLM-First Execution + Universal Agent Entry
+# WO-P1-162 — GLM-First Execution + Universal Agent Entry
 
-Date: 2026-09-04
-Owner: GPT-B / this chat
-Status: RECOMPOSED_ON_MAIN / READY_FOR_FOCUSED_REREVIEW
+Date: 2026-09-04 (opened as WO-P1-157; renumbered 2026-09-07)
+Owner: GLM-1 (continuation of the GPT-B drafting lane)
+Status: RECONCILED_ON_MAIN / READY_FOR_FOCUSED_REREVIEW
 Priority: P0 delivery-throughput hardening
 Repository: A:\GitHub\A-Wiki-Conductor
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry
-Branch: docs/wo-p1-157-glm-first-entry
+Branch: docs/wo-p1-157-glm-first-entry (transport name only; WO identity is WO-P1-162)
+Renumber: WO-P1-157 → WO-P1-162 per the GPT1 integration checkpoint on PR #219 — GPT2 / Issue #210 keeps WO157/AIP-3.
 Original stacked base: 0fd540c622d4539a2e809b8a441661896179f2ad
-Current base after PR209 merge: f0ddd0b9245cef7a7525a670f470e1de595d4615
-Dependencies: PR #208, PR #218 and PR #209 SATISFIED; current main is f0ddd0b9245cef7a7525a670f470e1de595d4615
+Current base after PR221 merge: df5a25f1f9949e6938ea4bbcf0150515e6e5fa85
+Dependencies: PR #208, PR #218, PR #209 and PR #221 SATISFIED; current main is df5a25f1f9949e6938ea4bbcf0150515e6e5fa85
 Risk: R2 process/governance change
 Classification: EXTEND existing Fast Execution protocol; no new scheduler/router/runtime authority
 
@@ -101,3 +102,12 @@ Deterministic docs validation passed across the 15-file canonical set: diff-chec
 - WO157 was recomposed again by non-force merge of current main `f0ddd0b9245cef7a7525a670f470e1de595d4615`; no rebase/reset/clean/stash/force-push used.
 - Known `COLLAB.md` claims-table conflict was resolved by preserving merged PR208 truth, retaining WO155 preview/shaping status, and updating WO157 to current-main successor status.
 - Post-merge semantic validation PASS on the 15-file docs-only delta: old-entry remnants 0, strict UTF-8/no-U+FFFD PASS, secret-shape PASS, YAML/path references PASS, git diff-check PASS, operator protocol 37/37 PASS. Exact-head CI + focused independent rereview remain required before PR219 acceptance.
+
+## WO162 reconciliation checkpoint — 2026-09-07 (GLM-1)
+
+- **Renumber**: WO-P1-157 → WO-P1-162 per the GPT1 integration checkpoint on PR #219 (GPT2 / Issue #210 keeps WO157/AIP-3). File renamed `WO-P1-162-glm-first-execution-entry.md`; branch name retained as PR #219 transport only. Historical checkpoint text above keeps its original WO157 wording as evidence.
+- **PR #220 folded**: stacked repair head `a55041175a6709d01710fd2f0f2c8ddd7cd8bb49` merged into this lane by non-force merge (`50f20fe`); its semantics were already `STACKED_REPAIR_SEMANTICS = PASS` with exact-head CI `33947807332` SUCCESS. PR #220 needs no further repair and can close after PR #219 merges.
+- **Recomposed onto current main** `df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` by non-force merge (`f56d532`); no rebase/reset/clean/stash/force-push. The `CURRENT-WORK.md` / `handoff.md` conflicts were resolved as a newest-first union that preserves every WO158 r1-r6 evidence section from main.
+- **Current truth folded** (supersedes the stale text below): PR #221 / WO-P1-158 / ZRA-1 is MERGED (`df5a25f`, merged 2026-09-06T22:32:41Z, post-main CI `34064328672` SUCCESS, accepted head `01517ea` is an ancestor). ZRA-0 is ACCEPTED/CLOSED. The `READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE` projections that main carried past the merge were MERGED_NOT_FOLDED drift; this lane is the fold-back. Frontier: A-Wiki #54 (ZR-1, GLM1/Q25 claim, clean isolated worktree) → ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216). PR #222 (WO159) and PR #223 are separate open drafts; PR #211 stays historical/do-not-merge.
+- **New governance rule**: `AGENT_ENTRY_PROTOCOL.md` §2 now classifies state disagreement as `STALE_LOCAL_CHECKOUT` (local view behind remote; remote SSoT not implicated) vs `SSOT_DRIFT` / `MERGED_NOT_FOLDED` (canonical remote evidence contradicts tracked continuity projections; dependent mutation blocked until fold-back) vs `UNKNOWN` (fail closed). This is the durable rule form of the defect this checkpoint repaired.
+- Exact frozen head for rereview: this commit (SHA recorded in PR #219). GLM-1 does not merge; GPT1 focused rereview + exact-head CI + GPT-A acceptance/merge remain required.

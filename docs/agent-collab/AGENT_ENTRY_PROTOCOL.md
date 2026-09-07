@@ -1,7 +1,7 @@
 # Universal Agent Entry Protocol
 
-Status: CANDIDATE / BINDING AFTER WO157 ACCEPTANCE
-Introduced by: WO-P1-157
+Status: CANDIDATE / BINDING AFTER WO162 ACCEPTANCE (WO-P1-162, renumbered from WO-P1-157)
+Introduced by: WO-P1-162
 Purpose: make every execution surface start from the same durable state with minimum ceremony.
 
 ## 1. Mandatory startup core
@@ -35,6 +35,16 @@ When state-bearing sources disagree, use this truth order:
 5. chat/session memory
 
 Chat memory is never state authority.
+
+### Reconciliation classifications (state disagreement)
+
+When actual state and continuity projections disagree, classify — never conflate these:
+
+- `STALE_LOCAL_CHECKOUT` — the local checkout/worktree is behind remote `origin/main`. This is a property of the local view only; it does not imply the remote SSoT itself is stale. Cure: re-pin from the correct isolated scope; never mutate from the stale root.
+- `SSOT_DRIFT` / `MERGED_NOT_FOLDED` — canonical remote evidence (GitHub PR/Issue state, `origin/main`) contradicts tracked continuity projections (`CURRENT-WORK.md`, `handoff.md`). Example: GitHub shows a PR MERGED while main's `CURRENT-WORK.md` still says `READY_FOR_REVIEW`. Actual canonical state wins; dependent mutation is blocked until the fold-back reconciliation lands through the owning lane.
+- `UNKNOWN` — evidence missing or contradictory. Fail closed: `SAFE_TO_MUTATE = NO` until re-pinned.
+
+Invariant: actual machine/remote state outranks every human-readable projection. A merged-not-folded state must be observable and must gate dependent work that relies on the folded facts.
 
 ## 3. Default routing model
 

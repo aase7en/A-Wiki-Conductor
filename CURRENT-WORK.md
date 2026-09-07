@@ -1,6 +1,19 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-07 (GLM-1 - WO158 / PR221 canonical authority final repair r6: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE)
+Last updated: 2026-09-07 (GLM-1 — WO162 governance reconciliation: PR221 truth fold-back / READY_FOR_FOCUSED_REREVIEW)
+
+## WO162 governance reconciliation + PR221 fold-back — 2026-09-07 (authoritative)
+
+- **PR #221 / WO-P1-158 / ZRA-1 is MERGED and RELEASED**: merge commit `df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` (2026-09-06T22:32:41Z) is current `origin/main`; accepted head `01517ea` is an ancestor; post-main CI `34064328672` SUCCESS (9m23s). PROOF_C and live provider dispatch remain separate GPT1 gates per the WO158 record.
+- **SSoT drift (MERGED_NOT_FOLDED) repaired by this lane**: main's continuity files still carried `READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE` / "next safe action: GPT1 rereview" after the merge had landed — stale at the moment of merge. This WO162 fold-back is the reconciliation; the WO158 r1-r6 sections below are preserved as evidence and are superseded by this section.
+- **WO identity renumbered**: the GLM-first entry/workflow lane is now `WO-P1-162` (GPT2 / Issue #210 keeps WO157/AIP-3). Branch `docs/wo-p1-157-glm-first-entry` is retained as PR #219 transport only. PR #220's stacked repair is folded into this lane (`STACKED_REPAIR_SEMANTICS = PASS`, CI `33947807332`); PR #220 can close after PR #219 merges.
+- **Current frontier**: ZRA-0 ACCEPTED/CLOSED; ZRA-1 MERGED (above). Next queue goal is **A-Wiki Issue #54** (ReviewBus addressed-blocker fix; repo `A:\GitHub\A-Wiki`, clean isolated worktree, GLM1/Q25 claim) — not before this lane is frozen/accepted. Then ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216).
+- **Separate scope, not blockers**: PR #222 (WO159 loop-engineering) and PR #223 (elastic multi-agent roadmap) remain open drafts; PR #211 remains historical/do-not-merge; PR #204 remains scope-blocked/deferred until after ZRA-0..4.
+- **New governance rule**: `AGENT_ENTRY_PROTOCOL.md` §2 now distinguishes `STALE_LOCAL_CHECKOUT` (local view behind remote; remote SSoT not implicated) from `SSOT_DRIFT` / `MERGED_NOT_FOLDED` (canonical remote evidence contradicts continuity projections; dependent mutation blocked until fold-back) from `UNKNOWN` (fail closed).
+- **Ownership**: GLM-1 owns this WO162 / PR #219 docs-only lane; GPT1/GPT-A own focused rereview, acceptance, and merge. GLM does not self-merge. Protected root checkout remains stale/dirty; all mutation stays in isolated worktrees.
+- Canonical order: `WO162 binding -> A-Wiki #54 (ZR-1) -> ZRA-2 -> ZRA-3 -> ZRA-4 -> WO152/#204 -> ODP-1..8 -> ZRA-5 -> ODP-9 -> WO096/release`.
+
+One next safe action: freeze this exact SHA on PR #219 → focused independent GPT1 rereview (contradiction / authority-order / current-truth) + exact-head CI → GPT-A acceptance/merge → A-Wiki #54.
 
 ## WO158 canonical authority final repair r6 — review 5560911492 — 2026-09-07 (GLM-1)
 

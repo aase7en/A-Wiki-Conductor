@@ -1,6 +1,14 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-07 - GLM-1 WO158 / PR221 canonical authority final repair r6 COMPLETE: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE
+Last updated: 2026-09-07 — GLM-1 WO162 governance reconciliation: PR221 truth folded, lane recomposed on main@df5a25f, READY_FOR_FOCUSED_REREVIEW
+
+## WO162 governance reconciliation handoff override — 2026-09-07 (authoritative)
+
+- Repo `A:\GitHub\A-Wiki-Conductor`; lane worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry`; branch `docs/wo-p1-157-glm-first-entry` (transport name only; WO identity = WO-P1-162, renumbered because GPT2 / Issue #210 keeps WO157/AIP-3). Composition: PR #220 fold merge `50f20fe` + main recompose merge `f56d532` onto `main@df5a25f` + this truth-fold commit (exact SHA in PR #219). No rebase/reset/clean/stash/force-push; worktree clean at each freeze.
+- PR #221 / WO158 / ZRA-1: MERGED (`df5a25f`, post-main CI `34064328672` SUCCESS). The `READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE` projections main carried past the merge were MERGED_NOT_FOLDED drift, now folded by this lane (WO158 r1-r6 sections below are preserved evidence, superseded).
+- Resume rule: re-pin `origin/main` + PR #219 head + latest GPT1 comments FIRST. Do not start A-Wiki #54 before this lane is frozen/accepted. After acceptance, the next queue goal is A-Wiki #54 (`A:\GitHub\A-Wiki`, clean isolated worktree, GLM1/Q25 claim), then ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216).
+
+One next safe action: GPT1 focused rereview of the frozen WO162 / PR #219 head (contradiction / authority-order / current-truth) + exact-head CI, then GPT-A acceptance/merge.
 
 ## WO158 / PR221 r6 handoff override - 2026-09-07 (authoritative for this lane)
 
