@@ -9,19 +9,22 @@ Before any non-trivial work, every ChatGPT session, GPT Work/Codex task, A-Worke
 1. `00-AGENT-ENTRY.md` - universal front door and role split.
 2. `PROJECT-GRAPH.yaml` - select only the workflow/design/architecture nodes relevant to the task.
 3. `AGENTS.md` - this repository contract.
-4. Verify actual repository/worktree/remote/branch/HEAD/dirty state plus current claim/ownership before trusting summaries.
-5. Read the continuity core: `CURRENT-WORK.md`, `handoff.md`, and the active work order under `docs/work-orders/`.
-6. Read the task-relevant nodes selected by `PROJECT-GRAPH.yaml`.
-7. Read `DEFECT_LESSONS.md` before any `src/a_conductor/` mutation.
-8. Classify R0/R1/R2/R3, prove non-overlap, claim the lane, then run the shortest truthful loop in `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`.
+4. Verify actual repository/worktree/remote/branch/HEAD/dirty state plus current claim/ownership before trusting summaries. Actual state is evidence of what exists; it never overrides user authority, safety constraints, or binding repository policy.
+5. Read `CURRENT-WORK.md`.
+6. Read the active work order under `docs/work-orders/` when one exists or has already been claimed. Read `handoff.md` only for resume/transfer work, unclear continuity, or when `CURRENT-WORK.md` points to it for material context.
+7. Read the task-relevant nodes selected by `PROJECT-GRAPH.yaml`.
+8. Read `DEFECT_LESSONS.md` before any `src/a_conductor/` mutation.
+9. Classify R0/R1/R2/R3, prove non-overlap, claim the lane, then run the shortest truthful loop in `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`.
+
+If a new task has no work order yet, product/source mutation remains blocked. A bounded docs-only governance bootstrap may create the initial work order/claim in a clean isolated scope, after which the full mutation gate must be rerun immediately.
 
 `PROJECT-PLAN.md` and `DESIGN.md` are no longer mandatory large reads for every task. They remain authoritative and become mandatory when the project graph selects architecture/roadmap or UI/UX nodes. This reduces repeated startup cost without weakening continuity or safety.
 
 Default delivery model:
 
-`GPT GOVERNANCE -> GLM/ZCODE EXECUTION -> DETERMINISTIC VERIFY -> INDEPENDENT REVIEW AS REQUIRED -> GPT ACCEPT/MERGE`
+`GPT GOVERNANCE -> CAPABILITY-SELECTED EXECUTION -> DETERMINISTIC VERIFY -> INDEPENDENT REVIEW AS REQUIRED -> GPT ACCEPT/MERGE`
 
-- GLM/ZCode is the preferred primary implementation engine for bounded READY work when capability/readiness/authorization/policy gates permit it.
+- Select the implementation executor by task class, risk, capability, readiness, authorization, cost, and availability using `docs/agent-collab/CAPABILITY_MATRIX.md`; GLM/ZCode is the current preferred candidate for bounded READY work when those gates permit it.
 - GPT/integrator retains architecture, trust-boundary, dependency-order, SSoT, final defect adjudication, merge, release, and acceptance authority.
 - R3 work requires GPT/integrator authority/failure-model framing before mutation as well as final GPT acceptance.
 - A durable WO/task packet is the prompt contract. Do not regenerate a long bespoke prompt when a one-line pointer to that packet is sufficient.
@@ -29,7 +32,7 @@ Default delivery model:
 
 ## Core continuity rule
 
-Do not rely on chat/session memory as the source of truth. Durable project files, repository/runtime state, work orders, evidence, decisions, and handoff artifacts are authoritative.
+Do not rely on chat/session memory as the source of truth. Durable project files, repository/runtime state, work orders, evidence, decisions, and handoff artifacts are authoritative within user/safety/repository-policy constraints.
 
 Before stopping or delegating non-trivial work, update the active work order checkpoint, `CURRENT-WORK.md`, and `handoff.md` so another agent with no access to the previous conversation can continue safely.
 
