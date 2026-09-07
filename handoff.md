@@ -1,22 +1,24 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-07 — GPT1 WO163 post-WO162 merge continuity fold
+Last updated: 2026-09-08 — GPT1 WO166 P0-B activation
 
-## WO163 post-WO162 merge handoff — 2026-09-07 (authoritative)
+## WO166 P0-B Continuity Guard handoff — authoritative
 
 > **Single-authority rule:** this section is the ONLY current authoritative handoff state. Everything below the historical separator is dated evidence only.
 
-- Repo: `A:\\GitHub\\A-Wiki-Conductor`.
-- Accepted WO162 candidate: `540ec54747d93bd4565c7530f6e474ac841f432c`.
-- PR #219 merged as `ea521dfafb124d0fc76db1fe4fde08b8d3c5d207` at 2026-09-07T06:34:13Z; accepted head is an ancestor.
-- GLM-1 WO162 implementation ownership is released.
-- WO163 isolated closeout worktree: `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo163-closeout`; branch `docs/wo-p1-163-wo162-closeout`; docs-only scope.
-- WO163 exists only to fold `MERGED_NOT_FOLDED`, bind the Universal Agent Entry status, and release the downstream queue. It does not implement A-Wiki #54, P0-B, ZRA-2/3/4, source/runtime/DB/credentials.
-- Required verification before merge: exact branch clean/frozen, diff-check, UTF-8, operator protocol tests, stale-state scan, and exact main CI run `34091433323` SUCCESS.
-- **After this fold is on main**, next safe dependency is A-Wiki Issue #54 in the existing Q25 isolated lane. Then follow the separately accepted architecture/Zero-Relay dependency order.
-- WO163 claim release is condition-based: once this projection is on `origin/main` with required verification satisfied, there is no remaining mutable scope; no additional global-file fold is required.
+- Repo: `A:\GitHub\A-Wiki-Conductor`.
+- Current activation base: `origin/main@8ffd12f8de3cada79f1f463f3c6f7ee7a35082b9`.
+- A-Wiki Issue #54 + closeout are fully merged/post-main verified; no active A-Wiki claim remains.
+- WO164 / PR #225 is merged/released; post-main CI run `34143787452` attempt 2 SUCCESS. Windows owned-process flake is Issue #227, non-blocking.
+- Current architecture authority: GitHub Issue #226 (`GPT1-P0B-CONTINUITY-GUARD-001`). Implementation identity: `WO-P1-166`.
+- Activation worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo166-p0b-activation`; branch `docs/wo-p1-166-p0b-activation`; docs-only hotspot scope.
+- P0-B R3 split: GPT1 frames trust/failure model and owns acceptance/merge/release; GLM-5.3 MAX implements bounded RED-first Phase A only after activation is merged and a fresh source worktree/claim is proven safe.
+- Initial Phase A scope after activation: NEW `src/a_conductor/continuity_guard.py`, NEW `tests/test_continuity_guard.py`, plus WO166 checkpoint file. Do not modify shared job/lease/change-apply source without a later explicit scope-expansion gate.
+- Required classifications: `FRESH`, `STALE_LOCAL_CHECKOUT`, `HEAD_DRIFT`, `WORKTREE_DIRTY_OR_UNKNOWN`, `CLAIM_CONFLICT`, `SSOT_DRIFT`, `MERGED_NOT_FOLDED`, `RECONCILE_REQUIRED`, `UNKNOWN`; `UNKNOWN` always fails closed.
+- WO165/ZRA-2 is queued successor only: activation-doc head `3d7209e...`; `SAFE_TO_MUTATE_ZRA2_SOURCE=NO` until P0-B is accepted/merged/post-main reconciled.
+- Activation self-closes once this exact projection is on main with required review/CI; no extra hotspot rewrite is required merely to release the activation lane.
 
-One next safe action: verify/freeze WO163 → expected-head merge → re-pin main → activate A-Wiki #54.
+One next safe action: freeze/merge/post-main verify this docs activation, then start fresh WO166 Phase-A source lane and hand the durable task packet to GLM-5.3 MAX.
 
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
