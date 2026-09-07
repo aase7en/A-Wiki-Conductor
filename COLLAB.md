@@ -1,7 +1,7 @@
 # COLLAB — A-Conductor Multi-Agent Coordination
 
 > Binding coordination standard: A-Wiki `docs/protocols/cross-agent-work-orders.md`.
-> Every ChatGPT/GPT Work/A-Worker/Serena/Codex/external agent must read this file before non-trivial work.
+> Universal entry is `00-AGENT-ENTRY.md` -> `PROJECT-GRAPH.yaml` -> `AGENTS.md`. Read this file when the project graph selects multi-agent coordination, claims, delegation, or handoff.
 
 ## Lanes
 
@@ -34,17 +34,25 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 | Chunk/WO | Agent | Claimed | Scope (files) |
 |---|---|---|---|
-| `WO-P1-154` fast execution / risk-tier workflow | GPT-5.6 Sol integrator | REVIEW_REPAIR ACTIVE 2026-09-04 (R2 binding process change) | Docs-only. Initial claim excluded `AGENTS.md`/`CURRENT-WORK.md`/`handoff.md`/`DEFECT_LESSONS.md` while WO153 owned them; after WO153 / PR #205 merged+RELEASED (base `68079e3`), a dated scope amendment added `AGENTS.md`/`CURRENT-WORK.md`/`handoff.md` for the continuity fold-back; `DEFECT_LESSONS.md` stayed excluded/untouched; all product source/tests excluded throughout. Independent GLM exact-SHA review of `0fd540c` returned P0=0/P1=0/P2=4; GPT-A accepted that review and opened the bounded repair gate. Repair branch `fix/wo-p1-154-review-scope-ssot`; NOT accepted until focused rereview + exact-head CI + GPT-A merge gate. Four-lane coordination detail lives in PR #211 SSoT. |
-| `WO-P1-155` Zero-Relay Accelerator | GPT-5.6 Sol gate authority; GLM preview/review lanes | PREVIEW / SHAPING EVIDENCE — NOT ACCEPTED 2026-09-04 | ZRA-0 prerequisite migration mechanism/evidence is pre-proven on sacrificial/valid-registry DBs with live DB untouched, but formal ZRA-0 node acceptance remains PENDING after PR208 merge/reconciliation. ZRA-1 preview/transport-harness evidence only; full authorized/admitted production acceptance PENDING (`653eba9` NOT accepted). ZRA-2..4 production acceptance PENDING. Issues #212–#216 are durable shaping claims/evidence, not proof of completed implementation. WO153 hotspot release already satisfied in `68079e3`. |
+| `WO-P1-164` COLLAB stale-row reconciliation (117/118/119/120/163) | GLM-1 / GLM-A (ZCode) | FOLD_CANDIDATE / CONDITIONAL_RELEASE 2026-09-07 (self-closing) | Single-writer docs-only row corrections in `COLLAB.md` + `docs/work-orders/WO-P1-164-collab-row-reconciliation.md`. Statuses sourced ONLY from each WO doc on main + merge evidence; no lane ownership changed; no source/runtime/DB/credentials/A-Wiki #54/P0-B/ZRA mutation. **Release invariant:** once this exact WO164 projection is present on `origin/main` and the required exact-head review + CI gates have succeeded, WO-P1-164 has no remaining mutable scope and is RELEASED — no further COLLAB rewrite is required solely to release itself. |
+| `WO-P1-163` WO162 post-merge continuity fold | GPT1 integration/closeout | MERGED / RELEASED via PR #224 on 2026-09-07 | Fold head `45e4924ee706f7d6d3f2e3ae43ea355e53b9b43d`; merge `a887e7a76184d8f5dc22446a159087b6f9cab78d`; the fold projection is on `origin/main` (release condition satisfied; row reconciled 2026-09-07 by WO-P1-164). |
+| `WO-P1-154` fast execution / risk-tier workflow | GPT-5.6 Sol integrator | MERGED / RELEASED via PR #208 on 2026-09-04 | Binding R0-R3 Fast Execution workflow accepted after independent exact-SHA rereview PASS and exact-head CI. Merge commit `25c08c91317a4d3640ce2308e6166edd382bbad7`; shared hotspot claim released to successor work. |
+| `WO-P1-162` GLM-first execution / universal entry (renumbered from WO-P1-157; GPT2/#210 keeps WO157/AIP-3) | GLM-1 | MERGED / ACCEPTED / RELEASED via PR #219 on 2026-09-07 | Accepted head `540ec54747d93bd4565c7530f6e474ac841f432c`; merge `ea521dfafb124d0fc76db1fe4fde08b8d3c5d207`; Universal Agent Entry is binding; GLM-1 implementation ownership released. Post-merge projection fold is owned only by WO163. |
+| `WO-P1-156` Worker tunnel incident / resilience evidence | GPT-B + GPT-A gate | MERGED / RELEASED via PR #218 + PR #209; INSTALLED_E2E PENDING 2026-09-05 | Source recovery architecture and incident/runbook evidence are on main through `f0ddd0b`; no claim that reviewed installed exact-PID self-heal E2E has run yet. |
+| `WO-P1-155` Zero-Relay Accelerator | GPT-5.6 Sol gate authority; GLM preview/review lanes | ZRA-0 ACCEPTED/CLOSED; ZRA-1 MERGED 2026-09-06 | ZRA-0 migration proof accepted; ZRA-1 accepted/merged via PR #221 (`df5a25f1f9949e6938ea4bbcf0150515e6e5fa85`, post-main CI `34064328672` SUCCESS; PROOF_C/live dispatch remain separate GPT1 gates). ZRA-2..4 production acceptance PENDING (Issues #214-#216); next upstream gate is A-Wiki #54. Issues #212-#216 remain durable shaping claims; ZRA-1 completion is proven by PR #221 evidence instead. |
 | `WO-P1-151` service/Terms authorization binding | GPT-5.6 Sol MAX | READY_FOR_INDEPENDENT_REVIEW 2026-09-03 | Exact repair `6b958f2...`; `provider_service_authorization.py`, focused tests, WO151, bounded `COLLAB.md`; pure/no-I/O only; no store/policy/runtime/live AiPASS. |
 | `WO-P1-116` / AHA-6B worker supply + elastic capacity | GPT-5.6 Sol integrator | RELEASED 2026-08-31 | PR #157 + closeout PR #158 merged; source lane released. |
-| `WO-P1-117` provider dispatch/admission safety | GPT-5.6 Sol integrator | READY_FOR_CLAIM | `parallel_ready_execution.py`, `provider_config_store.py`, focused tests; baseline CI `33357214028` green; claim requires isolated worktree + fresh preflight. |
-| `WO-P1-118` provider config generation/policy | unassigned | QUEUED | Shares `provider_config_store.py` with 117; must not start until 117 releases it. |
-| `WO-P1-119` provider output persistence safety | GPT-5.6 Sol Ultra proposed | READY_FOR_CLAIM | supervised Claude capture / smallest owned-process boundary + focused tests; disjoint from 117/120. |
-| `WO-P1-120` elastic fencing/recovery | GLM-5.3 MAX proposed | READY_FOR_CLAIM | worker lease/candidate/elastic files + focused tests; disjoint from 117/119. |
+| `WO-P1-117` provider dispatch/admission safety | GPT-5.6 Sol integrator | IMPLEMENTED / REVIEW_PENDING (row reconciled 2026-09-07; was stale READY_FOR_CLAIM) | Per WO doc status on main. Implementation branch `fix/wo-p1-117-provider-dispatch-admission-safety` pushed @ `6f19c924e8a75a3bacd6542ff949407ab6d86130`; awaiting independent exact-SHA review + PR by the owning integrator lane. Scope: `parallel_ready_execution.py`, `provider_config_store.py`, focused tests. |
+| `WO-P1-118` provider config generation/policy | split — GLM-5.3 MAX (118A) + GPT-5.6 Sol (118B) | COMPLETE — 118A+118B MERGED / POST_MAIN_GREEN / RELEASED (row reconciled 2026-09-07; was stale QUEUED) | Per WO doc on main (`beda832 docs: mark WO118 released`). `provider_config_store.py` no longer blocked by 117 row state. |
+| `WO-P1-119` provider output persistence safety | GPT-5.6 Sol integrator (repair after Ultra RED) | SOURCE_FROZEN / REVIEW_PREP (row reconciled 2026-09-07; was stale READY_FOR_CLAIM) | Per WO doc status on main. Implementation branch `fix/wo-p1-119-provider-output-persistence-safety` pushed @ `aad64cd837ba4cf01774900755b923bb59540d65`; awaiting review-prep by the owning integrator lane. Disjoint from 117/120. |
+| `WO-P1-120` elastic fencing/recovery | GPT-5.6 Sol integrator after GLM-5.3 MAX bounded implementation/repair | RELEASED (row reconciled 2026-09-07; was stale READY_FOR_CLAIM) | Per WO doc on main (`049894d docs(runtime): close WO120 release frontier`). Worker lease/candidate/elastic files + focused tests landed. |
 | North Star integration | GPT integrator + bounded workers | 2026-08-27 | `feat/north-star-runtime-sunday-family`; preserved; current unique file set does not overlap 117/119/120 planned source files. |
 
+**Stale-row reconciliation 2026-09-07 (WO-P1-164):** COLLAB rows for 117/118/119/120/163 had drifted from their own work-order docs after in-place WO-doc updates (`6f19c92`, `beda832`, `049894d`, PR #224). Rows above now match the WO-doc statuses verbatim; no lane ownership changed — 117/119 remain GPT-integrator frozen lanes awaiting their review flow, 118/120 are released, and the WO163 fold is merged. A stale `READY_FOR_CLAIM` on an implemented/released lane is a duplicate-work hazard, not a free lane.
+
 ### Recently closed / released claims
+
+- `WO-P1-158` / PR #221 ZCode zero-relay execution (ZRA-1): accepted head `01517ea1b2ee2ad73c17e40bb8d6854b98f51cbf`; merged as `df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` (2026-09-06T22:32:41Z); post-main CI `34064328672` SUCCESS. Implementation claim released; PROOF_C and live provider dispatch remain separate GPT1-authorized gates. Merge-truth fold-back into the continuity hotspots was executed by WO-P1-162 / PR #219.
 
 - `WO-P1-148` AIP-1 pure service-authorization contract: semantic Terms identity + UTC-normalized chronology binding now require evidence to be observed on/after the declared Terms effective date without timezone-representation drift. REDs `72592db...` + `f458a4a...`; source repair `78f0fa8...`; current checkpoint `adc1c901...`; GPT rerun focused 47/47 + provider matrix 247/247 PASS. No live/store/policy/admission/runtime mutation. All pre-`adc1c901...` CI/review evidence is historical; fresh exact-SHA review remains required.
 - `WO-P1-132` / PR #183 AiPASS roadmap: exact docs head `a84f7a8569846c196ba3000f69d9e83eb473ad96`; exact-head CI `33710739794` SUCCESS; merged as `6e96b773aeb0795807cb65abce93956b7702f33e`; post-main `33712217339` SUCCESS. Roadmap claim released to WO148 AIP-1.
@@ -101,6 +109,24 @@ These are shared coordination surfaces and must be changed by only one active wo
 
 One logical WO should normally produce one feature PR. Extra RED/adversarial/repair PRs require a concrete remote-CI, independent-ownership, or stacked-dependency reason. Throughput is measured at accepted merge/release, not number of active worktrees.
 
+## GLM-first execution / GPT-governance default
+
+For READY bounded implementation, the default routing preference is now:
+
+`GPT frames contract/authority -> GLM/ZCode executes the owned lane -> deterministic evidence -> independent review when required -> GPT accepts/merges`
+
+This exploits ZCode goal/skills/long-running execution without spending GPT chat turns on repetitive implementation mechanics.
+
+Rules:
+- GLM/ZCode may continue implement/test/debug/repair/retest inside its exact WO without repeated human `continue` prompts.
+- GPT owns dependency order, risk tier, architecture/trust boundaries, claim/scope, cross-lane conflict, SSoT, final defect adjudication, merge and release.
+- R3 requires GPT authority/failure-model framing before GLM mutation; GPT is not merely an after-the-fact reviewer.
+- The durable WO/task packet is the prompt contract. Prefer one pointer command over regenerated long prompts.
+- Automatic Zero-Relay is optional transport acceleration. Until accepted, the human relays one pointer command; the integrator reads result/evidence directly from the declared destination.
+- Provider/model readiness never grants ownership, secret, destructive, replay or merge authority.
+
+Every new lane/session must enter through `00-AGENT-ENTRY.md` -> `PROJECT-GRAPH.yaml` -> `AGENTS.md` -> actual Git/claim state -> continuity core before mutation.
+
 ## Integrator routing + parallel-lane contract
 
 The integrator owns dependency order, lane boundaries, merge adjudication and durable checkpoints. It may route GPT MAX, GLM-5.3 MAX, Ultra or future agents in parallel only when mutable scopes are independent and every lane has an exact worktree/branch/HEAD/task/result contract. Read-only review lanes may overlap source observation but must write only their declared result destination.
@@ -123,7 +149,7 @@ Before pausing or delegating:
 
 Resume sequence:
 
-`AGENTS.md -> PROJECT-PLAN.md -> COLLAB.md -> CURRENT-WORK.md -> handoff.md -> active work order -> actual repository/runtime reconciliation`
+`00-AGENT-ENTRY.md -> PROJECT-GRAPH.yaml -> AGENTS.md -> actual repository/runtime/Git/claim reconciliation -> CURRENT-WORK.md -> handoff.md -> active work order -> task-relevant graph nodes`
 
 Never blindly repeat a mutation merely because the previous agent/session disappeared.
 

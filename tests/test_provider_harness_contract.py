@@ -173,6 +173,7 @@ def test_harness_dispatch_is_bounded_and_has_no_free_form_execution_authority() 
         "CLAUDE_CODE_CLI",
         "DIRECT_API",
         "LOCAL_CLI",
+        "ZCODE_APP_SERVER",
     }
     assert set(schema["properties"]["mutation_intent"]["enum"]) == {
         "READ_ONLY",
@@ -223,3 +224,29 @@ def test_contract_pins_authority_and_reliability_invariants() -> None:
         "GLM-5.3 is the first provider configuration, not an architectural dependency",
     ):
         assert phrase in text
+
+
+def test_provider_profile_1_1_runtime_binding_contract() -> None:
+    """The JSON contract must represent 1.1.0 typed runtime bindings and the
+    ZCODE_APP_SERVER strategy consistently with the Python typed authority."""
+    schema = load_json(PROFILE_SCHEMA)
+    assert schema["properties"]["schema_version"]["enum"] == ["1.0.0", "1.1.0"]
+    assert "ZCODE_APP_SERVER" in schema["properties"]["harness_strategies"]["items"]["enum"]
+    model = schema["properties"]["models"]["items"]
+    assert "runtime_binding" in model["properties"]
+    binding = model["properties"]["runtime_binding"]
+    assert binding["additionalProperties"] is False
+    assert set(binding["required"]) == {
+        "harness_strategy", "runtime_provider_ref", "runtime_model_ref",
+    }
+    assert "ZCODE_APP_SERVER" in binding["properties"]["harness_strategy"]["enum"]
+
+
+def test_runtime_binding_example_validates_under_contract() -> None:
+    schema = load_json(PROFILE_SCHEMA)
+    example = load_json(
+        PROFILE_SCHEMA.parent / "examples" / "provider-profile-1.1.0-runtime-binding.example.json"
+    )
+    Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER).validate(example)
+    assert example["schema_version"] == "1.1.0"
+    assert example["models"][0]["runtime_binding"]["harness_strategy"] == "ZCODE_APP_SERVER"

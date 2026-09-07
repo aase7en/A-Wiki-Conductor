@@ -1,18 +1,78 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-04 (GLM-1 - PR208 review repair / actual-state reconciliation)
+Last updated: 2026-09-07 (GPT1 — WO162 accepted/merged/released; WO163 single-writer post-merge fold)
 
-## PR208 review-repair + actual-state override — 2026-09-04 (authoritative, supersedes stale text below)
+## WO163 post-WO162 merge continuity fold — 2026-09-07 (authoritative)
 
-- **PR #208 / WO154 is in REVIEW_REPAIR.** Independent GLM exact-SHA review of `0fd540c622d4539a2e809b8a441661896179f2ad` returned P0=0/P1=0/P2=4: scope chronology, final-candidate verification evidence, ZRA-3/ZRA-4 resume-boundary inconsistency, and WO153/ZRA-0 chronology truth. GPT-A accepted the review and separately found stale capability-vs-route-readiness wording. Repair branch `fix/wo-p1-154-review-scope-ssot` is the owned docs-only repair lane. A new repaired SHA still requires focused independent rereview + exact-head CI + GPT-A merge gate. NOT accepted.
-- **ZRA-0 prerequisite migration mechanism/evidence is pre-proven, but the formal ZRA-0 node is NOT accepted/closed.** GPT-A sacrificial/valid-registry rehearsal on `main@68079e3` preserved existing registry/unrelated data, added provider schema with zero fabricated provider rows, and returned `integrity_check=ok`; the empty-registry case intentionally seeds 3 default workers and must be treated as documented bootstrap, not data loss. Live DB untouched. Formal ZRA-0 acceptance remains the first post-PR208 reconciliation node under Issue #212.
-- **WO155 status: PREVIEW/REPAIR evidence exists — NOT merely QUEUED and NOT accepted.** ZRA one-shot transport/harness proof exists; **ZRA-1 full authorized/admitted production acceptance remains PENDING** (GPT R3 unresolved blockers: session-event identity, process-reap evidence, task-packet TOCTOU, streaming-output bounds, overclaimed ZRA-1/ZRA-3 authority). `653eba9` is NOT accepted. **ZRA-3 production continuation PENDING.** Tracked production acceptance stays gated by PR208 accepted/merged; preparatory preview work does not bypass that dependency.
-- **WO156 / PR #218 is frozen at `b8a145b9a6db4ca7e27fb105077094ce7ea3dd42`.** GPT-A exact-SHA source/evidence rereview = PASS with independent local battery 124/124, compileall/diff/UTF-8 PASS; no `src/a_conductor` delta remains and the two prior P2 findings are repaired. Exact-head macOS/Ubuntu checks are green; Windows main CI was still IN_PROGRESS at the latest checkpoint. Installed live canary/chaos remains a separate operational release gate.
-- **Lane ownership:** GPT-B owns PR #209 (recurring Worker incident + tunnel-client canary evidence, head `1b3f060941e5f488340e38ef49139d284da86371`; GPT-A docs/runbook audit PASS, exact-head Windows CI still running at latest checkpoint). PR #211 is the 4-lane coordination SSoT (head `e3549a8152c9acc273a5fdc104ca946898a69abc`). The W1 canary uses an isolated tunnel-client 0.0.14 path — do not mutate. GPT-A owns integration/review/merge/release gates. Another GPT lane owns ODP-1.
-- **PR #204 is green-CI (`9c90c873493b657cced86652c09c0e19920d99c8`) but NOT merge-ready**: its final scope requires exactly 3 files while the merge-base..HEAD diff still contains 6 files including 3 staging tests — blocked by final-scope consolidation.
-- Protected root checkout remains stale/dirty and is NOT a mutation surface; all mutation stays in isolated worktrees.
+> **Single-authority rule:** this section is the ONLY current authoritative state in this file. Historical evidence below the separator remains evidence only.
 
-**One next safe action:** PR208 docs repair → freeze new SHA → focused independent rereview → exact-head CI → GPT-A merge gate → fresh actual-state reconciliation → resume next frozen roadmap node.
+- **WO-P1-162 / PR #219 is ACCEPTED, MERGED, and RELEASED**: accepted head `540ec54747d93bd4565c7530f6e474ac841f432c`; merge commit `ea521dfafb124d0fc76db1fe4fde08b8d3c5d207`; accepted head is an ancestor of the merge commit. GLM-1 implementation ownership is released.
+- **Universal Agent Entry is BINDING** after WO162 acceptance. `00-AGENT-ENTRY.md` and `docs/agent-collab/AGENT_ENTRY_PROTOCOL.md` are the canonical startup entry/protocol.
+- **This WO163 is a one-shot single-writer reconciliation** for the `MERGED_NOT_FOLDED` state created by the PR #219 merge. It changes governance/continuity only; no product source/runtime/DB/credential authority.
+- **Post-main verification gate** for the WO162 merge is CI run `34091433323`. This fold must not be accepted/merged unless that exact main run succeeds.
+- **Next dependency after this fold**: A-Wiki Issue #54 (ReviewBus addressed-blocker fix) in the existing isolated Q25 lane. No A-Wiki #54 source mutation before this fold is on main.
+- After A-Wiki #54, proceed under the separately approved roadmap/architecture gate before ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216). PR #222/#223 remain separate drafts and do not bypass this dependency chain.
+- Protected root checkout is not an execution lane. Use isolated owned worktrees and fresh actual-state/claim gates.
+- **WO163 release condition**: when this exact reconciliation projection is on `origin/main` and its required CI/verification gate is satisfied, the closeout claim has no remaining mutable scope and is considered released without another global-file rewrite.
+
+One next safe action: complete deterministic verification of this WO163 candidate → merge expected-head only after CI `34091433323` is SUCCESS → re-pin main → activate A-Wiki #54.
+
+<!-- ================================================================== -->
+<!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
+<!-- Nothing below this separator is a current instruction.              -->
+<!-- ================================================================== -->
+
+## WO158 canonical authority final repair r6 — review 5560911492 — 2026-09-07 (GLM-1)
+
+- r5 remains frozen at `0a123e8` (CI green). r6 closes the four fail-closed authority defects RED-first: (1) canonical admission status semantics — assembly requires `status='ACTIVE'` + released rule; REAL SQLiteProviderConfigStore integration evidence (save → acquire → ADMITTED kind → ACTIVE record accepted as-is; RELEASED/EXPIRED/wrong-provider/generation/batch/execution rejected); impossible `ADMITTED` fixtures removed; canonical store untouched. (2) dispatch project id REQUIRED (missing/blank ⇒ `ZCODE_DISPATCH_CONTEXT_MISSING`; mismatch ⇒ `ZCODE_PROJECT_MISMATCH`; identity uses the verified value). (3) explicit non-empty mutation scope REQUIRED, verified against allowed + lease-mutable + forbidden scopes via existing authority. (4) dispatch execution id REQUIRED with unconditional admission binding.
+- Evidence: final-repair 30/30; authority 22/22; E2E 9/9; batteries 270/270 + 263/263; hygiene PASS; scope 1 production + 4 test files. Stop state READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at the r6 head; GLM1 does not merge.
+
+## WO158 final targeted repair r5 — review 5560480061 — 2026-09-06 (GLM-1)
+
+- Slices 1-4 remain frozen (`cf7ef9a`→`2de584a`, CI green). r5 closes every remaining item of binding review 5560480061, RED-first: derived `zcode-runtime-v1:<full sha>` runtime identity (no caller parameter; same-packet/two-model no-reuse proven live); admission bound to the independently-derived dispatch context (batch/execution); lease project identity into the durable record (hard-code removed), READ_ONLY rejection, and allowed/forbidden scope enforcement via the existing authority; bounded reader with typed `CHILD_OUTPUT_OVERFLOW` (deterministic flooding-child E2E); `finished_at` captured only at the real terminal-exit boundary (delayed-exit E2E); argv-evidence truth (Option B: launch evidence, not live-verified); `expected_base_url` assertion naming.
+- Evidence: final-repair suite 19/19; E2E 9/9; focused battery 258/258 + 289/289; hygiene PASS. Stop state READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at the r5 head; GLM1 does not merge.
+
+## WO158 final slice 4 - deep truth audit + source freeze - 2026-09-06 (GLM-1)
+
+- Slices 1-3 frozen green (`cf7ef9a`, `958f051`, `c9e527a`; slice-2 CI green). Slice 4 = the full call-graph audit (20 steps, module/symbol/owner/evidence/fail-closed each) + dead/split-authority scan (16 candidate defects, all negative with closure evidence) + NEW real restart-after-complete E2E (fresh session reuses the durable execution, zero respawn) + full verification battery 245/245 + 263/263 + hygiene PASS. Honest declaration: ZCodeBackendAdapter remains a non-production seam (never constructed by the assembly).
+- **Stop state: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE** at the final head (see WO repair-r4 checkpoint). PROOF_C NOT_RUN/GPT1_AUTH_REQUIRED; live dispatch separately gated; GLM1 does not merge.
+
+## WO158 repair slice 3 — authority-bound assembly — 2026-09-06 (GLM-1)
+
+- Slices 1-2 frozen with green exact-head CI (`cf7ef9a`, `958f051`).
+- Slice 3 (review item 8, RED-first 21-test matrix): assembly consumes ONLY the canonical `WorkerLease` (worker/worktree-key/task/active/expiry bound; None/truthy fail closed) and canonical `ProviderAdmissionRecord` (provider/status/generation/expiry bound; None/truthy fail closed); worktree gate compares OBSERVED context vs the LEASE authority (caller expected-pair removed); endpoint truth = provider-snapshot `ProviderEndpointConfig` (caller defines only the request; `endpoint_base_url` param removed).
+- Evidence: matrix 21/21; zcode+supervised 244/244; worker/provider 213/213; hygiene PASS. Remaining: PROOF_C + final call-graph truth audit (slice 4).
+
+## WO158 repair slice 2 — full task identity + ATTACH_RUNNING + CAS truth — 2026-09-06 (GLM-1)
+
+- Slice 1 (`cf7ef9a2334b203ffffc9f449c6d783e17c6a118`) is frozen with exact-head CI green (test 13m38s + ubuntu/macos smoke) and PR221 evidence comment 5560113468.
+- Slice 2 (review 5558197043 items 5-7) executed RED-first: `zcode-task-v1:<full SHA-256>` domain-separated task identity (no `[:16]` truncation); `ATTACH_RUNNING` cross-process child reconciliation in the production launcher (exact live child ⇒ attach; reuse/mismatch/gone ⇒ recovery; result.json always wins); adapter SUCCEEDED-transition CAS failure now typed `ZCODE_DURABLE_STATE_TRANSITION_FAILED` — never apparent success; durable-first retry collects without duplicate execution.
+- Evidence: new identity/attach/CAS suite 16/16; zcode+supervised battery 223/223; hygiene PASS. Remaining declared: authority-bound lease/admission/endpoint evidence (None passes consume gates), PROOF_C.
+
+## WO158 / PR221 real specialized-helper happy path — 2026-09-06 (GLM-1, binding review 5558197043 slice 1)
+
+- **PR #221 / WO-P1-158** was CHANGES_REQUIRED at `37ef020` (binding GPT1 review 5558197043): the real valid-helper happy path crashed pre-spawn (`NameError: Path`), production assembly still used the in-process adapter lifecycle, helper runtime handoff/identity/deadline were incomplete. Repair executed RED-first on branch `feat/wo-p1-158-zcode-zero-relay` (worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo158-zra1`).
+- The REAL production chain now executes E2E and is proven by `tests/test_zcode_real_helper_e2e.py`: production assembly -> `SupervisedRunCoordinator` -> `SupervisedExecutionService` -> `ZCODE_APP_SERVER_V1` -> real `zcode_supervised_helper.py` subprocess -> exactly one fake app-server child -> protocol -> canonical artifacts -> durable collect, with all 14 acceptance points (packet re-verify TOCTOU, identity-before-send, exact OS child identity incl. creation time + helper parent PID, explicit-only credential child env, bounded deadline actually honored by `read_line(timeout)`, 64 KiB budget, report-before-result, six-key result only on real exit, no kill ladder, no traceback).
+- NEW `zcode_process_truth.observe_child_process` (Windows kernel32 ctypes / Linux /proc / macOS ps, fail-closed). `assemble_zcode_execution` now REQUIRES real supervised-service authorities (typed `ZCODE_SERVICE_AUTHORITY_MISSING` otherwise); `ZCodeBackendAdapter` is no longer the production launcher.
+- Verification: E2E + assembly + helper-execution 36/36 (deterministic re-run); zcode+supervised 247/247; provider/harness/claude 175/175; worker/lease 153/153; compileall / `git diff --check` / strict UTF-8 / added-line secret scan (0 hits) PASS. No live provider dispatch.
+- Declared remaining (later slices): full collision-resistant task identity (packet SHA still truncated `[:16]`); cross-process ATTACH_RUNNING composition; typed launch-side CAS failure (adapter still swallows `SUCCEEDED` transition failure); authority-bound lease/admission/endpoint evidence (`None` still passes the consume gates); PROOF_C NOT_RUN/GPT1_AUTH_REQUIRED. GLM1 does not merge; GPT1 owns acceptance.
+
+**One next safe action:** freeze this repair SHA on PR #221 -> GPT1 exact-SHA rereview -> (if accepted) Prompt-2 slices (task identity / ATTACH / CAS truth).
+
+## Post-PR208 merge actual-state override - 2026-09-05 (HISTORICAL / SUPERSEDED BY WO162 2026-09-07)
+
+- main = `f0ddd0b9245cef7a7525a670f470e1de595d4615`; PR #208 / WO154 is MERGED / RELEASED. Repaired head `5124ed18409d71df7b98e4455f0a4a2df6428695` passed independent rereview P0/P1/P2=0 and exact-head CI before merge.
+- WO157 / PR #219 is the active workflow-successor lane. GPT-B recomposed it onto current main; new exact SHA still requires focused rereview + CI before acceptance.
+- Formal ZRA-0 is NOT accepted/closed. Sacrificial migration mechanism/evidence is pre-proven with live DB untouched. WO155 `653eba9` remains preview/shaping evidence only.
+- WO156 / PR #218 is MERGED / RELEASED on `main@aa257f47ac3d0979c9b749896745cab6ce197975` from accepted head `a1c37b03b3fad6e1485d4f925ac3fb7d018d236e`. Existing ConnectorRecovery remains source authority; installed exact-PID self-heal is still a separate GPT-A operational gate.
+- PR #209 / incident-runbook evidence is MERGED / RELEASED on `main@f0ddd0b9245cef7a7525a670f470e1de595d4615` from accepted head `d0a2331fb5861e20c9ee26e32749aaf2f8bb11bf`; installed exact-PID self-heal E2E remains a separate operational acceptance gate.
+- PR #211 coordination SSoT head is `053fa2a5cca6fbef701213d1684cb02290173327`. W1 0.0.14 canary remains protected.
+- PR #204 / WO152 remains scope-blocked at `9c90c873493b657cced86652c09c0e19920d99c8`; consolidation analysis says no production source repair is needed. Defer mutation until after ZRA-0..4.
+- Protected root checkout remains stale/dirty; use isolated worktrees only.
+
+Canonical order: `WO157 binding -> formal ZRA-0 -> ZRA-1 -> ZRA-2 -> ZRA-3 -> ZRA-4 -> WO152/#204 -> ODP-1..8 -> ZRA-5 -> ODP-9 -> WO096/release`.
+
+One next safe action: freeze/review/CI WO157 on current main, then GPT-A acceptance; installed self-heal E2E planning may proceed in parallel without live runtime mutation.
 
 ## WO154/WO155 execution override — 2026-09-04 (historical; sequencing superseded above)
 
@@ -29,7 +89,7 @@ Last updated: 2026-09-04 (GLM-1 - PR208 review repair / actual-state reconciliat
 ### Immediate execution order (superseded by the PR208 review-repair override above)
 
 1. Freeze/review/accept PR #208 from current main composition.
-2. ~~Start ZRA-0~~ SUPERSEDED — ZRA-0 is COMPLETE_VERIFIED; do not restart it. Next after PR208 acceptance: fresh actual-state reconciliation, then the next frozen roadmap node per the override above.
+2. FORMAL ZRA-0 ACCEPTANCE REMAINS PENDING. Its prerequisite migration mechanism/evidence is pre-proven; do not treat that proof as node acceptance. Follow the authoritative override above.
 3. Progress ZRA-1 -> ZRA-2 -> ZRA-3 -> ZRA-4 under R3 trust/provider gates and deterministic evidence.
 4. Only after ZRA-4, resume broad ODP feature lanes not required by the zero-relay path; reconciliation/readiness work may proceed in parallel when it does not consume required mutable lanes.
 5. Keep WO096 fail-closed until its separate live authorization/evidence gate is satisfied.
@@ -42,7 +102,7 @@ Last updated: 2026-09-04 (GLM-1 - PR208 review repair / actual-state reconciliat
 - Prevention is now durable in `AGENTS.md`, `DEFECT_LESSONS.md` #51, `docs/runbooks/zcode-config-lock.md`, and the read-only `scripts/diagnose_zcode_config_lock.ps1`.
 - This is an operational reliability lane only; it does not change AHA/AiPASS/product frontier ownership or authorize live provider/tunnel mutations.
 
-## WO146 authoritative actual-state override — 2026-09-03
+## WO146 authoritative actual-state override — 2026-09-03 (HISTORICAL / SUPERSEDED)
 
 Actual Git/GitHub evidence below supersedes older frontier/status text later in this file.
 
@@ -81,7 +141,7 @@ Actual Git/GitHub evidence below supersedes older frontier/status text later in 
 3. Continue read-only A-Wiki Review Bridge polling; implement adapter only after accepted exact A-Wiki SHA/API.
 4. Keep WO096 fail-closed until explicit maintenance authority exists; do not publish stable v0.7.0.
 
-## Current phase
+## Current phase (HISTORICAL snapshot, 2026-09-03 era — superseded by WO162; the undated "Active work orders"/"Immediate execution frontier" sections below are part of the same snapshot)
 
 **AHA-7 Models & Agents remains the active product frontier. WO127 and WO128 are accepted/released. WO134 historical T2-T4 evidence detail merged, but post-merge WO134-R1 is now the active dependency-blocking product defect and requires a fresh bounded remediation SHA; historical review/CI cannot close it. GPT remains integrator/merge authority. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
 
@@ -150,8 +210,8 @@ Do **not** reconstruct task state from chat memory. Use actual repo/GitHub state
 
 ## v0.2.3: private Drive data layer (2026-08-22)
 
-- Secrets now live in the A-Wiki-Data Drive layer: `L:\My Drive\A-Wiki-Data\secrets-conductor-tunnels.md` holds all five Tunnel IDs (mapping worker/port/plugin); the Drive layer's `LAYOUT.md` records the two new roles.
-- Connector-deletion zip backups automatically target `L:\My Drive\A-Wiki-Dataackups-conductor-instances\` when it exists (`default_backup_dir()` in desktop_control, Drive-first with LOCALAPPDATA fallback); the existing smoketest zip was moved there.
+- Secrets now live in the A-Wiki-Data Drive layer: `L:\My Drive\A-Wiki-Data\secrets\a-conductor-tunnels.md` holds all five Tunnel IDs (mapping worker/port/plugin); the Drive layer's `LAYOUT.md` records the two new roles.
+- Connector-deletion zip backups automatically target `L:\My Drive\A-Wiki-Data\backups\a-conductor-instances\` when it exists (`default_backup_dir()` in desktop_control, Drive-first with LOCALAPPDATA fallback); the existing smoketest zip was moved there.
 - Repo AGENTS.md now points every agent at the Drive layer + its AGENTS/LAYOUT rules before touching important/secret files.
 
 ## v0.2.4: A-Doctor deep-audit fixes (2026-08-22)
