@@ -2,7 +2,7 @@
 
 Date: 2026-09-07
 Owner: GLM-1 / GLM-A (ZCode) — docs-only single-writer
-Status: IMPLEMENTED / READY_FOR_INDEPENDENT_REVIEW
+Status: IMPLEMENTED / FOLD_CANDIDATE / CONDITIONAL_RELEASE (self-closing)
 Repository: `aase7en/A-Wiki-Conductor`
 Base: `origin/main@a887e7a76184d8f5dc22446a159087b6f9cab78d` (post-PR #224)
 Branch: `docs/wo-p1-164-collab-row-reconciliation`
@@ -34,6 +34,10 @@ The COLLAB in-progress claims table contradicted the authoritative work-order do
 1. Rows 117/118/119/120/163 corrected to match their WO-doc statuses verbatim, with evidence pointers. No lane ownership changed: 117/119 remain GPT-integrator lanes awaiting their review flow; 118/120 released; WO163 fold merged.
 2. WO-P1-164 claim row added (this work order) — single-writer on the COLLAB hotspot; WO163 had released it.
 3. Dated reconciliation note added under the table warning that a stale `READY_FOR_CLAIM` on an implemented/released lane is a duplicate-work hazard.
+
+## Self-closing release invariant (GPT1 review 5572200059 repair)
+
+WO164 is **FOLD_CANDIDATE / CONDITIONAL_RELEASE (self-closing)**, analogous to the accepted WO163 pattern: once this exact WO164 projection (the COLLAB row + this doc) is present on `origin/main` and the required exact-head review + CI gates have succeeded, WO-P1-164 has no remaining mutable scope and is considered **RELEASED** — it never requires another COLLAB rewrite solely to release itself, so it cannot become a new stale active claim / MERGED_NOT_FOLDED row on main.
 
 ## Forbidden (unchanged)
 
