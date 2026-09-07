@@ -15,7 +15,7 @@ from a_conductor.continuity_guard import (
     REASON_CODES,
     classify_continuity,
 )
-from a_conductor.domain import RecoveryClassification, TaskState
+from a_conductor.domain import TaskState
 
 HEAD_A = "0123456789abcdef0123456789abcdef01234567"
 HEAD_B = "fedcba9876543210fedcba9876543210fedcba98"
@@ -32,7 +32,6 @@ def own_lease(state: str = "ACTIVE") -> LeaseFact:
         session_id=SESSION,
         task_id=TASK,
         worktree_key=WORKTREE,
-        branch=BRANCH,
         mutable_scope=SCOPE,
         state=state,
     )
@@ -50,7 +49,6 @@ def foreign_lease(
         session_id="session-other",
         task_id="task-other",
         worktree_key=worktree_key,
-        branch="feat/other",
         mutable_scope=mutable_scope,
         state=state,
     )
@@ -449,13 +447,7 @@ def test_fully_folded_merge_introduces_no_finding() -> None:
 
 def test_recovery_needed_job_requires_reconciliation() -> None:
     verdict = classify_continuity(
-        snapshot(
-            job=JobFact(
-                job_id="job-1",
-                state=TaskState.RECOVERY_NEEDED,
-                recovery_classification=RecoveryClassification.UNKNOWN,
-            )
-        )
+        snapshot(job=JobFact(job_id="job-1", state=TaskState.RECOVERY_NEEDED))
     )
     assert verdict.classification is ContinuityClassification.RECONCILE_REQUIRED
     assert verdict.safe_to_mutate is False
@@ -575,7 +567,7 @@ def test_reason_codes_come_from_bounded_vocabulary() -> None:
             leases=(foreign_lease(state="STALE"),),
             job=JobFact(job_id="job-1", state=None),
             merge_fold=MergeFoldFact(merge_commit=HEAD_B),
-            projections=(ProjectionClaim(source="handoff.md", asserted_head=HEAD_A)),
+            projections=(ProjectionClaim(source="handoff.md", asserted_head=HEAD_A),),
         ),
     )
     for subject in representatives:
@@ -590,33 +582,35 @@ def test_reason_codes_come_from_bounded_vocabulary() -> None:
 
 
 @pytest.mark.parametrize(
-    "overrides",
+    "make_overrides",
     [
-        {"worktree": "  "},
-        {"branch": ""},
-        {"session_id": "not-a-session\n"},
-        {"task_id": None},
-        {"expected_head": "zzz"},
-        {"local_head": "0123"},
-        {"remote_head": "g" * 40},
-        {"dirty_state": "SOMETIMES"},
-        {"ownership_known": "yes"},
-        {"mutable_scope": ("ok/*", "ok/*")},
-        {"mutable_scope": ("",)},
-        {"leases": (foreign_lease(state="PAUSED"),)},
-        {"leases": (foreign_lease(lease_id=" "),)},
-        {"job": JobFact(job_id=" ", state=TaskState.READY)},
-        {"job": JobFact(job_id="job-1", state="EXECUTING")},
-        {"merge_fold": MergeFoldFact(merge_commit="nothex")},
-        {"merge_fold": MergeFoldFact(merge_commit=HEAD_B, fold_complete="yes")},
-        {"projections": (ProjectionClaim(source=""),)},
-        {"projections": (ProjectionClaim(source="s", asserted_head="xyz"),)},
-        {"projections": (ProjectionClaim(source="s", asserted_active_lease_ids=("",)),)},
+        lambda: {"worktree": "  "},
+        lambda: {"branch": ""},
+        lambda: {"session_id": "not-a-session\n"},
+        lambda: {"task_id": None},
+        lambda: {"expected_head": "zzz"},
+        lambda: {"local_head": "0123"},
+        lambda: {"remote_head": "g" * 40},
+        lambda: {"dirty_state": "SOMETIMES"},
+        lambda: {"ownership_known": "yes"},
+        lambda: {"mutable_scope": ("ok/*", "ok/*")},
+        lambda: {"mutable_scope": ("",)},
+        lambda: {"leases": (foreign_lease(state="PAUSED"),)},
+        lambda: {"leases": (foreign_lease(lease_id=" "),)},
+        lambda: {"leases": (own_lease(), own_lease())},
+        lambda: {"job": JobFact(job_id=" ", state=TaskState.READY)},
+        lambda: {"job": JobFact(job_id="job-1", state="EXECUTING")},  # type: ignore[arg-type]
+        lambda: {"merge_fold": MergeFoldFact(merge_commit="nothex")},
+        lambda: {"merge_fold": MergeFoldFact(merge_commit=HEAD_B, fold_complete="yes")},  # type: ignore[arg-type]
+        lambda: {"projections": (ProjectionClaim(source=""),)},
+        lambda: {"projections": (ProjectionClaim(source="s", asserted_head="xyz"),)},
+        lambda: {"projections": (ProjectionClaim(source="s", asserted_active_lease_ids=("",)),)},
+        lambda: {"projections": (ProjectionClaim(source="same"), ProjectionClaim(source="same"))},
     ],
 )
-def test_malformed_snapshot_inputs_are_rejected(overrides: dict) -> None:
+def test_malformed_snapshot_inputs_are_rejected(make_overrides) -> None:
     with pytest.raises(ValueError):
-        snapshot(**overrides)
+        snapshot(**make_overrides())
 
 
 def test_classify_rejects_non_snapshot_input() -> None:

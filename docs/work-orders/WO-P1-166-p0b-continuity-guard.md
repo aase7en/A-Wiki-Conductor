@@ -91,3 +91,43 @@ WO-P1-165 / Issue #214 remains queued and source-blocked until P0-B is accepted/
 ## Activation self-closing invariant
 
 This docs activation owns only the four activation documents. Once this exact activation projection is present on `origin/main` and required exact-head review/CI succeed, the activation hotspot claim has no remaining mutable scope and is RELEASED without another global-file rewrite. P0-B1 source work then requires a fresh isolated worktree/claim from the new main.
+
+## Phase-A P0-B1 implementation checkpoint (2026-09-08)
+
+Lane recovered from GPT1 gate release on Issue #226: worktree
+`A:\GitHub\_worktrees\A-Wiki-Conductor-wo166-p0b-phase-a`, branch
+`feat/wo-p1-166-p0b-continuity-guard`, base `origin/main@0c7c2afd`,
+post-main activation CI `34148022385` = SUCCESS.
+
+RED-first trail:
+
+- RED commit `39c62aa` — `tests/test_continuity_guard.py` only.
+  RED proof: collection fails with `ModuleNotFoundError` because
+  `src/a_conductor/continuity_guard.py` does not exist.
+- GREEN commit (this commit) adds `src/a_conductor/continuity_guard.py`
+  (pure classifier) plus this checkpoint.
+
+Contract refinements made during GREEN, after a dead-authority audit:
+
+- `JobFact.recovery_classification` and `LeaseFact.branch` were dropped:
+  no Phase-A classification rule consumes them. P0-B2/B3 phases must
+  re-justify any such field with their own scope gate.
+- `MergeFoldFact.fold_complete`/`release_complete` default to `None`
+  (unknown), which classifies `MERGED_NOT_FOLDED`, never folded.
+- Fact-text validation rejects raw control characters before stripping.
+
+Verification evidence (deterministic, local):
+
+- focused `tests/test_continuity_guard.py` = 64 passed;
+- related `test_job_state` + `test_job_store` + `test_worker_lease` +
+  `test_worker_lease_recovery` + `test_agent_change_packets` = 124 passed;
+- `python -m compileall` on both new files = OK;
+- `git diff --check` = clean;
+- strict UTF-8 / no U+FFFD scan on both new files = clean;
+- added-line secret scan = only false positives (`task-1` matching `sk-…`);
+- mutable scope respected: exactly `src/a_conductor/continuity_guard.py`,
+  `tests/test_continuity_guard.py`, this work-order file.
+
+Exact candidate SHA is persisted to Issue #226 and the PR after this commit.
+`P0B1_PHASE_A_SOURCE_READY_FOR_GPT1_EXACT_SHA_REVIEW`.
+GLM does not self-merge; next authority is GPT1 exact-SHA acceptance.
