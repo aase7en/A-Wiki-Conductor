@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-07 (GLM-1 — WO162 final governance repair: single current authority + PR220/#213 reconciliation / READY_FOR_GPT1_FINAL_WO162_ACCEPTANCE)
+Last updated: 2026-09-07 (GLM-1 — WO162 rereview repair round 3: canonical entry decisions + truthful status / READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE)
 
 ## WO162 governance reconciliation + PR221 fold-back — 2026-09-07 (authoritative)
 
@@ -15,8 +15,9 @@ Last updated: 2026-09-07 (GLM-1 — WO162 final governance repair: single curren
 - **Ownership**: GLM-1 owns this WO162 / PR #219 docs-only lane; GPT1/GPT-A own focused rereview, acceptance, and merge. GLM does not self-merge. Protected root checkout remains stale/dirty; all mutation stays in isolated worktrees.
 - Canonical order: `WO162 binding -> A-Wiki #54 (ZR-1) -> ZRA-2 -> ZRA-3 -> ZRA-4 -> WO152/#204 -> ODP-1..8 -> ZRA-5 -> ODP-9 -> WO096/release`.
 - **Repair round 2 (this commit)**: GPT1 focused rereview of `a4ee9539fd5903720eb08fc31983dc96df1432c7` returned CHANGES_REQUIRED (exact-head CI `34074156876` all-green): P1-1 dual-authoritative sections repaired via the single-authority rule + `HISTORICAL EVIDENCE` separator below; P1-2 PR220-MERGED observed truth folded (this section); Issue #213 ZRA-1 coordination drift closed with PR221 acceptance evidence; PR #219 body refreshed to WO162 identity.
+- **Repair round 3 (this commit)**: GPT1 final rereview of `92b8c74acf6cf5f36ccbdcab9c75f430c2fa6051` (comment `5564621374`) returned CHANGES_REQUIRED P2x2 — repaired in the WO162 doc: ACTIVE Design decisions now carry the exact canonical entry sequence (starts at `00-AGENT-ENTRY.md`; `handoff.md` only for resume/transfer/unclear continuity) and the WO header/status is truthful for this round. `AGENT_ENTRY_PROTOCOL.md` was found correct and is untouched. Stop state: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at this head.
 
-One next safe action: GPT1 final exact-SHA rereview of the repaired WO162 head (see PR #219) → GPT-A acceptance/merge → A-Wiki #54.
+One next safe action: GPT1 exact-SHA rereview of the repair-round-3 WO162 head (see PR #219) → GPT-A acceptance/merge → A-Wiki #54.
 
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->

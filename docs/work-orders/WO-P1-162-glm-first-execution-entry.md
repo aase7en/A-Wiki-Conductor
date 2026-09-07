@@ -2,7 +2,7 @@
 
 Date: 2026-09-04 (opened as WO-P1-157; renumbered 2026-09-07)
 Owner: GLM-1 (continuation of the GPT-B drafting lane)
-Status: RECONCILED_ON_MAIN / READY_FOR_FOCUSED_REREVIEW
+Status: REPAIR_ROUND_3 (GPT1 comment 5564621374: CHANGES_REQUIRED, P2x2) / READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at the frozen repair head
 Priority: P0 delivery-throughput hardening
 Repository: A:\GitHub\A-Wiki-Conductor
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry
@@ -51,10 +51,10 @@ The workflow must reduce prompt relay and repeated ceremony without weakening re
 
 ## Design decisions
 
-1. Universal entry is file-first and starts at AGENTS.md.
+1. Universal entry is file-first and starts at `00-AGENT-ENTRY.md`.
 2. Startup reading becomes risk/context selective after the mandatory continuity core, rather than forcing all large design/product docs for every task.
-3. Mandatory continuity core:
-   AGENTS.md -> actual Git/worktree/claim state -> CURRENT-WORK.md -> handoff.md -> active WO -> only graph/protocol/design nodes required by task.
+3. Mandatory continuity core (canonical, identical to `docs/agent-collab/AGENT_ENTRY_PROTOCOL.md` §1):
+   `00-AGENT-ENTRY.md` -> `PROJECT-GRAPH.yaml` -> `AGENTS.md` -> actual repo/worktree/remote/branch/HEAD/dirty/claim state -> `CURRENT-WORK.md` -> active `docs/work-orders/<id>.md` when one exists -> `handoff.md` only for resume/transfer work, unclear continuity, or when `CURRENT-WORK.md` points to it for material context -> task-relevant nodes selected by `PROJECT-GRAPH.yaml`.
 4. DEFECT_LESSONS.md remains mandatory before src/a_conductor mutation.
 5. READY bounded implementation defaults to GLM/ZCode when capable/ready/authorized; GPT owns planning boundaries and final acceptance.
 6. GPT does not regenerate long bespoke prompts when a durable WO/task packet already exists. Manual fallback is one pointer command to the packet.
@@ -121,3 +121,12 @@ Deterministic docs validation passed across the 15-file canonical set: diff-chec
 - **P2-1 repaired** — PR #219 title/body refreshed to WO-P1-162 identity, current base/main/candidate SHA, PR221/ZRA-1 MERGED, ZRA-0 ACCEPTED/CLOSED, PR220 MERGED, frontier `A-Wiki #54 → ZRA-2 → ZRA-3 → ZRA-4`, current gates, GLM no-self-merge.
 - Verification on this repair head: git diff --check PASS; strict UTF-8/no-U+FFFD; PROJECT-GRAPH.yaml parse OK; `tests/test_operator_protocol.py` PASS; single-authority contradiction scan PASS (exactly one `(authoritative)` current section per file; all other authority-worded headers marked HISTORICAL); scope audit = governance/continuity files only vs `main@df5a25f`; added-line secret scan 0 hits.
 - Stop state: **READY_FOR_GPT1_FINAL_WO162_ACCEPTANCE** at this commit's exact head (SHA + CI in PR #219 evidence). GLM-1 does not merge.
+
+## WO162 rereview repair round 3 — 2026-09-07 (GLM-1, GPT1 comment 5564621374)
+
+- Binding input: GPT1 FINAL WO162 exact-SHA rereview of `92b8c74acf6cf5f36ccbdcab9c75f430c2fa6051` = CHANGES_REQUIRED / P0=0 / P1=0 / P2=2 / MERGE_READY=NO (exact-head CI `34077187124` all-green). Repairs are bounded to exactly those two P2s.
+- **P2-1 repaired** — the ACTIVE `## Design decisions` no longer contradict the canonical entry protocol: decision 1 now begins at `00-AGENT-ENTRY.md` (the stale AGENTS.md-first wording is removed); decision 3 now carries the exact canonical continuity core (`00-AGENT-ENTRY.md -> PROJECT-GRAPH.yaml -> AGENTS.md -> actual state -> CURRENT-WORK.md -> active WO when one exists -> handoff.md ONLY for resume/transfer/unclear continuity -> task-relevant graph nodes`). `handoff.md` is no longer part of a universally mandatory sequence; `DEFECT_LESSONS.md` before `src/a_conductor/` mutation remains decision 4. `AGENT_ENTRY_PROTOCOL.md` itself was found correct by GPT1 and is untouched.
+- **P2-2 repaired** — the stale header projection (`RECONCILED_ON_MAIN / READY_FOR_FOCUSED_REREVIEW`) is replaced with the truthful current state for this CHANGES_REQUIRED repair round; the final frozen state of this round is `READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE` (not accepted/merged/on-main). CURRENT-WORK.md, handoff.md, and the COLLAB.md current-authority row are updated consistently in the same bounded repair.
+- Historical evidence above/below explicit historical boundaries is preserved unchanged; nothing was rewritten as current except the active decision/status surfaces this review identified.
+- Verification on this repair head: contradiction scan (zero occurrences of the stale AGENTS.md-first rule; no universally mandatory `handoff.md` step); canonical entry/progressive-context agreement between Design decisions 1/3/4 and `AGENT_ENTRY_PROTOCOL.md` §1; `git diff --check` PASS; strict UTF-8 / no U+FFFD in changed files; `python -m pytest -q tests/test_operator_protocol.py` PASS; scope audit = only the four allowed tracked files changed from `92b8c74`; added-line secret-shape scan 0 hits.
+- Stop state: **READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE** at this commit's exact head (SHA + CI in PR #219). GLM-1 does not merge.
