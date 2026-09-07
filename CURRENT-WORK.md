@@ -1,21 +1,22 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-07 (GPT1 — WO162 accepted/merged/released; WO163 single-writer post-merge fold)
+Last updated: 2026-09-08 (GPT1 — WO166 P0-B Continuity Guard activation)
 
-## WO163 post-WO162 merge continuity fold — 2026-09-07 (authoritative)
+## WO166 P0-B Continuity Guard activation — authoritative
 
 > **Single-authority rule:** this section is the ONLY current authoritative state in this file. Historical evidence below the separator remains evidence only.
 
-- **WO-P1-162 / PR #219 is ACCEPTED, MERGED, and RELEASED**: accepted head `540ec54747d93bd4565c7530f6e474ac841f432c`; merge commit `ea521dfafb124d0fc76db1fe4fde08b8d3c5d207`; accepted head is an ancestor of the merge commit. GLM-1 implementation ownership is released.
-- **Universal Agent Entry is BINDING** after WO162 acceptance. `00-AGENT-ENTRY.md` and `docs/agent-collab/AGENT_ENTRY_PROTOCOL.md` are the canonical startup entry/protocol.
-- **This WO163 is a one-shot single-writer reconciliation** for the `MERGED_NOT_FOLDED` state created by the PR #219 merge. It changes governance/continuity only; no product source/runtime/DB/credential authority.
-- **Post-main verification gate** for the WO162 merge is CI run `34091433323`. This fold must not be accepted/merged unless that exact main run succeeds.
-- **Next dependency after this fold**: A-Wiki Issue #54 (ReviewBus addressed-blocker fix) in the existing isolated Q25 lane. No A-Wiki #54 source mutation before this fold is on main.
-- After A-Wiki #54, proceed under the separately approved roadmap/architecture gate before ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216). PR #222/#223 remain separate drafts and do not bypass this dependency chain.
-- Protected root checkout is not an execution lane. Use isolated owned worktrees and fresh actual-state/claim gates.
-- **WO163 release condition**: when this exact reconciliation projection is on `origin/main` and its required CI/verification gate is satisfied, the closeout claim has no remaining mutable scope and is considered released without another global-file rewrite.
+- **A-Wiki Issue #54 is COMPLETE**: PR #56 accepted/merged as `967e063cb9dc2e5b43b48a00deb575235f125a94`; post-main CI `34133420008` SUCCESS; closeout PR #57 merged as `566637ac8d2636d6c63eda2bd6ebe81b55bd3d72`; post-main CI `34144444732` SUCCESS; no active A-Wiki claim remains.
+- **WO-P1-164 / PR #225 is ACCEPTED, MERGED, POST_MAIN_VERIFIED and RELEASED**: accepted head `8c4ba507e648f11c428347b02e6b86de080f098b`; merge `8ffd12f8de3cada79f1f463f3c6f7ee7a35082b9`; post-main run `34143787452` attempt 2 SUCCESS. Attempt 1 Windows owned-process failure is tracked separately as Issue #227 and is non-blocking.
+- **P0-B Continuity Guard is the current dependency frontier.** Durable architecture/preflight authority is Issue #226; implementation identity is `WO-P1-166`.
+- P0-B is R3 trust/durable-state work. GPT1 owns authority/failure-model framing, dependency order, exact-SHA acceptance, merge and release. GLM-5.3 MAX becomes bounded implementation owner only after this activation fold reaches main and a fresh source worktree/claim gate passes.
+- Initial Phase A is NEW-FILE-ONLY: `src/a_conductor/continuity_guard.py`, `tests/test_continuity_guard.py`, and `docs/work-orders/WO-P1-166-p0b-continuity-guard.md`. Existing shared job/lease/change-apply source remains read-only until explicit scope expansion.
+- Existing authorities must be reused: `TaskState` / `RecoveryClassification`, `SQLiteJobStore` ordered events/checkpoints, `WorkerLeaseBroker` / lease store, `AgentResultPacket` / `AgentChangeApplier`, and actual Git/GitHub evidence. No second scheduler/job/claim/lease/retry/review authority is permitted.
+- WO-P1-165 / ZRA-2 remains preserved at activation doc `3d7209e0683afc3d1c9daf4d8db75052220ec782` with **source mutation BLOCKED_BY_P0B**. Do not rebind/delete/duplicate that lane.
+- Dependency order: `WO166 P0-B -> WO165 ZRA-2 -> ZRA-3 -> ZRA-4`.
+- This docs activation is self-closing: once its exact projection is on `origin/main` and required exact-head review/CI succeed, the activation claim has no remaining hotspot scope and is RELEASED without another global-file rewrite.
 
-One next safe action: complete deterministic verification of this WO163 candidate → merge expected-head only after CI `34091433323` is SUCCESS → re-pin main → activate A-Wiki #54.
+One next safe action: verify/freeze this WO166 docs activation -> merge expected-head only -> post-main verify -> create a fresh isolated WO166 Phase-A source lane from then-current main -> dispatch the durable WO166 task packet to GLM-5.3 MAX for RED-first P0-B1 implementation.
 
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
