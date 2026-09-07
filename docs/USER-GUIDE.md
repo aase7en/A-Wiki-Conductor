@@ -258,7 +258,7 @@ python scripts/build_installer.py    # ได้ dist\A-Sunday-Conductor-Setup.e
 ## 9. สำหรับผู้พัฒนาที่ fork มาต่อ
 
 - รันเทส: `python -m pytest tests/ -q` (ครบทุกครั้งก่อน PR — CI บน GitHub ตรวจให้อัตโนมัติ)
-- อ่าน `AGENTS.md` → `PROJECT-PLAN.md` → `COLLAB.md` → `CURRENT-WORK.md` → `handoff.md` ตามลำดับก่อนเริ่มงาน
+- ก่อนเริ่มงานแบบ non-trivial ให้เข้า `00-AGENT-ENTRY.md` → `PROJECT-GRAPH.yaml` → `AGENTS.md` → ตรวจ repo/worktree/branch/HEAD/dirty/claim จริง → `CURRENT-WORK.md` → `handoff.md` → active work order แล้วอ่านเฉพาะ node ที่ `PROJECT-GRAPH.yaml` ระบุ; ก่อนแก้ `src/a_conductor/` ต้องอ่าน `DEFECT_LESSONS.md`
 - ทุกงานทำเป็น work order ใน `docs/work-orders/` + PR แยกตาม chunk
 
 
