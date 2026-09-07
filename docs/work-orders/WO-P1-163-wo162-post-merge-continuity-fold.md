@@ -2,7 +2,7 @@
 
 Date: 2026-09-07
 Owner: GPT1 integration/closeout lane
-Status: CLAIMED / GOVERNANCE_BOOTSTRAP
+Status: FOLD_CANDIDATE / CONDITIONAL_RELEASE
 Priority: P0 continuity correctness
 Repository: A:\GitHub\A-Wiki-Conductor
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo163-closeout
@@ -60,4 +60,10 @@ This work order is a single-writer closeout only. It does not implement P0-B, A-
 
 ## Stop condition
 
-Freeze one docs-only candidate for GPT1 deterministic acceptance/merge. After merge and verification, release this closeout and activate A-Wiki #54.
+Freeze one docs-only candidate for deterministic acceptance/merge. Release condition is machine-observable: this exact reconciliation projection is on `origin/main` and required verification succeeds. After that condition is true, no additional hotspot rewrite is required; activate A-Wiki #54.
+
+## Reconciliation checkpoint
+
+- Governance bootstrap claim commit: `060c7d27d7606d2209a7e5c2eb73d0c9807e6acd`.
+- Fold changes are limited to the declared docs/continuity scope.
+- The projection is intentionally self-closing: once this exact content is on `origin/main` after required verification, WO163 has no remaining mutable scope and the claim is released without another continuity edit.

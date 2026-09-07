@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Universal Agent Entry
 
-Status: CANDIDATE / BINDING AFTER WO162 ACCEPTANCE (WO-P1-162, renumbered from WO-P1-157)
+Status: BINDING / ACCEPTED via WO-P1-162 / PR #219 (merged 2026-09-07)
 Applies to: every ChatGPT chat, GPT Work/Codex task, ZCode/GLM goal, Serena/SunDay Worker session, local model, and external coding agent doing non-trivial repository work.
 
 This file is intentionally short. It tells an agent what to read next; it does not duplicate the full policies.

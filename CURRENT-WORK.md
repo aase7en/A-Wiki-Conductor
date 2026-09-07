@@ -1,23 +1,21 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-07 (GLM-1 — WO162 rereview repair round 3: canonical entry decisions + truthful status / READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE)
+Last updated: 2026-09-07 (GPT1 — WO162 accepted/merged/released; WO163 single-writer post-merge fold)
 
-## WO162 governance reconciliation + PR221 fold-back — 2026-09-07 (authoritative)
+## WO163 post-WO162 merge continuity fold — 2026-09-07 (authoritative)
 
-> **Single-authority rule:** this section is the ONLY current authoritative state in this file. Every section below the `HISTORICAL EVIDENCE` separator is dated evidence only; header words such as "authoritative", "override", or "current" in those sections describe their own date and are superseded by this section.
+> **Single-authority rule:** this section is the ONLY current authoritative state in this file. Historical evidence below the separator remains evidence only.
 
-- **PR #221 / WO-P1-158 / ZRA-1 is MERGED and RELEASED**: merge commit `df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` (2026-09-06T22:32:41Z) is current `origin/main`; accepted head `01517ea` is an ancestor; post-main CI `34064328672` SUCCESS (9m23s). PROOF_C and live provider dispatch remain separate GPT1 gates per the WO158 record.
-- **SSoT drift (MERGED_NOT_FOLDED) repaired by this lane**: main's continuity files still carried `READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE` / "next safe action: GPT1 rereview" after the merge had landed — stale at the moment of merge. This WO162 fold-back is the reconciliation; the WO158 r1-r6 sections below are preserved as evidence and are superseded by this section.
-- **WO identity renumbered**: the GLM-first entry/workflow lane is now `WO-P1-162` (GPT2 / Issue #210 keeps WO157/AIP-3). Branch `docs/wo-p1-157-glm-first-entry` is retained as PR #219 transport only. PR #220's stacked repair is folded into this lane (`STACKED_REPAIR_SEMANTICS = PASS`, CI `33947807332`), and **PR #220 is MERGED into this branch** (merge commit `50f20fe59679803b02557e75538faa9ea3c5de22`, observed 2026-09-07T01:47:34Z).
-- **Current frontier**: ZRA-0 ACCEPTED/CLOSED; ZRA-1 MERGED (above). Next queue goal is **A-Wiki Issue #54** (ReviewBus addressed-blocker fix; repo `A:\GitHub\A-Wiki`, clean isolated worktree, GLM1/Q25 claim) — not before this lane is frozen/accepted. Then ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216).
-- **Separate scope, not blockers**: PR #222 (WO159 loop-engineering) and PR #223 (elastic multi-agent roadmap) remain open drafts; PR #211 remains historical/do-not-merge; PR #204 remains scope-blocked/deferred until after ZRA-0..4.
-- **New governance rule**: `AGENT_ENTRY_PROTOCOL.md` §2 now distinguishes `STALE_LOCAL_CHECKOUT` (local view behind remote; remote SSoT not implicated) from `SSOT_DRIFT` / `MERGED_NOT_FOLDED` (canonical remote evidence contradicts continuity projections; dependent mutation blocked until fold-back) from `UNKNOWN` (fail closed).
-- **Ownership**: GLM-1 owns this WO162 / PR #219 docs-only lane; GPT1/GPT-A own focused rereview, acceptance, and merge. GLM does not self-merge. Protected root checkout remains stale/dirty; all mutation stays in isolated worktrees.
-- Canonical order: `WO162 binding -> A-Wiki #54 (ZR-1) -> ZRA-2 -> ZRA-3 -> ZRA-4 -> WO152/#204 -> ODP-1..8 -> ZRA-5 -> ODP-9 -> WO096/release`.
-- **Repair round 2 (this commit)**: GPT1 focused rereview of `a4ee9539fd5903720eb08fc31983dc96df1432c7` returned CHANGES_REQUIRED (exact-head CI `34074156876` all-green): P1-1 dual-authoritative sections repaired via the single-authority rule + `HISTORICAL EVIDENCE` separator below; P1-2 PR220-MERGED observed truth folded (this section); Issue #213 ZRA-1 coordination drift closed with PR221 acceptance evidence; PR #219 body refreshed to WO162 identity.
-- **Repair round 3 (this commit)**: GPT1 final rereview of `92b8c74acf6cf5f36ccbdcab9c75f430c2fa6051` (comment `5564621374`) returned CHANGES_REQUIRED P2x2 — repaired in the WO162 doc: ACTIVE Design decisions now carry the exact canonical entry sequence (starts at `00-AGENT-ENTRY.md`; `handoff.md` only for resume/transfer/unclear continuity) and the WO header/status is truthful for this round. `AGENT_ENTRY_PROTOCOL.md` was found correct and is untouched. Stop state: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at this head.
+- **WO-P1-162 / PR #219 is ACCEPTED, MERGED, and RELEASED**: accepted head `540ec54747d93bd4565c7530f6e474ac841f432c`; merge commit `ea521dfafb124d0fc76db1fe4fde08b8d3c5d207`; accepted head is an ancestor of the merge commit. GLM-1 implementation ownership is released.
+- **Universal Agent Entry is BINDING** after WO162 acceptance. `00-AGENT-ENTRY.md` and `docs/agent-collab/AGENT_ENTRY_PROTOCOL.md` are the canonical startup entry/protocol.
+- **This WO163 is a one-shot single-writer reconciliation** for the `MERGED_NOT_FOLDED` state created by the PR #219 merge. It changes governance/continuity only; no product source/runtime/DB/credential authority.
+- **Post-main verification gate** for the WO162 merge is CI run `34091433323`. This fold must not be accepted/merged unless that exact main run succeeds.
+- **Next dependency after this fold**: A-Wiki Issue #54 (ReviewBus addressed-blocker fix) in the existing isolated Q25 lane. No A-Wiki #54 source mutation before this fold is on main.
+- After A-Wiki #54, proceed under the separately approved roadmap/architecture gate before ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216). PR #222/#223 remain separate drafts and do not bypass this dependency chain.
+- Protected root checkout is not an execution lane. Use isolated owned worktrees and fresh actual-state/claim gates.
+- **WO163 release condition**: when this exact reconciliation projection is on `origin/main` and its required CI/verification gate is satisfied, the closeout claim has no remaining mutable scope and is considered released without another global-file rewrite.
 
-One next safe action: GPT1 exact-SHA rereview of the repair-round-3 WO162 head (see PR #219) → GPT-A acceptance/merge → A-Wiki #54.
+One next safe action: complete deterministic verification of this WO163 candidate → merge expected-head only after CI `34091433323` is SUCCESS → re-pin main → activate A-Wiki #54.
 
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
