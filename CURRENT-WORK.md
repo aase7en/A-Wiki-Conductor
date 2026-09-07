@@ -1,6 +1,43 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-05 (GPT-B - post-PR208 merge / WO157 reconciliation)
+Last updated: 2026-09-07 (GLM-1 - WO158 / PR221 canonical authority final repair r6: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE)
+
+## WO158 canonical authority final repair r6 — review 5560911492 — 2026-09-07 (GLM-1)
+
+- r5 remains frozen at `0a123e8` (CI green). r6 closes the four fail-closed authority defects RED-first: (1) canonical admission status semantics — assembly requires `status='ACTIVE'` + released rule; REAL SQLiteProviderConfigStore integration evidence (save → acquire → ADMITTED kind → ACTIVE record accepted as-is; RELEASED/EXPIRED/wrong-provider/generation/batch/execution rejected); impossible `ADMITTED` fixtures removed; canonical store untouched. (2) dispatch project id REQUIRED (missing/blank ⇒ `ZCODE_DISPATCH_CONTEXT_MISSING`; mismatch ⇒ `ZCODE_PROJECT_MISMATCH`; identity uses the verified value). (3) explicit non-empty mutation scope REQUIRED, verified against allowed + lease-mutable + forbidden scopes via existing authority. (4) dispatch execution id REQUIRED with unconditional admission binding.
+- Evidence: final-repair 30/30; authority 22/22; E2E 9/9; batteries 270/270 + 263/263; hygiene PASS; scope 1 production + 4 test files. Stop state READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at the r6 head; GLM1 does not merge.
+
+## WO158 final targeted repair r5 — review 5560480061 — 2026-09-06 (GLM-1)
+
+- Slices 1-4 remain frozen (`cf7ef9a`→`2de584a`, CI green). r5 closes every remaining item of binding review 5560480061, RED-first: derived `zcode-runtime-v1:<full sha>` runtime identity (no caller parameter; same-packet/two-model no-reuse proven live); admission bound to the independently-derived dispatch context (batch/execution); lease project identity into the durable record (hard-code removed), READ_ONLY rejection, and allowed/forbidden scope enforcement via the existing authority; bounded reader with typed `CHILD_OUTPUT_OVERFLOW` (deterministic flooding-child E2E); `finished_at` captured only at the real terminal-exit boundary (delayed-exit E2E); argv-evidence truth (Option B: launch evidence, not live-verified); `expected_base_url` assertion naming.
+- Evidence: final-repair suite 19/19; E2E 9/9; focused battery 258/258 + 289/289; hygiene PASS. Stop state READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at the r5 head; GLM1 does not merge.
+
+## WO158 final slice 4 - deep truth audit + source freeze - 2026-09-06 (GLM-1)
+
+- Slices 1-3 frozen green (`cf7ef9a`, `958f051`, `c9e527a`; slice-2 CI green). Slice 4 = the full call-graph audit (20 steps, module/symbol/owner/evidence/fail-closed each) + dead/split-authority scan (16 candidate defects, all negative with closure evidence) + NEW real restart-after-complete E2E (fresh session reuses the durable execution, zero respawn) + full verification battery 245/245 + 263/263 + hygiene PASS. Honest declaration: ZCodeBackendAdapter remains a non-production seam (never constructed by the assembly).
+- **Stop state: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE** at the final head (see WO repair-r4 checkpoint). PROOF_C NOT_RUN/GPT1_AUTH_REQUIRED; live dispatch separately gated; GLM1 does not merge.
+
+## WO158 repair slice 3 — authority-bound assembly — 2026-09-06 (GLM-1)
+
+- Slices 1-2 frozen with green exact-head CI (`cf7ef9a`, `958f051`).
+- Slice 3 (review item 8, RED-first 21-test matrix): assembly consumes ONLY the canonical `WorkerLease` (worker/worktree-key/task/active/expiry bound; None/truthy fail closed) and canonical `ProviderAdmissionRecord` (provider/status/generation/expiry bound; None/truthy fail closed); worktree gate compares OBSERVED context vs the LEASE authority (caller expected-pair removed); endpoint truth = provider-snapshot `ProviderEndpointConfig` (caller defines only the request; `endpoint_base_url` param removed).
+- Evidence: matrix 21/21; zcode+supervised 244/244; worker/provider 213/213; hygiene PASS. Remaining: PROOF_C + final call-graph truth audit (slice 4).
+
+## WO158 repair slice 2 — full task identity + ATTACH_RUNNING + CAS truth — 2026-09-06 (GLM-1)
+
+- Slice 1 (`cf7ef9a2334b203ffffc9f449c6d783e17c6a118`) is frozen with exact-head CI green (test 13m38s + ubuntu/macos smoke) and PR221 evidence comment 5560113468.
+- Slice 2 (review 5558197043 items 5-7) executed RED-first: `zcode-task-v1:<full SHA-256>` domain-separated task identity (no `[:16]` truncation); `ATTACH_RUNNING` cross-process child reconciliation in the production launcher (exact live child ⇒ attach; reuse/mismatch/gone ⇒ recovery; result.json always wins); adapter SUCCEEDED-transition CAS failure now typed `ZCODE_DURABLE_STATE_TRANSITION_FAILED` — never apparent success; durable-first retry collects without duplicate execution.
+- Evidence: new identity/attach/CAS suite 16/16; zcode+supervised battery 223/223; hygiene PASS. Remaining declared: authority-bound lease/admission/endpoint evidence (None passes consume gates), PROOF_C.
+
+## WO158 / PR221 real specialized-helper happy path — 2026-09-06 (GLM-1, binding review 5558197043 slice 1)
+
+- **PR #221 / WO-P1-158** was CHANGES_REQUIRED at `37ef020` (binding GPT1 review 5558197043): the real valid-helper happy path crashed pre-spawn (`NameError: Path`), production assembly still used the in-process adapter lifecycle, helper runtime handoff/identity/deadline were incomplete. Repair executed RED-first on branch `feat/wo-p1-158-zcode-zero-relay` (worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo158-zra1`).
+- The REAL production chain now executes E2E and is proven by `tests/test_zcode_real_helper_e2e.py`: production assembly -> `SupervisedRunCoordinator` -> `SupervisedExecutionService` -> `ZCODE_APP_SERVER_V1` -> real `zcode_supervised_helper.py` subprocess -> exactly one fake app-server child -> protocol -> canonical artifacts -> durable collect, with all 14 acceptance points (packet re-verify TOCTOU, identity-before-send, exact OS child identity incl. creation time + helper parent PID, explicit-only credential child env, bounded deadline actually honored by `read_line(timeout)`, 64 KiB budget, report-before-result, six-key result only on real exit, no kill ladder, no traceback).
+- NEW `zcode_process_truth.observe_child_process` (Windows kernel32 ctypes / Linux /proc / macOS ps, fail-closed). `assemble_zcode_execution` now REQUIRES real supervised-service authorities (typed `ZCODE_SERVICE_AUTHORITY_MISSING` otherwise); `ZCodeBackendAdapter` is no longer the production launcher.
+- Verification: E2E + assembly + helper-execution 36/36 (deterministic re-run); zcode+supervised 247/247; provider/harness/claude 175/175; worker/lease 153/153; compileall / `git diff --check` / strict UTF-8 / added-line secret scan (0 hits) PASS. No live provider dispatch.
+- Declared remaining (later slices): full collision-resistant task identity (packet SHA still truncated `[:16]`); cross-process ATTACH_RUNNING composition; typed launch-side CAS failure (adapter still swallows `SUCCEEDED` transition failure); authority-bound lease/admission/endpoint evidence (`None` still passes the consume gates); PROOF_C NOT_RUN/GPT1_AUTH_REQUIRED. GLM1 does not merge; GPT1 owns acceptance.
+
+**One next safe action:** freeze this repair SHA on PR #221 -> GPT1 exact-SHA rereview -> (if accepted) Prompt-2 slices (task identity / ATTACH / CAS truth).
 
 ## Post-PR208 merge actual-state override - 2026-09-05 (authoritative)
 

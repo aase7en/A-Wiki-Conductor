@@ -60,6 +60,7 @@ class SupervisedExecutionError(RuntimeError):
 class SupervisedInspectionState(str, Enum):
     STARTING = "STARTING"
     SUPERVISOR_RUNNING = "SUPERVISOR_RUNNING"
+    ATTACH_RUNNING = "ATTACH_RUNNING"
     RESULT_AVAILABLE = "RESULT_AVAILABLE"
     SUPERVISOR_EXITED_RESULT_MISSING = "SUPERVISOR_EXITED_RESULT_MISSING"
     RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
@@ -72,10 +73,18 @@ class SupervisedLaunchPlan:
     target_argv: tuple[str, ...]
     target_executable_name: str
     environment_overrides: tuple[tuple[str, str], ...] = field(default=(), repr=False)
+    helper_kind: "SupervisedHelperKind | str" = "GENERIC_NATIVE"
 
     def __post_init__(self) -> None:
         if not isinstance(self.record, DurableExecutionRecord):
             raise ValueError("record must be a DurableExecutionRecord")
+        kind = self.helper_kind
+        if not isinstance(kind, SupervisedHelperKind):
+            try:
+                kind = SupervisedHelperKind(kind)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("helper_kind must be a SupervisedHelperKind") from exc
+        object.__setattr__(self, "helper_kind", kind)
         root = Path(self.runtime_root).expanduser().resolve(strict=False)
         if not root.is_dir():
             raise ValueError("runtime_root must be an existing directory")
@@ -199,6 +208,24 @@ def _read_pid_file(path: Path) -> int | None:
     return pid
 
 
+class SupervisedHelperKind(str, Enum):
+    """CLOSED helper-kind contract: repository-owned mapping only.
+
+    GENERIC_NATIVE keeps the historical supervised_child.py behavior
+    byte-identical; ZCODE_APP_SERVER_V1 selects the repository-owned
+    specialized ZCode helper. No caller-supplied helper path exists.
+    """
+
+    GENERIC_NATIVE = "GENERIC_NATIVE"
+    ZCODE_APP_SERVER_V1 = "ZCODE_APP_SERVER_V1"
+
+
+_HELPER_MODULE_BY_KIND = {
+    SupervisedHelperKind.GENERIC_NATIVE: "supervised_child.py",
+    SupervisedHelperKind.ZCODE_APP_SERVER_V1: "zcode_supervised_helper.py",
+}
+
+
 class SupervisedExecutionService:
     def __init__(
         self,
@@ -210,6 +237,7 @@ class SupervisedExecutionService:
         python_executable: str = sys.executable,
         startup_poll_attempts: int = 3,
         startup_poll_delay_seconds: float = 0.02,
+        helper_kinds=None,
         sleep_fn: Callable[[float], None] = time.sleep,
     ) -> None:
         if isinstance(allowed_target_executables, (str, bytes)):
@@ -237,11 +265,81 @@ class SupervisedExecutionService:
         self._python_executable = python_executable.strip()
         self._python_name = PureWindowsPath(self._python_executable).name
         self._helper_path = Path(__file__).with_name("supervised_child.py").resolve()
+        kinds = frozenset(helper_kinds) if helper_kinds is not None else frozenset(
+            {SupervisedHelperKind.GENERIC_NATIVE}
+        )
+        for kind in kinds:
+            if not isinstance(kind, SupervisedHelperKind):
+                raise ValueError("helper_kinds must contain SupervisedHelperKind values")
+        self._helper_kinds = kinds
         self._startup_poll_attempts = startup_poll_attempts
         self._startup_poll_delay_seconds = float(startup_poll_delay_seconds)
         self._sleep_fn = sleep_fn
 
+    def helper_path_for(self, kind, *, helper_path=None) -> Path:
+        """Resolve the repository-owned helper for a CLOSED kind.
+
+        The mapping is fixed inside this module; callers select a kind,
+        never a path. Passing helper_path is always an error.
+        """
+        if helper_path is not None:
+            raise ValueError("helper path cannot be supplied by callers")
+        try:
+            resolved = SupervisedHelperKind(kind)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("unknown helper kind") from exc
+        if resolved not in self._helper_kinds:
+            raise ValueError("helper kind is not enabled for this service")
+        module_name = _HELPER_MODULE_BY_KIND[resolved]
+        return Path(__file__).with_name(module_name).resolve()
+
+    def _build_zcode_helper_spec(self, plan: SupervisedLaunchPlan, kind):
+        """Owned-process spec via the repository-owned ZCode helper.
+
+        The helper receives only bounded verified metadata (execution id,
+        pid/result/report paths, cwd) plus the fixed allowlisted
+        app-server argv; task/prompt content never enters this command.
+        """
+        helper = self.helper_path_for(kind)
+        run_dir, stdout_path, stderr_path, result_path, report_path, supervisor_pid_path, child_pid_path = self._validate_plan_with_report(plan)
+        record = plan.record
+        command = [
+            self._python_executable,
+            str(helper),
+            "--execution-id",
+            record.execution_id,
+            "--pid-path",
+            str(child_pid_path),
+            "--result-path",
+            str(result_path),
+        ]
+        if report_path is not None:
+            command.extend(["--report-path", str(report_path)])
+        command.extend(["--cwd", str(Path(record.repo_root).resolve(strict=False)), "--", *plan.target_argv])
+        from .owned_process import OwnedProcessSpec as _Spec
+        return _Spec(
+            allowed_root=Path(plan.runtime_root),
+            cwd=run_dir,
+            pid_path=supervisor_pid_path,
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            command=tuple(command),
+            expected_executable_name=self._python_name,
+            expected_profile_marker=record.execution_id,
+            environment_overrides=plan.environment_overrides,
+        )
+
     def _validate_plan(self, plan: SupervisedLaunchPlan) -> tuple[Path, Path, Path, Path, Path, Path]:
+        run_dir, stdout_path, stderr_path, result_path, _report, supervisor_pid_path, child_pid_path = self._validate_plan_with_report(plan)
+        return run_dir, stdout_path, stderr_path, result_path, supervisor_pid_path, child_pid_path
+
+    def _validate_plan_with_report(self, plan: SupervisedLaunchPlan):
+        """Validate + resolve every runtime ref, including report_ref.
+
+        report_ref is optional; when configured it must resolve through
+        the same runtime-root confinement and land inside run_dir.
+        Traversal or absolute outside refs fail closed before spawn.
+        """
         if not isinstance(plan, SupervisedLaunchPlan):
             raise ValueError("plan must be a SupervisedLaunchPlan")
         record = plan.record
@@ -268,14 +366,20 @@ class SupervisedExecutionService:
         stdout_path = _resolve_ref(runtime_root, record.stdout_ref, "stdout_ref")
         stderr_path = _resolve_ref(runtime_root, record.stderr_ref, "stderr_ref")
         result_path = _resolve_ref(runtime_root, record.result_ref, "result_ref")
-        for path in (stdout_path, stderr_path, result_path):
+        paths = [stdout_path, stderr_path, result_path]
+        report_path = None
+        if record.report_ref is not None:
+            report_path = _resolve_ref(runtime_root, record.report_ref, "report_ref")
+            paths.append(report_path)
+        for path in paths:
             try:
                 path.relative_to(run_dir)
             except ValueError as exc:
                 raise SupervisedExecutionError("RUNTIME_REF_OUTSIDE_RUN_DIR") from exc
         supervisor_pid_path = run_dir / "supervisor.pid"
         child_pid_path = run_dir / "child.pid"
-        return run_dir, stdout_path, stderr_path, result_path, supervisor_pid_path, child_pid_path
+        return run_dir, stdout_path, stderr_path, result_path, report_path, supervisor_pid_path, child_pid_path
+
 
     def _build_owned_spec(self, plan: SupervisedLaunchPlan) -> OwnedProcessSpec:
         run_dir, stdout_path, stderr_path, result_path, supervisor_pid_path, child_pid_path = self._validate_plan(plan)
@@ -321,7 +425,19 @@ class SupervisedExecutionService:
         )
 
     def launch(self, plan: SupervisedLaunchPlan) -> SupervisedLaunchOutcome:
-        spec = self._build_owned_spec(plan)
+        kind = plan.helper_kind
+        if kind not in self._helper_kinds:
+            return SupervisedLaunchOutcome(
+                record=plan.record,
+                supervisor_pid=None,
+                child_pid=None,
+                recovery_required=True,
+                error_code="HELPER_KIND_NOT_ENABLED",
+            )
+        if kind is SupervisedHelperKind.ZCODE_APP_SERVER_V1:
+            spec = self._build_zcode_helper_spec(plan, kind)
+        else:
+            spec = self._build_owned_spec(plan)
         created = self._store.create(plan.record)
         starting = self._store.set_execution_state(
             created.execution_id,

@@ -1,6 +1,38 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-05 - GPT-B post-PR208 merge / WO157 reconciliation
+Last updated: 2026-09-07 - GLM-1 WO158 / PR221 canonical authority final repair r6 COMPLETE: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE
+
+## WO158 / PR221 r6 handoff override - 2026-09-07 (authoritative for this lane)
+
+- Binding review 5560911492 items are ALL closed on `feat/wo-p1-158-zcode-zero-relay` at the r6 head (single commit on top of `0a123e8`; exact SHA in PR #221). Canonical admission semantics consumed (ACTIVE + released rule; REAL store integration evidence in `tests/test_zcode_final_targeted_repair.py`); dispatch context (batch/execution/project) and explicit mutation scope are all REQUIRED fail-closed; lease-mutable-scope authority enforced.
+- Resume rule: re-pin `origin/main` + PR #221 head + latest GPT1 comments FIRST. After GPT1 acceptance+merge, the next queue goal is the A-Wiki #54 addressed-blocker fix (A:\GitHub\A-Wiki, clean isolated worktree, GLM1 Q25 claim) - not before.
+
+One next safe action: GPT1 exact-SHA rereview/acceptance of the r6 head on PR #221.
+
+## WO158 / PR221 r5 handoff override - 2026-09-06 (authoritative for this lane)
+
+- Binding review 5560480061 items are ALL closed on `feat/wo-p1-158-zcode-zero-relay` at the r5 head (single commit on top of `2de584a`; exact SHA in PR #221). RED-first matrix in `tests/test_zcode_final_targeted_repair.py` (19/19) plus three new real E2E proofs (flooding-child typed overflow; finished_at at the real terminal-exit boundary; same-packet/two-model no-reuse with distinct derived runtime identities).
+- All r1-r4 accepted closures preserved (verified by the unchanged suites). r5 additionally: derived `zcode-runtime-v1` runtime identity; dispatch-context-bound admission; lease project/intent/scope binding; bounded reader; truthful finished_at; argv launch-evidence truth; `expected_base_url` assertion naming.
+- Resume rule: re-pin `origin/main` + PR #221 head + latest GPT1 comments FIRST. Next queue goal after GPT1 acceptance+merge is the A-Wiki #54 addressed-blocker fix (A:\GitHub\A-Wiki, clean isolated worktree, GLM1 Q25 claim) - not before.
+
+One next safe action: GPT1 exact-SHA rereview/acceptance of the r5 head on PR #221.
+
+## WO158 / PR221 final handoff override - 2026-09-06 (authoritative for this lane)
+
+- All four GPT1 repair slices (binding review 5558197043) are executed and frozen on `feat/wo-p1-158-zcode-zero-relay`: slice 1 `cf7ef9a` (real specialized-helper happy path E2E + production service composition; CI green), slice 2 `958f051` (full task identity + ATTACH_RUNNING + CAS truth; CI green), slice 3 `c9e527a` (authority-bound lease/admission/endpoint assembly), slice 4 = the final deep truth audit + source freeze (call-graph audit, dead-authority scan all-negative, real restart E2E, batteries 245/245 + 263/263, hygiene PASS).
+- Stop state: **READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE** - GPT1 owns exact-SHA acceptance and merge. PROOF_C remains NOT_RUN/GPT1_AUTH_REQUIRED; live provider dispatch remains separately gated. ZCodeBackendAdapter is a declared non-production seam (the production assembly never constructs it).
+- Resume rule for any new session: re-pin `origin/main` + PR #221 head + latest GPT1 comments FIRST (actual state overrides this note). If GPT1 accepts and merges PR221, the next queue goal is the A-Wiki #54 addressed-blocker fix (repository A:\GitHub\A-Wiki, clean isolated worktree, GLM1 Q25 claim) - do NOT start it before PR221 is clean/frozen per its own gate.
+
+One next safe action: GPT1 exact-SHA rereview/acceptance of the PR221 final head.
+
+## WO158 / PR221 real specialized-helper happy path handoff — 2026-09-06 (authoritative for this lane)
+
+- Binding state: GPT1 review comment 5558197043 = CHANGES_REQUIRED at `37ef02014ca89898566749d63d0b3a80df9c1bca` (PR #221 head at slice start). GLM-1 executed slice-1 repair on `feat/wo-p1-158-zcode-zero-relay` in worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo158-zra1`; the exact frozen SHA is the new branch head pushed to PR #221 (see the WO158 checkpoint `GPT1 repair-r1` in `docs/work-orders/WO-P1-158-zero-relay-zcode.md` for full evidence).
+- What changed: helper CLI rewritten (env-channel task authority + pre-send packet re-verify + explicit-only credential child env + OS-exact child identity + bounded deadline/read timeouts); NEW `zcode_process_truth.py`; production assembly now composes the REAL `SupervisedExecutionService` + `ZCODE_APP_SERVER_V1` specialized helper (service authorities mandatory; adapter no longer the production launcher); env-override allowlist extended with the closed ZCODE_* set.
+- Evidence: real fake-child E2E 5/5 (deterministic), touched suites 36/36, regression batteries 247 + 175 + 153 all PASS; compileall/diff-check/UTF-8/secret-scan PASS. No live provider dispatch; no merge by GLM1.
+- Resume rule for any new session: re-pin `origin/main` + PR #221 head + latest GPT1 comments FIRST (actual state overrides this note). Remaining declared slices: full task identity (un-truncate packet digest), cross-process ATTACH_RUNNING, typed CAS failure, authority-bound lease/admission/endpoint evidence, final call-graph truth audit (Prompt 4). PROOF_C and live dispatch remain GPT1-authorized gates.
+
+One next safe action: GPT1 exact-SHA rereview of the pushed repair head on PR #221.
 
 ## Post-PR208 merge handoff override - 2026-09-05 (authoritative)
 
