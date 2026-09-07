@@ -203,9 +203,12 @@ def test_missing_dirty_state_never_degrades_to_clean() -> None:
 
 
 def test_unknown_ownership_blocks_even_when_dirty_state_is_clean() -> None:
+    """GPT1 repair contract: ownership_known=False is a MISSING critical
+    mutation-authorization fact — fail-closed UNKNOWN, not worktree-state."""
     verdict = classify_continuity(snapshot(dirty_state="CLEAN", ownership_known=False))
-    assert verdict.classification is ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN
+    assert verdict.classification is ContinuityClassification.UNKNOWN
     assert verdict.findings[0].reason_code == "OWNERSHIP_UNKNOWN"
+    assert verdict.safe_to_mutate is False
 
 
 # ---------------------------------------------------------------------------
@@ -470,16 +473,18 @@ def test_multiple_defects_return_stable_ordered_findings_and_primary() -> None:
         )
     )
     kinds = tuple(finding.kind for finding in verdict.findings)
+    # binding order (Issue #226 5574034911): dirty outranks head drift;
+    # SSOT drift keeps its place above generic reconcile residue.
     assert kinds == (
-        ContinuityClassification.HEAD_DRIFT,
         ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN,
+        ContinuityClassification.HEAD_DRIFT,
         ContinuityClassification.SSOT_DRIFT,
     )
-    assert verdict.classification is ContinuityClassification.HEAD_DRIFT
+    assert verdict.classification is ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN
     assert verdict.safe_to_mutate is False
     assert verdict.reconciliation_actions == (
-        ReconciliationAction.REALIGN_TO_EXPECTED_HEAD,
         ReconciliationAction.RECONCILE_WORKTREE_STATE,
+        ReconciliationAction.REALIGN_TO_EXPECTED_HEAD,
         ReconciliationAction.REFRESH_PROJECTION,
     )
 
@@ -623,3 +628,82 @@ def test_verdict_is_frozen_and_hashable_value_object() -> None:
     assert isinstance(verdict, ContinuityVerdict)
     with pytest.raises(Exception):
         verdict.safe_to_mutate = False  # type: ignore[misc]
+
+
+# ── GPT1 rereview repair (PR #229 @ 2cfaf28, P1x2) ─────────────────────
+def test_review_dirty_outranks_head_drift_and_stale_checkout():
+    """Binding precedence (Issue #226 5574034911): WORKTREE_DIRTY_OR_UNKNOWN
+    must precede HEAD_DRIFT and STALE_LOCAL_CHECKOUT — a dirty worktree with
+    simultaneous HEAD drift classifies dirty-first."""
+    verdict = classify_continuity(
+        snapshot(
+            dirty_state="DIRTY",
+            local_head=HEAD_B,        # != expected AND != remote
+        )
+    )
+    assert verdict.classification is ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN
+    kinds = [f.kind for f in verdict.findings]
+    assert kinds[0] is ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN
+    assert ContinuityClassification.HEAD_DRIFT in kinds
+    assert ContinuityClassification.STALE_LOCAL_CHECKOUT in kinds
+    assert verdict.safe_to_mutate is False
+
+
+def test_review_dirty_state_unknown_outranks_head_drift():
+    verdict = classify_continuity(
+        snapshot(
+            dirty_state="UNKNOWN",
+            local_head=HEAD_B,
+        )
+    )
+    assert verdict.classification is ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN
+
+
+def test_review_ssot_drift_outranks_generic_reconcile_required():
+    """Binding precedence: SSOT_DRIFT must precede RECONCILE_REQUIRED — a
+    projection contradiction plus a RECOVERY_NEEDED job classifies
+    SSOT-drift-first, not reconcile-first."""
+    verdict = classify_continuity(
+        snapshot(
+            job=JobFact(job_id="job-1", state=TaskState.RECOVERY_NEEDED),
+            projections=(
+                ProjectionClaim(source="CURRENT-WORK.md", asserted_head=HEAD_B),
+            ),
+        )
+    )
+    kinds = [f.kind for f in verdict.findings]
+    assert verdict.classification is ContinuityClassification.SSOT_DRIFT
+    assert kinds[0] is ContinuityClassification.SSOT_DRIFT
+    assert ContinuityClassification.RECONCILE_REQUIRED in kinds
+    assert verdict.safe_to_mutate is False
+
+
+def test_review_unknown_ownership_classifies_unknown_fail_closed():
+    """ownership_known=False is a MISSING critical mutation-authorization
+    fact: it must classify UNKNOWN (fail closed, recover-missing-facts), not
+    a worktree-state finding."""
+    verdict = classify_continuity(snapshot(ownership_known=False))
+    assert verdict.classification is ContinuityClassification.UNKNOWN
+    reasons = [f.reason_code for f in verdict.findings]
+    assert "OWNERSHIP_UNKNOWN" in reasons
+    kinds = [f.kind for f in verdict.findings]
+    assert ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN not in kinds
+    assert ReconciliationAction.RECOVER_MISSING_FACTS in verdict.reconciliation_actions
+    assert verdict.safe_to_mutate is False
+
+
+def test_review_binding_precedence_order_is_exact():
+    """The precedence tuple must equal the durable binding order verbatim."""
+    from a_conductor.continuity_guard import _PRECEDENCE
+
+    binding = (
+        ContinuityClassification.UNKNOWN,
+        ContinuityClassification.CLAIM_CONFLICT,
+        ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN,
+        ContinuityClassification.HEAD_DRIFT,
+        ContinuityClassification.STALE_LOCAL_CHECKOUT,
+        ContinuityClassification.MERGED_NOT_FOLDED,
+        ContinuityClassification.SSOT_DRIFT,
+        ContinuityClassification.RECONCILE_REQUIRED,
+    )
+    assert _PRECEDENCE == binding

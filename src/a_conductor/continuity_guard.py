@@ -84,16 +84,21 @@ REASON_CODES = frozenset(
 )
 
 # Deterministic severity precedence for primary-classification selection and
-# finding ordering. UNKNOWN first: missing facts invalidate every other check.
+# finding ordering — the durable binding order (Issue #226 comment
+# 5574034911): UNKNOWN first (missing facts invalidate every other check),
+# then claim conflicts, then worktree state (dirty outranks head/stale
+# evidence), then head drift, then stale-local, then merge-fold projection
+# drift, then other SSOT drift (which outranks generic reconcile residue),
+# then reconcile-required.
 _PRECEDENCE: tuple[ContinuityClassification, ...] = (
     ContinuityClassification.UNKNOWN,
     ContinuityClassification.CLAIM_CONFLICT,
+    ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN,
     ContinuityClassification.HEAD_DRIFT,
     ContinuityClassification.STALE_LOCAL_CHECKOUT,
-    ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN,
     ContinuityClassification.MERGED_NOT_FOLDED,
-    ContinuityClassification.RECONCILE_REQUIRED,
     ContinuityClassification.SSOT_DRIFT,
+    ContinuityClassification.RECONCILE_REQUIRED,
 )
 _PRECEDENCE_INDEX = {
     kind: index for index, kind in enumerate(_PRECEDENCE)
@@ -441,9 +446,11 @@ def classify_continuity(snapshot: ContinuitySnapshot) -> ContinuityVerdict:
             )
         )
     if not snapshot.ownership_known:
+        # Missing critical mutation-authorization fact: fail closed as
+        # UNKNOWN (recover-missing-facts), never a worktree-state finding.
         findings.append(
             ContinuityFinding(
-                ContinuityClassification.WORKTREE_DIRTY_OR_UNKNOWN, "OWNERSHIP_UNKNOWN", "ownership_known"
+                ContinuityClassification.UNKNOWN, "OWNERSHIP_UNKNOWN", "ownership_known"
             )
         )
 
