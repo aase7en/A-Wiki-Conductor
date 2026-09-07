@@ -1,6 +1,6 @@
 # Universal Agent Entry Protocol
 
-Status: CANDIDATE / BINDING AFTER WO162 ACCEPTANCE (WO-P1-162, renumbered from WO-P1-157)
+Status: BINDING / ACCEPTED via WO-P1-162 / PR #219 (merged 2026-09-07)
 Introduced by: WO-P1-162
 Purpose: make every execution surface start from the same durable state with minimum ceremony.
 

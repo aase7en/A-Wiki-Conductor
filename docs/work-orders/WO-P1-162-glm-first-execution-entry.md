@@ -2,7 +2,7 @@
 
 Date: 2026-09-04 (opened as WO-P1-157; renumbered 2026-09-07)
 Owner: GLM-1 (continuation of the GPT-B drafting lane)
-Status: REPAIR_ROUND_3 (GPT1 comment 5564621374: CHANGES_REQUIRED, P2x2) / READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at the frozen repair head
+Status: MERGED / ACCEPTED / RELEASED via PR #219 — accepted head 540ec54747d93bd4565c7530f6e474ac841f432c; merge ea521dfafb124d0fc76db1fe4fde08b8d3c5d207
 Priority: P0 delivery-throughput hardening
 Repository: A:\GitHub\A-Wiki-Conductor
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry
@@ -130,3 +130,11 @@ Deterministic docs validation passed across the 15-file canonical set: diff-chec
 - Historical evidence above/below explicit historical boundaries is preserved unchanged; nothing was rewritten as current except the active decision/status surfaces this review identified.
 - Verification on this repair head: contradiction scan (zero occurrences of the stale AGENTS.md-first rule; no universally mandatory `handoff.md` step); canonical entry/progressive-context agreement between Design decisions 1/3/4 and `AGENT_ENTRY_PROTOCOL.md` §1; `git diff --check` PASS; strict UTF-8 / no U+FFFD in changed files; `python -m pytest -q tests/test_operator_protocol.py` PASS; scope audit = only the four allowed tracked files changed from `92b8c74`; added-line secret-shape scan 0 hits.
 - Stop state: **READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE** at this commit's exact head (SHA + CI in PR #219). GLM-1 does not merge.
+
+## WO162 post-merge acceptance closeout — 2026-09-07 (GPT1)
+
+- GPT1 accepted exact head `540ec54747d93bd4565c7530f6e474ac841f432c` after independent verification; acceptance comment: PR #219 issuecomment `5566095531`.
+- PR #219 merged to `main` as `ea521dfafb124d0fc76db1fe4fde08b8d3c5d207` at 2026-09-07T06:34:13Z; the accepted head is an ancestor of the merge commit.
+- GLM-1 implementation ownership was released in the post-merge checkpoint (`5566133026`).
+- The tracked pre-merge projections became `MERGED_NOT_FOLDED` immediately after merge; successor WO-P1-163 exists only to perform the single-writer post-merge fold.
+- Universal Agent Entry is now binding. No downstream source/runtime authority is granted by this closeout.

@@ -1,18 +1,22 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-07 — GLM-1 WO162 rereview repair round 3: canonical entry decisions + truthful status / READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE
+Last updated: 2026-09-07 — GPT1 WO163 post-WO162 merge continuity fold
 
-## WO162 governance reconciliation handoff override — 2026-09-07 (authoritative)
+## WO163 post-WO162 merge handoff — 2026-09-07 (authoritative)
 
-> **Single-authority rule:** this section is the ONLY current authoritative handoff state. Everything below the `HISTORICAL EVIDENCE` separator is dated evidence only; header words such as "authoritative", "override", or "current" in those sections describe their own date and are superseded by this section.
+> **Single-authority rule:** this section is the ONLY current authoritative handoff state. Everything below the historical separator is dated evidence only.
 
-- Repo `A:\GitHub\A-Wiki-Conductor`; lane worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry`; branch `docs/wo-p1-157-glm-first-entry` (transport name only; WO identity = WO-P1-162, renumbered because GPT2 / Issue #210 keeps WO157/AIP-3). Composition: PR #220 fold merge `50f20fe` (PR #220 is MERGED into this branch, observed 2026-09-07T01:47:34Z, merge commit `50f20fe59679803b02557e75538faa9ea3c5de22`) + main recompose merge `f56d532` onto `main@df5a25f` + truth-fold `a4ee953` + this final-governance-repair commit (exact SHA in PR #219). No rebase/reset/clean/stash/force-push; worktree clean at each freeze.
-- PR #221 / WO158 / ZRA-1: MERGED (`df5a25f`, post-main CI `34064328672` SUCCESS). The `READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE` projections main carried past the merge were MERGED_NOT_FOLDED drift, now folded by this lane (WO158 r1-r6 sections below are preserved evidence, superseded).
-- Resume rule: re-pin `origin/main` + PR #219 head + latest GPT1 comments FIRST. Do not start A-Wiki #54 before this lane is accepted. After acceptance, the next queue goal is A-Wiki #54 (`A:\GitHub\A-Wiki`, clean isolated worktree, GLM1/Q25 claim), then ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216).
-- Repair round 2 (this commit, per GPT1 CHANGES_REQUIRED on `a4ee953`): single-authority rule + HISTORICAL separator added; PR220-MERGED observed truth folded; Issue #213 closed with ZRA-1/PR221 acceptance evidence; PR #219 body refreshed to WO162 identity.
-- Repair round 3 (this commit, per GPT1 comment `5564621374` on `92b8c74`, CHANGES_REQUIRED P2x2): WO162 ACTIVE Design decisions aligned to the exact canonical entry sequence (starts at `00-AGENT-ENTRY.md`; `handoff.md` only for resume/transfer/unclear continuity) and the WO status made truthful for this round; `AGENT_ENTRY_PROTOCOL.md` untouched (found correct). Stop state: READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE at this head; GLM-1 does not merge.
+- Repo: `A:\\GitHub\\A-Wiki-Conductor`.
+- Accepted WO162 candidate: `540ec54747d93bd4565c7530f6e474ac841f432c`.
+- PR #219 merged as `ea521dfafb124d0fc76db1fe4fde08b8d3c5d207` at 2026-09-07T06:34:13Z; accepted head is an ancestor.
+- GLM-1 WO162 implementation ownership is released.
+- WO163 isolated closeout worktree: `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo163-closeout`; branch `docs/wo-p1-163-wo162-closeout`; docs-only scope.
+- WO163 exists only to fold `MERGED_NOT_FOLDED`, bind the Universal Agent Entry status, and release the downstream queue. It does not implement A-Wiki #54, P0-B, ZRA-2/3/4, source/runtime/DB/credentials.
+- Required verification before merge: exact branch clean/frozen, diff-check, UTF-8, operator protocol tests, stale-state scan, and exact main CI run `34091433323` SUCCESS.
+- **After this fold is on main**, next safe dependency is A-Wiki Issue #54 in the existing Q25 isolated lane. Then follow the separately accepted architecture/Zero-Relay dependency order.
+- WO163 claim release is condition-based: once this projection is on `origin/main` with required verification satisfied, there is no remaining mutable scope; no additional global-file fold is required.
 
-One next safe action: GPT1 exact-SHA rereview of the repair-round-3 WO162 / PR #219 head → GPT-A acceptance/merge.
+One next safe action: verify/freeze WO163 → expected-head merge → re-pin main → activate A-Wiki #54.
 
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
