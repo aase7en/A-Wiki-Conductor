@@ -1,19 +1,27 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-07 (GLM-1 — WO162 governance reconciliation: PR221 truth fold-back / READY_FOR_FOCUSED_REREVIEW)
+Last updated: 2026-09-07 (GLM-1 — WO162 final governance repair: single current authority + PR220/#213 reconciliation / READY_FOR_GPT1_FINAL_WO162_ACCEPTANCE)
 
 ## WO162 governance reconciliation + PR221 fold-back — 2026-09-07 (authoritative)
 
+> **Single-authority rule:** this section is the ONLY current authoritative state in this file. Every section below the `HISTORICAL EVIDENCE` separator is dated evidence only; header words such as "authoritative", "override", or "current" in those sections describe their own date and are superseded by this section.
+
 - **PR #221 / WO-P1-158 / ZRA-1 is MERGED and RELEASED**: merge commit `df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` (2026-09-06T22:32:41Z) is current `origin/main`; accepted head `01517ea` is an ancestor; post-main CI `34064328672` SUCCESS (9m23s). PROOF_C and live provider dispatch remain separate GPT1 gates per the WO158 record.
 - **SSoT drift (MERGED_NOT_FOLDED) repaired by this lane**: main's continuity files still carried `READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE` / "next safe action: GPT1 rereview" after the merge had landed — stale at the moment of merge. This WO162 fold-back is the reconciliation; the WO158 r1-r6 sections below are preserved as evidence and are superseded by this section.
-- **WO identity renumbered**: the GLM-first entry/workflow lane is now `WO-P1-162` (GPT2 / Issue #210 keeps WO157/AIP-3). Branch `docs/wo-p1-157-glm-first-entry` is retained as PR #219 transport only. PR #220's stacked repair is folded into this lane (`STACKED_REPAIR_SEMANTICS = PASS`, CI `33947807332`); PR #220 can close after PR #219 merges.
+- **WO identity renumbered**: the GLM-first entry/workflow lane is now `WO-P1-162` (GPT2 / Issue #210 keeps WO157/AIP-3). Branch `docs/wo-p1-157-glm-first-entry` is retained as PR #219 transport only. PR #220's stacked repair is folded into this lane (`STACKED_REPAIR_SEMANTICS = PASS`, CI `33947807332`), and **PR #220 is MERGED into this branch** (merge commit `50f20fe59679803b02557e75538faa9ea3c5de22`, observed 2026-09-07T01:47:34Z).
 - **Current frontier**: ZRA-0 ACCEPTED/CLOSED; ZRA-1 MERGED (above). Next queue goal is **A-Wiki Issue #54** (ReviewBus addressed-blocker fix; repo `A:\GitHub\A-Wiki`, clean isolated worktree, GLM1/Q25 claim) — not before this lane is frozen/accepted. Then ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216).
 - **Separate scope, not blockers**: PR #222 (WO159 loop-engineering) and PR #223 (elastic multi-agent roadmap) remain open drafts; PR #211 remains historical/do-not-merge; PR #204 remains scope-blocked/deferred until after ZRA-0..4.
 - **New governance rule**: `AGENT_ENTRY_PROTOCOL.md` §2 now distinguishes `STALE_LOCAL_CHECKOUT` (local view behind remote; remote SSoT not implicated) from `SSOT_DRIFT` / `MERGED_NOT_FOLDED` (canonical remote evidence contradicts continuity projections; dependent mutation blocked until fold-back) from `UNKNOWN` (fail closed).
 - **Ownership**: GLM-1 owns this WO162 / PR #219 docs-only lane; GPT1/GPT-A own focused rereview, acceptance, and merge. GLM does not self-merge. Protected root checkout remains stale/dirty; all mutation stays in isolated worktrees.
 - Canonical order: `WO162 binding -> A-Wiki #54 (ZR-1) -> ZRA-2 -> ZRA-3 -> ZRA-4 -> WO152/#204 -> ODP-1..8 -> ZRA-5 -> ODP-9 -> WO096/release`.
+- **Repair round 2 (this commit)**: GPT1 focused rereview of `a4ee9539fd5903720eb08fc31983dc96df1432c7` returned CHANGES_REQUIRED (exact-head CI `34074156876` all-green): P1-1 dual-authoritative sections repaired via the single-authority rule + `HISTORICAL EVIDENCE` separator below; P1-2 PR220-MERGED observed truth folded (this section); Issue #213 ZRA-1 coordination drift closed with PR221 acceptance evidence; PR #219 body refreshed to WO162 identity.
 
-One next safe action: freeze this exact SHA on PR #219 → focused independent GPT1 rereview (contradiction / authority-order / current-truth) + exact-head CI → GPT-A acceptance/merge → A-Wiki #54.
+One next safe action: GPT1 final exact-SHA rereview of the repaired WO162 head (see PR #219) → GPT-A acceptance/merge → A-Wiki #54.
+
+<!-- ================================================================== -->
+<!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
+<!-- Nothing below this separator is a current instruction.              -->
+<!-- ================================================================== -->
 
 ## WO158 canonical authority final repair r6 — review 5560911492 — 2026-09-07 (GLM-1)
 
@@ -52,7 +60,7 @@ One next safe action: freeze this exact SHA on PR #219 → focused independent G
 
 **One next safe action:** freeze this repair SHA on PR #221 -> GPT1 exact-SHA rereview -> (if accepted) Prompt-2 slices (task identity / ATTACH / CAS truth).
 
-## Post-PR208 merge actual-state override - 2026-09-05 (authoritative)
+## Post-PR208 merge actual-state override - 2026-09-05 (HISTORICAL / SUPERSEDED BY WO162 2026-09-07)
 
 - main = `f0ddd0b9245cef7a7525a670f470e1de595d4615`; PR #208 / WO154 is MERGED / RELEASED. Repaired head `5124ed18409d71df7b98e4455f0a4a2df6428695` passed independent rereview P0/P1/P2=0 and exact-head CI before merge.
 - WO157 / PR #219 is the active workflow-successor lane. GPT-B recomposed it onto current main; new exact SHA still requires focused rereview + CI before acceptance.
@@ -95,7 +103,7 @@ One next safe action: freeze/review/CI WO157 on current main, then GPT-A accepta
 - Prevention is now durable in `AGENTS.md`, `DEFECT_LESSONS.md` #51, `docs/runbooks/zcode-config-lock.md`, and the read-only `scripts/diagnose_zcode_config_lock.ps1`.
 - This is an operational reliability lane only; it does not change AHA/AiPASS/product frontier ownership or authorize live provider/tunnel mutations.
 
-## WO146 authoritative actual-state override — 2026-09-03
+## WO146 authoritative actual-state override — 2026-09-03 (HISTORICAL / SUPERSEDED)
 
 Actual Git/GitHub evidence below supersedes older frontier/status text later in this file.
 
@@ -134,7 +142,7 @@ Actual Git/GitHub evidence below supersedes older frontier/status text later in 
 3. Continue read-only A-Wiki Review Bridge polling; implement adapter only after accepted exact A-Wiki SHA/API.
 4. Keep WO096 fail-closed until explicit maintenance authority exists; do not publish stable v0.7.0.
 
-## Current phase
+## Current phase (HISTORICAL snapshot, 2026-09-03 era — superseded by WO162; the undated "Active work orders"/"Immediate execution frontier" sections below are part of the same snapshot)
 
 **AHA-7 Models & Agents remains the active product frontier. WO127 and WO128 are accepted/released. WO134 historical T2-T4 evidence detail merged, but post-merge WO134-R1 is now the active dependency-blocking product defect and requires a fresh bounded remediation SHA; historical review/CI cannot close it. GPT remains integrator/merge authority. P0 WO-P1-096 remains the v0.7.0 operational release blocker.**
 

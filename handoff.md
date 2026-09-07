@@ -1,23 +1,31 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-07 — GLM-1 WO162 governance reconciliation: PR221 truth folded, lane recomposed on main@df5a25f, READY_FOR_FOCUSED_REREVIEW
+Last updated: 2026-09-07 — GLM-1 WO162 final governance repair: single current authority + PR220/#213 reconciled / READY_FOR_GPT1_FINAL_WO162_ACCEPTANCE
 
 ## WO162 governance reconciliation handoff override — 2026-09-07 (authoritative)
 
-- Repo `A:\GitHub\A-Wiki-Conductor`; lane worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry`; branch `docs/wo-p1-157-glm-first-entry` (transport name only; WO identity = WO-P1-162, renumbered because GPT2 / Issue #210 keeps WO157/AIP-3). Composition: PR #220 fold merge `50f20fe` + main recompose merge `f56d532` onto `main@df5a25f` + this truth-fold commit (exact SHA in PR #219). No rebase/reset/clean/stash/force-push; worktree clean at each freeze.
+> **Single-authority rule:** this section is the ONLY current authoritative handoff state. Everything below the `HISTORICAL EVIDENCE` separator is dated evidence only; header words such as "authoritative", "override", or "current" in those sections describe their own date and are superseded by this section.
+
+- Repo `A:\GitHub\A-Wiki-Conductor`; lane worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo157-glm-first-entry`; branch `docs/wo-p1-157-glm-first-entry` (transport name only; WO identity = WO-P1-162, renumbered because GPT2 / Issue #210 keeps WO157/AIP-3). Composition: PR #220 fold merge `50f20fe` (PR #220 is MERGED into this branch, observed 2026-09-07T01:47:34Z, merge commit `50f20fe59679803b02557e75538faa9ea3c5de22`) + main recompose merge `f56d532` onto `main@df5a25f` + truth-fold `a4ee953` + this final-governance-repair commit (exact SHA in PR #219). No rebase/reset/clean/stash/force-push; worktree clean at each freeze.
 - PR #221 / WO158 / ZRA-1: MERGED (`df5a25f`, post-main CI `34064328672` SUCCESS). The `READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE` projections main carried past the merge were MERGED_NOT_FOLDED drift, now folded by this lane (WO158 r1-r6 sections below are preserved evidence, superseded).
-- Resume rule: re-pin `origin/main` + PR #219 head + latest GPT1 comments FIRST. Do not start A-Wiki #54 before this lane is frozen/accepted. After acceptance, the next queue goal is A-Wiki #54 (`A:\GitHub\A-Wiki`, clean isolated worktree, GLM1/Q25 claim), then ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216).
+- Resume rule: re-pin `origin/main` + PR #219 head + latest GPT1 comments FIRST. Do not start A-Wiki #54 before this lane is accepted. After acceptance, the next queue goal is A-Wiki #54 (`A:\GitHub\A-Wiki`, clean isolated worktree, GLM1/Q25 claim), then ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216).
+- Repair round 2 (this commit, per GPT1 CHANGES_REQUIRED on `a4ee953`): single-authority rule + HISTORICAL separator added; PR220-MERGED observed truth folded; Issue #213 closed with ZRA-1/PR221 acceptance evidence; PR #219 body refreshed to WO162 identity.
 
-One next safe action: GPT1 focused rereview of the frozen WO162 / PR #219 head (contradiction / authority-order / current-truth) + exact-head CI, then GPT-A acceptance/merge.
+One next safe action: GPT1 final exact-SHA rereview of the repaired WO162 / PR #219 head → GPT-A acceptance/merge.
 
-## WO158 / PR221 r6 handoff override - 2026-09-07 (authoritative for this lane)
+<!-- ================================================================== -->
+<!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
+<!-- Nothing below this separator is a current instruction.              -->
+<!-- ================================================================== -->
+
+## WO158 / PR221 r6 handoff override - 2026-09-07 (historical for that lane)
 
 - Binding review 5560911492 items are ALL closed on `feat/wo-p1-158-zcode-zero-relay` at the r6 head (single commit on top of `0a123e8`; exact SHA in PR #221). Canonical admission semantics consumed (ACTIVE + released rule; REAL store integration evidence in `tests/test_zcode_final_targeted_repair.py`); dispatch context (batch/execution/project) and explicit mutation scope are all REQUIRED fail-closed; lease-mutable-scope authority enforced.
 - Resume rule: re-pin `origin/main` + PR #221 head + latest GPT1 comments FIRST. After GPT1 acceptance+merge, the next queue goal is the A-Wiki #54 addressed-blocker fix (A:\GitHub\A-Wiki, clean isolated worktree, GLM1 Q25 claim) - not before.
 
 One next safe action: GPT1 exact-SHA rereview/acceptance of the r6 head on PR #221.
 
-## WO158 / PR221 r5 handoff override - 2026-09-06 (authoritative for this lane)
+## WO158 / PR221 r5 handoff override - 2026-09-06 (HISTORICAL / SUPERSEDED BY WO162)
 
 - Binding review 5560480061 items are ALL closed on `feat/wo-p1-158-zcode-zero-relay` at the r5 head (single commit on top of `2de584a`; exact SHA in PR #221). RED-first matrix in `tests/test_zcode_final_targeted_repair.py` (19/19) plus three new real E2E proofs (flooding-child typed overflow; finished_at at the real terminal-exit boundary; same-packet/two-model no-reuse with distinct derived runtime identities).
 - All r1-r4 accepted closures preserved (verified by the unchanged suites). r5 additionally: derived `zcode-runtime-v1` runtime identity; dispatch-context-bound admission; lease project/intent/scope binding; bounded reader; truthful finished_at; argv launch-evidence truth; `expected_base_url` assertion naming.
@@ -25,7 +33,7 @@ One next safe action: GPT1 exact-SHA rereview/acceptance of the r6 head on PR #2
 
 One next safe action: GPT1 exact-SHA rereview/acceptance of the r5 head on PR #221.
 
-## WO158 / PR221 final handoff override - 2026-09-06 (authoritative for this lane)
+## WO158 / PR221 final handoff override - 2026-09-06 (HISTORICAL / SUPERSEDED BY WO162)
 
 - All four GPT1 repair slices (binding review 5558197043) are executed and frozen on `feat/wo-p1-158-zcode-zero-relay`: slice 1 `cf7ef9a` (real specialized-helper happy path E2E + production service composition; CI green), slice 2 `958f051` (full task identity + ATTACH_RUNNING + CAS truth; CI green), slice 3 `c9e527a` (authority-bound lease/admission/endpoint assembly), slice 4 = the final deep truth audit + source freeze (call-graph audit, dead-authority scan all-negative, real restart E2E, batteries 245/245 + 263/263, hygiene PASS).
 - Stop state: **READY_FOR_GPT1_EXACT_SHA_ACCEPTANCE** - GPT1 owns exact-SHA acceptance and merge. PROOF_C remains NOT_RUN/GPT1_AUTH_REQUIRED; live provider dispatch remains separately gated. ZCodeBackendAdapter is a declared non-production seam (the production assembly never constructs it).
@@ -33,7 +41,7 @@ One next safe action: GPT1 exact-SHA rereview/acceptance of the r5 head on PR #2
 
 One next safe action: GPT1 exact-SHA rereview/acceptance of the PR221 final head.
 
-## WO158 / PR221 real specialized-helper happy path handoff — 2026-09-06 (authoritative for this lane)
+## WO158 / PR221 real specialized-helper happy path handoff — 2026-09-06 (HISTORICAL / SUPERSEDED BY WO162)
 
 - Binding state: GPT1 review comment 5558197043 = CHANGES_REQUIRED at `37ef02014ca89898566749d63d0b3a80df9c1bca` (PR #221 head at slice start). GLM-1 executed slice-1 repair on `feat/wo-p1-158-zcode-zero-relay` in worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo158-zra1`; the exact frozen SHA is the new branch head pushed to PR #221 (see the WO158 checkpoint `GPT1 repair-r1` in `docs/work-orders/WO-P1-158-zero-relay-zcode.md` for full evidence).
 - What changed: helper CLI rewritten (env-channel task authority + pre-send packet re-verify + explicit-only credential child env + OS-exact child identity + bounded deadline/read timeouts); NEW `zcode_process_truth.py`; production assembly now composes the REAL `SupervisedExecutionService` + `ZCODE_APP_SERVER_V1` specialized helper (service authorities mandatory; adapter no longer the production launcher); env-override allowlist extended with the closed ZCODE_* set.
@@ -42,7 +50,7 @@ One next safe action: GPT1 exact-SHA rereview/acceptance of the PR221 final head
 
 One next safe action: GPT1 exact-SHA rereview of the pushed repair head on PR #221.
 
-## Post-PR208 merge handoff override - 2026-09-05 (authoritative)
+## Post-PR208 merge handoff override - 2026-09-05 (HISTORICAL / SUPERSEDED BY WO162 2026-09-07)
 
 - Main is `f0ddd0b9245cef7a7525a670f470e1de595d4615`; PR #208 / WO154 is MERGED/RELEASED after repaired head `5124ed18409d71df7b98e4455f0a4a2df6428695` passed independent rereview and exact-head CI.
 - WO157 / PR #219 is GPT-B active docs/process successor, recomposed onto current main. Universal entry + task-selective reading + GLM-first bounded execution / GPT-governance need a new exact-SHA focused rereview + CI before acceptance.
@@ -77,7 +85,7 @@ One next safe action: finish PR #208 exact-SHA R2 acceptance; then claim ZRA-0 f
 - Durable prevention: do not recursively search/index live `.zcode\v2`; use `scripts/diagnose_zcode_config_lock.ps1` and `docs/runbooks/zcode-config-lock.md`.
 - Product-roadmap ownership below is unchanged by this operational incident.
 
-## WO146 current handoff override — 2026-09-03
+## WO146 current handoff override — 2026-09-03 (HISTORICAL / SUPERSEDED)
 
 - Remote main: `37039a0e1dceb6256e3ee384bd7fa6ffb2737997`. WO144 final closeout remains released; WO145 / PR #198 exact head `93f9a4089526f70a39adc3b97d3db55d6c8c6b3e` passed GLM rereview P0/P1/P2=0, GPT 160/160, exact-head CI `33706012375`, merged as `37039a0e...`, and post-main `33708033393` is SUCCESS.
 - A-Wiki Review Bridge is accepted: PR #50 head `b04761d580ddcdc7eb682e3a6036078b3b346953`, independent GLM rereview PASS P0/P1/P2=0, merge `588a907200e0d4998ec4fbb7fb2178b89d9700b2`, post-main `33704270521` SUCCESS.
@@ -88,7 +96,7 @@ One next safe action: finish PR #208 exact-SHA R2 acceptance; then claim ZRA-0 f
 
 One next safe action: finish PR #197 re-composition and fresh exact-head CI on main `37039a0e...`; after its post-main release, reconcile PR #183 while WO147 continues independently.
 
-## Current actual handoff — 2026-09-03
+## Current actual handoff — 2026-09-03 (HISTORICAL / SUPERSEDED; the undated "Current …" sections inside this block are part of the same 2026-09-03 evidence)
 
 - Remote main: `cf2a4e7a57bfd22ec55de79c700ec3e4931dc475` after WO144 / PR #195; exact-head CI `33699856774` and post-main CI `33704062299` SUCCESS.
 - WO140 / PR #193: final head `2238259e264991e1249d1439b206dc9b252c3051`; exact-head CI `33678036552` SUCCESS; merged `787e9be2f108ce3f323bebc20127eb03c2958bfc`; post-main `33679432865` SUCCESS. Released.
@@ -103,7 +111,7 @@ One next safe action: finish PR #197 re-composition and fresh exact-head CI on m
 
 Reconcile PR #183 from current main after this WO144 release, preserving released coordination history and the current AiPASS section 3.4 written-authorization gate. Do not touch live Workers/tunnels or implement Review Bridge before upstream acceptance.
 
-## Current objective
+## Current objective (HISTORICAL snapshot, 2026-09-03 era — superseded by WO162; the undated "Ownership / claims"/"Verified evidence"/"Next safe actions" sections below are part of the same snapshot)
 
 Accept WO143 with exact-SHA independent review + CI/post-main proof, then unblock PR #183 for a fresh external-policy/source audit and proceed to AIP-1. Preserve WO140 GLM ownership and keep WO096 fail-closed.
 
