@@ -4,6 +4,7 @@ Date: 2026-09-07
 Status: SHAPING / NO IMPLEMENTATION AUTHORITY
 Repository: `aase7en/A-Wiki-Conductor`
 Baseline at creation: `origin/main@df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` (PR #221 / ZRA-1 merged)
+Recomposed onto current accepted main: `origin/main@a887e7a76184d8f5dc22446a159087b6f9cab78d` (PR #224 / WO163 fold, which includes PR #219 / WO162 Universal Agent Entry). Dependency order unchanged: `A-Wiki #54 -> ZRA-2 -> ZRA-3 -> ZRA-4`; A-Wiki #54 is **MERGED** (`967e063cb9dc2e5b43b48a00deb575235f125a94`, post-main CI `34133420008` SUCCESS), so ZRA-2 is next, gated on GPT1 release of `GPT1-ZRA2-PREFLIGHT-001`.
 
 ## Purpose
 
@@ -21,6 +22,8 @@ Do not rebuild these authorities:
 - Issue #216 / ZRA-4 bounded parallel Zero-Relay preflight — existing parallel execution/fan-in authority shaping.
 - existing TaskGraph / ReadySet / scheduler / WorkerLease / provider admission / durable job / supervised execution / review / recovery primitives.
 - ZRA-1 accepted production execution path from PR #221.
+- `WO-P1-162` Universal Agent Entry (PR #219, BINDING) + `WO-P1-163` continuity fold (PR #224) — every fabric participant starts from `00-AGENT-ENTRY.md` -> `PROJECT-GRAPH.yaml` -> actual-state verification; no lane may bypass the entry/claim gate.
+- A-Wiki ReviewBus accepted review gates — Issue #53 / PR #55 (exact-head verdict/CI invalidation on HEAD rollover) and Issue #54 / PR #56 (blocker findings stay blocking through `open` AND `addressed`; only `verified` releases PASS/READY). These are the acceptance authorities any fabric review/fan-in semantics must reuse; no second review bus.
 
 Classification for this roadmap: `REUSE -> WRAP -> EXTEND`; `NEW` only for a proven gap. No second scheduler, lease store, provider store, task store, review authority, recovery authority, or SSoT.
 
@@ -220,6 +223,30 @@ Only if READY frontier, provider capacity, conflict topology, review capacity, a
 
 This scale progression must not silently reorder the authoritative ZRA-0 -> ZRA-1 -> ZRA-2 -> ZRA-3 -> ZRA-4 -> ZRA-5 dependency chain. Shaping/research may proceed read-only; production mutation obeys current roadmap/claims.
 
+## Issue #216 ZRA-4 findings this roadmap must reconcile
+
+Classified against the accepted durable record in Issue #216 (GPT1 review verdict + GPT2 gate refresh + Q59 host validation). Nothing in this section authorizes implementation.
+
+### CURRENT ACCEPTED (design verdicts already recorded in #216; reuse, do not reinvent)
+
+- **Two-coordinator convergence** — deterministic per-node job identity + store CAS closes the concurrent-coordinator window; no global lock, no second scheduler.
+- **Partial-batch preservation** — `ParallelReadyExecutor` returns one typed `ParallelReadyOutcome` per selected node; there is NO batch transaction/rollback semantic, and that absence is correct. Lane A success + lane B UNKNOWN preserves A, retains B's admission/lease, and never blindly replays B.
+- **Fan-in by per-node durable state** — successor node C becomes READY only when every required predecessor reaches canonical `DONE`/`SKIPPED`; mid-batch crash preserves already-committed lanes across restart.
+- **Lease never auto-released by elapsed time alone**; UNKNOWN external effect routes to reconcile, never replay.
+- **First ZRA-4 acceptance ceiling** — `SchedulePolicy.max_parallel = 2`, raised toward 3 only after 2-lane chaos/restart/fan-in proof; independent read-only review lane accounted separately under WO154's `3 mutable + 1 review` ceiling.
+
+### FUTURE SHAPING (mutation-ready packets; NOT implemented — gated on the ZRA chain + a fresh WO161 activation claim)
+
+- **C1 — physical Windows worktree identity** (GPT1 P1-1): `windows_worktree_key` (normcase+normpath only) does not resolve junctions/symlinks or expand 8.3 short paths; the same physical worktree expressed via alias currently yields two lease identities => double mutation lease + mutable-scope-overlap bypass. Accepted repair direction (Q59-validated on the real Windows host): resolve + explicit `\\?\`/UNC-prefix stripping + normcase/normpath, with an alias-matrix RED (case change + trailing separator + `~1` short path => `WORKTREE_PARALLEL_CONFLICT`; genuinely distinct worktrees still pass).
+- **P1-2 — mutable-scope alias overlap**: `write_sets_overlap` matching raw scope strings can miss alias-spelled overlap; scope paths must normalize through the same normalized root (same future commit as C1).
+- **C2 — deterministic batch identity**: `zb1:<sha256(canonical graph_run_id + sorted selected job_ids)>`; the pure re-form design is validated, deterministic across restart, and creates no new batch store/authority.
+- Required REDs before any ZRA-4 implementation: alias-key matrix; deterministic batch_id re-form; executor-level two-coordinator race; mid-batch generation-drop; one-lane TTL expiry.
+
+### EXPERIMENTAL / NOT ACCEPTED
+
+- `WO-P1-161` remains a **reservation only** — no dedicated worktree/branch, no activation claim, `SAFE_TO_MUTATE_WO161 = NO` until the ZRA predecessor chain and the fresh main/worktree/HEAD/dirty/claim/overlap gate pass.
+- Every upstream framework candidate in the companion audit is unverified until its per-candidate audit passes; popularity is not evidence.
+
 ## SSoT / state projection requirement
 
 The fabric must operate from canonical actual state, not session memory or manually synchronized Markdown.
@@ -305,4 +332,4 @@ The long-term architecture is accepted only when a user can submit a goal and A-
 
 Do not implement a new orchestration subsystem from this document.
 
-First complete the companion upstream reuse audit, then map its findings against the already-accepted WO116/WO120 primitives and Issue #216 ZRA-4 design. Any future implementation requires a fresh work order, exact-main re-pin, ownership gate, RED-first acceptance criteria, and independent exact-SHA review.
+First complete the companion upstream reuse audit, then map its findings against the already-accepted WO116/WO120 primitives and the Issue #216 ZRA-4 findings classified above. The current dependency reality: A-Wiki #54 is merged, ZRA-2/ZRA-3/ZRA-4 remain gated in that order (ZRA-2 awaiting GPT1 claim release), and the ZRA-4 identity/overlap/batch-identity repairs are mutation-ready packets inside the WO161 reservation — not active work. Any future implementation requires a fresh work order, exact-main re-pin, ownership gate, RED-first acceptance criteria, and independent exact-SHA review.

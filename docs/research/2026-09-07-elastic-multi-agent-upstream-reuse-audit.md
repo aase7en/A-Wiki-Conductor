@@ -3,6 +3,7 @@
 Date: 2026-09-07
 Status: RESEARCH QUEUE / READ-ONLY UPSTREAM STUDY
 Related plan: `docs/plans/2026-09-07-elastic-multi-agent-leverage-roadmap.md`
+Recomposed onto current accepted main: `origin/main@a887e7a76184d8f5dc22446a159087b6f9cab78d` (WO162 Universal Agent Entry + WO163 fold included; A-Wiki #54 review-gate dependency merged at `967e063c`)
 
 ## Purpose
 
@@ -38,8 +39,10 @@ External frameworks may supply useful runtime/workspace/DAG/agent abstractions, 
 - GraphDispatchCoordinator / durable jobs;
 - supervised execution + recovery;
 - ZRA-1 exact execution/result identity;
-- Issue #216 ZRA-4 bounded parallel shaping;
-- PR #211 four-lane coordination document.
+- Issue #216 ZRA-4 bounded parallel shaping — including its accepted findings (CAS two-coordinator convergence, per-node typed outcome folding, fan-in on canonical predecessor `DONE`/`SKIPPED`, `max_parallel=2` first ceiling) and its mutation-ready packets (C1 physical Windows worktree identity with junction/symlink/8.3/`\\?\` resolution, P1-2 write-set alias-overlap normalization, C2 deterministic `zb1:` batch identity) held in the WO161 reservation;
+- PR #211 four-lane coordination document;
+- WO162 Universal Agent Entry / WO163 continuity fold — entry/claim gate every participant must pass;
+- A-Wiki ReviewBus accepted gates (#53 exact-head verdict/CI invalidation; #54 blockers stay blocking through `open`/`addressed` until `verified`) — the review authority audit candidates are compared against, never duplicated.
 
 An upstream library is useful only if integration reduces complexity without weakening these trust boundaries.
 
@@ -170,9 +173,15 @@ After individual audits, produce a single matrix rather than choosing one winnin
 |---|---|---|---|---|
 | Worker/lease ownership | existing WorkerLease | TBD | KEEP / WRAP | authority must remain local/durable |
 | Worktree/sandbox isolation | existing worktree gate | TBD | EXTEND | only if upstream improves isolation without duplicate ownership |
+| Physical worktree identity (Windows aliases) | C1 packet: resolve + `\\?\`/UNC strip + normcase/normpath in `windows_worktree_key` (#216 P1-1) | TBD | EXTEND (local) | alias-spelled same physical worktree must be one conflict domain; upstream cannot own this |
+| Mutable-scope overlap normalization | same normalized root for scope paths (#216 P1-2) | TBD | EXTEND (local) | raw-string overlap matching misses alias-spelled scopes |
+| Batch/graph-run identity | C2 packet: `zb1:<sha256(canonical graph_run_id + sorted selected job_ids)>` | TBD | KEEP local deterministic | deterministic across restart; no new batch store |
+| Two-coordinator convergence | deterministic node job-id + store CAS (#216 accepted) | TBD | KEEP local | no global lock, no second scheduler |
+| Partial-batch folding | per-node typed `ParallelReadyOutcome`, no batch rollback (#216 accepted) | TBD | KEEP local | preserve successful peers; UNKNOWN reconciles, never replays |
+| Fan-in readiness | canonical predecessor `DONE`/`SKIPPED` per-node durable state (#216 accepted) | TBD | KEEP local | successors gated on real terminal state, not barriers |
 | Async task graph | existing TaskGraph/jobs | TBD | REUSE local + borrow patterns | avoid second durable graph |
 | Runtime plugin abstraction | existing provider/runtime seams | TBD | WRAP/EXTEND | provider-neutral target |
-| CI -> repair routing | existing review/repair path | TBD | EXTEND | preserve exact result identity |
+| CI -> repair routing | existing review/repair path + A-Wiki ReviewBus gates (#53/#54) | TBD | EXTEND | preserve exact result identity + blocker-until-verified semantics |
 | Checkpoint/resume | existing durable jobs/recovery | TBD | KEEP / compare | upstream cannot replace ambiguity rules silently |
 | MCP/tool surface | current plugin/MCP boundary | TBD | WRAP | maintain authorization |
 
