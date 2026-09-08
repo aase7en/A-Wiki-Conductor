@@ -99,7 +99,7 @@ def facts(**over) -> GoalCloseoutFacts:
         fold=F(),
         lease=L(),
         ownership=OWN(),
-        completed_closeout_refs=frozenset({closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK, candidate_sha=SHA)}),
+        completed_closeout_refs=frozenset({closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK, candidate_sha=SHA, attempt_id=ATTEMPT)}),
     )
     base.update(over)
     return GoalCloseoutFacts(**base)
@@ -246,7 +246,7 @@ def test_fold_checkpoint_present_resumes_at_release():
         fold=FoldEvidence(requirement=FoldRequirement.REQUIRED, completed=True,
                           bound_task_id=TASK, bound_merge_commit="ab12"),
         lease=L(lease_id=LEASE, state="ACTIVE"),
-        completed_closeout_refs=frozenset({closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK, candidate_sha=SHA), closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA)}),
+        completed_closeout_refs=frozenset({closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK, candidate_sha=SHA, attempt_id=ATTEMPT), closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA, merge_key="ab12", fold_key="required")}),
     ))
     assert plan.decision is CloseoutDecision.RELEASE_REQUIRED
     assert plan.stage is CloseoutStage.RELEASE_LEASE
@@ -316,9 +316,9 @@ def test_plan_is_deterministic_and_idempotent():
 
 
 def test_checkpoint_refs_are_stable_and_timestamp_free():
-    ref = closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA)
-    assert ref == f"closeout:fold:{TASK}:{SHA}"
-    assert ref == closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA)
+    ref = closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA, merge_key="ab12", fold_key="required")
+    assert ref == f"closeout:fold:{TASK}:{SHA}:ab12:required"
+    assert ref == closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA, merge_key="ab12", fold_key="required")
 
 
 # ── 51-55: integration ownership concurrency ──────────────────────────
@@ -430,11 +430,12 @@ def test_executor_completes_via_release_then_complete_one_step_at_a_time():
     r1 = ex.execute_next(base)
     assert r1.decision is CloseoutDecision.RELEASE_REQUIRED
     assert lease.released == [LEASE]
-    assert closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK, candidate_sha=SHA) in [c[1] for c in store.checkpoints]
-    # next invocation observes the release checkpoint
+    assert closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK, candidate_sha=SHA, lease_id=LEASE) in [c[1] for c in store.checkpoints]
+    # next invocation rehydrates truthful facts: the release durably landed,
+    # so current lease authority now says RELEASED
     r2 = ex.execute_next(facts(
-        lease=L(lease_id=LEASE, state="ACTIVE"),
-        completed_closeout_refs=frozenset({closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK, candidate_sha=SHA), closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK, candidate_sha=SHA)}),
+        lease=L(lease_id=LEASE, state="RELEASED"),
+        completed_closeout_refs=frozenset({closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK, candidate_sha=SHA, attempt_id=ATTEMPT), closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK, candidate_sha=SHA, lease_id=LEASE)}),
     ))
     assert r2.decision is CloseoutDecision.COMPLETE_ALLOWED
     assert store.transitions == [TaskState.COMPLETE]
@@ -450,7 +451,7 @@ def test_executor_fold_then_checkpoint():
     r = ex.execute_next(plan_facts)
     assert r.decision is CloseoutDecision.FOLD_REQUIRED
     assert fold.calls == [TASK]
-    assert closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA) in [c[1] for c in store.checkpoints]
+    assert closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA, merge_key="ab12", fold_key="required") in [c[1] for c in store.checkpoints]
 
 
 def test_executor_fold_raises_before_effect_writes_no_checkpoint():
@@ -484,7 +485,7 @@ def test_executor_lease_already_released_continues():
         lease=L(lease_id=LEASE, state="ACTIVE"),
     ))
     assert r.decision is CloseoutDecision.RELEASE_REQUIRED
-    assert f"closeout:lease-release:{TASK}:{SHA}" in [c[1] for c in store.checkpoints]
+    assert closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK, candidate_sha=SHA, lease_id=LEASE) in [c[1] for c in store.checkpoints]
 
 
 def test_executor_checkpoint_failure_after_effect_is_recovery():
@@ -515,3 +516,177 @@ def test_executor_blocked_plan_has_no_side_effects():
     r = executor(store=store, lease=lease).execute_next(facts(blocking_findings=("P0: x",)))
     assert r.decision is CloseoutDecision.BLOCK
     assert store.checkpoints == [] and store.transitions == [] and lease.released == []
+
+
+# ── GPT1 P0-B3 repair (candidate eaabb34, P1: stale checkpoint authority) ──
+def test_r1_active_lease_with_release_checkpoint_never_completes(tmp=None):
+    """DEFECT A reproducer: lease-new ACTIVE + a release checkpoint for the
+    same task/candidate must NOT yield COMPLETE_ALLOWED."""
+    plan = plan_goal_closeout(facts(
+        lease=L(lease_id="lease-new", state="ACTIVE"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                    candidate_sha=SHA, lease_id="lease-new"),
+        }),
+    ))
+    assert plan.decision is not CloseoutDecision.COMPLETE_ALLOWED
+    assert plan.decision in (CloseoutDecision.RELEASE_REQUIRED, CloseoutDecision.RECOVERY_REQUIRED)
+
+
+def test_r2_release_checkpoint_for_old_lease_does_not_satisfy_new():
+    plan = plan_goal_closeout(facts(
+        lease=L(lease_id="lease-new", state="ACTIVE"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                    candidate_sha=SHA, lease_id="lease-old"),
+        }),
+    ))
+    assert plan.decision is CloseoutDecision.RELEASE_REQUIRED
+    assert plan.stage is CloseoutStage.RELEASE_LEASE
+
+
+def test_r3_released_same_lease_with_matching_checkpoint_idempotent():
+    plan = plan_goal_closeout(facts(
+        lease=L(lease_id="lease-new", state="RELEASED"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                    candidate_sha=SHA, lease_id="lease-new"),
+        }),
+    ))
+    assert plan.decision is CloseoutDecision.COMPLETE_ALLOWED
+
+
+def test_r4_fold_incomplete_with_fold_checkpoint_never_completes():
+    """DEFECT B reproducer: fold REQUIRED, completed=False, but a fold
+    checkpoint for the same task/candidate exists → must NOT COMPLETE."""
+    plan = plan_goal_closeout(facts(
+        fold=FoldEvidence(requirement=FoldRequirement.REQUIRED, completed=False),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK,
+                                    candidate_sha=SHA, merge_key="ab12", fold_key="required"),
+        }),
+    ))
+    assert plan.decision is not CloseoutDecision.COMPLETE_ALLOWED
+    assert plan.decision in (CloseoutDecision.FOLD_REQUIRED, CloseoutDecision.RECOVERY_REQUIRED)
+
+
+def test_r5_fold_checkpoint_from_old_merge_ignored():
+    plan = plan_goal_closeout(facts(
+        fold=FoldEvidence(requirement=FoldRequirement.REQUIRED, completed=False),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK,
+                                    candidate_sha=SHA, merge_key="cd34", fold_key="required"),
+        }),
+    ))
+    assert plan.decision is CloseoutDecision.FOLD_REQUIRED
+    assert plan.stage is CloseoutStage.FOLD
+
+
+def test_r6_valid_current_fold_replay_idempotent():
+    plan = plan_goal_closeout(facts(
+        fold=FoldEvidence(requirement=FoldRequirement.REQUIRED, completed=True,
+                          bound_task_id=TASK, bound_merge_commit="ab12"),
+        lease=L(lease_id=LEASE, state="ACTIVE"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK,
+                                    candidate_sha=SHA, merge_key="ab12", fold_key="required"),
+        }),
+    ))
+    assert plan.decision is CloseoutDecision.RELEASE_REQUIRED  # fold satisfied, next stage
+
+
+def test_r7_verify_checkpoint_from_old_attempt_does_not_satisfy_new_attempt():
+    plan = plan_goal_closeout(facts(
+        attempt_id="attempt-2",
+        verification=V(attempt_id="attempt-2"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id="attempt-1"),
+        }),
+    ))
+    assert plan.decision is CloseoutDecision.VERIFY_CHECKPOINT_REQUIRED
+
+
+def test_r8_active_lease_plus_exact_release_checkpoint_is_typed_recovery():
+    """Contradiction handling: journal claims release of the EXACT current
+    lease while current authority says ACTIVE → typed fail-closed conflict,
+    never silent COMPLETE."""
+    plan = plan_goal_closeout(facts(
+        lease=L(lease_id="lease-new", state="ACTIVE"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                    candidate_sha=SHA, lease_id="lease-new"),
+        }),
+    ))
+    assert plan.decision is CloseoutDecision.RECOVERY_REQUIRED
+    assert any(f.code == "LEASE_RELEASE_CONTRADICTION" for f in plan.findings)
+
+
+def test_r9_fold_checkpoint_contradiction_is_typed_recovery():
+    plan = plan_goal_closeout(facts(
+        fold=FoldEvidence(requirement=FoldRequirement.REQUIRED, completed=False),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK,
+                                    candidate_sha=SHA, merge_key="ab12", fold_key="required"),
+        }),
+    ))
+    assert plan.decision is CloseoutDecision.RECOVERY_REQUIRED
+    assert any(f.code == "FOLD_CHECKPOINT_CONTRADICTION" for f in plan.findings)
+
+
+@pytest.mark.parametrize("completed", [False, None])
+def test_r10_unknown_or_false_fold_fact_with_checkpoint_never_completes(completed):
+    plan = plan_goal_closeout(facts(
+        fold=FoldEvidence(requirement=FoldRequirement.REQUIRED, completed=completed),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK,
+                                    candidate_sha=SHA, merge_key="ab12", fold_key="required"),
+        }),
+    ))
+    assert plan.decision is not CloseoutDecision.COMPLETE_ALLOWED
+
+
+def test_r11_ref_binding_requires_stage_authority_fields():
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK, candidate_sha=SHA)
+    with _pytest.raises(ValueError):
+        closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK, candidate_sha=SHA)
+    with _pytest.raises(ValueError):
+        closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA)
+
+
+def test_r12_refs_are_stage_authority_bound_and_deterministic():
+    v = closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                candidate_sha=SHA, attempt_id=ATTEMPT)
+    assert v == f"closeout:verify:{TASK}:{SHA}:{ATTEMPT}" == closeout_checkpoint_ref(
+        CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK, candidate_sha=SHA, attempt_id=ATTEMPT)
+    f1 = closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA,
+                                 merge_key="ab12", fold_key="required")
+    f2 = closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA,
+                                 merge_key="cd34", fold_key="required")
+    assert f1 != f2
+    r1 = closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                 candidate_sha=SHA, lease_id="lease-a")
+    r2 = closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                 candidate_sha=SHA, lease_id="lease-b")
+    assert r1 != r2 and r1 == closeout_checkpoint_ref(
+        CloseoutStage.RELEASE_LEASE, task_id=TASK, candidate_sha=SHA, lease_id="lease-a")

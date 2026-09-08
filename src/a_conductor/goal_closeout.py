@@ -84,8 +84,12 @@ class FoldRequirement(str, Enum):
     NOT_REQUIRED = "NOT_REQUIRED"
 
 
-# conceptual checkpoint family from the P0-B3 contract:
-# closeout:verify / closeout:fold / closeout:lease-release / closeout:complete
+# conceptual checkpoint family from the P0-B3 contract, with REPLAY-
+# SENSITIVE stage authority bound into the identity (GPT1 P1 repair):
+# closeout:verify:<task>:<candidate>:<attempt>
+# closeout:fold:<task>:<candidate>:<merge-key>:<fold-key>
+# closeout:lease-release:<task>:<candidate>:<lease-id>
+# closeout:complete:<task>:<candidate>
 _STAGE_REF_SEGMENT: dict[CloseoutStage, str] = {
     CloseoutStage.VERIFY_CHECKPOINT: "verify",
     CloseoutStage.FOLD: "fold",
@@ -96,17 +100,45 @@ _STAGE_REF_SEGMENT: dict[CloseoutStage, str] = {
 
 
 def closeout_checkpoint_ref(
-    stage: CloseoutStage, *, task_id: str, candidate_sha: str
+    stage: CloseoutStage,
+    *,
+    task_id: str,
+    candidate_sha: str,
+    attempt_id: str | None = None,
+    merge_key: str | None = None,
+    fold_key: str | None = None,
+    lease_id: str | None = None,
 ) -> str:
-    """Deterministic closeout checkpoint identity: stable task + candidate
-    facts, no wall-clock. Repeated invocation yields the same identity."""
+    """Deterministic closeout checkpoint identity binding the stage's OWN
+    authority facts — no wall-clock, stable under replay.
+
+    Replay-sensitive stages REQUIRE their authority fields so an old
+    attempt / old merge / old lease checkpoint can never satisfy a newer
+    closeout transition: VERIFY binds the attempt, FOLD binds the merge +
+    fold obligation, RELEASE binds the exact lease id."""
     if not isinstance(stage, CloseoutStage):
         raise ValueError("stage is invalid")
     task = _text(task_id, "task_id")
     sha = _optional_sha(candidate_sha, "candidate_sha")
     if sha is None:
         raise ValueError("candidate_sha is required")
-    return f"closeout:{_STAGE_REF_SEGMENT[stage]}:{task}:{sha}"
+    segment = _STAGE_REF_SEGMENT[stage]
+    if stage is CloseoutStage.VERIFY_CHECKPOINT:
+        if attempt_id is None:
+            raise ValueError("attempt_id is required for verify checkpoints")
+        return f"closeout:{segment}:{task}:{sha}:{_text(attempt_id, 'attempt_id')}"
+    if stage is CloseoutStage.FOLD:
+        if merge_key is None or fold_key is None:
+            raise ValueError("merge_key and fold_key are required for fold checkpoints")
+        return (
+            f"closeout:{segment}:{task}:{sha}:"
+            f"{_text(merge_key, 'merge_key')}:{_text(fold_key, 'fold_key')}"
+        )
+    if stage is CloseoutStage.RELEASE_LEASE:
+        if lease_id is None:
+            raise ValueError("lease_id is required for lease-release checkpoints")
+        return f"closeout:{segment}:{task}:{sha}:{_text(lease_id, 'lease_id')}"
+    return f"closeout:{segment}:{task}:{sha}"
 
 
 # ---------------- immutable facts ----------------
@@ -298,10 +330,41 @@ class GoalCloseoutPlan:
     checkpoint_ref: str | None
 
 
-def _ref(f: GoalCloseoutFacts, stage: CloseoutStage) -> str | None:
+def _verify_ref(f: GoalCloseoutFacts) -> str | None:
     if f.current_candidate_sha is None:
         return None
-    return closeout_checkpoint_ref(stage, task_id=f.task_id, candidate_sha=f.current_candidate_sha)
+    return closeout_checkpoint_ref(
+        CloseoutStage.VERIFY_CHECKPOINT, task_id=f.task_id,
+        candidate_sha=f.current_candidate_sha, attempt_id=f.attempt_id,
+    )
+
+
+def _fold_ref(f: GoalCloseoutFacts) -> str | None:
+    if f.current_candidate_sha is None:
+        return None
+    merge_key = f.merge.merge_commit if f.merge.required else "nomerge"
+    fold_key = "required"
+    return closeout_checkpoint_ref(
+        CloseoutStage.FOLD, task_id=f.task_id, candidate_sha=f.current_candidate_sha,
+        merge_key=merge_key, fold_key=fold_key,
+    )
+
+
+def _release_ref(f: GoalCloseoutFacts) -> str | None:
+    if f.current_candidate_sha is None or f.lease.lease_id is None:
+        return None
+    return closeout_checkpoint_ref(
+        CloseoutStage.RELEASE_LEASE, task_id=f.task_id,
+        candidate_sha=f.current_candidate_sha, lease_id=f.lease.lease_id,
+    )
+
+
+def _complete_ref(f: GoalCloseoutFacts) -> str | None:
+    if f.current_candidate_sha is None:
+        return None
+    return closeout_checkpoint_ref(
+        CloseoutStage.COMPLETE, task_id=f.task_id, candidate_sha=f.current_candidate_sha,
+    )
 
 
 def plan_goal_closeout(facts: GoalCloseoutFacts) -> GoalCloseoutPlan:
@@ -336,14 +399,14 @@ def plan_goal_closeout(facts: GoalCloseoutFacts) -> GoalCloseoutPlan:
         # effect observed but not durably checkpointed: record the checkpoint
         return GoalCloseoutPlan(
             CloseoutDecision.VERIFY_CHECKPOINT_REQUIRED, CloseoutStage.VERIFY_CHECKPOINT,
-            (), _ref(facts, CloseoutStage.VERIFY_CHECKPOINT),
+            (), _verify_ref(facts),
         )
     if v.mutation_version is not None and v.mutation_version > v.checkpoint_version:
         return GoalCloseoutPlan(
             CloseoutDecision.RECOVERY_REQUIRED, CloseoutStage.VERIFY_CHECKPOINT,
             (GoalCloseoutFinding("MUTATION_AHEAD_OF_JOURNAL", ""),), None,
         )
-    verify_ref = _ref(facts, CloseoutStage.VERIFY_CHECKPOINT)
+    verify_ref = _verify_ref(facts)
     if verify_ref is not None and verify_ref not in facts.completed_closeout_refs:
         return GoalCloseoutPlan(
             CloseoutDecision.VERIFY_CHECKPOINT_REQUIRED, CloseoutStage.VERIFY_CHECKPOINT,
@@ -465,9 +528,18 @@ def plan_goal_closeout(facts: GoalCloseoutFacts) -> GoalCloseoutPlan:
                 (GoalCloseoutFinding("FOLD_POLICY_REQUIRED", ""),), None,
             )
     else:
-        fold_ref = _ref(facts, CloseoutStage.FOLD)
-        if fold_ref is not None and fold_ref in facts.completed_closeout_refs:
-            pass  # durable fold checkpoint present: satisfied, resume later stages
+        fold_ref = _fold_ref(facts)
+        fold_checkpoint_present = fold_ref is not None and fold_ref in facts.completed_closeout_refs
+        if fold_checkpoint_present and facts.fold.completed is not True:
+            # CURRENT factual authority outranks the journal: the exact
+            # current fold obligation has a checkpoint while the current
+            # facts say incomplete/unknown -> typed fail-closed conflict.
+            return GoalCloseoutPlan(
+                CloseoutDecision.RECOVERY_REQUIRED, CloseoutStage.FOLD,
+                (GoalCloseoutFinding("FOLD_CHECKPOINT_CONTRADICTION", ""),), fold_ref,
+            )
+        if fold_checkpoint_present:
+            pass  # matching checkpoint + current facts agree: satisfied
         elif facts.fold.completed is True:
             if (
                 facts.fold.bound_task_id != facts.task_id
@@ -509,12 +581,18 @@ def plan_goal_closeout(facts: GoalCloseoutFacts) -> GoalCloseoutPlan:
                 (GoalCloseoutFinding("LEASE_QUARANTINED", lease.lease_id),), None,
             )
         if lease.state == "ACTIVE":
-            release_ref = _ref(facts, CloseoutStage.RELEASE_LEASE)
-            if release_ref is None or release_ref not in facts.completed_closeout_refs:
+            release_ref = _release_ref(facts)
+            if release_ref is not None and release_ref in facts.completed_closeout_refs:
+                # journal claims this EXACT lease was released while current
+                # authority says ACTIVE: contradiction, never silent COMPLETE
                 return GoalCloseoutPlan(
-                    CloseoutDecision.RELEASE_REQUIRED, CloseoutStage.RELEASE_LEASE,
-                    (), release_ref,
+                    CloseoutDecision.RECOVERY_REQUIRED, CloseoutStage.RELEASE_LEASE,
+                    (GoalCloseoutFinding("LEASE_RELEASE_CONTRADICTION", lease.lease_id),), release_ref,
                 )
+            return GoalCloseoutPlan(
+                CloseoutDecision.RELEASE_REQUIRED, CloseoutStage.RELEASE_LEASE,
+                (), release_ref,
+            )
 
     # every obligation satisfied: only REVIEW_PENDING may complete
     if facts.state is not TaskState.REVIEW_PENDING:
@@ -524,7 +602,7 @@ def plan_goal_closeout(facts: GoalCloseoutFacts) -> GoalCloseoutPlan:
         )
     return GoalCloseoutPlan(
         CloseoutDecision.COMPLETE_ALLOWED, CloseoutStage.COMPLETE,
-        (), _ref(facts, CloseoutStage.COMPLETE),
+        (), _complete_ref(facts),
     )
 
 
