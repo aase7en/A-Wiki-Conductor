@@ -311,24 +311,26 @@ def test_unsupported_target_refused_zero_writes(tmp_path):
     assert not (tmp_path / "EVIL.md").exists()
 
 
-def test_precondition_conflict_zero_writes(tmp_path):
-    """Bytes drift BETWEEN the render read and the write preflight: the
-    loader supplies the pre-drift text for hashing while the filesystem
-    holds drifted bytes -> applier precondition fails -> zero writes."""
+def test_stale_precondition_conflict_zero_writes(tmp_path):
+    """R1-strengthened: the loader supplies OLD text (hash preconditions
+    derived from it) while the files on disk have drifted => the applier
+    precondition must fail closed on the FIRST packet: no target is
+    overwritten, outcome is never completed=True."""
     seed(tmp_path)
-    pre_drift = {n: SENTINEL_DOC for n in CANONICAL_TARGETS}
-    drifted = SENTINEL_DOC + "\nDRIFT\n"
-    (tmp_path / "CURRENT-WORK.md").write_text(drifted, encoding="utf-8", newline="\n")
+    old = SENTINEL_DOC
+    drifted = old + "\nDRIFT\n"
+    for name in CANONICAL_TARGETS:
+        (tmp_path / name).write_text(drifted, encoding="utf-8", newline="\n")
     adapter_obj = ContinuityProjectionFoldAdapter(
         applier=applier(tmp_path, lease(tmp_path)), lease_id="lease-1",
         session_id=SESSION, task_id=TASK, actual_head=HEAD,
         facts_factory=lambda: facts(), targets=CANONICAL_TARGETS,
-        prior_text_loader=lambda name: pre_drift[name],
+        prior_text_loader=lambda name: old,
     )
     outcome = adapter_obj.fold(FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold"))
-    assert outcome.completed is not True
-    assert (tmp_path / "CURRENT-WORK.md").read_text(encoding="utf-8") == drifted
-    assert (tmp_path / "handoff.md").read_text(encoding="utf-8") == SENTINEL_DOC
+    assert outcome.completed is False
+    for name in CANONICAL_TARGETS:
+        assert (tmp_path / name).read_text(encoding="utf-8") == drifted
 
 
 
@@ -415,3 +417,187 @@ def test_no_second_authority_surface():
     src = inspect.getsource(m)
     for banned in ("threading.", "asyncio.", "sqlite3", "subprocess", "requests", "time.time", "datetime.now"):
         assert banned not in src, banned
+
+# ══════════════════════════════════════════════════════════════════════
+# R1 — P1-A: exact candidate identity binding (RED family)
+# ══════════════════════════════════════════════════════════════════════
+from a_conductor.continuity_projection import ProjectionError  # noqa: E402
+
+def test_r1_a1_request_candidate_mismatch_fails_closed_zero_writes(tmp_path):
+    seed(tmp_path)
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    with pytest.raises(ProjectionError):
+        adapter(tmp_path).fold(FoldRequest(task_id=TASK, candidate_sha=HEAD_OTHER, checkpoint_ref="c:fold"))
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+def test_r1_a2_exact_candidate_positive_control(tmp_path):
+    seed(tmp_path)
+    outcome = adapter(tmp_path).fold(FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold"))
+    assert outcome.completed is True
+
+
+def test_r1_a3_mismatch_with_all_targets_writable_still_zero_writes(tmp_path):
+    for name in CANONICAL_TARGETS:
+        (tmp_path / name).write_text("# fresh\nhuman\n", encoding="utf-8", newline="\n")
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    with pytest.raises(ProjectionError):
+        adapter(tmp_path).fold(FoldRequest(task_id=TASK, candidate_sha=HEAD_OTHER, checkpoint_ref="c:fold"))
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+# ══════════════════════════════════════════════════════════════════════
+# R1 — P1-B: production first-adoption (RED family; fixtures copied from
+# current main structures: title + current region + HISTORICAL EVIDENCE
+# anchor for CW/handoff; In-progress claims table + WO166 row for COLLAB)
+# ══════════════════════════════════════════════════════════════════════
+CW_ANCHOR = "<!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->"
+CW_FIXTURE = (
+    "# A-Sunday Conductor — Current Work\n"
+    "\n"
+    "Last updated: 2026-09-08 (GPT1 — WO166 P0-B Continuity Guard activation)\n"
+    "\n"
+    "- **P0-B Continuity Guard is the current dependency frontier.** Durable architecture/preflight authority is Issue #226; implementation identity is `WO-P1-166`.\n"
+    "\n"
+    + CW_ANCHOR + "\n"
+    "<!-- Nothing below this separator is a current instruction.              -->\n"
+    "\n"
+    "## Post-PR208 merge actual-state override - 2026-09-05 (HISTORICAL / SUPERSEDED BY WO162 2026-09-07)\n"
+    "old historical body\n"
+)
+
+HO_ANCHOR = "<!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->"
+HO_FIXTURE = (
+    "# HANDOFF — A-Sunday Conductor\n"
+    "\n"
+    "Last updated: 2026-09-08 — GPT1 WO166 P0-B activation\n"
+    "\n"
+    "- WO165/ZRA-2 is queued successor only: activation-doc head `3d7209e...`.\n"
+    "\n"
+    + HO_ANCHOR + "\n"
+    "\n"
+    "## WO158 / PR221 r5 handoff override - 2026-09-06 (HISTORICAL / SUPERSEDED BY WO162)\n"
+    "old handoff history\n"
+)
+
+CO_WO166_ROW = (
+    "| `WO-P1-166` P0-B Continuity Guard activation | GPT1 architecture/activation | "
+    "FOLD_CANDIDATE / CONDITIONAL_RELEASE 2026-09-08 (self-closing) | Docs-only activation: "
+    "`COLLAB.md`, `CURRENT-WORK.md`, `handoff.md`, `docs/work-orders/WO-P1-166-p0b-continuity-guard.md`. |"
+)
+CO_OTHER_ROW = (
+    "| `WO-P1-164` COLLAB stale-row reconciliation | GLM-1 / GLM-A (ZCode) | "
+    "MERGED / POST_MAIN_VERIFIED / RELEASED via PR #225 | rows reconciled. |"
+)
+CO_FIXTURE = (
+    "# A-Wiki Conductor — Agent Collaboration\n"
+    "\n"
+    "## In-progress claims\n"
+    "\n"
+    "| Chunk/WO | Agent | Claimed | Scope (files) |\n"
+    "|---|---|---|---|\n"
+    + CO_WO166_ROW + "\n"
+    + CO_OTHER_ROW + "\n"
+    "\n"
+    "## Released claims history\n"
+    "human history text\n"
+)
+
+FIXTURES = {"CURRENT-WORK.md": CW_FIXTURE, "handoff.md": HO_FIXTURE, "COLLAB.md": CO_FIXTURE}
+ANCHORS = {"CURRENT-WORK.md": CW_ANCHOR, "handoff.md": HO_ANCHOR}
+
+
+def test_r1_b1_cw_adoption_succeeds():
+    out = render_projection_target("CURRENT-WORK.md", facts(), prior_text=CW_FIXTURE)
+    assert out.startswith("# A-Sunday Conductor — Current Work\n")
+    assert "<!-- BEGIN-MACHINE-PROJECTION -->" in out and HEAD in out
+
+
+def test_r1_b2_handoff_adoption_succeeds():
+    out = render_projection_target("handoff.md", facts(), prior_text=HO_FIXTURE)
+    assert out.startswith("# HANDOFF — A-Sunday Conductor\n")
+    assert "<!-- BEGIN-MACHINE-PROJECTION -->" in out
+
+
+def test_r1_b3_collab_adoption_succeeds():
+    out = render_projection_target("COLLAB.md", facts(), prior_text=CO_FIXTURE)
+    assert "<!-- BEGIN-MACHINE-PROJECTION -->" in out
+    assert CO_OTHER_ROW in out and CO_WO166_ROW not in out
+
+
+def test_r1_b4_non_adopted_bytes_identical():
+    out = render_projection_target("CURRENT-WORK.md", facts(), prior_text=CW_FIXTURE)
+    anchor_pos = CW_FIXTURE.index(CW_ANCHOR)
+    assert out.endswith(CW_FIXTURE[anchor_pos:])          # anchor + tail byte-for-byte
+    assert out.startswith(CW_FIXTURE[:CW_FIXTURE.index("\n") + 1])  # title byte-for-byte
+    co = render_projection_target("COLLAB.md", facts(), prior_text=CO_FIXTURE)
+    assert co.startswith("# A-Wiki Conductor — Agent Collaboration\n\n## In-progress claims\n\n| Chunk/WO | Agent | Claimed | Scope (files) |\n|---|---|---|---|\n")
+    assert co.endswith("\n\n## Released claims history\nhuman history text\n")
+
+
+def test_r1_b5_historical_tail_byte_for_byte():
+    for name in ("CURRENT-WORK.md", "handoff.md"):
+        fixture = FIXTURES[name]
+        anchor = ANCHORS[name]
+        out = render_projection_target(name, facts(), prior_text=fixture)
+        assert out.endswith(fixture[fixture.index(anchor):])
+
+
+def test_r1_b6_duplicate_historical_anchor_refuses():
+    dup = CW_FIXTURE.replace(CW_ANCHOR, CW_ANCHOR + "\n" + CW_ANCHOR, 1)
+    with pytest.raises(ValueError):
+        render_projection_target("CURRENT-WORK.md", facts(), prior_text=dup)
+
+
+def test_r1_b7_missing_historical_anchor_refuses():
+    missing = CW_FIXTURE.replace(CW_ANCHOR + "\n", "").replace(CW_ANCHOR, "")
+    with pytest.raises(ValueError):
+        render_projection_target("CURRENT-WORK.md", facts(), prior_text=missing)
+    with pytest.raises(ValueError):
+        render_projection_target("handoff.md", facts(), prior_text="# HANDOFF\nno anchor\n")
+
+
+def test_r1_b8_collab_zero_wo166_row_refuses():
+    no_row = CO_FIXTURE.replace(CO_WO166_ROW + "\n", "")
+    with pytest.raises(ValueError):
+        render_projection_target("COLLAB.md", facts(), prior_text=no_row)
+
+
+def test_r1_b9_collab_duplicate_wo166_row_refuses():
+    dup = CO_FIXTURE.replace(CO_WO166_ROW, CO_WO166_ROW + "\n" + CO_WO166_ROW, 1)
+    with pytest.raises(ValueError):
+        render_projection_target("COLLAB.md", facts(), prior_text=dup)
+
+
+def test_r1_b10_already_adopted_idempotent():
+    adopted = render_projection_target("COLLAB.md", facts(), prior_text=CO_FIXTURE)
+    again = render_projection_target("COLLAB.md", facts(), prior_text=adopted)
+    assert again == adopted
+
+
+def test_r1_b11_doctored_adopted_markdown_cannot_override_facts():
+    adopted = render_projection_target("CURRENT-WORK.md", facts(head=HEAD), prior_text=CW_FIXTURE)
+    doctored = adopted.replace(HEAD, HEAD_OTHER)
+    fresh = render_projection_target("CURRENT-WORK.md", facts(head=HEAD), prior_text=doctored)
+    assert HEAD in fresh and HEAD_OTHER not in fresh
+
+
+def test_r1_b12_first_adoption_failure_zero_writes_anywhere(tmp_path):
+    for name in CANONICAL_TARGETS:
+        (tmp_path / name).write_text(FIXTURES[name], encoding="utf-8", newline="\n")
+    (tmp_path / "handoff.md").write_text("# HANDOFF\nmissing anchor\n", encoding="utf-8", newline="\n")
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    with pytest.raises(ValueError):
+        adapter(tmp_path).fold(FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold"))
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+def test_r1_b13_adapter_first_adoption_all_targets_verified(tmp_path):
+    for name in CANONICAL_TARGETS:
+        (tmp_path / name).write_text(FIXTURES[name], encoding="utf-8", newline="\n")
+    outcome = adapter(tmp_path).fold(FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold"))
+    assert outcome.completed is True
+    for name in CANONICAL_TARGETS:
+        text = (tmp_path / name).read_text(encoding="utf-8")
+        assert "<!-- BEGIN-MACHINE-PROJECTION -->" in text
+        assert HEAD in text

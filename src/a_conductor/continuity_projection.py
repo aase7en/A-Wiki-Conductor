@@ -50,6 +50,10 @@ _SENTINEL_PAIR_RE = re.compile(
     re.escape(_BEGIN_SENTINEL) + r"(.*?)" + re.escape(_END_SENTINEL),
     re.DOTALL,
 )
+
+_HISTORICAL_ANCHOR_RE = re.compile(r"^<!-- HISTORICAL EVIDENCE[^\n]*$", re.MULTILINE)
+_COLLAB_HEADING_RE = re.compile(r"^## In-progress claims$", re.MULTILINE)
+_WO166_ROW_RE = re.compile(r"^\| `WO-P1-166`.*$", re.MULTILINE)
 _LEASE_STATES = frozenset({"ACTIVE", "RELEASED", "QUARANTINED", "STALE", "UNKNOWN"})
 _CLOSEOUT_STATUSES = frozenset({"FOLD_PENDING", "FOLD_REQUIRED", "COMPLETE", "RECOVERY_REQUIRED", "BLOCKED"})
 _POST_MAIN_STATUSES = frozenset({"NOT_REQUIRED", "PENDING", "SUCCESS", "FAILED", "UNKNOWN"})
@@ -166,14 +170,54 @@ def _render_machine_block(facts: ProjectionFacts) -> str:
     return "\n".join(lines)
 
 
-def _render_document(title: str, facts: ProjectionFacts, prior_text: str | None) -> str:
+def _adopt_front_matter(prior_text: str, machine: str) -> str:
+    """FIRST-ADOPTION for CURRENT-WORK.md / handoff.md production shape:
+    exactly one HISTORICAL EVIDENCE anchor comment; title line preserved
+    byte-for-byte; the current-authoritative region between the title and
+    the anchor is adopted into the machine sentinel; the anchor line and
+    EVERY byte after it are preserved byte-for-byte."""
+    anchors = list(_HISTORICAL_ANCHOR_RE.finditer(prior_text))
+    if len(anchors) != 1:
+        raise ValueError("PROJECTION_ADOPTION_ANCHOR_INVALID")
+    if not prior_text.startswith("# ") or prior_text.find("\n") < 0:
+        raise ValueError("PROJECTION_ADOPTION_TITLE_INVALID")
+    title = prior_text[: prior_text.find("\n") + 1]
+    return title + machine + "\n\n" + prior_text[anchors[0].start():]
+
+
+def _adopt_collab_row(prior_text: str, machine: str) -> str:
+    """FIRST-ADOPTION for COLLAB.md production shape: exactly one
+    In-progress claims heading and exactly one WO-P1-166 row; ONLY that
+    row line is adopted into the machine sentinel; every other byte
+    (headers, other rows, human text) is preserved byte-for-byte."""
+    headings = list(_COLLAB_HEADING_RE.finditer(prior_text))
+    if len(headings) != 1:
+        raise ValueError("PROJECTION_ADOPTION_ANCHOR_INVALID")
+    rows = list(_WO166_ROW_RE.finditer(prior_text))
+    if len(rows) != 1 or rows[0].start() < headings[0].start():
+        raise ValueError("PROJECTION_ADOPTION_ROW_INVALID")
+    return prior_text[: rows[0].start()] + machine + prior_text[rows[0].end():]
+
+
+def _render_document(
+    title: str,
+    facts: ProjectionFacts,
+    prior_text: str | None,
+    adopter: "Callable[[str, str], str] | None" = None,
+) -> str:
     block = _render_machine_block(facts)
     machine = f"{_BEGIN_SENTINEL}\n{block}\n{_END_SENTINEL}"
     if prior_text is None:
         return f"# {title}\n\n{machine}\n"
+    begin_count = prior_text.count(_BEGIN_SENTINEL)
+    end_count = prior_text.count(_END_SENTINEL)
+    if begin_count == 0 and end_count == 0:
+        if adopter is None:
+            raise ValueError("PROJECTION_SENTINEL_INVALID")
+        return adopter(prior_text, machine)
     if (
-        prior_text.count(_BEGIN_SENTINEL) != 1
-        or prior_text.count(_END_SENTINEL) != 1
+        begin_count != 1
+        or end_count != 1
         or len(_SENTINEL_PAIR_RE.findall(prior_text)) != 1
     ):
         # malformed/missing/duplicate sentinels: fail closed, never clobber
@@ -182,15 +226,15 @@ def _render_document(title: str, facts: ProjectionFacts, prior_text: str | None)
 
 
 def render_current_work(facts: ProjectionFacts, *, prior_text: str | None = None) -> str:
-    return _render_document("CURRENT-WORK", facts, prior_text)
+    return _render_document("CURRENT-WORK", facts, prior_text, _adopt_front_matter)
 
 
 def render_handoff(facts: ProjectionFacts, *, prior_text: str | None = None) -> str:
-    return _render_document("HANDOFF", facts, prior_text)
+    return _render_document("HANDOFF", facts, prior_text, _adopt_front_matter)
 
 
 def render_collab(facts: ProjectionFacts, *, prior_text: str | None = None) -> str:
-    return _render_document("COLLAB", facts, prior_text)
+    return _render_document("COLLAB", facts, prior_text, _adopt_collab_row)
 
 
 _RENDERERS: Mapping[str, Callable[..., str]] = {
@@ -300,6 +344,15 @@ class ContinuityProjectionFoldAdapter:
             raise ProjectionError("PROJECTION_TASK_MISMATCH")
         if request.task_id != self._task_id:
             raise ProjectionError("PROJECTION_TASK_MISMATCH")
+        # P1-A: the fold request must bind the EXACT current projection
+        # candidate identity. UNKNOWN/absent/unprovable candidate facts
+        # fail closed; mismatch NEVER publishes and never completes.
+        if (
+            not facts.candidate_sha
+            or not isinstance(request.candidate_sha, str)
+            or request.candidate_sha.casefold() != facts.candidate_sha
+        ):
+            raise ProjectionError("PROJECTION_CANDIDATE_MISMATCH")
         rendered: dict[str, str] = {}
         for name in self._targets:
             prior = self._prior_text_loader(name)
