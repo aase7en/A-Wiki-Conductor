@@ -111,10 +111,13 @@ runtime steps; scheduling does not transfer ownership of the workflow semantics.
 |---|---|---|---|
 | knowledge_memory | OWNER | CONSUMER | A-Conductor reads bounded context and returns evidence; it does not create a second memory system. |
 | planning_intelligence | OWNER | ADAPTER | A-Conductor executes/decomposes bounded runtime transactions without forking A-Wiki planning semantics. |
+| workflow_stage_state | OWNER | CONSUMER | A-Wiki a-flow owns ASK→DESIGN→PLAN→IMPLEMENT→REVIEW→DEBUG→TEST workflow/focus state; this is not A-Conductor live job/process state. |
 | work_order_contract | OWNER | ADAPTER | A-Wiki owns WO convention/schema; A-Conductor owns only the runtime instance derived from it. |
+| repo_coordination_claim | OWNER | ADAPTER | Durable cross-agent repo/work-order claim identity is A-Wiki coordination truth; A-Conductor binds it into runtime admission without creating a peer repo-claim store. |
 | runtime_task_instance | CONSUMER | OWNER | Live job state, attempts, checkpoints and completion are A-Conductor runtime truth. |
 | claim_policy | OWNER | ADAPTER | A-Wiki owns coordination policy/convention; A-Conductor enforces it at execution admission. |
-| runtime_lease | CONSUMER | OWNER | WorkerLease/process mutation ownership is A-Conductor live runtime authority. |
+| runtime_lease | CONSUMER | OWNER | WorkerLease/process mutation ownership is A-Conductor live runtime authority; it is not the same thing as an A-Wiki repo coordination claim. |
+| verification_policy | OWNER | ADAPTER | A-Wiki/repo contracts define required verification; A-Conductor consumes them and binds actual runtime evidence to the exact task/artifact. |
 | model_policy | OWNER | ADAPTER | Capability/cost/escalation policy comes from A-Wiki; no duplicate policy store in A-Conductor. |
 | runtime_model_selection | CONSUMER | OWNER | A-Conductor applies current policy to observed provider/runtime facts. |
 | review_lifecycle | OWNER | ADAPTER | A-Wiki ReviewBus remains review lifecycle authority; A-Conductor uses the review mailbox adapter. |

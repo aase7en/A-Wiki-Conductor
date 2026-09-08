@@ -9,10 +9,13 @@ ALLOWED_ROLES = {"OWNER", "CONSUMER", "ADAPTER", "COMPATIBILITY_FALLBACK"}
 REQUIRED_CAPABILITIES = {
     "knowledge_memory",
     "planning_intelligence",
+    "workflow_stage_state",
     "work_order_contract",
+    "repo_coordination_claim",
     "runtime_task_instance",
     "claim_policy",
     "runtime_lease",
+    "verification_policy",
     "model_policy",
     "runtime_model_selection",
     "review_lifecycle",
@@ -59,8 +62,11 @@ def test_operational_authority_map_has_one_owner_per_capability() -> None:
 def test_runtime_and_brain_ownership_stays_split() -> None:
     rows = {key: (awiki, conductor) for key, awiki, conductor, _ in _authority_rows()}
     assert rows["planning_intelligence"] == ("OWNER", "ADAPTER")
+    assert rows["workflow_stage_state"] == ("OWNER", "CONSUMER")
     assert rows["work_order_contract"] == ("OWNER", "ADAPTER")
+    assert rows["repo_coordination_claim"] == ("OWNER", "ADAPTER")
     assert rows["claim_policy"] == ("OWNER", "ADAPTER")
+    assert rows["verification_policy"] == ("OWNER", "ADAPTER")
     assert rows["model_policy"] == ("OWNER", "ADAPTER")
     assert rows["review_lifecycle"] == ("OWNER", "ADAPTER")
     assert rows["runtime_task_instance"] == ("CONSUMER", "OWNER")
