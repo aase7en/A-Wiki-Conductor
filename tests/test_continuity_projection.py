@@ -118,8 +118,12 @@ def test_factual_branch_outranks_stale_text():
 
 # ── 4-5, 16-18: fact binding / UNKNOWN handling ───────────────────────
 def test_old_lease_cannot_be_current_authority():
+    """R2-D: exact (non-vacuous) display assertions — a RELEASED lease id must
+    never appear on the active-leases line, only on released-leases."""
     text = render_current_work(facts(leases=(L(state="RELEASED"), L(state="ACTIVE", lease_id="lease-2"))))
-    assert "lease-2" in text and "lease-1" not in text.split("Active")[1].split("Released")[0] if "Active" in text else True
+    active_line = [l for l in text.splitlines() if l.startswith("active-leases:")][0]
+    assert active_line == "active-leases: lease-2", active_line
+    assert "released-leases: lease-1" in text
 
 
 def test_unknown_fact_renders_explicit_unknown():
@@ -601,3 +605,247 @@ def test_r1_b13_adapter_first_adoption_all_targets_verified(tmp_path):
         text = (tmp_path / name).read_text(encoding="utf-8")
         assert "<!-- BEGIN-MACHINE-PROJECTION -->" in text
         assert HEAD in text
+
+
+# ══════════════════════════════════════════════════════════════════════
+# R2 — final bounded repair (RED-first).
+#   R2-A CRLF-safe exact COLLAB heading;
+#   R2-B section-bounded WO-P1-166 row adoption;
+#   R2-C read-back exception envelope (completed=None, no retry);
+#   R2-D evidenced test gaps made non-vacuous.
+# Fixtures are FROZEN raw-byte copies of the real COLLAB.md structure at
+# 42541de (converted to CRLF where labelled) — no live repository file
+# dependency inside tests.
+# ══════════════════════════════════════════════════════════════════════
+_FROZEN_COLLAB_LF = (
+    "# COLLAB\n"
+    "\n"
+    "## Lanes\n"
+    "\n"
+    "lane text\n"
+    "\n"
+    "## In-progress claims\n"
+    "\n"
+    "| Chunk/WO | Agent | Claimed | Scope (files) |\n"
+    "|---|---|---|---|\n"
+    "| `WO-P1-166` P0-B Continuity Guard activation | GPT1 architecture/activation | FOLD_CANDIDATE / CONDITIONAL_RELEASE 2026-09-08 (self-closing) | Docs-only activation lanes |\n"
+    "| `WO-P1-164` COLLAB stale-row reconciliation | GLM-1 / GLM-A (ZCode) | MERGED / RELEASED |\n"
+    "rows reconciled. |\n"
+    "\n"
+    "## Rules\n"
+    "\n"
+    "rule text\n"
+    "\n"
+    "## Fast execution / risk-tier binding\n"
+    "\n"
+    "binding text\n"
+)
+_FROZEN_COLLAB_CRLF = _FROZEN_COLLAB_LF.replace("\n", "\r\n")
+_FROZEN_ROW_LINE_PREFIX = "| `WO-P1-166` P0-B Continuity Guard activation"
+
+
+def _collab_with_row(row_state: str, eol: str = "\n") -> str:
+    """Frozen COLLAB-family builder: row placement variants, LF or CRLF."""
+    lf = _FROZEN_COLLAB_LF
+    row = [l for l in lf.splitlines() if l.startswith(_FROZEN_ROW_LINE_PREFIX)][0]
+    if row_state == "in_section":
+        doc = lf
+    elif row_state == "later_h2":
+        doc = lf.replace(row + "\n", "", 1).replace(
+            "## Rules\n", "## Rules\n\n| Chunk/WO | Agent | Claimed | Scope |\n|---|---|---|---|\n" + row + "\n", 1)
+    elif row_state == "before_heading":
+        doc = lf.replace(row + "\n", "", 1).replace(
+            "# COLLAB\n\n", "# COLLAB\n\n| Chunk/WO | Agent | Claimed | Scope |\n|---|---|---|---|\n" + row + "\n\n", 1)
+    elif row_state == "in_section_plus_later":
+        doc = lf.replace(
+            "## Rules\n", "## Rules\n\n| Chunk/WO | Agent | Claimed | Scope |\n|---|---|---|---|\n" + row + "\n", 1)
+    else:
+        raise ValueError(row_state)
+    return doc.replace("\n", eol) if eol != "\n" else doc
+
+
+# ---------- R2-A: CRLF-safe exact COLLAB heading ----------
+def test_r2_a1_lf_exact_heading_adopts():
+    out = render_projection_target("COLLAB.md", facts(), prior_text=_FROZEN_COLLAB_LF)
+    assert "<!-- BEGIN-MACHINE-PROJECTION -->" in out
+
+
+def test_r2_a2_crlf_exact_heading_adopts():
+    out = render_projection_target("COLLAB.md", facts(), prior_text=_FROZEN_COLLAB_CRLF)
+    assert "<!-- BEGIN-MACHINE-PROJECTION -->" in out
+
+
+def test_r2_a3_mixed_eol_crlf_heading_adopts():
+    lines = _FROZEN_COLLAB_LF.splitlines(keepends=True)
+    doc = "".join(l.rstrip("\n") + ("\r\n" if "## In-progress claims" in l else "\n") for l in lines)
+    out = render_projection_target("COLLAB.md", facts(), prior_text=doc)
+    assert "<!-- BEGIN-MACHINE-PROJECTION -->" in out
+
+
+def test_r2_a4_frozen_raw_crlf_collab_first_and_second_render():
+    first = render_projection_target("COLLAB.md", facts(), prior_text=_FROZEN_COLLAB_CRLF)
+    second = render_projection_target("COLLAB.md", facts(), prior_text=first)
+    assert first == second  # byte-stable idempotence
+    # non-owned bytes preserved exactly (tail from the first later H2 on)
+    tail_marker = "## Rules"
+    tail = _FROZEN_COLLAB_CRLF[_FROZEN_COLLAB_CRLF.index(tail_marker):]
+    assert first.endswith(tail)
+    # the machine block itself stays LF-only
+    block = first.split("<!-- BEGIN-MACHINE-PROJECTION -->\n")[1].split("\n<!-- END-MACHINE-PROJECTION -->")[0]
+    assert "\r" not in block
+
+
+def test_r2_a5_wrong_case_fuzzy_heading_refused():
+    for bad in ("## In progress claims", "## in-progress claims", "## In-progress claims team",
+                "## **In-progress claims**", "### In-progress claims"):
+        doc = _FROZEN_COLLAB_LF.replace("## In-progress claims\n", bad + "\n", 1)
+        with pytest.raises(ValueError):
+            render_projection_target("COLLAB.md", facts(), prior_text=doc)
+
+
+def test_r2_a6_duplicate_headings_refused():
+    doc = _FROZEN_COLLAB_LF.replace(
+        "## In-progress claims\n", "## In-progress claims\n\n## In-progress claims\n", 1)
+    with pytest.raises(ValueError):
+        render_projection_target("COLLAB.md", facts(), prior_text=doc)
+
+
+# ---------- R2-B: section-bounded WO-P1-166 adoption ----------
+def test_r2_b1_row_inside_section_adopts():
+    out = render_projection_target("COLLAB.md", facts(), prior_text=_collab_with_row("in_section"))
+    assert "<!-- BEGIN-MACHINE-PROJECTION -->" in out  # adopted (row replaced by machine region)
+
+
+def test_r2_b2_row_only_in_later_h2_refused():
+    with pytest.raises(ValueError):
+        render_projection_target("COLLAB.md", facts(), prior_text=_collab_with_row("later_h2"))
+
+
+def test_r2_b3_row_before_heading_refused():
+    with pytest.raises(ValueError):
+        render_projection_target("COLLAB.md", facts(), prior_text=_collab_with_row("before_heading"))
+
+
+def test_r2_b4_row_in_section_plus_later_duplicate_refused():
+    with pytest.raises(ValueError):
+        render_projection_target("COLLAB.md", facts(), prior_text=_collab_with_row("in_section_plus_later"))
+
+
+def test_r2_b5_crlf_next_h2_section_bound_refused():
+    with pytest.raises(ValueError):
+        render_projection_target("COLLAB.md", facts(), prior_text=_collab_with_row("later_h2", eol="\r\n"))
+
+
+def test_r2_b6_fold_on_frozen_crlf_collab_first_and_second(tmp_path):
+    (tmp_path / "CURRENT-WORK.md").write_text(CW_FIXTURE, encoding="utf-8", newline="\n")
+    (tmp_path / "handoff.md").write_text(HO_FIXTURE, encoding="utf-8", newline="\n")
+    (tmp_path / "COLLAB.md").write_text(_FROZEN_COLLAB_CRLF, encoding="utf-8", newline="")
+    first = adapter(tmp_path).fold(FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold"))
+    assert first.completed is True
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    second = adapter(tmp_path).fold(FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold"))
+    assert second.completed is True
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+# ---------- R2-C: read-back exception envelope ----------
+def _readback_raising_after(tmp_path, target_index):
+    """Default read-back that raises once it reaches target N (0-based)."""
+    def rb(name):
+        if CANONICAL_TARGETS.index(name) >= target_index:
+            raise RuntimeError("read-back transport down")
+        with open(tmp_path / name, "r", encoding="utf-8", newline="") as h:
+            return h.read()
+    return rb
+
+
+def test_r2_c1_readback_raise_after_first_target_completed_none(tmp_path):
+    seed(tmp_path)
+    ad = adapter(tmp_path, read_back=_readback_raising_after(tmp_path, 0))
+    outcome = ad.fold(FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold"))
+    assert outcome.completed is None
+
+
+def test_r2_c2_readback_raise_after_second_target_completed_none(tmp_path):
+    seed(tmp_path)
+    ad = adapter(tmp_path, read_back=_readback_raising_after(tmp_path, 1))
+    outcome = ad.fold(FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold"))
+    assert outcome.completed is None
+
+
+def test_r2_c3_readback_raise_after_third_target_completed_none(tmp_path):
+    seed(tmp_path)
+    ad = adapter(tmp_path, read_back=_readback_raising_after(tmp_path, 2))
+    outcome = ad.fold(FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold"))
+    assert outcome.completed is None
+
+
+def test_r2_c4_readback_raise_never_true_and_no_retry(tmp_path):
+    seed(tmp_path)
+    calls = {"n": 0}
+    def counting_raise(name):
+        calls["n"] += 1
+        raise RuntimeError("read-back down")
+    ad = adapter(tmp_path, read_back=counting_raise)
+    outcome = ad.fold(FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold"))
+    assert outcome.completed is not True
+    assert outcome.completed is None  # typed ambiguous outcome, not an exception
+    # fail-fast envelope: the FIRST raising read-back ends the pass; exactly one
+    # attempt total — no internal retry, no continued reads after a transport failure.
+    assert calls["n"] == 1
+
+
+# ---------- R2-D: evidenced test gaps made non-vacuous ----------
+def test_r2_d2_request_task_id_binding_typed_raise(tmp_path):
+    seed(tmp_path)
+    with pytest.raises(ProjectionError) as exc:
+        adapter(tmp_path).fold(FoldRequest(task_id="IMPOSTOR-TASK", candidate_sha=HEAD, checkpoint_ref="c:fold"))
+    assert exc.value.code == "PROJECTION_TASK_MISMATCH"
+    assert (tmp_path / "CURRENT-WORK.md").read_text(encoding="utf-8") == SENTINEL_DOC
+
+
+def test_r2_d3_empty_targets_refused(tmp_path):
+    seed(tmp_path)
+    with pytest.raises(ValueError):
+        adapter(tmp_path, targets=())
+
+
+def test_r2_d4_writer_session_machine_line_present():
+    text = render_current_work(facts())
+    assert f"writer-session: {SESSION}" in text
+
+
+def test_r2_d5_title_structural_check():
+    for bad in ("not a title\n" + CW_ANCHOR + "\nh\n", "## not a title\n" + CW_ANCHOR + "\nh\n"):
+        with pytest.raises(ValueError):
+            render_projection_target("CURRENT-WORK.md", facts(), prior_text=bad)
+
+
+def test_r2_d6_max_length_validation():
+    with pytest.raises(ValueError):
+        facts(task_id="x" * 600)
+    with pytest.raises(ValueError):
+        ProjectionLeaseFact(lease_id="l" * 500, session_id=SESSION, task_id=TASK, state="ACTIVE", owner_ok=True)
+
+
+def test_r2_d8_dangling_extra_end_refused():
+    adopted = render_projection_target("COLLAB.md", facts(), prior_text=_FROZEN_COLLAB_LF)
+    dangling = adopted + "\n<!-- END-MACHINE-PROJECTION -->\n"  # 1 BEGIN + 2 END
+    with pytest.raises(ValueError):
+        render_projection_target("COLLAB.md", facts(), prior_text=dangling)
+
+
+def test_r2_d9_two_begin_one_end_refused():
+    adopted = render_projection_target("COLLAB.md", facts(), prior_text=_FROZEN_COLLAB_LF)
+    two_begin = adopted.replace(
+        "<!-- BEGIN-MACHINE-PROJECTION -->",
+        "<!-- BEGIN-MACHINE-PROJECTION -->\n<!-- BEGIN-MACHINE-PROJECTION -->", 1)
+    with pytest.raises(ValueError):
+        render_projection_target("COLLAB.md", facts(), prior_text=two_begin)
+
+
+def test_r2_d10_released_never_in_active_leases():
+    text = render_current_work(facts(leases=(L(state="RELEASED"),)))
+    active_line = [l for l in text.splitlines() if l.startswith("active-leases:")][0]
+    assert active_line == "active-leases: NONE"
+    assert "released-leases: lease-1" in text

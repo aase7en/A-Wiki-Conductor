@@ -22,7 +22,8 @@ stays fail-closed under ContinuityGuard's SSOT_DRIFT/recovery rules,
 and there is NO internal blind retry. The durable fold checkpoint after
 effect success remains owned by GoalCloseout's executor.
 
-Deterministic UTF-8 / LF-only output; no wall-clock, no environment
+Deterministic UTF-8: the machine block itself is LF-only while preserved
+human bytes retain their original EOL; no wall-clock, no environment
 reads, no threading, no network, no database inside this module.
 """
 from __future__ import annotations
@@ -52,8 +53,9 @@ _SENTINEL_PAIR_RE = re.compile(
 )
 
 _HISTORICAL_ANCHOR_RE = re.compile(r"^<!-- HISTORICAL EVIDENCE[^\n]*$", re.MULTILINE)
-_COLLAB_HEADING_RE = re.compile(r"^## In-progress claims$", re.MULTILINE)
+_COLLAB_HEADING_RE = re.compile(r"^## In-progress claims\r?$", re.MULTILINE)
 _WO166_ROW_RE = re.compile(r"^\| `WO-P1-166`.*$", re.MULTILINE)
+_NEXT_H2_RE = re.compile(r"^## ", re.MULTILINE)
 _LEASE_STATES = frozenset({"ACTIVE", "RELEASED", "QUARANTINED", "STALE", "UNKNOWN"})
 _CLOSEOUT_STATUSES = frozenset({"FOLD_PENDING", "FOLD_REQUIRED", "COMPLETE", "RECOVERY_REQUIRED", "BLOCKED"})
 _POST_MAIN_STATUSES = frozenset({"NOT_REQUIRED", "PENDING", "SUCCESS", "FAILED", "UNKNOWN"})
@@ -195,6 +197,12 @@ def _adopt_collab_row(prior_text: str, machine: str) -> str:
         raise ValueError("PROJECTION_ADOPTION_ANCHOR_INVALID")
     rows = list(_WO166_ROW_RE.finditer(prior_text))
     if len(rows) != 1 or rows[0].start() < headings[0].start():
+        raise ValueError("PROJECTION_ADOPTION_ROW_INVALID")
+    # R2: the adopted row must live INSIDE the In-progress claims section —
+    # bounded above by the heading and below by the next H2 heading line.
+    next_h2 = _NEXT_H2_RE.search(prior_text, headings[0].end())
+    section_end = next_h2.start() if next_h2 else len(prior_text)
+    if rows[0].start() >= section_end:
         raise ValueError("PROJECTION_ADOPTION_ROW_INVALID")
     return prior_text[: rows[0].start()] + machine + prior_text[rows[0].end():]
 
@@ -397,9 +405,14 @@ class ContinuityProjectionFoldAdapter:
                 return FoldOutcome(completed=None if wrote_any else False)
             wrote_any = True
 
-        # 4. read back and verify EVERY intended target before success
+        # 4. read back and verify EVERY intended target before success.
+        # R2: a raising read-back after writes may have landed is an AMBIGUOUS
+        # outcome (completed=None), never a success path and never a retry.
         for name in self._targets:
-            after = self._read_back(name)
+            try:
+                after = self._read_back(name)
+            except Exception:
+                return FoldOutcome(completed=None)
             if after is None or after != rendered[name]:
                 return FoldOutcome(completed=None)
         return FoldOutcome(completed=True)
