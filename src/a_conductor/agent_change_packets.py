@@ -17,6 +17,11 @@ from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping, Protocol
 
+from .continuity_guard import (
+    ContinuityClassification,
+    ContinuitySnapshot,
+    classify_continuity,
+)
 from .native_execution import NativeExecutionError, NativeFileSystem
 from .registry import windows_worktree_key
 from .worker_lease import LeaseHealth, LeaseHealthKind, LeaseMutationIntent, WorkerLeaseError
@@ -58,6 +63,16 @@ def _path(value: str) -> str:
 
 def _matches(path: str, patterns: tuple[str, ...]) -> bool:
     return any(fnmatchcase(path, pattern.replace("\\", "/")) for pattern in patterns)
+
+
+def _scope_authorized(expression: str, allowed: tuple[str, ...]) -> bool:
+    """Snapshot scope expressions must be provably within the active lease's
+    mutable scope (same semantics as the lease authority's authorization)."""
+    if expression in allowed:
+        return True
+    if any(ch in expression for ch in "*?["):
+        return False
+    return any(fnmatchcase(expression, pattern) for pattern in allowed)
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,18 +152,144 @@ class AgentChangeApplyResult:
     changed_paths: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class MutationContinuityRequest:
+    """The apply path's own continuity request, derived at apply time from
+    authoritative inputs (apply identity + active lease facts + packet
+    change paths). The caller never chooses these values separately."""
+
+    session_id: str
+    task_id: str
+    worktree: str
+    branch: str
+    expected_head: str
+    actual_head: str
+    mutable_scope: tuple[str, ...]
+    change_paths: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "session_id", _text(self.session_id, "session_id", max_length=128))
+        object.__setattr__(self, "task_id", _text(self.task_id, "task_id", max_length=128))
+        object.__setattr__(self, "worktree", _text(self.worktree, "worktree", max_length=1024))
+        object.__setattr__(self, "branch", _text(self.branch, "branch", max_length=256))
+        if not re.fullmatch(r"[0-9a-fA-F]{7,64}", self.expected_head):
+            raise ValueError("expected_head is invalid")
+        if not re.fullmatch(r"[0-9a-fA-F]{7,64}", self.actual_head):
+            raise ValueError("actual_head is invalid")
+        object.__setattr__(self, "expected_head", self.expected_head.casefold())
+        object.__setattr__(self, "actual_head", self.actual_head.casefold())
+        object.__setattr__(self, "mutable_scope", _scope(self.mutable_scope))
+        object.__setattr__(
+            self, "change_paths", tuple(_path(item) for item in self.change_paths)
+        )
+
+
+def _scope(values) -> tuple[str, ...]:
+    if isinstance(values, (str, bytes)):
+        raise ValueError("scope must be a sequence")
+    result = tuple(_text(item, "scope", max_length=512) for item in values)
+    if len(set(result)) != len(result):
+        raise ValueError("scope must not contain duplicates")
+    return result
+
+
+class ContinuitySnapshotProvider(Protocol):
+    """Trusted injected continuity fact source for the mutation path.
+
+    A fact source ONLY: it observes and returns an immutable
+    ContinuitySnapshot for the exact mutation request. It is never a second
+    authority store, never a mutation backend, and its returned snapshot is
+    always re-validated and re-classified before any write."""
+
+    def continuity_snapshot(self, request: MutationContinuityRequest) -> ContinuitySnapshot: ...
+
+
 class AgentChangeApplier:
     def __init__(self, *, filesystem: NativeFileSystem, lease_store: LeaseHealthReader,
+                 continuity_provider: ContinuitySnapshotProvider,
                  clock: Callable[[], object] = _utc_now) -> None:
         if not isinstance(filesystem, NativeFileSystem):
             raise ValueError("filesystem must be NativeFileSystem")
         if not hasattr(lease_store, "inspect_health"):
             raise ValueError("lease_store must inspect lease health")
+        if not callable(getattr(continuity_provider, "continuity_snapshot", None)):
+            raise ValueError("continuity_provider must provide continuity_snapshot")
         if not callable(clock):
             raise ValueError("clock must be callable")
         self._filesystem = filesystem
         self._lease_store = lease_store
+        self._continuity_provider = continuity_provider
         self._clock = clock
+
+    def _gate_continuity(
+        self,
+        *,
+        lease: WorkerLease,
+        session_id: str,
+        task_id: str,
+        actual_head: str,
+        expected_head: str,
+        change_paths: tuple[str, ...],
+    ) -> None:
+        """P0-B2 mandatory fail-closed continuity gate (WO-P1-166).
+
+        Builds the mutation continuity request from authoritative apply-time
+        facts, obtains a snapshot from the TRUSTED provider (never a
+        caller-supplied verdict or free-form snapshot), validates the
+        snapshot is identity-bound to this exact mutation, and internally
+        classifies it. Only FRESH with safe_to_mutate=True passes. No state
+        is cached across apply calls."""
+        request = MutationContinuityRequest(
+            session_id=session_id,
+            task_id=task_id,
+            worktree=str(self._filesystem.root),
+            branch=lease.branch,
+            expected_head=expected_head,
+            actual_head=actual_head,
+            mutable_scope=tuple(lease.mutable_scope),
+            change_paths=change_paths,
+        )
+        try:
+            snapshot = self._continuity_provider.continuity_snapshot(request)
+        except AgentChangeError:
+            raise
+        except Exception as exc:  # observer unavailable => fail closed
+            raise AgentChangeError("CONTINUITY_UNAVAILABLE") from exc
+        if not isinstance(snapshot, ContinuitySnapshot):
+            raise AgentChangeError("CONTINUITY_SNAPSHOT_INVALID")
+
+        def _deny(field: str) -> AgentChangeError:
+            return AgentChangeError(f"CONTINUITY_IDENTITY_MISMATCH:{field}")
+
+        if snapshot.session_id != request.session_id or lease.session_id != request.session_id:
+            raise _deny("session_id")
+        if snapshot.task_id != request.task_id:
+            raise _deny("task_id")
+        try:
+            root_key = windows_worktree_key(str(self._filesystem.root))
+        except ValueError as exc:
+            raise AgentChangeError("CONTINUITY_UNAVAILABLE") from exc
+        try:
+            snapshot_key = windows_worktree_key(snapshot.worktree)
+        except ValueError as exc:
+            raise _deny("worktree") from exc
+        if snapshot_key != root_key:
+            raise _deny("worktree")
+        if snapshot.branch != lease.branch:
+            raise _deny("branch")
+        if snapshot.expected_head is None or snapshot.expected_head != request.expected_head:
+            raise _deny("expected_head")
+        if snapshot.local_head is None or snapshot.local_head != request.actual_head:
+            raise _deny("local_head")
+        for expression in snapshot.mutable_scope:
+            if not _scope_authorized(expression, lease.mutable_scope):
+                raise _deny("mutable_scope")
+        verdict = classify_continuity(snapshot)
+        if (
+            verdict.classification is not ContinuityClassification.FRESH
+            or verdict.safe_to_mutate is not True
+        ):
+            raise AgentChangeError("CONTINUITY_NOT_FRESH")
 
     def apply(
         self,
@@ -181,6 +322,17 @@ class AgentChangeApplier:
             raise AgentChangeError("HEAD_MISMATCH")
         if packet.status != "CHANGES_PROPOSED":
             return AgentChangeApplyResult(())
+
+        # P0-B2: the ContinuityGuard gate runs before scope/content preflight
+        # so every continuity failure happens with ZERO filesystem writes.
+        self._gate_continuity(
+            lease=lease,
+            session_id=session_id,
+            task_id=task_id,
+            actual_head=actual_head,
+            expected_head=expected_head,
+            change_paths=tuple(change.path for change in packet.changes),
+        )
 
         # Preflight every change before the first write. This makes policy failures
         # all-or-nothing; NativeFileSystem still provides per-file TOCTOU protection.
