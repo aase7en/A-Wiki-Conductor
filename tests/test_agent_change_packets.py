@@ -713,3 +713,103 @@ def test_p0b2_review_complete_scope_with_foreign_lease_denies_claim_conflict(tmp
     with pytest.raises(AgentChangeError, match="CONTINUITY_NOT_FRESH"):
         _apply(applier(tmp_path, lease(tmp_path), continuity_provider=provider))
     assert target.read_bytes() == b"OLD\n"
+
+
+# ── Lane-2 repair-contract additions (comment 5578339964) + goal REDs ──
+def test_p0b2_review_partial_scope_variant_denies(tmp_path):
+    """Lane-2 RED B variant: a NON-EMPTY snapshot scope that is an authorized
+    subset of the lease but does NOT cover the actual change path must deny —
+    the defect is coverage, not emptiness."""
+    target = _target(tmp_path)
+    partial = FreshContinuityProvider(
+        snapshot_overrides={"mutable_scope": ("src/a_conductor/other.py",)}
+    )
+    with pytest.raises(AgentChangeError, match="CONTINUITY_IDENTITY_MISMATCH"):
+        _apply(applier(tmp_path, lease(tmp_path), continuity_provider=partial))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_p0b2_review_disjoint_authorized_scope_denies(tmp_path):
+    """Snapshot scope covers a DIFFERENT lease-authorized area (tests/**)
+    while the packet writes src/ — deny on coverage, deterministically not
+    on lease-subset grounds (the scope stays inside the lease)."""
+    target = _target(tmp_path)
+    from dataclasses import replace as _replace
+    wide_lease = _replace(
+        lease(tmp_path),
+        allowed_scope=("src/a_conductor/demo.py", "tests/**"),
+        mutable_scope=("src/a_conductor/demo.py", "tests/**"),
+    )
+    disjoint = FreshContinuityProvider(snapshot_overrides={"mutable_scope": ("tests/**",)})
+    with pytest.raises(AgentChangeError, match="CONTINUITY_IDENTITY_MISMATCH:mutable_scope_coverage"):
+        _apply(applier(tmp_path, wide_lease, continuity_provider=disjoint))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_p0b2_review_narrower_snapshot_scope_than_lease_allowed(tmp_path):
+    """Anti-over-fix (goal RED 4): a snapshot scope NARROWER than the whole
+    lease but covering every change path is legitimate and must proceed."""
+    target = _target(tmp_path)
+    from dataclasses import replace as _replace
+    wide_lease = _replace(
+        lease(tmp_path),
+        allowed_scope=("src/a_conductor/**",),
+        mutable_scope=("src/a_conductor/**",),
+    )
+    narrower = FreshContinuityProvider(
+        snapshot_overrides={"mutable_scope": ("src/a_conductor/demo.py",)}
+    )
+    result = _apply(applier(tmp_path, wide_lease, continuity_provider=narrower))
+    assert result.changed_paths == ("src/a_conductor/demo.py",)
+    assert target.read_text(encoding="utf-8") == "NEW\n"
+
+
+def test_p0b2_review_canonical_wildcard_scope_semantics(tmp_path):
+    """Goal RED 5 under the CANONICAL matcher: a wildcard-bearing snapshot
+    scope expression must appear VERBATIM in the lease scope (existing
+    authorization semantics) — lease 'src/a_conductor/**' does not authorize
+    snapshot 'src/a_conductor/*.py', so the subset check denies it. The
+    wildcard-free narrower variant stays allowed (covered by the RED-4 test)."""
+    target = _target(tmp_path)
+    from dataclasses import replace as _replace
+    wide_lease = _replace(
+        lease(tmp_path),
+        allowed_scope=("src/a_conductor/**",),
+        mutable_scope=("src/a_conductor/**",),
+    )
+    wildcard = FreshContinuityProvider(
+        snapshot_overrides={"mutable_scope": ("src/a_conductor/*.py",)}
+    )
+    with pytest.raises(AgentChangeError, match="CONTINUITY_IDENTITY_MISMATCH:mutable_scope"):
+        _apply(applier(tmp_path, wide_lease, continuity_provider=wildcard))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_p0b2_review_expiry_unknown_maps_to_unknown_fencing(tmp_path):
+    """Lane-2 GAP-1 provider-contract pin: a lease whose health is
+    EXPIRY_UNKNOWN must be presented to ContinuityGuard as a fencing
+    LeaseFact with state UNKNOWN — and the gate must fail closed on it."""
+    from a_conductor.continuity_guard import LeaseFact as _Lease
+
+    target = _target(tmp_path)
+
+    def build(request):
+        from dataclasses import replace as _replace
+        base = FreshContinuityProvider().continuity_snapshot(request)
+        return _replace(
+            base,
+            leases=(
+                # same worktree, own session? No — foreign session/task on the
+                # SAME worktree with UNKNOWN state fences fail-closed.
+                _Lease(
+                    lease_id="lease-expiry-unknown", session_id="session-other",
+                    task_id="task-other", worktree_key=request.worktree,
+                    mutable_scope=request.mutable_scope, state="UNKNOWN",
+                ),
+            ),
+        )
+
+    provider = FreshContinuityProvider(snapshot_fn=build)
+    with pytest.raises(AgentChangeError, match="CONTINUITY_NOT_FRESH"):
+        _apply(applier(tmp_path, lease(tmp_path), continuity_provider=provider))
+    assert target.read_bytes() == b"OLD\n"
