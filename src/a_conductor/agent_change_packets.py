@@ -284,6 +284,18 @@ class AgentChangeApplier:
         for expression in snapshot.mutable_scope:
             if not _scope_authorized(expression, lease.mutable_scope):
                 raise _deny("mutable_scope")
+        # Scope PROVENANCE binding (GPT1 P0-B2 review): the snapshot's
+        # mutable scope is what ContinuityGuard's cross-worktree overlap
+        # detection consumes, so it must COVER every LEASE-AUTHORIZED change
+        # path — an incomplete snapshot scope cannot hide a foreign lease
+        # conflict or shrink the classified mutation footprint. Paths the
+        # lease itself does not authorize stay with the existing authoritative
+        # applier scope denial (CHANGE_SCOPE_DENIED).
+        for change_path in request.change_paths:
+            if _matches(change_path, lease.mutable_scope) and not _matches(
+                change_path, snapshot.mutable_scope
+            ):
+                raise _deny("mutable_scope_coverage")
         verdict = classify_continuity(snapshot)
         if (
             verdict.classification is not ContinuityClassification.FRESH
