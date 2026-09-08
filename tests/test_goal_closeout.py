@@ -273,7 +273,18 @@ def test_lease_owner_mismatch_blocks():
 
 
 def test_released_lease_satisfied():
-    assert decide(lease=L(lease_id=LEASE, state="RELEASED")) is CloseoutDecision.COMPLETE_ALLOWED
+    """P0-B3-R2 semantics: a RELEASED lease satisfies closeout only with the
+    exact current release checkpoint (positive-control form of the rule)."""
+    plan = plan_goal_closeout(facts(
+        lease=L(lease_id=LEASE, state="RELEASED"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                    candidate_sha=SHA, lease_id=LEASE),
+        }),
+    ))
+    assert plan.decision is CloseoutDecision.COMPLETE_ALLOWED
 
 
 # ── 38-41: complete ───────────────────────────────────────────────────
@@ -690,3 +701,91 @@ def test_r12_refs_are_stage_authority_bound_and_deterministic():
                                  candidate_sha=SHA, lease_id="lease-b")
     assert r1 != r2 and r1 == closeout_checkpoint_ref(
         CloseoutStage.RELEASE_LEASE, task_id=TASK, candidate_sha=SHA, lease_id="lease-a")
+
+
+# ── P0-B3-R2 forward repair (merged base a81b92f, P1-A + P1-B) ────────
+def test_r2_a_fold_checkpoint_cannot_override_contradictory_fold_identity():
+    """P1-A reproducer: exact current fold checkpoint present, completed=True,
+    but the CURRENT factual fold binding says a DIFFERENT task/merge — the
+    journal ref must not bypass current factual identity."""
+    plan = plan_goal_closeout(facts(
+        fold=FoldEvidence(requirement=FoldRequirement.REQUIRED, completed=True,
+                          bound_task_id="task-other", bound_merge_commit="cd34"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK,
+                                    candidate_sha=SHA, merge_key="ab12", fold_key="required"),
+        }),
+    ))
+    assert plan.decision is not CloseoutDecision.COMPLETE_ALLOWED
+    assert plan.decision is CloseoutDecision.RECOVERY_REQUIRED
+
+
+def test_r2_a_positive_control_matching_fold_identity_with_checkpoint():
+    """Positive control: checkpoint + completed=True + identity MATCHING the
+    current task/merge stays satisfied (resume at next stage)."""
+    plan = plan_goal_closeout(facts(
+        fold=FoldEvidence(requirement=FoldRequirement.REQUIRED, completed=True,
+                          bound_task_id=TASK, bound_merge_commit="ab12"),
+        lease=L(lease_id=LEASE, state="ACTIVE"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.FOLD, task_id=TASK,
+                                    candidate_sha=SHA, merge_key="ab12", fold_key="required"),
+        }),
+    ))
+    assert plan.decision is CloseoutDecision.RELEASE_REQUIRED
+
+
+def test_r2_b1_released_lease_without_current_release_checkpoint_fails_closed():
+    """P1-B reproducer 1: lease-new RELEASED + ONLY the verify checkpoint —
+    current actual COMPLETE_ALLOWED is wrong; the exact current lease-release
+    checkpoint is required."""
+    plan = plan_goal_closeout(facts(
+        lease=L(lease_id="lease-new", state="RELEASED"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+        }),
+    ))
+    assert plan.decision is not CloseoutDecision.COMPLETE_ALLOWED
+    assert plan.decision is CloseoutDecision.RECOVERY_REQUIRED
+
+
+def test_r2_b2_released_lease_with_old_lease_checkpoint_fails_closed():
+    """P1-B reproducer 2: lease-new RELEASED + release checkpoint for
+    lease-OLD — old-lease evidence must not satisfy lease-new."""
+    plan = plan_goal_closeout(facts(
+        lease=L(lease_id="lease-new", state="RELEASED"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                    candidate_sha=SHA, lease_id="lease-old"),
+        }),
+    ))
+    assert plan.decision is not CloseoutDecision.COMPLETE_ALLOWED
+    assert plan.decision is CloseoutDecision.RECOVERY_REQUIRED
+
+
+def test_r2_b3_positive_control_released_with_exact_checkpoint_satisfies():
+    """Positive control: lease-new RELEASED + exact lease-new release
+    checkpoint remains idempotently satisfiable."""
+    plan = plan_goal_closeout(facts(
+        lease=L(lease_id="lease-new", state="RELEASED"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                    candidate_sha=SHA, lease_id="lease-new"),
+        }),
+    ))
+    assert plan.decision is CloseoutDecision.COMPLETE_ALLOWED
+
+
+def test_r2_b4_released_lease_no_lease_id_unchanged():
+    """No-lease (non-mutating) facts are untouched by the release-checkpoint
+    requirement."""
+    assert decide(lease=L()) is CloseoutDecision.COMPLETE_ALLOWED

@@ -530,21 +530,28 @@ def plan_goal_closeout(facts: GoalCloseoutFacts) -> GoalCloseoutPlan:
     else:
         fold_ref = _fold_ref(facts)
         fold_checkpoint_present = fold_ref is not None and fold_ref in facts.completed_closeout_refs
-        if fold_checkpoint_present and facts.fold.completed is not True:
-            # CURRENT factual authority outranks the journal: the exact
-            # current fold obligation has a checkpoint while the current
-            # facts say incomplete/unknown -> typed fail-closed conflict.
-            return GoalCloseoutPlan(
-                CloseoutDecision.RECOVERY_REQUIRED, CloseoutStage.FOLD,
-                (GoalCloseoutFinding("FOLD_CHECKPOINT_CONTRADICTION", ""),), fold_ref,
-            )
+        # CURRENT factual fold binding is validated BEFORE any checkpoint can
+        # satisfy the stage (P1-A): a journal ref never overrides a
+        # contradictory current task/merge identity.
+        fold_identity_ok = facts.fold.bound_task_id == facts.task_id and (
+            not m.required or facts.fold.bound_merge_commit == m.merge_commit
+        )
         if fold_checkpoint_present:
-            pass  # matching checkpoint + current facts agree: satisfied
+            if facts.fold.completed is not True:
+                # journal claims the fold while current facts say incomplete/
+                # unknown -> typed fail-closed conflict.
+                return GoalCloseoutPlan(
+                    CloseoutDecision.RECOVERY_REQUIRED, CloseoutStage.FOLD,
+                    (GoalCloseoutFinding("FOLD_CHECKPOINT_CONTRADICTION", ""),), fold_ref,
+                )
+            if not fold_identity_ok:
+                return GoalCloseoutPlan(
+                    CloseoutDecision.RECOVERY_REQUIRED, CloseoutStage.FOLD,
+                    (GoalCloseoutFinding("FOLD_IDENTITY_CONTRADICTION", ""),), fold_ref,
+                )
+            # matching checkpoint + agreeing current facts: satisfied
         elif facts.fold.completed is True:
-            if (
-                facts.fold.bound_task_id != facts.task_id
-                or (m.required and facts.fold.bound_merge_commit != m.merge_commit)
-            ):
+            if not fold_identity_ok:
                 return GoalCloseoutPlan(
                     CloseoutDecision.BLOCK, CloseoutStage.DONE,
                     (GoalCloseoutFinding("FOLD_IDENTITY_MISMATCH", ""),), None,
@@ -593,6 +600,17 @@ def plan_goal_closeout(facts: GoalCloseoutFacts) -> GoalCloseoutPlan:
                 CloseoutDecision.RELEASE_REQUIRED, CloseoutStage.RELEASE_LEASE,
                 (), release_ref,
             )
+        if lease.state == "RELEASED":
+            # P1-B: a RELEASED lease satisfies closeout ONLY when durable
+            # evidence binds the exact CURRENT lease-release transition.
+            # Missing or old-lease checkpoints stay fail-closed (crash after
+            # release before checkpoint is reconciliation, not completion).
+            release_ref = _release_ref(facts)
+            if release_ref is None or release_ref not in facts.completed_closeout_refs:
+                return GoalCloseoutPlan(
+                    CloseoutDecision.RECOVERY_REQUIRED, CloseoutStage.RELEASE_LEASE,
+                    (GoalCloseoutFinding("LEASE_RELEASE_CHECKPOINT_MISSING", lease.lease_id),), release_ref,
+                )
 
     # every obligation satisfied: only REVIEW_PENDING may complete
     if facts.state is not TaskState.REVIEW_PENDING:
