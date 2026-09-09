@@ -88,3 +88,33 @@ and hosted CI remain integrator gates. Do not self-merge.
 
 Bootstrap only. Next: re-pin clean worktree/claim -> real RED -> minimum compatible
 confinement design -> tests -> freeze/push -> durable result for integrator.
+
+### RED / design decision
+
+Source gate passed on clean bootstrap ce303c88d0fc1c0ec552bbfd038beb1185297836.
+Only the authorized new optional host test is dirty. Latest Issue #233 still
+ends at comment 5606878598. RED: 3 real installed-CLI cases fail on unsupported
+--safe-mode in 2.37s; baseline exit=1, no provider request. Evidence is retained
+in runs/WO-P1-168/host-red.txt and baseline-probe.json.
+
+Select one uniform explicit confinement profile (no platform/version heuristic):
+--bare + --disable-slash-commands + --strict-mcp-config with empty MCP config,
+--setting-sources empty. Keep all remaining task/tools/permission/persistence
+and secret/supervised contracts. Bare suppresses ambient customization loading;
+explicit skill/MCP exclusions close bare's explicit-opt-in surfaces; excluding
+project/local settings also prevents env overrides and custom hooks. Unsupported
+flags fail at the CLI; there is no automatic weaker retry. No API change or
+credential-binding expansion is needed: a synthetic ANTHROPIC_AUTH_TOKEN probe
+on 2.1.152 reached loopback /v1/messages with the exact Bearer header and exited
+normally after the server's deliberate 400. API-key/OAuth fallback is not added.
+
+Upstream evidence checked 2026-09-10:
+- https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md
+  (2.1.169 introduces safe-mode; not obsolete/redundant).
+- https://code.claude.com/docs/en/cli-reference
+  (bare, disable-slash-commands, strict-mcp-config, tools).
+- installed 2.1.152 --help advertises all replacement flags and warns bare has
+  different auth semantics; exact-token loopback proof therefore remains required.
+
+This strengthens explicit isolation on every OS; real newer Windows/Linux CLI
+behavior is not inferred from the Mac test and must remain a declared limitation.
