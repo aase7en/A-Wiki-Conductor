@@ -283,15 +283,16 @@ class ClaudeCodeHarnessAdapter:
             "--no-session-persistence",
             # --safe-mode requires Claude >=2.1.169. Use the older explicit
             # isolation profile on every host; never retry with weaker flags.
-            # Bare still permits explicit skills/MCP, so close those surfaces
-            # and exclude ambient settings that could rewrite provider env.
+            # Bare still permits explicit skills/MCP, so close those surfaces.
+            # Preserve selected settings: their permission deny rules are part
+            # of confinement. User settings remain excluded (lesson #20).
             "--bare",
             "--disable-slash-commands",
             "--strict-mcp-config",
             "--mcp-config",
             '{"mcpServers":{}}',
-            # The joined form also satisfies native non-empty argv validation.
-            "--setting-sources=",
+            "--setting-sources",
+            "project,local",
             "--permission-mode",
             "plan",
             "--tools",

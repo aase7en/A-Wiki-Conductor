@@ -92,8 +92,8 @@ def _seed_customizations(home, work):
     return marker
 
 
-@pytest.mark.parametrize("forbidden_tool", [None, "Write", "Bash", "ReadProject", "ReadLocal", "ReadAllowed"])
-def test_real_cli_accepts_production_argv_and_preserves_confinement(tmp_path, forbidden_tool):
+@pytest.mark.parametrize("tool_case", [None, "Write", "Bash", "ReadProject", "ReadLocal", "ReadAllowed"])
+def test_real_cli_accepts_production_argv_and_preserves_confinement(tmp_path, tool_case):
     assert _CLI and Path(_CLI).is_absolute() and Path(_CLI).is_file()
     home, work = tmp_path / "home", tmp_path / "work"
     home.mkdir()
@@ -114,14 +114,14 @@ def test_real_cli_accepts_production_argv_and_preserves_confinement(tmp_path, fo
             raw = self.rfile.read(int(self.headers.get("Content-Length", "0")))
             body = json.loads(raw)
             requests.append((self.path, self.headers.get("Authorization") == f"Bearer {_TOKEN}", body))
-            if forbidden_tool and len(requests) == 1:
+            if tool_case and len(requests) == 1:
                 tool_input = ({"file_path": str(forbidden_marker), "content": "unsafe"}
-                              if forbidden_tool == "Write" else
+                              if tool_case == "Write" else
                               {"command": f"echo unsafe > {shlex.quote(str(forbidden_marker))}"})
-                tool_name = forbidden_tool
-                if forbidden_tool in read_files:
+                tool_name = tool_case
+                if tool_case in read_files:
                     tool_name = "Read"
-                    tool_input = {"file_path": str(work / read_files[forbidden_tool])}
+                    tool_input = {"file_path": str(work / read_files[tool_case])}
                 content = [{"type": "tool_use", "id": "toolu_wo168", "name": tool_name, "input": tool_input}]
                 stop = "tool_use"
             else:
@@ -191,16 +191,16 @@ def test_real_cli_accepts_production_argv_and_preserves_confinement(tmp_path, fo
         assert tool_names <= {"Read", "Glob", "Grep"}
         assert _PACKET in json.dumps(body["system"])
         assert _CANARY not in json.dumps(body)
-    if forbidden_tool:
+    if tool_case:
         assert len(requests) == 2
         tool_results = [block for msg in requests[-1][2]["messages"] for block in msg.get("content", [])
                         if isinstance(block, dict) and block.get("type") == "tool_result"]
-        if forbidden_tool == "ReadAllowed":
+        if tool_case == "ReadAllowed":
             assert "WO168_READ_CONTENT_allowed.txt" in json.dumps(tool_results)
             assert not any(block.get("is_error") for block in tool_results)
         else:
             assert any(block.get("is_error") for block in tool_results)
-            if forbidden_tool in read_files:
+            if tool_case in read_files:
                 assert "WO168_READ_CONTENT_" not in json.dumps(tool_results), "denied file leaked"
     assert not marker.exists()
     assert not forbidden_marker.exists()

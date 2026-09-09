@@ -2,7 +2,7 @@
 
 ## R1 current authority — post-merge permission preservation
 
-Status: CLAIMED / R3 CORRECTIVE REPAIR
+Status: FROZEN / READY_FOR_EXACT_SHA_REVIEW / R3 CORRECTIVE REPAIR
 Owner: GPT-6 Astra / Poppy Javis; integrator retains acceptance/merge/release
 Worktree: /Users/aase7en/Desktop/A-Wiki-Conductor-wo168-r1
 Branch: codex/wo-p1-168-r1-permissions
@@ -44,6 +44,46 @@ hooks/skills/MCP/context, and pass focused/related suites. No CI host dependency
 Next: commit/push this claim -> re-pin clean -> add/run RED -> restore settings
 sources -> GREEN -> clean candidate push -> exact-SHA integrator review. The
 merged source does not grant this author merge/acceptance authority.
+
+### R1 verification checkpoint
+
+- RED commit 9b74137: 3 failures / 19 passes; the real CLI ignored both selected
+  project and local deny rules, while allowed Read succeeded (positive control).
+- GREEN after restoring project,local: 22/22 pass (6 real CLI cases + 16 harness
+  contracts). Both deny sources now return error tool results without file
+  content; permitted Read still returns the synthetic content. Bash/Write remain
+  unavailable. No customization markers or session JSONL; no user settings load.
+- Focused and related frontier: 186 passed / 12 expected skips (6 opt-in CLI +
+  6 Windows integration) with actual python3.12, 4.50s.
+- Compileall, whitespace, UTF-8 and bounded added-line credential-pattern checks
+  PASS. Source delta remains one file; no resolver/native/supervisor changes.
+- Real host CLI remains 2.1.152; all final host test children exited naturally.
+  The separate failed hostile-selected-env diagnostic was terminated by verified
+  exact PID/command identity and is not counted as GREEN.
+
+Exact R1 candidate SHA is recorded after commit in runs/WO-P1-168/result.md and
+its hashed assurance directory, plus the successor draft PR. Original parser
+RED remains reproducible at 16dc834; initial PR #237 is merged, so R1 uses a new
+PR from its actual merged base, without rewriting the accepted branch.
+
+Security statement: preserve the ORIGINAL selected project/local permissions
+and settings trust, plus plan/tool ceiling/no persistence/task binding. Bare,
+skill suppression and strict empty MCP isolate customization execution. Explicit
+environment-reference allowlist and redaction are unchanged. Selected project/
+local env config remains trusted as before this task; it can override provider
+variables and must be validated in the separate live-pilot authorization gate.
+No claim that compatibility repair solves that pre-existing configuration risk.
+
+Known limitations: installed Windows/Linux/newer Claude behavior remains
+unproven; the original settings-source contract and one uniform argv are kept.
+On this Mac bare mode exposes only Read. Canonical production supervised-process
+composition remains Windows-specific, a separate R3 portability lane; no runtime
+installation, authenticated GLM, or operational Zero-Relay proof occurred here.
+Independent final review/CI and integrator acceptance of R1 remain pending.
+
+Next safe action: inspect/review R1 exact SHA and hosted CI, then integrator
+adjudication/merge. Keep the merged R0 security claim superseded until R1 is
+accepted; do not start a live provider turn based only on its earlier green CI.
 
 ## Historical R0 implementation checkpoint — superseded where R1 says otherwise
 
