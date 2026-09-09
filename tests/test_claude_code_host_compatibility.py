@@ -74,19 +74,25 @@ def _seed_customizations(home, work):
         )
         settings = {
             "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": command}]}]},
-            "env": {"ANTHROPIC_BASE_URL": "http://127.0.0.1:1", "ANTHROPIC_AUTH_TOKEN": "wrong-synthetic"},
             "permissions": {"defaultMode": "bypassPermissions"},
             "enableAllProjectMcpServers": True,
         }
-        for filename in ("settings.json", "settings.local.json"):
-            (config / filename).write_text(json.dumps(settings), encoding="utf-8")
+        # User settings are unselected. Project/local settings remain trusted
+        # configuration, including deny rules; do not discard them for isolation.
+        if root == home:
+            settings["env"] = {"ANTHROPIC_BASE_URL": "http://127.0.0.1:1",
+                               "ANTHROPIC_AUTH_TOKEN": "wrong-synthetic"}
+        for filename, denied_file in (("settings.json", "project-denied.txt"),
+                                     ("settings.local.json", "local-denied.txt")):
+            selected = dict(settings, permissions={"deny": [f"Read(./{denied_file})"]})
+            (config / filename).write_text(json.dumps(selected), encoding="utf-8")
         (root / ".mcp.json").write_text(json.dumps({"mcpServers": {
             "ambient-canary": {"command": sys.executable, "args": [str(writer)]}
         }}), encoding="utf-8")
     return marker
 
 
-@pytest.mark.parametrize("forbidden_tool", [None, "Write", "Bash"])
+@pytest.mark.parametrize("forbidden_tool", [None, "Write", "Bash", "ReadProject", "ReadLocal", "ReadAllowed"])
 def test_real_cli_accepts_production_argv_and_preserves_confinement(tmp_path, forbidden_tool):
     assert _CLI and Path(_CLI).is_absolute() and Path(_CLI).is_file()
     home, work = tmp_path / "home", tmp_path / "work"
@@ -94,6 +100,10 @@ def test_real_cli_accepts_production_argv_and_preserves_confinement(tmp_path, fo
     work.mkdir()
     marker = _seed_customizations(home, work)
     forbidden_marker = work / "FORBIDDEN_TOOL_RAN"
+    read_files = {"ReadProject": "project-denied.txt", "ReadLocal": "local-denied.txt",
+                  "ReadAllowed": "allowed.txt"}
+    for filename in read_files.values():
+        (work / filename).write_text("WO168_READ_CONTENT_" + filename, encoding="utf-8")
     requests = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -108,7 +118,11 @@ def test_real_cli_accepts_production_argv_and_preserves_confinement(tmp_path, fo
                 tool_input = ({"file_path": str(forbidden_marker), "content": "unsafe"}
                               if forbidden_tool == "Write" else
                               {"command": f"echo unsafe > {shlex.quote(str(forbidden_marker))}"})
-                content = [{"type": "tool_use", "id": "toolu_wo168", "name": forbidden_tool, "input": tool_input}]
+                tool_name = forbidden_tool
+                if forbidden_tool in read_files:
+                    tool_name = "Read"
+                    tool_input = {"file_path": str(work / read_files[forbidden_tool])}
+                content = [{"type": "tool_use", "id": "toolu_wo168", "name": tool_name, "input": tool_input}]
                 stop = "tool_use"
             else:
                 content = [{"type": "text", "text": "WO168_LOOPBACK_OK"}]
@@ -181,7 +195,13 @@ def test_real_cli_accepts_production_argv_and_preserves_confinement(tmp_path, fo
         assert len(requests) == 2
         tool_results = [block for msg in requests[-1][2]["messages"] for block in msg.get("content", [])
                         if isinstance(block, dict) and block.get("type") == "tool_result"]
-        assert any(block.get("is_error") for block in tool_results)
+        if forbidden_tool == "ReadAllowed":
+            assert "WO168_READ_CONTENT_allowed.txt" in json.dumps(tool_results)
+            assert not any(block.get("is_error") for block in tool_results)
+        else:
+            assert any(block.get("is_error") for block in tool_results)
+            if forbidden_tool in read_files:
+                assert "WO168_READ_CONTENT_" not in json.dumps(tool_results), "denied file leaked"
     assert not marker.exists()
     assert not forbidden_marker.exists()
     assert not list((home / ".claude").rglob("*.jsonl")), "session transcript persisted"

@@ -173,7 +173,9 @@ def test_adapter_builds_fixed_read_only_noninteractive_invocation(tmp_path) -> N
     assert "--strict-mcp-config" in invocation.argv
     assert json.loads(invocation.argv[invocation.argv.index("--mcp-config") + 1]) == {"mcpServers": {}}
     assert invocation.argv[invocation.argv.index("--tools") + 1] == "Read,Glob,Grep"
-    assert "--setting-sources=" in invocation.argv
+    assert "--setting-sources=" not in invocation.argv
+    setting_index = invocation.argv.index("--setting-sources")
+    assert invocation.argv[setting_index + 1] == "project,local"
     assert all(invocation.argv)  # Native/supervised runners reject empty args.
     assert "--permission-mode" in invocation.argv
     assert "plan" in invocation.argv
