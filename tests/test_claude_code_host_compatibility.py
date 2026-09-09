@@ -171,7 +171,10 @@ def test_real_cli_accepts_production_argv_and_preserves_confinement(tmp_path, fo
         assert path.startswith("/v1/messages")
         assert token_bound
         assert body["model"] == "glm-5.3"
-        assert {t["name"] for t in body.get("tools", [])} == {"Read", "Glob", "Grep"}
+        # --tools is a ceiling: 2.1.152 bare mode exposes only Read.
+        tool_names = {t["name"] for t in body.get("tools", [])}
+        assert "Read" in tool_names
+        assert tool_names <= {"Read", "Glob", "Grep"}
         assert _PACKET in json.dumps(body["system"])
         assert _CANARY not in json.dumps(body)
     if forbidden_tool:

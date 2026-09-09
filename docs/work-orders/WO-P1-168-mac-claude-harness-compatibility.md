@@ -1,7 +1,7 @@
 # WO-P1-168 — Mac Claude harness compatibility
 
 Date: 2026-09-10 (Asia/Bangkok)
-Status: CLAIMED / REPRODUCING
+Status: FROZEN / READY_FOR_EXACT_SHA_REVIEW (not accepted)
 Owner: GPT-6 Astra / Poppy Javis, bounded repair lane
 Integrator: GPT integrator retains independent acceptance, merge, release, downstream ZRA
 Risk: R3 (customization isolation and provider credential confinement)
@@ -118,3 +118,64 @@ Upstream evidence checked 2026-09-10:
 
 This strengthens explicit isolation on every OS; real newer Windows/Linux CLI
 behavior is not inferred from the Mac test and must remain a declared limitation.
+
+### GREEN / bounded repair checkpoint
+
+Production change is only the fixed argv in claude_code_harness.py. The initial
+replacement's empty standalone settings argument was rejected by the canonical
+native runner; use --setting-sources= as one nonempty argv element. No native
+validation relaxation was made. Native assembly tests now reach the supervised
+plan boundary. Initial host expectation of exactly three exposed tools was too
+strong: 2.1.152 bare exposes Read only. The test now verifies Read exists and the
+actual tool set is a subset of the three-name allowlist; Write and Bash tool-use
+injections are independently refused with error results and no marker writes.
+
+Verification:
+- RED commit: 16dc834 (real host 3 failures; contract 1 failure / 15 passes).
+- Mac host: 2.1.152, arm64; optional integration 3/3 PASS in 3.29s.
+- Focused harness/supervised mapping/backend/assembly: 44 PASS, 6 expected skips
+  (3 Windows integration + 3 opt-in host cases).
+- Related native/supervised/provider authority and runtime: 142 PASS, 3 Windows
+  integration skips in 4.34s using the actual python3.12 executable.
+- The first related run via python3 hit six fixture executable-name mismatches:
+  sys.executable basename python3 versus sys._base_executable basename python3.12.
+  Running the actual interpreter resolved all six without a source/test change.
+- Compileall, git diff --check, strict UTF-8 and added-line credential-pattern
+  scan PASS. No private secret was read or used.
+
+Commands (from this worktree):
+```sh
+A_CONDUCTOR_TEST_CLAUDE=/Users/aase7en/.nvm/versions/node/v24.15.0/bin/claude python3 -m pytest -q tests/test_claude_code_host_compatibility.py
+python3 -m pytest -q tests/test_claude_code_harness.py tests/test_claude_code_supervised_runner.py tests/test_claude_code_job_backend.py tests/test_claude_code_job_assembly.py tests/test_claude_code_host_compatibility.py
+/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 -m pytest -q tests/test_supervised_execution.py tests/test_supervised_helper_kind.py tests/test_supervised_child.py tests/test_supervised_command_runner.py tests/test_supervised_run_coordinator.py tests/test_native_execution.py tests/test_provider_configuration.py tests/test_provider_execution_authority.py tests/test_provider_runtime_assembly.py tests/test_provider_runtime_binding.py
+```
+
+Security invariants: unchanged permission-mode plan; tool ceiling Read/Glob/Grep;
+no-session-persistence; verified packet path/hash, fixed prompt/model/effort;
+no ambient user/project/local settings; bare disables automatic customization
+loading; skills disabled; empty strict MCP config; unchanged two environment
+bindings; unchanged secret resolver/redaction, supervised lifecycle/dedup/provider
+authority. No shell/subprocess was added to production. Host probes use only a
+synthetic token and ephemeral loopback server; all CLI children exited naturally.
+The opt-in fixture has hostile user/project/local hooks, environment overrides,
+CLAUDE.md, skill and MCP definitions; no customization marker, forbidden-write
+marker, ambient prompt canary or session JSONL was observed.
+
+Known limitations:
+- This is CLI containment, not an OS filesystem/network sandbox. Read permissions
+  and managed-policy trust remain existing external boundaries.
+- --bare changes discovery and auth behavior intentionally. Jobs cannot depend on
+  ambient project/local settings. 2.1.152 exposes only Read; Glob/Grep availability
+  is CLI-dependent. The explicit Bearer token is proven on this host only.
+- No actual Windows/Linux installed Claude CLI run, real GLM turn, live DB,
+  or installed Conductor runtime proof is claimed. The same explicit argv and
+  unchanged native contracts apply on all OSes; unsupported CLIs reject rather
+  than retry with weaker flags. Hosted CI and integrator review remain gates.
+- CURRENT-WORK/handoff/COLLAB remain untouched as requested; integrator owns
+  canonical projection closeout. Do not follow their old WO166 frontier blindly.
+
+Next safe action: independently review the pushed exact candidate SHA and CI;
+GPT integrator adjudicates/accepts/merges. Only after acceptance, a separately
+authorized isolated authenticated one-shot can test Zero Relay. This lane does
+not self-merge or claim ZERO_RELAY_OPERATIONAL. Exact frozen SHA and changed-file
+hashes are in runs/WO-P1-168/result.md and the candidate assurance manifest/PR.
