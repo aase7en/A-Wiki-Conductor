@@ -509,6 +509,8 @@ def test_project_and_local_settings_project_only_permission_denies(tmp_path) -> 
         "{not-json",
         [],
         {"permissions": []},
+        {"permissions": None},
+        {"permissions": {"deny": None}},
         {"permissions": {"deny": "Read(./x)"}},
         {"permissions": {"deny": [1]}},
         {"permissions": {"deny": [""]}},
@@ -584,3 +586,26 @@ def test_settings_symlink_outside_worktree_fails_closed(tmp_path) -> None:
         assert runner.calls == []
     finally:
         outside.unlink(missing_ok=True)
+
+
+def test_sanitized_permission_payload_has_cross_platform_size_ceiling(tmp_path) -> None:
+    _write_claude_settings(
+        tmp_path,
+        "settings.json",
+        {"permissions": {"deny": ["R" * 1000 + str(i) for i in range(20)]}},
+    )
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig(
+                "provider-config:glm-shared/base-url",
+                "https://api.example.test",
+            ),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_TOO_LARGE"
+    assert runner.calls == []

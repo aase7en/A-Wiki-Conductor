@@ -29,6 +29,11 @@ _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _EFFORT_LEVELS = frozenset({"LOW", "HIGH", "MAX", "DEFAULT"})
 _READ_ONLY_TOOLS = "Read,Glob,Grep"
 _FIXED_PROMPT = "Execute the authorized task packet. Return concise structured evidence only."
+_CLAUDE_SETTINGS_FILENAMES = ("settings.json", "settings.local.json")
+_MAX_CLAUDE_SETTINGS_BYTES = 65_536
+_MAX_PERMISSION_DENY_RULES = 128
+_MAX_PERMISSION_RULE_LENGTH = 1_024
+_MAX_SANITIZED_SETTINGS_BYTES = 16_384
 
 
 def _require_text(value: str, field: str, *, max_length: int) -> str:
@@ -212,6 +217,73 @@ def _is_within(path: Path, root: Path) -> bool:
         return False
 
 
+def _sanitized_claude_permission_settings(worktree: Path) -> str:
+    """Project only bounded project/local permission denies into Claude settings."""
+    root = worktree.expanduser().resolve(strict=False)
+    deny_rules: list[str] = []
+    seen: set[str] = set()
+
+    for filename in _CLAUDE_SETTINGS_FILENAMES:
+        path = root / ".claude" / filename
+        if path.is_symlink():
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        resolved = path.resolve(strict=False)
+        if not _is_within(resolved, root):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        if not path.exists():
+            continue
+        if not path.is_file():
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if len(raw) > _MAX_CLAUDE_SETTINGS_BYTES:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+        try:
+            payload = json.loads(raw.decode("utf-8", errors="strict"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if not isinstance(payload, dict):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+
+        if "permissions" not in payload:
+            continue
+        permissions = payload["permissions"]
+        if not isinstance(permissions, dict):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        if "deny" not in permissions:
+            continue
+        deny = permissions["deny"]
+        if not isinstance(deny, list):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+
+        for rule in deny:
+            if (
+                not isinstance(rule, str)
+                or not rule.strip()
+                or rule != rule.strip()
+                or "\x00" in rule
+                or len(rule) > _MAX_PERMISSION_RULE_LENGTH
+            ):
+                raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+            if rule in seen:
+                continue
+            seen.add(rule)
+            deny_rules.append(rule)
+            if len(deny_rules) > _MAX_PERMISSION_DENY_RULES:
+                raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+
+    sanitized = json.dumps(
+        {"permissions": {"deny": deny_rules}},
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    if len(sanitized.encode("utf-8")) > _MAX_SANITIZED_SETTINGS_BYTES:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+    return sanitized
+
+
 class ClaudeCodeHarnessAdapter:
     def __init__(self, *, runner: ClaudeCodeRunner, max_task_packet_bytes: int = 262_144) -> None:
         if not callable(getattr(runner, "run", None)):
@@ -274,6 +346,8 @@ class ClaudeCodeHarnessAdapter:
         profile: ProviderConfiguration,
         packet_path: Path,
     ) -> ClaudeCodeInvocation:
+        worktree = Path(dispatch.worktree_path).expanduser().resolve(strict=False)
+        sanitized_settings = _sanitized_claude_permission_settings(worktree)
         argv = [
             "claude",
             "--print",
@@ -284,15 +358,16 @@ class ClaudeCodeHarnessAdapter:
             # --safe-mode requires Claude >=2.1.169. Use the older explicit
             # isolation profile on every host; never retry with weaker flags.
             # Bare still permits explicit skills/MCP, so close those surfaces.
-            # Preserve selected settings: their permission deny rules are part
-            # of confinement. User settings remain excluded (lesson #20).
+            # Ambient settings stay excluded because they can rewrite provider
+            # env. Only validated project/local permission denies are projected.
             "--bare",
             "--disable-slash-commands",
             "--strict-mcp-config",
             "--mcp-config",
             '{"mcpServers":{}}',
-            "--setting-sources",
-            "project,local",
+            "--setting-sources=",
+            "--settings",
+            sanitized_settings,
             "--permission-mode",
             "plan",
             "--tools",

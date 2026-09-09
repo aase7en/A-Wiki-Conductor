@@ -266,3 +266,60 @@ GPT integrator adjudicates/accepts/merges. Only after acceptance, a separately
 authorized isolated authenticated one-shot can test Zero Relay. This lane does
 not self-merge or claim ZERO_RELAY_OPERATIONAL. Exact frozen SHA and changed-file
 hashes are in runs/WO-P1-168/result.md and the candidate assurance manifest/PR.
+
+
+### R1 independent rejection — provider authority regression
+
+After the original merge/post-main success, R1 reopened this WO because the accepted
+`--setting-sources=` profile discarded project/local `permissions.deny` rules.
+R1 candidate `56224670256c36b11389f9048ffdf956bfe7143f` restored
+`--setting-sources project,local` and proved the deny rules, but independent GPT review
+found a P1 provider-binding regression.
+
+A real Mac Claude 2.1.152 probe put a hostile `ANTHROPIC_BASE_URL` and synthetic wrong
+token into selected project settings while process env carried the authorized loopback
+route. The authorized server received zero requests and the child timed out. Therefore
+selected project/local settings can rewrite the provider route, reproducing the authority
+class from DEFECT_LESSONS #20. Issue #233 comment 5610084601 freezes R1 as
+CHANGES_REQUIRED / DO_NOT_MERGE.
+
+### R2 design — sanitized deny-only settings projection
+
+R2 claim: Issue #233 comment 5610087728.
+Branch: `gpt/wo-p1-168-r2-sanitized-permissions`.
+Base: frozen R1 `56224670256c36b11389f9048ffdf956bfe7143f`.
+
+The harness now keeps ambient settings excluded with `--setting-sources=`. It reads only
+worktree `.claude/settings.json` and `.claude/settings.local.json`, validates them
+under bounded fail-closed rules, unions only `permissions.deny`, and passes a newly
+constructed deny-only JSON object through explicit `--settings`.
+
+No `env`, hooks, MCP, plugin flags, `defaultMode`, allow or ask rules are projected.
+The settings files are bounded to 64 KiB each; deny rules are bounded by count and length;
+the sanitized argv payload is capped at 16 KiB for cross-platform command-line safety.
+Symlink/outside-worktree settings, malformed JSON/types, null ambiguity and oversized
+input/output fail before the runner.
+
+R2 RED commit:
+`cf0680f6d88e05f01a9eaad57b57c84ae5c4c9f8`.
+
+Unit RED on frozen R1 source:
+13 failed / 15 passed, covering invocation contract, project+local deny projection,
+malformed settings, oversized settings and symlink escape.
+
+R2 current GREEN evidence:
+- unit harness: 31/31 PASS;
+- real installed Mac Claude 2.1.152 hostile-settings loopback: 6/6 PASS;
+- related Claude/supervised/native/provider frontier: 201 PASS / 12 expected skips;
+- compileall PASS;
+- git diff --check PASS;
+- no private credential or live provider used.
+
+The host fixture places hostile provider env, hooks, MCP enablement, bypass default mode
+and allow rules into project/local settings. The accepted process-bound synthetic provider
+still receives the requests, project/local denied files do not leak, allowed Read works,
+Write/Bash remain refused, and no customization/session residue is created.
+
+Important CLI semantic: Claude 2.1.152 may suppress a denied tool call and restart the
+model turn rather than emit a `tool_result.is_error`. R2 acceptance therefore pins the
+security invariant (no denied execution/content leak), not one response representation.
