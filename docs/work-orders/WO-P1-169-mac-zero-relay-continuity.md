@@ -112,3 +112,15 @@ durable exact-SHA review checkpoint.
 
 Hosted run 34391873577 remains a merge gate; macOS/Ubuntu smoke are green and
 Windows/full was still in progress at this checkpoint. WO169 does not authorize merge.
+
+
+### Next-R3 shaping (read-only)
+
+Current-main audit narrows the post-WO168 Mac blocker to platform process observation /
+spawn / exact termination and composition. Higher-level supervised execution, durable
+identity/store/coordinator and Claude/provider authority are reusable. Proposed next
+classification: EXTEND/WRAP existing process protocols with POSIX/macOS primitives and
+explicit platform assembly; do not create a second supervisor/scheduler/store. Full
+fault matrix and acceptance boundary are recorded in
+`docs/runbooks/mac-zero-relay-continuation.md` §11. This is shaping only; no WO170/source
+claim is opened until WO168 post-main verification closes.

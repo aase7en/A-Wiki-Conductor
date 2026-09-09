@@ -195,3 +195,75 @@ Do not hand-edit `CURRENT-WORK.md`, `handoff.md`, or `COLLAB.md` from competing 
 Use the accepted single-writer/fold path when it becomes operational.
 
 A model saying DONE is not completion authority.
+
+
+## 11. Proposed next R3 contract — POSIX/macOS supervised-process portability
+
+Status: READ_ONLY SHAPING / NOT YET CLAIMED / NO SOURCE AUTHORITY.
+
+Fresh current-main architecture audit after the WO168 merge shows the portability gap is
+narrower than a new supervisor:
+
+Reusable authority already exists:
+- `OwnedProcessSpec` and the existing process-ownership classifier;
+- `SupervisedExecutionService` consumes injected controller/observer protocols;
+- durable execution store and execution identity;
+- `SupervisedRunCoordinator` dedup/inspect/collect semantics;
+- `SupervisedCommandRunner` and Claude provider/task authority above it;
+- generic native execution/file safety primitives.
+
+Windows binding is concentrated in:
+- process spawner/terminator defaults in `owned_process.py`;
+- `WindowsRuntimeObserver`;
+- `StrictPowerShellInspectionRunner`;
+- `build_supervised_native_adapter_resolver()` production composition.
+
+Therefore the preferred classification is `EXTEND / WRAP`, not NEW.
+
+### Required design invariants
+
+A later R3 implementation should preserve the existing higher-level authority and add only
+the minimum POSIX/macOS process facts needed by the same protocols:
+
+1. spawn an exact owned helper without a shell and with a dedicated process/session identity;
+2. persist PID metadata atomically through the existing contract;
+3. observe PID existence + executable identity + required profile marker from actual OS facts;
+4. never signal a PID/process group until ownership is proven;
+5. stale PID, reused PID, missing command-line identity or observation failure must fail closed;
+6. terminate only the exact owned process/session, with bounded TERM -> verified-exit ->
+   narrowly authorized KILL escalation;
+7. preserve existing durable execution IDs, CAS/version checks, inspect/collect/recovery,
+   output bounds/redaction and environment allowlists;
+8. transport loss must never release execution ownership;
+9. no second scheduler/store/lease/retry/review/process-lifecycle authority;
+10. production assembly selects a platform adapter explicitly and unknown platforms fail closed.
+
+### Minimum RED/fault matrix
+
+Before source repair, independently reproduce:
+- current Mac production assembly attempts Windows observer/PowerShell composition;
+- stale PID file;
+- live foreign PID;
+- PID reuse/mismatched executable;
+- correct executable but missing profile marker;
+- observer cannot prove command line;
+- TERM returns but process remains alive;
+- process exits between observe and terminate;
+- helper exits before PID persistence;
+- PID persistence fails after child start;
+- restart/reattach to a still-running exact-owned helper;
+- descendant-held stdout/stderr handles cannot make terminal result ambiguous;
+- no broad kill or name-based kill under any failure.
+
+### Acceptance boundary
+
+A generic `NativeSubprocessRunner` smoke is diagnostic only. The final macOS Zero-Relay
+proof must use the canonical supervised execution/identity/recovery path.
+
+Host proof should use a disposable helper and temporary SQLite/runtime directory first.
+Real provider credential use is a later gate and is not required to accept POSIX process
+ownership itself.
+
+Suggested next durable work item after WO168 post-main verification:
+`Mac/POSIX supervised-process adapter + production composition`, R3, isolated worktree,
+RED-first, with GPT trust framing and independent exact-SHA review.
