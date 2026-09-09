@@ -33,24 +33,49 @@ REQUIRED_CAPABILITIES = {
 }
 
 
+EXPECTED_HEADER_CELLS = [
+    "Capability key",
+    "A-Wiki role",
+    "A-Conductor role",
+    "Boundary / migration note",
+]
+
+
 def _authority_rows() -> list[tuple[str, str, str, str]]:
     text = CONTRACT.read_text(encoding="utf-8")
     assert text.count(START) == 1
     assert text.count(END) == 1
+    assert text.index(START) < text.index(END), "authority-map sentinel order invalid"
     block = text.split(START, 1)[1].split(END, 1)[0]
-    rows: list[tuple[str, str, str, str]] = []
-    for line in block.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        assert stripped.startswith("|"), f"malformed authority-map row: {line!r}"
-        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+    nonblank = [line.strip() for line in block.splitlines() if line.strip()]
+    assert len(nonblank) >= 2, "malformed authority-map row: missing header/separator"
+
+    def _cells(line: str) -> list[str]:
+        assert line.startswith("|"), f"malformed authority-map row: {line!r}"
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
         assert len(cells) == 4, f"malformed authority-map row: {line!r}"
-        if cells[0] == "Capability key":
-            continue
-        if set(cells[0]) <= {"-", ":"}:
-            continue
+        return cells
+
+    # Structural contract: exactly one header then one separator at the top;
+    # every later nonblank row is DATA. No first-cell-only skip is allowed —
+    # a mid-table row shaped like a header/separator is an injected bypass.
+    assert _cells(nonblank[0]) == EXPECTED_HEADER_CELLS, "authority-map header invalid"
+    separator_cells = _cells(nonblank[1])
+    assert all(cell and set(cell) <= {"-", ":"} for cell in separator_cells), (
+        "authority-map separator invalid"
+    )
+
+    rows: list[tuple[str, str, str, str]] = []
+    seen_keys: set[str] = set()
+    for line in nonblank[2:]:
+        cells = _cells(line)
         assert cells[0], f"malformed authority-map row: {line!r}"
+        assert cells[0] != EXPECTED_HEADER_CELLS[0], (
+            "repeated or misplaced authority-map header"
+        )
+        assert not set(cells[0]) <= {"-", ":"}, (
+            "repeated or misplaced authority-map separator"
+        )
         if "COMPATIBILITY_FALLBACK" in cells[1:3]:
             assert "SUNSET:" in cells[3], (
                 f"{cells[0]} COMPATIBILITY_FALLBACK requires SUNSET: <condition>"
@@ -58,6 +83,14 @@ def _authority_rows() -> list[tuple[str, str, str, str]]:
             assert cells[3].split("SUNSET:", 1)[1].strip(), (
                 f"{cells[0]} COMPATIBILITY_FALLBACK requires SUNSET: <condition>"
             )
+        assert cells[1] in ALLOWED_ROLES, f"{cells[0]} invalid A-Wiki role"
+        assert cells[2] in ALLOWED_ROLES, f"{cells[0]} invalid A-Conductor role"
+        assert [cells[1], cells[2]].count("OWNER") == 1, (
+            f"{cells[0]} must have exactly one OWNER"
+        )
+        assert cells[3] and cells[3] != "-", f"{cells[0]} requires a migration note"
+        assert cells[0] not in seen_keys, f"duplicate capability key: {cells[0]}"
+        seen_keys.add(cells[0])
         rows.append((cells[0], cells[1], cells[2], cells[3]))
     return rows
 
@@ -130,3 +163,88 @@ def test_fallback_rows_require_explicit_sunset_marker(
     monkeypatch.setattr("test_awiki_a_conductor_authority_contract.CONTRACT", path)
     with pytest.raises(AssertionError, match="SUNSET"):
         _authority_rows()
+
+# ---------------------------------------------------------------------------
+# WO-P1-167-R1 — pseudo-header/separator bypass RED family (Astra P1).
+# Deterministic temp fixtures only; the real contract file is never edited.
+# ---------------------------------------------------------------------------
+
+
+def _rows_for(monkeypatch, path):
+    import test_awiki_a_conductor_authority_contract as mod
+    monkeypatch.setattr(mod, "CONTRACT", path)
+    return mod._authority_rows()
+
+
+def test_pseudo_header_row_with_owner_owner_is_rejected(tmp_path, monkeypatch):
+    path = _with_inserted_authority_row(
+        tmp_path,
+        "| Capability key | OWNER | OWNER | hidden duplicate authority |",
+    )
+    with pytest.raises(AssertionError, match="repeated or misplaced authority-map header"):
+        _rows_for(monkeypatch, path)
+
+
+def test_pseudo_separator_row_fallback_without_sunset_is_rejected(tmp_path, monkeypatch):
+    path = _with_inserted_authority_row(
+        tmp_path,
+        "| --- | COMPATIBILITY_FALLBACK | OWNER | temporary without sunset |",
+    )
+    with pytest.raises(AssertionError, match="repeated or misplaced authority-map separator"):
+        _rows_for(monkeypatch, path)
+
+
+def test_repeated_header_mid_table_is_rejected(tmp_path, monkeypatch):
+    path = _with_inserted_authority_row(
+        tmp_path,
+        "| Capability key | A-Wiki role | A-Conductor role | Boundary / migration note |",
+    )
+    with pytest.raises(AssertionError, match="repeated or misplaced authority-map header"):
+        _rows_for(monkeypatch, path)
+
+
+def test_repeated_separator_mid_table_is_rejected(tmp_path, monkeypatch):
+    path = _with_inserted_authority_row(tmp_path, "|---|---|---|---|")
+    with pytest.raises(AssertionError, match="repeated or misplaced authority-map separator"):
+        _rows_for(monkeypatch, path)
+
+
+def test_malformed_pseudo_header_shape_is_rejected(tmp_path, monkeypatch):
+    path = _with_inserted_authority_row(
+        tmp_path,
+        "| Capability key | OWNER | OWNER | hidden | extra |",
+    )
+    with pytest.raises(AssertionError, match="repeated or misplaced authority-map header|malformed authority-map row"):
+        _rows_for(monkeypatch, path)
+
+
+def test_sentinel_order_invalid_is_rejected(tmp_path, monkeypatch):
+    text = CONTRACT.read_text(encoding="utf-8")
+    body = text.replace(START, "").replace(END, "")
+    path = tmp_path / "integration-contract.md"
+    path.write_text(END + body + START, encoding="utf-8")
+    with pytest.raises(AssertionError, match="sentinel order"):
+        _rows_for(monkeypatch, path)
+
+
+def test_positive_control_valid_new_owner_row_passes(tmp_path, monkeypatch):
+    path = _with_inserted_authority_row(
+        tmp_path,
+        "| future_capability | OWNER | CONSUMER | A-Wiki owns; Conductor consumes. |",
+    )
+    rows = _rows_for(monkeypatch, path)
+    assert ("future_capability", "OWNER", "CONSUMER") == tuple(rows[-1][:3])
+
+
+def test_positive_control_fallback_row_with_explicit_sunset_passes(tmp_path, monkeypatch):
+    path = _with_inserted_authority_row(
+        tmp_path,
+        "| legacy_bridge | COMPATIBILITY_FALLBACK | OWNER | temporary; SUNSET: removed by 2026-10-01 |",
+    )
+    rows = _rows_for(monkeypatch, path)
+    assert rows[-1][0] == "legacy_bridge"
+
+
+def test_positive_control_current_contract_still_passes():
+    rows = _authority_rows()
+    assert rows and len(rows) >= len(REQUIRED_CAPABILITIES)
