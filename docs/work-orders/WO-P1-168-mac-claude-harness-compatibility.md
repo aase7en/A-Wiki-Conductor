@@ -1,5 +1,52 @@
 # WO-P1-168 — Mac Claude harness compatibility
 
+## R1 current authority — post-merge permission preservation
+
+Status: CLAIMED / R3 CORRECTIVE REPAIR
+Owner: GPT-6 Astra / Poppy Javis; integrator retains acceptance/merge/release
+Worktree: /Users/aase7en/Desktop/A-Wiki-Conductor-wo168-r1
+Branch: codex/wo-p1-168-r1-permissions
+Base: 577d9483720c857a89a5d2c9ea9359f9c0aa50b5 (PR #237 external merge)
+Result: runs/WO-P1-168/result.md; assurance under the same task directory
+
+PR #237 was accepted/merged by the separate Sol integrator while the author lane
+was interrupted. The author did not merge. Its green CI/review did not cover
+project/local permission-deny preservation. An incomplete independent review
+raised this question before its session hit a usage limit; no final review was
+produced by that session. Fresh synthetic real-CLI evidence now proves the gap:
+654e36d reads a project-denied file and sends its synthetic content to loopback;
+the same argv with original project,local sources preserves the deny rule.
+Evidence: prior worktree runs/WO-P1-168/permission-probe.txt (1 failed/1 passed).
+This supersedes the earlier READY claim on the security invariant.
+
+This is the same explicitly authorized compatibility repair, reopened with a
+bounded WO-only governance checkpoint before source mutation. Fresh origin/main
+and worktrees checked. WO169/PR #238 owns only three different docs; all other
+open lanes are disjoint. No global projection/other WO ownership is claimed.
+Source scope is exactly claude_code_harness.py plus the two original test files;
+this WO owns its own checkpoint. Everything else remains read-only. No new
+coordination/provider/secret/process authority. No authenticated provider call.
+
+Corrective contract: restore the original project,local settings trust boundary
+while retaining bare + disabled skills + strict empty MCP + plan + tool ceiling.
+Project/local permission rules must stay effective. Those selected settings were
+already trusted by the pre-repair invocation and may contain provider env values;
+this task does not claim immunity to selected project/local env overrides. The
+unselected user settings remain excluded. A separate synthetic probe confirmed
+that hostile selected project env can redirect to loopback port 1; timeout was
+recorded as failure and its owned exact-identity process was terminated. Do not
+silently drop permission rules to suppress that pre-existing settings behavior.
+
+R1 RED must exercise denied Read through the real host CLI, plus deterministic
+settings-source preservation. R1 GREEN must preserve the original loopback happy
+path and Bash/Write refusal, deny project/local Read, exclude user settings, skip
+hooks/skills/MCP/context, and pass focused/related suites. No CI host dependency.
+Next: commit/push this claim -> re-pin clean -> add/run RED -> restore settings
+sources -> GREEN -> clean candidate push -> exact-SHA integrator review. The
+merged source does not grant this author merge/acceptance authority.
+
+## Historical R0 implementation checkpoint — superseded where R1 says otherwise
+
 Date: 2026-09-10 (Asia/Bangkok)
 Status: FROZEN / READY_FOR_EXACT_SHA_REVIEW (not accepted)
 Owner: GPT-6 Astra / Poppy Javis, bounded repair lane
