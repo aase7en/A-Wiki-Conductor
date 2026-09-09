@@ -1,6 +1,6 @@
 # WO-P1-167 — Cross-repo authority dedup gate
 
-Status: IN_PROGRESS / CONTRACT_GUARD_IMPLEMENTED
+Status: REPAIR_GREEN / READY_FOR_EXACT_SHA_REVIEW
 Risk: R3 architecture / authority boundary
 Owner: GPT1 integrator
 Issue: A-Conductor #233
@@ -75,6 +75,13 @@ RED on base contract with new regression:
 
 GREEN after contract update:
 - same focused file: 3 passed
+
+GPT lane-2 repair after exact review (Issue #226 comment 5591155775):
+- review gap: Issue #233 minimum capabilities `status`, `mutation_gate`, and `next_ready_continuation` were not explicitly classified;
+- RED on head `93bf599cdb77dea26afb7e05327345dd06de8e6f` after adding those requirements: 2 failed / 1 passed;
+- repair: add exactly-one-owner rows (`A-Wiki ADAPTER / A-Conductor OWNER` for `status` and `mutation_gate`; `A-Wiki CONSUMER / A-Conductor OWNER` for `next_ready_continuation`);
+- focused GREEN: 3/3 passed;
+- no runtime or A-Wiki source mutation.
 
 ## Remaining verification before freeze
 

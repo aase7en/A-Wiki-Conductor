@@ -13,7 +13,9 @@ REQUIRED_CAPABILITIES = {
     "work_order_contract",
     "repo_coordination_claim",
     "runtime_task_instance",
+    "status",
     "claim_policy",
+    "mutation_gate",
     "runtime_lease",
     "verification_policy",
     "model_policy",
@@ -22,6 +24,7 @@ REQUIRED_CAPABILITIES = {
     "execution_verification",
     "scheduler_ready_set",
     "retry_recovery",
+    "next_ready_continuation",
     "handoff_convention",
     "execution_evidence",
     "defect_learning",
@@ -70,10 +73,13 @@ def test_runtime_and_brain_ownership_stays_split() -> None:
     assert rows["model_policy"] == ("OWNER", "ADAPTER")
     assert rows["review_lifecycle"] == ("OWNER", "ADAPTER")
     assert rows["runtime_task_instance"] == ("CONSUMER", "OWNER")
+    assert rows["status"] == ("ADAPTER", "OWNER")
+    assert rows["mutation_gate"] == ("ADAPTER", "OWNER")
     assert rows["runtime_lease"] == ("CONSUMER", "OWNER")
     assert rows["runtime_model_selection"] == ("CONSUMER", "OWNER")
     assert rows["scheduler_ready_set"] == ("CONSUMER", "OWNER")
     assert rows["retry_recovery"] == ("CONSUMER", "OWNER")
+    assert rows["next_ready_continuation"] == ("CONSUMER", "OWNER")
 
 
 def test_contract_requires_fallback_sunset_and_blocks_owner_owner() -> None:

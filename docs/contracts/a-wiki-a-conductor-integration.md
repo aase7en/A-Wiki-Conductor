@@ -115,7 +115,9 @@ runtime steps; scheduling does not transfer ownership of the workflow semantics.
 | work_order_contract | OWNER | ADAPTER | A-Wiki owns WO convention/schema; A-Conductor owns only the runtime instance derived from it. |
 | repo_coordination_claim | OWNER | ADAPTER | Durable cross-agent repo/work-order claim identity is A-Wiki coordination truth; A-Conductor binds it into runtime admission without creating a peer repo-claim store. |
 | runtime_task_instance | CONSUMER | OWNER | Live job state, attempts, checkpoints and completion are A-Conductor runtime truth. |
+| status | ADAPTER | OWNER | Live execution/status truth comes from A-Conductor; A-Wiki status surfaces may adapt/query it but must not create a second runtime-status authority. |
 | claim_policy | OWNER | ADAPTER | A-Wiki owns coordination policy/convention; A-Conductor enforces it at execution admission. |
+| mutation_gate | ADAPTER | OWNER | A-Wiki supplies repo/policy/claim inputs; A-Conductor owns the final live runtime mutation-admission decision and fail-closed enforcement. |
 | runtime_lease | CONSUMER | OWNER | WorkerLease/process mutation ownership is A-Conductor live runtime authority; it is not the same thing as an A-Wiki repo coordination claim. |
 | verification_policy | OWNER | ADAPTER | A-Wiki/repo contracts define required verification; A-Conductor consumes them and binds actual runtime evidence to the exact task/artifact. |
 | model_policy | OWNER | ADAPTER | Capability/cost/escalation policy comes from A-Wiki; no duplicate policy store in A-Conductor. |
@@ -124,6 +126,7 @@ runtime steps; scheduling does not transfer ownership of the workflow semantics.
 | execution_verification | CONSUMER | OWNER | A-Conductor runs and binds runtime evidence to exact task/HEAD; repo policy remains upstream input. |
 | scheduler_ready_set | CONSUMER | OWNER | Runtime ready-set, worker assignment and dispatch belong to A-Conductor, not A-Wiki workflow state. |
 | retry_recovery | CONSUMER | OWNER | Runtime retry/recovery/idempotency belongs to A-Conductor; A-Wiki supplies policy/lessons only. |
+| next_ready_continuation | CONSUMER | OWNER | A-Conductor owns advancing accepted runtime work to the next READY task under existing scheduler/lease gates; A-Wiki remains planning/policy input, not a second continuation engine. |
 | handoff_convention | OWNER | ADAPTER | A-Wiki owns handoff convention; A-Conductor emits/consumes deterministic projections/evidence. |
 | execution_evidence | CONSUMER | OWNER | Runtime journal/evidence bundle is A-Conductor-owned and can be folded back into A-Wiki. |
 | defect_learning | OWNER | ADAPTER | A-Wiki owns durable learning/defect memory; A-Conductor records local defects and returns reusable evidence. |
