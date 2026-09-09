@@ -99,3 +99,16 @@ for all three files.
 
 Lesson for this lane: untracked-file verification must enumerate actual paths explicitly;
 a reported PASS with no demonstrated input coverage is not completion evidence.
+
+
+### Parallel WO168 independent-review checkpoint
+
+Astra froze candidate `654e36d497a875f06adba83e4ca2c14f1a647dbc` / PR #237 while
+this docs lane was active. Sol performed independent review without touching WO168:
+RED reconstruction = 4 failed / 15 passed; candidate host = 3/3 PASS; focused = 44 PASS
+with 6 expected skips; related = 142 PASS with 3 Windows-only skips; independent
+unknown-tool/MCP injection probe = 2/2 PASS. PR #237 comment 5607237872 is the
+durable exact-SHA review checkpoint.
+
+Hosted run 34391873577 remains a merge gate; macOS/Ubuntu smoke are green and
+Windows/full was still in progress at this checkpoint. WO169 does not authorize merge.

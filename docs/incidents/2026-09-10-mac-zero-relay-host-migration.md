@@ -178,3 +178,35 @@ WO168 Claude invocation compatibility
   -> GPT exact-result verification
   -> only then declare Zero-Relay one-shot proven
 ```
+
+
+## 2026-09-10 independent WO168 review checkpoint
+
+WO-P1-168 froze and pushed candidate:
+`654e36d497a875f06adba83e4ca2c14f1a647dbc` on PR #237.
+
+GPT-5.6 Sol independently reconstructed the RED from commit `16dc834` in a clean
+archive using the installed Mac Claude 2.1.152:
+- 4 failed / 15 passed;
+- three failures were the real CLI `unknown option '--safe-mode'` boundary;
+- one failure was the deterministic invocation-contract RED.
+
+Independent exact-candidate archive verification:
+- real Mac loopback host proof: 3/3 PASS;
+- focused Claude harness/supervised/backend/assembly: 44 PASS, 6 expected skips;
+- related supervised/native/provider frontier: 142 PASS, 3 Windows-only skips;
+- compileall PASS;
+- extra adversarial fake-provider calls to unavailable `Task` and
+  `mcp__evil__write`: 2/2 rejected without execution.
+
+Official current Claude CLI documentation was also checked independently:
+- bare mode skips auto-discovery of hooks, skills, plugins, MCP, auto-memory and CLAUDE.md;
+- `--tools` restricts built-in tools;
+- `--strict-mcp-config` ignores other MCP configurations.
+
+At this checkpoint hosted CI run `34391873577` has macOS and Ubuntu smoke SUCCESS,
+while Windows/full remains IN_PROGRESS.
+
+Classification:
+`WO168_SOURCE = SOURCE_PASS / CI_PENDING`.
+This is not yet merge/release authority and is not Zero-Relay operational proof.
