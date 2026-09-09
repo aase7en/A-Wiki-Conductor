@@ -51,8 +51,16 @@ def _authority_rows() -> list[tuple[str, str, str, str]]:
     assert len(nonblank) >= 2, "malformed authority-map row: missing header/separator"
 
     def _cells(line: str) -> list[str]:
-        assert line.startswith("|"), f"malformed authority-map row: {line!r}"
-        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        # Exact single boundary pipes: doubled outer pipes and a missing
+        # trailing/leading pipe are delimiter violations even when the
+        # interior parses as valid data (R2 repair).
+        assert line.startswith("|") and line.endswith("|"), (
+            f"malformed authority-map delimiter: {line!r}"
+        )
+        assert not line.startswith("||") and not line.endswith("||"), (
+            f"malformed authority-map delimiter: {line!r}"
+        )
+        cells = [cell.strip() for cell in line[1:-1].split("|")]
         assert len(cells) == 4, f"malformed authority-map row: {line!r}"
         return cells
 
@@ -248,3 +256,51 @@ def test_positive_control_fallback_row_with_explicit_sunset_passes(tmp_path, mon
 def test_positive_control_current_contract_still_passes():
     rows = _authority_rows()
     assert rows and len(rows) >= len(REQUIRED_CAPABILITIES)
+
+# ---------------------------------------------------------------------------
+# WO-P1-167-R2 — malformed table boundary delimiter RED family.
+# _cells() must not accept doubled outer pipes or a missing trailing pipe
+# even when the interior parses as perfectly valid data.
+# ---------------------------------------------------------------------------
+
+REAL_HEADER = "| Capability key | A-Wiki role | A-Conductor role | Boundary / migration note |"
+
+
+def _mutated_contract(tmp_path, old, new):
+    text = CONTRACT.read_text(encoding="utf-8")
+    assert old in text
+    path = tmp_path / "integration-contract.md"
+    path.write_text(text.replace(old, new, 1), encoding="utf-8")
+    return path
+
+
+def test_r2_doubled_outer_pipes_data_row_rejected(tmp_path, monkeypatch):
+    path = _with_inserted_authority_row(
+        tmp_path,
+        "|| future_capability | OWNER | CONSUMER | A-Wiki owns; Conductor consumes. ||",
+    )
+    with pytest.raises(AssertionError, match="malformed authority-map delimiter"):
+        _rows_for(monkeypatch, path)
+
+
+def test_r2_doubled_outer_pipes_header_rejected(tmp_path, monkeypatch):
+    path = _mutated_contract(
+        tmp_path, REAL_HEADER, "|| Capability key | A-Wiki role | A-Conductor role | Boundary / migration note ||",
+    )
+    with pytest.raises(AssertionError, match="malformed authority-map delimiter"):
+        _rows_for(monkeypatch, path)
+
+
+def test_r2_missing_trailing_pipe_data_row_rejected(tmp_path, monkeypatch):
+    path = _with_inserted_authority_row(
+        tmp_path,
+        "| future_capability | OWNER | CONSUMER | A-Wiki owns; Conductor consumes.",
+    )
+    with pytest.raises(AssertionError, match="malformed authority-map delimiter"):
+        _rows_for(monkeypatch, path)
+
+
+def test_r2_missing_trailing_pipe_separator_rejected(tmp_path, monkeypatch):
+    path = _mutated_contract(tmp_path, "|---|---|---|---|", "|---|---|---|---")
+    with pytest.raises(AssertionError, match="malformed authority-map delimiter"):
+        _rows_for(monkeypatch, path)
