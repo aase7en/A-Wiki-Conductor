@@ -102,7 +102,7 @@ This table converts the responsibility prose into an execution invariant. Roles 
 `OWNER`, `CONSUMER`, `ADAPTER`, or `COMPATIBILITY_FALLBACK`.
 
 **OWNER/OWNER is forbidden.** A capability may have exactly one owner across the two repos.
-`COMPATIBILITY_FALLBACK requires an explicit sunset condition`; a fallback is never a second authority.
+`COMPATIBILITY_FALLBACK` requires an explicit `SUNSET: <condition>` in that row's boundary note; a fallback is never a second authority.
 A-Wiki procedures such as `a-flow` may define the development workflow, while A-Conductor may schedule
 runtime steps; scheduling does not transfer ownership of the workflow semantics.
 
@@ -113,7 +113,7 @@ runtime steps; scheduling does not transfer ownership of the workflow semantics.
 | planning_intelligence | OWNER | ADAPTER | A-Conductor executes/decomposes bounded runtime transactions without forking A-Wiki planning semantics. |
 | workflow_stage_state | OWNER | CONSUMER | A-Wiki a-flow owns ASK→DESIGN→PLAN→IMPLEMENT→REVIEW→DEBUG→TEST workflow/focus state; this is not A-Conductor live job/process state. |
 | work_order_contract | OWNER | ADAPTER | A-Wiki owns WO convention/schema; A-Conductor owns only the runtime instance derived from it. |
-| repo_coordination_claim | OWNER | ADAPTER | Durable cross-agent repo/work-order claim identity is A-Wiki coordination truth; A-Conductor binds it into runtime admission without creating a peer repo-claim store. |
+| repo_coordination_claim | OWNER | ADAPTER | Durable cross-agent repo/work-order claim identity is A-Wiki coordination truth; the local TTL `a-claim` may only be a derived same-machine enforcement cache/accelerator and must not mint independent coordination ownership; A-Conductor binds the durable identity into runtime admission without creating a peer repo-claim store. |
 | runtime_task_instance | CONSUMER | OWNER | Live job state, attempts, checkpoints and completion are A-Conductor runtime truth. |
 | status | ADAPTER | OWNER | Live execution/status truth comes from A-Conductor; A-Wiki status surfaces may adapt/query it but must not create a second runtime-status authority. |
 | claim_policy | OWNER | ADAPTER | A-Wiki owns coordination policy/convention; A-Conductor enforces it at execution admission. |

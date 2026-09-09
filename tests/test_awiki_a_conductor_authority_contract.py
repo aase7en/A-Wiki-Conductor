@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "docs" / "contracts" / "a-wiki-a-conductor-integration.md"
 
@@ -38,13 +40,24 @@ def _authority_rows() -> list[tuple[str, str, str, str]]:
     block = text.split(START, 1)[1].split(END, 1)[0]
     rows: list[tuple[str, str, str, str]] = []
     for line in block.splitlines():
-        if not line.startswith("|"):
+        stripped = line.strip()
+        if not stripped:
             continue
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        if len(cells) != 4 or cells[0] in {"Capability key", "---"}:
+        assert stripped.startswith("|"), f"malformed authority-map row: {line!r}"
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        assert len(cells) == 4, f"malformed authority-map row: {line!r}"
+        if cells[0] == "Capability key":
             continue
         if set(cells[0]) <= {"-", ":"}:
             continue
+        assert cells[0], f"malformed authority-map row: {line!r}"
+        if "COMPATIBILITY_FALLBACK" in cells[1:3]:
+            assert "SUNSET:" in cells[3], (
+                f"{cells[0]} COMPATIBILITY_FALLBACK requires SUNSET: <condition>"
+            )
+            assert cells[3].split("SUNSET:", 1)[1].strip(), (
+                f"{cells[0]} COMPATIBILITY_FALLBACK requires SUNSET: <condition>"
+            )
         rows.append((cells[0], cells[1], cells[2], cells[3]))
     return rows
 
@@ -85,5 +98,35 @@ def test_runtime_and_brain_ownership_stays_split() -> None:
 def test_contract_requires_fallback_sunset_and_blocks_owner_owner() -> None:
     text = CONTRACT.read_text(encoding="utf-8")
     assert "OWNER/OWNER is forbidden" in text
-    assert "COMPATIBILITY_FALLBACK requires an explicit sunset condition" in text
+    assert "`COMPATIBILITY_FALLBACK` requires an explicit `SUNSET: <condition>`" in text
     assert "P0-B5/P0-B6/ZRA mutation stays gated" in text
+
+
+def _with_inserted_authority_row(tmp_path: Path, row: str) -> Path:
+    text = CONTRACT.read_text(encoding="utf-8")
+    mutated = text.replace(END, f"{row}\n{END}")
+    path = tmp_path / "integration-contract.md"
+    path.write_text(mutated, encoding="utf-8")
+    return path
+
+
+def test_malformed_authority_rows_fail_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = _with_inserted_authority_row(
+        tmp_path,
+        "| hidden_future_claim_store | OWNER | OWNER |",
+    )
+    monkeypatch.setattr("test_awiki_a_conductor_authority_contract.CONTRACT", path)
+    with pytest.raises(AssertionError, match="malformed authority-map row"):
+        _authority_rows()
+
+
+def test_fallback_rows_require_explicit_sunset_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _with_inserted_authority_row(
+        tmp_path,
+        "| legacy_claim_bridge | COMPATIBILITY_FALLBACK | OWNER | temporary compatibility |",
+    )
+    monkeypatch.setattr("test_awiki_a_conductor_authority_contract.CONTRACT", path)
+    with pytest.raises(AssertionError, match="SUNSET"):
+        _authority_rows()

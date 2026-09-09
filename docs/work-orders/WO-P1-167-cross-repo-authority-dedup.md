@@ -1,6 +1,6 @@
 # WO-P1-167 — Cross-repo authority dedup gate
 
-Status: REPAIR_GREEN / READY_FOR_EXACT_SHA_REVIEW
+Status: FROZEN / READY_FOR_EXACT_SHA_REVIEW
 Risk: R3 architecture / authority boundary
 Owner: GPT1 integrator
 Issue: A-Conductor #233
@@ -83,7 +83,31 @@ GPT lane-2 repair after exact review (Issue #226 comment 5591155775):
 - focused GREEN: 3/3 passed;
 - no runtime or A-Wiki source mutation.
 
-## Remaining verification before freeze
+## GPT exact-SHA adversarial repair (2026-09-09)
+
+Independent review of PR #234 head `132f9efb019420444610b19ba6d01a01a6f2ea2c`
+found that the machine checker could still pass a sentinel block containing:
+- a malformed hidden OWNER/OWNER row that the parser silently skipped; and
+- a `COMPATIBILITY_FALLBACK` row with no executable sunset condition.
+
+Scratch reproducer on the exact candidate: all 3 prior contract tests still passed.
+
+RED-first repair in this same governance-only lane:
+- added strict sentinel-block parsing so nonblank malformed rows fail closed;
+- added deterministic `SUNSET: <condition>` enforcement for every fallback row;
+- retained positive flexibility for valid additional capability rows;
+- clarified the durable-claim boundary: the durable A-Wiki repo/work-order claim is
+  canonical cross-machine coordination truth; local TTL `a-claim` is a derived
+  same-machine enforcement cache/accelerator and must not independently mint ownership;
+  A-Conductor WorkerLease remains a separate runtime execution authority.
+
+RED on 132f9ef: 2 failed / 3 passed.
+GREEN after repair: focused 5/5; related owner-map/review/operator slice 65/65;
+compileall PASS; git diff --check PASS.
+
+No A-Wiki source, runtime source, P0-B5/B6/ZRA source, or P0-B4 source was mutated.
+
+## Verification at freeze
 
 - run related contract/integration tests;
 - compileall tests where applicable;
