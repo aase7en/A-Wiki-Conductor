@@ -281,9 +281,17 @@ class ClaudeCodeHarnessAdapter:
             "--output-format",
             "json",
             "--no-session-persistence",
-            "--safe-mode",
-            "--setting-sources",
-            "project,local",
+            # --safe-mode requires Claude >=2.1.169. Use the older explicit
+            # isolation profile on every host; never retry with weaker flags.
+            # Bare still permits explicit skills/MCP, so close those surfaces
+            # and exclude ambient settings that could rewrite provider env.
+            "--bare",
+            "--disable-slash-commands",
+            "--strict-mcp-config",
+            "--mcp-config",
+            '{"mcpServers":{}}',
+            # The joined form also satisfies native non-empty argv validation.
+            "--setting-sources=",
             "--permission-mode",
             "plan",
             "--tools",
