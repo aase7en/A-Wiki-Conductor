@@ -327,3 +327,16 @@ def test_hostile_settings_parser_failure_maps_to_typed_backend_recovery(tmp_path
     assert outcome.job.recovery_classification is RecoveryClassification.NO_MUTATION
     assert outcome.error_code == "HARNESS_FAILED"
     assert runner.calls == []
+
+
+def test_settings_parent_symlink_loop_maps_to_typed_backend_recovery(tmp_path) -> None:
+    (tmp_path / ".claude").symlink_to(".claude", target_is_directory=True)
+    runner = FakeRunner(runner_result())
+
+    _, outcome = execute(tmp_path, backend(tmp_path, runner))
+
+    assert outcome.success is False
+    assert outcome.job.state is TaskState.RECOVERY_NEEDED
+    assert outcome.job.recovery_classification is RecoveryClassification.NO_MUTATION
+    assert outcome.error_code == "HARNESS_FAILED"
+    assert runner.calls == []

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -660,3 +661,75 @@ def test_settings_size_gate_does_not_use_unbounded_path_read_bytes(tmp_path, mon
         )
     assert exc_info.value.code == "CLAUDE_SETTINGS_TOO_LARGE"
     assert runner.calls == []
+
+
+def test_settings_parent_symlink_loop_is_typed_before_runner(tmp_path) -> None:
+    (tmp_path / ".claude").symlink_to(".claude", target_is_directory=True)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="POSIX FIFO unavailable")
+def test_nonregular_settings_fifo_is_rejected_before_open(tmp_path, monkeypatch) -> None:
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    os.mkfifo(path)
+    real_open = os.open
+
+    def guarded_open(candidate, flags, *args, **kwargs):
+        if Path(candidate) == path:
+            raise AssertionError("non-regular settings must be rejected before os.open")
+        return real_open(candidate, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", guarded_open)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
+
+
+def test_settings_parent_symlink_outside_worktree_fails_closed(tmp_path) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside-dir"
+    outside.mkdir()
+    (outside / "settings.json").write_text(
+        json.dumps({"permissions": {"deny": ["Read(./outside.txt)"]}}),
+        encoding="utf-8",
+    )
+    (tmp_path / ".claude").symlink_to(outside, target_is_directory=True)
+    runner = success_runner()
+    try:
+        with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+            ClaudeCodeHarnessAdapter(runner=runner).execute(
+                make_dispatch(tmp_path),
+                make_profile(),
+                ProviderEndpointConfig(
+                    "provider-config:glm-shared/base-url",
+                    "https://api.example.test",
+                ),
+                make_observation(),
+                make_packet(tmp_path),
+                now=NOW,
+            )
+        assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+        assert runner.calls == []
+    finally:
+        (outside / "settings.json").unlink(missing_ok=True)
+        outside.rmdir()
