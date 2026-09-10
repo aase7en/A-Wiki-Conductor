@@ -54,6 +54,60 @@ Do not interrupt or rewrite the frozen/current lanes. The first implementation s
 - Zero-Relay remains the throughput priority; AEET must improve its safety/measurement rather than displace it;
 - before broad multi-provider autonomous pilots, the future implementation plan must explicitly decide whether effective-capability attestation and inter-agent provenance gates are prerequisites based on the then-current runtime evidence.
 
+## Priority overlay — what may happen now vs later
+
+The roadmap is intentionally non-preemptive:
+
+1. **Existing P0/READY frontier wins.** WO168/169 reconciliation and the authoritative Zero-Relay sequence retain priority and mutable capacity.
+2. **Read-only AEET preparation may run now.** Existing-authority archaeology, evaluator/test inventory, replay-identity audit, attestation/provenance mapping, and adversarial-case cataloging are parallel-safe when they do not mutate claimed surfaces.
+3. **AEET-0 remains the normal first implementation candidate** after a fresh live gate because later optimization claims depend on evaluator truth.
+4. **AEET-2 and AEET-5 are safety-prerequisite candidates**, not automatically READY. Before broad autonomous multi-provider mutation, GPT/integrator must decide from then-current evidence whether they are required blockers or already satisfied by reuse.
+5. **AEET-3 precedes AEET-7** because a scoreboard cannot outrank its evidence source. **AEET-4 is audit-first** and may close as `REUSE / NO NEW IMPLEMENTATION`.
+6. **AEET-1 minimality remains gated by project-specific A/B evidence** and stays off for high-risk durable/security/concurrency work until proven safe.
+7. **AEET-6, AEET-7 and AEET-8** follow accepted authority/privacy/trace boundaries; none may displace Zero-Relay or release work.
+
+## GPT × GLM parallel contract
+
+GPT-5.6 Sol owns architecture, cross-repo authority mapping, sequencing, trust/security adjudication, exact-SHA acceptance, and merge/release decisions.
+
+GLM/ZCode is assigned a focused **read-only cross-repo evidence audit** now. This is useful immediately because Issue #233 already blocks downstream duplicate-authority risk; the audit improves that existing gate without opening a competing architecture lane or consuming a mutable implementation slot.
+
+### Task packet `GLM-XREPO-EVIDENCE-RO1`
+
+Status: `READY / READ_ONLY / PARALLEL_SAFE / NO SOURCE MUTATION`
+
+Goal: prove which A-Wiki/A-Sunday Conductor capabilities already satisfy the new roadmap nodes, identify real gaps, and produce the smallest reuse-first future slices.
+
+Required startup:
+1. fetch both repositories and record exact inspected SHAs;
+2. A-Sunday Conductor: `00-AGENT-ENTRY.md -> PROJECT-GRAPH.yaml -> AGENTS.md -> actual Git/claim state -> CURRENT-WORK.md -> COLLAB.md -> this WO -> PROJECT-PLAN.md`;
+3. A-Wiki: `BRAIN-ENTRY.md -> docs/graph/PROJECT-GRAPH.yaml -> AGENTS.md -> COLLAB.md -> docs/work-orders/WO-AGENT-EVIDENCE-ROADMAP-20260910.md -> docs/research/agent-engineering-evidence-20260910.md -> docs/migration/awiki-vnext-plan.md`;
+4. inspect existing A-Conductor Issue #233 and treat it as the authority-dedup destination, not something to duplicate;
+5. recover live open branches/PRs/claims before drawing any conclusion from older docs.
+
+Audit targets:
+- AEET-0..8 and A-Wiki Phases 12–17;
+- current job/task/event/evidence/recovery/provider/model-policy/review/claim/lease/memory/defect/security authorities;
+- existing deterministic tests and production defects that can seed evaluator/adversarial fixtures;
+- cross-repo owner/consumer/adapter boundaries and any compatibility fallback needing sunset criteria;
+- areas where current code already proves the roadmap invariant and should be marked `REUSE / NO NEW IMPLEMENTATION`.
+
+Required result shape:
+- table: `roadmap node | existing owner | exact path/symbol/test evidence | OWNER/CONSUMER/ADAPTER/FALLBACK | REUSE/WRAP/EXTEND/BUILD | proven gap | risk | dependency | smallest next slice`;
+- separate candidate evaluator fixtures from actual implementation work;
+- flag contradictory/stale authority docs explicitly instead of choosing one silently;
+- record tool/transport gaps as `UNVERIFIED`, never as code failure or PASS;
+- finish with exactly one recommended next safe mutation candidate, or `NONE` if the current frontier should remain untouched.
+
+Forbidden:
+- source/test/docs mutation in either repo for this task;
+- branch/worktree/claim creation for implementation;
+- touching WO168/169/Zero-Relay worktrees, provider credentials/config, workers/processes, Control Center DB, private Drive, secrets, or live services;
+- adding a new scheduler/task store/review lifecycle/claim or lease authority/model-policy store/trace SSoT/memory store;
+- treating model output as mutation authority or recording hidden chain-of-thought/private tool payloads.
+
+Result destination: post one durable comment on A-Sunday Conductor Issue #233 titled `GLM-XREPO-EVIDENCE-RO1 RESULT`, including exact inspected repository SHAs. Do not merge anything. GPT/integrator will reconcile the result before any implementation node is activated.
+
 ## Mutable scope
 
 - `COLLAB.md` claim/checkpoint row for WO171;
@@ -74,4 +128,4 @@ Forbidden: `src/**`, `tests/**`, secrets/private Drive, `CURRENT-WORK.md`, `hand
 
 ## Next safe action
 
-Capture the AEET section in `PROJECT-PLAN.md`, verify the docs-only candidate, release the mutable claim, push a stacked PR against `docs/wo-p1-170-provider-settings-roadmap`, and do not merge it ahead of its parent.
+Keep PR #244 draft and stacked behind WO170. Start only the read-only `GLM-XREPO-EVIDENCE-RO1` audit in parallel with GPT architecture/reconciliation. No AEET source implementation becomes READY until the higher-priority frontier and fresh mutation gates permit it.
