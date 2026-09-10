@@ -1,9 +1,9 @@
 # WO-P1-169 — Mac Zero-Relay continuity record
 
 Date: 2026-09-10 (Asia/Bangkok)
-Status: CLAIMED / DOCS-ONLY / WINDOWS PRIMARY-HOST CONTINUATION
+Status: FROZEN / DRAFT PR #238 / DOCS CLAIM RELEASED / INDEPENDENT DOCS REVIEW PENDING
 Owner: GPT-5.6 Sol integrator documentation lane
-Parallel implementation status: WO-P1-168 R4 FROZEN / PR #242 exact-head CI SUCCESS / independent-review resource blocked
+Parallel implementation status: WO-P1-168 R4 FROZEN / PR #242 exact-head CI SUCCESS / independent exact-SHA review pending
 Risk: R2 operational/security documentation
 Classification: REUSE existing Zero-Relay authority; no product/runtime authority changes
 
@@ -207,6 +207,19 @@ WO170 / Draft PR #243 and is deliberately deferred until Zero-Relay is accepted 
 It must not displace this P0 path.
 
 Current exact next safe action for WO168 remains: obtain a genuinely independent exact-SHA
-review of PR #242. A one-pointer GLM review packet exists outside the repository; result
-copy-back by the user is not required. Only an exact `PASS` with P0=P1=P2=0 at
-`7d0fd83bb5608a4ab025d5000203cbad2a31831f` may open the fenced merge gate.
+review of PR #242. Durable long-run GLM packet `WO-P1-172` / `GLM-MARATHON-5H-001` can perform
+that review first and then continue the Zero-Relay queue without human result copy-back. Only
+an exact `PASS` with P0=P1=P2=0 at the freshly re-pinned PR #242 head may open the fenced
+merge gate.
+
+### WO169 Windows-continuation freeze / claim release
+
+Windows continuation docs were verified and checkpointed as commit
+`941bf194194bd5e85ca1dc8ecdbd05e47915b60f` on the existing PR #238 branch. The checkpoint
+changed exactly the three WO169-owned docs files; `git diff --check`, strict UTF-8 and full-file
+credential-value pattern scans passed. No product source/tests/global continuity/private
+secret/runtime/provider/Worker state was mutated.
+
+This lane no longer needs mutable ownership. The final metadata-only release commit is pushed
+to the same Draft PR #238 and Issue #233 records its exact final head. PR #238 remains pending
+independent docs/security review; release of this docs claim is not merge/acceptance authority.
