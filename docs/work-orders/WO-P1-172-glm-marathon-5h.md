@@ -1,7 +1,7 @@
 # WO-P1-172 — GLM 5-hour marathon execution prompt
 
 Date: 2026-09-10 (Asia/Bangkok)
-Status: CLAIMED / DOCS-ONLY PROMPT BOOTSTRAP
+Status: COMPLETE / DRAFT PR #245 / DOCS CLAIM RELEASED
 Owner: GPT-5.6 Sol integrator documentation lane
 Priority: P0-supporting / non-preemptive to active Zero-Relay and exact-SHA review gates
 Risk: R2 governance/agent-execution documentation
@@ -129,6 +129,6 @@ READY/P0 dependency. Record the reason for any priority change.
 
 ## Closeout
 
-After the prompt file is committed/pushed and Issue #233 is checkpointed, this docs claim is
-released. The prompt can be used immediately from its isolated worktree or GitHub branch; it
-does not need to merge before a read-only GLM run.
+Prompt candidate `0aaccf3b699f20fa096037aac1dec9cd9d633742` was committed and pushed on the declared isolated branch, then Draft PR #245 was opened. Verification before that push: strict UTF-8 PASS, staged `git diff --check` PASS, credential-value pattern scan = 0 hits, and changed scope = exactly the two declared docs files.
+
+The docs claim is released after the final Issue #233 checkpoint records the final pushed branch HEAD. The prompt may be used immediately from this isolated Windows worktree or remote branch; it does not need to merge before a read-only GLM run. PR #245 remains Draft and does not preempt PR #242 / Zero-Relay.
