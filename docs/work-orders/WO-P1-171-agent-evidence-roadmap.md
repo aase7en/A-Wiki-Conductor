@@ -136,4 +136,4 @@ Forbidden: `src/**`, `tests/**`, secrets/private Drive, `CURRENT-WORK.md`, `hand
 
 ## Dispatch checkpoint
 
-The durable task packet is now complete. Keep PR #244 draft/stacked and dispatch only `GLM-XREPO-EVIDENCE-RO1` as read-only work. If provider readiness fails, preserve the blocker and retry only after the credential/provider authority is restored by an authorized lane. No roadmap implementation, merge, or live-provider mutation is authorized by this packet.
+Roadmap capture is frozen for handoff. GPT continues architecture/reconciliation. GLM executes only `GLM-XREPO-EVIDENCE-RO1` as read-only work and posts the evidence map to Issue #233. No AEET implementation, merge, live-provider mutation, or priority inversion is authorized.
