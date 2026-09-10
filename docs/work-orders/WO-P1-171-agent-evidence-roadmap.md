@@ -85,6 +85,12 @@ Required startup:
 4. inspect existing A-Conductor Issue #233 and treat it as the authority-dedup destination, not something to duplicate;
 5. recover live open branches/PRs/claims before drawing any conclusion from older docs.
 
+Current roadmap candidates to pin before starting:
+- A-Wiki PR #59 branch `docs/agent-evidence-roadmap-20260910`;
+- A-Sunday Conductor PR #244 branch `docs/wo-p1-171-agent-evidence-roadmap`;
+- A-Sunday Conductor parent PR #243 branch `docs/wo-p1-170-provider-settings-roadmap`;
+- A-Sunday Conductor current `main` must be observed fresh, not inferred from this WO.
+
 Audit targets:
 - AEET-0..8 and A-Wiki Phases 12–17;
 - current job/task/event/evidence/recovery/provider/model-policy/review/claim/lease/memory/defect/security authorities;
@@ -107,6 +113,8 @@ Forbidden:
 - treating model output as mutation authority or recording hidden chain-of-thought/private tool payloads.
 
 Result destination: post one durable comment on A-Sunday Conductor Issue #233 titled `GLM-XREPO-EVIDENCE-RO1 RESULT`, including exact inspected repository SHAs. Do not merge anything. GPT/integrator will reconcile the result before any implementation node is activated.
+
+Known transport note: the latest Windows independent-review attempt recorded on Issue #233 reached ZCode but failed before model review with CoinTH/Anthropic `HTTP 401 invalid_key`. Treat any recurrence as `UNVERIFIED / PROVIDER_TRANSPORT_BLOCKED`, not as a repository failure; do not weaken auth or copy secret values into GitHub to bypass it.
 
 ## Mutable scope
 
