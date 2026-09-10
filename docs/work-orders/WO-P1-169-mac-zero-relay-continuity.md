@@ -1,7 +1,7 @@
 # WO-P1-169 — Mac Zero-Relay continuity record
 
 Date: 2026-09-10 (Asia/Bangkok)
-Status: CLAIMED / DOCS-ONLY
+Status: CLAIMED / DOCS-ONLY / WINDOWS PRIMARY-HOST CONTINUATION
 Owner: GPT-5.6 Sol integrator documentation lane
 Parallel implementation status: WO-P1-168 R4 FROZEN / PR #242 exact-head CI SUCCESS / independent-review resource blocked
 Risk: R2 operational/security documentation
@@ -151,3 +151,62 @@ worktrees/claims, assign one free Worker to an independent read-only exact-SHA r
 PR #242, then let the GPT integrator accept/merge with expected-head fencing if P0/P1/P2=0.
 After post-main CI succeeds, pull main again so Windows and Mac can converge on the same
 accepted merge. Do not delete historical Mac worktrees/branches during this handoff.
+
+### Windows 11 primary-host continuation checkpoint — 2026-09-10
+
+This checkpoint supersedes the earlier *planned Windows return* wording above without
+rewriting its historical chronology.
+
+Actual Windows repository/runtime state was re-pinned before further work:
+- protected root: `A:\GitHub\A-Wiki-Conductor`, `main@f4ecf9a8e5a3aa9f92e3cd4ee4c16125f45e43e2`;
+- fetched `origin/main = 577d9483720c857a89a5d2c9ea9359f9c0aa50b5`; root is behind 585;
+- root remains protected/dirty: the QR working blob is already identical to the accepted
+  `origin/main` blob, and untracked `$null` is a 54-byte shell-diagnostic artifact, but no
+  reset/clean/stash/restore/pull was used to bypass the clean-root precondition;
+- WO168 R4 / PR #242 remains Draft at exact head
+  `7d0fd83bb5608a4ab025d5000203cbad2a31831f`, with exact-head CI `34440601328`
+  SUCCESS across Windows/full, Ubuntu and macOS and no independent acceptance verdict yet.
+
+Additional deterministic exact-SHA Windows evidence was gathered from a disposable archive,
+not the protected root: focused harness/host/backend verification = **63 passed / 7 skipped**;
+broader supervised/provider/resolver/config-store verification = **127 passed**;
+`compileall` and `git diff --check` PASS; a real Windows directory-junction escape probe for
+`.claude` fails closed as `CLAUDE_SETTINGS_INVALID`. These checks strengthen evidence but do
+not substitute for the required independent R3 review.
+
+Independent GLM/ZCode diagnostic evidence identified the earlier direct-headless 401 root
+cause without changing repository or ZCode configuration: Desktop and direct headless ZCode
+load different provider config files; the headless record lacked the custom Cointh key and
+fell through to an unrelated ambient `ANTHROPIC_API_KEY`. A bounded positive headless probe
+with the legitimate Cointh credential returned `AUTH_ROUTE_OK`. Current accepted WO158
+production source already avoids this ambient-env defect: it resolves the accepted secret-ref,
+delivers it ephemerally as `ANTHROPIC_API_KEY`, and constructs the ZCode child environment
+without parent-environment inheritance. Do not duplicate the secret into a second ZCode config
+as the Zero-Relay architecture.
+
+Installed/live truth is intentionally separate from current source truth. The running
+`A-Sunday Conductor.exe` SHA-256
+`9432D96E867C486D012AA797C3D764103AABEAA97D8F2C068FAD9D84BAD3AC87` exactly matches the
+released v0.6.0 artifact recorded by WO63, while current source declares v0.7.0 and WO96 remains
+an active P0 release blocker. The live `control-center.sqlite` is healthy (`integrity_check=ok`)
+but still has no `provider_*` tables. Do not force-upgrade the installed v0.6.0 application or
+migrate its live DB merely to prove Zero-Relay. The next live model proof should use current
+source in an isolated proof runtime with sacrificial/copied control state and the authorized
+provider route.
+
+Issue #213 already records GPT1-authorized `PROOF_C` lifecycle PASS on 2026-09-09, so that
+ZCode stdin-EOF lifecycle proof must not be rerun. The remaining ZRA-1 live gate is one real,
+harmless no-human-relay model task bound to canonical provider snapshot + admission +
+WorkerLease + verified task packet, with exact result identity and no orphan execution.
+Read-only future-node shaping is checkpointed on Issue #214 comment `5618617122`, Issue #215
+comment `5618660853`, and Issue #216 comment `5618664042`; those notes do not release their
+dependency gates or create new authorities.
+
+A future ZCode/Hermes/OpenCode-style custom Provider Settings console is captured separately by
+WO170 / Draft PR #243 and is deliberately deferred until Zero-Relay is accepted through ZRA-4.
+It must not displace this P0 path.
+
+Current exact next safe action for WO168 remains: obtain a genuinely independent exact-SHA
+review of PR #242. A one-pointer GLM review packet exists outside the repository; result
+copy-back by the user is not required. Only an exact `PASS` with P0=P1=P2=0 at
+`7d0fd83bb5608a4ab025d5000203cbad2a31831f` may open the fenced merge gate.

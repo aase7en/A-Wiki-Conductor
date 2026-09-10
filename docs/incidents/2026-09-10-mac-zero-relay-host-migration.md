@@ -1,7 +1,7 @@
 # Incident — Windows host unavailable; Zero-Relay continuation moved to macOS
 
 Date: 2026-09-10 (Asia/Bangkok)
-Status: HOST MIGRATION MITIGATED / CLAUDE COMPATIBILITY R4 FROZEN / WINDOWS RETURN PLANNED / LIVE ZERO-RELAY NOT YET PROVEN
+Status: HOST MIGRATION MITIGATED / WINDOWS PRIMARY HOST RESUMED / CLAUDE COMPATIBILITY R4 FROZEN / LIVE ZERO-RELAY NOT YET PROVEN
 Related: Issue #233, WO-P1-168, WO-P1-169
 
 ## Summary
@@ -240,3 +240,46 @@ R3 independent-review gate is still blocked by shared Codex/Astra quota. Do not 
 to simplify host synchronization. The Windows session should fetch first, select one truly
 free Worker for a read-only exact-SHA review, and only then allow expected-head merge plus
 post-main verification.
+
+## Windows return — actual continuation evidence
+
+Windows 11 is now the primary development host. The protected root was fetched but not
+mutated because its local `main@f4ecf9a8e5a3aa9f92e3cd4ee4c16125f45e43e2` is behind
+`origin/main@577d9483720c857a89a5d2c9ea9359f9c0aa50b5` by 585 and still reports preserved
+working state. The QR modification is already byte-identical to the accepted upstream QR;
+an untracked `$null` file contains only a shell diagnostic message. Neither was removed or
+used as justification for reset/clean/stash/restore/pull.
+
+PR #242 remains the active release gate at exact R4 head
+`7d0fd83bb5608a4ab025d5000203cbad2a31831f`. In addition to hosted CI, a disposable exact-SHA
+Windows archive passed 63 focused tests with 7 expected skips and 127 broader provider/harness
+regressions; compileall/diff checks pass and a Windows junction escape is rejected fail-closed.
+This is integrator evidence only, not independent acceptance.
+
+The separate GLM/ZCode diagnostic resolved the earlier headless `401 invalid_key` discrepancy:
+the Desktop GUI and direct headless CLI load different provider config files, and direct
+headless execution fell through to an unrelated ambient `ANTHROPIC_API_KEY` when its own
+custom-provider apiKey was absent. A harmless positive probe with the legitimate Cointh
+credential returned `AUTH_ROUTE_OK`. This is a configuration/runtime-path divergence, not an
+authentication bypass.
+
+Accepted WO158 production code already uses the correct containment pattern for the future
+Zero-Relay proof: resolve the approved secret reference, deliver it ephemerally under
+`ANTHROPIC_API_KEY`, and construct the ZCode child environment without inheriting ambient
+parent credentials. Therefore the direct-headless diagnostic does not justify duplicating a
+secret into another ZCode config file.
+
+A second deployment fact was also established: the running installed Windows application is
+exactly the released v0.6.0 binary (SHA-256
+`9432D96E867C486D012AA797C3D764103AABEAA97D8F2C068FAD9D84BAD3AC87`), while repository
+source is v0.7.0 and WO96 is still an active P0 release blocker. Its live DB is healthy but has
+no provider tables. The installed v0.6.0 app/live DB must not be force-migrated or upgraded to
+manufacture a Zero-Relay proof; use a current-source isolated proof runtime and sacrificial or
+copied DB state after WO168 acceptance.
+
+Finally, Issue #213 already contains GPT1-authorized `PROOF_C` evidence from 2026-09-09 that
+the real ZCode app-server exits naturally after stdin EOF. That lifecycle question is closed.
+The remaining milestone is one real authorized no-human-relay model task through canonical
+provider snapshot + admission + WorkerLease + task packet, followed by durable result
+verification. ZRA-2/3/4 read-only composition shaping is preserved in Issues #214/#215/#216
+without changing their dependency gates.

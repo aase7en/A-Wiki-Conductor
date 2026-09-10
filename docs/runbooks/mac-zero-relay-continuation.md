@@ -1,7 +1,7 @@
 # Runbook — Continue A-Sunday Conductor Zero-Relay across the Mac -> Windows handoff
 
-Status: ACTIVE OPERATIONAL RUNBOOK / WINDOWS RETURN PREPARED
-Applies to: home macOS recovery host and the next Windows 11 primary-host resume
+Status: ACTIVE OPERATIONAL RUNBOOK / WINDOWS 11 PRIMARY HOST RESUMED
+Applies to: historical home-macOS recovery plus the current Windows 11 primary-host continuation
 Related: Issue #233, WO-P1-168, WO-P1-169
 
 ## Purpose
@@ -311,3 +311,51 @@ Windows resume order:
 
 Do not delete old Mac worktrees/branches during the host handoff. They are retained as
 evidence until accepted merge/closeout proves cleanup is safe.
+
+## 13. Current Windows-primary procedure — supersedes the planned-resume steps above
+
+Windows 11 has now resumed as the primary development host. Sections 1–12 preserve the
+migration chronology and remain useful for recovery, but the procedure below is the current
+operational path.
+
+Verified Windows state at this checkpoint:
+- protected root `A:\GitHub\A-Wiki-Conductor` remains on stale local `main@f4ecf9a8...` and
+  fetched `origin/main@577d9483720c857a89a5d2c9ea9359f9c0aa50b5`; do not use reset/clean/
+  stash/index tricks to hide its preserved QR + `$null` state;
+- PR #242 remains Draft at `7d0fd83bb5608a4ab025d5000203cbad2a31831f`; exact-head hosted CI is green;
+- additional disposable Windows verification passed 63 focused tests / 7 expected skips,
+  127 broader regressions, compileall/diff checks and a real directory-junction confinement
+  probe; this is deterministic integrator evidence, not the missing independent review;
+- GLM diagnostic proved a harmless direct-headless `AUTH_ROUTE_OK` after identifying the
+  GUI-vs-headless provider-config divergence; no authentication bypass was used;
+- accepted WO158 production source already delivers the provider secret ephemerally as
+  `ANTHROPIC_API_KEY` into an explicitly constructed child environment, avoiding ambient
+  credential inheritance;
+- Issue #213 `PROOF_C` is already PASS; do not spend provider quota rerunning it;
+- installed A-Sunday Conductor is the released v0.6.0 binary, while current source is v0.7.0
+  with WO96 still blocking release; leave the installed app/live DB untouched for Zero-Relay
+  source proof.
+
+Current sequence:
+1. independently review the exact PR #242 candidate; candidate authors/integrator self-checks
+   are not sufficient independent R3 acceptance;
+2. if and only if review is exact-SHA `P0=0/P1=0/P2=0`, GPT re-pins head + CI, marks ready and
+   merges with expected-head fencing;
+3. verify merge ancestry/tree and exact post-main CI before folding WO168 continuity;
+4. reconcile the protected Windows root only through preservation-safe evidence; no broad
+   cleanup operation;
+5. prove one synthetic authenticated ZRA-1 task through current-source isolated runtime +
+   sacrificial/copied state + canonical provider snapshot/admission/WorkerLease/task packet;
+6. ingest and verify the durable result without human result relay;
+7. continue dependency-order into ZRA-2 automatic review/repair, ZRA-3 NEXT READY continuation,
+   then ZRA-4 bounded 2–3 lane fan-out/fan-in;
+8. keep deferred Provider Settings/AEET work non-preemptive until the Zero-Relay dependency gate
+   permits it.
+
+For long GLM work on this path, `WO-P1-172` / `docs/prompts/GLM-MARATHON-5H-001.md`
+provides a durable multi-hour read/review/shaping contract. Its prompt file does not itself
+grant source mutation or merge authority.
+
+Current milestone truth remains:
+`WINDOWS_PRIMARY_HOST=YES`, `PR242_INDEPENDENT_R3_REVIEW=PENDING`,
+`ZRA1_REAL_NO_HUMAN_MODEL_TASK=NOT_YET_PROVEN`, `HUMAN_RELAY_TARGET=0`.
