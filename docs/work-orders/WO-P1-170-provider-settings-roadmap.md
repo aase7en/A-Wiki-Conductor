@@ -2,7 +2,7 @@
 
 Date: 2026-09-10
 Owner: GPT-5.6 Sol integrator
-Status: FROZEN / ROADMAP_CAPTURED / DEFERRED_AFTER_ZRA-4
+Status: ROADMAP_CAPTURED / DRAFT_PR_243 / CLAIM_RELEASED / DEFERRED_AFTER_ZRA-4
 Priority: P2 DEFERRED / POST-ZRA-4
 Risk: R1 docs-only
 Repository: `A:\GitHub\A-Wiki-Conductor`
@@ -171,7 +171,10 @@ Exact slicing must be re-evaluated against future main; these names are planning
 - strict UTF-8 read = PASS;
 - changed-doc sensitive-token/value pattern scan = PASS / no secret values found;
 - no `src/`, `tests/`, private Drive, active WO168/169, or global continuity projection mutation;
-- roadmap now records AHA-7C as deferred behind ZRA-4 so it cannot silently displace the user's P0 Zero-Relay goal.
+- roadmap now records AHA-7C as deferred behind ZRA-4 so it cannot silently displace the user's P0 Zero-Relay goal;
+- first captured commit `011f11660649c2d1b6cab28fe5473829c53433e0` was pushed and Draft PR #243 opened against `main`;
+- PR #243 is intentionally non-blocking and not merge-authorized while WO-P1-168 R4 / PR #242 remains frozen at its independent-review gate;
+- this docs-only mutable claim is released after this checkpoint; future edits require a fresh mutation gate.
 
 ## Next safe action
 
