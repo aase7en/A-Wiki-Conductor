@@ -664,6 +664,37 @@ def test_settings_size_gate_does_not_use_unbounded_path_read_bytes(tmp_path, mon
     assert runner.calls == []
 
 
+def test_existing_claude_directory_without_settings_remains_allowed(tmp_path) -> None:
+    (tmp_path / ".claude").mkdir()
+    runner = success_runner()
+    result = ClaudeCodeHarnessAdapter(runner=runner).execute(
+        make_dispatch(tmp_path),
+        make_profile(),
+        ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+        make_observation(),
+        make_packet(tmp_path),
+        now=NOW,
+    )
+    assert result.status is HarnessExecutionStatus.SUCCESS
+    assert _invocation_settings_payload(runner) == {"permissions": {"deny": []}}
+
+
+def test_settings_parent_regular_file_fails_closed_before_runner(tmp_path) -> None:
+    (tmp_path / ".claude").write_text("not-a-directory", encoding="utf-8")
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
+
+
 def test_settings_parent_symlink_loop_is_typed_before_runner(tmp_path) -> None:
     (tmp_path / ".claude").symlink_to(".claude", target_is_directory=True)
     runner = success_runner()

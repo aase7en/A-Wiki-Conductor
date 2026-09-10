@@ -226,6 +226,21 @@ def _read_bounded_claude_settings(path: Path, root: Path) -> bytes | None:
     try:
         named_before = os.stat(path, follow_symlinks=False)
     except FileNotFoundError:
+        parent = path.parent
+        try:
+            parent_stat = os.stat(parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return None
+        except (OSError, RuntimeError) as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if not stat.S_ISDIR(parent_stat.st_mode):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        try:
+            resolved_parent = parent.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if not _is_within(resolved_parent, root):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
         return None
     except (OSError, RuntimeError) as exc:
         raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
