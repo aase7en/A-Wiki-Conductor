@@ -942,3 +942,137 @@ Planned bounded delivery nodes:
 - `ODP-9` bounded real multi-provider pilot only after all participating providers are genuinely authorized/admitted.
 
 Current frontier coexistence: WO148/PR #199 provider service authorization and WO147/PR #200 ReviewBus adapter retain their existing ownership; ODP implementation must not overlap them. WO096 remains the independent P0 v0.7.0 release blocker. AiPASS remains ineligible while its authorization/admission gates are unsatisfied; ODP cannot bypass provider policy.
+
+## 25. Agent Efficiency, Evidence & Trust Plane — AEET (planned 2026-09-10)
+
+**Roadmap-capture WO:** `docs/work-orders/WO-P1-171-agent-evidence-roadmap.md`
+**Cross-repo evidence authority:** A-Wiki `docs/research/agent-engineering-evidence-20260910.md`
+
+Status: `PLANNED / STACKED ON WO170 / NOT IMPLEMENTATION AUTHORITY`.
+
+A-Sunday Conductor will extend its existing execution/evidence fabric with a bounded **Agent Efficiency, Evidence & Trust Plane (AEET)**. AEET is not another scheduler, task store, provider router, trace SSoT, memory system or review lifecycle. It attaches measurement, attestation and trust evidence to the authorities already accepted by AHA, Zero-Relay, ReviewBus and ODP.
+
+External patterns are adopted only after `SOURCE -> LICENSE/TERMS -> REUSE -> WRAP -> EXTEND -> BUILD` analysis. Current research draws on Ponytail independent benchmarks, Pydantic AI durable-execution incidents/docs, Hugging Face smolagents instrumentation, OpenTelemetry GenAI conventions, SWE-agent trajectory/replay patterns, OWASP agent-security guidance, AgentDojo/AgentDyn adversarial evaluation, and public practitioner reports. Community popularity is corroboration, never runtime authority.
+
+### AEET invariants
+
+1. **Accepted outcome beats activity.** LOC, tokens, cost and speed are optimization metrics only after correctness/safety/authority gates pass.
+2. **Configured is not effective.** A provider, policy, skill, hook or durability capability being declared/configured does not prove it is bound and active for a run.
+3. **Observable evidence, not hidden reasoning.** Persist actions/tool/process/model metadata and bounded/redacted outputs needed for verification; never require chain-of-thought capture.
+4. **Trace is evidence, not authority.** Durable task/job/repository/runtime truth remains in existing authoritative stores.
+5. **Every A2A hop is a trust boundary.** Planner/reviewer/worker output is untrusted input to the next authority and carries no transitive mutation permission.
+6. **Replay must be identity-safe.** Stable persisted operation identity and idempotency/reconciliation govern retry; transport failure never implies safe replay.
+7. **Evaluator must be tested.** A benchmark cannot change routing/policy until known-good/known-bad fixtures prove its gates work.
+### AEET-0 — Evaluator self-test + project baseline
+
+Before enabling any new optimization policy, create a deterministic benchmark contract using representative A-Wiki/A-Conductor coding tasks and proven defect classes. Include repeated trials only where stochastic variance matters.
+
+Score dimensions separately:
+- required outcome / deterministic tests;
+- security, privacy, authority and scope constraints;
+- robustness/recovery and malformed-edge behavior;
+- efficiency: accepted lead time, tool calls, tokens/cost when available, files/LOC/dependencies, repair rounds.
+
+Known-good and deliberately-bad fixtures must first prove the evaluator catches both success and failure. No single weighted score may turn a security failure into an overall pass.
+
+### AEET-1 — Risk-adaptive Minimality Policy
+
+Borrow Ponytail's useful pre-code ladder, not its whole distribution:
+
+`NEEDED? -> REUSE EXISTING? -> STDLIB/NATIVE? -> INSTALLED DEP? -> MINIMUM CLEAR CHANGE`
+
+Apply only to coding-agent lanes after task understanding and scope admission. Optimize unnecessary concepts/files/dependencies before LOC. Proposed modes are policy concepts (`off/lite/full`) rather than a vendor dependency; exact names may change after benchmarking.
+
+Default intent:
+- `full`: bounded/new low-risk implementation where over-building is a known cost;
+- `lite`: ordinary feature/repair work;
+- `off`: security/authorization/durable-state/concurrency/recovery migrations and broad refactors unless an eval proves safety.
+
+A minimality policy may never waive tests, input/trust-boundary validation, accessibility, privacy, authorization, recovery or explicit user requirements.
+### AEET-2 — Effective Policy / Capability Attestation
+
+Add a fail-closed pre-dispatch proof that the execution lane's effective policy/capability set matches the task's requirements. Reuse existing provider/harness/admission/evidence identities; do not create a parallel configuration registry.
+
+Candidate evidence envelope:
+- task/WO + execution identity;
+- worker/harness/provider/model identity/version where observable;
+- required policy/capability IDs plus content/config digest or generation;
+- effective tool/permission boundary digest;
+- hook/adapter/runtime activation evidence from the host where deterministically observable;
+- typed `PROVEN / NOT_PROVEN / MISMATCH / UNSUPPORTED` result.
+
+An agent saying “I followed the skill” is not attestation. Unknown required capability fails closed for the risk classes that declare it mandatory.
+
+### AEET-3 — Local-first Structured Trace Envelope
+
+Extend existing run/evidence artifacts with a versioned append-only event projection. Map names to a pinned OpenTelemetry GenAI/CLI semantic-convention version where useful, but keep A-Conductor's schema and job/evidence stores authoritative.
+
+Default capture is metadata-first: run/task/agent/tool/process IDs, operation, timestamps/duration, exit/recovery state, token/cost counters when trustworthy, selection/fallback reason references and artifact hashes. Prompt bodies, system instructions, tool arguments/results and retrieved documents remain disabled/redacted by default because they may contain secrets/PII/private project data.
+
+OTel exporters/backends are optional adapters, not required dependencies. A local JSONL/SQLite-compatible path must remain usable without cloud telemetry.
+### AEET-4 — Replay / Operation Identity Audit
+
+Before creating a new replay abstraction, audit the accepted durable job/execution coordinator for persisted identity, side-effect boundaries and version migration. Extend only proven gaps.
+
+Required properties where applicable:
+- persisted operation names/IDs are stable compatibility data, not incidental class/function names;
+- side-effecting actions carry idempotency/deduplication identity or an explicit at-most-once/reconciliation strategy;
+- a worker/process/tool may have completed after the last visible transport event, so ambiguous outcomes reconcile before retry;
+- schema/operation renames that affect in-flight recovery require a migration or compatibility mapping and deterministic replay tests.
+
+### AEET-5 — Inter-Agent Provenance / Taint Gate
+
+Generalize ODP's “proposal is untrusted” rule across every agent-to-agent and external-data hop. An execution packet records the provenance class of material inputs such as user instruction, repo content, tool output, upstream model proposal and reviewer finding.
+
+The receiving authority re-validates scope, repository identity, permissions, tool/action class and high-impact approvals. Planner/adjudicator/reviewer output cannot grant the editor/worker more authority than the original task packet and deterministic policy permit.
+
+This gate must work without asking another LLM whether content is trustworthy; model-based detectors may provide evidence but cannot be the sole enforcement boundary.
+
+### AEET-6 — Agent Security Adversarial Pack
+
+Create a small deterministic/fake-first suite inspired by OWASP Agent Security and AgentDojo before considering a larger imported benchmark dependency.
+
+Initial classes: indirect prompt injection from repository/tool data, tool misuse, scope/permission escalation, secret/exfiltration attempt, memory poisoning candidate, approval manipulation, denial-of-wallet/loop exhaustion, inter-agent propagation, duplicate/replay ambiguity and malicious/changed tool metadata.
+Security evaluation must report both benign task completion and attack/safety outcomes. A defense that simply blocks useful work is not accepted as a production win.
+
+### AEET-7 — Accepted-Run Efficiency / Quality Scoreboard
+
+Expose operator metrics only for comparable accepted runs. Candidate dimensions:
+- accepted outcome + risk tier;
+- files/LOC/dependencies changed and unnecessary-abstraction findings;
+- elapsed execution/verification/repair time;
+- tool/model calls, token/cost figures when provider evidence is trustworthy;
+- retries/recovery events and review rounds;
+- safety/authority/adversarial gate results.
+
+Use this to compare routing candidates and minimality policies after normalizing for task class/risk. Do not reward an agent for being cheaper/faster when it failed the requested outcome or a mandatory safety gate.
+
+### AEET-8 — Sanitized Evidence Feedback to A-Wiki
+
+A-Conductor may project bounded execution/evaluation summaries back to A-Wiki using the Phase-13 brain-side contract. Raw traces, prompts, tool payloads, secrets and private repo content do not cross automatically.
+
+A-Wiki may use accepted summaries to propose routing lessons, regression/eval cases or external-pattern candidates, but its existing memory/promotion/privacy gates remain the only path to durable global knowledge.
+
+### Delivery order / current frontier guard
+
+1. Finish/reconcile the currently owned WO168/169 compatibility/continuity work and re-pin actual main.
+2. Preserve Zero-Relay as the current throughput priority; no AEET node may steal its worktree/scope.
+3. `AEET-0` comes first because every later optimization/security claim needs a trustworthy evaluator.
+4. `AEET-2` and `AEET-5` are safety candidates that must be assessed before expanding to broad multi-provider autonomous mutation or ODP real-provider pilots; reuse existing evidence if it already proves the invariant.
+5. `AEET-3` precedes the operator scoreboard and feeds `AEET-6` replay/debug evidence.
+6. `AEET-4` is audit-first; if current durable identity/replay semantics already satisfy the contract, close it as `REUSE / NO NEW IMPLEMENTATION`.
+7. `AEET-1` minimality is enabled only after project-specific A/B evidence demonstrates no unacceptable robustness/safety regression.
+8. `AEET-7/8` follow accepted trace/eval/privacy boundaries.
+### Copy-and-development / supply-chain rule
+
+Future implementation WOs may copy/adapt source only from a re-verified compatible upstream license and pinned commit/tag, preserving required notices. Current research identifies permissive candidates including Ponytail (MIT), Pydantic AI (MIT), AgentDojo (MIT), smolagents (Apache-2.0) and OpenTelemetry semantic conventions (Apache-2.0).
+
+Prefer the smallest transferable unit:
+- rule/decision ladder -> merge the delta into an existing A-Wiki skill/policy;
+- schema/semantic convention -> map through an adapter;
+- benchmark fixture -> import/adapt only when its evaluator is proven and license fit is recorded;
+- runtime framework -> do not vendor when A-Conductor already owns the same authority.
+
+Every copied/adapted code path requires normal dependency/security/license review and must remain removable behind a narrow interface. License permission never overrides vendor Terms, provider authorization, repository ownership, secret policy or high-impact approval gates.
+
+No AEET node is implicitly READY merely because it appears here. Each node gets a fresh work order, live overlap check, risk classification, deterministic acceptance evidence and exact-SHA review appropriate to its blast radius.
