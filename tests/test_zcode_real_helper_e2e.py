@@ -63,6 +63,8 @@ from a_conductor.worker_lease import (
     WorkerLeaseRequest,
 )
 from a_conductor.zcode_production_assembly import ZCodeExecutionAuthorities, assemble_zcode_execution
+from a_conductor.zcode_protocol import ZCodeRuntimeModel
+from a_conductor.zcode_supervised_helper import _HelperExit, _HelperRuntimeMetadata, _build_child_environment
 
 BINDING = HarnessRuntimeBinding(
     harness_strategy=HarnessStrategy.ZCODE_APP_SERVER,
@@ -334,6 +336,34 @@ def _run_dir_files(store_db: Path, repo: Path) -> Path:
 NT_ONLY = pytest.mark.skipif(os.name != "nt", reason="Windows real-helper integration")
 
 
+def _helper_metadata_for_env_test() -> _HelperRuntimeMetadata:
+    return _HelperRuntimeMetadata(
+        packet_path="C:/synthetic/task.md",
+        packet_sha256="a" * 64,
+        trusted_root="C:/synthetic",
+        max_packet_bytes=1024,
+        output_budget=1024,
+        deadline_seconds=30.0,
+        runtime_model=ZCodeRuntimeModel(
+            revision="zcode-runtime-v1:" + "b" * 64,
+            provider_id="synthetic-provider",
+            model_id="synthetic-model",
+            base_url="https://example.invalid",
+            api_key_env="ANTHROPIC_API_KEY",
+        ),
+        delivery_key="ANTHROPIC_API_KEY",
+        credential="synthetic-secret-not-real",
+    )
+
+
+@NT_ONLY
+def test_helper_child_environment_requires_systemroot_on_windows(monkeypatch) -> None:
+    monkeypatch.delenv("SYSTEMROOT", raising=False)
+    with pytest.raises(_HelperExit) as exc_info:
+        _build_child_environment(_helper_metadata_for_env_test())
+    assert exc_info.value.code == "CHILD_ENV_SYSTEMROOT_INVALID"
+
+
 @NT_ONLY
 def test_real_helper_happy_path_e2e(tmp_path: Path) -> None:
     """The full real chain executes: assembly -> coordinator -> service ->
@@ -370,7 +400,7 @@ def test_real_helper_happy_path_e2e(tmp_path: Path) -> None:
     env_snapshot = json.dumps(child_env["env"])
     assert PROMPT_MARKER not in env_snapshot
     assert PROMPT_MARKER not in json.dumps(child_env["argv"])
-    allowed_env_keys = {"ELECTRON_RUN_AS_NODE", "ANTHROPIC_API_KEY"}
+    allowed_env_keys = {"ELECTRON_RUN_AS_NODE", "SYSTEMROOT", "ANTHROPIC_API_KEY"}
     assert set(child_env["env"]) == allowed_env_keys, sorted(child_env["env"])
 
     # 9. report written before result

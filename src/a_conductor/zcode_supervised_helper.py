@@ -20,10 +20,12 @@ non-persistent environment channel (never argv):
 The packet is RE-OPENED and fully re-verified (trusted-root confinement,
 regular file, size, SHA-256, UTF-8) immediately before the protocol send;
 cached bytes are never the final authority. The credential is forwarded to
-the child ONLY through an explicitly constructed child environment — the
-parent environment is never inherited and conflicting legacy credential
-variables are denied by construction. Shutdown is stdin EOF + bounded
-natural-exit wait: no terminate/kill ladder exists here.
+the child ONLY through an explicitly constructed child environment. Ambient
+parent state is not generally inherited; on Windows only the non-secret OS
+runtime dependency ``SYSTEMROOT`` is copied so Electron/Node DNS resolution
+works. Conflicting legacy credential variables remain denied by construction.
+Shutdown is stdin EOF + bounded natural-exit wait: no terminate/kill ladder
+exists here.
 """
 
 from __future__ import annotations
@@ -271,10 +273,23 @@ def _load_runtime_metadata(environ: Mapping[str, str]) -> _HelperRuntimeMetadata
 
 
 def _build_child_environment(metadata: _HelperRuntimeMetadata) -> dict[str, str]:
-    """EXPLICITLY constructed child environment: base + the accepted
-    credential entry only. No parent inheritance; denied legacy credential
-    variables are asserted absent (fail closed if ever introduced)."""
+    """Build the minimal explicit app-server child environment.
+
+    Credential/provider authority remains explicit-only. On Windows, the
+    installed Electron/Node runtime also requires ``SYSTEMROOT`` for DNS
+    resolution; inherit only that non-secret OS dependency and fail closed
+    if it is unavailable or malformed.
+    """
     environment = dict(_HELPER_CHILD_ENV_BASE)
+    if os.name == "nt":
+        system_root = os.environ.get("SYSTEMROOT")
+        if (
+            not isinstance(system_root, str)
+            or not system_root.strip()
+            or "\x00" in system_root
+        ):
+            raise _HelperExit("CHILD_ENV_SYSTEMROOT_INVALID")
+        environment["SYSTEMROOT"] = system_root
     environment[metadata.delivery_key] = metadata.credential
     for denied in _DENIED_LEGACY_CREDENTIAL_ENV_KEYS:
         if denied in environment:
