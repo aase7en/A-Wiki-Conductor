@@ -2,7 +2,7 @@
 
 Date: 2026-09-10
 Owner: GPT-5.6 Sol integrator
-Status: ACTIVE / STACKED_ROADMAP_CAPTURE
+Status: ROADMAP_CAPTURED / GLM_READ_ONLY_AUDIT_READY / DRAFT_PR_244
 Priority: P1 SAFETY-ACCELERATOR / FUTURE CAPABILITY
 Risk: R2 architecture/governance docs
 Repository: `aase7en/A-Wiki-Conductor`
