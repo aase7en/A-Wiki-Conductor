@@ -305,3 +305,25 @@ def test_evidence_digest_is_bound_to_durable_execution_identity(tmp_path: Path) 
     )
     assert one.success is True and two.success is True
     assert one.evidence_ref != two.evidence_ref
+
+
+@pytest.mark.parametrize(
+    "raw",
+    (
+        b'{"ignored":' + b"[" * 5000 + b"0" + b"]" * 5000 + b"}",
+        b'{"ignored":' + b"9" * 5000 + b"}",
+    ),
+)
+def test_hostile_settings_parser_failure_maps_to_typed_backend_recovery(tmp_path, raw) -> None:
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_bytes(raw)
+    runner = FakeRunner(runner_result())
+
+    _, outcome = execute(tmp_path, backend(tmp_path, runner))
+
+    assert outcome.success is False
+    assert outcome.job.state is TaskState.RECOVERY_NEEDED
+    assert outcome.job.recovery_classification is RecoveryClassification.NO_MUTATION
+    assert outcome.error_code == "HARNESS_FAILED"
+    assert runner.calls == []

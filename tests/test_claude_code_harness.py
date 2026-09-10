@@ -609,3 +609,54 @@ def test_sanitized_permission_payload_has_cross_platform_size_ceiling(tmp_path) 
         )
     assert exc_info.value.code == "CLAUDE_SETTINGS_TOO_LARGE"
     assert runner.calls == []
+
+
+@pytest.mark.parametrize(
+    "raw",
+    (
+        b'{"ignored":' + b"[" * 5000 + b"0" + b"]" * 5000 + b"}",
+        b'{"ignored":' + b"9" * 5000 + b"}",
+    ),
+)
+def test_hostile_json_parser_failures_are_typed_before_runner(tmp_path, raw) -> None:
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(raw)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
+
+
+def test_settings_size_gate_does_not_use_unbounded_path_read_bytes(tmp_path, monkeypatch) -> None:
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"x" * 70_000)
+    original = Path.read_bytes
+
+    def guarded_read_bytes(self):
+        if self == path:
+            raise AssertionError("settings must use bounded file reads")
+        return original(self)
+
+    monkeypatch.setattr(Path, "read_bytes", guarded_read_bytes)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_TOO_LARGE"
+    assert runner.calls == []
