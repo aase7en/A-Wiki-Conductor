@@ -136,4 +136,4 @@ Forbidden: `src/**`, `tests/**`, secrets/private Drive, `CURRENT-WORK.md`, `hand
 
 ## Dispatch checkpoint
 
-Roadmap capture is frozen for handoff. GPT continues architecture/reconciliation. GLM executes only `GLM-XREPO-EVIDENCE-RO1` as read-only work and posts its evidence to Issue #233. No AEET implementation, merge, live-provider mutation, or priority inversion is authorized.
+Roadmap capture is frozen for handoff. GPT continues architecture/reconciliation. GLM executes only `GLM-XREPO-EVIDENCE-RO1` as read-only work and posts its evidence to Issue #233. No AEET implementation, merge, live-provider mutation, or priority inversion is authorized. Exact candidate heads are intentionally not embedded here; read them from the live PRs at task start.
