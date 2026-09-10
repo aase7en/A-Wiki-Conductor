@@ -15,6 +15,7 @@ import stat
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from subprocess import list2cmdline
 from typing import Protocol
 
 from .provider_configuration import (
@@ -36,6 +37,7 @@ _MAX_CLAUDE_SETTINGS_BYTES = 65_536
 _MAX_PERMISSION_DENY_RULES = 128
 _MAX_PERMISSION_RULE_LENGTH = 1_024
 _MAX_SANITIZED_SETTINGS_BYTES = 16_384
+_MAX_WINDOWS_SETTINGS_ARGUMENT_UNITS = 16_384
 
 
 def _require_text(value: str, field: str, *, max_length: int) -> str:
@@ -309,6 +311,17 @@ def _read_bounded_claude_settings(path: Path, root: Path) -> bytes | None:
             raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
 
 
+def _unique_settings_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Reject ambiguity at every JSON object, before any settings are projected."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            # Do not include project-controlled keys or values in the exception.
+            raise ValueError("duplicate settings object key")
+        result[key] = value
+    return result
+
+
 def _sanitized_claude_permission_settings(worktree: Path) -> str:
     """Project only bounded project/local permission denies into Claude settings."""
     root = worktree.expanduser().resolve(strict=False)
@@ -321,7 +334,10 @@ def _sanitized_claude_permission_settings(worktree: Path) -> str:
         if raw is None:
             continue
         try:
-            payload = json.loads(raw.decode("utf-8", errors="strict"))
+            payload = json.loads(
+                raw.decode("utf-8", errors="strict"),
+                object_pairs_hook=_unique_settings_object,
+            )
         except (UnicodeDecodeError, ValueError, RecursionError) as exc:
             raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
         if not isinstance(payload, dict):
@@ -358,8 +374,15 @@ def _sanitized_claude_permission_settings(worktree: Path) -> str:
         {"permissions": {"deny": deny_rules}},
         separators=(",", ":"),
         sort_keys=True,
+        ensure_ascii=True,
     )
     if len(sanitized.encode("utf-8")) > _MAX_SANITIZED_SETTINGS_BYTES:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+    # This is pure serialization, not process I/O. JSON is ASCII-escaped, so
+    # quoted characters equal UTF-16 units. Cap the Windows-quoted argument on
+    # every host, leaving 16,383 units of CreateProcessW's 32,767 for the
+    # fixed argv, bounded packet/model paths, launcher overhead and final NUL.
+    if len(list2cmdline([sanitized])) > _MAX_WINDOWS_SETTINGS_ARGUMENT_UNITS:
         raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
     return sanitized
 

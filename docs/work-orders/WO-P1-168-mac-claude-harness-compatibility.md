@@ -2,7 +2,7 @@
 
 ## R4 current authority — controlled continuation after quota reset
 
-Status: IN_PROGRESS / R3 BOUNDED CORRECTIVE REPAIR
+Status: READY_FOR_EXACT_SHA_REVIEW / R3 BOUNDED CORRECTIVE REPAIR
 Owner: GPT-6 Astra / Poppy Javis, Codex task 01a0877a-2949-7270-a5de-57806897774f
 Transfer authority: Issue #233 comment 5613527320 (Sol claim RELEASED/TRANSFERRED).
 Worktree: /Users/aase7en/Desktop/A-Wiki-Conductor-wo168-r4
@@ -473,3 +473,52 @@ R4 still requires exact candidate freeze, clean-archive re-verification, hosted 
 CI and independent exact-SHA review before any merge. Codex quota remains exhausted until
 the reported reset window; Claude CLI OAuth is revoked and Gemini CLI requires interactive
 authentication. These reviewer resource limits do not weaken the gate.
+
+
+### R4 Astra corrective verification checkpoint — 2026-09-10
+
+Ownership transfer: Issue #233 comment 5613527320. Exact inherited Sol patch was
+preserved in checkpoint commit 70814c130886439b8fe323d40c787a3bdba80322 before
+adding new P2 tests. No reset/rebase/force-push or change of worktree/branch.
+
+P2 RED commit: f9ac5b0e001c9f2682b337a0ad6b28680ec8fb7f.
+Focused RED: 14 failed / 50 passed. Both project/local settings reject duplicate
+keys at root, permission level, escaped key aliases, identical duplicate values
+and nested ignored objects. Backend tests require typed NO_MUTATION recovery.
+The Windows test uses a 16,282-byte JSON payload that previously passed the byte
+ceiling but expanded beyond CreateProcessW's 32,767-unit limit after quoting.
+Prior real-Mac duplicate-key RED also showed synthetic denied-file content sent
+to the synthetic loopback provider; its preserved evidence binds to Sol's patch.
+
+Repair:
+- JSON object_pairs_hook detects duplicate decoded keys before any projection;
+  the existing parser error boundary maps rejection to CLAUDE_SETTINGS_INVALID.
+- Pure stdlib list2cmdline serialization measures the Windows-quoted settings
+  argument on every host. JSON output is explicitly ASCII-escaped, so its quoted
+  character count equals UTF-16 units. The argument cap is 16,384 units, in
+  addition to the existing 16 KiB JSON-byte cap, leaving 16,383 units for the
+  other arguments/launcher/NUL. Overflow maps to CLAUDE_SETTINGS_TOO_LARGE before
+  runner invocation. No process or provider code was added or changed.
+- Existing R4 filesystem logic is unchanged by this corrective source delta.
+
+Verification before source freeze:
+- focused harness/backend: 64 passed;
+- Claude/supervised/native/provider regression: 227 passed / 12 expected skips
+  (6 Windows-specific integrations and 6 opt-in host tests, run separately below);
+- actual Mac Claude Code 2.1.152: 6/6 passed with disposable HOME/project,
+  synthetic credential and loopback provider only;
+- large normal and quote-containing settings positive controls retain exact
+  deny rules and fit the Windows command-line budget with room to spare;
+- compileall and git diff --check passed.
+
+Exact candidate SHA, clean-archive re-verification, changed-file list, hashes and
+push evidence are recorded after commit in runs/WO-P1-168/r4-astra/result.md and
+its assurance directory. This commit is the frozen candidate checkpoint; no
+further source edits may be made without a new candidate and re-verification.
+
+Remaining integrator gate: independently re-pin the pushed exact SHA, review the
+R4 filesystem repair plus these two P2 closures, and inspect exact-head hosted CI
+before any merge. This author does not merge. Mac production supervision and
+live authenticated GLM/Zero Relay remain unproven and outside this repair.
+Global CURRENT-WORK.md/handoff.md/COLLAB.md are unchanged under the existing
+single-writer boundary; this WO is the lane's portable continuation checkpoint.
