@@ -138,9 +138,17 @@ class ZCodeRuntimeModel:
             or len(text.encode("utf-8")) > _RUNTIME_MODEL_MAX_JSON_BYTES
         ):
             raise ValueError("runtime model metadata is invalid")
+        def _unique_object(pairs):
+            obj = {}
+            for key, value in pairs:
+                if key in obj:
+                    raise ValueError("duplicate runtime model metadata key")
+                obj[key] = value
+            return obj
+
         try:
-            doc = json.loads(text)
-        except json.JSONDecodeError as exc:
+            doc = json.loads(text, object_pairs_hook=_unique_object)
+        except (json.JSONDecodeError, ValueError) as exc:
             raise ValueError("runtime model metadata is invalid") from exc
         if not isinstance(doc, dict) or set(doc) != {"revision", "generatedAt", "model", "provider"}:
             raise ValueError("runtime model metadata is invalid")

@@ -167,6 +167,25 @@ def test_runtime_model_transport_round_trip_is_non_secret():
     assert ZCodeRuntimeModel.from_json(encoded) == runtime_model
 
 
+@pytest.mark.parametrize(
+    ("needle", "replacement"),
+    (
+        ('"provider":{', '"provider":{"providerId":"shadow"},"provider":{'),
+        (
+            '"baseURL":"https://provider.example.test/anthropic"',
+            '"baseURL":"https://shadow.invalid","baseURL":"https://provider.example.test/anthropic"',
+        ),
+        ('"modelId":"glm-5.3"', '"modelId":"shadow-model","modelId":"glm-5.3"'),
+    ),
+)
+def test_runtime_model_transport_rejects_duplicate_object_keys(needle, replacement):
+    encoded = _runtime_model().to_json()
+    duplicated = encoded.replace(needle, replacement, 1)
+    assert duplicated != encoded
+    with pytest.raises(ValueError, match="runtime model metadata is invalid"):
+        ZCodeRuntimeModel.from_json(duplicated)
+
+
 def test_runtime_model_transport_rejects_inline_secret_shape():
     doc = _runtime_model().as_dict()
     doc["provider"]["apiKey"] = {
