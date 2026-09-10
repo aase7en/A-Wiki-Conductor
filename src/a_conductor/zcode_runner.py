@@ -67,6 +67,7 @@ from .zcode_protocol import (
     ZCODE_MAX_RESPONSE_BYTES,
     ZCodeProtocolDriver,
     ZCodeProtocolError,
+    ZCodeRuntimeModel,
 )
 from .zcode_supervised_helper import (
     ZCodeChildIdentity,
@@ -782,6 +783,7 @@ class ZCodeServiceLifecycleLauncher:
         selection_source: ZCodeSelectionSource,
         expected_binding: HarnessRuntimeBinding,
         expected_base_url: str,
+        runtime_model: ZCodeRuntimeModel,
         secret_resolver: ZCodeSecretResolver,
         secret_reference: str,
         packet: ZCodeTaskPacketIdentity,
@@ -803,6 +805,9 @@ class ZCodeServiceLifecycleLauncher:
         self._selection_source = selection_source
         self._expected_binding = expected_binding
         self._expected_base_url = expected_base_url
+        if not isinstance(runtime_model, ZCodeRuntimeModel):
+            raise ValueError("runtime_model must be a ZCodeRuntimeModel")
+        self._runtime_model = runtime_model
         self._secret_resolver = secret_resolver
         if not isinstance(secret_reference, str) or not secret_reference.startswith("secret-ref:"):
             raise ValueError("secret_reference must use the accepted secret-ref authority")
@@ -856,6 +861,7 @@ class ZCodeServiceLifecycleLauncher:
                 ("ZCODE_TASK_PACKET_MAX_BYTES", str(self._max_packet_bytes)),
                 ("ZCODE_OUTPUT_BUDGET", str(self._max_response_bytes)),
                 ("ZCODE_DEADLINE_SECONDS", repr(self._deadline)),
+                ("ZCODE_RUNTIME_MODEL_JSON", self._runtime_model.to_json()),
                 ("ZCODE_CREDENTIAL_DELIVERY_KEY", delivery_key),
                 (delivery_key, delivery_value),
             )
