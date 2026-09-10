@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import stat
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -217,6 +219,67 @@ def _is_within(path: Path, root: Path) -> bool:
         return False
 
 
+def _read_bounded_claude_settings(path: Path, root: Path) -> bytes | None:
+    """Read one exact regular settings file without following identity drift."""
+    resolved = path.resolve(strict=False)
+    if not _is_within(resolved, root) or path.is_symlink():
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(path, flags)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+
+    try:
+        try:
+            opened = os.fstat(fd)
+            named = os.stat(path, follow_symlinks=False)
+        except OSError as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if not stat.S_ISREG(opened.st_mode) or not stat.S_ISREG(named.st_mode):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        if not os.path.samestat(opened, named):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        if opened.st_size > _MAX_CLAUDE_SETTINGS_BYTES:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+
+        chunks: list[bytes] = []
+        remaining = _MAX_CLAUDE_SETTINGS_BYTES + 1
+        while remaining > 0:
+            try:
+                chunk = os.read(fd, min(8192, remaining))
+            except OSError as exc:
+                raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        if len(raw) > _MAX_CLAUDE_SETTINGS_BYTES:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+
+        try:
+            after = os.fstat(fd)
+            named_after = os.stat(path, follow_symlinks=False)
+        except OSError as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if (
+            not os.path.samestat(opened, after)
+            or not os.path.samestat(after, named_after)
+            or opened.st_size != after.st_size
+            or getattr(opened, "st_mtime_ns", None) != getattr(after, "st_mtime_ns", None)
+        ):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        return raw
+    finally:
+        os.close(fd)
+
+
 def _sanitized_claude_permission_settings(worktree: Path) -> str:
     """Project only bounded project/local permission denies into Claude settings."""
     root = worktree.expanduser().resolve(strict=False)
@@ -225,24 +288,12 @@ def _sanitized_claude_permission_settings(worktree: Path) -> str:
 
     for filename in _CLAUDE_SETTINGS_FILENAMES:
         path = root / ".claude" / filename
-        if path.is_symlink():
-            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
-        resolved = path.resolve(strict=False)
-        if not _is_within(resolved, root):
-            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
-        if not path.exists():
+        raw = _read_bounded_claude_settings(path, root)
+        if raw is None:
             continue
-        if not path.is_file():
-            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
-        try:
-            raw = path.read_bytes()
-        except OSError as exc:
-            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
-        if len(raw) > _MAX_CLAUDE_SETTINGS_BYTES:
-            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
         try:
             payload = json.loads(raw.decode("utf-8", errors="strict"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (UnicodeDecodeError, ValueError, RecursionError) as exc:
             raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
         if not isinstance(payload, dict):
             raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")

@@ -323,3 +323,64 @@ Write/Bash remain refused, and no customization/session residue is created.
 Important CLI semantic: Claude 2.1.152 may suppress a denied tool call and restart the
 model turn rather than emit a `tool_result.is_error`. R2 acceptance therefore pins the
 security invariant (no denied execution/content leak), not one response representation.
+
+
+### R3 parser-boundary hardening after interrupted Astra review
+
+Astra's independent R2 review hit its Codex usage limit before returning a final
+verdict, so the run does not provide acceptance authority. Before interruption it
+completed deterministic adversarial probes that found a valid parser-boundary
+defect family in exact R2 candidate
+`11e045d643105625afc740ba295781cb41c25cdc`.
+
+Observed on R2:
+- deeply nested JSON below the 64 KiB source-file ceiling raised unhandled
+  `RecursionError`;
+- a JSON integer above Python's configured integer-string conversion limit raised
+  unhandled `ValueError`;
+- the settings source used `Path.read_bytes()`, so the nominal 64 KiB gate was
+  applied only after an unbounded whole-file read.
+
+Issue #233 comments `5610802627` and `5610806494` record the rejection and
+successor claim. R2 / PR #240 remains frozen CHANGES_REQUIRED even though hosted
+CI run `34417195891` succeeded.
+
+R3 RED commit:
+`05d49e6bbc37421471cc95c0cf937573c2380b8f`.
+
+RED result: 5 failed / 38 passed:
+- two harness parser exceptions escaped instead of typed rejection;
+- one test proved settings still used unbounded `Path.read_bytes()`;
+- two backend tests proved the hostile parser exceptions escaped the durable
+  backend instead of mapping to typed no-mutation recovery.
+
+R3 repair is intentionally local to the harness. It does not add a broad backend
+`except Exception`. The harness now:
+- opens each settings path as an exact regular file with no-follow where the OS
+  supports it;
+- compares opened-handle and named-file identity before reading;
+- rejects non-regular/symlink/identity-drift cases;
+- rejects a stat-proven oversized file before content read;
+- otherwise reads at most the configured limit plus one byte;
+- rechecks file identity/size/mtime after reading;
+- maps UTF-8, JSON `ValueError` and parser `RecursionError` to
+  `CLAUDE_SETTINGS_INVALID`.
+
+R3 verification before candidate freeze:
+- focused harness + backend: 43/43 PASS;
+- real installed Mac Claude 2.1.152 hostile-settings loopback: 6/6 PASS;
+- Claude/supervised/native/provider frontier: 206 PASS / 12 expected skips;
+- compileall PASS;
+- git diff --check PASS;
+- no residual Claude/pytest probe processes;
+- no private credential/live provider used.
+
+The accepted R2 security behavior is preserved: ambient settings remain excluded,
+only bounded project/local `permissions.deny` are projected, admitted provider
+endpoint/auth remains process-bound, hostile hooks/MCP/defaultMode/allow fields
+do not cross, denied file content does not leak, and allowed Read remains a
+positive control.
+
+R3 still requires exact-SHA independent review and hosted CI before merge. Astra
+quota exhaustion is an execution-resource condition, not grounds to weaken the
+independent-review gate.
