@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -769,3 +770,62 @@ def test_settings_identity_replacement_during_read_fails_closed(tmp_path, monkey
         )
     assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
     assert runner.calls == []
+
+
+@pytest.mark.parametrize("filename", ["settings.json", "settings.local.json"])
+@pytest.mark.parametrize("raw", [
+    '{"permissions":{"deny":["Read(./private.txt)"],"deny":[]}}',
+    '{"permissions":{"deny":["Read(./private.txt)"]},"permissions":{}}',
+    r'{"permissions":{"deny":["Read(./private.txt)"],"d\u0065ny":[]}}',
+    '{"permissions":{"deny":[],"deny":[]}}',
+    '{"ignored":{"value":1,"value":2},"permissions":{"deny":[]}}',
+], ids=["duplicate-deny", "duplicate-permissions", "escaped-key", "identical-values", "nested-ignored"])
+def test_duplicate_settings_object_keys_fail_before_runner(tmp_path, filename, raw):
+    path = tmp_path / ".claude" / filename
+    path.parent.mkdir()
+    path.write_text(raw, encoding="utf-8")
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as error:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path), make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://example.test"),
+            make_observation(), make_packet(tmp_path), now=NOW,
+        )
+    assert error.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert not runner.calls
+
+
+def test_windows_quoting_expansion_is_rejected_before_runner(tmp_path):
+    # The raw JSON is below 16 KiB but quoting doubles the escaped quotes,
+    # producing >32,767 UTF-16 units even before launcher overhead.
+    rules = [f'Read(./{i}' + '"' * 1010 + ')' for i in range(8)]
+    payload = {"permissions": {"deny": rules}}
+    sanitized = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    assert len(sanitized.encode("utf-8")) < 16384
+    _write_claude_settings(tmp_path, "settings.json", payload)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as error:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path), make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://example.test"),
+            make_observation(), make_packet(tmp_path), now=NOW,
+        )
+    assert error.value.code == "CLAUDE_SETTINGS_TOO_LARGE"
+    assert not runner.calls
+
+
+@pytest.mark.parametrize("rules", [
+    [f'Read(./{i}' + '"' * 480 + ')' for i in range(8)],
+    [f'Read(./{i}' + 'x' * 110 + ')' for i in range(120)],
+])
+def test_bounded_large_settings_preserve_rules_and_windows_headroom(tmp_path, rules):
+    _write_claude_settings(tmp_path, "settings.json", {"permissions": {"deny": rules}})
+    runner = success_runner()
+    ClaudeCodeHarnessAdapter(runner=runner).execute(
+        make_dispatch(tmp_path), make_profile(),
+        ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://example.test"),
+        make_observation(), make_packet(tmp_path), now=NOW,
+    )
+    assert _invocation_settings_payload(runner) == {"permissions": {"deny": rules}}
+    command = subprocess.list2cmdline(runner.calls[0].argv)
+    assert len(command.encode("utf-16-le")) // 2 + 1 < 32767 - 4096

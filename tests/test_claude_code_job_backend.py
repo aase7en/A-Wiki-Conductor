@@ -340,3 +340,23 @@ def test_settings_parent_symlink_loop_maps_to_typed_backend_recovery(tmp_path) -
     assert outcome.job.recovery_classification is RecoveryClassification.NO_MUTATION
     assert outcome.error_code == "HARNESS_FAILED"
     assert runner.calls == []
+
+
+@pytest.mark.parametrize("raw", [
+    '{"permissions":{"deny":["Read(./private.txt)"],"deny":[]}}',
+    '{"permissions":{"deny":["Read(./private.txt)"]},"permissions":{}}',
+    json.dumps({"permissions": {"deny": [
+        f'Read(./{i}' + '"' * 1010 + ')' for i in range(8)
+    ]}}),
+], ids=["duplicate-deny", "duplicate-permissions", "windows-quoting-overflow"])
+def test_ambiguous_or_quote_expanded_settings_map_to_no_mutation(tmp_path, raw):
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir()
+    path.write_text(raw, encoding="utf-8")
+    runner = FakeRunner(runner_result())
+    _, outcome = execute(tmp_path, backend(tmp_path, runner))
+    assert outcome.success is False
+    assert outcome.job.state is TaskState.RECOVERY_NEEDED
+    assert outcome.job.recovery_classification is RecoveryClassification.NO_MUTATION
+    assert outcome.error_code == "HARNESS_FAILED"
+    assert runner.calls == []
