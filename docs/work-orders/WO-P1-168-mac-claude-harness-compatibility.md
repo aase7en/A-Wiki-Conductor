@@ -1,6 +1,40 @@
 # WO-P1-168 — Mac Claude harness compatibility
 
-## R1 current authority — post-merge permission preservation
+## R4 current authority — controlled continuation after quota reset
+
+Status: IN_PROGRESS / R3 BOUNDED CORRECTIVE REPAIR
+Owner: GPT-6 Astra / Poppy Javis, Codex task 01a0877a-2949-7270-a5de-57806897774f
+Transfer authority: Issue #233 comment 5613527320 (Sol claim RELEASED/TRANSFERRED).
+Worktree: /Users/aase7en/Desktop/A-Wiki-Conductor-wo168-r4
+Branch: gpt/wo-p1-168-r4-settings-file-boundary
+Committed handoff: 30497a0f62afc9792997dfa0ec6891aef197b0a9
+Preserved dirty patch SHA256: b7174bd72221b1af27724ed26327a3df7eb13bb889bec619e2599bf55e321ae3
+Evidence destination: runs/WO-P1-168/r4-astra/
+
+The transfer was verified against GitHub, HEAD/upstream and all three dirty-file
+hashes before mutation. This checkpoint preserves Sol's R4 filesystem repair.
+The same WO scope remains: harness source, harness/backend tests, this WO and
+ignored evidence. Root main, global continuity files, WO169 and other lanes are
+read-only. Sol/integrator retains independent exact-SHA verification and merge.
+
+Remaining bounded repairs, RED-first:
+1. Reject duplicate JSON object keys, including decoded key aliases, before any
+   deny-only projection. Ambiguous configuration maps to typed settings failure
+   and must never call the runner.
+2. Bound Windows quoting expansion of sanitized inline settings before runner,
+   retaining conservative room for the fixed invocation and packet path. Reject
+   oversized payloads with CLAUDE_SETTINGS_TOO_LARGE on every platform.
+
+Keep R4 filesystem identity/bounded-read checks, process-bound provider identity,
+read-only tools, explicit task packet, deny-only settings and no-session behavior.
+Use synthetic fixtures and loopback only. No private credential/live provider.
+Acceptance: RED evidence -> focused/related/real-Mac GREEN -> clean frozen commit
+and pushed existing branch -> durable result for independent Sol/integrator review.
+No self-merge and no claim of operational Zero Relay.
+
+Everything below is dated history unless explicitly marked as an R4 checkpoint.
+
+## R1 historical authority — superseded by R2/R3/R4
 
 Status: FROZEN / READY_FOR_EXACT_SHA_REVIEW / R3 CORRECTIVE REPAIR
 Owner: GPT-6 Astra / Poppy Javis; integrator retains acceptance/merge/release
@@ -384,3 +418,58 @@ positive control.
 R3 still requires exact-SHA independent review and hosted CI before merge. Astra
 quota exhaustion is an execution-resource condition, not grounds to weaken the
 independent-review gate.
+
+
+### R4 root-cause reset — settings filesystem boundary
+
+R3 candidate `b1e048ffa9c51d37af19164fab0f789015b22fe1` passed its full
+hosted CI run `34422252499`, including Windows E2E, macOS and Ubuntu. It is still
+CHANGES_REQUIRED: a later real local probe made the worktree `.claude` directory a
+self-referential symlink and the R3 pre-open `Path.resolve()` raised an unhandled
+`RuntimeError`. The same audit showed a POSIX FIFO at `settings.json` could reach
+blocking `os.open(O_RDONLY)` before R3 proved the entry was a regular file.
+
+This is durable evidence that CI green alone is not acceptance and that the repeated
+R1/R2/R3 defects shared one root cause: project-controlled mutable settings filesystem
+state was being validated piecemeal.
+
+Issue #233 comment `5611006221` rejects R3 and comment `5611009217` opens R4.
+R4 branch: `gpt/wo-p1-168-r4-settings-file-boundary`.
+R4 base: exact R3 `b1e048ffa9c51d37af19164fab0f789015b22fe1`.
+
+R4 RED commit:
+`30497a0f62afc9792997dfa0ec6891aef197b0a9`.
+
+RED result: 3 failed / 44 passed:
+- worktree `.claude` symlink loop -> unhandled RuntimeError;
+- FIFO settings object reached `os.open` before regular-file rejection;
+- backend mapped the escaping path error to UNKNOWN / BACKEND_EXECUTION_FAILED instead
+  of typed NO_MUTATION / HARNESS_FAILED.
+
+R4 repairs only the harness file-read boundary:
+- no-follow pre-open named metadata is mandatory; only initial FileNotFound is benign;
+- non-regular entries fail before open;
+- strict resolved containment is checked before open;
+- open uses O_NOFOLLOW and O_NONBLOCK when the platform exposes them;
+- opened handle must match the pre-open and current named identity;
+- size/mtime stability is checked around open/read;
+- content is still bounded to max+1 bytes;
+- after read, identity and in-worktree containment are proved again;
+- path resolution/metadata/open/read/close failures become typed settings failures.
+
+Additional deterministic race coverage swaps `settings.json` to a new inode during the
+bounded read. The post-read identity check rejects it before runner execution.
+
+R4 current local evidence:
+- focused harness + backend: 48/48 PASS;
+- real installed Mac Claude 2.1.152 hostile-settings loopback: 6/6 PASS;
+- Claude/supervised/native/provider frontier: 211 PASS / 12 expected skips;
+- compileall PASS;
+- git diff --check PASS;
+- no residual Claude/pytest process;
+- no private credential/live provider used.
+
+R4 still requires exact candidate freeze, clean-archive re-verification, hosted exact-head
+CI and independent exact-SHA review before any merge. Codex quota remains exhausted until
+the reported reset window; Claude CLI OAuth is revoked and Gemini CLI requires interactive
+authentication. These reviewer resource limits do not weaken the gate.

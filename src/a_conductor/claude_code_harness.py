@@ -220,30 +220,53 @@ def _is_within(path: Path, root: Path) -> bool:
 
 
 def _read_bounded_claude_settings(path: Path, root: Path) -> bytes | None:
-    """Read one exact regular settings file without following identity drift."""
-    resolved = path.resolve(strict=False)
-    if not _is_within(resolved, root) or path.is_symlink():
-        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
-
-    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
+    """Read one stable in-worktree regular settings file through a bounded handle."""
     try:
-        fd = os.open(path, flags)
+        named_before = os.stat(path, follow_symlinks=False)
     except FileNotFoundError:
         return None
+    except (OSError, RuntimeError) as exc:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+
+    if not stat.S_ISREG(named_before.st_mode):
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+    try:
+        resolved_before = path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+    if not _is_within(resolved_before, root):
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+    if named_before.st_size > _MAX_CLAUDE_SETTINGS_BYTES:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    try:
+        fd = os.open(path, flags)
     except OSError as exc:
         raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
 
     try:
         try:
             opened = os.fstat(fd)
-            named = os.stat(path, follow_symlinks=False)
-        except OSError as exc:
+            named_open = os.stat(path, follow_symlinks=False)
+            resolved_open = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
             raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
-        if not stat.S_ISREG(opened.st_mode) or not stat.S_ISREG(named.st_mode):
-            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
-        if not os.path.samestat(opened, named):
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or not stat.S_ISREG(named_open.st_mode)
+            or not os.path.samestat(named_before, opened)
+            or not os.path.samestat(opened, named_open)
+            or not _is_within(resolved_open, root)
+            or named_before.st_size != opened.st_size
+            or getattr(named_before, "st_mtime_ns", None)
+            != getattr(opened, "st_mtime_ns", None)
+        ):
             raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
         if opened.st_size > _MAX_CLAUDE_SETTINGS_BYTES:
             raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
@@ -266,18 +289,24 @@ def _read_bounded_claude_settings(path: Path, root: Path) -> bytes | None:
         try:
             after = os.fstat(fd)
             named_after = os.stat(path, follow_symlinks=False)
-        except OSError as exc:
+            resolved_after = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
             raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
         if (
             not os.path.samestat(opened, after)
             or not os.path.samestat(after, named_after)
+            or not _is_within(resolved_after, root)
             or opened.st_size != after.st_size
-            or getattr(opened, "st_mtime_ns", None) != getattr(after, "st_mtime_ns", None)
+            or getattr(opened, "st_mtime_ns", None)
+            != getattr(after, "st_mtime_ns", None)
         ):
             raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
         return raw
     finally:
-        os.close(fd)
+        try:
+            os.close(fd)
+        except OSError as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
 
 
 def _sanitized_claude_permission_settings(worktree: Path) -> str:

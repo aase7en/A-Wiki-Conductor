@@ -733,3 +733,39 @@ def test_settings_parent_symlink_outside_worktree_fails_closed(tmp_path) -> None
     finally:
         (outside / "settings.json").unlink(missing_ok=True)
         outside.rmdir()
+
+
+def test_settings_identity_replacement_during_read_fails_closed(tmp_path, monkeypatch) -> None:
+    path = _write_claude_settings(
+        tmp_path,
+        "settings.json",
+        {"permissions": {"deny": ["Read(./first.txt)"]}},
+    )
+    displaced = path.with_name("settings.displaced.json")
+    real_read = os.read
+    replaced = False
+
+    def replacing_read(fd, size):
+        nonlocal replaced
+        if not replaced:
+            replaced = True
+            path.replace(displaced)
+            path.write_text(
+                json.dumps({"permissions": {"deny": ["Read(./second.txt)"]}}),
+                encoding="utf-8",
+            )
+        return real_read(fd, size)
+
+    monkeypatch.setattr(os, "read", replacing_read)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
