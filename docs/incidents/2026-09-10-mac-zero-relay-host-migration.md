@@ -1,7 +1,7 @@
 # Incident — Windows host unavailable; Zero-Relay continuation moved to macOS
 
 Date: 2026-09-10 (Asia/Bangkok)
-Status: HOST MIGRATION MITIGATED / CLAUDE COMPATIBILITY R3 ACTIVE / LIVE ZERO-RELAY NOT YET PROVEN
+Status: HOST MIGRATION MITIGATED / CLAUDE COMPATIBILITY R4 FROZEN / WINDOWS RETURN PLANNED / LIVE ZERO-RELAY NOT YET PROVEN
 Related: Issue #233, WO-P1-168, WO-P1-169
 
 ## Summary
@@ -12,7 +12,7 @@ unreachable. Development therefore moved to the user's home Apple Silicon Mac.
 The migration does not block repository development or the highest-priority Zero-Relay
 MVP, but two independent macOS readiness gates remain:
 1. the original unsupported Claude CLI flag was repaired, then later security evidence
-   reopened the invocation/settings boundary; current successor is WO168 R3 / PR #241;
+   reopened the invocation/settings boundary; current frozen successor is WO168 R4 / PR #242;
 2. the canonical production supervised native adapter assembly is still Windows-specific.
 
 These are compatibility/portability gates, not evidence that the Zero-Relay architecture is
@@ -121,11 +121,14 @@ settings were excluded. R1 restored the settings sources but regressed provider 
 authority; R2 projected only sanitized permission denies but an interrupted Astra review
 found hostile JSON parser escapes and an unbounded pre-size-check read.
 
-Current successor is WO168 R3 / PR #241, candidate
-`b1e048ffa9c51d37af19164fab0f789015b22fe1`. R3 has clean exact-archive local evidence
-(host 6/6; related frontier 206 pass / 12 expected skips). Independent review and full
-hosted CI remain release gates. Issue #233 comments 5610802627 and 5610806494 are the
-durable rejection/successor anchors.
+Current frozen successor is WO168 R4 / PR #242, candidate
+`7d0fd83bb5608a4ab025d5000203cbad2a31831f`. R4 closes the inherited filesystem boundary
+plus duplicate-key and Windows command-line quoting defects. Exact-head CI `34440601328`
+completed SUCCESS across Windows/full, Ubuntu and macOS; independent deterministic reruns
+also pass. The remaining release blocker is a truly independent exact-SHA R3 review: Astra
+and a fresh Codex reviewer both hit the shared usage limit, so acceptance is REVIEW_BLOCKED
+rather than waived. Issue #233 comments 5613527320 and 5613616802 are the current handoff
+anchors.
 
 ## Open problem B — macOS production supervised-process assembly
 
@@ -169,7 +172,7 @@ Current:
 - MAC_REPO_CONTINUITY = READY
 - COINTH_NETWORK_REACHABILITY = PROVEN_UNAUTHENTICATED
 - ROTATED_SECRET_REFERENCE = PRESENT
-- CLAUDE_MAC_INVOCATION = R3_CANDIDATE / REVIEW_AND_FULL_CI_PENDING
+- CLAUDE_MAC_INVOCATION = R4_FROZEN / EXACT_HEAD_CI_SUCCESS / INDEPENDENT_REVIEW_BLOCKED
 - MAC_PRODUCTION_SUPERVISION = NOT_YET_READY
 - AUTHENTICATED_GLM_TURN = NOT_PROVEN
 - GPT_GLM_ZERO_RELAY_ONE_SHOT = NOT_PROVEN
@@ -179,10 +182,11 @@ Do not collapse these states into a single READY flag.
 ## Next dependency order
 
 ```text
-WO168 R3 Claude invocation/settings compatibility
-  -> independent exact-SHA review + full hosted CI
+WO168 R4 Claude invocation/settings compatibility
+  -> independent exact-SHA review (CI already exact-head SUCCESS)
   -> fenced merge + post-main verification
-  -> POSIX/macOS supervised-process assembly + production composition
+  -> resume primarily on Windows 11 with Sunday-Worker 1-5
+  -> keep POSIX/macOS supervised-process portability as a separate later gate
   -> isolated authenticated Cointh -> GLM-5.3 one-shot
   -> canonical result ingestion
   -> GPT exact-result verification
@@ -220,3 +224,19 @@ while Windows/full remains IN_PROGRESS.
 Classification:
 `WO168_SOURCE = SOURCE_PASS / CI_PENDING`.
 This is not yet merge/release authority and is not Zero-Relay operational proof.
+
+
+## 2026-09-10 planned return to Windows 11
+
+The user will resume primary development on the Windows 11 workstation and use
+Sunday-Worker 1-5 after re-pinning each worker's actual availability and ownership.
+The Mac recovery branch is not discarded; it remains evidence until the corrective lane
+is accepted and closeout permits cleanup.
+
+Current GitHub handoff: WO168 R4 / PR #242 is frozen at
+`7d0fd83bb5608a4ab025d5000203cbad2a31831f`; exact-head CI `34440601328` is SUCCESS.
+`main` intentionally remains at `577d9483720c857a89a5d2c9ea9359f9c0aa50b5` because the
+R3 independent-review gate is still blocked by shared Codex/Astra quota. Do not merge merely
+to simplify host synchronization. The Windows session should fetch first, select one truly
+free Worker for a read-only exact-SHA review, and only then allow expected-head merge plus
+post-main verification.

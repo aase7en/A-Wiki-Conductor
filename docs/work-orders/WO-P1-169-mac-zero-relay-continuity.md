@@ -3,7 +3,7 @@
 Date: 2026-09-10 (Asia/Bangkok)
 Status: CLAIMED / DOCS-ONLY
 Owner: GPT-5.6 Sol integrator documentation lane
-Parallel implementation status: WO-P1-168 R3 ACTIVE / PR #241 review + full CI pending
+Parallel implementation status: WO-P1-168 R4 FROZEN / PR #242 exact-head CI SUCCESS / independent-review resource blocked
 Risk: R2 operational/security documentation
 Classification: REUSE existing Zero-Relay authority; no product/runtime authority changes
 
@@ -24,7 +24,7 @@ Zero-Relay operational success.
 - Base: 77e7b0f8e9460f78fa2ef4a1ddaad62131c2c7f2
 - Durable claim: Issue #233 comment 5607093650
 - Discovery/continuity anchors: Issue #233 comments 5606720902 and 5606878598
-- Active WO168 R3 worktree: /Users/aase7en/Desktop/A-Wiki-Conductor-wo168-r3
+- Active WO168 R4 evidence worktree: /Users/aase7en/Desktop/A-Wiki-Conductor-wo168-r4
 
 ## Mutable scope
 
@@ -121,27 +121,33 @@ CI `34393512623` SUCCESS.
 Current-main audit narrows the post-WO168 Mac blocker to platform process observation /
 spawn / exact termination and composition. Higher-level supervised execution, durable
 identity/store/coordinator and Claude/provider authority are reusable. Proposed next
-classification: EXTEND/WRAP existing process protocols with POSIX/macOS primitives and
-explicit platform assembly; do not create a second supervisor/scheduler/store. Full
+classification remains EXTEND/WRAP existing process protocols with POSIX/macOS primitives
+and explicit platform assembly; do not create a second supervisor/scheduler/store. Full
 fault matrix and acceptance boundary are recorded in
-`docs/runbooks/mac-zero-relay-continuation.md` §11. Later evidence reopened WO168 through
-R3 / PR #241, so WO170 remains blocked until R3 receives independent exact-SHA acceptance,
-full hosted CI, fenced merge and post-main verification. WO169 remains docs-only.
+`docs/runbooks/mac-zero-relay-continuation.md` §11. WO170 remains blocked until WO168 R4
+receives a truly independent exact-SHA review, merge and post-main verification.
 
+### Current R4 reviewer/resource checkpoint
 
-### Current R3 reviewer/resource checkpoint
+WO168 R4 exact candidate is `7d0fd83bb5608a4ab025d5000203cbad2a31831f`
+on draft PR #242. Candidate branch/worktree/upstream are clean and identical. Exact-head
+hosted CI `34440601328` completed SUCCESS across Windows/full, Ubuntu and macOS.
 
-WO168 R3 exact candidate is
-`b1e048ffa9c51d37af19164fab0f789015b22fe1` / draft PR #241.
-Local exact-archive evidence is 6/6 real Mac Claude host PASS and 206 PASS /
-12 expected skips on the related supervised/native/provider frontier.
+Sol/integrator independently re-ran deterministic exact-SHA checks: focused harness/backend
+64 PASS, real Mac Claude 2.1.152 synthetic loopback 6 PASS, related frontier 227 PASS /
+12 expected skips, compileall/diff/credential-pattern checks PASS, with no new confirmed
+P0/P1/P2. However Sol authored part of the inherited R4 filesystem repair, so this evidence
+is not used as the sole independent R3 review. A fresh read-only Codex review session also
+hit the shared usage limit and produced no acceptance result. The review gate remains
+`REVIEW_BLOCKED`, not waived.
 
-The prior Astra review of R2 ended at the Codex account usage limit, but only after
-finding the parser defects that R3 now reproduces and repairs. Codex
-`codex-auto-review` shares the same exhausted quota. Claude CLI first-party review is
-blocked by revoked OAuth (401). Gemini CLI is installed with no extensions/MCP but requires
-interactive browser authentication. None of these resource conditions grant review
-acceptance or permission to weaken the R3 independent-review gate.
+### Planned Windows 11 primary-host handoff
 
-Hosted PR #241 CI has macOS and Ubuntu smoke green; Windows/full remained in progress at
-this checkpoint. WO170 stays blocked until review + full CI + merge + post-main verification.
+The user's next session will return primary development to the Windows 11 PC and use
+Sunday-Worker 1-5. GitHub already holds the full frozen R4 candidate on PR #242; `main`
+remains at `577d9483720c857a89a5d2c9ea9359f9c0aa50b5` until the independent review gate
+passes. On Windows: fetch/prune first, fast-forward the local main only, inspect actual
+worktrees/claims, assign one free Worker to an independent read-only exact-SHA review of
+PR #242, then let the GPT integrator accept/merge with expected-head fencing if P0/P1/P2=0.
+After post-main CI succeeds, pull main again so Windows and Mac can converge on the same
+accepted merge. Do not delete historical Mac worktrees/branches during this handoff.

@@ -1,7 +1,7 @@
-# Runbook — Continue A-Sunday Conductor Zero-Relay work on a Mac without installed Workers
+# Runbook — Continue A-Sunday Conductor Zero-Relay across the Mac -> Windows handoff
 
-Status: ACTIVE OPERATIONAL RUNBOOK
-Applies to: home macOS host while primary Windows A-Conductor host is offline
+Status: ACTIVE OPERATIONAL RUNBOOK / WINDOWS RETURN PREPARED
+Applies to: home macOS recovery host and the next Windows 11 primary-host resume
 Related: Issue #233, WO-P1-168, WO-P1-169
 
 ## Purpose
@@ -28,17 +28,20 @@ Actual Git/GitHub/runtime state outranks chat memory and stale global projection
 
 ## 2. Current ownership split
 
-### WO-P1-168 — R3 active corrective lane
+### WO-P1-168 — R4 frozen corrective lane
 
-R0 candidate `654e36d...` merged as `577d948...`, then the compatibility boundary was
-reopened by later real-host permission/provider-confinement evidence. R1 and R2 are frozen
-CHANGES_REQUIRED evidence. Current successor is PR #241 / candidate
-`b1e048ffa9c51d37af19164fab0f789015b22fe1` in
-`/Users/aase7en/Desktop/A-Wiki-Conductor-wo168-r3`.
+R0 candidate `654e36d...` merged as `577d948...`, then later real-host security evidence
+reopened the compatibility/settings boundary. R1/R2/R3 are frozen CHANGES_REQUIRED
+history. Current successor is draft PR #242 / candidate
+`7d0fd83bb5608a4ab025d5000203cbad2a31831f` in
+`/Users/aase7en/Desktop/A-Wiki-Conductor-wo168-r4`.
 
-R3 preserves provider isolation and project/local deny rules while hardening hostile JSON
-and bounded settings reads. Independent exact-SHA review and full hosted CI are pending.
-Do not open WO170 source mutation until this gate closes.
+R4 preserves provider isolation and project/local deny rules, closes the bounded filesystem
+identity boundary, rejects duplicate decoded JSON keys, and bounds Windows command-line
+quoting. Exact-head CI `34440601328` is SUCCESS across Windows/full, Ubuntu and macOS.
+The remaining R3 gate is a truly independent exact-SHA reviewer; Codex/Astra and a fresh
+Codex reviewer are currently quota-blocked. Do not merge or open WO170 source mutation
+until that review passes and post-main verification completes.
 
 ### WO-P1-169 — GPT-5.6 Sol
 
@@ -92,7 +95,7 @@ Rules:
 - use the existing A-Wiki environment reference resolver at the execution boundary;
 - historical exposed key material is invalid for production use.
 
-## 5. Gate A — Claude invocation compatibility — R3 ACTIVE
+## 5. Gate A — Claude invocation compatibility — R4 FROZEN / REVIEW_BLOCKED
 
 Required before any live provider task:
 - current WO168 defect reproduced deterministically;
@@ -181,7 +184,7 @@ sufficient.
 | Cointh endpoint reachable | PROVEN unauthenticated only | HTTP 401/missing_key |
 | rotated secret reference present | PROVEN presence only | private env resolver audit |
 | Claude 2.1.152 rejects --safe-mode | PROVEN | real Mac CLI RED |
-| WO168 compatibility repair | R3 CANDIDATE / REVIEW + FULL CI PENDING | PR #241 + Issue #233 |
+| WO168 compatibility repair | R4 FROZEN / EXACT-HEAD CI SUCCESS / INDEPENDENT REVIEW BLOCKED | PR #242 + Issue #233 |
 | full supervised process path on macOS | OPEN | current-main source audit |
 | authenticated GLM turn on Mac | NOT PROVEN | future isolated proof |
 | GPT <-> GLM zero human relay | NOT PROVEN | future canonical result proof |
@@ -206,7 +209,7 @@ A model saying DONE is not completion authority.
 
 ## 11. Proposed next R3 contract — POSIX/macOS supervised-process portability
 
-Status: SHAPED / BLOCKED_BY_WO168_R3 / NO SOURCE AUTHORITY IN THIS DOCS LANE.
+Status: SHAPED / BLOCKED_BY_WO168_R4_REVIEW / NO SOURCE AUTHORITY IN THIS DOCS LANE.
 
 Fresh current-main architecture audit after the WO168 merge shows the portability gap is
 narrower than a new supervisor:
@@ -271,6 +274,40 @@ Host proof should use a disposable helper and temporary SQLite/runtime directory
 Real provider credential use is a later gate and is not required to accept POSIX process
 ownership itself.
 
-Next durable work item after WO168 R3 closes:
+Next durable work item after WO168 R4 closes:
 `Mac/POSIX supervised-process adapter + production composition`, R3, isolated worktree,
 RED-first, with GPT trust framing and independent exact-SHA review.
+
+
+## 12. Windows 11 primary-host resume — prepared handoff
+
+The next session should treat Windows 11 as the primary execution host and Sunday-Worker
+1-5 as available capacity only after each worker is individually re-pinned. Do not assume
+that a worker is free from its name or project alone.
+
+GitHub handoff facts at this checkpoint:
+- `origin/main` remains `577d9483720c857a89a5d2c9ea9359f9c0aa50b5`;
+- full R4 source is already pushed on `gpt/wo-p1-168-r4-settings-file-boundary`;
+- frozen R4 candidate / PR #242 head is `7d0fd83bb5608a4ab025d5000203cbad2a31831f`;
+- exact-head CI `34440601328` is SUCCESS on Windows/full, Ubuntu and macOS;
+- merge is intentionally blocked only by the independent R3 review requirement.
+
+Windows resume order:
+1. enter `A:\GitHub\A-Wiki-Conductor`; read `00-AGENT-ENTRY.md`, `PROJECT-GRAPH.yaml`,
+   `AGENTS.md`, actual Git state, `CURRENT-WORK.md`, then Issue #233 + WO168;
+2. `git fetch --all --prune`; update local `main` with fast-forward only; preserve any dirty
+   or untracked work and stop on unexpected divergence;
+3. inspect Sunday-Worker 1-5 actual process/readiness/task/worktree/branch/HEAD/dirty/claim
+   state before assigning anything;
+4. choose one genuinely free Worker for an independent READ-ONLY exact-SHA review of PR
+   #242 at `7d0fd83...`; it must not edit/commit/merge;
+5. if the reviewer returns P0=0/P1=0/P2=0 and identity matches, GPT integrator marks the PR
+   ready and merges with expected-head fencing; otherwise open only a bounded successor;
+6. verify exact merge ancestry/tree and post-main CI; only then pull `main` again on Windows
+   and later fast-forward the Mac checkout to converge both hosts;
+7. after WO168 closes, resume the Zero-Relay critical path. Because Windows already has the
+   accepted Windows supervision stack, re-audit whether the Mac POSIX portability lane is
+   still on the immediate critical path before opening it.
+
+Do not delete old Mac worktrees/branches during the host handoff. They are retained as
+evidence until accepted merge/closeout proves cleanup is safe.
