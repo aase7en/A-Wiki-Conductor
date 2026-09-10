@@ -28,10 +28,17 @@ Actual Git/GitHub/runtime state outranks chat memory and stale global projection
 
 ## 2. Current ownership split
 
-### WO-P1-168 — GPT-6 Astra
+### WO-P1-168 — R3 active corrective lane
 
-Owns only the Mac Claude harness compatibility repair and its declared tests/WO/evidence.
-Do not edit or reset its worktree.
+R0 candidate `654e36d...` merged as `577d948...`, then the compatibility boundary was
+reopened by later real-host permission/provider-confinement evidence. R1 and R2 are frozen
+CHANGES_REQUIRED evidence. Current successor is PR #241 / candidate
+`b1e048ffa9c51d37af19164fab0f789015b22fe1` in
+`/Users/aase7en/Desktop/A-Wiki-Conductor-wo168-r3`.
+
+R3 preserves provider isolation and project/local deny rules while hardening hostile JSON
+and bounded settings reads. Independent exact-SHA review and full hosted CI are pending.
+Do not open WO170 source mutation until this gate closes.
 
 ### WO-P1-169 — GPT-5.6 Sol
 
@@ -85,7 +92,7 @@ Rules:
 - use the existing A-Wiki environment reference resolver at the execution boundary;
 - historical exposed key material is invalid for production use.
 
-## 5. Gate A — Claude invocation compatibility
+## 5. Gate A — Claude invocation compatibility — R3 ACTIVE
 
 Required before any live provider task:
 - current WO168 defect reproduced deterministically;
@@ -174,7 +181,7 @@ sufficient.
 | Cointh endpoint reachable | PROVEN unauthenticated only | HTTP 401/missing_key |
 | rotated secret reference present | PROVEN presence only | private env resolver audit |
 | Claude 2.1.152 rejects --safe-mode | PROVEN | real Mac CLI RED |
-| WO168 compatibility repair | ACTIVE / UNACCEPTED | WO168 |
+| WO168 compatibility repair | R3 CANDIDATE / REVIEW + FULL CI PENDING | PR #241 + Issue #233 |
 | full supervised process path on macOS | OPEN | current-main source audit |
 | authenticated GLM turn on Mac | NOT PROVEN | future isolated proof |
 | GPT <-> GLM zero human relay | NOT PROVEN | future canonical result proof |
@@ -199,7 +206,7 @@ A model saying DONE is not completion authority.
 
 ## 11. Proposed next R3 contract — POSIX/macOS supervised-process portability
 
-Status: READ_ONLY SHAPING / NOT YET CLAIMED / NO SOURCE AUTHORITY.
+Status: SHAPED / BLOCKED_BY_WO168_R3 / NO SOURCE AUTHORITY IN THIS DOCS LANE.
 
 Fresh current-main architecture audit after the WO168 merge shows the portability gap is
 narrower than a new supervisor:
@@ -264,6 +271,6 @@ Host proof should use a disposable helper and temporary SQLite/runtime directory
 Real provider credential use is a later gate and is not required to accept POSIX process
 ownership itself.
 
-Suggested next durable work item after WO168 post-main verification:
+Next durable work item after WO168 R3 closes:
 `Mac/POSIX supervised-process adapter + production composition`, R3, isolated worktree,
 RED-first, with GPT trust framing and independent exact-SHA review.

@@ -1,7 +1,7 @@
 # Incident — Windows host unavailable; Zero-Relay continuation moved to macOS
 
 Date: 2026-09-10 (Asia/Bangkok)
-Status: ACTIVE / MITIGATED FOR SOURCE WORK / LIVE ZERO-RELAY NOT YET PROVEN
+Status: HOST MIGRATION MITIGATED / CLAUDE COMPATIBILITY R3 ACTIVE / LIVE ZERO-RELAY NOT YET PROVEN
 Related: Issue #233, WO-P1-168, WO-P1-169
 
 ## Summary
@@ -10,12 +10,12 @@ The primary Windows workstation that normally runs A-Sunday Conductor became off
 unreachable. Development therefore moved to the user's home Apple Silicon Mac.
 
 The migration does not block repository development or the highest-priority Zero-Relay
-MVP, but it exposes two independent macOS readiness gaps:
-1. the current Claude Code invocation contract uses a flag not accepted by the installed
-   Mac Claude CLI;
+MVP, but two independent macOS readiness gates remain:
+1. the original unsupported Claude CLI flag was repaired, then later security evidence
+   reopened the invocation/settings boundary; current successor is WO168 R3 / PR #241;
 2. the canonical production supervised native adapter assembly is still Windows-specific.
 
-These are environment/portability gaps, not evidence that the Zero-Relay architecture is
+These are compatibility/portability gates, not evidence that the Zero-Relay architecture is
 invalid.
 
 ## Recovered continuity
@@ -95,27 +95,37 @@ Never store the value in Git, Issues, PRs, argv, prompts, task packets, result f
 Temporary Claude probes created during Mac diagnosis were stopped only after exact PID and
 command-identity verification. No broad process kill was used.
 
-## Open problem A — Claude CLI compatibility
+## Active problem A — Claude CLI compatibility and settings confinement
 
-Current main generates a Claude invocation containing `--safe-mode`.
+The original Mac defect was reproduced on Claude Code 2.1.152:
 
-Real Mac reproduction on Claude Code 2.1.152:
 ```text
 claude --print ... --safe-mode ...
 -> error: unknown option '--safe-mode'
 -> exit 1
 ```
 
-WO-P1-168 / GPT-6 Astra owns the repair.
+WO-P1-168 / GPT-6 Astra implemented the bounded repair. Accepted candidate
+`654e36d497a875f06adba83e4ca2c14f1a647dbc` was independently reviewed
+(P0=0 / P1=0 / P2=0), passed exact-head CI `34391873577`, and merged as
+`577d9483720c857a89a5d2c9ea9359f9c0aa50b5`.
 
-Astra's current checkpoint reports upstream evidence that `--safe-mode` was introduced
-after the installed CLI version and proposes a uniform explicit confinement profile using
-`--bare`, disabled slash commands, strict empty MCP configuration, and empty setting
-sources while retaining plan/read-only tools, task binding, supervised execution, and
-secret confinement.
+Post-main push CI `34393512623` completed SUCCESS across Windows/full, Ubuntu and macOS.
+The repair uses the reviewed explicit confinement profile (`--bare`, disabled slash
+commands, strict empty MCP configuration and empty setting sources) while preserving
+plan/read-only tools, task binding, provider/supervised authority and secret confinement.
 
-Important: this design is PROPOSED / UNACCEPTED until WO168 freezes a candidate and the
-integrator independently reviews the exact SHA and CI/evidence.
+The R0 source claim was released after that merge, but later real-host review reopened
+the same compatibility boundary: project/local permission denies were lost when ambient
+settings were excluded. R1 restored the settings sources but regressed provider endpoint/auth
+authority; R2 projected only sanitized permission denies but an interrupted Astra review
+found hostile JSON parser escapes and an unbounded pre-size-check read.
+
+Current successor is WO168 R3 / PR #241, candidate
+`b1e048ffa9c51d37af19164fab0f789015b22fe1`. R3 has clean exact-archive local evidence
+(host 6/6; related frontier 206 pass / 12 expected skips). Independent review and full
+hosted CI remain release gates. Issue #233 comments 5610802627 and 5610806494 are the
+durable rejection/successor anchors.
 
 ## Open problem B — macOS production supervised-process assembly
 
@@ -159,7 +169,7 @@ Current:
 - MAC_REPO_CONTINUITY = READY
 - COINTH_NETWORK_REACHABILITY = PROVEN_UNAUTHENTICATED
 - ROTATED_SECRET_REFERENCE = PRESENT
-- CLAUDE_MAC_INVOCATION = BLOCKED_BY_WO168
+- CLAUDE_MAC_INVOCATION = R3_CANDIDATE / REVIEW_AND_FULL_CI_PENDING
 - MAC_PRODUCTION_SUPERVISION = NOT_YET_READY
 - AUTHENTICATED_GLM_TURN = NOT_PROVEN
 - GPT_GLM_ZERO_RELAY_ONE_SHOT = NOT_PROVEN
@@ -169,10 +179,10 @@ Do not collapse these states into a single READY flag.
 ## Next dependency order
 
 ```text
-WO168 Claude invocation compatibility
-  -> exact-SHA independent review / CI
-  -> synthetic loopback confinement proof
-  -> decide/implement POSIX supervised-process assembly if required for production path
+WO168 R3 Claude invocation/settings compatibility
+  -> independent exact-SHA review + full hosted CI
+  -> fenced merge + post-main verification
+  -> POSIX/macOS supervised-process assembly + production composition
   -> isolated authenticated Cointh -> GLM-5.3 one-shot
   -> canonical result ingestion
   -> GPT exact-result verification

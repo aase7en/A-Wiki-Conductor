@@ -3,7 +3,7 @@
 Date: 2026-09-10 (Asia/Bangkok)
 Status: CLAIMED / DOCS-ONLY
 Owner: GPT-5.6 Sol integrator documentation lane
-Parallel implementation owner: WO-P1-168 / GPT-6 Astra
+Parallel implementation status: WO-P1-168 R3 ACTIVE / PR #241 review + full CI pending
 Risk: R2 operational/security documentation
 Classification: REUSE existing Zero-Relay authority; no product/runtime authority changes
 
@@ -24,7 +24,7 @@ Zero-Relay operational success.
 - Base: 77e7b0f8e9460f78fa2ef4a1ddaad62131c2c7f2
 - Durable claim: Issue #233 comment 5607093650
 - Discovery/continuity anchors: Issue #233 comments 5606720902 and 5606878598
-- Active source repair: WO-P1-168 in /Users/aase7en/Desktop/A-Wiki-Conductor-wo168
+- Active WO168 R3 worktree: /Users/aase7en/Desktop/A-Wiki-Conductor-wo168-r3
 
 ## Mutable scope
 
@@ -110,8 +110,10 @@ with 6 expected skips; related = 142 PASS with 3 Windows-only skips; independent
 unknown-tool/MCP injection probe = 2/2 PASS. PR #237 comment 5607237872 is the
 durable exact-SHA review checkpoint.
 
-Hosted run 34391873577 remains a merge gate; macOS/Ubuntu smoke are green and
-Windows/full was still in progress at this checkpoint. WO169 does not authorize merge.
+Historical checkpoint: run `34391873577` was still in progress when this line was
+first written. Final truth now supersedes it: exact-head CI `34391873577` SUCCESS,
+PR #237 merged as `577d9483720c857a89a5d2c9ea9359f9c0aa50b5`, and post-main
+CI `34393512623` SUCCESS.
 
 
 ### Next-R3 shaping (read-only)
@@ -122,5 +124,24 @@ identity/store/coordinator and Claude/provider authority are reusable. Proposed 
 classification: EXTEND/WRAP existing process protocols with POSIX/macOS primitives and
 explicit platform assembly; do not create a second supervisor/scheduler/store. Full
 fault matrix and acceptance boundary are recorded in
-`docs/runbooks/mac-zero-relay-continuation.md` §11. This is shaping only; no WO170/source
-claim is opened until WO168 post-main verification closes.
+`docs/runbooks/mac-zero-relay-continuation.md` §11. Later evidence reopened WO168 through
+R3 / PR #241, so WO170 remains blocked until R3 receives independent exact-SHA acceptance,
+full hosted CI, fenced merge and post-main verification. WO169 remains docs-only.
+
+
+### Current R3 reviewer/resource checkpoint
+
+WO168 R3 exact candidate is
+`b1e048ffa9c51d37af19164fab0f789015b22fe1` / draft PR #241.
+Local exact-archive evidence is 6/6 real Mac Claude host PASS and 206 PASS /
+12 expected skips on the related supervised/native/provider frontier.
+
+The prior Astra review of R2 ended at the Codex account usage limit, but only after
+finding the parser defects that R3 now reproduces and repairs. Codex
+`codex-auto-review` shares the same exhausted quota. Claude CLI first-party review is
+blocked by revoked OAuth (401). Gemini CLI is installed with no extensions/MCP but requires
+interactive browser authentication. None of these resource conditions grant review
+acceptance or permission to weaken the R3 independent-review gate.
+
+Hosted PR #241 CI has macOS and Ubuntu smoke green; Windows/full remained in progress at
+this checkpoint. WO170 stays blocked until review + full CI + merge + post-main verification.
