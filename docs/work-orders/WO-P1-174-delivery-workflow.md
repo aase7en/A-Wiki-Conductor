@@ -1,6 +1,6 @@
 # WO-P1-174 — Delivery workflow with bounded premium-model use
 
-Status: IN_PROGRESS / DOCS-ONLY / R2 GOVERNANCE
+Status: IMPLEMENTED / FROZEN_FOR_INDEPENDENT_REVIEW / DOCS-ONLY / R2 GOVERNANCE
 Date: 2026-09-10
 Owner: GPT-6 Astra / Poppy Javis, bounded workflow analysis and integration
 Execution: separate workhorse-class subagent for bounded documentation; independent review before delivery
@@ -117,3 +117,22 @@ existing risk/authority/merge/release rules. No additional planning hierarchy.
 2026-09-10: startup/remote/claims/reuse audit completed. Clean isolated docs worktree
 created from exact main. Primary frames bounded changes here; workhorse executor
 will write only the runbook and two pointers, with this WO read-only.
+
+2026-09-10 implementation checkpoint: Sol medium wrote the runbook and two pointers;
+primary corrected risk-scaled matrix/acceptance wording and refreshed live R5 state.
+Issue233 comment 5620087669 supersedes the earlier active-mutation observation: WO173
+source claim is released, PR246 candidate ff996e1ff39d92ee8fc3b021b24661c78540c50b awaits
+independent review and exact-head CI. Next safe action there is integrator closure,
+then re-pin composition prerequisites; this lane owns no R5/source action.
+
+ROUTE: bounded docs execution=GPT-5.6 Sol/medium, available session tool + exact packet;
+architecture/framing=GPT-6 Astra; independent review=separate Sol/medium session at frozen
+SHA. Pricing/usage=UNKNOWN. Escalate unresolved policy/trust conflicts to integrator.
+No automatic ownership transfer on quota or reviewer substitution.
+
+Verification: strict UTF-8/local-link/scope/pointer-preservation/whitespace/credential-pattern
+checks are recorded under ignored runs/WO-P1-174/. Runtime tests are not applicable to
+this docs-only change. Frozen SHA, packet hash, review verdict, hosted CI, PR, and exact
+next safe action will be bound in runs/WO-P1-174/result.json and the durable draft PR.
+No shared continuity mutation is authorized; the integrator owns its acceptance fold.
+No runtime acceleration or token/cost reduction has yet been measured.
