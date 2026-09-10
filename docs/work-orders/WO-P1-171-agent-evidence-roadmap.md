@@ -134,6 +134,6 @@ Forbidden: `src/**`, `tests/**`, secrets/private Drive, `CURRENT-WORK.md`, `hand
 - source/URL/license spot-checks against public evidence;
 - independent exact-SHA architecture review required before merge because this changes future trust/evaluation policy.
 
-## Next safe action
+## Dispatch checkpoint
 
-Keep PR #244 draft and stacked behind WO170. Start only the read-only `GLM-XREPO-EVIDENCE-RO1` audit in parallel with GPT architecture/reconciliation. No AEET source implementation becomes READY until the higher-priority frontier and fresh mutation gates permit it.
+The durable task packet is now complete. Keep PR #244 draft/stacked and dispatch only `GLM-XREPO-EVIDENCE-RO1` as read-only work. If provider readiness fails, preserve the blocker and retry only after the credential/provider authority is restored by an authorized lane. No roadmap implementation, merge, or live-provider mutation is authorized by this packet.
