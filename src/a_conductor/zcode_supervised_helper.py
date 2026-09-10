@@ -13,6 +13,7 @@ non-persistent environment channel (never argv):
 - ``ZCODE_TASK_PACKET_MAX_BYTES``    packet size bound
 - ``ZCODE_OUTPUT_BUDGET``            response budget (<= 64 KiB)
 - ``ZCODE_DEADLINE_SECONDS``         bounded protocol deadline
+- ``ZCODE_RUNTIME_MODEL_JSON``       non-secret authorized runtime model projection
 - ``ZCODE_CREDENTIAL_DELIVERY_KEY``  env var name carrying the credential
 - ``<delivery key>``                 the resolved credential value
 
@@ -35,9 +36,9 @@ from dataclasses import dataclass
 from typing import Mapping
 
 try:  # package import (normal)
-    from .zcode_protocol import ZCODE_MAX_RESPONSE_BYTES
+    from .zcode_protocol import ZCODE_MAX_RESPONSE_BYTES, ZCodeRuntimeModel
 except ImportError:  # script-mode execution by the supervised supervisor
-    from zcode_protocol import ZCODE_MAX_RESPONSE_BYTES  # type: ignore
+    from zcode_protocol import ZCODE_MAX_RESPONSE_BYTES, ZCodeRuntimeModel  # type: ignore
 
 try:  # package import (normal)
     from .zcode_process_truth import observe_child_process
@@ -203,6 +204,7 @@ class _HelperRuntimeMetadata:
     max_packet_bytes: int
     output_budget: int
     deadline_seconds: float
+    runtime_model: ZCodeRuntimeModel
     delivery_key: str
     credential: str
 
@@ -243,9 +245,15 @@ def _load_runtime_metadata(environ: Mapping[str, str]) -> _HelperRuntimeMetadata
         raise _HelperExit("ZCODE_OUTPUT_BUDGET_UNSUPPORTED") from None
     if not (0 < deadline_seconds <= ZCODE_HELPER_MAX_DEADLINE_SECONDS):
         raise _HelperExit("RUNTIME_METADATA_INVALID")
+    try:
+        runtime_model = ZCodeRuntimeModel.from_json(_required("ZCODE_RUNTIME_MODEL_JSON"))
+    except ValueError:
+        raise _HelperExit("RUNTIME_MODEL_METADATA_INVALID") from None
     delivery_key = _required("ZCODE_CREDENTIAL_DELIVERY_KEY")
     if not _ENV_NAME_RE.fullmatch(delivery_key):
         raise _HelperExit("RUNTIME_METADATA_INVALID")
+    if runtime_model.api_key_env != delivery_key:
+        raise _HelperExit("RUNTIME_MODEL_CREDENTIAL_KEY_MISMATCH")
     credential = environ.get(delivery_key, "")
     if not isinstance(credential, str) or not credential:
         raise _HelperExit("RUNTIME_METADATA_CREDENTIAL_MISSING")
@@ -256,6 +264,7 @@ def _load_runtime_metadata(environ: Mapping[str, str]) -> _HelperRuntimeMetadata
         max_packet_bytes=max_packet_bytes,
         output_budget=output_budget,
         deadline_seconds=deadline_seconds,
+        runtime_model=runtime_model,
         delivery_key=delivery_key,
         credential=credential,
     )
@@ -531,6 +540,7 @@ def main(argv: "list[str] | None" = None) -> int:
             turn = driver.run_turn(
                 prompt,
                 workspace=str(cwd),
+                runtime_model=metadata.runtime_model,
                 deadline_seconds=metadata.deadline_seconds,
             )
         except ZCodeProtocolError as exc:

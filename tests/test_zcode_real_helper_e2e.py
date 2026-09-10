@@ -98,8 +98,17 @@ for line in sys.stdin:
     msg = json.loads(line)
     mid, method = msg.get("id"), msg.get("method")
     if method == "session/create":
+        create_params = msg.get("params", {})
+        runtime_model = create_params.get("runtimeModel", {})
+        model_ref = create_params.get("model") or runtime_model.get("model")
+        if receipt_dir:
+            with open(os.path.join(receipt_dir, "create_receipts.jsonl"), "a", encoding="utf-8") as f:
+                f.write(json.dumps({"model": model_ref, "runtimeModel": runtime_model}, separators=(",", ":")) + "\n")
         out({"id": 1000, "method": "session/requestRuntimePreferences"})
-        out({"id": mid, "result": {"session": {"sessionId": "fake-session-1"}}})
+        out({"id": mid, "result": {
+            "session": {"sessionId": "fake-session-1"},
+            "settings": {"model": {"current": model_ref, "available": []}},
+        }})
     elif method == "session/subscribe":
         out({"id": mid, "result": {"ok": True}})
     elif method == "session/send":
@@ -152,7 +161,7 @@ def _profile():
         provider_id="zcode-glm",
         display_name="ZCode GLM",
         provider_type="zcode-app-server",
-        protocol_family=ProtocolFamily.CUSTOM,
+        protocol_family=ProtocolFamily.ANTHROPIC_MESSAGES,
         endpoint_ref="zcode-desktop",
         credential_ref="secret-ref:zcode-credential",
         trust_class=ProviderTrustClass.FIRST_PARTY,
@@ -583,3 +592,23 @@ def test_same_packet_two_models_no_reuse_e2e(tmp_path: Path) -> None:
     con.close()
     assert rows == 2, rows
     assert len({r[0] for r in refs}) == 2  # two distinct derived runtime identities
+
+    # WO176: prove the ACTUAL child protocol payloads differ by the authorized
+    # models; this is stronger than the pre-WO176 two-hash/two-spawn proof.
+    creates = [
+        json.loads(line)
+        for line in (receipts / "create_receipts.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(creates) == 2, creates
+    assert [item["model"] for item in creates] == [
+        {"providerId": "zcode-glm", "modelId": "glm-5.3"},
+        {"providerId": "zcode-glm", "modelId": "glm-4.7"},
+    ]
+    for item in creates:
+        runtime_model = item["runtimeModel"]
+        assert runtime_model["provider"]["baseURL"] == BASE_URL
+        assert runtime_model["provider"]["apiKey"] == {
+            "source": "env", "name": "ANTHROPIC_API_KEY"
+        }
+    assert SECRET not in (receipts / "create_receipts.jsonl").read_text(encoding="utf-8")

@@ -28,7 +28,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .claude_code_harness import TaskPacketFile
-from .provider_configuration import HarnessRuntimeBinding, HarnessStrategy
+from .provider_configuration import HarnessRuntimeBinding, HarnessStrategy, ProtocolFamily
+from .zcode_protocol import ZCodeRuntimeModel
 from .zcode_runner import (
     ZCODE_BACKEND_ID,
     SupervisedZCodeRunner,
@@ -202,9 +203,20 @@ def assemble_zcode_execution(
         raise ZCodeAssemblyError("ZCODE_PROVIDER_GENERATION_DRIFT")
 
     # 3. runtime binding + strategy authorization
+    if profile is None:
+        raise ZCodeAssemblyError("ZCODE_PROVIDER_UNAVAILABLE")
     binding = _binding_for_model(snapshot, model_id)
     if binding.harness_strategy is not HarnessStrategy.ZCODE_APP_SERVER:
         raise ZCodeAssemblyError("ZCODE_STRATEGY_MISMATCH")
+    # ZCode runtimeModel materialization currently has one unambiguous
+    # production mapping: Anthropic Messages. CUSTOM cannot be guessed into
+    # a provider kind/API format at this trust boundary.
+    if profile.protocol_family is not ProtocolFamily.ANTHROPIC_MESSAGES:
+        raise ZCodeAssemblyError("ZCODE_RUNTIME_PROTOCOL_UNSUPPORTED")
+    # The caller may assert the secret reference but never redefine the
+    # provider profile's canonical credential authority.
+    if secret_reference != profile.credential_ref:
+        raise ZCodeAssemblyError("ZCODE_CREDENTIAL_REFERENCE_UNAUTHORIZED")
 
     # 4. verified task packet intake (confined path/size/hash — TOCTOU base)
     packet_identity = ZCodeTaskPacketIdentity.from_task_packet_file(
@@ -340,6 +352,16 @@ def assemble_zcode_execution(
         runtime_model_ref=binding.runtime_model_ref,
         generation=int(generation),
     )
+    try:
+        runtime_model = ZCodeRuntimeModel(
+            revision=runtime_profile_ref,
+            provider_id=profile.provider_id,
+            model_id=model_id,
+            base_url=endpoint_base_url,
+            api_key_env="ANTHROPIC_API_KEY",
+        )
+    except ValueError as exc:
+        raise ZCodeAssemblyError("ZCODE_RUNTIME_MODEL_INVALID") from exc
 
     # 8. REAL production supervised lifecycle: the specialized helper through
     #    SupervisedExecutionService + ZCODE_APP_SERVER_V1. The service
@@ -373,6 +395,7 @@ def assemble_zcode_execution(
         selection_source=selection,
         expected_binding=binding,
         expected_base_url=endpoint_base_url,  # snapshot endpoint authority
+        runtime_model=runtime_model,
         secret_resolver=authorities.secret_resolver,
         secret_reference=secret_reference,
         packet=packet_identity,
