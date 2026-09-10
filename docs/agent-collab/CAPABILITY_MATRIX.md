@@ -3,6 +3,10 @@
 This file records routing evidence, not permanent model rankings.
 Re-check current upstream evidence before delegating material work to a named model.
 
+Apply these routing facts through the compact same-WO record in the
+[Cost-First Delivery Runbook](../runbooks/cost-first-delivery.md); unknown cost or usage
+remains `UNKNOWN`, and model choice never transfers claim or acceptance authority.
+
 ## Binding default execution policy
 
 For bounded READY repository implementation, GLM/ZCode is the preferred primary execution engine when current capability, readiness, authorization, admission, policy, ownership and result-destination gates all pass.
