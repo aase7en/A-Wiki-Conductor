@@ -91,3 +91,8 @@ acceptance remains pending; WO205 retains PhaseD scope. No merge from this lane.
 - Writable scope: NEW `docs/reviews/WO-P1-208-glm-closeout-lab.md`, append-only checkpoints here, ignored `runs/WO-P1-208/glm/**` (wo208- prefixed temp roots). All src/tests read-only.
 - Owner: this GLM session (WO208-GLM-CLOSEOUT-LAB-001); capacity gate passed (evidence-only docs lane; no active owner of this child found in Issue #214/#233 latest).
 - SAFE_TO_RUN_LAB=YES under packet synthetic-only rules.
+
+
+### GLM lab completion checkpoint — WO208-GLM-CLOSEOUT-LAB-001 (2026-09-12)
+
+All programs C00-C08 DONE with native Windows evidence: seed reproduces verbatim (hash typo F1 recorded); real child-process cut matrix (os._exit at each boundary) with safe restart (1 effect -> COMPLETE) vs unsafe restart (2 effects after REAL crash) vs concurrent two-process barrier race (2 effects); lost-acknowledgment matrix proves only the reopened journal distinguishes commit-vs-not; lab owner-gate suppresses the stale effect (residual TOCTOU -> DESIGN_DECISION_REQUIRED); destination-enforced idempotent receipts proven incl. two-process single winner; odd lease port contract recorded (F2); 96-state finite model: conservative policy 0 violations, unsafe blind-retry caught (negative control). Decision packet for WO205 in the tracked handback. COMPLETE_FOR_PARENT_REVIEW; product implementation remains HOLD with the parent integrator. No source/test mutation; other lanes untouched.
