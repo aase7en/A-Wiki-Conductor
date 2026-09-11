@@ -395,6 +395,32 @@ def test_already_hardened_launcher_stays_byte_identical() -> None:
     assert _harden_start_script_runtime_forensics(hardened) == hardened
 
 
+def test_runtime_archive_word_in_comment_does_not_fake_hardened_state() -> None:
+    source = "# operator note: preserve runtime-archive evidence\n" + _legacy_method_wait_launcher()
+
+    hardened = _harden_start_script_runtime_forensics(source)
+
+    assert hardened != source
+    assert hardened.count("$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'") == 1
+    assert hardened.count("$RuntimeProcess.Refresh()") == 1
+    assert hardened.count("$RuntimeExitCode = $RuntimeProcess.ExitCode") == 1
+    terminal = hardened[hardened.index("$RuntimeProcess.WaitForExit()") :]
+    assert "if ($RuntimeProcess.ExitCode -ne 0)" not in terminal
+
+
+@pytest.mark.parametrize(
+    "marker",
+    (
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n",
+        "$RuntimeExitCode = $RuntimeProcess.ExitCode\n",
+    ),
+)
+def test_partial_structural_hardening_marker_fails_unchanged(marker: str) -> None:
+    source = marker + _legacy_method_wait_launcher()
+
+    assert _harden_start_script_runtime_forensics(source) == source
+
+
 def test_method_wait_hardening_preserves_preflight_and_credential_sentinels() -> None:
     source = _legacy_method_wait_launcher()
     hardened = _harden_start_script_runtime_forensics(source)

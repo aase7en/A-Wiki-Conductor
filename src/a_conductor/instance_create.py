@@ -80,7 +80,27 @@ def _retitle_cmd_text(text: str, title: str) -> str:
 
 def _harden_start_script_runtime_forensics(text: str) -> str:
     """Upgrade validated legacy start.ps1 text without replacing its credential/preflight logic."""
-    if "runtime-archive" in text and "$RuntimeProcess.ExitCode" in text:
+    archive_assignment_pattern = re.compile(
+        r"(?m)^[ \t]*\$RuntimeArchiveDir\s*=\s*Join-Path \$LogsDir 'runtime-archive'[ \t]*$"
+    )
+    exit_capture_pattern = re.compile(
+        r"(?m)^[ \t]*\$RuntimeExitCode\s*=\s*\$RuntimeProcess\.ExitCode[ \t]*$"
+    )
+    refresh_pattern = re.compile(r"(?m)^[ \t]*\$RuntimeProcess\.Refresh\(\)[ \t]*$")
+    exit_command_pattern = re.compile(r"(?m)^[ \t]*exit \$RuntimeExitCode[ \t]*$")
+
+    complete_hardening = (
+        archive_assignment_pattern.search(text) is not None
+        and exit_capture_pattern.search(text) is not None
+        and refresh_pattern.search(text) is not None
+        and exit_command_pattern.search(text) is not None
+    )
+    if complete_hardening:
+        return text
+    if (
+        archive_assignment_pattern.search(text) is not None
+        or exit_capture_pattern.search(text) is not None
+    ):
         return text
 
     stdout_pattern = re.compile(r"(?m)^(?P<indent>[ \t]*)\$RuntimeStdout\s*=.*$")
