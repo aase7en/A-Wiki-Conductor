@@ -98,3 +98,10 @@ is the bounded child contract. All source and Astra tests are immutable to GLM.
 - Windows host evidence (fresh, this lane): `python -m pytest -q tests/test_zcode_stdout_boundary.py` → **15 passed in 4.58s** (matches Astra freeze + preflight evidence; consumed, not re-derived).
 - `SAFE_TO_MUTATE_TEST_SCOPE=YES` (allowed paths above only). `SAFE_TO_MUTATE_PRODUCT_SOURCE=NO` — all `src/a_conductor/**` read-only for this lane. No merge/rebase/reset/clean/stash; no secrets; no production ports 18011-18015; no broad process kills; no global COLLAB.md changes.
 - Next safe action: B00 provenance manifest, then B01 call-path archaeology.
+
+## Child checkpoint — WO193-GLM-BYTE-VALIDATION-001 freeze (2026-09-11 +07)
+
+- Programs B00–B10 complete; status COMPLETE_FOR_REVIEW with one P3 finding (F1: publication `_write_atomic` failures escape helper main untyped — pre-existing on base, invariants hold) and one environment note (ENV-1: NTFS-compressed `runs/` path kills spawned child scripts; probe stages under TEMP). Full portable handback: `docs/reviews/WO-P1-193-glm-byte-integrity-evidence.md` (this commit).
+- New files: `tests/test_wo193_byte_integrity_campaign.py` (74 tests, ~35 s, two consecutive full greens), `tests/fixtures/wo193_byte_integrity/corpus.json` (independent hex/sha oracle), `scripts/wo193_byte_integrity_probe.py` (PROBE_OK 4/4, refusal guard). Ignored evidence: `runs/WO-P1-193/glm/{checkpoint.json,result.json,result.md,probe-final/}`.
+- Verification on Windows host DESKTOP-7IB57R4 / Python 3.11.15: focused15 PASS; campaign74 PASS ×2; related70 PASS; supervised41 PASS; probe PROBE_OK exit 0; `git diff --check` clean. Source hashes unchanged (helper 38f9fb19..., boundary f0d3722b...).
+- No source edits, no merge; child PR is stacked draft onto the Astra source branch. Frozen repair CONFIRMED on real Windows with synthetic children. Independent exact-SHA review remains with the integrator.
