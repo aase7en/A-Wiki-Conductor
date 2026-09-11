@@ -1,6 +1,6 @@
 # WO-P1-193 — ZCode exact-byte response integrity
 
-Status: CLAIMED / ASTRA REPAIR
+Status: SOURCE_FROZEN / REVIEW_PENDING / GLM CHILD PREPARED
 Date: 2026-09-11
 Risk: R3 — cross-platform response evidence boundary
 Owner: Poppy Javis / GPT-6 Astra / home macOS Codex
@@ -36,7 +36,7 @@ Forbidden: all other source/tests; global CURRENT-WORK.md, handoff.md, COLLAB.md
 - Hash report and output refer to the same bytes. Never fix mismatch by weakening verification or rewriting historical failed evidence.
 - Existing response budget remains upstream authority. No unbounded buffering, new provider invocation or retries.
 - Output transport errors cannot mean successful response delivery. Retain truthful child-exit evidence; helper failure is separate from child completion. No replay of completed provider work.
-- Existing report-before-result and known-terminal-exit ordering stays unchanged.
+- Known child exit precedes output; successful write/flush precedes report, which precedes result. Existing report-before-result semantics remain; publication now waits for complete output.
 - Missing binary output capability fails explicitly; no ambient text encoding fallback.
 - Partial writes must either complete the remaining byte suffix or fail explicitly; do not duplicate an already-written prefix.
 
@@ -56,3 +56,32 @@ Verify: python -m pytest -q tests/test_zcode_stdout_boundary.py; then related te
 ## Checkpoint
 
 - Bootstrap: clean isolated worktree at base; exact source/test PR overlap audit passed. Preparing public claim before any product/test mutation. Source eligibility remains NO until claim push and recheck.
+
+
+## Frozen source / child validation handoff
+
+Source candidate: 09d3489296a97c1a16d89b0c6b29edf11b7ffa08.
+Claim evidence: https://github.com/aase7en/A-Wiki-Conductor/issues/233#issuecomment-5631593477.
+Astra source lane is FROZEN: no concurrent writes while GLM validates it.
+Design and evidence: docs/reviews/WO-P1-193-byte-integrity-design.md.
+GLM packet: docs/prompts/GLM-WO193-BYTE-INTEGRITY-MARATHON.md.
+
+GLM child WO193-GLM-BYTE-VALIDATION-001 is PREPARED, not running. A fresh ZCode session
+must pass live capacity/owner/branch/hash gates and publish its child claim before test
+mutation. Branch codex/wo-p1-193-glm-byte-validation, Windows worktree
+A:/GitHub/_worktrees/A-Wiki-Conductor-wo193-glm-byte-validation. User relays one pointer;
+integrator reads results directly. Scope is new test_wo193_byte_integrity_campaign.py,
+new synthetic fixtures under tests/fixtures/wo193_byte_integrity/, new
+scripts/wo193_byte_integrity_probe.py, new docs/reviews/WO-P1-193-glm-byte-integrity-evidence.md,
+and append-only child checkpoints in THIS WO on the child branch. The exact packet
+is the bounded child contract. All source and Astra tests are immutable to GLM.
+
+- RED: 2 intended codec/newline failures, then 5 publication failures.
+- GREEN: focused15; related234 with16 Windows-only skips; canonical-interpreter coordinator13.
+- Independent Sol source analysis found the publication bug but hit usage limit before
+  finishing review. INDEPENDENT_REVIEW=INCOMPLETE, never PASS.
+- Real-Windows synthetic verification and exact-head hosted CI remain separate evidence.
+- No merge; acceptance and global CURRENT-WORK/handoff/COLLAB/DEFECT_LESSONS fold remain
+  with existing single-writer integrator. This WO + Issue233 is the durable scoped handoff.
+- No completed execution may be replayed to repair output evidence. Existing failed
+  historical artifacts are preserved. Native Mac proof uses only synthetic children.
