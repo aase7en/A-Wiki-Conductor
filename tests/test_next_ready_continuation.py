@@ -474,6 +474,25 @@ def test_duplicate_tick_all_represented_is_noop() -> None:
     assert plan.decision is NextReadyDecision.NOOP_ALL_REPRESENTED
 
 
+def test_incomplete_successor_observation_set_fails_closed() -> None:
+    graph = _fork_graph()
+    with pytest.raises(NextReadyContinuationError) as excinfo:
+        plan_next_ready_continuation(
+            facts(
+                graph=graph,
+                node_states={"A": TaskNodeStatus.DONE},
+                successors=(_obs("B2", None),),
+            )
+        )
+    assert excinfo.value.code == "SUCCESSOR_OBSERVATION_INCOMPLETE"
+
+
+def test_complete_parent_without_completion_evidence_fails_closed() -> None:
+    with pytest.raises(NextReadyContinuationError) as excinfo:
+        plan_next_ready_continuation(facts(parent=_parent(completion_ref=None)))
+    assert excinfo.value.code == "PARENT_COMPLETION_EVIDENCE_MISSING"
+
+
 # ══════════════════════════════════════════════════════════════════════
 # Facts — typed validation / digest identity (WO case 17)
 # ══════════════════════════════════════════════════════════════════════
@@ -727,25 +746,33 @@ class CoordinatorDispatchPort:
         return self._coordinator.dispatch(_request(node_id), gate=DispatchGateDecision.allow())
 
 
-def _drive_to_complete(tmp_path: Path, service, node_id: str) -> None:
-    """Drive one graph-dispatch job through the real lifecycle to COMPLETE.
+def _completion_ref(node_id: str) -> str:
+    return (
+        f"closeout:complete:{node_id}:"
+        "0f1e2d3c4b5a697887766554433221100f1e2d3c4b5a6978877665544332211f"
+    )
 
-    REVIEW_PENDING -> COMPLETE is the GoalCloseout-owned tail; here it is
-    applied through the same durable SQLiteJobStore authority the service
-    wraps (test setup only — completion truth remains the job store).
-    """
+
+def _drive_to_complete(tmp_path: Path, service, node_id: str) -> None:
+    """Seed durable COMPLETE plus closeout-shaped evidence for Phase-A tests."""
     store = SQLiteJobStore(tmp_path / "control.sqlite")
     job_id = GraphDispatchKey(GRAPH, RUN, node_id).job_id
     job = service.get_job(job_id)
     assert job.state is TaskState.VERIFYING
-    for target in (TaskState.REVIEW_PENDING, TaskState.COMPLETE):
-        job = store.transition(job_id, target, expected_version=job.version)
+    job = store.transition(job_id, TaskState.REVIEW_PENDING, expected_version=job.version)
+    store.transition(
+        job_id,
+        TaskState.COMPLETE,
+        expected_version=job.version,
+        evidence_ref=_completion_ref(node_id),
+    )
 
 
 def _tick(service, graph, parent_node, port) -> "object":
     f = observe_next_ready_facts(
         jobs=service, graph=graph, graph_id=GRAPH, graph_run_id=RUN,
         parent_node_id=parent_node, guards=_guards(),
+        completion_ref=_completion_ref(parent_node),
     )
     return NextReadyContinuationExecutor(dispatch_port=port).execute_next(f)
 
@@ -872,6 +899,7 @@ def test_integration_crash_before_dispatch_safe_retry_is_explicit(tmp_path: Path
         observe_next_ready_facts(
             jobs=service, graph=_chain_graph(), graph_id=GRAPH, graph_run_id=RUN,
             parent_node_id="A", guards=_guards(),
+            completion_ref=_completion_ref("A"),
         )
     )
     assert result.outcome is ContinuationExecutionOutcome.RECOVERY_REQUIRED
@@ -963,6 +991,7 @@ def test_integration_concurrent_duplicate_executor_calls_single_execution(tmp_pa
     f = observe_next_ready_facts(
         jobs=service, graph=_chain_graph(), graph_id=GRAPH, graph_run_id=RUN,
         parent_node_id="A", guards=_guards(),
+        completion_ref=_completion_ref("A"),
     )
     port = CoordinatorDispatchPort(coordinator)
     first = NextReadyContinuationExecutor(dispatch_port=port).execute_next(f)

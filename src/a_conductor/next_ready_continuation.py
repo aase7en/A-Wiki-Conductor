@@ -284,6 +284,8 @@ def plan_next_ready_continuation(facts: NextReadyContinuationFacts) -> NextReady
         if observation.node_id in seen:
             raise NextReadyContinuationError("SUCCESSOR_DUPLICATE")
         seen.add(observation.node_id)
+    if seen != child_ids:
+        raise NextReadyContinuationError("SUCCESSOR_OBSERVATION_INCOMPLETE")
 
     dag = topological_sort(graph)
     if dag.cycle is not None:
@@ -297,6 +299,8 @@ def plan_next_ready_continuation(facts: NextReadyContinuationFacts) -> NextReady
             f"parent state is {facts.parent.state.value}; "
             "only durable COMPLETE authorizes continuation",
         )
+    if facts.parent.completion_ref is None:
+        raise NextReadyContinuationError("PARENT_COMPLETION_EVIDENCE_MISSING")
 
     for field_name, code in _GUARD_CODES:
         if not getattr(facts.guards, field_name):
@@ -379,6 +383,7 @@ def observe_next_ready_facts(
     graph_run_id: str,
     parent_node_id: str,
     guards: ContinuationGuards,
+    completion_ref: str | None = None,
 ) -> NextReadyContinuationFacts:
     """Assemble one tick's facts from durable job reads (no mutation).
 
@@ -442,7 +447,7 @@ def observe_next_ready_facts(
             job_id=parent_job.job_id,
             state=parent_job.state,
             version=parent_job.version,
-            completion_ref=None,
+            completion_ref=completion_ref,
         ),
         graph=graph,
         ready=compute_ready_set(graph, node_states),
