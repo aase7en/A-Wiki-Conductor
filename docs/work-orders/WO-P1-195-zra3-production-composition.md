@@ -33,9 +33,23 @@ Review evidence:
 - total reviewed local tests before this WO: 321 passed;
 - no conflicting open PR owns the Phase-A source/test files.
 
+## Independent-review repair closure (added 2026-09-11)
+
+After WO195 activation, GPT-5.6 Sol independently re-ran WO191 and proved two P1 authority defects on exact parent SHA `738ae0da8702080926e83a92dda2aef5a7830dba`:
+
+1. **Incomplete successor evidence fail-open** — for `A -> {B1, B2}`, supplying only the `B2` observation can still yield `DISPATCH_ONE/B2`. The planner must require an exact observation set for all direct successors before selection.
+2. **Unproven parent completion fail-open** — a parent with `TaskState.COMPLETE` and `completion_ref=None` can still yield `DISPATCH_ONE`. Production continuation must require durable closeout completion evidence, and the pure Phase-A contract must not represent missing completion evidence as dispatch-authorized.
+
+This stacked WO is explicitly authorized to repair these two findings in the smallest bounded parent files:
+
+- `src/a_conductor/next_ready_continuation.py`
+- `tests/test_next_ready_continuation.py`
+
+plus the preferred new production-composition files below. The repair must be RED-first, preserve all previously-green semantics, and must not broaden scheduler/lease/provider/review authority.
+
 ## Existing authorities that MUST be reused
 
-- `GoalCloseoutExecutor` is the only completion gate that transitions a job to `TaskState.COMPLETE` after verification/review/fold/release conditions;
+- `GoalCloseoutExecutor` is the accepted closeout authority for `TaskState.COMPLETE` after verification/review/fold/release conditions; because `SQLiteJobStore.transition` is a generic persistence seam, production continuation treats COMPLETE without canonical GoalCloseout completion evidence as unauthorized;
 - `SQLiteJobStore.get_job/list_events` owns durable job state and completion `evidence_ref` history;
 - `observe_next_ready_facts` + `plan_next_ready_continuation` own ZRA-3 parent/successor representation and one-successor selection semantics;
 - `compute_ready_set` / `schedule_once` own graph readiness and scheduler policy;

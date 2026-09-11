@@ -138,7 +138,7 @@ class NextReadyContinuationFacts:
     graph: TaskGraph
     ready: ReadySetResult
     successors: tuple[SuccessorObservation, ...]
-    guards: ContinuationGuards
+    guards: ContinuationGuards | None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "graph_id", _identity(self.graph_id, "graph_id"))
@@ -151,8 +151,8 @@ class NextReadyContinuationFacts:
             raise ValueError("graph must be TaskGraph")
         if not isinstance(self.ready, ReadySetResult):
             raise ValueError("ready must be ReadySetResult")
-        if not isinstance(self.guards, ContinuationGuards):
-            raise ValueError("guards must be ContinuationGuards")
+        if self.guards is not None and not isinstance(self.guards, ContinuationGuards):
+            raise ValueError("guards must be ContinuationGuards or None")
         successors = tuple(self.successors)
         for observation in successors:
             if not isinstance(observation, SuccessorObservation):
@@ -253,16 +253,12 @@ _GUARD_CODES = (
 )
 
 
-def plan_next_ready_continuation(facts: NextReadyContinuationFacts) -> NextReadyPlan:
-    """PURE deterministic ZRA-3 continuation decision for one tick.
-
-    Decision order: structural identity -> parent completion -> guards ->
-    successor representation -> bounded selection. Identical durable facts
-    always yield an identical plan; ambiguity never dispatches.
-    """
-    if not isinstance(facts, NextReadyContinuationFacts):
-        raise ValueError("facts must be NextReadyContinuationFacts")
-
+def _plan_next_ready_core(
+    facts: NextReadyContinuationFacts,
+    *,
+    enforce_guards: bool,
+) -> NextReadyPlan:
+    """Shared deterministic selector; mutation guards are optional only for selection."""
     graph = facts.graph
     node_ids = set(graph.node_ids())
     if facts.parent.node_id not in node_ids:
@@ -274,9 +270,7 @@ def plan_next_ready_continuation(facts: NextReadyContinuationFacts) -> NextReady
     if facts.parent.job_id != expected_job_id:
         raise NextReadyContinuationError("PARENT_JOB_IDENTITY_MISMATCH")
 
-    child_ids = {
-        edge.to_id for edge in graph.edges_from(facts.parent.node_id)
-    }
+    child_ids = {edge.to_id for edge in graph.edges_from(facts.parent.node_id)}
     seen: set[str] = set()
     for observation in facts.successors:
         if observation.node_id not in child_ids:
@@ -284,6 +278,8 @@ def plan_next_ready_continuation(facts: NextReadyContinuationFacts) -> NextReady
         if observation.node_id in seen:
             raise NextReadyContinuationError("SUCCESSOR_DUPLICATE")
         seen.add(observation.node_id)
+    if seen != child_ids:
+        raise NextReadyContinuationError("SUCCESSOR_OBSERVATION_INCOMPLETE")
 
     dag = topological_sort(graph)
     if dag.cycle is not None:
@@ -297,10 +293,15 @@ def plan_next_ready_continuation(facts: NextReadyContinuationFacts) -> NextReady
             f"parent state is {facts.parent.state.value}; "
             "only durable COMPLETE authorizes continuation",
         )
+    if facts.parent.completion_ref is None:
+        raise NextReadyContinuationError("PARENT_COMPLETION_EVIDENCE_MISSING")
 
-    for field_name, code in _GUARD_CODES:
-        if not getattr(facts.guards, field_name):
-            return _guard_plan(code)
+    if enforce_guards:
+        if facts.guards is None:
+            raise NextReadyContinuationError("MUTATION_GUARDS_REQUIRED")
+        for field_name, code in _GUARD_CODES:
+            if not getattr(facts.guards, field_name):
+                return _guard_plan(code)
 
     candidates: list[tuple[int, int, str]] = []
     represented: list[tuple[int, int, str]] = []
@@ -312,8 +313,6 @@ def plan_next_ready_continuation(facts: NextReadyContinuationFacts) -> NextReady
         if kind is RepresentationKind.UNREPRESENTED:
             if observation.node_id in facts.ready.ready_ids:
                 candidates.append(order_key)
-            # unrepresented but not ready: dependency/barrier/resource
-            # semantics (compute_ready_set) keep it out of this tick
         elif kind is RepresentationKind.RECOVERY:
             recovery.append(order_key)
         else:
@@ -361,6 +360,21 @@ def plan_next_ready_continuation(facts: NextReadyContinuationFacts) -> NextReady
     )
 
 
+def plan_next_ready_selection(facts: NextReadyContinuationFacts) -> NextReadyPlan:
+    """Pure ZRA-3 selection only; mutation gates stay delegated to production authorities."""
+    if not isinstance(facts, NextReadyContinuationFacts):
+        raise ValueError("facts must be NextReadyContinuationFacts")
+    return _plan_next_ready_core(facts, enforce_guards=False)
+
+def plan_next_ready_continuation(facts: NextReadyContinuationFacts) -> NextReadyPlan:
+    """PURE deterministic ZRA-3 continuation decision with mutation guards enforced."""
+    if not isinstance(facts, NextReadyContinuationFacts):
+        raise ValueError("facts must be NextReadyContinuationFacts")
+    if facts.guards is None:
+        raise NextReadyContinuationError("MUTATION_GUARDS_REQUIRED")
+    return _plan_next_ready_core(facts, enforce_guards=True)
+
+
 def _guard_plan(code: str) -> NextReadyPlan:
     raise NextReadyContinuationError(code)
 
@@ -378,7 +392,8 @@ def observe_next_ready_facts(
     graph_id: str,
     graph_run_id: str,
     parent_node_id: str,
-    guards: ContinuationGuards,
+    guards: ContinuationGuards | None = None,
+    completion_ref: str | None = None,
 ) -> NextReadyContinuationFacts:
     """Assemble one tick's facts from durable job reads (no mutation).
 
@@ -442,7 +457,7 @@ def observe_next_ready_facts(
             job_id=parent_job.job_id,
             state=parent_job.state,
             version=parent_job.version,
-            completion_ref=None,
+            completion_ref=completion_ref,
         ),
         graph=graph,
         ready=compute_ready_set(graph, node_states),
