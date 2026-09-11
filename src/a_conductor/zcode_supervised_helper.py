@@ -13,16 +13,19 @@ non-persistent environment channel (never argv):
 - ``ZCODE_TASK_PACKET_MAX_BYTES``    packet size bound
 - ``ZCODE_OUTPUT_BUDGET``            response budget (<= 64 KiB)
 - ``ZCODE_DEADLINE_SECONDS``         bounded protocol deadline
+- ``ZCODE_RUNTIME_MODEL_JSON``       non-secret authorized runtime model projection
 - ``ZCODE_CREDENTIAL_DELIVERY_KEY``  env var name carrying the credential
 - ``<delivery key>``                 the resolved credential value
 
 The packet is RE-OPENED and fully re-verified (trusted-root confinement,
 regular file, size, SHA-256, UTF-8) immediately before the protocol send;
 cached bytes are never the final authority. The credential is forwarded to
-the child ONLY through an explicitly constructed child environment — the
-parent environment is never inherited and conflicting legacy credential
-variables are denied by construction. Shutdown is stdin EOF + bounded
-natural-exit wait: no terminate/kill ladder exists here.
+the child ONLY through an explicitly constructed child environment. Ambient
+parent state is not generally inherited; on Windows only the non-secret OS
+runtime dependency ``SYSTEMROOT`` is copied so Electron/Node DNS resolution
+works. Conflicting legacy credential variables remain denied by construction.
+Shutdown is stdin EOF + bounded natural-exit wait: no terminate/kill ladder
+exists here.
 """
 
 from __future__ import annotations
@@ -35,9 +38,9 @@ from dataclasses import dataclass
 from typing import Mapping
 
 try:  # package import (normal)
-    from .zcode_protocol import ZCODE_MAX_RESPONSE_BYTES
+    from .zcode_protocol import ZCODE_MAX_RESPONSE_BYTES, ZCodeRuntimeModel
 except ImportError:  # script-mode execution by the supervised supervisor
-    from zcode_protocol import ZCODE_MAX_RESPONSE_BYTES  # type: ignore
+    from zcode_protocol import ZCODE_MAX_RESPONSE_BYTES, ZCodeRuntimeModel  # type: ignore
 
 try:  # package import (normal)
     from .zcode_process_truth import observe_child_process
@@ -203,6 +206,7 @@ class _HelperRuntimeMetadata:
     max_packet_bytes: int
     output_budget: int
     deadline_seconds: float
+    runtime_model: ZCodeRuntimeModel
     delivery_key: str
     credential: str
 
@@ -243,9 +247,15 @@ def _load_runtime_metadata(environ: Mapping[str, str]) -> _HelperRuntimeMetadata
         raise _HelperExit("ZCODE_OUTPUT_BUDGET_UNSUPPORTED") from None
     if not (0 < deadline_seconds <= ZCODE_HELPER_MAX_DEADLINE_SECONDS):
         raise _HelperExit("RUNTIME_METADATA_INVALID")
+    try:
+        runtime_model = ZCodeRuntimeModel.from_json(_required("ZCODE_RUNTIME_MODEL_JSON"))
+    except ValueError:
+        raise _HelperExit("RUNTIME_MODEL_METADATA_INVALID") from None
     delivery_key = _required("ZCODE_CREDENTIAL_DELIVERY_KEY")
     if not _ENV_NAME_RE.fullmatch(delivery_key):
         raise _HelperExit("RUNTIME_METADATA_INVALID")
+    if runtime_model.api_key_env != delivery_key:
+        raise _HelperExit("RUNTIME_MODEL_CREDENTIAL_KEY_MISMATCH")
     credential = environ.get(delivery_key, "")
     if not isinstance(credential, str) or not credential:
         raise _HelperExit("RUNTIME_METADATA_CREDENTIAL_MISSING")
@@ -256,16 +266,30 @@ def _load_runtime_metadata(environ: Mapping[str, str]) -> _HelperRuntimeMetadata
         max_packet_bytes=max_packet_bytes,
         output_budget=output_budget,
         deadline_seconds=deadline_seconds,
+        runtime_model=runtime_model,
         delivery_key=delivery_key,
         credential=credential,
     )
 
 
 def _build_child_environment(metadata: _HelperRuntimeMetadata) -> dict[str, str]:
-    """EXPLICITLY constructed child environment: base + the accepted
-    credential entry only. No parent inheritance; denied legacy credential
-    variables are asserted absent (fail closed if ever introduced)."""
+    """Build the minimal explicit app-server child environment.
+
+    Credential/provider authority remains explicit-only. On Windows, the
+    installed Electron/Node runtime also requires ``SYSTEMROOT`` for DNS
+    resolution; inherit only that non-secret OS dependency and fail closed
+    if it is unavailable or malformed.
+    """
     environment = dict(_HELPER_CHILD_ENV_BASE)
+    if os.name == "nt":
+        system_root = os.environ.get("SYSTEMROOT")
+        if (
+            not isinstance(system_root, str)
+            or not system_root.strip()
+            or "\x00" in system_root
+        ):
+            raise _HelperExit("CHILD_ENV_SYSTEMROOT_INVALID")
+        environment["SYSTEMROOT"] = system_root
     environment[metadata.delivery_key] = metadata.credential
     for denied in _DENIED_LEGACY_CREDENTIAL_ENV_KEYS:
         if denied in environment:
@@ -531,6 +555,7 @@ def main(argv: "list[str] | None" = None) -> int:
             turn = driver.run_turn(
                 prompt,
                 workspace=str(cwd),
+                runtime_model=metadata.runtime_model,
                 deadline_seconds=metadata.deadline_seconds,
             )
         except ZCodeProtocolError as exc:
@@ -562,8 +587,25 @@ def main(argv: "list[str] | None" = None) -> int:
         # timestamp pretending completion occurred
         finished = _datetime.now(_timezone.utc).isoformat()
 
+        # the response text is the helper's ONLY stdout payload (bounded by
+        # the protocol budget); typed codes go to stderr in every failure path
+        # Bypass locale encoding and Windows TextIOWrapper newline conversion:
+        # the report attests these exact UTF-8 bytes, not normalized text.
+        try:
+            payload = turn.response_text.encode("utf-8")
+            output = _sys.stdout.buffer
+            written = output.write(payload)
+            if type(written) is not int or written != len(payload):
+                return _fail("RESPONSE_OUTPUT_INCOMPLETE")
+            output.flush()
+        except (AttributeError, OSError, ValueError):
+            # The child has exited, but response delivery is not complete.
+            # Leave result absent so collectors cannot promote partial output.
+            return _fail("RESPONSE_OUTPUT_FAILED")
+
         # 7. canonical artifacts, strict order: report BEFORE result; the
-        #    six-key result exists ONLY on the real terminal exit above.
+        #    result is published ONLY after known child exit AND complete output.
+        #    Its presence is consumed as completion authority by the collector.
         report = {
             "schema": "zcode-report/1",
             "execution_id": args.execution_id,
@@ -584,10 +626,6 @@ def main(argv: "list[str] | None" = None) -> int:
         }
         _write_atomic(result_path, json.dumps(result, sort_keys=True, separators=(",", ":")))
 
-        # the response text is the helper's ONLY stdout payload (bounded by
-        # the protocol budget); typed codes go to stderr in every failure path
-        _sys.stdout.write(turn.response_text)
-        _sys.stdout.flush()
         return 0
     except _HelperExit as exc:
         if child is not None:

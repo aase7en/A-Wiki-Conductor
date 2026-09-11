@@ -22,6 +22,8 @@ from a_conductor.execution_record import (
 )
 from a_conductor.execution_store import SQLiteExecutionStore
 from a_conductor.owned_process import WindowsOwnedProcessController
+from a_conductor.zcode_protocol import ZCodeRuntimeModel
+from a_conductor.zcode_supervised_helper import _HelperExit, _load_runtime_metadata
 from a_conductor.supervised_execution import (
     SupervisedExecutionService,
     SupervisedHelperKind,
@@ -73,6 +75,61 @@ def _plan(tmp_path, kind="GENERIC_NATIVE", argv=("ZCode.exe", "b.cjs")):
 
 
 # 1. generic launch still invokes the existing generic helper
+def _runtime_metadata_env():
+    runtime_model = ZCodeRuntimeModel(
+        revision="zcode-runtime-v1:" + "a" * 64,
+        provider_id="zcode-glm",
+        model_id="glm-5.3",
+        base_url="http://127.0.0.1:1",
+        api_key_env="ANTHROPIC_API_KEY",
+    )
+    return {
+        "ZCODE_TASK_PACKET_PATH": "A:/repo/task.md",
+        "ZCODE_TASK_PACKET_SHA256": "b" * 64,
+        "ZCODE_TASK_PACKET_TRUSTED_ROOT": "A:/repo",
+        "ZCODE_TASK_PACKET_MAX_BYTES": "262144",
+        "ZCODE_OUTPUT_BUDGET": "65536",
+        "ZCODE_DEADLINE_SECONDS": "30",
+        "ZCODE_RUNTIME_MODEL_JSON": runtime_model.to_json(),
+        "ZCODE_CREDENTIAL_DELIVERY_KEY": "ANTHROPIC_API_KEY",
+        "ANTHROPIC_API_KEY": "synthetic-test-credential",
+    }
+
+
+def test_helper_runtime_metadata_accepts_bound_non_secret_runtime_model():
+    metadata = _load_runtime_metadata(_runtime_metadata_env())
+    assert metadata.runtime_model.provider_id == "zcode-glm"
+    assert metadata.runtime_model.model_id == "glm-5.3"
+    assert metadata.runtime_model.api_key_env == metadata.delivery_key
+
+
+def test_helper_runtime_metadata_rejects_missing_runtime_model():
+    env = _runtime_metadata_env()
+    del env["ZCODE_RUNTIME_MODEL_JSON"]
+    with pytest.raises(_HelperExit) as exc:
+        _load_runtime_metadata(env)
+    assert exc.value.code == "RUNTIME_METADATA_MISSING"
+
+
+def test_helper_runtime_metadata_rejects_inline_secret_runtime_model():
+    env = _runtime_metadata_env()
+    doc = json.loads(env["ZCODE_RUNTIME_MODEL_JSON"])
+    doc["provider"]["apiKey"] = {"source": "inline", "value": "must-not-cross"}
+    env["ZCODE_RUNTIME_MODEL_JSON"] = json.dumps(doc)
+    with pytest.raises(_HelperExit) as exc:
+        _load_runtime_metadata(env)
+    assert exc.value.code == "RUNTIME_MODEL_METADATA_INVALID"
+
+
+def test_helper_runtime_metadata_rejects_credential_key_drift():
+    env = _runtime_metadata_env()
+    env["ZCODE_CREDENTIAL_DELIVERY_KEY"] = "OTHER_API_KEY"
+    env["OTHER_API_KEY"] = "synthetic-test-credential"
+    with pytest.raises(_HelperExit) as exc:
+        _load_runtime_metadata(env)
+    assert exc.value.code == "RUNTIME_MODEL_CREDENTIAL_KEY_MISMATCH"
+
+
 def test_generic_plan_uses_generic_helper(tmp_path):
     service = _service(tmp_path, ["GENERIC_NATIVE"])
     plan = _plan(tmp_path, "GENERIC_NATIVE")

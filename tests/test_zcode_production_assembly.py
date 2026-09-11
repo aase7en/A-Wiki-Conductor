@@ -51,7 +51,7 @@ def _profile():
         provider_id="zcode-glm",
         display_name="ZCode GLM",
         provider_type="zcode-app-server",
-        protocol_family=ProtocolFamily.CUSTOM,
+        protocol_family=ProtocolFamily.ANTHROPIC_MESSAGES,
         endpoint_ref="zcode-desktop",
         credential_ref="secret-ref:zcode-credential",
         trust_class=ProviderTrustClass.FIRST_PARTY,

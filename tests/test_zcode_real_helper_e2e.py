@@ -24,13 +24,21 @@ import json
 import os
 import sys
 import time
+from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
+from a_conductor.agent_change_packets import AgentChangeApplier, AgentResultPacket
 from a_conductor.claude_code_harness import TaskPacketFile
 from a_conductor.execution_store import SQLiteExecutionStore
-from a_conductor.provider_config_store import ProviderAdmissionRecord
+from a_conductor.native_execution import NativeExecutionScope, NativeFileSystem
+from a_conductor.provider_config_store import (
+    ProviderAdmissionKind,
+    ProviderAdmissionRecord,
+    SQLiteProviderConfigStore,
+)
 from a_conductor.provider_configuration import (
     ActorCapabilityEvidence,
     EgressBoundary,
@@ -38,13 +46,25 @@ from a_conductor.provider_configuration import (
     HarnessStrategy,
     ProviderConfiguration,
     ProviderEndpointConfig,
+    ProviderHealth,
     ProviderModelConfiguration,
+    ProviderObservation,
     ProviderTrustClass,
     ProtocolFamily,
 )
 from a_conductor.registry import windows_worktree_key
-from a_conductor.worker_lease import LeaseMutationIntent, WorkerLease
+from a_conductor.worker_lease import (
+    LeaseMutationIntent,
+    LeaseOutcomeKind,
+    SQLiteWorkerLeaseStore,
+    WorkerLease,
+    WorkerLeaseBroker,
+    WorkerLeaseCandidate,
+    WorkerLeaseRequest,
+)
 from a_conductor.zcode_production_assembly import ZCodeExecutionAuthorities, assemble_zcode_execution
+from a_conductor.zcode_protocol import ZCodeRuntimeModel
+from a_conductor.zcode_supervised_helper import _HelperExit, _HelperRuntimeMetadata, _build_child_environment
 
 BINDING = HarnessRuntimeBinding(
     harness_strategy=HarnessStrategy.ZCODE_APP_SERVER,
@@ -98,8 +118,17 @@ for line in sys.stdin:
     msg = json.loads(line)
     mid, method = msg.get("id"), msg.get("method")
     if method == "session/create":
+        create_params = msg.get("params", {})
+        runtime_model = create_params.get("runtimeModel", {})
+        model_ref = create_params.get("model") or runtime_model.get("model")
+        if receipt_dir:
+            with open(os.path.join(receipt_dir, "create_receipts.jsonl"), "a", encoding="utf-8") as f:
+                f.write(json.dumps({"model": model_ref, "runtimeModel": runtime_model}, separators=(",", ":")) + "\n")
         out({"id": 1000, "method": "session/requestRuntimePreferences"})
-        out({"id": mid, "result": {"session": {"sessionId": "fake-session-1"}}})
+        out({"id": mid, "result": {
+            "session": {"sessionId": "fake-session-1"},
+            "settings": {"model": {"current": model_ref, "available": []}},
+        }})
     elif method == "session/subscribe":
         out({"id": mid, "result": {"ok": True}})
     elif method == "session/send":
@@ -152,7 +181,7 @@ def _profile():
         provider_id="zcode-glm",
         display_name="ZCode GLM",
         provider_type="zcode-app-server",
-        protocol_family=ProtocolFamily.CUSTOM,
+        protocol_family=ProtocolFamily.ANTHROPIC_MESSAGES,
         endpoint_ref="zcode-desktop",
         credential_ref="secret-ref:zcode-credential",
         trust_class=ProviderTrustClass.FIRST_PARTY,
@@ -307,6 +336,34 @@ def _run_dir_files(store_db: Path, repo: Path) -> Path:
 NT_ONLY = pytest.mark.skipif(os.name != "nt", reason="Windows real-helper integration")
 
 
+def _helper_metadata_for_env_test() -> _HelperRuntimeMetadata:
+    return _HelperRuntimeMetadata(
+        packet_path="C:/synthetic/task.md",
+        packet_sha256="a" * 64,
+        trusted_root="C:/synthetic",
+        max_packet_bytes=1024,
+        output_budget=1024,
+        deadline_seconds=30.0,
+        runtime_model=ZCodeRuntimeModel(
+            revision="zcode-runtime-v1:" + "b" * 64,
+            provider_id="synthetic-provider",
+            model_id="synthetic-model",
+            base_url="https://example.invalid",
+            api_key_env="ANTHROPIC_API_KEY",
+        ),
+        delivery_key="ANTHROPIC_API_KEY",
+        credential="synthetic-secret-not-real",
+    )
+
+
+@NT_ONLY
+def test_helper_child_environment_requires_systemroot_on_windows(monkeypatch) -> None:
+    monkeypatch.delenv("SYSTEMROOT", raising=False)
+    with pytest.raises(_HelperExit) as exc_info:
+        _build_child_environment(_helper_metadata_for_env_test())
+    assert exc_info.value.code == "CHILD_ENV_SYSTEMROOT_INVALID"
+
+
 @NT_ONLY
 def test_real_helper_happy_path_e2e(tmp_path: Path) -> None:
     """The full real chain executes: assembly -> coordinator -> service ->
@@ -343,7 +400,7 @@ def test_real_helper_happy_path_e2e(tmp_path: Path) -> None:
     env_snapshot = json.dumps(child_env["env"])
     assert PROMPT_MARKER not in env_snapshot
     assert PROMPT_MARKER not in json.dumps(child_env["argv"])
-    allowed_env_keys = {"ELECTRON_RUN_AS_NODE", "ANTHROPIC_API_KEY"}
+    allowed_env_keys = {"ELECTRON_RUN_AS_NODE", "SYSTEMROOT", "ANTHROPIC_API_KEY"}
     assert set(child_env["env"]) == allowed_env_keys, sorted(child_env["env"])
 
     # 9. report written before result
@@ -522,6 +579,10 @@ def test_finished_at_follows_real_terminal_exit_e2e(tmp_path: Path) -> None:
     assert started_ms < receipt_ms <= finished_ms, (started_ms, receipt_ms, finished_ms)
 
 
+# WO-P1-178 composes canonical provider/lease authorities through the already
+# accepted real-helper path.  The test remains test-only: no production seam is
+# introduced here.
+
 @NT_ONLY
 def test_same_packet_two_models_no_reuse_e2e(tmp_path: Path) -> None:
     """P1-1 critical negative: the SAME verified TaskPacket under a DIFFERENT
@@ -583,3 +644,214 @@ def test_same_packet_two_models_no_reuse_e2e(tmp_path: Path) -> None:
     con.close()
     assert rows == 2, rows
     assert len({r[0] for r in refs}) == 2  # two distinct derived runtime identities
+
+    # WO176: prove the ACTUAL child protocol payloads differ by the authorized
+    # models; this is stronger than the pre-WO176 two-hash/two-spawn proof.
+    creates = [
+        json.loads(line)
+        for line in (receipts / "create_receipts.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(creates) == 2, creates
+    assert [item["model"] for item in creates] == [
+        {"providerId": "zcode-glm", "modelId": "glm-5.3"},
+        {"providerId": "zcode-glm", "modelId": "glm-4.7"},
+    ]
+    for item in creates:
+        runtime_model = item["runtimeModel"]
+        assert runtime_model["provider"]["baseURL"] == BASE_URL
+        assert runtime_model["provider"]["apiKey"] == {
+            "source": "env", "name": "ANTHROPIC_API_KEY"
+        }
+    assert SECRET not in (receipts / "create_receipts.jsonl").read_text(encoding="utf-8")
+
+
+@NT_ONLY
+def test_zra_comp_1_canonical_authorities_result_boundary_and_replay(tmp_path: Path) -> None:
+    """WO178: compose canonical admission + lease through the real helper.
+
+    This closes the gap between individually tested authority primitives and
+    one zero-relay-shaped execution.  Provider admission and WorkerLease are
+    acquired from their canonical SQLite stores; the accepted production
+    assembly must consume those exact records, materialize the authorized
+    provider/model on the child wire, collect a durable result, cross the
+    AgentResultPacket/apply boundary without changes, and deduplicate replay
+    without a second child spawn.
+    """
+    provider_store = SQLiteProviderConfigStore(tmp_path / "provider.sqlite")
+    provider_store.save_endpoint(ENDPOINT)
+    generation = provider_store.save_provider(_profile())
+    now = datetime.now(timezone.utc)
+    provider_store.save_observation(
+        ProviderObservation(
+            provider_id="zcode-glm",
+            health=ProviderHealth.AVAILABLE,
+            observed_at=now,
+            provenance="wo178-zra-comp-1",
+            configuration_generation=generation,
+        )
+    )
+    snapshot = provider_store.load_provider_snapshot("zcode-glm")
+    assert snapshot is not None
+    assert snapshot.generation == generation
+    assert snapshot.endpoint == ENDPOINT
+
+    batch_id = "batch-zra-comp-1"
+    execution_id = "exec-zra-comp-1"
+    comp_branch = "test/wo-p1-178-zra-comp-1"
+    comp_head = "a" * 40
+    admission_outcome = provider_store.acquire_admission(
+        provider_id="zcode-glm",
+        execution_id=execution_id,
+        batch_id=batch_id,
+        expected_max_concurrency=1,
+        now=now,
+        ttl_seconds=600,
+        expected_configuration_generation=generation,
+    )
+    assert admission_outcome.kind is ProviderAdmissionKind.ADMITTED
+    admission = admission_outcome.admission
+    assert admission is not None and admission.status == "ACTIVE"
+
+    lease_store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    broker = WorkerLeaseBroker(
+        store=lease_store,
+        lease_id_factory=lambda: "lease-zra-comp-1",
+        clock=lambda: datetime.now(timezone.utc),
+    )
+    lease_request = WorkerLeaseRequest(
+        session_id="session-zra-comp-1",
+        task_id=TASK_REF,
+        project_id="zcode",
+        ordered_worker_ids=("a-worker-01",),
+        required_capabilities=("code",),
+        required_runtime_id=None,
+        worktree=str(tmp_path),
+        branch=comp_branch,
+        expected_head=comp_head,
+        mutation_intent=LeaseMutationIntent.MUTATION,
+        allowed_scope=("src/a_conductor", "src/a_conductor/*"),
+        forbidden_scope=("secrets", "secrets/*"),
+        mutable_scope=("src/a_conductor/zcode_runner.py",),
+        lease_ttl_seconds=600,
+    )
+    candidate = WorkerLeaseCandidate(
+        worker_id="a-worker-01",
+        state="READY",
+        reserved=False,
+        active_task=False,
+        capabilities=("code",),
+        runtime_id=None,
+        project_id="zcode",
+        worktree=str(tmp_path),
+        branch=comp_branch,
+        head=comp_head,
+        health_fresh=True,
+        ownership_known=True,
+        dirty_state="CLEAN",
+        mutation_authorized=True,
+    )
+    lease_outcome = broker.acquire(lease_request, (candidate,))
+    assert lease_outcome.kind is LeaseOutcomeKind.LEASED
+    lease = lease_outcome.lease
+    assert lease is not None
+
+    base_authorities = build_real_service_authorities(tmp_path)
+    authorities = replace(
+        base_authorities,
+        provider_snapshot=snapshot,
+        lease_evidence=lease,
+        admission_evidence=admission,
+        dispatch_batch_id=batch_id,
+        dispatch_execution_id=execution_id,
+        branch=comp_branch,
+        head=comp_head,
+    )
+    runtime_python = getattr(sys, "_base_executable", sys.executable)
+    receipts = tmp_path / "receipts"
+    fake_script = _write_fake_app_server(tmp_path / "fake", receipts, "ok")
+    packet = _packet(tmp_path)
+    runner = assemble_zcode_execution(
+        authorities=authorities,
+        packet=packet,
+        model_id="glm-5.3",
+        expected_generation=generation,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path),
+        executable=runtime_python,
+        bundle_js=str(fake_script),
+        deadline_seconds=30.0,
+    )
+
+    first = runner.run(timeout_seconds=90)
+    assert first.exit_code == 0, first.stderr
+    assert first.stdout == RESPONSE_TEXT
+    spawns_after_first = (receipts / "spawn.pid").read_text(encoding="utf-8").split()
+    assert len(spawns_after_first) == 1
+
+    create_doc = json.loads(
+        (receipts / "create_receipts.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    )
+    assert create_doc["model"] == {"providerId": "zcode-glm", "modelId": "glm-5.3"}
+    assert create_doc["runtimeModel"]["provider"]["baseURL"] == BASE_URL
+    assert create_doc["runtimeModel"]["provider"]["apiKey"] == {
+        "source": "env", "name": "ANTHROPIC_API_KEY"
+    }
+    assert SECRET not in json.dumps(create_doc, sort_keys=True)
+
+    run_dir = _run_dir_files(tmp_path / "control.sqlite", tmp_path)
+    assert (run_dir / "report.json").is_file()
+    assert (run_dir / "result.json").is_file()
+    packet_result = AgentResultPacket(
+        task_id=TASK_REF,
+        provider_id="zcode-glm",
+        model_id="glm-5.3",
+        status="NO_CHANGES",
+        base_head=comp_head,
+        evidence_refs=(
+            str(run_dir / "report.json"),
+            str(run_dir / "result.json"),
+        ),
+    )
+
+    class _UnusedContinuity:
+        def continuity_snapshot(self, request):
+            del request
+            raise AssertionError("NO_CHANGES must not require a mutation continuity gate")
+
+    applier = AgentChangeApplier(
+        filesystem=NativeFileSystem(NativeExecutionScope(tmp_path, mutation_allowed=True)),
+        lease_store=lease_store,
+        continuity_provider=_UnusedContinuity(),
+        clock=lambda: datetime.now(timezone.utc),
+    )
+    apply_result = applier.apply(
+        packet_result,
+        lease.lease_id,
+        session_id=lease.session_id,
+        task_id=lease.task_id,
+        actual_head=comp_head,
+    )
+    assert apply_result.changed_paths == ()
+
+    second = runner.run(timeout_seconds=90)
+    assert second.exit_code == 0
+    assert second.stdout == RESPONSE_TEXT
+    assert (receipts / "spawn.pid").read_text(encoding="utf-8").split() == spawns_after_first
+
+    released_admission = provider_store.release_admission(
+        admission.admission_id,
+        provider_id=admission.provider_id,
+        execution_id=admission.execution_id,
+        batch_id=admission.batch_id,
+        now=datetime.now(timezone.utc),
+    )
+    assert released_admission.status == "RELEASED"
+    lease_release = lease_store.release(
+        lease.lease_id,
+        session_id=lease.session_id,
+        task_id=lease.task_id,
+        released_at=datetime.now(timezone.utc),
+    )
+    assert lease_release.released is True

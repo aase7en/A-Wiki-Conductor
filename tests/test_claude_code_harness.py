@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -167,9 +169,17 @@ def test_adapter_builds_fixed_read_only_noninteractive_invocation(tmp_path) -> N
     assert "--output-format" in invocation.argv
     assert "json" in invocation.argv
     assert "--no-session-persistence" in invocation.argv
-    assert "--safe-mode" in invocation.argv
-    setting_index = invocation.argv.index("--setting-sources")
-    assert invocation.argv[setting_index + 1] == "project,local"
+    assert "--safe-mode" not in invocation.argv
+    assert "--bare" in invocation.argv
+    assert "--disable-slash-commands" in invocation.argv
+    assert "--strict-mcp-config" in invocation.argv
+    assert json.loads(invocation.argv[invocation.argv.index("--mcp-config") + 1]) == {"mcpServers": {}}
+    assert invocation.argv[invocation.argv.index("--tools") + 1] == "Read,Glob,Grep"
+    assert "--setting-sources=" in invocation.argv
+    assert "--setting-sources" not in invocation.argv
+    settings_index = invocation.argv.index("--settings")
+    assert json.loads(invocation.argv[settings_index + 1]) == {"permissions": {"deny": []}}
+    assert all(invocation.argv)  # Native/supervised runners reject empty args.
     assert "--permission-mode" in invocation.argv
     assert "plan" in invocation.argv
     assert "--system-prompt-file" in invocation.argv
@@ -419,3 +429,434 @@ def test_json_object_keys_are_redacted_too(tmp_path) -> None:
         redaction_values=(secret,),
     )
     assert secret not in repr(result)
+
+
+def _write_claude_settings(worktree: Path, filename: str, payload) -> Path:
+    path = worktree / ".claude" / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(payload, str):
+        path.write_text(payload, encoding="utf-8")
+    else:
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def _invocation_settings_payload(runner: FakeRunner) -> dict:
+    argv = runner.calls[0].argv
+    index = argv.index("--settings")
+    return json.loads(argv[index + 1])
+
+
+def test_project_and_local_settings_project_only_permission_denies(tmp_path) -> None:
+    _write_claude_settings(
+        tmp_path,
+        "settings.json",
+        {
+            "env": {"ANTHROPIC_BASE_URL": "http://127.0.0.1:1"},
+            "hooks": {"SessionStart": []},
+            "permissions": {
+                "defaultMode": "bypassPermissions",
+                "allow": ["Bash(*)"],
+                "ask": ["Write(*)"],
+                "deny": ["Read(./project-denied.txt)", "Read(./shared.txt)"],
+            },
+        },
+    )
+    _write_claude_settings(
+        tmp_path,
+        "settings.local.json",
+        {
+            "enableAllProjectMcpServers": True,
+            "permissions": {
+                "deny": ["Read(./local-denied.txt)", "Read(./shared.txt)"],
+            },
+        },
+    )
+    runner = success_runner()
+    ClaudeCodeHarnessAdapter(runner=runner).execute(
+        make_dispatch(tmp_path),
+        make_profile(),
+        ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+        make_observation(),
+        make_packet(tmp_path),
+        now=NOW,
+    )
+    payload = _invocation_settings_payload(runner)
+    assert payload == {
+        "permissions": {
+            "deny": [
+                "Read(./project-denied.txt)",
+                "Read(./shared.txt)",
+                "Read(./local-denied.txt)",
+            ]
+        }
+    }
+    encoded = json.dumps(payload)
+    for forbidden in (
+        "ANTHROPIC_BASE_URL",
+        "hooks",
+        "defaultMode",
+        "allow",
+        "ask",
+        "enableAllProjectMcpServers",
+    ):
+        assert forbidden not in encoded
+    assert "--setting-sources=" in runner.calls[0].argv
+    assert "--setting-sources" not in runner.calls[0].argv
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        "{not-json",
+        [],
+        {"permissions": []},
+        {"permissions": None},
+        {"permissions": {"deny": None}},
+        {"permissions": {"deny": "Read(./x)"}},
+        {"permissions": {"deny": [1]}},
+        {"permissions": {"deny": [""]}},
+        {"permissions": {"deny": ["bad\x00rule"]}},
+        {"permissions": {"deny": ["x" * 1025]}},
+        {"permissions": {"deny": [f"Read(./{i})" for i in range(129)]}},
+    ),
+)
+def test_malformed_permission_settings_fail_before_runner(tmp_path, payload) -> None:
+    _write_claude_settings(tmp_path, "settings.json", payload)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
+
+
+def test_oversized_project_settings_fail_before_runner(tmp_path) -> None:
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"ignored": "x" * 70_000}),
+        encoding="utf-8",
+    )
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_TOO_LARGE"
+    assert runner.calls == []
+
+
+def test_settings_symlink_outside_worktree_fails_closed(tmp_path) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside-settings.json"
+    outside.write_text(
+        json.dumps({"permissions": {"deny": ["Read(./outside.txt)"]}}),
+        encoding="utf-8",
+    )
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    runner = success_runner()
+    try:
+        with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+            ClaudeCodeHarnessAdapter(runner=runner).execute(
+                make_dispatch(tmp_path),
+                make_profile(),
+                ProviderEndpointConfig(
+                    "provider-config:glm-shared/base-url",
+                    "https://api.example.test",
+                ),
+                make_observation(),
+                make_packet(tmp_path),
+                now=NOW,
+            )
+        assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+        assert runner.calls == []
+    finally:
+        outside.unlink(missing_ok=True)
+
+
+def test_sanitized_permission_payload_has_cross_platform_size_ceiling(tmp_path) -> None:
+    _write_claude_settings(
+        tmp_path,
+        "settings.json",
+        {"permissions": {"deny": ["R" * 1000 + str(i) for i in range(20)]}},
+    )
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig(
+                "provider-config:glm-shared/base-url",
+                "https://api.example.test",
+            ),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_TOO_LARGE"
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize(
+    "raw",
+    (
+        b'{"ignored":' + b"[" * 5000 + b"0" + b"]" * 5000 + b"}",
+        b'{"ignored":' + b"9" * 5000 + b"}",
+    ),
+)
+def test_hostile_json_parser_failures_are_typed_before_runner(tmp_path, raw) -> None:
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(raw)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
+
+
+def test_settings_size_gate_does_not_use_unbounded_path_read_bytes(tmp_path, monkeypatch) -> None:
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"x" * 70_000)
+    original = Path.read_bytes
+
+    def guarded_read_bytes(self):
+        if self == path:
+            raise AssertionError("settings must use bounded file reads")
+        return original(self)
+
+    monkeypatch.setattr(Path, "read_bytes", guarded_read_bytes)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_TOO_LARGE"
+    assert runner.calls == []
+
+
+def test_existing_claude_directory_without_settings_remains_allowed(tmp_path) -> None:
+    (tmp_path / ".claude").mkdir()
+    runner = success_runner()
+    result = ClaudeCodeHarnessAdapter(runner=runner).execute(
+        make_dispatch(tmp_path),
+        make_profile(),
+        ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+        make_observation(),
+        make_packet(tmp_path),
+        now=NOW,
+    )
+    assert result.status is HarnessExecutionStatus.SUCCESS
+    assert _invocation_settings_payload(runner) == {"permissions": {"deny": []}}
+
+
+def test_settings_parent_regular_file_fails_closed_before_runner(tmp_path) -> None:
+    (tmp_path / ".claude").write_text("not-a-directory", encoding="utf-8")
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
+
+
+def test_settings_parent_symlink_loop_is_typed_before_runner(tmp_path) -> None:
+    (tmp_path / ".claude").symlink_to(".claude", target_is_directory=True)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="POSIX FIFO unavailable")
+def test_nonregular_settings_fifo_is_rejected_before_open(tmp_path, monkeypatch) -> None:
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    os.mkfifo(path)
+    real_open = os.open
+
+    def guarded_open(candidate, flags, *args, **kwargs):
+        if Path(candidate) == path:
+            raise AssertionError("non-regular settings must be rejected before os.open")
+        return real_open(candidate, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", guarded_open)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
+
+
+def test_settings_parent_symlink_outside_worktree_fails_closed(tmp_path) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside-dir"
+    outside.mkdir()
+    (outside / "settings.json").write_text(
+        json.dumps({"permissions": {"deny": ["Read(./outside.txt)"]}}),
+        encoding="utf-8",
+    )
+    (tmp_path / ".claude").symlink_to(outside, target_is_directory=True)
+    runner = success_runner()
+    try:
+        with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+            ClaudeCodeHarnessAdapter(runner=runner).execute(
+                make_dispatch(tmp_path),
+                make_profile(),
+                ProviderEndpointConfig(
+                    "provider-config:glm-shared/base-url",
+                    "https://api.example.test",
+                ),
+                make_observation(),
+                make_packet(tmp_path),
+                now=NOW,
+            )
+        assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+        assert runner.calls == []
+    finally:
+        (outside / "settings.json").unlink(missing_ok=True)
+        outside.rmdir()
+
+
+def test_settings_identity_replacement_during_read_fails_closed(tmp_path, monkeypatch) -> None:
+    path = _write_claude_settings(
+        tmp_path,
+        "settings.json",
+        {"permissions": {"deny": ["Read(./first.txt)"]}},
+    )
+    displaced = path.with_name("settings.displaced.json")
+    real_read = os.read
+    replaced = False
+
+    def replacing_read(fd, size):
+        nonlocal replaced
+        if not replaced:
+            replaced = True
+            path.replace(displaced)
+            path.write_text(
+                json.dumps({"permissions": {"deny": ["Read(./second.txt)"]}}),
+                encoding="utf-8",
+            )
+        return real_read(fd, size)
+
+    monkeypatch.setattr(os, "read", replacing_read)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as exc_info:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path),
+            make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://api.example.test"),
+            make_observation(),
+            make_packet(tmp_path),
+            now=NOW,
+        )
+    assert exc_info.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize("filename", ["settings.json", "settings.local.json"])
+@pytest.mark.parametrize("raw", [
+    '{"permissions":{"deny":["Read(./private.txt)"],"deny":[]}}',
+    '{"permissions":{"deny":["Read(./private.txt)"]},"permissions":{}}',
+    r'{"permissions":{"deny":["Read(./private.txt)"],"d\u0065ny":[]}}',
+    '{"permissions":{"deny":[],"deny":[]}}',
+    '{"ignored":{"value":1,"value":2},"permissions":{"deny":[]}}',
+], ids=["duplicate-deny", "duplicate-permissions", "escaped-key", "identical-values", "nested-ignored"])
+def test_duplicate_settings_object_keys_fail_before_runner(tmp_path, filename, raw):
+    path = tmp_path / ".claude" / filename
+    path.parent.mkdir()
+    path.write_text(raw, encoding="utf-8")
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as error:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path), make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://example.test"),
+            make_observation(), make_packet(tmp_path), now=NOW,
+        )
+    assert error.value.code == "CLAUDE_SETTINGS_INVALID"
+    assert not runner.calls
+
+
+def test_windows_quoting_expansion_is_rejected_before_runner(tmp_path):
+    # The raw JSON is below 16 KiB but quoting doubles the escaped quotes,
+    # producing >32,767 UTF-16 units even before launcher overhead.
+    rules = [f'Read(./{i}' + '"' * 1010 + ')' for i in range(8)]
+    payload = {"permissions": {"deny": rules}}
+    sanitized = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    assert len(sanitized.encode("utf-8")) < 16384
+    _write_claude_settings(tmp_path, "settings.json", payload)
+    runner = success_runner()
+    with pytest.raises(ClaudeCodeHarnessError) as error:
+        ClaudeCodeHarnessAdapter(runner=runner).execute(
+            make_dispatch(tmp_path), make_profile(),
+            ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://example.test"),
+            make_observation(), make_packet(tmp_path), now=NOW,
+        )
+    assert error.value.code == "CLAUDE_SETTINGS_TOO_LARGE"
+    assert not runner.calls
+
+
+@pytest.mark.parametrize("rules", [
+    [f'Read(./{i}' + '"' * 480 + ')' for i in range(8)],
+    [f'Read(./{i}' + 'x' * 110 + ')' for i in range(120)],
+])
+def test_bounded_large_settings_preserve_rules_and_windows_headroom(tmp_path, rules):
+    _write_claude_settings(tmp_path, "settings.json", {"permissions": {"deny": rules}})
+    runner = success_runner()
+    ClaudeCodeHarnessAdapter(runner=runner).execute(
+        make_dispatch(tmp_path), make_profile(),
+        ProviderEndpointConfig("provider-config:glm-shared/base-url", "https://example.test"),
+        make_observation(), make_packet(tmp_path), now=NOW,
+    )
+    assert _invocation_settings_payload(runner) == {"permissions": {"deny": rules}}
+    command = subprocess.list2cmdline(runner.calls[0].argv)
+    assert len(command.encode("utf-16-le")) // 2 + 1 < 32767 - 4096

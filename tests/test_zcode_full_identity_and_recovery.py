@@ -26,6 +26,7 @@ from a_conductor.supervised_execution import (
     SupervisedInspection,
     SupervisedInspectionState,
 )
+from a_conductor.zcode_protocol import ZCodeRuntimeModel
 from a_conductor.zcode_runner import (
     ZCODE_BACKEND_ID,
     ZCodeBackendAdapter,
@@ -199,6 +200,13 @@ def _launcher_with_state(tmp_path, *, live, recovery_code="SUPERVISOR_EXITED_RES
         selection_source=Selection(),
         expected_binding=BINDING,
         expected_base_url=BASE_URL,
+        runtime_model=ZCodeRuntimeModel(
+            revision="zcode-runtime-v1:" + "a" * 64,
+            provider_id="zcode-glm",
+            model_id="glm-5.3",
+            base_url=BASE_URL,
+            api_key_env="ANTHROPIC_API_KEY",
+        ),
         secret_resolver=Secrets(),
         secret_reference="secret-ref:zcode-credential",
         packet=_identity(tmp_path),

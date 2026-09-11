@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import stat
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from subprocess import list2cmdline
 from typing import Protocol
 
 from .provider_configuration import (
@@ -29,6 +32,12 @@ _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _EFFORT_LEVELS = frozenset({"LOW", "HIGH", "MAX", "DEFAULT"})
 _READ_ONLY_TOOLS = "Read,Glob,Grep"
 _FIXED_PROMPT = "Execute the authorized task packet. Return concise structured evidence only."
+_CLAUDE_SETTINGS_FILENAMES = ("settings.json", "settings.local.json")
+_MAX_CLAUDE_SETTINGS_BYTES = 65_536
+_MAX_PERMISSION_DENY_RULES = 128
+_MAX_PERMISSION_RULE_LENGTH = 1_024
+_MAX_SANITIZED_SETTINGS_BYTES = 16_384
+_MAX_WINDOWS_SETTINGS_ARGUMENT_UNITS = 16_384
 
 
 def _require_text(value: str, field: str, *, max_length: int) -> str:
@@ -212,6 +221,187 @@ def _is_within(path: Path, root: Path) -> bool:
         return False
 
 
+def _read_bounded_claude_settings(path: Path, root: Path) -> bytes | None:
+    """Read one stable in-worktree regular settings file through a bounded handle."""
+    try:
+        named_before = os.stat(path, follow_symlinks=False)
+    except FileNotFoundError:
+        parent = path.parent
+        try:
+            parent_stat = os.stat(parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return None
+        except (OSError, RuntimeError) as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if not stat.S_ISDIR(parent_stat.st_mode):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        try:
+            resolved_parent = parent.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if not _is_within(resolved_parent, root):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        return None
+    except (OSError, RuntimeError) as exc:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+
+    if not stat.S_ISREG(named_before.st_mode):
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+    try:
+        resolved_before = path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+    if not _is_within(resolved_before, root):
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+    if named_before.st_size > _MAX_CLAUDE_SETTINGS_BYTES:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    try:
+        fd = os.open(path, flags)
+    except OSError as exc:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+
+    try:
+        try:
+            opened = os.fstat(fd)
+            named_open = os.stat(path, follow_symlinks=False)
+            resolved_open = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or not stat.S_ISREG(named_open.st_mode)
+            or not os.path.samestat(named_before, opened)
+            or not os.path.samestat(opened, named_open)
+            or not _is_within(resolved_open, root)
+            or named_before.st_size != opened.st_size
+            or getattr(named_before, "st_mtime_ns", None)
+            != getattr(opened, "st_mtime_ns", None)
+        ):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        if opened.st_size > _MAX_CLAUDE_SETTINGS_BYTES:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+
+        chunks: list[bytes] = []
+        remaining = _MAX_CLAUDE_SETTINGS_BYTES + 1
+        while remaining > 0:
+            try:
+                chunk = os.read(fd, min(8192, remaining))
+            except OSError as exc:
+                raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        if len(raw) > _MAX_CLAUDE_SETTINGS_BYTES:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+
+        try:
+            after = os.fstat(fd)
+            named_after = os.stat(path, follow_symlinks=False)
+            resolved_after = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if (
+            not os.path.samestat(opened, after)
+            or not os.path.samestat(after, named_after)
+            or not _is_within(resolved_after, root)
+            or opened.st_size != after.st_size
+            or getattr(opened, "st_mtime_ns", None)
+            != getattr(after, "st_mtime_ns", None)
+        ):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        return raw
+    finally:
+        try:
+            os.close(fd)
+        except OSError as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+
+
+def _unique_settings_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Reject ambiguity at every JSON object, before any settings are projected."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            # Do not include project-controlled keys or values in the exception.
+            raise ValueError("duplicate settings object key")
+        result[key] = value
+    return result
+
+
+def _sanitized_claude_permission_settings(worktree: Path) -> str:
+    """Project only bounded project/local permission denies into Claude settings."""
+    root = worktree.expanduser().resolve(strict=False)
+    deny_rules: list[str] = []
+    seen: set[str] = set()
+
+    for filename in _CLAUDE_SETTINGS_FILENAMES:
+        path = root / ".claude" / filename
+        raw = _read_bounded_claude_settings(path, root)
+        if raw is None:
+            continue
+        try:
+            payload = json.loads(
+                raw.decode("utf-8", errors="strict"),
+                object_pairs_hook=_unique_settings_object,
+            )
+        except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID") from exc
+        if not isinstance(payload, dict):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+
+        if "permissions" not in payload:
+            continue
+        permissions = payload["permissions"]
+        if not isinstance(permissions, dict):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+        if "deny" not in permissions:
+            continue
+        deny = permissions["deny"]
+        if not isinstance(deny, list):
+            raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+
+        for rule in deny:
+            if (
+                not isinstance(rule, str)
+                or not rule.strip()
+                or rule != rule.strip()
+                or "\x00" in rule
+                or len(rule) > _MAX_PERMISSION_RULE_LENGTH
+            ):
+                raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+            if rule in seen:
+                continue
+            seen.add(rule)
+            deny_rules.append(rule)
+            if len(deny_rules) > _MAX_PERMISSION_DENY_RULES:
+                raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_INVALID")
+
+    sanitized = json.dumps(
+        {"permissions": {"deny": deny_rules}},
+        separators=(",", ":"),
+        sort_keys=True,
+        ensure_ascii=True,
+    )
+    if len(sanitized.encode("utf-8")) > _MAX_SANITIZED_SETTINGS_BYTES:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+    # This is pure serialization, not process I/O. JSON is ASCII-escaped, so
+    # quoted characters equal UTF-16 units. Cap the Windows-quoted argument on
+    # every host, leaving 16,383 units of CreateProcessW's 32,767 for the
+    # fixed argv, bounded packet/model paths, launcher overhead and final NUL.
+    if len(list2cmdline([sanitized])) > _MAX_WINDOWS_SETTINGS_ARGUMENT_UNITS:
+        raise ClaudeCodeHarnessError("CLAUDE_SETTINGS_TOO_LARGE")
+    return sanitized
+
+
 class ClaudeCodeHarnessAdapter:
     def __init__(self, *, runner: ClaudeCodeRunner, max_task_packet_bytes: int = 262_144) -> None:
         if not callable(getattr(runner, "run", None)):
@@ -274,6 +464,8 @@ class ClaudeCodeHarnessAdapter:
         profile: ProviderConfiguration,
         packet_path: Path,
     ) -> ClaudeCodeInvocation:
+        worktree = Path(dispatch.worktree_path).expanduser().resolve(strict=False)
+        sanitized_settings = _sanitized_claude_permission_settings(worktree)
         argv = [
             "claude",
             "--print",
@@ -281,9 +473,19 @@ class ClaudeCodeHarnessAdapter:
             "--output-format",
             "json",
             "--no-session-persistence",
-            "--safe-mode",
-            "--setting-sources",
-            "project,local",
+            # --safe-mode requires Claude >=2.1.169. Use the older explicit
+            # isolation profile on every host; never retry with weaker flags.
+            # Bare still permits explicit skills/MCP, so close those surfaces.
+            # Ambient settings stay excluded because they can rewrite provider
+            # env. Only validated project/local permission denies are projected.
+            "--bare",
+            "--disable-slash-commands",
+            "--strict-mcp-config",
+            "--mcp-config",
+            '{"mcpServers":{}}',
+            "--setting-sources=",
+            "--settings",
+            sanitized_settings,
             "--permission-mode",
             "plan",
             "--tools",

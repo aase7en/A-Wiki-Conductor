@@ -4,19 +4,35 @@ A-Wiki Conductor is the project/repository name. **A-Sunday Conductor** is the p
 
 **Important/secret files live in the private Drive layer** `L:\My Drive\A-Wiki-Data` (junction `drive/` from A-Wiki): Tunnel IDs → `secrets/a-conductor-tunnels.md`, connector-deletion zip backups → `backups/a-conductor-instances/` (the app writes there automatically when the folder exists). Read that layer's `AGENTS.md` + `LAYOUT.md` before touching it; never copy secrets into this repo.
 
-Before any non-trivial work, every ChatGPT session, GPT Work task, A-Worker, Serena session, Codex task, or external AI/coding agent must read, in order:
+Before any non-trivial work, every ChatGPT session, GPT Work/Codex task, A-Worker, Serena/SunDay Worker session, ZCode/GLM goal, local model, or external coding agent must use the same startup path:
 
-1. `PROJECT-PLAN.md` — authoritative product vision, architecture, roadmap, constraints.
-2. `DESIGN.md` — authoritative product UI/interaction direction, responsive rules, Sunday Family logo/motion, and performance contract.
-3. `COLLAB.md` — A-Wiki cross-agent lanes, claims, work-order rules, pause/resume.
-4. `CURRENT-WORK.md` — current phase, active work order, checklist, blockers.
-5. `handoff.md` — latest verified resume state.
-6. The active `docs/work-orders/<id>.md`.
-7. `DEFECT_LESSONS.md` — บทเรียนจากข้อผิดพลาดที่เคยเกิดจริง (อ่านก่อนแก้โค้ดใน src/)
+1. `00-AGENT-ENTRY.md` - universal front door and role split.
+2. `PROJECT-GRAPH.yaml` - select only the workflow/design/architecture nodes relevant to the task.
+3. `AGENTS.md` - this repository contract.
+4. Verify actual repository/worktree/remote/branch/HEAD/dirty state plus current claim/ownership before trusting summaries. Actual state is evidence of what exists; it never overrides user authority, safety constraints, or binding repository policy.
+5. Read `CURRENT-WORK.md`.
+6. Read the active work order under `docs/work-orders/` when one exists or has already been claimed. Read `handoff.md` only for resume/transfer work, unclear continuity, or when `CURRENT-WORK.md` points to it for material context.
+7. Read the task-relevant nodes selected by `PROJECT-GRAPH.yaml`.
+8. Read `DEFECT_LESSONS.md` before any `src/a_conductor/` mutation.
+9. Classify R0/R1/R2/R3, prove non-overlap, claim the lane, then run the shortest truthful loop in `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`.
+
+If a new task has no work order yet, product/source mutation remains blocked. A bounded docs-only governance bootstrap may create the initial work order/claim in a clean isolated scope, after which the full mutation gate must be rerun immediately.
+
+`PROJECT-PLAN.md` and `DESIGN.md` are no longer mandatory large reads for every task. They remain authoritative and become mandatory when the project graph selects architecture/roadmap or UI/UX nodes. This reduces repeated startup cost without weakening continuity or safety.
+
+Default delivery model:
+
+`GPT GOVERNANCE -> CAPABILITY-SELECTED EXECUTION -> DETERMINISTIC VERIFY -> INDEPENDENT REVIEW AS REQUIRED -> GPT ACCEPT/MERGE`
+
+- Select the implementation executor by task class, risk, capability, readiness, authorization, cost, and availability using `docs/agent-collab/CAPABILITY_MATRIX.md`; GLM/ZCode is the current preferred candidate for bounded READY work when those gates permit it.
+- GPT/integrator retains architecture, trust-boundary, dependency-order, SSoT, final defect adjudication, merge, release, and acceptance authority.
+- R3 work requires GPT/integrator authority/failure-model framing before mutation as well as final GPT acceptance.
+- A durable WO/task packet is the prompt contract. Do not regenerate a long bespoke prompt when a one-line pointer to that packet is sufficient.
+- Until Zero-Relay is accepted, the human fallback is one pointer command only; result copy-back is not required when the integrator can read the result destination directly.
 
 ## Core continuity rule
 
-Do not rely on chat/session memory as the source of truth. Durable project files, repository/runtime state, work orders, evidence, decisions, and handoff artifacts are authoritative.
+Do not rely on chat/session memory as the source of truth. Durable project files, repository/runtime state, work orders, evidence, decisions, and handoff artifacts are authoritative within user/safety/repository-policy constraints.
 
 Before stopping or delegating non-trivial work, update the active work order checkpoint, `CURRENT-WORK.md`, and `handoff.md` so another agent with no access to the previous conversation can continue safely.
 

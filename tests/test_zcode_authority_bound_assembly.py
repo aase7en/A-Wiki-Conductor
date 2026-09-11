@@ -59,7 +59,7 @@ def _profile():
         provider_id="zcode-glm",
         display_name="ZCode GLM",
         provider_type="zcode-app-server",
-        protocol_family=ProtocolFamily.CUSTOM,
+        protocol_family=ProtocolFamily.ANTHROPIC_MESSAGES,
         endpoint_ref="zcode-desktop",
         credential_ref="secret-ref:zcode-credential",
         trust_class=ProviderTrustClass.FIRST_PARTY,
@@ -194,14 +194,17 @@ def _authorities(tmp_path: Path, *, lease=_DEFAULT, admission=_DEFAULT, snapshot
     )
 
 
-def _assemble(tmp_path: Path, *, authorities=None, base_url="http://127.0.0.1:1", **kw):
+def _assemble(
+    tmp_path: Path, *, authorities=None, base_url="http://127.0.0.1:1",
+    secret_reference="secret-ref:zcode-credential", **kw
+):
     return assemble_zcode_execution(
         authorities=authorities or _authorities(tmp_path, **kw),
         packet=_packet(tmp_path),
         model_id="glm-5.3",
         expected_generation=1,
         expected_base_url=base_url,
-        secret_reference="secret-ref:zcode-credential",
+        secret_reference=secret_reference,
         workspace=str(tmp_path),
         executable=EXEC,
         bundle_js=BUNDLE,
@@ -345,6 +348,21 @@ def test_wrong_model_rejected(tmp_path):
 
 
 # ---------------- endpoint authority ----------------
+
+def test_caller_secret_reference_cannot_override_profile_credential_authority(tmp_path):
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble(tmp_path, secret_reference="secret-ref:other-credential")
+    assert e.value.code == "ZCODE_CREDENTIAL_REFERENCE_UNAUTHORIZED"
+
+
+def test_ambiguous_custom_protocol_cannot_be_guessed_into_anthropic_runtime(tmp_path):
+    from dataclasses import replace
+
+    profile = replace(_profile(), protocol_family=ProtocolFamily.CUSTOM)
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble(tmp_path, snapshot=Snapshot(1, profile))
+    assert e.value.code == "ZCODE_RUNTIME_PROTOCOL_UNSUPPORTED"
+
 
 def test_endpoint_drift_against_snapshot_authority_rejected(tmp_path):
     """The caller-requested route must match the provider-snapshot endpoint

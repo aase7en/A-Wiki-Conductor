@@ -795,3 +795,18 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 A later W4 control failure captured the same mechanism more precisely: MCP connection TTL reached -> stdio write file already closed -> tunnel shutdown -> Serena exit 120 / stdout-flush OSError 22 -> TUNNEL_START_FAILED. W1 on the checksum-verified 0.0.14 canary remained healthy through the same observation window, while W2/W3/W5 on 0.0.11 also remained alive.
 
 **Refined lesson:** do not model the legacy 0.0.11 defect as a fixed-uptime crash. Current evidence is consistent with a trigger-dependent deadline/session condition that exercises the old shared-stdio behavior. Version upgrade remains required because 0.0.11 is below the accepted safe floor, but causal testing must preserve negative controls and must not inject the trigger into a Worker with active/ambiguous work.
+
+
+---
+
+## #53: sibling repos can recreate the same authority under different names (2026-09-08)
+
+**Symptom:** the A-Wiki/A-Conductor roadmap began to look like both repos were implementing planning, claims, routing, review, continuity and completion. During P0-B4, concurrent GPT integrator sessions also published/reconciled multiple task-packet hashes for the same transition before exact-hash fencing converged.
+
+**Root cause:** the prose integration contract correctly said REUSE/WRAP/EXTEND, but it did not provide an executable per-capability owner invariant. A-Wiki already has `conductor`, `a-flow`, `a-claim`, ReviewBus and work-order conventions, while A-Conductor has durable runtime job/lease/scheduler/recovery surfaces. Similar vocabulary allowed adapters, policy and runtime authority to be mistaken for peer owners. The upstream A-Wiki claim surface also exposes both a TTL local claim store and a durable COLLAB writer under the same “claim” term.
+
+**Fix:** keep the existing integration contract as the single boundary SSoT and add a machine-checked operational authority table. Every capability has exactly one `OWNER`; the sibling may only be `CONSUMER`, `ADAPTER`, or a time-bounded `COMPATIBILITY_FALLBACK`. P0-B5/P0-B6/ZRA mutation is held until the cross-repo audit is reconciled. Upstream A-Wiki dual-claim convergence is tracked separately in Issue #58.
+
+**Lesson:** REUSE/WRAP prose alone is not enough when two repos evolve in parallel. Any cross-repo control-plane capability needs an executable “one owner” invariant before implementation. Different storage formats or names do not make two planners, claim systems, review lifecycles, schedulers or retry authorities independent.
+
+**Verify:** `tests/test_awiki_a_conductor_authority_contract.py` was RED 3/3 against the prior contract and GREEN 3/3 after the owner map. The test rejects missing required capabilities, duplicate keys, invalid roles, OWNER/OWNER pairs, missing migration notes, absent fallback sunset wording, and removal of the downstream dedup hold. This is Tier-1 executable defect memory; Issue #233 carries the cross-repo audit evidence.
