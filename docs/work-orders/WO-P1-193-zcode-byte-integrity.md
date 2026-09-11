@@ -60,7 +60,7 @@ Verify: python -m pytest -q tests/test_zcode_stdout_boundary.py; then related te
 
 ## Frozen source / child validation handoff
 
-Source candidate: 09d3489296a97c1a16d89b0c6b29edf11b7ffa08.
+Source candidate: f1dbb65212a737f7a4f88dcd88bdb713f190ad51.
 Claim evidence: https://github.com/aase7en/A-Wiki-Conductor/issues/233#issuecomment-5631593477.
 Astra source lane is FROZEN: no concurrent writes while GLM validates it.
 Design and evidence: docs/reviews/WO-P1-193-byte-integrity-design.md.

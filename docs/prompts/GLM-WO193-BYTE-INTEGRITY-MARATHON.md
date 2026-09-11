@@ -35,7 +35,7 @@ checkpoint; never describe the provider as unlimited.
 
 Repository: https://github.com/aase7en/A-Wiki-Conductor.git
 Source branch: codex/wo-p1-193-byte-integrity
-Frozen source commit: 09d3489296a97c1a16d89b0c6b29edf11b7ffa08
+Frozen source commit: f1dbb65212a737f7a4f88dcd88bdb713f190ad51
 Source base: 46f90b329d4991211f5c8a26406f3aca2162e9a7
 First RED commit: 38501ba5326fa6ada577b610d8901b888506ef24
 Publication-order RED commit: 7dd992adf59eb2059cbaba7bd9a97598d08c6389
@@ -44,7 +44,7 @@ GLM Windows worktree: A:/GitHub/_worktrees/A-Wiki-Conductor-wo193-glm-byte-valid
 
 Frozen source SHA-256:
 - src/a_conductor/zcode_supervised_helper.py = 38f9fb192fe7d6cb754dd910448c0aef95eb850a8c196e550e5a216cc80521c7
-- tests/test_zcode_stdout_boundary.py = 7d467d2b8ad2ce0f6353058afd71340ece598cba588be6028d83b48f5ba2e5e7
+- tests/test_zcode_stdout_boundary.py = f0d3722b4e87e533c2d76c7adf4726996d593e073b3b69bb8e960be9754dbac9
 
 The containing delivery commit will also contain this packet and the design record.
 Use the exact containing commit named by the human pointer / Issue #233 handoff, not
@@ -353,7 +353,7 @@ State exactly what is complete vs remaining. No automatic continuation into anot
   "status": "COMPLETE_FOR_REVIEW",
   "repository": "aase7en/A-Wiki-Conductor",
   "branch": "codex/wo-p1-193-glm-byte-validation",
-  "source_sha": "09d3489296a97c1a16d89b0c6b29edf11b7ffa08",
+  "source_sha": "f1dbb65212a737f7a4f88dcd88bdb713f190ad51",
   "delivery_sha": "record exact pointer commit at startup",
   "candidate_sha": "record exact child commit at freeze",
   "packet_sha256": "compute exact packet bytes at startup",
