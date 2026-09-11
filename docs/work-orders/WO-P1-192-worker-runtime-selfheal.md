@@ -233,6 +233,21 @@ WO192 is operationally accepted only if:
 - no secrets are persisted in repo/issues/log excerpts;
 - result contains exact evidence and remaining uncertainty.
 
+## 2026-09-11 GPT pre-deployment evidence checkpoint
+
+This checkpoint supersedes older deployment assumptions but does not authorize live installation by itself.
+
+- installed HKCU uninstall record reports A-Sunday Conductor 0.6.0 at `C:/Users/aase7en/AppData/Local/Programs/A-Sunday Conductor`; current repository source `origin/main@46f90b329d4991211f5c8a26406f3aca2162e9a7` declares 0.7.0, so accepted recovery source is not yet the installed product;
+- current-source focused recovery battery passed `45/45` across connector recovery, visibility, desktop-control recovery, Serena config-store and worker-resilience tests;
+- copied-live-DB proof: live DB SHA-256 stayed `34AE10EDE1BE7F60F0655EE498296DAE358D9E423FD9F54C6B8D4F1D1E6E02CF` before/after; copied DB `integrity_check=ok`; `instance_recovery` was the only new table; all pre-existing row counts were preserved;
+- frozen 0.7.0 portable built from exact current source under `%TEMP%`, SHA-256 `38B93B011DEE53A5716631964BE4FC5E277E6CEEC6D0F644EF247856C671B862`; `--smoke` passed including against a copied live DB (`A-CONDUCTOR_SMOKE_OK projects=8 workers=8`);
+- frozen Setup candidate built but NOT installed: SHA-256 `5CF41659D8BF4E44395111182A3CC86B0ADD7CAFD45A099823BA781FDDB95D76`;
+- do not run `verify_frozen_installer_e2e.py` on this active host while 0.6.0 is installed because that verifier requires the HKCU uninstall key to be absent and would collide with the live install; use a clean/sacrificial host or isolated registry-safe proof;
+- build output under `A:/GitHub/.../runs` became `ERROR_ACCESS_DENIED` for read/hash/execute despite normal ACL, while the same source built under `%TEMP%` was readable/runnable. Treat this as a path/security-filter anomaly, not proof of ESET causality; do not disable/bypass security software;
+- Worker health recheck after the 14:39 restart: ports 18011..18015 all returned HTTP 200 `ready`; W1 uses 0.0.14 canary, W2/W3/W4/W5 still use legacy 0.0.11; no new lifecycle failure had been logged at this checkpoint.
+
+GLM should reuse this evidence rather than repeat unchanged probes. Before any live install, re-pin only facts that can drift: installed process/version, DB hash/integrity, Worker task/claim/lease state, exact PIDs/start identities, health, and current source/PR acceptance.
+
 ## Result contract
 
 `runs/WO-P1-192/result.md` must include:
