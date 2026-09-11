@@ -26,7 +26,7 @@ Reuse these already-proven facts; do not repeat them unless a driftable fact cha
 - frozen 0.7.0 portable under `%TEMP%` passed smoke against a copied live DB;
 - 0.7.0 Setup candidate is built but not installed;
 - do not run the clean-host frozen installer E2E on this active 0.6.0 host because the HKCU uninstall key is occupied;
-- artifact output under `A:/GitHub/.../runs` showed path-specific `ERROR_ACCESS_DENIED` while the `%TEMP%` build is readable/runnable; treat this as an unresolved path/security-filter anomaly, not ESET proof;
+- artifact output under `A:/GitHub/.../runs` inherited NTFS `Compressed` and hit `ERROR_ACCESS_DENIED`; the `%TEMP%` build was readable/runnable, and `compact /U` on the ignored A-drive candidate restored hash/read/`--smoke`. Use an uncompressed build/output path for deployment artifacts. Do not generalize this packaging-path finding into a Worker tunnel root cause or an ESET verdict;
 - W1-W5 were all ready at the latest recheck; W1=0.0.14 canary, W2-W5=0.0.11 legacy.
 
 Before live deployment, refresh ownership/task/lease/process/health and installed/version state. Do not reinterpret this checkpoint as authority to disrupt a busy Worker.
