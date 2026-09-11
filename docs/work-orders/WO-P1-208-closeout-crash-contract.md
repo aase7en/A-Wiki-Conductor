@@ -1,6 +1,6 @@
 # WO-P1-208 — Closeout crash-boundary proof and GLM campaign
 
-Status: CLAIMED / DESIGN + SYNTHETIC EVIDENCE ONLY
+Status: DESIGN_PREPARED_FOR_PARENT_REVIEW / GLM_CHILD_QUEUED
 Date: 2026-09-12
 Owner: Poppy Javis / GPT-6 Astra / home macOS
 Claim: WO208-ASTRA-CLOSEOUT-PROOF-001
@@ -56,3 +56,28 @@ Bootstrap only. Parent implementation and acceptance are not transferred. Next: 
 claim, then execute native Mac synthetic probes and write contract/evidence/lab packet.
 Global continuity fold remains with the existing single writer; scoped WO + public issue
 checkpoint supply its fold-in evidence.
+
+
+### Native proof and packet checkpoint — 2026-09-12
+
+Public reservation: Issue214 comment5639611854 / Issue233 comment5639612131.
+Completed native Mac source-seam proof: concurrent callers produced two synthetic fold
+file effects but one checkpoint; stale facts produced an effect before CAS rejected;
+unsafe UNKNOWN reentry repeated an effect after reopening; truthful positive reload kept
+one effect and reached COMPLETE then ALREADY_COMPLETE. Real JobStore/executor; synthetic
+ports/facts only. These are not production incidents or actual power-loss tests.
+
+Existing closeout/store baseline: 94 passed in 0.30s, exit0. Source blob pins and the exact
+replayable Python probe plus captured output are in the tracked evidence document.
+No production GoalCloseoutExecutor instantiation found under src at base. Parent must
+establish actual reachability/exclusion before assigning production defect severity.
+
+Deliverables: non-binding crash/effect contract plus nine-program GLM campaign (10–18h
+useful work, up to24 only if justified; finish early if done). Child evidence scope is
+NEW docs/reviews/WO-P1-208-glm-closeout-lab.md and appended checkpoints in this WO on its
+own branch; ignored runs/WO-P1-208/glm only for executable lab artifacts. No source changes.
+WO196/WO204/WO206 current goals are not preempted. Child QUEUED, not launched.
+
+Next safe action: validate/freeze/push docs, prepare clean canonical-byte Windows child
+worktree, publish exact delivery SHA/hashes/PR pointer to Issues214/233. Parent design
+acceptance remains pending; WO205 retains PhaseD scope. No merge from this lane.
