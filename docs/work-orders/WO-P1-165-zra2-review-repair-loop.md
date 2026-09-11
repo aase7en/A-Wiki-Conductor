@@ -163,6 +163,18 @@ Phase D: bind the accepted ZRA-1 execution/result path and durable job state,
 including REVIEW_PENDING -> COMPLETE guard only after exact-head review evidence.
 
 Every phase requires a fresh scope/overlap gate before touching shared files.
+
+## Phase A evidence (GLM implementation lane, 2026-09-11)
+
+- Lane: worktree `A-Wiki-Conductor-wo165-zra2-r2` @ branch `feat/wo-p1-165-zra2-review-repair-loop-r2`, base refresh `1dda36d6` (= PR #258 head at task start; TASK.md SHA256 verified `ef982d8e...`).
+- RED first: full 38-case matrix written before implementation; captured `ModuleNotFoundError: No module named 'a_conductor.zero_relay'`.
+- GREEN: focused `tests/test_zero_relay.py` **38 passed / 0 failed**; related `test_agent_change_packets` + `test_goal_closeout` **136 passed / 0 failed** (read-only reuse vocabulary: `TaskPacketFile` sha256 semantics, `AgentResultPacket` identity vocabulary).
+- Adversarial matrix included: raw-string disposition, truthy spoof object, control-char identities, hash malformation (63-hex/non-hex/blank), generation (<class 'bool'>, -1, 2, 5, '0'), cross-binding mismatches (task/result/attempt/generation), author==reviewer independence, UNKNOWN/TIMEOUT/AMBIGUOUS -> RECOVERY_REQUIRED, FAILED -> REJECTED, verification-failure + review-ACCEPT contradiction, no-review fail-closed, exactly-one repair generation (0->1), second rejection -> REJECTED, determinism, no-IO import surface, exception-text non-echo. Positive controls: first-accept, repaired-accept, repair-transition.
+- Checks: compileall OK; `git diff --check` OK; strict UTF-8/no-U+FFFD OK; secret scan of changed lines 0 hits (only deliberate non-credential test marker); changed tracked scope exactly the 3 allowed paths.
+- Implementation: pure frozen dataclasses + enums; zero I/O imports; no clock; stable `ZeroRelayError(code)` vocabulary; `RelayOutcome(decision, next_repair_generation)` carries next generation exactly 1 only for REPAIR_REQUIRED.
+- Module SHA256 `2c05f6605ebfda01…`; tests SHA256 `2175089eba4a9115…` (full digests in run evidence).
+- STATUS=PHASE_A_FROZEN / INDEPENDENT_REVIEW_REQUIRED — GLM authored this candidate and is NOT its independent reviewer.
+
 ## Verification
 
 At each frozen candidate:
