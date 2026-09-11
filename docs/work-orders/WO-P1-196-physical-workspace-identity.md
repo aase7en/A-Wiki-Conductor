@@ -1,6 +1,6 @@
 # WO-P1-196 — Physical workspace identity design and evidence
 
-Status: CLAIMED / DOCS + SYNTHETIC DESIGN PROOF ONLY
+Status: DESIGN DELIVERED FOR PARENT REVIEW / GLM LAB PREPARED_NOT_STARTED
 Claim: WO196-ASTRA-C1-DESIGN-001
 Owner: Poppy Javis / GPT-6 Astra / home macOS Codex
 Parent: Issue #216 / GPT1-ZRA4-PREFLIGHT-001 (GPT1 retains ZRA-4 authority)
@@ -57,3 +57,42 @@ Bootstrap: source/read-only issue evidence inspected. Existing parent authority 
 Known adjacent lanes: WO193 byte validation; WO191/WO195 ZRA3 composition; WO192/194 Worker
 runtime; another local WO195 is ZRA2 PhaseB. Never route from WO number alone: exact claim,
 branch, path and SHA are required. No source changes will occur in WO196.
+
+
+### Design delivery checkpoint — 2026-09-11
+
+The proposal and ten-program GLM packet are complete for parent review. Production
+implementation and ZRA4 acceptance remain HOLD; this is not a source fix or independent
+acceptance. GLM is PREPARED_NOT_STARTED and must claim capacity before writing its lab.
+
+Native synthetic evidence at the pinned source:
+- Mac symlink and Windows junction refer to the same directory object, yet lexical keys
+  differ. The real WorkerLeaseBroker grants LEASED + LEASED for the same src/a.py scope
+  with two distinct fake READY workers in one sacrificial SQLite store (two active rows).
+- Mac hardlinks refer to one file object while literal scopes appear disjoint. Dot-segment
+  and alternate-separator forms also expose scope projection questions.
+- Mac synthetic linked Git worktrees have different physical data roots and the same
+  physical Git common directory. No fixture has a remote or touches a live runtime.
+- These are isolated broker/resource counterexamples, not proof of production overwrite.
+
+Mac and Windows source blobs matched; full identities and results are in the proposal.
+Local ignored replay/evidence: runs/WO-P1-196/mac_probe.py and mac-proof.json. The proposal
+preserves portable observations; the GLM handback must add minimized replay excerpts.
+
+The design separates root/resource/Git identity, authorization vs reservation, observation
+vs anchored I/O, and host-local scope vs unsupported cross-host shared storage. It reuses
+the existing registry/glob/lease/dispatch authorities and gates legacy migration. The GLM
+packet allows only its new review document, appended child WO checkpoints, and ignored
+synthetic lab artifacts. Source, existing tests and other lane workspaces remain immutable.
+
+Claim visibility:
+- https://github.com/aase7en/A-Wiki-Conductor/issues/216#issuecomment-5635827069
+- https://github.com/aase7en/A-Wiki-Conductor/issues/233#issuecomment-5635827405
+
+Exact delivery SHA, packet/design SHA-256, prepared Windows worktree and draft PR will be
+recorded in the Issue216/233 delivery handoff after the commit, avoiding circular hashes.
+Global CURRENT-WORK/handoff projections remain with their existing single writer; this
+scoped checkpoint and the public issue handoff are the integrator's fold-in input.
+Next: GLM claims the separate evidence lane when capacity permits, executes the packet,
+and publishes its exact-SHA handback for the parent integrator. Do not merge or auto-start
+production implementation when the lab finishes.
