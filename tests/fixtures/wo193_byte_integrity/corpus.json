@@ -1,0 +1,174 @@
+{
+ "schema": "wo193-byte-corpus/1",
+ "note": "expected bytes are the oracle: hex/sha256/length precomputed at fixture-creation time; tests must not recompute from production code to define expectations",
+ "cases": [
+  {
+   "name": "ascii",
+   "risk": "ASCII baseline",
+   "text": "abc XYZ 019 _-.~",
+   "utf8_hex": "6162632058595a20303139205f2d2e7e",
+   "byte_length": 16,
+   "sha256": "e2b9e757e8162982178a1c085b65e74013b882d6e7ddfe08eb9a54a7bd87fbe8"
+  },
+  {
+   "name": "thai_inherent",
+   "risk": "Thai inherent vowels (multi-byte, combining-class)",
+   "text": "สวัสดีครับ",
+   "utf8_hex": "e0b8aae0b8a7e0b8b1e0b8aae0b894e0b8b5e0b884e0b8a3e0b8b1e0b89a",
+   "byte_length": 30,
+   "sha256": "ac5f4de685a686be7754d00a87e44b646c5438f3d334f2721ce04bb4c6d6a155"
+  },
+  {
+   "name": "thai_combining_mark",
+   "risk": "Thai sara am + thanthakhat combining mark",
+   "text": "กำ์",
+   "utf8_hex": "e0b881e0b8b3e0b98c",
+   "byte_length": 9,
+   "sha256": "42b147a16873100a14b7fc040e6863a484aec19a2d7fa3cc377a5ab376a37444"
+  },
+  {
+   "name": "cjk",
+   "risk": "CJK + Hangul",
+   "text": "漢字テスト中文한국어",
+   "utf8_hex": "e6bca2e5ad97e38386e382b9e38388e4b8ade69687ed959ceab5adec96b4",
+   "byte_length": 30,
+   "sha256": "cfaa5e9f385e307d36e6cdffe4ae802de7537970468aabc84575c64da443d273"
+  },
+  {
+   "name": "emoji_supplementary",
+   "risk": "supplementary plane + regional indicators + skin tone",
+   "text": "😀🇹🇭👍🏻",
+   "utf8_hex": "f09f9880f09f87b9f09f87adf09f918df09f8fbb",
+   "byte_length": 20,
+   "sha256": "a213deb52945b150f714e5d93b7a598fd4898610e0faccb418ba838f9abfb95d"
+  },
+  {
+   "name": "combining_decomposed",
+   "risk": "decomposed Latin combining marks",
+   "text": "éâ",
+   "utf8_hex": "65cc8161cc82",
+   "byte_length": 6,
+   "sha256": "6a5c601d065a214dd1fdfd2c5b55f46f23f481568694f60dbbdcafa51570f1f8"
+  },
+  {
+   "name": "combining_precomposed",
+   "risk": "precomposed counterparts (visual twins of decomposed)",
+   "text": "éâ",
+   "utf8_hex": "c3a9c3a2",
+   "byte_length": 4,
+   "sha256": "d3654ae700835ea54afd1b3d319ada16561263f9d3ae397c569298dae0c69f1f"
+  },
+  {
+   "name": "zero_width",
+   "risk": "ZWSP / ZWNJ / word-joiner",
+   "text": "a​b‌c⁠d",
+   "utf8_hex": "61e2808b62e2808c63e281a064",
+   "byte_length": 13,
+   "sha256": "bb3f5b5e7011cc054133136d6371d08d581ad8090855069e0b1bf3ea07215e1f"
+  },
+  {
+   "name": "rtl_mixed",
+   "risk": "mixed scripts with RTL Arabic",
+   "text": "สวัสดี سلام ไทย",
+   "utf8_hex": "e0b8aae0b8a7e0b8b1e0b8aae0b894e0b8b520d8b3d984d8a7d98520e0b984e0b897e0b8a2",
+   "byte_length": 37,
+   "sha256": "8c1cf239b70b7fd838b9536f7d63f516c599e621e0f9fd241474aedf28ca52ad"
+  },
+  {
+   "name": "newlines_mixed",
+   "risk": "CRLF + LF + lone CR",
+   "text": "a\r\nb\nc\rd",
+   "utf8_hex": "610d0a620a630d64",
+   "byte_length": 8,
+   "sha256": "830d68e2cc23e5791bb929e30d5febd8d1667416de2ebe7157204d5e6d454755"
+  },
+  {
+   "name": "bom_inside",
+   "risk": "BOM as interior data character",
+   "text": "x﻿y",
+   "utf8_hex": "78efbbbf79",
+   "byte_length": 5,
+   "sha256": "f718adff8d3ad922ff5fc9d8de57f0e889cb1bd139ae04472db3653d2f12a047"
+  },
+  {
+   "name": "nul_inside",
+   "risk": "NUL accepted as response data",
+   "text": "a\u0000b\u0000",
+   "utf8_hex": "61006200",
+   "byte_length": 4,
+   "sha256": "8fb20ef63ced4145fc2e983ffe597d1dcff39154c3bf21f0fa9dde6a0c50fdc9"
+  },
+  {
+   "name": "whitespace_only",
+   "risk": "whitespace-only output",
+   "text": "   \t\n  \r\n ",
+   "utf8_hex": "202020090a20200d0a20",
+   "byte_length": 10,
+   "sha256": "de8909e2f40dc3a4df5084a67a26dc798b17e1e19f2d40e28ce7d02843d8d65f"
+  },
+  {
+   "name": "consecutive_blanks",
+   "risk": "consecutive blank lines",
+   "text": "a\n\n\n\nb",
+   "utf8_hex": "610a0a0a0a62",
+   "byte_length": 6,
+   "sha256": "c85bb4862d8f5c0c710d74cb5112fba4280003f15565b91c436b5f6dae883ea5"
+  },
+  {
+   "name": "lone_cr_run",
+   "risk": "lone-CR-only newlines",
+   "text": "x\ry\rz",
+   "utf8_hex": "780d790d7a",
+   "byte_length": 5,
+   "sha256": "891a5effe446254cf40cb66b66d7fd093f9dcc3a10c9b1ae8f82a72c9bef4a9b"
+  },
+  {
+   "name": "trailing_none",
+   "risk": "no trailing newline",
+   "text": "no trailing newline",
+   "utf8_hex": "6e6f20747261696c696e67206e65776c696e65",
+   "byte_length": 19,
+   "sha256": "a87e145c566174e542604777074a880d92565dba0519f8784002ba9dff6aece3"
+  },
+  {
+   "name": "trailing_single",
+   "risk": "single trailing LF",
+   "text": "one trailing\n",
+   "utf8_hex": "6f6e6520747261696c696e670a",
+   "byte_length": 13,
+   "sha256": "52f973c7eab247a59c4a230f504c83df04649ded0ac8e2bfef3c2473929d0de6"
+  },
+  {
+   "name": "neg_codepoint",
+   "risk": "differs from ascii by one code point",
+   "text": "abd",
+   "utf8_hex": "616264",
+   "byte_length": 3,
+   "sha256": "a52d159f262b2c6ddb724a61840befc36eb30c88877a4030b65cbe86298449c9"
+  },
+  {
+   "name": "neg_byte_prefix",
+   "risk": "byte-prefix of ascii (shorter)",
+   "text": "ab",
+   "utf8_hex": "6162",
+   "byte_length": 2,
+   "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+  },
+  {
+   "name": "neg_nfc_of_decomposed",
+   "risk": "NFC-normalized transform of combining_decomposed (visually identical, must differ)",
+   "text": "éâ",
+   "utf8_hex": "c3a9c3a2",
+   "byte_length": 4,
+   "sha256": "d3654ae700835ea54afd1b3d319ada16561263f9d3ae397c569298dae0c69f1f"
+  },
+  {
+   "name": "neg_crlf_transform",
+   "risk": "CRLF-translated copy of trailing_single",
+   "text": "one trailing\r\n",
+   "utf8_hex": "6f6e6520747261696c696e670d0a",
+   "byte_length": 14,
+   "sha256": "ee5535b112187016ca929ff4a3d9ef53bdc75f37986f224d18c46670e37037f9"
+  }
+ ]
+}
