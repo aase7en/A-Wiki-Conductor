@@ -156,3 +156,21 @@ def test_real_helper_process_preserves_raw_stdout(monkeypatch, tmp_path, encodin
     assert report["response_bytes"] == len(result.stdout)
     assert report["response_sha256"] == hashlib.sha256(result.stdout).hexdigest()
     assert len((tmp_path / "receipts" / "spawn.pid").read_text().splitlines()) == 1
+
+
+def test_result_publication_waits_for_output_flush(monkeypatch, tmp_path):
+    class PublicationProbe(io.BytesIO):
+        def write(self, payload):
+            assert not (tmp_path / "report.json").exists()
+            assert not (tmp_path / "result.json").exists()
+            return super().write(payload)
+
+        def flush(self):
+            assert not (tmp_path / "report.json").exists()
+            assert not (tmp_path / "result.json").exists()
+            return super().flush()
+
+    raw = PublicationProbe()
+    rc, report = _invoke(monkeypatch, tmp_path, "flushed first", SimpleNamespace(buffer=raw))
+    assert rc == 0
+    assert report["response_sha256"] == hashlib.sha256(raw.getvalue()).hexdigest()

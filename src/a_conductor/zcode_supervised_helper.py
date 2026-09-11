@@ -587,8 +587,25 @@ def main(argv: "list[str] | None" = None) -> int:
         # timestamp pretending completion occurred
         finished = _datetime.now(_timezone.utc).isoformat()
 
+        # the response text is the helper's ONLY stdout payload (bounded by
+        # the protocol budget); typed codes go to stderr in every failure path
+        # Bypass locale encoding and Windows TextIOWrapper newline conversion:
+        # the report attests these exact UTF-8 bytes, not normalized text.
+        try:
+            payload = turn.response_text.encode("utf-8")
+            output = _sys.stdout.buffer
+            written = output.write(payload)
+            if type(written) is not int or written != len(payload):
+                return _fail("RESPONSE_OUTPUT_INCOMPLETE")
+            output.flush()
+        except (AttributeError, OSError, ValueError):
+            # The child has exited, but response delivery is not complete.
+            # Leave result absent so collectors cannot promote partial output.
+            return _fail("RESPONSE_OUTPUT_FAILED")
+
         # 7. canonical artifacts, strict order: report BEFORE result; the
-        #    six-key result exists ONLY on the real terminal exit above.
+        #    result is published ONLY after known child exit AND complete output.
+        #    Its presence is consumed as completion authority by the collector.
         report = {
             "schema": "zcode-report/1",
             "execution_id": args.execution_id,
@@ -609,21 +626,6 @@ def main(argv: "list[str] | None" = None) -> int:
         }
         _write_atomic(result_path, json.dumps(result, sort_keys=True, separators=(",", ":")))
 
-        # the response text is the helper's ONLY stdout payload (bounded by
-        # the protocol budget); typed codes go to stderr in every failure path
-        # Bypass locale encoding and Windows TextIOWrapper newline conversion:
-        # the report attests these exact UTF-8 bytes, not normalized text.
-        try:
-            payload = turn.response_text.encode("utf-8")
-            output = _sys.stdout.buffer
-            written = output.write(payload)
-            if type(written) is not int or written != len(payload):
-                return _fail("RESPONSE_OUTPUT_INCOMPLETE")
-            output.flush()
-        except (AttributeError, OSError, ValueError):
-            # Child completion above remains truthful. Delivery failure is
-            # separate evidence and must never trigger another provider turn.
-            return _fail("RESPONSE_OUTPUT_FAILED")
         return 0
     except _HelperExit as exc:
         if child is not None:
