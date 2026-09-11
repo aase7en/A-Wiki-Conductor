@@ -68,7 +68,7 @@ def _invoke(monkeypatch, tmp_path, response, output):
     ("cp1252", "\r\n", "\ufeffe\u0301\x00\r\nไทย\n😀"),
     ("ascii", "\r\n", "😀" * 16384),
     ("utf-8", "\r\n", "first\nsecond\r\nthird\r"),
-])
+], ids=["cp874-unicode", "empty", "ascii", "composition-controls", "byte-budget", "mixed-newlines"])
 def test_main_stdout_matches_report_under_host_text_translation(
         monkeypatch, tmp_path, encoding, newline, response):
     raw = io.BytesIO()
