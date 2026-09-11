@@ -29,6 +29,8 @@ Reuse these already-proven facts; do not repeat them unless a driftable fact cha
 - artifact output under `A:/GitHub/.../runs` inherited NTFS `Compressed` and hit `ERROR_ACCESS_DENIED`; the `%TEMP%` build was readable/runnable, and `compact /U` on the ignored A-drive candidate restored hash/read/`--smoke`. Use an uncompressed build/output path for deployment artifacts. Do not generalize this packaging-path finding into a Worker tunnel root cause or an ESET verdict;
 - W1-W5 were all ready at the latest recheck; W1=0.0.14 canary, W2-W5=0.0.11 legacy.
 
+Fresh source-gap note: all five live launchers use legacy `$RuntimeProcess.WaitForExit()` without archive/Refresh/exit-variable capture, while current `_harden_start_script_runtime_forensics()` only upgrades `Wait-Process -Id $RuntimeProcess.Id`. The current-main pure reproducer returns `UNCHANGED=True`. Treat telemetry upgrade as `SOURCE_GAP` unless you prove another supported existing-instance upgrade path. Do not patch it inside this ops lane; shape/execute a separately claimed child repair limited initially to `src/a_conductor/instance_create.py` and `tests/test_instance_create.py`.
+
 Before live deployment, refresh ownership/task/lease/process/health and installed/version state. Do not reinterpret this checkpoint as authority to disrupt a busy Worker.
 
 ---
