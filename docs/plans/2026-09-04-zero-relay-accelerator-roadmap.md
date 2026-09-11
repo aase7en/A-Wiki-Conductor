@@ -4,6 +4,24 @@ Status: P0 ACCELERATOR / USER-PRIORITIZED
 Planning work order: `WO-P1-155`
 Classification: `REUSE + WRAP + EXTEND`
 
+## User priority reaffirmed — 2026-09-11
+
+The immediate outcome is to remove repeated human prompt/result relay across ChatGPT,
+GLM/ZCode, and Codex: dispatch -> result -> verify/review -> bounded repair -> next
+eligible task. Reuse the existing task/identity/ownership/recovery authorities and
+capability-selected routes. Packet publication alone is not automatic execution.
+
+SundayFamily MCP rebranding, alternative-engine evaluation, RAM/CPU optimization,
+and broader future capability/stability upgrades are recorded in the late-roadmap
+backlog below. Fixes required for current Zero-Relay correctness, recovery, security,
+or release acceptance retain their existing priority and gates.
+
+Current frontier is dated evidence, not the historical 2026-09-04 maturity snapshot:
+[Issue #233 delta](https://github.com/aase7en/A-Wiki-Conductor/issues/233#issuecomment-5629732271)
+records WO165/ZRA-2 Phase A at PR #258 requiring a P1 digest-binding repair and a new
+independently reviewed SHA. Re-pin the owning lane before any action; this roadmap
+capture neither takes that claim nor starts another implementation or campaign.
+
 ## Current maturity checkpoint - 2026-09-04
 
 Zero-Relay has an advanced preview but is **not production-ready**.
@@ -162,3 +180,9 @@ Secondary metrics:
 - duplicate mutable ownership = 0;
 - median task handoff latency materially lower than stable-mailbox manual-trigger baseline;
 - later roadmap throughput improves without higher blocking-defect escape rate.
+
+## Late-roadmap capability and stability upgrades
+
+[SundayFamily MCP deferred backlog](2026-09-11-deferred-sundayfamily-mcp.md) preserves
+the user's proposed improvements for later delivery. Zero-Relay remains the current
+accelerator; these candidates are not READY merely because they are recorded here.

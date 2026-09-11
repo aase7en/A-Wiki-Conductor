@@ -1,7 +1,7 @@
 # WO-P1-189 — Zero-Relay first; defer SundayFamily MCP evolution
 
 Date: 2026-09-11
-Status: CLAIMED / DOCS-ONLY
+Status: CAPTURE_COMPLETE / DOCS-ONLY / INTEGRATOR_ACCEPTANCE_PENDING
 Owner: Poppy Javis / GPT documentation lane
 Risk: R0 roadmap capture; records explicit user sequencing without changing acceptance policy
 Claim: WO189-DOCS-PRIORITY-001
@@ -51,3 +51,13 @@ apply; no automatic runtime capability or measured resource saving may be claime
 
 2026-09-11: startup/live claims/base/open-PR scopes verified. Isolated docs bootstrap
 only; implementation remains within the explicit three-document scope after re-pin.
+
+2026-09-11 delivery checkpoint: captured the deferred backlog and linked it at the
+tail of the existing Zero-Relay roadmap, with a dated priority reminder near its entry.
+All previous roadmap acceptance/authority text is preserved. Current blocker repair
+and required reliability/security gates remain active. No runtime/source change.
+R0 deterministic scope/UTF-8/link/whitespace checks and final SHA/PR are bound in
+ignored runs/WO-P1-189/result.json and the durable delivery PR. No independent model
+review or runtime test is required for this roadmap-only capture under FAST R0.
+Next safe action: integrator consumes this priority record and continues the existing
+WO165 Phase-A repair/review lane; later folds shared continuity under its own claim.
