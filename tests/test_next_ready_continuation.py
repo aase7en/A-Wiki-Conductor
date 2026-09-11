@@ -56,6 +56,7 @@ from a_conductor.next_ready_continuation import (
     classify_successor_state,
     observe_next_ready_facts,
     plan_next_ready_continuation,
+    plan_next_ready_selection,
 )
 
 GRAPH = "graph-1"
@@ -489,8 +490,42 @@ def test_incomplete_successor_observation_set_fails_closed() -> None:
 
 def test_complete_parent_without_completion_evidence_fails_closed() -> None:
     with pytest.raises(NextReadyContinuationError) as excinfo:
-        plan_next_ready_continuation(facts(parent=_parent(completion_ref=None)))
+        plan_next_ready_continuation(
+            facts(parent=_parent(completion_ref=None))
+        )
     assert excinfo.value.code == "PARENT_COMPLETION_EVIDENCE_MISSING"
+
+
+def test_mutating_planner_requires_explicit_guards() -> None:
+    base = facts()
+    delegated = NextReadyContinuationFacts(
+        graph_id=base.graph_id,
+        graph_run_id=base.graph_run_id,
+        parent=base.parent,
+        graph=base.graph,
+        ready=base.ready,
+        successors=base.successors,
+        guards=None,
+    )
+    with pytest.raises(NextReadyContinuationError) as excinfo:
+        plan_next_ready_continuation(delegated)
+    assert excinfo.value.code == "MUTATION_GUARDS_REQUIRED"
+
+
+def test_selection_planner_can_delegate_mutation_guards() -> None:
+    base = facts()
+    delegated = NextReadyContinuationFacts(
+        graph_id=base.graph_id,
+        graph_run_id=base.graph_run_id,
+        parent=base.parent,
+        graph=base.graph,
+        ready=base.ready,
+        successors=base.successors,
+        guards=None,
+    )
+    plan = plan_next_ready_selection(delegated)
+    assert plan.decision is NextReadyDecision.DISPATCH_ONE
+    assert plan.selected_node_id == "B"
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -747,14 +782,15 @@ class CoordinatorDispatchPort:
 
 
 def _completion_ref(node_id: str) -> str:
-    return (
-        f"closeout:complete:{node_id}:"
-        "0f1e2d3c4b5a697887766554433221100f1e2d3c4b5a6978877665544332211f"
-    )
+    return f"closeout:complete:{node_id}:0f1e2d3c4b5a697887766554433221100f1e2d3c4b5a6978877665544332211f"
 
 
 def _drive_to_complete(tmp_path: Path, service, node_id: str) -> None:
-    """Seed durable COMPLETE plus closeout-shaped evidence for Phase-A tests."""
+    """Seed durable COMPLETE plus closeout-shaped evidence for Phase-A integration tests.
+
+    Production evidence provenance is verified separately by WO195's assembly tests;
+    this helper only exercises the continuation seam over durable job-store truth.
+    """
     store = SQLiteJobStore(tmp_path / "control.sqlite")
     job_id = GraphDispatchKey(GRAPH, RUN, node_id).job_id
     job = service.get_job(job_id)
@@ -970,6 +1006,7 @@ def test_integration_foreign_run_completion_cannot_dispatch(tmp_path: Path) -> N
         observe_next_ready_facts(
             jobs=service, graph=_chain_graph(), graph_id=GRAPH, graph_run_id=RUN,
             parent_node_id="A", guards=_guards(),
+            completion_ref=_completion_ref("A"),
         )
     assert excinfo.value.code == "PARENT_JOB_NOT_FOUND"
     assert port.calls == []
