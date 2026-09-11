@@ -1,6 +1,6 @@
 # WO-P1-165 — ZRA-2 automatic review + bounded repair loop
 
-Status: REFRESHED / PHASE-A IMPLEMENTATION READY (2026-09-11)
+Status: PHASE-A P1 REPAIR FROZEN / INDEPENDENT REREVIEW REQUIRED (2026-09-11)
 Parent: WO-P1-155 Zero-Relay Accelerator
 Durable issue: GitHub Issue #214
 Architecture claim: GPT1-ZRA2-PREFLIGHT-001
@@ -175,6 +175,26 @@ Every phase requires a fresh scope/overlap gate before touching shared files.
 - Module SHA256 `2c05f6605ebfda01…`; tests SHA256 `2175089eba4a9115…` (full digests in run evidence).
 - STATUS=PHASE_A_FROZEN / INDEPENDENT_REVIEW_REQUIRED — GLM authored this candidate and is NOT its independent reviewer.
 
+## Phase A P1 exact-digest repair evidence (GPT bounded author lane, 2026-09-11)
+
+Independent exact-SHA review of candidate `5f95fe16e95c90faaa4a36686e286515e4641708` returned `CHANGES_REQUIRED` with P0=0 / P1=1 / P2=0 / P3=0: `ReviewEvidence` did not carry the exact task/result SHA-256 digests, so an accepted review for older bytes could be reused when refs/attempt/generation stayed unchanged.
+
+Fresh repair gate re-pinned this worktree/branch at that exact PR head, `origin/main=f964afced5fbe0905c3667b1a6552a6fdafc09cb`, CLEAN, with no competing remote branch owning `src/a_conductor/zero_relay.py` or `tests/test_zero_relay.py`. The automatic ZCode app-server path was also re-audited and is read-only by design because permission requests are denied; GPT integrator therefore became the bounded repair author to avoid human relay. The repaired candidate must use a genuinely independent GLM/ZCode read-only exact-SHA rereview before acceptance/merge.
+
+RED-first repair evidence:
+- added exact contract-shape/hash-validation checks for `ReviewEvidence.task_sha256` + `ReviewEvidence.result_sha256`;
+- added stale-review attacks where task digest or result digest changes while refs/attempt/generation remain identical;
+- before repair: `5 failed, 38 passed`; both stale-digest attacks incorrectly produced no `REVIEW_IDENTITY_MISMATCH`.
+
+GREEN repair:
+- `ReviewEvidence` now requires and validates full task/result SHA-256 values using the existing hash validator;
+- `classify_relay_decision()` cross-binds both digests before any decision;
+- focused `tests/test_zero_relay.py`: `43 passed`;
+- related `tests/test_agent_change_packets.py` + `tests/test_goal_closeout.py`: `136 passed`;
+- all prior UNKNOWN=>RECOVERY_REQUIRED, reviewer independence, exactly-one-repair, pure/no-I/O, and typed-error semantics remain unchanged.
+
+Final pre-freeze verification: combined focused+related matrix `179 passed`; compileall PASS; `git diff --check` PASS; strict UTF-8/no-U+FFFD PASS; added-line credential-assignment scan `0` hits; changed tracked scope exactly the three allowed paths; production source LSP diagnostics empty; repository Python consumer audit found no external `zero_relay` consumer beyond this focused test module. The exact new candidate SHA is recorded in the durable PR/Issue checkpoint after commit/push.
+
 ## Verification
 
 At each frozen candidate:
@@ -193,11 +213,11 @@ deterministic reproducer > automated tests > exact diff/state > runtime logs
 
 ## Stop / closeout
 
-GLM implementation does not self-merge.
+The implementation author does not self-review or self-merge.
 Freeze one exact SHA after each material phase and checkpoint Issue #214.
 Any P0/P1 finding => CHANGES_REQUIRED and one bounded repair packet.
 No live provider proof is part of source acceptance.
 PROOF/live external execution requires separate GPT1/human authorization.
 
 Next safe implementation action:
-Phase A RED-first in the new-file-only scope above.
+complete final pre-freeze hygiene -> commit/push the repaired exact SHA -> release the repair mutation claim -> independent GLM/ZCode read-only exact-SHA rereview -> GPT acceptance/merge only if all R3 gates pass.

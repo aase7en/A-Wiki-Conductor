@@ -46,7 +46,9 @@ def _result(**overrides) -> ResultIdentity:
 def _review(**overrides) -> ReviewEvidence:
     values = dict(
         task_contract_ref=TASK_REF,
+        task_sha256=TASK_SHA,
         result_ref=RESULT_REF,
+        result_sha256=RESULT_SHA,
         attempt_id="attempt-1",
         generation=0,
         reviewer_execution_id=REVIEWER,
@@ -100,6 +102,21 @@ def test_missing_or_malformed_hash_fails_closed(field: str) -> None:
         _result(**{field: "not-a-sha"})
     with pytest.raises(ValueError):
         _result(**{field: "a" * 63})
+
+
+def test_review_contract_carries_exact_task_and_result_digests() -> None:
+    review_fields = {f.name for f in dataclasses.fields(ReviewEvidence)}
+    assert {"task_sha256", "result_sha256"} <= review_fields
+
+
+@pytest.mark.parametrize("field", ["task_sha256", "result_sha256"])
+def test_review_hash_fields_validate_full_sha256(field: str) -> None:
+    with pytest.raises(ValueError):
+        _review(**{field: ""})
+    with pytest.raises(ValueError):
+        _review(**{field: "not-a-sha"})
+    with pytest.raises(ValueError):
+        _review(**{field: "a" * 63})
 
 
 @pytest.mark.parametrize("bad", ["bad\x00id", "bad\nid", "bad\x1fid", " padded "])
@@ -171,6 +188,28 @@ def test_generation_mismatch_fails_closed() -> None:
             execution_outcome=ExecutionOutcome.SUCCEEDED,
             verification_outcome=VerificationOutcome.VERIFIED,
             review=_review(generation=0),
+        )
+    assert exc.value.code == "REVIEW_IDENTITY_MISMATCH"
+
+
+def test_stale_review_task_digest_reuse_fails_closed() -> None:
+    with pytest.raises(ZeroRelayError) as exc:
+        classify_relay_decision(
+            _result(task_sha256="c" * 64),
+            execution_outcome=ExecutionOutcome.SUCCEEDED,
+            verification_outcome=VerificationOutcome.VERIFIED,
+            review=_review(),
+        )
+    assert exc.value.code == "REVIEW_IDENTITY_MISMATCH"
+
+
+def test_stale_review_result_digest_reuse_fails_closed() -> None:
+    with pytest.raises(ZeroRelayError) as exc:
+        classify_relay_decision(
+            _result(result_sha256="d" * 64),
+            execution_outcome=ExecutionOutcome.SUCCEEDED,
+            verification_outcome=VerificationOutcome.VERIFIED,
+            review=_review(),
         )
     assert exc.value.code == "REVIEW_IDENTITY_MISMATCH"
 

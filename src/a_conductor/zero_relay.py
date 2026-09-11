@@ -110,7 +110,9 @@ class ReviewEvidence:
     """Independent review outcome bound to the exact reviewed identity."""
 
     task_contract_ref: str
+    task_sha256: str
     result_ref: str
+    result_sha256: str
     attempt_id: str
     generation: int
     reviewer_execution_id: str
@@ -121,7 +123,9 @@ class ReviewEvidence:
             self, "task_contract_ref",
             _identity_text(self.task_contract_ref, "task_contract_ref"),
         )
+        object.__setattr__(self, "task_sha256", _sha256_text(self.task_sha256, "task_sha256"))
         object.__setattr__(self, "result_ref", _identity_text(self.result_ref, "result_ref"))
+        object.__setattr__(self, "result_sha256", _sha256_text(self.result_sha256, "result_sha256"))
         object.__setattr__(self, "attempt_id", _identity_text(self.attempt_id, "attempt_id"))
         object.__setattr__(self, "generation", _generation(self.generation))
         object.__setattr__(
@@ -179,7 +183,9 @@ def classify_relay_decision(
     if review is not None:
         if (
             review.task_contract_ref != result.task_contract_ref
+            or review.task_sha256 != result.task_sha256
             or review.result_ref != result.result_ref
+            or review.result_sha256 != result.result_sha256
             or review.attempt_id != result.attempt_id
             or review.generation != result.generation
         ):
