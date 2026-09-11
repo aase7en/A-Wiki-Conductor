@@ -85,3 +85,16 @@ is the bounded child contract. All source and Astra tests are immutable to GLM.
   with existing single-writer integrator. This WO + Issue233 is the durable scoped handoff.
 - No completed execution may be replayed to repair output evidence. Existing failed
   historical artifacts are preserved. Native Mac proof uses only synthetic children.
+
+
+## Child checkpoint — WO193-GLM-BYTE-VALIDATION-001 startup gate (2026-09-11 21:44:29 +07)
+
+- Claim: WO193-GLM-BYTE-VALIDATION-001 (this file's child, per packet §3.6).
+- Repository https://github.com/aase7en/A-Wiki-Conductor.git verified; worktree `A:/GitHub/_worktrees/A-Wiki-Conductor-wo193-glm-byte-validation`; branch `codex/wo-p1-193-glm-byte-validation`; HEAD = delivery commit `a862b946b89a76f43e54ee852bddbd1c8a1bc18d` (== Issue #233 handoff DELIVERY_SHA); descends from frozen source `f1dbb65212a737f7a4f88dcd88bdb713f190ad51`; tracked tree clean, no other owner's dirty files (worktree was pre-created for this lane per the freeze handoff; no prior GLM checkpoint existed → fresh start, nothing resumed).
+- Frozen hashes verified at HEAD: `zcode_supervised_helper.py` = `38f9fb19...` MATCH; `tests/test_zcode_stdout_boundary.py` = `f0d3722b...` MATCH. Packet `docs/prompts/GLM-WO193-BYTE-INTEGRITY-MARATHON.md` SHA-256 = `212eae6e6a93f9fd7d6e74e5f247e69b9cbc63a205e9e18646453a4da056c83a`.
+- origin/main = `46f90b3...` (source base unchanged). Open PRs inspected: #268 = frozen Astra parent (files = the frozen set only); #263/#264/#266/#269/#271 own disjoint scopes; none touch this child's allowed NEW paths. Non-overlap: allowed changes are NEW `tests/test_wo193_byte_integrity_campaign.py`, NEW `tests/fixtures/wo193_byte_integrity/`, NEW `scripts/wo193_byte_integrity_probe.py`, NEW `docs/reviews/WO-P1-193-glm-byte-integrity-evidence.md`, append-only checkpoints in this WO; ignored output `runs/WO-P1-193/glm/`.
+- WIP cap (COLLAB.md:109 via WO154: 3 mutable + 1 review): lane accounting — WO191/#263 and WO192/#264 candidates are frozen/awaiting integrator (not actively mutating); this child is the prepared, integrator-handoff-authorized test lane on a dedicated worktree/branch; ownership unambiguous (packet + Issue #233 freeze handoff explicitly prepared this lane to start after these gates). No slot seizure: no other lane's claim was taken or reassigned.
+- Python interpreter: 3.11.15 (`C:/Users/aase7en/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe`, MSC v.1944 x64, Windows). Host: DESKTOP-7IB57R4, Windows 11 x64.
+- Windows host evidence (fresh, this lane): `python -m pytest -q tests/test_zcode_stdout_boundary.py` → **15 passed in 4.58s** (matches Astra freeze + preflight evidence; consumed, not re-derived).
+- `SAFE_TO_MUTATE_TEST_SCOPE=YES` (allowed paths above only). `SAFE_TO_MUTATE_PRODUCT_SOURCE=NO` — all `src/a_conductor/**` read-only for this lane. No merge/rebase/reset/clean/stash; no secrets; no production ports 18011-18015; no broad process kills; no global COLLAB.md changes.
+- Next safe action: B00 provenance manifest, then B01 call-path archaeology.
