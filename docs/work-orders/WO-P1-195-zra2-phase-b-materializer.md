@@ -1,6 +1,6 @@
 # WO-P1-195 — ZRA-2 Phase B deterministic repair task materializer
 
-Status: ACTIVATED / SOURCE MUTATION GATED
+Status: CANDIDATE_FROZEN_FOR_INDEPENDENT_REVIEW
 Parent: `WO-P1-165` / Issue #214 / ZRA-2 Phase B
 Claim: `GPT-ZRA2-PHASEB-MATERIALIZER-001` (Issue #214 comment `5635237771`)
 Risk: `R3` — repair identity / idempotency boundary
@@ -134,3 +134,11 @@ Docs bootstrap is allowed under the collaboration bootstrap exception. Product/s
 - `SAFE_TO_MUTATE_WO195=YES` is durably recorded.
 
 Until then: `SAFE_TO_MUTATE_WO195=NO`.
+
+
+## Freeze checkpoint (2026-09-12, GLM continuation under WO200 Q1)
+
+- Existing WIP preserved and completed (not recreated): the untracked materializer/test files were inspected, mapped to every Phase-B acceptance clause, and extended with write-race pinning tests (concurrent exact-bytes reuse; vanished-file fail-closed) and uppercase-digest normalization identity.
+- Verification on Windows host DESKTOP-7IB57R4 / Python 3.11.15: focused `tests/test_zero_relay_repair_materializer.py` **28 passed**; related `test_agent_change_packets.py + test_native_execution.py + test_claude_code_harness.py` **137 passed, 1 POSIX-only skip**; `compileall` OK; `git diff --check` clean; strict UTF-8/no U+FFFD; changed scope exactly the three allowed paths; no secret-like added lines.
+- Adversarial matrix re-audited against WO200 Q1.5: generation==int 1 (bool/float/str/0/2/negative fail), exact SHA-256 validation (+casefold normalization pinned), bounded reason identity, deterministic content/path/ref, digest/reason changes bind distinct identity, idempotent exact-bytes reuse (mtime preserved), typed collision on divergent bytes, path authority derived only from identity digest (traversal task_id proven harmless), MUTATION_FORBIDDEN/PARENT_NOT_FOUND fail closed, post-write readback mismatch fails closed, returned `TaskPacketFile.sha256` equals on-disk bytes, AST import fence against scheduler/provider/review/lease/memory authority surfaces. No P0/P1/P2 findings.
+- Candidate SHA, PR, and residual risks recorded in `runs/WO-P1-195/result.md`. Independent R3 review + acceptance remain with GPT/integrator.
