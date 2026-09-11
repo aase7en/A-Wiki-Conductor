@@ -195,9 +195,9 @@ def materialize_repair_task(
         return existing
 
     try:
-        written = filesystem.write_text(path, content)
+        written = filesystem.create_text_if_absent(path, content)
     except NativeExecutionError as exc:
-        if exc.code != "OVERWRITE_PRECONDITION_REQUIRED":
+        if exc.code != "FILE_ALREADY_EXISTS":
             raise
         raced = _read_existing(
             filesystem,

@@ -412,6 +412,56 @@ class NativeFileSystem:
             raise NativeExecutionError("DIRECTORY_READ_FAILED") from exc
         return tuple(entries)
 
+    def create_text_if_absent(
+        self,
+        relative_path: str | Path,
+        content: str,
+    ) -> NativeWriteResult:
+        """Create one UTF-8 text file without ever replacing an existing target."""
+        if not self._scope.mutation_allowed:
+            raise NativeExecutionError("MUTATION_FORBIDDEN")
+        if not isinstance(content, str):
+            raise NativeExecutionError("CONTENT_INVALID")
+        encoded = content.encode("utf-8")
+        if len(encoded) > self._scope.max_file_bytes:
+            raise NativeExecutionError("FILE_TOO_LARGE")
+
+        target = self._scope.resolve_relative(relative_path)
+        parent = target.parent
+        if not parent.is_dir():
+            raise NativeExecutionError("PARENT_NOT_FOUND")
+        if target.exists():
+            if not target.is_file():
+                raise NativeExecutionError("FILE_TARGET_INVALID")
+            raise NativeExecutionError("FILE_ALREADY_EXISTS")
+
+        temporary = parent / f".{target.name}.{uuid.uuid4().hex}.tmp"
+        try:
+            with temporary.open("xb") as handle:
+                handle.write(encoded)
+                handle.flush()
+                os.fsync(handle.fileno())
+            try:
+                os.link(temporary, target)
+            except FileExistsError as exc:
+                raise NativeExecutionError("FILE_ALREADY_EXISTS") from exc
+        except NativeExecutionError:
+            raise
+        except OSError as exc:
+            raise NativeExecutionError("FILE_WRITE_FAILED") from exc
+        finally:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        return NativeWriteResult(
+            relative_path=self._scope.relative_display(target),
+            size_bytes=len(encoded),
+            sha256=hashlib.sha256(encoded).hexdigest(),
+            created=True,
+        )
+
     def write_text(
         self,
         relative_path: str | Path,

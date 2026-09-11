@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 
@@ -129,6 +131,115 @@ def test_new_write_is_atomic_and_returns_digest(tmp_path: Path) -> None:
     assert result.sha256 == hashlib.sha256(b"hello").hexdigest()
     assert (tmp_path / "new.txt").read_text(encoding="utf-8") == "hello"
     assert not tuple(tmp_path.glob(".new.txt.*.tmp"))
+
+
+def test_create_text_if_absent_is_no_clobber_and_returns_digest(tmp_path: Path) -> None:
+    fs = NativeFileSystem(scope_for(tmp_path.resolve(), mutation_allowed=True))
+
+    created = fs.create_text_if_absent("new.txt", "hello")
+
+    assert created.created is True
+    assert created.relative_path == "new.txt"
+    assert created.sha256 == hashlib.sha256(b"hello").hexdigest()
+    assert (tmp_path / "new.txt").read_text(encoding="utf-8") == "hello"
+
+    with pytest.raises(NativeExecutionError) as exc_info:
+        fs.create_text_if_absent("new.txt", "different")
+    assert exc_info.value.code == "FILE_ALREADY_EXISTS"
+    assert (tmp_path / "new.txt").read_text(encoding="utf-8") == "hello"
+
+
+def test_create_text_if_absent_raced_target_survives(monkeypatch, tmp_path: Path) -> None:
+    fs = NativeFileSystem(scope_for(tmp_path.resolve(), mutation_allowed=True))
+    target = tmp_path / "new.txt"
+    original_link = native_execution.os.link
+
+    def inject_conflict(source, destination):  # type: ignore[no-untyped-def]
+        Path(destination).write_text("other-writer", encoding="utf-8")
+        return original_link(source, destination)
+
+    monkeypatch.setattr(native_execution.os, "link", inject_conflict)
+
+    with pytest.raises(NativeExecutionError) as exc_info:
+        fs.create_text_if_absent("new.txt", "ours")
+
+    assert exc_info.value.code == "FILE_ALREADY_EXISTS"
+    assert target.read_text(encoding="utf-8") == "other-writer"
+    assert not tuple(tmp_path.glob(".new.txt.*.tmp"))
+
+
+def test_create_text_if_absent_concurrent_creators_have_one_winner(tmp_path: Path) -> None:
+    fs = NativeFileSystem(scope_for(tmp_path.resolve(), mutation_allowed=True))
+    barrier = Barrier(2)
+
+    def create(content: str):
+        barrier.wait()
+        try:
+            return fs.create_text_if_absent("shared.txt", content)
+        except NativeExecutionError as exc:
+            return exc.code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        left = pool.submit(create, "left")
+        right = pool.submit(create, "right")
+        outcomes = (left.result(), right.result())
+
+    winners = [item for item in outcomes if not isinstance(item, str)]
+    losers = [item for item in outcomes if isinstance(item, str)]
+    assert len(winners) == 1
+    assert losers == ["FILE_ALREADY_EXISTS"]
+    assert (tmp_path / "shared.txt").read_text(encoding="utf-8") in {"left", "right"}
+    assert not tuple(tmp_path.glob(".shared.txt.*.tmp"))
+
+
+def test_create_text_if_absent_preserves_existing_error_contracts(monkeypatch, tmp_path: Path) -> None:
+    read_only = NativeFileSystem(scope_for(tmp_path.resolve(), mutation_allowed=False))
+    with pytest.raises(NativeExecutionError) as exc_info:
+        read_only.create_text_if_absent("blocked.txt", "x")
+    assert exc_info.value.code == "MUTATION_FORBIDDEN"
+
+    writable = NativeFileSystem(scope_for(tmp_path.resolve(), mutation_allowed=True))
+    with pytest.raises(NativeExecutionError) as exc_info:
+        writable.create_text_if_absent("missing/child.txt", "x")
+    assert exc_info.value.code == "PARENT_NOT_FOUND"
+
+    (tmp_path / "directory-target").mkdir()
+    with pytest.raises(NativeExecutionError) as exc_info:
+        writable.create_text_if_absent("directory-target", "x")
+    assert exc_info.value.code == "FILE_TARGET_INVALID"
+
+    bounded = NativeFileSystem(
+        NativeExecutionScope(
+            root=tmp_path.resolve(),
+            mutation_allowed=True,
+            max_file_bytes=4,
+        )
+    )
+    with pytest.raises(NativeExecutionError) as exc_info:
+        bounded.create_text_if_absent("too-large.txt", "12345")
+    assert exc_info.value.code == "FILE_TOO_LARGE"
+
+    def unsupported_link(source, destination):  # type: ignore[no-untyped-def]
+        raise OSError("hard links unavailable")
+
+    monkeypatch.setattr(native_execution.os, "link", unsupported_link)
+    with pytest.raises(NativeExecutionError) as exc_info:
+        writable.create_text_if_absent("unsupported.txt", "x")
+    assert exc_info.value.code == "FILE_WRITE_FAILED"
+    assert not (tmp_path / "unsupported.txt").exists()
+    assert not tuple(tmp_path.glob(".unsupported.txt.*.tmp"))
+
+
+def test_create_text_if_absent_utf8_digest_covers_exact_bytes(tmp_path: Path) -> None:
+    fs = NativeFileSystem(scope_for(tmp_path.resolve(), mutation_allowed=True))
+    content = "ไทย\nemoji-🙂\n"
+
+    result = fs.create_text_if_absent("utf8.txt", content)
+    expected = content.encode("utf-8")
+
+    assert result.size_bytes == len(expected)
+    assert result.sha256 == hashlib.sha256(expected).hexdigest()
+    assert (tmp_path / "utf8.txt").read_bytes() == expected
 
 
 def test_existing_write_requires_matching_sha256_precondition(tmp_path: Path) -> None:
