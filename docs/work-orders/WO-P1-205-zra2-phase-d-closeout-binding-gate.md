@@ -21,9 +21,10 @@ Source implementation remains HOLD until all are durably true:
 
 1. Phase B accepted, merged and post-main verified;
 2. Phase C accepted, merged and post-main verified;
-3. Issue #214 explicitly publishes Phase D `NEXT_READY`;
-4. current main/source state is re-pinned;
-5. fresh ownership/scope/non-overlap gate is issued.
+3. WO-P1-208 closeout crash-boundary evidence has completed its queued GLM lab and parent/integrator review has accepted an explicit supported external-effect/recovery contract for Phase D;
+4. Issue #214 explicitly publishes Phase D `NEXT_READY`;
+5. current main/source state is re-pinned;
+6. fresh ownership/scope/non-overlap gate is issued.
 
 Until then:
 
@@ -165,6 +166,42 @@ Before invoking GoalCloseout:
 - do not fabricate `completed_closeout_refs`;
 - derive GoalCloseout review `reviewed_sha` from the exact accepted candidate/review authority;
 - allow `GoalCloseoutExecutor` to perform its existing staged checkpoints and final transition.
+
+## 8A. External effect / crash-boundary requirements from WO-P1-208
+
+WO-P1-208 has produced non-binding but concrete seam evidence against the current `GoalCloseoutExecutor` + `SQLiteJobStore` boundary. Native sacrificial-store probes showed that a callback side effect can occur before the subsequent JobStore checkpoint CAS, so:
+
+- two callers that begin from the same job version can both perform the external effect before only one checkpoint wins CAS;
+- stale facts can still reach an effect before a later checkpoint/version refusal;
+- an effect that happened but returned/was remembered as UNKNOWN can be repeated after restart if volatile recovery knowledge is lost;
+- a truthful already-committed positive control remains safely idempotent through existing checkpoint/reload semantics.
+
+These observations are composition hazards, not proven production incidents, because no production `GoalCloseoutExecutor` construction was found at the WO208 base and the probes used synthetic effect ports. Phase D must nevertheless not make stronger safety claims than the seam provides.
+
+Before any Phase-D assembler may invoke an external fold/release effect, the accepted WO208 parent decision must prove all four obligations:
+
+1. **Evidence identity** — exact job/task/attempt/candidate/result/review identity is current.
+2. **Effect eligibility at the effect boundary** — current ownership/version/fencing authority is still valid when the external effect is actually invoked; a pre-read alone is insufficient.
+3. **Durable recovery knowledge** — after interruption, durable evidence distinguishes never-started, applied, absent-with-proof, in-progress and UNKNOWN outcomes. Missing checkpoint is not proof that the effect never happened.
+4. **Completion ordering** — existing GoalCloseout remains the sole final completion authority after current verify/review/merge/fold/lease/ownership obligations agree.
+
+If the selected fold/release adapter cannot provide an accepted idempotency/query/reconcile contract for its exact operation identity, Phase D must keep ambiguous outcomes as `RECOVERY_REQUIRED` and must not blind-replay them.
+
+A deterministic request key is not sufficient unless the effect owner enforces same-key/same-payload convergence and divergent-payload refusal. A pre-effect JobStore CAS alone is also not sufficient because it can leave an intent-with-unknown-effect crash window.
+
+Do not create a second outbox/journal/store merely to solve this. Reuse existing job/recovery/effect-owner authority according to the contract accepted from WO208. If the only safe initial Phase-D release is to consume already-proven effects while leaving unsupported effect initiation blocked, that is acceptable and preferable to inventing replay safety.
+
+Required additional RED cases after release:
+
+- two callers from the same initial version cannot cause duplicate supported external effects;
+- stale owner/version immediately before effect refuses without effect;
+- effect-success + lost acknowledgment/restart reconciles without repeating;
+- UNKNOWN outcome survives restart as non-runnable until reconciled;
+- checkpoint-success + lost response reloads without repeating effect;
+- same operation identity + same payload converges if adapter claims idempotency;
+- same operation identity + divergent payload refuses;
+- missing/failed reconcile remains `RECOVERY_REQUIRED`;
+- no synthetic `completed_closeout_refs` or COMPLETE is created from an effect receipt alone.
 
 ## 9. RED-first matrix after release
 

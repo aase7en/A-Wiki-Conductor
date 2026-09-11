@@ -10,10 +10,11 @@ Before any source/test mutation, independently verify ALL from durable Git/GitHu
 
 1. ZRA-2 Phase B is ACCEPTED, MERGED, and required post-main verification is green.
 2. ZRA-2 Phase C is ACCEPTED, MERGED, and required post-main verification is green.
-3. Issue #214 explicitly marks Phase D `NEXT_READY`.
-4. A fresh Phase-D implementation claim names exact owner, base SHA, branch, worktree, mutable paths, forbidden paths, and dependencies.
-5. The claimed worktree is isolated and clean except for explained owned changes.
-6. No overlapping mutable lane exists.
+3. WO-P1-208 closeout crash-boundary GLM lab is complete and the parent/integrator has accepted one explicit external-effect/recovery contract for Phase D.
+4. Issue #214 explicitly marks Phase D `NEXT_READY`.
+5. A fresh Phase-D implementation claim names exact owner, base SHA, branch, worktree, mutable paths, forbidden paths, and dependencies.
+6. The claimed worktree is isolated and clean except for explained owned changes.
+7. No overlapping mutable lane exists.
 
 If any item is false or unknown, write/checkpoint `BLOCKED_EXTERNAL_AUTHORIZATION` and STOP. Do not create a source implementation branch merely because this file exists.
 
@@ -125,6 +126,40 @@ Immediately before calling GoalCloseout:
 - delegate final mutation to `GoalCloseoutExecutor` only.
 
 A low-level store API being technically callable does not make it the Phase-D completion authority.
+
+## Accepted WO208 crash/effect contract is mandatory input
+
+Do not implement external fold/release initiation merely because `GoalCloseoutExecutor` and JobStore CAS exist.
+
+Before source work, read the accepted parent decision derived from WO-P1-208 and its GLM crash-boundary lab. Preserve the following invariant:
+
+```text
+external effect may happen before JobStore checkpoint
+=> checkpoint CAS alone is not an effect fence
+=> missing checkpoint is not proof of no effect
+=> UNKNOWN/lost acknowledgment is not retry permission
+```
+
+The released Phase-D scope must name which supported contract applies to each external effect:
+
+- already-proven/pre-existing effect only; or
+- existing effect owner is idempotent + queryable/reconcilable by exact operation identity; or
+- an accepted existing-authority intent/recovery extension explicitly approved by the parent.
+
+If none applies, that external effect remains unsupported and ambiguous state must return `RECOVERY_REQUIRED` without replay.
+
+Do not invent a new outbox, second journal, SQLite transaction around arbitrary external work, or caller-local retry memory.
+
+RED-first crash/concurrency cases must include:
+
+- two same-version callers at the effect boundary;
+- stale version/ownership before effect;
+- effect success + acknowledgment loss;
+- UNKNOWN effect followed by process restart;
+- completed checkpoint + response loss positive control;
+- same-key/same-payload idempotency if claimed;
+- same-key/divergent-payload refusal;
+- query/reconcile failure remains recovery, never inferred success or absence.
 
 ## RED-first adversarial campaign
 
