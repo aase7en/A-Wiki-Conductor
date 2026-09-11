@@ -105,3 +105,8 @@ production implementation when the lab finishes.
 - Latest Issue #216 closeout observed: design delivered + DESIGN-ONLY acceptance; Windows lab PREPARED_NOT_STARTED/QUEUED_CAPACITY → this claim fills that queue slot; no other session owns this child. Host DESKTOP-7IB57R4, Windows 11 x64, Python 3.11.15, git available. Parent ZRA-4 ownership + product implementation HOLD intact.
 - Writable scope (exact): NEW `docs/reviews/WO-P1-196-glm-identity-lab.md`, append-only checkpoints in this WO, ignored `runs/WO-P1-196/glm/`. All src/tests read-only. WO200 lane untouched and unmodified (separate claim/worktree; parked at its own external CI gate).
 - SAFE_TO_RUN_LAB=YES within the packet's synthetic-fixture rules (wo196- prefixed tempfile roots; junctions/hardlinks only at sacrificial local targets; no elevation; no network).
+
+
+### GLM lab completion checkpoint — WO196-GLM-C1-LAB-001 (2026-09-12)
+
+All programs L00-L09 DONE with native Windows evidence: alias matrix (incl. the new NT-prefix vector), real-broker alias RED (LEASED+LEASED incl. cross-project), observer prototype + support table (FileIdInfo unsupported on this volume -> legacy ids), 10-class scope gap corpus, hardlink/replace footprint, TOCTOU escape + anchored candidate, Git common-dir domain, migration-fence model (delete-rows INVALID), 108-state model check (conservative policy 0 violations). Verdict: READY_FOR_PARENT_DESIGN_REVIEW; product implementation remains HOLD. Tracked handback: docs/reviews/WO-P1-196-glm-identity-lab.md; machine result: runs/WO-P1-196/glm/result.json. No source/test mutation; WO200 and every other lane untouched.
