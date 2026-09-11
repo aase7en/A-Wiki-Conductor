@@ -611,8 +611,19 @@ def main(argv: "list[str] | None" = None) -> int:
 
         # the response text is the helper's ONLY stdout payload (bounded by
         # the protocol budget); typed codes go to stderr in every failure path
-        _sys.stdout.write(turn.response_text)
-        _sys.stdout.flush()
+        # Bypass locale encoding and Windows TextIOWrapper newline conversion:
+        # the report attests these exact UTF-8 bytes, not normalized text.
+        try:
+            payload = turn.response_text.encode("utf-8")
+            output = _sys.stdout.buffer
+            written = output.write(payload)
+            if type(written) is not int or written != len(payload):
+                return _fail("RESPONSE_OUTPUT_INCOMPLETE")
+            output.flush()
+        except (AttributeError, OSError, ValueError):
+            # Child completion above remains truthful. Delivery failure is
+            # separate evidence and must never trigger another provider turn.
+            return _fail("RESPONSE_OUTPUT_FAILED")
         return 0
     except _HelperExit as exc:
         if child is not None:
