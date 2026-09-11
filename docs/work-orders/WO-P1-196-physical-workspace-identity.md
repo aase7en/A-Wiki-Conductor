@@ -96,3 +96,12 @@ scoped checkpoint and the public issue handoff are the integrator's fold-in inpu
 Next: GLM claims the separate evidence lane when capacity permits, executes the packet,
 and publishes its exact-SHA handback for the parent integrator. Do not merge or auto-start
 production implementation when the lab finishes.
+
+
+### GLM lab claim — WO196-GLM-C1-LAB-001 (2026-09-12, Windows)
+
+- Claim WO196-GLM-C1-LAB-001 started by user goal pointer at delivery SHA `10dca359568c216983199a6899b0af3863b5e9d7` (worktree HEAD verified == pointer; branch `codex/wo-p1-196-glm-identity-lab`, clean, on source baseline `46f90b3`).
+- Identity verified: packet SHA-256 `24f5969b2fbd252809187d52158ad72a8ee5f17290d892dbd1e66f072fbe44fe`; design SHA-256 `b131c0248a7f9f9aa12f49991d8576cd2a7e7ec3d70a20b4c5a5eb48537babc3`; source blob IDs MATCH for registry.py / worker_lease.py / graph/analyze.py.
+- Latest Issue #216 closeout observed: design delivered + DESIGN-ONLY acceptance; Windows lab PREPARED_NOT_STARTED/QUEUED_CAPACITY → this claim fills that queue slot; no other session owns this child. Host DESKTOP-7IB57R4, Windows 11 x64, Python 3.11.15, git available. Parent ZRA-4 ownership + product implementation HOLD intact.
+- Writable scope (exact): NEW `docs/reviews/WO-P1-196-glm-identity-lab.md`, append-only checkpoints in this WO, ignored `runs/WO-P1-196/glm/`. All src/tests read-only. WO200 lane untouched and unmodified (separate claim/worktree; parked at its own external CI gate).
+- SAFE_TO_RUN_LAB=YES within the packet's synthetic-fixture rules (wo196- prefixed tempfile roots; junctions/hardlinks only at sacrificial local targets; no elevation; no network).
