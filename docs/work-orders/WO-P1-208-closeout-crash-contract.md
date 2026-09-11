@@ -81,3 +81,13 @@ WO196/WO204/WO206 current goals are not preempted. Child QUEUED, not launched.
 Next safe action: validate/freeze/push docs, prepare clean canonical-byte Windows child
 worktree, publish exact delivery SHA/hashes/PR pointer to Issues214/233. Parent design
 acceptance remains pending; WO205 retains PhaseD scope. No merge from this lane.
+
+
+## Child claim — WO208-GLM-CLOSEOUT-LAB-001 (2026-09-12, Windows GLM)
+
+- Claim started by user goal pointer at delivery `b1d52d0c03100f0bfffd9a4adca0c6240f43ac2c` (worktree HEAD verified == pointer; branch `codex/wo-p1-208-glm-closeout-lab`, clean, on base `02d39cb`).
+- Identity verified: packet SHA-256 `849d7c87...de93639`; proposal `5c3dcd55...add7d2`; seed `96a5bbc1...d0e0b6b6`; all four source/test blob IDs MATCH (goal_closeout `0acdf8c9`, job_store `bde34b6f`, job_state `816784b4`, test_goal_closeout `b4055cae`).
+- WO205 read via `git show origin/docs/wo-p1-205-zra2-phase-d-gate:...` without switching branches. Parent Phase-D authority and WO201/205 source HOLD intact. WO206 master is parked at its own BLOCKED_EXTERNAL_GPT_ACCEPTANCE gate; not disturbed.
+- Writable scope: NEW `docs/reviews/WO-P1-208-glm-closeout-lab.md`, append-only checkpoints here, ignored `runs/WO-P1-208/glm/**` (wo208- prefixed temp roots). All src/tests read-only.
+- Owner: this GLM session (WO208-GLM-CLOSEOUT-LAB-001); capacity gate passed (evidence-only docs lane; no active owner of this child found in Issue #214/#233 latest).
+- SAFE_TO_RUN_LAB=YES under packet synthetic-only rules.
