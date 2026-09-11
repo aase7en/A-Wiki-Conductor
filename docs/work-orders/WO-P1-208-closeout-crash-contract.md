@@ -96,3 +96,24 @@ acceptance remains pending; WO205 retains PhaseD scope. No merge from this lane.
 ### GLM lab completion checkpoint — WO208-GLM-CLOSEOUT-LAB-001 (2026-09-12)
 
 All programs C00-C08 DONE with native Windows evidence: seed reproduces verbatim (hash typo F1 recorded); real child-process cut matrix (os._exit at each boundary) with safe restart (1 effect -> COMPLETE) vs unsafe restart (2 effects after REAL crash) vs concurrent two-process barrier race (2 effects); lost-acknowledgment matrix proves only the reopened journal distinguishes commit-vs-not; lab owner-gate suppresses the stale effect (residual TOCTOU -> DESIGN_DECISION_REQUIRED); destination-enforced idempotent receipts proven incl. two-process single winner; odd lease port contract recorded (F2); 96-state finite model: conservative policy 0 violations, unsafe blind-retry caught (negative control). Decision packet for WO205 in the tracked handback. COMPLETE_FOR_PARENT_REVIEW; product implementation remains HOLD with the parent integrator. No source/test mutation; other lanes untouched.
+
+
+### Astra lab-review reservation — 2026-09-12
+
+Claim WO208-ASTRA-LAB-REVIEW-001. User reports GLM complete and requests high-reasoning
+follow-up plus a durable next-task pointer. Review exact lab b3a553ca3bb51753daa84b5f6be0dc81f1d025d6;
+its branch/worktree stays frozen. Original proposal accepted DESIGN ONLY by Sol; this is
+independent review of GLM lab evidence, not self-acceptance of the Astra architecture.
+Review worktree /Users/aase7en/Desktop/A-Wiki-Conductor-wo208-review;
+branch codex/wo-p1-208-lab-review; R2 docs/evidence review, no source authorization.
+Owned: this scoped checkpoint; NEW docs/reviews/WO-P1-208-astra-lab-review.md;
+NEW docs/prompts/GLM-WO208-CLOSEOUT-REPAIR.md. Ignored runs/WO-P1-208/review for read-only
+artifact copies and synthetic reviewer experiments. All original packet/proposal/seed,
+GLM report, source/tests, global SSoT, other WOs/live runtime/A-Wiki remain immutable.
+No new controller, broad audit, source fix or merge. Existing WO205 owner decides PhaseD.
+
+Initial review observations (not final verdict): F1 hash typo claim contradicted by exact
+original recorded/computed hash on both Mac and Windows; C03 report explicitly says final
+transition fault injection was preempted by FOLD_CHECKPOINT_MISSING. Need inspect actual
+lab programs, controls and portable replay before acceptance. Next: publish claim, inspect
+frozen artifacts, adjudicate and publish one bounded same-WO repair packet if required.
