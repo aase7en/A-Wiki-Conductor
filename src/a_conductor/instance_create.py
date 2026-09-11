@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import sys
+from enum import Enum
 from pathlib import Path
 
 from .instance_rebind import _PROJECTS_LINE_RE
@@ -76,6 +77,68 @@ def _retitle_cmd_text(text: str, title: str) -> str:
     if count == 0:
         updated = text.replace("@echo off", f"@echo off\ntitle {title}", 1)
     return updated
+
+
+class _RuntimeForensicsHardeningState(Enum):
+    TRANSFORMED = "TRANSFORMED"
+    ALREADY_HARDENED = "ALREADY_HARDENED"
+    PASSTHROUGH_UNRECOGNIZED = "PASSTHROUGH_UNRECOGNIZED"
+    REFUSED_AMBIGUOUS = "REFUSED_AMBIGUOUS"
+
+
+def _is_runtime_forensics_hardened(text: str) -> bool:
+    """Recognize the complete generated forensics shape, not marker presence alone."""
+    archive_assignment = "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'"
+    move_archive = "Move-Item -LiteralPath $RuntimeLog -Destination $Archived -Force"
+    wait = "$RuntimeProcess.WaitForExit()"
+    refresh = "$RuntimeProcess.Refresh()"
+    capture = "$RuntimeExitCode = $RuntimeProcess.ExitCode"
+    success_log = 'Write-Log "STOPPED: tunnel-client exit_code=0"'
+    failure_log = "exit_code={0}"
+    exit_command = "exit $RuntimeExitCode"
+
+    required_once = (
+        archive_assignment,
+        move_archive,
+        wait,
+        refresh,
+        capture,
+        success_log,
+        failure_log,
+        exit_command,
+    )
+    if any(text.count(marker) != 1 for marker in required_once):
+        return False
+    if "Wait-Process -Id $RuntimeProcess.Id" in text:
+        return False
+    if "if ($RuntimeProcess.ExitCode -ne 0)" in text:
+        return False
+
+    start = text.find('Write-Log "STARTING:')
+    positions = (
+        text.find(archive_assignment),
+        text.find(move_archive),
+        start,
+        text.find(wait),
+        text.find(refresh),
+        text.find(capture),
+        text.find(success_log),
+        text.find(failure_log),
+        text.find(exit_command),
+    )
+    return all(position >= 0 for position in positions) and list(positions) == sorted(positions)
+
+
+def _has_runtime_forensics_structural_signal(text: str) -> bool:
+    signals = (
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'",
+        "$RuntimeProcess.Refresh()",
+        "$RuntimeExitCode = $RuntimeProcess.ExitCode",
+        "exit $RuntimeExitCode",
+        "Wait-Process -Id $RuntimeProcess.Id",
+        "$RuntimeProcess.WaitForExit()",
+    )
+    return any(signal in text for signal in signals)
 
 
 def _harden_start_script_runtime_forensics(text: str) -> str:
@@ -185,6 +248,22 @@ exit $RuntimeExitCode"""
     return hardened[: method_match.start()] + replacement + hardened[method_match.end() :]
 
 
+def _classify_start_script_runtime_forensics(
+    text: str,
+) -> tuple[str, _RuntimeForensicsHardeningState]:
+    """Return a transformed/verified script plus an explicit safety classification."""
+    hardened = _harden_start_script_runtime_forensics(text)
+    if hardened != text:
+        if _is_runtime_forensics_hardened(hardened):
+            return hardened, _RuntimeForensicsHardeningState.TRANSFORMED
+        return text, _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+    if _is_runtime_forensics_hardened(text):
+        return text, _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    if _has_runtime_forensics_structural_signal(text):
+        return text, _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+    return text, _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
 def create_instance(
     instances_root: Path | str,
     name: str,
@@ -220,6 +299,12 @@ def create_instance(
     for script in ("start.ps1", "stop.ps1"):
         if not (reference / script).is_file():
             raise InstanceCreateError("REFERENCE_SCRIPT_MISSING")
+
+    reference_start_text = (reference / "start.ps1").read_text(encoding="utf-8")
+    _, reference_start_state = _classify_start_script_runtime_forensics(reference_start_text)
+    if reference_start_state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS:
+        raise InstanceCreateError("REFERENCE_START_SCRIPT_UNSAFE")
+
     for pattern, code in (
         ("Start-*.cmd", "REFERENCE_CMD_MISSING"),
         ("Stop-*.cmd", "REFERENCE_CMD_MISSING"),
@@ -265,7 +350,9 @@ def create_instance(
         text = text.replace(f"serena-{reference_slug}.yaml", f"{profile}.yaml")
         text = text.replace(f"'{reference_slug}-'", f"'{slug}-'")
         if action == "Start":
-            text = _harden_start_script_runtime_forensics(text)
+            text, hardening_state = _classify_start_script_runtime_forensics(text)
+            if hardening_state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS:
+                raise InstanceCreateError("REFERENCE_START_SCRIPT_UNSAFE")
         (target / script).write_text(text, encoding="utf-8", newline="\r\n")
 
         cmd_source = reference / f"{action}-Serena-{reference_slug.title()}.cmd"

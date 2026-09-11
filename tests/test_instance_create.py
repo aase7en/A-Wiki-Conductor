@@ -421,6 +421,62 @@ def test_partial_structural_hardening_marker_fails_unchanged(marker: str) -> Non
     assert _harden_start_script_runtime_forensics(source) == source
 
 
+@pytest.mark.parametrize(
+    "legacy_launcher",
+    (_legacy_wait_process_launcher, _legacy_method_wait_launcher),
+)
+def test_create_instance_rejects_complete_markers_with_legacy_seam_before_materializing(
+    sandbox, legacy_launcher
+) -> None:
+    instances_root, ref, project = sandbox
+    source = (
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        "$RuntimeProcess.Refresh()\n"
+        "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+        "exit $RuntimeExitCode\n"
+        + legacy_launcher()
+    )
+    (ref / "start.ps1").write_text(source, encoding="utf-8")
+
+    with pytest.raises(InstanceCreateError) as exc_info:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert exc_info.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "research").exists()
+
+
+def test_create_instance_rejects_partial_structural_marker_before_materializing(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    source = (
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        + _legacy_method_wait_launcher()
+    )
+    (ref / "start.ps1").write_text(source, encoding="utf-8")
+
+    with pytest.raises(InstanceCreateError) as exc_info:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert exc_info.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "research").exists()
+
+
+def test_create_instance_accepts_already_hardened_reference(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    hardened = _harden_start_script_runtime_forensics(_legacy_wait_process_launcher())
+    (ref / "start.ps1").write_text(hardened, encoding="utf-8")
+
+    created = create_instance(
+        instances_root, "Research", project, health_port=48114, reference_root=ref
+    )
+
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert start == hardened
+
+
 def test_method_wait_hardening_preserves_preflight_and_credential_sentinels() -> None:
     source = _legacy_method_wait_launcher()
     hardened = _harden_start_script_runtime_forensics(source)
