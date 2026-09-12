@@ -1,7 +1,7 @@
 # Elastic Multi-Agent Leverage Roadmap
 
 Date: 2026-09-07
-Status: SHAPING / NO IMPLEMENTATION AUTHORITY
+Status: SHAPING / P0 ZERO-RELAY PRIORITY FENCE / NO FLEET IMPLEMENTATION AUTHORITY
 Repository: `aase7en/A-Wiki-Conductor`
 Baseline at creation: `origin/main@df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` (PR #221 / ZRA-1 merged)
 Recomposed onto current accepted main: `origin/main@a887e7a76184d8f5dc22446a159087b6f9cab78d` (PR #224 / WO163 fold, which includes PR #219 / WO162 Universal Agent Entry). Dependency order unchanged: `A-Wiki #54 -> ZRA-2 -> ZRA-3 -> ZRA-4`; A-Wiki #54 is **MERGED** (`967e063cb9dc2e5b43b48a00deb575235f125a94`, post-main CI `34133420008` SUCCESS), so ZRA-2 is next, gated on GPT1 release of `GPT1-ZRA2-PREFLIGHT-001`.
@@ -11,6 +11,208 @@ Recomposed onto current accepted main: `origin/main@a887e7a76184d8f5dc22446a1590
 Evolve A-Sunday Conductor from a fixed small set of parallel lanes into a provider-neutral, asynchronous, conflict-aware **Elastic Multi-Agent execution fabric** that can use 1, 2, 4, 6, 8, 10+ agents when independent READY work actually exists.
 
 This document does not authorize implementation or reorder the accepted Zero-Relay roadmap. It records the target architecture and acceptance principles so future sessions do not depend on chat memory.
+
+
+## 2026-09-12 priority fence and deep-audit fold
+
+### Binding product priority
+
+The latest user instruction reaffirms the highest project priority:
+
+> **Complete GPT <-> GLM Zero-Relay before expanding Sunday Worker/Fleet/MCP production scope.**
+
+Completion means the user no longer copies prompts, results, review findings, repair instructions, or `continue` messages between ChatGPT/GPT and GLM/ZCode for the accepted path. Research/docs may proceed without consuming a critical mutable lane; Worker Host/Fleet implementation may not preempt the ZRA dependency chain.
+
+This is consistent with WO189 / PR #261 (pending priority capture) and does not transfer or supersede any active ZRA ownership.
+
+### Actual-state critical path at final fold
+
+This roadmap was re-pinned on 2026-09-12 against `origin/main@cfcb369fe5ab3a50569defa822289f10f2f38aac`.
+
+Durable Zero-Relay state observed from Git/GitHub/Issue #214:
+
+- **ZRA-2 Phase B is COMPLETE / POST-MAIN VERIFIED / ACCEPTED.** The reviewed no-clobber repair was accepted and folded through PR #291; merge `8700d21887500965ffc33bcbffa1f33602d9c2f6` preserved all six accepted Phase-B paths byte-for-byte and post-main verification reported `321 passed, 1 expected platform skip`.
+- **ZRA-2 Phase C0 is the active implementation frontier.** WO216 was explicitly released `NEXT_READY` on the accepted Phase-B base. A later durable coordination checkpoint detected two GLM sessions entering the same WO216 worktree; one session stood down without mutation. Treat that event as evidence that logical claim publication alone is insufficient runtime fencing; do not dispatch another WO216 writer until the current owner is reconciled.
+- **ZRA-2 Phase C1 remains blocked** until C0 is independently accepted, merged, post-main verified, and a fresh C1 claim is released.
+- **WO208 crash/effect lab is CHANGES_REQUIRED.** Independent review found five P2 evidence defects and published bounded repair packet PR #294. The original lab is not accepted as the WO205 Phase-D prerequisite.
+- **ZRA-2 Phase D remains blocked** until C0+C1 are accepted and the repaired WO208 crash/effect evidence is accepted and consumed.
+- **ZRA-3 remains dependency-blocked by full ZRA-2 acceptance.**
+- **ZRA-4 remains dependency-blocked by ZRA-3 acceptance and Issue #216 release.**
+
+These are dated observations, not permanent projections. Every dependent mutation must re-pin actual state.
+
+### Required execution order
+
+```text
+P0-A  ZRA-2 Phase C0 — CURRENT ACTIVE FRONTIER
+      WO216 review-task binding/materialization
+      -> deterministic exact ResultIdentity -> review TaskPacketFile
+      -> trusted route binding; READ_ONLY reviewer contract
+      -> no invented mailbox agent_id
+      -> no-clobber/replay/collision/identity-drift tests
+      -> reconcile duplicate-mutator event before further dispatch
+      -> freeze exact SHA -> independent review -> merge -> post-main verify
+
+P0-B  ZRA-2 Phase C1
+      WO201 trusted review-evidence composition
+      -> reviewer payload cannot mint author/result/attempt/generation authority
+      -> bind exact independent reviewer execution
+      -> exact author-result/task assignment cross-binding
+
+P0-C  WO208 repair + ZRA-2 Phase D prerequisite
+      repair the independent lab findings from PR #294
+      -> prove real crash/effect/restart evidence truthfully
+      -> accept repaired evidence before Phase-D source release
+
+P0-D  ZRA-2 Phase D
+      bind accepted ZRA-1 execution/result/review path + GoalCloseout/durable job state
+      -> at-most-once external effect / receipt / reconciliation
+      -> UNKNOWN or lost acknowledgement => reconcile, never resend
+      -> one review failure => exactly one bounded repair generation
+      -> repaired result ingested/verified automatically
+
+P0-E  Full ZRA-2 acceptance E2E
+      GPT task -> GLM -> exact result -> verify -> independent review
+      -> automatic repair -> GLM -> exact repaired result -> acceptance
+      -> human relay actions = 0
+
+P0-F  ZRA-3 acceptance
+      automatic NEXT READY
+      -> reconcile current WO191/WO195/WO199 stack on accepted ZRA-2
+      -> timeout/UNKNOWN never blind-replays
+
+P0-G  ZRA-4 bounded baseline
+      first ceiling = 2 mutable lanes
+      -> C1 physical workspace identity
+      -> C1b write-set canonicalization
+      -> C2 deterministic parallel batch identity
+      -> two-lane race/restart/partial-failure/fan-in proof
+      -> raise toward 3 only from evidence
+
+ONLY AFTER P0-G:
+P1    Worker Host / Fleet supervisor
+P2    second-machine federation
+P3    runtime isolation
+P4    evidence-gated 4/6/8/10+ scaling
+```
+
+### Open-source lessons admitted into the current Zero-Relay path
+
+The companion deep audit permits only bounded invariant/test adoption on the current critical path:
+
+1. **agentmux delivery receipt:** submitted-but-unverified is an at-most-once recovery fence, never a resend signal.
+2. **Agent Orchestrator/Open SWE CI-review reaction:** feedback is bound to exact task/result/reviewer identity and enters the existing ZRA-2 repair path.
+3. **OpenAI/MAF handoff discipline:** explicit filtered task context, stable participant/execution identity, accepted vs intermediate output separation.
+4. **OpenHands/Open SWE unknown-state rule:** unknown/unreachable workspace/process is recovery/hold, not silent replacement.
+5. **Docker gateway collision rule:** dynamic capability names cannot silently shadow one another.
+6. **Multi-agent runtime fencing lesson from the live WO216 duplicate-mutator incident:** logical task/claim identity must be composed with exact physical worktree/process ownership before dispatch; duplicate entry is a coordination defect to reconcile, not permission for concurrent mutation.
+
+No new scheduler, queue, graph store, retry store, or review authority is authorized.
+
+### P1 — single-machine Worker Host MVP (Windows first)
+
+After ZRA-4 baseline acceptance, consolidate logical workers behind one background host/supervisor while preserving old endpoints as migration fallback:
+
+```text
+ChatGPT / A-Sunday Conductor
+           |
+      Worker Host API
+           |
+    +------+------+------+------+
+    W1     W2     W3     W4     W5
+```
+
+Required:
+- stable host identity + authenticated endpoint;
+- list/get/health/events for logical workers;
+- start/stop/restart/drain through existing LocalInstanceOrchestrator/recovery;
+- live reconciliation of process/project/worktree/branch/HEAD/dirty/task/claim/lease;
+- background/no-console startup;
+- request/response plus streaming event/read model;
+- namespace collision rejection;
+- **no Worker Host scheduler/task/claim/merge authority**.
+
+Primary references: OpenHands Agent Server, Agent Orchestrator, Docker MCP Gateway, `agents`.
+
+### P2 — Windows + Mac federation
+
+```text
+A-Conductor
+   +-- Windows Host -> W1..W5
+   +-- Mac Host     -> W6..W10
+```
+
+Required:
+- host identity separate from worker identity;
+- OS/capability/resource/latency/last-seen projection;
+- `HOST_OFFLINE` distinct from `WORKER_UNHEALTHY`;
+- heartbeat/event reconciliation;
+- cross-host auth/secret isolation;
+- cross-platform exact-SHA verification roles;
+- no assumption RDC identity == Worker Host identity.
+
+References: ContextForge federation/OTEL, OpenHands multi-server pattern, Gas Town Witness/Deacon separation.
+
+### P3 — runtime isolation profile
+
+Before high-concurrency mutable lanes that run services/tests:
+- deterministic per-lane port ranges;
+- per-lane DB/schema and Compose namespace where required;
+- env projection without secrets in Git;
+- dependency/cache policy;
+- exact owned background-process identity;
+- setup/teardown hooks;
+- stale-allocation reconciliation/doctor.
+
+Allocation is subordinate to physical worktree identity + WorkerLease, never a second scheduler/claim system.
+
+References: workz and falq.
+
+### P4 — evidence-gated fleet scale
+
+- **2 mutable lanes:** ZRA-4 first acceptance target.
+- **3 mutable + 1 read-only review:** normal ceiling after 2-lane proof.
+- **4–6 lanes:** require READY demand, runtime isolation, review capacity, provider capacity, and measured throughput gain.
+- **8 lanes:** additionally require host resource backpressure + restart/partial-failure evidence.
+- **10+ registered workers:** allowed as a pool; active mutation remains dynamic and recovery capacity stays free.
+
+Ten registered workers are capacity, not a concurrency target.
+
+### Adoption verdict
+
+| Area | Adopt | Reject |
+|---|---|---|
+| Zero-Relay transport | agentmux at-most-once receipt invariants | second prompt queue |
+| worker host | OpenHands/AO interface patterns | their schedulers/task stores |
+| MCP gateway | Docker namespace/lifecycle/security | gateway-owned authority |
+| federation/observability | ContextForge/OTEL patterns | ContextForge control plane |
+| liveness | `agents` live reconciliation | persisted liveness as truth |
+| runtime isolation | workz/falq allocation patterns | unowned global cleanup |
+| fleet health | Gas Town Witness/Deacon roles | Beads/Gas Town task DB |
+| fan-out/in | MAF API/test patterns | MAF graph/checkpoint store |
+| durable semantics | Pydantic/Temporal invariants | durable-engine migration |
+| handoff context | OpenAI explicit filters/traces | implicit full-chat handoff |
+| swarm scale | Ruflo topology benchmarks | Ruflo memory/router/scheduler |
+
+### Fleet acceptance metrics
+
+A Fleet change is rejected if it increases busyness without accepted delivery:
+- human relay actions / accepted external-agent task (**0 after Zero-Relay**);
+- accepted work/hour;
+- median/p95 lead time and READY->claim latency;
+- first-review pass rate and repair loops/task;
+- merge/conflict rate and review queue wait;
+- CPU/RAM/disk/LSP/process count per host;
+- duplicate execution count;
+- ambiguous-submit blind replay count (**0**);
+- runtime port/DB/Compose collision count;
+- recovery success + orphan process/worktree count;
+- cost / accepted task.
+
+### Activation rule
+
+The deep audit is complete enough to close the research prerequisite for architecture shaping. It does **not** activate Worker Host/Fleet product work. The next production mutation remains the current Zero-Relay critical path. Worker Host/Fleet becomes `NEXT_READY` only after ZRA-4 baseline acceptance or an explicit future user decision that reorders the roadmap after fresh conflict/authority analysis.
+
 
 ## Existing foundations to reuse
 
@@ -201,9 +403,9 @@ UNKNOWN blocks or routes to an explicitly authorized fallback; it never means "t
 
 Scaling is evidence-gated, not a one-step jump.
 
-### Stage 0 — external reuse audit
+### Stage 0 — external reuse audit — COMPLETE FOR SHAPING (2026-09-12)
 
-Study current upstream orchestration projects before adding new primitives. Produce `REUSE / WRAP / EXTEND / REJECT / NEW` decisions with license/provenance and trust-boundary analysis.
+Deep source/license/trust-boundary audit is complete in the companion research document. Production adoption remains separately gated; no upstream framework becomes authority by completing this research.
 
 ### Stage 1 — bounded parallel baseline
 
@@ -332,4 +534,6 @@ The long-term architecture is accepted only when a user can submit a goal and A-
 
 Do not implement a new orchestration subsystem from this document.
 
-First complete the companion upstream reuse audit, then map its findings against the already-accepted WO116/WO120 primitives and the Issue #216 ZRA-4 findings classified above. The current dependency reality: A-Wiki #54 is merged, ZRA-2/ZRA-3/ZRA-4 remain gated in that order (ZRA-2 awaiting GPT1 claim release), and the ZRA-4 identity/overlap/batch-identity repairs are mutation-ready packets inside the WO161 reservation — not active work. Any future implementation requires a fresh work order, exact-main re-pin, ownership gate, RED-first acceptance criteria, and independent exact-SHA review.
+The companion upstream reuse audit is complete for architecture shaping. Continue the existing Zero-Relay critical path in this order: finish ZRA-2 Phase B exact-SHA review/acceptance/merge/post-main proof; release and implement WO201 Phase C; complete ZRA-2 Phase D plus the full no-human-relay review/repair E2E; reconcile/accept ZRA-3; then execute the already-gated ZRA-4 C1/C1b/C2 work and two-lane proof.
+
+Worker Host/Fleet product work remains deferred until that ZRA-4 baseline is accepted. Research-derived P0 invariants may be folded into the existing ZRA contracts/tests only through their current owners and claims; this document grants no source mutation authority. Any future Worker Host/Fleet implementation requires a fresh work order, exact-main re-pin, ownership/non-overlap gate, RED-first acceptance criteria, and independent exact-SHA review.
