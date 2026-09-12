@@ -62,11 +62,41 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", required=True)
     parser.add_argument("--output-root", required=True)
+    parser.add_argument("--skip-manifest-preflight", action="store_true",
+                        help="research-only: skip the bundle/source preflight gate")
     args = parser.parse_args()
     repo = lab.resolve_repo_root(args.repo_root)
     out_dir = Path(args.output_root).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
+
+    # S1 preflight: every bundle hash + pinned source blob verified against
+    # the SELECTED checkout before any experiment. Trust root is the pinned
+    # candidate SHA recorded in the packet; the manifest is a lab-consistency
+    # gate, not an authentication claim over attacker checkouts.
+    preflight = {"skipped": args.skip_manifest_preflight, "expected": True}
+    if not args.skip_manifest_preflight:
+        try:
+            manifest = lab.verify_manifest(repo)
+            preflight["verified_files"] = len(manifest["files"])
+            preflight["verified_source_blobs"] = len(manifest["source_blobs"])
+            preflight["pinned_candidate_sha"] = lab.PINNED_CANDIDATE_SHA
+        except lab.LabFailed as exc:
+            preflight.update(expected=False, reason=str(exc)[:300])
+            print(f"manifest_preflight_ok=False: {exc}")
+            results = {
+                "fence_sha256": None, "canonical_sha256": CANONICAL_SEED_SHA256,
+                "manifest_preflight": preflight,
+                "four_observations": {"expected": False, "data": None},
+                "seed_artifact": {"path": None, "rejected_before_import": True},
+                "elapsed_s": round(time.monotonic() - started, 2),
+                "exit_code": 1,
+            }
+            summary = out_dir / "seed-summary.json"
+            summary.write_text(json.dumps(results, indent=1), encoding="utf-8")
+            print(f"summary -> {summary}")
+            return 1
+    results_preflight = preflight
 
     fence = extract_fence(repo)
     fence_sha = hashlib.sha256(fence.encode("utf-8")).hexdigest()
@@ -92,11 +122,29 @@ def main() -> int:
     normalized = seed_copy.read_bytes().replace(b"\r\n", b"\n")
     norm_sha = hashlib.sha256(normalized).hexdigest()
 
+    # S1 (N1): the executable bytes must be bound to the verified canonical
+    # fence BEFORE import. Raw CRLF copies normalize to LF for comparison;
+    # anything else is rejected without executing. A fake run() returning
+    # the five expected numbers can therefore never substitute for the seed.
+    executable_ok = raw_sha == CANONICAL_SEED_SHA256 or norm_sha == CANONICAL_SEED_SHA256
+    rejection_reason = None
+    if not executable_ok:
+        rejection_reason = (
+            f"executable bytes do not match the canonical fence "
+            f"(raw={raw_sha[:12]}… lf={norm_sha[:12]}… canonical="
+            f"{CANONICAL_SEED_SHA256[:12]}…); refused BEFORE import")
+
     observations = {}
     obs_ok = False
-    if fence_ok:
+    executed_sentinel = False
+    if fence_ok and executable_ok:
         lab.bootstrap_paths(repo)
         try:
+            # harmless sentinel: proves accepted bytes ran (and, in the N1
+            # repro, that rejected mismatched code was never executed)
+            (out_dir / "seed-executed.sentinel").write_text(
+                f"{raw_sha}\n", encoding="utf-8")
+            executed_sentinel = True
             observations = run_original_seed(seed_copy, repo, out_dir)
             obs_ok = (
                 observations.get("concurrent", {}).get("effects") == 2
@@ -111,21 +159,27 @@ def main() -> int:
     results = {
         "fence_sha256": fence_sha,
         "canonical_sha256": CANONICAL_SEED_SHA256,
+        "manifest_preflight": results_preflight,
         "f1_retraction": {
             "expected": fence_ok,
             "statement": ("recorded digest in seed doc == computed digest of its own "
                           "fence; the original '6a vs 6c typo' claim was the lab's "
                           "misreading and is RETRACTED (F1)")},
         "seed_artifact": {"path": str(seed_copy), "raw_sha256": raw_sha,
-                           "lf_normalized_sha256": norm_sha},
+                           "lf_normalized_sha256": norm_sha,
+                           "executable_bound_to_canonical": executable_ok,
+                           "rejected_before_import": not executable_ok,
+                           "rejection_reason": rejection_reason,
+                           "execution_sentinel_written": executed_sentinel},
         "four_observations": {"expected": obs_ok, "data": observations},
         "elapsed_s": round(time.monotonic() - started, 2),
     }
     summary = out_dir / "seed-summary.json"
-    exit_code = 0 if (fence_ok and obs_ok) else 1
+    exit_code = 0 if (fence_ok and executable_ok and obs_ok) else 1
     results["exit_code"] = exit_code
     summary.write_text(json.dumps(results, indent=1), encoding="utf-8")
-    print(f"fence_hash_ok={fence_ok} four_observations_ok={obs_ok} exit={exit_code}")
+    print(f"fence_hash_ok={fence_ok} executable_bound={executable_ok} "
+          f"four_observations_ok={obs_ok} exit={exit_code}")
     print(f"summary -> {summary}")
     return exit_code
 

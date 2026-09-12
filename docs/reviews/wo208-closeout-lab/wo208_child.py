@@ -322,6 +322,31 @@ def main() -> int:
              "effects_this_run": effect.count}), encoding="utf-8")
         os._exit(17)
 
+    # -- S5 helper modes (finite owned helpers; no real Worker/service) ----
+    if args.mode == "hang-past-timeout":
+        # finite (self-terminates after 120s) but stays alive far past the
+        # driver's 6s test timeout -- the REAL timeout proof helper.
+        marker(folder, "hang-past-timeout")
+        time.sleep(120)
+        os._exit(19)
+
+    if args.mode == "bounded-sibling":
+        # bounded sibling started alongside the hang helper; writes its
+        # start marker and exits 0 quickly -- proves sibling reap on exit.
+        (folder / "bounded-sibling-started.txt").write_text(
+            str(os.getpid()), encoding="utf-8")
+        os._exit(0)
+
+    if args.mode == "early-first-child-fail":
+        # first child fails before any effect/checkpoint exists
+        marker(folder, "early-first-child-fail")
+        print("first child failed before effect", file=sys.stderr)
+        os._exit(21)
+
+    if args.mode == "no-output-mode":
+        # exits nonzero WITHOUT writing any output artifact
+        os._exit(22)
+
     print(f"unknown mode {args.mode}", file=sys.stderr)
     raise SystemExit(2)
 

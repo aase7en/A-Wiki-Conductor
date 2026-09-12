@@ -10,13 +10,15 @@ checkout (stdlib + the repo's own test helpers) and Python 3.11+.
 
 | File | Purpose | Repairs |
 |---|---|---|
-| `lab_common.py` | shared helpers: explicit `--repo-root` resolution, owned `wo208-` temps, strict exit discipline (`fail_nonzero`) | R2/R5 |
-| `seed_probe.py` | canonical seed rehydration + digest verification + four original observations | F1, R5 |
+| `lab_common.py` | shared helpers: `--repo-root` resolution, owned temps, strict exit discipline, `verify_manifest` preflight gate, `validate_cut_observation` shared validator | R2/R5, N1, S1/S4 |
+| `seed_probe.py` | canonical seed rehydration + digest verification + EXECUTABLE-BYTES BINDING (mismatched bytes rejected before import; sentinel proves accepted code ran) + manifest preflight | F1, R5, N1, S1 |
 | `wo208_child.py` | child helper: cut markers AT the boundary, distinct 79 fallback exits, restart-aware fsynced effects | R1/R2 |
-| `c02_cut_matrix.py` | enforced cut matrix + restarts + concurrent processes + negative controls | R2 |
-| `c03_c05_c06_suite.py` | fold/COMPLETE lost-ack pairs with hook-entry proof, stable operation identity receipts, truthful lease controls | R1/R4/F2 |
-| `c07_model.py` | action-validating transition model (72 states) + seven named mutants | R3 |
-| `manifest.json` | per-file SHA-256, source blob pins, case identifiers, seeds/timeouts | R5 |
+| `c02_cut_matrix.py` | enforced cut matrix (shared validator) + restarts + concurrent processes + 10 negative controls incl. REAL helper timeout | R2, N3, S5 |
+| `c03_c05_c06_suite.py` | fold/COMPLETE lost-ack pairs, stable identity receipts, truthful lease controls + REQUIRED reload-active contradiction experiment | R1/R4/F2, N4, S6 |
+| `c07_model.py` | CLOSED four-axis transition model (72 states) + nine named mutants + six bounded traces | R3, N2, S2/S3 |
+| `manifest.json` | per-file SHA-256 (regenerated LAST; excludes itself), source blob pins, case identifiers, seeds/timeouts | R5, N1 |
+| `replay_suite.py` | one documented batch command: manifest preflight + all four entrypoints + differential/metamorphic batch | S7/S8 |
+| `test_lab_contract.py` | pytest suite validating the validators through their real entrypoints (24 tests) | S4/S8 |
 
 ## Commands (Windows, from the repository root of the pinned checkout)
 
@@ -26,6 +28,31 @@ python docs/reviews/wo208-closeout-lab/c02_cut_matrix.py --repo-root . --output-
 python docs/reviews/wo208-closeout-lab/c03_c05_c06_suite.py --repo-root . --output-root <OWNED_OUT>\c03c05c06
 python docs/reviews/wo208-closeout-lab/c07_model.py --output-root <OWNED_OUT>\c07
 ```
+
+### One-command batch (preferred, S8)
+
+Windows:
+```text
+python docs/reviews/wo208-closeout-lab/replay_suite.py --repo-root . --output-root <OWNED_OUT>atch
+```
+POSIX:
+```text
+python docs/reviews/wo208-closeout-lab/replay_suite.py --repo-root . --output-root /tmp/wo208-batch
+```
+The batch runs the manifest preflight, all four entrypoints and the
+differential/metamorphic batch (ordering permutation, c07 replay
+determinism, corrupt-summary handling, idempotent suite rerun) and appends
+`run-N` subdirectories without deleting prior evidence. Expected
+observations: `manifest-preflight PASS`, four `entry:* exit=0` lines, four
+`diff:*` PASS lines, `batch exit=0`.
+
+### Contract test suite
+
+```text
+python -m pytest -q docs/reviews/wo208-closeout-lab/test_lab_contract.py
+```
+Expected: 24 passed. Environment: Python 3.11+, stdlib only, tracked
+contents only, `PYTHONDONTWRITEBYTECODE=1` recommended.
 
 POSIX equivalent: the same commands with `/` paths. Every entrypoint exits 0
 ONLY when all enforced expectations and negative controls hold; any unmet

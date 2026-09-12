@@ -428,11 +428,15 @@ def c06_lease_truth(out_root: Path, results: dict) -> None:
                               fold_port=effects).execute_next(snapshot)
 
     class OddLeasePort:
-        released_any = False
+        n = 0  # release() CALL count (the port being called, not release truth)
 
         def release(self, lease_id):
-            OddLeasePort.released_any = True
+            OddLeasePort.n += 1
             return LeaseReleaseOutcome(released=False, already_released=False)
+
+        @property
+        def released_any(self):
+            return self.n > 0
 
     reopened = SQLiteJobStore(folder / "jobs.sqlite")
     post = post_fold_facts(reopened, job_id, folder)
@@ -453,22 +457,53 @@ def c06_lease_truth(out_root: Path, results: dict) -> None:
     release_ref = closeout_checkpoint_ref(
         CloseoutStage.RELEASE_LEASE, task_id=TASK, candidate_sha=SHA, lease_id="lease-1")
     release_checkpoint_present = release_ref in refs_after
-    # current executor: ACTIVE + odd both-false port -> RELEASE_REQUIRED detail
-    # records ALREADY_RELEASED only when already flag; here it treats the
-    # release as done and moves on; with ACTIVE evidence the plan had allowed
-    # RELEASE. The refusal/contradiction to record: the release checkpoint is
-    # absent while the port claims a release effect happened.
-    expected_active = (r_active.decision.value in ("RELEASE_REQUIRED", "COMPLETE_ALLOWED")
-                       and odd.released_any)
+    # S6 (N4): report the OBSERVED journal truth — the executor recorded the
+    # release checkpoint (port_called=True) — and name the indicators
+    # accurately. The F2 port-contract question is retained separately.
+    expected_active = (r_active.decision.value == "RELEASE_REQUIRED"
+                       and odd.released_any and release_checkpoint_present)
     results["c06-truthful-active-lease"] = {
         "expected": expected_active, "decision": r_active.decision.value,
-        "detail": r_active.detail, "port_released_any": odd.released_any,
+        "detail": r_active.detail,
+        "port_called": odd.released_any,
+        "port_reported_released": False,  # the odd port's BOTH-false outcome
         "release_checkpoint_present_after": release_checkpoint_present,
-        "contradiction": ("port returned released=False/already_released=False yet the "
-                          "executor proceeded past the release stage without a durable "
-                          "release checkpoint — F2 port-contract question retained"),
+        "observed_journal_facts": {
+            "release_checkpoint_ref": release_ref,
+            "present": release_checkpoint_present},
+        "note": ("executor recorded the release checkpoint after the port call "
+                 "(port_was_called=true); the odd port returned released=False/"
+                 "already_released=False — whether an unreleased outcome may "
+                 "still checkpoint is the RETAINED F2 port-contract question, "
+                 "not a COMPLETE bypass"),
         "classification": "SOURCE-SEAM PORT CONTRACT QUESTION (F2), not an observed bypass"}
     print(("PASS " if expected_active else "FAIL ") + "c06-truthful-active-lease")
+
+    # S6 (N4) REQUIRED reload experiment: reopen the store, RETAIN the
+    # truthful ACTIVE lease evidence, execute again. The durable release
+    # checkpoint now contradicts the CURRENT lease authority => fail-closed
+    # reconciliation; no repeated release, no fabricated refs.
+    reloaded = SQLiteJobStore(folder / "jobs.sqlite")
+    refs_reload = frozenset(e.checkpoint_ref for e in reloaded.list_events(job_id) if e.checkpoint_ref)
+    reload_active = facts(
+        state=reloaded.get_job(job_id).state, version=reloaded.get_job(job_id).version,
+        verification=post.verification, completed_closeout_refs=refs_reload,
+        lease=L(lease_id="lease-1", state="ACTIVE"), fold=post.fold)
+    r_reload = GoalCloseoutExecutor(job_store=reloaded,
+                                    lease_release_port=odd, fold_port=effects).execute_next(reload_active)
+    job_after_reload = reloaded.get_job(job_id).state.value
+    expected_reload = (r_reload.decision.value == "RECOVERY_REQUIRED"
+                       and r_reload.detail == "LEASE_RELEASE_CONTRADICTION"
+                       and odd.released_any is True and odd.n == 1
+                       and job_after_reload == "REVIEW_PENDING")
+    results["c06-reload-active-contradiction"] = {
+        "expected": expected_reload,
+        "decision": r_reload.decision.value, "detail": r_reload.detail,
+        "release_calls_total": odd.n,
+        "job_state_after": job_after_reload,
+        "facts_source": "reopened store; refs derived from list_events (observed, not injected)",
+        "lease_evidence": "truthful ACTIVE (not synthetic)"}
+    print(("PASS " if expected_reload else "FAIL ") + "c06-reload-active-contradiction")
 
     # labelled SYNTHETIC positive control (not an observed release)
     reopened2 = SQLiteJobStore(folder / "jobs.sqlite")

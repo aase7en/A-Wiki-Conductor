@@ -1,38 +1,5 @@
 {
- "schema": "wo208-closeout-repair-bundle/1",
- "repair_claim": "WO208-GLM-CLOSEOUT-REPAIR-001",
- "reviewed_submission": "b3a553ca3bb51753daa84b5f6be0dc81f1d025d6",
- "review_delivery": "1c8d8259e29ce634bc8d6c44d29eec1126da319a",
- "source_base": "02d39cbd9bca1ab3bb19b6e0cfbb0766c991f971",
- "source_blobs": {
-  "src/a_conductor/goal_closeout.py": "0acdf8c99194818169239a2eaf4aeac7758e3f39",
-  "src/a_conductor/job_store.py": "bde34b6f4e1163caaa7b641a21dd741e14e5cda8",
-  "src/a_conductor/job_state.py": "816784b431c4d03d9cfbe23a806525adc29645f4",
-  "tests/test_goal_closeout.py": "b4055cae6a79c2165aa20dd0c5172c4cf0736446"
- },
- "original_artifact_raw_sha256": {
-  "seed_probe.py": "d0f76a5a0e6214a33f9e3dfd389b58f58af6373b81c7e6370e06dc9c8ecd3fb3",
-  "wo208_child.py": "f17bb11e4c07f0881c68ee2c0d7908749fb0b5a6ab7491cfe43e9d8dec04461c",
-  "c02_cut_matrix.py": "cc4cdb6fb5ad91769fd8928e1b14c90d32d8a057083eb8cadffe7d0b654ead9f",
-  "c03_c05_c06_suite.py": "1bac4caa4ed01ffd5aa1f6eb75d55a72d67d4c9f5bc571b9a963e6a7d1c73f6d",
-  "c07_model.py": "5394a9364630370f7587ecb10a89029746dab8a378f479418ea4b0a997934fbd"
- },
- "normalization_rule": "bundle scripts are LF; no CRLF\u2192LF conversion needed for the originals here (raw copies retained in ignored runs/)",
- "canonical_seed_sha256": "bf1136e729cbe8676676031120a586610adeeb3dccca20addda6c1301a579aac",
- "fixed_seeds_and_timeouts": {
-  "child_timeout_seconds": 60,
-  "concurrent_barrier_timeout_seconds": 15,
-  "two_process_worker_timeout_seconds": 60,
-  "random_seeds": "none used \u2014 all schedules deterministic (barriers/ordered stages)"
- },
  "case_identifiers": {
-  "seed": [
-   "fence-digest",
-   "concurrent-2-effects-1-checkpoint",
-   "stale-1-effect-blocked",
-   "unknown-reentry-2-effects",
-   "positive-1-effect-complete"
-  ],
   "c02": [
    "cut0-before-effect",
    "cut2-fold-response",
@@ -69,16 +36,32 @@
    "mutant:terminal-repeated-effect",
    "mutant:unjustified-initial-blocking",
    "mutant:unsupported-action-vocabulary"
+  ],
+  "seed": [
+   "fence-digest",
+   "concurrent-2-effects-1-checkpoint",
+   "stale-1-effect-blocked",
+   "unknown-reentry-2-effects",
+   "positive-1-effect-complete"
   ]
  },
- "expected_outcomes": "every entrypoint exit 0; seed fence+4 observations; c02 13/13; c03c05c06 10/10; c07 conservative clean + 7/7 mutants",
- "bundle_sha256": {
-  "seed_probe.py": "09e3ef1dbf6b8b05a51e9bd870b57f4ae52de30d0b9aaf8e211da6d2a7de57f7",
-  "wo208_child.py": "0414e5b5ec313f5d61b36d69865f1aa72eb14a92f7442c061911ece5baa95fc1",
-  "c02_cut_matrix.py": "a9f9f988233127f57c36ef706bf7f7ce7c6de1638256ca6142d2c1fab7308ffc",
-  "c03_c05_c06_suite.py": "2edfdcea000db2eeef8234b8e05758547e3f5f9df263518e5ed086911c61476d",
-  "c07_model.py": "98f8691c8a8d5c8e1fc1dd2c3a766be889d7dd72a6e70c2d5e73bc2ffec284d0",
-  "lab_common.py": "8db55d9b19c9516b734380bb20f65a271e12c65b71cc985ea57ecec197e7157b",
-  "README.md": "ad9462bbdd891ecf7750ea0d9a27de7b86b2aa2cb27f77ada7d4e587b6501df7"
+ "files": {
+  "c02_cut_matrix.py": "b32a2d090135f8c54f3c2feaf92e2d436d14a08c3c4e1f743588390a6a65d33a",
+  "c03_c05_c06_suite.py": "acd5e53e92119f890f572504cb45f8a9c62dd730b708b417a9da12f51ea8d9ef",
+  "c07_model.py": "08efe67e9db65d95ad4abec58994a50218ffca3d090a112d43d3239a8babaa24",
+  "lab_common.py": "776f3d7a2f21eb812a24a2034c48ec92c312f1b38b498fe70d9524a24c4ac3bb",
+  "replay_suite.py": "66978b6f600156cc9bc123d530bcc4b404953d82ca04b32c9b05f2c6812c764b",
+  "seed_probe.py": "3e7742b6a72d2e2ab1f979f9c56e4331bc885617fc2fce82b8c92817d6e464d8",
+  "test_lab_contract.py": "04432ade0db89d08ed1b4cdd01e39efcae840a729b321abe32645a385f25353e",
+  "wo208_child.py": "c6f31b36498ee265dc4571e309b5baefc4ca2373239f85932e17e38d356367b1"
+ },
+ "notes": "regenerated LAST after N1-N4 finalization edits; manifest excludes itself from its own hashes; trust root is the pinned candidate SHA",
+ "pinned_candidate_sha": "2482998e19ee439e04adf321cd5d74c1feb94243",
+ "seeds_and_timeouts": {},
+ "source_blobs": {
+  "src/a_conductor/goal_closeout.py": "0acdf8c99194818169239a2eaf4aeac7758e3f39",
+  "src/a_conductor/job_state.py": "816784b431c4d03d9cfbe23a806525adc29645f4",
+  "src/a_conductor/job_store.py": "bde34b6f4e1163caaa7b641a21dd741e14e5cda8",
+  "tests/test_goal_closeout.py": "b4055cae6a79c2165aa20dd0c5172c4cf0736446"
  }
 }
