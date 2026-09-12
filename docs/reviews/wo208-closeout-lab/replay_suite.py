@@ -175,8 +175,11 @@ def main() -> int:
     if not (repo / ".git").exists():
         import shutil
         if shutil.which("git"):
-            for cmd in (["git", "init", "-q"], ["git", "commit", "--allow-empty", "-q",
-                          "-m", "wo208 cold-start export (owned; observation-only HEAD)"]):
+            for cmd in (["git", "init", "-q"],
+                        ["git", "add", "-A"],
+                        ["git", "-c", "user.name=wo208-finalization", "-c",
+                         "user.email=wo208@invalid", "commit", "-q", "--allow-empty",
+                         "-m", "wo208 cold-start export (owned; observation-only HEAD)"]):
                 subprocess.run(cmd, cwd=str(repo), capture_output=True, text=True,
                                timeout=60)
             results["cold_start_git_shim"] = "initialized owned empty HEAD in export"
