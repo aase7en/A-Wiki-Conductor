@@ -1,9 +1,10 @@
 # WO-P1-226 — ZRA-2 reviewer execution bridge over accepted ZRA-1 transport
 
-Status: PREPARED / HOLD_AFTER_WO225 / R3
+Status: NEXT_READY_AFTER_ASTRA_PACKET_REPAIR / R3 / DESIGN_GAP_STOP_IF_NO_EXISTING_WINNER_AUTHORITY
 Date: 2026-09-12 (Asia/Bangkok)
 Repository: `aase7en/A-Wiki-Conductor`
 Base at packet creation: `origin/main@60aba770fd457d04f1e31040b9dfd7af3927f669`
+Release base after accepted WO225/post-main: `origin/main@7afb33d738086db50bc027c4c47165179a1cb96f`
 Worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo226-zra2-reviewer-execution`
 Branch: `docs/wo-p1-226-zra2-reviewer-execution-bridge`
 Parent roadmap: WO-P1-165 / Issue #214 / ZRA-2
@@ -43,8 +44,11 @@ Do not mutate product source from this packet until all are true from actual cur
 3. Issue #214 explicitly marks `WO226_REVIEWER_EXECUTION_NEXT_READY` or equivalent.
 4. A fresh isolated implementation worktree/branch/claim is created from then-current main.
 5. No overlapping source owner exists for the released mutable scope.
+6. Independent Astra pre-implementation contract audit exact commit `f99cd9aadceb903649cdbf577935267a362540eb` has been folded into this packet: proven duplicate-winner/multiplicity and cleanup-API findings are now binding RED/stop conditions.
 
-If any gate is absent or ambiguous: checkpoint and STOP. Do not treat this prepared packet as mutation authority.
+WO225 is now accepted/merged/post-main at `7afb33d738086db50bc027c4c47165179a1cb96f`; gate 1 is satisfied. GPT-5.6 Sol may publish `WO226_REVIEWER_EXECUTION_NEXT_READY` only after this amended packet is frozen and the live claim/scope gate remains non-overlapping.
+
+If any remaining gate is absent or ambiguous: checkpoint and STOP. Do not infer mutation authority from this packet alone.
 
 ## 3. Durable archaeology facts — authority, not design guesses
 
@@ -199,22 +203,24 @@ Conceptual one-attempt flow:
 validated ParallelReadyTask + DirectReviewRoute
   -> re-bind exact C0 identities
   -> require ZCODE_APP_SERVER execution strategy for this direct ZCode path
-  -> derive exact execution fingerprint BEFORE external provider effect
-  -> DuplicateExecutionGuard
-      REUSE_COMPLETED -> validate exact record -> return same handoff, no new provider call
-      ATTACH_RUNNING  -> typed WAIT/RECONCILE, no duplicate provider call
-      UNKNOWN/BLOCKED -> RECOVERY_REQUIRED, no duplicate provider call
-      SAFE_TO_LAUNCH  -> continue
-  -> existing canonical READ_ONLY Worker lease authority
-  -> existing canonical ProviderAdmission authority bound to route dispatch id + deterministic batch
+  -> derive pure execution plan + exact fingerprint BEFORE external effect
+  -> inspect ALL equivalent fingerprint records, not matches[0]
+      any multiplicity/live/ambiguous conflict -> RECOVERY_REQUIRED / no launch
+      exact single completed equivalent -> validate exact route/worker/runtime facts
+      no equivalent execution -> candidate-to-launch only
+  -> acquire/prove ONE canonical durable launch winner through an EXISTING authority
+      no second guard check / capacity=1 / same lease+admission reentry as winner proof
+      no existing authorized winner seam -> DESIGN_GAP and STOP
+  -> acquire/reuse exact canonical READ_ONLY WorkerLease + ProviderAdmission
+  -> durably associate winner + fingerprint + lease/admission identities BEFORE model effect
+      no existing canonical association seam -> DESIGN_GAP and STOP
   -> accepted ZRA-1 supervised ZCode assembly/run
-  -> locate exact durable execution by fingerprint (never latest-row)
-  -> re-read exact DurableExecutionRecord
+  -> locate/reconcile ALL exact durable executions by fingerprint (never latest-row)
   -> prove task/provider/model/project/worker/repo/branch/HEAD/runtime bindings
   -> terminal/recovery classification
   -> retain exact artifact refs
-  -> existing admission/lease release/recovery semantics
-  -> immutable DirectReviewExecutionHandoff
+  -> reconcile/release exact provider admission + WorkerLease using their actual API semantics
+  -> immutable DirectReviewExecutionHandoff only after execution + cleanup truth are proven
 ```
 
 Do not parse reviewer JSON/verdict in this WO.
@@ -239,7 +245,11 @@ Planning MUST be side-effect free: no provider admission acquire/release, no Wor
 
 Prefer one shared helper consumed by both preflight and launch assembly so the fingerprint inputs cannot drift. If launch assembly recomputes the plan, it MUST prove exact equality with the pre-effect plan before spawn. Do not copy the fingerprint formula into a second independent implementation.
 
-The dedup gate then runs on this pure plan **before** lease/admission acquisition. Only `SAFE_TO_LAUNCH` may proceed to those effects. `REUSE_COMPLETED`, `ATTACH_RUNNING`, and `BLOCKED_UNKNOWN` remain no-new-effect paths.
+The dedup gate then runs on this pure plan **before** lease/admission acquisition. However, Astra's independent barrier probe proved current dedup assessment is observational, not atomic launch ownership: two same-fingerprint callers can both observe no match and later create two durable runtime IDs. Therefore `SAFE_TO_LAUNCH` is only a candidate state, never launch authority by itself.
+
+Before lease/admission acquisition or model/process effect, the coordinator must acquire/prove **one canonical durable winner** through an existing authorized authority with compare-and-set/ownership semantics. A second dedup check, provider capacity=1, same-owner WorkerLease reentry, or EXISTING ProviderAdmission are explicitly insufficient winner proof. If no existing authority within released scope can provide this, checkpoint `DESIGN_GAP` with the exact call graph and STOP; do not add a second lock/store/scheduler.
+
+For replay wording, `REUSE_COMPLETED` means **no new model/launch/acquire effect**. Exact cleanup/reconcile effects may still be required after a lost acknowledgement and are governed by §10. `ATTACH_RUNNING` and blocked/unknown states never launch a second child.
 
 ### 5.2 Fingerprint is not reviewer-worker authority
 
@@ -251,13 +261,24 @@ Therefore every duplicate assessment record and every post-run durable record MU
 
 before reuse/attach/handoff. Same fingerprint + foreign worker is an identity conflict/recovery condition: do not reuse it and do not launch another child under the same fingerprint merely to work around the conflict.
 
+### 5.3 Astra-proven multiplicity and crash-association blockers
+
+Independent Astra contract audit exact commit `f99cd9aadceb903649cdbf577935267a362540eb` proved two current shared-authority limitations that WO226 must not paper over. The report is review-branch evidence, not main; source implementers must read it by exact Git object (for example `git show f99cd9aadceb903649cdbf577935267a362540eb:docs/reviews/WO-P1-226-astra-contract-review.md`) rather than assuming the path exists in their worktree:
+
+1. `DuplicateExecutionGuard` + current coordinator/store are not an atomic single-winner launch fence. Barrier-forced same-fingerprint calls can both pass an empty lookup and create distinct durable runtime IDs.
+2. shared duplicate lookup currently consumes `matches[0]`; store ordering may present a newer completed equivalent while an older RUNNING equivalent still exists. A single returned record is therefore insufficient multiplicity proof.
+
+WO226 wrapper/coordinator must inspect/reconcile **all** equivalent fingerprint records available from the canonical execution store before launch, cleanup or handoff. If more than one equivalent exists and any member is live, unknown, identity-conflicting or otherwise not canonically collapsed to one winner, return typed recovery and perform no new model/launch/acquire effect.
+
+A durable association between the chosen winner and the exact WorkerLease/ProviderAdmission identities must exist **before model effect** so restart after lost acknowledgement can reconstruct cleanup ownership without guessing from newest rows, worker-only lookup or ambient process state. Reuse an existing job/checkpoint/event/ownership authority if one truthfully supports this. If no existing canonical association seam exists within released scope, checkpoint `DESIGN_GAP` and STOP rather than inventing a new store/schema.
+
 ## 6. READ_ONLY assembly rule
 
 Current accepted `assemble_zcode_execution()` is the mutation-capable ZRA-1 composition and currently requires a canonical `WorkerLease` with `LeaseMutationIntent.MUTATION` + authorized non-empty mutation scope.
 
 WO226 may make the smallest backward-compatible extension needed for reviewer execution, for example a dedicated READ_ONLY assembly entrypoint or a shared internal validator with explicit mode.
 
-Fresh GPT archaeology also proved the accepted ZCode protocol driver already denies every `interaction/requestPermission` request with `{approved: false}` and no permission-grant path exists in the ZCode protocol source/tests. Reuse and regression-pin that fail-closed behavior. A READ_ONLY assembly extension must not introduce any permission-grant path or rely on prompt wording as the mutation fence.
+Fresh GPT archaeology proved the accepted ZCode protocol driver denies every observed `interaction/requestPermission` request with `{approved: false}` and no permission-grant path exists in that protocol source/tests. Reuse and regression-pin that behavior, but **do not overclaim it as a universal filesystem/tool sandbox**: Astra audit confirmed this only proves denial when such a permission request occurs, not that every possible app-server write is necessarily mediated by that request. A READ_ONLY assembly extension must not introduce any permission-grant path, rely on prompt wording as the mutation fence, or claim broader write prevention without identifying the actual accepted runtime/tool/OS mediation authority.
 
 Required semantics for review execution:
 
@@ -312,14 +333,17 @@ The fingerprint must be derived from the same trusted facts used by the actual s
 Required replay semantics:
 
 - compute the exact fingerprint from the pure pre-effect plan before lease/admission acquisition;
-- exact completed identity -> `REUSE_COMPLETED`; first revalidate exact worker/route/task/runtime facts, then return validated existing handoff; no new provider/lease side effect;
-- equivalent live identity -> revalidate exact worker/route/task/runtime facts, then attach/reconcile; never spawn second child;
+- enumerate/reconcile **all** canonical records for that fingerprint before deciding launch/reuse/cleanup; never rely on only `matches[0]`;
+- zero matches -> still only a candidate-to-launch; a separate existing durable winner/ownership authority must succeed before acquire/model effect;
+- exactly one completed equivalent -> revalidate exact worker/route/task/runtime facts, then reconstruct execution state; no new model/launch/acquire effect, but exact cleanup/reconcile may still be required;
+- exactly one live equivalent -> revalidate exact worker/route/task/runtime facts, then attach/reconcile; never spawn second child;
+- multiple equivalents where any member is live/unknown/identity-conflicting -> `RECOVERY_REQUIRED`; no launch, handoff or resource release based on a newer completed row;
+- multiple completed equivalents are not silently collapsed by newest-time/rowid; require an existing canonical winner/reconcile proof or return recovery;
 - same fingerprint with foreign reviewer worker -> identity conflict / recovery; no reuse and no second launch;
 - unknown/ambiguous identity -> fail closed/recovery;
-- changed task SHA/contract/HEAD/provider/model/runtime profile -> different fingerprint and never reuse old result;
-- multiple records for one fingerprint must be resolved only by existing duplicate authority; do not select newest heuristically.
+- changed task SHA/contract/HEAD/provider/model/runtime profile -> different fingerprint and never reuse old result.
 
-`ExecutionFingerprintSpec` does not itself carry `worker_id`; worker equality is a separate mandatory route/record/lease cross-binding, not an inferred fingerprint property.
+`ExecutionFingerprintSpec` does not itself carry `worker_id`; worker equality is a separate mandatory route/record/lease cross-binding, not an inferred fingerprint property. Shared global dedup semantics are not modified by WO226 without separate GPT scope release; the bounded reviewer wrapper must add the stricter multiplicity gate it needs or STOP `DESIGN_GAP`.
 
 ## 9. Reviewer durable job / recovery semantics
 
@@ -341,13 +365,15 @@ Reuse existing release APIs and exact identity fences. Never infer release from 
 
 Required behavior:
 
-- terminal usable execution -> release according to existing accepted semantics;
-- release result must prove released or already released as defined by the canonical authority;
-- a reusable `DirectReviewExecutionHandoff` may be returned only after both provider-admission and WorkerLease cleanup are canonically proven terminal/released (or the accepted equivalent already-released state); ambiguous cleanup returns typed `RECOVERY_REQUIRED`, not a usable handoff;
+- terminal usable execution -> reconcile/release according to the **actual canonical API contract**, not one generic boolean/idempotent adapter;
+- provider-admission lost-ack replay: re-read the exact admission by canonical identity; accept terminal `RELEASED` only when provider/dispatch-context/batch/generation identity still matches. A repeated release raising `PROVIDER_ADMISSION_NOT_ACTIVE` is **not by itself** proof of success and must be followed by exact canonical reread/reconciliation;
+- WorkerLease release accepts only the canonical truth shapes `(released=True, already_released=False)` or `(False,True)` for the exact lease/session/task owner. Malformed/contradictory/foreign-owner outcomes are recovery and must not yield handoff, reacquire capacity, or invoke the model; a newer owner's lease must remain untouched;
+- a reusable `DirectReviewExecutionHandoff` may be returned only after both provider-admission and WorkerLease cleanup are canonically proven terminal/released and the exact durable winner/resource association is reconstructable;
 - handoff preserves the exact admission/lease identities and cleanup proof needed to audit/reconstruct the no-orphan claim;
 - ambiguous release -> `RECOVERY_REQUIRED` / retain evidence; no blind reacquire;
-- crash window after model effect but before release/checkpoint must reconcile from durable execution/admission/lease state, not repeat model call;
-- replay after such a crash first dedups by the pure execution plan/fingerprint, then reconciles exact admission/lease identities before any handoff is reconstructed;
+- crash window after model effect but before release/checkpoint must reconcile from durable execution + durable winner/resource association + exact admission/lease state, not repeat model call;
+- replay after such a crash first reconciles **all** equivalent fingerprint records, then exact winner/resource identities, then cleanup; it must not select newest row or infer ownership from an old in-memory lease snapshot;
+- `REUSE_COMPLETED` forbids new model/launch/acquire effects but does not forbid necessary exact cleanup/reconcile effects;
 - no resource release from reviewer semantic verdict; transport/resource truth is separate from ACCEPTED/REJECTED.
 
 WO224's separate GoalCloseout lease-release finding is not authority to broaden this WO into GoalCloseout source. Reuse/fix only the reviewer-execution resource path released here.
@@ -403,12 +429,16 @@ Write intended REDs before GREEN production mutation.
 11a. pure execution plan/fingerprint can be computed with **zero** lease/admission/process/secret-value/store-mutation effects;
 11b. the real launch assembly consumes/recomputes the same plan and fails closed on any plan drift before spawn;
 11c. same fingerprint with `DurableExecutionRecord.worker_id != DirectReviewRoute.reviewer_worker_id` is recovery/identity conflict, never reuse or launch;
-11d. READ_ONLY ZCode protocol permission request remains deterministically denied (`approved=false`) and no permission-grant path is introduced;
-12. exact fingerprint returns the exact runtime record;
+11d. READ_ONLY ZCode protocol permission request remains deterministically denied (`approved=false`) and no permission-grant path is introduced; this test is not reported as universal write-sandbox proof;
+11e. barrier-forced two concurrent same-fingerprint requests with identical owner/session facts produce **at most one durable model-effect winner**; a second dedup check, capacity=1, same lease reentry or EXISTING admission alone must not satisfy this RED;
+11f. exact winner/fingerprint/lease/admission association is durable before model effect and can be reconstructed after a crash; absent canonical association => `DESIGN_GAP` before model call;
+12. exact fingerprint returns/reconciles the exact canonical record set;
 13. latest unrelated execution cannot be selected;
-14. same completed fingerprint returns identical handoff without second model call;
+14. same completed fingerprint returns/reconstructs the same execution without a second model/launch/acquire effect;
 15. existing running fingerprint attaches/waits; no duplicate spawn;
 16. ambiguous duplicate state is recovery, not launch;
+16a. older RUNNING + newer completed same-fingerprint records are detected in both insertion orders; the newer completed record cannot hide the live equivalent;
+16b. multiple completed equivalents are not silently collapsed by newest-row ordering; canonical winner/reconcile proof is required;
 17. old task/result/head/provider/model/runtime identity cannot replay into new route;
 18. deterministic batch ID stable on exact replay and changes on identity change.
 
@@ -424,13 +454,16 @@ Write intended REDs before GREEN production mutation.
 
 ### Resource/recovery
 
-26. provider admission is acquired/reused only under canonical authority;
-27. Worker lease is canonical READ_ONLY and exact-owner bound;
+26. provider admission is acquired/reused only under canonical authority and only after one durable launch winner is proven;
+27. Worker lease is canonical READ_ONLY and exact-owner bound; same-owner lease reentry is not launch-winner proof;
 28. lease/admission failure after earlier resource acquisition releases/reconciles safely;
 29. ambiguous model execution keeps recovery truth and forbids blind retry;
-30. terminal execution release uses exact admission/lease identity;
-31. ambiguous release returns recovery and does not reacquire;
-32. restart after model completion but before release resolves durable record without second provider call;
+30. terminal execution cleanup uses exact admission/lease identity and the durable winner/resource association;
+31. provider release lost-ack replay requires exact admission reread: `NOT_ACTIVE` alone is insufficient, exact terminal `RELEASED` + identity binding is required;
+31a. WorkerLease cleanup accepts only `(True,False)` / `(False,True)` for the exact owner; false/false, true/true, malformed or foreign-owner results are recovery;
+31b. old lease cleanup after a new owner appears never releases/touches the new owner's lease;
+32. restart after model completion but before cleanup reconciles all execution records + exact resource identities without second model/launch/acquire effect;
+32a. no usable handoff exists until exact provider + lease cleanup is canonically terminal;
 33. no secret value enters task/argv/log/result/checkpoint.
 
 ### Authority fence
@@ -448,7 +481,10 @@ Write intended REDs before GREEN production mutation.
 Attack at least:
 
 - unrelated execution created immediately before/after reviewer execution;
-- duplicate fingerprint records / store race;
+- barrier-forced two same-fingerprint callers that both observe an empty store before either creates a durable record; assert <=1 model-effect winner and <=1 canonical winner identity;
+- same-owner WorkerLease reentry + EXISTING ProviderAdmission under the race; prove they do not substitute for launch ownership;
+- older RUNNING + newer completed equivalent records in both insertion orders; never let `matches[0]`/newest ordering hide the live record;
+- multiple completed equivalent records without canonical winner proof;
 - provider generation changes between preflight and admission;
 - lease ownership changes before launch;
 - branch/HEAD drift before launch;
@@ -494,11 +530,11 @@ A real provider call is **not** automatically authorized by this WO. ZRA-1 alrea
 ```text
 G0 RECOVER / RE-PIN / RELEASE GATE
 G1 LIVE-ZRA1 + C0 + EXECUTION AUTHORITY ARCHAEOLOGY
-G2 EXECUTION IDENTITY MODEL + PURE FINGERPRINT RED
-G3 READ_ONLY ZCODE ASSEMBLY RED/GREEN (only if required)
-G4 REVIEW EXECUTION COORDINATOR RED/GREEN
-G5 DUPLICATE/RESTART/RECOVERY CAMPAIGN
-G6 RESOURCE RELEASE/CRASH-WINDOW CAMPAIGN
+G2 EXECUTION IDENTITY MODEL + PURE FINGERPRINT + MULTIPLICITY RED
+G3 DURABLE SINGLE-WINNER + WINNER/RESOURCE ASSOCIATION PROOF (DESIGN_GAP STOP IF ABSENT)
+G4 READ_ONLY ZCODE ASSEMBLY RED/GREEN (only if winner/association proof exists)
+G5 REVIEW EXECUTION COORDINATOR RED/GREEN
+G6 DUPLICATE/RESTART/RECOVERY + CLEANUP LOST-ACK CAMPAIGN
 G7 RELATED REGRESSION + STATIC/HYGIENE
 G8 SELF-REVIEW / AUTHORITY-FENCE AUDIT
 G9 FREEZE EXACT SHA / DRAFT PR / HOSTED CI
@@ -525,8 +561,12 @@ STOP after the current atomic safe step on any:
 - current source materially disproves this authority model;
 - need to equate dispatch-context ID with durable runtime execution ID;
 - need to use latest-row/latest-dir heuristic for identity;
-- need to add provider/lease/execution-store schema;
+- no existing authorized durable single-winner seam can be proven before model effect (`DESIGN_GAP`);
+- no existing canonical durable winner->lease/admission association can be proven before model effect (`DESIGN_GAP`);
+- resolving F1/F2 would require changing shared/global dedup semantics outside released scope;
+- need to add provider/lease/execution-store schema or a second lock/outbox/journal;
 - need to alter scheduler/AHA-6 semantics;
+- need to claim universal reviewer write sandbox from permission-denial evidence alone;
 - need to invent a mailbox agent id;
 - need to parse semantic ACCEPTED/REJECTED (belongs WO223);
 - need for live credential/provider/runtime mutation;
@@ -551,10 +591,12 @@ Record:
 - exact changed paths;
 - accepted ZRA-1 reuse map;
 - route/dispatch/job/runtime execution identity map;
-- execution fingerprint rule;
-- duplicate/replay outcomes;
+- execution fingerprint + all-equivalent multiplicity rule;
+- canonical durable winner authority and proof, or exact `DESIGN_GAP` evidence;
+- durable winner->lease/admission association authority and proof, or exact `DESIGN_GAP` evidence;
+- duplicate/replay outcomes including older-live/newer-completed adversarial cases;
 - READ_ONLY assembly decision;
-- provider/lease/recovery ownership map;
+- provider/lease/recovery ownership + lost-ack cleanup map;
 - RED/GREEN/adversarial evidence;
 - test totals;
 - P0/P1/P2/P3 counts;
