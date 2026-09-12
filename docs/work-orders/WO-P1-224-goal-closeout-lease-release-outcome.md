@@ -1,6 +1,6 @@
 # WO-P1-224 — GoalCloseout lease-release outcome truth gate
 
-Status: PREPARED / READY_WHEN_EXECUTOR_FREE / DO_NOT_PREEMPT_WO221
+Status: PREPARED / READY_WHEN_NONOVERLAPPING_EXECUTOR_AVAILABLE / PHASE-D PREREQUISITE
 Parent: WO-P1-205 / WO-P1-208 / Issue #214
 Owner: GPT-5.6 Sol integrator
 Preferred executor: ZCode GLM-5.3
@@ -24,13 +24,13 @@ This WO is intentionally narrow. It does not redesign GoalCloseout, leases, stor
 
 ## 2. Authority and dependency
 
-This defect is independently source-proven and may be repaired without waiting for WO208 finalization, but execution must not preempt the active WO221/C1 lane.
+This defect is independently source-proven and does not depend on WO208, WO225, WO226 or WO223/C1 source completion. It may run whenever a separate executor lane is genuinely free and a fresh non-overlap claim proves the exact `goal_closeout.py` / focused-test scope is unowned.
 
-Queue order for one ZCode lane:
+Current Phase-D fan-in is:
 
-`WO221 current -> WO223 if released/needed by C1 -> WO224 -> WO205 Phase D`
+`(WO225 -> WO226 -> WO223/C1) + (WO208 + WO224) -> WO205 Phase D`
 
-If separate independent GLM capacity becomes available, WO224 may run in parallel only after a fresh non-overlap claim proves no mutable overlap.
+WO224 must not preempt an active critical lane on the same executor merely to reduce queue time. If only one ZCode lane is available, preserve the integrator's current critical-path ordering; if separate independent GLM capacity is proven, WO224 may execute in parallel because its mutable source scope is disjoint from WO225/WO226/WO223 and WO208 lab evidence scope.
 
 GPT-5.6 Sol remains final R3 acceptance/merge authority.
 
@@ -55,16 +55,16 @@ Do not add a second store, journal, outbox, retry loop, lease state machine, or 
 
 The release port result is evidence, not decorative metadata.
 
-For the existing two-boolean contract:
+For the existing two-boolean contract, current canonical `SQLiteWorkerLeaseStore.release()` is stronger than the loose dataclass shape: it emits exactly one of the two booleans as true.
 
 1. `released=True, already_released=False` — confirmed successful release; checkpoint may proceed.
 2. `released=False, already_released=True` — confirmed idempotent pre-existing release; checkpoint may proceed and detail should remain `ALREADY_RELEASED`.
-3. `released=True, already_released=True` — preserve backward compatibility as confirmed released + already-released evidence; checkpoint may proceed and detail may remain `ALREADY_RELEASED`.
+3. `released=True, already_released=True` — **contract contradiction / unsupported authority shape**; fail closed as `RECOVERY_REQUIRED`, write no checkpoint, and do not infer release truth from it.
 4. `released=False, already_released=False` — **not confirmed**; return typed `RECOVERY_REQUIRED` at `RELEASE_LEASE`, write no closeout checkpoint, perform no COMPLETE transition, and do not blind-retry inside the executor.
 
-Recommended typed detail for case 4: `LEASE_RELEASE_NOT_CONFIRMED`.
+Recommended typed details: `LEASE_RELEASE_OUTCOME_CONTRADICTORY` for case 3 and `LEASE_RELEASE_NOT_CONFIRMED` for case 4, unless existing repository naming conventions require equivalent code-only names.
 
-If actual source archaeology proves a stronger existing typed contract, keep the same fail-closed property and record the exact reason for any naming adjustment.
+Do not weaken canonical WorkerLease semantics merely because `LeaseReleaseOutcome` is currently a permissive dataclass. If source archaeology later proves a distinct accepted producer legitimately emits another shape, stop for GPT adjudication before broadening acceptance.
 
 ## 5. RED-first requirements
 
@@ -76,7 +76,7 @@ Required RED matrix:
 2. the same unconfirmed outcome must never transition to COMPLETE.
 3. `released=True, already_released=False` positive control still checkpoints.
 4. `released=False, already_released=True` idempotent positive control checkpoints and reports `ALREADY_RELEASED`.
-5. existing `released=True, already_released=True` behavior remains accepted unless a stronger repository contract proves it invalid.
+5. `released=True, already_released=True` => typed recovery/contradiction, no release checkpoint, no COMPLETE; canonical WorkerLease store never emits this pair.
 6. confirmed release followed by JobStore checkpoint failure => `RECOVERY_REQUIRED / CHECKPOINT_AFTER_EFFECT_FAILED`; no second release call inside one executor invocation.
 7. ACTIVE lease + exact release checkpoint already present remains `LEASE_RELEASE_CONTRADICTION` before calling the release port.
 8. RELEASED lease without current exact release checkpoint remains recovery-required.

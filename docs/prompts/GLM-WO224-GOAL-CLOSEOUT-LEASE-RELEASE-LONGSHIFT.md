@@ -1,6 +1,6 @@
 /goal
 
-Execute WO-P1-224 only when this lane is eligible and does not preempt active WO221/WO223 work.
+Execute WO-P1-224 only when this lane is eligible, a fresh non-overlap claim exists, and it does not preempt a higher-priority active lane on the same executor.
 
 PRIMARY REPO:
 A:\GitHub\A-Wiki-Conductor
@@ -18,7 +18,7 @@ STARTUP GATE:
 1. Read `00-AGENT-ENTRY.md` -> `PROJECT-GRAPH.yaml` -> `AGENTS.md` -> actual Git/worktree/claim state -> `CURRENT-WORK.md` -> this WO -> task-relevant protocol files.
 2. Read `DEFECT_LESSONS.md` before any `src/a_conductor/` mutation.
 3. Re-pin current `origin/main`; do not trust the creation-time base if main moved.
-4. Inspect Issue #214 and live claims/worktrees. If WO221/WO223 or another owner overlaps `goal_closeout.py` / `tests/test_goal_closeout.py`, checkpoint `CLAIM_CONFLICT` and STOP.
+4. Inspect Issue #214 and live claims/worktrees. If any active owner overlaps `goal_closeout.py` / `tests/test_goal_closeout.py`, checkpoint `CLAIM_CONFLICT` and STOP. Do not infer availability merely because another WO uses different filenames.
 5. Use a fresh isolated worktree/branch from then-current main. Do not mutate the protected root checkout.
 6. Claim exactly the WO224 mutable scope before source mutation.
 
@@ -30,6 +30,7 @@ Confirm the exact current source semantics for:
 - `GoalCloseoutExecutor.execute_next()`;
 - `LeaseReleaseOutcome`;
 - `LeaseReleasePort`;
+- canonical `SQLiteWorkerLeaseStore.release()` / `LeaseReleaseResult` producer semantics; at packet hardening time it emits only `(True,False)` for a new release or `(False,True)` for an already released lease, never `(True,True)`;
 - `plan_goal_closeout()` release-stage contradiction/recovery rules;
 - closeout checkpoint identities;
 - related tests and any production construction/caller that may have appeared since packet creation.
@@ -51,7 +52,7 @@ Expected repaired behavior:
 REQUIRED POSITIVE/ADVERSARIAL MATRIX:
 1. `True,False` confirms release and permits checkpoint.
 2. `False,True` confirms already-released and permits checkpoint; detail remains `ALREADY_RELEASED`.
-3. Preserve current accepted behavior for `True,True` unless repository authority proves it invalid.
+3. `True,True` is contradictory/unsupported under canonical `SQLiteWorkerLeaseStore.release()` semantics; fail closed as recovery, write no release checkpoint, and never permit COMPLETE.
 4. Confirmed release + checkpoint write failure remains `RECOVERY_REQUIRED / CHECKPOINT_AFTER_EFFECT_FAILED`.
 5. Exact ACTIVE lease + exact release checkpoint contradiction fails before calling the release port.
 6. RELEASED without exact current checkpoint remains recovery-required.
