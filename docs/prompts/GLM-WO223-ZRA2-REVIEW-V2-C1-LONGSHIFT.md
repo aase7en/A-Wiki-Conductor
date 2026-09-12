@@ -1,6 +1,6 @@
 /goal
 
-Execute WO-P1-223 only after WO225 and WO226 are independently accepted, merged, post-main verified, and Issue #214 explicitly releases WO223/C1.
+Execute WO-P1-223 only after WO226 is independently accepted, merged, post-main verified, and Issue #214 explicitly releases WO223/C1. WO225 is already accepted/merged/post-main verified on the current lineage; re-verify that fact but do not redo WO225.
 
 PRIMARY WORK ORDER:
 A:\GitHub\_worktrees\A-Wiki-Conductor-wo223-zra2-review-v2-c1\docs\work-orders\WO-P1-223-zra2-review-v2-direct-evidence.md
@@ -30,6 +30,7 @@ Before source mutation:
 8. Read accepted WO225 exact source/post-main evidence and prove the current route/lease/task boundary is truthfully READ_ONLY.
 9. Read accepted WO226 exact source/post-main evidence and identify its actual reviewer-execution handoff type/symbol and identity contract.
 10. Inspect WO221's archaeology handoff only as historical design evidence; newer WO225/WO226 actual state supersedes stale assumptions.
+10a. Use the WO223 read-only refresh as a starting fact only: at `origin/main@251df211afc1ee5452f3652675d7a2f38c526876` there was still no `zra2-review-result-v2`/`zra2-review-v2` direct semantic validator/composer, and the two ZCode report producers remained asymmetric. Re-prove this on then-current main after WO226 merge rather than assuming it stayed true.
 11. Recover live claims/open PRs/worktrees that touch any proposed WO223 mutable path.
 12. Verify current source lane is a fresh isolated worktree from then-current main. If this docs packet branch is not the released source lane, create/use a separate clean source branch/worktree only after the claim is published.
 13. Verify no overlapping GLM/GPT/Worker lane owns the same source/test paths.

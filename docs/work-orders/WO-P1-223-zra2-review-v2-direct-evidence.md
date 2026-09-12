@@ -1,12 +1,13 @@
 # WO-P1-223 — ZRA-2 review protocol v2 + direct review evidence composition
 
-Status: PREPARED / HOLD_AFTER_WO225_AND_WO226 / R3
+Status: PREPARED / HOLD_AFTER_WO226 / R3
 Parent: WO-P1-221 / WO-P1-201 / WO-P1-216 / WO-P1-219 / WO-P1-225 / WO-P1-226 / Issue #214
 Immediate predecessor chain: WO225 repaired C0 READ_ONLY route authority -> WO226 accepted reviewer-execution handoff
 Integrator/architecture owner: GPT-5.6 Sol
 Preferred implementation executor: ZCode GLM-5.3 MAX
 Repository: A-Wiki-Conductor
 Prepared base: `60aba770fd457d04f1e31040b9dfd7af3927f669`
+Read-only refresh base: `origin/main@251df211afc1ee5452f3652675d7a2f38c526876` (WO225 accepted/post-main; WO224 accepted/merged/post-main; WO226 source implementation still active)
 Risk: R3 protocol identity / durable review evidence / anti-replay
 
 ## 1. Why this WO exists
@@ -44,6 +45,18 @@ WO223 becomes source-READY only when all are true:
 If an existing trusted implementation already solves the gap, classify `REUSE / WO223_NOT_NEEDED` and STOP.
 
 If any authority item is UNKNOWN, `SAFE_TO_MUTATE_WO223=NO`.
+
+### 2.1 Read-only refresh before WO226 handback
+
+On `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`, fresh read-only archaeology confirms:
+
+- WO225 is present and post-main verified; the only relevant drift from this packet's original base in `zero_relay_review_task.py` is the accepted READ_ONLY lease intent + exact lease task/ref binding repair;
+- no `zra2-review-result-v2`, `zra2-review-v2`, direct strict semantic review-result parser, or direct composer to `zero_relay.ReviewEvidence` exists under `src/a_conductor/`;
+- `review_mailbox_adapter.ReviewResultForwarder` is not an equivalent direct-C1 implementation because it requires mailbox assignment authority and forwards an already validated result rather than validating raw reviewer semantics into `zero_relay.ReviewEvidence`;
+- the two active ZCode report producers remain asymmetric: in-process `zcode_runner` carries `task_contract_ref`; `zcode_supervised_helper` does not, so C1 must not fabricate it;
+- WO226 is explicitly forbidden from implementing the semantic verdict parser, so absent scope violation its accepted handoff should leave this gap for WO223.
+
+Therefore WO223 remains necessary in principle, but source mutation stays HOLD until WO226 is accepted/merged/post-main and its exact handoff type/fields are re-read. This refresh is preparation only, not source release.
 
 ## 3. Architecture decisions already settled by GPT
 
