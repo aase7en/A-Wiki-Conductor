@@ -27,6 +27,8 @@ STARTUP / GATE:
 
 If CI is non-terminal/failing, SHA drift exists, or authority is unknown: write durable checkpoint and STOP. Do not poll/wait and do not jump to other work.
 
+Overlap decision: PR #298 / `41ba9f5ede1827af7a24d5a6be0835a287d4c591` is a partial predecessor, fails full Windows CI with a path-construction SyntaxError, and is `SUPERSEDED_DO_NOT_MERGE`. Do not review, repair, or merge #298 in this lane. The only review target is PR #299 exact `a2cb571d33e528840f47660d98fcdec80cad889b`.
+
 MISSION:
 Try to falsify the entire repaired provenance chain:
 
