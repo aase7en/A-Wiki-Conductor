@@ -743,6 +743,26 @@ class GoalCloseoutExecutor:
 
             if plan.decision is CloseoutDecision.RELEASE_REQUIRED:
                 outcome = self._leases.release(facts.lease.lease_id or "")
+                # The port result is evidence, not decoration: only a
+                # confirmed release (True, False) or confirmed idempotent
+                # release (False, True) may be checkpointed. The canonical
+                # SQLiteWorkerLeaseStore.release() never emits anything else
+                # without raising; anything else is fail-closed recovery.
+                if not isinstance(outcome.released, bool) or not isinstance(outcome.already_released, bool):
+                    return GoalCloseoutExecutionResult(
+                        CloseoutDecision.RECOVERY_REQUIRED, CloseoutStage.RELEASE_LEASE,
+                        "LEASE_RELEASE_OUTCOME_INVALID",
+                    )
+                if outcome.released and outcome.already_released:
+                    return GoalCloseoutExecutionResult(
+                        CloseoutDecision.RECOVERY_REQUIRED, CloseoutStage.RELEASE_LEASE,
+                        "LEASE_RELEASE_OUTCOME_CONTRADICTORY",
+                    )
+                if not outcome.released and not outcome.already_released:
+                    return GoalCloseoutExecutionResult(
+                        CloseoutDecision.RECOVERY_REQUIRED, CloseoutStage.RELEASE_LEASE,
+                        "LEASE_RELEASE_NOT_CONFIRMED",
+                    )
                 try:
                     self._store.checkpoint(
                         facts.job_id, checkpoint_ref=plan.checkpoint_ref,
