@@ -535,3 +535,103 @@ def test_q29_no_second_scheduler_or_store_created(tmp_path):
     source = inspect.getsource(module)
     for banned in ("WorkerLeaseBroker(", "acquire(", "SQLiteExecutionStore(", "threading"):
         assert banned not in source, banned
+
+
+# ---------------- WO-P1-226: READ_ONLY review assembly entrypoint --------
+
+def _review_authorities(tmp_path, *, lease):
+    from tests.test_zcode_authority_bound_assembly import _Controller, _Obs
+    from tests.test_zcode_real_helper_e2e import Snapshot as _E2ESnapshot
+    from tests.test_zcode_real_helper_e2e import _profile as _e2e_profile
+    from tests.test_zcode_real_helper_e2e import build_admission
+    return ZCodeExecutionAuthorities(
+        provider_snapshot=_E2ESnapshot(1, _e2e_profile()),
+        secret_resolver=Secrets(),
+        execution_store=SQLiteExecutionStore(tmp_path / "control.sqlite"),
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        lease_evidence=lease,
+        admission_evidence=build_admission(),
+        dispatch_batch_id="batch-e2e-0001",
+        dispatch_execution_id="exec-e2e-bound-0001",
+        project_id="zcode",
+        requested_mutable_scope=(),
+        worker_id="a-worker-01", repo_root=str(tmp_path),
+        branch="feat/wo-p1-158-zcode-zero-relay", head="h" * 40, dirty=False,
+    )
+
+
+def _review_lease(tmp_path):
+    from dataclasses import replace as _replace
+    from tests.test_zcode_real_helper_e2e import build_lease
+    from a_conductor.worker_lease import LeaseMutationIntent
+    return _replace(
+        build_lease(tmp_path),
+        mutation_intent=LeaseMutationIntent.READ_ONLY,
+        mutable_scope=(),
+        allowed_scope=(),
+    )
+
+
+def test_wo226_review_assembly_accepts_exact_read_only_empty_scope(tmp_path):
+    from a_conductor.zcode_production_assembly import assemble_zcode_review_execution
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    runner = assemble_zcode_review_execution(
+        authorities=_review_authorities(tmp_path, lease=_review_lease(tmp_path)),
+        packet=_e2e_packet(tmp_path),
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+    )
+    assert runner.execution_fingerprint_spec().operation_ref.startswith("zcode-task-v1:")
+    assert runner.execution_fingerprint() == runner.execution_fingerprint()
+
+
+def test_wo226_review_assembly_rejects_mutation_lease(tmp_path):
+    from a_conductor.zcode_production_assembly import assemble_zcode_review_execution
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet, build_lease
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_review_execution(
+            authorities=_review_authorities(tmp_path, lease=build_lease(tmp_path)),
+            packet=_e2e_packet(tmp_path),
+            model_id="glm-5.3", expected_generation=1, expected_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == "ZCODE_REVIEW_LEASE_INTENT_MISMATCH"
+
+
+def test_wo226_review_assembly_rejects_nonempty_requested_scope(tmp_path):
+    from dataclasses import replace as _replace
+    from a_conductor.zcode_production_assembly import assemble_zcode_review_execution
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    authorities = _replace(
+        _review_authorities(tmp_path, lease=_review_lease(tmp_path)),
+        requested_mutable_scope=("src/a_conductor/x.py",),
+    )
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_review_execution(
+            authorities=authorities,
+            packet=_e2e_packet(tmp_path),
+            model_id="glm-5.3", expected_generation=1, expected_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == "ZCODE_REVIEW_REQUESTED_SCOPE_NOT_EMPTY"
+
+
+def test_wo226_mutation_entrypoint_still_rejects_read_only(tmp_path):
+    """WO226 §6: the mutation-capable entrypoint is NOT weakened."""
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_execution(
+            authorities=_review_authorities(tmp_path, lease=_review_lease(tmp_path)),
+            packet=_e2e_packet(tmp_path),
+            model_id="glm-5.3", expected_generation=1, expected_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == "ZCODE_LEASE_MUTATION_INTENT_INSUFFICIENT"
