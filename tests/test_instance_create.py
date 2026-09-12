@@ -8,6 +8,8 @@ import pytest
 
 from a_conductor.instance_create import (
     InstanceCreateError,
+    _RuntimeForensicsHardeningState,
+    _classify_start_script_runtime_forensics,
     _harden_start_script_runtime_forensics,
     create_instance,
     next_health_port,
@@ -419,6 +421,193 @@ def test_partial_structural_hardening_marker_fails_unchanged(marker: str) -> Non
     source = marker + _legacy_method_wait_launcher()
 
     assert _harden_start_script_runtime_forensics(source) == source
+
+
+def test_classifier_ignores_marker_text_inside_comments() -> None:
+    source = (
+        "# $RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        "# Move-Item -LiteralPath $RuntimeLog -Destination $Archived -Force\n"
+        "# Write-Log \"STARTING: comment only\"\n"
+        "# $RuntimeProcess.WaitForExit()\n"
+        "# $RuntimeProcess.Refresh()\n"
+        "# $RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+        "# Write-Log \"STOPPED: tunnel-client exit_code=0\"\n"
+        "# Write-Log \"exit_code={0}\"\n"
+        "# exit $RuntimeExitCode\n"
+        "$ProfileTemplate = 'unchanged-generic-reference'\n"
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
+def test_create_instance_allows_comment_only_forensics_markers(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    source = (ref / "start.ps1").read_text(encoding="utf-8") + (
+        "# $RuntimeProcess.WaitForExit()\n"
+        "# $RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+    )
+    (ref / "start.ps1").write_text(source, encoding="utf-8")
+
+    created = create_instance(
+        instances_root, "Research", project, health_port=48114, reference_root=ref
+    )
+
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert "# $RuntimeProcess.WaitForExit()" in start
+    assert "# $RuntimeExitCode = $RuntimeProcess.ExitCode" in start
+
+
+def test_classifier_ignores_marker_text_inside_quoted_strings() -> None:
+    source = (
+        "$Note = '$RuntimeProcess.WaitForExit()'\n"
+        "$Note2 = \"$RuntimeExitCode = $RuntimeProcess.ExitCode\"\n"
+        "$ProfileTemplate = 'unchanged-generic-reference'\n"
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
+@pytest.mark.parametrize(
+    "wrapper",
+    (
+        (
+            "<#\n"
+            "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+            "$RuntimeProcess.WaitForExit()\n"
+            "$RuntimeProcess.Refresh()\n"
+            "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+            "exit $RuntimeExitCode\n"
+            "#>\n"
+        ),
+        (
+            "$Help = @\"\n"
+            "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+            "$RuntimeProcess.WaitForExit()\n"
+            "$RuntimeProcess.Refresh()\n"
+            "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+            "exit $RuntimeExitCode\n"
+            "\"@\n"
+        ),
+        (
+            "<#\n"
+            "outer comment\n"
+            "<#\n"
+            "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+            "$RuntimeProcess.WaitForExit()\n"
+            "#>\n"
+            "$RuntimeProcess.Refresh()\n"
+            "#>\n"
+        ),
+    ),
+)
+def test_classifier_ignores_nonexecuting_multiline_marker_regions(wrapper: str) -> None:
+    source = wrapper + "$ProfileTemplate = 'unchanged-generic-reference'\n"
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
+def test_indented_here_string_terminator_does_not_release_marker_authority() -> None:
+    source = (
+        "$Help = @\"\n"
+        "    \"@\n"
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        "$RuntimeProcess.WaitForExit()\n"
+        "$RuntimeProcess.Refresh()\n"
+        "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+        "exit $RuntimeExitCode\n"
+        "\"@\n"
+        "$ProfileTemplate = 'unchanged-generic-reference'\n"
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
+@pytest.mark.parametrize(
+    "wrapper",
+    (
+        "<#\n$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n#>\n",
+        "$Help = @\"\n$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n\"@\n",
+    ),
+)
+def test_nonexecuting_marker_cannot_suppress_real_legacy_hardening(wrapper: str) -> None:
+    source = wrapper + _legacy_method_wait_launcher()
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.TRANSFORMED
+    assert classified != source
+    terminal = classified[classified.rfind("$RuntimeProcess.WaitForExit()") :]
+    assert "$RuntimeProcess.Refresh()" in terminal
+    assert "$RuntimeExitCode = $RuntimeProcess.ExitCode" in terminal
+    assert "if ($RuntimeProcess.ExitCode -ne 0)" not in terminal
+
+
+@pytest.mark.parametrize(
+    "legacy_launcher",
+    (_legacy_wait_process_launcher, _legacy_method_wait_launcher),
+)
+def test_create_instance_rejects_complete_markers_with_legacy_seam_before_materializing(
+    sandbox, legacy_launcher
+) -> None:
+    instances_root, ref, project = sandbox
+    source = (
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        "$RuntimeProcess.Refresh()\n"
+        "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+        "exit $RuntimeExitCode\n"
+        + legacy_launcher()
+    )
+    (ref / "start.ps1").write_text(source, encoding="utf-8")
+
+    with pytest.raises(InstanceCreateError) as exc_info:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert exc_info.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "research").exists()
+
+
+def test_create_instance_rejects_partial_structural_marker_before_materializing(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    source = (
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        + _legacy_method_wait_launcher()
+    )
+    (ref / "start.ps1").write_text(source, encoding="utf-8")
+
+    with pytest.raises(InstanceCreateError) as exc_info:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert exc_info.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "research").exists()
+
+
+def test_create_instance_accepts_already_hardened_reference(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    hardened = _harden_start_script_runtime_forensics(_legacy_wait_process_launcher())
+    (ref / "start.ps1").write_text(hardened, encoding="utf-8")
+
+    created = create_instance(
+        instances_root, "Research", project, health_port=48114, reference_root=ref
+    )
+
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert start == hardened
 
 
 def test_method_wait_hardening_preserves_preflight_and_credential_sentinels() -> None:

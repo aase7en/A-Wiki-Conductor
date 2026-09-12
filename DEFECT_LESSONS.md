@@ -245,6 +245,20 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 ---
 
+## #15: Structural authority must come from executable lines, not marker substrings (2026-09-12)
+
+**Symptom:** launcher hardening classification could treat hardening marker text inside comments, quoted strings, block comments, or here-strings as runtime structure. A comment-only block containing all expected markers could be classified `ALREADY_HARDENED`; quoted/non-executing markers could force `REFUSED_AMBIGUOUS` or suppress hardening of a real legacy seam.
+
+**Root cause:** `_is_runtime_forensics_hardened()` and `_has_runtime_forensics_structural_signal()` used broad substring/count checks. Line anchoring alone was also insufficient because PowerShell block comments and here-strings can contain marker-shaped text at column zero. Text that merely looked executable could therefore gain authority or suppress a real legacy seam.
+
+**Fix:** analyze a same-length executable view of the PowerShell source. Mask line comments, nested block comments, and here-string regions while preserving newlines/source offsets; recognize here-string closing delimiters conservatively at column zero; then require line-anchored executable forms for every structural marker. Generated hardened ordering and legacy-seam absence remain mandatory, and transformation slices still use the original source positions.
+
+**Lesson:** marker text, keywords, and quoted/commented examples are not execution evidence. Any parser/classifier that grants lifecycle, safety, migration, review, telemetry, or runtime authority must validate structural provenance appropriate to the source format and fail closed when provenance is ambiguous.
+
+**Verify:** `tests/test_instance_create.py` covers line comments, quoted markers, block/nested-block comments, here-strings including indented false terminators, marker-suppression attempts, true hardened output, ambiguous legacy seams, and operation-level preflight behavior.
+
+---
+
 ## 🔨 BUILD CHECKLIST (อ่านทุกครั้งก่อน build/release ใหม่)
 
 บันทึก: 2026-08-26 — สรุปปัญหาที่เคยเจอทุกอย่างเพื่อไม่ให้เกิดซ้ำในเวอร์ชันใหม่
