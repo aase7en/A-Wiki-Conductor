@@ -63,6 +63,13 @@ Preferred focused tests:
 
 A minimal backward-compatible extension to `zcode_production_assembly.py` / `zcode_runner.py` is allowed only if the WO226 archaeology proves it is necessary for READ_ONLY execution or exact public fingerprint identity. Record the proof before editing.
 
+GPT archaeology has already proven two concrete gaps you must re-verify on the then-current main before mutation:
+
+1. current `assemble_zcode_execution()` requires an already-active MUTATION lease + non-empty mutable scope before returning a runner, so it cannot supply a true dedup fingerprint-before-effect path for a READ_ONLY reviewer;
+2. `SupervisedZCodeRunner` exposes no public fingerprint/spec method, while `SupervisedRunCoordinator` owns the canonical `fingerprint_spec()` / `fingerprint_for_argv()` logic.
+
+Prefer a shared **pure pre-effect execution-plan seam** that derives the exact `SupervisedRunIdentity`, operation ref, fixed argv, `ExecutionFingerprintSpec`, and fingerprint before lease/admission/process/secret-value effects; the launch assembly must consume or exactly revalidate that same plan before spawn. Do not duplicate the fingerprint formula.
+
 Do not modify scheduler/AHA-6 semantics by default.
 
 ## G1 — archaeology/reuse map
@@ -89,8 +96,12 @@ If a new authority would be required, checkpoint `DESIGN_GAP` and STOP.
 Before GREEN production code, prove at least:
 
 - dispatch-context ID may differ from runtime execution ID;
+- exact execution plan/fingerprint is derivable before any lease/admission/process/secret-value/store-mutation side effect;
+- launch assembly consumes/recomputes the same plan and rejects plan drift before spawn;
 - runtime record is located by exact fingerprint, never latest row;
 - unrelated latest execution cannot be selected;
+- `ExecutionFingerprintSpec` does not bind worker identity, so every duplicate/post-run record must separately satisfy `record.worker_id == route.reviewer_worker_id == lease.worker_id`;
+- same fingerprint from a foreign worker fails closed/recovery; it is neither reused nor bypassed with a second launch;
 - task SHA/contract/HEAD/provider/model/runtime changes cannot replay old execution;
 - completed exact fingerprint reuses exact record without second model call;
 - running/unknown duplicate state never launches a second child.
@@ -108,9 +119,10 @@ Reviewer mode must require:
 - empty requested mutable scope;
 - exact task packet hash/path/contract;
 - exact provider/model/generation/endpoint/secret-reference authority;
-- accepted supervised lifecycle only.
+- accepted supervised lifecycle only;
+- existing ZCode protocol fail-closed permission behavior remains intact: every `interaction/requestPermission` request is denied with `approved=false`, with no new permission-grant path.
 
-Never weaken mutation-mode validation.
+Never weaken mutation-mode validation. Do not treat prompt text alone as a read-only enforcement boundary.
 
 ## G4 — reviewer execution coordinator RED/GREEN
 
@@ -129,7 +141,9 @@ validated C0 task+route
  -> immutable reviewer-execution handoff
 ```
 
-The handoff must preserve both dispatch-context identity and actual durable runtime execution ID distinctly.
+The handoff must preserve both dispatch-context identity and actual durable runtime execution ID distinctly, plus the exact canonical provider-admission and WorkerLease identities used for the attempt.
+
+Return a usable handoff only after provider-admission + WorkerLease cleanup/release truth is canonically proven terminal. If cleanup is ambiguous, return `RECOVERY_REQUIRED` and preserve evidence; do not fabricate a handoff and do not repeat the model call on replay.
 
 Do not parse reviewer semantic ACCEPTED/REJECTED here. WO223/C1 owns semantic evidence.
 

@@ -145,6 +145,9 @@ DirectReviewExecutionHandoff
   result_ref
   exact task packet ref/hash
   provider/model/project/worker/repo/worktree/branch/HEAD
+  canonical provider admission id/batch/dispatch identity
+  canonical WorkerLease id/session/task identity
+  canonical cleanup/release outcome refs or typed proven terminal cleanup state
 ```
 
 Exact names are implementation-owned after archaeology.
@@ -216,11 +219,45 @@ validated ParallelReadyTask + DirectReviewRoute
 
 Do not parse reviewer JSON/verdict in this WO.
 
+### 5.1 Mandatory pure pre-effect execution plan
+
+Fresh GPT archaeology proved the current `assemble_zcode_execution()` cannot be used to compute the dedup fingerprint before external effects: it requires an already-active canonical `WorkerLease` and `ProviderAdmissionRecord` before it returns a `SupervisedZCodeRunner`, while `SupervisedZCodeRunner` itself exposes only `argv()` and `run()` and no public fingerprint/spec method.
+
+WO226 MUST therefore create/reuse one **pure planning seam** before any lease/admission/process/secret-value effect. Exact symbol names are implementation-owned, but the plan must deterministically derive from trusted task/route/provider/runtime facts:
+
+- verified `ZCodeTaskPacketIdentity` including full packet SHA;
+- exact review contract / durable job identity;
+- project/repo/branch/HEAD;
+- selected provider/model + current provider generation/endpoint/runtime binding;
+- derived `runtime_profile_ref` via the accepted ZCode runtime-identity function;
+- canonical operation ref from the exact task packet;
+- exact fixed ZCode argv;
+- the exact `SupervisedRunIdentity` fields used later by the real coordinator;
+- `ExecutionFingerprintSpec` and its SHA-256 fingerprint.
+
+Planning MUST be side-effect free: no provider admission acquire/release, no WorkerLease acquire/release, no process spawn, no secret-value resolution, no execution/job-store mutation, and no newest-row/run-directory lookup.
+
+Prefer one shared helper consumed by both preflight and launch assembly so the fingerprint inputs cannot drift. If launch assembly recomputes the plan, it MUST prove exact equality with the pre-effect plan before spawn. Do not copy the fingerprint formula into a second independent implementation.
+
+The dedup gate then runs on this pure plan **before** lease/admission acquisition. Only `SAFE_TO_LAUNCH` may proceed to those effects. `REUSE_COMPLETED`, `ATTACH_RUNNING`, and `BLOCKED_UNKNOWN` remain no-new-effect paths.
+
+### 5.2 Fingerprint is not reviewer-worker authority
+
+Fresh GPT archaeology also proved `ExecutionFingerprintSpec` / `_identity_matches()` does **not** include `worker_id`. This is accepted shared dedup semantics and WO226 must not silently change it globally.
+
+Therefore every duplicate assessment record and every post-run durable record MUST additionally prove:
+
+`record.worker_id == DirectReviewRoute.reviewer_worker_id == selected lease.worker_id`
+
+before reuse/attach/handoff. Same fingerprint + foreign worker is an identity conflict/recovery condition: do not reuse it and do not launch another child under the same fingerprint merely to work around the conflict.
+
 ## 6. READ_ONLY assembly rule
 
 Current accepted `assemble_zcode_execution()` is the mutation-capable ZRA-1 composition and currently requires a canonical `WorkerLease` with `LeaseMutationIntent.MUTATION` + authorized non-empty mutation scope.
 
 WO226 may make the smallest backward-compatible extension needed for reviewer execution, for example a dedicated READ_ONLY assembly entrypoint or a shared internal validator with explicit mode.
+
+Fresh GPT archaeology also proved the accepted ZCode protocol driver already denies every `interaction/requestPermission` request with `{approved: false}` and no permission-grant path exists in the ZCode protocol source/tests. Reuse and regression-pin that fail-closed behavior. A READ_ONLY assembly extension must not introduce any permission-grant path or rely on prompt wording as the mutation fence.
 
 Required semantics for review execution:
 
@@ -274,11 +311,15 @@ The fingerprint must be derived from the same trusted facts used by the actual s
 
 Required replay semantics:
 
-- exact completed identity -> `REUSE_COMPLETED`; return validated existing handoff; no new provider/lease side effect;
-- equivalent live identity -> attach/reconcile; never spawn second child;
+- compute the exact fingerprint from the pure pre-effect plan before lease/admission acquisition;
+- exact completed identity -> `REUSE_COMPLETED`; first revalidate exact worker/route/task/runtime facts, then return validated existing handoff; no new provider/lease side effect;
+- equivalent live identity -> revalidate exact worker/route/task/runtime facts, then attach/reconcile; never spawn second child;
+- same fingerprint with foreign reviewer worker -> identity conflict / recovery; no reuse and no second launch;
 - unknown/ambiguous identity -> fail closed/recovery;
 - changed task SHA/contract/HEAD/provider/model/runtime profile -> different fingerprint and never reuse old result;
 - multiple records for one fingerprint must be resolved only by existing duplicate authority; do not select newest heuristically.
+
+`ExecutionFingerprintSpec` does not itself carry `worker_id`; worker equality is a separate mandatory route/record/lease cross-binding, not an inferred fingerprint property.
 
 ## 9. Reviewer durable job / recovery semantics
 
@@ -302,8 +343,11 @@ Required behavior:
 
 - terminal usable execution -> release according to existing accepted semantics;
 - release result must prove released or already released as defined by the canonical authority;
+- a reusable `DirectReviewExecutionHandoff` may be returned only after both provider-admission and WorkerLease cleanup are canonically proven terminal/released (or the accepted equivalent already-released state); ambiguous cleanup returns typed `RECOVERY_REQUIRED`, not a usable handoff;
+- handoff preserves the exact admission/lease identities and cleanup proof needed to audit/reconstruct the no-orphan claim;
 - ambiguous release -> `RECOVERY_REQUIRED` / retain evidence; no blind reacquire;
 - crash window after model effect but before release/checkpoint must reconcile from durable execution/admission/lease state, not repeat model call;
+- replay after such a crash first dedups by the pure execution plan/fingerprint, then reconciles exact admission/lease identities before any handoff is reconstructed;
 - no resource release from reviewer semantic verdict; transport/resource truth is separate from ACCEPTED/REJECTED.
 
 WO224's separate GoalCloseout lease-release finding is not authority to broaden this WO into GoalCloseout source. Reuse/fix only the reviewer-execution resource path released here.
@@ -356,6 +400,10 @@ Write intended REDs before GREEN production mutation.
 ### Identity / replay
 
 11. runtime `execution_id` is allowed to differ from route dispatch ID and is preserved distinctly;
+11a. pure execution plan/fingerprint can be computed with **zero** lease/admission/process/secret-value/store-mutation effects;
+11b. the real launch assembly consumes/recomputes the same plan and fails closed on any plan drift before spawn;
+11c. same fingerprint with `DurableExecutionRecord.worker_id != DirectReviewRoute.reviewer_worker_id` is recovery/identity conflict, never reuse or launch;
+11d. READ_ONLY ZCode protocol permission request remains deterministically denied (`approved=false`) and no permission-grant path is introduced;
 12. exact fingerprint returns the exact runtime record;
 13. latest unrelated execution cannot be selected;
 14. same completed fingerprint returns identical handoff without second model call;
