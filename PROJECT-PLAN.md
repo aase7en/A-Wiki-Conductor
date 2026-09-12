@@ -838,6 +838,8 @@ Priority order for new feature work:
 8. expose `Models & Agents` / `Sub-Agent Providers` in the existing Sunday Family command center;
 9. add further providers only after the contract is stable.
 
+**Deferred operator UX extension — AHA-7C / WO-P1-170:** after Zero-Relay is accepted through ZRA-4, extend the existing `MODELS & AGENTS` Settings/Advanced surface into a custom-provider console comparable in usability to modern agent tools while reusing A-Sunday Conductor's provider and secret authorities. The target operator can add a provider, enter a validated Base URL, select a supported API format/protocol family, paste/replace an API credential through a masked transient field, manage model IDs/names, Test, and Enable/Disable. Plaintext credentials must move into the approved private secret boundary and tracked/runtime provider metadata retains only a credential reference; `CONFIGURED`, `READY`, `AUTHORIZED`, and `ADMITTED` remain distinct. This feature must not create a second provider registry/router/secret store and must not consume a mutable implementation lane before the P0 human-relay metric reaches zero through ZRA-4 unless the user explicitly reprioritizes.
+
 Safety/release correctness work and already-owned Graph branches remain independent P0 lanes. A priority change never authorizes stealing their worktrees or bypassing their gates.
 
 ## 22. v0.7.0 Stability Gate — Connector Runtime Resilience (2026-08-28)
