@@ -641,3 +641,5 @@ GLM source completion is a claim, not acceptance. GPT-5.6 Sol remains exact-SHA 
 - Evidence: RED pre-implementation captured; GREEN focused 29/29 + assembly 22/22; regression 263 + 229 + 27 (permission-denial regression); hygiene (compile/diff/UTF-8/secret-shape/scope) clean; P0/P1/P2 = 0, P3 = 2 documented (reentry mint-release reconcile effect; narrow write-boundary claim per Q4).
 - Candidate frozen `d512b1e0fecb8032fdd235ce544d6e27b3457e5c`; Draft PR #314; result at `runs/WO-P1-226/result.md` on the implementation worktree.
 - STOP at independent exact-SHA R3 review + exact-head CI + GPT acceptance. No merge; no C1/WO223; no Phase D.
+
+- CI repair 2026-09-13: run 34712667843 failed on the composition-truth source audit (entrypoint introspection vs. the moved impl body); caller migrated to audit the shared impl + delegation proof. Final candidate `653d637f8f6f5cacd92095acda83c1750a0c1a67` on PR #314. Full local battery 2886 passed; pre-existing host GPU env failures proven on clean base.
