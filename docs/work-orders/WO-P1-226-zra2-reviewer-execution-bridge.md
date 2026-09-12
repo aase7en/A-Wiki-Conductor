@@ -272,6 +272,23 @@ WO226 wrapper/coordinator must inspect/reconcile **all** equivalent fingerprint 
 
 A durable association between the chosen winner and the exact WorkerLease/ProviderAdmission identities must exist **before model effect** so restart after lost acknowledgement can reconstruct cleanup ownership without guessing from newest rows, worker-only lookup or ambient process state. Reuse an existing job/checkpoint/event/ownership authority if one truthfully supports this. If no existing canonical association seam exists within released scope, checkpoint `DESIGN_GAP` and STOP rather than inventing a new store/schema.
 
+### 5.3 Sol architecture adjudication after Astra F1/F2/F3
+
+Current-main archaeology after WO225/WO224 identifies two existing authorities that WO226 should try to REUSE before declaring a design gap. These are candidate composition seams, not permission to broaden shared-source scope silently.
+
+**Single-winner candidate (Q1): durable GraphDispatch job execution CAS.** `GraphDispatchKey.job_id` is deterministic from graph/run/node. `GraphDispatchCoordinator.dispatch()` creates/loads that job, advances NEW/BLOCKED -> READY -> CLAIMED -> GATING under the selected worker, then delegates `execute_operation()`. `DurableJobExecutionCoordinator.execute()` performs the version-checked `GATING -> EXECUTING` transition before backend execution; its source explicitly treats that durable transition as the last gate before external execution. Two callers presenting the same pre-execution version cannot both win that CAS.
+
+WO226 should therefore prefer proving that the repaired C0 `ParallelReadyTask.dispatch_request.key.job_id` is the canonical reviewer execution job and then reuse this existing durable execution gate. Do **not** create a second job id merely to obtain a lock. The supervised ZCode durable job id `job:<review_contract_ref>` remains a distinct downstream runtime identity and must be cross-bound, not equated, with the GraphDispatch durable job id. If the current route cannot truthfully bind to one canonical GraphDispatch job lifecycle, checkpoint `DESIGN_GAP` before any model/provider effect.
+
+**Resource-reconstruction candidate (Q2): canonical owner-key reentry.** Existing authorities already support lost-ack reconstruction without a new resource-link schema:
+
+- `WorkerLeaseBroker.acquire()` first resolves the active lease by exact `(session_id, task_id)`, revalidates the full request, and returns the same canonical lease as `EXISTING` when healthy;
+- provider `acquire_admission()` resolves a prior record by exact `(provider_id, execution_id)`, cross-checks deterministic `batch_id` and configuration generation, and returns that prior record as `EXISTING` or typed recovery/terminal reconciliation rather than minting unrelated capacity.
+
+WO226 may use these accepted reentry contracts to reconstruct exact lease/admission identities after lost acknowledgement, but only after the single-winner durable job gate is proven. Reentry/reconciliation must never become a way for a second caller to obtain launch authority. Cross-bind the recovered resource records back to route task, dispatch id, batch id, provider generation, reviewer worker/session/task and current durable job ownership.
+
+Provider and lease cleanup remain API-specific: provider lost-ack release is resolved by exact prior admission reread/reconciliation, while WorkerLease release accepts only canonical released/already-released truth. Do not normalize them into one generic truthy cleanup abstraction.
+
 ## 6. READ_ONLY assembly rule
 
 Current accepted `assemble_zcode_execution()` is the mutation-capable ZRA-1 composition and currently requires a canonical `WorkerLease` with `LeaseMutationIntent.MUTATION` + authorized non-empty mutation scope.

@@ -100,6 +100,15 @@ Write compact table:
 
 If a new authority would be required, checkpoint `DESIGN_GAP` and STOP.
 
+### Sol-pinned reuse candidates for Q1/Q2
+
+Before inventing any winner/resource mechanism, prove or falsify these current-main seams:
+
+- **winner:** repaired C0 `route_task.dispatch_request.key.job_id` -> existing GraphDispatch durable job -> CLAIMED/GATING -> `DurableJobExecutionCoordinator.execute()` version-CAS to EXECUTING. Treat this existing transition as the preferred single-winner gate before provider/lease/model effects. Keep GraphDispatch job id distinct from supervised ZCode `job:<review_contract_ref>` and cross-bind both.
+- **resource reconstruction after lost ack:** canonical WorkerLease reentry by exact `(session_id, task_id)` returns the same healthy `EXISTING` lease; provider admission reentry by exact `(provider_id, dispatch execution_id)` returns the prior record only after exact batch/generation reconciliation. Use these as recovery lookup/reentry authorities, never as a second launch fence.
+
+Required outcome of G1: either (A) prove this composition can be used with the repaired route without shared-schema/new-lock/new-store changes, then encode REDs before GREEN, or (B) write `DESIGN_GAP` with the exact failing call graph/identity mismatch and STOP for Sol. Do not silently create a replacement authority.
+
 ## G2 — RED first: identity/fingerprint
 
 Before GREEN production code, prove at least:
