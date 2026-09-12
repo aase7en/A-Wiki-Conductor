@@ -1,0 +1,11 @@
+{
+  "candidate": "78ec598b9830d802f54eb47642130693a038a39c",
+  "files": {
+    "src/a_conductor/zcode_production_assembly.py": "a2c9cdb64871057c1875d263fddd7d9660e2a1bdbb7398815da0af0c4774a8f2",
+    "src/a_conductor/zcode_runner.py": "ed3d5b23b33efb0fb42301c9ebe35fda276597e01af1e0a68dff5bdcb18eb1c9",
+    "src/a_conductor/zero_relay_review_execution.py": "50ec1df5110489a6594f90e18ed61f1856d4be9c0cbcbd49d720d43264bd81dd",
+    "tests/test_zcode_composition_truth.py": "c0cf142aafbbe8deeba434d35ab8e9428c6c0194e3af7eca6aedf9866ff4e925",
+    "tests/test_zcode_production_assembly.py": "62a4f159a66a496304c155527ada68443ab83cd2215b2b4cf707d0ef66849520",
+    "tests/test_zero_relay_review_execution.py": "4ca0a9ec1de94f58ccb5c0174b61b5e558d5a8a4c8e9aa07368b5c118a4b6577"
+  }
+}
