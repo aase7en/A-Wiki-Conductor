@@ -164,3 +164,15 @@ Executor result must durably record:
 - exact next safe action.
 
 Stop/checkpoint at the first external gate. Do not poll, wait, merge, or switch to another backlog item.
+
+
+## 11. Execution checkpoint — 2026-09-12 (GLM lane)
+
+- Claim `WO-P1-224-GLM-RELEASE-OUTCOME-GATE-001` published pre-mutation: Issue #214 comment 5646652762.
+- Executor lane eligible per Sol release comment (WO225 merged, WO224 NEXT_READY); overlap check: no open PR or claim on `goal_closeout.py` / `tests/test_goal_closeout.py`; WO208 lane docs-only.
+- Base re-pinned to `origin/main@7afb33d` (goal_closeout files zero drift from packet base `60aba77`). No production caller of `GoalCloseoutExecutor` found in `src/` — latent defect confirmed, no `ALREADY_RESOLVED`.
+- RED on base: exactly the 4 new truth-gate tests failed (unconfirmed `(False,False)`, repeated-invocation no-authority, contradictory `(True,True)`, non-bool shape); 84 existing tests passed.
+- Repair: outcome-gate before checkpoint in `execute_next()` RELEASE_REQUIRED (details `LEASE_RELEASE_NOT_CONFIRMED` / `LEASE_RELEASE_OUTCOME_CONTRADICTORY` / `LEASE_RELEASE_OUTCOME_INVALID`); positives + `ALREADY_RELEASED` preserved; test fake corrected to canonical `(False,True)` already-released shape.
+- GREEN: focused 88/88; related 203/203 + 123/123; compileall/diff-check/UTF-8/secret-scan clean; scope = exactly the two authorized files (+143/−2).
+- Candidate frozen `80954e30599ae9f7e7b60a3fc32ffc3c8c614081` on `feat/wo-p1-224-goal-closeout-release-outcome-gate`; PR #312. No merge; stopped at independent exact-SHA R3 review + exact-head CI + GPT acceptance.
+- P3 self-finding: `LeaseReleaseOutcome` dataclass stays permissive; malformed shapes rejected at the single consumption point (backward compatible; no constructor hardening required).
