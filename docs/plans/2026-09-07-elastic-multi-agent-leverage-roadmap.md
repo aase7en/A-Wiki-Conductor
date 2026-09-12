@@ -4,7 +4,7 @@ Date: 2026-09-07
 Status: SHAPING / P0 ZERO-RELAY PRIORITY FENCE / NO FLEET IMPLEMENTATION AUTHORITY
 Repository: `aase7en/A-Wiki-Conductor`
 Baseline at creation: `origin/main@df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` (PR #221 / ZRA-1 merged)
-Recomposed onto current accepted main: `origin/main@a887e7a76184d8f5dc22446a159087b6f9cab78d` (PR #224 / WO163 fold, which includes PR #219 / WO162 Universal Agent Entry). Dependency order unchanged: `A-Wiki #54 -> ZRA-2 -> ZRA-3 -> ZRA-4`; A-Wiki #54 is **MERGED** (`967e063cb9dc2e5b43b48a00deb575235f125a94`, post-main CI `34133420008` SUCCESS), so ZRA-2 is next, gated on GPT1 release of `GPT1-ZRA2-PREFLIGHT-001`.
+Final shaping fold re-pinned on 2026-09-12 to `origin/main@cfcb369fe5ab3a50569defa822289f10f2f38aac`. The dependency order remains `ZRA-2 -> ZRA-3 -> ZRA-4`; Phase B is accepted/post-main and Phase C0 / WO216 is the current ZRA-2 implementation frontier.
 
 ## Purpose
 
@@ -534,6 +534,6 @@ The long-term architecture is accepted only when a user can submit a goal and A-
 
 Do not implement a new orchestration subsystem from this document.
 
-The companion upstream reuse audit is complete for architecture shaping. Continue the existing Zero-Relay critical path in this order: finish ZRA-2 Phase B exact-SHA review/acceptance/merge/post-main proof; release and implement WO201 Phase C; complete ZRA-2 Phase D plus the full no-human-relay review/repair E2E; reconcile/accept ZRA-3; then execute the already-gated ZRA-4 C1/C1b/C2 work and two-lane proof.
+The companion upstream reuse audit is complete for architecture shaping. Continue the existing Zero-Relay critical path from the current frontier: reconcile and finish WO216 Phase C0; independently accept/merge/post-main C0; release and complete WO201 Phase C1; repair and accept the WO208 crash/effect evidence; complete ZRA-2 Phase D plus the full no-human-relay review/repair E2E; reconcile/accept ZRA-3; then execute the already-gated ZRA-4 C1/C1b/C2 work and two-lane proof.
 
 Worker Host/Fleet product work remains deferred until that ZRA-4 baseline is accepted. Research-derived P0 invariants may be folded into the existing ZRA contracts/tests only through their current owners and claims; this document grants no source mutation authority. Any future Worker Host/Fleet implementation requires a fresh work order, exact-main re-pin, ownership/non-overlap gate, RED-first acceptance criteria, and independent exact-SHA review.
