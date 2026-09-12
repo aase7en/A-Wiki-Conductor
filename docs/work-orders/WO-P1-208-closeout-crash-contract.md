@@ -117,3 +117,40 @@ original recorded/computed hash on both Mac and Windows; C03 report explicitly s
 transition fault injection was preempted by FOLD_CHECKPOINT_MISSING. Need inspect actual
 lab programs, controls and portable replay before acceptance. Next: publish claim, inspect
 frozen artifacts, adjudicate and publish one bounded same-WO repair packet if required.
+
+### Astra lab review completed / bounded repair prepared — 2026-09-12
+
+Reviewed frozen GLM lab b3a553ca3bb51753daa84b5f6be0dc81f1d025d6. Verdict:
+CHANGES_REQUIRED (LAB EVIDENCE), not a production defect/severity claim. Sol's original
+DESIGN_ONLY acceptance is preserved. Five P2 evidence gaps: unreachable COMPLETE fault
+hooks, drivers that return success despite failed expectations, finite-model claim gaps,
+version-dependent receipt identity coverage, and nonportable ignored-only scripts.
+F1's alleged seed hash typo is independently falsified on both hosts; original immutable
+seed is correct. Useful seed/fold-checkpoint/concurrency observations remain evidence.
+
+Targeted native Mac proofs: C03 both COMPLETE variants stop at FOLD_CHECKPOINT_MISSING;
+C07 unsafe candidate emits I1=8/I3=8 but exits0; unsupported COMPLETE action unvalidated;
+C05 same operation prefix with v8/v9 creates two receipt rows. Native Windows C03 rerun
+confirms unreachable hooks. No production source/tests/global SSoT/other lane mutation.
+Full review: docs/reviews/WO-P1-208-astra-lab-review.md. Ignored local reviewer proofs:
+runs/WO-P1-208/review/. Source base and original lab remain frozen.
+
+Successor packet: docs/prompts/GLM-WO208-CLOSEOUT-REPAIR.md;
+task WO208-GLM-CLOSEOUT-REPAIR-001, PREPARED_NOT_STARTED / QUEUED_CAPACITY.
+Prepared target branch codex/wo-p1-208-glm-closeout-repair at exact review delivery;
+Windows A:/GitHub/_worktrees/A-Wiki-Conductor-wo208-glm-closeout-repair.
+Review delivery SHA/hash/worktree verification are published externally in Issue214/233
+to avoid self-referential commit hashes. The child claims before execution.
+Assigned repair writes on its own branch: original GLM report correction, appended WO
+checkpoints, and eight explicitly named research-bundle paths in the packet (one optional).
+Ignored runs/WO-P1-208/glm-repair only; source/tests remain immutable. This scoped extension
+does not grant production or global SSoT authority and does not reopen the frozen lab.
+
+Current coordination refresh: origin/main cfcb369fe5ab3a50569defa822289f10f2f38aac;
+Phase B post-main accepted at 8700d21887500965ffc33bcbffa1f33602d9c2f6; WO216 C0 separately
+released by Sol (Issue214 comment5640984367). Do not preempt that goal or the current master.
+WO205 source still needs its own dependency/acceptance/release gates; this lab is not accepted.
+Next safe action: publish exact review delivery, prepare/verify Windows repair lane, then
+one eligible GLM session follows the packet. Exact repaired candidate returns for independent
+review; no merge by Astra/GLM. Global CURRENT-WORK/handoff fold remains with the single writer,
+fed by this scoped checkpoint plus Issue214/233, as the original WO requires.
