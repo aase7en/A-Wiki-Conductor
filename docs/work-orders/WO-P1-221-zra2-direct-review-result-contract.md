@@ -280,3 +280,43 @@ C0 protocol/result-contract repair (if required)
 ```
 
 This packet is preparation only. It does not release source mutation.
+
+
+## GLM WO221 execution — release-gated archaeology handoff (2026-09-12)
+
+### Release gate verification (re-pinned fresh)
+
+- C0 is accepted + merged + post-main verified: PR #303 head `f2616f44` merged as main `60aba770fd457d04f1e31040b9dfd7af3927f669`; five reviewed blob identities byte-proven (Issue #214 06:32Z); post-main CI run `34678219564` = **completed/success** on exact `60aba77` (verified this session via API).
+- Issue #214 carries `C0 POST_MAIN_VERIFIED / WO221 RELEASE` (06:39:48Z) and a `C1 architecture decision — direct review result / ReviewBridge boundary` pointer (06:43:19Z).
+- WO220 (this lane, PASS @ `b8d2e11`) recorded the bounded result-contract finding **P3-1**: the reviewer-output verdict requirement in the accepted C0 task is task *prose*, not a C0-enforced machine-readable schema. Gate condition satisfied.
+- No overlapping owner: no production caller exists for the C0 route composition seam (verified below); no other open PR touches the proposed C1 paths.
+
+### Production archaeology at current main `60aba77` (all verified by direct inspection)
+
+| Authority / seam | Finding |
+|---|---|
+| `zero_relay_review_task.DirectReviewRoute` / `bind_direct_review_route` | exists and accepted on main; **zero production callers** — the composition consumer (C1) is genuinely missing, no existing composer to reuse |
+| `ReviewMailboxResultReader` | **zero production callers**; expects `AgentMailboxAssignment` mailbox bytes — not a direct ZCode-result reader; no authoritative worker→mailbox-agent mapping exists (Option C remains `MAILBOX_AGENT_ID_AUTHORITY_MISSING`) |
+| `evidence_destination_ref` | consumed only by the C0 bind equality check — **metadata-only**, no production writer/verifier owns that destination (Option B's caveat confirmed) |
+| `zcode_supervised_helper` report (`zcode-report/1`) | binds `execution_id` + `task_packet_sha256` + `response_bytes` + `response_sha256` (+ `session_id`); EXIT_PENDING variant adds `exit_state` — the durable byte-binding half of the chain exists and is trusted |
+| durable `result.json` (supervised child result) | six-key process-exit metadata only — correctly NOT semantic review verdict |
+| `DurableExecutionRecord` | carries execution/job/work-order/project/worker/backend/repo/branch/head/`stdout_ref`/`result_ref`/`report_ref`/transport/execution state + terminal timestamps — sufficient trusted reviewer-execution truth, no new store needed |
+| strict JSON parsing precedent | `_strict_object_pairs` (operator_wire, supervised_child) and `_unique_object` (zcode_protocol) exist as reuse patterns for a duplicate-key-rejecting response parser |
+| `zero_relay.ReviewEvidence` + `classify_relay_decision` | unchanged, consumed by `goal_closeout` — the composition target for C1 |
+| accepted C0 task bytes (main `zero_relay_review_task.py:116`) | verdict requirement is the bullet line "- Bounded verdict vocabulary expected downstream: ACCEPTED or REJECTED" — **prose constraint only; no strict machine-readable response schema is required by the task bytes** |
+
+### Conclusion — the protocol-version rule fires
+
+Closing the gap requires the review task to *require* a strict machine-readable response (Option A schema `zra2-review-result-v1`). That changes review-task semantics:
+
+1. new task bytes ≠ accepted `zra2-review-v1` bytes;
+2. under this WO's own rule, same contract-ref/task-path/result-ref with different task bytes is **forbidden**;
+3. therefore a versioned review protocol identity (`zra2-review-v2`) with changed deterministic refs is required — which re-opens accepted C0 source (`src/a_conductor/zero_relay_review_task.py`) and needs fresh independent review of that change.
+
+Per the packet's explicit instruction — *"If doing this requires C0 source re-open/re-review, checkpoint that exact dependency and STOP rather than pretending C1 can repair it downstream"* — WO221 stops here.
+
+### Routing
+
+GPT has already prepared the exact successor owning the re-open: **WO-P1-223 / `docs/prompts/GLM-WO223-ZRA2-REVIEW-V2-C1-LONGSHIFT.md`** (docs branch `docs/wo-p1-223-zra2-review-v2-c1` @ `df57111`, based on post-C0 main `60aba77`), whose scope is precisely "versioning the accepted review-task protocol instead of silently changing v1, then compose existing `zero_relay.ReviewEvidence`", with `zero_relay_review_task.py` v2 support in its mutable scope and a conditional gate on this handoff. This handoff supplies WO223's gate inputs: the semantic-result gap is confirmed, no existing accepted equivalent reader/schema exists, and the required change is protocol-versioned task bytes + the Option-A evidence-composition chain over durable stdout/report/execution truth.
+
+**WO221 disposition: `ARCHAEOLOGY_HANDOFF_COMPLETE — implementation routed to WO223 per protocol-version rule`. No source was mutated by WO221.**
