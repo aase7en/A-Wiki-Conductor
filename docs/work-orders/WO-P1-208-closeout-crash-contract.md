@@ -211,3 +211,9 @@ Review delivery SHA/packet hash/Windows readiness published in Issue214/233 afte
 WO220/219/221/222 and master remain Sol-owned; no duplicate review or source release.
 Next: eligible GLM finalizes one candidate; independent exact-SHA Mac replay/review;
 WO205 parent adjudication. No merge. Global continuity fold stays with the single writer.
+
+## Finalization claim — WO208-GLM-CLOSEOUT-FINALIZATION-001 (2026-09-12, GLM-5.3 MAX)
+
+- CLAIM_ID=WO208-GLM-CLOSEOUT-FINALIZATION-001-GLM5.3MAX published to Issue214 (comment 5644768787) BEFORE any mutation, per the packet identity gate.
+- Branch codex/wo-p1-208-glm-finalization @ d470880 (clean); input candidate 2482998 (ancestor); source base 02d39cb (zero src/tests delta required).
+- Scope: lab bundle evidence only (N1–N4 via subgoals S0–S9 per docs/prompts/GLM-WO208-CLOSEOUT-FINALIZATION.md). No production change, no merge, no C1/D/ZRA3.
