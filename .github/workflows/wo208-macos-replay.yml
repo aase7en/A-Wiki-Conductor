@@ -1,0 +1,51 @@
+name: WO208 macOS replay evidence
+
+on:
+  pull_request:
+    branches:
+      - codex/wo-p1-208-glm-finalization
+    paths:
+      - ".github/workflows/wo208-macos-replay.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  macos-native-replay:
+    runs-on: macos-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      WO208_CANDIDATE_SHA: "23e701fa879bece6f46e5f66372ebb459f21a1db"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Prove exact candidate bytes are unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${WO208_CANDIDATE_SHA}^{commit}"
+          git merge-base --is-ancestor "$WO208_CANDIDATE_SHA" HEAD
+          changed="$(git diff --name-only "$WO208_CANDIDATE_SHA"..HEAD)"
+          printf 'changed-from-candidate:\n%s\n' "$changed"
+          test "$changed" = ".github/workflows/wo208-macos-replay.yml"
+          git diff --quiet "$WO208_CANDIDATE_SHA"..HEAD -- \
+            src tests docs/reviews/wo208-closeout-lab \
+            docs/work-orders/WO-P1-208-closeout-crash-contract.md
+      - name: Install package with test extra
+        run: python -m pip install -e .[test]
+      - name: Baseline GoalCloseout + JobStore
+        run: python -m pytest -q tests/test_goal_closeout.py tests/test_job_store.py
+      - name: WO208 lab contract tests
+        run: python -m pytest -q docs/reviews/wo208-closeout-lab/test_lab_contract.py
+      - name: WO208 native macOS replay suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/wo208-batch"
+          python docs/reviews/wo208-closeout-lab/replay_suite.py \
+            --repo-root . \
+            --output-root "$out"
