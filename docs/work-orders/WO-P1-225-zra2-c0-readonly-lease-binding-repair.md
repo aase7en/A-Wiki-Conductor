@@ -61,6 +61,33 @@ The generic aggregate may have historical reasons for allowing those shapes. WO2
 
 The narrow C0 binder is the correct first repair boundary because it is the authority that asserts `DirectReviewRoute.role == independent-review` and `mutation_intent == READ_ONLY`.
 
+### 2A. Interrupted-lane claim reconciliation
+
+Fresh GPT observation after the first ZCode dispatch found a protected source worktree already carrying in-scope edits but no durable WO225 claim on Issue #214:
+
+`A:\GitHub\_worktrees\A-Wiki-Conductor-wo225-src`
+
+Historical observation at that gate:
+
+- branch `fix/wo-p1-225-c0-readonly-lease-binding`;
+- base/HEAD `60aba770fd457d04f1e31040b9dfd7af3927f669`;
+- dirty only `src/a_conductor/zero_relay_review_task.py` and `tests/test_zero_relay_review_task.py`;
+- no `runs/WO-P1-225` checkpoint;
+- ZCode processes existed on the host, but process existence alone did not prove task ownership.
+
+This historical observation is not permanent state. On resume, recover actual state again.
+
+If the existing dirty WO225 lane still exists:
+
+1. preserve it; never reset/clean/stash/rebase/switch/recreate merely to satisfy a clean-start assumption;
+2. inspect exact base/HEAD/status/diff and prove dirty paths remain inside released scope;
+3. recover any durable owner/session evidence that may have appeared since this checkpoint;
+4. before any further source mutation, publish/reconcile the missing claim on Issue #214 with actual executor/session, worktree, branch, base/HEAD, dirty paths, mutable/forbidden scope and overlap result;
+5. state truthfully that pre-claim edits were recovered/protected, not retroactively pre-authorized;
+6. continue only if the same owner is proven and the lane is non-overlapping; otherwise `CLAIM_OWNER_UNKNOWN` and STOP.
+
+A branch name, worktree name or running ZCode PID is never sufficient ownership authority by itself.
+
 ## 3. Binding repair semantics
 
 Before `bind_direct_review_route()` may return a `DirectReviewRoute`, prove all existing checks plus:

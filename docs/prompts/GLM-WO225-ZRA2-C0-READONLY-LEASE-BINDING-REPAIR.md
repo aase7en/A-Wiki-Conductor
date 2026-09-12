@@ -33,9 +33,14 @@ STARTUP / AUTHORITY GATE:
 1. Read `00-AGENT-ENTRY.md` -> `PROJECT-GRAPH.yaml` -> `AGENTS.md` -> actual Git/claims -> `CURRENT-WORK.md` -> WO225 -> relevant protocol/evidence.
 2. Read `DEFECT_LESSONS.md` before source mutation.
 3. Re-pin current GitHub main, Issue #214, open PRs, active claims/worktrees and this packet branch. Do not trust creation-time SHAs if main moved.
-4. Use a fresh isolated source worktree from then-current accepted main; do not mutate the protected dirty root checkout or the docs-only packet worktree.
-5. Acquire/publish a non-overlapping WO225 claim for exactly the released source/test scope.
-6. If another owner already repairs the same C0 defect, reconcile rather than duplicate.
+4. Recover existing WO225 source worktrees before creating anything new. A prior interrupted session may already have protected uncommitted source work. Do not infer ownership from branch/worktree/process names alone.
+5. If `A:\GitHub\_worktrees\A-Wiki-Conductor-wo225-src` (or another exact WO225 source lane) already exists and is dirty, **preserve it in place**: do not reset/clean/stash/switch/rebase or recreate the lane. Re-pin its base/HEAD/status/diff and compare the dirty paths to the released WO225 scope.
+6. Before any further source edit, publish/reconcile one durable WO225 claim to Issue #214 naming actual executor/session, exact worktree, branch, base/HEAD, dirty paths, mutable scope, forbidden scope and overlap result. The claim may explicitly state it is reconciling protected pre-claim edits; it must not pretend those edits were already authorized.
+7. Only after the claim is durable and non-overlap is proven may the same owner continue the preserved source lane. If the dirty lane belongs to another/unknown owner, checkpoint `CLAIM_OWNER_UNKNOWN` and STOP without touching it.
+8. If no prior WO225 source worktree exists, create a fresh isolated source worktree from then-current accepted main; never mutate the protected dirty root checkout or docs-only packet worktree, then publish the normal pre-mutation claim.
+9. If another owner already repairs the same C0 defect, reconcile rather than duplicate.
+
+Runtime/process existence is evidence of a process only, not task ownership. Do not treat a running ZCode process as proof that it owns WO225 unless durable task/claim evidence cross-binds that process/session.
 
 ROOT CAUSE TO REPRODUCE, NOT ASSUME:
 - `ParallelReadyTask.__post_init__` cross-binds project/worktree/branch/head/provider/task-packet/HarnessDispatch facts but does not require lease mutation intent or lease task id to equal the review contract.
@@ -52,6 +57,8 @@ Before production repair, capture deterministic failing tests proving at least:
 6. all existing packet/head/destination/author/reviewer anti-replay failures remain failures.
 
 The RED must exercise current production binder behavior, not merely fail because a new helper/module is absent.
+
+Prefer adversarial states that can be constructed through public dataclass/constructor authority. Do not use `object.__setattr__` or equivalent post-validation mutation of frozen aggregate objects merely to fabricate an impossible internal mismatch when an existing constructor/binder test already covers that invariant. If a post-validation forge is retained for a specific trust-boundary attack, document why that state can arise across a real serialization/plugin/process boundary; otherwise remove the redundant forge before freeze.
 
 MINIMAL GREEN:
 Repair `bind_direct_review_route()` in `src/a_conductor/zero_relay_review_task.py` with the smallest review-specific cross-binding:
