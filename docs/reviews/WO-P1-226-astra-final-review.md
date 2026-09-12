@@ -71,7 +71,7 @@ python3 -m pytest -q -s docs/reviews/wo226-astra-final/test_adversarial.py
 Expected on frozen 78ec598: **4 failed** assertion tests. These are deliberate RED
 acceptance tests, not broken environment/import/setup tests. Assertions must turn
 GREEN after bounded repair. See [test file](wo226-astra-final/test_adversarial.py)
-and [captured output](wo226-astra-final/adversarial.log).
+and [captured output](wo226-astra-final/adversarial.txt).
 
 Independently run on macOS/Python 3.12:
 
@@ -80,7 +80,7 @@ Independently run on macOS/Python 3.12:
   recorded in `wo226-astra-final/baseline.txt`.
 - GraphDispatch, JobExecution, provider execution authority, WorkerLease/recovery,
   ParallelReady, ZCode runner and authority-bound assembly: **220 passed**;
-  see [regression log](wo226-astra-final/regression.log).
+  see [regression log](wo226-astra-final/regression.txt).
 - Source and tests unchanged relative to candidate; source SHA256 manifest supplied.
 - Full 2892 and hosted CI PASS are GLM's handback claims from Issue214 comment
   5648493827, not a full-battery rerun by Astra. They do not close these REDs.

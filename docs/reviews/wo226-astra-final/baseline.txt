@@ -5,7 +5,7 @@ Observed: 54 passed, 6 skipped in 1.04s
 Skipped: test_zcode_production_assembly.py lines 313,341,357,392,404,508; Windows real-helper integration.
 
 Command: python3 -m pytest -q tests/test_graph_dispatch.py tests/test_job_execution.py tests/test_provider_execution_authority.py tests/test_worker_lease.py tests/test_worker_lease_recovery.py tests/test_parallel_ready_execution.py tests/test_zcode_runner.py tests/test_zcode_authority_bound_assembly.py
-Observed: 220 passed in 1.39s (regression.log)
+Observed: 220 passed in 1.39s (regression.txt)
 
 Command: python3 -m pytest -q -s docs/reviews/wo226-astra-final/test_adversarial.py
-Observed: 4 failed in 0.28s; all intentional behavioral RED assertions (adversarial.log).
+Observed: 4 failed in 0.28s; all intentional behavioral RED assertions (adversarial.txt).
