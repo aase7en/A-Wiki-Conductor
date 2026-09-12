@@ -25,3 +25,11 @@ Everything else read-only. No scheduler/provider/lease/mailbox/ReviewEvidence li
 
 ## Acceptance
 Focused tests plus WO216 regression floor green, no new authority, exact scope only, hosted CI green, and fresh independent exact-SHA rereview by a non-author before acceptance/merge.
+
+## Repair checkpoint — 2026-09-12
+- RED exact parent `ade1628247a4512fa879c10bfd093d14f51d487f`: 2/2 reproducers failed as intended.
+- Fix 1: successful publication now always re-reads via `NativeFileSystem.read_text()` and verifies relative path, exact content, UTF-8 byte size, and SHA before returning; mismatch after create -> `REVIEW_TASK_STATE_UNVERIFIABLE`; pre-existing divergent bytes remain `REVIEW_TASK_COLLISION`.
+- Fix 2: direct route now derives the exact expected packet path from authoritative `dispatch.worktree_path + deterministic relative task path` and compares using existing `windows_worktree_key`; suffix-only paths outside the worktree fail `REVIEW_PACKET_MISMATCH`.
+- No changes to `ParallelReadyTask`, scheduler, provider, lease, mailbox, ReviewEvidence, or filesystem authority.
+- Verification: WO216 floor plus repair tests = 339 passed; compileall, `git diff --check`, strict UTF-8/no U+FFFD PASS.
+- Repair author is GPT-5.6 Sol; independent exact-SHA rereview remains required before acceptance/merge.

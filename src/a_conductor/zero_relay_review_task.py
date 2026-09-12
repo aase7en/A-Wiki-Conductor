@@ -17,6 +17,7 @@ import json
 from dataclasses import dataclass
 
 from .native_execution import NativeExecutionError, NativeFileSystem
+from .registry import windows_worktree_key
 from .zero_relay import ResultIdentity
 
 _SCHEMA = "zra2-review-v1"
@@ -115,19 +116,29 @@ def materialize_review_task(
     content = render_review_task_markdown(identity)
     encoded = content.encode("utf-8")
     digest = hashlib.sha256(encoded).hexdigest()
+    created = True
     try:
-        result = filesystem.create_text_if_absent(refs.task_path, content)
+        filesystem.create_text_if_absent(refs.task_path, content)
     except NativeExecutionError as exc:
         if exc.code != "FILE_ALREADY_EXISTS":
             raise ZeroRelayReviewTaskError(exc.code) from exc
-        try:
-            existing = filesystem.read_text(refs.task_path)
-        except NativeExecutionError as read_exc:
-            raise ZeroRelayReviewTaskError("REVIEW_TASK_STATE_UNVERIFIABLE") from read_exc
-        if existing.sha256 != digest:
-            raise ZeroRelayReviewTaskError("REVIEW_TASK_COLLISION")
-        return MaterializedReviewTask(refs=refs, persisted_sha256=digest, created=False)
-    return MaterializedReviewTask(refs=refs, persisted_sha256=result.sha256, created=True)
+        created = False
+
+    try:
+        persisted = filesystem.read_text(refs.task_path)
+    except NativeExecutionError as read_exc:
+        raise ZeroRelayReviewTaskError("REVIEW_TASK_STATE_UNVERIFIABLE") from read_exc
+
+    if (
+        persisted.relative_path != refs.task_path
+        or persisted.sha256 != digest
+        or persisted.size_bytes != len(encoded)
+        or persisted.content != content
+    ):
+        code = "REVIEW_TASK_COLLISION" if not created else "REVIEW_TASK_STATE_UNVERIFIABLE"
+        raise ZeroRelayReviewTaskError(code)
+
+    return MaterializedReviewTask(refs=refs, persisted_sha256=digest, created=created)
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,10 +189,17 @@ def bind_direct_review_route(
 
     packet = route_task.task_packet
     dispatch = route_task.harness_dispatch
+    expected_packet_path = f"{dispatch.worktree_path.rstrip('/\\')}/{review.refs.task_path}"
+    try:
+        packet_path_matches = (
+            windows_worktree_key(packet.path) == windows_worktree_key(expected_packet_path)
+        )
+    except ValueError:
+        packet_path_matches = False
     if (
         packet.task_contract_ref != review.refs.contract_ref
         or packet.sha256 != review.persisted_sha256
-        or not packet.path.endswith(review.refs.task_path)
+        or not packet_path_matches
     ):
         raise ZeroRelayReviewTaskError("REVIEW_PACKET_MISMATCH")
     if dispatch.task_contract_ref != review.refs.contract_ref:
