@@ -167,3 +167,20 @@ fed by this scoped checkpoint plus Issue214/233, as the original WO requires.
 ### GLM repair completion — WO208-GLM-CLOSEOUT-REPAIR-001 (2026-09-12)
 
 All repair programs P0–P6 complete at this branch: R1 COMPLETE lost-ack pair rebuilt on real prerequisites with hook-entry proof; R2 strict enforcement everywhere (cut markers, distinct fallback exits, negative controls, strict two-process predicates); R3 72-state action-validating transition model with 7/7 named mutants caught and unsupported actions rejected; R4 stable operation identity across version advance + separate-effect atomicity cut; R5 tracked replayable bundle + manifest, replayed from a clean Windows export (baseline 94 + all four entrypoints exit 0); F1 RETRACTED with byte-level proof (uniform digest across all three documents; original misread). Corrected handback prepended to the original review doc with the full supersession map; original provenance retained verbatim. F2/F3 retained as parent decision inputs. STATUS=COMPLETE_FOR_INDEPENDENT_REVIEW (MAC_REPLAY_PENDING for the reviewer); no source mutation, no merge, frozen lab branch untouched.
+
+
+### Astra exact repair review reservation — 2026-09-12
+
+Claim WO208-ASTRA-REPAIR-REVIEW-001. User reports GLM done and requests the next
+sustained packet. Review exact 2482998e19ee439e04adf321cd5d74c1feb94243 and close
+MAC_REPLAY_PENDING before deciding the successor. R2 evidence review only; no production
+acceptance. Branch codex/wo-p1-208-repair-review; Mac worktree
+/Users/aase7en/Desktop/A-Wiki-Conductor-wo208-rereview. Frozen GLM repair remains immutable.
+Owned: append checkpoints here; NEW docs/reviews/WO-P1-208-astra-repair-review.md;
+NEW docs/prompts/GLM-WO208-CLOSEOUT-FINALIZATION.md if concrete gaps require a successor.
+Ignored runs/WO-P1-208/rereview/** for fresh synthetic replay and bounded controls.
+Original source/tests/bundle/report/packet/design/seed/global SSoT/other WOs and all live
+runtime stay read-only. Source gate remains HOLD with WO205. WO220 reviews C0; WO221/222
+remain Sol-owned successors. No duplicate C0 review, controller, source lane or merge.
+Next: publish this claim, verify manifest/source, native Mac replay, adjudicate residual
+findings and publish one bounded next packet or return accepted evidence to WO205.
