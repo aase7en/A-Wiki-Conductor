@@ -86,8 +86,90 @@ class _RuntimeForensicsHardeningState(Enum):
     REFUSED_AMBIGUOUS = "REFUSED_AMBIGUOUS"
 
 
+def _powershell_executable_view(text: str) -> str:
+    """Mask non-executing PowerShell regions while preserving source offsets/newlines."""
+    chars = list(text)
+    block_depth = 0
+    here_terminator: str | None = None
+    quote: str | None = None
+    offset = 0
+
+    for line in text.splitlines(keepends=True):
+        line_length = len(line)
+        content_length = len(line.rstrip("\r\n"))
+
+        if here_terminator is not None:
+            content = line[:content_length]
+            closes_here = content.startswith(here_terminator) and not content[
+                len(here_terminator) :
+            ].strip()
+            for index in range(offset, offset + content_length):
+                chars[index] = " "
+            if closes_here:
+                here_terminator = None
+            offset += line_length
+            continue
+
+        index = 0
+        while index < content_length:
+            absolute = offset + index
+
+            if block_depth:
+                if line.startswith("<#", index):
+                    chars[absolute] = chars[absolute + 1] = " "
+                    block_depth += 1
+                    index += 2
+                    continue
+                if line.startswith("#>", index):
+                    chars[absolute] = chars[absolute + 1] = " "
+                    block_depth -= 1
+                    index += 2
+                    continue
+                chars[absolute] = " "
+                index += 1
+                continue
+
+            char = line[index]
+            if quote is not None:
+                if quote == "'" and char == "'" and index + 1 < content_length and line[index + 1] == "'":
+                    index += 2
+                    continue
+                if char == "`" and quote == '"' and index + 1 < content_length:
+                    index += 2
+                    continue
+                if char == quote:
+                    quote = None
+                index += 1
+                continue
+
+            if line.startswith("<#", index):
+                chars[absolute] = chars[absolute + 1] = " "
+                block_depth = 1
+                index += 2
+                continue
+            if char == "#":
+                for comment_index in range(absolute, offset + content_length):
+                    chars[comment_index] = " "
+                break
+            if char in ("'", '"'):
+                quote = char
+                index += 1
+                continue
+            if char == "@" and index + 1 < content_length and line[index + 1] in ("'", '"'):
+                remainder = line[index + 2 : content_length]
+                if not remainder.strip():
+                    here_terminator = line[index + 1] + "@"
+                    index += 2
+                    continue
+            index += 1
+
+        offset += line_length
+
+    return "".join(chars)
+
 def _is_runtime_forensics_hardened(text: str) -> bool:
     """Recognize the complete generated forensics shape from executable lines only."""
+    executable = _powershell_executable_view(text)
     patterns = (
         re.compile(r"(?m)^[ \t]*\$RuntimeArchiveDir\s*=\s*Join-Path \$LogsDir 'runtime-archive'[ \t]*$"),
         re.compile(r"(?m)^[ \t]*Move-Item -LiteralPath \$RuntimeLog -Destination \$Archived -Force[ \t]*$"),
@@ -102,7 +184,7 @@ def _is_runtime_forensics_hardened(text: str) -> bool:
         ),
         re.compile(r"(?m)^[ \t]*exit \$RuntimeExitCode[ \t]*$"),
     )
-    matches = tuple(tuple(pattern.finditer(text)) for pattern in patterns)
+    matches = tuple(tuple(pattern.finditer(executable)) for pattern in patterns)
     if any(len(found) != 1 for found in matches):
         return False
 
@@ -110,7 +192,7 @@ def _is_runtime_forensics_hardened(text: str) -> bool:
         re.compile(r"(?m)^[ \t]*Wait-Process -Id \$RuntimeProcess\.Id[ \t]*$"),
         re.compile(r"(?m)^[ \t]*if \(\$RuntimeProcess\.ExitCode -ne 0\) \{[ \t]*$"),
     )
-    if any(pattern.search(text) is not None for pattern in legacy_patterns):
+    if any(pattern.search(executable) is not None for pattern in legacy_patterns):
         return False
 
     positions = tuple(found[0].start() for found in matches)
@@ -119,6 +201,7 @@ def _is_runtime_forensics_hardened(text: str) -> bool:
 
 def _has_runtime_forensics_structural_signal(text: str) -> bool:
     """Detect executable forensics/legacy lines without promoting comments or strings."""
+    executable = _powershell_executable_view(text)
     patterns = (
         re.compile(r"(?m)^[ \t]*\$RuntimeArchiveDir\s*=\s*Join-Path \$LogsDir 'runtime-archive'[ \t]*$"),
         re.compile(r"(?m)^[ \t]*Move-Item -LiteralPath \$RuntimeLog -Destination \$Archived -Force[ \t]*$"),
@@ -130,11 +213,12 @@ def _has_runtime_forensics_structural_signal(text: str) -> bool:
         re.compile(r"(?m)^[ \t]*\$RuntimeProcess\.WaitForExit\(\)[ \t]*$"),
         re.compile(r"(?m)^[ \t]*if \(\$RuntimeProcess\.ExitCode -ne 0\) \{[ \t]*$"),
     )
-    return any(pattern.search(text) is not None for pattern in patterns)
+    return any(pattern.search(executable) is not None for pattern in patterns)
 
 
 def _harden_start_script_runtime_forensics(text: str) -> str:
     """Upgrade validated legacy start.ps1 text without replacing its credential/preflight logic."""
+    executable = _powershell_executable_view(text)
     archive_assignment_pattern = re.compile(
         r"(?m)^[ \t]*\$RuntimeArchiveDir\s*=\s*Join-Path \$LogsDir 'runtime-archive'[ \t]*$"
     )
@@ -145,16 +229,16 @@ def _harden_start_script_runtime_forensics(text: str) -> str:
     exit_command_pattern = re.compile(r"(?m)^[ \t]*exit \$RuntimeExitCode[ \t]*$")
 
     complete_hardening = (
-        archive_assignment_pattern.search(text) is not None
-        and exit_capture_pattern.search(text) is not None
-        and refresh_pattern.search(text) is not None
-        and exit_command_pattern.search(text) is not None
+        archive_assignment_pattern.search(executable) is not None
+        and exit_capture_pattern.search(executable) is not None
+        and refresh_pattern.search(executable) is not None
+        and exit_command_pattern.search(executable) is not None
     )
     if complete_hardening:
         return text
     if (
-        archive_assignment_pattern.search(text) is not None
-        or exit_capture_pattern.search(text) is not None
+        archive_assignment_pattern.search(executable) is not None
+        or exit_capture_pattern.search(executable) is not None
     ):
         return text
 
@@ -172,11 +256,11 @@ def _harden_start_script_runtime_forensics(text: str) -> str:
         r"(?P=indent)\}[ \t]*$"
     )
 
-    stdout_matches = tuple(stdout_pattern.finditer(text))
-    stderr_matches = tuple(stderr_pattern.finditer(text))
-    start_matches = tuple(start_pattern.finditer(text))
-    wait_process_matches = tuple(wait_process_pattern.finditer(text))
-    method_wait_matches = tuple(method_wait_pattern.finditer(text))
+    stdout_matches = tuple(stdout_pattern.finditer(executable))
+    stderr_matches = tuple(stderr_pattern.finditer(executable))
+    start_matches = tuple(start_pattern.finditer(executable))
+    wait_process_matches = tuple(wait_process_pattern.finditer(executable))
+    method_wait_matches = tuple(method_wait_pattern.finditer(executable))
     if (
         len(stdout_matches) != 1
         or len(stderr_matches) != 1
@@ -219,7 +303,7 @@ exit $RuntimeExitCode"""
         + text[stderr_match.end() :]
     )
 
-    start_match = start_pattern.search(hardened)
+    start_match = start_pattern.search(_powershell_executable_view(hardened))
     if start_match is None:
         return text
     start_indent = start_match.group("indent")
@@ -227,13 +311,13 @@ exit $RuntimeExitCode"""
     hardened = hardened[: start_match.start()] + archive_block + hardened[start_match.start() :]
 
     if wait_process_matches:
-        wait_match = wait_process_pattern.search(hardened)
+        wait_match = wait_process_pattern.search(_powershell_executable_view(hardened))
         if wait_match is None:
             return text
         replacement = _indent_block(exit_block, wait_match.group("indent"))
         return hardened[: wait_match.start()] + replacement + hardened[wait_match.end() :]
 
-    method_match = method_wait_pattern.search(hardened)
+    method_match = method_wait_pattern.search(_powershell_executable_view(hardened))
     if method_match is None:
         return text
     replacement = _indent_block(exit_block, method_match.group("indent"))

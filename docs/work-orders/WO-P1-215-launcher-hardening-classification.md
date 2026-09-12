@@ -89,14 +89,16 @@ An initially over-broad classifier then correctly exposed an additional compatib
 
 After the bounded repair and adding both legacy seam variants to the complete-marker test, author-side falsification found a second defect in the same classification boundary: broad substring/count checks let comment-only marker text become `ALREADY_HARDENED` authority and let quoted marker text become `REFUSED_AMBIGUOUS`. RED evidence was `2 failed, 30 deselected` with the two states misclassified exactly as predicted.
 
-The classifier now requires line-anchored executable PowerShell forms for every authoritative structural marker. Comments and quoted strings cannot satisfy hardened/ambiguous structure. A production-boundary test also proves comment-only markers do not block normal instance creation.
+The classifier first moved to line-anchored executable PowerShell forms. A second adversarial round then proved line anchoring alone was still insufficient: block comments and here-strings can contain marker text at column zero, and a block-comment archive marker could suppress a real legacy seam. RED evidence was `3 failed, 33 deselected`.
+
+The accepted implementation now builds a same-length **executable view** of the PowerShell source before any hardening/classification regex runs. It masks line comments, nested block comments, and here-string bodies/terminators while preserving source offsets and newlines. Here-string termination is recognized conservatively only at column zero; an indented marker-like terminator remains body text and cannot release following body lines into authority. Structural matches therefore retain exact slice positions into the original text without letting non-executing regions gain authority. Ordinary quoted command arguments remain visible so the generated hardening shape can still be verified exactly.
 
 Current GREEN floor:
 
-- focused classifier/preflight matrix: 7 passed
-- `python -m pytest -q tests/test_instance_create.py`: 33 passed
+- multiline non-executing provenance matrix (block, nested block, here-string, false terminator, suppression attempts): 6 passed
+- `python -m pytest -q tests/test_instance_create.py`: 39 passed
 - `python -m pytest -q tests/test_setup_wizard.py tests/test_ps1_encoding_and_quoting.py tests/test_doctor_fixes.py tests/test_desktop_control.py`: 72 passed
-- explicit current floor: 105 passed
+- explicit current floor: 111 passed
 - `python -m compileall -q src/a_conductor/instance_create.py` -> PASS
 - `git diff --check` -> clean
 
@@ -106,6 +108,9 @@ Positive controls cover:
 - recognized legacy Wait-Process transforms;
 - already hardened reference remains byte-identical/accepted;
 - generic unrelated reference remains passthrough-compatible;
+- line-comment and quoted marker text remain non-authoritative;
+- block-comment, nested block-comment and here-string marker regions remain non-authoritative;
+- non-executing marker regions cannot suppress a real legacy hardening transform;
 - complete-marker + either legacy seam is rejected before materialization;
 - partial structural marker + legacy seam is rejected before materialization.
 

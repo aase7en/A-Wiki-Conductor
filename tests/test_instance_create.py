@@ -474,6 +474,87 @@ def test_classifier_ignores_marker_text_inside_quoted_strings() -> None:
 
 
 @pytest.mark.parametrize(
+    "wrapper",
+    (
+        (
+            "<#\n"
+            "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+            "$RuntimeProcess.WaitForExit()\n"
+            "$RuntimeProcess.Refresh()\n"
+            "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+            "exit $RuntimeExitCode\n"
+            "#>\n"
+        ),
+        (
+            "$Help = @\"\n"
+            "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+            "$RuntimeProcess.WaitForExit()\n"
+            "$RuntimeProcess.Refresh()\n"
+            "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+            "exit $RuntimeExitCode\n"
+            "\"@\n"
+        ),
+        (
+            "<#\n"
+            "outer comment\n"
+            "<#\n"
+            "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+            "$RuntimeProcess.WaitForExit()\n"
+            "#>\n"
+            "$RuntimeProcess.Refresh()\n"
+            "#>\n"
+        ),
+    ),
+)
+def test_classifier_ignores_nonexecuting_multiline_marker_regions(wrapper: str) -> None:
+    source = wrapper + "$ProfileTemplate = 'unchanged-generic-reference'\n"
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
+def test_indented_here_string_terminator_does_not_release_marker_authority() -> None:
+    source = (
+        "$Help = @\"\n"
+        "    \"@\n"
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        "$RuntimeProcess.WaitForExit()\n"
+        "$RuntimeProcess.Refresh()\n"
+        "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+        "exit $RuntimeExitCode\n"
+        "\"@\n"
+        "$ProfileTemplate = 'unchanged-generic-reference'\n"
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
+@pytest.mark.parametrize(
+    "wrapper",
+    (
+        "<#\n$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n#>\n",
+        "$Help = @\"\n$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n\"@\n",
+    ),
+)
+def test_nonexecuting_marker_cannot_suppress_real_legacy_hardening(wrapper: str) -> None:
+    source = wrapper + _legacy_method_wait_launcher()
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.TRANSFORMED
+    assert classified != source
+    terminal = classified[classified.rfind("$RuntimeProcess.WaitForExit()") :]
+    assert "$RuntimeProcess.Refresh()" in terminal
+    assert "$RuntimeExitCode = $RuntimeProcess.ExitCode" in terminal
+    assert "if ($RuntimeProcess.ExitCode -ne 0)" not in terminal
+
+
+@pytest.mark.parametrize(
     "legacy_launcher",
     (_legacy_wait_process_launcher, _legacy_method_wait_launcher),
 )
