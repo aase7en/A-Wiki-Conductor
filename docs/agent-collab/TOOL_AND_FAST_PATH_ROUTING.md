@@ -61,6 +61,8 @@ RECOVER MINIMUM STATE
 
 Do not run the maximum-assurance loop for every task. Use the lowest risk tier that truthfully covers blast radius.
 
+`FAST_EXECUTION_PROTOCOL.md` remains the authority for each risk tier's verification floor. Fast-path routing may remove redundant ceremony, but it must not weaken that floor. In particular, R2 still requires its adversarial batch, frozen exact-SHA independent review, bounded repair/rereview when needed, and exact-head CI before merge.
+
 ## 4. Normal fast path
 
 Use for R0/R1/R2 work that does not touch secrets, durable authority, concurrency, process ownership, release/installers, or provider admission.
@@ -71,11 +73,12 @@ Use for R0/R1/R2 work that does not touch secrets, durable authority, concurrenc
 3. Assign one executor: GPT, Worker, ZCode/GLM, or native tools.
 4. Let the executor continue through safe micro-steps without asking the user for "continue".
 5. Run targeted + directly related verification.
-6. Freeze one candidate SHA.
-7. Start independent read-only review and CI in parallel when required.
-8. Batch all confirmed findings into one repair pass.
-9. Rereview only changed/high-risk boundaries unless the repair broadens scope.
-10. Merge only after exact-SHA evidence satisfies repository policy.
+6. Run the risk-tier adversarial batch before freeze when required; for R2 this is mandatory.
+7. Freeze one candidate SHA.
+8. Start independent read-only review and CI in parallel according to the risk-tier floor; for R2, independent exact-SHA review and exact-head CI are mandatory.
+9. Batch all confirmed findings into one repair pass.
+10. Rereview only changed/high-risk boundaries unless the repair broadens scope.
+11. Merge only after exact-SHA evidence satisfies repository policy.
 ```
 
 ## 5. High-risk path
