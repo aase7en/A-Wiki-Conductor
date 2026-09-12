@@ -3,8 +3,8 @@
 Status: PREPARED / WAIT FOR PR #299 TERMINAL CI
 Parent: WO219 / PR #299
 Parent of parent: WO216 / PR #296
-Review target: `5f779dda10c70d20cfbbeb8925ed3e42c000ecee`
-Independent finding source: WO218 `c5b04305154e229e3fd42d2092844ded6234a2ff`
+Review target: `a2cb571d33e528840f47660d98fcdec80cad889b`
+Independent finding source: WO218 `063e8afe93db1b0468951e61472ec711d436fdba`
 Preferred reviewer: ZCode GLM-5.3, independent of GPT repair author
 Risk: R3 identity / persisted provenance / anti-replay
 
@@ -16,7 +16,7 @@ Attempt to falsify the repaired Phase-C0 provenance chain before integrator acce
 
 Before review execution, re-pin:
 
-- PR #299 head is exactly `5f779dda10c70d20cfbbeb8925ed3e42c000ecee`;
+- PR #299 head is exactly `a2cb571d33e528840f47660d98fcdec80cad889b`;
 - PR #299 hosted CI is terminal green on that exact head;
 - parent PR #296 remains exact `ade1628247a4512fa879c10bfd093d14f51d487f` and unmerged as a standalone defective candidate;
 - WO218 review evidence exists and still maps to the parent defects;
@@ -32,9 +32,10 @@ Reproduce all four WO218 attacks independently:
 1. fake successful write-result object with wrong path/size/hash;
 2. forged caller-constructed `MaterializedReviewTask`;
 3. packet path under a foreign worktree with matching suffix/hash/contract;
-4. old review packet / new internally-consistent route HEAD replay.
+4. old review packet / new internally-consistent route HEAD replay;
+5. duck-typed/non-`NativeFileSystem` object attempting to act as persistence authority in C0a or C0b.
 
-All four must be refused by stable typed failures after repair.
+All five must be refused by stable typed failures after repair.
 
 Then attempt novel counterexamples around:
 

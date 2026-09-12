@@ -7,9 +7,9 @@ A:\GitHub\_worktrees\A-Wiki-Conductor-wo220-zra2-c0-rereview\docs\work-orders\WO
 
 REVIEW TARGET:
 - PR #299
-- exact SHA `5f779dda10c70d20cfbbeb8925ed3e42c000ecee`
+- exact SHA `a2cb571d33e528840f47660d98fcdec80cad889b`
 - parent exact SHA `ade1628247a4512fa879c10bfd093d14f51d487f` / PR #296
-- WO218 independent rejection evidence `c5b04305154e229e3fd42d2092844ded6234a2ff`
+- WO218 independent rejection evidence `063e8afe93db1b0468951e61472ec711d436fdba`
 
 ROLE:
 You are ZCode GLM-5.3 acting as an independent R3 reviewer of GPT-authored WO219 repair. You are NOT the implementation author of the repair. Candidate source/tests are immutable during this invocation.
@@ -20,7 +20,7 @@ Use the full useful work budget. Do not optimize for chat/context length. Keep d
 STARTUP / GATE:
 1. Read current repository entry/governance routing, AGENTS.md and DEFECT_LESSONS.md as required.
 2. Re-pin repo/worktree/branch/current origin/main/PR #299 exact head/base/CI.
-3. Verify PR #299 head is exactly `5f779dda10c70d20cfbbeb8925ed3e42c000ecee`.
+3. Verify PR #299 head is exactly `a2cb571d33e528840f47660d98fcdec80cad889b`.
 4. Verify hosted CI is terminal green for that exact head.
 5. Verify parent #296 is exact `ade1628247a4512fa879c10bfd093d14f51d487f` and WO218 evidence still maps to it.
 6. Verify review source/test paths are read-only and no ownership conflict exists.
@@ -44,6 +44,7 @@ A. successful create returning fabricated wrong path/size/hash;
 B. caller-forged MaterializedReviewTask/persisted SHA;
 C. task packet in foreign worktree with matching suffix/hash/contract;
 D. old packet rebound to a new internally-consistent route HEAD.
+E. duck-typed/non-NativeFileSystem object presented as persistence authority to either C0a or C0b.
 
 All must now fail closed with appropriate typed outcomes.
 
@@ -71,7 +72,7 @@ ADVERSARIAL CAMPAIGN:
 - no duplicate filesystem/scheduler/provider/lease/review lifecycle introduced.
 
 TEST VACUITY:
-Do not simply rerun candidate tests. Create at least one novel independent counterexample/probe. Prefer deterministic fault injection, barriers, controlled temp directories and state transitions over sleeps. Where useful, run a probe against parent `ade1628...` to prove it catches old behavior, then against repair `5f779dd...`.
+Do not simply rerun candidate tests. Create at least one novel independent counterexample/probe. Prefer deterministic fault injection, barriers, controlled temp directories and state transitions over sleeps. Where useful, run a probe against parent `ade1628...` to prove it catches old behavior, then against repair `a2cb571...`.
 
 Use real NativeFileSystem temp roots for at least one positive and one negative root/path verification when practical. Do not touch live Worker/provider/credential/runtime state.
 
