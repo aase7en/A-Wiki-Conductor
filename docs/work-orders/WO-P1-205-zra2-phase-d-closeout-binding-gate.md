@@ -1,10 +1,13 @@
 # WO-P1-205 — ZRA-2 Phase D durable execution/result → closeout binding gate
 
-Status: PREPARED / HOLD UNTIL PHASE-B + PHASE-C ACCEPTED
-Parent: WO-P1-165 / Issue #214 / ZRA-2 Phase D
+Status: PREPARED / HOLD UNTIL WO226 + WO223/C1 + WO208 ACCEPTED (WO225 + WO224 ALREADY ACCEPTED/POST-MAIN)
+Parent: WO-P1-165 / WO-P1-223 / WO-P1-224 / WO-P1-225 / WO-P1-226 / WO-P1-208 / Issue #214 / ZRA-2 Phase D
 Owner: GPT-5.6 Sol integrator / architecture
-Base: `02d39cbd9bca1ab3bb19b6e0cfbb0766c991f971`
-Branch: `docs/wo-p1-205-zra2-phase-d-gate`
+Original planning base: `02d39cbd9bca1ab3bb19b6e0cfbb0766c991f971`
+Original planning branch: `docs/wo-p1-205-zra2-phase-d-gate`
+GPT refresh base: `60aba770fd457d04f1e31040b9dfd7af3927f669`
+Latest read-only refresh base: `origin/main@251df211afc1ee5452f3652675d7a2f38c526876` (WO225 + WO224 accepted/merged/post-main; WO226 active; WO223 HOLD; WO208 finalization candidate pending independent Mac replay/parent acceptance)
+GPT refresh branch: `docs/wo-p1-205-phase-d-gate-refresh`
 Risk: R3 — durable execution/result identity, review acceptance, job-state closeout
 
 ## 1. Purpose
@@ -19,16 +22,31 @@ It must **not** create another completion state machine and must **not** transit
 
 Source implementation remains HOLD until all are durably true:
 
-1. Phase B accepted, merged and post-main verified;
-2. Phase C accepted, merged and post-main verified;
-3. WO-P1-208 closeout crash-boundary evidence has completed its queued GLM lab and parent/integrator review has accepted an explicit supported external-effect/recovery contract for Phase D;
-4. Issue #214 explicitly publishes Phase D `NEXT_READY`;
-5. current main/source state is re-pinned;
-6. fresh ownership/scope/non-overlap gate is issued.
+1. Phase B remains accepted, merged and post-main verified on the then-current main lineage;
+2. WO-P1-225 repaired C0 READ_ONLY lease/task binding is independently reviewed, GPT-accepted, merged and post-main verified;
+3. WO-P1-226 reviewer-execution bridge is independently reviewed, GPT-accepted, merged and post-main verified;
+4. WO-P1-223 / Phase-C C1 strict semantic review evidence composition is independently reviewed, GPT-accepted, merged and post-main verified;
+5. WO-P1-208 closeout crash-boundary finalization has completed and parent/integrator review has accepted an explicit supported external-effect/recovery contract for Phase D;
+6. WO-P1-224 GoalCloseout lease-release truth repair is independently reviewed, GPT-accepted, merged and post-main verified;
+7. Issue #214 explicitly publishes Phase D `NEXT_READY` after re-pinning those exact predecessors;
+8. current main/source state is re-pinned;
+9. fresh ownership/scope/non-overlap gate is issued.
 
 Until then:
 
 `SAFE_TO_MUTATE_PHASE_D=NO`
+
+### 2.1 Latest dependency refresh
+
+At `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`:
+
+- WO225 is accepted/merged/post-main verified;
+- WO224 is accepted/merged/post-main verified, so the false lease-release checkpoint defect described in the older packet snapshot is repaired on current main;
+- WO226 reviewer execution is the active critical-path implementation lane and is not yet accepted/merged/post-main;
+- WO223/C1 remains HOLD_AFTER_WO226; its docs packet has been refreshed and still confirms the strict semantic direct-review gap exists;
+- WO208 finalization candidate `23e701fa879bece6f46e5f66372ebb459f21a1db` has a GPT Windows provisional pass but still lacks the required independent native Mac replay/parent acceptance in durable state.
+
+Therefore Phase D remains HOLD. Do not reinterpret accepted WO224 as authority to initiate external effects; the consume-proven-effects-first restriction remains unchanged until WO208's exact external-effect/recovery contract is finally accepted.
 
 ## 3. Existing authorities to reuse
 
@@ -53,7 +71,7 @@ Reuse:
 - `zero_relay.ReviewEvidence`;
 - `classify_relay_decision()` and its accepted/repaired/recovery semantics.
 
-Phase C is expected to provide trusted independent-review evidence; Phase D consumes it, not reviewer JSON directly.
+WO-P1-223 / Phase-C C1 must provide trusted independent-review evidence derived from the accepted WO225 repaired route + WO226 reviewer-execution handoff; Phase D consumes that typed `zero_relay.ReviewEvidence`, never raw reviewer JSON or transport artifacts directly.
 
 ### Durable job authority
 
@@ -75,7 +93,7 @@ Reuse unchanged:
 - `plan_goal_closeout()`;
 - `GoalCloseoutExecutor`.
 
-`GoalCloseoutExecutor` remains the mutation authority for final COMPLETE transition after all review/verification/merge/fold/lease/ownership obligations are satisfied.
+`GoalCloseoutExecutor` remains the mutation authority for final COMPLETE transition after all review/verification/merge/fold/lease/ownership obligations are satisfied. WO224 is now accepted/merged/post-main on current main and its RELEASE stage fails closed unless lease release truth is one of the canonical confirmed shapes. Phase D must preserve that repaired behavior and must not reintroduce any path that checkpoints release from unconfirmed, contradictory, malformed, stale, or foreign-owner outcomes.
 
 ## 4. Source archaeology findings at packet base
 
@@ -189,7 +207,20 @@ If the selected fold/release adapter cannot provide an accepted idempotency/quer
 
 A deterministic request key is not sufficient unless the effect owner enforces same-key/same-payload convergence and divergent-payload refusal. A pre-effect JobStore CAS alone is also not sufficient because it can leave an intent-with-unknown-effect crash window.
 
-Do not create a second outbox/journal/store merely to solve this. Reuse existing job/recovery/effect-owner authority according to the contract accepted from WO208. If the only safe initial Phase-D release is to consume already-proven effects while leaving unsupported effect initiation blocked, that is acceptable and preferable to inventing replay safety.
+Do not create a second outbox/journal/store merely to solve this. Reuse existing job/recovery/effect-owner authority according to the contract accepted from WO208.
+
+### Binding GPT decision for initial Phase-D release: consume proven effects first
+
+Until WO208 proves an exact idempotency/query/reconcile contract for a selected external fold/release adapter **and** WO224 proves truthful lease-release checkpoint semantics, Phase-D v1 MUST NOT initiate unsupported external fold/release effects. Its safe initial shape is:
+
+- consume already-proven durable fold/release facts when the existing authoritative stores/effect owners can independently re-observe them;
+- compose/reload GoalCloseout facts from that proven state;
+- keep any missing, in-progress, stale or UNKNOWN external effect as `RECOVERY_REQUIRED` / blocked;
+- never synthesize `completed_closeout_refs` merely to advance the planner;
+- never call an effect port simply because the corresponding checkpoint is absent;
+- allow external effect initiation only in a later bounded slice whose exact adapter contract has passed WO208-style crash/restart/adversarial proof and whose release truth passes WO224.
+
+This is intentionally narrower than the full GoalCloseout executor surface. It preserves GoalCloseout as the only COMPLETE authority while refusing to exercise effect branches whose crash semantics are not yet proven.
 
 Required additional RED cases after release:
 
@@ -244,8 +275,11 @@ At minimum:
 - current candidate SHA unknown;
 - current candidate SHA changed after review;
 - accepted review exact candidate positive control;
+- pre-WO224 release outcome with neither `released=True` nor `already_released=True` cannot create a release checkpoint or allow COMPLETE;
+- already-proven durable fold/release facts are consumed without re-invoking the external effect;
+- missing/UNKNOWN fold or lease-release truth remains blocked/recovery and is not converted into synthetic `completed_closeout_refs`;
 - GoalCloseout missing verify/fold/release checkpoints remains blocked by existing authority;
-- duplicate/restart invocation is idempotent through existing GoalCloseout/job version semantics;
+- duplicate/restart invocation is idempotent through accepted GoalCloseout/job/effect-owner semantics;
 - no direct COMPLETE transition occurs in Phase-D assembler.
 
 ## 10. Composition design constraints
@@ -282,12 +316,15 @@ The assembler should have injected read/mutation ports only where those authorit
 
 Phase D is accepted only when:
 
+- WO225 repaired C0 route, WO226 reviewer execution, and WO223/C1 semantic review evidence are accepted/post-main exact predecessors;
 - exact durable ZRA-1 execution/result identity is proven;
 - accepted independent review is bound to those exact bytes and exact candidate SHA;
+- WO208 accepted effect/recovery contract is satisfied for every external effect Phase D is permitted to initiate; otherwise Phase D consumes proven effects only;
+- WO224 accepted lease-release truth semantics prevent false release checkpoints;
 - job state/version is re-observed before mutation;
 - GoalCloseout remains the sole composed final completion authority;
 - no direct Phase-D COMPLETE transition exists;
-- ambiguous transport/review/job state never blind-replays or completes;
+- ambiguous transport/review/job/effect state never blind-replays or completes;
 - no duplicate authority/store is introduced;
 - exact candidate CI is green;
 - independent reviewer returns no P0/P1/P2 blocker.
@@ -298,11 +335,13 @@ Acceptance of this planning packet does not release implementation.
 
 STOP and checkpoint on:
 
-- Phase B or C not accepted;
+- Phase B no longer accepted on current lineage;
+- WO225, WO226, WO223/C1, WO208 or WO224 not accepted/post-main verified;
 - Issue #214 Phase-D NEXT_READY absent;
 - source/authority drift;
 - missing ownership/scope;
-- ambiguous execution/result/review/job identity;
+- ambiguous execution/result/review/job/effect/release identity;
+- selected external effect lacks accepted idempotency/query/reconcile truth;
 - need to widen source scope beyond accepted packet;
 - non-terminal CI;
 - independent review / GPT acceptance / merge / post-main gate.

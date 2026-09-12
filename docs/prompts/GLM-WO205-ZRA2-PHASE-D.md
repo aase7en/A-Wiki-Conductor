@@ -9,14 +9,19 @@ This packet is a future implementation pointer. It does not authorize source mut
 Before any source/test mutation, independently verify ALL from durable Git/GitHub authority:
 
 1. ZRA-2 Phase B is ACCEPTED, MERGED, and required post-main verification is green.
-2. ZRA-2 Phase C is ACCEPTED, MERGED, and required post-main verification is green.
-3. WO-P1-208 closeout crash-boundary GLM lab is complete and the parent/integrator has accepted one explicit external-effect/recovery contract for Phase D.
-4. Issue #214 explicitly marks Phase D `NEXT_READY`.
-5. A fresh Phase-D implementation claim names exact owner, base SHA, branch, worktree, mutable paths, forbidden paths, and dependencies.
-6. The claimed worktree is isolated and clean except for explained owned changes.
-7. No overlapping mutable lane exists.
+2. WO225 repaired C0 READ_ONLY lease/task binding is ACCEPTED, MERGED, and post-main verified.
+3. WO226 reviewer-execution bridge is ACCEPTED, MERGED, and post-main verified.
+4. WO223/C1 strict semantic review-evidence composition is ACCEPTED, MERGED, and post-main verified.
+5. WO208 closeout crash/effect finalization has independent exact-candidate review and the parent/integrator has accepted one explicit external-effect/recovery contract for Phase D.
+6. WO224 GoalCloseout lease-release truth repair is ACCEPTED, MERGED, and post-main verified.
+7. Issue #214 explicitly marks Phase D `NEXT_READY`.
+8. A fresh Phase-D implementation claim names exact owner, base SHA, branch, worktree, mutable paths, forbidden paths, and dependencies.
+9. The claimed worktree is isolated and clean except for explained owned changes.
+10. No overlapping mutable lane exists.
 
 If any item is false or unknown, write/checkpoint `BLOCKED_EXTERNAL_AUTHORIZATION` and STOP. Do not create a source implementation branch merely because this file exists.
+
+Preparation-only current snapshot: at `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`, WO225 and WO224 are already accepted/merged/post-main; WO226 is still the active implementation predecessor; WO223/C1 remains HOLD behind WO226; WO208 finalization `23e701fa879bece6f46e5f66372ebb459f21a1db` is not yet parent-accepted because independent native Mac replay remains missing in durable state. Re-pin all of this when Phase D is actually released.
 
 ## Read first after release
 
