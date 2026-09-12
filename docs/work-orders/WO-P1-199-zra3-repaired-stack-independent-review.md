@@ -73,8 +73,11 @@ Verify PR #269 exact SHA `0bf8f1e...` against WO195:
 16. no second scheduler/store/lease/provider/review/dispatch-journal authority is introduced;
 17. human relay count on the composed accepted path remains zero;
 18. run focused production suite + parent suite + relevant GoalCloseout/graph/ParallelReady/elastic/worker-candidate regressions and hosted CI on exact SHA.
+19. prove a **real production construction/caller path** exists outside tests for the composed automatic NEXT READY seam. At minimum trace concrete source construction/use of `NextReadyProductionAssembly`, production creation of the required `ParallelReadyNodeContract`, and the downstream `ProductionElasticWorkerExecutor` (or the exact accepted equivalent after source drift).
+20. tests, exported classes, or assembly objects with zero production caller do **not** satisfy automatic continuation. If repository-wide production-source tracing finds these only in definitions/tests, classify `P1 PRODUCTION_WIRING_GAP / CHANGES_REQUIRED`; do not return `ACCEPT_EXACT_SHAS` merely because deterministic tests pass.
+21. any production caller must reuse existing graph/job/lease/provider/dispatch authorities; a new second scheduler/loop introduced only to make the call graph non-empty is itself a blocker.
 
-Expected local integrator claim: 375 tests passed after stack sync; treat as evidence to reproduce/verify.
+Expected local integrator claim: focused/related regressions were green in prior review, but GPT pre-review later reproduced a production-wiring gap. Treat both as claims to verify; caller reachability is an independent acceptance gate.
 
 ## Adversarial review prompts
 

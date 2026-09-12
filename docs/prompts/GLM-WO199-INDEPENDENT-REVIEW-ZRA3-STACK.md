@@ -30,7 +30,10 @@ Then independently review the stacked production assembly for:
 - existing scheduler/provider/lease/GraphDispatch authority reuse;
 - deterministic ZRA-3 batch identity;
 - zero human relay;
-- no second scheduler/store/lease/provider/review/retry authority.
+- no second scheduler/store/lease/provider/review/retry authority;
+- **real production reachability**: repository-wide production-source tracing must identify a concrete non-test construction/caller for `NextReadyProductionAssembly`, production creation/use of the required `ParallelReadyNodeContract`, and the downstream `ProductionElasticWorkerExecutor` (or exact accepted equivalents after source drift). Definitions, exports and tests alone are not production wiring.
+
+If these composed seams have zero production caller outside tests, record `P1 PRODUCTION_WIRING_GAP` and return `CHANGES_REQUIRED`. Do not accept exact SHAs solely because all deterministic suites are green.
 
 Run the deterministic suites specified by WO199 and inspect hosted CI for the exact SHAs.
 
