@@ -217,3 +217,12 @@ WO205 parent adjudication. No merge. Global continuity fold stays with the singl
 - CLAIM_ID=WO208-GLM-CLOSEOUT-FINALIZATION-001-GLM5.3MAX published to Issue214 (comment 5644768787) BEFORE any mutation, per the packet identity gate.
 - Branch codex/wo-p1-208-glm-finalization @ d470880 (clean); input candidate 2482998 (ancestor); source base 02d39cb (zero src/tests delta required).
 - Scope: lab bundle evidence only (N1–N4 via subgoals S0–S9 per docs/prompts/GLM-WO208-CLOSEOUT-FINALIZATION.md). No production change, no merge, no C1/D/ZRA3.
+
+### Finalization S0 checkpoint — 2026-09-12 (GLM)
+
+- Baseline: pytest test_goal_closeout + test_job_store = 94 passed; src/tests delta vs source base 02d39cb = EMPTY. Full-suite environment note: 2 known GPU-dependency failures (Pillow/OpenGL unavailable) documented as environment, unrelated to bundle.
+- N1 REPRODUCED (runs/.../s0/n1_repro.py): fake seed_fence_materialized.py with sentinel substituted the seed experiment; exit 0, fence_hash_ok=True, four_observations_ok=True, sentinel file written ⇒ mismatched executable bytes executed without binding.
+- N2 REPRODUCED: transition('CURRENT','NOT_STARTED','ABSENT','NONTERMINAL_REVIEW','EXECUTE_ONCE') returns 3-tuple (schema=4), effects_added=0 on first execution; chained RECOVER raises; blocked-job EXECUTE_ONCE and stale-owner COMPLETE mutants escape all I1–I6 (detected=ZERO each).
+- N3 REPRODUCED (runs/.../s0/c02_mutant.py on ignored copy): wrong-exit-99 + main-cut-predicate→True mutant still exits 0, cut0 "passed" with exit=10/want=99, all four declared negative controls "pass" — controls never exercise the failing validator.
+- N4 REPRODUCED: c06 JSON says release_checkpoint_present_after=true while prose claims "proceeded ... without a durable release checkpoint"; released_any conflates port-called with released. The required reload experiment is MISSING from the lab — independent replay (runs/.../s0/n4b) proves production behaves as the review expects: reload+ACTIVE → RECOVERY_REQUIRED/LEASE_RELEASE_CONTRADICTION, total release calls 1, job REVIEW_PENDING.
+- Dispositions: R1 (COMPLETE hooks) accepted; R4 (bounded receipt identity) accepted; F1 retraction accepted — no re-verification performed per packet (preserve accepted archaeology).
