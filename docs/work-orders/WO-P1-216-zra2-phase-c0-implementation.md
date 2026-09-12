@@ -419,3 +419,12 @@ WO216 candidate is ready for independent review only when all are true:
 - hosted CI has been triggered.
 
 Then STOP at `BLOCKED_EXTERNAL_CI_OR_GPT_ACCEPTANCE` and hand back exact SHA/PR/evidence/remaining advisories.
+
+
+## GLM implementation claim — WO216 C0 (2026-09-12, under WO214 MASTER v4 Q2)
+
+- Claim: ZCode GLM-5.3 MAX implements WO-P1-216 C0 per the Issue #214 release (`PHASE_C0_NEXT_READY`, release commit `8a5603c7f3c757f32b02382547f9d95a1603188b`).
+- Release gate verified fresh this session: PR #291 MERGED into main `8700d21887500965ffc33bcbffa1f33602d9c2f6`; independent post-main byte check: **7/7 tracked fold paths exact** (six reviewed Phase-B paths + WO213 fold doc); Issue #214 records post-main 321 passed + Phase-B ACCEPTED + explicit C0 release naming this exact worktree/branch/scope.
+- Worktree re-pinned: `feat/wo-p1-216-zra2-phase-c0-binding` @ `8a5603c` (base = accepted merge `8700d21`), clean; no open PR touches the two planned NEW files; no overlapping mutable lane.
+- Mutable scope (exact): NEW `src/a_conductor/zero_relay_review_task.py`, NEW `tests/test_zero_relay_review_task.py`, this WO + runs/ evidence. All other modules read-only.
+- SAFE_TO_MUTATE_PHASE_C0=YES.
