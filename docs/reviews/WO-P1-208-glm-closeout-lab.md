@@ -1,3 +1,58 @@
+# WO-P1-208 GLM closeout lab — CORRECTED handback (repair cycle 1)
+
+> **SUPERSESSION NOTICE (WO208-GLM-CLOSEOUT-REPAIR-001).** This document
+> corrects the original lab handback at candidate `b3a553c` in response to
+> the independent Astra lab review (`docs/reviews/WO-P1-208-astra-lab-review.md`,
+> verdict CHANGES_REQUIRED — R1–R5 + F1). The original handback is retained
+> VERBATIM below this notice as provenance history; superseded/retracted
+> claims remain visible there on purpose — do not cite them without the map.
+> The corrected, replayable evidence lives in the tracked bundle
+> `docs/reviews/wo208-closeout-lab/` (manifest inside). Original ignored
+> result files under `runs/WO-P1-208/glm/` remain untouched.
+
+## Correction map (review finding -> original status -> correction -> proof)
+
+| ID | Original status | Correction | Proof (bundle) |
+|---|---|---|---|
+| R1 COMPLETE lost-ack hooks never reached | reported as valid contrast (both variants `FOLD_CHECKPOINT_MISSING`, hooks not entered) | SUPERSEDED: complete-stage pair now built on REAL ordered prerequisites (fold effect + fold checkpoint through the actual executor; stage decision asserted `FOLD_REQUIRED`; effects==1), wrapper records hook ENTRY and COMMIT at the COMPLETE transition; raise-before-commit -> job REVIEW_PENDING/refs 2, commit-then-raise -> COMPLETE/refs 2, both reopen-verified; positive normal completion + terminal ALREADY_COMPLETE no-op; effects counted across restart | `c03_c05_c06_suite.py::c03_complete_lost_ack` (cases `c03-complete-raise-before-commit`, `c03-complete-commit-then-raise`, `c03-complete-positive`) |
+| R2 drivers returned success on failed expectations | exit_matches recorded not enforced; fallback exits reused hook codes; C05 predicate allowed zero CREATED | SUPERSEDED: every driver enforces expectation leaves and exits nonzero otherwise (`lab_common.fail_nonzero`); child writes `cut-marker-<mode>.txt` AT the boundary, distinct exit 79 for returned-past-hook; C02 requires marker+exit+counts+reopened state; negative controls (wrong-exit, missing-marker, fallback-exit, unknown-mode) all detected; C05 two-process requires both exits 0, exact sorted `[CREATED, REUSED_EXACT]`, exactly one row | `c02_cut_matrix.py` 13/13 incl. 4 controls; `wo208_child.py`; `c03_c05_c06_suite.py::c05_two_process` |
+| R3 model claims exceeded transitions; unsupported action accepted | 96-tuple decision table, no action validation, only next_effect modeled | SUPERSEDED: `c07_model.py` is a 72-state TRANSITION model (effect, checkpoint AND job-state observable changes; action vocabulary VALIDATED — the review's injected COMPLETE counterexample is now rejected, invariant I6); I1 covers stale-owner effects AND duplicate effects; SEVEN named mutants each caught deterministically (duplicate-unknown-retry, stale-owner-effect, fabricated-checkpoint-complete, contradictory-completion, terminal-repeated-effect, unjustified-initial-blocking, unsupported-action-vocabulary); ack axis documented as an equivalence (error alone never distinguishes commit — proven by the C03 pairs), not duplicate assurance | `c07_model.py` + c07 summary (conservative_clean=True, 7/7 mutants) |
+| R4 receipt key included job version (`\|v=8`) | single-version key; version change = CREATED twice | SUPERSEDED: operation identity = `(authority, operation_id)` STABLE across checkpoint version advance v8->v9 (REUSED_EXACT); divergent payload refused; genuinely-new operation distinct; stale-owner rejection explicitly modeled at the ADMISSION gate (C02 stale-gated), not the destination key; `separate-effect-cut` demonstrates a committed receipt does NOT prove an external file effect (receipt PRESENT, file absent) — UNKNOWN stays RECOVERY; no exactly-once/power-loss/cross-host claim | `c03_c05_c06_suite.py::c05_stable_operation_identity` + `c05_separate_effect_cut` |
+| R5 bundle not replayable from cold checkout | scripts only in ignored runs/ | SUPERSEDED: tracked bundle `docs/reviews/wo208-closeout-lab/` (7 files + manifest.json with per-file SHA-256, source blob pins, case identifiers, seeds/timeouts); explicit `--repo-root/--output-root` (no HERE.parents assumptions); replayed on native Windows from a CLEAN detached export at the frozen candidate: baseline 94 passed + all four entrypoints exit 0 | bundle + replay summaries in `runs/WO-P1-208/glm-repair/` |
+| F1 "recorded seed hash one-char typo" | original finding (P3) | **RETRACTED (false).** The recorded digest is uniformly `bf1136e729cbe8676676031120a586610adeeb3dccca20addda6c1301a579aac` across the seed doc, the Astra review, and the repair packet, and equals the freshly computed SHA-256 of the seed doc's own fence (verified byte-level this repair; the earlier `...6a1301` reading was this lane's own transcription error). The seed fence is republished VERBATIM by `seed_probe.py`, which verifies the digest BEFORE running the four original observations (all four hold on this host). | `seed_probe.py` + seed summary (`fence_hash_ok=True four_observations_ok=True`) |
+
+Retained unchanged (per the review's disposition): the four original seed
+observations; the process-cut matrix results (now enforced); the stale gate;
+the receipt-row concurrency experiment (now strict predicates); F2 retained
+as a source-seam port-contract question — now with the TRUTHFUL ACTIVE-lease
+control recorded against the actual release checkpoint (`c06-truthful-active-lease`)
+and the RELEASED positive control explicitly labelled a SYNTHETIC fixture
+(`c06-synthetic-released-positive`; never an observed release; no production
+bypass claimed).
+
+## Repair verification (native Windows, clean detached export at frozen candidate)
+
+- `pytest -q tests/test_goal_closeout.py tests/test_job_store.py` -> **94 passed**
+- `seed_probe.py` -> fence verified + four observations -> **exit 0**
+- `c02_cut_matrix.py` -> 13/13 cases+controls -> **exit 0**
+- `c03_c05_c06_suite.py` -> 10/10 -> **exit 0**
+- `c07_model.py` -> conservative clean + 7/7 mutants -> **exit 0**
+- MAC_REPLAY_PENDING: native Mac replay of this exact candidate remains with
+  the reviewer (Astra) per the repair packet; no simulated Mac evidence claimed.
+
+## Known limits (explicit)
+
+Windows-only native replay; process exits are not power-loss proofs; receipts
+are synthetic destinations whose entire transactional effect is one INSERT;
+cross-host/shared-storage coordination out of scope; WO205 retains all
+option A/B/C effect-contract and migration decisions; no production fix or
+source mutation was made in this repair.
+
+──────────────────────────── provenance boundary ────────────────────────────
+*(everything below is the ORIGINAL handback, retained verbatim; its C03
+complete-stage row, C05 identity definition, C07 description and finding F1
+are superseded/retracted per the map above)*
+
 # WO-P1-208 GLM closeout crash/recovery lab — portable evidence handback
 
 Claim `WO208-GLM-CLOSEOUT-LAB-001` (child of WO-P1-208; design owner Poppy Javis/GPT-6 Astra; parent WO205/Issue #214 retains Phase-D authority). Windows executor: GLM-5.3, delivery `b1d52d0c03100f0bfffd9a4adca0c6240f43ac2c` (worktree HEAD verified == pointer), claim commit `6001abf`, final candidate recorded below. **EVIDENCE ONLY — no source/test mutation, no product implementation.**
