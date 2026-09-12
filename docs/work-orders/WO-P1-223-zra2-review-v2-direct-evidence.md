@@ -1,7 +1,8 @@
 # WO-P1-223 — ZRA-2 review protocol v2 + direct review evidence composition
 
-Status: PREPARED / CONDITIONAL READY AFTER WO221 ARCHAEOLOGY HANDOFF
-Parent: WO-P1-221 / WO-P1-201 / WO-P1-216 / WO-P1-219 / Issue #214
+Status: PREPARED / HOLD_AFTER_WO225_AND_WO226 / R3
+Parent: WO-P1-221 / WO-P1-201 / WO-P1-216 / WO-P1-219 / WO-P1-225 / WO-P1-226 / Issue #214
+Immediate predecessor chain: WO225 repaired C0 READ_ONLY route authority -> WO226 accepted reviewer-execution handoff
 Integrator/architecture owner: GPT-5.6 Sol
 Preferred implementation executor: ZCode GLM-5.3 MAX
 Repository: A-Wiki-Conductor
@@ -10,9 +11,9 @@ Risk: R3 protocol identity / durable review evidence / anti-replay
 
 ## 1. Why this WO exists
 
-C0 is accepted, merged and post-main verified on `main@60aba770fd457d04f1e31040b9dfd7af3927f669`.
+Historical C0 was accepted, merged and post-main verified on `main@60aba770fd457d04f1e31040b9dfd7af3927f669`, but GPT later proved a C0 trust-boundary defect: a route could claim READ_ONLY while its lease/task authority was not equivalently bound. WO225 repairs that boundary and WO226 then supplies the missing production reviewer-execution handoff. WO223 must consume those accepted successors rather than the historical C0 route in isolation.
 
-The accepted C0 review task protocol (`zra2-review-v1`) binds the author `ResultIdentity`, exact reviewed HEAD, deterministic review task bytes, persisted task provenance and the trusted READ_ONLY reviewer route. It does **not** define one strict machine-readable semantic review response shape. Its task text constrains the verdict vocabulary in prose only.
+The repaired/versioned review-task protocol must bind the author `ResultIdentity`, exact reviewed HEAD, deterministic review task bytes, persisted task provenance, a truthful READ_ONLY reviewer route, and the accepted WO226 reviewer-execution handoff. It still requires one strict machine-readable semantic review response shape before `ReviewEvidence` can be created. Its task text constrains the verdict vocabulary in prose only.
 
 C1 therefore cannot safely convert arbitrary reviewer prose into `zero_relay.ReviewEvidence`.
 
@@ -23,7 +24,7 @@ GPT architecture decision on Issue #214:
 - A-Wiki ReviewBus remains the accepted external review integration/governance boundary and must not be cloned;
 - if review task semantics change, accepted `zra2-review-v1` must not be silently reused. A new explicit protocol identity is required.
 
-This WO is the bounded successor if WO221 archaeology confirms the same gap and finds no already-accepted equivalent reader/schema.
+This WO remains the bounded semantic-evidence successor only if post-WO226 archaeology still confirms the gap and finds no already-accepted equivalent reader/schema.
 
 ## 2. Release gate
 
@@ -31,13 +32,14 @@ Do not mutate source merely because this packet exists.
 
 WO223 becomes source-READY only when all are true:
 
-1. actual `origin/main` contains C0 merge `60aba770...` or a descendant that preserves its accepted five-path tree;
-2. post-main CI run `34678219564` remains terminal SUCCESS for `60aba770...`;
-3. Issue #214 still records WO221/C1 as released;
-4. WO221 archaeology confirms there is no existing strict direct-review semantic result contract/validator that makes WO223 unnecessary;
-5. no overlapping claim owns any mutable WO223 source/test path;
-6. a fresh worktree/branch is created from then-current main and is clean;
-7. exact scope/owner/claim is checkpointed before source mutation.
+1. actual `origin/main` contains the accepted WO225 C0 READ_ONLY lease/task binding repair and its post-main verification;
+2. actual `origin/main` contains the accepted WO226 reviewer-execution bridge and its post-main verification;
+3. Issue #214 explicitly marks WO223/C1 as NEXT_READY after those predecessors;
+4. WO221/WO223 archaeology still confirms there is no existing strict direct-review semantic result contract/validator that makes WO223 unnecessary;
+5. the accepted WO226 execution handoff preserves dispatch-context identity and actual durable runtime execution identity distinctly and proves their cross-binding by accepted fingerprint/admission/task/runtime authority;
+6. no overlapping claim owns any mutable WO223 source/test path;
+7. a fresh worktree/branch is created from then-current main and is clean;
+8. exact scope/owner/claim is checkpointed before source mutation.
 
 If an existing trusted implementation already solves the gap, classify `REUSE / WO223_NOT_NEEDED` and STOP.
 
@@ -100,7 +102,8 @@ Reuse, do not replace:
 - `execution_artifacts.ExecutionArtifactService` for confined artifact access where its contract is sufficient;
 - existing ZCode `stdout.log` exact response bytes;
 - existing `zcode-report/1` report;
-- accepted C0 `DirectReviewRoute`;
+- repaired C0 `DirectReviewRoute` from accepted WO225;
+- accepted WO226 reviewer-execution handoff (exact final merged type/symbol), preserving both dispatch-context identity and actual durable runtime `execution_id` plus exact execution fingerprint/artifact refs;
 - author `zero_relay.ResultIdentity`;
 - final `zero_relay.ReviewEvidence` and `ReviewDisposition`.
 
@@ -115,7 +118,9 @@ Fresh post-main archaeology found at least two relevant report producers:
 
 Do not fabricate missing report fields or require one producer's optional fields from the other.
 
-Cross-bind only facts actually owned by each active production path. When a report lacks `task_contract_ref`, use trusted `DurableExecutionRecord.work_order_ref` plus the accepted `DirectReviewRoute.review_contract_ref` if current production assembly proves that binding.
+Cross-bind only facts actually owned by each active production path. When a report lacks `task_contract_ref`, use trusted `DurableExecutionRecord.work_order_ref` plus the repaired `DirectReviewRoute.review_contract_ref` and accepted WO226 reviewer-execution handoff if current production assembly proves that binding.
+
+The report/runtime `execution_id` must bind to the WO226 handoff's actual durable runtime execution identity, **not** to `DirectReviewRoute.dispatch_execution_id`. The route dispatch ID remains the dispatch/provider-admission context identity and is expected to differ from the supervised runtime execution ID on the accepted ZRA-1 production path.
 
 If actual current production assembly disproves this proposed binding, checkpoint exact evidence and STOP for GPT scope/architecture adjudication.
 
@@ -232,31 +237,32 @@ Write deterministic failing tests before production implementation for at least:
 
 ### Durable execution/report binding
 
-24. durable `execution_id != route.dispatch_execution_id`;
-25. reviewer execution equals author execution;
-26. wrong worker/project/repo/worktree/branch/head/work-order fact;
-27. nonterminal execution;
-28. failed/cancelled/recovery/verification-required state cannot authorize ACCEPTED;
-29. missing stdout/report refs/artifacts;
-30. report unknown schema;
-31. report execution id mismatch;
-32. report task packet SHA mismatch;
-33. report response byte-count mismatch;
-34. report response SHA mismatch;
-35. helper report path without `task_contract_ref` succeeds only when trusted record/route cross-binding proves contract identity;
-36. in-process report with `task_contract_ref` mismatch fails closed;
-37. report `EXIT_PENDING` cannot authorize review evidence;
-38. `sha256(captured_raw) != artifact_slice.sha256` fails closed (TOCTOU discriminator);
-39. artifact slice truncated or offset != 0 fails closed;
-40. exact identical replay is deterministic.
+24. durable runtime `execution_id != route.dispatch_execution_id` is accepted only when WO226 handoff proves exact cross-binding through the same fingerprint/task/provider/admission/runtime identity;
+25. report/runtime `execution_id` mismatch against the accepted WO226 durable execution identity fails closed;
+26. reviewer execution equals author execution;
+27. wrong worker/project/repo/worktree/branch/head/work-order fact;
+28. nonterminal execution;
+29. failed/cancelled/recovery/verification-required state cannot authorize ACCEPTED;
+30. missing stdout/report refs/artifacts;
+31. report unknown schema;
+32. report execution id mismatch;
+33. report task packet SHA mismatch;
+34. report response byte-count mismatch;
+35. report response SHA mismatch;
+36. helper report path without `task_contract_ref` succeeds only when trusted record/route/WO226 handoff cross-binding proves contract identity;
+37. in-process report with `task_contract_ref` mismatch fails closed;
+38. report `EXIT_PENDING` cannot authorize review evidence;
+39. `sha256(captured_raw) != artifact_slice.sha256` fails closed (TOCTOU discriminator);
+40. artifact slice truncated or offset != 0 fails closed;
+41. exact identical replay is deterministic.
 
 ### Authority fence
 
-41. parser/composer cannot mutate execution/job/scheduler/provider/lease state;
-42. no new mailbox agent mapping;
-43. no A-Wiki internal import;
-44. no new store/lifecycle authority;
-45. findings cannot set ready/merge/retry/complete authority.
+42. parser/composer cannot mutate execution/job/scheduler/provider/lease state;
+43. no new mailbox agent mapping;
+44. no A-Wiki internal import;
+45. no new store/lifecycle authority;
+46. findings cannot set ready/merge/retry/complete authority.
 
 At least one test must be a non-vacuous pre-repair discriminator that fails on current main and passes only after the v2/C1 implementation.
 
@@ -360,7 +366,8 @@ Do not use chat memory as the only continuity layer.
 
 Checkpoint and STOP immediately after the current atomic safe step on:
 
-- WO221 archaeology disproves the need for WO223;
+- WO221/WO223 archaeology disproves the need for WO223;
+- WO225 or WO226 is no longer accepted/post-main verified, or their exact authority contract materially changes;
 - current main/source semantics materially drift;
 - overlap/claim conflict;
 - required mutation outside released scope;
@@ -382,7 +389,9 @@ WO223 candidate is ready for independent review only when all are true:
 - v1 historical semantics remain unchanged;
 - v2 explicitly versions the machine-readable semantic contract;
 - direct result parser is strict, bounded and duplicate-key safe;
-- durable record + report + exact captured stdout bytes + route + author identity are cross-bound;
+- accepted WO225 repaired route authority and accepted WO226 reviewer-execution handoff are exact predecessors;
+- dispatch-context identity remains distinct from actual durable runtime execution identity and is cross-bound only through accepted WO226 evidence;
+- durable record + report + exact captured stdout bytes + repaired route + WO226 handoff + author identity are cross-bound;
 - both actual ZCode report producers used by the production path are handled truthfully without fabricated fields;
 - TOCTOU-shaped digest/raw mismatch fails closed;
 - no mailbox identity is invented;

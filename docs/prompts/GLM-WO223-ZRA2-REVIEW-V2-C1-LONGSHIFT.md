@@ -1,6 +1,6 @@
 /goal
 
-Execute WO-P1-223 only after its conditional release gate is satisfied.
+Execute WO-P1-223 only after WO225 and WO226 are independently accepted, merged, post-main verified, and Issue #214 explicitly releases WO223/C1.
 
 PRIMARY WORK ORDER:
 A:\GitHub\_worktrees\A-Wiki-Conductor-wo223-zra2-review-v2-c1\docs\work-orders\WO-P1-223-zra2-review-v2-direct-evidence.md
@@ -12,7 +12,7 @@ PRIMARY REPOSITORY:
 A:\GitHub\A-Wiki-Conductor
 
 MASTER OUTCOME:
-Close the remaining ZRA-2 direct-review semantic-result gap by versioning the accepted review-task protocol instead of silently changing v1, then compose existing `zero_relay.ReviewEvidence` only from exact durable reviewer execution/artifact truth.
+Close the remaining ZRA-2 direct-review semantic-result gap by versioning the repaired review-task protocol instead of silently changing v1, then compose existing `zero_relay.ReviewEvidence` only from the accepted WO226 reviewer-execution handoff + exact durable reviewer execution/artifact truth. Dispatch-context identity and actual durable runtime execution identity are distinct and must be cross-bound, never equated.
 
 Do not create a second scheduler, provider authority, WorkerLease authority, execution store, review store, mailbox identity system, ReviewBus, retry engine or lifecycle state machine.
 
@@ -26,13 +26,15 @@ Before source mutation:
 4. Read `DEFECT_LESSONS.md` before touching `src/a_conductor/`.
 5. Read the WO223 file above in full.
 6. Re-pin actual `origin/main`, repo/worktree/remote/branch/HEAD/dirty state.
-7. Read Issue #214 latest durable checkpoints, especially C0 POST_MAIN_VERIFIED / WO221 RELEASE and the direct-review/ReviewBridge architecture decision.
-8. Inspect WO221's actual current handoff/result. Do not trust this prompt's expectation if WO221 found contrary source evidence.
-9. Recover live claims/open PRs/worktrees that touch any proposed WO223 mutable path.
-10. Verify current source lane is a fresh isolated worktree from then-current main. If this docs packet branch is not the released source lane, create/use a separate clean source branch/worktree only after the claim is published.
-11. Verify no overlapping GLM/GPT/Worker lane owns the same source/test paths.
+7. Read Issue #214 latest durable checkpoints, including the WO225 C0 repair, WO226 reviewer-execution architecture, and the direct-review/ReviewBridge decision.
+8. Read accepted WO225 exact source/post-main evidence and prove the current route/lease/task boundary is truthfully READ_ONLY.
+9. Read accepted WO226 exact source/post-main evidence and identify its actual reviewer-execution handoff type/symbol and identity contract.
+10. Inspect WO221's archaeology handoff only as historical design evidence; newer WO225/WO226 actual state supersedes stale assumptions.
+11. Recover live claims/open PRs/worktrees that touch any proposed WO223 mutable path.
+12. Verify current source lane is a fresh isolated worktree from then-current main. If this docs packet branch is not the released source lane, create/use a separate clean source branch/worktree only after the claim is published.
+13. Verify no overlapping GLM/GPT/Worker lane owns the same source/test paths.
 
-If WO221 has not confirmed the strict semantic-result gap, or it found an existing accepted equivalent reader/schema, or source ownership is UNKNOWN, checkpoint and STOP.
+If WO225 or WO226 is not accepted+merged+post-main verified, Issue #214 has not explicitly released WO223, an existing accepted equivalent reader/schema makes WO223 unnecessary, or source ownership is UNKNOWN, checkpoint and STOP.
 
 Do not mutate from the old WO221 docs worktree merely because the file exists.
 
@@ -42,7 +44,8 @@ Trace actual production call paths, constructors and ownership for:
 
 - `zero_relay_review_task.MaterializedReviewTask`
 - `zero_relay_review_task.DirectReviewRoute`
-- current direct ZCode review route assembly
+- current repaired direct ZCode review route assembly from accepted WO225
+- accepted WO226 reviewer-execution handoff and its exact dispatch/job/runtime-execution identity map
 - `ParallelReadyTask`
 - `DurableExecutionRecord`
 - execution store terminal-state transitions / rereads
@@ -63,7 +66,9 @@ Write a compact reuse table:
 
 Fresh architecture facts to test rather than assume:
 
-- accepted v1 binds task provenance/route/HEAD but lacks strict whole-response semantic JSON;
+- accepted/repaired v1 binds task provenance/route/HEAD but lacks strict whole-response semantic JSON;
+- accepted WO226 proves the dispatch/provider-admission context ID and actual `DurableExecutionRecord.execution_id` are distinct identities; C1 must consume the handoff that cross-binds them, never equate them;
+- the report `execution_id` binds to the actual durable runtime execution identity from WO226, not to `DirectReviewRoute.dispatch_execution_id`;
 - `zcode_runner` and `zcode_supervised_helper` do not expose identical `zcode-report/1` fields;
 - direct C1 does not require fabricated mailbox `agent_id` or mandatory mailbox forwarding;
 - raw captured stdout bytes, not replacement-decoded text, are semantic evidence;
@@ -178,13 +183,15 @@ Preferred conceptual flow:
 
 ```text
 accepted author ResultIdentity
-+ accepted C0/v2 DirectReviewRoute
-+ durable reviewer execution record
++ accepted repaired C0/v2 DirectReviewRoute
++ accepted WO226 reviewer-execution handoff
++ exact DurableExecutionRecord selected by that handoff
 + exact captured report bytes
 + exact captured whole stdout bytes
-    -> validate execution identity/state/artifact refs
+    -> validate distinct dispatch-context vs runtime-execution identities and their WO226 cross-binding
+    -> validate execution state/artifact refs
     -> strict parse report shape actually produced by active path
-    -> bind report execution/task-packet/response bytes/hash
+    -> bind report runtime execution/task-packet/response bytes/hash
     -> prove sha256(captured stdout raw) == artifact full digest
     -> strict UTF-8 decode captured raw
     -> strict duplicate-key-safe JSON parse
@@ -204,7 +211,8 @@ Rules:
 - never copy author result/task identity from reviewer payload when trusted author ResultIdentity exists;
 - never allow reviewer findings/prose to set ready/merge/retry/complete authority;
 - never fabricate fields absent from the supervised-helper report;
-- when report lacks task_contract_ref, cross-bind via trusted record/route only if current production assembly proves the relation;
+- when report lacks `task_contract_ref`, cross-bind via trusted record + repaired route + accepted WO226 handoff only if current production assembly proves the relation;
+- compare report `execution_id` to the WO226 handoff's actual durable runtime execution ID; never require equality with the route dispatch/provider-admission context ID;
 - use existing typed record/store/artifact authorities instead of direct arbitrary filesystem reads unless WO223 explicitly permits an injected already-captured raw value in the pure parser layer.
 
 A typed `ValidatedDirectReviewResult` is acceptable only after all durable artifact/result validations have passed.
@@ -317,7 +325,8 @@ Persist a compact handoff containing:
 
 STOP after checkpoint on any:
 
-- WO221 says WO223 is unnecessary;
+- WO221/WO223 archaeology says WO223 is unnecessary;
+- WO225 or WO226 predecessor acceptance/post-main evidence is absent, revoked, or materially drifted;
 - architecture/source drift;
 - overlap/claim conflict;
 - scope expansion outside WO223;
