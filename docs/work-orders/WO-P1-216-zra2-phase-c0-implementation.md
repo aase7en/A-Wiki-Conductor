@@ -428,3 +428,14 @@ Then STOP at `BLOCKED_EXTERNAL_CI_OR_GPT_ACCEPTANCE` and hand back exact SHA/PR/
 - Worktree re-pinned: `feat/wo-p1-216-zra2-phase-c0-binding` @ `8a5603c` (base = accepted merge `8700d21`), clean; no open PR touches the two planned NEW files; no overlapping mutable lane.
 - Mutable scope (exact): NEW `src/a_conductor/zero_relay_review_task.py`, NEW `tests/test_zero_relay_review_task.py`, this WO + runs/ evidence. All other modules read-only.
 - SAFE_TO_MUTATE_PHASE_C0=YES.
+
+## Phase C0 evidence (GLM implementation lane, 2026-09-12)
+
+- Lane: worktree `A-Wiki-Conductor-wo216-zra2-phase-c0` @ `feat/wo-p1-216-zra2-phase-c0-binding`, base release `8a5603c7` (on accepted Phase-B `8700d218`); claim posted Issue #214 (comment 5642660674) after full re-pin (clean/synced/vacant lane, no overlapping PR).
+- RED first: full G1-G5 matrix written before module; captured collection failure (`ModuleNotFoundError: a_conductor.zero_relay_review_task`).
+- GREEN: focused tests **34 passed / 0 failed**; verification-floor related suites (native_execution, zero_relay_repair_materializer, zero_relay, claude_code_harness, parallel_ready_execution, agent_change_packets, review_mailbox_adapter) **302 passed / 1 expected POSIX FIFO skip**.
+- C0a: canonical versioned JSON bytes (schema `zra2-review-v1`, fixed keys, sort_keys, exact UTF-8 incl. Thai/emoji) -> SHA-256 digest -> deterministic refs (`zra2-review-v1:<digest>`, `runs/zra2-review-<digest>.md`, `runs/zra2-review-result-<digest>.json`); deterministic renderer binding every ResultIdentity field + fixed reviewer protocol; persistence ONLY via `NativeFileSystem.create_text_if_absent` with same-bytes reuse, typed `REVIEW_TASK_COLLISION` on divergence, `REVIEW_TASK_STATE_UNVERIFIABLE` on vanished race, native codes passed through typed; no second publication implementation (G3 source fence).
+- C0b: `bind_direct_review_route(ParallelReadyTask, MaterializedReviewTask, author)` validates packet identity (contract+sha+path-suffix), dispatch contract equality, READ_ONLY intent, branch presence, deterministic destination equality, author!=reviewer execution, author-refs<->materialized binding; returns frozen `DirectReviewRoute` (role `independent-review`, worker/dispatch/provider/model/project/worktree/branch/exact-HEAD facts, author digest binding). Delegated protections documented: `ParallelReadyTask.__post_init__` proved itself the authority boundary during test construction (derived `graph-dispatch-*` execution identity, job/work-order cross-fences).
+- Checks: compileall OK; `git diff --check` OK; strict UTF-8/no-U+FFFD OK; changed tracked scope = exactly the 2 authorized NEW paths + this doc; credential-shape scan 0 hits.
+- Module SHA256 `02723aadf68b6962...`; tests SHA256 `41ea7e3774e36df9...`.
+- STATUS=PHASE_C0_FROZEN / INDEPENDENT_REVIEW_REQUIRED - GLM authored this candidate and is NOT its independent reviewer. No C1/Phase-D/merge self-authorization.
