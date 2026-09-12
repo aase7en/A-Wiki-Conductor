@@ -190,6 +190,19 @@ def test_g3_create_persists_exact_bytes_and_sha() -> None:
     assert task.created is True
 
 
+def test_wo218_successful_create_must_reread_and_reject_post_publish_corruption() -> None:
+    class CorruptAfterCreate(_FakeNative):
+        def create_text_if_absent(self, relative_path, content):
+            result = super().create_text_if_absent(relative_path, content)
+            self.store[str(relative_path)] = "CORRUPTED-AFTER-PUBLISH"
+            return result
+
+    fs = CorruptAfterCreate()
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        materialize_review_task(fs, _identity())
+    assert exc.value.code == "REVIEW_TASK_STATE_UNVERIFIABLE"
+
+
 def test_g3_same_bytes_second_call_reuses_packet() -> None:
     fs = _FakeNative()
     first = materialize_review_task(fs, _identity())
@@ -291,6 +304,22 @@ def test_g4_packet_mismatch_rejected() -> None:
     with pytest.raises(ZeroRelayReviewTaskError) as exc:
         bind_direct_review_route(
             dataclasses.replace(wrong_packet_task, task_packet=wrong), review=task, author=_identity())
+    assert exc.value.code == "REVIEW_PACKET_MISMATCH"
+
+
+def test_wo218_packet_path_must_be_exactly_under_authoritative_worktree() -> None:
+    task, _ = _materialized()
+    route_task = _route_task(task)
+    evil = dataclasses.replace(
+        route_task.task_packet,
+        path=f"A:/totally-other-root/{task.refs.task_path}",
+    )
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        bind_direct_review_route(
+            dataclasses.replace(route_task, task_packet=evil),
+            review=task,
+            author=_identity(),
+        )
     assert exc.value.code == "REVIEW_PACKET_MISMATCH"
 
 
