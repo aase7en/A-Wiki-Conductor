@@ -643,3 +643,5 @@ GLM source completion is a claim, not acceptance. GPT-5.6 Sol remains exact-SHA 
 - STOP at independent exact-SHA R3 review + exact-head CI + GPT acceptance. No merge; no C1/WO223; no Phase D.
 
 - CI repair 2026-09-13: run 34712667843 failed on the composition-truth source audit (entrypoint introspection vs. the moved impl body); caller migrated to audit the shared impl + delegation proof. Final candidate `653d637f8f6f5cacd92095acda83c1750a0c1a67` on PR #314. Full local battery 2886 passed; pre-existing host GPU env failures proven on clean base.
+
+- Sol mid-flight obligations (Issue #214 18:34–18:48Z) all closed @78ec598: read-only lease/admission recovery lookups (zero new rows; LEASE_IDENTITY_UNPROVEN), validated handoff factory, timeout/live/post-spawn resource retention with one-shot later reconcile, default-factory contract + synthetic real-factory test, stale C0 task authority cross-bind, typed cleanup errors preserving canonical reasons. Focused 34/34; full battery 2892. Final candidate `78ec598b9830d802f54eb47642130693a038a39c` on PR #314.
