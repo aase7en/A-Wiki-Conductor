@@ -167,3 +167,47 @@ fed by this scoped checkpoint plus Issue214/233, as the original WO requires.
 ### GLM repair completion — WO208-GLM-CLOSEOUT-REPAIR-001 (2026-09-12)
 
 All repair programs P0–P6 complete at this branch: R1 COMPLETE lost-ack pair rebuilt on real prerequisites with hook-entry proof; R2 strict enforcement everywhere (cut markers, distinct fallback exits, negative controls, strict two-process predicates); R3 72-state action-validating transition model with 7/7 named mutants caught and unsupported actions rejected; R4 stable operation identity across version advance + separate-effect atomicity cut; R5 tracked replayable bundle + manifest, replayed from a clean Windows export (baseline 94 + all four entrypoints exit 0); F1 RETRACTED with byte-level proof (uniform digest across all three documents; original misread). Corrected handback prepended to the original review doc with the full supersession map; original provenance retained verbatim. F2/F3 retained as parent decision inputs. STATUS=COMPLETE_FOR_INDEPENDENT_REVIEW (MAC_REPLAY_PENDING for the reviewer); no source mutation, no merge, frozen lab branch untouched.
+
+
+### Astra exact repair review reservation — 2026-09-12
+
+Claim WO208-ASTRA-REPAIR-REVIEW-001. User reports GLM done and requests the next
+sustained packet. Review exact 2482998e19ee439e04adf321cd5d74c1feb94243 and close
+MAC_REPLAY_PENDING before deciding the successor. R2 evidence review only; no production
+acceptance. Branch codex/wo-p1-208-repair-review; Mac worktree
+/Users/aase7en/Desktop/A-Wiki-Conductor-wo208-rereview. Frozen GLM repair remains immutable.
+Owned: append checkpoints here; NEW docs/reviews/WO-P1-208-astra-repair-review.md;
+NEW docs/prompts/GLM-WO208-CLOSEOUT-FINALIZATION.md if concrete gaps require a successor.
+Ignored runs/WO-P1-208/rereview/** for fresh synthetic replay and bounded controls.
+Original source/tests/bundle/report/packet/design/seed/global SSoT/other WOs and all live
+runtime stay read-only. Source gate remains HOLD with WO205. WO220 reviews C0; WO221/222
+remain Sol-owned successors. No duplicate C0 review, controller, source lane or merge.
+Next: publish this claim, verify manifest/source, native Mac replay, adjudicate residual
+findings and publish one bounded next packet or return accepted evidence to WO205.
+
+
+### Astra exact repair adjudication and finalization packet — 2026-09-12
+
+Reviewed 2482998e19ee439e04adf321cd5d74c1feb94243. Native Mac baseline 94 passed;
+all four normal entrypoints exit0. R1 COMPLETE lost-ack hooks now prove actual before/after
+commit outcomes; R4 stable operation identity/receipt limits preserved. Verdict remains
+CHANGES_REQUIRED: N1 executed seed unbound to verified fence + stale model manifest hash;
+N2 malformed next-state/effect count and undetected blocked/stale actions; N3 negative
+controls do not exercise failing validator and timeout proof absent; N4 lease prose
+contradicts present checkpoint and omits truthful ACTIVE reload. Native counterexamples
+and reduced durable replays in docs/reviews/WO-P1-208-astra-repair-review.md.
+Independent lease reload yields LEASE_RELEASE_CONTRADICTION, one total call, REVIEW_PENDING.
+All evidence is synthetic; source/tests/frozen bundle/report remain unchanged.
+
+User requests sustained next GLM work. Successor WO208-GLM-CLOSEOUT-FINALIZATION-001
+is explicitly assigned ten finite subgoals in docs/prompts/GLM-WO208-CLOSEOUT-FINALIZATION.md.
+Queued until eligible single-session/capacity/claim gate; no repeated original archaeology.
+Target Windows worktree A:/GitHub/_worktrees/A-Wiki-Conductor-wo208-glm-finalization;
+branch codex/wo-p1-208-glm-finalization, based on this exact review delivery.
+Allowed child writes: prior GLM report, appended WO checkpoints, eight named existing
+research bundle files plus optional replay_suite.py/test_lab_contract.py. No production
+source/tests/global SSoT/other lane change; ignored runs/WO-P1-208/glm-finalization only.
+Review delivery SHA/packet hash/Windows readiness published in Issue214/233 after freeze.
+WO220/219/221/222 and master remain Sol-owned; no duplicate review or source release.
+Next: eligible GLM finalizes one candidate; independent exact-SHA Mac replay/review;
+WO205 parent adjudication. No merge. Global continuity fold stays with the single writer.
