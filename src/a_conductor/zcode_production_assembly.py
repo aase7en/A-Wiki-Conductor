@@ -167,7 +167,9 @@ def assemble_zcode_execution(
     bundle_js: str,
     deadline_seconds: float = 300.0,
 ) -> SupervisedZCodeRunner:
-    """Compose one authorized ZCode execution; fail closed before any spawn.
+    """Compose one authorized MUTATION-capable ZCode execution; fail closed
+    before any spawn. Behavior is unchanged: a READ_ONLY lease can never
+    authorize it (use ``assemble_zcode_review_execution`` for review).
 
     Every gate below must pass or NO child exists: observed dirty state →
     provider generation CAS → ZCODE strategy + per-model runtime binding →
@@ -182,6 +184,71 @@ def assemble_zcode_execution(
     the derived runtime execution identity (``zcode-runtime-v1:<full sha>``)
     → REAL supervised-service authorities → the specialized-helper lifecycle.
     """
+    return _assemble_zcode_execution_impl(
+        authorities=authorities,
+        packet=packet,
+        model_id=model_id,
+        expected_generation=expected_generation,
+        expected_base_url=expected_base_url,
+        secret_reference=secret_reference,
+        workspace=workspace,
+        executable=executable,
+        bundle_js=bundle_js,
+        deadline_seconds=deadline_seconds,
+        review_only=False,
+    )
+
+
+def assemble_zcode_review_execution(
+    *,
+    authorities: ZCodeExecutionAuthorities,
+    packet: TaskPacketFile,
+    model_id: str,
+    expected_generation: int,
+    expected_base_url: str,
+    secret_reference: str,
+    workspace: str,
+    executable: str,
+    bundle_js: str,
+    deadline_seconds: float = 300.0,
+) -> SupervisedZCodeRunner:
+    """Compose one authorized READ-ONLY reviewer ZCode execution (WO-P1-226).
+
+    Shares every authority gate with the mutation assembly; the ONLY
+    difference is lease gate 5: the lease must carry mutation intent
+    ``READ_ONLY`` with an EMPTY mutable scope, and the requested mutable
+    scope must also be empty. No write authority is upgraded and no
+    mutation-path gate is weakened.
+    """
+    return _assemble_zcode_execution_impl(
+        authorities=authorities,
+        packet=packet,
+        model_id=model_id,
+        expected_generation=expected_generation,
+        expected_base_url=expected_base_url,
+        secret_reference=secret_reference,
+        workspace=workspace,
+        executable=executable,
+        bundle_js=bundle_js,
+        deadline_seconds=deadline_seconds,
+        review_only=True,
+    )
+
+
+def _assemble_zcode_execution_impl(
+    *,
+    authorities: ZCodeExecutionAuthorities,
+    packet: TaskPacketFile,
+    model_id: str,
+    expected_generation: int,
+    expected_base_url: str,
+    secret_reference: str,
+    workspace: str,
+    executable: str,
+    bundle_js: str,
+    deadline_seconds: float,
+    review_only: bool,
+) -> SupervisedZCodeRunner:
 
     from datetime import datetime, timezone as _tz
 
@@ -257,30 +324,41 @@ def assemble_zcode_execution(
         raise ZCodeAssemblyError("ZCODE_LEASE_TASK_MISMATCH")
     if authorities.project_id != lease.project_id:
         raise ZCodeAssemblyError("ZCODE_PROJECT_MISMATCH")
-    # this production path executes a mutation-capable agent task: a
-    # READ_ONLY lease can never authorize it
-    if lease.mutation_intent is not LeaseMutationIntent.MUTATION:
-        raise ZCodeAssemblyError("ZCODE_LEASE_MUTATION_INTENT_INSUFFICIENT")
-    # declared mutation targets must be within the lease's allowed scope and
-    # must never overlap its forbidden scope (existing overlap authority)
-    from fnmatch import fnmatchcase
+    if review_only:
+        # WO-P1-226 reviewer path: the ONLY authorized shape is an exact
+        # READ_ONLY lease with an empty lease mutable scope AND an empty
+        # requested mutable scope. Nothing here upgrades write authority.
+        if lease.mutation_intent is not LeaseMutationIntent.READ_ONLY:
+            raise ZCodeAssemblyError("ZCODE_REVIEW_LEASE_INTENT_MISMATCH")
+        if tuple(lease.mutable_scope or ()):
+            raise ZCodeAssemblyError("ZCODE_REVIEW_LEASE_SCOPE_NOT_EMPTY")
+        if tuple(authorities.requested_mutable_scope or ()):
+            raise ZCodeAssemblyError("ZCODE_REVIEW_REQUESTED_SCOPE_NOT_EMPTY")
+    else:
+        # this production path executes a mutation-capable agent task: a
+        # READ_ONLY lease can never authorize it
+        if lease.mutation_intent is not LeaseMutationIntent.MUTATION:
+            raise ZCodeAssemblyError("ZCODE_LEASE_MUTATION_INTENT_INSUFFICIENT")
+        # declared mutation targets must be within the lease's allowed scope and
+        # must never overlap its forbidden scope (existing overlap authority)
+        from fnmatch import fnmatchcase
 
-    from .worker_lease import _mutable_scope_is_authorized
+        from .worker_lease import _mutable_scope_is_authorized
 
-    # the mutation-capable path REQUIRES an explicit non-empty requested
-    # scope — an omitted scope can never bypass the write-set authority
-    requested_scope = tuple(authorities.requested_mutable_scope or ())
-    if not requested_scope:
-        raise ZCodeAssemblyError("ZCODE_MUTABLE_SCOPE_REQUIRED")
-    if not _mutable_scope_is_authorized(lease.allowed_scope, requested_scope):
-        raise ZCodeAssemblyError("ZCODE_SCOPE_NOT_AUTHORIZED")
-    if not _mutable_scope_is_authorized(lease.mutable_scope, requested_scope):
-        raise ZCodeAssemblyError("ZCODE_SCOPE_OUTSIDE_MUTABLE")
-    for expression in requested_scope:
-        if expression in lease.forbidden_scope or any(
-            fnmatchcase(expression, pattern) for pattern in lease.forbidden_scope
-        ):
-            raise ZCodeAssemblyError("ZCODE_SCOPE_FORBIDDEN")
+        # the mutation-capable path REQUIRES an explicit non-empty requested
+        # scope — an omitted scope can never bypass the write-set authority
+        requested_scope = tuple(authorities.requested_mutable_scope or ())
+        if not requested_scope:
+            raise ZCodeAssemblyError("ZCODE_MUTABLE_SCOPE_REQUIRED")
+        if not _mutable_scope_is_authorized(lease.allowed_scope, requested_scope):
+            raise ZCodeAssemblyError("ZCODE_SCOPE_NOT_AUTHORIZED")
+        if not _mutable_scope_is_authorized(lease.mutable_scope, requested_scope):
+            raise ZCodeAssemblyError("ZCODE_SCOPE_OUTSIDE_MUTABLE")
+        for expression in requested_scope:
+            if expression in lease.forbidden_scope or any(
+                fnmatchcase(expression, pattern) for pattern in lease.forbidden_scope
+            ):
+                raise ZCodeAssemblyError("ZCODE_SCOPE_FORBIDDEN")
     if lease.released_at is not None or lease.quarantined_at is not None:
         raise ZCodeAssemblyError("ZCODE_LEASE_NOT_ACTIVE")
     if lease.expires_at is not None:
