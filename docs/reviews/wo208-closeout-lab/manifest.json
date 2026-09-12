@@ -47,15 +47,15 @@
  },
  "files": {
   "c02_cut_matrix.py": "b32a2d090135f8c54f3c2feaf92e2d436d14a08c3c4e1f743588390a6a65d33a",
-  "c03_c05_c06_suite.py": "acd5e53e92119f890f572504cb45f8a9c62dd730b708b417a9da12f51ea8d9ef",
+  "c03_c05_c06_suite.py": "b7473cd8782ef79e4a01c39a7a3ae7dadc17dbdfb3efbdec3d7599a8dfa56650",
   "c07_model.py": "08efe67e9db65d95ad4abec58994a50218ffca3d090a112d43d3239a8babaa24",
-  "lab_common.py": "776f3d7a2f21eb812a24a2034c48ec92c312f1b38b498fe70d9524a24c4ac3bb",
+  "lab_common.py": "c089bbb513f95aac1fdb074bb170b7e1e2bde51c0ec4c30fec0cd32d7bd35d0c",
   "replay_suite.py": "66978b6f600156cc9bc123d530bcc4b404953d82ca04b32c9b05f2c6812c764b",
   "seed_probe.py": "3e7742b6a72d2e2ab1f979f9c56e4331bc885617fc2fce82b8c92817d6e464d8",
   "test_lab_contract.py": "04432ade0db89d08ed1b4cdd01e39efcae840a729b321abe32645a385f25353e",
-  "wo208_child.py": "c6f31b36498ee265dc4571e309b5baefc4ca2373239f85932e17e38d356367b1"
+  "wo208_child.py": "717d138269ef2fa88ed6b41336ca77edbe5123b0f65e9476e93f358c83cea624"
  },
- "notes": "regenerated LAST after N1-N4 finalization edits; manifest excludes itself from its own hashes; trust root is the pinned candidate SHA",
+ "notes": "regenerated LAST after N1-N4 finalization; file digests use the EXPLICIT CRLF->LF normalization rule (sha256_lf) so any checkout verifies; source_blobs stay RAW-EXACT; manifest excludes itself; trust root is the pinned candidate SHA",
  "pinned_candidate_sha": "2482998e19ee439e04adf321cd5d74c1feb94243",
  "seeds_and_timeouts": {},
  "source_blobs": {

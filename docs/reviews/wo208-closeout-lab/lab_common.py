@@ -109,6 +109,13 @@ def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def sha256_lf(path: Path) -> str:
+    """Digest over CRLF->LF-normalized bytes (explicit S1 rule)."""
+    import hashlib
+    raw = path.read_bytes().replace(bytes([13, 10]), bytes([10]))
+    return hashlib.sha256(raw).hexdigest()
+
+
 def verify_manifest(repo_root: Path, bundle_dir: Path | None = None) -> dict:
     """Fail-closed preflight BEFORE any experiment (S1).
 
@@ -132,13 +139,16 @@ def verify_manifest(repo_root: Path, bundle_dir: Path | None = None) -> dict:
     missing_from_manifest = [n for n in tracked if n not in entries]
     require(not missing_from_manifest,
             f"bundle scripts absent from manifest: {missing_from_manifest}")
+    # EXPLICIT NORMALIZATION RULE (S1): bundle-file digests are computed
+    # over CRLF->LF-normalized bytes so a checkout is verifiable under any
+    # autocrlf configuration; source-blob pins below stay RAW-EXACT.
     mismatches = []
     for name, expected in entries.items():
         target = bundle / name
         if not target.is_file():
             mismatches.append(f"{name}: MISSING")
             continue
-        actual = sha256_file(target)
+        actual = sha256_lf(target)
         if actual != expected:
             mismatches.append(f"{name}: expected {expected} actual {actual}")
     require(not mismatches, "manifest hash mismatches: " + "; ".join(mismatches))
