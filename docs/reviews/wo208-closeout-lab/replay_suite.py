@@ -48,10 +48,12 @@ ENTRIES = [
 def run_entry(repo: Path, script: str, out: Path, extra=()) -> dict:
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     started = time.monotonic()
-    proc = subprocess.run(
-        [sys.executable, str(BUNDLE / script), "--repo-root", str(repo),
-         "--output-root", str(out), *extra],
-        capture_output=True, text=True, timeout=900, cwd=str(repo), env=env)
+    cmd = [sys.executable, str(BUNDLE / script)]
+    if script != "c07_model.py":  # the model is repo-independent
+        cmd += ["--repo-root", str(repo)]
+    cmd += ["--output-root", str(out), *extra]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=900,
+                           cwd=str(repo), env=env)
     return {"script": script, "exit": proc.returncode,
             "stdout_tail": (proc.stdout or "")[-200:],
             "stderr_tail": (proc.stderr or "")[-200:],
