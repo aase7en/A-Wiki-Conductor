@@ -165,6 +165,21 @@ def main() -> int:
         print(f"summary -> {summary}")
         return 1
 
+    # 1.5 cold-start git shim: the seed fence records source_sha via
+    # `git rev-parse HEAD` (immutable fence). On a fresh export without
+    # .git, initialize an OWNED git identity so the observation records a
+    # real HEAD instead of failing. This is host metadata (observation
+    # data), never an acceptance predicate.
+    if not (repo / ".git").exists():
+        import shutil
+        if shutil.which("git"):
+            for cmd in (["git", "init", "-q"], ["git", "commit", "--allow-empty", "-q",
+                          "-m", "wo208 cold-start export (owned; observation-only HEAD)"]):
+                subprocess.run(cmd, cwd=str(repo), capture_output=True, text=True,
+                               timeout=60)
+            results["cold_start_git_shim"] = "initialized owned empty HEAD in export"
+            print("NOTE cold-start git shim: owned empty commit for source_sha observation")
+
     # 2. the four entrypoints
     entries = {}
     all_green = True
