@@ -20,6 +20,7 @@ from a_conductor.goal_closeout import (
     GoalCloseoutFacts,
     GoalCloseoutExecutor,
     LeaseEvidence,
+    LeaseReleaseOutcome,
     MergeEvidence,
     OwnershipEvidence,
     ReviewEvidence,
@@ -399,17 +400,23 @@ class FakeJobStore:
 
 
 class FakeLeasePort:
-    def __init__(self, *, fail=False, already=False):
+    def __init__(self, *, fail=False, already=False, outcome=None):
         self.released: list[str] = []
         self.fail = fail
         self.already = already
+        self.outcome = outcome
 
     def release(self, lease_id):
         from a_conductor.goal_closeout import LeaseReleaseOutcome
         if self.fail:
             raise RuntimeError("lease store down")
         self.released.append(lease_id)
-        return LeaseReleaseOutcome(released=True, already_released=self.already)
+        if self.outcome is not None:
+            return self.outcome
+        # canonical SQLiteWorkerLeaseStore.release() shapes: a new release is
+        # (True, False); an already-released lease is (False, True) — never
+        # (True, True). WO224: the old fake pinned released=True for both.
+        return LeaseReleaseOutcome(released=not self.already, already_released=self.already)
 
 
 class FakeFoldPort:
@@ -789,3 +796,117 @@ def test_r2_b4_released_lease_no_lease_id_unchanged():
     """No-lease (non-mutating) facts are untouched by the release-checkpoint
     requirement."""
     assert decide(lease=L()) is CloseoutDecision.COMPLETE_ALLOWED
+
+
+# ── WO-P1-224: lease-release OUTCOME truth gate (executor consumes the
+# port result as evidence — an unconfirmed/contradictory/malformed outcome
+# must never produce a durable release checkpoint, a COMPLETE transition,
+# or an internal retry) ─────────────────────────────────────────────────
+def test_wo224_unconfirmed_release_outcome_is_typed_recovery_no_checkpoint():
+    """RED reproducer: port returns exactly (released=False,
+    already_released=False) — release NOT confirmed. The executor must not
+    write the release checkpoint on top of an unconfirmed effect."""
+    store, lease = FakeJobStore(), FakeLeasePort(
+        outcome=LeaseReleaseOutcome(released=False, already_released=False))
+    r = executor(store=store, lease=lease).execute_next(facts(
+        lease=L(lease_id=LEASE, state="ACTIVE"),
+    ))
+    assert r.decision is CloseoutDecision.RECOVERY_REQUIRED
+    assert r.stage is CloseoutStage.RELEASE_LEASE
+    assert r.detail == "LEASE_RELEASE_NOT_CONFIRMED"
+    assert store.checkpoints == [] and store.transitions == []
+
+
+def test_wo224_unconfirmed_release_outcome_repeated_never_completes():
+    """Repeated invocation from an unconfirmed outcome never gains authority
+    from a checkpoint that must not exist; each executor call performs at
+    most ONE release call (no internal retry loop)."""
+    store = FakeJobStore()
+    lease = FakeLeasePort(outcome=LeaseReleaseOutcome(released=False, already_released=False))
+    ex = executor(store=store, lease=lease)
+    base = facts(lease=L(lease_id=LEASE, state="ACTIVE"))
+    r1 = ex.execute_next(base)
+    r2 = ex.execute_next(base)
+    assert r1.decision is CloseoutDecision.RECOVERY_REQUIRED
+    assert r2.decision is CloseoutDecision.RECOVERY_REQUIRED
+    assert store.checkpoints == [] and store.transitions == []
+    # exactly one port call per executor invocation, no more
+    assert lease.released == [LEASE, LEASE]
+
+
+def test_wo224_contradictory_release_outcome_fails_closed():
+    """(released=True, already_released=True) contradicts the canonical
+    SQLiteWorkerLeaseStore contract (which never emits this pair): fail
+    closed as recovery, write no checkpoint, never COMPLETE."""
+    store, lease = FakeJobStore(), FakeLeasePort(
+        outcome=LeaseReleaseOutcome(released=True, already_released=True))
+    r = executor(store=store, lease=lease).execute_next(facts(
+        lease=L(lease_id=LEASE, state="ACTIVE"),
+    ))
+    assert r.decision is CloseoutDecision.RECOVERY_REQUIRED
+    assert r.stage is CloseoutStage.RELEASE_LEASE
+    assert r.detail == "LEASE_RELEASE_OUTCOME_CONTRADICTORY"
+    assert store.checkpoints == [] and store.transitions == []
+
+
+def test_wo224_non_bool_release_outcome_fails_closed():
+    """Malformed non-boolean outcome shape (the frozen dataclass itself is
+    permissive) must not become authority: a truthy non-bool `released`
+    would otherwise write the durable release checkpoint on base behavior."""
+    store, lease = FakeJobStore(), FakeLeasePort(
+        outcome=LeaseReleaseOutcome(released="yes", already_released=False))
+    r = executor(store=store, lease=lease).execute_next(facts(
+        lease=L(lease_id=LEASE, state="ACTIVE"),
+    ))
+    assert r.decision is CloseoutDecision.RECOVERY_REQUIRED
+    assert r.stage is CloseoutStage.RELEASE_LEASE
+    assert r.detail == "LEASE_RELEASE_OUTCOME_INVALID"
+    assert store.checkpoints == [] and store.transitions == []
+
+
+def test_wo224_confirmed_release_checkpoint_failure_single_call():
+    """Matrix guard: confirmed (True, False) + checkpoint write failure stays
+    RECOVERY_REQUIRED / CHECKPOINT_AFTER_EFFECT_FAILED with exactly ONE
+    release call inside the single executor invocation."""
+    store = FakeJobStore(fail_checkpoint=True)
+    lease = FakeLeasePort()
+    r = executor(store=store, lease=lease).execute_next(facts(
+        lease=L(lease_id=LEASE, state="ACTIVE"),
+    ))
+    assert r.decision is CloseoutDecision.RECOVERY_REQUIRED
+    assert r.detail == "CHECKPOINT_AFTER_EFFECT_FAILED"
+    assert store.transitions == []
+    assert lease.released == [LEASE]
+
+
+def test_wo224_already_released_positive_reports_detail():
+    """Positive control: (False, True) idempotent release checkpoints and
+    reports the ALREADY_RELEASED detail."""
+    store, lease = FakeJobStore(), FakeLeasePort(already=True)
+    r = executor(store=store, lease=lease).execute_next(facts(
+        lease=L(lease_id=LEASE, state="ACTIVE"),
+    ))
+    assert r.decision is CloseoutDecision.RELEASE_REQUIRED
+    assert r.detail == "ALREADY_RELEASED"
+    assert closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                   candidate_sha=SHA, lease_id=LEASE) in [c[1] for c in store.checkpoints]
+
+
+def test_wo224_release_contradiction_fails_before_port_call():
+    """Matrix guard at executor level: ACTIVE lease + exact release
+    checkpoint already in the journal is a typed recovery decided BEFORE
+    the release port is called."""
+    store, lease = FakeJobStore(), FakeLeasePort()
+    r = executor(store=store, lease=lease).execute_next(facts(
+        lease=L(lease_id=LEASE, state="ACTIVE"),
+        completed_closeout_refs=frozenset({
+            closeout_checkpoint_ref(CloseoutStage.VERIFY_CHECKPOINT, task_id=TASK,
+                                    candidate_sha=SHA, attempt_id=ATTEMPT),
+            closeout_checkpoint_ref(CloseoutStage.RELEASE_LEASE, task_id=TASK,
+                                    candidate_sha=SHA, lease_id=LEASE),
+        }),
+    ))
+    assert r.decision is CloseoutDecision.RECOVERY_REQUIRED
+    assert r.detail == "LEASE_RELEASE_CONTRADICTION"
+    assert lease.released == []
+    assert store.checkpoints == [] and store.transitions == []
