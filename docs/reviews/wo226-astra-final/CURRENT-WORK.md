@@ -8,3 +8,6 @@ See ../WO-P1-226-astra-final-review.md. GLM-REPAIR.md remains HELD_FOR_SOL_RELEA
 No source/test mutation, merge or release. Root continuity is Sol-owned.
 Next: Sol adjudication/re-release, original GLM repairs in owned scope, new frozen
 candidate, independent review. No result copy-back through human needed.
+
+Published/released: PR314 comment5649416462 and Issue214 comment5649416575.
+Evidence freeze: 5df9ebef48063fcae96fcb7fed0cc8d68b47fcfe.

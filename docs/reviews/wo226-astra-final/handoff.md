@@ -10,3 +10,6 @@ mutation. Sol owns acceptance and original root continuity. Exact next safe acti
 Sol reads report, frames AF1 ownership proof, re-releases same WO226 scope if viable;
 GLM repairs/records result directly; freeze new SHA and stop for independent review.
 If proof requires a new ownership authority/schema, report DESIGN_GAP to Sol/Astra.
+
+Published/released: PR314 comment5649416462 and Issue214 comment5649416575.
+Evidence freeze: 5df9ebef48063fcae96fcb7fed0cc8d68b47fcfe.

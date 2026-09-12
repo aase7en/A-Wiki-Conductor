@@ -1,6 +1,6 @@
 # WO-P1-226 Astra final candidate review
 
-Status: ACTIVE independent R3 review; documentation mutation only.
+Status: COMPLETE / CLAIM RELEASED; CHANGES_REQUIRED; documentation mutation only.
 Owner: Poppy Javis / GPT Astra. Integrator and acceptance owner: GPT Sol.
 Source candidate: 78ec598b9830d802f54eb47642130693a038a39c, PR #314.
 Base: 251df211afc1ee5452f3652675d7a2f38c526876.
@@ -31,3 +31,7 @@ Report/evidence complete; publish frozen docs branch and Issue214/PR314 handback
 Repair supplement HELD_FOR_SOL_RELEASE; claim releases after publication.
 Root CURRENT-WORK/handoff not changed because Sol owns those hotspots; this lane's
 scoped CURRENT-WORK/handoff contain the exact continuation and forbidden scope.
+
+Published verdict: PR314 comment5649416462; Issue214 comment5649416575.
+Evidence freeze: 5df9ebef48063fcae96fcb7fed0cc8d68b47fcfe.
+Captured pytest text trailing spaces normalized only in closeout.

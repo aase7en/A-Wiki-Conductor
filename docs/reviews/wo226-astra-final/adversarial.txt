@@ -12,12 +12,12 @@ tmp_path = PosixPath('/private/var/folders/h5/btmbl1qn2695m08h126g209h0000gn/T/p
         plan, a, route, task = f._bridge(tmp_path)
         entered, proceed = Event(), Event()
         inner = f.FakeRunnerFactory()
-    
+
         def paused_factory(**kwargs):
             entered.set()  # winner owns resources, but no runtime record yet
             assert proceed.wait(10), 'probe barrier timed out'
             return inner(**kwargs)
-    
+
         with ThreadPoolExecutor(max_workers=1) as pool:
             winner = pool.submit(dispatch, a, route, task, paused_factory)
             try:
@@ -34,7 +34,7 @@ tmp_path = PosixPath('/private/var/folders/h5/btmbl1qn2695m08h126g209h0000gn/T/p
 >       assert after == before, 'losing dispatch released still-owned winner resources'
 E       AssertionError: losing dispatch released still-owned winner resources
 E       assert {'admissions'...ased': [True]} == {'admissions'...sed': [False]}
-E         
+E
 E         Differing items:
 E         {'admissions': ['RELEASED']} != {'admissions': ['ACTIVE']}
 E         {'leases_released': [True]} != {'leases_released': [False]}
@@ -61,7 +61,7 @@ tmp_path = PosixPath('/private/var/folders/h5/btmbl1qn2695m08h126g209h0000gn/T/p
             'terminal failed child must release capacity without usable handoff'
 E       AssertionError: terminal failed child must release capacity without usable handoff
 E       assert (['ACTIVE'] == ['RELEASED']
-E         
+E
 E         At index 0 diff: 'ACTIVE' != 'RELEASED'
 E         Use -v to get more diff)
 
@@ -73,7 +73,7 @@ tmp_path = PosixPath('/private/var/folders/h5/btmbl1qn2695m08h126g209h0000gn/T/p
     def test_foreign_worker_terminal_record_cannot_create_handoff(tmp_path):
         plan, a, route, task = f._bridge(tmp_path)
         inner = f.FakeRunnerFactory()
-    
+
         def foreign_factory(**kwargs):
             original = inner(**kwargs)
             class Runner:
