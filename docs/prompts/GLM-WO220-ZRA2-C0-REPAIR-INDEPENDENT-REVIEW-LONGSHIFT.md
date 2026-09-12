@@ -66,6 +66,8 @@ ADVERSARIAL CAMPAIGN:
 - author/reviewer execution alias;
 - READ_ONLY/mutation mismatch;
 - worker/provider/model/project/worktree/branch/head authority mismatch through ParallelReadyTask;
+- `dispatch_gate.allowed=False` presented as a supposedly selected/authorized review route;
+- `dispatch.model_id` absent from `provider_profile.models`, unsupported harness strategy, unsupported effort, and provider readiness/admission/generation drift — determine explicitly whether C0 is allowed to delegate each fact downstream or whether minting `DirectReviewRoute` would violate WO210 trusted-route semantics;
 - forged dataclass objects using dataclasses.replace;
 - missing persisted bytes before bind;
 - TOCTOU-style persisted change between C0a and C0b;

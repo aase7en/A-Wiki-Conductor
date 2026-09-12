@@ -55,6 +55,7 @@ Then attempt novel counterexamples around:
 - author/reviewer execution-id alias;
 - READ_ONLY vs PROJECT_MUTATION;
 - `ParallelReadyTask` worker/provider/project/worktree/branch/head cross-fences;
+- denied `dispatch_gate`, model absent from `provider_profile.models`, unsupported harness/effort, and provider readiness/admission/generation drift — classify which are valid downstream delegation vs C0 trusted-route violations;
 - caller object mutation/forgery through `dataclasses.replace`;
 - missing/vanished persisted file before C0b;
 - TOCTOU-shaped changes between materialization and route binding;
