@@ -147,3 +147,18 @@ The repaired implementation now:
 ## Remaining gate
 
 Candidate must be committed/pushed, hosted CI must be terminal, then a non-author must independently review the exact SHA. Implementation author GPT must not self-accept or self-merge.
+
+## Integrator follow-up — filesystem authority type gate
+
+Author-side adversarial review after intermediate commit `5f779dda10c70d20cfbbeb8925ed3e42c000ecee` found one more instance of the same root cause: both C0a and C0b accepted a duck-typed object that merely exposed filesystem-shaped methods/properties. A caller could therefore fabricate the persistence authority itself even after the MaterializedReviewTask/hash checks were strengthened.
+
+RED evidence on the intermediate repair: two deterministic tests failed — C0b accepted a duck filesystem and minted DirectReviewRoute, while C0a invoked a duck filesystem instead of rejecting it at the boundary.
+
+Repair: both `materialize_review_task()` and `bind_direct_review_route()` now require an actual `NativeFileSystem` instance, matching the accepted Phase-B materializer authority boundary. The in-memory fault-injection fixture is a `NativeFileSystem` subclass so tests preserve controlled faults without weakening the production type gate.
+
+Current GREEN floor after this follow-up:
+
+- focused `tests/test_zero_relay_review_task.py`: **46 passed**;
+- related accepted floor (`native_execution`, Phase-B repair materializer, zero_relay, Claude harness, parallel-ready execution, agent-change packets, review mailbox adapter): **302 passed + 1 expected POSIX FIFO skip**.
+
+The repair remains bounded to the existing C0 module/tests/WO. C1 stays HOLD.

@@ -161,6 +161,8 @@ def materialize_review_task(
     identity: ResultIdentity,
     reviewed_head: str,
 ) -> MaterializedReviewTask:
+    if not isinstance(filesystem, NativeFileSystem):
+        raise ZeroRelayReviewTaskError("FILESYSTEM_INVALID")
     if not isinstance(identity, ResultIdentity):
         raise ZeroRelayReviewTaskError("INPUT_INVALID")
     head = _reviewed_head(reviewed_head)
@@ -256,8 +258,8 @@ def bind_direct_review_route(
         raise ZeroRelayReviewTaskError("INPUT_INVALID")
     if not isinstance(review, MaterializedReviewTask) or not isinstance(author, ResultIdentity):
         raise ZeroRelayReviewTaskError("INPUT_INVALID")
-    if not callable(getattr(filesystem, "read_text", None)) or getattr(filesystem, "root", None) is None:
-        raise ZeroRelayReviewTaskError("INPUT_INVALID")
+    if not isinstance(filesystem, NativeFileSystem):
+        raise ZeroRelayReviewTaskError("FILESYSTEM_INVALID")
 
     packet = route_task.task_packet
     dispatch = route_task.harness_dispatch

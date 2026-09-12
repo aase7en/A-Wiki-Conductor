@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from a_conductor.native_execution import NativeFileSystem
 from a_conductor.zero_relay import ResultIdentity
 from a_conductor.zero_relay_review_task import (
     DirectReviewRoute,
@@ -138,7 +139,7 @@ def test_g2_render_is_deterministic_no_env_or_time() -> None:
 # ---------- G3 no-clobber persistence ----------
 
 
-class _FakeNative:
+class _FakeNative(NativeFileSystem):
     """Minimal in-memory NativeFileSystem double honoring the real contract."""
 
     def __init__(self, *, mutation_allowed: bool = True, preexisting: str | None = None,
@@ -146,7 +147,7 @@ class _FakeNative:
                  target_is_dir: bool = False, root: str = "A:/wt/review"):
         from a_conductor.native_execution import NativeExecutionError
         self._err = NativeExecutionError
-        self.root = Path(root)
+        self._fake_root = Path(root)
         self.mutation_allowed = mutation_allowed
         self.store: dict[str, str] = {}
         if preexisting is not None:
@@ -154,6 +155,10 @@ class _FakeNative:
         self.vanish_on_read = vanish_on_read
         self.parent_missing = parent_missing
         self.target_is_dir = target_is_dir
+
+    @property
+    def root(self) -> Path:
+        return self._fake_root
 
     def create_text_if_absent(self, relative_path, content):
         path = str(relative_path)
@@ -473,6 +478,35 @@ def test_g4_filesystem_root_must_match_selected_worktree() -> None:
             _route_task(task), review=task, author=_identity(), filesystem=foreign_fs
         )
     assert exc.value.code == "REVIEW_FILESYSTEM_ROOT_MISMATCH"
+
+
+def test_g4_duck_typed_filesystem_cannot_mint_route_authority() -> None:
+    task, fs = _materialized()
+
+    class DuckFilesystem:
+        root = fs.root
+
+        def read_text(self, relative_path):
+            return fs.read_text(relative_path)
+
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        bind_direct_review_route(
+            _route_task(task),
+            review=task,
+            author=_identity(),
+            filesystem=DuckFilesystem(),
+        )
+    assert exc.value.code == "FILESYSTEM_INVALID"
+
+
+def test_g3_duck_typed_filesystem_cannot_materialize_authority() -> None:
+    class DuckFilesystem:
+        def create_text_if_absent(self, relative_path, content):
+            raise AssertionError("must reject before use")
+
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        materialize_review_task(DuckFilesystem(), _identity(), REVIEW_HEAD)
+    assert exc.value.code == "FILESYSTEM_INVALID"
 
 
 def test_g4_route_is_immutable() -> None:
