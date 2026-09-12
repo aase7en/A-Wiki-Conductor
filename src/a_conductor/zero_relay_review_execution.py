@@ -268,6 +268,28 @@ def plan_reviewer_execution(
     if int(generation) < 1:
         raise ZeroRelayReviewExecutionError("REVIEW_PROVIDER_GENERATION_INVALID")
 
+    # trusted C0 task provider-authority cross-binding: a stale task
+    # authorized at an older generation/endpoint must never be silently
+    # upgraded by pairing it with a newer snapshot/store (Sol obligation 5)
+    task_authority = (
+        route_task.provider_endpoint,
+        route_task.provider_security,
+        route_task.expected_configuration_generation,
+    )
+    if any(item is not None for item in task_authority):
+        if route_task.expected_configuration_generation is None or \
+                int(route_task.expected_configuration_generation) != int(generation):
+            raise ZeroRelayReviewExecutionError("REVIEW_TASK_GENERATION_STALE")
+        task_endpoint = route_task.provider_endpoint
+        task_endpoint_ref = getattr(task_endpoint, "endpoint_ref", None)
+        task_endpoint_url = str(getattr(task_endpoint, "base_url", "") or "").strip()
+        if task_endpoint_ref is None or task_endpoint_ref != profile.endpoint_ref or \
+                task_endpoint_url != base_url:
+            raise ZeroRelayReviewExecutionError("REVIEW_TASK_ENDPOINT_STALE")
+    requirement = route_task.provider_requirement
+    if requirement is not None and requirement.provider_id != profile.provider_id:
+        raise ZeroRelayReviewExecutionError("REVIEW_TASK_REQUIREMENT_PROVIDER_MISMATCH")
+
     # operation identity derives from the exact task identity (single
     # authority: ZCodeTaskPacketIdentity.canonical_operation_ref)
     operation_ref = packet_identity.canonical_operation_ref()
@@ -457,8 +479,16 @@ def _release_admission_terminal(
         )
     except ProviderConfigStoreError as exc:
         if exc.code != "PROVIDER_ADMISSION_NOT_ACTIVE":
-            raise
-        reread = provider_store.get_admission(admission_id)
+            # preserve the exact canonical reason inside a typed bridge error
+            raise ZeroRelayReviewExecutionError(
+                f"ADMISSION_CLEANUP_{exc.code}"
+            ) from exc
+        try:
+            reread = provider_store.get_admission(admission_id)
+        except ProviderConfigStoreError as read_exc:
+            raise ZeroRelayReviewExecutionError(
+                f"ADMISSION_CLEANUP_READ_{read_exc.code}"
+            ) from read_exc
         if reread is None:
             raise ZeroRelayReviewExecutionError("ADMISSION_CLEANUP_RECORD_MISSING") from exc
         if (
@@ -491,9 +521,15 @@ def _release_lease_terminal(
     ``(released=True, already_released=False)`` or ``(False, True)`` for the
     exact lease/session/task owner; anything else is typed recovery and the
     caller must not receive a usable handoff."""
-    result = lease_store.release(
-        lease_id, session_id=session_id, task_id=task_id, released_at=clock()
-    )
+    from .worker_lease import WorkerLeaseError
+
+    try:
+        result = lease_store.release(
+            lease_id, session_id=session_id, task_id=task_id, released_at=clock()
+        )
+    except WorkerLeaseError as exc:
+        # preserve the exact canonical reason inside a typed bridge error
+        raise ZeroRelayReviewExecutionError(f"LEASE_CLEANUP_{exc.code}") from exc
     released = getattr(result, "released", None)
     already = getattr(result, "already_released", None)
     if not isinstance(released, bool) or not isinstance(already, bool):
@@ -503,6 +539,35 @@ def _release_lease_terminal(
     if not released and not already:
         raise ZeroRelayReviewExecutionError("LEASE_CLEANUP_NOT_CONFIRMED")
     return result
+
+
+def _find_held_lease_readonly(lease_store, *, session_id: str, task_id: str):
+    """READ-ONLY recovery lookup of the active lease by exact owner keys.
+
+    Never acquires: a released original lease resolves to None here, and the
+    caller must NOT mint a new one to fabricate cleanup evidence. A read
+    fault is UNKNOWN, never proof of absence — callers treat exceptions as
+    recovery, not as not-held."""
+    from .worker_lease import WorkerLeaseError
+
+    try:
+        return lease_store.find_active_owner_task(session_id, task_id)
+    except WorkerLeaseError as exc:
+        raise ZeroRelayReviewExecutionError(f"LEASE_READ_{exc.code}") from exc
+
+
+def _find_held_admission_readonly(provider_store, *, provider_id: str, execution_id: str):
+    """READ-ONLY recovery lookup of the admission by exact dispatch keys via
+    the canonical coherent enumeration. Never acquires capacity; absence is
+    genuine absence (enumeration is read-only)."""
+    try:
+        admissions = provider_store.list_provider_admissions(provider_id=provider_id)
+    except ProviderConfigStoreError as exc:
+        raise ZeroRelayReviewExecutionError(f"ADMISSION_READ_{exc.code}") from exc
+    for record in admissions:
+        if record.execution_id == execution_id:
+            return record
+    return None
 
 
 # ---------------- handoff ----------------
@@ -555,7 +620,8 @@ class DirectReviewExecutionHandoff:
 
 class ReviewerRunnerFactory(Protocol):
     def __call__(self, *, plan: ReviewerExecutionPlan, lease: WorkerLease,
-                 admission: ProviderAdmissionRecord) -> object: ...
+                 admission: ProviderAdmissionRecord,
+                 execution_store=None) -> object: ...
 
 
 def default_reviewer_runner_factory(
@@ -572,7 +638,7 @@ def default_reviewer_runner_factory(
     """Build the accepted ZRA-1 review-mode assembly (real supervised path)."""
 
     def _factory(*, plan: ReviewerExecutionPlan, lease: WorkerLease,
-                 admission: ProviderAdmissionRecord):
+                 admission: ProviderAdmissionRecord, execution_store=None):
         authorities = ZCodeExecutionAuthorities(
             provider_snapshot=provider_snapshot,
             secret_resolver=secret_resolver,
@@ -771,6 +837,7 @@ class ReviewerExecutionBackend:
 
         lease = None
         admission = None
+        runner_invoked = False
         try:
             lease = self._acquire_lease()
             self._last_lease_id = lease.lease_id
@@ -798,64 +865,78 @@ class ReviewerExecutionBackend:
                 # never launch a second child over it
                 self.failure_code = f"REVIEW_PRE_LAUNCH_{pre_class.kind.value}"
                 raise ZeroRelayReviewExecutionError(self.failure_code)
+            pre_ids = {record.execution_id for record in pre}
 
+            runner_invoked = True
             self._launch_count += 1
             result = runner.run(timeout_seconds=plan.timeout_seconds)
             if not isinstance(result, NativeCommandResult):
                 self.failure_code = "REVIEW_RUN_RESULT_INVALID"
                 raise ZeroRelayReviewExecutionError(self.failure_code)
+            # a returned result object is NOT proof of terminality: only the
+            # durable execution record state is (Sol obligation 3)
+            if result.timed_out or result.exit_code is None:
+                self.failure_code = "REVIEW_RUN_NOT_TERMINAL"
+                raise ZeroRelayReviewExecutionError(self.failure_code)
 
             post = self._execution_store.find_by_fingerprint(plan.fingerprint)
-            post_class = classify_equivalent_executions(
-                post, plan=plan, reviewer_worker_id=plan.reviewer_worker_id
-            )
-            if post_class.kind is EquivalenceKind.RECOVERY_REQUIRED or post_class.chosen is None:
-                self.failure_code = f"REVIEW_POST_RUN_{post_class.reason_code}"
+            new_records = [r for r in post if r.execution_id not in pre_ids]
+            if len(post) != 1 or len(new_records) != 1:
+                # ambiguity/multiplicity after the model effect: retain all
+                # resources; a later reconcile decides
+                self.failure_code = "REVIEW_POST_RUN_MULTIPLICITY"
                 raise ZeroRelayReviewExecutionError(self.failure_code)
-            chosen = post_class.chosen
+            chosen = new_records[0]
+            if chosen.execution_state in _LIVE_RECORD_STATES or chosen.execution_state not in (
+                _COMPLETED_RECORD_STATES
+            ):
+                # live/unknown durable execution: recovery-consuming, never
+                # release capacity/lease while the child may still run
+                self.failure_code = "REVIEW_RUN_LIVE"
+                raise ZeroRelayReviewExecutionError(self.failure_code)
 
+            # chosen is durably TERMINAL: cleanup is now safe and required
             cleanup = self._cleanup(lease=lease, admission=admission)
             lease = None
             admission = None
 
-            terminal_ok = chosen.execution_state in (
+            usable = chosen.execution_state in (
                 ExecutionProcessState.SUCCEEDED,
                 ExecutionProcessState.VERIFICATION_REQUIRED,
-            )
-            exit_ok = result.exit_code is not None and result.exit_code == 0
-            self.handoff = DirectReviewExecutionHandoff(
-                review_contract_ref=plan.review_contract_ref,
-                dispatch_execution_id=plan.dispatch_execution_id,
-                runtime_execution_id=chosen.execution_id,
-                supervised_job_id=plan.supervised_job_id,
-                fingerprint=plan.fingerprint,
-                record_version=int(chosen.version),
-                record_state=chosen.execution_state.value,
-                stdout_ref=chosen.stdout_ref,
-                stderr_ref=chosen.stderr_ref,
-                result_ref=chosen.result_ref,
-                report_ref=chosen.report_ref,
-                task_packet_path=plan.review_task_path,
-                task_packet_sha256=plan.review_task_sha256,
-                provider_id=plan.provider_id,
-                model_id=plan.model_id,
-                project_id=plan.project_id,
-                worker_id=plan.reviewer_worker_id,
-                repo_root=plan.repo_root,
-                branch=plan.branch,
-                head=plan.head,
-                admission_id=cleanup.admission.admission_id,
-                admission_batch_id=cleanup.admission.batch_id,
-                admission_status=cleanup.admission.status,
-                lease_id=self._last_lease_id or "",
-                lease_session_id=self._route_task.lease_request.session_id,
-                lease_task_id=plan.review_contract_ref,
-                lease_released=True,
-                cleanup_terminal=True,
-                exit_code=result.exit_code,
-                outcome="EXECUTED",
-            )
-            if terminal_ok and exit_ok:
+            ) and result.exit_code == 0
+            if usable:
+                self.handoff = DirectReviewExecutionHandoff(
+                    review_contract_ref=plan.review_contract_ref,
+                    dispatch_execution_id=plan.dispatch_execution_id,
+                    runtime_execution_id=chosen.execution_id,
+                    supervised_job_id=plan.supervised_job_id,
+                    fingerprint=plan.fingerprint,
+                    record_version=int(chosen.version),
+                    record_state=chosen.execution_state.value,
+                    stdout_ref=chosen.stdout_ref,
+                    stderr_ref=chosen.stderr_ref,
+                    result_ref=chosen.result_ref,
+                    report_ref=chosen.report_ref,
+                    task_packet_path=plan.review_task_path,
+                    task_packet_sha256=plan.review_task_sha256,
+                    provider_id=plan.provider_id,
+                    model_id=plan.model_id,
+                    project_id=plan.project_id,
+                    worker_id=plan.reviewer_worker_id,
+                    repo_root=plan.repo_root,
+                    branch=plan.branch,
+                    head=plan.head,
+                    admission_id=cleanup.admission.admission_id,
+                    admission_batch_id=cleanup.admission.batch_id,
+                    admission_status=cleanup.admission.status,
+                    lease_id=self._last_lease_id or "",
+                    lease_session_id=self._route_task.lease_request.session_id,
+                    lease_task_id=plan.review_contract_ref,
+                    lease_released=True,
+                    cleanup_terminal=True,
+                    exit_code=result.exit_code,
+                    outcome="EXECUTED",
+                )
                 return JobBackendResult(
                     success=True,
                     evidence_ref=f"zra2-review-execution:{chosen.execution_id}",
@@ -867,14 +948,19 @@ class ReviewerExecutionBackend:
                 error_code=self.failure_code,
             )
         except ZeroRelayReviewExecutionError:
-            self._cleanup_best_effort(lease=lease, admission=admission)
+            if not runner_invoked:
+                # nothing was spawned: the acquired resources cannot be in
+                # use by a live child and must not leak
+                self._cleanup_best_effort(lease=lease, admission=admission)
+            # after spawn, ambiguous states retain resources for reconcile
             return JobBackendResult(
                 success=False,
                 recovery_classification=RecoveryClassification.UNKNOWN,
                 error_code=self.failure_code or "REVIEW_EXECUTION_FAILED",
             )
         except Exception as exc:  # runner/store faults: fail closed + cleanup
-            self._cleanup_best_effort(lease=lease, admission=admission)
+            if not runner_invoked:
+                self._cleanup_best_effort(lease=lease, admission=admission)
             code = getattr(exc, "code", None)
             self.failure_code = (
                 code if isinstance(code, str) and code else "REVIEW_BACKEND_FAULT"
@@ -918,6 +1004,17 @@ def _cleanup_only_handoff(
     cleanup: _CleanupEvidence,
     exit_code: int | None,
 ) -> DirectReviewExecutionHandoff:
+    """Validated handoff factory: a usable REUSE_COMPLETED handoff requires
+    BOTH exact resource identities and their terminal cleanup proofs. Blank
+    or absent identities are never terminal evidence (Sol obligation 2)."""
+    if cleanup.admission is None or not cleanup.admission.admission_id:
+        raise ZeroRelayReviewExecutionError("HANDOFF_ADMISSION_UNPROVEN")
+    if cleanup.admission.status != "RELEASED":
+        raise ZeroRelayReviewExecutionError("HANDOFF_ADMISSION_NOT_TERMINAL")
+    if not lease_id:
+        raise ZeroRelayReviewExecutionError("HANDOFF_LEASE_UNPROVEN")
+    if cleanup.lease_result is None:
+        raise ZeroRelayReviewExecutionError("HANDOFF_LEASE_NOT_TERMINAL")
     return DirectReviewExecutionHandoff(
         review_contract_ref=plan.review_contract_ref,
         dispatch_execution_id=plan.dispatch_execution_id,
@@ -939,9 +1036,9 @@ def _cleanup_only_handoff(
         repo_root=plan.repo_root,
         branch=plan.branch,
         head=plan.head,
-        admission_id=cleanup.admission.admission_id if cleanup.admission else "",
-        admission_batch_id=cleanup.admission.batch_id if cleanup.admission else "",
-        admission_status=cleanup.admission.status if cleanup.admission else "",
+        admission_id=cleanup.admission.admission_id,
+        admission_batch_id=cleanup.admission.batch_id,
+        admission_status=cleanup.admission.status,
         lease_id=lease_id,
         lease_session_id=session_id,
         lease_task_id=plan.review_contract_ref,
@@ -960,18 +1057,24 @@ def _reconcile_cleanup(
     lease_store,
     clock: Callable[[], datetime],
 ) -> _CleanupEvidence:
-    """Terminal cleanup of resources reconstructed by exact-key reentry."""
+    """Terminal cleanup of resources found by READ-ONLY recovery lookups.
+    The admission may already be terminal RELEASED (its store retains the
+    exact historical record); the lease is proven only by an actual release
+    truth shape for the exact owner."""
     admission_final = None
     if admission is not None:
-        admission_final = _release_admission_terminal(
-            provider_store,
-            admission_id=admission.admission_id,
-            provider_id=admission.provider_id,
-            execution_id=admission.execution_id,
-            batch_id=admission.batch_id,
-            now=clock(),
-            expected_generation=None,
-        )
+        if admission.status == "RELEASED":
+            admission_final = admission
+        else:
+            admission_final = _release_admission_terminal(
+                provider_store,
+                admission_id=admission.admission_id,
+                provider_id=admission.provider_id,
+                execution_id=admission.execution_id,
+                batch_id=admission.batch_id,
+                now=clock(),
+                expected_generation=None,
+            )
     lease_result = None
     if lease is not None:
         lease_result = _release_lease_terminal(
@@ -994,7 +1097,8 @@ def reconcile_review_execution(
     expected_generation: int | None = None,
 ) -> ReviewerExecutionResult:
     """Reconcile a completed equivalent WITHOUT any new model/launch/acquire
-    model effect (exact cleanup/reconcile effects are still performed)."""
+    effect and WITHOUT minting any new resource rows (read-only lookups;
+    exact cleanup/reconcile effects are still performed)."""
     records = execution_store.find_by_fingerprint(plan.fingerprint)
     classification = classify_equivalent_executions(
         records, plan=plan, reviewer_worker_id=plan.reviewer_worker_id
@@ -1006,31 +1110,45 @@ def reconcile_review_execution(
     chosen = classification.chosen
     if chosen is None:
         return ReviewerExecutionResult("RECOVERY_REQUIRED", "EQUIVALENT_CHOSEN_MISSING")
-    # cleanup-only: reconstruct held resources by exact reentry and release
-    outcome = lease_broker.acquire(route_task.lease_request, route_task.candidates)
-    lease = outcome.lease if outcome.kind in (
-        LeaseOutcomeKind.LEASED, LeaseOutcomeKind.EXISTING,
-    ) and isinstance(outcome.lease, WorkerLease) else None
-    admission_result = provider_store.acquire_admission(
-        provider_id=plan.provider_id,
-        execution_id=plan.dispatch_execution_id,
-        batch_id=plan.batch_id,
-        expected_max_concurrency=max_concurrency,
-        now=clock(),
-        ttl_seconds=max(plan.timeout_seconds, 60) + 300,
-        expected_configuration_generation=expected_generation,
-    )
-    admission = getattr(admission_result, "admission", None)
-    cleanup = _reconcile_cleanup(
-        provider_store=provider_store, lease=lease, admission=admission,
-        lease_store=lease_store, clock=clock,
-    )
-    handoff = _cleanup_only_handoff(
-        plan=plan, chosen=chosen,
-        session_id=route_task.lease_request.session_id,
-        lease_id=lease.lease_id if lease is not None else "",
-        cleanup=cleanup, exit_code=None,
-    )
+
+    session_id = route_task.lease_request.session_id
+    # READ-ONLY reconstruction: never acquire; a read fault is recovery,
+    # never proof of absence (Sol obligations 1/7)
+    try:
+        lease = _find_held_lease_readonly(
+            lease_store, session_id=session_id, task_id=plan.review_contract_ref
+        )
+    except ZeroRelayReviewExecutionError as exc:
+        return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
+    try:
+        admission = _find_held_admission_readonly(
+            provider_store, provider_id=plan.provider_id,
+            execution_id=plan.dispatch_execution_id,
+        )
+    except ZeroRelayReviewExecutionError as exc:
+        return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
+
+    # a completed winner necessarily acquired an admission; its absence
+    # means cleanup truth is unprovable -> no usable handoff
+    if admission is None:
+        return ReviewerExecutionResult("RECOVERY_REQUIRED", "ADMISSION_IDENTITY_UNPROVEN")
+    # the lease store exposes no historical released-lease lookup: an absent
+    # active lease means the exact original lease identity can no longer be
+    # proven -> no fabricated identity, no usable handoff, ZERO new rows
+    if lease is None:
+        return ReviewerExecutionResult("RECOVERY_REQUIRED", "LEASE_IDENTITY_UNPROVEN")
+
+    try:
+        cleanup = _reconcile_cleanup(
+            provider_store=provider_store, lease=lease, admission=admission,
+            lease_store=lease_store, clock=clock,
+        )
+        handoff = _cleanup_only_handoff(
+            plan=plan, chosen=chosen, session_id=session_id,
+            lease_id=lease.lease_id, cleanup=cleanup, exit_code=None,
+        )
+    except ZeroRelayReviewExecutionError as exc:
+        return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
     return ReviewerExecutionResult("REUSE_COMPLETED", classification.reason_code,
                                    handoff=handoff)
 
@@ -1244,31 +1362,27 @@ def _cleanup_held_resources_without_record(
     max_concurrency: int,
     clock: Callable[[], datetime],
 ) -> bool:
-    """After a crashed attempt with no durable execution record: the exact
-    reentry keys either resolve the held resources (release them) or prove
-    nothing was held. Returns True when cleanup was achieved."""
-    lease = None
-    admission = None
+    """After a crashed attempt with no durable execution record: READ-ONLY
+    exact-key lookups either resolve the held resources (release them) or
+    prove nothing was held. Never acquires; a read fault is UNKNOWN and
+    returns False (recovery), never treated as absence."""
     try:
-        outcome = lease_broker.acquire(route_task.lease_request, route_task.candidates)
-        if outcome.kind in (LeaseOutcomeKind.LEASED, LeaseOutcomeKind.EXISTING) and \
-                isinstance(outcome.lease, WorkerLease):
-            lease = outcome.lease
-    except Exception:  # noqa: BLE001 - absence means not-held
-        lease = None
-    try:
-        result = provider_store.acquire_admission(
-            provider_id=plan.provider_id,
-            execution_id=plan.dispatch_execution_id,
-            batch_id=plan.batch_id,
-            expected_max_concurrency=max_concurrency,
-            now=clock(),
-            ttl_seconds=max(plan.timeout_seconds, 60) + 300,
-            expected_configuration_generation=expected_generation,
+        lease = _find_held_lease_readonly(
+            lease_store,
+            session_id=route_task.lease_request.session_id,
+            task_id=plan.review_contract_ref,
         )
-        admission = getattr(result, "admission", None)
-    except Exception:  # noqa: BLE001 - absence means not-held
-        admission = None
+    except ZeroRelayReviewExecutionError:
+        return False
+    try:
+        admission = _find_held_admission_readonly(
+            provider_store, provider_id=plan.provider_id,
+            execution_id=plan.dispatch_execution_id,
+        )
+    except ZeroRelayReviewExecutionError:
+        return False
+    if lease is None and admission is None:
+        return True  # genuinely nothing held
     try:
         _reconcile_cleanup(
             provider_store=provider_store, lease=lease, admission=admission,

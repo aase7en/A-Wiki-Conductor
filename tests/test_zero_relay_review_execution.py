@@ -286,19 +286,54 @@ class FakeRunnerFactory:
     """Injectable runner seam: counts model effects, writes REAL durable records."""
 
     def __init__(self, *, drift: bool = False, exit_code: int = 0,
-                 fail_before_record: bool = False, execution_state=ExecutionProcessState.SUCCEEDED) -> None:
+                 fail_before_record: bool = False, execution_state=ExecutionProcessState.SUCCEEDED,
+                 live_timeout: bool = False, fault_after_record: bool = False) -> None:
         self.model_effects = 0
         self.drift = drift
         self.exit_code = exit_code
         self.fail_before_record = fail_before_record
         self.execution_state = execution_state
+        self.live_timeout = live_timeout
+        self.fault_after_record = fault_after_record
         self.execution_ids: list[str] = []
         self._n = 0
+
+    def _live_execution_id(self):
+        self._n += 1
+        execution_id = f"exec-fake226-{self._n:04d}"
+        self.execution_ids.append(execution_id)
+        return execution_id
 
     def __call__(self, *, plan, lease, admission, execution_store=None, **kwargs):
         factory = self
         spec = plan.fingerprint_spec
         store = execution_store
+
+        def make_record(execution_id, state):
+            run_rel = f"runs/{execution_id}"
+            return new_execution_record(
+                execution_id=execution_id,
+                job_id=spec.job_id,
+                work_order_ref=spec.work_order_ref,
+                project_id=spec.project_id,
+                worker_id=plan.reviewer_worker_id,
+                backend_id=spec.backend_id,
+                agent_ref="agent:zcode-app-server",
+                repo_root=spec.repo_root,
+                branch=spec.branch,
+                head_before=spec.head_before,
+                operation_ref=spec.operation_ref,
+                command_fingerprint=compute_execution_fingerprint(spec),
+                command_summary="zcode app-server turn (fake)",
+                runtime_profile_ref=spec.runtime_profile_ref,
+                run_dir_ref=run_rel,
+                stdout_ref=f"{run_rel}/stdout.log",
+                stderr_ref=f"{run_rel}/stderr.log",
+                result_ref=f"{run_rel}/result.json",
+                report_ref=f"{run_rel}/report.json",
+                transport_state=TransportState.CONNECTED,
+                execution_state=state,
+            )
 
         class _Runner:
             def execution_fingerprint_spec(self):
@@ -313,6 +348,21 @@ class FakeRunnerFactory:
                 if factory.fail_before_record:
                     raise ZeroRelayReviewExecutionError("REVIEW_LAUNCH_CRASH_SIMULATED")
                 factory.model_effects += 1
+                if factory.live_timeout:
+                    # durable record stays LIVE; caller observes a timeout
+                    record = make_record(factory._live_execution_id(), ExecutionProcessState.RUNNING)
+                    execution_store.create(record)
+                    return NativeCommandResult(
+                        executable="ZCode.exe", argument_count=6, exit_code=None,
+                        timed_out=True, stdout="", stderr="",
+                        stdout_sha256=hashlib.sha256(b"").hexdigest(),
+                        stderr_sha256=hashlib.sha256(b"").hexdigest(),
+                        stdout_truncated=False, stderr_truncated=False,
+                    )
+                if factory.fault_after_record:
+                    record = make_record(factory._live_execution_id(), ExecutionProcessState.RUNNING)
+                    execution_store.create(record)
+                    raise RuntimeError("post-spawn store fault")
                 factory._n += 1
                 execution_id = f"exec-fake226-{factory._n:04d}"
                 factory.execution_ids.append(execution_id)
@@ -711,7 +761,12 @@ def test_same_owner_reentry_and_existing_admission_are_not_winner_proof(tmp_path
     )
     assert first.outcome == "EXECUTED"
     assert factory.model_effects == 1
-    # second full replay: job is now terminal (VERIFYING) -> EXISTING -> reuse path
+    # second full replay after the winner already cleaned up: the job is
+    # terminal (VERIFYING -> EXISTING) but the original lease is already
+    # RELEASED and the lease store exposes no historical released-lease
+    # proof -> mandated fail-closed RECOVERY, ZERO new lease rows, no
+    # fabricated identity, and still no second model effect
+    lease_rows_before = len(_all_leases(authorities))
     second = execute_review_dispatch(
         route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
         provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
@@ -720,8 +775,11 @@ def test_same_owner_reentry_and_existing_admission_are_not_winner_proof(tmp_path
         secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
         executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
     )
-    assert second.outcome == "REUSE_COMPLETED"
+    assert second.outcome == "RECOVERY_REQUIRED"
+    assert second.reason_code == "LEASE_IDENTITY_UNPROVEN"
+    assert second.handoff is None
     assert factory.model_effects == 1  # no second model effect
+    assert len(_all_leases(authorities)) == lease_rows_before  # zero new rows
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1132,3 +1190,189 @@ def test_malformed_lease_release_shapes_are_typed_recovery(tmp_path):
 def test_runner_public_seam_matches_launch_construction(tmp_path):
     """The public spec/fingerprint seam is the SAME construction run() uses;
     a different task packet yields a different fingerprint (no aliasing)."""
+
+
+def test_completed_plus_released_lease_handoff_lost_zero_new_rows(tmp_path):
+    """Sol obligation 1 RED: completed durable execution + original lease
+    already RELEASED + handoff lost => ZERO new lease rows/acquisitions, no
+    fabricated original lease identity, RECOVERY_REQUIRED, no handoff."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    # completed equivalent + original lease fully released + admission released
+    authorities.execution_store.create(_record_for(plan, "exec-pre-done"))
+    outcome = authorities.lease_broker.acquire(route_task.lease_request, route_task.candidates)
+    assert outcome.kind is LeaseOutcomeKind.LEASED
+    authorities.lease_store.release(
+        outcome.lease.lease_id, session_id=route_task.lease_request.session_id,
+        task_id=route_task.lease_request.task_id, released_at=NOW)
+    admission = authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=route.dispatch_execution_id,
+        batch_id=plan.batch_id, expected_max_concurrency=2, now=NOW, ttl_seconds=600,
+        expected_configuration_generation=1).admission
+    authorities.provider_store.release_admission(
+        admission.admission_id, provider_id="zcode-glm",
+        execution_id=route.dispatch_execution_id, batch_id=plan.batch_id, now=NOW)
+    rows_before = len(_all_leases(authorities))
+    result = execute_review_dispatch(
+        route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
+        provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store, execution_store=authorities.execution_store,
+        job_store=authorities.job_store, runner_factory=factory,
+        secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
+        executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
+    )
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "LEASE_IDENTITY_UNPROVEN"
+    assert result.handoff is None
+    assert factory.model_effects == 0
+    assert len(_all_leases(authorities)) == rows_before  # ZERO new lease rows
+
+
+def test_timeout_retains_resources_then_terminal_reconcile_releases_once(tmp_path):
+    """Sol obligation 3 RED: a timeout leaves the durable execution LIVE —
+    admission+lease stay ACTIVE (no release over a possibly-running child),
+    no usable handoff; after terminality is later observed, one reconcile
+    performs the exact cleanup and only then a handoff exists."""
+    factory = FakeRunnerFactory(live_timeout=True)
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    result = execute_review_dispatch(
+        route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
+        provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store, execution_store=authorities.execution_store,
+        job_store=authorities.job_store, runner_factory=factory,
+        secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
+        executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
+    )
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.handoff is None
+    assert factory.model_effects == 1
+    # resources RETAINED while the durable execution is live
+    admission = _admission_by_execution(authorities, route.dispatch_execution_id)
+    assert admission is not None and admission.status == "ACTIVE"
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is None for l in leases)
+    # terminality later observed (canonical store API)
+    authorities.execution_store.set_execution_state(
+        factory.execution_ids[0], ExecutionProcessState.SUCCEEDED, expected_version=1)
+    replay = execute_review_dispatch(
+        route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
+        provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store, execution_store=authorities.execution_store,
+        job_store=authorities.job_store, runner_factory=FakeRunnerFactory(),
+        secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
+        executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
+    )
+    assert replay.outcome == "REUSE_COMPLETED"
+    assert replay.handoff is not None and replay.handoff.cleanup_terminal
+    assert replay.handoff.runtime_execution_id == factory.execution_ids[0]
+    final_admission = _admission_by_execution(authorities, route.dispatch_execution_id)
+    assert final_admission.status == "RELEASED"
+    final_leases = _all_leases(authorities)
+    assert final_leases and all(l.released_at is not None for l in final_leases)
+
+
+def test_post_spawn_fault_retains_resources_recovery(tmp_path):
+    """Sol obligation 3: an injected store fault AFTER the durable record
+    exists must retain resources/recovery truth (no blind release)."""
+    factory = FakeRunnerFactory(fault_after_record=True)
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    result = execute_review_dispatch(
+        route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
+        provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store, execution_store=authorities.execution_store,
+        job_store=authorities.job_store, runner_factory=factory,
+        secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
+        executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
+    )
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.handoff is None
+    admission = _admission_by_execution(authorities, route.dispatch_execution_id)
+    assert admission is not None and admission.status == "ACTIVE"  # retained
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is None for l in leases)  # retained
+
+
+def test_default_runner_factory_real_surface(tmp_path):
+    """Sol obligation 4 RED: the REAL default_reviewer_runner_factory call
+    surface must match the backend contract (synthetic supervised
+    authorities, no live provider) so fake factories cannot mask drift."""
+    from datetime import timedelta
+    from a_conductor.zero_relay_review_execution import default_reviewer_runner_factory
+    from a_conductor.provider_config_store import ProviderAdmissionRecord
+    from a_conductor.worker_lease import WorkerLease
+    from a_conductor.registry import windows_worktree_key
+    plan, authorities, route, route_task = _bridge(tmp_path)
+    from datetime import datetime as _dt
+    real_now = _dt.now(timezone.utc)
+    now_text = real_now.isoformat()
+    lease = WorkerLease(
+        lease_id="lease-real-factory-1", worker_id=WORKER,
+        session_id=route_task.lease_request.session_id,
+        task_id=plan.review_contract_ref, project_id=plan.project_id,
+        runtime_id=None, worktree_key=windows_worktree_key(authorities.repo_root),
+        branch=plan.branch, expected_head=plan.head, required_capabilities=("code",),
+        allowed_scope=(), forbidden_scope=("secrets/**",), mutable_scope=(),
+        mutation_intent=LeaseMutationIntent.READ_ONLY,
+        acquired_at=now_text, heartbeat_at=now_text, lease_ttl_seconds=600,
+        expires_at=(real_now + timedelta(minutes=10)).isoformat(),
+    )
+    admission = ProviderAdmissionRecord(
+        admission_id="admission-real-factory-1", provider_id=plan.provider_id,
+        execution_id=plan.dispatch_execution_id, batch_id=plan.batch_id,
+        acquired_at=real_now, expires_at=real_now + timedelta(minutes=10),
+        status="ACTIVE", configuration_generation=1,
+    )
+    from tests.test_zcode_authority_bound_assembly import _Controller, _Obs
+    factory = default_reviewer_runner_factory(
+        provider_snapshot=authorities.snapshot,
+        secret_resolver=authorities.secret_resolver,
+        execution_store=authorities.execution_store,
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        workspace=str(tmp_path),
+        deadline_seconds=5.0,
+    )
+    # exact backend call surface (incl. execution_store kwarg)
+    runner = factory(plan=plan, lease=lease, admission=admission,
+                     execution_store=authorities.execution_store)
+    assert runner.execution_fingerprint_spec() == plan.fingerprint_spec
+    assert runner.execution_fingerprint() == plan.fingerprint
+
+
+def test_stale_task_provider_authority_fails_closed(tmp_path):
+    """Sol obligation 5 RED: a trusted C0 task authorized at generation N
+    must fail closed when paired with a NEWER snapshot/store at N+1 — no
+    silent upgrade of endpoint/runtime authority."""
+    contract_ref, task_path, task_sha = _review_contract(tmp_path)
+    route = _route(tmp_path, contract_ref=contract_ref, task_path=task_path, task_sha=task_sha)
+    base_task = _route_task(tmp_path, contract_ref=contract_ref, task_path=task_path, task_sha=task_sha)
+    authorities = _Authorities(tmp_path)
+    # task carries complete provider authority at generation 1
+    from a_conductor.provider_policy import (
+        ProviderPolicyTaskSecurity, TaskNetworkPolicy, TaskPrivacyClass,
+    )
+    security = ProviderPolicyTaskSecurity(
+        privacy_class=TaskPrivacyClass.INTERNAL,
+        network_policy=TaskNetworkPolicy.ALLOWLISTED,
+        network_allowlist=("provider.example",),
+        secret_access=False,
+    )
+    task = replace(
+        base_task,
+        provider_endpoint=ProviderEndpointConfig("zcode-desktop", BASE_URL),
+        provider_security=security,
+        expected_configuration_generation=1,
+    )
+    # store advances to generation 2; a NEW snapshot is supplied
+    authorities.provider_store.save_endpoint(
+        ProviderEndpointConfig("zcode-desktop", "http://127.0.0.2"),
+        expected_generation=1,
+    )
+    new_snapshot = authorities.provider_store.load_provider_snapshot("zcode-glm")
+    with pytest.raises(ZeroRelayReviewExecutionError):
+        plan_reviewer_execution(
+            route=route, route_task=task, provider_snapshot=new_snapshot,
+            repo_root=authorities.repo_root, executable=EXEC, bundle_js=BUNDLE,
+            timeout_seconds=120,
+        )
