@@ -1,0 +1,96 @@
+{
+  "source_base": "7afb33d738086db50bc027c4c47165179a1cb96f",
+  "observations": {
+    "resource_reentry": {
+      "lease_created": [
+        true,
+        false
+      ],
+      "admission": [
+        "ADMITTED",
+        "EXISTING"
+      ],
+      "same_resource_ids": true
+    },
+    "same_fingerprint_race": {
+      "durable_records": 2,
+      "synthetic_launch_calls": 2,
+      "exit_codes": [
+        0,
+        0
+      ]
+    },
+    "real_service_race": {
+      "process_effect_port_calls": 2,
+      "records": 2,
+      "real_spawns": 0,
+      "states": [
+        "RECOVERY_REQUIRED",
+        "RECOVERY_REQUIRED"
+      ]
+    },
+    "multiple_equivalent_records": {
+      "decision": "REUSE_COMPLETED",
+      "older_state": "RUNNING",
+      "selected_newer_completed": true
+    },
+    "unrelated_interleave": {
+      "same_exact_runtime_record": true,
+      "unrelated_runs": 1
+    },
+    "post_success_pre_handoff_restart": {
+      "first_launch_calls": 1,
+      "restart_launch_calls": 0,
+      "same_runtime_id": true,
+      "cleanup_handoff": "ABSENT_NO_WO226_IMPLEMENTATION"
+    },
+    "durable_crash_cut_decisions": {
+      "QUEUED": "ATTACH_RUNNING",
+      "STARTING": "ATTACH_RUNNING",
+      "RUNNING": "ATTACH_RUNNING",
+      "RECOVERY_REQUIRED": "BLOCKED_UNKNOWN"
+    },
+    "identity_change_no_reuse": {
+      "task_sha": "SAFE_TO_LAUNCH",
+      "contract": "SAFE_TO_LAUNCH",
+      "HEAD": "SAFE_TO_LAUNCH",
+      "provider_id": "SAFE_TO_LAUNCH",
+      "model_id": "SAFE_TO_LAUNCH",
+      "runtime_model_ref": "SAFE_TO_LAUNCH",
+      "runtime_provider_ref": "SAFE_TO_LAUNCH",
+      "generation": "SAFE_TO_LAUNCH",
+      "endpoint_base_url": "SAFE_TO_LAUNCH"
+    },
+    "foreign_worker_guard_only": "REUSE_COMPLETED; WO226 separate worker fence required",
+    "lease_owner_change": {
+      "old_snapshot_still_looks_active": true,
+      "foreign_release": "LEASE_OWNER_MISMATCH",
+      "retry_old_release": [
+        false,
+        true
+      ],
+      "new_owner_untouched": true
+    },
+    "ambiguous_release_shapes": [
+      {
+        "released": false,
+        "already_released": false,
+        "usable_handoff": "MUST_REJECT; consumer absent"
+      },
+      {
+        "released": true,
+        "already_released": true,
+        "usable_handoff": "MUST_REJECT; consumer absent"
+      }
+    ],
+    "provider_release_lost_ack": {
+      "retry_error": "PROVIDER_ADMISSION_NOT_ACTIVE",
+      "canonical_reread": "RELEASED"
+    },
+    "READ_ONLY_assembly": {
+      "mutation_control": "PASS",
+      "READ_ONLY_error": "ZCODE_LEASE_MUTATION_INTENT_INSUFFICIENT",
+      "synthetic_provider_calls": 0
+    }
+  }
+}

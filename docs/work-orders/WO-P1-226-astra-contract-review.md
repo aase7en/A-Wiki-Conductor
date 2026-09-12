@@ -45,3 +45,19 @@ Source mutation gate remains NO. Review docs/synthetic temporary experiments gat
 2026-09-12: clean isolated bootstrap at source base; contract pinned; pre-experiment claim publishing next.
 Previous goal-turn classification: no earlier execution turn in this thread; this turn makes progress
 by establishing exact current-state evidence and isolated review scope.
+
+2026-09-12 — REVIEW_FROZEN_FOR_SOL_DELIVERY
+- Report: docs/reviews/WO-P1-226-astra-contract-review.md; one confirmed-only amendment section.
+- Verdict CHANGES_REQUIRED_FOR_PACKET_RELEASE: F1 check/create/effect race; F2 newest-only
+  equivalent-record selection; F3 concrete provider-vs-lease release replay caveat.
+- Q1–Q4 remain architecture proof questions, not confirmed production defects.
+- Synthetic batch: 13 observation groups, all characterization assertions pass; real service race
+  reaches process-effect port twice with zero actual spawn. Restart control reuses exact runtime
+  with zero extra launch. All 9 changed identities refuse old result reuse.
+- Existing targeted suite: 109 passed in 0.51s. Replayed probe output byte-identical.
+- 82 imported source/fixture hashes pinned; strict UTF-8/local links/diff checks pass.
+- Source/tests/schema delta from 7afb33d = ZERO. Only claimed new review/WO paths changed.
+- Fresh PR308 remains a4f2122 (unchanged); WO224 new GLM source claim is disjoint.
+- Next safe action: push frozen evidence, send report/amendment to Sol on PR308 + Issue214;
+  then release this review claim. Sol alone folds its packet and adjudicates source scope/release.
+- No full reviewer implementation or cleanup-handoff acceptance is claimed; no merge/live provider.

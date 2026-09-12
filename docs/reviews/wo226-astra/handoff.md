@@ -1,4 +1,11 @@
-# Scoped current work
-WO-P1-226-ASTRA-CONTRACT-REVIEW-001: CLAIMED, docs-only independent audit.
-Base 7afb33d; contract a4f2122. Next: publish Issue214 notice, then synthetic proof batch.
-Root continuity and other lanes remain integrator-owned. See the active review WO.
+# Scoped current work — WO226 Astra review
+
+Status: REVIEW_FROZEN_FOR_SOL_DELIVERY (2026-09-12).
+Source 7afb33d738086db50bc027c4c47165179a1cb96f; contract a4f2122a1549526aa00c68131ffafd36cf9b24c7.
+Branch docs/wo226-astra-contract-review; separate Mac worktree A-Wiki-Conductor-wo226-astra.
+Report ../WO-P1-226-astra-contract-review.md: two proven blockers, one cleanup API caveat,
+four architecture questions, proof-obligation table and confirmed-only packet amendment.
+13 synthetic observation groups; 109 existing tests pass; replay identical; source/tests/schema unchanged.
+Next: deliver frozen report to Sol via PR308/Issue214, then close this review claim.
+No source release, no live provider/process/secret work, no WO208/WO224 changes, no merge.
+Global CURRENT-WORK/handoff/COLLAB remain Sol-owned under the user's non-overlap instruction.
