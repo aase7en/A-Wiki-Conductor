@@ -1,6 +1,6 @@
 # WO-P1-226-ASTRA-DISPATCH-001 — GLM launch preparation
 
-Status: CLAIMED / docs-only delivery
+Status: COMPLETE / POINTER_READY / PREPARATION_CLAIM_RELEASED
 Parent task: WO-P1-226 (no new production work-order identity)
 Owner: Poppy Javis / GPT-6 Astra, thread 01a09615-485d-7203-9b3c-59fa5d1c980d
 Integrator: GPT-5.6 Sol
@@ -56,3 +56,13 @@ No A-Wiki change or new coordination primitive.
 
 2026-09-12: bootstrap claimed; next publish preparation scope, write entry, push,
 materialize only the new Windows delivery worktree, verify bytes and notify Sol.
+
+2026-09-12: COMPLETE. Entry commit6bd6e3ce1bd8d07aef2a5edd35747fb7c985c2a6
+verified in clean Windows delivery worktree. SHA256 Mac/Git/Windows identical:
+a79e924e4ce7b0aa5def66d84bd91833856d6bca1d550cdadf2958029a22fd01.
+Four-file scope/strict UTF-8/no placeholders/diff checks PASS; source/tests/schema unchanged.
+Sol notification: https://github.com/aase7en/A-Wiki-Conductor/issues/214#issuecomment-5647169974
+Next safe action: user invokes one pointer in an eligible GLM5.3 session; receiver rechecks
+release/ownership and claims WO226 source, executes G0–G10, writes result directly for Sol/Astra.
+Preparation itself did not invoke GLM, release further source, or achieve production Zero-Relay.
+The roadmap completion objective remains in existing Sol-owned WOs; this docs subtask is complete.
