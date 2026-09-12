@@ -189,7 +189,8 @@ def bind_direct_review_route(
 
     packet = route_task.task_packet
     dispatch = route_task.harness_dispatch
-    expected_packet_path = f"{dispatch.worktree_path.rstrip('/\\')}/{review.refs.task_path}"
+    worktree_root = dispatch.worktree_path.rstrip("/\\")
+    expected_packet_path = f"{worktree_root}/{review.refs.task_path}"
     try:
         packet_path_matches = (
             windows_worktree_key(packet.path) == windows_worktree_key(expected_packet_path)
