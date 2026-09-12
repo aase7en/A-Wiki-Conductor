@@ -76,8 +76,10 @@ Verify PR #269 exact SHA `0bf8f1e...` against WO195:
 19. prove a **real production construction/caller path** exists outside tests for the composed automatic NEXT READY seam. At minimum trace concrete source construction/use of `NextReadyProductionAssembly`, production creation of the required `ParallelReadyNodeContract`, and the downstream `ProductionElasticWorkerExecutor` (or the exact accepted equivalent after source drift).
 20. tests, exported classes, or assembly objects with zero production caller do **not** satisfy automatic continuation. If repository-wide production-source tracing finds these only in definitions/tests, classify `P1 PRODUCTION_WIRING_GAP / CHANGES_REQUIRED`; do not return `ACCEPT_EXACT_SHAS` merely because deterministic tests pass.
 21. any production caller must reuse existing graph/job/lease/provider/dispatch authorities; a new second scheduler/loop introduced only to make the call graph non-empty is itself a blocker.
+22. verify durable work-order identity uniqueness against current `origin/main` and open stacked authority. PR #269 currently carries `docs/work-orders/WO-P1-195-zra3-production-composition.md` while `origin/main` already owns `WO-P1-195-zra2-phase-b-materializer.md`; unless this collision is reconciled to one unique canonical WO identity, report `P1 DUPLICATE_WORK_ORDER_ID / CHANGES_REQUIRED`.
+23. a branch name or PR title may remain historical metadata, but no merge candidate may introduce a second canonical `WO-P1-195` document or ambiguous result/checkpoint namespace such as `runs/WO-P1-195/**` for a different task.
 
-Expected local integrator claim: focused/related regressions were green in prior review, but GPT pre-review later reproduced a production-wiring gap. Treat both as claims to verify; caller reachability is an independent acceptance gate.
+Expected local integrator claim: focused/related regressions were green in prior review, but GPT pre-review later reproduced both a production-wiring gap and a duplicate durable WO identity. Treat all as claims to verify; production reachability and authority-ID uniqueness are independent acceptance gates.
 
 ## Adversarial review prompts
 

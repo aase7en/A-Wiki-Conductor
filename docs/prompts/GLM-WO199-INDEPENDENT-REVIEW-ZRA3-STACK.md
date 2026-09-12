@@ -35,6 +35,8 @@ Then independently review the stacked production assembly for:
 
 If these composed seams have zero production caller outside tests, record `P1 PRODUCTION_WIRING_GAP` and return `CHANGES_REQUIRED`. Do not accept exact SHAs solely because all deterministic suites are green.
 
+Also verify durable work-order identity uniqueness against current `origin/main`. PR #269 currently carries `WO-P1-195-zra3-production-composition.md` while main already owns `WO-P1-195-zra2-phase-b-materializer.md`. If both canonical WO identities remain, record `P1 DUPLICATE_WORK_ORDER_ID` and return `CHANGES_REQUIRED`; do not treat a branch/PR label as sufficient disambiguation.
+
 Run the deterministic suites specified by WO199 and inspect hosted CI for the exact SHAs.
 
 ## Output
