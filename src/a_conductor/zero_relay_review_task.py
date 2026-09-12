@@ -14,12 +14,29 @@ from __future__ import annotations
 
 import hashlib
 import json
+import ntpath
+import re
 from dataclasses import dataclass
 
 from .native_execution import NativeExecutionError, NativeFileSystem
+from .registry import windows_worktree_key
 from .zero_relay import ResultIdentity
 
 _SCHEMA = "zra2-review-v1"
+
+
+_HEAD_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
+
+
+def _reviewed_head(value: object) -> str:
+    if not isinstance(value, str) or not _HEAD_RE.fullmatch(value):
+        raise ZeroRelayReviewTaskError("REVIEW_HEAD_INVALID")
+    return value.casefold()
+
+
+def _expected_content_sha(identity: ResultIdentity, reviewed_head: str) -> tuple[str, str]:
+    content = render_review_task_markdown(identity, reviewed_head)
+    return content, hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
 class ZeroRelayReviewTaskError(RuntimeError):
@@ -38,9 +55,10 @@ class ReviewTaskRefs:
     result_ref: str
 
 
-def canonical_review_bytes(identity: ResultIdentity) -> bytes:
+def canonical_review_bytes(identity: ResultIdentity, reviewed_head: str) -> bytes:
     if not isinstance(identity, ResultIdentity):
         raise ZeroRelayReviewTaskError("INPUT_INVALID")
+    head = _reviewed_head(reviewed_head)
     payload = {
         "schema": _SCHEMA,
         "task_contract_ref": identity.task_contract_ref,
@@ -50,16 +68,17 @@ def canonical_review_bytes(identity: ResultIdentity) -> bytes:
         "attempt_id": identity.attempt_id,
         "generation": identity.generation,
         "author_execution_id": identity.author_execution_id,
+        "reviewed_head": head,
     }
     return json.dumps(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
 
 
-def deterministic_review_refs(identity: ResultIdentity) -> ReviewTaskRefs:
+def deterministic_review_refs(identity: ResultIdentity, reviewed_head: str) -> ReviewTaskRefs:
     if not isinstance(identity, ResultIdentity):
         raise ZeroRelayReviewTaskError("INPUT_INVALID")
-    digest = hashlib.sha256(canonical_review_bytes(identity)).hexdigest()
+    digest = hashlib.sha256(canonical_review_bytes(identity, reviewed_head)).hexdigest()
     return ReviewTaskRefs(
         digest=digest,
         contract_ref=f"{_SCHEMA}:{digest}",
@@ -68,10 +87,11 @@ def deterministic_review_refs(identity: ResultIdentity) -> ReviewTaskRefs:
     )
 
 
-def render_review_task_markdown(identity: ResultIdentity) -> str:
+def render_review_task_markdown(identity: ResultIdentity, reviewed_head: str) -> str:
     if not isinstance(identity, ResultIdentity):
         raise ZeroRelayReviewTaskError("INPUT_INVALID")
-    refs = deterministic_review_refs(identity)
+    head = _reviewed_head(reviewed_head)
+    refs = deterministic_review_refs(identity, head)
     return (
         "# ZRA-2 Independent Review Task\n"
         "\n"
@@ -85,13 +105,14 @@ def render_review_task_markdown(identity: ResultIdentity) -> str:
         f"- attempt: {identity.attempt_id}\n"
         f"- repair generation: {identity.generation}\n"
         f"- author execution id: {identity.author_execution_id}\n"
+        f"- reviewed head: {head}\n"
         f"- review identity: {refs.contract_ref}\n"
         "\n"
         "## Reviewer requirements\n"
         "- The reviewer execution MUST be independent from the author execution\n"
         "  identity above; identical execution ids are invalid.\n"
-        "- Review target MUST be the route-bound exact HEAD provided by the\n"
-        "  dispatch route; ambient repository state is not authority.\n"
+        "- Review target MUST be the exact reviewed HEAD bound above; ambient\n"
+        "  repository state is not authority.\n"
         "- Bounded verdict vocabulary expected downstream: ACCEPTED or REJECTED\n"
         "  per the ZRA-2 Phase-A decision contract.\n"
         "- Reviewer prose is evidence only, never merge or completion authority.\n"
@@ -102,32 +123,92 @@ def render_review_task_markdown(identity: ResultIdentity) -> str:
 @dataclass(frozen=True, slots=True)
 class MaterializedReviewTask:
     refs: ReviewTaskRefs
+    reviewed_head: str
     persisted_sha256: str
     created: bool
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "reviewed_head", _reviewed_head(self.reviewed_head))
+        if not re.fullmatch(r"[0-9a-f]{64}", self.persisted_sha256):
+            raise ZeroRelayReviewTaskError("REVIEW_TASK_SHA_INVALID")
+        if not isinstance(self.created, bool):
+            raise ZeroRelayReviewTaskError("REVIEW_TASK_CREATED_INVALID")
+
+
+def _verify_persisted_review_task(
+    filesystem: NativeFileSystem,
+    *,
+    refs: ReviewTaskRefs,
+    content: str,
+    content_sha256: str,
+    content_mismatch_code: str,
+) -> None:
+    encoded = content.encode("utf-8")
+    try:
+        read = filesystem.read_text(refs.task_path)
+    except NativeExecutionError as exc:
+        raise ZeroRelayReviewTaskError("REVIEW_TASK_STATE_UNVERIFIABLE") from exc
+    if read.relative_path != refs.task_path:
+        raise ZeroRelayReviewTaskError("REVIEW_TASK_VERIFY_FAILED")
+    if read.content != content:
+        raise ZeroRelayReviewTaskError(content_mismatch_code)
+    if read.size_bytes != len(encoded) or read.sha256 != content_sha256:
+        raise ZeroRelayReviewTaskError("REVIEW_TASK_VERIFY_FAILED")
+
 
 def materialize_review_task(
-    filesystem: NativeFileSystem, identity: ResultIdentity
+    filesystem: NativeFileSystem,
+    identity: ResultIdentity,
+    reviewed_head: str,
 ) -> MaterializedReviewTask:
+    if not isinstance(filesystem, NativeFileSystem):
+        raise ZeroRelayReviewTaskError("FILESYSTEM_INVALID")
     if not isinstance(identity, ResultIdentity):
         raise ZeroRelayReviewTaskError("INPUT_INVALID")
-    refs = deterministic_review_refs(identity)
-    content = render_review_task_markdown(identity)
+    head = _reviewed_head(reviewed_head)
+    refs = deterministic_review_refs(identity, head)
+    content, content_sha256 = _expected_content_sha(identity, head)
     encoded = content.encode("utf-8")
-    digest = hashlib.sha256(encoded).hexdigest()
     try:
         result = filesystem.create_text_if_absent(refs.task_path, content)
     except NativeExecutionError as exc:
         if exc.code != "FILE_ALREADY_EXISTS":
             raise ZeroRelayReviewTaskError(exc.code) from exc
-        try:
-            existing = filesystem.read_text(refs.task_path)
-        except NativeExecutionError as read_exc:
-            raise ZeroRelayReviewTaskError("REVIEW_TASK_STATE_UNVERIFIABLE") from read_exc
-        if existing.sha256 != digest:
-            raise ZeroRelayReviewTaskError("REVIEW_TASK_COLLISION")
-        return MaterializedReviewTask(refs=refs, persisted_sha256=digest, created=False)
-    return MaterializedReviewTask(refs=refs, persisted_sha256=result.sha256, created=True)
+        _verify_persisted_review_task(
+            filesystem,
+            refs=refs,
+            content=content,
+            content_sha256=content_sha256,
+            content_mismatch_code="REVIEW_TASK_COLLISION",
+        )
+        return MaterializedReviewTask(
+            refs=refs,
+            reviewed_head=head,
+            persisted_sha256=content_sha256,
+            created=False,
+        )
+
+    if (
+        result.relative_path != refs.task_path
+        or result.size_bytes != len(encoded)
+        or result.sha256 != content_sha256
+        or getattr(result, "created", None) is not True
+    ):
+        raise ZeroRelayReviewTaskError("REVIEW_TASK_VERIFY_FAILED")
+
+    _verify_persisted_review_task(
+        filesystem,
+        refs=refs,
+        content=content,
+        content_sha256=content_sha256,
+        content_mismatch_code="REVIEW_TASK_VERIFY_FAILED",
+    )
+    return MaterializedReviewTask(
+        refs=refs,
+        reviewed_head=head,
+        persisted_sha256=content_sha256,
+        created=True,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,7 +245,11 @@ class DirectReviewRoute:
 
 
 def bind_direct_review_route(
-    route_task, review: MaterializedReviewTask, *, author: ResultIdentity
+    route_task,
+    review: MaterializedReviewTask,
+    *,
+    author: ResultIdentity,
+    filesystem: NativeFileSystem,
 ) -> DirectReviewRoute:
     from .claude_code_harness import MutationIntent
     from .parallel_ready_execution import ParallelReadyTask
@@ -173,15 +258,33 @@ def bind_direct_review_route(
         raise ZeroRelayReviewTaskError("INPUT_INVALID")
     if not isinstance(review, MaterializedReviewTask) or not isinstance(author, ResultIdentity):
         raise ZeroRelayReviewTaskError("INPUT_INVALID")
-    if deterministic_review_refs(author) != review.refs:
-        raise ZeroRelayReviewTaskError("AUTHOR_IDENTITY_MISMATCH")
+    if not isinstance(filesystem, NativeFileSystem):
+        raise ZeroRelayReviewTaskError("FILESYSTEM_INVALID")
 
     packet = route_task.task_packet
     dispatch = route_task.harness_dispatch
+    route_head = _reviewed_head(dispatch.expected_head)
+    if review.reviewed_head != route_head:
+        raise ZeroRelayReviewTaskError("REVIEW_HEAD_MISMATCH")
+
+    expected_refs = deterministic_review_refs(author, route_head)
+    if expected_refs != review.refs:
+        raise ZeroRelayReviewTaskError("AUTHOR_IDENTITY_MISMATCH")
+    expected_content, expected_sha256 = _expected_content_sha(author, route_head)
+    if review.persisted_sha256 != expected_sha256:
+        raise ZeroRelayReviewTaskError("REVIEW_TASK_VERIFY_FAILED")
+
+    if windows_worktree_key(str(filesystem.root)) != windows_worktree_key(dispatch.worktree_path):
+        raise ZeroRelayReviewTaskError("REVIEW_FILESYSTEM_ROOT_MISMATCH")
+
+    expected_packet_path = ntpath.join(
+        dispatch.worktree_path, *review.refs.task_path.split("/")
+    )
+    if windows_worktree_key(packet.path) != windows_worktree_key(expected_packet_path):
+        raise ZeroRelayReviewTaskError("REVIEW_PACKET_PATH_MISMATCH")
     if (
         packet.task_contract_ref != review.refs.contract_ref
-        or packet.sha256 != review.persisted_sha256
-        or not packet.path.endswith(review.refs.task_path)
+        or packet.sha256 != expected_sha256
     ):
         raise ZeroRelayReviewTaskError("REVIEW_PACKET_MISMATCH")
     if dispatch.task_contract_ref != review.refs.contract_ref:
@@ -195,12 +298,20 @@ def bind_direct_review_route(
     if dispatch.execution_id == author.author_execution_id:
         raise ZeroRelayReviewTaskError("AUTHOR_REVIEWER_NOT_DISTINCT")
 
+    _verify_persisted_review_task(
+        filesystem,
+        refs=review.refs,
+        content=expected_content,
+        content_sha256=expected_sha256,
+        content_mismatch_code="REVIEW_TASK_VERIFY_FAILED",
+    )
+
     return DirectReviewRoute(
         role="independent-review",
         mutation_intent="READ_ONLY",
         review_contract_ref=review.refs.contract_ref,
         review_task_path=packet.path,
-        review_task_sha256=review.persisted_sha256,
+        review_task_sha256=expected_sha256,
         review_result_ref=review.refs.result_ref,
         author_execution_id=author.author_execution_id,
         author_result_sha256=author.result_sha256,
@@ -214,5 +325,5 @@ def bind_direct_review_route(
         project_id=dispatch.project_id,
         worktree=dispatch.worktree_path,
         branch=dispatch.expected_branch,
-        reviewed_head=dispatch.expected_head,
+        reviewed_head=route_head,
     )
