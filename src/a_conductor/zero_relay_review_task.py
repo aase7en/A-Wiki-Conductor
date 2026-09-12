@@ -253,6 +253,7 @@ def bind_direct_review_route(
 ) -> DirectReviewRoute:
     from .claude_code_harness import MutationIntent
     from .parallel_ready_execution import ParallelReadyTask
+    from .worker_lease import LeaseMutationIntent
 
     if not isinstance(route_task, ParallelReadyTask):
         raise ZeroRelayReviewTaskError("INPUT_INVALID")
@@ -291,6 +292,11 @@ def bind_direct_review_route(
         raise ZeroRelayReviewTaskError("REVIEW_DISPATCH_CONTRACT_MISMATCH")
     if dispatch.mutation_intent is not MutationIntent.READ_ONLY:
         raise ZeroRelayReviewTaskError("REVIEW_ROUTE_NOT_READ_ONLY")
+    lease = route_task.lease_request
+    if lease.mutation_intent is not LeaseMutationIntent.READ_ONLY:
+        raise ZeroRelayReviewTaskError("REVIEW_LEASE_NOT_READ_ONLY")
+    if lease.task_id != review.refs.contract_ref:
+        raise ZeroRelayReviewTaskError("REVIEW_LEASE_TASK_MISMATCH")
     if not dispatch.expected_branch:
         raise ZeroRelayReviewTaskError("REVIEW_BRANCH_MISSING")
     if dispatch.evidence_destination_ref != review.refs.result_ref:

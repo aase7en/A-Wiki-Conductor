@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from a_conductor.native_execution import NativeFileSystem
+from a_conductor.worker_lease import LeaseMutationIntent
 from a_conductor.zero_relay import ResultIdentity
 from a_conductor.zero_relay_review_task import (
     DirectReviewRoute,
@@ -329,7 +330,19 @@ def _route_task(materialized: MaterializedReviewTask, **dispatch_overrides):
         path=f"A:/wt/review/{materialized.refs.task_path}",
         sha256=materialized.persisted_sha256,
     )
-    return dataclasses.replace(base, dispatch_request=request, harness_dispatch=dispatch, task_packet=packet)
+    # WO225: the direct-review route carries a REAL READ_ONLY lease with the
+    # exact review contract as its task id (empty mutable scope by invariant).
+    lease = dataclasses.replace(
+        base.lease_request,
+        mutation_intent=LeaseMutationIntent.READ_ONLY,
+        allowed_scope=(),
+        mutable_scope=(),
+        task_id=materialized.refs.contract_ref,
+    )
+    return dataclasses.replace(
+        base, dispatch_request=request, harness_dispatch=dispatch,
+        task_packet=packet, lease_request=lease,
+    )
 
 
 def test_g4_positive_read_only_route_binds_every_fact() -> None:
@@ -539,3 +552,102 @@ def test_g5_no_second_authority_imported_or_defined() -> None:
         elif isinstance(node, ast.ClassDef):
             assert node.name not in {"ReviewEvidence", "ReviewBus", "ReviewBridge",
                                      "Scheduler", "RetryEngine"}, node.name
+
+
+# ══════════ WO225: READ_ONLY lease/task binding at the C0 binder ══════════
+from a_conductor.worker_lease import LeaseMutationIntent  # noqa: E402
+
+
+def _review_lease(task):  # build a proper READ_ONLY review lease from the route
+    return dataclasses.replace(
+        task.lease_request,
+        mutation_intent=LeaseMutationIntent.READ_ONLY,
+        allowed_scope=(),
+        mutable_scope=(),
+        task_id=task.task_packet.task_contract_ref,
+    )
+def _mutation_lease(task, *, task_id=None):
+    """Forge the §1 defect shape: same route, MUTATION lease with runs/**."""
+    return dataclasses.replace(
+        task.lease_request,
+        mutation_intent=LeaseMutationIntent.MUTATION,
+        allowed_scope=("runs/**",),
+        mutable_scope=("runs/**",),
+        task_id=task_id if task_id is not None else task.lease_request.task_id,
+    )
+def test_wo225_red1_mutation_lease_with_readonly_harness_rejected():
+    """The exact §1 reproducer: MUTATION lease + runs/** scope + READ_ONLY
+    harness must NOT mint a READ_ONLY route."""
+    real, fs = _materialized()
+    task = _route_task(real)
+    task = dataclasses.replace(task, lease_request=_mutation_lease(task))
+    assert task.lease_request.mutation_intent is LeaseMutationIntent.MUTATION
+    assert task.lease_request.mutable_scope == ("runs/**",)
+    with pytest.raises(ZeroRelayReviewTaskError) as raised:
+        bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
+    assert raised.value.code == "REVIEW_LEASE_NOT_READ_ONLY"
+def test_wo225_red2_mutation_scope_cannot_mint_readonly_route():
+    real, fs = _materialized()
+    task = _route_task(real)
+    task = dataclasses.replace(task, lease_request=_mutation_lease(task))
+    route = None
+    with pytest.raises(ZeroRelayReviewTaskError):
+        route = bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
+    assert route is None
+def test_wo225_green3_readonly_lease_empty_scope_exact_task_binds():
+    real, fs = _materialized()
+    task = _route_task(real)
+    task = dataclasses.replace(task, lease_request=_review_lease(task))
+    route = bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
+    assert route.mutation_intent == "READ_ONLY"
+    assert route.review_contract_ref == real.refs.contract_ref
+def test_wo225_red4_readonly_lease_foreign_task_rejected():
+    real, fs = _materialized()
+    task = _route_task(real)
+    lease = dataclasses.replace(_review_lease(task), task_id="task-something-else")
+    task = dataclasses.replace(task, lease_request=lease)
+    with pytest.raises(ZeroRelayReviewTaskError) as raised:
+        bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
+    assert raised.value.code == "REVIEW_LEASE_TASK_MISMATCH"
+def test_wo225_red5_same_everything_wrong_lease_task_rejected():
+    """Same worker/provider/model/project/worktree/branch/head, only the lease
+    task id differs -> still rejected."""
+    real, fs = _materialized()
+    task = _route_task(real)
+    lease = dataclasses.replace(_review_lease(task), task_id=f"task-{real.refs.digest[:8]}")
+    task = dataclasses.replace(task, lease_request=lease)
+    with pytest.raises(ZeroRelayReviewTaskError) as raised:
+        bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
+    assert raised.value.code == "REVIEW_LEASE_TASK_MISMATCH"
+def test_wo225_red6_mutation_lease_with_review_contract_task_still_rejected():
+    """Even when the lease task id matches the review contract, a MUTATION
+    lease cannot mint a READ_ONLY route."""
+    real, fs = _materialized()
+    task = _route_task(real)
+    task = dataclasses.replace(task, lease_request=_mutation_lease(
+        task, task_id=real.refs.contract_ref))
+    assert task.lease_request.mutation_intent is LeaseMutationIntent.MUTATION
+    assert task.lease_request.task_id == real.refs.contract_ref
+    with pytest.raises(ZeroRelayReviewTaskError) as raised:
+        bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
+    assert raised.value.code == "REVIEW_LEASE_NOT_READ_ONLY"
+def test_wo225_regression_harness_project_mutation_still_rejected():
+    from a_conductor.claude_code_harness import MutationIntent
+    real, fs = _materialized()
+    task = _route_task(real, mutation_intent=MutationIntent.PROJECT_MUTATION)
+    task = dataclasses.replace(task, lease_request=_review_lease(task))
+    with pytest.raises(ZeroRelayReviewTaskError) as raised:
+        bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
+    assert raised.value.code == "REVIEW_ROUTE_NOT_READ_ONLY"
+
+
+def test_wo225_regression_author_alias_still_rejected():
+    real, fs = _materialized()
+    task = _route_task(real)
+    task = dataclasses.replace(task, lease_request=_review_lease(task))
+    aliased = dataclasses.replace(task.harness_dispatch,
+                                  execution_id=_identity().author_execution_id)
+    object.__setattr__(task, "harness_dispatch", aliased)  # post-validation forge
+    with pytest.raises(ZeroRelayReviewTaskError) as raised:
+        bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
+    assert raised.value.code == "AUTHOR_REVIEWER_NOT_DISTINCT"
