@@ -154,3 +154,12 @@ Next safe action: publish exact review delivery, prepare/verify Windows repair l
 one eligible GLM session follows the packet. Exact repaired candidate returns for independent
 review; no merge by Astra/GLM. Global CURRENT-WORK/handoff fold remains with the single writer,
 fed by this scoped checkpoint plus Issue214/233, as the original WO requires.
+
+
+## GLM repair claim — WO208-GLM-CLOSEOUT-REPAIR-001 (2026-09-12)
+
+- Claim per repair packet at HEAD `1c8d8259e29ce634bc8d6c44d29eec1126da319a` (worktree clean, HEAD == review delivery as required).
+- Immutable inputs verified: packet SHA-256 `3422c736...dcf41b5`; review `0a3b6d92...9b16bad`; proposal `5c3dcd55...add7d2`; seed doc `96a5bbc1...d0e0b6b6`; all four source/test blob IDs MATCH (`0acdf8c9`, `bde34b6f`, `816784b4`, `b4055cae`).
+- Five frozen artifacts recovered from the frozen lab worktree (its HEAD verified `b3a553c`, tracked-clean) into owned `runs/WO-P1-208/glm-repair/original/`; **all five raw SHA-256 + byte sizes match the review table exactly** (no normalization needed).
+- F1 retraction verified at startup: the recorded digest in seed/review/packet is uniformly `...addda6c1301a579aac` and equals the freshly computed fence hash — the original "…6a1301 typo" claim was this lane's own misreading and will be retracted per R-F1.
+- Scope: the three writable paths from the packet only (corrected lab review doc, append-only WO checkpoints, NEW bundle under `docs/reviews/wo208-closeout-lab/`). Frozen lab worktree/branch untouched. No collision with any active goal (WO214 master parked at its own external gate; separate worktrees/claims).
