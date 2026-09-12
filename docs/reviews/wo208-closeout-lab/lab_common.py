@@ -161,7 +161,7 @@ def verify_manifest(repo_root: Path, bundle_dir: Path | None = None) -> dict:
         if not target.is_file():
             blob_mismatch.append(f"{rel}: MISSING")
             continue
-        actual = sha256_file(target)
+        actual = sha256_lf(target)  # same explicit CRLF->LF rule (cross-platform)
         if actual != expected:
             blob_mismatch.append(f"{rel}: expected {expected[:12]}… actual {actual[:12]}…")
     require(not blob_mismatch, "source pin mismatches: " + "; ".join(blob_mismatch))

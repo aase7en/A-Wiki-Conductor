@@ -55,13 +55,13 @@
   "test_lab_contract.py": "04432ade0db89d08ed1b4cdd01e39efcae840a729b321abe32645a385f25353e",
   "wo208_child.py": "717d138269ef2fa88ed6b41336ca77edbe5123b0f65e9476e93f358c83cea624"
  },
- "notes": "regenerated LAST after N1-N4 finalization; file digests use the EXPLICIT CRLF->LF normalization rule (sha256_lf) so any checkout verifies; source_blobs stay RAW-EXACT; manifest excludes itself; trust root is the pinned candidate SHA",
+ "notes": "regenerated LAST after N1-N4 finalization; bundle-file AND source-blob digests use the EXPLICIT CRLF->LF normalization rule (sha256_lf) so any checkout verifies cross-platform; manifest excludes itself; trust root is the pinned candidate SHA",
  "pinned_candidate_sha": "2482998e19ee439e04adf321cd5d74c1feb94243",
  "seeds_and_timeouts": {},
  "source_blobs": {
-  "src/a_conductor/goal_closeout.py": "0acdf8c99194818169239a2eaf4aeac7758e3f39",
-  "src/a_conductor/job_state.py": "816784b431c4d03d9cfbe23a806525adc29645f4",
-  "src/a_conductor/job_store.py": "bde34b6f4e1163caaa7b641a21dd741e14e5cda8",
-  "tests/test_goal_closeout.py": "b4055cae6a79c2165aa20dd0c5172c4cf0736446"
+  "src/a_conductor/goal_closeout.py": "a23f1413a0890cb979ceb0c56487cfecf848bb8c61da4d324f31c59a9d086177",
+  "src/a_conductor/job_state.py": "6a28e1f850bd6a286f4cb6ac3058c4236d9811b5ef01c9da01ffee085dacf90e",
+  "src/a_conductor/job_store.py": "5c05e9b2c480a57ad58106b9087b46afe686bc91e42984075c7124303514f8b1",
+  "tests/test_goal_closeout.py": "71b2068cb7f439ee88f323b9f919793b2a25e5e6a5d4944ee1e3496b59583bb6"
  }
 }
