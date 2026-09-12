@@ -1,11 +1,12 @@
 # WO-P1-205 — ZRA-2 Phase D durable execution/result → closeout binding gate
 
-Status: PREPARED / HOLD UNTIL WO225 + WO226 + WO223/C1 + WO208 + WO224 ACCEPTED
+Status: PREPARED / HOLD UNTIL WO226 + WO223/C1 + WO208 ACCEPTED (WO225 + WO224 ALREADY ACCEPTED/POST-MAIN)
 Parent: WO-P1-165 / WO-P1-223 / WO-P1-224 / WO-P1-225 / WO-P1-226 / WO-P1-208 / Issue #214 / ZRA-2 Phase D
 Owner: GPT-5.6 Sol integrator / architecture
 Original planning base: `02d39cbd9bca1ab3bb19b6e0cfbb0766c991f971`
 Original planning branch: `docs/wo-p1-205-zra2-phase-d-gate`
 GPT refresh base: `60aba770fd457d04f1e31040b9dfd7af3927f669`
+Latest read-only refresh base: `origin/main@251df211afc1ee5452f3652675d7a2f38c526876` (WO225 + WO224 accepted/merged/post-main; WO226 active; WO223 HOLD; WO208 finalization candidate pending independent Mac replay/parent acceptance)
 GPT refresh branch: `docs/wo-p1-205-phase-d-gate-refresh`
 Risk: R3 — durable execution/result identity, review acceptance, job-state closeout
 
@@ -34,6 +35,18 @@ Source implementation remains HOLD until all are durably true:
 Until then:
 
 `SAFE_TO_MUTATE_PHASE_D=NO`
+
+### 2.1 Latest dependency refresh
+
+At `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`:
+
+- WO225 is accepted/merged/post-main verified;
+- WO224 is accepted/merged/post-main verified, so the false lease-release checkpoint defect described in the older packet snapshot is repaired on current main;
+- WO226 reviewer execution is the active critical-path implementation lane and is not yet accepted/merged/post-main;
+- WO223/C1 remains HOLD_AFTER_WO226; its docs packet has been refreshed and still confirms the strict semantic direct-review gap exists;
+- WO208 finalization candidate `23e701fa879bece6f46e5f66372ebb459f21a1db` has a GPT Windows provisional pass but still lacks the required independent native Mac replay/parent acceptance in durable state.
+
+Therefore Phase D remains HOLD. Do not reinterpret accepted WO224 as authority to initiate external effects; the consume-proven-effects-first restriction remains unchanged until WO208's exact external-effect/recovery contract is finally accepted.
 
 ## 3. Existing authorities to reuse
 
@@ -80,7 +93,7 @@ Reuse unchanged:
 - `plan_goal_closeout()`;
 - `GoalCloseoutExecutor`.
 
-`GoalCloseoutExecutor` remains the mutation authority for final COMPLETE transition after all review/verification/merge/fold/lease/ownership obligations are satisfied **only after the WO224 lease-release truth repair is accepted/post-main**. Current main at packet refresh still allows the RELEASE stage to write its checkpoint without first proving `LeaseReleaseOutcome.released is True` or `already_released is True`; Phase D must not consume that pre-repair behavior as completion authority.
+`GoalCloseoutExecutor` remains the mutation authority for final COMPLETE transition after all review/verification/merge/fold/lease/ownership obligations are satisfied. WO224 is now accepted/merged/post-main on current main and its RELEASE stage fails closed unless lease release truth is one of the canonical confirmed shapes. Phase D must preserve that repaired behavior and must not reintroduce any path that checkpoints release from unconfirmed, contradictory, malformed, stale, or foreign-owner outcomes.
 
 ## 4. Source archaeology findings at packet base
 
