@@ -68,7 +68,7 @@ Then attempt novel counterexamples around:
 Do not merely rerun candidate tests. At least one novel independent probe must:
 
 - fail against parent `ade1628...`, or otherwise demonstrate that it discriminates old vs repaired semantics;
-- pass/refuse correctly on repaired `5f779dd...`;
+- pass/refuse correctly on repaired `a2cb571...`;
 - record exact inputs and observed typed result.
 
 Inspect candidate tests for monkeypatch/fake assumptions that bypass real path/root semantics. Use real `NativeFileSystem` temp roots for at least one positive and one negative path when practical.
