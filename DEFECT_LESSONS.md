@@ -245,6 +245,20 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 
 ---
 
+## #15: Structural authority must come from executable lines, not marker substrings (2026-09-12)
+
+**Symptom:** launcher hardening classification could treat hardening marker text inside comments or quoted strings as runtime structure. A comment-only block containing all expected markers could be classified `ALREADY_HARDENED`; a quoted marker could incorrectly force `REFUSED_AMBIGUOUS`.
+
+**Root cause:** `_is_runtime_forensics_hardened()` and `_has_runtime_forensics_structural_signal()` used broad substring/count checks. Text that merely looked like executable PowerShell therefore gained authority without line-level provenance.
+
+**Fix:** require line-anchored executable PowerShell forms for every structural marker used by classification. Comments and quoted strings remain non-authoritative; generated hardened ordering and legacy-seam absence are still required. Production-boundary tests pin both false-positive classes and verify comment-only references remain accepted.
+
+**Lesson:** marker text, keywords, and quoted/commented examples are not execution evidence. Any parser/classifier that grants lifecycle, safety, migration, review, telemetry, or runtime authority must validate structural provenance appropriate to the source format and fail closed when provenance is ambiguous.
+
+**Verify:** `tests/test_instance_create.py` covers comment-only markers, quoted markers, true hardened output, ambiguous legacy seams, and operation-level preflight behavior.
+
+---
+
 ## 🔨 BUILD CHECKLIST (อ่านทุกครั้งก่อน build/release ใหม่)
 
 บันทึก: 2026-08-26 — สรุปปัญหาที่เคยเจอทุกอย่างเพื่อไม่ให้เกิดซ้ำในเวอร์ชันใหม่

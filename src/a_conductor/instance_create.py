@@ -87,58 +87,50 @@ class _RuntimeForensicsHardeningState(Enum):
 
 
 def _is_runtime_forensics_hardened(text: str) -> bool:
-    """Recognize the complete generated forensics shape, not marker presence alone."""
-    archive_assignment = "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'"
-    move_archive = "Move-Item -LiteralPath $RuntimeLog -Destination $Archived -Force"
-    wait = "$RuntimeProcess.WaitForExit()"
-    refresh = "$RuntimeProcess.Refresh()"
-    capture = "$RuntimeExitCode = $RuntimeProcess.ExitCode"
-    success_log = 'Write-Log "STOPPED: tunnel-client exit_code=0"'
-    failure_log = "exit_code={0}"
-    exit_command = "exit $RuntimeExitCode"
-
-    required_once = (
-        archive_assignment,
-        move_archive,
-        wait,
-        refresh,
-        capture,
-        success_log,
-        failure_log,
-        exit_command,
+    """Recognize the complete generated forensics shape from executable lines only."""
+    patterns = (
+        re.compile(r"(?m)^[ \t]*\$RuntimeArchiveDir\s*=\s*Join-Path \$LogsDir 'runtime-archive'[ \t]*$"),
+        re.compile(r"(?m)^[ \t]*Move-Item -LiteralPath \$RuntimeLog -Destination \$Archived -Force[ \t]*$"),
+        re.compile(r'(?m)^[ \t]*Write-Log "STARTING:'),
+        re.compile(r"(?m)^[ \t]*\$RuntimeProcess\.WaitForExit\(\)[ \t]*$"),
+        re.compile(r"(?m)^[ \t]*\$RuntimeProcess\.Refresh\(\)[ \t]*$"),
+        re.compile(r"(?m)^[ \t]*\$RuntimeExitCode\s*=\s*\$RuntimeProcess\.ExitCode[ \t]*$"),
+        re.compile(r'(?m)^[ \t]*Write-Log "STOPPED: tunnel-client exit_code=0"[ \t]*$'),
+        re.compile(
+            r'(?m)^[ \t]*Write-Log \("TUNNEL_START_FAILED: Tunnel client exited with code \{0\}; '
+            r'exit_code=\{0\}" -f \$RuntimeExitCode\)[ \t]*$'
+        ),
+        re.compile(r"(?m)^[ \t]*exit \$RuntimeExitCode[ \t]*$"),
     )
-    if any(text.count(marker) != 1 for marker in required_once):
-        return False
-    if "Wait-Process -Id $RuntimeProcess.Id" in text:
-        return False
-    if "if ($RuntimeProcess.ExitCode -ne 0)" in text:
+    matches = tuple(tuple(pattern.finditer(text)) for pattern in patterns)
+    if any(len(found) != 1 for found in matches):
         return False
 
-    start = text.find('Write-Log "STARTING:')
-    positions = (
-        text.find(archive_assignment),
-        text.find(move_archive),
-        start,
-        text.find(wait),
-        text.find(refresh),
-        text.find(capture),
-        text.find(success_log),
-        text.find(failure_log),
-        text.find(exit_command),
+    legacy_patterns = (
+        re.compile(r"(?m)^[ \t]*Wait-Process -Id \$RuntimeProcess\.Id[ \t]*$"),
+        re.compile(r"(?m)^[ \t]*if \(\$RuntimeProcess\.ExitCode -ne 0\) \{[ \t]*$"),
     )
-    return all(position >= 0 for position in positions) and list(positions) == sorted(positions)
+    if any(pattern.search(text) is not None for pattern in legacy_patterns):
+        return False
+
+    positions = tuple(found[0].start() for found in matches)
+    return list(positions) == sorted(positions)
 
 
 def _has_runtime_forensics_structural_signal(text: str) -> bool:
-    signals = (
-        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'",
-        "$RuntimeProcess.Refresh()",
-        "$RuntimeExitCode = $RuntimeProcess.ExitCode",
-        "exit $RuntimeExitCode",
-        "Wait-Process -Id $RuntimeProcess.Id",
-        "$RuntimeProcess.WaitForExit()",
+    """Detect executable forensics/legacy lines without promoting comments or strings."""
+    patterns = (
+        re.compile(r"(?m)^[ \t]*\$RuntimeArchiveDir\s*=\s*Join-Path \$LogsDir 'runtime-archive'[ \t]*$"),
+        re.compile(r"(?m)^[ \t]*Move-Item -LiteralPath \$RuntimeLog -Destination \$Archived -Force[ \t]*$"),
+        re.compile(r"(?m)^[ \t]*\$RuntimeProcess\.Refresh\(\)[ \t]*$"),
+        re.compile(r"(?m)^[ \t]*\$RuntimeExitCode\s*=\s*\$RuntimeProcess\.ExitCode[ \t]*$"),
+        re.compile(r'(?m)^[ \t]*Write-Log "STOPPED: tunnel-client exit_code=0"[ \t]*$'),
+        re.compile(r"(?m)^[ \t]*exit \$RuntimeExitCode[ \t]*$"),
+        re.compile(r"(?m)^[ \t]*Wait-Process -Id \$RuntimeProcess\.Id[ \t]*$"),
+        re.compile(r"(?m)^[ \t]*\$RuntimeProcess\.WaitForExit\(\)[ \t]*$"),
+        re.compile(r"(?m)^[ \t]*if \(\$RuntimeProcess\.ExitCode -ne 0\) \{[ \t]*$"),
     )
-    return any(signal in text for signal in signals)
+    return any(pattern.search(text) is not None for pattern in patterns)
 
 
 def _harden_start_script_runtime_forensics(text: str) -> str:

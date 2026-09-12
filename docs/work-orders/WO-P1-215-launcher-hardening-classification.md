@@ -24,6 +24,7 @@ Mutable source/test paths:
 
 - `src/a_conductor/instance_create.py`
 - `tests/test_instance_create.py`
+- `DEFECT_LESSONS.md` (new defect-memory entry only)
 - this work-order document
 
 Forbidden:
@@ -86,14 +87,16 @@ An initially over-broad classifier then correctly exposed an additional compatib
 
 ## 6. GREEN evidence
 
-After the bounded repair and adding both legacy seam variants to the complete-marker test:
+After the bounded repair and adding both legacy seam variants to the complete-marker test, author-side falsification found a second defect in the same classification boundary: broad substring/count checks let comment-only marker text become `ALREADY_HARDENED` authority and let quoted marker text become `REFUSED_AMBIGUOUS`. RED evidence was `2 failed, 30 deselected` with the two states misclassified exactly as predicted.
 
-- `python -m pytest -q --tb=short tests/test_instance_create.py`
-  - 29 passed
-  - 1 Tk/display-only skip on this Windows host
-- `python -m pytest -q tests/test_setup_wizard.py tests/test_ps1_encoding_and_quoting.py tests/test_doctor_fixes.py tests/test_desktop_control.py`
-  - 72 passed
-- explicit current floor: 101 passed + 1 expected UI/environment skip
+The classifier now requires line-anchored executable PowerShell forms for every authoritative structural marker. Comments and quoted strings cannot satisfy hardened/ambiguous structure. A production-boundary test also proves comment-only markers do not block normal instance creation.
+
+Current GREEN floor:
+
+- focused classifier/preflight matrix: 7 passed
+- `python -m pytest -q tests/test_instance_create.py`: 33 passed
+- `python -m pytest -q tests/test_setup_wizard.py tests/test_ps1_encoding_and_quoting.py tests/test_doctor_fixes.py tests/test_desktop_control.py`: 72 passed
+- explicit current floor: 105 passed
 - `python -m compileall -q src/a_conductor/instance_create.py` -> PASS
 - `git diff --check` -> clean
 
