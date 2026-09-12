@@ -630,3 +630,14 @@ Final implementation state must be one of:
 - `NO_SAFE_NEXT_ACTION`
 
 GLM source completion is a claim, not acceptance. GPT-5.6 Sol remains exact-SHA integrator/merge/release authority.
+
+
+## 18. Execution checkpoint — 2026-09-13 (GLM implementation lane)
+
+- Claim `WO-P1-226-GLM-REVIEWER-EXECUTION-BRIDGE-001` published pre-mutation (Issue #214 comment 5647193380); fresh isolated worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo226-review-exec-src`, branch `feat/wo-p1-226-reviewer-execution-bridge` from `origin/main@251df21`.
+- G0 gates held: WO225 ancestry verified; NEXT_READY published by Sol; Astra audit f99cd9a read by exact Git object; F1/F2/F3 folded as binding conditions.
+- G1 adjudication: no DESIGN_GAP — single winner = existing GraphDispatch lifecycle (`ParallelReadyTask` already binds `dispatch_request.key.job_id == harness_dispatch.execution_id == route.dispatch_execution_id`; `DurableJobExecutionCoordinator.execute()` GATING→EXECUTING version-CAS); winner/resource association = canonical exact-key records (admission.execution_id == job id; lease.task_id == review contract) with exact-key reentry reconstruction; F2 closed by wrapper-level all-equivalents classification (shared dedup semantics untouched).
+- Changed scope (released only): NEW `zero_relay_review_execution.py` (+ focused tests), bounded extensions `zcode_runner.py` (public fingerprint seam; RED proof `False False` recorded) and `zcode_production_assembly.py` (`assemble_zcode_review_execution`; READ_ONLY + empty scopes; mutation entrypoint unchanged — RED proofs recorded under `runs/WO-P1-226/`).
+- Evidence: RED pre-implementation captured; GREEN focused 29/29 + assembly 22/22; regression 263 + 229 + 27 (permission-denial regression); hygiene (compile/diff/UTF-8/secret-shape/scope) clean; P0/P1/P2 = 0, P3 = 2 documented (reentry mint-release reconcile effect; narrow write-boundary claim per Q4).
+- Candidate frozen `d512b1e0fecb8032fdd235ce544d6e27b3457e5c`; Draft PR #314; result at `runs/WO-P1-226/result.md` on the implementation worktree.
+- STOP at independent exact-SHA R3 review + exact-head CI + GPT acceptance. No merge; no C1/WO223; no Phase D.
