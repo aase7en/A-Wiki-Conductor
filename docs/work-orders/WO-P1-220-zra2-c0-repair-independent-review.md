@@ -56,6 +56,7 @@ Then attempt novel counterexamples around:
 - READ_ONLY vs PROJECT_MUTATION;
 - `ParallelReadyTask` worker/provider/project/worktree/branch/head cross-fences;
 - denied `dispatch_gate`, model absent from `provider_profile.models`, unsupported harness/effort, and provider readiness/admission/generation drift — classify which are valid downstream delegation vs C0 trusted-route violations;
+- direct-review result contract: `HarnessDispatch.evidence_destination_ref` is currently metadata-only, ZCode `result.json` is process metadata, while exact response bytes live in `stdout.log` and are hashed by `report.json`; prove the C0 review task defines a machine-readable result schema/provenance that C1 can validate without inventing a new reviewer payload contract. If not, return a bounded finding such as `DIRECT_REVIEW_RESULT_CONTRACT_MISSING` rather than assuming C1 can fix it silently;
 - caller object mutation/forgery through `dataclasses.replace`;
 - missing/vanished persisted file before C0b;
 - TOCTOU-shaped changes between materialization and route binding;

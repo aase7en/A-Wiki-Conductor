@@ -68,6 +68,7 @@ ADVERSARIAL CAMPAIGN:
 - worker/provider/model/project/worktree/branch/head authority mismatch through ParallelReadyTask;
 - `dispatch_gate.allowed=False` presented as a supposedly selected/authorized review route;
 - `dispatch.model_id` absent from `provider_profile.models`, unsupported harness strategy, unsupported effort, and provider readiness/admission/generation drift — determine explicitly whether C0 is allowed to delegate each fact downstream or whether minting `DirectReviewRoute` would violate WO210 trusted-route semantics;
+- direct-review result contract: `HarnessDispatch.evidence_destination_ref` is currently metadata-only; ZCode durable `result.json` contains process-exit metadata, while the exact reviewer response is in `stdout.log` and is hash-bound by `report.json`. Prove the C0 task defines enough fixed machine-readable output schema/provenance for C1 to validate the review without inventing a new payload contract. If not, return `CHANGES_REQUIRED` with a bounded `DIRECT_REVIEW_RESULT_CONTRACT_MISSING`-class finding;
 - forged dataclass objects using dataclasses.replace;
 - missing persisted bytes before bind;
 - TOCTOU-style persisted change between C0a and C0b;
