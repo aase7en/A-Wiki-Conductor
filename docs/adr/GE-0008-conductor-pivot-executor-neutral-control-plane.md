@@ -1,75 +1,179 @@
-# GE-0008 — A-Sunday Conductor pivot: executor-neutral durable control plane
+# GE-0008 ? A-Sunday Conductor pivot: quota/cost-aware hybrid execution control plane
 
-Status: PROPOSED / PHASE0_RECONCILED / AWAITING_GPT_SOL_ADJICATION + RAW_ROADMAP_INGESTION
-Date: 2026-09-13
-Decider: GPT-5.6 Sol (integrator/authority) — this ADR is a PROPOSAL authored by the GLM Phase-0 lane
-Input pointer: Issue #317 (raw roadmap `A-CONDUCTOR-PIVOT-ROADMAP-2026-09-13.md`, Drive id `1PhXDwcD9RhPALG_fm03bDWC-XaXenwfx`) — see WO-P1-231 §Blockers: the raw file is NOT present in the locally synced Drive at Phase-0 time; its details are NON-BINDING until ingested and reconciled.
-Companion: `docs/work-orders/WO-P1-231-pivot-phase0-reconciliation.md` (the 14-item Phase-0 report this ADR is derived from).
+Status: PROPOSED / PHASE0_RECONCILED / GPT_SOL_ADJUDICATED_HYBRID_V2 / AWAITING_INDEPENDENT_R2_REVIEW
+Date: 2026-09-14
+Decider: GPT-5.6 Sol (integrator/authority)
+Parent: `WO-P1-231` / Issue #317
+Baseline: `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`
 
 ## 1. Decision
 
-Reposition A-Sunday Conductor as the **vendor-neutral durable control plane** for coding-agent execution, with ChatGPT Mobile as the primary human command surface. Conductor keeps ALL durable authority (goals/WOs, state, claims/leases, routing, continuity/recovery, worktree safety, deterministic verification, exact-SHA evidence, review/repair/acceptance, Zero-Human-Relay). External coding agents (Kilo+GPT-5.6, Claude Code/ZCode+GLM-5.3, later Codex/Cline) become **replaceable executors** behind one minimal Executor Contract. Sunday Worker/Serena remains a specialized local semantic/deterministic executor, not the orchestrator.
+A-Sunday Conductor is the **vendor-neutral, quota/cost-aware hybrid execution control plane**. It keeps durable authority for goals/jobs, claims/leases, worktree safety, provider admission, routing, recovery, deterministic verification, review/repair, exact-SHA acceptance, closeout, and continuation.
 
-Strategy: `REUSE → WRAP → EXTEND → REPLACE/NEW only by explicit decision`. No product rewrite.
+Executors are replaceable hands behind existing control-plane seams. The system routes each task to the **lowest-cost safe capable lane** using task class, risk, capability, readiness, authorization, quota, cost, availability, worktree ownership, latency, and autonomy requirements.
 
-## 2. Evidence basis (verified 2026-09-13, read-only)
+Canonical role split:
 
-- origin/main = `251df211afc1ee5452f3652675d7a2f38c526876` (114 modules in `src/a_conductor/` + `graph/` subpackage).
-- The full durable-authority stack ALREADY EXISTS and is review-hardened through the WO158–WO226 arcs: SQLiteJobStore + GraphDispatch durable lifecycle + version-CAS single-winner; WorkerLease broker/store (READ_ONLY/MUTATION intents, mutable-scope fencing, canonical release truth); provider config store with generation CAS + admission authority + policy evaluation; supervised ZCode execution (owned process, protocol permission-denial, child truth); execution fingerprint/dedup with all-equivalent multiplicity; zero-relay review pipeline (review task → reviewer execution bridge → C1); continuity guard/projection + goal closeout + agent change packets; recovery reconciliation.
-- CURRENT-WORK.md on main is STALE (authoritative section dated 2026-09-08, WO166 era) — actual frontier lives in Issue #214: WO226 reviewer-execution bridge on PR #314 @ `fa85dce` awaiting GPT rereview (external CR1 round), WO227–WO230 docs lanes open, WO230 "review task-contract authority / architecture split" in flight.
-- Root checkout `A:\GitHub\A-Wiki-Conductor` is ~230 merges behind origin/main (at `f4ecf9a`, PR-#80 era) and protected-dirty — it must never be used as authority; all lanes branch from origin/main.
+- **Sunday Worker / Serena** ? first-class lightweight local semantic/tool lane, not a fallback and not the orchestrator.
+- **Native Git/tests/RDC** ? deterministic local/system lane where model reasoning is unnecessary.
+- **Kilo + GLM 5.3** ? default heavyweight autonomous lane once the Kilo adapter is accepted.
+- **Claude Code/ZCode + GLM 5.3** ? existing alternate heavyweight supervised lane.
+- **Kilo + GPT-5.6 Sol** ? premium escalation when quota is available and task value justifies it.
+- **GPT-6 Astra** ? exceptional architecture/adversarial review/debug escalation.
+- **Codex/Cline/local models** ? later replaceable executor lanes.
 
-## 3. Target architecture (smallest viable)
+Strategy remains: `REUSE -> WRAP -> EXTEND -> REPLACE/NEW only by explicit decision`. No product rewrite and no second scheduler/task/claim/lease/review/recovery/SSoT system.
 
-```
+## 2. Adjudicated reuse decisions
+
+### 2.1 Executor port
+
+**REUSE `JobExecutionBackend`; do not build a second Executor Contract framework.**
+
+`src/a_conductor/job_execution.py` already provides the canonical provider-neutral port:
+
+`execute(operation_ref, JobExecutionContext) -> JobBackendResult`
+
+`DurableJobExecutionCoordinator` already owns the durable execution lifecycle around that port. `AllowlistedNativeJobBackend` and `ClaudeCodeJobBackend` prove structurally different backends can conform without changing the protocol. The supervised ZCode path supplies reusable mutation/recovery/authority patterns even though it is not yet composed as a production `JobExecutionBackend`.
+
+A future executor descriptor may be added only if a concrete adapter cannot express required identity/capability metadata through existing provider/runtime/worker structures. That is an EXTEND decision, not a new framework by default.
+
+### 2.2 Mobile/operator protocol
+
+**KEEP `operator.v1` canonical. WRAP/EXTEND it; do not create a broad new Mobile API.**
+
+Reuse `operator_protocol.py`, `operator_dispatch.py`, `operator_wire.py`, durable job control, bounded artifact access, and the existing Secure MCP tunnel/SundayWorker surface. The first mobile design candidate is a narrow Conductor MCP/operator wrapper over an existing authenticated tunnel/loopback boundary.
+
+Never expose arbitrary shell, Kilo daemon, Claude terminal, credentials, SQLite files, unrestricted filesystem access, or unrestricted local services to the Internet.
+
+### 2.3 Quota/cost routing
+
+**EXTEND existing provider/scheduler evidence; do not build a second router or quota vocabulary.**
+
+Reuse `ProviderHealth`, `QuotaSnapshot`, `ProviderObservation`, `ProviderExecutionAuthority`, provider admission, worker candidate assembly, READY/scheduler/ParallelReady execution, execution deduplication, recovery reconciliation, and ContinuityGuard.
+
+Minimal additions after predecessor gates:
+
+1. declared, generation-stamped `cost_class` (UNKNOWN allowed; advisory ordering only),
+2. a pure derived quota tier over existing `QuotaSnapshot` (`AVAILABLE/LOW/EXHAUSTED/UNKNOWN` as a preference view, not a second stored authority),
+3. deterministic candidate preference ranking after all hard gates,
+4. thin **pre-attempt** provider re-selection when nothing was launched,
+5. provider/operator quota evidence only where observable; unknown remains fail-closed when quota is required.
+
+Mid-flight executor/provider switching never bypasses recovery classification, lease/worktree authority, execution fingerprints, or dedup/reconciliation.
+
+## 3. Target architecture
+
+```text
 User / ChatGPT Mobile
-   ↓ (operator channel — EXTEND existing operator wire / tunnel boundaries)
-A-Conductor control plane (authority)
-   ├─ durable goals/WOs → GraphDispatch jobs → claims/leases → routing
-   ├─ Executor Contract (thin, executor-neutral)
-   │    ├─ Lane A: Kilo + GPT-5.6 Sol (adapter; architecture-sensitive work)
-   │    ├─ Lane B: Claude Code/ZCode + GLM-5.3 (existing supervised path; bounded work)
-   │    ├─ later: Codex, Cline adapters
-   │    └─ Sunday Worker / Serena (specialized local executor)
-   ├─ isolated worktree per lane → tests/build/Git/CI
-   ├─ deterministic verify + independent review + repair + exact-SHA acceptance
-   └─ checkpoint → next READY → mobile status/report
+        |
+        v
+existing authenticated tunnel / bounded operator wrapper
+        |
+        v
+A-Sunday Conductor durable control plane
+  |-- Goal/Job/Graph/READY authority
+  |-- WorkerLease + worktree/HEAD/scope authority
+  |-- Provider policy/readiness/quota/admission authority
+  |-- quota/cost-aware route selection
+  |
+  |-- LIGHTWEIGHT --> SundayWorker / Serena / native tools
+  |-- HEAVY DEFAULT --> Kilo + GLM 5.3
+  |-- HEAVY ALT --> Claude Code/ZCode + GLM 5.3
+  |-- PREMIUM --> Kilo + GPT-5.6 Sol
+  `-- CRITICAL REVIEW --> GPT-6 Astra
+        |
+        v
+JobExecutionBackend / existing supervised execution seams
+        |
+        v
+deterministic verify -> independent review -> bounded repair
+        |
+        v
+GoalCloseout -> NEXT READY -> bounded result/evidence -> mobile
 ```
 
-## 4. Smallest Executor Contract (proposal)
+ChatGPT conversation remains an interactive/pull surface; Conductor must not assume it can wake or push a new turn into an arbitrary ChatGPT conversation. Push-style notification may use an accepted external channel such as Hermes/Telegram, while ChatGPT Mobile reads bounded status/results through its tool surface.
 
-Only what Conductor truly needs; provider UI concepts stay OUT of the durable contract:
+## 4. Existing assets that remain authority
 
-1. **executor identity** — stable executor descriptor (kind + version) ≠ worker identity (WorkerLease `worker_id`).
-2. **capability declaration** — reuse `WorkerLeaseCandidate.capabilities` / `required_capabilities` + CAPABILITY_MATRIX routing policy.
-3. **readiness** — worker health (`inspect_health`, `health_fresh`, READY) + provider snapshot/admission where model-backed.
-4. **task dispatch** — reuse `ParallelReadyTask`-shaped validated packet (exact task contract ref + sha + HarnessDispatch facts).
-5. **execution identity** — the PROVEN three-identity model: dispatch-context id (= GraphDispatch job id = admission execution id) ≠ supervised runtime job id ≠ `DurableExecutionRecord.execution_id`, cross-bound by fingerprint (never equated).
-6. **binding** — lease (worker/worktree/branch/HEAD/task) + packet hash + `verify_execution_context` drift fences.
-7. **status observation** — execution-store states + `SupervisedLauncher.inspect` equivalent + attach/reuse classifications (all-equivalent, never newest-row).
-8. **result collection** — typed artifact refs (stdout/report/result) + `AgentResultPacket`/`AgentChangeApplier` for change application.
-9. **cancellation** — owned-process graceful-first stop semantics where the executor runtime supports it; otherwise REFUSED/UNSUPPORTED.
-10. **recovery/attach** — ATTACH_RUNNING / REUSE_COMPLETED / RECOVERY_REQUIRED semantics + `recovery_reconciliation`; fail-closed on UNKNOWN.
-11. **evidence identity** — exact-SHA discipline: candidate SHA, fingerprint, packet sha, artifact hashes.
-12. **failure classification** — `RecoveryClassification` + typed error codes; no blind retry.
+KEEP/REUSE without reconstruction:
 
-Existing satisfaction: items 2–12 are substantially satisfied TODAY by the ZCode/GLM lane (WO226 proved the deepest parts). The BUILD surface is one executor-neutral descriptor/port module + per-executor adapters; nothing else new.
+- `domain.py`, `job_store.py`, `job_state.py`, `job_control.py`, `job_execution.py`
+- `graph/*`, READY/scheduler/dispatch lifecycle
+- `worker_lease.py`, `worker_candidate_assembly.py`
+- provider configuration/policy/execution authority/config store/runtime assembly
+- `parallel_ready_execution.py`, elastic worker capacity
+- supervised execution/command runner/owned process/native execution
+- execution record/store/dedup/artifacts
+- ZCode production assembly/runner/protocol/recovery/process truth
+- Claude Code harness/backend/assembly as adapter patterns
+- `zero_relay.py`, review task/execution, repair materializer
+- `continuity_guard.py`, continuity projection, recovery reconciliation
+- `goal_closeout.py`, agent change packets
+- `operator_protocol.py`, `operator_dispatch.py`, `operator_wire.py`
+- Serena/SundayWorker lifecycle/settings/transport assets
 
-## 5. What this ADR does NOT decide
+## 5. A-Wiki / A-Conductor boundary
 
-- Binding the raw roadmap's specific claims (unread locally) — gated on ingestion (WO-P1-231 Blocker B1).
-- Reconciliation with WO230 "architecture split" and the WO223/C1 → Phase-D chain — Sol must adjudicate how the pivot re-scopes that chain (the reviewer-execution bridge built in WO226 is exactly the kind of asset the pivot reuses; do not strand it).
-- Any DEPRECATE/REMOVE of shipped product surfaces (Phase-6 challenge concluded: no generic editor/terminal/chat-UI/MCP duplication exists in `src/` to remove; candidates list recorded in WO-P1-231 §7).
-- Mobile gateway mechanism choice (operator wire EXTEND vs new minimal API) — WO proposes EXTEND-first with a gateway decision gate.
+- **A-Wiki** owns durable knowledge/policy: architecture rationale, provider/model research, reusable protocols, lessons, long-term cost/capability knowledge.
+- **A-Conductor** owns live execution authority: jobs, READY state, provider observations, admission, attempts, worktrees/leases, routing choice, recovery, verification and acceptance evidence.
 
-## 6. P0 roadmap (work-order sequence; numbers provisional)
+A-Wiki policy may seed declared configuration, but A-Wiki is never a live dispatch dependency and must not become a second runtime state store.
 
-P0-0 reconcile (this WO-P1-231) → P0-1 ADR adjudication (this doc) → P0-2 Executor Contract module (WO-232) → P0-3 Kilo thin adapter (WO-233) → P0-4 ZCode/GLM lane conforms to contract (WO-234, mostly WRAP) → P0-5 dual-executor parallel + cross-review proof (WO-235) → P0-6 recovery/fail-closed proof matrix (WO-236) → P0-7 minimal control/status/approval API for ChatGPT Mobile (WO-237) → P0-8 end-to-end Zero-Relay proof, metric `human relay actions per accepted external-agent task = 0` (WO-238).
+## 6. Dependency order and current frontier
 
-Priority driver: remove AnyDesk/manual-relay dependence as early as possible (P0-7 may pull earlier if the operator-channel EXTEND path proves cheap).
+The pivot does **not** bypass or strand the current Zero-Relay chain. Actual durable frontier remains controlled by Issue #214/GitHub evidence rather than stale `CURRENT-WORK.md` on main.
 
-## 7. Consequences
+Required predecessor chain before broad pivot source implementation:
 
-- Executor/provider/model names become routing choices; swapping executors must not touch durable semantics.
-- The WO22x chain's review/repair discipline carries over unchanged (RED-first, exact-SHA, cross-review, GPT merge authority).
-- Parallel mutation allowed only under: both lanes READY + separate owned worktrees + valid claims + disjoint mutable scopes + fan-in plan; default WIP = 3 mutable lanes + 1 read-only review lane; cross-review pairing GLM↔GPT.
+`WO226 reviewer-execution bridge repair/accept -> WO223/C1 semantic ReviewEvidence -> WO227/ZRA-3 production NEXT READY activation`
+
+ZRA-4 bounded-parallel work remains dependency-gated where required for multi-lane mutation. Existing GoalCloseout/ContinuityGuard authority remains unchanged.
+
+As of this adjudication, `main@251df211...`; WO226 source is not accepted into main and must pass its own independent exact-SHA review/CI/merge/post-main gates. This ADR grants no source mutation authority to WO226 or any pivot implementation lane.
+
+## 7. Revised P0 sequence
+
+Numbers after WO231 are provisional until explicit Work Orders are issued. Do not create duplicate WOs where an existing ZRA WO already owns the seam.
+
+1. **P0-0 ? WO231/GE-0008 adjudication**: this docs-only reconciliation; independent R2 review then merge/post-main checkpoint.
+2. **P0-A ? finish existing ZRA predecessor chain**: WO226 -> WO223/C1 -> WO227/ZRA-3; ZRA-4 only where required by bounded parallel acceptance.
+3. **P0-B ? canonical backend conformance proof**: prove new executors reuse `JobExecutionBackend`; no new executor framework.
+4. **P0-C ? SundayWorker first-class lightweight route**: bind capability/risk/cost selection to the existing Worker/Serena lane without duplicating scheduler or lease authority.
+5. **P0-D ? Kilo+GLM heavyweight adapter**: read-only/headless contract first, then mutation capability only through existing lease/admission/apply/recovery authorities.
+6. **P0-E ? quota/cost preference + pre-attempt failover**: extend existing provider/scheduler evidence; preserve `QUOTA_UNKNOWN` fail-closed semantics.
+7. **P0-F ? mobile control/result wrapper**: extend `operator.v1` through an existing authenticated SundayWorker/Serena/MCP or equivalent narrow loopback gateway.
+8. **P0-G ? hybrid E2E proof**: ChatGPT Mobile -> Conductor -> lightweight or heavyweight route -> verify/review/repair -> GoalCloseout/NEXT READY -> bounded result, with `human relay actions per accepted external-agent task = 0`.
+
+Fast-path implementation may reorder P0-C..P0-F only when dependencies and file scopes are proven independent. Default WIP remains <=3 mutable lanes + 1 independent read-only review lane.
+
+## 8. Acceptance proofs for the pivot
+
+The pivot is not complete until deterministic evidence proves at least:
+
+- a lightweight task stays on SundayWorker/native tools even when premium models are available;
+- a heavyweight task executes through a Kilo+GLM adapter without creating a second lifecycle/store;
+- GPT/Codex quota unavailable/unknown cannot cause unsafe dispatch; eligible work can fall back only through a safe pre-attempt route;
+- an ambiguous/mid-flight execution cannot be blindly relaunched on another provider;
+- `operator.v1` mobile control can create/observe/control a durable job without arbitrary shell exposure;
+- one real bounded end-to-end goal completes with zero manual prompt/result copy-paste;
+- exact worktree/HEAD/lease/evidence identity survives verify, review, repair and closeout.
+
+## 9. Non-decisions / blockers
+
+- No paid plan, credit purchase, or material PAYG use is authorized by this ADR.
+- Kilo CLI/headless argv/result/config-isolation contract must be pinned against the actual installed Kilo version before adapter grammar is frozen.
+- Provider-specific quota must not be invented when the provider exposes no reliable API; operator/advisory evidence must be provenance-tagged and short-lived.
+- Root checkout `A:\GitHub\A-Wiki-Conductor` remains stale/protected-dirty and is never a mutation surface.
+- `CURRENT-WORK.md`/handoff reconciliation belongs to WO229 or its accepted successor, not this ADR lane.
+- Open/legacy branches and PRs are not authority merely because they exist.
+
+## 10. Consequences
+
+- The earlier Phase-0 proposal to BUILD a standalone Executor Contract module is **superseded**. `JobExecutionBackend` is the canonical executor port unless future concrete evidence proves a minimal extension is necessary.
+- SundayWorker/Serena is promoted from "specialized later executor" framing to a **first-class low-cost/lightweight route**.
+- Kilo+GLM becomes the target default heavyweight autonomous route; Kilo+GPT is premium rather than default because quota/cost are routing inputs.
+- `operator.v1` becomes the canonical mobile/control vocabulary; gateway work is a wrapper/extension problem.
+- quota/cost work becomes a bounded extension of existing provider/scheduler evidence, not a new router.
+- Existing WO226/WO223/WO227 work remains valuable and on the critical path.

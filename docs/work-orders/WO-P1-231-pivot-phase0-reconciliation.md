@@ -1,6 +1,6 @@
 # WO-P1-231 — Conductor pivot Phase-0 read-only reconciliation
 
-Status: PHASE0_COMPLETE / SAFE_TO_MUTATE_SRC=NO / DOCS_BOOTSTRAP_ONLY (this WO + GE-0008)
+Status: PHASE0_COMPLETE / GPT_SOL_ADJUDICATED_HYBRID_V2 / SAFE_TO_MUTATE_SRC=NO / AWAITING_INDEPENDENT_R2_REVIEW
 Date: 2026-09-13
 Parent: Issue #317 (pivot pointer) / product roadmap reconciliation
 Author: GLM-5.3 Phase-0 lane (read-only; docs-only bootstrap per 00-AGENT-ENTRY exception)
@@ -124,3 +124,50 @@ P0-0 WO-231 (this) → P0-1 GE-0008 adjudication → WO-232 Executor Contract �
 ## Checkpoint
 
 - Phase-0 lane wrote ONLY: this WO + GE-0008 on branch `docs/pivot-2026-09-13-phase0` (worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-pivot-phase0`, base `251df21`). No src/tests/COLLAB/CURRENT-WORK/handoff mutation. merge_performed=false. Human-relay actions in this Phase 0: 0.
+
+## 15. GPT-5.6 Sol adjudication addendum ? Hybrid V2 (2026-09-14)
+
+This section **supersedes ??7?14 only where their proposed future architecture/sequence conflicts with the newer evidence below**. The Phase-0 observations remain historical evidence.
+
+### 15.1 New evidence consumed after the GLM Phase-0 report
+
+Three independent Kilo read-only audits completed against the repository and were archived before their temporary worktrees were removed:
+
+- execution seam: SHA-256 `F0E17C150D760FE0F949D39304996961133A16350CD8A7D23708E5771E0C05CA`
+- mobile/operator: SHA-256 `3CB39D76067CB05D358AC83F66E0E928716AAEAD24711A0DFD96F499D90C9A27`
+- quota/cost routing: SHA-256 `2082F8E102625F4EA8B380C4ABE108B303B435C4FD9B5D982CE1C89EC9CC29EB`
+
+Archive root: `A-Wiki-Data/raw/A-Conductor/kilo-audits/2026-09-13/` (raw evidence, not project authority).
+
+Live GitHub was rechecked after the audits: canonical `main` remains `251df211afc1ee5452f3652675d7a2f38c526876`. One quota audit observed a stale packed local `origin/main` ref; that observation is rejected in favor of live GitHub truth.
+
+### 15.2 Adjudicated architecture corrections
+
+1. **Executor Contract BUILD is rejected as unnecessary reconstruction.** Existing `JobExecutionBackend` + `DurableJobExecutionCoordinator` is the canonical executor port and is sufficient for a thin Kilo backend/assembly unless a concrete adapter proves a minimal metadata extension is required.
+2. **SundayWorker/Serena is a first-class lightweight lane**, not merely a later/specialized executor. It should win for bounded local/semantic/tool work when capable and safe.
+3. **Kilo + GLM 5.3 is the target default heavyweight autonomous lane.** Kilo + GPT-5.6 Sol is a premium escalation; GPT-6 Astra is exceptional architecture/review/debug escalation.
+4. **`operator.v1` remains canonical for mobile/control.** Mobile work should WRAP/EXTEND it through an existing authenticated tunnel/loopback boundary, not create a second broad Mobile API.
+5. **Quota/cost routing extends existing provider/scheduler authority.** Add only declared cost evidence, derived quota preference, deterministic ranking, and thin pre-attempt re-selection. `PROVIDER_QUOTA_UNKNOWN` remains fail-closed when quota is required. No second router/quota state machine.
+6. **Existing ZRA chain remains predecessor authority.** Pivot implementation does not jump ahead of WO226 -> WO223/C1 -> WO227/ZRA-3 and does not duplicate their review/continuation machinery.
+
+GE-0008 has been rewritten on this same docs-only branch to reflect these decisions.
+
+### 15.3 Revised reuse matrix deltas
+
+| Earlier proposal | Adjudication |
+|---|---|
+| BUILD executor-neutral contract module | **REUSE `JobExecutionBackend`; EXTEND only if proven** |
+| SundayWorker as specialized/later executor | **KEEP + first-class lightweight route** |
+| Kilo+GPT primary lane | **Kilo+GLM heavy default; Kilo+GPT premium escalation** |
+| mobile gateway BUILD-or-EXTEND undecided | **KEEP `operator.v1`; WRAP/EXTEND first** |
+| runtime quota/cost router new work | **EXTEND provider/scheduler evidence; no second router** |
+
+### 15.4 Revised next safe actions
+
+1. Freeze this GE-0008/WO231 amendment and run deterministic docs/scope verification.
+2. Independent exact-SHA R2 review of this two-file pivot candidate. Author/integrator session does not count as independent review.
+3. If accepted, merge expected-head only and post-main verify/checkpoint.
+4. In parallel, continue the existing Issue #214 critical predecessor: repair/accept WO226, then WO223/C1, then release WO227/ZRA-3. The pivot does not grant those lanes new authority.
+5. Only after both the pivot ADR gate and relevant ZRA predecessor gates pass, issue bounded implementation WOs. No WO232 "new Executor Contract framework" should be created from the earlier proposal.
+
+`SAFE_TO_MUTATE_SRC=NO` remains binding at this checkpoint.
