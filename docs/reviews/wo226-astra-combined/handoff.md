@@ -7,3 +7,6 @@ Expected generation must flow through original R1 lookup; no new source authorit
 Original WO-P1-226-REPAIR-R1-GLM-001 owner only, unchanged two-file scope; no duplicate
 worker, merge, live provider or root-continuity edit. See REVIEW.md and test matrix.
 Claim releases when frozen evidence is published to Sol through Issue214/PR314.
+
+Claim COMPLETE/RELEASED. Published PR314 comment5649901893 and Issue214
+comment5649902034; evidence45b89b5e1f7c9764d98f11ec83ccae47d9e6aaad.

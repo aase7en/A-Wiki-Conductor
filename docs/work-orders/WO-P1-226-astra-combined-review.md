@@ -1,5 +1,5 @@
 # WO226 Astra combined-candidate review
-Status: ACTIVE. Claim WO226-ASTRA-COMBINED-REVIEW-001.
+Status: COMPLETE / CLAIM RELEASED. Claim WO226-ASTRA-COMBINED-REVIEW-001.
 Independent R3 review; docs-only mutation. Owner Poppy Javis / GPT Astra.
 Source cc398d6b1bff329d7145d0a98662add108b423ab, PR314; predecessor609a878.
 Worktree /Users/aase7en/Desktop/A-Wiki-Conductor-wo226-astra-combined-review.
@@ -18,3 +18,6 @@ Checkpoint: review complete CHANGES_REQUIRED. OriginalAF1–AF4 now4 PASS;
 regression282 PASS/6 Windows skips. CR1/P1 new terminal branch drops required
 admission generation: cross-product3 RED/6 PASS. Source unchanged. Publish frozen
 proof; original source owner preserves R1 in AF2 within released scope then refreezes.
+
+Published: PR314 comment5649901893; Issue214 comment5649902034.
+Evidence45b89b5e1f7c9764d98f11ec83ccae47d9e6aaad.

@@ -29,7 +29,7 @@ by Astra. GLM's2900 total is its handback claim, not an independently rerun tota
 
 Source `src/a_conductor/zero_relay_review_execution.py`, function
 `_terminal_unusable_cleanup`, lines1140–1174. Its call to the R1 read-only lookup
-passes **expected_generation=None** (line1162), despite caller
+passes **expected_generation=None** (line1161), despite caller
 `reconcile_review_execution` receiving the required current generation. This
 explicitly disables the R1 unknown/mismatch checks. The helper also consumes typed
 identity errors without returning their reason; preserve typed evidence in repair.
