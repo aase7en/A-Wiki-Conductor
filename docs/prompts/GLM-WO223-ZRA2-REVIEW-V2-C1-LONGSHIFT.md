@@ -72,7 +72,9 @@ Fresh architecture facts to test rather than assume:
 - the report `execution_id` binds to the actual durable runtime execution identity from WO226, not to `DirectReviewRoute.dispatch_execution_id`;
 - `zcode_runner` and `zcode_supervised_helper` do not expose identical `zcode-report/1` fields;
 - direct C1 does not require fabricated mailbox `agent_id` or mandatory mailbox forwarding;
-- raw captured stdout bytes, not replacement-decoded text, are semantic evidence;
+- raw captured `stdout_ref` bytes, not replacement-decoded text, are the semantic review response;
+- `report_ref` is `zcode-report/1` metadata used to bind runtime execution identity + response byte count/hash (and task packet/contract facts only where that producer owns them);
+- `result_ref` is supervised/process completion metadata and MUST NOT be parsed as the semantic `ACCEPTED|REJECTED` result;
 - artifact full digest and raw read are separate operations, so C1 must detect digest/raw mismatch on the captured whole response.
 
 If source disproves any premise in a way that changes trust architecture, checkpoint `DESIGN_GAP` with exact evidence and STOP for GPT.

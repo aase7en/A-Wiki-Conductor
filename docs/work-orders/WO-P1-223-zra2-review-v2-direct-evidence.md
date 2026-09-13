@@ -139,7 +139,9 @@ If actual current production assembly disproves this proposed binding, checkpoin
 
 ### 3.5 Raw bytes are authority, not replacement-decoded text
 
-`ExecutionArtifactService` exposes both `raw` and replacement-decoded `text`. C1 semantic parsing must use captured `raw` bytes and strict UTF-8 decode.
+Current WO226/ZCode production truth fixes the artifact roles explicitly: the handoff's `stdout_ref` is the semantic review-response artifact and contains the exact UTF-8 bytes emitted from the concatenated ZCode `text_delta` stream; `report_ref` points to trusted `zcode-report/1` metadata that binds runtime `execution_id`, task packet hash where owned, `response_bytes`, and `response_sha256`; `result_ref` is supervised/process completion metadata and MUST NOT be parsed as the semantic `ACCEPTED|REJECTED` result. C1 must cross-bind report metadata to the captured whole stdout response before semantic parsing.
+
+`ExecutionArtifactService` exposes both `raw` and replacement-decoded `text`. C1 semantic parsing must use the `stdout_ref` captured `raw` bytes and strict UTF-8 decode.
 
 The current artifact service computes a full-file digest and then separately reads the requested bytes. Close this potential digest/read TOCTOU seam in C1 by requiring one complete non-truncated captured response and independently proving:
 
