@@ -1,8 +1,9 @@
 # WO-P1-226 Repair R1 — admission replay binding
 
-Status: READY_FOR_GLM_REPAIR / R3 / SOURCE NOT MERGEABLE UNTIL REREVIEW
-Parent: WO-P1-226 / PR #314
-Rejected exact candidate: `78ec598b9830d802f54eb47642130693a038a39c`
+Status: HOLD_FOR_WO230 / R3 / SOURCE NOT MERGEABLE
+Parent: WO-P1-226 / PR #314 / WO-P1-230 predecessor
+Latest rejected exact candidate: `cc398d6b1bff329d7145d0a98662add108b423ab` (supersedes `78ec598...` and interim repairs)
+Blocking architecture dependency: accepted/merged/post-main WO230 review task-contract provider-authority bridge (`docs/work-orders/WO-P1-230-zra2-review-task-contract-provider-authority.md`) before further WO226 source mutation.
 Integrator/reviewer: GPT-5.6 Sol
 Preferred repair executor: ZCode GLM-5.3 MAX
 

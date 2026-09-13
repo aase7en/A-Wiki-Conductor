@@ -1,6 +1,15 @@
 # GLM Goal — WO-P1-226 Repair R1
 
-Execute only this bounded repair. Do not merge.
+**STATE: HOLD_FOR_WO230. DO NOT MUTATE WO226 SOURCE YET.**
+
+The provider-authority gap has been adjudicated as an upstream protocol dependency. Before resuming this repair, WO230 must be accepted/merged/post-main so direct-review tasks carry canonical `task-contract/v1` authority and a real `ProviderExecutionRequirement` instead of caller/ambient provider policy fragments.
+
+Current predecessor pointer:
+`A:\GitHub\_worktrees\A-Wiki-Conductor-wo230-review-authority\docs\prompts\GLM-WO230-ZRA2-REVIEW-TASK-CONTRACT-AUTHORITY.md`
+
+If WO230 is not accepted/post-main in durable state, checkpoint `BLOCKED_BY_WO230` and STOP without source mutation. After WO230 acceptance, re-pin this packet and Issue #214; then resume the remaining WO226 repair (including terminal-unusable expected-generation cleanup and full provider-authority consumption) under a fresh released claim.
+
+Execute only this bounded repair after that release. Do not merge.
 
 ## Bootstrap
 
