@@ -21,7 +21,7 @@ Before any source/test mutation, independently verify ALL from durable Git/GitHu
 
 If any item is false or unknown, write/checkpoint `BLOCKED_EXTERNAL_AUTHORIZATION` and STOP. Do not create a source implementation branch merely because this file exists.
 
-Preparation-only current snapshot: at `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`, WO225 and WO224 are already accepted/merged/post-main; WO226 is still the active implementation predecessor; WO223/C1 remains HOLD behind WO226; WO208 finalization `23e701fa879bece6f46e5f66372ebb459f21a1db` is not yet parent-accepted because independent native Mac replay remains missing in durable state. Re-pin all of this when Phase D is actually released.
+Preparation-only current snapshot: at `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`, WO225 and WO224 are already accepted/merged/post-main; WO208 finalization `23e701fa879bece6f46e5f66372ebb459f21a1db` is accepted after independent Windows plus native macOS replay evidence; WO226 remains the active predecessor and WO223/C1 remains HOLD behind WO226. Re-pin all of this when Phase D is actually released.
 
 ## Read first after release
 
