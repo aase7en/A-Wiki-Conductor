@@ -1,22 +1,26 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-08 (GPT1 — WO166 P0-B Continuity Guard activation)
+Last updated: 2026-09-13 (GPT-5.6 Sol — WO229 ZRA-2 continuity frontier refresh)
 
-## WO166 P0-B Continuity Guard activation — authoritative
+## ZRA-2 current frontier — authoritative
 
-> **Single-authority rule:** this section is the ONLY current authoritative state in this file. Historical evidence below the separator remains evidence only.
+> **Single-authority rule:** this section is the ONLY current authoritative state in this file. Historical evidence below the separator remains evidence only. Actual Git/GitHub/runtime state and durable Issue/claim evidence override this snapshot when they differ.
 
-- **A-Wiki Issue #54 is COMPLETE**: PR #56 accepted/merged as `967e063cb9dc2e5b43b48a00deb575235f125a94`; post-main CI `34133420008` SUCCESS; closeout PR #57 merged as `566637ac8d2636d6c63eda2bd6ebe81b55bd3d72`; post-main CI `34144444732` SUCCESS; no active A-Wiki claim remains.
-- **WO-P1-164 / PR #225 is ACCEPTED, MERGED, POST_MAIN_VERIFIED and RELEASED**: accepted head `8c4ba507e648f11c428347b02e6b86de080f098b`; merge `8ffd12f8de3cada79f1f463f3c6f7ee7a35082b9`; post-main run `34143787452` attempt 2 SUCCESS. Attempt 1 Windows owned-process failure is tracked separately as Issue #227 and is non-blocking.
-- **P0-B Continuity Guard is the current dependency frontier.** Durable architecture/preflight authority is Issue #226; implementation identity is `WO-P1-166`.
-- P0-B is R3 trust/durable-state work. GPT1 owns authority/failure-model framing, dependency order, exact-SHA acceptance, merge and release. GLM-5.3 MAX becomes bounded implementation owner only after this activation fold reaches main and a fresh source worktree/claim gate passes.
-- Initial Phase A is NEW-FILE-ONLY: `src/a_conductor/continuity_guard.py`, `tests/test_continuity_guard.py`, and `docs/work-orders/WO-P1-166-p0b-continuity-guard.md`. Existing shared job/lease/change-apply source remains read-only until explicit scope expansion.
-- Existing authorities must be reused: `TaskState` / `RecoveryClassification`, `SQLiteJobStore` ordered events/checkpoints, `WorkerLeaseBroker` / lease store, `AgentResultPacket` / `AgentChangeApplier`, and actual Git/GitHub evidence. No second scheduler/job/claim/lease/retry/review authority is permitted.
-- WO-P1-165 / ZRA-2 remains preserved at activation doc `3d7209e0683afc3d1c9daf4d8db75052220ec782` with **source mutation BLOCKED_BY_P0B**. Do not rebind/delete/duplicate that lane.
-- Dependency order: `WO166 P0-B -> WO165 ZRA-2 -> ZRA-3 -> ZRA-4`.
-- This docs activation is self-closing: once its exact projection is on `origin/main` and required exact-head review/CI succeed, the activation claim has no remaining hotspot scope and is RELEASED without another global-file rewrite.
+- `origin/main` is pinned at `251df211afc1ee5452f3652675d7a2f38c526876` (WO224 merge lineage). Protected root checkout is stale/dirty; preserve it and use isolated worktrees.
+- **WO225 is ACCEPTED / MERGED / POST_MAIN_VERIFIED** at merge `7afb33d738086db50bc027c4c47165179a1cb96f`.
+- **WO224 is ACCEPTED / MERGED / POST_MAIN_VERIFIED**; current main `251df211...` includes the canonical lease-release outcome gate.
+- **WO208 evidence prerequisite is SATISFIED** for exact finalization `23e701fa879bece6f46e5f66372ebb459f21a1db`: independent Windows replay plus native macOS replay passed baseline 94, contract 24, manifest preflight, all four entrypoints, and all differential/metamorphic checks. Review-only PR #315 was closed without product merge.
+- **WO230 is now the active critical-path predecessor.** Packet `origin/docs/wo-p1-230-review-task-contract-authority@48c1904064e93f11389bdf3a71187b44df2aec51` versions direct-review publication so deterministic Markdown prompt bytes are paired with an existing `task-contract/v1` authority sidecar consumable by `ProviderExecutionRequirement`; provider/ParallelReady/ZCode modules remain read-only in WO230.
+- **WO226 is NOT accepted and is HOLD_FOR_WO230.** PR #314 latest frozen candidate remains `cc398d6b1bff329d7145d0a98662add108b423ab` / `DO_NOT_MERGE`; one remaining cleanup bug still needs expected-generation binding, and the broader provider-authority gap must be solved upstream through WO230 rather than ambient/caller policy checks. WO226 repair packet is `origin/docs/wo-p1-226-repair-r1@6698c2a645241fd4f4b11e8cc0f5d1f793ab5b7c`.
+- **WO223 / C1 remains HOLD_AFTER_WO230_AND_WO226.** Prepared packet PR #305 head `1e9df41906876ded3e8a1c9a0cc0bd9d0bd9a3ae` now consumes accepted WO230 task authority and accepted WO226 execution handoff; semantic result bytes come from `stdout_ref` raw bytes, `report_ref` is `zcode-report/1` metadata, and `result_ref` is process/supervised metadata rather than ACCEPTED/REJECTED payload.
+- **WO205 / Phase D remains HOLD.** Prepared packet PR #309 head `52fe1159c9ff94f49f4cd92d25148980d8561214` treats WO208 as satisfied. Remaining order is WO230 accepted/merged/post-main -> WO226 accepted/merged/post-main -> WO223/C1 accepted/merged/post-main -> Issue #214 explicit Phase-D `NEXT_READY`.
+- **WO227 / ZRA-3 remains HOLD** behind full ZRA-2 acceptance and Issue #215 explicit release. Its prepared packet remains PR #310; do not preempt ZRA-2.
+- **WO228 / PR #313** fast-path routing repair is at `02832d548405a4224313a770c079efcd90e8824f`, CI green and integrator-prechecked; it still requires independent exact-SHA R2 review before merge.
+- Default WIP remains max 3 mutable implementation lanes + 1 independent read-only review lane. Do not launch a duplicate WO226 executor/reviewer while an active claim exists.
 
-One next safe action: verify/freeze this WO166 docs activation -> merge expected-head only -> post-main verify -> create a fresh isolated WO166 Phase-A source lane from then-current main -> dispatch the durable WO166 task packet to GLM-5.3 MAX for RED-first P0-B1 implementation.
+Dependency order: `WO230 -> WO226 repair/accept -> WO223/C1 -> WO205 Phase D -> full ZRA-2 COMPLETE -> WO227/ZRA-3 -> ZRA-4`.
+
+One next safe action: execute WO230 only from durable packet `origin/docs/wo-p1-230-review-task-contract-authority@48c1904064e93f11389bdf3a71187b44df2aec51` using its GLM prompt. Freeze/review/merge/post-main WO230 first; only then resume WO226 from its HOLD packet, followed by WO223/C1.
 
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->

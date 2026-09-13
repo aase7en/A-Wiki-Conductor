@@ -1,24 +1,23 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-08 — GPT1 WO166 P0-B activation
+Last updated: 2026-09-13 — GPT-5.6 Sol WO229 ZRA-2 continuity frontier refresh
 
-## WO166 P0-B Continuity Guard handoff — authoritative
+## ZRA-2 active handoff — authoritative
 
-> **Single-authority rule:** this section is the ONLY current authoritative handoff state. Everything below the historical separator is dated evidence only.
+> **Single-authority rule:** this section is the ONLY current authoritative handoff state. Everything below the historical separator is dated evidence only. Re-pin Git/GitHub/Issue state before mutation.
 
-- Repo: `A:\GitHub\A-Wiki-Conductor`.
-- Current activation base: `origin/main@8ffd12f8de3cada79f1f463f3c6f7ee7a35082b9`.
-- A-Wiki Issue #54 + closeout are fully merged/post-main verified; no active A-Wiki claim remains.
-- WO164 / PR #225 is merged/released; post-main CI run `34143787452` attempt 2 SUCCESS. Windows owned-process flake is Issue #227, non-blocking.
-- Current architecture authority: GitHub Issue #226 (`GPT1-P0B-CONTINUITY-GUARD-001`). Implementation identity: `WO-P1-166`.
-- Activation worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo166-p0b-activation`; branch `docs/wo-p1-166-p0b-activation`; docs-only hotspot scope.
-- P0-B R3 split: GPT1 frames trust/failure model and owns acceptance/merge/release; GLM-5.3 MAX implements bounded RED-first Phase A only after activation is merged and a fresh source worktree/claim is proven safe.
-- Initial Phase A scope after activation: NEW `src/a_conductor/continuity_guard.py`, NEW `tests/test_continuity_guard.py`, plus WO166 checkpoint file. Do not modify shared job/lease/change-apply source without a later explicit scope-expansion gate.
-- Required classifications: `FRESH`, `STALE_LOCAL_CHECKOUT`, `HEAD_DRIFT`, `WORKTREE_DIRTY_OR_UNKNOWN`, `CLAIM_CONFLICT`, `SSOT_DRIFT`, `MERGED_NOT_FOLDED`, `RECONCILE_REQUIRED`, `UNKNOWN`; `UNKNOWN` always fails closed.
-- WO165/ZRA-2 is queued successor only: activation-doc head `3d7209e...`; `SAFE_TO_MUTATE_ZRA2_SOURCE=NO` until P0-B is accepted/merged/post-main reconciled.
-- Activation self-closes once this exact projection is on main with required review/CI; no extra hotspot rewrite is required merely to release the activation lane.
+- Repository: `A:\\GitHub\\A-Wiki-Conductor`; authoritative remote main at this checkpoint: `251df211afc1ee5452f3652675d7a2f38c526876`. The protected root checkout is stale/dirty; do not reset/clean/switch it.
+- Critical-path issue: GitHub Issue #214. Read its latest WO230/WO226 claim/review comments before assigning an executor or reviewer.
+- WO225 and WO224 are accepted/merged/post-main verified. WO208 exact finalization `23e701fa879bece6f46e5f66372ebb459f21a1db` has accepted independent Windows + native macOS replay evidence.
+- **WO230 is the current implementation predecessor.** Durable packet branch `origin/docs/wo-p1-230-review-task-contract-authority@48c1904064e93f11389bdf3a71187b44df2aec51`; local packet worktree `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo230-review-authority`; prompt `docs/prompts/GLM-WO230-ZRA2-REVIEW-TASK-CONTRACT-AUTHORITY.md`. It versions review publication as deterministic Markdown prompt + existing `task-contract/v1` authority sidecar and proves compatibility with `ProviderExecutionRequirement` without touching provider/ParallelReady/ZCode source.
+- WO226 source worktree remains `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo226-review-exec-src`, PR #314 candidate `cc398d6b1bff329d7145d0a98662add108b423ab`; **DO NOT MERGE**. WO226 repair packet is now HOLD_FOR_WO230 at `origin/docs/wo-p1-226-repair-r1@6698c2a645241fd4f4b11e8cc0f5d1f793ab5b7c`. After accepted/post-main WO230, resume WO226 to consume canonical provider requirement/authority and repair terminal-unusable expected-generation cleanup.
+- Do not launch a WO226 source owner while WO230 is unresolved. One GLM owner should execute WO230 only; GPT owns exact-SHA acceptance/merge/post-main.
+- WO223/C1 prepared packet: PR #305 head `1e9df41906876ded3e8a1c9a0cc0bd9d0bd9a3ae`, worktree `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo223-zra2-review-v2-c1`. HOLD until WO230 and WO226 are accepted/merged/post-main. WO223 now consumes v2 task authority read-only and owns strict semantic JSON/artifact validation only.
+- WO205 Phase-D prepared packet: PR #309 head `52fe1159c9ff94f49f4cd92d25148980d8561214`; WO208 prerequisite is satisfied. Phase D waits on WO230 -> WO226 -> WO223/C1 -> explicit Issue #214 release.
+- WO227/ZRA-3 packet PR #310 remains HOLD behind full ZRA-2 completion and Issue #215 explicit `NEXT_READY`.
+- WO228 fast-path governance PR #313 head `02832d548405a4224313a770c079efcd90e8824f` is CI-green and awaits independent R2 exact-SHA review; do not self-approve the Sol-authored repair.
 
-One next safe action: freeze/merge/post-main verify this docs activation, then start fresh WO166 Phase-A source lane and hand the durable task packet to GLM-5.3 MAX.
+One next safe action: execute WO230 only from `origin/docs/wo-p1-230-review-task-contract-authority@48c1904064e93f11389bdf3a71187b44df2aec51` using `docs/prompts/GLM-WO230-ZRA2-REVIEW-TASK-CONTRACT-AUTHORITY.md`. Freeze/review/merge/post-main WO230 first; then resume WO226 from its HOLD packet, and only after accepted/post-main WO226 release WO223/C1.
 
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
