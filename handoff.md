@@ -1,24 +1,24 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-08 — GPT1 WO166 P0-B activation
+Last updated: 2026-09-13 — GPT-5.6 Sol WO229 ZRA-2 continuity frontier refresh
 
-## WO166 P0-B Continuity Guard handoff — authoritative
+## ZRA-2 active handoff — authoritative
 
-> **Single-authority rule:** this section is the ONLY current authoritative handoff state. Everything below the historical separator is dated evidence only.
+> **Single-authority rule:** this section is the ONLY current authoritative handoff state. Everything below the historical separator is dated evidence only. Re-pin Git/GitHub/Issue state before mutation.
 
-- Repo: `A:\GitHub\A-Wiki-Conductor`.
-- Current activation base: `origin/main@8ffd12f8de3cada79f1f463f3c6f7ee7a35082b9`.
-- A-Wiki Issue #54 + closeout are fully merged/post-main verified; no active A-Wiki claim remains.
-- WO164 / PR #225 is merged/released; post-main CI run `34143787452` attempt 2 SUCCESS. Windows owned-process flake is Issue #227, non-blocking.
-- Current architecture authority: GitHub Issue #226 (`GPT1-P0B-CONTINUITY-GUARD-001`). Implementation identity: `WO-P1-166`.
-- Activation worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo166-p0b-activation`; branch `docs/wo-p1-166-p0b-activation`; docs-only hotspot scope.
-- P0-B R3 split: GPT1 frames trust/failure model and owns acceptance/merge/release; GLM-5.3 MAX implements bounded RED-first Phase A only after activation is merged and a fresh source worktree/claim is proven safe.
-- Initial Phase A scope after activation: NEW `src/a_conductor/continuity_guard.py`, NEW `tests/test_continuity_guard.py`, plus WO166 checkpoint file. Do not modify shared job/lease/change-apply source without a later explicit scope-expansion gate.
-- Required classifications: `FRESH`, `STALE_LOCAL_CHECKOUT`, `HEAD_DRIFT`, `WORKTREE_DIRTY_OR_UNKNOWN`, `CLAIM_CONFLICT`, `SSOT_DRIFT`, `MERGED_NOT_FOLDED`, `RECONCILE_REQUIRED`, `UNKNOWN`; `UNKNOWN` always fails closed.
-- WO165/ZRA-2 is queued successor only: activation-doc head `3d7209e...`; `SAFE_TO_MUTATE_ZRA2_SOURCE=NO` until P0-B is accepted/merged/post-main reconciled.
-- Activation self-closes once this exact projection is on main with required review/CI; no extra hotspot rewrite is required merely to release the activation lane.
+- Repository: `A:\\GitHub\\A-Wiki-Conductor`; authoritative remote main at this checkpoint: `251df211afc1ee5452f3652675d7a2f38c526876`. The protected root checkout is stale/dirty; do not reset/clean/switch it.
+- Critical-path issue: GitHub Issue #214. Always read its latest WO226 claim/review comments before assigning an executor or reviewer.
+- WO225 and WO224 are accepted/merged/post-main verified. WO208 exact finalization `23e701fa879bece6f46e5f66372ebb459f21a1db` has accepted independent Windows + native macOS replay evidence; no additional WO208 replay is required unless the candidate/evidence changes.
+- WO226 source worktree: `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo226-review-exec-src`; branch `feat/wo-p1-226-reviewer-execution-bridge`. Latest frozen source candidate at this checkpoint: `cc398d6b1bff329d7145d0a98662add108b423ab` on PR #314. Exact-head CI is green, but **candidate is rejected / DO NOT MERGE** because terminal-unusable cleanup can release resources despite admission generation mismatch.
+- Exact repro retained in PR #314 / Issue #214: timeout retains resources -> durable runtime becomes `FAILED` -> persisted admission generation is changed away from plan generation -> replay returns `RECOVERY_REQUIRED / EQUIVALENT_TERMINAL_NOT_USABLE` but still releases admission and lease. Root cause is `_terminal_unusable_cleanup()` calling admission lookup without the plan's expected generation.
+- Repair packet: remote branch `origin/docs/wo-p1-226-repair-r1@ce4709bf0ae21e402b9eccda64fa153932441c4b`; durable pointer file `docs/prompts/GLM-WO226-REPAIR-R1.md`. It preserves prior admission batch/generation repair plus Astra AF1-AF4 and adds terminal-unusable wrong/unknown-generation REDs. Expected mutable source scope remains only `src/a_conductor/zero_relay_review_execution.py` + `tests/test_zero_relay_review_execution.py`; scope expansion requires GPT adjudication first.
+- Do not launch a second WO226 source owner. If the prior GLM owner is no longer active, re-release/reclaim the SAME bounded repair lane after re-pinning PR #314/Issue #214. GLM freezes and hands back; GPT owns exact-SHA acceptance/merge/post-main.
+- WO223/C1 prepared packet: PR #305 head `5f2a91a48d695f25429290bb41e1f21415a70d9f`, worktree `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo223-zra2-review-v2-c1`. HOLD until WO226 accepted/merged/post-main. C1 must parse strict whole-response JSON from `stdout_ref` raw bytes, cross-bind `report_ref` metadata, and never parse `result_ref` as semantic verdict.
+- WO205 Phase-D prepared packet: PR #309 head `52fe1159c9ff94f49f4cd92d25148980d8561214`, worktree `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo205-phase-d-refresh`. WO208 prerequisite is satisfied; Phase D still waits on WO226 -> WO223/C1 -> explicit Issue #214 release.
+- WO227/ZRA-3 packet PR #310 remains HOLD behind full ZRA-2 completion and Issue #215 explicit `NEXT_READY`.
+- WO228 fast-path governance PR #313 head `02832d548405a4224313a770c079efcd90e8824f` is CI-green and awaits independent R2 exact-SHA review; do not self-approve the Sol-authored repair.
 
-One next safe action: freeze/merge/post-main verify this docs activation, then start fresh WO166 Phase-A source lane and hand the durable task packet to GLM-5.3 MAX.
+One next safe action: recover latest Issue #214/PR #314 once. If no newer accepted source candidate supersedes `cc398d6...`, continue the existing WO226 repair contract from `origin/docs/wo-p1-226-repair-r1:docs/prompts/GLM-WO226-REPAIR-R1.md`, prove the terminal-unusable generation REDs, freeze one new candidate, then run independent exact-SHA R3 review + hosted CI. Only after GPT acceptance/merge/post-main may WO223/C1 be released.
 
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
