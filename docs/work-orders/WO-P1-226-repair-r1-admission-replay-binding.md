@@ -97,7 +97,7 @@ Independent Astra exact-SHA review of `78ec598b9830d802f54eb47642130693a038a39c`
 Required outcomes in addition to the admission batch/generation repair:
 
 1. **AF1 / P1:** losing concurrent dispatch cannot clean resources that may belong to a live winner before a runtime record appears. Absence of record is not proof of crash/quiescence. Use existing durable job/ownership authority; if original scope cannot prove safe ownership, STOP `DESIGN_GAP`.
-2. **AF2 / P2:** a retained timeout that later becomes a terminal non-success execution must release its exact admission/lease once, without handoff/relaunch. Live/UNKNOWN retains resources.
+2. **AF2 / P2:** a retained timeout that later becomes a terminal non-success execution must release its exact admission/lease once, without handoff/relaunch. Live/UNKNOWN retains resources. Terminal-unusable cleanup is still bound to the plan's required provider configuration generation: wrong or unknown required generation is typed recovery and MUST NOT release either admission or lease. Add explicit terminal-FAILED REDs for wrong generation and unknown required generation; the exact-generation AF2 cleanup remains the positive control.
 3. **AF3 / P1:** post-run candidate selection must apply full equivalent identity + reviewer-worker validation before cleanup/handoff, not cardinality/state alone.
 4. **AF4 / P1:** trusted C0 provider endpoint/security/generation must also consume canonical provider-policy evaluation before acquisition/effect; policy denial fails closed.
 
