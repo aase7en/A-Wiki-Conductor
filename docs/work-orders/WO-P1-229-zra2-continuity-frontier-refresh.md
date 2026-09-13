@@ -33,8 +33,8 @@ Forbidden:
 - `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`.
 - WO225 and WO224 accepted/merged/post-main verified.
 - WO208 evidence prerequisite satisfied for `23e701fa879bece6f46e5f66372ebb459f21a1db` by independent Windows plus native macOS replay.
-- WO226 remains the active critical path and is not accepted. PR #314 candidate `cc398d6b1bff329d7145d0a98662add108b423ab` is `CHANGES_REQUIRED / DO_NOT_MERGE` because terminal-unusable cleanup can release an admission/lease despite provider configuration-generation mismatch.
-- Current WO226 repair packet is `origin/docs/wo-p1-226-repair-r1@ce4709bf0ae21e402b9eccda64fa153932441c4b`, `docs/prompts/GLM-WO226-REPAIR-R1.md`.
+- WO226 remains the active critical path and is not accepted. PR #314 candidate `cc398d6b1bff329d7145d0a98662add108b423ab` is `CHANGES_REQUIRED / DO_NOT_MERGE` for two deterministic trust gaps: terminal-unusable cleanup can release an admission/lease despite provider configuration-generation mismatch, and an all-None direct-review provider authority triple can be silently upgraded from the current snapshot and execute.
+- Current WO226 repair packet is `origin/docs/wo-p1-226-repair-r1@a5ea7938a7a273b2a9554c5e434b2a4673e25229`, `docs/prompts/GLM-WO226-REPAIR-R1.md`; it now includes both remaining blockers inside the same bounded two-file source scope.
 - WO223/C1 remains HOLD; prepared PR #305 head `5f2a91a48d695f25429290bb41e1f21415a70d9f`.
 - WO205 Phase D remains HOLD; prepared PR #309 head `52fe1159c9ff94f49f4cd92d25148980d8561214` and WO208 is no longer a blocker.
 - WO227/ZRA-3 remains HOLD behind full ZRA-2 + Issue #215 release.
