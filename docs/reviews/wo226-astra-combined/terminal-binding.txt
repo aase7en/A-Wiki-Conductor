@@ -1,0 +1,139 @@
+{"state": "FAILED", "identity": "exact", "expected_generation": 1, "persisted_generation": 1, "reason": "EQUIVALENT_TERMINAL_NOT_USABLE", "resources": {"admissions": ["RELEASED"], "leases_released": [true]}}
+.{"state": "PARTIAL", "identity": "exact", "expected_generation": 1, "persisted_generation": 1, "reason": "EQUIVALENT_TERMINAL_NOT_USABLE", "resources": {"admissions": ["RELEASED"], "leases_released": [true]}}
+.{"state": "CANCELLED", "identity": "exact", "expected_generation": 1, "persisted_generation": 1, "reason": "EQUIVALENT_TERMINAL_NOT_USABLE", "resources": {"admissions": ["RELEASED"], "leases_released": [true]}}
+.{"state": "FAILED", "identity": "generation_unknown", "expected_generation": 1, "persisted_generation": null, "reason": "EQUIVALENT_TERMINAL_NOT_USABLE", "resources": {"admissions": ["RELEASED"], "leases_released": [true]}}
+F{"state": "PARTIAL", "identity": "generation_unknown", "expected_generation": 1, "persisted_generation": null, "reason": "EQUIVALENT_TERMINAL_NOT_USABLE", "resources": {"admissions": ["RELEASED"], "leases_released": [true]}}
+F{"state": "CANCELLED", "identity": "generation_unknown", "expected_generation": 1, "persisted_generation": null, "reason": "EQUIVALENT_TERMINAL_NOT_USABLE", "resources": {"admissions": ["RELEASED"], "leases_released": [true]}}
+F{"state": "FAILED", "identity": "wrong_batch", "expected_generation": 1, "persisted_generation": 1, "reason": "EQUIVALENT_TERMINAL_NOT_USABLE", "resources": {"admissions": ["ACTIVE"], "leases_released": [false]}}
+.{"state": "PARTIAL", "identity": "wrong_batch", "expected_generation": 1, "persisted_generation": 1, "reason": "EQUIVALENT_TERMINAL_NOT_USABLE", "resources": {"admissions": ["ACTIVE"], "leases_released": [false]}}
+.{"state": "CANCELLED", "identity": "wrong_batch", "expected_generation": 1, "persisted_generation": 1, "reason": "EQUIVALENT_TERMINAL_NOT_USABLE", "resources": {"admissions": ["ACTIVE"], "leases_released": [false]}}
+.
+=================================== FAILURES ===================================
+____ test_terminal_cleanup_preserves_r1_identity[generation_unknown-FAILED] ____
+
+tmp_path = PosixPath('/private/var/folders/h5/btmbl1qn2695m08h126g209h0000gn/T/pytest-of-aase7en/pytest-53/test_terminal_cleanup_preserve3')
+state = <ExecutionProcessState.FAILED: 'FAILED'>
+identity = 'generation_unknown'
+
+    @pytest.mark.parametrize('state', [f.ExecutionProcessState.FAILED,
+        f.ExecutionProcessState.PARTIAL, f.ExecutionProcessState.CANCELLED])
+    @pytest.mark.parametrize('identity', ['exact', 'generation_unknown', 'wrong_batch'])
+    def test_terminal_cleanup_preserves_r1_identity(tmp_path, state, identity):
+        generation = None if identity == 'generation_unknown' else 1
+        plan, a, route, task, admission = f._replay_setup(tmp_path,
+            expected_generation=generation,
+            batch_id='WRONG-BATCH' if identity == 'wrong_batch' else None)
+        # Canonical durable transition, same exact execution identity.
+        a.execution_store.set_execution_state('exec-pre-done', state, expected_version=1)
+        runner = f.FakeRunnerFactory()
+        counts_before = (len(f._all_admissions(a)), len(f._all_leases(a)))
+        result = f._af_dispatch(a, route, task, runner)
+        after = f._af_resources(a)
+        print(json.dumps({'state': state.value, 'identity': identity,
+            'expected_generation': a.snapshot.generation,
+            'persisted_generation': admission.configuration_generation,
+            'reason': result.reason_code, 'resources': after}))
+        assert result.outcome == 'RECOVERY_REQUIRED' and result.handoff is None
+        assert runner.model_effects == 0
+        assert counts_before == (len(f._all_admissions(a)), len(f._all_leases(a)))
+        if identity == 'exact':
+            assert after == {'admissions': ['RELEASED'], 'leases_released': [True]}
+        else:
+>           assert after == {'admissions': ['ACTIVE'], 'leases_released': [False]}, \
+                'terminal cleanup bypassed preserved R1 admission identity gate'
+E           AssertionError: terminal cleanup bypassed preserved R1 admission identity gate
+E           assert {'admissions'...ased': [True]} == {'admissions'...sed': [False]}
+E
+E             Differing items:
+E             {'admissions': ['RELEASED']} != {'admissions': ['ACTIVE']}
+E             {'leases_released': [True]} != {'leases_released': [False]}
+E             Use -v to get more diff
+
+docs/reviews/wo226-astra-combined/test_terminal_binding.py:31: AssertionError
+___ test_terminal_cleanup_preserves_r1_identity[generation_unknown-PARTIAL] ____
+
+tmp_path = PosixPath('/private/var/folders/h5/btmbl1qn2695m08h126g209h0000gn/T/pytest-of-aase7en/pytest-53/test_terminal_cleanup_preserve4')
+state = <ExecutionProcessState.PARTIAL: 'PARTIAL'>
+identity = 'generation_unknown'
+
+    @pytest.mark.parametrize('state', [f.ExecutionProcessState.FAILED,
+        f.ExecutionProcessState.PARTIAL, f.ExecutionProcessState.CANCELLED])
+    @pytest.mark.parametrize('identity', ['exact', 'generation_unknown', 'wrong_batch'])
+    def test_terminal_cleanup_preserves_r1_identity(tmp_path, state, identity):
+        generation = None if identity == 'generation_unknown' else 1
+        plan, a, route, task, admission = f._replay_setup(tmp_path,
+            expected_generation=generation,
+            batch_id='WRONG-BATCH' if identity == 'wrong_batch' else None)
+        # Canonical durable transition, same exact execution identity.
+        a.execution_store.set_execution_state('exec-pre-done', state, expected_version=1)
+        runner = f.FakeRunnerFactory()
+        counts_before = (len(f._all_admissions(a)), len(f._all_leases(a)))
+        result = f._af_dispatch(a, route, task, runner)
+        after = f._af_resources(a)
+        print(json.dumps({'state': state.value, 'identity': identity,
+            'expected_generation': a.snapshot.generation,
+            'persisted_generation': admission.configuration_generation,
+            'reason': result.reason_code, 'resources': after}))
+        assert result.outcome == 'RECOVERY_REQUIRED' and result.handoff is None
+        assert runner.model_effects == 0
+        assert counts_before == (len(f._all_admissions(a)), len(f._all_leases(a)))
+        if identity == 'exact':
+            assert after == {'admissions': ['RELEASED'], 'leases_released': [True]}
+        else:
+>           assert after == {'admissions': ['ACTIVE'], 'leases_released': [False]}, \
+                'terminal cleanup bypassed preserved R1 admission identity gate'
+E           AssertionError: terminal cleanup bypassed preserved R1 admission identity gate
+E           assert {'admissions'...ased': [True]} == {'admissions'...sed': [False]}
+E
+E             Differing items:
+E             {'admissions': ['RELEASED']} != {'admissions': ['ACTIVE']}
+E             {'leases_released': [True]} != {'leases_released': [False]}
+E             Use -v to get more diff
+
+docs/reviews/wo226-astra-combined/test_terminal_binding.py:31: AssertionError
+__ test_terminal_cleanup_preserves_r1_identity[generation_unknown-CANCELLED] ___
+
+tmp_path = PosixPath('/private/var/folders/h5/btmbl1qn2695m08h126g209h0000gn/T/pytest-of-aase7en/pytest-53/test_terminal_cleanup_preserve5')
+state = <ExecutionProcessState.CANCELLED: 'CANCELLED'>
+identity = 'generation_unknown'
+
+    @pytest.mark.parametrize('state', [f.ExecutionProcessState.FAILED,
+        f.ExecutionProcessState.PARTIAL, f.ExecutionProcessState.CANCELLED])
+    @pytest.mark.parametrize('identity', ['exact', 'generation_unknown', 'wrong_batch'])
+    def test_terminal_cleanup_preserves_r1_identity(tmp_path, state, identity):
+        generation = None if identity == 'generation_unknown' else 1
+        plan, a, route, task, admission = f._replay_setup(tmp_path,
+            expected_generation=generation,
+            batch_id='WRONG-BATCH' if identity == 'wrong_batch' else None)
+        # Canonical durable transition, same exact execution identity.
+        a.execution_store.set_execution_state('exec-pre-done', state, expected_version=1)
+        runner = f.FakeRunnerFactory()
+        counts_before = (len(f._all_admissions(a)), len(f._all_leases(a)))
+        result = f._af_dispatch(a, route, task, runner)
+        after = f._af_resources(a)
+        print(json.dumps({'state': state.value, 'identity': identity,
+            'expected_generation': a.snapshot.generation,
+            'persisted_generation': admission.configuration_generation,
+            'reason': result.reason_code, 'resources': after}))
+        assert result.outcome == 'RECOVERY_REQUIRED' and result.handoff is None
+        assert runner.model_effects == 0
+        assert counts_before == (len(f._all_admissions(a)), len(f._all_leases(a)))
+        if identity == 'exact':
+            assert after == {'admissions': ['RELEASED'], 'leases_released': [True]}
+        else:
+>           assert after == {'admissions': ['ACTIVE'], 'leases_released': [False]}, \
+                'terminal cleanup bypassed preserved R1 admission identity gate'
+E           AssertionError: terminal cleanup bypassed preserved R1 admission identity gate
+E           assert {'admissions'...ased': [True]} == {'admissions'...sed': [False]}
+E
+E             Differing items:
+E             {'admissions': ['RELEASED']} != {'admissions': ['ACTIVE']}
+E             {'leases_released': [True]} != {'leases_released': [False]}
+E             Use -v to get more diff
+
+docs/reviews/wo226-astra-combined/test_terminal_binding.py:31: AssertionError
+=========================== short test summary info ============================
+FAILED docs/reviews/wo226-astra-combined/test_terminal_binding.py::test_terminal_cleanup_preserves_r1_identity[generation_unknown-FAILED]
+FAILED docs/reviews/wo226-astra-combined/test_terminal_binding.py::test_terminal_cleanup_preserves_r1_identity[generation_unknown-PARTIAL]
+FAILED docs/reviews/wo226-astra-combined/test_terminal_binding.py::test_terminal_cleanup_preserves_r1_identity[generation_unknown-CANCELLED]
+3 failed, 6 passed in 0.31s

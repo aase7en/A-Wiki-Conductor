@@ -1,0 +1,6 @@
+{"case": "paused_winner", "before": {"admissions": ["ACTIVE"], "leases_released": [false]}, "after_loser": {"admissions": ["ACTIVE"], "leases_released": [false]}, "loser": "RECOVERY_REQUIRED", "winner": "EXECUTED", "model_effects": 1}
+.{"case": "failed_terminal_reconcile", "outcome": "RECOVERY_REQUIRED", "reason": "EQUIVALENT_TERMINAL_NOT_USABLE", "resources": {"admissions": ["RELEASED"], "leases_released": [true]}}
+.{"case": "foreign_worker", "outcome": "RECOVERY_REQUIRED", "handoff_worker": null, "record_worker": "a-worker-99"}
+.{"case": "task_policy_denied", "canonical_policy": "TASK_NETWORK_DENIED", "bridge_outcome": "REVIEW_PROVIDER_POLICY_TASK_NETWORK_DENIED", "model_effects": 0, "resources": {"admissions": [], "leases_released": []}}
+.
+4 passed in 0.48s
