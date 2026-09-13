@@ -1,8 +1,8 @@
 # WO-P1-223 — ZRA-2 review protocol v2 + direct review evidence composition
 
-Status: PREPARED / HOLD_AFTER_WO226 / R3
-Parent: WO-P1-221 / WO-P1-201 / WO-P1-216 / WO-P1-219 / WO-P1-225 / WO-P1-226 / Issue #214
-Immediate predecessor chain: WO225 repaired C0 READ_ONLY route authority -> WO226 accepted reviewer-execution handoff
+Status: PREPARED / HOLD_AFTER_WO230_AND_WO226 / R3
+Parent: WO-P1-221 / WO-P1-201 / WO-P1-216 / WO-P1-219 / WO-P1-225 / WO-P1-230 / WO-P1-226 / Issue #214
+Immediate predecessor chain: WO225 repaired C0 READ_ONLY route authority -> WO230 accepted review task-contract provider authority -> WO226 accepted reviewer-execution handoff
 Integrator/architecture owner: GPT-5.6 Sol
 Preferred implementation executor: ZCode GLM-5.3 MAX
 Repository: A-Wiki-Conductor
@@ -34,19 +34,20 @@ Do not mutate source merely because this packet exists.
 WO223 becomes source-READY only when all are true:
 
 1. actual `origin/main` contains the accepted WO225 C0 READ_ONLY lease/task binding repair and its post-main verification;
-2. actual `origin/main` contains the accepted WO226 reviewer-execution bridge and its post-main verification;
-3. Issue #214 explicitly marks WO223/C1 as NEXT_READY after those predecessors;
-4. WO221/WO223 archaeology still confirms there is no existing strict direct-review semantic result contract/validator that makes WO223 unnecessary;
-5. the accepted WO226 execution handoff preserves dispatch-context identity and actual durable runtime execution identity distinctly and proves their cross-binding by accepted fingerprint/admission/task/runtime authority;
-6. no overlapping claim owns any mutable WO223 source/test path;
-7. a fresh worktree/branch is created from then-current main and is clean;
-8. exact scope/owner/claim is checkpointed before source mutation.
+2. actual `origin/main` contains accepted WO230 review-v2 task-contract/provider-authority publication and its post-main verification;
+3. actual `origin/main` contains the accepted WO226 reviewer-execution bridge consuming that authority and its post-main verification;
+4. Issue #214 explicitly marks WO223/C1 as NEXT_READY after those predecessors;
+5. WO221/WO223 archaeology still confirms there is no existing strict direct-review semantic result contract/validator that makes WO223 unnecessary;
+6. the accepted WO226 execution handoff preserves dispatch-context identity and actual durable runtime execution identity distinctly and proves their cross-binding by accepted fingerprint/admission/task/runtime authority;
+7. no overlapping claim owns any mutable WO223 source/test path;
+8. a fresh worktree/branch is created from then-current main and is clean;
+9. exact scope/owner/claim is checkpointed before source mutation.
 
 If an existing trusted implementation already solves the gap, classify `REUSE / WO223_NOT_NEEDED` and STOP.
 
 If any authority item is UNKNOWN, `SAFE_TO_MUTATE_WO223=NO`.
 
-### 2.1 Read-only refresh before WO226 handback
+### 2.1 Read-only refresh before WO230/WO226 handback
 
 On `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`, fresh read-only archaeology confirms:
 
@@ -56,23 +57,24 @@ On `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`, fresh read-only archa
 - the two active ZCode report producers remain asymmetric: in-process `zcode_runner` carries `task_contract_ref`; `zcode_supervised_helper` does not, so C1 must not fabricate it;
 - WO226 is explicitly forbidden from implementing the semantic verdict parser, so absent scope violation its accepted handoff should leave this gap for WO223.
 
-Therefore WO223 remains necessary in principle, but source mutation stays HOLD until WO226 is accepted/merged/post-main and its exact handoff type/fields are re-read. This refresh is preparation only, not source release.
+Therefore WO223 remains necessary in principle, but task-protocol publication is now an upstream WO230 responsibility. WO223 source mutation stays HOLD until WO230 and then WO226 are accepted/merged/post-main and the exact accepted v2 task authority + WO226 handoff fields are re-read. This refresh is preparation only, not source release.
 
 ## 3. Architecture decisions already settled by GPT
 
-### 3.1 Version the protocol
+### 3.1 Consume accepted WO230 protocol-v2 authority
 
-The semantic response contract changes review-task meaning. Therefore introduce a new explicit review protocol identity (recommended `zra2-review-v2`; another explicit successor label is acceptable only if the exact rationale is recorded).
+WO230 now owns review-task protocol versioning/publication and provider-authority provenance. WO223 MUST NOT reimplement or mutate those semantics.
 
-The successor identity must change every deterministic identity-bearing surface derived from protocol semantics, including at minimum:
+After WO230 acceptance/post-main, consume its exact accepted facts, including:
 
-- review contract ref;
-- canonical review identity digest/domain;
-- deterministic task path;
-- deterministic result destination/ref if retained as a logical ref;
-- exact review task SHA-256.
+- v1 remains historical/unchanged;
+- v2 review prompt path/SHA is deterministic;
+- v2 `review_contract_ref` is the persisted project-relative `task-contract/v1` authority sidecar path;
+- the sidecar binds exact author `ResultIdentity`, reviewed HEAD, prompt path/SHA and semantic result destination;
+- canonical task security provenance is derived from those persisted bytes through `ProviderExecutionRequirement`;
+- WO226 consumes the same authority and cross-binds it to execution.
 
-Do not overwrite or reinterpret existing `zra2-review-v1` artifacts.
+Any drift in those accepted facts is `WO230_AUTHORITY_DRIFT` and blocks C1. WO223 owns only strict semantic response validation and composition from accepted upstream identities/artifacts.
 
 ### 3.2 Strict whole-response semantic schema
 
@@ -83,7 +85,7 @@ Recommended v2 whole-response shape:
 ```json
 {
   "schema": "zra2-review-result-v2",
-  "review_contract_ref": "zra2-review-v2:<digest>",
+  "review_contract_ref": "runs/zra2-review-v2-<digest>.task.json",
   "reviewed_head": "<exact normalized git sha>",
   "review_task_sha256": "<exact review task sha256>",
   "verdict": "ACCEPTED|REJECTED",
@@ -163,11 +165,11 @@ A-Wiki ReviewBus remains the accepted external review integration/governance sys
 
 Preferred bounded source/test scope:
 
-- MODIFY `src/a_conductor/zero_relay_review_task.py` only for explicit v2 protocol/task identity support;
-- MODIFY `tests/test_zero_relay_review_task.py` for v2 identity/rendering/anti-replay regression;
 - NEW `src/a_conductor/zero_relay_review_evidence.py`;
 - NEW `tests/test_zero_relay_review_evidence.py`;
 - this WO and its GLM prompt/checkpoint evidence.
+
+Accepted WO230 `zero_relay_review_task.py` / focused tests are read-only upstream authority in WO223. Any required change there is predecessor drift/scope expansion and must STOP for GPT rather than being folded silently into C1.
 
 Read-only dependencies may include:
 

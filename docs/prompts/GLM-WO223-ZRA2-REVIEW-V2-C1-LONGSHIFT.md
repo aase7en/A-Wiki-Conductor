@@ -1,6 +1,6 @@
 /goal
 
-Execute WO-P1-223 only after WO226 is independently accepted, merged, post-main verified, and Issue #214 explicitly releases WO223/C1. WO225 is already accepted/merged/post-main verified on the current lineage; re-verify that fact but do not redo WO225.
+Execute WO-P1-223 only after WO230 AND WO226 are independently accepted, merged, post-main verified, and Issue #214 explicitly releases WO223/C1. WO225 is already accepted/merged/post-main verified on the current lineage; re-verify that fact but do not redo WO225 or reimplement WO230.
 
 PRIMARY WORK ORDER:
 A:\GitHub\_worktrees\A-Wiki-Conductor-wo223-zra2-review-v2-c1\docs\work-orders\WO-P1-223-zra2-review-v2-direct-evidence.md
@@ -12,7 +12,7 @@ PRIMARY REPOSITORY:
 A:\GitHub\A-Wiki-Conductor
 
 MASTER OUTCOME:
-Close the remaining ZRA-2 direct-review semantic-result gap by versioning the repaired review-task protocol instead of silently changing v1, then compose existing `zero_relay.ReviewEvidence` only from the accepted WO226 reviewer-execution handoff + exact durable reviewer execution/artifact truth. Dispatch-context identity and actual durable runtime execution identity are distinct and must be cross-bound, never equated.
+Close the remaining ZRA-2 direct-review semantic-result gap by CONSUMING the accepted WO230 review-v2 task-contract publication and the accepted WO226 reviewer-execution handoff, then compose existing `zero_relay.ReviewEvidence` only from exact durable reviewer execution/artifact truth. WO223 no longer owns review-task protocol publication; it owns strict semantic response validation/composition. Dispatch-context identity and actual durable runtime execution identity are distinct and must be cross-bound, never equated.
 
 Do not create a second scheduler, provider authority, WorkerLease authority, execution store, review store, mailbox identity system, ReviewBus, retry engine or lifecycle state machine.
 
@@ -26,8 +26,9 @@ Before source mutation:
 4. Read `DEFECT_LESSONS.md` before touching `src/a_conductor/`.
 5. Read the WO223 file above in full.
 6. Re-pin actual `origin/main`, repo/worktree/remote/branch/HEAD/dirty state.
-7. Read Issue #214 latest durable checkpoints, including the WO225 C0 repair, WO226 reviewer-execution architecture, and the direct-review/ReviewBridge decision.
+7. Read Issue #214 latest durable checkpoints, including WO225, accepted WO230 review-task-contract provider authority, WO226 reviewer-execution architecture, and the direct-review/ReviewBridge decision.
 8. Read accepted WO225 exact source/post-main evidence and prove the current route/lease/task boundary is truthfully READ_ONLY.
+8a. Read accepted WO230 exact source/post-main evidence. Treat its review-v2 prompt + task-contract authority publication, contract-ref/path semantics, and ProviderExecutionRequirement compatibility as immutable upstream authority for C1; do not recreate them.
 9. Read accepted WO226 exact source/post-main evidence and identify its actual reviewer-execution handoff type/symbol and identity contract.
 10. Inspect WO221's archaeology handoff only as historical design evidence; newer WO225/WO226 actual state supersedes stale assumptions.
 10a. Use the WO223 read-only refresh as a starting fact only: at `origin/main@251df211afc1ee5452f3652675d7a2f38c526876` there was still no `zra2-review-result-v2`/`zra2-review-v2` direct semantic validator/composer, and the two ZCode report producers remained asymmetric. Re-prove this on then-current main after WO226 merge rather than assuming it stayed true.
@@ -35,7 +36,7 @@ Before source mutation:
 12. Verify current source lane is a fresh isolated worktree from then-current main. If this docs packet branch is not the released source lane, create/use a separate clean source branch/worktree only after the claim is published.
 13. Verify no overlapping GLM/GPT/Worker lane owns the same source/test paths.
 
-If WO225 or WO226 is not accepted+merged+post-main verified, Issue #214 has not explicitly released WO223, an existing accepted equivalent reader/schema makes WO223 unnecessary, or source ownership is UNKNOWN, checkpoint and STOP.
+If WO225, WO230 or WO226 is not accepted+merged+post-main verified, Issue #214 has not explicitly released WO223, an existing accepted equivalent reader/schema makes WO223 unnecessary, or source ownership is UNKNOWN, checkpoint and STOP.
 
 Do not mutate from the old WO221 docs worktree merely because the file exists.
 
@@ -79,39 +80,30 @@ Fresh architecture facts to test rather than assume:
 
 If source disproves any premise in a way that changes trust architecture, checkpoint `DESIGN_GAP` with exact evidence and STOP for GPT.
 
-## G2 — RED first: protocol v2
+## G2 — re-prove accepted WO230 protocol-v2 authority
 
-Before production code, add deterministic failing tests for the v2 review protocol.
+Do NOT mutate `zero_relay_review_task.py` or recreate review-v2 publication. Read accepted WO230 exact source/post-main evidence and prove the current v2 authority artifacts still satisfy its accepted invariants:
 
-Required minimum:
+- v1 remains byte/identity compatible;
+- v2 contract ref is the persisted project-relative task-contract authority path;
+- v2 prompt path/SHA and semantic result ref are deterministically bound by accepted task-contract bytes;
+- ProviderExecutionRequirement/task security/operation identity remain canonical upstream authority;
+- exact author ResultIdentity + reviewed HEAD anti-replay remains intact.
 
-- v1 and v2 for same author+HEAD have different contract identity/digest/path/task SHA;
-- v1 remains bit-stable and regression-safe;
-- v1 artifact cannot bind v2 result;
-- v2 task explicitly requires JSON-only whole response;
-- v2 result schema/ref/task-hash/reviewed-head semantics are deterministic;
-- semantic protocol change changes identity-bearing bytes;
-- author ResultIdentity and reviewed HEAD anti-replay remains intact;
-- v2 cannot reuse a v1 deterministic path/result destination.
+Treat any failure here as predecessor drift: checkpoint `WO230_AUTHORITY_DRIFT` and STOP. Do not repair WO230 from the WO223 lane.
 
-Capture focused RED evidence before implementation.
+## G3 — RED first: semantic response contract over accepted v2
 
-## G3 — GREEN + falsify protocol v2
+Before production C1 code, add deterministic failing tests for the strict semantic response expected by the already-accepted v2 task. The response binds to accepted WO230 facts; WO223 does not invent new task identity.
 
-Implement the smallest extension in `src/a_conductor/zero_relay_review_task.py` that preserves v1 historical semantics and adds explicit successor protocol identity.
-
-Recommended label: `zra2-review-v2`.
-
-Do not silently modify existing v1 task bytes.
-
-The v2 task must require one bounded JSON-only semantic response. Recommended response contract:
+Recommended whole-response shape:
 
 ```json
 {
   "schema": "zra2-review-result-v2",
-  "review_contract_ref": "zra2-review-v2:<digest>",
+  "review_contract_ref": "<accepted WO230 project-relative .task.json ref>",
   "reviewed_head": "<exact normalized git sha>",
-  "review_task_sha256": "<exact review task sha256>",
+  "review_task_sha256": "<exact accepted WO230 markdown prompt sha256>",
   "verdict": "ACCEPTED|REJECTED",
   "findings": []
 }
@@ -119,15 +111,7 @@ The v2 task must require one bounded JSON-only semantic response. Recommended re
 
 `findings` may be refined only as a bounded evidence field. It may not contain or create lifecycle authority.
 
-After GREEN, attack:
-
-- v1/v2 replay;
-- HEAD replay;
-- author result/attempt/generation replay;
-- Unicode exact-byte behavior;
-- raw path/prose injection into refs/path generation;
-- semantic schema version differential;
-- test vacuity (a silent-v1-mutation implementation must fail).
+RED/falsification must cover v1-response replay against v2, HEAD replay, author result/attempt/generation replay, contract-ref/task-hash mismatch, Unicode exact-byte behavior, schema differential, duplicate keys, and silent parser permissiveness. Capture focused RED evidence before implementation.
 
 ## G4 — RED first: direct semantic evidence
 
