@@ -276,16 +276,20 @@ def plan_reviewer_execution(
         route_task.provider_security,
         route_task.expected_configuration_generation,
     )
-    if any(item is not None for item in task_authority):
-        if route_task.expected_configuration_generation is None or \
-                int(route_task.expected_configuration_generation) != int(generation):
-            raise ZeroRelayReviewExecutionError("REVIEW_TASK_GENERATION_STALE")
-        task_endpoint = route_task.provider_endpoint
-        task_endpoint_ref = getattr(task_endpoint, "endpoint_ref", None)
-        task_endpoint_url = str(getattr(task_endpoint, "base_url", "") or "").strip()
-        if task_endpoint_ref is None or task_endpoint_ref != profile.endpoint_ref or \
-                task_endpoint_url != base_url:
-            raise ZeroRelayReviewExecutionError("REVIEW_TASK_ENDPOINT_STALE")
+    # WO-P1-226 Repair CR1 / AF4 amendment (packet a5ea7938): direct review
+    # REQUIRES the complete provider-authority triple on the trusted C0
+    # task. An authority-less (all-None) task must fail closed here — the
+    # ambient/current snapshot is NEVER substituted as its authority.
+    if any(item is None for item in task_authority):
+        raise ZeroRelayReviewExecutionError("REVIEW_PROVIDER_AUTHORITY_MISSING")
+    if int(route_task.expected_configuration_generation) != int(generation):
+        raise ZeroRelayReviewExecutionError("REVIEW_TASK_GENERATION_STALE")
+    task_endpoint = route_task.provider_endpoint
+    task_endpoint_ref = getattr(task_endpoint, "endpoint_ref", None)
+    task_endpoint_url = str(getattr(task_endpoint, "base_url", "") or "").strip()
+    if task_endpoint_ref is None or task_endpoint_ref != profile.endpoint_ref or \
+            task_endpoint_url != base_url:
+        raise ZeroRelayReviewExecutionError("REVIEW_TASK_ENDPOINT_STALE")
     requirement = route_task.provider_requirement
     if requirement is not None and requirement.provider_id != profile.provider_id:
         raise ZeroRelayReviewExecutionError("REVIEW_TASK_REQUIREMENT_PROVIDER_MISMATCH")
@@ -1144,10 +1148,16 @@ def _terminal_unusable_cleanup(
     provider_store,
     lease_store,
     clock: Callable[[], datetime],
+    expected_generation: int | None,
 ) -> None:
-    """AF2: release the exact resources still held by a terminal-but-unusable
-    attempt (read-only lookups; typed failures leave recovery state unchanged
-    — the next reconcile may retry the cleanup)."""
+    """AF2 + Repair CR1: release the exact resources still held by a
+    terminal-but-unusable attempt (read-only lookups; typed failures leave
+    recovery state unchanged — the next reconcile may retry the cleanup).
+
+    The caller's expected provider configuration generation is carried into
+    the read-only admission lookup: a wrong or unknown required generation
+    retains BOTH resources — resource authority stays unproven, never
+    released (the preserved R1 binding, now on this path too)."""
     try:
         lease = _find_held_lease_readonly(
             lease_store,
@@ -1158,7 +1168,7 @@ def _terminal_unusable_cleanup(
             provider_store, provider_id=plan.provider_id,
             execution_id=plan.dispatch_execution_id,
             batch_id=plan.batch_id,
-            expected_generation=None,
+            expected_generation=expected_generation,
         )
     except ZeroRelayReviewExecutionError:
         return  # read/identity failure stays recovery-consumable
@@ -1202,6 +1212,7 @@ def reconcile_review_execution(
             _terminal_unusable_cleanup(
                 plan=plan, route_task=route_task, provider_store=provider_store,
                 lease_store=lease_store, clock=clock,
+                expected_generation=expected_generation,
             )
         return ReviewerExecutionResult("RECOVERY_REQUIRED", classification.reason_code)
     chosen = classification.chosen

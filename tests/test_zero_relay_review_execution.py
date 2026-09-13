@@ -217,7 +217,27 @@ def _route_task(tmp_path: Path, *, contract_ref: str, task_path: str, task_sha: 
         provider_observation=None,
         harness_dispatch=dispatch,
         task_packet=packet,
+        # complete provider-authority triple (mandatory for direct review
+        # since Repair CR1 / packet a5ea7938): the LOCAL_MACHINE egress
+        # boundary with a loopback endpoint evaluates ALLOWED_LOCAL
+        provider_endpoint=ProviderEndpointConfig("zcode-desktop", BASE_URL),
+        provider_security=_fixture_task_security(),
+        expected_configuration_generation=1,
         require_quota=False,
+    )
+
+
+def _fixture_task_security():
+    from a_conductor.provider_policy import (
+        ProviderPolicyTaskSecurity,
+        TaskNetworkPolicy,
+        TaskPrivacyClass,
+    )
+    return ProviderPolicyTaskSecurity(
+        privacy_class=TaskPrivacyClass.INTERNAL,
+        network_policy=TaskNetworkPolicy.ALLOWLISTED,
+        network_allowlist=("127.0.0.1",),
+        secret_access=False,
     )
 
 
@@ -1639,3 +1659,106 @@ def test_af4_task_network_denied_blocks_before_effect(tmp_path):
     assert "TASK_NETWORK_DENIED" in e.value.code
     assert factory.model_effects == 0
     assert _af_resources(a) == {"admissions": [], "leases_released": []}
+
+
+# ── WO-P1-226 Repair CR1 (packet a5ea7938; Astra comment 5649902034 +
+# Sol amendments ce4709b/a5ea793): terminal-unusable generation binding
+# and the mandatory provider-authority triple ───────────────────────────
+
+
+def _cr1_terminal(tmp_path, *, persisted_generation,
+                  state=ExecutionProcessState.FAILED):
+    """Terminal-unusable replay with a caller-chosen persisted admission
+    generation; provider/execution/batch are exact everywhere (real stores
+    + canonical acquisition only)."""
+    fresh = FakeRunnerFactory()
+    plan, authorities, route, route_task, admission = _replay_setup(
+        tmp_path, expected_generation=persisted_generation)
+    authorities.execution_store.set_execution_state(
+        "exec-pre-done", state, expected_version=1)
+    result = _af_dispatch(authorities, route, route_task, fresh)
+    return plan, authorities, route, fresh, result
+
+
+@pytest.mark.parametrize("state", [
+    ExecutionProcessState.FAILED,
+    ExecutionProcessState.PARTIAL,
+    ExecutionProcessState.CANCELLED,
+])
+def test_cr1_terminal_unknown_persisted_generation_retains(tmp_path, state):
+    """CR1 RED: terminal-unusable cleanup must keep the R1 generation gate.
+    A persisted NULL configuration generation (correct provider/execution/
+    batch) proves nothing about resource authority — BOTH the admission and
+    the exact active lease must be retained, with no handoff, no model
+    effect and zero new rows."""
+    plan, authorities, route, fresh, result = _cr1_terminal(
+        tmp_path, persisted_generation=None, state=state)
+    assert result.outcome == "RECOVERY_REQUIRED" and result.handoff is None
+    assert fresh.model_effects == 0
+    admission = _admission_by_execution(authorities, route.dispatch_execution_id)
+    assert admission is not None and admission.status == "ACTIVE"
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is None for l in leases)
+
+
+def test_cr1_terminal_wrong_persisted_generation_retains(tmp_path):
+    """CR1 RED (wrong-generation class on the same cleanup path): a
+    persisted generation differing from the plan's expectation must retain
+    BOTH resources — the terminal-unusable path may not disable the
+    required-generation gate."""
+    from a_conductor.zero_relay_review_execution import _terminal_unusable_cleanup
+    plan, authorities, route, route_task, admission = _replay_setup(
+        tmp_path, expected_generation=1)  # persisted generation 1
+    authorities.execution_store.set_execution_state(
+        "exec-pre-done", ExecutionProcessState.FAILED, expected_version=1)
+    _terminal_unusable_cleanup(
+        plan=plan, route_task=route_task,
+        provider_store=authorities.provider_store,
+        lease_store=authorities.lease_store, clock=lambda: NOW,
+        expected_generation=2,  # plan-side expectation differs
+    )
+    admission = _admission_by_execution(authorities, route.dispatch_execution_id)
+    assert admission is not None and admission.status == "ACTIVE"
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is None for l in leases)
+
+
+def test_cr1_exact_generation_terminal_cleanup_releases_once(tmp_path):
+    """Positive preserved: exact persisted generation terminal-unusable
+    cleanup still releases BOTH exact resources once — no handoff, no
+    relaunch, zero model effects."""
+    plan, authorities, route, fresh, result = _cr1_terminal(
+        tmp_path, persisted_generation=1)
+    assert result.outcome == "RECOVERY_REQUIRED" and result.handoff is None
+    assert fresh.model_effects == 0
+    admission = _admission_by_execution(authorities, route.dispatch_execution_id)
+    assert admission is not None and admission.status == "RELEASED"
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is not None for l in leases)
+
+
+def test_cr1_authority_triple_missing_fails_closed_before_effect(tmp_path):
+    """AF4 amendment RED (Sol a5ea793): an authority-less task — endpoint/
+    security/generation all None — must fail closed in the PURE plan with
+    the ambient snapshot NEVER substituted as authority, yielding zero
+    resource rows and zero model effects."""
+    contract_ref, task_path, task_sha = _review_contract(tmp_path)
+    route = _route(tmp_path, contract_ref=contract_ref, task_path=task_path,
+                   task_sha=task_sha)
+    base_task = _route_task(tmp_path, contract_ref=contract_ref,
+                            task_path=task_path, task_sha=task_sha)
+    authorities = _Authorities(tmp_path)
+    factory = FakeRunnerFactory()
+    task = replace(base_task, provider_endpoint=None, provider_security=None,
+                   expected_configuration_generation=None)
+    with pytest.raises(ZeroRelayReviewExecutionError) as e:
+        plan_reviewer_execution(
+            route=route, route_task=task, provider_snapshot=authorities.snapshot,
+            repo_root=authorities.repo_root, executable=EXEC, bundle_js=BUNDLE,
+            timeout_seconds=120,
+        )
+    assert e.value.code == "REVIEW_PROVIDER_AUTHORITY_MISSING"
+    with pytest.raises(ZeroRelayReviewExecutionError):
+        _af_dispatch(authorities, route, task, factory)
+    assert factory.model_effects == 0
+    assert _af_resources(authorities) == {"admissions": [], "leases_released": []}
