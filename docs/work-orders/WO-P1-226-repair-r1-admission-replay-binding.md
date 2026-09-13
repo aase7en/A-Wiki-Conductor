@@ -89,3 +89,18 @@ Before freeze:
 - exact changed paths remain within released repair scope.
 
 Then freeze ONE new candidate SHA, push PR #314, update durable result/checkpoint, trigger exact-head hosted CI, and STOP for independent GPT exact-SHA rereview. Do not merge.
+
+## 7. Integrator amendment — fold Astra AF1-AF4 into the same repair round
+
+Independent Astra exact-SHA review of `78ec598b9830d802f54eb47642130693a038a39c` froze additional evidence at `5df9ebef48063fcae96fcb7fed0cc8d68b47fcfe`. Sol adopts AF1-AF4 into this repair. They are not a second WO or second source owner.
+
+Required outcomes in addition to the admission batch/generation repair:
+
+1. **AF1 / P1:** losing concurrent dispatch cannot clean resources that may belong to a live winner before a runtime record appears. Absence of record is not proof of crash/quiescence. Use existing durable job/ownership authority; if original scope cannot prove safe ownership, STOP `DESIGN_GAP`.
+2. **AF2 / P2:** a retained timeout that later becomes a terminal non-success execution must release its exact admission/lease once, without handoff/relaunch. Live/UNKNOWN retains resources.
+3. **AF3 / P1:** post-run candidate selection must apply full equivalent identity + reviewer-worker validation before cleanup/handoff, not cardinality/state alone.
+4. **AF4 / P1:** trusted C0 provider endpoint/security/generation must also consume canonical provider-policy evaluation before acquisition/effect; policy denial fails closed.
+
+Binding review artifacts are in `A:\GitHub\_worktrees\A-Wiki-Conductor-wo226-astra-final-review\docs\reviews\wo226-astra-final\`, including `test_adversarial.py` and `GLM-REPAIR.md`. Port meaningful REDs into `tests/test_zero_relay_review_execution.py`; do not depend on the review worktree at runtime.
+
+The repair remains bounded to `src/a_conductor/zero_relay_review_execution.py` and `tests/test_zero_relay_review_execution.py` unless exact evidence requires explicit scope expansion. No schema, lifecycle, scheduler, provider-store, WorkerLease-store, dedup-store, or semantic C1 authority changes are released by this amendment.

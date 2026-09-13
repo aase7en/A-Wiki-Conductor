@@ -53,3 +53,16 @@ If another path is truly required, STOP `SCOPE_EXPANSION_REQUIRED` with exact ev
 Run focused + directly related authority regressions, compile/import, diff-check, scope and secret-shape checks. Freeze one exact SHA and push PR #314. Record exact tests/results in the WO/Issue #214 and `runs/WO-P1-226/result.md` if that existing result surface is available.
 
 Stop at `CANDIDATE_FROZEN_FOR_INDEPENDENT_REVIEW` with exact SHA and exact-head CI state. Never self-accept or merge.
+
+## Binding Sol amendment after Astra final review
+
+This same repair round also adopts and releases Astra exact-SHA findings AF1-AF4 from frozen review evidence `5df9ebef48063fcae96fcb7fed0cc8d68b47fcfe` / `docs/reviews/wo226-astra-final/GLM-REPAIR.md`. Treat them as mandatory together with the admission batch/generation defect above; do not create a second implementation lane.
+
+Reproduce the four Astra REDs and repair them in the same bounded WO226 owner/scope:
+
+- **AF1 / P1 concurrent loser cleanup:** an identical losing dispatch must never release lease/admission held by a barrier-paused winning dispatch merely because no runtime execution record is visible yet. Missing record is not quiescence/crash proof. Reuse existing durable job/ownership authority; if safe cleanup cannot be proven in original scope, STOP `DESIGN_GAP` rather than adding a new lock/store/heuristic.
+- **AF2 / P2 terminal FAILED after timeout:** once a retained timed-out execution later becomes durably terminal but unusable (`FAILED`/other terminal non-success), reconcile and release its exact held resources once, with no handoff and no relaunch. Live/UNKNOWN continues to retain resources.
+- **AF3 / P1 post-run identity classifier:** after model effect, run the same full equivalent-record identity/worker classifier before cleanup/handoff; a same-fingerprint record with foreign worker/identity must be recovery, never `EXECUTED` handoff.
+- **AF4 / P1 trusted provider policy:** before any acquisition/model effect, consume the existing provider-policy authority for the trusted C0 task (including network/security policy). Canonical denial such as `TASK_NETWORK_DENIED` must fail closed. Do not invent a second policy engine.
+
+Read the Astra report/probes directly from `A:\GitHub\_worktrees\A-Wiki-Conductor-wo226-astra-final-review\docs\reviews\wo226-astra-final\` and port meaningful non-vacuous REDs into the released WO226 focused test file. Preserve all prior positive cases and the admission replay binding repair. Expected source scope remains the two WO226 files above unless exact evidence proves scope expansion is required; if so STOP `SCOPE_EXPANSION_REQUIRED` before modifying additional paths.
