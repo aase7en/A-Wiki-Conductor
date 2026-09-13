@@ -290,6 +290,21 @@ def plan_reviewer_execution(
     if requirement is not None and requirement.provider_id != profile.provider_id:
         raise ZeroRelayReviewExecutionError("REVIEW_TASK_REQUIREMENT_PROVIDER_MISMATCH")
 
+    # AF4: the trusted C0 task's security policy is evaluated against the
+    # CURRENT provider authority (snapshot profile/endpoint) BEFORE any
+    # acquisition or model effect; canonical denial fails closed here
+    security = route_task.provider_security
+    if security is not None:
+        from .provider_policy import evaluate_provider_policy
+
+        policy = evaluate_provider_policy(
+            profile, getattr(provider_snapshot, "endpoint", None), security
+        )
+        if not policy.allowed:
+            raise ZeroRelayReviewExecutionError(
+                f"REVIEW_PROVIDER_POLICY_{policy.reason_code}"
+            )
+
     # operation identity derives from the exact task identity (single
     # authority: ZCodeTaskPacketIdentity.canonical_operation_ref)
     operation_ref = packet_identity.canonical_operation_ref()
@@ -912,6 +927,19 @@ class ReviewerExecutionBackend:
                 self.failure_code = "REVIEW_POST_RUN_MULTIPLICITY"
                 raise ZeroRelayReviewExecutionError(self.failure_code)
             chosen = new_records[0]
+            # AF3: the SAME full equivalent-record identity/worker classifier
+            # runs before any cleanup/handoff — a same-fingerprint record
+            # with foreign worker/identity can never yield an EXECUTED
+            # handoff; identity conflicts retain resources for reconcile
+            post_class = classify_equivalent_executions(
+                post, plan=plan, reviewer_worker_id=plan.reviewer_worker_id
+            )
+            if (
+                post_class.chosen is None
+                or post_class.chosen.execution_id != chosen.execution_id
+            ):
+                self.failure_code = f"REVIEW_POST_RUN_{post_class.reason_code}"
+                raise ZeroRelayReviewExecutionError(self.failure_code)
             if chosen.execution_state in _LIVE_RECORD_STATES or chosen.execution_state not in (
                 _COMPLETED_RECORD_STATES
             ):
@@ -1109,6 +1137,42 @@ def _reconcile_cleanup(
     return _CleanupEvidence(admission_final, lease_result)
 
 
+def _terminal_unusable_cleanup(
+    *,
+    plan: ReviewerExecutionPlan,
+    route_task: ParallelReadyTask,
+    provider_store,
+    lease_store,
+    clock: Callable[[], datetime],
+) -> None:
+    """AF2: release the exact resources still held by a terminal-but-unusable
+    attempt (read-only lookups; typed failures leave recovery state unchanged
+    — the next reconcile may retry the cleanup)."""
+    try:
+        lease = _find_held_lease_readonly(
+            lease_store,
+            session_id=route_task.lease_request.session_id,
+            task_id=plan.review_contract_ref,
+        )
+        admission = _find_held_admission_readonly(
+            provider_store, provider_id=plan.provider_id,
+            execution_id=plan.dispatch_execution_id,
+            batch_id=plan.batch_id,
+            expected_generation=None,
+        )
+    except ZeroRelayReviewExecutionError:
+        return  # read/identity failure stays recovery-consumable
+    if lease is None and admission is None:
+        return  # nothing held
+    try:
+        _reconcile_cleanup(
+            provider_store=provider_store, lease=lease, admission=admission,
+            lease_store=lease_store, clock=clock,
+        )
+    except ZeroRelayReviewExecutionError:
+        return  # ambiguous cleanup stays recovery for the next reconcile
+
+
 def reconcile_review_execution(
     *,
     plan: ReviewerExecutionPlan,
@@ -1131,6 +1195,14 @@ def reconcile_review_execution(
     if classification.kind is EquivalenceKind.ATTACH_RUNNING:
         return ReviewerExecutionResult("ATTACH_RUNNING", classification.reason_code)
     if classification.kind is EquivalenceKind.RECOVERY_REQUIRED:
+        if classification.reason_code == "EQUIVALENT_TERMINAL_NOT_USABLE":
+            # AF2: terminal but unusable (FAILED/PARTIAL/CANCELLED) — the
+            # exact held resources are released ONCE here, with no handoff
+            # and no relaunch; live/unknown reasons keep retaining resources
+            _terminal_unusable_cleanup(
+                plan=plan, route_task=route_task, provider_store=provider_store,
+                lease_store=lease_store, clock=clock,
+            )
         return ReviewerExecutionResult("RECOVERY_REQUIRED", classification.reason_code)
     chosen = classification.chosen
     if chosen is None:
@@ -1248,6 +1320,20 @@ def execute_review_dispatch(
         reviewer_worker_id=plan.reviewer_worker_id,
     )
     if equivalents.kind is EquivalenceKind.RECOVERY_REQUIRED:
+        if equivalents.reason_code == "EQUIVALENT_TERMINAL_NOT_USABLE":
+            # AF2: terminal-unusable equivalents reconcile (exact cleanup
+            # once, no handoff, no relaunch) instead of leaking resources
+            return reconcile_review_execution(
+                plan=plan,
+                route_task=route_task,
+                provider_store=provider_store,
+                lease_broker=lease_broker,
+                lease_store=lease_store,
+                execution_store=execution_store,
+                clock=clock,
+                max_concurrency=max_concurrency,
+                expected_generation=generation,
+            )
         return ReviewerExecutionResult("RECOVERY_REQUIRED", equivalents.reason_code)
     if equivalents.kind is EquivalenceKind.ATTACH_RUNNING:
         return ReviewerExecutionResult("ATTACH_RUNNING", equivalents.reason_code)
@@ -1349,9 +1435,34 @@ def execute_review_dispatch(
             reason = classification.reason_code
         elif classification.records and not backend.failure_code:
             reason = classification.reason_code
+        if classification.kind is EquivalenceKind.RECOVERY_REQUIRED and \
+                classification.reason_code == "EQUIVALENT_TERMINAL_NOT_USABLE":
+            # AF2 inside the reconcile branch: exact cleanup once, no handoff
+            return reconcile_review_execution(
+                plan=plan,
+                route_task=route_task,
+                provider_store=provider_store,
+                lease_broker=lease_broker,
+                lease_store=lease_store,
+                execution_store=execution_store,
+                clock=clock,
+                max_concurrency=max_concurrency,
+                expected_generation=generation,
+            )
         if not classification.records:
+            from .domain import TaskState as _TaskState
+
+            if dispatch_result.job.state is _TaskState.EXECUTING:
+                # AF1: an attempt is ACTIVELY in flight under this durable
+                # job — resources held under the exact keys may belong to
+                # the live winner; a missing execution record is not
+                # quiescence/crash proof, so nothing is released
+                return ReviewerExecutionResult(
+                    "RECOVERY_REQUIRED", "REVIEW_WINNER_ACTIVE",
+                    dispatch_action=action.value,
+                )
             # crashed attempt left resources without any execution record:
-            # clean them by exact reentry, then report not-attempted
+            # clean them by exact read-only lookups, then report not-attempted
             cleaned = _cleanup_held_resources_without_record(
                 plan=plan, route_task=route_task, provider_store=provider_store,
                 lease_broker=lease_broker, lease_store=lease_store,

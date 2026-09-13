@@ -1500,3 +1500,142 @@ def test_replay_exact_identity_still_cleans_up_once(tmp_path):
     assert final_admission.status == "RELEASED"
     leases = _all_leases(authorities)
     assert leases and all(l.released_at is not None for l in leases)
+
+
+# ── WO-P1-226 combined repair: Astra AF1-AF4 adversarial REDs (ported from
+# docs/reviews/wo226-astra-final/test_adversarial.py at frozen evidence
+# 5df9ebe; same semantics, no live provider/process) ────────────────────
+
+def _af_dispatch(a, route, task, factory):
+    return execute_review_dispatch(
+        route=route, route_task=task, provider_snapshot=a.snapshot,
+        provider_store=a.provider_store, lease_broker=a.lease_broker,
+        lease_store=a.lease_store, execution_store=a.execution_store,
+        job_store=a.job_store, runner_factory=factory,
+        secret_resolver=a.secret_resolver, repo_root=a.repo_root,
+        executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
+    )
+
+
+def _af_resources(a):
+    return {
+        "admissions": [x.status for x in _all_admissions(a)],
+        "leases_released": [x.released_at is not None for x in _all_leases(a)],
+    }
+
+
+def test_af1_loser_does_not_release_paused_winner_resources(tmp_path):
+    """AF1: while the winning dispatch is paused after acquiring resources
+    but before any runtime record exists, a concurrent losing dispatch must
+    not release those resources — missing record is not quiescence proof."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    plan, a, route, task = _bridge(tmp_path)
+    entered, proceed = Event(), Event()
+    inner = FakeRunnerFactory()
+
+    def paused_factory(**kwargs):
+        entered.set()  # winner owns resources, but no runtime record yet
+        assert proceed.wait(10), "probe barrier timed out"
+        return inner(**kwargs)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        winner = pool.submit(_af_dispatch, a, route, task, paused_factory)
+        try:
+            assert entered.wait(10)
+            before = _af_resources(a)
+            loser = _af_dispatch(a, route, task, inner)
+            after = _af_resources(a)
+        finally:
+            proceed.set()
+        first = winner.result(timeout=30)
+    assert after == before, "losing dispatch released still-owned winner resources"
+    assert first.outcome == "EXECUTED"  # winner completes normally after resume
+
+
+def test_af2_failed_terminal_after_timeout_releases_resources(tmp_path):
+    """AF2: a retained timed-out execution that later becomes terminal
+    FAILED must reconcile/release its exact resources once — no handoff, no
+    relaunch."""
+    factory = FakeRunnerFactory(live_timeout=True)
+    plan, a, route, task = _bridge(tmp_path, runner_factory=factory)
+    first = _af_dispatch(a, route, task, factory)
+    assert first.handoff is None
+    a.execution_store.set_execution_state(
+        factory.execution_ids[0], ExecutionProcessState.FAILED, expected_version=1)
+    replay = _af_dispatch(a, route, task, factory)
+    after = _af_resources(a)
+    assert replay.handoff is None
+    assert replay.outcome == "RECOVERY_REQUIRED"
+    assert after["admissions"] == ["RELEASED"] and after["leases_released"] == [True], \
+        "terminal failed child must release capacity without a usable handoff"
+    assert factory.model_effects == 1  # no relaunch
+
+
+def test_af3_foreign_worker_terminal_record_cannot_create_handoff(tmp_path):
+    """AF3: a same-fingerprint terminal record with a FOREIGN worker must be
+    typed recovery after the run — never an EXECUTED handoff."""
+    plan, a, route, task = _bridge(tmp_path)
+    inner = FakeRunnerFactory()
+
+    def foreign_factory(**kwargs):
+        original = inner(**kwargs)
+
+        class Runner:
+            def execution_fingerprint_spec(self):
+                return original.execution_fingerprint_spec()
+
+            def run(self, **run_kwargs):
+                a.execution_store.create(_record_for(
+                    kwargs["plan"], "exec-foreign", worker="a-worker-99"))
+                return NativeCommandResult(
+                    executable="ZCode.exe", argument_count=6, exit_code=0,
+                    timed_out=False, stdout="", stderr="",
+                    stdout_sha256="0" * 64, stderr_sha256="0" * 64,
+                    stdout_truncated=False, stderr_truncated=False,
+                )
+
+        return Runner()
+
+    result = _af_dispatch(a, route, task, foreign_factory)
+    assert result.handoff is None, "post-run path bypassed equivalent identity classifier"
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert "WORKER_MISMATCH" in result.reason_code
+
+
+def test_af4_task_network_denied_blocks_before_effect(tmp_path):
+    """AF4: the canonical provider policy for the trusted C0 task (network
+    DENIED against an EXTERNAL_FIRST_PARTY egress boundary) must block
+    before any acquisition/model effect."""
+    from a_conductor.provider_policy import (
+        ProviderPolicyTaskSecurity, TaskPrivacyClass, TaskNetworkPolicy,
+        evaluate_provider_policy,
+    )
+    from a_conductor.provider_configuration import EgressBoundary
+
+    plan, a, route, task = _bridge(tmp_path)
+    profile = replace(task.provider_profile, egress_boundary=EgressBoundary.EXTERNAL_FIRST_PARTY)
+    a.provider_store.save_provider(profile, expected_generation=1)
+    a.provider_store.save_endpoint(
+        ProviderEndpointConfig(profile.endpoint_ref, "https://provider.example.invalid"),
+        expected_generation=1,
+    )
+    a.snapshot = a.provider_store.load_provider_snapshot(profile.provider_id)
+    security = ProviderPolicyTaskSecurity(
+        privacy_class=TaskPrivacyClass.INTERNAL,
+        network_policy=TaskNetworkPolicy.DENIED,
+    )
+    task = replace(
+        task, provider_profile=a.snapshot.profile,
+        provider_endpoint=a.snapshot.endpoint, provider_security=security,
+        expected_configuration_generation=a.snapshot.generation,
+    )
+    policy = evaluate_provider_policy(a.snapshot.profile, a.snapshot.endpoint, security)
+    assert not policy.allowed and policy.reason_code == "TASK_NETWORK_DENIED"
+    factory = FakeRunnerFactory()
+    with pytest.raises(ZeroRelayReviewExecutionError) as e:
+        _af_dispatch(a, route, task, factory)
+    assert "TASK_NETWORK_DENIED" in e.value.code
+    assert factory.model_effects == 0
+    assert _af_resources(a) == {"admissions": [], "leases_released": []}
