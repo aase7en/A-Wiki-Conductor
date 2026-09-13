@@ -1,0 +1,9 @@
+............................................s.ssss....s.........         [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_zcode_production_assembly.py:313: Windows real-helper integration
+SKIPPED [1] tests/test_zcode_production_assembly.py:341: Windows real-helper integration
+SKIPPED [1] tests/test_zcode_production_assembly.py:357: Windows real-helper integration
+SKIPPED [1] tests/test_zcode_production_assembly.py:392: Windows real-helper integration
+SKIPPED [1] tests/test_zcode_production_assembly.py:404: Windows real-helper integration
+SKIPPED [1] tests/test_zcode_production_assembly.py:508: Windows real-helper integration
+58 passed, 6 skipped in 0.80s
