@@ -1376,3 +1376,127 @@ def test_stale_task_provider_authority_fails_closed(tmp_path):
             repo_root=authorities.repo_root, executable=EXEC, bundle_js=BUNDLE,
             timeout_seconds=120,
         )
+
+
+# ── WO-P1-226 Repair R1: admission replay binding (wrong batch/generation
+# must never be released or yield a usable handoff) ─────────────────────
+
+def _replay_setup(tmp_path, *, batch_id=None, expected_generation=1):
+    """Completed equivalent + exact ACTIVE lease + a canonical admission
+    with caller-chosen batch/generation, all through real stores."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    authorities.execution_store.create(_record_for(plan, "exec-pre-done"))
+    outcome = authorities.lease_broker.acquire(route_task.lease_request, route_task.candidates)
+    assert outcome.kind is LeaseOutcomeKind.LEASED
+    admission = authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=route.dispatch_execution_id,
+        batch_id=batch_id or plan.batch_id, expected_max_concurrency=2, now=NOW,
+        ttl_seconds=600, expected_configuration_generation=expected_generation,
+    ).admission
+    return plan, authorities, route, route_task, admission
+
+
+def _assert_rejected_replay_keeps_everything(authorities, route, result, code):
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == code
+    assert result.handoff is None
+    # the mismatched admission is NOT released by this path
+    admission = _admission_by_execution(authorities, route.dispatch_execution_id)
+    assert admission is not None and admission.status == "ACTIVE"
+    # the exact active lease is NOT released either (ownership unresolved)
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is None for l in leases)
+
+
+def test_replay_wrong_batch_admission_is_typed_recovery(tmp_path):
+    """RED 1: wrong batch_id => typed recovery, no release, no handoff,
+    zero new rows, zero model effect."""
+    fresh = FakeRunnerFactory()
+    plan, authorities, route, route_task, _ = _replay_setup(
+        tmp_path, batch_id="zra2-review-batch-v1:" + "f" * 64)
+    leases_before = len(_all_leases(authorities))
+    admissions_before = len(_all_admissions(authorities))
+    result = execute_review_dispatch(
+        route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
+        provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store, execution_store=authorities.execution_store,
+        job_store=authorities.job_store, runner_factory=fresh,
+        secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
+        executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
+    )
+    _assert_rejected_replay_keeps_everything(authorities, route, result,
+                                             "ADMISSION_REPLAY_BATCH_MISMATCH")
+    assert fresh.model_effects == 0
+    assert len(_all_leases(authorities)) == leases_before  # zero new rows
+    assert len(_all_admissions(authorities)) == admissions_before  # zero acquisition
+
+
+def test_replay_unknown_generation_when_expected_is_typed_recovery(tmp_path):
+    """RED 2/3: persisted generation NULL while the plan requires a
+    generation => typed recovery, nothing released, no handoff."""
+    fresh = FakeRunnerFactory()
+    plan, authorities, route, route_task, _ = _replay_setup(
+        tmp_path, expected_generation=None)  # canonical store persists NULL
+    leases_before = len(_all_leases(authorities))
+    result = execute_review_dispatch(
+        route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
+        provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store, execution_store=authorities.execution_store,
+        job_store=authorities.job_store, runner_factory=fresh,
+        secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
+        executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
+    )
+    _assert_rejected_replay_keeps_everything(authorities, route, result,
+                                             "ADMISSION_REPLAY_GENERATION_UNKNOWN")
+    assert fresh.model_effects == 0
+    assert len(_all_leases(authorities)) == leases_before
+
+
+def test_replay_wrong_generation_binding_fails_closed(tmp_path):
+    """RED (wrong-generation class, real store row): a persisted generation
+    that differs from the plan's expectation is a typed mismatch even when
+    provider/execution/batch all match; the exact binding still resolves."""
+    from a_conductor.zero_relay_review_execution import _find_held_admission_readonly
+    plan, authorities, route, route_task, admission = _replay_setup(
+        tmp_path, expected_generation=1)
+    with pytest.raises(ZeroRelayReviewExecutionError) as e:
+        _find_held_admission_readonly(
+            authorities.provider_store, provider_id="zcode-glm",
+            execution_id=route.dispatch_execution_id,
+            batch_id=plan.batch_id, expected_generation=2,
+        )
+    assert e.value.code == "ADMISSION_REPLAY_GENERATION_MISMATCH"
+    # exact identity still resolves through the same read-only authority
+    ok = _find_held_admission_readonly(
+        authorities.provider_store, provider_id="zcode-glm",
+        execution_id=route.dispatch_execution_id,
+        batch_id=plan.batch_id, expected_generation=1,
+    )
+    assert ok is not None and ok.admission_id == admission.admission_id
+
+
+def test_replay_exact_identity_still_cleans_up_once(tmp_path):
+    """RED 4 (positive): exact batch + exact generation replay performs ONE
+    canonical cleanup and yields the valid REUSE_COMPLETED handoff with the
+    plan's own batch identity."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task, admission = _replay_setup(tmp_path)
+    result = execute_review_dispatch(
+        route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
+        provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store, execution_store=authorities.execution_store,
+        job_store=authorities.job_store, runner_factory=factory,
+        secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
+        executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
+    )
+    assert result.outcome == "REUSE_COMPLETED"
+    handoff = result.handoff
+    assert handoff is not None and handoff.cleanup_terminal
+    assert handoff.admission_batch_id == plan.batch_id
+    assert handoff.admission_id == admission.admission_id
+    assert factory.model_effects == 0
+    final_admission = _admission_by_execution(authorities, route.dispatch_execution_id)
+    assert final_admission.status == "RELEASED"
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is not None for l in leases)

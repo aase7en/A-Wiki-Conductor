@@ -556,17 +556,42 @@ def _find_held_lease_readonly(lease_store, *, session_id: str, task_id: str):
         raise ZeroRelayReviewExecutionError(f"LEASE_READ_{exc.code}") from exc
 
 
-def _find_held_admission_readonly(provider_store, *, provider_id: str, execution_id: str):
+def _find_held_admission_readonly(
+    provider_store,
+    *,
+    provider_id: str,
+    execution_id: str,
+    batch_id: str,
+    expected_generation: int | None,
+):
     """READ-ONLY recovery lookup of the admission by exact dispatch keys via
     the canonical coherent enumeration. Never acquires capacity; absence is
-    genuine absence (enumeration is read-only)."""
+    genuine absence (enumeration is read-only).
+
+    WO-P1-226 Repair R1: the located row must additionally be cross-bound to
+    the FULL plan admission authority BEFORE any release/handoff — exact
+    provider, dispatch execution id, deterministic batch id, and the
+    persisted configuration generation (present and equal whenever the plan
+    carries an expected generation). A mismatch is a typed recovery error:
+    the mismatched admission (and its lease) must never be released as if
+    they were the current attempt's resources."""
     try:
         admissions = provider_store.list_provider_admissions(provider_id=provider_id)
     except ProviderConfigStoreError as exc:
         raise ZeroRelayReviewExecutionError(f"ADMISSION_READ_{exc.code}") from exc
     for record in admissions:
-        if record.execution_id == execution_id:
-            return record
+        if record.execution_id != execution_id:
+            continue
+        if record.provider_id != provider_id:
+            raise ZeroRelayReviewExecutionError("ADMISSION_REPLAY_PROVIDER_MISMATCH")
+        if record.batch_id != batch_id:
+            raise ZeroRelayReviewExecutionError("ADMISSION_REPLAY_BATCH_MISMATCH")
+        if expected_generation is not None:
+            if record.configuration_generation is None:
+                raise ZeroRelayReviewExecutionError("ADMISSION_REPLAY_GENERATION_UNKNOWN")
+            if int(record.configuration_generation) != int(expected_generation):
+                raise ZeroRelayReviewExecutionError("ADMISSION_REPLAY_GENERATION_MISMATCH")
+        return record
     return None
 
 
@@ -1124,6 +1149,8 @@ def reconcile_review_execution(
         admission = _find_held_admission_readonly(
             provider_store, provider_id=plan.provider_id,
             execution_id=plan.dispatch_execution_id,
+            batch_id=plan.batch_id,
+            expected_generation=expected_generation,
         )
     except ZeroRelayReviewExecutionError as exc:
         return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
@@ -1378,8 +1405,12 @@ def _cleanup_held_resources_without_record(
         admission = _find_held_admission_readonly(
             provider_store, provider_id=plan.provider_id,
             execution_id=plan.dispatch_execution_id,
+            batch_id=plan.batch_id,
+            expected_generation=expected_generation,
         )
     except ZeroRelayReviewExecutionError:
+        # identity mismatch: neither the mismatched admission nor the lease
+        # may be released by this path (Repair R1)
         return False
     if lease is None and admission is None:
         return True  # genuinely nothing held
