@@ -1,5 +1,5 @@
 # WO226 Astra R1 rereview
-Status: ACTIVE; independent R3 source review, docs-only mutation.
+Status: COMPLETE / CLAIM RELEASED; independent R3 source review, docs-only mutation.
 Claim: WO226-ASTRA-R1-REREVIEW-001. Owner: Poppy Javis / GPT Astra.
 Candidate: 609a8781ad60a89501a73d4817499654a0a5eba5, PR314.
 Prior source: 78ec598b9830d802f54eb47642130693a038a39c.
@@ -18,3 +18,6 @@ original-owner-only continuation via existing Sol packet; no duplicate long prom
 Checkpoint: review complete, CHANGES_REQUIRED. R1 focused passes; original AF1–AF4
 remain4 REDs, 3 P1 +1 P2. Combined packet already authorized; existing GLM owner
 must continue amendment before another freeze. Publish evidence/notify then release.
+
+Publication: PR314 comment5649766982; Issue214 comment5649767063.
+Frozen evidence: d42e7ac1a97c3d5bbbec969dc85acf8d45c75a0a.
