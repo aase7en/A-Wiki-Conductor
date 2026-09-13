@@ -295,6 +295,26 @@ Before production no-relay assembly or AHA-7 write controls, close source-confir
 ### AHA-7 — Operator UI
 Sunday Family Models & Agents configuration/status, selection reason, quota/health/trust, disable/fallback controls. A read-only truthful status slice may be shaped while safety WOs run, but write/Test/Disable controls consume the accepted provider policy/runtime contracts and must not become a second router.
 
+### AHA-7C — Custom Provider Settings Console [DEFERRED / POST-ZRA-4]
+
+Roadmap capture: `WO-P1-170`.
+
+After Zero-Relay is accepted through ZRA-4, extend the existing `MODELS & AGENTS` Settings/Advanced surface into a provider-neutral configuration console with the familiar operator workflow used by modern agent tools:
+
+`Add Provider -> Base URL -> API format -> API credential -> model list -> Test -> Enable`
+
+Required UX/authority semantics:
+- operator-defined provider display name and validated Base URL;
+- supported API-format/protocol-family selector (for example Anthropic Messages or an accepted OpenAI-compatible adapter), never an unvalidated bypass around provider contracts;
+- masked/transient API credential input that persists the secret only through the approved private secret boundary while the provider profile retains a credential reference;
+- add/edit/remove model IDs and friendly names, with capability metadata such as vision/context/reasoning class only when the adapter can represent it truthfully;
+- Test plus Enable/Disable using the existing background provider observation and generation/CAS/in-use fences;
+- truthful `CONFIGURED != READY != AUTHORIZED != ADMITTED` state and inspectable provider/model selection reason;
+- provider templates plus Custom without making GLM, Anthropic, OpenAI, Gemini, local models, or any vendor an architectural dependency;
+- no second provider registry, router, scheduler, quota authority, readiness authority, or secret store.
+
+This is intentionally **not** the current implementation frontier. The user's P0 remains eliminating GPT↔GLM↔GPT/reviewer human relay. Do not allocate a mutable implementation lane to AHA-7C until ZRA-4 bounded parallel Zero-Relay is accepted, unless the user explicitly reprioritizes. When released, split it into bounded work orders for protocol/create-update semantics, secure credential replacement, model-list CRUD, UI composition/accessibility/i18n, and connection/restart/adversarial verification rather than one broad rewrite.
+
 ### AHA-8 — Additional providers
 OpenAI-compatible, Anthropic first-party, Gemini, local/Ollama/llama.cpp, and other adapters only after the provider contract proves stable.
 
