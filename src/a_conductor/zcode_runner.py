@@ -63,6 +63,10 @@ from .supervised_run_coordinator import (
     SupervisedRunCoordinator,
     SupervisedRunIdentity,
 )
+from .execution_deduplication import (
+    ExecutionFingerprintSpec,
+    compute_execution_fingerprint,
+)
 from .zcode_protocol import (
     ZCODE_MAX_RESPONSE_BYTES,
     ZCodeProtocolDriver,
@@ -974,6 +978,34 @@ class SupervisedZCodeRunner:
         self._sleep = sleep_fn
         self._clock = clock_fn
 
+    def _coordinator(self) -> SupervisedRunCoordinator:
+        """The canonical coordinator for this runner's next run(): the single
+        construction point for the dedup identity (WO-P1-226 public seam).
+        Constructing it is side-effect free — only validation happens."""
+        derived = self._task_packet.canonical_operation_ref()
+        return SupervisedRunCoordinator(
+            execution_store=self._store,
+            supervised=self._adapter,
+            identity=self._identity,
+            backend_policy=zcode_backend_policy(operation_ref=derived),
+            poll_interval_seconds=self._poll,
+            sleep_fn=self._sleep,
+            clock_fn=self._clock,
+            max_output_bytes=ZCODE_MAX_RESPONSE_BYTES,
+        )
+
+    def execution_fingerprint_spec(self) -> "ExecutionFingerprintSpec":
+        """Public pure pre-effect identity: the exact
+        ``ExecutionFingerprintSpec`` the next ``run()`` dedups on.
+
+        WO-P1-226: callers derive the plan/fingerprint BEFORE any lease,
+        admission, process or secret-value effect through this same
+        construction — there is no second fingerprint implementation."""
+        return self._coordinator().fingerprint_spec(self.argv())
+
+    def execution_fingerprint(self) -> str:
+        return compute_execution_fingerprint(self.execution_fingerprint_spec())
+
     def argv(self) -> tuple[str, ...]:
         argv = (self._executable, self._bundle_js, "app-server", "--stdio", "--surface", "desktop")
         if not validate_app_server_argv(argv, executable=self._executable, bundle_js=self._bundle_js):
@@ -995,16 +1027,7 @@ class SupervisedZCodeRunner:
             raise ValueError(
                 "operation_ref must match the derived task identity: " + derived
             )
-        coordinator = SupervisedRunCoordinator(
-            execution_store=self._store,
-            supervised=self._adapter,
-            identity=self._identity,
-            backend_policy=zcode_backend_policy(operation_ref=derived),
-            poll_interval_seconds=self._poll,
-            sleep_fn=self._sleep,
-            clock_fn=self._clock,
-            max_output_bytes=ZCODE_MAX_RESPONSE_BYTES,
-        )
+        coordinator = self._coordinator()
         # preparation-time selection authorization (1st check) — fail before
         # any durable record exists when the selection is wrong
         self._adapter.authorized_selection_digest("PREP")

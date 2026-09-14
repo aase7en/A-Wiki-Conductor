@@ -88,11 +88,18 @@ def test_recovery_consumer_production_composed_pid_reuse(tmp_path):
 
 
 def test_assembly_executes_every_declared_gate():
-    """Truth audit: the assembly call graph runs each gate (source proof)."""
+    """Truth audit: the assembly call graph runs each gate (source proof).
+
+    WO-P1-226: both entrypoints (mutation + READ_ONLY review) delegate to
+    the shared ``_assemble_zcode_execution_impl`` which executes every
+    declared gate; neither entrypoint may bypass it."""
     import inspect
     from a_conductor import zcode_production_assembly as module
-    source = inspect.getsource(module.assemble_zcode_execution)
+    source = inspect.getsource(module._assemble_zcode_execution_impl)
     module_source = inspect.getsource(module)
+    for entry in (module.assemble_zcode_execution, module.assemble_zcode_review_execution):
+        entry_source = inspect.getsource(entry)
+        assert "_assemble_zcode_execution_impl(" in entry_source, entry.__name__
     for gate, where in (
         ("verify_execution_context(", source),        # git/worktree gate executed
         ("ZCODE_PROVIDER_GENERATION_DRIFT", source),  # generation CAS gate
