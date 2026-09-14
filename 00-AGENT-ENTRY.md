@@ -47,6 +47,13 @@ The user should relay at most that pointer command. Result copy-back is not requ
 
 After Zero-Relay passes its R3 gates, A-Conductor may dispatch the same packet automatically. Zero-Relay changes transport, not authority or safety rules.
 
+## Long-running execution liveness
+
+For any delegated/external-agent/tool/CI run that can outlive one immediate tool call, do not tell the user only that the system is "waiting". Read `docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md` and recover status from actual runtime + durable evidence.
+
+Required operator truth is: task/execution identity, executor, authoritative job state, derived liveness (`STARTING/RUNNING/WAITING/STALLED/TERMINAL/UNKNOWN`), `last_activity_at`, `last_progress_at`, typed blocker/reason, evidence reference, and exact next safe action. Heartbeat/activity is not proof of progress. `STALLED` is a derived warning, never permission to blind-retry; reconcile process/session/log/durable state first.
+
+A fresh session must recover this state from runtime/Git/durable records rather than asking the user to reconstruct the prior chat. Existing job/events/checkpoints remain authority; this protocol must not create a second task/status store.
 ## Universal execution loop
 
 `RECOVER -> VERIFY ACTUAL STATE -> READ MINIMUM CONTINUITY -> CLASSIFY -> CLAIM -> ROUTE -> EXECUTE -> TARGETED VERIFY -> FREEZE -> REVIEW/CI BY RISK -> GPT ACCEPT/MERGE -> CHECKPOINT`
