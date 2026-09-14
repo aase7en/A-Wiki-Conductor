@@ -61,7 +61,14 @@ from a_conductor.worker_lease import (
     WorkerLeaseCandidate,
     WorkerLeaseRequest,
 )
-from a_conductor.zero_relay_review_task import DirectReviewRoute
+from a_conductor.zero_relay import ResultIdentity, ReviewDisposition
+from a_conductor.zero_relay_review_evidence import (
+    compose_direct_review_evidence_from_store,
+)
+from a_conductor.zero_relay_review_task import (
+    DirectReviewRoute,
+    DirectReviewV2Route,
+)
 from a_conductor.zcode_runner import ZCODE_BACKEND_ID, ZCodeTaskPacketIdentity
 
 # WO226 module under test — import error here IS the pre-implementation RED.
@@ -247,7 +254,7 @@ def _route(tmp_path: Path, *, contract_ref: str, task_path: str, task_sha: str,
     task = _route_task(tmp_path, contract_ref=contract_ref, task_path=task_path,
                        task_sha=task_sha, worker=worker)
     dispatch = task.harness_dispatch
-    return DirectReviewRoute(
+    return DirectReviewV2Route(
         role="independent-review",
         mutation_intent="READ_ONLY",
         review_contract_ref=contract_ref,
@@ -267,7 +274,22 @@ def _route(tmp_path: Path, *, contract_ref: str, task_path: str, task_sha: str,
         worktree=str(tmp_path),
         branch=BRANCH,
         reviewed_head=HEAD,
+        author_task_contract_ref=AUTHOR.task_contract_ref,
+        author_task_sha256=AUTHOR.task_sha256,
+        author_result_ref=AUTHOR.result_ref,
     )
+
+
+# RE1: the author identity the v2 route carries (C1 cross-binding needs it)
+AUTHOR = ResultIdentity(
+    task_contract_ref="work-order:author-223",
+    task_sha256="1" * 64,
+    result_ref="runs/author-result-223.json",
+    result_sha256="c" * 64,
+    attempt_id="attempt-1",
+    generation=1,
+    author_execution_id="exec-author-0001",
+)
 
 
 class _Authorities:
@@ -302,12 +324,59 @@ class _Authorities:
         )
 
 
+def _v2_response_bytes(plan) -> bytes:
+    """A whole v2 review response bound to the plan's trusted facts (tests
+    may carry verdict vocabulary; the production verifier never parses it)."""
+    payload = {
+        "schema": "zra2-review-result-v2",
+        "review_contract_ref": plan.review_contract_ref,
+        "reviewed_head": plan.head,
+        "review_task_sha256": plan.review_task_sha256,
+        "verdict": "ACCEPTED",
+        "findings": [],
+    }
+    return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _write_run_artifacts(plan, execution_id: str, *, stdout: bytes,
+                         report_overrides: dict | None = None) -> None:
+    """Real on-disk stdout/report artifacts in the exact production shapes."""
+    run_dir = Path(plan.repo_root) / "runs" / execution_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "stdout.log").write_bytes(stdout)
+    (run_dir / "stderr.log").write_bytes(b"")
+    (run_dir / "result.json").write_bytes(json.dumps({
+        "schema": "zcode-result/1", "execution_id": execution_id,
+    }).encode("utf-8"))
+    report = {
+        "schema": "zcode-report/1",
+        "execution_id": execution_id,
+        "task_packet_sha256": plan.review_task_sha256,
+        "response_bytes": len(stdout),
+        "response_sha256": hashlib.sha256(stdout).hexdigest(),
+        "session_id": "session-zcode-226",
+    }
+    if report_overrides:
+        report.update(report_overrides)
+    (run_dir / "report.json").write_bytes(
+        json.dumps(report, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
+
+
 class FakeRunnerFactory:
-    """Injectable runner seam: counts model effects, writes REAL durable records."""
+    """Injectable runner seam: counts model effects, writes REAL durable
+    records + on-disk artifacts in the accepted production shapes.
+
+    The terminal exit-0 record mirrors the accepted supervised collect
+    semantics: result metadata first, then the terminal execution state
+    (VERIFICATION_REQUIRED on exit 0, FAILED otherwise)."""
 
     def __init__(self, *, drift: bool = False, exit_code: int = 0,
-                 fail_before_record: bool = False, execution_state=ExecutionProcessState.SUCCEEDED,
-                 live_timeout: bool = False, fault_after_record: bool = False) -> None:
+                 fail_before_record: bool = False,
+                 execution_state=ExecutionProcessState.VERIFICATION_REQUIRED,
+                 live_timeout: bool = False, fault_after_record: bool = False,
+                 report_overrides: dict | None = None,
+                 stdout_bytes: bytes | None = None) -> None:
         self.model_effects = 0
         self.drift = drift
         self.exit_code = exit_code
@@ -315,6 +384,8 @@ class FakeRunnerFactory:
         self.execution_state = execution_state
         self.live_timeout = live_timeout
         self.fault_after_record = fault_after_record
+        self.report_overrides = report_overrides
+        self.stdout_bytes = stdout_bytes
         self.execution_ids: list[str] = []
         self._n = 0
 
@@ -355,6 +426,23 @@ class FakeRunnerFactory:
                 execution_state=state,
             )
 
+        def finalize(execution_id, *, exit_code, state):
+            """Canonical store transitions mirroring supervised collect."""
+            created = store.get(execution_id)
+            with_result = store.set_result_metadata(
+                execution_id,
+                exit_code=exit_code,
+                finished_at="2026-09-12T12:00:00Z",
+                expected_version=created.version,
+                evidence_ref=f"runs/{execution_id}/result.json",
+            )
+            return store.set_execution_state(
+                execution_id,
+                state,
+                expected_version=with_result.version,
+                evidence_ref=f"runs/{execution_id}/result.json",
+            )
+
         class _Runner:
             def execution_fingerprint_spec(self):
                 if factory.drift:
@@ -369,9 +457,17 @@ class FakeRunnerFactory:
                     raise ZeroRelayReviewExecutionError("REVIEW_LAUNCH_CRASH_SIMULATED")
                 factory.model_effects += 1
                 if factory.live_timeout:
-                    # durable record stays LIVE; caller observes a timeout
-                    record = make_record(factory._live_execution_id(), ExecutionProcessState.RUNNING)
-                    execution_store.create(record)
+                    # durable record stays LIVE; caller observes a timeout;
+                    # the child still wrote its artifacts before hanging
+                    execution_id = factory._live_execution_id()
+                    execution_store.create(make_record(execution_id, ExecutionProcessState.RUNNING))
+                    _write_run_artifacts(
+                        plan, execution_id,
+                        stdout=factory.stdout_bytes
+                        if factory.stdout_bytes is not None
+                        else _v2_response_bytes(plan),
+                        report_overrides=factory.report_overrides,
+                    )
                     return NativeCommandResult(
                         executable="ZCode.exe", argument_count=6, exit_code=None,
                         timed_out=True, stdout="", stderr="",
@@ -380,37 +476,24 @@ class FakeRunnerFactory:
                         stdout_truncated=False, stderr_truncated=False,
                     )
                 if factory.fault_after_record:
-                    record = make_record(factory._live_execution_id(), ExecutionProcessState.RUNNING)
-                    execution_store.create(record)
+                    execution_id = factory._live_execution_id()
+                    execution_store.create(make_record(execution_id, ExecutionProcessState.RUNNING))
                     raise RuntimeError("post-spawn store fault")
+                stdout = (
+                    factory.stdout_bytes
+                    if factory.stdout_bytes is not None
+                    else _v2_response_bytes(plan)
+                )
                 factory._n += 1
                 execution_id = f"exec-fake226-{factory._n:04d}"
                 factory.execution_ids.append(execution_id)
-                run_rel = f"runs/{execution_id}"
-                record = new_execution_record(
-                    execution_id=execution_id,
-                    job_id=spec.job_id,
-                    work_order_ref=spec.work_order_ref,
-                    project_id=spec.project_id,
-                    worker_id=plan.reviewer_worker_id,
-                    backend_id=spec.backend_id,
-                    agent_ref="agent:zcode-app-server",
-                    repo_root=spec.repo_root,
-                    branch=spec.branch,
-                    head_before=spec.head_before,
-                    operation_ref=spec.operation_ref,
-                    command_fingerprint=compute_execution_fingerprint(spec),
-                    command_summary="zcode app-server turn (fake)",
-                    runtime_profile_ref=spec.runtime_profile_ref,
-                    run_dir_ref=run_rel,
-                    stdout_ref=f"{run_rel}/stdout.log",
-                    stderr_ref=f"{run_rel}/stderr.log",
-                    result_ref=f"{run_rel}/result.json",
-                    report_ref=f"{run_rel}/report.json",
-                    transport_state=TransportState.CONNECTED,
-                    execution_state=factory.execution_state,
+                execution_store.create(make_record(execution_id, ExecutionProcessState.RUNNING))
+                _write_run_artifacts(
+                    plan, execution_id, stdout=stdout,
+                    report_overrides=factory.report_overrides,
                 )
-                execution_store.create(record)
+                terminal = factory.execution_state
+                finalize(execution_id, exit_code=factory.exit_code, state=terminal)
                 return NativeCommandResult(
                     executable="ZCode.exe", argument_count=6, exit_code=factory.exit_code,
                     timed_out=False, stdout="REVIEW-OK", stderr="",
@@ -649,6 +732,31 @@ def _record_for(plan, execution_id, *, state=ExecutionProcessState.SUCCEEDED,
     )
 
 
+def _seed_completed(authorities, plan, execution_id, *,
+                    state=ExecutionProcessState.VERIFICATION_REQUIRED,
+                    exit_code: int = 0, report_overrides: dict | None = None,
+                    stdout_bytes: bytes | None = None):
+    """Seed a completed exit-0 reviewer execution through the canonical
+    store transitions (result truth first, then terminal state) plus the
+    real on-disk artifacts — the durable truth a crashed winner leaves."""
+    running = _record_for(plan, execution_id, state=ExecutionProcessState.RUNNING)
+    authorities.execution_store.create(running)
+    with_result = authorities.execution_store.set_result_metadata(
+        execution_id, exit_code=exit_code, finished_at="2026-09-12T12:00:00Z",
+        expected_version=running.version, evidence_ref=f"runs/{execution_id}/result.json",
+    )
+    final = authorities.execution_store.set_execution_state(
+        execution_id, state, expected_version=with_result.version,
+        evidence_ref=f"runs/{execution_id}/result.json",
+    )
+    _write_run_artifacts(
+        plan, execution_id,
+        stdout=stdout_bytes if stdout_bytes is not None else _v2_response_bytes(plan),
+        report_overrides=report_overrides,
+    )
+    return final
+
+
 def test_classify_empty_is_candidate(tmp_path):
     plan, *_ = _bridge(tmp_path)
     c = classify_equivalent_executions((), plan=plan, reviewer_worker_id=WORKER)
@@ -865,7 +973,7 @@ def test_completed_equivalent_replay_is_reuse_completed_with_cleanup(tmp_path):
     factory = FakeRunnerFactory()
     plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
     # pre-existing completed equivalent (crash after model, before cleanup)
-    authorities.execution_store.create(_record_for(plan, "exec-pre-done"))
+    _seed_completed(authorities, plan, "exec-pre-done")
     # resources still held: lease ACTIVE + admission ACTIVE via canonical APIs
     outcome = authorities.lease_broker.acquire(route_task.lease_request, route_task.candidates)
     assert outcome.kind is LeaseOutcomeKind.LEASED
@@ -1219,7 +1327,7 @@ def test_completed_plus_released_lease_handoff_lost_zero_new_rows(tmp_path):
     factory = FakeRunnerFactory()
     plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
     # completed equivalent + original lease fully released + admission released
-    authorities.execution_store.create(_record_for(plan, "exec-pre-done"))
+    _seed_completed(authorities, plan, "exec-pre-done")
     outcome = authorities.lease_broker.acquire(route_task.lease_request, route_task.candidates)
     assert outcome.kind is LeaseOutcomeKind.LEASED
     authorities.lease_store.release(
@@ -1271,9 +1379,16 @@ def test_timeout_retains_resources_then_terminal_reconcile_releases_once(tmp_pat
     assert admission is not None and admission.status == "ACTIVE"
     leases = _all_leases(authorities)
     assert leases and all(l.released_at is None for l in leases)
-    # terminality later observed (canonical store API)
+    # terminality later observed (canonical store API): durable exit truth
+    # first, then the terminal execution state
+    with_result = authorities.execution_store.set_result_metadata(
+        factory.execution_ids[0], exit_code=0,
+        finished_at="2026-09-12T12:00:30Z", expected_version=1,
+    )
     authorities.execution_store.set_execution_state(
-        factory.execution_ids[0], ExecutionProcessState.SUCCEEDED, expected_version=1)
+        factory.execution_ids[0], ExecutionProcessState.SUCCEEDED,
+        expected_version=with_result.version,
+    )
     replay = execute_review_dispatch(
         route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
         provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
@@ -1406,7 +1521,7 @@ def _replay_setup(tmp_path, *, batch_id=None, expected_generation=1):
     with caller-chosen batch/generation, all through real stores."""
     factory = FakeRunnerFactory()
     plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
-    authorities.execution_store.create(_record_for(plan, "exec-pre-done"))
+    _seed_completed(authorities, plan, "exec-pre-done")
     outcome = authorities.lease_broker.acquire(route_task.lease_request, route_task.candidates)
     assert outcome.kind is LeaseOutcomeKind.LEASED
     admission = authorities.provider_store.acquire_admission(
@@ -1674,8 +1789,9 @@ def _cr1_terminal(tmp_path, *, persisted_generation,
     fresh = FakeRunnerFactory()
     plan, authorities, route, route_task, admission = _replay_setup(
         tmp_path, expected_generation=persisted_generation)
+    seeded = authorities.execution_store.get("exec-pre-done")
     authorities.execution_store.set_execution_state(
-        "exec-pre-done", state, expected_version=1)
+        "exec-pre-done", state, expected_version=seeded.version)
     result = _af_dispatch(authorities, route, route_task, fresh)
     return plan, authorities, route, fresh, result
 
@@ -1709,8 +1825,10 @@ def test_cr1_terminal_wrong_persisted_generation_retains(tmp_path):
     from a_conductor.zero_relay_review_execution import _terminal_unusable_cleanup
     plan, authorities, route, route_task, admission = _replay_setup(
         tmp_path, expected_generation=1)  # persisted generation 1
+    seeded = authorities.execution_store.get("exec-pre-done")
     authorities.execution_store.set_execution_state(
-        "exec-pre-done", ExecutionProcessState.FAILED, expected_version=1)
+        "exec-pre-done", ExecutionProcessState.FAILED,
+        expected_version=seeded.version)
     _terminal_unusable_cleanup(
         plan=plan, route_task=route_task,
         provider_store=authorities.provider_store,
@@ -1918,3 +2036,204 @@ def test_r3_v2_planner_rejects_wrapped_dispatch_operation_drift(tmp_path: Path) 
             bundle_js=BUNDLE,
         )
     assert exc.value.code == "REVIEW_OPERATION_REF_MISMATCH"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# WO-P1-223 RE1 — verdict-blind verification + one version-CAS promotion
+# BEFORE immutable handoff minting (closes production exit-0
+# reachability without weakening fail-closed C1)
+# ══════════════════════════════════════════════════════════════════════
+
+def _route_for(tmp_path):
+    """Re-derive the v2 route for the bridge fixtures of this tmp root."""
+    contract_ref, task_path, task_sha = _review_contract(tmp_path)
+    return _route(tmp_path, contract_ref=contract_ref, task_path=task_path,
+                  task_sha=task_sha)
+
+
+def test_re1_production_exit0_promotes_before_handoff_and_is_c1_eligible(tmp_path):
+    """RE-1 RED discriminator: the accepted supervised collect semantics
+    durably land every exit-0 reviewer run in VERIFICATION_REQUIRED. Only a
+    verdict-blind verification + one existing-store version-CAS promotion
+    BEFORE the handoff pins record state/version lets the production exit-0
+    path mint a C1-eligible ACCEPTED handoff."""
+    factory = FakeRunnerFactory()  # production shape: VR + exit 0 + artifacts
+    result, authorities, backend = _execute(tmp_path, runner_factory=factory)
+    assert result.outcome == "EXECUTED"
+    handoff = result.handoff
+    assert handoff is not None
+    # promotion happened exactly once, BEFORE the handoff pinned the record
+    assert handoff.record_state == "SUCCEEDED"
+    promoted = authorities.execution_store.get(handoff.runtime_execution_id)
+    assert promoted.execution_state is ExecutionProcessState.SUCCEEDED
+    assert handoff.record_version == promoted.version
+    # create -> result metadata -> terminal state -> promotion == version 4
+    assert promoted.version == 4
+    events = authorities.execution_store.list_events(promoted.execution_id)
+    promotion_events = [
+        e for e in events
+        if e.evidence_ref == f"zra2-review-verification:{promoted.execution_id}"
+    ]
+    assert len(promotion_events) == 1
+    assert promotion_events[0].execution_state is ExecutionProcessState.SUCCEEDED
+    # the same durable store now composes the C1 evidence for the verdict
+    evidence = compose_direct_review_evidence_from_store(
+        author=AUTHOR, route=_route_for(tmp_path), handoff=handoff,
+        store=authorities.execution_store,
+    )
+    assert evidence.disposition is ReviewDisposition.ACCEPTED
+    assert evidence.reviewer_execution_id == handoff.runtime_execution_id
+
+
+def test_re1_reconcile_after_crash_before_promotion_is_c1_eligible(tmp_path):
+    """Crash after the exit-0 model effect (record VR, resources still
+    held): reconcile must verify + promote + mint a C1-eligible handoff
+    whose exit_code is the DURABLE exit code (fixes exit_code=None)."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    seeded = _seed_completed(authorities, plan, "exec-crash-vr")
+    outcome = authorities.lease_broker.acquire(route_task.lease_request, route_task.candidates)
+    assert outcome.kind is LeaseOutcomeKind.LEASED
+    authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=route.dispatch_execution_id,
+        batch_id=plan.batch_id, expected_max_concurrency=2, now=NOW,
+        ttl_seconds=600, expected_configuration_generation=1,
+    )
+    result = execute_review_dispatch(
+        route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
+        provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store, execution_store=authorities.execution_store,
+        job_store=authorities.job_store, runner_factory=factory,
+        secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
+        executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
+    )
+    assert result.outcome == "REUSE_COMPLETED"
+    handoff = result.handoff
+    assert handoff is not None
+    assert handoff.runtime_execution_id == "exec-crash-vr"
+    # promoted BEFORE the handoff pinned state/version, durable exit truth
+    assert handoff.record_state == "SUCCEEDED"
+    assert handoff.record_version == seeded.version + 1
+    assert handoff.exit_code == 0
+    promoted = authorities.execution_store.get("exec-crash-vr")
+    assert promoted.version == handoff.record_version
+    evidence = compose_direct_review_evidence_from_store(
+        author=AUTHOR, route=route, handoff=handoff,
+        store=authorities.execution_store,
+    )
+    assert evidence.disposition is ReviewDisposition.ACCEPTED
+
+
+def test_re1_reconcile_after_promote_crash_verifies_and_no_ops(tmp_path):
+    """Crash AFTER the promotion (record SUCCEEDED, resources still held):
+    reconcile verifies without any further mutation and mints the
+    C1-eligible handoff at the SAME durable version."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    seeded = _seed_completed(authorities, plan, "exec-crash-promoted",
+                             state=ExecutionProcessState.SUCCEEDED)
+    events_before = authorities.execution_store.list_events(seeded.execution_id)
+    outcome = authorities.lease_broker.acquire(route_task.lease_request, route_task.candidates)
+    assert outcome.kind is LeaseOutcomeKind.LEASED
+    authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=route.dispatch_execution_id,
+        batch_id=plan.batch_id, expected_max_concurrency=2, now=NOW,
+        ttl_seconds=600, expected_configuration_generation=1,
+    )
+    result = execute_review_dispatch(
+        route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
+        provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store, execution_store=authorities.execution_store,
+        job_store=authorities.job_store, runner_factory=factory,
+        secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
+        executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
+    )
+    assert result.outcome == "REUSE_COMPLETED"
+    handoff = result.handoff
+    assert handoff is not None
+    assert handoff.record_state == "SUCCEEDED"
+    assert handoff.record_version == seeded.version  # no mutation
+    assert handoff.exit_code == 0
+    assert authorities.execution_store.list_events(seeded.execution_id) == events_before
+    evidence = compose_direct_review_evidence_from_store(
+        author=AUTHOR, route=route, handoff=handoff,
+        store=authorities.execution_store,
+    )
+    assert evidence.disposition is ReviewDisposition.ACCEPTED
+
+
+def test_re1_verification_failure_cleans_up_and_mints_no_handoff(tmp_path):
+    """Verification failure (tampered report binding): truthful terminal
+    cleanup still happens, no promotion, and no success handoff."""
+    factory = FakeRunnerFactory(report_overrides={"response_sha256": "9" * 64})
+    result, authorities, backend = _execute(tmp_path, runner_factory=factory)
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.handoff is None
+    assert result.reason_code.startswith("REVIEW_VERIFICATION_")
+    # the durable record was NOT promoted
+    record = authorities.execution_store.get(factory.execution_ids[0])
+    assert record.execution_state is ExecutionProcessState.VERIFICATION_REQUIRED
+    # truthful cleanup semantics are preserved
+    admission = _admission_by_execution(authorities, backend._plan.dispatch_execution_id)
+    assert admission is not None and admission.status == "RELEASED"
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is not None for l in leases)
+
+
+def test_re1_nonzero_exit_terminal_failure_never_promotes_or_mints(tmp_path):
+    """A terminal-failure record (nonzero durable exit) is fail-closed
+    terminal-unusable: no promotion, no handoff, cleanup only."""
+    factory = FakeRunnerFactory(exit_code=3, execution_state=ExecutionProcessState.FAILED)
+    result, authorities, backend = _execute(tmp_path, runner_factory=factory)
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.handoff is None
+    record = authorities.execution_store.get(factory.execution_ids[0])
+    assert record.execution_state is ExecutionProcessState.FAILED
+    admission = _admission_by_execution(authorities, backend._plan.dispatch_execution_id)
+    assert admission is not None and admission.status == "RELEASED"
+
+
+def test_re1_live_winner_vr_record_is_not_stolen_by_reconcile(tmp_path):
+    """AF1 extension (RE1): while a dispatch winner sits between its exit-0
+    run and the promotion, a concurrent replay must not steal the promotion
+    CAS or release its resources — the dispatch job is still EXECUTING."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    plan, authorities, route, route_task = _bridge(tmp_path)
+    entered, proceed = Event(), Event()
+    inner = FakeRunnerFactory()
+
+    def paused_factory(**kwargs):
+        runner = inner(**kwargs)
+        original_run = runner.run
+
+        def run(**run_kwargs):
+            result = original_run(**run_kwargs)
+            entered.set()  # VR record + artifacts are durable now
+            assert proceed.wait(10), "probe barrier timed out"
+            return result
+
+        runner.run = run
+        return runner
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        winner = pool.submit(_af_dispatch, authorities, route, route_task, paused_factory)
+        try:
+            assert entered.wait(10)
+            before = _af_resources(authorities)
+            loser = _af_dispatch(authorities, route, route_task, inner)
+            after = _af_resources(authorities)
+        finally:
+            proceed.set()
+        first = winner.result(timeout=30)
+    # the loser could not promote/release over the live winner
+    assert after == before, "losing replay stole the live winner's resources"
+    assert loser.outcome == "RECOVERY_REQUIRED"
+    assert loser.reason_code == "REVIEW_WINNER_ACTIVE"
+    assert loser.handoff is None
+    assert inner.model_effects == 1
+    # the winner alone promoted and minted the handoff
+    assert first.outcome == "EXECUTED"
+    assert first.handoff is not None
+    assert first.handoff.record_state == "SUCCEEDED"

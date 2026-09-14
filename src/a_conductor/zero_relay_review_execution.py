@@ -24,7 +24,9 @@ One bounded module that closes the missing reviewer-execution node:
          identity binding; lease release accepts only the two canonical
          boolean truth shapes)
       -> immutable ``DirectReviewExecutionHandoff`` only after execution +
-         cleanup truth are proven.
+          verdict-blind verification/promotion (WO-P1-223 RE1) and cleanup
+          truth are proven; the handoff pins the post-promotion record
+          state/version.
 
 Identity model (three distinct identities, cross-bound — never equated):
 dispatch-context identity == GraphDispatch durable job id == admission
@@ -966,15 +968,51 @@ class ReviewerExecutionBackend:
                 self.failure_code = "REVIEW_RUN_LIVE"
                 raise ZeroRelayReviewExecutionError(self.failure_code)
 
-            # chosen is durably TERMINAL: cleanup is now safe and required
+            # chosen is durably TERMINAL. RE1 (WO-P1-223): a usable exit-0
+            # outcome must first pass verdict-blind verification and — from
+            # VERIFICATION_REQUIRED — the one existing-store version-CAS
+            # promotion BEFORE cleanup and BEFORE the immutable handoff
+            # pins the record state/version.
+            if (
+                chosen.execution_state in (
+                    ExecutionProcessState.SUCCEEDED,
+                    ExecutionProcessState.VERIFICATION_REQUIRED,
+                )
+                and result.exit_code == 0
+            ):
+                from .zero_relay_review_verification import (
+                    ZeroRelayReviewVerificationError,
+                    verify_review_execution_for_promotion,
+                )
+
+                try:
+                    verified = verify_review_execution_for_promotion(
+                        execution_store=self._execution_store,
+                        record=chosen,
+                        expected_task_packet_sha256=plan.review_task_sha256,
+                        expected_contract_ref=plan.review_contract_ref,
+                    )
+                except ZeroRelayReviewVerificationError as exc:
+                    # verification failed: cleanup stays truthful/required
+                    # and NO success handoff can exist
+                    self.failure_code = f"REVIEW_VERIFICATION_{exc.code}"
+                    self._cleanup(lease=lease, admission=admission)
+                    lease = None
+                    admission = None
+                    return JobBackendResult(
+                        success=False,
+                        recovery_classification=RecoveryClassification.UNKNOWN,
+                        error_code=self.failure_code,
+                    )
+                chosen = verified.record
+
+            # cleanup is now safe and required
             cleanup = self._cleanup(lease=lease, admission=admission)
             lease = None
             admission = None
 
-            usable = chosen.execution_state in (
-                ExecutionProcessState.SUCCEEDED,
-                ExecutionProcessState.VERIFICATION_REQUIRED,
-            ) and result.exit_code == 0
+            usable = chosen.execution_state is ExecutionProcessState.SUCCEEDED \
+                and result.exit_code == 0
             if usable:
                 self.handoff = DirectReviewExecutionHandoff(
                     review_contract_ref=plan.review_contract_ref,
@@ -1073,11 +1111,12 @@ def _cleanup_only_handoff(
     session_id: str,
     lease_id: str,
     cleanup: _CleanupEvidence,
-    exit_code: int | None,
 ) -> DirectReviewExecutionHandoff:
     """Validated handoff factory: a usable REUSE_COMPLETED handoff requires
     BOTH exact resource identities and their terminal cleanup proofs. Blank
-    or absent identities are never terminal evidence (Sol obligation 2)."""
+    or absent identities are never terminal evidence (Sol obligation 2).
+    The exit code is the DURABLE record exit code (RE1: never a fabricated
+    ``None`` — C1 requires the durable exit-0 truth)."""
     if cleanup.admission is None or not cleanup.admission.admission_id:
         raise ZeroRelayReviewExecutionError("HANDOFF_ADMISSION_UNPROVEN")
     if cleanup.admission.status != "RELEASED":
@@ -1115,7 +1154,7 @@ def _cleanup_only_handoff(
         lease_task_id=plan.review_contract_ref,
         lease_released=True,
         cleanup_terminal=True,
-        exit_code=exit_code,
+        exit_code=chosen.exit_code,
         outcome="REUSE_COMPLETED",
     )
 
@@ -1262,14 +1301,35 @@ def reconcile_review_execution(
     if lease is None:
         return ReviewerExecutionResult("RECOVERY_REQUIRED", "LEASE_IDENTITY_UNPROVEN")
 
+    # RE1 (WO-P1-223): verdict-blind verification + (when still
+    # VERIFICATION_REQUIRED) the one existing-store version-CAS promotion
+    # BEFORE the handoff pins record state/version. An already-SUCCEEDED
+    # record verifies with zero mutation. A verification failure is typed
+    # recovery with no handoff and no resource release — the next
+    # reconcile retries from unchanged durable truth.
+    from .zero_relay_review_verification import (
+        ZeroRelayReviewVerificationError,
+        verify_review_execution_for_promotion,
+    )
+
+    try:
+        verified = verify_review_execution_for_promotion(
+            execution_store=execution_store,
+            record=chosen,
+            expected_task_packet_sha256=plan.review_task_sha256,
+            expected_contract_ref=plan.review_contract_ref,
+        )
+    except ZeroRelayReviewVerificationError as exc:
+        return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
+
     try:
         cleanup = _reconcile_cleanup(
             provider_store=provider_store, lease=lease, admission=admission,
             lease_store=lease_store, clock=clock,
         )
         handoff = _cleanup_only_handoff(
-            plan=plan, chosen=chosen, session_id=session_id,
-            lease_id=lease.lease_id, cleanup=cleanup, exit_code=None,
+            plan=plan, chosen=verified.record, session_id=session_id,
+            lease_id=lease.lease_id, cleanup=cleanup,
         )
     except ZeroRelayReviewExecutionError as exc:
         return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
@@ -1339,6 +1399,24 @@ def execute_review_dispatch(
             "RECOVERY_REQUIRED", "REVIEW_PROVIDER_GENERATION_DRIFT"
         )
 
+    def _winner_may_be_active() -> bool:
+        """AF1 extension (RE1): a dispatch job still EXECUTING means a
+        winner may sit between its exit-0 run and the promotion/handoff.
+        Reconciling its still-VERIFICATION_REQUIRED record now could steal
+        the promotion CAS and release its resources, so the caller must
+        retain instead. Missing job = nothing in flight; an unreadable job
+        is UNKNOWN, which can never prove quiescence."""
+        from .domain import TaskState as _TaskState
+        from .job_store import JobStoreError as _JobStoreError
+
+        try:
+            job = job_store.get_job(plan.dispatch_execution_id)
+        except _JobStoreError as exc:
+            return exc.code != "JOB_NOT_FOUND"
+        except Exception:  # noqa: BLE001 - UNKNOWN is not quiescence proof
+            return True
+        return job.state is _TaskState.EXECUTING
+
     equivalents = classify_equivalent_executions(
         execution_store.find_by_fingerprint(plan.fingerprint),
         plan=plan,
@@ -1363,7 +1441,18 @@ def execute_review_dispatch(
     if equivalents.kind is EquivalenceKind.ATTACH_RUNNING:
         return ReviewerExecutionResult("ATTACH_RUNNING", equivalents.reason_code)
     if equivalents.kind is EquivalenceKind.REUSE_COMPLETED:
-        # completed equivalent: cleanup/reconcile only, NO new model effect
+        # completed equivalent: cleanup/reconcile only, NO new model effect.
+        # RE1/AF1: a live winner's unpromoted VR record must not be stolen
+        # (promoted/resources released) while its dispatch job EXECUTES.
+        if (
+            equivalents.chosen is not None
+            and equivalents.chosen.execution_state
+            is ExecutionProcessState.VERIFICATION_REQUIRED
+            and _winner_may_be_active()
+        ):
+            return ReviewerExecutionResult(
+                "RECOVERY_REQUIRED", "REVIEW_WINNER_ACTIVE"
+            )
         return reconcile_review_execution(
             plan=plan,
             route_task=route_task,
@@ -1443,6 +1532,27 @@ def execute_review_dispatch(
             records, plan=plan, reviewer_worker_id=plan.reviewer_worker_id
         )
         if classification.kind is EquivalenceKind.REUSE_COMPLETED:
+            if backend.failure_code:
+                # THIS dispatch's backend already ran and failed typed
+                # (e.g. verdict-blind verification): its reason is the
+                # truthful outcome; reconcile does not run over it now
+                return ReviewerExecutionResult(
+                    "RECOVERY_REQUIRED", backend.failure_code,
+                    dispatch_action=action.value,
+                )
+            # RE1/AF1: an EXECUTING job whose record is still unpromoted
+            # VERIFICATION_REQUIRED has a live winner between run and
+            # promotion — reconcile here would steal the CAS/resources
+            if (
+                classification.chosen is not None
+                and classification.chosen.execution_state
+                is ExecutionProcessState.VERIFICATION_REQUIRED
+                and _winner_may_be_active()
+            ):
+                return ReviewerExecutionResult(
+                    "RECOVERY_REQUIRED", "REVIEW_WINNER_ACTIVE",
+                    dispatch_action=action.value,
+                )
             return reconcile_review_execution(
                 plan=plan,
                 route_task=route_task,
