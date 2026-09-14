@@ -473,7 +473,12 @@ def materialize_review_v2_task(
     preexisting_prompt = _v2_read_optional(filesystem, refs.task_path)
     preexisting_authority = _v2_read_optional(filesystem, refs.contract_ref)
     if preexisting_authority is not None and preexisting_prompt is None:
-        raise ZeroRelayReviewTaskError("REVIEW_V2_AUTHORITY_WITHOUT_PROMPT")
+        # The first prompt read may race an exact publisher that completes the
+        # canonical prompt->authority pair before our authority read. Re-read
+        # only; never create the missing prompt while adjudicating this state.
+        preexisting_prompt = _v2_read_optional(filesystem, refs.task_path)
+        if preexisting_prompt is None:
+            raise ZeroRelayReviewTaskError("REVIEW_V2_AUTHORITY_WITHOUT_PROMPT")
     prompt = render_review_v2_task_markdown(
         identity, head, project_id=project, security=security
     )
@@ -632,6 +637,29 @@ class DirectReviewRoute:
     def __post_init__(self) -> None:
         if self.role != "independent-review" or self.mutation_intent != "READ_ONLY":
             raise ZeroRelayReviewTaskError("REVIEW_ROUTE_INVALID")
+
+
+@dataclass(frozen=True, slots=True)
+class DirectReviewV2Route(DirectReviewRoute):
+    """Review-v2 route carrying the complete immutable author identity.
+
+    V1 remains the original ``DirectReviewRoute`` shape. C1 requires this v2
+    extension so caller-supplied author fields cannot be rebound after the
+    canonical review task was materialized and routed.
+    """
+
+    author_task_contract_ref: str
+    author_task_sha256: str
+    author_result_ref: str
+
+    def __post_init__(self) -> None:
+        DirectReviewRoute.__post_init__(self)
+        _v2_text(self.author_task_contract_ref, "REVIEW_V2_AUTHOR_CONTRACT_INVALID")
+        _v2_text(self.author_result_ref, "REVIEW_V2_AUTHOR_RESULT_REF_INVALID")
+        if not isinstance(self.author_task_sha256, str) or not _SHA256_RE.fullmatch(
+            self.author_task_sha256
+        ):
+            raise ZeroRelayReviewTaskError("REVIEW_V2_AUTHOR_TASK_SHA_INVALID")
 
 
 def bind_direct_review_route(
@@ -794,7 +822,7 @@ def bind_direct_review_v2_route(
     *,
     author: ResultIdentity,
     filesystem: NativeFileSystem,
-) -> DirectReviewRoute:
+) -> DirectReviewV2Route:
     """Bind review-v2 publication to the existing provider/dispatch authorities.
 
     This function mints no provider, lease, dispatch, execution, or review
@@ -879,7 +907,7 @@ def bind_direct_review_v2_route(
     if requirement.base_operation_ref != packet_identity.canonical_operation_ref():
         raise ZeroRelayReviewTaskError("REVIEW_V2_PROVIDER_OPERATION_MISMATCH")
 
-    return DirectReviewRoute(
+    return DirectReviewV2Route(
         role="independent-review",
         mutation_intent="READ_ONLY",
         review_contract_ref=review.refs.contract_ref,
@@ -899,4 +927,7 @@ def bind_direct_review_v2_route(
         worktree=dispatch.worktree_path,
         branch=dispatch.expected_branch,
         reviewed_head=route_head,
+        author_task_contract_ref=author.task_contract_ref,
+        author_task_sha256=author.task_sha256,
+        author_result_ref=author.result_ref,
     )

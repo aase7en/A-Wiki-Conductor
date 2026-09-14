@@ -11,7 +11,7 @@ import pytest
 import jsonschema
 
 from a_conductor.claude_code_harness import TaskPacketFile
-from a_conductor.native_execution import NativeExecutionScope, NativeFileSystem
+from a_conductor.native_execution import NativeExecutionError, NativeExecutionScope, NativeFileSystem
 from a_conductor.provider_execution_authority import ProviderExecutionRequirement
 from a_conductor.provider_configuration import ProviderEndpointConfig
 from a_conductor.provider_policy import (
@@ -1076,3 +1076,35 @@ def test_wo223_v2_route_requires_complete_provider_authority(tmp_path: Path) -> 
     with pytest.raises(ZeroRelayReviewTaskError) as exc:
         bind_direct_review_v2_route(task, review=review, author=_identity(), filesystem=fs)
     assert exc.value.code == "REVIEW_V2_PROVIDER_AUTHORITY_MISSING"
+
+
+# ---------- WO223 R3 repair RED: Astra F3 ----------
+
+def test_r3_exact_concurrent_publication_forced_interleaving_converges(tmp_path: Path) -> None:
+    root = tmp_path / "review-root"
+    (root / "runs").mkdir(parents=True)
+    security = _v2_security()
+
+    class PausedReader(NativeFileSystem):
+        triggered = False
+
+        def read_text(self, relative_path):
+            try:
+                return super().read_text(relative_path)
+            except NativeExecutionError:
+                if str(relative_path).endswith(".md") and not self.triggered:
+                    self.triggered = True
+                    materialize_review_v2_task(
+                        NativeFileSystem(NativeExecutionScope(root=root, mutation_allowed=True)),
+                        _identity(), REVIEW_HEAD,
+                        project_id="a-sunday-conductor", security=security,
+                    )
+                raise
+
+    result = materialize_review_v2_task(
+        PausedReader(NativeExecutionScope(root=root, mutation_allowed=True)),
+        _identity(), REVIEW_HEAD,
+        project_id="a-sunday-conductor", security=security,
+    )
+    assert result.created_prompt is False
+    assert result.created_authority is False

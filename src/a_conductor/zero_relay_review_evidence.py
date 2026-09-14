@@ -25,7 +25,7 @@ from .execution_store import ExecutionStoreError
 from .registry import windows_worktree_key
 from .zero_relay import ResultIdentity, ReviewDisposition, ReviewEvidence
 from .zero_relay_review_execution import DirectReviewExecutionHandoff
-from .zero_relay_review_task import DirectReviewRoute
+from .zero_relay_review_task import DirectReviewRoute, DirectReviewV2Route
 from .zcode_runner import ZCODE_BACKEND_ID
 
 _RESULT_SCHEMA = "zra2-review-result-v2"
@@ -128,7 +128,7 @@ def parse_review_v2_response(
         raise ZeroRelayReviewEvidenceError("REVIEW_RESULT_DUPLICATE_KEY") from exc
     except _NonStandardJsonConstant as exc:
         raise ZeroRelayReviewEvidenceError("REVIEW_RESULT_JSON_INVALID") from exc
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, RecursionError) as exc:
         raise ZeroRelayReviewEvidenceError("REVIEW_RESULT_JSON_INVALID") from exc
     if not isinstance(payload, dict):
         raise ZeroRelayReviewEvidenceError("REVIEW_RESULT_ROOT_INVALID")
@@ -225,7 +225,7 @@ def _parse_zcode_report(raw: bytes) -> dict[str, object]:
         raise ZeroRelayReviewEvidenceError("REVIEW_REPORT_DUPLICATE_KEY") from exc
     except _NonStandardJsonConstant as exc:
         raise ZeroRelayReviewEvidenceError("REVIEW_REPORT_JSON_INVALID") from exc
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, RecursionError) as exc:
         raise ZeroRelayReviewEvidenceError("REVIEW_REPORT_JSON_INVALID") from exc
     if not isinstance(payload, dict):
         raise ZeroRelayReviewEvidenceError("REVIEW_REPORT_ROOT_INVALID")
@@ -240,8 +240,16 @@ def _parse_zcode_report(raw: bytes) -> dict[str, object]:
 def _bind_author_route(author: ResultIdentity, route: DirectReviewRoute) -> None:
     if not isinstance(author, ResultIdentity) or not isinstance(route, DirectReviewRoute):
         raise ZeroRelayReviewEvidenceError("INPUT_INVALID")
+    # Semantic v2 evidence is valid only for a route minted by the v2 binder,
+    # which carries all seven ResultIdentity fields. V1 routes intentionally
+    # lack this provenance and cannot be upgraded into v2 evidence here.
+    if not isinstance(route, DirectReviewV2Route):
+        raise ZeroRelayReviewEvidenceError("REVIEW_V2_ROUTE_PROVENANCE_MISSING")
     if (
-        route.author_execution_id != author.author_execution_id
+        route.author_task_contract_ref != author.task_contract_ref
+        or route.author_task_sha256 != author.task_sha256
+        or route.author_result_ref != author.result_ref
+        or route.author_execution_id != author.author_execution_id
         or route.author_result_sha256 != author.result_sha256
         or route.author_attempt_id != author.attempt_id
         or route.author_generation != author.generation

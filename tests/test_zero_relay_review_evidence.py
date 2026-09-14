@@ -11,7 +11,7 @@ from a_conductor.execution_artifacts import ExecutionArtifactKind, ExecutionArti
 from a_conductor.execution_record import DurableExecutionRecord, ExecutionProcessState, TransportState
 from a_conductor.zero_relay import ResultIdentity, ReviewDisposition, ReviewEvidence
 from a_conductor.zero_relay_review_execution import DirectReviewExecutionHandoff
-from a_conductor.zero_relay_review_task import DirectReviewRoute
+from a_conductor.zero_relay_review_task import DirectReviewRoute, DirectReviewV2Route
 from a_conductor.zero_relay_review_evidence import (
     ZeroRelayReviewEvidenceError,
     compose_direct_review_evidence,
@@ -157,7 +157,7 @@ BRANCH = "feat/review"
 
 
 def _route() -> DirectReviewRoute:
-    return DirectReviewRoute(
+    return DirectReviewV2Route(
         role="independent-review", mutation_intent="READ_ONLY",
         review_contract_ref=CONTRACT, review_task_path=f"{WORKTREE}/runs/review.md",
         review_task_sha256=TASK_SHA, review_result_ref="runs/review-result.json",
@@ -166,6 +166,9 @@ def _route() -> DirectReviewRoute:
         author_digest="3" * 64, reviewer_worker_id="reviewer-1",
         dispatch_execution_id=DISPATCH_EXEC, provider_id="cointh-glm", model_id="glm-5.3",
         project_id="a-sunday-conductor", worktree=WORKTREE, branch=BRANCH, reviewed_head=HEAD,
+        author_task_contract_ref=AUTHOR.task_contract_ref,
+        author_task_sha256=AUTHOR.task_sha256,
+        author_result_ref=AUTHOR.result_ref,
     )
 
 
@@ -396,3 +399,78 @@ def test_store_authority_wrapper_rejects_record_rollover_during_capture(tmp_path
             author=AUTHOR, route=route, handoff=handoff, store=store
         )
     assert exc.value.code == "REVIEW_EXECUTION_RECORD_DRIFT"
+
+
+# ---------- WO223 R3 repair RED: Astra F1/F4 ----------
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("task_contract_ref", "work-order:foreign"),
+        ("task_sha256", "9" * 64),
+        ("result_ref", "runs/foreign.json"),
+    ],
+)
+def test_r3_full_author_identity_rebinding_is_rejected(field: str, value: str) -> None:
+    response = _raw()
+    rec = _record()
+    with pytest.raises(ZeroRelayReviewEvidenceError) as exc:
+        compose_direct_review_evidence(
+            author=dataclasses.replace(AUTHOR, **{field: value}),
+            route=_route(),
+            handoff=_handoff(),
+            record=rec,
+            stdout=_slice(ExecutionArtifactKind.STDOUT, response, ref=rec.stdout_ref),
+            report=_slice(ExecutionArtifactKind.REPORT, _report(response), ref=rec.report_ref),
+        )
+    assert exc.value.code == "AUTHOR_IDENTITY_MISMATCH"
+
+
+def test_r3_deep_response_and_report_json_fail_with_typed_errors() -> None:
+    deep = b"[" * 1500 + b"0" + b"]" * 1500
+    with pytest.raises(ZeroRelayReviewEvidenceError) as exc:
+        _parse(deep)
+    assert exc.value.code == "REVIEW_RESULT_JSON_INVALID"
+
+    response = _raw()
+    with pytest.raises(ZeroRelayReviewEvidenceError) as exc:
+        _compose(response=response, report=deep)
+    assert exc.value.code == "REVIEW_REPORT_JSON_INVALID"
+
+
+
+def test_r3_v2_evidence_rejects_legacy_route_without_full_author_provenance() -> None:
+    v2 = _route()
+    legacy = DirectReviewRoute(
+        role=v2.role,
+        mutation_intent=v2.mutation_intent,
+        review_contract_ref=v2.review_contract_ref,
+        review_task_path=v2.review_task_path,
+        review_task_sha256=v2.review_task_sha256,
+        review_result_ref=v2.review_result_ref,
+        author_execution_id=v2.author_execution_id,
+        author_result_sha256=v2.author_result_sha256,
+        author_attempt_id=v2.author_attempt_id,
+        author_generation=v2.author_generation,
+        author_digest=v2.author_digest,
+        reviewer_worker_id=v2.reviewer_worker_id,
+        dispatch_execution_id=v2.dispatch_execution_id,
+        provider_id=v2.provider_id,
+        model_id=v2.model_id,
+        project_id=v2.project_id,
+        worktree=v2.worktree,
+        branch=v2.branch,
+        reviewed_head=v2.reviewed_head,
+    )
+    response = _raw()
+    rec = _record()
+    with pytest.raises(ZeroRelayReviewEvidenceError) as exc:
+        compose_direct_review_evidence(
+            author=AUTHOR,
+            route=legacy,
+            handoff=_handoff(),
+            record=rec,
+            stdout=_slice(ExecutionArtifactKind.STDOUT, response, ref=rec.stdout_ref),
+            report=_slice(ExecutionArtifactKind.REPORT, _report(response), ref=rec.report_ref),
+        )
+    assert exc.value.code == "REVIEW_V2_ROUTE_PROVENANCE_MISSING"

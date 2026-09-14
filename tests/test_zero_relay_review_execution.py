@@ -1762,3 +1762,159 @@ def test_cr1_authority_triple_missing_fails_closed_before_effect(tmp_path):
         _af_dispatch(authorities, route, task, factory)
     assert factory.model_effects == 0
     assert _af_resources(authorities) == {"admissions": [], "leases_released": []}
+
+
+# ---------- WO223 R3 repair RED: Astra F2 ----------
+
+def test_r3_v2_requirement_bound_route_reaches_wo226_planner(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    import test_zero_relay_review_task as review_task_tests
+    from a_conductor.zero_relay_review_task import bind_direct_review_v2_route
+
+    root, review, fs = review_task_tests._materialized_v2_real(tmp_path)
+    task = review_task_tests._v2_route_task(root, review)
+    binding = HarnessRuntimeBinding(
+        harness_strategy=HarnessStrategy.ZCODE_APP_SERVER,
+        runtime_provider_ref="runtime/provider",
+        runtime_model_ref="runtime/model",
+    )
+    models = tuple(replace(model, runtime_binding=binding) for model in task.provider_profile.models)
+    profile = replace(
+        task.provider_profile,
+        models=models,
+        schema_version="1.1.0",
+        harness_strategies=(HarnessStrategy.ZCODE_APP_SERVER,),
+    )
+    task = replace(
+        task,
+        provider_profile=profile,
+        harness_dispatch=replace(
+            task.harness_dispatch, harness_strategy=HarnessStrategy.ZCODE_APP_SERVER
+        ),
+    )
+    route = bind_direct_review_v2_route(
+        task, review, author=review_task_tests._identity(), filesystem=fs
+    )
+    plan = plan_reviewer_execution(
+        route=route,
+        route_task=task,
+        provider_snapshot=SimpleNamespace(
+            profile=profile, generation=7, endpoint=task.provider_endpoint
+        ),
+        repo_root=str(root),
+        executable=EXEC,
+        bundle_js=BUNDLE,
+    )
+    requirement = task.provider_requirement
+    assert requirement is not None
+    assert plan.operation_ref == requirement.operation_ref
+    assert plan.fingerprint_spec.operation_ref == requirement.base_operation_ref
+
+
+
+def test_r3_v2_planner_rejects_requirement_base_generation_and_security_drift(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    import test_zero_relay_review_task as review_task_tests
+    from a_conductor.zero_relay_review_task import bind_direct_review_v2_route
+
+    fixture_index = iter(range(10))
+
+    def fixture():
+        case_root = tmp_path / f"case-{next(fixture_index)}"
+        root, review, fs = review_task_tests._materialized_v2_real(case_root)
+        task = review_task_tests._v2_route_task(root, review)
+        binding = HarnessRuntimeBinding(
+            harness_strategy=HarnessStrategy.ZCODE_APP_SERVER,
+            runtime_provider_ref="runtime/provider",
+            runtime_model_ref="runtime/model",
+        )
+        models = tuple(replace(model, runtime_binding=binding) for model in task.provider_profile.models)
+        profile = replace(
+            task.provider_profile,
+            models=models,
+            schema_version="1.1.0",
+            harness_strategies=(HarnessStrategy.ZCODE_APP_SERVER,),
+        )
+        task = replace(
+            task,
+            provider_profile=profile,
+            harness_dispatch=replace(
+                task.harness_dispatch, harness_strategy=HarnessStrategy.ZCODE_APP_SERVER
+            ),
+        )
+        route = bind_direct_review_v2_route(
+            task, review, author=review_task_tests._identity(), filesystem=fs
+        )
+        snapshot = SimpleNamespace(profile=profile, generation=7, endpoint=task.provider_endpoint)
+        return root, task, route, snapshot
+
+    root, task, route, snapshot = fixture()
+    object.__setattr__(task.provider_requirement, "base_operation_ref", "zcode-task-v1:" + "f" * 64)
+    with pytest.raises(ZeroRelayReviewExecutionError) as exc:
+        plan_reviewer_execution(
+            route=route, route_task=task, provider_snapshot=snapshot,
+            repo_root=str(root), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert exc.value.code == "REVIEW_TASK_REQUIREMENT_BASE_OPERATION_MISMATCH"
+
+    root, task, route, snapshot = fixture()
+    object.__setattr__(task.provider_requirement, "expected_configuration_generation", 8)
+    with pytest.raises(ZeroRelayReviewExecutionError) as exc:
+        plan_reviewer_execution(
+            route=route, route_task=task, provider_snapshot=snapshot,
+            repo_root=str(root), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert exc.value.code == "REVIEW_TASK_REQUIREMENT_GENERATION_MISMATCH"
+
+    root, task, route, snapshot = fixture()
+    object.__setattr__(
+        task.provider_requirement,
+        "provider_security",
+        review_task_tests._v2_security(host="other.example"),
+    )
+    with pytest.raises(ZeroRelayReviewExecutionError) as exc:
+        plan_reviewer_execution(
+            route=route, route_task=task, provider_snapshot=snapshot,
+            repo_root=str(root), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert exc.value.code == "REVIEW_TASK_REQUIREMENT_SECURITY_MISMATCH"
+
+
+def test_r3_v2_planner_rejects_wrapped_dispatch_operation_drift(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    import test_zero_relay_review_task as review_task_tests
+    from a_conductor.zero_relay_review_task import bind_direct_review_v2_route
+
+    root, review, fs = review_task_tests._materialized_v2_real(tmp_path)
+    task = review_task_tests._v2_route_task(root, review)
+    binding = HarnessRuntimeBinding(
+        harness_strategy=HarnessStrategy.ZCODE_APP_SERVER,
+        runtime_provider_ref="runtime/provider",
+        runtime_model_ref="runtime/model",
+    )
+    models = tuple(replace(model, runtime_binding=binding) for model in task.provider_profile.models)
+    profile = replace(
+        task.provider_profile,
+        models=models,
+        schema_version="1.1.0",
+        harness_strategies=(HarnessStrategy.ZCODE_APP_SERVER,),
+    )
+    task = replace(
+        task,
+        provider_profile=profile,
+        harness_dispatch=replace(task.harness_dispatch, harness_strategy=HarnessStrategy.ZCODE_APP_SERVER),
+    )
+    route = bind_direct_review_v2_route(
+        task, review, author=review_task_tests._identity(), filesystem=fs
+    )
+    object.__setattr__(task.dispatch_request, "operation_ref", "provider-op:" + "e" * 64)
+    with pytest.raises(ZeroRelayReviewExecutionError) as exc:
+        plan_reviewer_execution(
+            route=route,
+            route_task=task,
+            provider_snapshot=SimpleNamespace(profile=profile, generation=7, endpoint=task.provider_endpoint),
+            repo_root=str(root),
+            executable=EXEC,
+            bundle_js=BUNDLE,
+        )
+    assert exc.value.code == "REVIEW_OPERATION_REF_MISMATCH"
