@@ -1,6 +1,6 @@
 # WO-P1-231 — Conductor pivot Phase-0 read-only reconciliation
 
-Status: PHASE0_COMPLETE / GPT_SOL_ADJUDICATED_HYBRID_V2 / SAFE_TO_MUTATE_SRC=NO / AWAITING_INDEPENDENT_R2_REVIEW
+Status: PHASE0_COMPLETE / GPT_SOL_ADJUDICATED_HYBRID_V2 / LIVENESS_AMENDMENT / SAFE_TO_MUTATE_SRC=NO / R2_REREVIEW_REQUIRED
 Date: 2026-09-13
 Parent: Issue #317 (pivot pointer) / product roadmap reconciliation
 Author: GLM-5.3 Phase-0 lane (read-only; docs-only bootstrap per 00-AGENT-ENTRY exception)
@@ -8,13 +8,13 @@ Adjudicator: GPT-5.6 Sol
 Companion ADR: `docs/adr/GE-0008-conductor-pivot-executor-neutral-control-plane.md`
 
 This WO IS the required Phase-0 durable report (14 items, §1–§14). A fresh
-session with no chat history can recover the pivot state and next action from
-this file + GE-0008 + Issue #317/#214 alone.
+session with no chat history must enter through `00-AGENT-ENTRY.md`, then can recover the pivot state and next action from
+this file + GE-0008 + Issue #317/#214 + `docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md` without user reconstruction.
 
 ## 1. Actual Git/GitHub/runtime state (verified 2026-09-13, read-only)
 
 - Repository: `https://github.com/aase7en/A-Wiki-Conductor.git` (verified remote).
-- origin/main = **251df211afc1ee5452f3652675d7a2f38c526876** ("Merge pull request #312" — WO224 fold). 114 modules in `src/a_conductor/` + `graph/` subpackage (12 files).
+- origin/main = **251df211afc1ee5452f3652675d7a2f38c526876** ("Merge pull request #312" — WO224 fold). 114 modules in `src/a_conductor/` + `graph/` subpackage (11 files).
 - Root checkout `A:\GitHub\A-Wiki-Conductor`: branch `main` @ `f4ecf9a` — **~230 merges BEHIND origin/main** (PR-#80 era; no WO158+ modules present locally there). Dirty with the user-protected `assets/donate-promptpay-qr.png` + untracked artifacts. Never use as authority; never fast-forward without explicit user instruction (protected checkout).
 - 245 registered worktrees (mostly historical detached evidence lanes); active branch lanes listed in §4.
 - Open PRs (all draft except #313): #314 WO226 (head `fa85dce`), #316 WO229, #313 WO228, #310 WO227, #309 WO205 Phase-D refresh, #308/#307/#306/#305/#304 docs packets.
@@ -81,21 +81,21 @@ this file + GE-0008 + Issue #317/#214 alone.
 
 No second scheduler/task/claim/lease/state/review/recovery authority is introduced anywhere.
 
-## 8. Existing modules that already satisfy the Executor Contract
+## 8. Historical Phase-0 Executor Contract proposal (superseded by §15.2)
 
-Contract items 2–12 (capabilities, readiness, dispatch, three-identity execution model, binding, status, results, cancellation, recovery/attach, evidence identity, failure classification) are satisfied TODAY by: `parallel_ready_execution.py` + `worker_lease.py` + `graph/dispatch.py` + `job_execution.py` + `zcode_production_assembly.py`/`zcode_runner.py` + `supervised_execution.py`/`owned_process.py` + `execution_store.py`/`execution_deduplication.py` + `agent_change_packets.py` + `recovery_reconciliation.py` (deepest parts proven by WO226's accepted-through-rereview chain). Missing: executor-neutral descriptor/port (item 1 + adapters) — the only BUILD.
+Historical Phase-0 analysis found that the capability/readiness/dispatch/identity/binding/status/result/cancellation/recovery/evidence/failure-classification responsibilities were already substantially satisfied by: `parallel_ready_execution.py` + `worker_lease.py` + `graph/dispatch.py` + `job_execution.py` + `zcode_production_assembly.py`/`zcode_runner.py` + `supervised_execution.py`/`owned_process.py` + `execution_store.py`/`execution_deduplication.py` + `agent_change_packets.py` + `recovery_reconciliation.py` (deepest parts proven by WO226's accepted-through-rereview chain). The later GPT adjudication in §15.2 supersedes the earlier conclusion that a new executor-neutral descriptor/port must be built: `JobExecutionBackend` is the canonical port unless concrete adapter evidence proves a minimal extension necessary.
 
-## 9. Smallest proposed Executor Contract
+## 9. Historical smallest Executor Contract proposal (superseded)
 
-See GE-0008 §4 (12 items). Durable contract stays free of provider UI concepts; adapters translate.
+Do not execute the earlier standalone Executor Contract proposal. The binding adjudication is §15.2 and GE-0008 §2.1: REUSE `JobExecutionBackend`; EXTEND only if concrete adapter evidence requires it.
 
 ## 10. Proposed Pivot ADR structure
 
-GE-0008 (created in this bootstrap): decision, verified evidence basis, target architecture, minimal contract, explicit non-decisions (raw-roadmap gate, WO230 reconciliation, no removals, gateway choice), P0 sequence, consequences.
+GE-0008 (created in this bootstrap): decision, verified evidence basis, target architecture, canonical executor-port reuse, explicit non-decisions (raw-roadmap gate, WO230 reconciliation, no removals, gateway choice), P0 sequence, consequences.
 
-## 11. Proposed Work Order sequence (numbers provisional, Sol assigns)
+## 11. Historical provisional Work Order sequence (superseded)
 
-P0-0 WO-231 (this) → P0-1 GE-0008 adjudication → WO-232 Executor Contract → WO-233 Kilo adapter → WO-234 ZCode/GLM conformance (WRAP) → WO-235 dual-executor parallel + cross-review proof → WO-236 recovery fail-closed matrix → WO-237 mobile control/status/approval API → WO-238 E2E Zero-Relay proof (metric: 0 human-relay actions per accepted external-agent task). AnyDesk-removal may pull WO-237 earlier if operator-wire EXTEND proves cheap.
+Do not allocate WO232–238 from this historical sequence. The binding dependency/implementation sequence is §15.4 plus GE-0008 §7; new WOs must reuse existing ZRA ownership and avoid creating a duplicate Executor Contract or Mobile API.
 
 ## 12. Two-lane GPT/GLM development plan
 
@@ -125,9 +125,9 @@ P0-0 WO-231 (this) → P0-1 GE-0008 adjudication → WO-232 Executor Contract �
 
 - Phase-0 lane wrote ONLY: this WO + GE-0008 on branch `docs/pivot-2026-09-13-phase0` (worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-pivot-phase0`, base `251df21`). No src/tests/COLLAB/CURRENT-WORK/handoff mutation. merge_performed=false. Human-relay actions in this Phase 0: 0.
 
-## 15. GPT-5.6 Sol adjudication addendum ? Hybrid V2 (2026-09-14)
+## 15. GPT-5.6 Sol adjudication addendum — Hybrid V2 (2026-09-14)
 
-This section **supersedes ??7?14 only where their proposed future architecture/sequence conflicts with the newer evidence below**. The Phase-0 observations remain historical evidence.
+This section **supersedes §§7–14 only where their proposed future architecture/sequence conflicts with the newer evidence below**. The Phase-0 observations remain historical evidence.
 
 ### 15.1 New evidence consumed after the GLM Phase-0 report
 
@@ -171,3 +171,28 @@ GE-0008 has been rewritten on this same docs-only branch to reflect these decisi
 5. Only after both the pivot ADR gate and relevant ZRA predecessor gates pass, issue bounded implementation WOs. No WO232 "new Executor Contract framework" should be created from the earlier proposal.
 
 `SAFE_TO_MUTATE_SRC=NO` remains binding at this checkpoint.
+
+## 16. Execution liveness and new-session continuity addendum — 2026-09-14
+
+User requirement: long-running GLM/Kilo/Worker/CI/review work must not become an opaque "wait", and a context-window rollover/new chat must resume without the user re-explaining what was running or whether it was stuck.
+
+Binding decision:
+
+- add `docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md` as the reusable governance contract;
+- add one compact universal pointer/rule in `00-AGENT-ENTRY.md`, which every non-trivial new session already reads first;
+- keep liveness as a **derived projection** over existing durable job events/checkpoints + actual runtime/provider/CI evidence;
+- do not create a second scheduler/task/status/claim/retry store;
+- require task/execution identity, executor, authoritative job state, `last_activity_at`, `last_progress_at`, optional heartbeat, typed reason, evidence ref, and exact next safe action;
+- derive only `STARTING/RUNNING/WAITING/STALLED/TERMINAL/UNKNOWN`; keep underlying job state authoritative;
+- heartbeat/activity is not progress;
+- `STALLED` triggers reconcile-before-retry and never authorizes blind duplicate replay;
+- `operator.v1` remains canonical for mobile/status projection;
+- fresh sessions recover status from actual runtime/Git/GitHub/durable records, never from user recollection.
+
+Roadmap placement: GE-0008 P0-F, after the required ZRA predecessor authority and before the mobile hybrid E2E can be claimed complete.
+
+The prior independent GLM R2 review ACCEPT was bound to exact SHA `c9d18171bcdf63e181407a322ad483b2195c6aff`. This amendment changes the candidate, so that ACCEPT remains historical evidence only. Freeze a new exact SHA and run independent exact-SHA rereview + CI before merge.
+
+Allowed docs-only scope for this amendment is recorded durably in Issue #317 claim `WO-P1-231-GPT-LIVENESS-CONTINUITY-002`. `src/**`, tests, PROJECT-GRAPH, AGENTS, CURRENT-WORK, handoff, COLLAB, runtime/provider DB and merge remain forbidden in this lane.
+
+`SAFE_TO_MUTATE_SRC=NO` remains binding.

@@ -1,6 +1,6 @@
-# GE-0008 ? A-Sunday Conductor pivot: quota/cost-aware hybrid execution control plane
+# GE-0008 — A-Sunday Conductor pivot: quota/cost-aware hybrid execution control plane
 
-Status: PROPOSED / PHASE0_RECONCILED / GPT_SOL_ADJUDICATED_HYBRID_V2 / AWAITING_INDEPENDENT_R2_REVIEW
+Status: PROPOSED / PHASE0_RECONCILED / GPT_SOL_ADJUDICATED_HYBRID_V2 / LIVENESS_AMENDMENT / R2_REREVIEW_REQUIRED
 Date: 2026-09-14
 Decider: GPT-5.6 Sol (integrator/authority)
 Parent: `WO-P1-231` / Issue #317
@@ -14,13 +14,13 @@ Executors are replaceable hands behind existing control-plane seams. The system 
 
 Canonical role split:
 
-- **Sunday Worker / Serena** ? first-class lightweight local semantic/tool lane, not a fallback and not the orchestrator.
-- **Native Git/tests/RDC** ? deterministic local/system lane where model reasoning is unnecessary.
-- **Kilo + GLM 5.3** ? default heavyweight autonomous lane once the Kilo adapter is accepted.
-- **Claude Code/ZCode + GLM 5.3** ? existing alternate heavyweight supervised lane.
-- **Kilo + GPT-5.6 Sol** ? premium escalation when quota is available and task value justifies it.
-- **GPT-6 Astra** ? exceptional architecture/adversarial review/debug escalation.
-- **Codex/Cline/local models** ? later replaceable executor lanes.
+- **Sunday Worker / Serena** — first-class lightweight local semantic/tool lane, not a fallback and not the orchestrator.
+- **Native Git/tests/RDC** — deterministic local/system lane where model reasoning is unnecessary.
+- **Kilo + GLM 5.3** — default heavyweight autonomous lane once the Kilo adapter is accepted.
+- **Claude Code/ZCode + GLM 5.3** — existing alternate heavyweight supervised lane.
+- **Kilo + GPT-5.6 Sol** — premium escalation when quota is available and task value justifies it.
+- **GPT-6 Astra** — exceptional architecture/adversarial review/debug escalation.
+- **Codex/Cline/local models** — later replaceable executor lanes.
 
 Strategy remains: `REUSE -> WRAP -> EXTEND -> REPLACE/NEW only by explicit decision`. No product rewrite and no second scheduler/task/claim/lease/review/recovery/SSoT system.
 
@@ -42,7 +42,7 @@ A future executor descriptor may be added only if a concrete adapter cannot expr
 
 **KEEP `operator.v1` canonical. WRAP/EXTEND it; do not create a broad new Mobile API.**
 
-Reuse `operator_protocol.py`, `operator_dispatch.py`, `operator_wire.py`, durable job control, bounded artifact access, and the existing Secure MCP tunnel/SundayWorker surface. The first mobile design candidate is a narrow Conductor MCP/operator wrapper over an existing authenticated tunnel/loopback boundary.
+Reuse `operator_protocol.py`, `operator_dispatch.py`, `operator_wire.py`, durable job control, existing bounded execution-artifact evidence surfaces, and the existing Secure MCP tunnel/SundayWorker surface. The first mobile design candidate is a narrow Conductor MCP/operator wrapper over an existing authenticated tunnel/loopback boundary.
 
 Never expose arbitrary shell, Kilo daemon, Claude terminal, credentials, SQLite files, unrestricted filesystem access, or unrestricted local services to the Internet.
 
@@ -62,6 +62,13 @@ Minimal additions after predecessor gates:
 
 Mid-flight executor/provider switching never bypasses recovery classification, lease/worktree authority, execution fingerprints, or dedup/reconciliation.
 
+### 2.4 Execution liveness / operator status
+
+**EXTEND existing durable events/checkpoints and `operator.v1`; do not create a second status store.**
+
+Long-running executors, reviews, CI, and provider calls must expose a recoverable operator liveness projection: task/execution identity, executor, authoritative job state, derived `STARTING/RUNNING/WAITING/STALLED/TERMINAL/UNKNOWN`, `last_activity_at`, `last_progress_at`, optional heartbeat, typed blocker/reason, evidence reference, and exact next safe action.
+
+Heartbeat proves observability, not progress. `STALLED` is a derived warning only; it triggers runtime/log/durable-state reconciliation before any attach/retry/failover. Timeout alone never proves non-completion. The binding reporting/recovery contract is `docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md`.
 ## 3. Target architecture
 
 ```text
@@ -76,6 +83,7 @@ A-Sunday Conductor durable control plane
   |-- WorkerLease + worktree/HEAD/scope authority
   |-- Provider policy/readiness/quota/admission authority
   |-- quota/cost-aware route selection
+  |-- execution liveness/status projection + bounded watchdog
   |
   |-- LIGHTWEIGHT --> SundayWorker / Serena / native tools
   |-- HEAVY DEFAULT --> Kilo + GLM 5.3
@@ -137,16 +145,17 @@ As of this adjudication, `main@251df211...`; WO226 source is not accepted into m
 
 Numbers after WO231 are provisional until explicit Work Orders are issued. Do not create duplicate WOs where an existing ZRA WO already owns the seam.
 
-1. **P0-0 ? WO231/GE-0008 adjudication**: this docs-only reconciliation; independent R2 review then merge/post-main checkpoint.
-2. **P0-A ? finish existing ZRA predecessor chain**: WO226 -> WO223/C1 -> WO227/ZRA-3; ZRA-4 only where required by bounded parallel acceptance.
-3. **P0-B ? canonical backend conformance proof**: prove new executors reuse `JobExecutionBackend`; no new executor framework.
-4. **P0-C ? SundayWorker first-class lightweight route**: bind capability/risk/cost selection to the existing Worker/Serena lane without duplicating scheduler or lease authority.
-5. **P0-D ? Kilo+GLM heavyweight adapter**: read-only/headless contract first, then mutation capability only through existing lease/admission/apply/recovery authorities.
-6. **P0-E ? quota/cost preference + pre-attempt failover**: extend existing provider/scheduler evidence; preserve `QUOTA_UNKNOWN` fail-closed semantics.
-7. **P0-F ? mobile control/result wrapper**: extend `operator.v1` through an existing authenticated SundayWorker/Serena/MCP or equivalent narrow loopback gateway.
-8. **P0-G ? hybrid E2E proof**: ChatGPT Mobile -> Conductor -> lightweight or heavyweight route -> verify/review/repair -> GoalCloseout/NEXT READY -> bounded result, with `human relay actions per accepted external-agent task = 0`.
+1. **P0-0 — WO231/GE-0008 adjudication**: this docs-only reconciliation; independent R2 review then merge/post-main checkpoint.
+2. **P0-A — finish existing ZRA predecessor chain**: WO226 -> WO223/C1 -> WO227/ZRA-3; ZRA-4 only where required by bounded parallel acceptance.
+3. **P0-B — canonical backend conformance proof**: prove new executors reuse `JobExecutionBackend`; no new executor framework.
+4. **P0-C — SundayWorker first-class lightweight route**: bind capability/risk/cost selection to the existing Worker/Serena lane without duplicating scheduler or lease authority.
+5. **P0-D — Kilo+GLM heavyweight adapter**: read-only/headless contract first, then mutation capability only through existing lease/admission/apply/recovery authorities.
+6. **P0-E — quota/cost preference + pre-attempt failover**: extend existing provider/scheduler evidence; preserve `PROVIDER_QUOTA_UNKNOWN` fail-closed semantics.
+7. **P0-F — execution liveness + operator status**: reuse durable events/checkpoints to expose activity/progress/heartbeat, derived stall/wait/terminal truth, reconcile-before-retry, and `operator.v1` status projection.
+8. **P0-G — mobile control/result wrapper**: extend `operator.v1` through an existing authenticated SundayWorker/Serena/MCP or equivalent narrow loopback gateway.
+9. **P0-H — hybrid E2E proof**: ChatGPT Mobile -> Conductor -> lightweight or heavyweight route -> observable liveness -> verify/review/repair -> GoalCloseout/NEXT READY -> bounded result, with `human relay actions per accepted external-agent task = 0`.
 
-Fast-path implementation may reorder P0-C..P0-F only when dependencies and file scopes are proven independent. Default WIP remains <=3 mutable lanes + 1 independent read-only review lane.
+Fast-path implementation may reorder P0-C..P0-G only when dependencies and file scopes are proven independent; P0-H remains the terminal hybrid E2E acceptance proof. Default WIP remains <=3 mutable lanes + 1 independent read-only review lane.
 
 ## 8. Acceptance proofs for the pivot
 
@@ -158,7 +167,9 @@ The pivot is not complete until deterministic evidence proves at least:
 - an ambiguous/mid-flight execution cannot be blindly relaunched on another provider;
 - `operator.v1` mobile control can create/observe/control a durable job without arbitrary shell exposure;
 - one real bounded end-to-end goal completes with zero manual prompt/result copy-paste;
-- exact worktree/HEAD/lease/evidence identity survives verify, review, repair and closeout.
+- exact worktree/HEAD/lease/evidence identity survives verify, review, repair and closeout;
+- a long-running executor distinguishes activity from progress, derives `STALLED` without blind replay, and can be recovered by a fresh session from durable/runtime evidence;
+- `operator.v1` can expose bounded liveness/status without leaking secrets or creating a second status authority.
 
 ## 9. Non-decisions / blockers
 
@@ -177,3 +188,4 @@ The pivot is not complete until deterministic evidence proves at least:
 - `operator.v1` becomes the canonical mobile/control vocabulary; gateway work is a wrapper/extension problem.
 - quota/cost work becomes a bounded extension of existing provider/scheduler evidence, not a new router.
 - Existing WO226/WO223/WO227 work remains valuable and on the critical path.
+- Execution liveness becomes an explicit P0 control-plane requirement: status is a derived projection over existing authority, never a shadow task/state system, and every new session can recover it without user relay.
