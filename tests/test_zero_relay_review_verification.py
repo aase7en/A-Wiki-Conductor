@@ -556,3 +556,231 @@ def test_exact_replay_is_deterministic(tmp_path):
     second = _verify(repo.store, first.record)
     assert second.promoted is False
     assert second.record == first.record
+
+
+# ── WO-P1-223 RE2-A — strict versioned promotion resource identity ──────
+#
+# The SUCCEEDED promotion event's evidence_ref must be able to carry the
+# exact original lease/admission locators plus the full cross-binding facts
+# (bounded, deterministic, unambiguous, fail-closed) so a lost-handoff
+# replay can later prove the pointed-at rows belonged to this exact
+# reviewer attempt. Direct verifier callers that supply no identity keep
+# the legacy evidence format and behavior unchanged.
+
+_V2_EVIDENCE_PREFIX = "zra2-review-verification-v2"
+
+
+def _identity(**overrides):
+    from a_conductor.zero_relay_review_verification import (
+        ReviewPromotionResourceIdentity,
+    )
+
+    fields = dict(
+        execution_id=EXEC_ID,
+        review_contract_ref=CONTRACT,
+        review_task_sha256=TASK_SHA,
+        worker_id="a-worker-01",
+        project_id="zcode",
+        repo_root="A:/repo",
+        branch="feat/wo-p1-223",
+        head="a" * 40,
+        provider_id="zcode-glm",
+        model_id="glm-5.3",
+        dispatch_execution_id="dispatch-job-1",
+        batch_id="zra2-review-batch-v1:" + "b" * 64,
+        provider_generation=1,
+        lease_id="lease-223-0001",
+        lease_session_id="sess-review-223",
+        lease_task_id=CONTRACT,
+        admission_id="provider-admission-223-0001",
+    )
+    fields.update(overrides)
+    return ReviewPromotionResourceIdentity(**fields)
+
+
+def _verify_with_identity(store, record, identity, *, task_sha=TASK_SHA,
+                          contract=CONTRACT):
+    return verify_review_execution_for_promotion(
+        execution_store=store,
+        record=record,
+        expected_task_packet_sha256=task_sha,
+        expected_contract_ref=contract,
+        resource_identity=identity,
+    )
+
+
+def test_promotion_with_identity_writes_v2_evidence_and_round_trips(tmp_path):
+    from a_conductor.zero_relay_review_verification import (
+        build_promotion_evidence_ref,
+        parse_promotion_evidence_ref,
+    )
+
+    repo = _Repo(tmp_path)
+    seeded = repo.seed()
+    identity = _identity()
+    verified = _verify_with_identity(repo.store, seeded, identity)
+    assert verified.promoted is True
+    events = repo.store.list_events(seeded.execution_id)
+    v2_events = [
+        e for e in events
+        if e.evidence_ref and e.evidence_ref.startswith(_V2_EVIDENCE_PREFIX + ":")
+    ]
+    assert len(v2_events) == 1
+    assert v2_events[0].execution_state is ExecutionProcessState.SUCCEEDED
+    assert v2_events[0].evidence_ref == build_promotion_evidence_ref(identity)
+    parsed = parse_promotion_evidence_ref(v2_events[0].evidence_ref)
+    assert parsed == identity
+    # exact replay with the same identity: verification only, ZERO mutation
+    events_before = repo.store.list_events(seeded.execution_id)
+    again = _verify_with_identity(repo.store, verified.record, identity)
+    assert again.promoted is False
+    assert again.record == verified.record
+    assert repo.store.list_events(seeded.execution_id) == events_before
+    # direct legacy caller (no identity) keeps the legacy evidence format
+    repo2 = _Repo(tmp_path / "legacy")
+    seeded2 = repo2.seed()
+    legacy = _verify(repo2.store, seeded2)
+    assert legacy.promoted is True
+    refs = [
+        e.evidence_ref
+        for e in repo2.store.list_events(seeded2.execution_id)
+        if e.evidence_ref is not None
+    ]
+    assert refs == [f"zra2-review-verification:{seeded2.execution_id}"]
+
+
+def test_identity_binding_mismatches_fail_closed_without_promotion(tmp_path):
+    cases = [
+        (_identity(execution_id="exec-foreign"),
+         "REVIEW_VERIFICATION_IDENTITY_MISMATCH"),
+        (_identity(review_task_sha256="9" * 64),
+         "REVIEW_VERIFICATION_IDENTITY_MISMATCH"),
+        (_identity(review_contract_ref="zra2-review-v1:" + "f" * 64),
+         "REVIEW_VERIFICATION_IDENTITY_MISMATCH"),
+        ("not-an-identity", "REVIEW_PROMOTION_IDENTITY_INVALID"),
+    ]
+    for index, (identity, code) in enumerate(cases):
+        repo = _Repo(tmp_path / f"case-{index}")
+        record = repo.seed()
+        with pytest.raises(ZeroRelayReviewVerificationError) as exc:
+            _verify_with_identity(repo.store, record, identity)
+        assert exc.value.code == code, code
+        assert (
+            repo.store.get(record.execution_id).execution_state
+            is ExecutionProcessState.VERIFICATION_REQUIRED
+        )
+
+
+def test_identity_construction_rejects_invalid_shapes():
+    bad_overrides = [
+        dict(lease_id="  "),
+        dict(provider_generation=0),
+        dict(provider_generation=True),
+        dict(provider_generation="1"),
+        dict(provider_generation=10 ** 12),
+        dict(head="zz" * 20),
+        dict(head="a" * 6),
+        dict(review_task_sha256="A" * 64),
+        dict(repo_root="x" * 2000),
+        dict(dispatch_execution_id=""),
+    ]
+    for overrides in bad_overrides:
+        with pytest.raises(ZeroRelayReviewVerificationError) as exc:
+            _identity(**overrides)
+        assert exc.value.code == "REVIEW_PROMOTION_IDENTITY_INVALID"
+
+
+def test_evidence_codec_rejects_malformed_and_oversized():
+    import dataclasses
+
+    from a_conductor.zero_relay_review_verification import (
+        build_promotion_evidence_ref,
+        parse_promotion_evidence_ref,
+    )
+
+    valid = dataclasses.asdict(_identity())
+    prefix = _V2_EVIDENCE_PREFIX + ":"
+    malformed = [
+        None,
+        "zra2-review-verification-v2:not-json{",
+        "zra2-review-verification-v2:",  # empty payload
+        prefix + json.dumps({"unexpected": True}),
+        prefix + json.dumps(
+            {k: v for k, v in valid.items() if k != "lease_id"}
+        ),
+        prefix + json.dumps({**valid, "evil": 1}),
+        prefix + json.dumps({**valid, "provider_generation": "1"}),
+        prefix + json.dumps({**valid, "provider_generation": True}),
+        prefix + json.dumps({**valid, "provider_generation": None}),
+        prefix + json.dumps({**valid, "repo_root": "x" * 3000}),
+        # duplicate JSON key must not silently take the last value
+        prefix + json.dumps(valid)[:0] + (
+            "{" + f'"execution_id":"{EXEC_ID}","execution_id":"{EXEC_ID}",'
+            + ",".join(
+                f'"{k}":{json.dumps(v)}' for k, v in sorted(valid.items())
+                if k != "execution_id"
+            ) + "}"
+        ),
+        # legacy-format ref is not v2 evidence
+        f"zra2-review-verification:{EXEC_ID}",
+    ]
+    for text in malformed:
+        with pytest.raises(ZeroRelayReviewVerificationError) as exc:
+            parse_promotion_evidence_ref(text)
+        assert exc.value.code == "REVIEW_PROMOTION_EVIDENCE_MALFORMED"
+    # building an oversized payload (every field individually valid) also
+    # fails closed at the source
+    with pytest.raises(ZeroRelayReviewVerificationError) as exc:
+        build_promotion_evidence_ref(_identity(
+            repo_root="x" * 1024,
+            review_contract_ref="zra2-review-v1:" + "a" * 489,
+            batch_id="zra2-review-batch-v1:" + "b" * 490,
+        ))
+    assert exc.value.code == "REVIEW_PROMOTION_EVIDENCE_MALFORMED"
+
+
+def test_resolve_promotion_resource_identity_legacy_v2_and_ambiguity(tmp_path):
+    from a_conductor.zero_relay_review_verification import (
+        build_promotion_evidence_ref,
+        resolve_promotion_resource_identity,
+    )
+
+    # legacy promotion evidence (no v2 event) resolves to None
+    repo = _Repo(tmp_path)
+    seeded = repo.seed()
+    assert resolve_promotion_resource_identity(repo.store, EXEC_ID) is None
+
+    # v2 promotion evidence resolves to the exact identity
+    verified = _verify_with_identity(repo.store, seeded, _identity())
+    resolved = resolve_promotion_resource_identity(repo.store, EXEC_ID)
+    assert resolved == _identity()
+
+    # duplicate v2 evidence events are ambiguous -> typed failure
+    repo.store.set_execution_state(
+        EXEC_ID,
+        ExecutionProcessState.SUCCEEDED,
+        expected_version=verified.record.version,
+        evidence_ref=build_promotion_evidence_ref(_identity()),
+    )
+    with pytest.raises(ZeroRelayReviewVerificationError) as exc:
+        resolve_promotion_resource_identity(repo.store, EXEC_ID)
+    assert exc.value.code == "REVIEW_PROMOTION_EVIDENCE_AMBIGUOUS"
+
+    # v2-shaped evidence on a non-SUCCEEDED transition is pollution
+    repo2 = _Repo(tmp_path / "polluted")
+    seeded2 = repo2.seed()
+    polluted = repo2.store.set_execution_state(
+        EXEC_ID,
+        ExecutionProcessState.RUNNING,
+        expected_version=seeded2.version,
+        evidence_ref=build_promotion_evidence_ref(_identity()),
+    )
+    assert polluted.execution_state is ExecutionProcessState.RUNNING
+    with pytest.raises(ZeroRelayReviewVerificationError) as exc:
+        resolve_promotion_resource_identity(repo2.store, EXEC_ID)
+    assert exc.value.code == "REVIEW_PROMOTION_EVIDENCE_AMBIGUOUS"
+
+    # store without the canonical event-read API fails typed
+    with pytest.raises(ZeroRelayReviewVerificationError) as exc:
+        resolve_promotion_resource_identity(object(), EXEC_ID)
+    assert exc.value.code == "REVIEW_VERIFICATION_STORE_INVALID"

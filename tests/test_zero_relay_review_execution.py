@@ -873,10 +873,14 @@ def test_concurrent_same_fingerprint_lanes_one_model_effect_winner(tmp_path):
     assert len(records) == 1
 
 
-def test_same_owner_reentry_and_existing_admission_are_not_winner_proof(tmp_path):
-    """RED (PO2): after the winner acquired resources, a second caller sees
-    EXISTING lease + EXISTING admission via reentry but must NOT run a second
-    model effect — the durable job CAS decides, not resource reentry."""
+def test_same_owner_reentry_after_cleanup_reconstructs_without_second_model_effect(tmp_path):
+    """RED (PO2 + RE2-A): after the winner acquired resources and completed,
+    a second caller sees EXISTING lease + EXISTING admission via reentry but
+    must NOT run a second model effect — the durable job CAS decides, not
+    resource reentry. RE2-A: now that the promotion event carries the exact
+    resource identity, the replay reconstructs the exact REUSE_COMPLETED
+    handoff from the released rows instead of failing LEASE_IDENTITY_UNPROVEN
+    forever — still with ZERO new lease rows and ZERO new model effects."""
     factory = FakeRunnerFactory()
     plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
     first = execute_review_dispatch(
@@ -889,12 +893,11 @@ def test_same_owner_reentry_and_existing_admission_are_not_winner_proof(tmp_path
     )
     assert first.outcome == "EXECUTED"
     assert factory.model_effects == 1
-    # second full replay after the winner already cleaned up: the job is
-    # terminal (VERIFYING -> EXISTING) but the original lease is already
-    # RELEASED and the lease store exposes no historical released-lease
-    # proof -> mandated fail-closed RECOVERY, ZERO new lease rows, no
-    # fabricated identity, and still no second model effect
+    # second full replay after the winner already cleaned up: the original
+    # lease/admission rows are RELEASED; the promotion event's strict
+    # identity proves them by exact id -> exact REUSE_COMPLETED truth
     lease_rows_before = len(_all_leases(authorities))
+    admission_rows_before = len(_all_admissions(authorities))
     second = execute_review_dispatch(
         route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
         provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
@@ -903,11 +906,15 @@ def test_same_owner_reentry_and_existing_admission_are_not_winner_proof(tmp_path
         secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
         executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
     )
-    assert second.outcome == "RECOVERY_REQUIRED"
-    assert second.reason_code == "LEASE_IDENTITY_UNPROVEN"
-    assert second.handoff is None
+    assert second.outcome == "REUSE_COMPLETED"
+    assert second.handoff is not None
+    assert second.handoff.runtime_execution_id == first.handoff.runtime_execution_id
+    assert second.handoff.lease_id == first.handoff.lease_id
+    assert second.handoff.admission_id == first.handoff.admission_id
+    assert second.handoff.cleanup_terminal is True
     assert factory.model_effects == 1  # no second model effect
     assert len(_all_leases(authorities)) == lease_rows_before  # zero new rows
+    assert len(_all_admissions(authorities)) == admission_rows_before
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -2070,12 +2077,36 @@ def test_re1_production_exit0_promotes_before_handoff_and_is_c1_eligible(tmp_pat
     # create -> result metadata -> terminal state -> promotion == version 4
     assert promoted.version == 4
     events = authorities.execution_store.list_events(promoted.execution_id)
+    from a_conductor.zero_relay_review_verification import (
+        parse_promotion_evidence_ref,
+    )
     promotion_events = [
         e for e in events
-        if e.evidence_ref == f"zra2-review-verification:{promoted.execution_id}"
+        if e.evidence_ref is not None
+        and e.evidence_ref.startswith("zra2-review-verification-v2:")
     ]
     assert len(promotion_events) == 1
     assert promotion_events[0].execution_state is ExecutionProcessState.SUCCEEDED
+    # RE2-A: the promotion event carries the strict versioned exact
+    # resource identity of THIS reviewer attempt
+    identity = parse_promotion_evidence_ref(promotion_events[0].evidence_ref)
+    assert identity.execution_id == promoted.execution_id
+    assert identity.review_contract_ref == backend._plan.review_contract_ref
+    assert identity.review_task_sha256 == backend._plan.review_task_sha256
+    assert identity.worker_id == backend._plan.reviewer_worker_id
+    assert identity.project_id == backend._plan.project_id
+    assert identity.repo_root == backend._plan.repo_root
+    assert identity.branch == backend._plan.branch
+    assert identity.head == backend._plan.head
+    assert identity.provider_id == backend._plan.provider_id
+    assert identity.model_id == backend._plan.model_id
+    assert identity.dispatch_execution_id == backend._plan.dispatch_execution_id
+    assert identity.batch_id == backend._plan.batch_id
+    assert identity.provider_generation == 1
+    assert identity.lease_id == handoff.lease_id
+    assert identity.lease_session_id == handoff.lease_session_id
+    assert identity.lease_task_id == handoff.lease_task_id
+    assert identity.admission_id == handoff.admission_id
     # the same durable store now composes the C1 evidence for the verdict
     evidence = compose_direct_review_evidence_from_store(
         author=AUTHOR, route=_route_for(tmp_path), handoff=handoff,
@@ -2237,3 +2268,490 @@ def test_re1_live_winner_vr_record_is_not_stolen_by_reconcile(tmp_path):
     assert first.outcome == "EXECUTED"
     assert first.handoff is not None
     assert first.handoff.record_state == "SUCCEEDED"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# WO-P1-223 RE2-A — lost-handoff durable replay through the strict
+# versioned promotion identity (exact historical lease/admission truth,
+# zero second model effect, legacy evidence stays fail-closed)
+# ══════════════════════════════════════════════════════════════════════
+
+_V2_PREFIX = "zra2-review-verification-v2:"
+
+
+def _identity_for(plan, execution_id, lease, admission, *, generation=1,
+                  **overrides):
+    from a_conductor.zero_relay_review_verification import (
+        ReviewPromotionResourceIdentity,
+    )
+
+    fields = dict(
+        execution_id=execution_id,
+        review_contract_ref=plan.review_contract_ref,
+        review_task_sha256=plan.review_task_sha256,
+        worker_id=plan.reviewer_worker_id,
+        project_id=plan.project_id,
+        repo_root=plan.repo_root,
+        branch=plan.branch,
+        head=plan.head,
+        provider_id=plan.provider_id,
+        model_id=plan.model_id,
+        dispatch_execution_id=plan.dispatch_execution_id,
+        batch_id=plan.batch_id,
+        provider_generation=generation,
+        lease_id=lease.lease_id,
+        lease_session_id=lease.session_id,
+        lease_task_id=lease.task_id,
+        admission_id=admission.admission_id,
+    )
+    fields.update(overrides)
+    return ReviewPromotionResourceIdentity(**fields)
+
+
+def _promote_v2(authorities, execution_id, identity, *, from_version,
+                evidence_override=None):
+    from a_conductor.zero_relay_review_verification import (
+        build_promotion_evidence_ref,
+    )
+
+    evidence = evidence_override or build_promotion_evidence_ref(identity)
+    return authorities.execution_store.set_execution_state(
+        execution_id,
+        ExecutionProcessState.SUCCEEDED,
+        expected_version=from_version,
+        evidence_ref=evidence,
+    )
+
+
+def _active_resources(authorities, route_task, plan, *, generation=1):
+    lease_outcome = authorities.lease_broker.acquire(
+        route_task.lease_request, route_task.candidates
+    )
+    assert lease_outcome.kind is LeaseOutcomeKind.LEASED
+    admission = authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=plan.dispatch_execution_id,
+        batch_id=plan.batch_id, expected_max_concurrency=2, now=NOW,
+        ttl_seconds=600, expected_configuration_generation=generation,
+    ).admission
+    return lease_outcome.lease, admission
+
+
+def test_re2a_lost_handoff_after_cleanup_reconstructs_exact_reuse_completed(tmp_path):
+    """THE RE2-A defect RED: crash after promotion AND cleanup but before the
+    in-memory handoff is consumed -> the active-only lease lookup resolves
+    nothing forever. With the strict identity persisted at promotion, replay
+    reconstructs the EXACT REUSE_COMPLETED handoff with zero new model
+    effects, zero new lease/admission rows, and the existing C1 composer
+    still accepts the reconstructed durable truth."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    first = _af_dispatch(authorities, route, route_task, factory)
+    assert first.outcome == "EXECUTED"
+    original = first.handoff
+    assert original is not None
+    # the original rows are terminal (cleanup completed before the crash)
+    original_lease = authorities.lease_store.inspect_health(
+        original.lease_id, now=NOW).lease
+    assert original_lease.released_at is not None
+    assert authorities.provider_store.get_admission(
+        original.admission_id).status == "RELEASED"
+    rows_before = (len(_all_leases(authorities)),
+                   len(_all_admissions(authorities)))
+    fresh = FakeRunnerFactory()
+    second = _af_dispatch(authorities, route, route_task, fresh)
+    assert second.outcome == "REUSE_COMPLETED"
+    handoff = second.handoff
+    assert handoff is not None
+    assert handoff.runtime_execution_id == original.runtime_execution_id
+    assert handoff.lease_id == original.lease_id
+    assert handoff.admission_id == original.admission_id
+    assert handoff.record_state == "SUCCEEDED"
+    assert handoff.record_version == original.record_version
+    assert handoff.exit_code == 0
+    assert handoff.cleanup_terminal is True
+    assert handoff.lease_released is True
+    assert handoff.admission_status == "RELEASED"
+    assert handoff.lease_session_id == route_task.lease_request.session_id
+    assert fresh.model_effects == 0
+    assert (len(_all_leases(authorities)),
+            len(_all_admissions(authorities))) == rows_before
+    # the existing C1 composer still accepts the reconstructed handoff
+    evidence = compose_direct_review_evidence_from_store(
+        author=AUTHOR, route=_route_for(tmp_path), handoff=handoff,
+        store=authorities.execution_store,
+    )
+    assert evidence.disposition is ReviewDisposition.ACCEPTED
+    assert evidence.reviewer_execution_id == handoff.runtime_execution_id
+
+
+def test_re2a_replay_is_idempotent_and_concurrent_without_second_effect(tmp_path):
+    """Repeat and concurrent replays of a completed attempt are idempotent:
+    every lane reconstructs the SAME exact identities, with zero new rows,
+    zero new lease/acquisition and zero second model effect."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    first = _af_dispatch(authorities, route, route_task, factory)
+    assert first.outcome == "EXECUTED"
+    original = first.handoff
+    rows_before = (len(_all_leases(authorities)),
+                   len(_all_admissions(authorities)))
+    replay_factory = FakeRunnerFactory()
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = [
+            pool.submit(_af_dispatch, authorities, route, route_task,
+                        replay_factory)
+            for _ in range(4)
+        ]
+        outcomes = [f.result(timeout=120) for f in futures]
+    assert {o.outcome for o in outcomes} == {"REUSE_COMPLETED"}
+    assert {o.handoff.lease_id for o in outcomes} == {original.lease_id}
+    assert {o.handoff.admission_id for o in outcomes} == {original.admission_id}
+    assert replay_factory.model_effects == 0
+    assert (len(_all_leases(authorities)),
+            len(_all_admissions(authorities))) == rows_before
+    records = authorities.execution_store.find_by_fingerprint(plan.fingerprint)
+    assert len(records) == 1
+
+
+def test_re2a_crash_after_promotion_before_cleanup_cleans_once(tmp_path):
+    """Crash after the promotion but BEFORE cleanup: the exact original
+    resources are still ACTIVE; replay resolves them by exact id through the
+    existing historical APIs, performs the existing idempotent cleanup once,
+    and reconstructs the REUSE_COMPLETED handoff — zero new rows/effects."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    seeded = _seed_completed(authorities, plan, "exec-prom-crash")
+    lease, admission = _active_resources(authorities, route_task, plan)
+    identity = _identity_for(plan, "exec-prom-crash", lease, admission)
+    promoted = _promote_v2(authorities, "exec-prom-crash", identity,
+                           from_version=seeded.version)
+    assert promoted.execution_state is ExecutionProcessState.SUCCEEDED
+    rows_before = (len(_all_leases(authorities)),
+                   len(_all_admissions(authorities)))
+    fresh = FakeRunnerFactory()
+    result = _af_dispatch(authorities, route, route_task, fresh)
+    assert result.outcome == "REUSE_COMPLETED"
+    handoff = result.handoff
+    assert handoff is not None
+    assert handoff.runtime_execution_id == "exec-prom-crash"
+    assert handoff.lease_id == lease.lease_id
+    assert handoff.admission_id == admission.admission_id
+    assert fresh.model_effects == 0
+    assert authorities.provider_store.get_admission(
+        admission.admission_id).status == "RELEASED"
+    assert authorities.lease_store.inspect_health(
+        lease.lease_id, now=NOW).lease.released_at is not None
+    assert (len(_all_leases(authorities)),
+            len(_all_admissions(authorities))) == rows_before
+    # second replay after cleanup: idempotent, exact same truth
+    again = _af_dispatch(authorities, route, route_task, FakeRunnerFactory())
+    assert again.outcome == "REUSE_COMPLETED"
+    assert again.handoff.lease_id == lease.lease_id
+    assert again.handoff.admission_id == admission.admission_id
+    assert (len(_all_leases(authorities)),
+            len(_all_admissions(authorities))) == rows_before
+
+
+def test_re2a_generation_drift_replay_uses_event_pinned_generation(tmp_path):
+    """Provider generation drift AFTER the completed attempt must not block
+    the replay of completed work: the binding uses the generation pinned in
+    the original promotion event, not the ambient store generation."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    first = _af_dispatch(authorities, route, route_task, factory)
+    assert first.outcome == "EXECUTED"
+    original = first.handoff
+    # the provider configuration advances after the attempt completed
+    authorities.provider_store.save_endpoint(
+        ProviderEndpointConfig("zcode-desktop", "http://127.0.0.2"),
+        expected_generation=1,
+    )
+    drifted = authorities.provider_store.load_provider_snapshot("zcode-glm")
+    assert int(drifted.generation) == 2
+    rows_before = (len(_all_leases(authorities)),
+                   len(_all_admissions(authorities)))
+    fresh = FakeRunnerFactory()
+    replay = _af_dispatch(authorities, route, route_task, fresh)
+    assert replay.outcome == "REUSE_COMPLETED"
+    assert replay.handoff is not None
+    assert replay.handoff.lease_id == original.lease_id
+    assert replay.handoff.admission_id == original.admission_id
+    assert fresh.model_effects == 0
+    assert (len(_all_leases(authorities)),
+            len(_all_admissions(authorities))) == rows_before
+    # direct reconcile with NO caller-side generation expectation also
+    # reconstructs: the event-pinned generation alone drives the binding
+    direct = reconcile_review_execution(
+        plan=plan, route_task=route_task,
+        provider_store=authorities.provider_store,
+        lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store,
+        execution_store=authorities.execution_store,
+        clock=lambda: NOW, expected_generation=None,
+    )
+    assert direct.outcome == "REUSE_COMPLETED"
+    assert direct.handoff.lease_id == original.lease_id
+
+
+def test_re2a_active_same_owner_different_lease_id_is_typed_conflict(tmp_path):
+    """An ACTIVE lease under the same owner keys but a DIFFERENT id than the
+    event-pinned one is a typed conflict: nothing is released, no handoff,
+    no model effect (the active lease belongs to a different attempt)."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    first = _af_dispatch(authorities, route, route_task, factory)
+    assert first.outcome == "EXECUTED"
+    original = first.handoff
+    # the original lease is released, so a NEW attempt may acquire the same
+    # owner keys — a genuinely different lease id
+    new_outcome = authorities.lease_broker.acquire(
+        route_task.lease_request, route_task.candidates
+    )
+    assert new_outcome.kind is LeaseOutcomeKind.LEASED
+    assert new_outcome.lease.lease_id != original.lease_id
+    rows_before = (len(_all_leases(authorities)),
+                   len(_all_admissions(authorities)))
+    fresh = FakeRunnerFactory()
+    result = _af_dispatch(authorities, route, route_task, fresh)
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "EVIDENCE_LEASE_IDENTITY_CONFLICT"
+    assert result.handoff is None
+    assert fresh.model_effects == 0
+    # release NOTHING: the new active lease is untouched
+    fresh_lease = authorities.lease_store.inspect_health(
+        new_outcome.lease.lease_id, now=NOW).lease
+    assert fresh_lease.released_at is None
+    assert (len(_all_leases(authorities)),
+            len(_all_admissions(authorities))) == rows_before
+
+
+def test_re2a_foreign_and_missing_resource_pointers_fail_closed(tmp_path):
+    """Foreign or missing lease/admission pointers inside the promotion
+    identity are typed recovery: nothing is released, no handoff, no model
+    effect, zero new rows."""
+    cases = [
+        ("admission-missing", dict(admission_id="provider-admission-never"),
+         "EVIDENCE_ADMISSION_POINTER_MISSING"),
+        ("admission-foreign", None, "EVIDENCE_ADMISSION_POINTER_FOREIGN"),
+        ("lease-missing", dict(lease_id="lease-never-exists"),
+         "EVIDENCE_LEASE_POINTER_MISSING"),
+        ("lease-foreign", None, "EVIDENCE_LEASE_POINTER_FOREIGN"),
+    ]
+    for index, (kind, overrides, code) in enumerate(cases):
+        case_root = Path(str(tmp_path) + f"ptr-{index}")
+        plan_c, auth_c, route_c, task_c = _bridge(case_root)
+        seeded = _seed_completed(auth_c, plan_c, f"exec-ptr-{index}")
+        lease_c, admission_c = _active_resources(auth_c, task_c, plan_c)
+        if kind == "admission-foreign":
+            # a genuinely foreign admission row (different dispatch
+            # execution id) inside the SAME canonical store
+            foreign_admission = auth_c.provider_store.acquire_admission(
+                provider_id="zcode-glm", execution_id="dispatch-foreign-0001",
+                batch_id=plan_c.batch_id, expected_max_concurrency=2, now=NOW,
+                ttl_seconds=600, expected_configuration_generation=1,
+            ).admission
+            overrides = dict(admission_id=foreign_admission.admission_id)
+        if kind == "lease-foreign":
+            # a genuinely foreign lease row (different owner task) on
+            # another worker inside the SAME canonical store
+            other_candidate = WorkerLeaseCandidate(
+                worker_id="a-worker-02", state="READY", reserved=False,
+                active_task=False, capabilities=("code",),
+                runtime_id="runtime-a-worker-02", project_id=PROJECT,
+                worktree=str(case_root), branch=BRANCH, head=HEAD,
+                health_fresh=True, ownership_known=True, dirty_state="CLEAN",
+                mutation_authorized=True,
+            )
+            other_request = replace(
+                task_c.lease_request,
+                task_id="zra2-review-v1:" + "e" * 64,
+                required_runtime_id="runtime-a-worker-02",
+                ordered_worker_ids=("a-worker-02",),
+            )
+            other_outcome = auth_c.lease_broker.acquire(
+                other_request, (other_candidate,))
+            assert other_outcome.kind is LeaseOutcomeKind.LEASED
+            overrides = dict(lease_id=other_outcome.lease.lease_id)
+        identity = _identity_for(plan_c, seeded.execution_id, lease_c,
+                                 admission_c, **overrides)
+        _promote_v2(auth_c, seeded.execution_id, identity,
+                    from_version=seeded.version)
+        fresh = FakeRunnerFactory()
+        result = _af_dispatch(auth_c, route_c, task_c, fresh)
+        assert result.outcome == "RECOVERY_REQUIRED", code
+        assert result.reason_code == code
+        assert result.handoff is None
+        assert fresh.model_effects == 0
+        # release NOTHING: both the exact and any foreign rows stay as-is
+        leases = _all_leases(auth_c)
+        assert leases and all(l.released_at is None for l in leases)
+        admissions = _all_admissions(auth_c)
+        assert admissions and all(a.status == "ACTIVE" for a in admissions)
+
+
+def test_re2a_malformed_oversized_duplicate_evidence_fail_closed(tmp_path):
+    """Malformed, oversized, wrong-shape or duplicate/ambiguous promotion
+    identity evidence is typed recovery: nothing released, no handoff."""
+    import dataclasses
+
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    seeded = _seed_completed(authorities, plan, "exec-bad-evidence")
+    lease, admission = _active_resources(authorities, route_task, plan)
+    identity = _identity_for(plan, "exec-bad-evidence", lease, admission)
+    valid = dataclasses.asdict(identity)
+    malformed_refs = [
+        _V2_PREFIX + "not-json{",
+        _V2_PREFIX + json.dumps({"unexpected": True}),
+        _V2_PREFIX + json.dumps(
+            {k: v for k, v in valid.items() if k != "lease_id"}),
+        _V2_PREFIX + json.dumps({**valid, "provider_generation": "1"}),
+        _V2_PREFIX + json.dumps({**valid, "repo_root": "x" * 3000}),
+    ]
+    for index, evidence in enumerate(malformed_refs):
+        case_root = Path(str(tmp_path) + f"mal-{index}")
+        factory_case = FakeRunnerFactory()
+        plan_c, auth_c, route_c, task_c = _bridge(
+            case_root, runner_factory=factory_case)
+        seeded_c = _seed_completed(auth_c, plan_c, f"exec-mal-{index}")
+        lease_c, admission_c = _active_resources(auth_c, task_c, plan_c)
+        identity_c = _identity_for(plan_c, seeded_c.execution_id, lease_c,
+                                   admission_c)
+        _promote_v2(auth_c, seeded_c.execution_id, identity_c,
+                    from_version=seeded_c.version, evidence_override=evidence)
+        fresh = FakeRunnerFactory()
+        result = _af_dispatch(auth_c, route_c, task_c, fresh)
+        assert result.outcome == "RECOVERY_REQUIRED", evidence[:60]
+        assert result.reason_code == "REVIEW_PROMOTION_EVIDENCE_MALFORMED"
+        assert result.handoff is None
+        assert fresh.model_effects == 0
+        leases = _all_leases(auth_c)
+        assert leases and all(l.released_at is None for l in leases)
+        admissions = _all_admissions(auth_c)
+        assert admissions and all(a.status == "ACTIVE" for a in admissions)
+
+    # duplicate v2 promotion events are ambiguous -> typed recovery
+    dup_root = Path(str(tmp_path) + "dup")
+    factory_dup = FakeRunnerFactory()
+    plan_d, auth_d, route_d, task_d = _bridge(dup_root, runner_factory=factory_dup)
+    seeded_d = _seed_completed(auth_d, plan_d, "exec-dup-evidence")
+    lease_d, admission_d = _active_resources(auth_d, task_d, plan_d)
+    identity_d = _identity_for(plan_d, "exec-dup-evidence", lease_d, admission_d)
+    promoted_d = _promote_v2(auth_d, "exec-dup-evidence", identity_d,
+                             from_version=seeded_d.version)
+    _promote_v2(auth_d, "exec-dup-evidence", identity_d,
+                from_version=promoted_d.version)
+    fresh = FakeRunnerFactory()
+    result = _af_dispatch(auth_d, route_d, task_d, fresh)
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "REVIEW_PROMOTION_EVIDENCE_AMBIGUOUS"
+    assert result.handoff is None
+    assert fresh.model_effects == 0
+    leases = _all_leases(auth_d)
+    assert leases and all(l.released_at is None for l in leases)
+
+
+def test_re2a_unknown_evidence_version_stays_legacy_fail_closed(tmp_path):
+    """A promotion carrying an UNKNOWN evidence version is not trusted as
+    identity evidence: replay keeps the prior fail-closed behavior when the
+    original rows are no longer active-resolvable."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    seeded = _seed_completed(authorities, plan, "exec-unknown-evidence")
+    lease, admission = _active_resources(authorities, route_task, plan)
+    # both resources already terminal: only identity evidence could prove them
+    authorities.provider_store.release_admission(
+        admission.admission_id, provider_id="zcode-glm",
+        execution_id=plan.dispatch_execution_id, batch_id=plan.batch_id, now=NOW,
+    )
+    authorities.lease_store.release(
+        lease.lease_id, session_id=lease.session_id, task_id=lease.task_id,
+        released_at=NOW,
+    )
+    unknown = "zra2-review-verification-v3:" + json.dumps(
+        {"lease_id": lease.lease_id, "admission_id": admission.admission_id}
+    )
+    _promote_v2(authorities, "exec-unknown-evidence", None,
+                from_version=seeded.version, evidence_override=unknown)
+    rows_before = len(_all_leases(authorities))
+    fresh = FakeRunnerFactory()
+    result = _af_dispatch(authorities, route, route_task, fresh)
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "LEASE_IDENTITY_UNPROVEN"
+    assert result.handoff is None
+    assert fresh.model_effects == 0
+    assert len(_all_leases(authorities)) == rows_before
+
+
+def test_re2a_stale_lease_is_never_force_released(tmp_path):
+    """A STALE (expired, unreleased) lease pointed at by the identity is
+    never force-released: the canonical release fence refuses it and the
+    replay ends in typed recovery with no handoff."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    seeded = _seed_completed(authorities, plan, "exec-stale-lease")
+    acquire = authorities.lease_store.try_acquire_result(
+        route_task.lease_request, route_task.candidates[0],
+        lease_id="lease-stale-0001", acquired_at="2026-09-12T10:00:00Z",
+        expires_at="2026-09-12T11:00:00Z",  # expired well before NOW
+    )
+    assert acquire.created is True
+    stale_lease = acquire.lease
+    admission = authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=plan.dispatch_execution_id,
+        batch_id=plan.batch_id, expected_max_concurrency=2, now=NOW,
+        ttl_seconds=600, expected_configuration_generation=1,
+    ).admission
+    authorities.provider_store.release_admission(
+        admission.admission_id, provider_id="zcode-glm",
+        execution_id=plan.dispatch_execution_id, batch_id=plan.batch_id, now=NOW,
+    )
+    identity = _identity_for(plan, "exec-stale-lease", stale_lease, admission)
+    _promote_v2(authorities, "exec-stale-lease", identity,
+                from_version=seeded.version)
+    fresh = FakeRunnerFactory()
+    result = _af_dispatch(authorities, route, route_task, fresh)
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.handoff is None
+    assert result.reason_code.startswith("LEASE_CLEANUP_")
+    assert fresh.model_effects == 0
+    # the stale lease was NOT force-released
+    row = authorities.lease_store.inspect_health(
+        stale_lease.lease_id, now=NOW)
+    from a_conductor.worker_lease import LeaseHealthKind
+    assert row.kind is LeaseHealthKind.STALE
+    assert row.lease.released_at is None
+
+
+def test_re2a_legacy_promotion_evidence_keeps_fail_closed_behavior(tmp_path):
+    """Legacy promotion evidence (no v2 identity) preserves the exact prior
+    behavior: after the original rows become invisible to the active-only
+    lookup, replay stays LEASE_IDENTITY_UNPROVEN with zero new rows."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    seeded = _seed_completed(authorities, plan, "exec-legacy-evidence")
+    lease, admission = _active_resources(authorities, route_task, plan)
+    # legacy promotion evidence shape (plain prefix, no identity payload)
+    authorities.execution_store.set_execution_state(
+        "exec-legacy-evidence", ExecutionProcessState.SUCCEEDED,
+        expected_version=seeded.version,
+        evidence_ref="zra2-review-verification:exec-legacy-evidence",
+    )
+    authorities.provider_store.release_admission(
+        admission.admission_id, provider_id="zcode-glm",
+        execution_id=plan.dispatch_execution_id, batch_id=plan.batch_id, now=NOW,
+    )
+    authorities.lease_store.release(
+        lease.lease_id, session_id=lease.session_id, task_id=lease.task_id,
+        released_at=NOW,
+    )
+    rows_before = len(_all_leases(authorities))
+    fresh = FakeRunnerFactory()
+    result = _af_dispatch(authorities, route, route_task, fresh)
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "LEASE_IDENTITY_UNPROVEN"
+    assert result.handoff is None
+    assert fresh.model_effects == 0
+    assert len(_all_leases(authorities)) == rows_before

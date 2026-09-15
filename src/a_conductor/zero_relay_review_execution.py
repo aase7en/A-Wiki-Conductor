@@ -972,7 +972,10 @@ class ReviewerExecutionBackend:
             # outcome must first pass verdict-blind verification and — from
             # VERIFICATION_REQUIRED — the one existing-store version-CAS
             # promotion BEFORE cleanup and BEFORE the immutable handoff
-            # pins the record state/version.
+            # pins the record state/version. RE2-A: the promotion persists
+            # the strict versioned exact resource identity (original
+            # lease/admission locators + cross-binding facts) so a later
+            # lost-handoff replay can prove these rows by exact id.
             if (
                 chosen.execution_state in (
                     ExecutionProcessState.SUCCEEDED,
@@ -986,11 +989,16 @@ class ReviewerExecutionBackend:
                 )
 
                 try:
+                    identity = _build_resource_identity(
+                        plan, chosen, lease, admission,
+                        generation=self._expected_generation(),
+                    )
                     verified = verify_review_execution_for_promotion(
                         execution_store=self._execution_store,
                         record=chosen,
                         expected_task_packet_sha256=plan.review_task_sha256,
                         expected_contract_ref=plan.review_contract_ref,
+                        resource_identity=identity,
                     )
                 except ZeroRelayReviewVerificationError as exc:
                     # verification failed: cleanup stays truthful/required
@@ -1095,6 +1103,132 @@ class ReviewerExecutionBackend:
 # ---------------- replay/reconciliation (no new model effect) -------------
 
 
+def _build_resource_identity(plan, record, lease, admission, *, generation: int):
+    """Strict promotion identity from THIS attempt's trusted facts: the
+    plan, the exact acquired lease/admission rows and the provider
+    generation pinned at the original attempt."""
+    from .zero_relay_review_verification import ReviewPromotionResourceIdentity
+
+    return ReviewPromotionResourceIdentity(
+        execution_id=record.execution_id,
+        review_contract_ref=plan.review_contract_ref,
+        review_task_sha256=plan.review_task_sha256,
+        worker_id=plan.reviewer_worker_id,
+        project_id=plan.project_id,
+        repo_root=plan.repo_root,
+        branch=plan.branch,
+        head=plan.head,
+        provider_id=plan.provider_id,
+        model_id=plan.model_id,
+        dispatch_execution_id=plan.dispatch_execution_id,
+        batch_id=plan.batch_id,
+        provider_generation=int(generation),
+        lease_id=lease.lease_id,
+        lease_session_id=lease.session_id,
+        lease_task_id=lease.task_id,
+        admission_id=admission.admission_id,
+    )
+
+
+def _cross_bind_promotion_identity(
+    plan: ReviewerExecutionPlan,
+    route_task: ParallelReadyTask,
+    chosen: DurableExecutionRecord,
+    identity,
+    expected_generation: int | None,
+) -> str | None:
+    """Return a typed mismatch code when the promotion identity evidence
+    does not cross-bind to the exact replay plan/task/route, else None.
+
+    Every binding fact of the original attempt must equal the replay's:
+    task/contract, worker, project, worktree, branch, reviewed HEAD,
+    provider, model, dispatch execution, deterministic batch, lease session
+    and lease task. A caller-supplied integer generation expectation must
+    additionally equal the event-pinned generation."""
+    if identity.execution_id != chosen.execution_id:
+        return "EVIDENCE_IDENTITY_MISMATCH"
+    if (
+        identity.review_contract_ref != plan.review_contract_ref
+        or identity.review_task_sha256 != plan.review_task_sha256
+        or identity.worker_id != plan.reviewer_worker_id
+        or identity.project_id != plan.project_id
+        or identity.repo_root != plan.repo_root
+        or identity.branch != plan.branch
+        or identity.head.casefold() != plan.head.casefold()
+        or identity.provider_id != plan.provider_id
+        or identity.model_id != plan.model_id
+        or identity.dispatch_execution_id != plan.dispatch_execution_id
+        or identity.batch_id != plan.batch_id
+        or identity.lease_session_id != route_task.lease_request.session_id
+        or identity.lease_task_id != plan.review_contract_ref
+    ):
+        return "EVIDENCE_IDENTITY_MISMATCH"
+    if (
+        isinstance(expected_generation, int)
+        and not isinstance(expected_generation, bool)
+        and int(expected_generation) != int(identity.provider_generation)
+    ):
+        return "EVIDENCE_GENERATION_MISMATCH"
+    return None
+
+
+def _resolve_admission_by_promotion_identity(provider_store, identity):
+    """Exact-id historical admission resolution through the existing
+    ``get_admission`` API. Foreign, missing or generation-unproven pointers
+    fail closed typed; nothing is ever released here."""
+    try:
+        record = provider_store.get_admission(identity.admission_id)
+    except ProviderConfigStoreError as exc:
+        raise ZeroRelayReviewExecutionError(
+            f"ADMISSION_READ_{exc.code}"
+        ) from exc
+    if record is None:
+        raise ZeroRelayReviewExecutionError("EVIDENCE_ADMISSION_POINTER_MISSING")
+    if (
+        record.provider_id != identity.provider_id
+        or record.execution_id != identity.dispatch_execution_id
+        or record.batch_id != identity.batch_id
+    ):
+        raise ZeroRelayReviewExecutionError("EVIDENCE_ADMISSION_POINTER_FOREIGN")
+    if (
+        record.configuration_generation is None
+        or int(record.configuration_generation) != int(identity.provider_generation)
+    ):
+        raise ZeroRelayReviewExecutionError(
+            "EVIDENCE_ADMISSION_GENERATION_MISMATCH"
+        )
+    return record
+
+
+def _resolve_lease_by_promotion_identity(lease_store, identity, *, clock):
+    """Exact-id historical lease resolution through the existing
+    ``inspect_health`` API. Foreign/missing pointers fail closed typed;
+    health-kind truth (ACTIVE/RELEASED/STALE/...) is returned as-is for the
+    caller's idempotent cleanup — this never releases anything itself."""
+    from .worker_lease import WorkerLeaseError
+
+    try:
+        health = lease_store.inspect_health(identity.lease_id, now=clock())
+    except WorkerLeaseError as exc:
+        if exc.code == "LEASE_NOT_FOUND":
+            raise ZeroRelayReviewExecutionError(
+                "EVIDENCE_LEASE_POINTER_MISSING"
+            ) from exc
+        raise ZeroRelayReviewExecutionError(f"LEASE_READ_{exc.code}") from exc
+    lease = getattr(health, "lease", None)
+    if not isinstance(lease, WorkerLease):
+        raise ZeroRelayReviewExecutionError("EVIDENCE_LEASE_POINTER_MISSING")
+    if (
+        lease.lease_id != identity.lease_id
+        or lease.session_id != identity.lease_session_id
+        or lease.task_id != identity.lease_task_id
+        or lease.worker_id != identity.worker_id
+        or lease.project_id != identity.project_id
+    ):
+        raise ZeroRelayReviewExecutionError("EVIDENCE_LEASE_POINTER_FOREIGN")
+    return lease
+
+
 @dataclass(frozen=True, slots=True)
 class ReviewerExecutionResult:
     outcome: str  # EXECUTED / REUSE_COMPLETED / ATTACH_RUNNING /
@@ -1166,11 +1300,14 @@ def _reconcile_cleanup(
     admission,
     lease_store,
     clock: Callable[[], datetime],
+    expected_generation: int | None = None,
 ) -> _CleanupEvidence:
     """Terminal cleanup of resources found by READ-ONLY recovery lookups.
     The admission may already be terminal RELEASED (its store retains the
     exact historical record); the lease is proven only by an actual release
-    truth shape for the exact owner."""
+    truth shape for the exact owner. RE2-A: when the strict promotion
+    identity drove the resolution, the event-pinned generation also gates
+    the admission release."""
     admission_final = None
     if admission is not None:
         if admission.status == "RELEASED":
@@ -1183,7 +1320,7 @@ def _reconcile_cleanup(
                 execution_id=admission.execution_id,
                 batch_id=admission.batch_id,
                 now=clock(),
-                expected_generation=None,
+                expected_generation=expected_generation,
             )
     lease_result = None
     if lease is not None:
@@ -1273,31 +1410,88 @@ def reconcile_review_execution(
         return ReviewerExecutionResult("RECOVERY_REQUIRED", "EQUIVALENT_CHOSEN_MISSING")
 
     session_id = route_task.lease_request.session_id
-    # READ-ONLY reconstruction: never acquire; a read fault is recovery,
-    # never proof of absence (Sol obligations 1/7)
+
+    # RE2-A: resolve the strict versioned promotion identity from the
+    # durable event log FIRST. Legacy/no-v2 evidence keeps the exact prior
+    # active-only resolution path (including its fail-closed behavior);
+    # malformed/duplicate evidence is typed recovery before any effect.
+    from .zero_relay_review_verification import (
+        ZeroRelayReviewVerificationError,
+        resolve_promotion_resource_identity,
+        verify_review_execution_for_promotion,
+    )
+
     try:
-        lease = _find_held_lease_readonly(
-            lease_store, session_id=session_id, task_id=plan.review_contract_ref
+        promotion_identity = resolve_promotion_resource_identity(
+            execution_store, chosen.execution_id
         )
-    except ZeroRelayReviewExecutionError as exc:
+    except ZeroRelayReviewVerificationError as exc:
         return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
-    try:
-        admission = _find_held_admission_readonly(
-            provider_store, provider_id=plan.provider_id,
-            execution_id=plan.dispatch_execution_id,
-            batch_id=plan.batch_id,
-            expected_generation=expected_generation,
+
+    lease = None
+    admission = None
+    if promotion_identity is not None:
+        # strict cross-binding of the persisted identity against the exact
+        # replay plan/task/route before anything is resolved or released
+        mismatch = _cross_bind_promotion_identity(
+            plan, route_task, chosen, promotion_identity, expected_generation
         )
-    except ZeroRelayReviewExecutionError as exc:
-        return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
+        if mismatch is not None:
+            return ReviewerExecutionResult("RECOVERY_REQUIRED", mismatch)
+        try:
+            admission = _resolve_admission_by_promotion_identity(
+                provider_store, promotion_identity
+            )
+        except ZeroRelayReviewExecutionError as exc:
+            return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
+        try:
+            lease = _resolve_lease_by_promotion_identity(
+                lease_store, promotion_identity, clock=clock
+            )
+        except ZeroRelayReviewExecutionError as exc:
+            return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
+        # conflict fence: an ACTIVE same-owner lease with a DIFFERENT id
+        # belongs to another attempt — typed conflict, release nothing
+        try:
+            active_owner = _find_held_lease_readonly(
+                lease_store,
+                session_id=session_id,
+                task_id=plan.review_contract_ref,
+            )
+        except ZeroRelayReviewExecutionError as exc:
+            return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
+        if active_owner is not None and active_owner.lease_id != promotion_identity.lease_id:
+            return ReviewerExecutionResult(
+                "RECOVERY_REQUIRED", "EVIDENCE_LEASE_IDENTITY_CONFLICT"
+            )
+    else:
+        # legacy fail-closed path: READ-ONLY active-only reconstruction.
+        # Never acquire; a read fault is recovery, never proof of absence
+        # (Sol obligations 1/7)
+        try:
+            lease = _find_held_lease_readonly(
+                lease_store, session_id=session_id, task_id=plan.review_contract_ref
+            )
+        except ZeroRelayReviewExecutionError as exc:
+            return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
+        try:
+            admission = _find_held_admission_readonly(
+                provider_store, provider_id=plan.provider_id,
+                execution_id=plan.dispatch_execution_id,
+                batch_id=plan.batch_id,
+                expected_generation=expected_generation,
+            )
+        except ZeroRelayReviewExecutionError as exc:
+            return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
 
     # a completed winner necessarily acquired an admission; its absence
     # means cleanup truth is unprovable -> no usable handoff
     if admission is None:
         return ReviewerExecutionResult("RECOVERY_REQUIRED", "ADMISSION_IDENTITY_UNPROVEN")
-    # the lease store exposes no historical released-lease lookup: an absent
-    # active lease means the exact original lease identity can no longer be
-    # proven -> no fabricated identity, no usable handoff, ZERO new rows
+    # legacy path only: the lease store exposes no historical released-lease
+    # lookup, so an absent active lease means the exact original lease
+    # identity can no longer be proven -> no fabricated identity, no usable
+    # handoff, ZERO new rows
     if lease is None:
         return ReviewerExecutionResult("RECOVERY_REQUIRED", "LEASE_IDENTITY_UNPROVEN")
 
@@ -1306,11 +1500,18 @@ def reconcile_review_execution(
     # BEFORE the handoff pins record state/version. An already-SUCCEEDED
     # record verifies with zero mutation. A verification failure is typed
     # recovery with no handoff and no resource release — the next
-    # reconcile retries from unchanged durable truth.
-    from .zero_relay_review_verification import (
-        ZeroRelayReviewVerificationError,
-        verify_review_execution_for_promotion,
-    )
+    # reconcile retries from unchanged durable truth. RE2-A: a promotion
+    # performed here also persists the strict resource identity (from the
+    # resolved exact resources when the caller pins an integer generation).
+    identity_for_promotion = promotion_identity
+    if identity_for_promotion is None and lease is not None and admission is not None:
+        if isinstance(expected_generation, int) and not isinstance(
+            expected_generation, bool
+        ):
+            identity_for_promotion = _build_resource_identity(
+                plan, chosen, lease, admission,
+                generation=int(expected_generation),
+            )
 
     try:
         verified = verify_review_execution_for_promotion(
@@ -1318,6 +1519,7 @@ def reconcile_review_execution(
             record=chosen,
             expected_task_packet_sha256=plan.review_task_sha256,
             expected_contract_ref=plan.review_contract_ref,
+            resource_identity=identity_for_promotion,
         )
     except ZeroRelayReviewVerificationError as exc:
         return ReviewerExecutionResult("RECOVERY_REQUIRED", exc.code)
@@ -1326,9 +1528,19 @@ def reconcile_review_execution(
         cleanup = _reconcile_cleanup(
             provider_store=provider_store, lease=lease, admission=admission,
             lease_store=lease_store, clock=clock,
+            expected_generation=(
+                int(promotion_identity.provider_generation)
+                if promotion_identity is not None
+                else None
+            ),
         )
         handoff = _cleanup_only_handoff(
-            plan=plan, chosen=verified.record, session_id=session_id,
+            plan=plan, chosen=verified.record,
+            session_id=(
+                promotion_identity.lease_session_id
+                if promotion_identity is not None
+                else session_id
+            ),
             lease_id=lease.lease_id, cleanup=cleanup,
         )
     except ZeroRelayReviewExecutionError as exc:
@@ -1387,16 +1599,17 @@ def execute_review_dispatch(
     # the canonical store must still serve the exact same generation and
     # endpoint authority before anything is dispatched (TOCTOU narrowing;
     # the admission acquire re-checks the generation again inside its
-    # transaction).
-    current_snapshot = provider_store.load_provider_snapshot(plan.provider_id)
-    if (
-        current_snapshot is None
-        or int(getattr(current_snapshot, "generation", -1)) != int(generation)
-        or str(getattr(getattr(current_snapshot, "endpoint", None), "base_url", "")).strip()
-        != base_url
-    ):
-        return ReviewerExecutionResult(
-            "RECOVERY_REQUIRED", "REVIEW_PROVIDER_GENERATION_DRIFT"
+    # transaction). RE2-A amendment: replay of an already-completed
+    # equivalent is exempt — no new model effect can occur, and the
+    # historical resources bind through the generation pinned in the
+    # original promotion event, not the ambient store generation.
+    def _provider_drifted() -> bool:
+        current_snapshot = provider_store.load_provider_snapshot(plan.provider_id)
+        return (
+            current_snapshot is None
+            or int(getattr(current_snapshot, "generation", -1)) != int(generation)
+            or str(getattr(getattr(current_snapshot, "endpoint", None), "base_url", "")).strip()
+            != base_url
         )
 
     def _winner_may_be_active() -> bool:
@@ -1422,6 +1635,16 @@ def execute_review_dispatch(
         plan=plan,
         reviewer_worker_id=plan.reviewer_worker_id,
     )
+    # classify FIRST, then gate: only completed-equivalent replay (no new
+    # model effect possible) proceeds under provider drift; every other
+    # path keeps the exact prior fail-closed drift preflight
+    if (
+        equivalents.kind is not EquivalenceKind.REUSE_COMPLETED
+        and _provider_drifted()
+    ):
+        return ReviewerExecutionResult(
+            "RECOVERY_REQUIRED", "REVIEW_PROVIDER_GENERATION_DRIFT"
+        )
     if equivalents.kind is EquivalenceKind.RECOVERY_REQUIRED:
         if equivalents.reason_code == "EQUIVALENT_TERMINAL_NOT_USABLE":
             # AF2: terminal-unusable equivalents reconcile (exact cleanup
