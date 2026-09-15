@@ -9,12 +9,71 @@ remains `UNKNOWN`, and model choice never transfers claim or acceptance authorit
 
 ## Binding default execution policy
 
-For bounded READY repository implementation, GLM/ZCode is the preferred primary execution engine when current capability, readiness, authorization, admission, policy, ownership and result-destination gates all pass.
+### User routing preference — 2026-09-15 / WO241
+
+**GPT-5.6 Sol is the regular integrator. GLM-5.3 through Kilo CLI or Claude Code
+CLI is the preferred bounded implementation workforce. GPT-6 Astra is an
+exceptional specialist, not a routine worker or mandatory review gate.**
+
+This records the user's operating preference, not measured relative intelligence,
+pricing, entitlement, model availability, or an accepted new executor adapter.
+Apply it through the [current delivery sequence](../runbooks/cost-first-delivery.md#2-current-delivery-sequence--2026-09-15).
+
+| Responsibility | Default route | Boundary |
+|---|---|---|
+| Daily planning, task packets, authority/failure framing, integration, adjudication, continuity, acceptance and authorized merge/release | GPT-5.6 Sol | current claim and risk-tier evidence govern; Sol can implement a bounded hard integration when justified |
+| Bounded implementation, fixtures, targeted tests, mechanical edits, root-cause reproduction and repair batches | GLM-5.3 through an accepted Kilo CLI or Claude Code CLI route | exact scope/result destination; no autonomous merge, policy changes or claim transfer |
+| Local semantic navigation and bounded repository tools | SundayWorker / Serena | first-class lightweight route under existing capability/permission rules |
+| Search, Git identity, hashes, validation, tests, builds, CI observation | deterministic/native tools | use no model inference when unnecessary |
+| R2/R3 independent review | qualified independent reviewer, normally a separate Sol or GLM lane when task-fit evidence supports it | never the author's self-review; exact frozen SHA and unchanged assurance requirements |
+| Unresolved high-impact architecture/trust ambiguity, contradictory reviews, or difficult repeated failure | GPT-6 Astra, only after the escalation record below | narrow decision/review scope, then return implementation to Sol/GLM |
+
+Kilo CLI and Claude Code CLI are runtimes, **not model identities**. Before each
+new route or material route change, record the observed CLI version, provider and
+exact model, authorization, quota/cost evidence, capability/permission coverage,
+session/result identity and supported recovery. A working CLI, subscription or
+environment variable alone does not prove GLM-5.3 execution. If unproven, report
+`ROUTE_UNVERIFIED`; use only an explicitly eligible fallback. Do not silently
+substitute a different model or infer free usage.
+
+Reuse `JobExecutionBackend` and the existing supervised Claude path. The Kilo
+adapter remains governed by [GE-0008](../adr/GE-0008-conductor-pivot-executor-neutral-control-plane.md)
+and [Issue #317](https://github.com/aase7en/A-Wiki-Conductor/issues/317), including
+its predecessor, conformance and live-provider gates. This preference does not
+release that adapter for source mutation or live execution. Existing accepted
+ZCode routes remain usable under the same evidence gates; do not duplicate them.
+
+### Astra escalation and return
+
+Sol records one compact escalation in the existing WO/task packet:
+
+`decision needed; exact repo/base/candidate; bounded scope; evidence/reproducer;
+alternatives tried; why Sol/GLM cannot resolve it reliably; required deliverable;
+bounded question/round budget; return owner`.
+
+Escalate only when there is a concrete reason: unresolved trust/durable-state
+ambiguity, materially conflicting independent findings, unusually high-impact
+precision requirements, or repeated same-cause failure after root-cause work.
+R3 classification alone is not an automatic Astra invocation; it still requires
+the full R3 assurance path and a suitably qualified independent reviewer.
+
+Default to one focused decision/review pass, not a persistent Astra worker. New
+evidence or an unresolved blocker must justify another pass. No invented token,
+price or quota limits: record observed usage, otherwise `UNKNOWN`. If no qualified
+reviewer is available, hold the acceptance gate; cost pressure does not waive it.
+
+After the answer, Sol validates/folds the decision into the same contract, GLM
+implements and tests, and Sol resumes normal integration. Do not route routine
+searches, CI polling, documentation mechanics or every repair back to Astra.
+
+### Unchanged execution and acceptance gates
+
+For bounded READY repository implementation, the preferred GLM route may run only when current capability, readiness, authorization, admission, policy, ownership and result-destination gates all pass.
 
 This is a throughput routing default, not a permanent model ranking and not mutation authority.
 
 - GPT/integrator: architecture, trust/security boundaries, dependency order, risk classification, work-order/claim boundaries, cross-lane conflict, SSoT, final defect adjudication, acceptance, merge and release.
-- GLM/ZCode: repo archaeology, bounded implementation, mechanical refactor, test generation, debugging, batched repair and long-running goal/skills execution inside the exact assigned contract.
+- GLM through an accepted CLI/runtime: repo archaeology, bounded implementation, mechanical refactor, test generation, debugging, batched repair and long-running goal/skills execution inside the exact assigned contract.
 - Independent reviewer: exact-SHA challenge/review for R2/R3 as required; no mutation of the frozen candidate.
 - Deterministic/native tools: tests, builds, hashes, schema/process/Git identity, CI and release evidence.
 
