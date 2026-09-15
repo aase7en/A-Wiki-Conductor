@@ -124,13 +124,19 @@ class ReviewPromotionResourceIdentity:
     def __post_init__(self) -> None:
         _require_identity_text(self.execution_id, "execution_id", 128)
         _require_identity_text(self.review_contract_ref, "review_contract_ref", 512)
-        if not _SHA256_RE.fullmatch(self.review_task_sha256):
+        if (
+            not isinstance(self.review_task_sha256, str)
+            or not _SHA256_RE.fullmatch(self.review_task_sha256)
+        ):
             raise _identity_invalid()
         _require_identity_text(self.worker_id, "worker_id", 128)
         _require_identity_text(self.project_id, "project_id", 128)
         _require_identity_text(self.repo_root, "repo_root", 1024)
         _require_identity_text(self.branch, "branch", 256)
-        if not _IDENTITY_HEAD_RE.fullmatch(self.head):
+        if (
+            not isinstance(self.head, str)
+            or not _IDENTITY_HEAD_RE.fullmatch(self.head)
+        ):
             raise _identity_invalid()
         _require_identity_text(self.provider_id, "provider_id", 128)
         _require_identity_text(self.model_id, "model_id", 256)
@@ -192,7 +198,10 @@ def parse_promotion_evidence_ref(text) -> ReviewPromotionResourceIdentity:
         payload = json.loads(
             text[len(prefix):], object_pairs_hook=_reject_duplicate_json_keys
         )
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
+        # R3 repair: deep-but-bounded JSON can overflow the decoder's
+        # recursion budget — still malformed evidence, never an untyped
+        # RecursionError escaping this fail-closed parse
         raise ZeroRelayReviewVerificationError(
             "REVIEW_PROMOTION_EVIDENCE_MALFORMED"
         ) from exc

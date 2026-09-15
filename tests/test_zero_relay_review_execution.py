@@ -2609,7 +2609,16 @@ def test_re2a_malformed_oversized_duplicate_evidence_fail_closed(tmp_path):
             {k: v for k, v in valid.items() if k != "lease_id"}),
         _V2_PREFIX + json.dumps({**valid, "provider_generation": "1"}),
         _V2_PREFIX + json.dumps({**valid, "repo_root": "x" * 3000}),
+        # deep but <=2048-char JSON: decoder recursion overflow is typed
+        # malformed evidence, never an untyped RecursionError at replay
+        _V2_PREFIX + "[" * ((2048 - len(_V2_PREFIX)) // 2)
+        + "]" * ((2048 - len(_V2_PREFIX)) // 2),
     ]
+    malformed_refs.extend(
+        _V2_PREFIX + json.dumps({**valid, field: value})
+        for field in ("review_task_sha256", "head")
+        for value in (None, 1, [], {}, True)
+    )
     for index, evidence in enumerate(malformed_refs):
         case_root = Path(str(tmp_path) + f"mal-{index}")
         factory_case = FakeRunnerFactory()
@@ -2755,3 +2764,160 @@ def test_re2a_legacy_promotion_evidence_keeps_fail_closed_behavior(tmp_path):
     assert result.handoff is None
     assert fresh.model_effects == 0
     assert len(_all_leases(authorities)) == rows_before
+
+
+# ── WO-P1-223 R3 repair (2026-09-15): truncation-safe admission recovery
+# and EXISTING-lease launch ownership refusal ────────────────────────────
+
+
+def _filler_admissions(authorities, plan, count: int) -> None:
+    """Released filler admission rows (distinct dispatch executions) with
+    strictly increasing acquired_at so newest-first paging is stable."""
+    for i in range(count):
+        execution_id = f"dispatch-filler-{i:04d}"
+        admission = authorities.provider_store.acquire_admission(
+            provider_id="zcode-glm", execution_id=execution_id,
+            batch_id=plan.batch_id, expected_max_concurrency=2,
+            now=NOW + timedelta(seconds=i), ttl_seconds=600,
+            expected_configuration_generation=1,
+        ).admission
+        authorities.provider_store.release_admission(
+            admission.admission_id, provider_id="zcode-glm",
+            execution_id=execution_id, batch_id=plan.batch_id,
+            now=NOW + timedelta(seconds=i),
+        )
+
+
+def test_r3_admission_recovery_beyond_default_page_is_never_false_absence(tmp_path):
+    """R3 repair 2 RED: a bounded newest-first admission page must never
+    convert possible truncation into None. The exact execution's admission,
+    older than the store's default page, is still found by scanning up to
+    the store's public maximum; genuine absence under a not-full page still
+    resolves None."""
+    from a_conductor.zero_relay_review_execution import _find_held_admission_readonly
+
+    plan, authorities, route, route_task = _bridge(tmp_path)
+    # the exact admission is the OLDEST row for this provider (still ACTIVE)
+    exact = authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=route.dispatch_execution_id,
+        batch_id=plan.batch_id, expected_max_concurrency=2,
+        now=NOW - timedelta(seconds=1), ttl_seconds=600,
+        expected_configuration_generation=1,
+    ).admission
+    # 60 newer released fillers push the exact row past the 50-row default
+    _filler_admissions(authorities, plan, 60)
+    found = _find_held_admission_readonly(
+        authorities.provider_store, provider_id="zcode-glm",
+        execution_id=route.dispatch_execution_id,
+        batch_id=plan.batch_id, expected_generation=1,
+    )
+    assert found is not None and found.admission_id == exact.admission_id
+    assert found.status == "ACTIVE"
+    # genuine absence under a not-full page remains None (unchanged truth)
+    absent = _find_held_admission_readonly(
+        authorities.provider_store, provider_id="zcode-glm",
+        execution_id="dispatch-never-existed",
+        batch_id=plan.batch_id, expected_generation=1,
+    )
+    assert absent is None
+
+
+def test_r3_admission_recovery_full_max_page_without_match_is_typed_unknown(tmp_path):
+    """R3 repair 2 RED: when even the store's public maximum page is full
+    with no exact execution match, absence is UNPROVEN — typed recovery
+    (never a false None), and a legacy reconcile under it releases nothing."""
+    from a_conductor.provider_config_store import _MAX_ADMISSION_LIST_LIMIT
+    from a_conductor.zero_relay_review_execution import _find_held_admission_readonly
+
+    plan, authorities, route, route_task = _bridge(tmp_path)
+    _filler_admissions(authorities, plan, _MAX_ADMISSION_LIST_LIMIT)
+    with pytest.raises(ZeroRelayReviewExecutionError) as exc:
+        _find_held_admission_readonly(
+            authorities.provider_store, provider_id="zcode-glm",
+            execution_id=route.dispatch_execution_id,
+            batch_id=plan.batch_id, expected_generation=1,
+        )
+    assert exc.value.code == "ADMISSION_PRESENCE_UNPROVEN"
+    # end-to-end: a legacy reconcile over an unprovable page fails typed
+    # and keeps the exact held lease unreleased (no fabricated absence)
+    _seed_completed(authorities, plan, "exec-fullpage")
+    outcome = authorities.lease_broker.acquire(
+        route_task.lease_request, route_task.candidates)
+    assert outcome.kind is LeaseOutcomeKind.LEASED
+    result = reconcile_review_execution(
+        plan=plan, route_task=route_task,
+        provider_store=authorities.provider_store,
+        lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store,
+        execution_store=authorities.execution_store,
+        clock=lambda: NOW, expected_generation=1,
+    )
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "ADMISSION_PRESENCE_UNPROVEN"
+    assert result.handoff is None
+    held = authorities.lease_store.inspect_health(
+        outcome.lease.lease_id, now=NOW).lease
+    assert held.released_at is None
+
+
+def _job_context(plan) -> JobExecutionContext:
+    return JobExecutionContext(
+        job_id=plan.dispatch_execution_id,
+        work_order_ref=plan.review_contract_ref,
+        project_id=plan.project_id,
+        worker_id=plan.reviewer_worker_id,
+        attempt_no=1,
+        max_attempts=1,
+    )
+
+
+def test_r3_existing_owner_lease_refuses_second_dispatch_context(tmp_path):
+    """R3 repair 3 RED (deterministic cross-dispatch): an EXISTING owner-key
+    lease is the live winner's authorization, never a fresh launch authority.
+    A second dispatch context reaching the backend launch path while the
+    winner still holds the owner-key lease must refuse BEFORE any admission
+    acquisition or model effect, must NOT release the live winner's shared
+    lease, and total model effects stay exactly 1 (the winner's)."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    factory = FakeRunnerFactory()
+    plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
+    entered, proceed = Event(), Event()
+
+    def paused_factory(**kwargs):
+        entered.set()  # winner owns lease+admission; no execution record yet
+        assert proceed.wait(10), "probe barrier timed out"
+        return factory(**kwargs)
+
+    winner = _dispatch_backend(
+        plan, authorities, route, route_task, runner_factory=paused_factory)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        winner_run = pool.submit(winner.execute, plan.operation_ref,
+                                 _job_context(plan))
+        try:
+            assert entered.wait(10)
+            loser = _dispatch_backend(
+                plan, authorities, route, route_task, runner_factory=factory)
+            loser_result = loser.execute(plan.operation_ref, _job_context(plan))
+            assert loser_result.success is False
+            assert loser.failure_code == "REVIEW_LEASE_EXISTING_NOT_AUTHORIZED"
+            assert loser_result.error_code == "REVIEW_LEASE_EXISTING_NOT_AUTHORIZED"
+            # refusal happened BEFORE admission/model effect and released
+            # NOTHING of the live winner's shared resources
+            assert factory.model_effects == 0
+            leases = _all_leases(authorities)
+            assert len(leases) == 1 and leases[0].released_at is None
+            admissions = _all_admissions(authorities)
+            assert len(admissions) == 1 and admissions[0].status == "ACTIVE"
+        finally:
+            proceed.set()
+        winner_result = winner_run.result(timeout=60)
+    assert winner_result.success is True
+    assert factory.model_effects == 1  # total model effects stay exactly 1
+    assert winner.handoff is not None and winner.handoff.outcome == "EXECUTED"
+    # the WINNER (not the loser) performed the terminal cleanup
+    admissions = _all_admissions(authorities)
+    assert admissions and all(a.status == "RELEASED" for a in admissions)
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is not None for l in leases)

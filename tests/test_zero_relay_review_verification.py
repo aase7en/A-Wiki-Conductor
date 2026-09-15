@@ -684,6 +684,12 @@ def test_identity_construction_rejects_invalid_shapes():
         dict(repo_root="x" * 2000),
         dict(dispatch_execution_id=""),
     ]
+    non_string_shapes = (None, 1, [], {}, True)
+    bad_overrides.extend(
+        {field: value}
+        for field in ("review_task_sha256", "head")
+        for value in non_string_shapes
+    )
     for overrides in bad_overrides:
         with pytest.raises(ZeroRelayReviewVerificationError) as exc:
             _identity(**overrides)
@@ -724,6 +730,11 @@ def test_evidence_codec_rejects_malformed_and_oversized():
         # legacy-format ref is not v2 evidence
         f"zra2-review-verification:{EXEC_ID}",
     ]
+    malformed.extend(
+        prefix + json.dumps({**valid, field: value})
+        for field in ("review_task_sha256", "head")
+        for value in (None, 1, [], {}, True)
+    )
     for text in malformed:
         with pytest.raises(ZeroRelayReviewVerificationError) as exc:
             parse_promotion_evidence_ref(text)
@@ -736,6 +747,27 @@ def test_evidence_codec_rejects_malformed_and_oversized():
             review_contract_ref="zra2-review-v1:" + "a" * 489,
             batch_id="zra2-review-batch-v1:" + "b" * 490,
         ))
+    assert exc.value.code == "REVIEW_PROMOTION_EVIDENCE_MALFORMED"
+
+
+def test_evidence_codec_deep_json_recursion_is_typed_malformed():
+    """R3 repair 1 RED: deep but <=2048-char JSON that overflows the JSON
+    decoder's recursion budget must surface as typed MALFORMED evidence,
+    never as an untyped RecursionError escaping the fail-closed parse."""
+    from a_conductor.zero_relay_review_verification import (
+        _MAX_PROMOTION_EVIDENCE_CHARS,
+        parse_promotion_evidence_ref,
+    )
+
+    depth = (_MAX_PROMOTION_EVIDENCE_CHARS - len(_V2_EVIDENCE_PREFIX) - 1) // 2
+    deep = f"{_V2_EVIDENCE_PREFIX}:" + "[" * depth + "]" * depth
+    assert len(deep) <= _MAX_PROMOTION_EVIDENCE_CHARS
+    # premise proof: this exact bounded payload genuinely raises
+    # RecursionError inside json.loads on the default CPython budget
+    with pytest.raises(RecursionError):
+        json.loads(deep[len(_V2_EVIDENCE_PREFIX) + 1:])
+    with pytest.raises(ZeroRelayReviewVerificationError) as exc:
+        parse_promotion_evidence_ref(deep)
     assert exc.value.code == "REVIEW_PROMOTION_EVIDENCE_MALFORMED"
 
 

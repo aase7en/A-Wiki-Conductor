@@ -53,7 +53,11 @@ from .execution_record import DurableExecutionRecord, ExecutionProcessState
 from .job_execution import JobBackendResult, JobExecutionContext
 from .native_execution import NativeCommandResult
 from .parallel_ready_execution import ParallelReadyTask
-from .provider_config_store import ProviderAdmissionRecord, ProviderConfigStoreError
+from .provider_config_store import (
+    ProviderAdmissionRecord,
+    ProviderConfigStoreError,
+    _MAX_ADMISSION_LIST_LIMIT,
+)
 from .provider_configuration import HarnessStrategy
 from .registry import windows_worktree_key
 from .worker_lease import LeaseMutationIntent, LeaseOutcomeKind, WorkerLease
@@ -600,8 +604,7 @@ def _find_held_admission_readonly(
     expected_generation: int | None,
 ):
     """READ-ONLY recovery lookup of the admission by exact dispatch keys via
-    the canonical coherent enumeration. Never acquires capacity; absence is
-    genuine absence (enumeration is read-only).
+    the canonical coherent enumeration. Never acquires capacity.
 
     WO-P1-226 Repair R1: the located row must additionally be cross-bound to
     the FULL plan admission authority BEFORE any release/handoff — exact
@@ -609,9 +612,17 @@ def _find_held_admission_readonly(
     persisted configuration generation (present and equal whenever the plan
     carries an expected generation). A mismatch is a typed recovery error:
     the mismatched admission (and its lease) must never be released as if
-    they were the current attempt's resources."""
+    they were the current attempt's resources.
+
+    R3 repair: the enumeration is newest-first and bounded, so a short page
+    can HIDE older rows. The scan always runs at the store's public maximum
+    page size, and a FULL maximum page with no exact execution match can
+    never prove absence — that is typed UNKNOWN (callers treat it as
+    recovery), never a false None."""
     try:
-        admissions = provider_store.list_provider_admissions(provider_id=provider_id)
+        admissions = provider_store.list_provider_admissions(
+            provider_id=provider_id, limit=_MAX_ADMISSION_LIST_LIMIT
+        )
     except ProviderConfigStoreError as exc:
         raise ZeroRelayReviewExecutionError(f"ADMISSION_READ_{exc.code}") from exc
     for record in admissions:
@@ -627,6 +638,10 @@ def _find_held_admission_readonly(
             if int(record.configuration_generation) != int(expected_generation):
                 raise ZeroRelayReviewExecutionError("ADMISSION_REPLAY_GENERATION_MISMATCH")
         return record
+    if len(admissions) >= _MAX_ADMISSION_LIST_LIMIT:
+        # full maximum page with no exact match: older rows may exist beyond
+        # the bound — absence is unproven, which is UNKNOWN, never None
+        raise ZeroRelayReviewExecutionError("ADMISSION_PRESENCE_UNPROVEN")
     return None
 
 
@@ -800,7 +815,15 @@ class ReviewerExecutionBackend:
         outcome = self._lease_broker.acquire(
             self._route_task.lease_request, self._route_task.candidates
         )
-        if outcome.kind not in (LeaseOutcomeKind.LEASED, LeaseOutcomeKind.EXISTING):
+        if outcome.kind is LeaseOutcomeKind.EXISTING:
+            # R3 repair: an EXISTING owner-key lease is the live winner's
+            # authorization from another dispatch context — never a fresh
+            # launch authority for THIS backend. Refuse before any
+            # admission/model effect; the live winner's shared lease must
+            # never be released here.
+            self.failure_code = "REVIEW_LEASE_EXISTING_NOT_AUTHORIZED"
+            raise ZeroRelayReviewExecutionError(self.failure_code)
+        if outcome.kind is not LeaseOutcomeKind.LEASED:
             raise ZeroRelayReviewExecutionError("REVIEW_LEASE_NOT_ACQUIRED")
         lease = outcome.lease
         if not isinstance(lease, WorkerLease) or lease.worker_id != self._plan.reviewer_worker_id:
