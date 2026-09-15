@@ -1,25 +1,26 @@
 # HANDOFF — A-Sunday Conductor
 
-Last updated: 2026-09-08 — GPT1 WO166 P0-B activation
+Last updated: 2026-09-15 — GPT-5.6 Sol WO223 RE2-A
 
-## WO166 P0-B Continuity Guard handoff — authoritative
+## WO223 RE2-A lost-handoff replay handoff — authoritative
 
-> **Single-authority rule:** this section is the ONLY current authoritative handoff state. Everything below the historical separator is dated evidence only.
+> **Single-authority rule:** this section is the ONLY current authoritative handoff state. Re-read actual runtime/Git/GitHub/Issue #214 before mutation; chat history is not authority.
 
-- Repo: `A:\GitHub\A-Wiki-Conductor`.
-- Current activation base: `origin/main@8ffd12f8de3cada79f1f463f3c6f7ee7a35082b9`.
-- A-Wiki Issue #54 + closeout are fully merged/post-main verified; no active A-Wiki claim remains.
-- WO164 / PR #225 is merged/released; post-main CI run `34143787452` attempt 2 SUCCESS. Windows owned-process flake is Issue #227, non-blocking.
-- Current architecture authority: GitHub Issue #226 (`GPT1-P0B-CONTINUITY-GUARD-001`). Implementation identity: `WO-P1-166`.
-- Activation worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo166-p0b-activation`; branch `docs/wo-p1-166-p0b-activation`; docs-only hotspot scope.
-- P0-B R3 split: GPT1 frames trust/failure model and owns acceptance/merge/release; GLM-5.3 MAX implements bounded RED-first Phase A only after activation is merged and a fresh source worktree/claim is proven safe.
-- Initial Phase A scope after activation: NEW `src/a_conductor/continuity_guard.py`, NEW `tests/test_continuity_guard.py`, plus WO166 checkpoint file. Do not modify shared job/lease/change-apply source without a later explicit scope-expansion gate.
-- Required classifications: `FRESH`, `STALE_LOCAL_CHECKOUT`, `HEAD_DRIFT`, `WORKTREE_DIRTY_OR_UNKNOWN`, `CLAIM_CONFLICT`, `SSOT_DRIFT`, `MERGED_NOT_FOLDED`, `RECONCILE_REQUIRED`, `UNKNOWN`; `UNKNOWN` always fails closed.
-- WO165/ZRA-2 is queued successor only: activation-doc head `3d7209e...`; `SAFE_TO_MUTATE_ZRA2_SOURCE=NO` until P0-B is accepted/merged/post-main reconciled.
-- Activation self-closes once this exact projection is on main with required review/CI; no extra hotspot rewrite is required merely to release the activation lane.
+- Claim: `WO-P1-223-RE2A-LOST-HANDOFF-REPLAY-001` on Issue #214; claim checkpoint comment `5674623000`.
+- Repo: `aase7en/A-Wiki-Conductor`; device `DESKTOP-7IB57R4`.
+- Worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo223-re2a-replay`; branch `fix/wo-p1-223-re2a-lost-handoff-replay`.
+- Base: `082705889e26023079e73deacb7f642eb122713b`; `origin/main` at claim `67744e98e538b000579bff4a45616d3a178a824b`.
+- PR #319: OPEN/DRAFT, old head `42221020c02c507decfb396ac8c3b9da54d523bc`; no merge until new frozen candidate passes exact-SHA independent R3 review + hosted CI + GPT acceptance.
+- Task memory: `docs/work-orders/WO-P1-223-re2a-lost-handoff-replay.md`.
+- Runtime packet: `runs/WO-P1-223-RE2A/task.md`; live lane state `status.json`; implementation/review fan-in `result.md`.
+- Accepted repair: promotion event records strict exact original lease/admission identity before cleanup; replay exact-ID reads and cross-binds historical rows; cleanup is idempotent; reconstruct existing `REUSE_COMPLETED`; zero second model effect; legacy/no-new-evidence remains fail-closed.
+- Four-file mutable source/test scope only. RE2-B pre-promotion job liveness is separate and read-only for now.
+- Protected root checkout must not be reset/cleaned/edited. All mutation is isolated in the claimed worktree.
+- Executor after continuity commit: GLM-5.3 MAX bounded RED-first implementation. GPT-5.6 Sol retains architecture/authority/finding adjudication/freeze/acceptance/PR/merge/post-main.
 
-One next safe action: freeze/merge/post-main verify this docs activation, then start fresh WO166 Phase-A source lane and hand the durable task packet to GLM-5.3 MAX.
+Resume procedure: universal entry -> actual Git/GitHub/Issue truth -> CURRENT-WORK -> active WO -> handoff -> status/result packet -> reconcile conflicts -> continue the exact next safe action. Never ask the user to reconstruct the prior chat.
 
+One next safe action: verify and commit continuity bootstrap, re-gate exact worktree/claim, create lane packet, then launch GLM implementation and parallel read-only GLM challenge lanes.
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
 <!-- Nothing below this separator is a current instruction.              -->
