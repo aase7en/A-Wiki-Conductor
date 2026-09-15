@@ -53,13 +53,13 @@ operating plan and named routing preference. No new coordination primitive.
 
 ## Acceptance
 
-- [ ] Current frontier is dated and distinguished from historical runbook examples.
-- [ ] Sol/GLM/Astra roles, CLI-versus-model identity, escalation and de-escalation are explicit.
-- [ ] Existing independent review, risk tiers and provider admission remain mandatory.
-- [ ] ZRA/GE-0008/WO240 sequencing conflicts are visible, with no implicit production release.
-- [ ] Brain discovery/binding, hook enforcement, learning return and reuse boundaries are actionable.
-- [ ] Sunday module/local-AI priorities, upstream intake and package boundaries are recorded.
-- [ ] A fresh Sol session can select the next safe action without chat history.
+- [x] Current frontier is dated and distinguished from historical runbook examples.
+- [x] Sol/GLM/Astra roles, CLI-versus-model identity, escalation and de-escalation are explicit.
+- [x] Existing independent review, risk tiers and provider admission remain mandatory.
+- [x] ZRA/GE-0008/WO240 sequencing conflicts are visible, with no implicit production release.
+- [x] Brain discovery/binding, hook enforcement, learning return and reuse boundaries are actionable.
+- [x] Sunday module/local-AI priorities, upstream intake and package boundaries are recorded.
+- [x] A fresh Sol session can select the next safe action without chat history.
 - [ ] Diff/UTF-8/local links/exact scope checks, independent exact-SHA review and required CI pass.
 
 ## Continuity and protected hotspots
@@ -84,3 +84,23 @@ re-gate, edit the existing plan/routing documents, freeze and independently revi
 
 `SAFE_TO_MUTATE_WO241_DOCS=YES` after bootstrap commit and clean re-gate.
 `SAFE_TO_MUTATE_SOURCE=NO`.
+
+### 2026-09-15 — implementation checkpoint
+
+Bootstrap commit: `bc655165330c1d2b05089a8f731d3cdaf35356ed`.
+The existing runbook now contains the dated delivery queue, pending WO240 ordering
+choice, A-Wiki binding/enforcement/learning slices, upstream intake and Sunday
+module sequence. The matrix records Sol/GLM defaults and bounded Astra escalation.
+
+Verification: `git diff --check` passed; all three scoped documents decode as
+strict UTF-8 without replacement characters and their relative file links resolve.
+No source behavior changed, so runtime/behavior/platform tests are N/A; required
+hosted CI and independent R2 review still apply. Exact scope is these three files.
+Authority probes: routing preference does not admit providers, accept WO240,
+release source claims, bypass child-runtime hook enforcement, or waive review.
+
+Next: freeze this candidate, obtain independent exact-SHA review and required CI,
+then integrator acceptance and authorized merge. Review/CI/merge evidence belongs
+in the PR linked to this branch; until verified there this WO remains ACTIVE.
+Global continuity fold remains with its current owner. No live provider call or
+A-Wiki mutation was made. No application release is claimed.
