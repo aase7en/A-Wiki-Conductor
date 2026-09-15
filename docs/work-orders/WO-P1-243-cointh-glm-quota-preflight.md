@@ -22,3 +22,11 @@ Forbidden scope: source/runtime code, secrets, provider credentials, existing sh
 
 ## Mutation gate
 Target project/repo/worktree/branch/HEAD are proven above; worktree was clean at claim time; scope is new-file-only and non-overlapping. `SAFE_TO_MUTATE_DOCS=YES`.
+## Acceptance
+- Runbook records the CoinTH quota endpoint and exact five-hour response fields supplied by the user.
+- Secret handling forbids committed/logged API keys and uses environment/secret-resolver examples.
+- Failure mapping distinguishes `RATE_LIMITED`, `AUTH_REQUIRED`, `TRANSPORT_FAILURE`, and unverified quota evidence.
+- No live provider/model call is required for this documentation task.
+
+Checkpoint: runbook drafted; verify diff/scope/secret hygiene, then freeze and push candidate.
+Final docs verification: scope limited to this WO plus the new quota runbook; `git diff --check` passed; no real credential was written or read. Candidate state: `READY_FOR_ACCEPTANCE`.
