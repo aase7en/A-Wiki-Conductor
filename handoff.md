@@ -265,3 +265,17 @@ No successor AHA lane is claimed. The next accelerator slice requires a new work
 - CI-topology local evidence: GUI 277 passed, local-instance 23 passed, supervised 11 passed, isolated core passed through 30 files; run then hit shared Hermes-vEnv GPU dependency gaps outside WO scope. Exact-head GitHub CI must remain final full-suite authority.
 - Worker routing snapshot: Worker5 clean/no READY mutable Sunday-Estate lane and is fallback candidate only; Worker1 protected-root dirty; Worker2 active pharmacy cycle; Worker3 dirty; Worker4 reserved for WO-P1-096 P0. No worker/project rebind occurred.
 - Next safe action: final audit ? commit/push exact source/SSoT ? generate ignored exact-SHA GLM read-only review packet. Automatic GLM route is still fail-closed; human may relay only `???? runs/<task-id>/task.md ?????????`, and GPT reads/validates `result.json` itself.
+
+## WO223 RE2-A R3 repair handoff override — 2026-09-15
+
+Actual Git/GitHub/Issue truth overrides the older handoff section above.
+
+- Candidate `1d755b6d5de5ebf5e357c5348f2e1b2544641b09` is R3 `CHANGES_REQUIRED` and must not be merged.
+- Durable reopen: Issue #214 comment `5675288481`.
+- Mutable worktree/branch stay `A:\GitHub\_worktrees\A-Wiki-Conductor-wo223-re2a-replay` / `fix/wo-p1-223-re2a-lost-handoff-replay`.
+- Repair remains exactly four tracked source/test files; forbidden store/schema/job/lease/provider/C1/Phase-D/WO227 scopes are unchanged.
+- Required RED tests: deep JSON recursion typed failure; >bounded admission history must not report false absence/cleaned; concurrent second dispatch using EXISTING lease must not launch a second model effect or release the live winner's lease.
+- GPT-5.6 Sol is acceptance authority. GLM-5.3 MAX may implement/test only after continuity commit and a fresh clean mutation gate.
+- After repair: freeze replacement SHA -> fresh detached independent R3 -> hosted exact-head CI -> expected-head GPT acceptance -> non-force PR #319 fast-forward -> merge/post-main verification.
+
+Resume from repo/Issue/status artifacts; never ask the user to reconstruct this chat.

@@ -377,3 +377,17 @@ Exact repaired snapshot: focused `17 passed`; related `224 passed`; full local `
 ### WO-P1-114 independent review accepted
 
 GLM-5.3 MAX task `wo114-glm-review-002` returned `PASS` at exact HEAD `75c8e21da3d47ffb2fff6f8e37f6240b537f2522`. GPT independently validated task/provider/model/HEAD/task SHA and all four source/test hashes. P0/P1/P2 findings: 0. Four P3 hardening notes are deferred without source mutation. Next gate: final branch audit, Draft PR, exact-head CI, re-audit, merge, post-main proof.
+
+## WO223 RE2-A R3 repair override — 2026-09-15
+
+Actual Git/GitHub/Issue truth supersedes the older authoritative section above where it differs.
+
+- Frozen candidate `1d755b6d5de5ebf5e357c5348f2e1b2544641b09` is REJECTED for acceptance after independent exact-SHA R3.
+- Issue #214 checkpoint `5675288481` reopens the same bounded four-file RE2-A repair scope.
+- Confirmed blockers: typed deep-JSON failure, truncation-safe admission recovery, and EXISTING-lease launch/cleanup ownership.
+- `SAFE_TO_MUTATE_RE2A_SOURCE=YES` only in `A:\GitHub\_worktrees\A-Wiki-Conductor-wo223-re2a-replay` under the existing claim.
+- `SAFE_TO_MERGE_PR319=NO`; PR #319 remains on old head until a replacement SHA passes fresh independent R3 and hosted CI.
+- Fuzz cross-dispatch duplicate model effect is expected to close by refusing `EXISTING` lease as launch authority; verify with a RED/green concurrent test rather than assumption.
+- RE2-B job-lifecycle recovery and other P3 hardening remain separate and must not widen this repair silently.
+
+One next safe action: continuity commit -> GLM-5.3 MAX RED-first bounded writer -> GPT verification -> replacement freeze -> fresh exact-SHA R3 rereview.

@@ -91,3 +91,22 @@ Recovered base and remote truth after restart; Issue #214 claim comment `5674623
 `SAFE_TO_MUTATE_RE2A_SOURCE=NO`
 
 Next safe action: finish/verify/commit tracked continuity bootstrap, create ignored lane task/status/result packet, re-gate exact worktree, checkpoint Issue #214, then transfer the bounded four-file source/test implementation to GLM-5.3 MAX while GPT runs independent architecture/fault/integration lanes.
+## Checkpoint 2026-09-15 — exact-SHA R3 rejected, bounded repair reopened
+
+Frozen candidate `1d755b6d5de5ebf5e357c5348f2e1b2544641b09` was independently reviewed by four detached GLM-5.3 MAX lanes. Integration PASS; Formal/Security/Fuzz returned CHANGES_REQUIRED. Durable Issue #214 checkpoint: `5675288481`.
+
+Confirmed repair items that remain inside the same four-file source/test scope:
+- deep promotion-evidence JSON must map `RecursionError` to typed `REVIEW_PROMOTION_EVIDENCE_MALFORMED`;
+- bounded admission enumeration must never turn a truncated recency window into false absence / false `NOT_ATTEMPTED_CLEANED` truth;
+- a backend launch may not treat an `EXISTING` owner-key lease as launch authority or release that shared lease after a failed parallel attempt.
+
+The third item is also expected to close the reproduced cross-dispatch second-model-effect window before model invocation because a second dispatch context reaches an EXISTING lease instead of a fresh lease.
+
+Separate/non-blocking follow-ups remain outside this repair unless separately released: transient verification-failure liveness after cleanup, path-alias hardening, evidence-field-cap availability, and RE2-B pre-promotion lifecycle recovery.
+
+`R3_REVIEWED_SHA=1d755b6d5de5ebf5e357c5348f2e1b2544641b09`
+`R3_RESULT=CHANGES_REQUIRED`
+`SAFE_TO_MUTATE_RE2A_SOURCE=YES`
+`SAFE_TO_MERGE_PR319=NO`
+
+Next safe action: commit this continuity checkpoint, then run RED-first tests for the three confirmed items under one bounded GLM-5.3 MAX writer; GPT-5.6 Sol verifies exact diff/tests and freezes a replacement SHA for fresh independent R3 rereview.
