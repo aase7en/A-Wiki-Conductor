@@ -2,27 +2,43 @@
 from __future__ import annotations
 
 import dataclasses
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 from pathlib import Path
 
 import pytest
+import jsonschema
 
-from a_conductor.native_execution import NativeFileSystem
+from a_conductor.claude_code_harness import TaskPacketFile
+from a_conductor.native_execution import NativeExecutionError, NativeExecutionScope, NativeFileSystem
+from a_conductor.provider_execution_authority import ProviderExecutionRequirement
+from a_conductor.provider_configuration import ProviderEndpointConfig
+from a_conductor.provider_policy import (
+    ProviderPolicyTaskSecurity, TaskNetworkPolicy, TaskPrivacyClass, evaluate_provider_policy,
+)
+from a_conductor.zcode_runner import ZCodeTaskPacketIdentity
 from a_conductor.worker_lease import LeaseMutationIntent
 from a_conductor.zero_relay import ResultIdentity
 from a_conductor.zero_relay_review_task import (
     DirectReviewRoute,
     MaterializedReviewTask,
+    MaterializedReviewV2Task,
     ReviewTaskRefs,
     ZeroRelayReviewTaskError,
     bind_direct_review_route,
+    bind_direct_review_v2_route,
     canonical_review_bytes,
+    canonical_review_v2_authority_bytes,
+    canonical_review_v2_bytes,
     deterministic_review_refs,
+    deterministic_review_v2_refs,
     materialize_review_task,
+    materialize_review_v2_task,
     render_review_task_markdown,
+    render_review_v2_task_markdown,
 )
-from test_parallel_ready_execution import _task
+from test_parallel_ready_execution import _profile, _task
 
 TASK_REF = "work-order:WO-P1-165"
 TASK_SHA = "a" * 64
@@ -30,6 +46,15 @@ RESULT_REF = "results/zra2/attempt-1.json"
 RESULT_SHA = "b" * 64
 AUTHOR = "exec-author-1"
 REVIEW_HEAD = "a" * 40
+
+
+def _v2_security(*, host: str = "provider.example") -> ProviderPolicyTaskSecurity:
+    return ProviderPolicyTaskSecurity(
+        privacy_class=TaskPrivacyClass.INTERNAL,
+        network_policy=TaskNetworkPolicy.ALLOWLISTED,
+        network_allowlist=(host,),
+        secret_access=False,
+    )
 
 
 def _identity(**overrides) -> ResultIdentity:
@@ -177,8 +202,10 @@ class _FakeNative(NativeFileSystem):
 
     def read_text(self, relative_path, *, max_bytes=None):
         path = str(relative_path)
-        if self.vanish_on_read or path not in self.store:
+        if self.vanish_on_read:
             raise self._err("FILE_READ_FAILED")
+        if path not in self.store:
+            raise self._err("FILE_NOT_FOUND")
         content = self.store[path]
         raw = content.encode()
         return type("R", (), {"relative_path": path, "content": content,
@@ -651,3 +678,433 @@ def test_wo225_regression_author_alias_still_rejected():
     with pytest.raises(ZeroRelayReviewTaskError) as raised:
         bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
     assert raised.value.code == "AUTHOR_REVIEWER_NOT_DISTINCT"
+
+
+# ---------- WO223 G2/G3 protocol-v2 RED ----------
+
+
+def test_wo223_v2_identity_is_distinct_deterministic_and_project_bound() -> None:
+    v1 = deterministic_review_refs(_identity(), REVIEW_HEAD)
+    v2a = deterministic_review_v2_refs(_identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    v2b = deterministic_review_v2_refs(_identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    other = deterministic_review_v2_refs(_identity(), REVIEW_HEAD, project_id="other-project", security=_v2_security())
+    assert v2a == v2b
+    assert v2a != v1
+    assert v2a != other
+    assert v2a.contract_ref == f"runs/zra2-review-v2-{v2a.digest}.task.json"
+    assert v2a.task_path == f"runs/zra2-review-v2-{v2a.digest}.md"
+    assert v2a.result_ref == f"runs/zra2-review-result-v2-{v2a.digest}.json"
+
+
+def test_wo223_v2_identity_bytes_change_on_protocol_and_keep_v1_bytes_stable() -> None:
+    v1_before = canonical_review_bytes(_identity(), REVIEW_HEAD)
+    v2 = canonical_review_v2_bytes(_identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    assert json.loads(v2.decode("utf-8"))["schema"] == "zra2-review-v2"
+    assert v2 != v1_before
+    assert canonical_review_bytes(_identity(), REVIEW_HEAD) == v1_before
+
+
+
+def test_wo223_v2_security_policy_is_identity_bearing() -> None:
+    base = deterministic_review_v2_refs(
+        _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security()
+    )
+    other = deterministic_review_v2_refs(
+        _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security(host="other.example")
+    )
+    assert base != other
+    doc = json.loads(
+        canonical_review_v2_bytes(
+            _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security()
+        ).decode("utf-8")
+    )
+    assert doc["security"]["network_policy"] == "ALLOWLISTED"
+    assert doc["security"]["network_allowlist"] == ["provider.example"]
+
+
+
+def test_wo223_v2_semantic_response_contract_is_identity_bearing(monkeypatch) -> None:
+    import a_conductor.zero_relay_review_task as module
+
+    base = deterministic_review_v2_refs(
+        _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security()
+    )
+    doc = json.loads(
+        canonical_review_v2_bytes(
+            _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security()
+        ).decode("utf-8")
+    )
+    assert doc["response_contract"] == {
+        "schema": "zra2-review-result-v2",
+        "verdicts": ["ACCEPTED", "REJECTED"],
+        "max_response_bytes": 32768,
+        "max_findings": 64,
+        "max_finding_chars": 2048,
+    }
+    monkeypatch.setattr(module, "_V2_RESULT_SCHEMA", "zra2-review-result-v3")
+    changed = module.deterministic_review_v2_refs(
+        _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security()
+    )
+    assert changed != base
+
+def test_wo223_v2_prompt_requires_exact_json_only_semantics() -> None:
+    text = render_review_v2_task_markdown(_identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    assert "zra2-review-result-v2" in text
+    assert "JSON only" in text
+    assert "ACCEPTED" in text and "REJECTED" in text
+    assert "Markdown" in text
+    refs = deterministic_review_v2_refs(_identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    assert refs.contract_ref in text
+    assert refs.result_ref in text
+
+
+def test_wo223_v2_authority_is_task_contract_v1_and_binds_prompt() -> None:
+    refs = deterministic_review_v2_refs(_identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    prompt = render_review_v2_task_markdown(_identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    prompt_sha = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    raw = canonical_review_v2_authority_bytes(
+        _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security(),
+        prompt_path=refs.task_path, prompt_sha256=prompt_sha,
+        result_ref=refs.result_ref,
+    )
+    doc = json.loads(raw.decode("utf-8"))
+    assert doc["schema_version"] == "1.0.0"
+    assert doc["authority"]["mutation_allowed"] is False
+    assert doc["target"]["project_id"] == "a-conductor"
+    assert doc["target"]["expected_head"] == REVIEW_HEAD
+    assert doc["target"]["identity_policy"] == "EXACT"
+    assert doc["security"] == {
+        "privacy_class": "INTERNAL", "network_policy": "ALLOWLISTED",
+        "network_allowlist": ["provider.example"], "secret_access": False,
+    }
+    metadata = doc["metadata"]
+    assert metadata["review_protocol"] == "zra2-review-v2"
+    assert metadata["review_prompt_path"] == refs.task_path
+    assert metadata["review_prompt_sha256"] == prompt_sha
+    assert metadata["semantic_result_ref"] == refs.result_ref
+    assert metadata["author_result_sha256"] == RESULT_SHA
+
+
+def test_wo223_v2_materialization_publishes_prompt_then_authority_and_replays() -> None:
+    fs = _FakeNative()
+    first = materialize_review_v2_task(
+        fs, _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security()
+    )
+    second = materialize_review_v2_task(
+        fs, _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security()
+    )
+    assert first.refs == second.refs
+    assert first.prompt_sha256 == second.prompt_sha256
+    assert first.authority_sha256 == second.authority_sha256
+    assert first.created_prompt is True and first.created_authority is True
+    assert second.created_prompt is False and second.created_authority is False
+    assert first.refs.task_path in fs.store
+    assert first.refs.contract_ref in fs.store
+
+
+
+
+def test_wo223_v2_prompt_only_partial_state_recovers_authority(tmp_path: Path) -> None:
+    root = tmp_path / "review-root"
+    (root / "runs").mkdir(parents=True)
+    fs = NativeFileSystem(NativeExecutionScope(root=root, mutation_allowed=True))
+    security = _v2_security()
+    refs = deterministic_review_v2_refs(
+        _identity(), REVIEW_HEAD, project_id="a-sunday-conductor", security=security
+    )
+    prompt = render_review_v2_task_markdown(
+        _identity(), REVIEW_HEAD, project_id="a-sunday-conductor", security=security
+    )
+    (root / refs.task_path).write_bytes(prompt.encode("utf-8"))
+    result = materialize_review_v2_task(
+        fs, _identity(), REVIEW_HEAD, project_id="a-sunday-conductor", security=security
+    )
+    assert result.created_prompt is False
+    assert result.created_authority is True
+    assert (root / refs.contract_ref).is_file()
+
+
+def test_wo223_v2_authority_without_prompt_fails_before_mutation(tmp_path: Path) -> None:
+    root = tmp_path / "review-root"
+    (root / "runs").mkdir(parents=True)
+    fs = NativeFileSystem(NativeExecutionScope(root=root, mutation_allowed=True))
+    security = _v2_security()
+    refs = deterministic_review_v2_refs(
+        _identity(), REVIEW_HEAD, project_id="a-sunday-conductor", security=security
+    )
+    prompt = render_review_v2_task_markdown(
+        _identity(), REVIEW_HEAD, project_id="a-sunday-conductor", security=security
+    )
+    prompt_sha = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    authority = canonical_review_v2_authority_bytes(
+        _identity(), REVIEW_HEAD,
+        project_id="a-sunday-conductor", security=security,
+        prompt_path=refs.task_path, prompt_sha256=prompt_sha, result_ref=refs.result_ref,
+    )
+    (root / refs.contract_ref).write_bytes(authority)
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        materialize_review_v2_task(
+            fs, _identity(), REVIEW_HEAD, project_id="a-sunday-conductor", security=security
+        )
+    assert exc.value.code == "REVIEW_V2_AUTHORITY_WITHOUT_PROMPT"
+    assert not (root / refs.task_path).exists()
+
+
+
+def test_wo223_v2_concurrent_exact_publication_converges(tmp_path: Path) -> None:
+    root = tmp_path / "review-root"
+    (root / "runs").mkdir(parents=True)
+    security = _v2_security()
+
+    def publish():
+        fs = NativeFileSystem(NativeExecutionScope(root=root, mutation_allowed=True))
+        return materialize_review_v2_task(
+            fs, _identity(), REVIEW_HEAD,
+            project_id="a-sunday-conductor", security=security,
+        )
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda _: publish(), range(4)))
+    assert len({result.refs for result in results}) == 1
+    assert len({result.prompt_sha256 for result in results}) == 1
+    assert len({result.authority_sha256 for result in results}) == 1
+    assert sum(result.created_prompt for result in results) == 1
+    assert sum(result.created_authority for result in results) == 1
+
+def test_wo223_v2_prompt_collision_fails_closed() -> None:
+    fs = _FakeNative()
+    refs = deterministic_review_v2_refs(_identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    fs.store[refs.task_path] = "foreign prompt"
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        materialize_review_v2_task(fs, _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    assert exc.value.code == "REVIEW_V2_PROMPT_COLLISION"
+
+
+def test_wo223_v2_authority_collision_fails_closed() -> None:
+    fs = _FakeNative()
+    first = materialize_review_v2_task(fs, _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    fs.store[first.refs.contract_ref] = "{}"
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        materialize_review_v2_task(fs, _identity(), REVIEW_HEAD, project_id="a-conductor", security=_v2_security())
+    assert exc.value.code == "REVIEW_V2_AUTHORITY_COLLISION"
+
+
+
+def _materialized_v2_real(tmp_path: Path):
+    root = tmp_path / "review-root"
+    (root / "runs").mkdir(parents=True)
+    fs = NativeFileSystem(NativeExecutionScope(root=root, mutation_allowed=True))
+    task = materialize_review_v2_task(
+        fs, _identity(), REVIEW_HEAD, project_id="a-sunday-conductor", security=_v2_security()
+    )
+    return root, task, fs
+
+
+def test_wo223_v2_authority_validates_existing_task_contract_schema(tmp_path: Path) -> None:
+    root, task, fs = _materialized_v2_real(tmp_path)
+    authority = json.loads(fs.read_text(task.refs.contract_ref).content)
+    schema = json.loads(
+        (Path(__file__).resolve().parents[1] / "schemas" / "task-contract.schema.json")
+        .read_text(encoding="utf-8")
+    )
+    jsonschema.Draft202012Validator(schema).validate(authority)
+    assert authority["work_order_ref"] == task.refs.contract_ref
+
+
+def test_wo223_v2_authority_derives_existing_provider_requirement(tmp_path: Path) -> None:
+    root, task, _fs = _materialized_v2_real(tmp_path)
+    packet = TaskPacketFile(
+        task_contract_ref=task.refs.contract_ref,
+        path=str(root / task.refs.task_path),
+        sha256=task.prompt_sha256,
+    )
+    packet_identity = ZCodeTaskPacketIdentity.from_task_packet_file(
+        packet, trusted_root=str(root)
+    )
+    requirement = ProviderExecutionRequirement.from_task_contract_file(
+        project_root=root,
+        provider_id="cointh-glm",
+        provider_authority_path=root / "provider.sqlite",
+        expected_configuration_generation=7,
+        task_contract_ref=task.refs.contract_ref,
+        base_operation_ref=packet_identity.canonical_operation_ref(),
+        expected_authority_sha256=task.authority_sha256,
+    )
+    assert requirement.task_contract_ref == task.refs.contract_ref
+    assert requirement.base_operation_ref == packet_identity.canonical_operation_ref()
+    assert requirement.expected_configuration_generation == 7
+    assert requirement.provider_security.secret_access is False
+    assert requirement.provider_security.network_policy.value == "ALLOWLISTED"
+    assert requirement.provider_security.network_allowlist == ("provider.example",)
+    assert requirement.provider_security.privacy_class.value == "INTERNAL"
+    profile = _profile()
+    endpoint = ProviderEndpointConfig(profile.endpoint_ref, "https://provider.example/v1")
+    assert evaluate_provider_policy(profile, endpoint, requirement.provider_security).allowed is True
+
+
+# ---------- WO223 G4 protocol-v2 route/provider-authority binding ----------
+
+
+def _v2_route_task(root: Path, review: MaterializedReviewV2Task):
+    profile = _profile()
+    packet = TaskPacketFile(
+        task_contract_ref=review.refs.contract_ref,
+        path=str(root / review.refs.task_path),
+        sha256=review.prompt_sha256,
+    )
+    packet_identity = ZCodeTaskPacketIdentity.from_task_packet_file(
+        packet, trusted_root=str(root)
+    )
+    requirement = ProviderExecutionRequirement.from_task_contract_file(
+        project_root=root,
+        provider_id=profile.provider_id,
+        provider_authority_path=root / "provider.sqlite",
+        expected_configuration_generation=7,
+        task_contract_ref=review.refs.contract_ref,
+        base_operation_ref=packet_identity.canonical_operation_ref(),
+        expected_authority_sha256=review.authority_sha256,
+    )
+    base = _task(
+        node_id="review-v2-node", worker_id="reviewer-v2",
+        worktree=str(root), branch="feat/review-v2", mutable_scope=("runs/**",),
+        profile=profile, require_quota=False,
+    )
+    key = dataclasses.replace(base.dispatch_request.key, graph_run_id="review-v2-run")
+    request = dataclasses.replace(
+        base.dispatch_request,
+        key=key,
+        work_order_ref=review.refs.contract_ref,
+        operation_ref=requirement.operation_ref,
+    )
+    dispatch = dataclasses.replace(
+        base.harness_dispatch,
+        execution_id=key.job_id,
+        task_contract_ref=review.refs.contract_ref,
+        project_id=review.project_id,
+        worktree_path=str(root),
+        expected_branch="feat/review-v2",
+        expected_head=REVIEW_HEAD,
+        evidence_destination_ref=review.refs.result_ref,
+    )
+    lease = dataclasses.replace(
+        base.lease_request,
+        task_id=review.refs.contract_ref,
+        project_id=review.project_id,
+        worktree=str(root),
+        branch="feat/review-v2",
+        expected_head=REVIEW_HEAD,
+        mutation_intent=LeaseMutationIntent.READ_ONLY,
+        allowed_scope=(),
+        mutable_scope=(),
+    )
+    endpoint = ProviderEndpointConfig(profile.endpoint_ref, "https://provider.example/v1")
+    return dataclasses.replace(
+        base,
+        dispatch_request=request,
+        lease_request=lease,
+        provider_profile=profile,
+        provider_endpoint=endpoint,
+        provider_security=requirement.provider_security,
+        expected_configuration_generation=requirement.expected_configuration_generation,
+        provider_requirement=requirement,
+        harness_dispatch=dispatch,
+        task_packet=packet,
+        require_quota=False,
+    )
+
+
+def test_wo223_v2_route_binds_task_provider_and_dispatch_authority(tmp_path: Path) -> None:
+    root, review, fs = _materialized_v2_real(tmp_path)
+    task = _v2_route_task(root, review)
+    route = bind_direct_review_v2_route(
+        task, review=review, author=_identity(), filesystem=fs
+    )
+    assert route.review_contract_ref == review.refs.contract_ref
+    assert route.review_task_sha256 == review.prompt_sha256
+    assert route.review_result_ref == review.refs.result_ref
+    assert route.project_id == review.project_id
+    assert route.reviewer_worker_id == "reviewer-v2"
+    assert task.provider_requirement is not None
+    assert task.provider_requirement.authority_sha256 == review.authority_sha256
+    assert task.provider_requirement.provider_security == review.security
+    assert task.dispatch_request.work_order_ref == review.refs.contract_ref
+    assert task.lease_request.task_id == review.refs.contract_ref
+
+
+def test_wo223_v2_route_rejects_authority_sidecar_drift(tmp_path: Path) -> None:
+    root, review, fs = _materialized_v2_real(tmp_path)
+    task = _v2_route_task(root, review)
+    (root / review.refs.contract_ref).write_text("{}", encoding="utf-8")
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        bind_direct_review_v2_route(task, review=review, author=_identity(), filesystem=fs)
+    assert exc.value.code == "REVIEW_V2_AUTHORITY_COLLISION"
+
+
+def test_wo223_v2_route_rejects_security_rebound(tmp_path: Path) -> None:
+    root, review, fs = _materialized_v2_real(tmp_path)
+    task = _v2_route_task(root, review)
+    object.__setattr__(task, "provider_security", _v2_security(host="other.example"))
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        bind_direct_review_v2_route(task, review=review, author=_identity(), filesystem=fs)
+    assert exc.value.code == "REVIEW_V2_PROVIDER_SECURITY_MISMATCH"
+
+
+def test_wo223_v2_route_rejects_requirement_authority_or_packet_operation_rebound(tmp_path: Path) -> None:
+    root, review, fs = _materialized_v2_real(tmp_path)
+    task = _v2_route_task(root, review)
+    requirement = task.provider_requirement
+    assert requirement is not None
+    object.__setattr__(requirement, "authority_sha256", "f" * 64)
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        bind_direct_review_v2_route(task, review=review, author=_identity(), filesystem=fs)
+    assert exc.value.code == "REVIEW_V2_PROVIDER_AUTHORITY_MISMATCH"
+
+    task = _v2_route_task(root, review)
+    requirement = task.provider_requirement
+    assert requirement is not None
+    object.__setattr__(requirement, "base_operation_ref", "zcode-task-v1:" + "e" * 64)
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        bind_direct_review_v2_route(task, review=review, author=_identity(), filesystem=fs)
+    assert exc.value.code == "REVIEW_V2_PROVIDER_OPERATION_MISMATCH"
+
+
+
+def test_wo223_v2_route_requires_complete_provider_authority(tmp_path: Path) -> None:
+    root, review, fs = _materialized_v2_real(tmp_path)
+    task = _v2_route_task(root, review)
+    object.__setattr__(task, "provider_requirement", None)
+    with pytest.raises(ZeroRelayReviewTaskError) as exc:
+        bind_direct_review_v2_route(task, review=review, author=_identity(), filesystem=fs)
+    assert exc.value.code == "REVIEW_V2_PROVIDER_AUTHORITY_MISSING"
+
+
+# ---------- WO223 R3 repair RED: Astra F3 ----------
+
+def test_r3_exact_concurrent_publication_forced_interleaving_converges(tmp_path: Path) -> None:
+    root = tmp_path / "review-root"
+    (root / "runs").mkdir(parents=True)
+    security = _v2_security()
+
+    class PausedReader(NativeFileSystem):
+        triggered = False
+
+        def read_text(self, relative_path):
+            try:
+                return super().read_text(relative_path)
+            except NativeExecutionError:
+                if str(relative_path).endswith(".md") and not self.triggered:
+                    self.triggered = True
+                    materialize_review_v2_task(
+                        NativeFileSystem(NativeExecutionScope(root=root, mutation_allowed=True)),
+                        _identity(), REVIEW_HEAD,
+                        project_id="a-sunday-conductor", security=security,
+                    )
+                raise
+
+    result = materialize_review_v2_task(
+        PausedReader(NativeExecutionScope(root=root, mutation_allowed=True)),
+        _identity(), REVIEW_HEAD,
+        project_id="a-sunday-conductor", security=security,
+    )
+    assert result.created_prompt is False
+    assert result.created_authority is False

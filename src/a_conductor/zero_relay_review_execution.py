@@ -291,8 +291,15 @@ def plan_reviewer_execution(
             task_endpoint_url != base_url:
         raise ZeroRelayReviewExecutionError("REVIEW_TASK_ENDPOINT_STALE")
     requirement = route_task.provider_requirement
-    if requirement is not None and requirement.provider_id != profile.provider_id:
-        raise ZeroRelayReviewExecutionError("REVIEW_TASK_REQUIREMENT_PROVIDER_MISMATCH")
+    if requirement is not None:
+        if requirement.provider_id != profile.provider_id:
+            raise ZeroRelayReviewExecutionError("REVIEW_TASK_REQUIREMENT_PROVIDER_MISMATCH")
+        if requirement.task_contract_ref != route.review_contract_ref:
+            raise ZeroRelayReviewExecutionError("REVIEW_TASK_REQUIREMENT_CONTRACT_MISMATCH")
+        if requirement.expected_configuration_generation != int(generation):
+            raise ZeroRelayReviewExecutionError("REVIEW_TASK_REQUIREMENT_GENERATION_MISMATCH")
+        if requirement.provider_security != route_task.provider_security:
+            raise ZeroRelayReviewExecutionError("REVIEW_TASK_REQUIREMENT_SECURITY_MISMATCH")
 
     # AF4: the trusted C0 task's security policy is evaluated against the
     # CURRENT provider authority (snapshot profile/endpoint) BEFORE any
@@ -309,10 +316,17 @@ def plan_reviewer_execution(
                 f"REVIEW_PROVIDER_POLICY_{policy.reason_code}"
             )
 
-    # operation identity derives from the exact task identity (single
-    # authority: ZCodeTaskPacketIdentity.canonical_operation_ref)
-    operation_ref = packet_identity.canonical_operation_ref()
-    if route_task.dispatch_request.operation_ref != operation_ref:
+    # Two authority layers intentionally carry different operation identities:
+    # - runtime/dedup is the bare canonical packet operation consumed by ZCode;
+    # - GraphDispatch is provider-authority wrapped when a canonical
+    #   ProviderExecutionRequirement exists. Never substitute one for the other.
+    runtime_operation_ref = packet_identity.canonical_operation_ref()
+    dispatch_operation_ref = runtime_operation_ref
+    if requirement is not None:
+        if requirement.base_operation_ref != runtime_operation_ref:
+            raise ZeroRelayReviewExecutionError("REVIEW_TASK_REQUIREMENT_BASE_OPERATION_MISMATCH")
+        dispatch_operation_ref = requirement.operation_ref
+    if route_task.dispatch_request.operation_ref != dispatch_operation_ref:
         raise ZeroRelayReviewExecutionError("REVIEW_OPERATION_REF_MISMATCH")
 
     argv = (str(executable), str(bundle_js), "app-server", "--stdio", "--surface", "desktop")
@@ -325,7 +339,7 @@ def plan_reviewer_execution(
         repo_root=repo_root_resolved,
         branch=route.branch,
         head_before=route.reviewed_head.casefold(),
-        operation_ref=operation_ref,
+        operation_ref=runtime_operation_ref,
         runtime_profile_ref=runtime_profile_ref,
         target_argv=argv,
     )
@@ -348,7 +362,7 @@ def plan_reviewer_execution(
         project_id=route.project_id,
         supervised_job_id=spec.job_id,
         batch_id=batch_id,
-        operation_ref=operation_ref,
+        operation_ref=dispatch_operation_ref,
         argv=argv,
         fingerprint_spec=spec,
         fingerprint=fingerprint,
