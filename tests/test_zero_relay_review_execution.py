@@ -973,10 +973,11 @@ def test_plan_drift_before_spawn_fails_closed_and_cleans_up(tmp_path):
     assert leases and all(l.released_at is not None for l in leases)
 
 
-def test_completed_equivalent_replay_is_reuse_completed_with_cleanup(tmp_path):
-    """RED 14/32: same completed fingerprint -> no new model/launch/acquire,
-    but exact cleanup/reconcile effects still happen (admission+lease are
-    released by the replay after a simulated lost cleanup)."""
+def test_completed_equivalent_replay_reconciles_admission_and_retains_lease_r6(tmp_path):
+    """RED 14/32 (R6 amendment): same completed fingerprint -> no new
+    model/launch/acquire effect. A legacy-evidence replay holds no durable
+    exact lease id, so the owner-key lease row is retained (typed recovery,
+    no handoff); the exact-dispatch admission still reconciles once."""
     factory = FakeRunnerFactory()
     plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
     # pre-existing completed equivalent (crash after model, before cleanup)
@@ -998,14 +999,15 @@ def test_completed_equivalent_replay_is_reuse_completed_with_cleanup(tmp_path):
         secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
         executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
     )
-    assert result.outcome == "REUSE_COMPLETED"
+    # R6: no durable exact lease id -> typed recovery, never a handoff
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "LEASE_OWNERSHIP_UNPROVEN"
+    assert result.handoff is None
     assert factory.model_effects == 0  # no new model effect
-    handoff = result.handoff
-    assert handoff.runtime_execution_id == "exec-pre-done"
-    assert handoff.cleanup_terminal is True
-    # both pre-held resources were released by the replay
+    # the exact-dispatch admission was reconciled independently
     assert authorities.provider_store.get_admission(admission.admission.admission_id).status == "RELEASED"
-    assert authorities.lease_store.inspect_health(outcome.lease.lease_id, now=NOW).lease.released_at is not None
+    # the owner-key lease row was retained (never released by inference)
+    assert authorities.lease_store.inspect_health(outcome.lease.lease_id, now=NOW).lease.released_at is None
 
 
 def test_live_equivalent_never_launches_second_child(tmp_path):
@@ -1363,11 +1365,13 @@ def test_completed_plus_released_lease_handoff_lost_zero_new_rows(tmp_path):
     assert len(_all_leases(authorities)) == rows_before  # ZERO new lease rows
 
 
-def test_timeout_retains_resources_then_terminal_reconcile_releases_once(tmp_path):
-    """Sol obligation 3 RED: a timeout leaves the durable execution LIVE —
-    admission+lease stay ACTIVE (no release over a possibly-running child),
-    no usable handoff; after terminality is later observed, one reconcile
-    performs the exact cleanup and only then a handoff exists."""
+def test_timeout_retains_resources_then_terminal_reconcile_fails_closed_r6(tmp_path):
+    """Sol obligation 3 RED (R6 amendment): a timeout leaves the durable
+    execution LIVE — admission+lease stay ACTIVE (no release over a
+    possibly-running child), no usable handoff. After terminality is later
+    observed, the replay reconciles the exact-dispatch admission but —
+    lacking a durable exact lease id — retains the owner-key lease row and
+    returns typed recovery with no handoff (never an inference release)."""
     factory = FakeRunnerFactory(live_timeout=True)
     plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
     result = execute_review_dispatch(
@@ -1396,21 +1400,24 @@ def test_timeout_retains_resources_then_terminal_reconcile_releases_once(tmp_pat
         factory.execution_ids[0], ExecutionProcessState.SUCCEEDED,
         expected_version=with_result.version,
     )
+    replay_factory = FakeRunnerFactory()
     replay = execute_review_dispatch(
         route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
         provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
         lease_store=authorities.lease_store, execution_store=authorities.execution_store,
-        job_store=authorities.job_store, runner_factory=FakeRunnerFactory(),
+        job_store=authorities.job_store, runner_factory=replay_factory,
         secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
         executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
     )
-    assert replay.outcome == "REUSE_COMPLETED"
-    assert replay.handoff is not None and replay.handoff.cleanup_terminal
-    assert replay.handoff.runtime_execution_id == factory.execution_ids[0]
+    # R6: legacy promotion evidence -> no exact lease id -> typed recovery
+    assert replay.outcome == "RECOVERY_REQUIRED"
+    assert replay.reason_code == "LEASE_OWNERSHIP_UNPROVEN"
+    assert replay.handoff is None
+    assert replay_factory.model_effects == 0
     final_admission = _admission_by_execution(authorities, route.dispatch_execution_id)
-    assert final_admission.status == "RELEASED"
+    assert final_admission.status == "RELEASED"  # independent reconcile
     final_leases = _all_leases(authorities)
-    assert final_leases and all(l.released_at is not None for l in final_leases)
+    assert final_leases and all(l.released_at is None for l in final_leases)
 
 
 def test_post_spawn_fault_retains_resources_recovery(tmp_path):
@@ -1618,10 +1625,12 @@ def test_replay_wrong_generation_binding_fails_closed(tmp_path):
     assert ok is not None and ok.admission_id == admission.admission_id
 
 
-def test_replay_exact_identity_still_cleans_up_once(tmp_path):
-    """RED 4 (positive): exact batch + exact generation replay performs ONE
-    canonical cleanup and yields the valid REUSE_COMPLETED handoff with the
-    plan's own batch identity."""
+def test_replay_exact_identity_reconciles_admission_only_r6(tmp_path):
+    """RED 4 (R6 amendment): exact batch + exact generation replay
+    reconciles the exact-dispatch admission once (typed, no handoff, no
+    model effect) — but the owner-key lease row is retained: without a
+    durable exact lease id, exact dispatch keys alone never authorize a
+    lease release."""
     factory = FakeRunnerFactory()
     plan, authorities, route, route_task, admission = _replay_setup(tmp_path)
     result = execute_review_dispatch(
@@ -1632,16 +1641,14 @@ def test_replay_exact_identity_still_cleans_up_once(tmp_path):
         secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
         executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
     )
-    assert result.outcome == "REUSE_COMPLETED"
-    handoff = result.handoff
-    assert handoff is not None and handoff.cleanup_terminal
-    assert handoff.admission_batch_id == plan.batch_id
-    assert handoff.admission_id == admission.admission_id
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "LEASE_OWNERSHIP_UNPROVEN"
+    assert result.handoff is None
     assert factory.model_effects == 0
     final_admission = _admission_by_execution(authorities, route.dispatch_execution_id)
     assert final_admission.status == "RELEASED"
     leases = _all_leases(authorities)
-    assert leases and all(l.released_at is not None for l in leases)
+    assert leases and all(l.released_at is None for l in leases)
 
 
 # ── WO-P1-226 combined repair: Astra AF1-AF4 adversarial REDs (ported from
@@ -1697,9 +1704,10 @@ def test_af1_loser_does_not_release_paused_winner_resources(tmp_path):
 
 
 def test_af2_failed_terminal_after_timeout_releases_resources(tmp_path):
-    """AF2: a retained timed-out execution that later becomes terminal
-    FAILED must reconcile/release its exact resources once — no handoff, no
-    relaunch."""
+    """AF2 (R6 amendment): a retained timed-out execution that later becomes
+    terminal FAILED must reconcile its exact-dispatch admission once — no
+    handoff, no relaunch — while the owner-key lease row is retained (no
+    durable exact lease id exists on a pure replay)."""
     factory = FakeRunnerFactory(live_timeout=True)
     plan, a, route, task = _bridge(tmp_path, runner_factory=factory)
     first = _af_dispatch(a, route, task, factory)
@@ -1710,8 +1718,10 @@ def test_af2_failed_terminal_after_timeout_releases_resources(tmp_path):
     after = _af_resources(a)
     assert replay.handoff is None
     assert replay.outcome == "RECOVERY_REQUIRED"
-    assert after["admissions"] == ["RELEASED"] and after["leases_released"] == [True], \
+    assert after["admissions"] == ["RELEASED"], \
         "terminal failed child must release capacity without a usable handoff"
+    assert after["leases_released"] == [False], \
+        "R6: an owner-key lease is never released without exact identity"
     assert factory.model_effects == 1  # no relaunch
 
 
@@ -1848,10 +1858,11 @@ def test_cr1_terminal_wrong_persisted_generation_retains(tmp_path):
     assert leases and all(l.released_at is None for l in leases)
 
 
-def test_cr1_exact_generation_terminal_cleanup_releases_once(tmp_path):
-    """Positive preserved: exact persisted generation terminal-unusable
-    cleanup still releases BOTH exact resources once — no handoff, no
-    relaunch, zero model effects."""
+def test_cr1_exact_generation_terminal_cleanup_reconciles_admission_r6(tmp_path):
+    """Positive preserved (R6 amendment): exact persisted generation
+    terminal-unusable cleanup reconciles the exact-dispatch admission once
+    — no handoff, no relaunch, zero model effects — while the owner-key
+    lease row is retained (no exact lease id on a pure replay)."""
     plan, authorities, route, fresh, result = _cr1_terminal(
         tmp_path, persisted_generation=1)
     assert result.outcome == "RECOVERY_REQUIRED" and result.handoff is None
@@ -1859,7 +1870,7 @@ def test_cr1_exact_generation_terminal_cleanup_releases_once(tmp_path):
     admission = _admission_by_execution(authorities, route.dispatch_execution_id)
     assert admission is not None and admission.status == "RELEASED"
     leases = _all_leases(authorities)
-    assert leases and all(l.released_at is not None for l in leases)
+    assert leases and all(l.released_at is None for l in leases)
 
 
 def test_cr1_authority_triple_missing_fails_closed_before_effect(tmp_path):
@@ -2116,20 +2127,23 @@ def test_re1_production_exit0_promotes_before_handoff_and_is_c1_eligible(tmp_pat
     assert evidence.reviewer_execution_id == handoff.runtime_execution_id
 
 
-def test_re1_reconcile_after_crash_before_promotion_is_c1_eligible(tmp_path):
+def test_re1_reconcile_after_crash_before_promotion_cannot_mint_handoff_r6(tmp_path):
     """Crash after the exit-0 model effect (record VR, resources still
-    held): reconcile must verify + promote + mint a C1-eligible handoff
-    whose exit_code is the DURABLE exit code (fixes exit_code=None)."""
+    held), R6 amendment: the replay holds no durable exact lease id, so it
+    must NOT release the owner-key lease, NOT mint a v2 promotion identity
+    from owner-key inference, and NOT fabricate a handoff. The
+    exact-dispatch admission reconciles independently; typed recovery is
+    returned; the record keeps its pre-replay durable truth."""
     factory = FakeRunnerFactory()
     plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
     seeded = _seed_completed(authorities, plan, "exec-crash-vr")
     outcome = authorities.lease_broker.acquire(route_task.lease_request, route_task.candidates)
     assert outcome.kind is LeaseOutcomeKind.LEASED
-    authorities.provider_store.acquire_admission(
+    admission = authorities.provider_store.acquire_admission(
         provider_id="zcode-glm", execution_id=route.dispatch_execution_id,
         batch_id=plan.batch_id, expected_max_concurrency=2, now=NOW,
         ttl_seconds=600, expected_configuration_generation=1,
-    )
+    ).admission
     result = execute_review_dispatch(
         route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
         provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
@@ -2138,27 +2152,32 @@ def test_re1_reconcile_after_crash_before_promotion_is_c1_eligible(tmp_path):
         secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
         executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
     )
-    assert result.outcome == "REUSE_COMPLETED"
-    handoff = result.handoff
-    assert handoff is not None
-    assert handoff.runtime_execution_id == "exec-crash-vr"
-    # promoted BEFORE the handoff pinned state/version, durable exit truth
-    assert handoff.record_state == "SUCCEEDED"
-    assert handoff.record_version == seeded.version + 1
-    assert handoff.exit_code == 0
-    promoted = authorities.execution_store.get("exec-crash-vr")
-    assert promoted.version == handoff.record_version
-    evidence = compose_direct_review_evidence_from_store(
-        author=AUTHOR, route=route, handoff=handoff,
-        store=authorities.execution_store,
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "LEASE_OWNERSHIP_UNPROVEN"
+    assert result.handoff is None
+    assert factory.model_effects == 0
+    # nothing was promoted or pinned: the durable truth is unchanged
+    record = authorities.execution_store.get("exec-crash-vr")
+    assert record.execution_state is ExecutionProcessState.VERIFICATION_REQUIRED
+    assert record.version == seeded.version
+    from a_conductor.zero_relay_review_verification import (
+        resolve_promotion_resource_identity,
     )
-    assert evidence.disposition is ReviewDisposition.ACCEPTED
+    assert resolve_promotion_resource_identity(
+        authorities.execution_store, "exec-crash-vr") is None
+    # the exact-dispatch admission reconciled independently; lease retained
+    assert authorities.provider_store.get_admission(
+        admission.admission_id).status == "RELEASED"
+    assert authorities.lease_store.inspect_health(
+        outcome.lease.lease_id, now=NOW).lease.released_at is None
 
 
-def test_re1_reconcile_after_promote_crash_verifies_and_no_ops(tmp_path):
-    """Crash AFTER the promotion (record SUCCEEDED, resources still held):
-    reconcile verifies without any further mutation and mints the
-    C1-eligible handoff at the SAME durable version."""
+def test_re1_reconcile_after_promote_crash_retains_lease_r6(tmp_path):
+    """Crash AFTER a legacy-evidence promotion (record SUCCEEDED, resources
+    still held), R6 amendment: the replay has no durable exact lease id —
+    it must not mutate the promoted record (no events, same version), must
+    not release the owner-key lease, and returns typed recovery with no
+    handoff; the exact-dispatch admission reconciles independently."""
     factory = FakeRunnerFactory()
     plan, authorities, route, route_task = _bridge(tmp_path, runner_factory=factory)
     seeded = _seed_completed(authorities, plan, "exec-crash-promoted",
@@ -2166,11 +2185,11 @@ def test_re1_reconcile_after_promote_crash_verifies_and_no_ops(tmp_path):
     events_before = authorities.execution_store.list_events(seeded.execution_id)
     outcome = authorities.lease_broker.acquire(route_task.lease_request, route_task.candidates)
     assert outcome.kind is LeaseOutcomeKind.LEASED
-    authorities.provider_store.acquire_admission(
+    admission = authorities.provider_store.acquire_admission(
         provider_id="zcode-glm", execution_id=route.dispatch_execution_id,
         batch_id=plan.batch_id, expected_max_concurrency=2, now=NOW,
         ttl_seconds=600, expected_configuration_generation=1,
-    )
+    ).admission
     result = execute_review_dispatch(
         route=route, route_task=route_task, provider_snapshot=authorities.snapshot,
         provider_store=authorities.provider_store, lease_broker=authorities.lease_broker,
@@ -2179,18 +2198,20 @@ def test_re1_reconcile_after_promote_crash_verifies_and_no_ops(tmp_path):
         secret_resolver=authorities.secret_resolver, repo_root=authorities.repo_root,
         executable=EXEC, bundle_js=BUNDLE, clock=lambda: NOW,
     )
-    assert result.outcome == "REUSE_COMPLETED"
-    handoff = result.handoff
-    assert handoff is not None
-    assert handoff.record_state == "SUCCEEDED"
-    assert handoff.record_version == seeded.version  # no mutation
-    assert handoff.exit_code == 0
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "LEASE_OWNERSHIP_UNPROVEN"
+    assert result.handoff is None
+    assert factory.model_effects == 0
+    # zero mutation of the promoted durable truth
+    record = authorities.execution_store.get(seeded.execution_id)
+    assert record.execution_state is ExecutionProcessState.SUCCEEDED
+    assert record.version == seeded.version
     assert authorities.execution_store.list_events(seeded.execution_id) == events_before
-    evidence = compose_direct_review_evidence_from_store(
-        author=AUTHOR, route=route, handoff=handoff,
-        store=authorities.execution_store,
-    )
-    assert evidence.disposition is ReviewDisposition.ACCEPTED
+    # admission reconciled independently; owner-key lease retained
+    assert authorities.provider_store.get_admission(
+        admission.admission_id).status == "RELEASED"
+    assert authorities.lease_store.inspect_health(
+        outcome.lease.lease_id, now=NOW).lease.released_at is None
 
 
 def test_re1_verification_failure_cleans_up_and_mints_no_handoff(tmp_path):
@@ -3025,14 +3046,16 @@ def test_r5_terminal_unusable_cross_dispatch_retains_owner_key_lease(tmp_path):
     assert leases and all(l.released_at is None for l in leases)
     admissions = _all_admissions(authorities)
     assert admissions and all(a.status == "ACTIVE" for a in admissions)
-    # the resource OWNER's own retry still performs the exact AF2 cleanup
+    # the resource OWNER's own retry still reconciles the exact-dispatch
+    # admission (R6): the owner-key lease row is retained — a pure replay
+    # holds no durable exact lease id, so it is never released by inference
     owner_replay = _af_dispatch(authorities, route_a, task_a, FakeRunnerFactory())
     assert owner_replay.outcome == "RECOVERY_REQUIRED"
     assert owner_replay.reason_code == "EQUIVALENT_TERMINAL_NOT_USABLE"
     admissions = _all_admissions(authorities)
     assert admissions and all(a.status == "RELEASED" for a in admissions)
     leases = _all_leases(authorities)
-    assert leases and all(l.released_at is not None for l in leases)
+    assert leases and all(l.released_at is None for l in leases)
 
 
 def test_r5_legacy_released_admission_never_releases_or_pins_owner_key_lease(tmp_path):
@@ -3145,3 +3168,347 @@ def test_r5_prior_dispatch_never_releases_successor_owner_key_lease(tmp_path):
     assert leases and all(l.released_at is not None for l in leases)
     admissions = _all_admissions(authorities)
     assert admissions and all(a.status == "RELEASED" for a in admissions)
+
+
+# ── WO-P1-223 R6 repair (2026-09-15, Issue #214 comment 5684979092): an
+# owner-key lease lookup plus an ACTIVE exact-dispatch admission is NOT
+# exact lease provenance after the canonical stale-lease authority released
+# the original row and a successor reacquired the same owner keys — only an
+# exact lease id bound to this dispatch may authorize lease release or
+# promotion pinning ────────────────────────────────────────────────────────
+
+
+def _stale_release_lease(authorities, lease, *, tmp_path):
+    """Canonical stale-lease reconcile through the REAL store authority:
+    safely releases the expired unreleased lease row WITHOUT touching any
+    provider admission — the exact R6 counterexample seam."""
+    from a_conductor.domain import RecoveryClassification
+    from a_conductor.worker_lease import WorkerLeaseRecoveryObservation
+
+    result = authorities.lease_store.reconcile_stale(
+        lease.lease_id,
+        session_id=lease.session_id,
+        task_id=lease.task_id,
+        observation=WorkerLeaseRecoveryObservation(
+            worker_id=lease.worker_id,
+            worktree=str(tmp_path),
+            branch=lease.branch,
+            head=lease.expected_head,
+            dirty_state="CLEAN",
+            ownership_known=True,
+            runtime_running=False,
+            recovery_classification=RecoveryClassification.COMPLETE_VERIFIED,
+            evidence_ref="test:r6-canonical-stale-release",
+            observed_at=NOW + timedelta(hours=1),
+        ),
+    )
+    assert result.lease.released_at is not None
+    return result
+
+
+def test_r6_terminal_cleanup_retains_successor_lease_after_stale_release(tmp_path):
+    """R6 RED (terminal-unusable cleanup path): A owns L1+AdmA; the
+    canonical lease reconcile_stale safely releases L1 while AdmA remains
+    persisted ACTIVE; B acquires a fresh L2 under the same owner keys and is
+    live. A's terminal-unusable replay must NEVER release L2 — owner-key +
+    ACTIVE admission is not lease provenance. The exact-dispatch admission
+    reconciles independently; L2 is retained; no second model effect."""
+    factory = FakeRunnerFactory(live_timeout=True)
+    plan_a, authorities, route_a, task_a = _bridge(tmp_path, runner_factory=factory)
+    first = _af_dispatch(authorities, route_a, task_a, factory)
+    assert first.outcome == "RECOVERY_REQUIRED" and first.handoff is None
+    original = authorities.lease_store.inspect_health(
+        _active_lease_row(authorities).lease_id, now=NOW).lease
+    # the retained live record later becomes terminal FAILED (unusable)
+    authorities.execution_store.set_execution_state(
+        factory.execution_ids[0], ExecutionProcessState.FAILED, expected_version=1,
+    )
+    # canonical authority releases L1; the exact-dispatch admission stays ACTIVE
+    _stale_release_lease(authorities, original, tmp_path=tmp_path)
+    admission_a = _admission_by_execution(authorities, route_a.dispatch_execution_id)
+    assert admission_a is not None and admission_a.status == "ACTIVE"
+    # successor B holds a fresh live lease under the SAME owner keys
+    route_b, task_b = _identity_variant(tmp_path, plan_a, graph_run_id="run-2")
+    successor = authorities.lease_broker.acquire(task_b.lease_request, task_b.candidates)
+    assert successor.kind is LeaseOutcomeKind.LEASED
+    assert successor.lease.lease_id != original.lease_id
+    replay_factory = FakeRunnerFactory()
+    replay = _af_dispatch(authorities, route_a, task_a, replay_factory)
+    assert replay.outcome == "RECOVERY_REQUIRED"
+    assert replay.reason_code == "EQUIVALENT_TERMINAL_NOT_USABLE"
+    assert replay.handoff is None
+    # R6: B's live lease L2 was NOT released by A's replay
+    l2 = authorities.lease_store.inspect_health(
+        successor.lease.lease_id, now=NOW).lease
+    assert l2.released_at is None
+    # the exact-dispatch admission reconciled independently (exact identity)
+    admission_after = _admission_by_execution(
+        authorities, route_a.dispatch_execution_id)
+    assert admission_after.status == "RELEASED"
+    assert replay_factory.model_effects == 0
+
+
+def test_r6_legacy_replay_never_releases_or_pins_successor_lease(tmp_path):
+    """R6 RED (legacy/no-v2 reconcile path): the same counterexample on the
+    completed replay path — L1 stale-released (admission persists ACTIVE),
+    successor L2 live under the same owner keys. A's replay must retain L2,
+    must NOT mint it into a v2 promotion identity (no owner-key-inference
+    upgrade), promote nothing, and return typed recovery with no handoff;
+    the exact-dispatch admission reconciles independently."""
+    from a_conductor.zero_relay_review_verification import (
+        resolve_promotion_resource_identity,
+    )
+
+    factory = FakeRunnerFactory()
+    plan_a, authorities, route_a, task_a = _bridge(tmp_path, runner_factory=factory)
+    _seed_completed(authorities, plan_a, "exec-r6-legacy")
+    lease_a = authorities.lease_broker.acquire(
+        task_a.lease_request, task_a.candidates).lease
+    admission_a = authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=route_a.dispatch_execution_id,
+        batch_id=plan_a.batch_id, expected_max_concurrency=2, now=NOW,
+        ttl_seconds=600, expected_configuration_generation=1,
+    ).admission
+    _stale_release_lease(authorities, lease_a, tmp_path=tmp_path)
+    route_b, task_b = _identity_variant(tmp_path, plan_a, graph_run_id="run-2")
+    successor = authorities.lease_broker.acquire(task_b.lease_request, task_b.candidates)
+    assert successor.kind is LeaseOutcomeKind.LEASED
+    assert successor.lease.lease_id != lease_a.lease_id
+    replay_factory = FakeRunnerFactory()
+    replay = _af_dispatch(authorities, route_a, task_a, replay_factory)
+    assert replay.outcome == "RECOVERY_REQUIRED"
+    assert replay.reason_code == "LEASE_OWNERSHIP_UNPROVEN"
+    assert replay.handoff is None
+    assert replay_factory.model_effects == 0
+    # R6: B's live lease was neither released ...
+    l2 = authorities.lease_store.inspect_health(
+        successor.lease.lease_id, now=NOW).lease
+    assert l2.released_at is None
+    # ... nor pinned: no v2 promotion identity was minted from it
+    assert resolve_promotion_resource_identity(
+        authorities.execution_store, "exec-r6-legacy") is None
+    # nothing was promoted: the record keeps its pre-replay durable truth
+    record = authorities.execution_store.get("exec-r6-legacy")
+    assert record.execution_state is ExecutionProcessState.VERIFICATION_REQUIRED
+    # the exact-dispatch admission reconciled independently
+    assert authorities.provider_store.get_admission(
+        admission_a.admission_id).status == "RELEASED"
+
+
+def test_r6_recovery_cleanup_requires_exact_lease_id(tmp_path):
+    """R6 RED (exact-id seam): the no-record recovery cleanup releases the
+    owner-key lease row ONLY through the same-process backend's exact
+    acquired id — never by owner-key inference. Same-process exact-id
+    cleanup still works; a pure replay (no id) and a mismatched id retain
+    the lease row while the exact-dispatch admission reconciles
+    independently."""
+    from a_conductor.zero_relay_review_execution import (
+        _cleanup_held_resources_without_record,
+    )
+
+    def _held(root_name):
+        root = Path(str(tmp_path) + root_name)
+        plan, authorities, route, task = _bridge(root)
+        lease = authorities.lease_broker.acquire(
+            task.lease_request, task.candidates).lease
+        admission = authorities.provider_store.acquire_admission(
+            provider_id="zcode-glm", execution_id=route.dispatch_execution_id,
+            batch_id=plan.batch_id, expected_max_concurrency=2, now=NOW,
+            ttl_seconds=600, expected_configuration_generation=1,
+        ).admission
+        return plan, authorities, task, lease, admission
+
+    # phase A: pure replay (no durable exact lease id) retains the lease
+    plan, authorities, task, lease, admission = _held("a")
+    assert _cleanup_held_resources_without_record(
+        plan=plan, route_task=task, provider_store=authorities.provider_store,
+        lease_broker=authorities.lease_broker, lease_store=authorities.lease_store,
+        expected_generation=1, max_concurrency=2, clock=lambda: NOW,
+        exact_lease_id=None,
+    ) is False
+    assert authorities.lease_store.inspect_health(
+        lease.lease_id, now=NOW).lease.released_at is None
+    assert authorities.provider_store.get_admission(
+        admission.admission_id).status == "RELEASED"
+
+    # phase B: the same-process exact id authorizes the exact release
+    plan_b, auth_b, task_b, lease_b, admission_b = _held("b")
+    assert _cleanup_held_resources_without_record(
+        plan=plan_b, route_task=task_b, provider_store=auth_b.provider_store,
+        lease_broker=auth_b.lease_broker, lease_store=auth_b.lease_store,
+        expected_generation=1, max_concurrency=2, clock=lambda: NOW,
+        exact_lease_id=lease_b.lease_id,
+    ) is True
+    assert auth_b.lease_store.inspect_health(
+        lease_b.lease_id, now=NOW).lease.released_at is not None
+    assert auth_b.provider_store.get_admission(
+        admission_b.admission_id).status == "RELEASED"
+
+    # phase C: a mismatched exact id never releases the row found now
+    plan_c, auth_c, task_c, lease_c, admission_c = _held("c")
+    assert _cleanup_held_resources_without_record(
+        plan=plan_c, route_task=task_c, provider_store=auth_c.provider_store,
+        lease_broker=auth_c.lease_broker, lease_store=auth_c.lease_store,
+        expected_generation=1, max_concurrency=2, clock=lambda: NOW,
+        exact_lease_id="lease-not-acquired-by-this-dispatch",
+    ) is False
+    assert auth_c.lease_store.inspect_health(
+        lease_c.lease_id, now=NOW).lease.released_at is None
+    assert auth_c.provider_store.get_admission(
+        admission_c.admission_id).status == "RELEASED"
+
+
+# ── WO-P1-223 R6b repair (2026-09-15, Issue #214 Sol integration): the
+# exact-dispatch admission reconciles independently even when no active
+# owner-key lease row exists, and an admission whose exact id does NOT match
+# the same-process locator is retained with settled=False — never released,
+# never counted as cleaned ─────────────────────────────────────────────────
+
+
+def test_r6b_legacy_replay_reconciles_admission_when_lease_row_gone(tmp_path):
+    """R6b RED (Sol gap 1): legacy completed replay where the canonical
+    stale-lease authority already released the original lease and NO
+    successor reacquired the owner keys. The exact-dispatch ACTIVE admission
+    must still reconcile (be released) independently before the typed
+    LEASE_IDENTITY_UNPROVEN return: no handoff, no promotion, no model
+    effect, ZERO new rows."""
+    from a_conductor.zero_relay_review_verification import (
+        resolve_promotion_resource_identity,
+    )
+
+    factory = FakeRunnerFactory()
+    plan_a, authorities, route_a, task_a = _bridge(tmp_path, runner_factory=factory)
+    _seed_completed(authorities, plan_a, "exec-r6b-nolease")
+    lease_a = authorities.lease_broker.acquire(
+        task_a.lease_request, task_a.candidates).lease
+    admission_a = authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=route_a.dispatch_execution_id,
+        batch_id=plan_a.batch_id, expected_max_concurrency=2, now=NOW,
+        ttl_seconds=600, expected_configuration_generation=1,
+    ).admission
+    # canonical authority releases L1; the exact-dispatch admission stays
+    # ACTIVE; NO successor reacquires the owner keys
+    _stale_release_lease(authorities, lease_a, tmp_path=tmp_path)
+    assert authorities.provider_store.get_admission(
+        admission_a.admission_id).status == "ACTIVE"
+    rows_before = len(_all_leases(authorities))
+    replay_factory = FakeRunnerFactory()
+    replay = _af_dispatch(authorities, route_a, task_a, replay_factory)
+    assert replay.outcome == "RECOVERY_REQUIRED"
+    assert replay.reason_code == "LEASE_IDENTITY_UNPROVEN"
+    assert replay.handoff is None
+    assert replay_factory.model_effects == 0
+    # R6b: the exact-dispatch admission reconciled independently
+    assert authorities.provider_store.get_admission(
+        admission_a.admission_id).status == "RELEASED"
+    # no new rows, no promotion, no identity minting
+    assert len(_all_leases(authorities)) == rows_before
+    assert resolve_promotion_resource_identity(
+        authorities.execution_store, "exec-r6b-nolease") is None
+    record = authorities.execution_store.get("exec-r6b-nolease")
+    assert record.execution_state is ExecutionProcessState.VERIFICATION_REQUIRED
+
+
+def test_r6b_recovery_cleanup_admission_locator_mismatch_stays_recovery(tmp_path):
+    """R6b RED (Sol gap 2): `_cleanup_held_resources_without_record` with an
+    ACTIVE admission and a NON-None mismatched exact_admission_id must NOT
+    count settled=True: the admission is retained (never released by a
+    locator mismatch) and the cleanup returns False/recovery. A matching
+    locator still settles True; an exact-bound lease still releases its own
+    row while the mismatched admission keeps the outcome recovery."""
+    from a_conductor.zero_relay_review_execution import (
+        _cleanup_held_resources_without_record,
+    )
+
+    def _held(root_name, *, with_lease: bool):
+        root = Path(str(tmp_path) + root_name)
+        plan, authorities, route, task = _bridge(root)
+        lease = None
+        if with_lease:
+            lease = authorities.lease_broker.acquire(
+                task.lease_request, task.candidates).lease
+        admission = authorities.provider_store.acquire_admission(
+            provider_id="zcode-glm", execution_id=route.dispatch_execution_id,
+            batch_id=plan.batch_id, expected_max_concurrency=2, now=NOW,
+            ttl_seconds=600, expected_configuration_generation=1,
+        ).admission
+        return plan, authorities, task, lease, admission
+
+    # phase A: mismatched admission locator, no lease row -> NOT settled
+    plan_a, auth_a, task_a, _, admission_a = _held("a", with_lease=False)
+    assert _cleanup_held_resources_without_record(
+        plan=plan_a, route_task=task_a, provider_store=auth_a.provider_store,
+        lease_broker=auth_a.lease_broker, lease_store=auth_a.lease_store,
+        expected_generation=1, max_concurrency=2, clock=lambda: NOW,
+        exact_admission_id="admission-not-acquired-by-this-dispatch",
+    ) is False
+    assert auth_a.provider_store.get_admission(
+        admission_a.admission_id).status == "ACTIVE"
+
+    # phase B (control): the matching locator settles the cleanup
+    plan_b, auth_b, task_b, _, admission_b = _held("b", with_lease=False)
+    assert _cleanup_held_resources_without_record(
+        plan=plan_b, route_task=task_b, provider_store=auth_b.provider_store,
+        lease_broker=auth_b.lease_broker, lease_store=auth_b.lease_store,
+        expected_generation=1, max_concurrency=2, clock=lambda: NOW,
+        exact_admission_id=admission_b.admission_id,
+    ) is True
+    assert auth_b.provider_store.get_admission(
+        admission_b.admission_id).status == "RELEASED"
+
+    # phase C: exact-bound lease releases its own row, but the mismatched
+    # admission locator retains the admission and keeps the result False
+    plan_c, auth_c, task_c, lease_c, admission_c = _held("c", with_lease=True)
+    assert _cleanup_held_resources_without_record(
+        plan=plan_c, route_task=task_c, provider_store=auth_c.provider_store,
+        lease_broker=auth_c.lease_broker, lease_store=auth_c.lease_store,
+        expected_generation=1, max_concurrency=2, clock=lambda: NOW,
+        exact_lease_id=lease_c.lease_id,
+        exact_admission_id="admission-not-acquired-by-this-dispatch",
+    ) is False
+    assert auth_c.lease_store.inspect_health(
+        lease_c.lease_id, now=NOW).lease.released_at is not None
+    assert auth_c.provider_store.get_admission(
+        admission_c.admission_id).status == "ACTIVE"
+
+
+def test_r6b_legacy_replay_admission_locator_mismatch_retains_admission(tmp_path):
+    """R6b RED (sibling audit, LEASE_OWNERSHIP_UNPROVEN branch): the same
+    mismatch shape on the legacy reconcile path — a non-None
+    exact_admission_id naming a DIFFERENT row must never release the ACTIVE
+    exact-dispatch admission found now (it may be a foreign/successor
+    attempt's). Typed recovery stands; the successor lease is retained."""
+    factory = FakeRunnerFactory()
+    plan_a, authorities, route_a, task_a = _bridge(tmp_path, runner_factory=factory)
+    _seed_completed(authorities, plan_a, "exec-r6b-locator")
+    lease_a = authorities.lease_broker.acquire(
+        task_a.lease_request, task_a.candidates).lease
+    admission_a = authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=route_a.dispatch_execution_id,
+        batch_id=plan_a.batch_id, expected_max_concurrency=2, now=NOW,
+        ttl_seconds=600, expected_configuration_generation=1,
+    ).admission
+    _stale_release_lease(authorities, lease_a, tmp_path=tmp_path)
+    route_b, task_b = _identity_variant(tmp_path, plan_a, graph_run_id="run-2")
+    successor = authorities.lease_broker.acquire(task_b.lease_request, task_b.candidates)
+    assert successor.kind is LeaseOutcomeKind.LEASED
+    replay = reconcile_review_execution(
+        plan=plan_a, route_task=task_a,
+        provider_store=authorities.provider_store,
+        lease_broker=authorities.lease_broker,
+        lease_store=authorities.lease_store,
+        execution_store=authorities.execution_store,
+        clock=lambda: NOW, max_concurrency=2, expected_generation=1,
+        exact_lease_id="lease-not-acquired-by-this-dispatch",
+        exact_admission_id="admission-not-acquired-by-this-dispatch",
+    )
+    assert replay.outcome == "RECOVERY_REQUIRED"
+    assert replay.reason_code == "LEASE_OWNERSHIP_UNPROVEN"
+    assert replay.handoff is None
+    # R6b: the mismatched locator retained the ACTIVE admission ...
+    assert authorities.provider_store.get_admission(
+        admission_a.admission_id).status == "ACTIVE"
+    # ... and the successor lease row is still live
+    l2 = authorities.lease_store.inspect_health(
+        successor.lease.lease_id, now=NOW).lease
+    assert l2.released_at is None

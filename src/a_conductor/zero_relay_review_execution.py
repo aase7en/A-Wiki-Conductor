@@ -645,31 +645,32 @@ def _find_held_admission_readonly(
     return None
 
 
-def _owner_key_lease_is_dispatch_attributable(
-    lease, admission, plan: ReviewerExecutionPlan
-) -> bool:
-    """R5 (Issue #214 R3 P1): an owner-key lease lookup is NOT dispatch
-    provenance — distinct dispatches of one review contract share the
-    session/task owner keys, so the row found now may belong to a foreign
-    dispatch, a successor attempt, or a live winner.
+def _owner_key_lease_is_exact_bound(lease, exact_lease_id: str | None) -> bool:
+    """R6 (Issue #214 comment 5684979092): an owner-key lease lookup plus an
+    ACTIVE exact-dispatch admission is NOT lease provenance. The canonical
+    lease authority (``reconcile_stale``) may safely release the dispatch's
+    original row while its admission stays persisted ACTIVE, and a successor
+    dispatch can then hold a fresh live lease under the same owner keys —
+    indistinguishable by owner/worker/project/status/time facts.
 
-    The only positive attribution through existing authorities is the
-    exact dispatch's OWN admission — located under the exact
-    provider/execution/batch dispatch keys — still being ACTIVE: the
-    backend acquires lease -> admission and every cleanup releases
-    admission -> lease, and the lease store permits at most one unreleased
-    row per owner key, so an ACTIVE exact-dispatch admission proves this
-    attempt's owner-key lease row was never released and the active row
-    found now is that row. A missing or already-RELEASED admission (or a
-    lease row not bound to this plan's worker/project) can never attribute
-    the active owner-key lease: callers must retain it and return typed
-    recovery, never release it and never pin it into promotion evidence."""
-    if admission is None or admission.status != "ACTIVE":
-        return False
-    return (
-        lease.worker_id == plan.reviewer_worker_id
-        and lease.project_id == plan.project_id
-    )
+    Only an exact lease id bound to THIS dispatch — the same-process
+    backend's acquired ``_last_lease_id`` — may authorize releasing the row
+    found now (or pinning anything from it). Pure replays hold no such id:
+    they retain the owner-key row and return typed recovery."""
+    return exact_lease_id is not None and lease.lease_id == exact_lease_id
+
+
+def _admission_release_is_locator_bound(
+    admission, exact_admission_id: str | None
+) -> bool:
+    """R6b (Issue #214 Sol integration): an admission located under the
+    exact provider/execution/batch dispatch keys is exact identity and may
+    reconcile independently — UNLESS a same-process admission locator exists
+    and names a DIFFERENT row: that row is not provably this dispatch's own
+    (a foreign or successor attempt may hold it), so it must be retained.
+    Retention is fail-closed; a None locator is a pure replay, where the
+    dispatch keys alone remain the admission identity."""
+    return exact_admission_id is None or admission.admission_id == exact_admission_id
 
 
 # ---------------- handoff ----------------
@@ -835,6 +836,18 @@ class ReviewerExecutionBackend:
         self._last_lease_id: str | None = None
         self._last_admission_id: str | None = None
         self._launch_count = 0
+
+    @property
+    def last_lease_id(self) -> str | None:
+        """Exact lease id acquired by THIS backend in THIS process — the
+        only same-process locator that may authorize recovery cleanup of
+        the owner-key lease row (R6)."""
+        return self._last_lease_id
+
+    @property
+    def last_admission_id(self) -> str | None:
+        """Exact admission id acquired by THIS backend in THIS process."""
+        return self._last_admission_id
 
     # -- resource acquisition through canonical reentry contracts ---------
 
@@ -1389,6 +1402,8 @@ def _terminal_unusable_cleanup(
     lease_store,
     clock: Callable[[], datetime],
     expected_generation: int | None,
+    exact_lease_id: str | None = None,
+    exact_admission_id: str | None = None,
 ) -> None:
     """AF2 + Repair CR1: release the exact resources still held by a
     terminal-but-unusable attempt (read-only lookups; typed failures leave
@@ -1397,7 +1412,17 @@ def _terminal_unusable_cleanup(
     The caller's expected provider configuration generation is carried into
     the read-only admission lookup: a wrong or unknown required generation
     retains BOTH resources — resource authority stays unproven, never
-    released (the preserved R1 binding, now on this path too)."""
+    released (the preserved R1 binding).
+
+    R6: the admission located under the exact provider/execution/batch
+    dispatch keys IS exact identity — it reconciles independently while
+    still ACTIVE (and only when it also matches the same-process backend
+    locator, when one exists). It can never confer identity on the
+    owner-key lease row: that row is released only when the same-process
+    backend's exact acquired lease id matches; otherwise it is retained —
+    it may be a foreign/successor/live-winner lease after the canonical
+    authority released the original row — and the outer typed recovery
+    stands."""
     try:
         lease = _find_held_lease_readonly(
             lease_store,
@@ -1412,22 +1437,33 @@ def _terminal_unusable_cleanup(
         )
     except ZeroRelayReviewExecutionError:
         return  # read/identity failure stays recovery-consumable
-    if lease is None and admission is None:
-        return  # nothing held
-    if lease is not None and not _owner_key_lease_is_dispatch_attributable(
-        lease, admission, plan
+    if admission is not None and admission.status == "ACTIVE" and (
+        exact_admission_id is None
+        or admission.admission_id == exact_admission_id
     ):
-        # R5: the owner-key lease cannot be positively attributed to THIS
-        # dispatch (no ACTIVE admission under its exact dispatch keys) —
-        # it may be a foreign/successor/live-winner lease; retain it
-        return  # recovery state unchanged; the true owner's lane cleans it
+        try:
+            _release_admission_terminal(
+                provider_store,
+                admission_id=admission.admission_id,
+                provider_id=admission.provider_id,
+                execution_id=admission.execution_id,
+                batch_id=admission.batch_id,
+                now=clock(),
+                expected_generation=None,  # the lookup gated the generation
+            )
+        except ZeroRelayReviewExecutionError:
+            return  # ambiguous admission truth retries on the next reconcile
+    if lease is None:
+        return  # nothing else provably held
+    if not _owner_key_lease_is_exact_bound(lease, exact_lease_id):
+        return  # R6: retain — never release an owner-key row by inference
     try:
-        _reconcile_cleanup(
-            provider_store=provider_store, lease=lease, admission=admission,
-            lease_store=lease_store, clock=clock,
+        _release_lease_terminal(
+            lease_store, lease_id=lease.lease_id, session_id=lease.session_id,
+            task_id=lease.task_id, clock=clock,
         )
     except ZeroRelayReviewExecutionError:
-        return  # ambiguous cleanup stays recovery for the next reconcile
+        return  # ambiguous lease truth retries on the next reconcile
 
 
 def reconcile_review_execution(
@@ -1441,6 +1477,8 @@ def reconcile_review_execution(
     clock: Callable[[], datetime],
     max_concurrency: int = 1,
     expected_generation: int | None = None,
+    exact_lease_id: str | None = None,
+    exact_admission_id: str | None = None,
 ) -> ReviewerExecutionResult:
     """Reconcile a completed equivalent WITHOUT any new model/launch/acquire
     effect and WITHOUT minting any new resource rows (read-only lookups;
@@ -1454,12 +1492,14 @@ def reconcile_review_execution(
     if classification.kind is EquivalenceKind.RECOVERY_REQUIRED:
         if classification.reason_code == "EQUIVALENT_TERMINAL_NOT_USABLE":
             # AF2: terminal but unusable (FAILED/PARTIAL/CANCELLED) — the
-            # exact held resources are released ONCE here, with no handoff
+            # exact held resources are reconciled ONCE here, with no handoff
             # and no relaunch; live/unknown reasons keep retaining resources
             _terminal_unusable_cleanup(
                 plan=plan, route_task=route_task, provider_store=provider_store,
                 lease_store=lease_store, clock=clock,
                 expected_generation=expected_generation,
+                exact_lease_id=exact_lease_id,
+                exact_admission_id=exact_admission_id,
             )
         return ReviewerExecutionResult("RECOVERY_REQUIRED", classification.reason_code)
     chosen = classification.chosen
@@ -1550,16 +1590,42 @@ def reconcile_review_execution(
     # identity can no longer be proven -> no fabricated identity, no usable
     # handoff, ZERO new rows
     if lease is None:
+        # R6b (Issue #214 Sol gap 1): the canonical authority already
+        # released the original row and no successor reacquired the owner
+        # keys — no lease row may be touched here, but the exact-dispatch
+        # admission still reconciles independently (locator-gated) before
+        # the typed recovery return: no handoff, no promotion, no model
+        # effect, ZERO new rows.
+        if _admission_release_is_locator_bound(admission, exact_admission_id):
+            try:
+                _reconcile_cleanup(
+                    provider_store=provider_store, lease=None, admission=admission,
+                    lease_store=lease_store, clock=clock, expected_generation=None,
+                )
+            except ZeroRelayReviewExecutionError:
+                pass  # ambiguous admission truth retries on the next reconcile
         return ReviewerExecutionResult("RECOVERY_REQUIRED", "LEASE_IDENTITY_UNPROVEN")
-    if promotion_identity is None and not _owner_key_lease_is_dispatch_attributable(
-        lease, admission, plan
+    if promotion_identity is None and lease is not None and not _owner_key_lease_is_exact_bound(
+        lease, exact_lease_id
     ):
-        # R5: legacy path — the active owner-key lease cannot be positively
-        # attributed to THIS dispatch (no v2 promotion identity pins its
-        # lease id, and the dispatch's own admission is already terminal):
-        # the row may belong to a successor/foreign/live-winner attempt.
-        # Retain it, return typed recovery, and never pin it into new
-        # promotion evidence through the legacy identity upgrade.
+        # R6: legacy/no-v2 evidence holds no durable exact lease id, and the
+        # owner-key row found now may be a successor's fresh lease after the
+        # canonical authority released the original while this dispatch's
+        # admission stayed persisted ACTIVE. Retain the lease, reconcile the
+        # exact-dispatch admission independently (it cannot confer lease
+        # identity), return typed recovery, and never pin the row into
+        # promotion evidence — no v2 identity upgrade from owner-key
+        # inference. R6b: the admission release is additionally gated by the
+        # same-process locator — a non-None mismatched exact_admission_id
+        # retains the admission too (it may be a foreign row).
+        if _admission_release_is_locator_bound(admission, exact_admission_id):
+            try:
+                _reconcile_cleanup(
+                    provider_store=provider_store, lease=None, admission=admission,
+                    lease_store=lease_store, clock=clock, expected_generation=None,
+                )
+            except ZeroRelayReviewExecutionError:
+                pass  # ambiguous admission truth retries on the next reconcile
         return ReviewerExecutionResult(
             "RECOVERY_REQUIRED", "LEASE_OWNERSHIP_UNPROVEN"
         )
@@ -1569,18 +1635,11 @@ def reconcile_review_execution(
     # BEFORE the handoff pins record state/version. An already-SUCCEEDED
     # record verifies with zero mutation. A verification failure is typed
     # recovery with no handoff and no resource release — the next
-    # reconcile retries from unchanged durable truth. RE2-A: a promotion
-    # performed here also persists the strict resource identity (from the
-    # resolved exact resources when the caller pins an integer generation).
+    # reconcile retries from unchanged durable truth. R6: a replay NEVER
+    # mints the strict v2 identity from owner-key inference — only the
+    # winning backend's own promotion (from its exactly acquired rows)
+    # persists it; legacy evidence reconciles without identity.
     identity_for_promotion = promotion_identity
-    if identity_for_promotion is None and lease is not None and admission is not None:
-        if isinstance(expected_generation, int) and not isinstance(
-            expected_generation, bool
-        ):
-            identity_for_promotion = _build_resource_identity(
-                plan, chosen, lease, admission,
-                generation=int(expected_generation),
-            )
 
     try:
         verified = verify_review_execution_for_promotion(
@@ -1855,6 +1914,8 @@ def execute_review_dispatch(
                 clock=clock,
                 max_concurrency=max_concurrency,
                 expected_generation=generation,
+                exact_lease_id=backend.last_lease_id,
+                exact_admission_id=backend.last_admission_id,
             )
         # the backend's own typed failure (when it ran) is the true reason
         reason = backend.failure_code or dispatch_result.reason_code
@@ -1875,6 +1936,8 @@ def execute_review_dispatch(
                 clock=clock,
                 max_concurrency=max_concurrency,
                 expected_generation=generation,
+                exact_lease_id=backend.last_lease_id,
+                exact_admission_id=backend.last_admission_id,
             )
         if not classification.records:
             from .domain import TaskState as _TaskState
@@ -1895,6 +1958,8 @@ def execute_review_dispatch(
                 lease_broker=lease_broker, lease_store=lease_store,
                 expected_generation=generation, max_concurrency=max_concurrency,
                 clock=clock,
+                exact_lease_id=backend.last_lease_id,
+                exact_admission_id=backend.last_admission_id,
             )
             if cleaned:
                 return ReviewerExecutionResult(
@@ -1926,16 +1991,22 @@ def _cleanup_held_resources_without_record(
     expected_generation: int | None,
     max_concurrency: int,
     clock: Callable[[], datetime],
+    exact_lease_id: str | None = None,
+    exact_admission_id: str | None = None,
 ) -> bool:
     """After a crashed attempt with no durable execution record: READ-ONLY
     exact-key lookups either resolve the held resources (release them) or
     prove nothing was held. Never acquires; a read fault is UNKNOWN and
     returns False (recovery), never treated as absence.
 
-    R5: an owner-key lease found by shared session/task keys is NOT
-    dispatch provenance — it is released only when positively attributed
-    to THIS dispatch (its exact-dispatch admission is still ACTIVE);
-    otherwise everything is retained and recovery is returned."""
+    R6: an owner-key lease found by shared session/task keys is NOT lease
+    provenance — the canonical authority may have released the original row
+    (its exact-dispatch admission still ACTIVE) while a successor holds a
+    fresh live row under the same keys. The lease is released ONLY through
+    the same-process backend's exact acquired lease id; otherwise it is
+    retained and recovery is returned. The admission located under the
+    exact dispatch keys is exact identity: it reconciles independently
+    while ACTIVE (and matching the same-process locator, when one exists)."""
     try:
         lease = _find_held_lease_readonly(
             lease_store,
@@ -1955,20 +2026,39 @@ def _cleanup_held_resources_without_record(
         # identity mismatch: neither the mismatched admission nor the lease
         # may be released by this path (Repair R1)
         return False
-    if lease is None and admission is None:
-        return True  # genuinely nothing held
-    if lease is not None and not _owner_key_lease_is_dispatch_attributable(
-        lease, admission, plan
-    ):
-        # R5: no ACTIVE admission under this dispatch's exact keys — this
-        # dispatch never provably held the owner-key lease row found now
-        # (a distinct dispatch may hold it live); retain everything
+    settled = True
+    if admission is not None and admission.status == "ACTIVE":
+        if not _admission_release_is_locator_bound(admission, exact_admission_id):
+            # R6b (Issue #214 Sol gap 2): a non-None same-process locator
+            # naming a DIFFERENT admission means the row found now is not
+            # provably this dispatch's — retain it and never count the
+            # cleanup as settled; recovery stands.
+            settled = False
+        else:
+            try:
+                _release_admission_terminal(
+                    provider_store,
+                    admission_id=admission.admission_id,
+                    provider_id=admission.provider_id,
+                    execution_id=admission.execution_id,
+                    batch_id=admission.batch_id,
+                    now=clock(),
+                    expected_generation=None,  # the lookup gated the generation
+                )
+            except ZeroRelayReviewExecutionError:
+                settled = False  # ambiguous admission truth stays recovery
+    if lease is None:
+        return settled  # no owner-key row: nothing more is provably held
+    if not _owner_key_lease_is_exact_bound(lease, exact_lease_id):
+        # R6: no exact same-process lease id — this dispatch cannot prove
+        # the owner-key row found now is its own (a successor dispatch may
+        # hold it live); retain it
         return False
     try:
-        _reconcile_cleanup(
-            provider_store=provider_store, lease=lease, admission=admission,
-            lease_store=lease_store, clock=clock,
+        _release_lease_terminal(
+            lease_store, lease_id=lease.lease_id, session_id=lease.session_id,
+            task_id=lease.task_id, clock=clock,
         )
-        return True
-    except Exception:  # noqa: BLE001 - ambiguous cleanup stays recovery
-        return False
+    except ZeroRelayReviewExecutionError:
+        return False  # ambiguous lease truth stays recovery
+    return settled
