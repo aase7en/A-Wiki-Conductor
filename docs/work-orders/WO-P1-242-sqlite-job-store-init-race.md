@@ -59,3 +59,10 @@ GLM CoinTH route is temporarily `RATE_LIMITED` by its 5-hour quota until 2026-09
 `SAFE_TO_MUTATE_WO242_SOURCE=NO`
 
 Next safe action: verify/commit/push this docs bootstrap, re-prove exact HEAD/clean/scope/ownership, then open the bounded source/test mutation gate and build the deterministic RED concurrency test before repair.
+### 2026-09-15 source mutation gate
+
+Bootstrap `7d93ad67338bac49902a2929370a2835a6c28b8f` is pushed and the worktree is clean. Repo/worktree/branch/HEAD/Issue #322 ownership and the bounded source/test scope are proven; branch-diff scan found no competing `job_store.py` / `test_job_store.py` mutation.
+
+`SAFE_TO_MUTATE_WO242_SOURCE=YES`
+
+One mutable owner only. Next: add deterministic RED for concurrent initialization, prove the pre-fix failure, then apply the smallest idempotent schema-version initialization repair while preserving typed unsupported-version rejection.
