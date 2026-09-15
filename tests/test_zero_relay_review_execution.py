@@ -164,9 +164,9 @@ def _operation_ref(contract_ref: str, sha: str) -> str:
 
 
 def _route_task(tmp_path: Path, *, contract_ref: str, task_path: str, task_sha: str,
-                worker: str = WORKER) -> ParallelReadyTask:
+                worker: str = WORKER, graph_run_id: str = "run-1") -> ParallelReadyTask:
     assignment = SelectedAssignment(node_id="review-node-1", worker_id=worker)
-    graph_key = GraphDispatchKey("zra2-review-graph", "run-1", "review-node-1")
+    graph_key = GraphDispatchKey("zra2-review-graph", graph_run_id, "review-node-1")
     graph_dispatch = GraphDispatchRequest(
         key=graph_key,
         assignment=assignment,
@@ -2921,3 +2921,227 @@ def test_r3_existing_owner_lease_refuses_second_dispatch_context(tmp_path):
     assert admissions and all(a.status == "RELEASED" for a in admissions)
     leases = _all_leases(authorities)
     assert leases and all(l.released_at is not None for l in leases)
+
+
+# ── WO-P1-223 R5 repair (2026-09-15): an owner-key lease lookup is NOT
+# dispatch provenance — recovery cleanup must positively attribute the
+# owner-key lease to the exact dispatch or retain it (typed recovery) ────
+
+
+def _identity_variant(tmp_path, base_plan, *, graph_run_id: str):
+    """A DISTINCT dispatch/job identity for the same review contract: same
+    session/task owner keys, worker, provider and project; only the
+    GraphDispatch key (job id == dispatch execution id) differs."""
+    task = _route_task(
+        tmp_path, contract_ref=base_plan.review_contract_ref,
+        task_path=base_plan.review_task_path,
+        task_sha=base_plan.review_task_sha256, graph_run_id=graph_run_id,
+    )
+    route = _route(
+        tmp_path, contract_ref=base_plan.review_contract_ref,
+        task_path=base_plan.review_task_path,
+        task_sha=base_plan.review_task_sha256,
+        dispatch_execution_id=task.dispatch_request.key.job_id,
+    )
+    return route, task
+
+
+def test_r5_cross_dispatch_loser_retains_live_winner_owner_key_lease(tmp_path):
+    """R5 RED (Issue #214 R3 P1, true cross-dispatch entry): winner A paused
+    after lease+admission acquisition but BEFORE any execution record;
+    loser B (distinct dispatch/job identity) refuses the shared EXISTING
+    lease; B's RECONCILE/no-record cleanup must NOT release A's owner-key
+    lease or admission; a later C cannot obtain launch authority or a
+    second model effect while A remains live; A then completes alone."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    factory = FakeRunnerFactory()
+    plan_a, authorities, route_a, task_a = _bridge(tmp_path, runner_factory=factory)
+    route_b, task_b = _identity_variant(tmp_path, plan_a, graph_run_id="run-2")
+    route_c, task_c = _identity_variant(tmp_path, plan_a, graph_run_id="run-3")
+    entered, proceed = Event(), Event()
+
+    def paused_factory(**kwargs):
+        entered.set()  # winner owns lease+admission; no execution record yet
+        assert proceed.wait(10), "probe barrier timed out"
+        return factory(**kwargs)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        winner = pool.submit(_af_dispatch, authorities, route_a, task_a,
+                             paused_factory)
+        try:
+            assert entered.wait(10)
+            loser = _af_dispatch(authorities, route_b, task_b,
+                                 FakeRunnerFactory())
+            # the loser refused EXISTING and its outcome is typed recovery
+            assert loser.outcome == "RECOVERY_REQUIRED"
+            assert loser.reason_code == "REVIEW_LEASE_EXISTING_NOT_AUTHORIZED"
+            assert loser.handoff is None
+            # the live winner's shared lease/admission were NOT released
+            leases = _all_leases(authorities)
+            assert len(leases) == 1 and leases[0].released_at is None
+            admissions = _all_admissions(authorities)
+            assert len(admissions) == 1 and admissions[0].status == "ACTIVE"
+            # a later dispatch cannot obtain launch authority while A is live
+            later = _af_dispatch(authorities, route_c, task_c,
+                                 FakeRunnerFactory())
+            assert later.outcome == "RECOVERY_REQUIRED"
+            assert later.reason_code == "REVIEW_LEASE_EXISTING_NOT_AUTHORIZED"
+            leases = _all_leases(authorities)
+            assert len(leases) == 1 and leases[0].released_at is None
+        finally:
+            proceed.set()
+        winner_result = winner.result(timeout=60)
+    assert winner_result.outcome == "EXECUTED"
+    assert factory.model_effects == 1  # exactly one model effect (the winner)
+    assert winner_result.handoff is not None
+    # the WINNER alone performed the terminal cleanup
+    admissions = _all_admissions(authorities)
+    assert admissions and all(a.status == "RELEASED" for a in admissions)
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is not None for l in leases)
+
+
+def test_r5_terminal_unusable_cross_dispatch_retains_owner_key_lease(tmp_path):
+    """R5 RED (sibling `_terminal_unusable_cleanup`): a FAILED terminal
+    equivalent replayed by a DISTINCT dispatch must not release the
+    original attempt's owner-key lease through the AF2 cleanup — only the
+    resource owner's own dispatch may clean it."""
+    factory = FakeRunnerFactory(live_timeout=True)
+    plan_a, authorities, route_a, task_a = _bridge(tmp_path, runner_factory=factory)
+    first = _af_dispatch(authorities, route_a, task_a, factory)
+    assert first.outcome == "RECOVERY_REQUIRED" and first.handoff is None
+    # the retained live record later becomes terminal FAILED
+    authorities.execution_store.set_execution_state(
+        factory.execution_ids[0], ExecutionProcessState.FAILED, expected_version=1,
+    )
+    route_b, task_b = _identity_variant(tmp_path, plan_a, graph_run_id="run-2")
+    loser = _af_dispatch(authorities, route_b, task_b, FakeRunnerFactory())
+    assert loser.outcome == "RECOVERY_REQUIRED"
+    assert loser.reason_code == "EQUIVALENT_TERMINAL_NOT_USABLE"
+    # the cross-dispatch replay released NOTHING of the owner's resources
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is None for l in leases)
+    admissions = _all_admissions(authorities)
+    assert admissions and all(a.status == "ACTIVE" for a in admissions)
+    # the resource OWNER's own retry still performs the exact AF2 cleanup
+    owner_replay = _af_dispatch(authorities, route_a, task_a, FakeRunnerFactory())
+    assert owner_replay.outcome == "RECOVERY_REQUIRED"
+    assert owner_replay.reason_code == "EQUIVALENT_TERMINAL_NOT_USABLE"
+    admissions = _all_admissions(authorities)
+    assert admissions and all(a.status == "RELEASED" for a in admissions)
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is not None for l in leases)
+
+
+def test_r5_legacy_released_admission_never_releases_or_pins_owner_key_lease(tmp_path):
+    """R5 RED (legacy-upgrade identity construction): a legacy no-v2 replay
+    whose exact-dispatch admission is already RELEASED cannot attribute the
+    still-active owner-key lease — it may be a successor/foreign row. The
+    replay must retain the lease, return typed recovery, and never pin that
+    lease into new promotion evidence."""
+    factory = FakeRunnerFactory()
+    plan, authorities, route, task = _bridge(tmp_path, runner_factory=factory)
+    seeded = _seed_completed(authorities, plan, "exec-legacy-unattr")
+    # legacy promotion evidence (plain prefix, no identity payload)
+    authorities.execution_store.set_execution_state(
+        "exec-legacy-unattr", ExecutionProcessState.SUCCEEDED,
+        expected_version=seeded.version,
+        evidence_ref="zra2-review-verification:exec-legacy-unattr",
+    )
+    # original resources: lease still ACTIVE, admission already RELEASED
+    lease = authorities.lease_broker.acquire(
+        task.lease_request, task.candidates).lease
+    admission = authorities.provider_store.acquire_admission(
+        provider_id="zcode-glm", execution_id=route.dispatch_execution_id,
+        batch_id=plan.batch_id, expected_max_concurrency=2, now=NOW,
+        ttl_seconds=600, expected_configuration_generation=1,
+    ).admission
+    authorities.provider_store.release_admission(
+        admission.admission_id, provider_id="zcode-glm",
+        execution_id=route.dispatch_execution_id, batch_id=plan.batch_id,
+        now=NOW,
+    )
+    result = _af_dispatch(authorities, route, task, FakeRunnerFactory())
+    assert result.outcome == "RECOVERY_REQUIRED"
+    assert result.reason_code == "LEASE_OWNERSHIP_UNPROVEN"
+    assert result.handoff is None
+    # the unattributable owner-key lease was retained, never released
+    row = authorities.lease_store.inspect_health(lease.lease_id, now=NOW)
+    assert row.lease.released_at is None
+    # and no v2 promotion identity was minted over it (evidence stays legacy)
+    from a_conductor.zero_relay_review_verification import (
+        resolve_promotion_resource_identity,
+    )
+    assert resolve_promotion_resource_identity(
+        authorities.execution_store, "exec-legacy-unattr") is None
+
+
+def _active_lease_row(authorities):
+    """The single unreleased lease row (owner-key invariant), for tests."""
+    import sqlite3
+    from types import SimpleNamespace
+    conn = sqlite3.connect(str(authorities.lease_db))
+    try:
+        rows = conn.execute(
+            "SELECT lease_id, released_at FROM worker_leases "
+            "WHERE released_at IS NULL").fetchall()
+    finally:
+        conn.close()
+    assert len(rows) == 1
+    return SimpleNamespace(lease_id=rows[0][0], released_at=rows[0][1])
+
+
+def test_r5_prior_dispatch_never_releases_successor_owner_key_lease(tmp_path):
+    """R5 RED (successor lease): a prior dispatch whose own no-record
+    attempt was already fully cleaned (its admission row is RELEASED) must
+    never release a successor dispatch's fresh owner-key lease through the
+    no-record recovery cleanup; the successor alone cleans its resources."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    crash = FakeRunnerFactory(fail_before_record=True)
+    plan_a, authorities, route_a, task_a = _bridge(tmp_path, runner_factory=crash)
+    first = _af_dispatch(authorities, route_a, task_a, crash)
+    assert first.outcome == "NOT_ATTEMPTED_CLEANED"
+    # the prior dispatch's own crash cleanup released its exact resources
+    prior_admission = _admission_by_execution(
+        authorities, route_a.dispatch_execution_id)
+    assert prior_admission.status == "RELEASED"
+    assert _all_leases(authorities) and all(
+        l.released_at is not None for l in _all_leases(authorities))
+
+    factory = FakeRunnerFactory()
+    route_b, task_b = _identity_variant(tmp_path, plan_a, graph_run_id="run-2")
+    entered, proceed = Event(), Event()
+
+    def paused_factory(**kwargs):
+        entered.set()  # successor owns a FRESH lease+admission, no record
+        assert proceed.wait(10), "probe barrier timed out"
+        return factory(**kwargs)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        successor = pool.submit(_af_dispatch, authorities, route_b, task_b,
+                                paused_factory)
+        try:
+            assert entered.wait(10)
+            successor_lease = _active_lease_row(authorities)
+            # the PRIOR dispatch's retry must not release the successor's
+            # fresh owner-key lease (prior admission row is RELEASED)
+            prior_retry = _af_dispatch(authorities, route_a, task_a,
+                                       FakeRunnerFactory())
+            assert prior_retry.outcome == "RECOVERY_REQUIRED"
+            row = authorities.lease_store.inspect_health(
+                successor_lease.lease_id, now=NOW)
+            assert row.lease.released_at is None
+        finally:
+            proceed.set()
+        successor_result = successor.result(timeout=60)
+    assert successor_result.outcome == "EXECUTED"
+    assert factory.model_effects == 1
+    # the successor alone performed its terminal cleanup
+    leases = _all_leases(authorities)
+    assert leases and all(l.released_at is not None for l in leases)
+    admissions = _all_admissions(authorities)
+    assert admissions and all(a.status == "RELEASED" for a in admissions)

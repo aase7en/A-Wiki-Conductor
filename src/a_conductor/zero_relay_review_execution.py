@@ -645,6 +645,33 @@ def _find_held_admission_readonly(
     return None
 
 
+def _owner_key_lease_is_dispatch_attributable(
+    lease, admission, plan: ReviewerExecutionPlan
+) -> bool:
+    """R5 (Issue #214 R3 P1): an owner-key lease lookup is NOT dispatch
+    provenance — distinct dispatches of one review contract share the
+    session/task owner keys, so the row found now may belong to a foreign
+    dispatch, a successor attempt, or a live winner.
+
+    The only positive attribution through existing authorities is the
+    exact dispatch's OWN admission — located under the exact
+    provider/execution/batch dispatch keys — still being ACTIVE: the
+    backend acquires lease -> admission and every cleanup releases
+    admission -> lease, and the lease store permits at most one unreleased
+    row per owner key, so an ACTIVE exact-dispatch admission proves this
+    attempt's owner-key lease row was never released and the active row
+    found now is that row. A missing or already-RELEASED admission (or a
+    lease row not bound to this plan's worker/project) can never attribute
+    the active owner-key lease: callers must retain it and return typed
+    recovery, never release it and never pin it into promotion evidence."""
+    if admission is None or admission.status != "ACTIVE":
+        return False
+    return (
+        lease.worker_id == plan.reviewer_worker_id
+        and lease.project_id == plan.project_id
+    )
+
+
 # ---------------- handoff ----------------
 
 
@@ -1387,6 +1414,13 @@ def _terminal_unusable_cleanup(
         return  # read/identity failure stays recovery-consumable
     if lease is None and admission is None:
         return  # nothing held
+    if lease is not None and not _owner_key_lease_is_dispatch_attributable(
+        lease, admission, plan
+    ):
+        # R5: the owner-key lease cannot be positively attributed to THIS
+        # dispatch (no ACTIVE admission under its exact dispatch keys) —
+        # it may be a foreign/successor/live-winner lease; retain it
+        return  # recovery state unchanged; the true owner's lane cleans it
     try:
         _reconcile_cleanup(
             provider_store=provider_store, lease=lease, admission=admission,
@@ -1517,6 +1551,18 @@ def reconcile_review_execution(
     # handoff, ZERO new rows
     if lease is None:
         return ReviewerExecutionResult("RECOVERY_REQUIRED", "LEASE_IDENTITY_UNPROVEN")
+    if promotion_identity is None and not _owner_key_lease_is_dispatch_attributable(
+        lease, admission, plan
+    ):
+        # R5: legacy path — the active owner-key lease cannot be positively
+        # attributed to THIS dispatch (no v2 promotion identity pins its
+        # lease id, and the dispatch's own admission is already terminal):
+        # the row may belong to a successor/foreign/live-winner attempt.
+        # Retain it, return typed recovery, and never pin it into new
+        # promotion evidence through the legacy identity upgrade.
+        return ReviewerExecutionResult(
+            "RECOVERY_REQUIRED", "LEASE_OWNERSHIP_UNPROVEN"
+        )
 
     # RE1 (WO-P1-223): verdict-blind verification + (when still
     # VERIFICATION_REQUIRED) the one existing-store version-CAS promotion
@@ -1884,7 +1930,12 @@ def _cleanup_held_resources_without_record(
     """After a crashed attempt with no durable execution record: READ-ONLY
     exact-key lookups either resolve the held resources (release them) or
     prove nothing was held. Never acquires; a read fault is UNKNOWN and
-    returns False (recovery), never treated as absence."""
+    returns False (recovery), never treated as absence.
+
+    R5: an owner-key lease found by shared session/task keys is NOT
+    dispatch provenance — it is released only when positively attributed
+    to THIS dispatch (its exact-dispatch admission is still ACTIVE);
+    otherwise everything is retained and recovery is returned."""
     try:
         lease = _find_held_lease_readonly(
             lease_store,
@@ -1906,6 +1957,13 @@ def _cleanup_held_resources_without_record(
         return False
     if lease is None and admission is None:
         return True  # genuinely nothing held
+    if lease is not None and not _owner_key_lease_is_dispatch_attributable(
+        lease, admission, plan
+    ):
+        # R5: no ACTIVE admission under this dispatch's exact keys — this
+        # dispatch never provably held the owner-key lease row found now
+        # (a distinct dispatch may hold it live); retain everything
+        return False
     try:
         _reconcile_cleanup(
             provider_store=provider_store, lease=lease, admission=admission,

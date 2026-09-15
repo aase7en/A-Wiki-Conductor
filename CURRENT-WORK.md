@@ -1,5 +1,31 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-09-15 — R5 repair verified for freeze, R3 acceptance pending
+
+Existing Kilo/cointh-glm/glm-5.3 MAX writer completed the packet at
+`runs/WO-P1-223-RE2A/r5-task.md` from base
+`779fcf5975e21d6891f63b94ad79893745776675`; result is in `r5-result.md`.
+The R3 P1/P2 from Issue214 comment5683969698 drove four RED/GREEN cases:
+true cross-dispatch loser/third contender, terminal-unusable cleanup,
+legacy released-admission attribution, and prior-dispatch/successor cleanup.
+Only execution source and its tests changed within the four-file source scope.
+Integrator independently ran both focused suites: 109 passed; diff check passed.
+Worker reports broader 222 focused +218 related tests; those counts are worker
+claims pending acceptance evidence review, not independent reruns.
+
+Freeze is for independent R3 review, not acceptance. Reviewer must challenge
+whether ACTIVE admission actually proves the identity of the current owner-key
+lease under release/recovery/expiry/reacquisition, and the newly retained lease
+after partially completed cleanup. Do not dismiss those as out of scope merely
+because the worker calls them theoretical. Existing authorities remain owners.
+WO242/PR324 separately repairs the pre-existing SQLite initialization CI race.
+
+`SAFE_TO_MUTATE_RE2A_SOURCE=NO` while frozen.
+`SAFE_TO_MERGE_PR319=NO` pending fresh exact-SHA R3 and hosted CI.
+Next: independently review the replacement commit; record exact SHA in the
+ignored status packet and Issue214. Preserve root dirty work and other lanes.
+
+
 Last updated: 2026-09-15 (GPT-5.6 Sol — WO223 RE2-A durable replay repair)
 
 ## WO223 RE2-A lost-handoff replay repair — authoritative
