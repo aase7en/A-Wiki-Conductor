@@ -18,12 +18,18 @@ workflow_nodes:
     read:
       - docs/agent-collab/FAST_EXECUTION_PROTOCOL.md
       - docs/agent-collab/COLLAB_PROTOCOL.md
+  fast_path_tool_routing:
+    when: session/tool routing, external plugins, local/remote execution surfaces, delivery-latency reduction, CI fan-out/fan-in, or parallel reviewer routing
+    read:
+      - docs/agent-collab/CAPABILITY_MATRIX.md
+      - docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md
   multi_agent_coordination:
     when: parallel lanes, delegation, claim transfer, review handoff
     read:
       - COLLAB.md
       - docs/agent-collab/COLLAB_PROTOCOL.md
       - docs/agent-collab/CAPABILITY_MATRIX.md
+      - docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md
   architecture:
     when: product architecture, roadmap, trust boundary, durable workflow policy
     read:
