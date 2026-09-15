@@ -12,7 +12,7 @@ Record the user-provided CoinTH GLM quota-check method as durable project guidan
 ## Source classification
 - Endpoint, header, returned field names, and the statement that this quota check does not consume GLM quota are **USER_PROVIDED** on 2026-09-15.
 - No live credentialed call is required for this docs task.
-- Runtime use remains `LIVE_PROOF_PENDING` until an authorized secret resolver performs a redacted live preflight.
+- Authorized redacted live attempts were performed after draft: endpoint reachable, but current A-Wiki CoinTH auth token and Kilo `cointh-glm` API credential both returned HTTP 403. Runtime quota preflight is therefore `AUTH_REQUIRED / ENTITLEMENT_MISMATCH`, not quota-authoritative.
 
 ## Claimed scope
 - `docs/work-orders/WO-P1-243-cointh-glm-quota-preflight.md`
@@ -28,5 +28,5 @@ Target project/repo/worktree/branch/HEAD are proven above; worktree was clean at
 - Failure mapping distinguishes `RATE_LIMITED`, `AUTH_REQUIRED`, `TRANSPORT_FAILURE`, and unverified quota evidence.
 - No live provider/model call is required for this documentation task.
 
-Checkpoint: runbook drafted; verify diff/scope/secret hygiene, then freeze and push candidate.
+Checkpoint: runbook drafted and redacted live proof attempted; current quota endpoint authorization remains blocked with HTTP 403.
 Final docs verification: scope limited to this WO plus the new quota runbook; `git diff --check` passed; no real credential was written or read. Candidate state: `READY_FOR_ACCEPTANCE`.

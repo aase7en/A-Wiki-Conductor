@@ -1,6 +1,6 @@
 # CoinTH GLM quota preflight
 
-Status: OPERATIONAL GUIDANCE / USER-PROVIDED METHOD / LIVE_PROOF_PENDING
+Status: OPERATIONAL GUIDANCE / USER-PROVIDED METHOD / LIVE_PROOF_BLOCKED_403
 Source date: 2026-09-15
 Related: `WO-P1-243`, `docs/agent-collab/CAPABILITY_MATRIX.md`, WO-P1-113 quota tuple.
 
@@ -8,6 +8,9 @@ Related: `WO-P1-243`, `docs/agent-collab/CAPABILITY_MATRIX.md`, WO-P1-113 quota 
 Use CoinTH's quota API to check the current GLM five-hour window before launching or retrying GLM work. This avoids treating a model-call failure as the only quota signal.
 
 According to user-provided CoinTH guidance, this quota check itself does **not** consume GLM quota. Treat that statement as `USER_PROVIDED` until an authorized live preflight confirms the behavior.
+
+## Live verification note ? 2026-09-15
+Authorized secret-safe attempts reached the endpoint but returned HTTP 403 using both the existing A-Wiki CoinTH auth-token credential and Kilo's configured `cointh-glm` API credential. No credential value was printed or persisted. Classify the current quota API path as `AUTH_REQUIRED / ENTITLEMENT_MISMATCH`; do not infer remaining quota from this endpoint until credential/entitlement is corrected. The user-provided non-consuming behavior remains unverified.
 
 ## Endpoint
 
