@@ -168,15 +168,22 @@ class SQLiteJobStore:
                     );
                     """
                 )
+                # Initialization may be reached concurrently by multiple callers
+                # sharing the same control database. Make creation of the single
+                # schema-version row idempotent at the SQLite uniqueness boundary,
+                # then re-read the durable winner and validate it exactly.
+                connection.execute(
+                    "INSERT INTO job_store_meta(key, value) "
+                    "VALUES('schema_version', ?) "
+                    "ON CONFLICT(key) DO NOTHING",
+                    (JOB_STORE_SCHEMA_VERSION,),
+                )
                 row = connection.execute(
                     "SELECT value FROM job_store_meta WHERE key = 'schema_version'"
                 ).fetchone()
                 if row is None:
-                    connection.execute(
-                        "INSERT INTO job_store_meta(key, value) VALUES('schema_version', ?)",
-                        (JOB_STORE_SCHEMA_VERSION,),
-                    )
-                elif row["value"] != JOB_STORE_SCHEMA_VERSION:
+                    raise JobStoreError("JOB_STORE_INITIALIZE_FAILED")
+                if row["value"] != JOB_STORE_SCHEMA_VERSION:
                     raise JobStoreError("JOB_STORE_SCHEMA_UNSUPPORTED")
                 connection.commit()
             except JobStoreError:
