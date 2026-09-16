@@ -113,9 +113,11 @@ verified Active Project/repo/worktree/claim identity, every exposed SunDay-Worke
 non-overlapping roles dynamically: bounded implementation, GLM task-packet or
 dispatch assistance, deterministic verification, adversarial read-only review,
 and recovery/reserve. Material GLM results should receive independent Worker
-challenge where capacity permits, but Sol reconciles all evidence and retains
-final acceptance. Active/bound Workers do not gain mutation authority, and this
-rule never overrides WIP or `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
+challenge where capacity permits, but default WIP allows only one independent
+read-only review lane at a time; other Active Workers remain standby or work
+inside already-owned lanes. Sol reconciles all evidence and retains final
+acceptance. Active/bound Workers do not gain mutation authority, and this rule
+never overrides WIP or `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
 
 User throughput refinement (2026-09-16): substantial sessions should use a
 `dispatch-first / harvest-later` pipeline. Sol decomposes independent READY work,

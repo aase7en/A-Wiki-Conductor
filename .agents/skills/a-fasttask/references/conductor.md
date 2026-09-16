@@ -58,8 +58,12 @@ Prefer multiple independent checks of material GLM output when capacity permits:
 one lane may verify deterministic evidence, another may challenge assumptions or
 diff scope, while Sol compares the findings against Git/runtime/task authority.
 No Worker vote or majority overrides evidence; Sol remains the integrator and
-final acceptance authority. All normal WIP and `1 MUTABLE HOTSPOT = 1 MUTATION
-OWNER` rules still apply.
+final acceptance authority. Fleet roles are logical assignments, not extra WIP
+lanes: under the default budget only one independent read-only review lane runs
+at a time. Other Active Workers remain standby or perform deterministic checks
+inside an already-owned mutable lane/native-tool path; a second simultaneous
+read-only reviewer requires an explicit active-WO WIP override. All normal WIP
+and `1 MUTABLE HOTSPOT = 1 MUTATION OWNER` rules still apply.
 
 ## GLM labor-offload assessment
 

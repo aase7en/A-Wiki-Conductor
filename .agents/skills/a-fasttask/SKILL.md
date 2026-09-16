@@ -73,8 +73,10 @@ instructions into every repository.
    or operate an accepted Kilo/Claude GLM route only within explicit scope and
    provider authority. Prefer dispatch-first / harvest-later: Sol must not
    serialize independent work merely to wait for an earlier GLM report. GLM
-   outputs should be challenged by independent Worker/read-only lanes when
-   available; Sol reconciles all findings and remains final acceptance authority.
+   outputs should be challenged by an independent Worker/read-only lane when
+   available; under default WIP only one such review lane runs at a time while
+   other Active Workers remain standby or work inside already-owned lanes. Sol
+   reconciles all findings and remains final acceptance authority.
    Harness-native helpers such as `/goal`, `/plan`, `/init`, and equivalents are
    conveniences only. Optimize accepted throughput while obeying quota, cost,
    WIP, scope, claims, and `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.

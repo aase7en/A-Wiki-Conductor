@@ -51,8 +51,12 @@ by independent Worker/read-only checks when capacity permits. Worker consensus i
 not acceptance evidence by itself: GPT-5.6 Sol reconciles reports against Git,
 runtime, tests, claims and exact-SHA evidence, and retains final acceptance.
 
-This rule never expands WIP or allows overlapping writers. `1 MUTABLE HOTSPOT =
-1 MUTATION OWNER` remains binding.
+This rule never expands WIP or allows overlapping writers. Worker roles are
+logical assignments, not extra lanes: with the default WIP only one independent
+read-only review lane may run at a time; other Active Workers stay standby or
+perform deterministic checks inside already-owned lanes/native-tool paths unless
+an active Work Order explicitly changes WIP. `1 MUTABLE HOTSPOT = 1 MUTATION
+OWNER` remains binding.
 
 ## 2. Conditional accelerator surfaces
 
