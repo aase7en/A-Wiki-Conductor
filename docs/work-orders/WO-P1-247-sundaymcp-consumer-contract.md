@@ -39,8 +39,11 @@ runtime implementation.
 - Current Kilo route `cointh-glm/glm-5.3` passed `kilo roll-call` during this
   session. The environment binding was empty, but the approved global secret
   resolver exposed `COINTH_GLM_AUTH_TOKEN`; using it only as the CoinTH
-  `x-api-key` returned HTTP 200 with the full five-hour quota tuple. The secret
-  value and machine-local secret-file path are not tracked or logged.
+  `x-api-key` returned HTTP 200 with the full five-hour quota tuple. Two
+  back-to-back quota GETs with no model call between them observed zero change
+  in `used_5h` and `remaining_5h`, supporting the provider's non-consuming
+  guidance without treating it as a billing guarantee. The secret value and
+  machine-local secret-file path are not tracked or logged.
 
 ## Binding dependency order
 

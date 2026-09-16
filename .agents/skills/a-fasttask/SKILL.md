@@ -57,6 +57,9 @@ instructions into every repository.
    then an approved global secret file/resolver when available. The current
    proven CoinTH secret name is `COINTH_GLM_AUTH_TOKEN`; send its value only as
    `x-api-key` to `GET https://cointh.com/glm/api/quota`, never print/persist it.
+   Provider guidance says this quota GET does not consume GLM quota; a 2026-09-16
+   back-to-back live check observed zero change in `used_5h` and `remaining_5h`.
+   Treat that as operational supporting evidence, not a billing guarantee.
    `QUOTA_UNKNOWN` is not `RATE_LIMITED` and is never treated as unlimited.
 4. PIPELINE FILL — decompose independent READY work, then use the existing
    claim/lease + execution authorities to dispatch every eligible bounded GLM

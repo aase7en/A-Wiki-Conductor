@@ -61,9 +61,11 @@ credential from an approved secret source: an existing environment binding, or
 an approved global secret file/resolver when the environment is empty. The
 current live-proven secret name is `COINTH_GLM_AUTH_TOKEN`; pass its value only
 as `x-api-key` to `GET https://cointh.com/glm/api/quota`. Never print, log, or
-persist the key. HTTP 401/403 is auth/entitlement evidence, not quota exhaustion;
-missing/stale/malformed evidence remains `UNKNOWN`. Never silently substitute
-another or paid model/provider.
+persist the key. Provider guidance says this GET is non-consuming; a 2026-09-16
+back-to-back live check observed zero quota-counter delta, which is supporting
+operational evidence rather than a billing guarantee. HTTP 401/403 is
+auth/entitlement evidence, not quota exhaustion; missing/stale/malformed evidence
+remains `UNKNOWN`. Never silently substitute another or paid model/provider.
 
 Record one compact disposition:
 `GLM_OFFLOAD = DISPATCHED | NOT_BENEFICIAL | BLOCKED`, with reason, safe
