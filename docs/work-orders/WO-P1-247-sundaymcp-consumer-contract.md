@@ -107,6 +107,16 @@ non-overlapping work rather than becoming a passive dispatcher.
 A-FastTask stays a router/binder. Actual dispatch remains owned by existing
 A-Conductor execution/provider/Zero-Relay backends and existing claims/leases.
 
+Standing Worker-fleet refinement (2026-09-16): after read-only bootstrap and
+verified Active Project/repo/worktree/claim identity, every exposed SunDay-Worker
+1..5 should be bound/verified to the same Active Project. Sol then assigns
+non-overlapping roles dynamically: bounded implementation, GLM task-packet or
+dispatch assistance, deterministic verification, adversarial read-only review,
+and recovery/reserve. Material GLM results should receive independent Worker
+challenge where capacity permits, but Sol reconciles all evidence and retains
+final acceptance. Active/bound Workers do not gain mutation authority, and this
+rule never overrides WIP or `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
+
 User throughput refinement (2026-09-16): substantial sessions should use a
 `dispatch-first / harvest-later` pipeline. Sol decomposes independent READY work,
 fills eligible GLM lanes early within WIP/provider/quota gates, continues its own

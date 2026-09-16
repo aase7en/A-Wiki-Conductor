@@ -31,11 +31,28 @@ These three are CORE. For every substantial project/engineering session, attempt
 
 - RDC: identify the exact device/runtime before using filesystem, shell, process, log, build/test or local Git evidence. `RDC ONLINE != SAFE_TO_MUTATE`.
 - GitHub: refresh the target repo/default branch, relevant Issue/PR, exact remote SHA and CI/review/post-main evidence when material.
-- SunDay-Worker 1..5: probe only exposed Workers for minimal readiness/current-project state. Do not activate/rebind/mutate merely for bootstrap.
+- SunDay-Worker 1..5: probe exposed Workers read-only first. After the exact Active Project/repo/worktree/claim is verified, bind/verify every exposed Worker 1..5 to that same Active Project. Project binding is authorized by standing user instruction but grants no mutation authority.
 - Classify unavailable/busy/mismatched surfaces with the existing typed failure vocabulary. A failed tool blocks only dependent work.
 - Before any mutation, the normal repo/worktree/branch/HEAD/dirty/task/owner/claim/scope/non-overlap gate still applies.
 
 The future SunDayMCP product may collapse this UX into one facade, but until that implementation is accepted these remain separate core surfaces and the same authority gates apply.
+
+### Worker fleet execution rule
+
+For substantial work, GPT-5.6 Sol should keep every exposed SunDay-Worker 1..5
+bound to the verified Active Project, then assign non-overlapping fleet roles
+from the task DAG. Useful roles include implementation owner, GLM task-packet or
+dispatch assistant, deterministic verifier, adversarial read-only reviewer, and
+recovery/reserve. All five may be active while fewer than five hold work.
+
+Workers may help launch or supervise accepted Kilo/Claude GLM work only after the
+normal quota/provider/task gates pass. Material GLM outputs should be challenged
+by independent Worker/read-only checks when capacity permits. Worker consensus is
+not acceptance evidence by itself: GPT-5.6 Sol reconciles reports against Git,
+runtime, tests, claims and exact-SHA evidence, and retains final acceptance.
+
+This rule never expands WIP or allows overlapping writers. `1 MUTABLE HOTSPOT =
+1 MUTATION OWNER` remains binding.
 
 ## 2. Conditional accelerator surfaces
 

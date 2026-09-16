@@ -30,7 +30,10 @@ Before mutable work in a substantial project/engineering session, attempt:
 2. GitHub — refresh repository/default branch, relevant Issue/PR, exact remote
    SHA, CI/review/post-main truth when material.
 3. Exposed SunDay-Worker 1..5 — discover minimal readiness/current-project
-   state without activating, rebinding or mutating merely for bootstrap.
+   state first. Once the exact Active Project/repo/worktree/claim is verified,
+   bind or verify every exposed Worker 1..5 against that same Active Project.
+   This standing user instruction authorizes project binding, not repository
+   mutation. Busy, unavailable, or mismatched Workers receive typed blockers.
 
 Do not block unrelated safe work because one surface is unavailable. Reuse the
 typed failure vocabulary from `TOOL_AND_FAST_PATH_ROUTING.md`, including
@@ -38,6 +41,25 @@ typed failure vocabulary from `TOOL_AND_FAST_PATH_ROUTING.md`, including
 `DEVICE_OFFLINE`, `TRANSPORT_FAILURE`, and `RUNTIME_UNVERIFIED`.
 
 Trivial Q&A and obvious no-routing work bypass this bootstrap.
+
+## SunDay Worker fleet activation and GLM oversight
+
+For substantial project work, keep every exposed SunDay-Worker 1..5 bound to the
+same verified Active Project whenever its state permits. `ACTIVE` means available
+to be assigned; it does not mean all five receive mutable ownership.
+
+GPT-5.6 Sol dynamically assigns fleet roles from the dependency DAG. Typical
+roles include bounded implementer, GLM task-packet/dispatch helper, deterministic
+verifier, adversarial read-only reviewer, and recovery/reserve. Workers helping
+with GLM must use only the accepted provider/harness route and must not expose
+secrets, widen scope, or invent provider authority.
+
+Prefer multiple independent checks of material GLM output when capacity permits:
+one lane may verify deterministic evidence, another may challenge assumptions or
+diff scope, while Sol compares the findings against Git/runtime/task authority.
+No Worker vote or majority overrides evidence; Sol remains the integrator and
+final acceptance authority. All normal WIP and `1 MUTABLE HOTSPOT = 1 MUTATION
+OWNER` rules still apply.
 
 ## GLM labor-offload assessment
 

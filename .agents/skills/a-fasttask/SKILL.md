@@ -46,7 +46,10 @@ instructions into every repository.
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`: RDC exact device/runtime,
    GitHub remote truth, and exposed SunDay-Worker 1..5 readiness. A missing or
    failed surface receives a typed blocker and blocks only dependent work.
-   Online/exposed never implies mutation authority.
+   After the exact Active Project/repo/worktree/claim is verified, FLEET BIND:
+   bind/verify every exposed SunDay-Worker 1..5 to that same Active Project.
+   Active/bound never implies mutation authority; unavailable/busy/mismatched
+   Workers receive typed blockers and are skipped without blocking unrelated work.
 3. CLASSIFY — R0/R1/R2/R3 per `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`;
    select the executor per `docs/agent-collab/CAPABILITY_MATRIX.md` and
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; check WIP capacity per
@@ -63,16 +66,18 @@ instructions into every repository.
    `QUOTA_UNKNOWN` is not `RATE_LIMITED` and is never treated as unlimited.
 4. PIPELINE FILL — decompose independent READY work, then use the existing
    claim/lease + execution authorities to dispatch every eligible bounded GLM
-   lane up to the current WIP/provider-capacity limits. Prefer dispatch-first /
-   harvest-later: Sol must not serialize independent work merely to wait for an
-   earlier GLM report. After dispatch, Sol continues useful non-overlapping
-   architecture, integration, verification, blocker diagnosis, or next-lane
-   routing and reconciles GLM result packets when they arrive. Harness-native
-   helpers such as `/goal`, `/plan`, `/init`, and equivalent commands may be
-   used when the exact harness supports them; they are execution conveniences,
-   never task/claim/mutation/acceptance authority. Optimize for accepted
-   throughput rather than artificial token conservation, while still obeying
-   quota, cost approval, WIP, scope, and non-overlap limits.
+   lane up to the current WIP/provider-capacity limits. Sol also assigns the
+   bound SunDay-Worker fleet into non-overlapping roles: implementation where
+   claimed, GLM task-packet/dispatch assistance, deterministic verification,
+   adversarial read-only review, and recovery/reserve. Workers may help prepare
+   or operate an accepted Kilo/Claude GLM route only within explicit scope and
+   provider authority. Prefer dispatch-first / harvest-later: Sol must not
+   serialize independent work merely to wait for an earlier GLM report. GLM
+   outputs should be challenged by independent Worker/read-only lanes when
+   available; Sol reconciles all findings and remains final acceptance authority.
+   Harness-native helpers such as `/goal`, `/plan`, `/init`, and equivalents are
+   conveniences only. Optimize accepted throughput while obeying quota, cost,
+   WIP, scope, claims, and `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
 5. BRANCH — choose the one existing workflow that fits (normal fast path, R3
    high-risk path, continuation, takeover, or closeout) and read only the
    matching reference below:
