@@ -1,11 +1,14 @@
 # WO-P1-205 — ZRA-2 Phase D durable execution/result → closeout binding gate
 
-Status: PREPARED / HOLD UNTIL PHASE-B + PHASE-C ACCEPTED
-Parent: WO-P1-165 / Issue #214 / ZRA-2 Phase D
+Status: DOCS ACTIVATION — `PHASE_D_NEXT_READY=YES` releases the docs/source-preflight frontier only; SOURCE MUTATION REMAINS HOLD
+Parent: WO-P1-165 / WO-P1-223 / WO-P1-224 / WO-P1-225 / WO-P1-226 / WO-P1-208 / Issue #214 / ZRA-2 Phase D
 Owner: GPT-5.6 Sol integrator / architecture
-Base: `02d39cbd9bca1ab3bb19b6e0cfbb0766c991f971`
-Branch: `docs/wo-p1-205-zra2-phase-d-gate`
-Risk: R3 — durable execution/result identity, review acceptance, job-state closeout
+Original planning base: `02d39cbd9bca1ab3bb19b6e0cfbb0766c991f971` (history)
+Original planning branch: `docs/wo-p1-205-zra2-phase-d-gate` (history)
+Unmerged intermediate refresh (read-only evidence only, never merged): branch `docs/wo-p1-205-phase-d-gate-refresh` pinned at `origin/main@251df211afc1ee5452f3652675d7a2f38c526876`, where WO226 was still active and WO223/C1 still HOLD behind it — superseded by the truth below
+This refresh base (exact current main): `5267ef94b0b23a631bdbb740bfd67d629aae85f4`
+This refresh branch: `docs/wo-p1-205-phase-d-post-wo223-refresh`
+Risk: R2 for this bounded docs activation; the eventual Phase-D source lane remains R3 — durable execution/result identity, review acceptance, job-state closeout
 
 ## 1. Purpose
 
@@ -15,20 +18,41 @@ Phase D must bind an accepted ZRA-1 execution/result and accepted independent ZR
 
 It must **not** create another completion state machine and must **not** transition a job to COMPLETE directly.
 
-## 2. Dependency gate
+This refresh encodes the post-WO223 post-main truth into this packet and the paired GLM prompt (`docs/prompts/GLM-WO205-ZRA2-PHASE-D.md`) — the only two files mutable in this lane. It does not implement anything and does not release source mutation.
 
-Source implementation remains HOLD until all are durably true:
+## 2. Dependency gate — exact post-main truth (2026-09-16)
 
-1. Phase B accepted, merged and post-main verified;
-2. Phase C accepted, merged and post-main verified;
-3. WO-P1-208 closeout crash-boundary evidence has completed its queued GLM lab and parent/integrator review has accepted an explicit supported external-effect/recovery contract for Phase D;
-4. Issue #214 explicitly publishes Phase D `NEXT_READY`;
-5. current main/source state is re-pinned;
-6. fresh ownership/scope/non-overlap gate is issued.
+Every original HOLD predecessor is now durably satisfied on current main `5267ef94b0b23a631bdbb740bfd67d629aae85f4`:
 
-Until then:
+1. ZRA-2 Phase B accepted, merged and post-main verified on the current lineage (history).
+2. WO-P1-225 repaired C0 READ_ONLY lease/task binding accepted, merged and post-main verified.
+3. WO-P1-226 reviewer-execution bridge accepted, merged and post-main verified.
+4. WO-P1-223 / Phase-C C1 strict semantic review-evidence composition ACCEPTED and merged via PR #319:
+   - exact accepted candidate `99e1f307a2a7e2ecb6131b201a37087e0a228245` (exact-head CI `35036900483` SUCCESS);
+   - PR #319 merged the expected head exactly as `5267ef94b0b23a631bdbb740bfd67d629aae85f4`;
+   - post-main CI `35038290207` SUCCESS on that exact merge.
+5. WO-P1-208 closeout crash-boundary evidence completed with an accepted explicit external-effect/recovery contract for Phase D: consume-proven-effects-first (see §8A).
+6. WO-P1-224 GoalCloseout lease-release truth repair accepted, merged and post-main verified.
+7. Issue #214 explicitly publishes `PHASE_D_NEXT_READY=YES` at that checkpoint.
 
-`SAFE_TO_MUTATE_PHASE_D=NO`
+`PHASE_D_NEXT_READY=YES` means exactly this and nothing more: the **docs/source-preflight frontier is released**. This bounded docs refresh may proceed, and once it is itself accepted, merged and post-main verified, the source lane may run its release checklist (§14). It is **NOT** automatic source mutation authority.
+
+Until the §14 source release checklist completes on the then-current lineage:
+
+`SAFE_TO_MUTATE_PHASE_D=NO` (source lane)
+
+### 2.1 Execution-routing context only — no Phase-D authority change
+
+- WO-P1-242 SQLite job-store init-race repair (accepted) is reliability infrastructure, not a semantic Phase-D authority dependency.
+- WO-P1-228 fast-path tool routing and WO-P1-244 Kilo/Claude harness decision are execution-routing context only; they do not change Phase-D closeout authority semantics.
+
+### 2.2 Fresh WO205 read-only post-merge archaeology
+
+The integrator's fresh read-only archaeology against merged main returned:
+
+`WO205_DELTA=READY_AFTER_WO223_POSTMAIN P0=0 P1=0 P2=0 SOURCE_SCOPE=TBD`
+
+It confirms Phase-D remains a thin composition seam: durable author execution/result identity -> trusted C1/Phase-C `ReviewEvidence` -> `classify_relay_decision()==ACCEPTED` only -> re-observe current durable job + current candidate SHA -> compose existing `GoalCloseoutFacts` -> existing `GoalCloseoutExecutor`. The exact mutable source/test scope stays **TBD** pending the fresh source mutation gate (§14).
 
 ## 3. Existing authorities to reuse
 
@@ -53,7 +77,7 @@ Reuse:
 - `zero_relay.ReviewEvidence`;
 - `classify_relay_decision()` and its accepted/repaired/recovery semantics.
 
-Phase C is expected to provide trusted independent-review evidence; Phase D consumes it, not reviewer JSON directly.
+The accepted WO-P1-223 / Phase-C C1 composition (merged at `99e1f307…`/`5267ef94…`) provides the trusted independent-review evidence; Phase D consumes that typed `zero_relay.ReviewEvidence`, never raw reviewer JSON or transport artifacts directly.
 
 ### Durable job authority
 
@@ -73,11 +97,13 @@ Reuse unchanged:
 - `GoalCloseoutFacts`;
 - `goal_closeout.ReviewEvidence`;
 - `plan_goal_closeout()`;
-- `GoalCloseoutExecutor`.
+- `GoalCloseoutExecutor` (single-stage `execute_next()` seam).
 
-`GoalCloseoutExecutor` remains the mutation authority for final COMPLETE transition after all review/verification/merge/fold/lease/ownership obligations are satisfied.
+`GoalCloseoutExecutor` remains the sole mutation authority for VERIFY/REVIEW/MERGE/FOLD/RELEASE/COMPLETE transitions after all review/verification/merge/fold/lease/ownership obligations are satisfied. WO224's accepted lease-release truth repair fails closed unless release truth is one of the canonical confirmed shapes; Phase D must preserve that repaired behavior and must not reintroduce any path that checkpoints release from unconfirmed, contradictory, malformed, stale, or foreign-owner outcomes.
 
-## 4. Source archaeology findings at packet base
+## 4. Source archaeology findings — historical, re-run required at release
+
+The findings below were recorded at the original packet base and re-confirmed directionally by the post-main archaeology (§2.2). They remain the working map, but release-time source archaeology on the then-current main is mandatory (§14) before any scope is frozen:
 
 - `SupervisedZCodeRunner.run()` delegates execution/dedup/collection to `SupervisedRunCoordinator`.
 - The coordinator creates durable `DurableExecutionRecord` with generated `execution_id`, task/work-order identity, branch/head, run/result/stdout/report refs and durable version.
@@ -86,37 +112,37 @@ Reuse unchanged:
 - `GoalCloseoutFacts` already carries durable job identity/state/version, verification, current candidate SHA, review/merge/fold/lease/ownership evidence.
 - `plan_goal_closeout()` explicitly blocks unknown candidate SHA and stale `review.reviewed_sha` that differs from `current_candidate_sha`.
 - final closeout allows COMPLETE only when current job state is `TaskState.REVIEW_PENDING` and every preceding obligation has passed.
+- `GoalCloseoutExecutor.execute_next(facts)` advances exactly one stage per invocation; Phase D must call it as-is, not orchestrate around it.
 
 Therefore Phase D should compose trusted evidence into existing closeout facts rather than add a new `REVIEW_PENDING -> COMPLETE` transition path.
 
-## 5. Required Phase-D architecture
+## 5. Required Phase-D architecture — preserve, do not invent a second authority
 
-The eventual composition should conceptually perform:
+Phase-D is a thin composition seam. The eventual composition must perform:
 
 ```text
-accepted supervised author execution
+accepted durable author execution/result identity
   + exact TaskPacketFile identity
   + exact durable result artifact bytes/hash
-  + durable job attempt/generation identity
         ↓
 zero_relay.ResultIdentity
         ↓
-trusted Phase-C independent ReviewEvidence
+trusted C1/Phase-C independent ReviewEvidence
         ↓
 classify_relay_decision()
         ↓
 ACCEPTED only
         ↓
-re-observe current durable job + current candidate HEAD
+re-observe current durable job + current candidate SHA after review
         ↓
-compose GoalCloseout review facts bound to exact candidate SHA
+compose existing GoalCloseoutFacts
         ↓
-GoalCloseoutExecutor
+existing GoalCloseoutExecutor.execute_next() — one stage
         ↓
-existing VERIFY / REVIEW / MERGE / FOLD / RELEASE / COMPLETE authority
+GoalCloseoutExecutor remains sole VERIFY / REVIEW / MERGE / FOLD / RELEASE / COMPLETE authority
 ```
 
-Any mismatch or unknown state fails closed before closeout mutation.
+Any mismatch or unknown state fails closed before closeout mutation. No direct `TaskState.COMPLETE`. No second completion state machine, review lifecycle, job/store/claim/lease/retry/scheduler authority.
 
 ## 6. Author-result binding requirements
 
@@ -130,14 +156,16 @@ An eventual Phase-D assembler must prove all of:
 - `result_sha256` is recomputed over exact durable result bytes, not trusted from caller prose;
 - task packet SHA/ref match the execution/work-order identity;
 - `author_execution_id` equals durable execution record execution ID;
-- attempt/generation come from durable ZRA/job authority, not arbitrary input;
+- attempt/generation come from existing durable authority, not arbitrary input;
 - current branch/head/candidate identity has not drifted.
 
 Do not substitute stdout text for the durable result artifact merely because `NativeCommandResult.stdout_sha256` exists. The exact artifact used as ZRA review/result authority must be explicitly chosen and source-mapped.
 
+**Unresolved design gate for source implementation:** exact author `attempt_id` and `generation` must come from existing durable authority. Do not fabricate them from caller hints or `attempt_count`. If fresh source archaeology (§14) cannot prove exact provenance, mark `DESIGN_GAP` and hold source mutation.
+
 ## 7. Review binding requirements
 
-Consume Phase-C trusted review composition only.
+Consume the accepted Phase-C/C1 trusted review composition only.
 
 Required checks before ACCEPTED may flow to closeout:
 
@@ -150,7 +178,7 @@ Required checks before ACCEPTED may flow to closeout:
 - author/reviewer execution IDs distinct;
 - review disposition is the typed accepted value;
 - reviewer execution is durably terminal and belongs to expected independent-review route;
-- current candidate SHA equals the exact reviewed SHA.
+- three-way exact equality: review target SHA == current candidate SHA == future merge/closeout candidate SHA.
 
 Reviewer prose such as `PASS`, `ready`, or `merge=true` is never completion authority by itself.
 
@@ -161,6 +189,7 @@ Before invoking GoalCloseout:
 - reload current job from durable store;
 - expected job ID/task ID/attempt/version must match;
 - state must be the accepted phase state expected by existing lifecycle; unknown/drift => recovery/block;
+- on version conflict, reload and replan from current durable truth; never overwrite or force the stale view;
 - do not coerce VERIFYING/CHANGES_REQUIRED/RECOVERY_NEEDED to REVIEW_PENDING;
 - do not call JobStore.transition(COMPLETE) directly;
 - do not fabricate `completed_closeout_refs`;
@@ -169,16 +198,16 @@ Before invoking GoalCloseout:
 
 ## 8A. External effect / crash-boundary requirements from WO-P1-208
 
-WO-P1-208 has produced non-binding but concrete seam evidence against the current `GoalCloseoutExecutor` + `SQLiteJobStore` boundary. Native sacrificial-store probes showed that a callback side effect can occur before the subsequent JobStore checkpoint CAS, so:
+WO-P1-208 produced concrete seam evidence against the `GoalCloseoutExecutor` + `SQLiteJobStore` boundary. Native sacrificial-store probes showed that a callback side effect can occur before the subsequent JobStore checkpoint CAS, so:
 
 - two callers that begin from the same job version can both perform the external effect before only one checkpoint wins CAS;
 - stale facts can still reach an effect before a later checkpoint/version refusal;
 - an effect that happened but returned/was remembered as UNKNOWN can be repeated after restart if volatile recovery knowledge is lost;
 - a truthful already-committed positive control remains safely idempotent through existing checkpoint/reload semantics.
 
-These observations are composition hazards, not proven production incidents, because no production `GoalCloseoutExecutor` construction was found at the WO208 base and the probes used synthetic effect ports. Phase D must nevertheless not make stronger safety claims than the seam provides.
+These observations are composition hazards, not proven production incidents. Phase D must not make stronger safety claims than the seam provides.
 
-Before any Phase-D assembler may invoke an external fold/release effect, the accepted WO208 parent decision must prove all four obligations:
+Before any Phase-D assembler may invoke an external fold/release effect, the accepted WO208 contract requires all four obligations:
 
 1. **Evidence identity** — exact job/task/attempt/candidate/result/review identity is current.
 2. **Effect eligibility at the effect boundary** — current ownership/version/fencing authority is still valid when the external effect is actually invoked; a pre-read alone is insufficient.
@@ -189,7 +218,18 @@ If the selected fold/release adapter cannot provide an accepted idempotency/quer
 
 A deterministic request key is not sufficient unless the effect owner enforces same-key/same-payload convergence and divergent-payload refusal. A pre-effect JobStore CAS alone is also not sufficient because it can leave an intent-with-unknown-effect crash window.
 
-Do not create a second outbox/journal/store merely to solve this. Reuse existing job/recovery/effect-owner authority according to the contract accepted from WO208. If the only safe initial Phase-D release is to consume already-proven effects while leaving unsupported effect initiation blocked, that is acceptable and preferable to inventing replay safety.
+Do not create a second outbox/journal/store merely to solve this. Reuse existing job/recovery/effect-owner authority according to the accepted WO208 contract.
+
+### Binding decision for initial Phase-D v1: consume proven effects first
+
+Until an exact adapter contract passes WO208-style crash/restart/adversarial proof, Phase-D v1 MUST NOT initiate unsupported external fold/release effects. Its safe initial shape is:
+
+- consume already-proven durable fold/release facts when the existing authoritative stores/effect owners can independently re-observe them;
+- compose/reload GoalCloseout facts from that proven state;
+- keep any missing, in-progress, stale or UNKNOWN external effect as `RECOVERY_REQUIRED` / blocked — do not initiate unsupported external effects merely to close out;
+- never synthesize `completed_closeout_refs` merely to advance the planner;
+- never call an effect port simply because the corresponding checkpoint is absent;
+- allow external effect initiation only in a later bounded slice whose exact adapter contract has passed WO208-style proof and whose release truth passes WO224 semantics.
 
 Required additional RED cases after release:
 
@@ -203,9 +243,21 @@ Required additional RED cases after release:
 - missing/failed reconcile remains `RECOVERY_REQUIRED`;
 - no synthetic `completed_closeout_refs` or COMPLETE is created from an effect receipt alone.
 
-## 9. RED-first matrix after release
+## 9. Frozen minimum RED-first acceptance matrix (source lane)
 
-At minimum:
+This is the minimum frozen matrix for the later source lane. A source candidate that lacks a deterministic RED/GREEN case for any row is not acceptable, regardless of other coverage.
+
+1. **Author cross-binding** — exact author task/result/execution/attempt/generation cross-binding against durable authority.
+2. **Review trust** — trusted `ReviewEvidence` exact match (task/result/attempt/generation) and reviewer distinctness (`reviewer_execution_id != author_execution_id`).
+3. **Relay gate** — `classify_relay_decision()` ACCEPTED-only; rejection/ambiguity/repaired never flows to closeout.
+4. **Job re-observation** — durable job state/version and current candidate SHA re-observed after review, immediately before closeout composition.
+5. **SHA three-way equality** — review target SHA == current candidate == future merge/closeout candidate; drift blocks.
+6. **Replay/conflict** — replay/idempotency through existing GoalCloseout/job semantics; version conflict triggers reload/replan, never overwrite.
+7. **Fail-closed ownership/effects** — missing/UNKNOWN ownership or external-effect truth fails closed (recovery/blocked), never inferred success.
+8. **Sole closeout authority** — `GoalCloseoutExecutor` alone emits closeout stages and COMPLETE; no direct transition in Phase-D code.
+9. **No duplication** — no duplicate model effect, no duplicate review, no duplicate external effect.
+
+The detailed historical case lists below remain valid expansions of this matrix.
 
 ### Author execution identity
 
@@ -220,7 +272,7 @@ At minimum:
 - changed artifact after observation;
 - wrong branch/head;
 - wrong author execution ID;
-- stale attempt/generation.
+- stale/fabricated attempt/generation (including derivation from `attempt_count` or caller hints).
 
 ### Review identity
 
@@ -239,22 +291,23 @@ At minimum:
 ### Durable job / closeout
 
 - job missing;
-- job version conflict;
+- job version conflict (reload/replan, never overwrite);
 - state not REVIEW_PENDING at final closeout;
 - current candidate SHA unknown;
 - current candidate SHA changed after review;
 - accepted review exact candidate positive control;
+- pre-WO224 release outcome with neither `released=True` nor `already_released=True` cannot create a release checkpoint or allow COMPLETE;
+- already-proven durable fold/release facts are consumed without re-invoking the external effect;
+- missing/UNKNOWN fold or lease-release truth remains blocked/recovery and is not converted into synthetic `completed_closeout_refs`;
 - GoalCloseout missing verify/fold/release checkpoints remains blocked by existing authority;
-- duplicate/restart invocation is idempotent through existing GoalCloseout/job version semantics;
+- duplicate/restart invocation is idempotent through accepted GoalCloseout/job/effect-owner semantics;
 - no direct COMPLETE transition occurs in Phase-D assembler.
 
-## 10. Composition design constraints
+## 10. Composition design constraints — non-binding hypothesis only
 
-Prefer one narrow new composition module after Phase C lands rather than modifying many existing authorities.
+The proposed source layout is **TBD and non-binding**. Working hypothesis only (not an authorized scope): one thin NEW composer module plus focused tests, added after release-time archaeology.
 
-Do not choose its final file name/scope until Phase-C accepted source shape is known. Re-run source archaeology at release time.
-
-Likely consumers/providers are:
+Do not choose its final file name/scope until release-time archaeology on the then-current main is done. Likely consumers/providers are:
 
 - execution store reader;
 - confined artifact reader;
@@ -280,29 +333,66 @@ The assembler should have injected read/mutation ports only where those authorit
 
 ## 12. Acceptance
 
-Phase D is accepted only when:
+### 12A. This docs activation candidate
 
+This refresh is accepted only when the §16 gates complete: bounded two-file diff/scope/UTF-8 audit, exact-SHA freeze, independent exact-SHA R2 review, exact-head CI, expected-head merge, post-main verification, and checkpoint on the driving authority. Acceptance of this docs activation releases only the §14 source release checklist — it does **not** claim Phase-D implementation and does not authorize source mutation by itself.
+
+### 12B. The eventual Phase-D source lane
+
+Phase D (source) is accepted only when:
+
+- the §14 release checklist completed on the then-current lineage;
 - exact durable ZRA-1 execution/result identity is proven;
 - accepted independent review is bound to those exact bytes and exact candidate SHA;
+- the WO208 accepted effect/recovery contract is satisfied for every external effect Phase D initiates; otherwise Phase D consumes proven effects only;
+- WO224 lease-release truth semantics prevent false release checkpoints;
 - job state/version is re-observed before mutation;
 - GoalCloseout remains the sole composed final completion authority;
 - no direct Phase-D COMPLETE transition exists;
-- ambiguous transport/review/job state never blind-replays or completes;
+- ambiguous transport/review/job/effect state never blind-replays or completes;
 - no duplicate authority/store is introduced;
+- the frozen minimum matrix (§9) is green;
 - exact candidate CI is green;
 - independent reviewer returns no P0/P1/P2 blocker.
-
-Acceptance of this planning packet does not release implementation.
 
 ## 13. External stop gates
 
 STOP and checkpoint on:
 
-- Phase B or C not accepted;
-- Issue #214 Phase-D NEXT_READY absent;
+- any §2 post-main truth no longer holding on the current lineage;
+- Issue #214 Phase-D frontier marker absent or revoked;
 - source/authority drift;
 - missing ownership/scope;
-- ambiguous execution/result/review/job identity;
-- need to widen source scope beyond accepted packet;
+- ambiguous execution/result/review/job/effect/release identity;
+- selected external effect lacks accepted idempotency/query/reconcile truth;
+- need to widen scope beyond the accepted packet (including this docs lane's two-file bound);
 - non-terminal CI;
 - independent review / GPT acceptance / merge / post-main gate.
+
+## 14. Source release checklist — only after this docs activation is accepted/merged/post-main
+
+In order, on the then-current lineage:
+
+1. re-pin current main, Issue #214 state, and this WO (including §2 truth) against actual Git/GitHub;
+2. create a fresh isolated source worktree;
+3. issue an exact claim/non-overlap gate: owner, base SHA, branch, worktree, mutable paths, forbidden paths, dependencies;
+4. read `DEFECT_LESSONS.md` before any `src/a_conductor/` mutation;
+5. run fresh source archaeology at the released base (do not trust pre-shaped module/file names);
+6. prove exact author `attempt_id`/`generation` provenance from existing durable authority — else mark `DESIGN_GAP` and hold source mutation;
+7. freeze the exact mutable source/test scope (replacing `SOURCE_SCOPE=TBD`);
+8. then implement RED first against the frozen §9 minimum matrix.
+
+## 15. Forbidden source scope
+
+Do not modify `goal_closeout` / Phase-C composition / store / schema / lease / provider / job lifecycle in the Phase-D source lane unless a separately accepted RED/design finding proves it necessary. This prohibition survives this docs activation.
+
+## 16. Closeout/verification gates for THIS docs candidate (R2)
+
+1. bounded diff/scope/UTF-8 audit — exactly the two tracked paths of this lane changed, nothing else;
+2. freeze exact candidate SHA;
+3. independent exact-SHA R2 review;
+4. exact-head CI on that frozen SHA;
+5. merge the expected head only;
+6. post-main CI run ID on the merge;
+7. checkpoint recorded on the driving authority (Issue #214 / WO205);
+8. only then may the fresh source gate (§14) start.
