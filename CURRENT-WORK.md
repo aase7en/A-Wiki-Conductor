@@ -1,23 +1,49 @@
 # A-Sunday Conductor — Current Work
 
-Last updated: 2026-09-08 (GPT1 — WO166 P0-B Continuity Guard activation)
+## 2026-09-15 — R5 repair verified for freeze, R3 acceptance pending
 
-## WO166 P0-B Continuity Guard activation — authoritative
+Existing Kilo/cointh-glm/glm-5.3 MAX writer completed the packet at
+`runs/WO-P1-223-RE2A/r5-task.md` from base
+`779fcf5975e21d6891f63b94ad79893745776675`; result is in `r5-result.md`.
+The R3 P1/P2 from Issue214 comment5683969698 drove four RED/GREEN cases:
+true cross-dispatch loser/third contender, terminal-unusable cleanup,
+legacy released-admission attribution, and prior-dispatch/successor cleanup.
+Only execution source and its tests changed within the four-file source scope.
+Integrator independently ran both focused suites: 109 passed; diff check passed.
+Worker reports broader 222 focused +218 related tests; those counts are worker
+claims pending acceptance evidence review, not independent reruns.
 
-> **Single-authority rule:** this section is the ONLY current authoritative state in this file. Historical evidence below the separator remains evidence only.
+Freeze is for independent R3 review, not acceptance. Reviewer must challenge
+whether ACTIVE admission actually proves the identity of the current owner-key
+lease under release/recovery/expiry/reacquisition, and the newly retained lease
+after partially completed cleanup. Do not dismiss those as out of scope merely
+because the worker calls them theoretical. Existing authorities remain owners.
+WO242/PR324 separately repairs the pre-existing SQLite initialization CI race.
 
-- **A-Wiki Issue #54 is COMPLETE**: PR #56 accepted/merged as `967e063cb9dc2e5b43b48a00deb575235f125a94`; post-main CI `34133420008` SUCCESS; closeout PR #57 merged as `566637ac8d2636d6c63eda2bd6ebe81b55bd3d72`; post-main CI `34144444732` SUCCESS; no active A-Wiki claim remains.
-- **WO-P1-164 / PR #225 is ACCEPTED, MERGED, POST_MAIN_VERIFIED and RELEASED**: accepted head `8c4ba507e648f11c428347b02e6b86de080f098b`; merge `8ffd12f8de3cada79f1f463f3c6f7ee7a35082b9`; post-main run `34143787452` attempt 2 SUCCESS. Attempt 1 Windows owned-process failure is tracked separately as Issue #227 and is non-blocking.
-- **P0-B Continuity Guard is the current dependency frontier.** Durable architecture/preflight authority is Issue #226; implementation identity is `WO-P1-166`.
-- P0-B is R3 trust/durable-state work. GPT1 owns authority/failure-model framing, dependency order, exact-SHA acceptance, merge and release. GLM-5.3 MAX becomes bounded implementation owner only after this activation fold reaches main and a fresh source worktree/claim gate passes.
-- Initial Phase A is NEW-FILE-ONLY: `src/a_conductor/continuity_guard.py`, `tests/test_continuity_guard.py`, and `docs/work-orders/WO-P1-166-p0b-continuity-guard.md`. Existing shared job/lease/change-apply source remains read-only until explicit scope expansion.
-- Existing authorities must be reused: `TaskState` / `RecoveryClassification`, `SQLiteJobStore` ordered events/checkpoints, `WorkerLeaseBroker` / lease store, `AgentResultPacket` / `AgentChangeApplier`, and actual Git/GitHub evidence. No second scheduler/job/claim/lease/retry/review authority is permitted.
-- WO-P1-165 / ZRA-2 remains preserved at activation doc `3d7209e0683afc3d1c9daf4d8db75052220ec782` with **source mutation BLOCKED_BY_P0B**. Do not rebind/delete/duplicate that lane.
-- Dependency order: `WO166 P0-B -> WO165 ZRA-2 -> ZRA-3 -> ZRA-4`.
-- This docs activation is self-closing: once its exact projection is on `origin/main` and required exact-head review/CI succeed, the activation claim has no remaining hotspot scope and is RELEASED without another global-file rewrite.
+`SAFE_TO_MUTATE_RE2A_SOURCE=NO` while frozen.
+`SAFE_TO_MERGE_PR319=NO` pending fresh exact-SHA R3 and hosted CI.
+Next: independently review the replacement commit; record exact SHA in the
+ignored status packet and Issue214. Preserve root dirty work and other lanes.
 
-One next safe action: verify/freeze this WO166 docs activation -> merge expected-head only -> post-main verify -> create a fresh isolated WO166 Phase-A source lane from then-current main -> dispatch the durable WO166 task packet to GLM-5.3 MAX for RED-first P0-B1 implementation.
 
+Last updated: 2026-09-15 (GPT-5.6 Sol — WO223 RE2-A durable replay repair)
+
+## WO223 RE2-A lost-handoff replay repair — authoritative
+
+> **Single-authority rule:** this section is the ONLY current authoritative state in this file. Actual runtime/Git/GitHub and durable Issue state override this file if they differ. Historical evidence below the separator is evidence only.
+
+- Driving durable authority: GitHub Issue #214. Active claim: `WO-P1-223-RE2A-LOST-HANDOFF-REPLAY-001`.
+- Current critical-path task: `docs/work-orders/WO-P1-223-re2a-lost-handoff-replay.md`.
+- Exact implementation base: `082705889e26023079e73deacb7f642eb122713b`; `origin/main` at claim = `67744e98e538b000579bff4a45616d3a178a824b`.
+- Fresh isolated worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo223-re2a-replay`; branch `fix/wo-p1-223-re2a-lost-handoff-replay`.
+- PR #319 remains OPEN/DRAFT at old head `42221020c02c507decfb396ac8c3b9da54d523bc`; DO NOT MERGE until replacement exact-SHA R3 review/CI/acceptance succeeds.
+- RE2-A repairs only post-promotion lost-handoff replay: persist strict versioned exact resource identity in the existing execution promotion event, reconstruct exact historical lease/admission truth through existing APIs, keep zero second model effect, and preserve C1/legacy fail-closed semantics.
+- Source/test scope is only `zero_relay_review_verification.py`, `zero_relay_review_execution.py`, and their two focused tests. No execution/job/provider/lease store/schema/state-machine/C1/Phase-D/WO227/A-Wiki/live-provider mutation.
+- Pre-promotion `EXECUTING + VERIFICATION_REQUIRED` hard-crash liveness is separate RE2-B adjudication; RE2-A may not invent job lifecycle transitions.
+- GLM-5.3 MAX is preferred bounded implementation engine after the continuity bootstrap commit; GPT-5.6 Sol retains trust/authority, fan-in, acceptance, PR/merge/post-main authority.
+- File-first continuity is mandatory: tracked WO + this file + `handoff.md`; lane detail in ignored `runs/WO-P1-223-RE2A/{task.md,status.json,result.md}`; major boundaries mirrored to Issue #214.
+
+One next safe action: commit the tracked continuity bootstrap, re-gate the clean exact worktree, then transfer the four-file RED-first RE2-A implementation to GLM-5.3 MAX while GPT runs independent read-only architecture/fault/integration lanes.
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
 <!-- Nothing below this separator is a current instruction.              -->
@@ -377,3 +403,17 @@ Exact repaired snapshot: focused `17 passed`; related `224 passed`; full local `
 ### WO-P1-114 independent review accepted
 
 GLM-5.3 MAX task `wo114-glm-review-002` returned `PASS` at exact HEAD `75c8e21da3d47ffb2fff6f8e37f6240b537f2522`. GPT independently validated task/provider/model/HEAD/task SHA and all four source/test hashes. P0/P1/P2 findings: 0. Four P3 hardening notes are deferred without source mutation. Next gate: final branch audit, Draft PR, exact-head CI, re-audit, merge, post-main proof.
+
+## WO223 RE2-A R3 repair override — 2026-09-15
+
+Actual Git/GitHub/Issue truth supersedes the older authoritative section above where it differs.
+
+- Frozen candidate `1d755b6d5de5ebf5e357c5348f2e1b2544641b09` is REJECTED for acceptance after independent exact-SHA R3.
+- Issue #214 checkpoint `5675288481` reopens the same bounded four-file RE2-A repair scope.
+- Confirmed blockers: typed deep-JSON failure, truncation-safe admission recovery, and EXISTING-lease launch/cleanup ownership.
+- `SAFE_TO_MUTATE_RE2A_SOURCE=YES` only in `A:\GitHub\_worktrees\A-Wiki-Conductor-wo223-re2a-replay` under the existing claim.
+- `SAFE_TO_MERGE_PR319=NO`; PR #319 remains on old head until a replacement SHA passes fresh independent R3 and hosted CI.
+- Fuzz cross-dispatch duplicate model effect is expected to close by refusing `EXISTING` lease as launch authority; verify with a RED/green concurrent test rather than assumption.
+- RE2-B job-lifecycle recovery and other P3 hardening remain separate and must not widen this repair silently.
+
+One next safe action: continuity commit -> GLM-5.3 MAX RED-first bounded writer -> GPT verification -> replacement freeze -> fresh exact-SHA R3 rereview.
