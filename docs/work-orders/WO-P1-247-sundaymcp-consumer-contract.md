@@ -37,8 +37,10 @@ runtime implementation.
   `.agents/skills/a-fasttask/` tree is a repo binding/projection, not a second
   global policy source.
 - Current Kilo route `cointh-glm/glm-5.3` passed `kilo roll-call` during this
-  session. No approved `COINTH_GLM_API_KEY` environment binding was available,
-  so quota API evidence remains `UNKNOWN`, never unlimited.
+  session. The environment binding was empty, but the approved global secret
+  resolver exposed `COINTH_GLM_AUTH_TOKEN`; using it only as the CoinTH
+  `x-api-key` returned HTTP 200 with the full five-hour quota tuple. The secret
+  value and machine-local secret-file path are not tracked or logged.
 
 ## Binding dependency order
 
