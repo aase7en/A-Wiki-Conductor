@@ -51,16 +51,28 @@ instructions into every repository.
    select the executor per `docs/agent-collab/CAPABILITY_MATRIX.md` and
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; check WIP capacity per
    `PROJECT-GRAPH.yaml` `rules.default_wip`. For every substantial multi-step
-   task, also perform `GLM_OFFLOAD_ASSESSMENT`: dispatch useful bounded
-   independent labor only when route/readiness/authorization/quota and
-   ownership/result-destination gates permit it.
-4. BRANCH — choose the one existing workflow that fits (normal fast path, R3
+   task, also perform `GLM_OFFLOAD_ASSESSMENT`. Before each material GLM
+   dispatch, refresh the approved quota/readiness evidence; `QUOTA_UNKNOWN`
+   is not `RATE_LIMITED` and is never silently treated as unlimited.
+4. PIPELINE FILL — decompose independent READY work, then use the existing
+   claim/lease + execution authorities to dispatch every eligible bounded GLM
+   lane up to the current WIP/provider-capacity limits. Prefer dispatch-first /
+   harvest-later: Sol must not serialize independent work merely to wait for an
+   earlier GLM report. After dispatch, Sol continues useful non-overlapping
+   architecture, integration, verification, blocker diagnosis, or next-lane
+   routing and reconciles GLM result packets when they arrive. Harness-native
+   helpers such as `/goal`, `/plan`, `/init`, and equivalent commands may be
+   used when the exact harness supports them; they are execution conveniences,
+   never task/claim/mutation/acceptance authority. Optimize for accepted
+   throughput rather than artificial token conservation, while still obeying
+   quota, cost approval, WIP, scope, and non-overlap limits.
+5. BRANCH — choose the one existing workflow that fits (normal fast path, R3
    high-risk path, continuation, takeover, or closeout) and read only the
    matching reference below:
    - roles / WIP / executor fallbacks / session bootstrap → `references/conductor.md`
    - continuation / takeover / checkpoint → `references/material-boundary.md`
    - temporary-lane closeout → `references/closeout.md`
-5. BIND, then HAND OFF — record/report exactly these routing fields:
+6. BIND, then HAND OFF — record/report exactly these routing fields:
    - existing task/claim reference (work order + claim identity; never
      invented here);
    - chosen existing workflow (named file/risk tier);

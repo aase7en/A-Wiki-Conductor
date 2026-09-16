@@ -102,6 +102,16 @@ non-overlapping work rather than becoming a passive dispatcher.
 A-FastTask stays a router/binder. Actual dispatch remains owned by existing
 A-Conductor execution/provider/Zero-Relay backends and existing claims/leases.
 
+User throughput refinement (2026-09-16): substantial sessions should use a
+`dispatch-first / harvest-later` pipeline. Sol decomposes independent READY work,
+fills eligible GLM lanes early within WIP/provider/quota gates, continues its own
+non-overlapping integration work without waiting for each report, and harvests
+GLM results at material fan-in points. Before each material GLM dispatch, refresh
+approved quota/readiness evidence. Harness-native `/goal`, `/plan`, `/init` or
+similar commands are allowed only when the exact harness supports them and never
+replace durable authority. Optimize for accepted throughput rather than token
+minimization, without bypassing quota/cost/ownership limits.
+
 ## Verification / acceptance
 
 Required before merge consideration:

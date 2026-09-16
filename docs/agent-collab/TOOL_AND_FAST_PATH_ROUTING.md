@@ -69,6 +69,31 @@ Parallel GLM lanes require independent READY work, explicit owners, known worktr
 
 Record one compact routing result: `GLM_OFFLOAD = DISPATCHED | NOT_BENEFICIAL | BLOCKED`, with bounded reason and safe harness/provider/model/quota-readiness/task/scope/result facts when material. This record is routing evidence, not a new task/provider authority.
 
+## 2B. Dispatch-first / harvest-later throughput rule
+
+For substantial work, GPT-5.6 Sol should decompose the dependency DAG early,
+bind independent READY lanes through the existing claim/lease authority, and
+dispatch eligible GLM-5.3 labor as soon as each lane is safe. Do not serialize
+independent lanes merely to read the previous GLM report first. Sol remains an
+active integrator: while delegated lanes run, continue non-overlapping
+architecture, integration, deterministic verification, blocker diagnosis, and
+routing of the next READY lane. Harvest GLM results later at material fan-in
+points, reconcile them against Git/runtime/durable evidence, then repair or
+integrate in bounded batches.
+
+This rule optimizes accepted throughput, not agent count or token minimization.
+Use available authorized quota productively, but never exceed WIP/provider
+capacity, paid-cost approvals, claim/scope boundaries, or `1 MUTABLE HOTSPOT =
+1 MUTATION OWNER`. Before every material GLM dispatch, refresh the approved
+quota/readiness evidence. `QUOTA_UNKNOWN` means evidence is unavailable;
+`RATE_LIMITED` requires observed exhaustion and must not be guessed.
+
+Harness-native commands such as `/goal`, `/plan`, `/init`, skills loops, or
+similar Kilo/Claude Code/ZCode features may be used when the exact installed
+harness proves support. These commands are execution accelerators only; they do
+not replace the durable WO/task packet, claim/lease, result destination,
+verification, or GPT acceptance authority.
+
 ## 3. Fast path principle
 
 Optimize for accepted outcomes, not number of active agents.

@@ -68,6 +68,29 @@ harness/provider/model/quota-readiness facts, task/claim/scope and result
 destination when material. This record routes work; it does not create a new
 provider/job/task authority.
 
+### Dispatch-first / harvest-later discipline
+
+For a substantial task, Sol should form the dependency DAG early and bind as
+many independent READY lanes as the existing WIP/provider gates permit. Launch
+eligible GLM lanes as soon as their exact scope/result destination is bound;
+do not wait for lane A merely because lane B is independent. Sol continues its
+own non-overlapping architecture/integration/verification work and may bind the
+next independent lane while GLM runs. Harvest and reconcile result packets at
+material fan-in points, not after every dispatch.
+
+This is aggressive pipeline filling, not unbounded spawning. Never exceed WIP,
+quota/capacity, cost approval, or ownership gates; never create overlapping
+writers. Do not optimize for token minimization when current authorized quota is
+available, but avoid redundant prompts/rereads that do not increase accepted
+throughput. Before every material GLM dispatch, refresh approved quota evidence.
+If the five-hour tuple is unavailable, record `QUOTA_UNKNOWN`; do not report
+`RATE_LIMITED` unless exhaustion is actually observed.
+
+Kilo/Claude Code/ZCode-native slash or goal commands (for example `/goal`,
+`/plan`, `/init`) may be used when the exact installed harness supports them.
+They can improve long-running execution but never grant claim, scope, provider,
+merge, or acceptance authority.
+
 ## WIP behavior
 
 `PROJECT-GRAPH.yaml` `rules.default_wip` is the capacity authority: up to 3
