@@ -25,7 +25,17 @@ The compact ChatGPT Project Instruction should explicitly preserve these as the 
 | `Remote Desktop Commander` | multi-device filesystem, shell, process, runtime, logs, local builds/tests, repo-wide inspection, fallback local file operations | RDC online does not imply safe repo/Worker/runtime mutation |
 | `GitHub` | remote repository truth, branches, PRs, diffs, issues, exact SHAs, Actions/CI, post-merge evidence | GitHub evidence does not override safety, claims, or local dirty-state protection |
 
-These three are CORE. Discover them read-only when they are relevant to the task. Do not assume previous session mappings are still valid.
+These three are CORE. For every substantial project/engineering session, attempt a lightweight READ-ONLY discovery of all three before mutable work. Trivial Q&A and obvious no-routing work bypass this bootstrap. Do not assume previous session mappings are still valid.
+
+### Substantial-session bootstrap rules
+
+- RDC: identify the exact device/runtime before using filesystem, shell, process, log, build/test or local Git evidence. `RDC ONLINE != SAFE_TO_MUTATE`.
+- GitHub: refresh the target repo/default branch, relevant Issue/PR, exact remote SHA and CI/review/post-main evidence when material.
+- SunDay-Worker 1..5: probe only exposed Workers for minimal readiness/current-project state. Do not activate/rebind/mutate merely for bootstrap.
+- Classify unavailable/busy/mismatched surfaces with the existing typed failure vocabulary. A failed tool blocks only dependent work.
+- Before any mutation, the normal repo/worktree/branch/HEAD/dirty/task/owner/claim/scope/non-overlap gate still applies.
+
+The future SunDayMCP product may collapse this UX into one facade, but until that implementation is accepted these remain separate core surfaces and the same authority gates apply.
 
 ## 2. Conditional accelerator surfaces
 
@@ -40,6 +50,24 @@ Use these only when the task needs them:
 | `Figma/Product Design` | UI/UX/design-system/prototype work | automatic source mutation without repo gate |
 
 Domain plugins such as Bigdata, Elicit, Metricool, Binance, Alpaca, HeyGen and Canva are not ordinary A-Conductor engineering bootstrap tools. Use them only for their domain-specific tasks.
+
+## 2A. GLM labor-offload assessment
+
+For every substantial multi-step task, perform `GLM_OFFLOAD_ASSESSMENT` while GPT-5.6 Sol remains the integrator and continues useful non-overlapping work.
+
+Use the current evidence-based order:
+1. Kilo CLI + CoinTH GLM-5.3 when the exact executable/provider/model, readiness, authorization, permission profile and quota evidence are eligible.
+2. Claude Code CLI + GLM-5.3 only after exact route/model/auth/liveness is proven on the current runtime.
+3. SunDayWorker/Serena for lightweight semantic/local repository operations.
+4. deterministic/native tools when inference is unnecessary.
+5. GPT-5.6 Sol directly when it is the best eligible executor or external routes are blocked.
+6. GPT-6 Astra only for material unresolved architecture/trust ambiguity, contradictory high-impact findings, or difficult repeated failure after root-cause work.
+
+For Kilo, prefer the exact executable and `kilo roll-call` as a practical liveness probe. Use `docs/runbooks/cointh-glm-quota.md` for CoinTH quota checks only through an approved secret resolver. Never expose/persist the API key. HTTP 401/403 is auth/entitlement evidence, not quota exhaustion; missing/stale/malformed quota evidence remains `UNKNOWN`. Never silently substitute a different or paid model/provider.
+
+Parallel GLM lanes require independent READY work, explicit owners, known worktrees/branches/HEADs, valid non-overlapping claims/leases, declared result destinations and a fan-in plan. `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
+
+Record one compact routing result: `GLM_OFFLOAD = DISPATCHED | NOT_BENEFICIAL | BLOCKED`, with bounded reason and safe harness/provider/model/quota-readiness/task/scope/result facts when material. This record is routing evidence, not a new task/provider authority.
 
 ## 3. Fast path principle
 
