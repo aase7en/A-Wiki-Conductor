@@ -250,6 +250,10 @@ ZRA-4 is not adopted by this refinement after the user's newer one-SunDayMCP
 architecture decision. Browser/docs shaping may continue; product mutation stays
 behind ZRA-4 unless a later explicit user decision reorders the dependency after
 fresh authority/conflict analysis.
+Final sequencing reconciliation remains reserved for the ZRA-3 exit per
+`docs/runbooks/cost-first-delivery.md`; WO247 records the current user priority
+without closing that future evidence gate.
+
 ### Consumer North Star
 
 ```text
@@ -337,7 +341,9 @@ toward:
   preserves or removes user data by policy.
 
 "Zero knowledge" means no terminal expertise, not zero consent or hidden account
-authorization.### Browser Companion trust boundary
+authorization.
+
+### Browser Companion trust boundary
 
 Browser/site content is untrusted input. The Companion remains an adapter and must not
 mint task, claim, lease, provider, review, completion or shell authority. Minimum controls:

@@ -17,6 +17,19 @@ The 2026-08-22 decision deferred both facets. At that time Serena multi-project
 activation plus one tunnel per connector was validated and manageable, while a
 new proxy risked becoming a second orchestration universe.
 
+### Superseded 2026-08-22 rationale (preserved for history)
+
+- Serena already supported multi-project activation through `activate_project`,
+  covering most multi-project needs without another proxy.
+- A multiplexer would add MCP proxy/session/tool-namespace complexity and risk a
+  second orchestration universe, contrary to the reuse-before-build gate in
+  `docs/superpowers/specs/2026-08-21-one-app-orchestration-design.md:11`.
+- The then-current one-tunnel-per-connector model had been validated with five
+  live instances and was considered manageable at that time.
+- Brain enforcement could be approached incrementally through execution-record
+  evidence and preflight checks; Phase 1 explicitly noted that prompts teach but
+  do not cage (`docs/plans/2026-08-21-second-brain-phase1.md:24`).
+
 The original reopen conditions were:
 - tunnel-per-connector stops scaling or materially degrades UX;
 - hard brain enforcement becomes necessary and lighter gates are insufficient;
@@ -31,6 +44,7 @@ The desired product also now includes a planned Worker Host, provider-neutral
 execution, persistent background lifecycle, and a Browser Companion, making a
 single capability facade a product-boundary concern rather than a Serena-only
 multiplexer.
+
 ## Decision
 
 Reopen **only the multiplexer/facade facet** as a thin SunDayMCP capability
@@ -68,6 +82,7 @@ The facade MUST NOT become:
 A-Conductor remains the control/trust/authority plane. Serena, native-device
 operations, Git/GitHub, Kilo/Claude/provider harnesses, and future browser or
 remote-host surfaces remain adapters/capabilities.
+
 ## Security and recovery constraints
 
 One endpoint is a UX boundary, not a security boundary. Every privileged
