@@ -52,8 +52,12 @@ instructions into every repository.
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; check WIP capacity per
    `PROJECT-GRAPH.yaml` `rules.default_wip`. For every substantial multi-step
    task, also perform `GLM_OFFLOAD_ASSESSMENT`. Before each material GLM
-   dispatch, refresh the approved quota/readiness evidence; `QUOTA_UNKNOWN`
-   is not `RATE_LIMITED` and is never silently treated as unlimited.
+   dispatch, refresh the approved quota/readiness evidence. Resolve the CoinTH
+   credential through an approved secret source: environment binding first,
+   then an approved global secret file/resolver when available. The current
+   proven CoinTH secret name is `COINTH_GLM_AUTH_TOKEN`; send its value only as
+   `x-api-key` to `GET https://cointh.com/glm/api/quota`, never print/persist it.
+   `QUOTA_UNKNOWN` is not `RATE_LIMITED` and is never treated as unlimited.
 4. PIPELINE FILL — decompose independent READY work, then use the existing
    claim/lease + execution authorities to dispatch every eligible bounded GLM
    lane up to the current WIP/provider-capacity limits. Prefer dispatch-first /

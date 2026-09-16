@@ -107,10 +107,15 @@ User throughput refinement (2026-09-16): substantial sessions should use a
 fills eligible GLM lanes early within WIP/provider/quota gates, continues its own
 non-overlapping integration work without waiting for each report, and harvests
 GLM results at material fan-in points. Before each material GLM dispatch, refresh
-approved quota/readiness evidence. Harness-native `/goal`, `/plan`, `/init` or
-similar commands are allowed only when the exact harness supports them and never
-replace durable authority. Optimize for accepted throughput rather than token
-minimization, without bypassing quota/cost/ownership limits.
+approved quota/readiness evidence. Live proof on 2026-09-16 showed the CoinTH
+quota endpoint returns the full five-hour tuple with HTTP 200 when the approved
+`COINTH_GLM_AUTH_TOKEN` secret is loaded from the user's authorized global
+secret source and sent only as the `x-api-key` header. Never print/persist the
+secret or copy the local secret-file path into tracked policy. Harness-native
+`/goal`, `/plan`, `/init` or similar commands are allowed only when the exact
+harness supports them and never replace durable authority. Optimize for accepted
+throughput rather than token minimization, without bypassing quota/cost/ownership
+limits.
 
 ## Verification / acceptance
 

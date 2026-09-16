@@ -56,11 +56,14 @@ labor exists. Preferred current routing order:
    contradictory high-impact findings, or difficult repeated failures.
 
 For Kilo, prefer the exact installed executable and `kilo roll-call` as a
-practical liveness probe. Use `docs/runbooks/cointh-glm-quota.md` for the CoinTH
-five-hour quota API only through an approved secret resolver. Never print or
-persist the API key. HTTP 401/403 is auth/entitlement evidence, not quota
-exhaustion; missing/stale/malformed evidence remains `UNKNOWN`. Never silently
-substitute another or paid model/provider.
+practical liveness probe. Before material dispatch, resolve the CoinTH quota
+credential from an approved secret source: an existing environment binding, or
+an approved global secret file/resolver when the environment is empty. The
+current live-proven secret name is `COINTH_GLM_AUTH_TOKEN`; pass its value only
+as `x-api-key` to `GET https://cointh.com/glm/api/quota`. Never print, log, or
+persist the key. HTTP 401/403 is auth/entitlement evidence, not quota exhaustion;
+missing/stale/malformed evidence remains `UNKNOWN`. Never silently substitute
+another or paid model/provider.
 
 Record one compact disposition:
 `GLM_OFFLOAD = DISPATCHED | NOT_BENEFICIAL | BLOCKED`, with reason, safe

@@ -63,7 +63,7 @@ Use the current evidence-based order:
 5. GPT-5.6 Sol directly when it is the best eligible executor or external routes are blocked.
 6. GPT-6 Astra only for material unresolved architecture/trust ambiguity, contradictory high-impact findings, or difficult repeated failure after root-cause work.
 
-For Kilo, prefer the exact executable and `kilo roll-call` as a practical liveness probe. Use `docs/runbooks/cointh-glm-quota.md` for CoinTH quota checks only through an approved secret resolver. Never expose/persist the API key. HTTP 401/403 is auth/entitlement evidence, not quota exhaustion; missing/stale/malformed quota evidence remains `UNKNOWN`. Never silently substitute a different or paid model/provider.
+For Kilo, prefer the exact executable and `kilo roll-call` as a practical liveness probe. Before material GLM dispatch, resolve the CoinTH quota credential from an approved environment binding or, when absent, an approved global secret file/resolver. Current live proof uses secret name `COINTH_GLM_AUTH_TOKEN`; send the value only as `x-api-key` to `GET https://cointh.com/glm/api/quota`. Never expose/persist the key or its source-file contents. HTTP 401/403 is auth/entitlement evidence, not quota exhaustion; missing/stale/malformed quota evidence remains `UNKNOWN`. Never silently substitute a different or paid model/provider.
 
 Parallel GLM lanes require independent READY work, explicit owners, known worktrees/branches/HEADs, valid non-overlapping claims/leases, declared result destinations and a fan-in plan. `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
 
