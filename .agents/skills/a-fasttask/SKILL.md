@@ -40,13 +40,14 @@ queue, secret store, or source/runtime adapter.
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; check WIP capacity per
    `PROJECT-GRAPH.yaml` `rules.default_wip`.
 3. PREFLIGHT MATERIAL GLM ROUTES — when the selected route will dispatch
-   CoinTH GLM materially, resolve only `COINTH_GLM_AUTH_TOKEN` through the
-   approved private Project Protocol / existing secret-resolver boundary and
-   run `docs/runbooks/cointh-glm-quota.md`. Never recursively search disks,
-   Drive, repository files, logs, or shell history for credentials. Never
-   print or persist the resolved value. If the approved resolver/source is
-   unavailable, return the typed blocker; do not invent a fallback secret
-   location.
+   CoinTH GLM materially and existing provider/secret authority permits
+   resolution, resolve only `COINTH_GLM_AUTH_TOKEN` through the approved
+   private Project Protocol / existing secret-resolver boundary and run
+   `docs/runbooks/cointh-glm-quota.md`. This step grants no secret-access
+   authority. Never recursively search disks, Drive, repository files, logs,
+   or shell history for credentials. Never print or persist the resolved value.
+   If the approved resolver/source is unavailable, return the typed blocker;
+   do not invent a fallback secret location.
 4. BRANCH — choose the one existing workflow that fits (normal fast path, R3
    high-risk path, continuation, takeover, or closeout) and read only the
    matching reference below:
