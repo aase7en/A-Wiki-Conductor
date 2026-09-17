@@ -19,6 +19,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import ip_address
 from pathlib import Path
+from threading import Lock
 from typing import Callable, Mapping, Sequence
 
 from .native_execution import NativeExecutionError
@@ -117,13 +118,19 @@ class SunDayRemoteBridge:
     ) -> None:
         if not isinstance(runtime, SunDayRuntime):
             raise ValueError("runtime must be a SunDayRuntime")
+        if not isinstance(shared_secret, (bytes, bytearray, memoryview)):
+            raise ValueError("shared_secret must be bytes-like and at least 32 bytes")
+        secret_bytes = bytes(shared_secret)
+        if len(secret_bytes) < 32:
+            raise ValueError("shared_secret must be bytes-like and at least 32 bytes")
         if not isinstance(max_body_bytes, int) or isinstance(max_body_bytes, bool) or max_body_bytes < 1:
             raise ValueError("max_body_bytes must be a positive integer")
         self._runtime = runtime
-        self._shared_secret = bytes(shared_secret)
+        self._shared_secret = secret_bytes
         self._replay_window = replay_window or ReplayWindow()
         self._clock_ms = clock_ms
         self._max_body_bytes = max_body_bytes
+        self._mutation_lock = Lock()
 
     @property
     def runtime(self) -> SunDayRuntime:
@@ -154,7 +161,8 @@ class SunDayRemoteBridge:
             content = payload.get("content")
             if not isinstance(content, str):
                 raise SunDayRemoteBridgeError("PAYLOAD_INVALID")
-            return self._runtime.create_text_if_absent(path, content)
+            with self._mutation_lock:
+                return self._runtime.create_text_if_absent(path, content)
 
         if operation == "fs.write":
             path = _text(payload.get("path"), "PAYLOAD_INVALID")
@@ -162,11 +170,12 @@ class SunDayRemoteBridge:
             if not isinstance(content, str):
                 raise SunDayRemoteBridgeError("PAYLOAD_INVALID")
             expected_sha256 = _optional_text(payload.get("expected_sha256"), "PAYLOAD_INVALID")
-            return self._runtime.write_text(
-                path,
-                content,
-                expected_sha256=expected_sha256,
-            )
+            with self._mutation_lock:
+                return self._runtime.write_text(
+                    path,
+                    content,
+                    expected_sha256=expected_sha256,
+                )
 
         if operation == "search.text":
             query = _text(payload.get("query"), "PAYLOAD_INVALID")
@@ -194,11 +203,19 @@ class SunDayRemoteBridge:
             mutation_intent = payload.get("mutation_intent", False)
             if not isinstance(mutation_intent, bool):
                 raise SunDayRemoteBridgeError("PAYLOAD_INVALID")
+            if mutation_intent:
+                with self._mutation_lock:
+                    return self._runtime.run_allowlisted(
+                        argv,
+                        cwd=cwd,
+                        timeout_seconds=timeout_seconds,
+                        mutation_intent=True,
+                    )
             return self._runtime.run_allowlisted(
                 argv,
                 cwd=cwd,
                 timeout_seconds=timeout_seconds,
-                mutation_intent=mutation_intent,
+                mutation_intent=False,
             )
 
         raise SunDayRemoteBridgeError("OPERATION_NOT_ALLOWED")

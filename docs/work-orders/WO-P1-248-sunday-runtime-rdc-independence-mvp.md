@@ -193,3 +193,17 @@ At claim time:
 
 `SAFE_TO_MUTATE_WO248_SCOPE=YES` only for the exact nine paths above under the published P0 + P1 gates.
 `SAFE_TO_MUTATE_FOREIGN_SOURCE=NO`.
+
+
+## P1 security hardening checkpoint
+
+Exact-head adversarial review found a real concurrent replay race because `ThreadingHTTPServer` shared one unlocked replay window. A deterministic two-thread RED test demonstrated duplicate acceptance (`accepted`, `accepted`). The bounded repair makes replay check+record atomic with a lock.
+
+The same hardening batch also:
+- rejects non-bytes-like bridge secrets instead of allowing `bytes(32)`-style predictable zero-key coercion;
+- bounds request id, nonce, and operation identity text to 128 characters before replay-cache insertion;
+- serializes remote mutation operations (`fs.create`, `fs.write`, and mutation-intent allowlisted commands) while retaining parallel read/search execution.
+
+RED evidence: 5 new adversarial cases failed before the repair (3 unbounded identity fields, integer secret coercion, concurrent mutation overlap), plus the concurrent replay race was proven separately. GREEN evidence after repair: 37 WO248 tests passed; 80 related native/supervised/transport regression tests passed; compileall and diff-check passed.
+
+Fresh CoinTH quota preflight through the approved A-Wiki resolver returned HTTP 403 on 2026-09-17. Classify GLM material dispatch as `AUTH_REQUIRED / ENTITLEMENT_MISMATCH`, not rate-limited; do not bypass or silently substitute a provider.

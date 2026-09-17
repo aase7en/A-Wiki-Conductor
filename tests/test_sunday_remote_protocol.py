@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, BrokenBarrierError
 
 import pytest
 
@@ -152,3 +155,56 @@ def test_unexpected_protocol_version_is_rejected() -> None:
 def test_secret_must_be_at_least_32_bytes() -> None:
     with pytest.raises(RemoteProtocolError, match="AUTH_SECRET_INVALID"):
         sign_request(secret=b"too-short", operation="context.verify")
+
+
+class _BarrierContainsOrderedDict(OrderedDict[str, int]):
+    def __init__(self) -> None:
+        super().__init__()
+        self._barrier = Barrier(2)
+
+    def __contains__(self, key: object) -> bool:
+        observed = super().__contains__(key)
+        try:
+            self._barrier.wait(timeout=0.2)
+        except BrokenBarrierError:
+            pass
+        return observed
+
+
+def test_replay_window_is_atomic_under_concurrent_duplicate_delivery() -> None:
+    replay = ReplayWindow()
+    replay._request_ids = _BarrierContainsOrderedDict()
+    replay._nonces = _BarrierContainsOrderedDict()
+
+    def attempt() -> str:
+        try:
+            replay.check_and_record("req-race", "nonce-race", now_ms=NOW)
+            return "accepted"
+        except RemoteProtocolError as exc:
+            return exc.code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(lambda _: attempt(), range(2)))
+
+    assert sorted(outcomes) == ["REPLAY_DETECTED", "accepted"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("request_id", "r" * 129),
+        ("nonce", "n" * 129),
+        ("operation", "o" * 129),
+    ],
+)
+def test_signed_request_identity_fields_are_bounded(field: str, value: str) -> None:
+    kwargs = {
+        "secret": SECRET,
+        "operation": "context.verify",
+        "request_id": "req-bounded",
+        "nonce": "nonce-bounded",
+        "issued_at_ms": NOW,
+    }
+    kwargs[field] = value
+    with pytest.raises(RemoteProtocolError, match="PROTOCOL_INVALID"):
+        sign_request(**kwargs)

@@ -14,6 +14,7 @@ import secrets
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from threading import Lock
 from typing import Callable, Mapping
 
 
@@ -22,6 +23,7 @@ DEFAULT_MAX_AGE_MS = 60_000
 DEFAULT_MAX_FUTURE_SKEW_MS = 5_000
 DEFAULT_MAX_BODY_BYTES = 1_048_576
 DEFAULT_REPLAY_CAPACITY = 4_096
+_MAX_IDENTITY_TEXT_CHARS = 128
 
 
 class RemoteProtocolError(RuntimeError):
@@ -32,11 +34,18 @@ class RemoteProtocolError(RuntimeError):
         super().__init__(code)
 
 
-def _require_text(value: object, code: str) -> str:
-    if not isinstance(value, str) or not value.strip() or "\x00" in value:
+def _require_text(
+    value: object,
+    code: str,
+    *,
+    max_chars: int | None = None,
+) -> str:
+    if not isinstance(value, str) or not value.strip() or "\\x00" in value:
         raise RemoteProtocolError(code)
-    return value.strip()
-
+    rendered = value.strip()
+    if max_chars is not None and len(rendered) > max_chars:
+        raise RemoteProtocolError(code)
+    return rendered
 
 def _require_int(value: object, code: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool):
@@ -125,9 +134,9 @@ class RemoteRequestEnvelope:
         issued_at_ms = _require_int(value.get("issued_at_ms"), "PROTOCOL_INVALID")
         if issued_at_ms < 0:
             raise RemoteProtocolError("PROTOCOL_INVALID")
-        request_id = _require_text(value.get("request_id"), "PROTOCOL_INVALID")
-        nonce = _require_text(value.get("nonce"), "PROTOCOL_INVALID")
-        operation = _require_text(value.get("operation"), "PROTOCOL_INVALID")
+        request_id = _require_text(value.get("request_id"), "PROTOCOL_INVALID", max_chars=_MAX_IDENTITY_TEXT_CHARS)
+        nonce = _require_text(value.get("nonce"), "PROTOCOL_INVALID", max_chars=_MAX_IDENTITY_TEXT_CHARS)
+        operation = _require_text(value.get("operation"), "PROTOCOL_INVALID", max_chars=_MAX_IDENTITY_TEXT_CHARS)
         signature = _require_text(value.get("signature"), "AUTH_INVALID")
         if len(signature) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in signature):
             raise RemoteProtocolError("AUTH_INVALID")
@@ -202,6 +211,7 @@ class ReplayWindow:
         self._retention_ms = retention_ms
         self._request_ids: OrderedDict[str, int] = OrderedDict()
         self._nonces: OrderedDict[str, int] = OrderedDict()
+        self._lock = Lock()
 
     @staticmethod
     def _purge(container: OrderedDict[str, int], cutoff_ms: int) -> None:
@@ -218,14 +228,15 @@ class ReplayWindow:
             self._nonces.popitem(last=False)
 
     def check_and_record(self, request_id: str, nonce: str, *, now_ms: int) -> None:
-        cutoff = now_ms - self._retention_ms
-        self._purge(self._request_ids, cutoff)
-        self._purge(self._nonces, cutoff)
-        if request_id in self._request_ids or nonce in self._nonces:
-            raise RemoteProtocolError("REPLAY_DETECTED")
-        self._request_ids[request_id] = now_ms
-        self._nonces[nonce] = now_ms
-        self._trim_capacity()
+        with self._lock:
+            cutoff = now_ms - self._retention_ms
+            self._purge(self._request_ids, cutoff)
+            self._purge(self._nonces, cutoff)
+            if request_id in self._request_ids or nonce in self._nonces:
+                raise RemoteProtocolError("REPLAY_DETECTED")
+            self._request_ids[request_id] = now_ms
+            self._nonces[nonce] = now_ms
+            self._trim_capacity()
 
 
 def sign_request(
@@ -239,11 +250,11 @@ def sign_request(
     clock_ms: Callable[[], int] | None = None,
 ) -> RemoteRequestEnvelope:
     key = _normalize_secret(secret)
-    operation_text = _require_text(operation, "PROTOCOL_INVALID")
+    operation_text = _require_text(operation, "PROTOCOL_INVALID", max_chars=_MAX_IDENTITY_TEXT_CHARS)
     request_text = request_id or secrets.token_hex(16)
     nonce_text = nonce or secrets.token_hex(16)
-    _require_text(request_text, "PROTOCOL_INVALID")
-    _require_text(nonce_text, "PROTOCOL_INVALID")
+    _require_text(request_text, "PROTOCOL_INVALID", max_chars=_MAX_IDENTITY_TEXT_CHARS)
+    _require_text(nonce_text, "PROTOCOL_INVALID", max_chars=_MAX_IDENTITY_TEXT_CHARS)
     payload_dict = _require_payload({} if payload is None else payload)
     if issued_at_ms is None:
         source = clock_ms or (lambda: time.time_ns() // 1_000_000)

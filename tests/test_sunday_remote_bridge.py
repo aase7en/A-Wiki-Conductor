@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import subprocess
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -175,3 +177,35 @@ def test_http_server_refuses_non_loopback_without_explicit_opt_in(tmp_path: Path
         match="NON_LOOPBACK_BIND_REQUIRES_EXPLICIT_OPT_IN",
     ):
         build_http_server(bridge, host="0.0.0.0", port=0)
+
+
+def test_bridge_rejects_integer_secret_instead_of_coercing_zero_bytes(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="shared_secret"):
+        SunDayRemoteBridge(_runtime(tmp_path), shared_secret=32)  # type: ignore[arg-type]
+
+
+def test_bridge_serializes_remote_mutations(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path, mutation_allowed=True)
+    guard = threading.Lock()
+    state = {"active": 0, "max_active": 0}
+
+    def fake_write(path, content, *, expected_sha256=None):
+        with guard:
+            state["active"] += 1
+            state["max_active"] = max(state["max_active"], state["active"])
+        time.sleep(0.05)
+        with guard:
+            state["active"] -= 1
+        return {"path": str(path), "content": content, "expected": expected_sha256}
+
+    runtime.write_text = fake_write  # type: ignore[method-assign]
+    bridge = SunDayRemoteBridge(runtime, shared_secret=SECRET, clock_ms=lambda: NOW)
+    bodies = [
+        _signed("fs.write", {"path": "seed.txt", "content": f"value-{index}"}, request_id=f"write-{index}", nonce=f"write-nonce-{index}")
+        for index in range(2)
+    ]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(bridge.handle, bodies))
+
+    assert [response.status_code for response in responses] == [200, 200]
+    assert state["max_active"] == 1
