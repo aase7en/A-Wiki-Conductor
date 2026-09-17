@@ -21,11 +21,48 @@ The compact ChatGPT Project Instruction should explicitly preserve these as the 
 
 | Surface | Primary use | Authority limit |
 |---|---|---|
-| `SunDay-Worker 1`..`SunDay-Worker 5` | scoped implementation, semantic code navigation, symbol/reference work, test generation, repair, read/write local project files when the Worker has a verified project/worktree/claim | Worker output is a claim until reconciled with Git/durable state/tests/review |
+| SunDay lanes (`SunDay-Worker 1`..`N` naming) | scoped implementation, semantic code navigation, symbol/reference work, test generation, repair, read/write local project files when the lane has a verified per-lane execution-context binding (repo/worktree/branch/HEAD/claim) | lane output is a claim until reconciled with Git/durable state/tests/review; no mutable global Active Project |
 | `Remote Desktop Commander` | multi-device filesystem, shell, process, runtime, logs, local builds/tests, repo-wide inspection, fallback local file operations | RDC online does not imply safe repo/Worker/runtime mutation |
 | `GitHub` | remote repository truth, branches, PRs, diffs, issues, exact SHAs, Actions/CI, post-merge evidence | GitHub evidence does not override safety, claims, or local dirty-state protection |
 
-These three are CORE. Discover them read-only when they are relevant to the task. Do not assume previous session mappings are still valid.
+These three are CORE. For every substantial project/engineering session, attempt a lightweight READ-ONLY discovery of all three before mutable work. Trivial Q&A and obvious no-routing work bypass this bootstrap. Do not assume previous session mappings are still valid.
+
+### Substantial-session bootstrap rules
+
+- RDC: identify the exact device/runtime before using filesystem, shell, process, log, build/test or local Git evidence. `RDC ONLINE != SAFE_TO_MUTATE`.
+- GitHub: refresh the target repo/default branch, relevant Issue/PR, exact remote SHA and CI/review/post-main evidence when material.
+- SunDay lanes: probe exposed lanes read-only first. Each lane carries an explicit execution-context binding (repo/worktree/branch/HEAD/claim) verified against its executor process/context; Worker 1..N is lane naming only and there is no mutable global Active Project. A context mismatch fails closed as `CONTEXT_DRIFT` and blocks only that lane.
+- Classify unavailable/busy/mismatched surfaces with the existing typed failure vocabulary. A failed tool blocks only dependent work.
+- Before any mutation, the normal repo/worktree/branch/HEAD/dirty/task/owner/claim/scope/non-overlap gate still applies.
+
+The future SunDayMCP product may collapse this UX into one facade. The accepted pivot (WO-P1-247 / PR #332) keeps A-Sunday Conductor as the sole control plane with the SunDay Runtime as an execution substrate only; until that implementation is accepted these remain separate core surfaces and the same authority gates apply.
+
+### Lane execution rule
+
+For substantial work, GPT-5.6 Sol activates lanes by explicit per-lane
+execution-context binding — repo/worktree/branch/HEAD/claim — verified against
+each executor process/context, then assigns non-overlapping lane roles from the
+task DAG. Useful roles include implementation owner, GLM task-packet or
+dispatch assistant, deterministic verifier, adversarial read-only reviewer,
+and recovery/reserve. Lanes may be active while fewer hold work.
+
+This per-lane binding (recomposed 2026-09-17) replaces the earlier standing
+rule that every exposed Worker binds to the same Active Project. A context
+mismatch fails closed as `CONTEXT_DRIFT` and blocks only that lane.
+
+Lanes may help launch or supervise accepted Kilo/Claude GLM work only after
+the normal quota/provider/task gates pass. Material GLM outputs should be
+challenged by independent read-only checks when capacity permits. Lane
+consensus is not acceptance evidence by itself: GPT-5.6 Sol reconciles
+reports against Git, runtime, tests, claims and exact-SHA evidence, and
+retains final acceptance.
+
+This rule never expands WIP or allows overlapping writers. Lane roles are
+logical assignments, not extra lanes: with the default WIP only one
+independent read-only review lane may run at a time; other lanes stay standby
+or perform deterministic checks inside already-owned lanes/native-tool paths
+unless an active Work Order explicitly changes WIP. `1 MUTABLE HOTSPOT = 1
+MUTATION OWNER` remains binding.
 
 ## 2. Conditional accelerator surfaces
 
@@ -40,6 +77,49 @@ Use these only when the task needs them:
 | `Figma/Product Design` | UI/UX/design-system/prototype work | automatic source mutation without repo gate |
 
 Domain plugins such as Bigdata, Elicit, Metricool, Binance, Alpaca, HeyGen and Canva are not ordinary A-Conductor engineering bootstrap tools. Use them only for their domain-specific tasks.
+
+## 2A. GLM labor-offload assessment
+
+For every substantial multi-step task, perform `GLM_OFFLOAD_ASSESSMENT` while GPT-5.6 Sol remains the integrator and continues useful non-overlapping work.
+
+Use the current evidence-based order:
+1. Kilo CLI + CoinTH GLM-5.3 when the exact executable/provider/model, readiness, authorization, permission profile and quota evidence are eligible.
+2. Claude Code CLI + GLM-5.3 only after exact route/model/auth/liveness is proven on the current runtime.
+3. SunDay lane executors / transitional lane-local Serena for lightweight semantic/local repository operations.
+4. deterministic/native tools when inference is unnecessary.
+5. GPT-5.6 Sol directly when it is the best eligible executor or external routes are blocked.
+6. GPT-6 Astra only for material unresolved architecture/trust ambiguity, contradictory high-impact findings, or difficult repeated failure after root-cause work.
+
+For Kilo, prefer the exact executable and `kilo roll-call` as a practical liveness probe. Before material GLM dispatch, resolve the CoinTH quota credential from an approved environment binding or, when absent, an approved global secret file/resolver. Current live proof uses secret name `COINTH_GLM_AUTH_TOKEN`; send the value only as `x-api-key` to `GET https://cointh.com/glm/api/quota`. Never expose/persist the key or its source-file contents. Provider guidance says this quota GET is non-consuming; a 2026-09-16 back-to-back live check observed zero change in `used_5h` and `remaining_5h`, which is supporting operational evidence rather than a billing guarantee. HTTP 401/403 is auth/entitlement evidence, not quota exhaustion; missing/stale/malformed quota evidence remains `UNKNOWN`. Never silently substitute a different or paid model/provider.
+
+Parallel GLM lanes require independent READY work, explicit owners, known worktrees/branches/HEADs, valid non-overlapping claims/leases, declared result destinations and a fan-in plan. `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
+
+Record one compact routing result: `GLM_OFFLOAD = DISPATCHED | NOT_BENEFICIAL | BLOCKED`, with bounded reason and safe harness/provider/model/quota-readiness/task/scope/result facts when material. This record is routing evidence, not a new task/provider authority.
+
+## 2B. Dispatch-first / harvest-later throughput rule
+
+For substantial work, GPT-5.6 Sol should decompose the dependency DAG early,
+bind independent READY lanes through the existing claim/lease authority, and
+dispatch eligible GLM-5.3 labor as soon as each lane is safe. Do not serialize
+independent lanes merely to read the previous GLM report first. Sol remains an
+active integrator: while delegated lanes run, continue non-overlapping
+architecture, integration, deterministic verification, blocker diagnosis, and
+routing of the next READY lane. Harvest GLM results later at material fan-in
+points, reconcile them against Git/runtime/durable evidence, then repair or
+integrate in bounded batches.
+
+This rule optimizes accepted throughput, not agent count or token minimization.
+Use available authorized quota productively, but never exceed WIP/provider
+capacity, paid-cost approvals, claim/scope boundaries, or `1 MUTABLE HOTSPOT =
+1 MUTATION OWNER`. Before every material GLM dispatch, refresh the approved
+quota/readiness evidence. `QUOTA_UNKNOWN` means evidence is unavailable;
+`RATE_LIMITED` requires observed exhaustion and must not be guessed.
+
+Harness-native commands such as `/goal`, `/plan`, `/init`, skills loops, or
+similar Kilo/Claude Code/ZCode features may be used when the exact installed
+harness proves support. These commands are execution accelerators only; they do
+not replace the durable WO/task packet, claim/lease, result destination,
+verification, or GPT acceptance authority.
 
 ## 3. Fast path principle
 
@@ -139,6 +219,7 @@ Classify accurately:
 - `TARGET_RUNTIME_UNKNOWN`
 - `WORKER_BUSY`
 - `WORKER_STATE_UNKNOWN`
+- `CONTEXT_DRIFT`
 - `ACTIVE_PROJECT_MISMATCH`
 - `CLAIM_CONFLICT`
 - `DIRTY_WORKTREE_UNEXPLAINED`
