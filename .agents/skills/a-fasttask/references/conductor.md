@@ -30,7 +30,7 @@ Before mutable work in a substantial project/engineering session, attempt:
 2. GitHub — refresh repository/default branch, relevant Issue/PR, exact remote
    SHA, CI/review/post-main truth when material.
 3. Exposed SunDay lanes — discover minimal readiness/execution-context state
-   first. Each lane carries an explicit repo/worktree/branch/claim binding
+   first. Each lane carries an explicit repo/worktree/branch/HEAD/claim binding
    verified against its executor process/context; there is no mutable global
    Active Project to bind to (Worker 1..N is lane naming only). A context
    mismatch fails closed as `CONTEXT_DRIFT` and blocks only that lane. Busy or
@@ -47,7 +47,7 @@ Trivial Q&A and obvious no-routing work bypass this bootstrap.
 ## SunDay lane activation and GLM oversight
 
 For substantial project work, activate lanes by explicit per-lane
-execution-context binding (repo/worktree/branch/claim), never by binding a
+execution-context binding (repo/worktree/branch/HEAD/claim), never by binding a
 fleet to one global Active Project. `ACTIVE` means available to be assigned a
 role; it does not mean the lane holds mutable ownership.
 

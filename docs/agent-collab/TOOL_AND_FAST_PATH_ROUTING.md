@@ -21,7 +21,7 @@ The compact ChatGPT Project Instruction should explicitly preserve these as the 
 
 | Surface | Primary use | Authority limit |
 |---|---|---|
-| SunDay lanes (`SunDay-Worker 1`..`N` naming) | scoped implementation, semantic code navigation, symbol/reference work, test generation, repair, read/write local project files when the lane has a verified per-lane execution-context binding (repo/worktree/branch/claim) | lane output is a claim until reconciled with Git/durable state/tests/review; no mutable global Active Project |
+| SunDay lanes (`SunDay-Worker 1`..`N` naming) | scoped implementation, semantic code navigation, symbol/reference work, test generation, repair, read/write local project files when the lane has a verified per-lane execution-context binding (repo/worktree/branch/HEAD/claim) | lane output is a claim until reconciled with Git/durable state/tests/review; no mutable global Active Project |
 | `Remote Desktop Commander` | multi-device filesystem, shell, process, runtime, logs, local builds/tests, repo-wide inspection, fallback local file operations | RDC online does not imply safe repo/Worker/runtime mutation |
 | `GitHub` | remote repository truth, branches, PRs, diffs, issues, exact SHAs, Actions/CI, post-merge evidence | GitHub evidence does not override safety, claims, or local dirty-state protection |
 
@@ -31,7 +31,7 @@ These three are CORE. For every substantial project/engineering session, attempt
 
 - RDC: identify the exact device/runtime before using filesystem, shell, process, log, build/test or local Git evidence. `RDC ONLINE != SAFE_TO_MUTATE`.
 - GitHub: refresh the target repo/default branch, relevant Issue/PR, exact remote SHA and CI/review/post-main evidence when material.
-- SunDay lanes: probe exposed lanes read-only first. Each lane carries an explicit execution-context binding (repo/worktree/branch/claim) verified against its executor process/context; Worker 1..N is lane naming only and there is no mutable global Active Project. A context mismatch fails closed as `CONTEXT_DRIFT` and blocks only that lane.
+- SunDay lanes: probe exposed lanes read-only first. Each lane carries an explicit execution-context binding (repo/worktree/branch/HEAD/claim) verified against its executor process/context; Worker 1..N is lane naming only and there is no mutable global Active Project. A context mismatch fails closed as `CONTEXT_DRIFT` and blocks only that lane.
 - Classify unavailable/busy/mismatched surfaces with the existing typed failure vocabulary. A failed tool blocks only dependent work.
 - Before any mutation, the normal repo/worktree/branch/HEAD/dirty/task/owner/claim/scope/non-overlap gate still applies.
 

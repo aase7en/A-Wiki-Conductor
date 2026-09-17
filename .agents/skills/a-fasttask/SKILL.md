@@ -47,7 +47,7 @@ instructions into every repository.
    GitHub remote truth, and exposed SunDay lane readiness. A missing or
    failed surface receives a typed blocker and blocks only dependent work.
    LANE CONTEXT BIND: each lane receives an explicit execution-context
-   binding (repo/worktree/branch/claim) verified against its executor
+   binding (repo/worktree/branch/HEAD/claim) verified against its executor
    process/context. There is no mutable global Active Project to bind to;
    Worker 1..N is lane naming only. A context mismatch fails closed as
    `CONTEXT_DRIFT`, blocks only that lane, and is reconciled before resume.
