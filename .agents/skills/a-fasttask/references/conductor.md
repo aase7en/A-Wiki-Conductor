@@ -1,9 +1,11 @@
 # A-FastTask reference — conductor roles, WIP capacity, executor fallbacks
 
-Pointer file only (WO-P1-245). Authority lives in the referenced files; this
-reference adds none. On any conflict, `00-AGENT-ENTRY.md`, `AGENTS.md`,
-`PROJECT-GRAPH.yaml`, `docs/agent-collab/CAPABILITY_MATRIX.md`, and
-`docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md` win.
+Pointer file only (WO-P1-245, extended by WO-P1-249). Authority lives in the
+referenced files; this reference adds none. On any conflict,
+`00-AGENT-ENTRY.md`, `AGENTS.md`, `PROJECT-GRAPH.yaml`,
+`docs/agent-collab/CAPABILITY_MATRIX.md`,
+`docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`, and the private Project
+Protocol win.
 
 ## Role binding (routing preferences, never authority)
 
@@ -17,6 +19,39 @@ reference adds none. On any conflict, `00-AGENT-ENTRY.md`, `AGENTS.md`,
 
 No model or provider name is an authority. Routing identity never transfers
 claim, mutation, or acceptance authority.
+
+## CoinTH GLM secret + quota resolution
+
+For every material CoinTH GLM dispatch, run the existing quota preflight in
+`docs/runbooks/cointh-glm-quota.md` before dispatch.
+
+Canonical key name: `COINTH_GLM_AUTH_TOKEN`.
+
+Resolver rules:
+
+1. Use the approved private Project Protocol / existing A-Wiki environment
+   resolver boundary. The private protocol may contain a machine-specific
+   source path; that path is configuration, not a repository secret.
+2. Resolve only the named key. Do **not** recursively search disks, Google
+   Drive, repositories, logs, shell history, environment dumps, or unrelated
+   `.env` files to discover a credential.
+3. The repository's existing resolver implementation is the reusable boundary
+   (`resolve_awiki_drive_root` + `AWikiDriveEnvironmentSource`); A-FastTask
+   must not create a second secret store/resolver.
+4. Never echo, print, serialize, screenshot, commit, or attach the resolved
+   token to task/result/evidence artifacts. Pass it only in memory to the
+   authorized quota/provider call.
+5. Approved resolver/source unavailable => fail closed with a typed secret or
+   auth blocker. Do not guess a new path and do not ask the human to reconstruct
+   a location already present in the private Project Protocol.
+6. A 401/403 from a client whose compatibility is not proven is
+   `CLIENT_COMPATIBILITY_UNVERIFIED`, not immediate proof of a bad credential.
+   Recheck once with the proven PowerShell `Invoke-RestMethod` path before
+   classifying `AUTH_REQUIRED / ENTITLEMENT_MISMATCH`.
+
+Changing where the user stores the secret later should require only private
+resolver configuration/Project Protocol changes. A-FastTask should continue to
+use this same resolver contract.
 
 ## WIP behavior
 
