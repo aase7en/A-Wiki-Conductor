@@ -29,6 +29,30 @@ claimed scope. A transport timeout or ownership uncertainty is
 `RECOVERY_REQUIRED` — never a blind replay of a command that may already have
 run.
 
+### Fresh-session delegated-run reconciliation
+
+Before any new dispatch or conflicting mutation, enumerate the current task's
+known outstanding delegated-execution pointers from the existing job/events/
+checkpoint/evidence authorities and reconcile each against actual runtime,
+bounded logs/result destination, Git/worktree state, and provider/CI evidence
+when applicable.
+
+- `RUNNING`: preserve the existing owner/claim and do not duplicate-dispatch;
+  unrelated non-overlapping READY work may continue.
+- `TERMINAL_UNHARVESTED`: harvest the declared result/evidence first, verify its
+  execution/task/exact-SHA/scope identity, then continue from the accepted or
+  repair-required outcome.
+- `STALLED`, `INTERRUPTED`, or `UNKNOWN`: classify `RECOVERY_REQUIRED`; inspect
+  process/session side effects and replay safety before attach/recover/takeover.
+  None of these states grants automatic retry.
+
+If an intentional context/session rollover occurs while delegated work remains
+outstanding, checkpoint the existing task/claim reference, execution/session or
+PID identity when known, repo/worktree/branch/HEAD, scope, start time,
+log/result/evidence destinations, replay-safety state, derived liveness, and the
+exact next harvest/reconcile action. These are pointers into existing authority,
+not a second task or execution store.
+
 ## Takeover (new executor replaces a stopped one, e.g. Codex/Astra → Sol)
 
 Takeover is fail-closed. ALL of the following must be proven with evidence

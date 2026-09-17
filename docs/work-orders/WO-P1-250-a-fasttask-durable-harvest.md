@@ -1,6 +1,6 @@
 # WO-P1-250 — A-FastTask durable delegated-run recovery
 
-Status: IN_PROGRESS (phase 1 candidate complete; phase 2 blocked on WO247 release)
+Status: IN_PROGRESS (phase 2 candidate authored after WO247 release)
 Issue: #339
 Risk: R2 NORMAL — binding continuity/routing policy
 Owner/integrator: GPT-5.6 Sol
@@ -41,9 +41,11 @@ Reuse the existing resilient execution supervisor; do not create a shadow schedu
 - DEX-6: deterministic E2E faults for chat timeout, context rollover, transport loss, worker exit, machine restart, and terminal result awaiting harvest.
 
 ## Phase 2 — after WO247 release
-Re-pin new `main`, integrate the accepted WO247 A-FastTask base, then make the smallest router/binder delta so a session instruction equivalent to “use A-FastTask and continue” automatically performs `RECOVER -> RECONCILE OUTSTANDING EXECUTIONS -> HARVEST TERMINAL RESULTS -> CONTINUE NEXT READY` without asking the user to reconstruct old chat history.
+WO247 / PR #332 was accepted and merged as `b42d5b433ea67a7986af1132af56a584f5109a8f`; its six-path claim was released in Issue #331. This branch re-pinned `origin/main` and integrated that accepted A-FastTask base before Phase 2 mutation.
 
-A-FastTask remains router-only. It may select/invoke existing liveness, execution, checkpoint, takeover, and harvest authorities; it must not own execution lifecycle state itself.
+The Phase 2 router/binder delta makes a session instruction equivalent to “use A-FastTask and continue” automatically perform `RECOVER -> RECONCILE OUTSTANDING EXECUTIONS -> HARVEST TERMINAL RESULTS -> CONTINUE NEXT READY` without asking the user to reconstruct old chat history. The skill now requires outstanding delegated-run reconciliation before new READY work and records the reconciliation/harvest disposition in its routing output; `material-boundary.md` defines fresh-session state handling and rollover checkpoint fields.
+
+A-FastTask remains router-only. It selects/invokes existing liveness, execution, checkpoint, takeover, and harvest authorities; it does not own execution lifecycle state itself.
 
 ## Verification
 R2 gates: exact scope, diff/UTF-8/link/secret checks, frozen SHA, independent read-only review, exact-head CI, merge, post-main verification. After acceptance, recover and resume the existing SunDayRemoteMCP lanes from actual runtime/Git evidence rather than chat memory.
@@ -53,3 +55,9 @@ Fresh-session reconciliation found the prior WO247 review and WO250 GLM author a
 
 Phase 1 is now authored in the isolated WO250 worktree under the four allowed tracked paths only. Required next gate: deterministic diff/scope/UTF-8/reference/secret checks, then freeze. Phase 2 stays blocked until WO247 / PR #332 is accepted, merged, and its six-path claim is released.
 
+
+## 2026-09-18 Phase-2 candidate checkpoint
+
+Recovered three terminal GLM lanes before new work: the WO247 exact-SHA review/rereview, the SunDayRemoteMCP cancel/shim P2 repair candidate, and the Issue #341 semantic spike. WO247 was accepted/merged/released; semantic-spike output was folded into Issue #341; the SunDayRemoteMCP P2 candidate is under separate Issue #344 independent review and does not overlap this A-Wiki docs hotspot.
+
+Phase 2 mutates only `.agents/skills/a-fasttask/SKILL.md`, `.agents/skills/a-fasttask/references/material-boundary.md`, and this WO on top of the already-committed Phase-1 files. Required next gate: deterministic scope/diff/UTF-8/reference/secret checks, freeze exact SHA, then independent read-only exact-SHA review and exact-head CI.
