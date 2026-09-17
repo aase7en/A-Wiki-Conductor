@@ -37,7 +37,9 @@ Every long-running execution must expose or allow derivation of:
 - evidence/log/result reference;
 - exact next safe action.
 
-Do not store secrets, unrestricted environment dumps, hidden reasoning, or raw credentials in liveness evidence.
+For every material delegated dispatch that can outlive one immediate turn, the existing work-order/job/evidence path must also retain a recoverable dispatch pointer: task/work-order, lane, executor/provider/model, repo/worktree/branch/base/current SHA, claim/scope, process/session identity when known, start time, log/result/evidence destinations, retry-safety classification, and expected completion evidence. This is a pointer into existing authorities, not a new task or execution store.
+
+Do not store secrets, unrestricted environment dumps, hidden reasoning, raw credentials, or credential-bearing command lines in liveness evidence.
 
 ## 4. Derived liveness classes
 
@@ -47,7 +49,9 @@ Use this small projection vocabulary; do not replace the underlying job state ma
 - `RUNNING` — runtime/session is alive and recent activity evidence exists;
 - `WAITING` — execution is intentionally blocked on a typed dependency while ownership remains known;
 - `STALLED` — expected runtime remains non-terminal but silence/progress age exceeded its declared bound or evidence stopped advancing;
-- `TERMINAL` — a durable terminal result/outcome exists and runtime cleanup/reconciliation is complete or explicitly classified;
+- `TERMINAL_UNHARVESTED` — the executor/process is terminal and a result/log/evidence artifact exists or is expected, but the integrator has not yet reconciled and consumed it; conflicting mutation/replay is blocked until harvest/reconciliation;
+- `INTERRUPTED` — the prior executor/session is no longer live and required completion evidence is absent or incomplete; retry authority depends on explicit replay-safety and side-effect reconciliation;
+- `TERMINAL` — a durable terminal result/outcome exists and harvest, runtime cleanup, and reconciliation are complete or explicitly classified;
 - `UNKNOWN` — evidence is insufficient or contradictory; fail closed.
 
 Typed `WAITING` reasons should reuse existing failure/blocker vocabulary where possible, including permission/authorization, rate limit/quota, provider unavailable, external dependency, CI, human action, or device offline.
@@ -75,7 +79,7 @@ A `STALLED` classification is a warning that triggers reconciliation, not automa
 5. classify whether the prior attempt is still running, completed, failed, or ambiguous;
 6. only then choose attach/recover/retry/failover under existing authority.
 
-A timeout by itself is never proof that work did not complete.
+A timeout by itself is never proof that work did not complete. Likewise, a vanished chat turn, closed browser, context rollover, transport disconnect, or missing terminal session is not replay authority. Classify the prior attempt as `NOT_STARTED`, `PARTIAL`, `COMPLETE_UNVERIFIED`, `COMPLETE_VERIFIED`, or `UNKNOWN` using existing execution evidence before any non-idempotent retry.
 
 ## 7. Operator reporting rule
 
@@ -91,9 +95,17 @@ When terminal evidence exists, report the terminal classification and stop descr
 
 Every new session must recover active long-running status from actual runtime/Git/GitHub/durable records using the universal repository entry sequence. Do not ask the user to paste prior prompts/results when the state is recoverable.
 
+Before selecting new READY work, reconcile every known outstanding delegated execution pointer for the current task/lane against: exact process/session identity when still observable; bounded logs/result destination; Git/worktree/branch/HEAD/dirty state; existing job/events/checkpoints; and provider/CI state when applicable. Derive at least `RUNNING`, `TERMINAL_UNHARVESTED`, `STALLED`, `INTERRUPTED`, or `UNKNOWN`.
+
+`TERMINAL_UNHARVESTED` is a harvest-first state: consume and verify the declared result/evidence before redispatch or conflicting mutation. `STALLED`, transport timeout, session loss, and `INTERRUPTED` require replay-safety reconciliation; none grants automatic retry.
+
 The previous chat may be used only as convenience context after factual state is re-pinned.
 
 If an active execution cannot be recovered, classify `UNKNOWN` or the appropriate typed failure and checkpoint the blocker. Never silently launch a duplicate mutable attempt.
+
+### 8.1 Context/session rollover checkpoint
+
+Before intentionally rotating a chat/session/context while delegated work is outstanding, checkpoint the existing task/claim reference, every outstanding execution/process/session identity known, evidence/log/result destinations, current liveness classification, replay-safety state, and the exact next harvest/reconcile action. The checkpoint is continuity evidence only; it does not create a second execution authority.
 
 ## 9. `operator.v1` / mobile projection
 
@@ -115,6 +127,8 @@ Execution-liveness implementation is not accepted until deterministic tests prov
 - `WAITING` exposes a typed reason;
 - terminal result stops heartbeat/stall monitoring for that attempt;
 - a fresh session can recover the same execution identity/status without chat history;
+- a terminal-but-unharvested result is collected before any duplicate dispatch or conflicting mutation;
+- context rollover preserves the outstanding dispatch pointer and exact next harvest/reconcile action;
 - `operator.v1` status projection leaks no secret/credential data;
 - ambiguous evidence yields `UNKNOWN` and blocks unsafe mutation/retry.
 

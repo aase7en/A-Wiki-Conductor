@@ -777,6 +777,22 @@ MVP sequence:
 
 Advanced backend failover/routing should begin only after these primitives pass deterministic recovery tests. A-Conductor may enforce operational scheduling/routing/recovery, but A-Wiki remains owner of orchestration intelligence, policy, durable knowledge and cross-project memory.
 
+### Session-Independent Delegated Execution Continuity (DEX) — 2026-09-17
+
+WO-P1-250 extends this existing supervisor/recovery authority for a defect reproduced when a ChatGPT turn/context ended while Kilo/GLM processes outlived the observer. The governing invariant is `CHAT/TURN LOSS != EXECUTION FAILURE` and `NEW SESSION != NEW TASK`. Chat memory is never the bridge between a delegated dispatch and its harvest.
+
+DEX reuses existing job/events/checkpoints, claims, execution identity, recovery reconciliation, liveness projection, and operator surfaces. It must not introduce another scheduler, task DB, claim/lease store, retry engine, review state machine, completion authority, or SSoT.
+
+- `DEX-0` — durable dispatch pointer bound to existing execution/job authority, including task/lane/executor/repo/worktree/claim/evidence destinations/replay-safety without secrets.
+- `DEX-1` — A-FastTask entry recovery reconciles outstanding delegated executions and harvests `TERMINAL_UNHARVESTED` results before new conflicting work.
+- `DEX-2` — supervisor/reconciler continues independently of ChatGPT turn/session lifetime and derives execution truth from runtime + durable evidence.
+- `DEX-3` — completion event/notification through supported operator surfaces; never claim that plain chat self-wakes after a local process completes.
+- `DEX-4` — SunDay Runtime / SunDayRemoteMCP batch `dispatch/status/harvest/recover` adapter as execution substrate only; A-Sunday Conductor remains the sole control plane.
+- `DEX-5` — reboot/process-loss recovery classifies `NOT_STARTED/PARTIAL/COMPLETE_UNVERIFIED/COMPLETE_VERIFIED/UNKNOWN`; ambiguous state blocks blind replay.
+- `DEX-6` — deterministic E2E faults cover chat timeout, context rollover, transport loss, worker exit, machine restart, and terminal result awaiting harvest.
+
+Dependency rule: DEX policy/recovery entry may be folded independently where scope does not overlap another claim; runtime implementation follows the accepted resilient-supervisor / Zero-Relay / SunDay Runtime dependency chain. The user-facing target is that an instruction equivalent to “use A-FastTask and continue” performs `RECOVER -> RECONCILE OUTSTANDING EXECUTIONS -> HARVEST TERMINAL RESULTS -> CONTINUE NEXT READY` without asking the human to reconstruct a prior chat.
+
 ## 20. Responsive Global UI + Multilingual Guidance (2026-08-24)
 
 **Active planning work order:** `docs/work-orders/WO-P1-062-responsive-global-ui.md`

@@ -810,3 +810,17 @@ A later W4 control failure captured the same mechanism more precisely: MCP conne
 **Lesson:** REUSE/WRAP prose alone is not enough when two repos evolve in parallel. Any cross-repo control-plane capability needs an executable “one owner” invariant before implementation. Different storage formats or names do not make two planners, claim systems, review lifecycles, schedulers or retry authorities independent.
 
 **Verify:** `tests/test_awiki_a_conductor_authority_contract.py` was RED 3/3 against the prior contract and GREEN 3/3 after the owner map. The test rejects missing required capabilities, duplicate keys, invalid roles, OWNER/OWNER pairs, missing migration notes, absent fallback sunset wording, and removal of the downstream dedup hold. This is Tier-1 executable defect memory; Issue #233 carries the cross-repo audit evidence.
+
+---
+
+## #54: Chat/session lifetime must never be used as delegated-execution lifetime (2026-09-17)
+
+**Symptom:** a normal ChatGPT turn/context ended while several Kilo/CoinTH GLM processes continued. A later session could see live process trees but no tracked source change or declared `result.md`; only planning artifacts existed. Without durable recovery, the integrator could forget to harvest a completed result, duplicate-dispatch mutable work, or ask the user to reconstruct the prior chat.
+
+**Root cause:** external execution was launched successfully, but the control path relied too much on the observing chat/session to remember dispatch identity and perform harvest. Chat/session lifetime is transport/observer lifetime, not execution lifetime. A live PID or heartbeat also proved only activity, not implementation progress.
+
+**Fix:** extend the existing execution-liveness/recovery contract so every material delegated dispatch leaves a recoverable pointer in existing task/job/evidence authorities; fresh-session entry reconciles process/session + bounded logs/result + Git/worktree + durable job state; `TERMINAL_UNHARVESTED` is harvested before redispatch/conflicting mutation; `STALLED`, `INTERRUPTED`, timeout, or transport loss never grant replay authority. Add DEX-0..DEX-6 to the master roadmap and, after the current A-FastTask hotspot is released, make A-FastTask automatically run `RECOVER -> RECONCILE OUTSTANDING EXECUTIONS -> HARVEST TERMINAL RESULTS -> CONTINUE NEXT READY`.
+
+**Lesson:** `CHAT/TURN LOSS != EXECUTION FAILURE` and `NEW SESSION != NEW TASK`. Durable execution identity, result destinations, replay safety, and harvest/reconcile actions must survive the observer. Plain chat must not be described as self-waking; unattended completion belongs to the existing supervisor/reconciler plus supported operator/notification surfaces.
+
+**Verify:** Issue #339 records the 2026-09-17 reproduction: three SunDayRemoteMCP GLM lanes outlived the prior turn while Git remained unchanged and no result existed, proving heartbeat/process liveness was not progress. Phase-1 policy/roadmap verification is recorded under `runs/WO-P1-250/phase1/`; Phase 2 remains blocked until WO-P1-247 / PR #332 releases the A-FastTask hotspot, after which exact-SHA independent review and CI remain mandatory.
