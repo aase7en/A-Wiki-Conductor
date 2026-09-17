@@ -68,7 +68,7 @@ The current ChatGPT session is intentionally rolling over because context is lar
 
 Current exact state:
 - WO247 / PR #332 accepted and merged at `b42d5b433ea67a7986af1132af56a584f5109a8f`.
-- WO250 candidate `258890e21059db2d064d2e76ba352f7e35274d73`, PR #345 OPEN/DRAFT; exact-head CI run `35276849639` is `success`; independent exact-SHA review is still required before acceptance/merge.
+- WO250 PR #345 remains OPEN/DRAFT. Semantic candidate `258890e21059db2d064d2e76ba352f7e35274d73` had CI run `35276849639` `success`; docs-only rollover checkpoint commits were appended after that SHA, so a fresh session MUST re-pin the current PR head from GitHub and require exact-head CI + independent exact-SHA review for that current head before acceptance/merge. CI run `35287744156` was started for an intermediate rollover head and is historical unless it matches the re-pinned head.
 - SunDayRemoteMCP canonical `main` remains clean at accepted local-MVP SHA `5a9fde46ffaa5230b8814a4a30b510d7aac37d3d`.
 - WO-SRM-003 / Issue #344 candidate `0c185a7c6fac709a447b3d65b48f0ef1375fa43e` passed Sol/native build, focused P2-R regressions, supervisor suite and diff-check. Kilo review attempts ended without a declared result because of tool-permission/transport/invocation failures; `runs/WO-SRM-003/rereview-result.md` is absent. Classify as `INTERRUPTED/NO_RESULT` unless fresh runtime reconciliation proves otherwise; never count it as PASS or blindly redispatch.
 - WO-SRM-004 / Issue #346 SEM-0 completed cleanly at `eb893560f3ed14e218e80ee521cbc96289c72d49`; build/focused/scope/diff checks are green and candidate is frozen awaiting independent review.
@@ -76,6 +76,6 @@ Current exact state:
 - Issue #342 tracks Kilo credential/status/share-URL redaction; Issue #343 tracks stale Kilo MCP registry/backend lifecycle.
 
 Fresh-session priority under default one-read-only-review WIP:
-`RECOVER WO-SRM-003 review -> exact-SHA review 0c185a7 -> WO250 review 258890e -> SEM-0 review eb89356 -> accepted fan-in -> continue Issue #341 SEM-1a`.
+`RECOVER WO-SRM-003 review -> exact-SHA review 0c185a7 -> re-pin PR #345 current head and review that exact SHA -> SEM-0 review eb89356 -> accepted fan-in -> continue Issue #341 SEM-1a`.
 
 Before each new material GLM dispatch, refresh CoinTH quota/readiness via the approved secret-safe resolver. Re-probe RDC because it has continued working despite a zero-remaining usage indicator. Preserve the dirty A-Wiki root and all foreign worktrees; no reset/clean/stash/force/broad-kill.
