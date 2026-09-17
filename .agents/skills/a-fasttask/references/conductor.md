@@ -39,7 +39,7 @@ Before mutable work in a substantial project/engineering session, attempt:
 Do not block unrelated safe work because one surface is unavailable. Reuse the
 typed failure vocabulary from `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`,
 including `PLUGIN_NOT_EXPOSED_TO_CHAT`, `WORKER_BUSY`, `CONTEXT_DRIFT`,
-`ACTIVE_PROJECT_MISMATCH`, `DEVICE_OFFLINE`, `TRANSPORT_FAILURE`, and
+`ACTIVE_PROJECT_MISMATCH` (legacy code only; its fleet-wide generator is superseded by per-lane binding and must not be reintroduced), `DEVICE_OFFLINE`, `TRANSPORT_FAILURE`, and
 `RUNTIME_UNVERIFIED`.
 
 Trivial Q&A and obvious no-routing work bypass this bootstrap.
