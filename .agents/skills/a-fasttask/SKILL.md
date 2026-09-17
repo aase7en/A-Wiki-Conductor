@@ -9,7 +9,7 @@ Router ONLY (WO-P1-245 / Issue #327). This skill binds the reading agent to the
 repository's existing execution authorities and returns one routing decision.
 It is not, and must not become: a scheduler, task store, claim/lease system,
 reviewer, handoff SSoT, completion state machine, daemon, background cleanup
-queue, or source/runtime adapter.
+queue, secret store, or source/runtime adapter.
 
 ## Trigger (use this skill)
 
@@ -39,13 +39,21 @@ queue, or source/runtime adapter.
    select the executor per `docs/agent-collab/CAPABILITY_MATRIX.md` and
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; check WIP capacity per
    `PROJECT-GRAPH.yaml` `rules.default_wip`.
-3. BRANCH — choose the one existing workflow that fits (normal fast path, R3
+3. PREFLIGHT MATERIAL GLM ROUTES — when the selected route will dispatch
+   CoinTH GLM materially, resolve only `COINTH_GLM_AUTH_TOKEN` through the
+   approved private Project Protocol / existing secret-resolver boundary and
+   run `docs/runbooks/cointh-glm-quota.md`. Never recursively search disks,
+   Drive, repository files, logs, or shell history for credentials. Never
+   print or persist the resolved value. If the approved resolver/source is
+   unavailable, return the typed blocker; do not invent a fallback secret
+   location.
+4. BRANCH — choose the one existing workflow that fits (normal fast path, R3
    high-risk path, continuation, takeover, or closeout) and read only the
    matching reference below:
-   - roles / WIP / executor fallbacks → `references/conductor.md`
+   - roles / WIP / executor fallbacks / CoinTH resolver rules → `references/conductor.md`
    - continuation / takeover / checkpoint → `references/material-boundary.md`
    - temporary-lane closeout → `references/closeout.md`
-4. BIND, then HAND OFF — record/report exactly these routing fields:
+5. BIND, then HAND OFF — record/report exactly these routing fields:
    - existing task/claim reference (work order + claim identity; never
      invented here);
    - chosen existing workflow (named file/risk tier);
@@ -62,7 +70,8 @@ queue, or source/runtime adapter.
 
 ## Authority floor
 
-Selection of this skill grants NO mutation, transfer, cleanup, or acceptance
-authority. If any required authority item is missing or ambiguous, the routing
-decision is `SAFE_TO_MUTATE = NO` plus the typed blocker and the exact next
-action. No new authority path may be created to work around a missing one.
+Selection of this skill grants NO mutation, transfer, cleanup, secret-access,
+or acceptance authority. If any required authority item is missing or
+ambiguous, the routing decision is `SAFE_TO_MUTATE = NO` plus the typed
+blocker and the exact next action. No new authority path may be created to work
+around a missing one.
