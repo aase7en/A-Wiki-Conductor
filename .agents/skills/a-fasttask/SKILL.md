@@ -44,12 +44,14 @@ instructions into every repository.
 2. BOOTSTRAP — for a substantial project/engineering session, attempt the
    lightweight READ-ONLY core-surface discovery defined by
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`: RDC exact device/runtime,
-   GitHub remote truth, and exposed SunDay-Worker 1..5 readiness. A missing or
+   GitHub remote truth, and exposed SunDay lane readiness. A missing or
    failed surface receives a typed blocker and blocks only dependent work.
-   After the exact Active Project/repo/worktree/claim is verified, FLEET BIND:
-   bind/verify every exposed SunDay-Worker 1..5 to that same Active Project.
-   Active/bound never implies mutation authority; unavailable/busy/mismatched
-   Workers receive typed blockers and are skipped without blocking unrelated work.
+   LANE CONTEXT BIND: each lane receives an explicit execution-context
+   binding (repo/worktree/branch/claim) verified against its executor
+   process/context. There is no mutable global Active Project to bind to;
+   Worker 1..N is lane naming only. A context mismatch fails closed as
+   `CONTEXT_DRIFT`, blocks only that lane, and is reconciled before resume.
+   Bound never implies mutation authority.
 3. CLASSIFY — R0/R1/R2/R3 per `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`;
    select the executor per `docs/agent-collab/CAPABILITY_MATRIX.md` and
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; check WIP capacity per
@@ -66,16 +68,17 @@ instructions into every repository.
    `QUOTA_UNKNOWN` is not `RATE_LIMITED` and is never treated as unlimited.
 4. PIPELINE FILL — decompose independent READY work, then use the existing
    claim/lease + execution authorities to dispatch every eligible bounded GLM
-   lane up to the current WIP/provider-capacity limits. Sol also assigns the
-   bound SunDay-Worker fleet into non-overlapping roles: implementation where
-   claimed, GLM task-packet/dispatch assistance, deterministic verification,
-   adversarial read-only review, and recovery/reserve. Workers may help prepare
-   or operate an accepted Kilo/Claude GLM route only within explicit scope and
-   provider authority. Prefer dispatch-first / harvest-later: Sol must not
+   lane up to the current WIP/provider-capacity limits. Sol also assigns
+   non-overlapping lane roles: implementation where claimed, GLM
+   task-packet/dispatch assistance, deterministic verification, adversarial
+   read-only review, and recovery/reserve. Lanes may help prepare or operate
+   an accepted Kilo/Claude GLM route only within explicit scope and provider
+   authority. Transitional Serena use, if any, is private per lane/worktree
+   and optional. Prefer dispatch-first / harvest-later: Sol must not
    serialize independent work merely to wait for an earlier GLM report. GLM
-   outputs should be challenged by an independent Worker/read-only lane when
-   available; under default WIP only one such review lane runs at a time while
-   other Active Workers remain standby or work inside already-owned lanes. Sol
+   outputs should be challenged by an independent read-only lane when
+   available; under default WIP only one such review lane runs at a time
+   while other lanes remain standby or work inside already-owned lanes. Sol
    reconciles all findings and remains final acceptance authority.
    Harness-native helpers such as `/goal`, `/plan`, `/init`, and equivalents are
    conveniences only. Optimize accepted throughput while obeying quota, cost,

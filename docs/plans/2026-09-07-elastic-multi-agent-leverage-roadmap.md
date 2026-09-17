@@ -4,7 +4,8 @@ Date: 2026-09-07
 Status: SHAPING / P0 ZERO-RELAY PRIORITY FENCE / NO FLEET IMPLEMENTATION AUTHORITY
 Repository: `aase7en/A-Wiki-Conductor`
 Baseline at creation: `origin/main@df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` (PR #221 / ZRA-1 merged)
-Final shaping fold re-pinned on 2026-09-12 to `origin/main@cfcb369fe5ab3a50569defa822289f10f2f38aac`. The dependency order remains `ZRA-2 -> ZRA-3 -> ZRA-4`; Phase B is accepted/post-main and Phase C0 / WO216 is the current ZRA-2 implementation frontier.
+Final shaping fold re-pinned on 2026-09-12 to `origin/main@cfcb369fe5ab3a50569defa822289f10f2f38aac`. The dependency order at that fold was `ZRA-2 -> ZRA-3 -> ZRA-4` (relative order unchanged by the 2026-09-17 recomposition); Phase B was accepted/post-main and Phase C0 / WO216 was the ZRA-2 implementation frontier at that time.
+Recomposed on 2026-09-17 by WO-P1-247 / PR #332 (accepted controlled pivot): the `2026-09-17 SunDay Runtime recomposition` section near the end is the current authoritative sequencing and architecture direction.
 
 ## Purpose
 
@@ -14,6 +15,13 @@ This document does not authorize implementation or reorder the accepted Zero-Rel
 
 
 ## 2026-09-12 priority fence and deep-audit fold
+
+> Historical section (2026-09-12). Its production sequencing — including the
+> `ONLY AFTER P0-G` Worker Host/Fleet placement, the `After ZRA-4 baseline
+> acceptance` P1 MVP gate, and the direct ZRA-3 -> ZRA-4 path — is superseded
+> by the 2026-09-17 SunDay Runtime recomposition section below: the SunDay
+> Runtime single-device MVP and its two-lane isolation/recovery proof now sit
+> between ZRA-3 and ZRA-4 recomposed acceptance. Retained here as evidence.
 
 ### Binding product priority
 
@@ -230,7 +238,10 @@ Current remote main at the WO247 claim is
 `018779d0d2f5a7a7a21adb277e23a617692c36fd`. Historical C0/C1 frontier text
 above remains evidence only where newer Git/GitHub/Issue truth differs.
 
-Current dependency order is:
+Dependency order as of 2026-09-16 — superseded 2026-09-17 by the SunDay
+Runtime recomposition section below (which inserts the SunDay Runtime
+single-device MVP and the two-lane isolation/recovery proof between ZRA-3
+and ZRA-4 recomposed); retained as history:
 
 ```text
 WO246 durable author-attempt provenance
@@ -398,6 +409,138 @@ Architecture/docs work under a non-overlapping claim may proceed now. Product mu
 Worker Host, facade, persistent service, Consumer installer integration, Browser Companion,
 unified monitor or federation remains gated after accepted ZRA-4 baseline unless a later
 explicit user decision changes dependency order after a fresh authority/overlap analysis.
+
+Superseded 2026-09-17 by the activation fence in the SunDay Runtime
+recomposition section below: the Runtime single-device MVP now follows ZRA-3
+directly, while facade/persistent-service/installer/browser/monitor/federation
+product mutation stays behind ZRA-4 recomposed acceptance and the
+isolation/recovery proof.
+
+## 2026-09-17 accepted controlled pivot — SunDay Runtime recomposition (WO-P1-247 / PR #332)
+
+Status: DOCS-ONLY SHAPING / NO RUNTIME, SUPERVISOR, FACADE, OR CONSUMER SOURCE AUTHORITY
+
+This section records the accepted controlled pivot and supersedes the
+2026-09-12 and 2026-09-16 production sequencing orders above. Historical text
+is retained as evidence; where it conflicts with this section, this section
+wins for sequencing and architecture direction.
+
+### Control-plane split
+
+- A-Sunday Conductor remains the **sole control plane** (authority,
+  admission, claims/leases, review, acceptance, recovery, evidence).
+- The new **SunDay Runtime** is an **execution substrate only**:
+  `execute / observe / cancel / collect evidence`. It owns no scheduler,
+  task graph/store, claim/lease system, provider admission, review,
+  retry/dedup/completion authority, merge authority, or project memory.
+- **One Runtime Supervisor per device** supervises separate isolated
+  executor processes/contexts per lane. Isolation of process, working
+  context, and working set across lanes is a Runtime obligation.
+- There is **no mutable global Active Project authority**. Logical Worker
+  `1..N` is lane naming only, not a fleet identity.
+- Transitional Serena use is **private per lane/worktree and optional**; the
+  shared mutable Serena Active Project model is SUPERSEDED (ADR-0001 records
+  the supersede and the corrected defect analysis: a request timeout alone
+  does not prove a Serena deadlock; project-context drift from global
+  activation is the architectural defect).
+- The standing rule that every exposed Worker binds to the same Active
+  Project is **replaced** by per-lane explicit execution-context binding
+  (repo/worktree/branch/HEAD/claim) with fail-closed `CONTEXT_DRIFT` when
+  the executor process/context does not match the declared binding.
+- Default WIP is preserved: `3 mutable + 1 independent read-only review`
+  lanes, spare recovery capacity, and `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
+
+### Recomposed dependency order (authoritative)
+
+```text
+WO246 provenance design + implementation
+-> WO205 / full ZRA-2 acceptance
+-> ZRA-3 accepted NEXT READY continuation
+-> SunDay Runtime single-device MVP
+   (Runtime Supervisor + isolated per-lane executors; substrate only)
+-> two-lane multi-project isolation/recovery proof
+-> ZRA-4 recomposed bounded-parallel acceptance
+-> thin SunDayMCP facade
+-> consumer hardening / optional federation
+```
+
+The relative `ZRA-2 -> ZRA-3 -> ZRA-4` order is unchanged. The Runtime MVP
+and its two-lane multi-project isolation/recovery proof are inserted before
+ZRA-4 recomposed acceptance because the bounded-parallel proof now runs on
+the Runtime's isolated two-lane substrate; ZRA-4's accepted scope (C1/C1b/C2
+identity work, two-lane race/restart/partial-failure/fan-in proof,
+ceiling 2 raised toward 3 only from evidence) is retained, not discarded.
+Federation (P2 / SMCP-7) stays deferred until the isolation/recovery proof
+is accepted; the earlier P2 design text remains shaping history, not an
+activation grant.
+
+In the SMCP table above, read every `accepted ZRA-4` dependency as `ZRA-4
+recomposed acceptance` under this order, and read `SMCP-7` federation as
+additionally requiring the isolation/recovery proof. Read `Worker Host` in
+the consumer North Star diagram and in `SMCP-1` as the recomposed SunDay
+Runtime Supervisor/substrate: its single-device MVP and the two-lane
+isolation/recovery proof precede ZRA-4 recomposed acceptance, while the
+facade vertical-slice portion of `SMCP-1` still follows it.
+
+### Recomposition ledger
+
+| Action | Item |
+|---|---|
+| KEEP | WO246, WO205 / full ZRA-2, ZRA-3, SunDayMCP thin facade |
+| RECOMPOSE | ZRA-4, WO247 / PR #332, Worker Host -> Runtime Supervisor |
+| SUPERSEDE | shared mutable Serena Active Project binding |
+| DEFER | federation until two-lane multi-project isolation/recovery proof |
+
+### Runtime Supervisor boundary (recomposes the P1 Worker Host MVP)
+
+The P1 single-machine Worker Host MVP is recomposed into the SunDay Runtime
+single-device MVP. The supervisor may:
+
+- supervise per-lane executor processes/contexts with isolated working
+  contexts per lane;
+- start/observe/cancel executors and collect their evidence by reusing the
+  existing LocalInstanceOrchestrator/supervised-execution/recovery
+  authority;
+- reconcile live process/lane/worktree/branch/HEAD/dirty/task/claim/lease
+  identity per lane;
+- project bounded status/events and fail closed on `CONTEXT_DRIFT`.
+
+It must not become a scheduler, task store, claim/lease system, provider
+registry, review authority, recovery authority, merge authority, or a
+mutation surface beyond typed operations. Executor isolation profiles
+(ports/DB/env/secrets per lane) follow the P3 direction subordinate to
+physical worktree identity and WorkerLease.
+
+### DesktopCommanderMCP adoption strategy
+
+Adopt DesktopCommanderMCP as a **pinned upstream dependency/adapter** for its
+useful filesystem/search/remote-device mechanics — not a whole-repo fork
+initially. Existing Conductor supervised execution/process ownership remains
+the authority. The DesktopCommanderMCP hosted relay remains an optional
+external dependency, never a required control-plane component.
+
+### Security P0 — mutation surface
+
+Autonomous mutation must NOT default to unrestricted raw shell, because a
+same-user shell can bypass scope. Until stronger isolation exists, prefer
+typed file edits, a patch-apply broker, and allowlisted build/test commands.
+This applies to the Runtime executors, the future facade, and any
+DesktopCommanderMCP-backed operation alike.
+
+### Semantic transition
+
+The Serena compatibility adapter is **lane-local only**. The long-term
+direction is a small semantic interface over LSP + Tree-sitter + bounded
+ripgrep. Do not rebuild language servers or a global index initially.
+
+### Activation fence
+
+Docs/research shaping for the SunDay Runtime may proceed in parallel under a
+non-overlapping claim without consuming conflicting production mutation
+ownership. Product mutation for the Runtime supervisor/executors, facade,
+persistent service, consumer installer, browser companion, unified monitor,
+or federation remains gated behind the recomposed order above unless a later
+explicit user decision reorders it after fresh authority/overlap analysis.
 
 ## Existing foundations to reuse
 
@@ -719,6 +862,6 @@ The long-term architecture is accepted only when a user can submit a goal and A-
 
 Do not implement a new orchestration subsystem from this document.
 
-The companion upstream reuse audit is complete for architecture shaping. Continue the existing Zero-Relay critical path from the current frontier: reconcile and finish WO216 Phase C0; independently accept/merge/post-main C0; release and complete WO201 Phase C1; repair and accept the WO208 crash/effect evidence; complete ZRA-2 Phase D plus the full no-human-relay review/repair E2E; reconcile/accept ZRA-3; then execute the already-gated ZRA-4 C1/C1b/C2 work and two-lane proof.
+The companion upstream reuse audit is complete for architecture shaping. Continue the recomposed 2026-09-17 dependency order from the current frontier: WO246 provenance plus the WO205/full ZRA-2 chain — reconcile and finish WO216 Phase C0; independently accept/merge/post-main C0; release and complete WO201 Phase C1; repair and accept the WO208 crash/effect evidence; complete ZRA-2 Phase D plus the full no-human-relay review/repair E2E; reconcile/accept ZRA-3; then build the SunDay Runtime single-device MVP (substrate only) and pass its two-lane multi-project isolation/recovery proof; only then execute the already-gated ZRA-4 C1/C1b/C2 work and two-lane proof as ZRA-4 recomposed acceptance; the thin SunDayMCP facade and consumer hardening follow. (Amended 2026-09-17; the pre-pivot text sent ZRA-3 directly into ZRA-4 work and deferred all Worker Host/Fleet product work until ZRA-4 — superseded by the SunDay Runtime recomposition section above.)
 
-Worker Host/Fleet product work remains deferred until that ZRA-4 baseline is accepted. Research-derived P0 invariants may be folded into the existing ZRA contracts/tests only through their current owners and claims; this document grants no source mutation authority. Any future Worker Host/Fleet implementation requires a fresh work order, exact-main re-pin, ownership/non-overlap gate, RED-first acceptance criteria, and independent exact-SHA review.
+SunDay Runtime product work (recomposed from Worker Host) no longer waits for ZRA-4: its single-device MVP directly follows ZRA-3 acceptance under the recomposed order, and ZRA-4 recomposed acceptance runs on that isolated substrate. Facade, consumer installer, browser companion, unified monitor, and federation product work remains gated behind ZRA-4 recomposed acceptance plus the isolation/recovery proof. Research-derived P0 invariants may be folded into the existing ZRA contracts/tests only through their current owners and claims; this document grants no source mutation authority. Any future SunDay Runtime implementation requires a fresh work order, exact-main re-pin, ownership/non-overlap gate, RED-first acceptance criteria, and independent exact-SHA review.

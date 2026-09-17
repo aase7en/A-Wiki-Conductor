@@ -21,7 +21,7 @@ The compact ChatGPT Project Instruction should explicitly preserve these as the 
 
 | Surface | Primary use | Authority limit |
 |---|---|---|
-| `SunDay-Worker 1`..`SunDay-Worker 5` | scoped implementation, semantic code navigation, symbol/reference work, test generation, repair, read/write local project files when the Worker has a verified project/worktree/claim | Worker output is a claim until reconciled with Git/durable state/tests/review |
+| SunDay lanes (`SunDay-Worker 1`..`N` naming) | scoped implementation, semantic code navigation, symbol/reference work, test generation, repair, read/write local project files when the lane has a verified per-lane execution-context binding (repo/worktree/branch/claim) | lane output is a claim until reconciled with Git/durable state/tests/review; no mutable global Active Project |
 | `Remote Desktop Commander` | multi-device filesystem, shell, process, runtime, logs, local builds/tests, repo-wide inspection, fallback local file operations | RDC online does not imply safe repo/Worker/runtime mutation |
 | `GitHub` | remote repository truth, branches, PRs, diffs, issues, exact SHAs, Actions/CI, post-merge evidence | GitHub evidence does not override safety, claims, or local dirty-state protection |
 
@@ -31,32 +31,38 @@ These three are CORE. For every substantial project/engineering session, attempt
 
 - RDC: identify the exact device/runtime before using filesystem, shell, process, log, build/test or local Git evidence. `RDC ONLINE != SAFE_TO_MUTATE`.
 - GitHub: refresh the target repo/default branch, relevant Issue/PR, exact remote SHA and CI/review/post-main evidence when material.
-- SunDay-Worker 1..5: probe exposed Workers read-only first. After the exact Active Project/repo/worktree/claim is verified, bind/verify every exposed Worker 1..5 to that same Active Project. Project binding is authorized by standing user instruction but grants no mutation authority.
+- SunDay lanes: probe exposed lanes read-only first. Each lane carries an explicit execution-context binding (repo/worktree/branch/claim) verified against its executor process/context; Worker 1..N is lane naming only and there is no mutable global Active Project. A context mismatch fails closed as `CONTEXT_DRIFT` and blocks only that lane.
 - Classify unavailable/busy/mismatched surfaces with the existing typed failure vocabulary. A failed tool blocks only dependent work.
 - Before any mutation, the normal repo/worktree/branch/HEAD/dirty/task/owner/claim/scope/non-overlap gate still applies.
 
-The future SunDayMCP product may collapse this UX into one facade, but until that implementation is accepted these remain separate core surfaces and the same authority gates apply.
+The future SunDayMCP product may collapse this UX into one facade. The accepted pivot (WO-P1-247 / PR #332) keeps A-Sunday Conductor as the sole control plane with the SunDay Runtime as an execution substrate only; until that implementation is accepted these remain separate core surfaces and the same authority gates apply.
 
-### Worker fleet execution rule
+### Lane execution rule
 
-For substantial work, GPT-5.6 Sol should keep every exposed SunDay-Worker 1..5
-bound to the verified Active Project, then assign non-overlapping fleet roles
-from the task DAG. Useful roles include implementation owner, GLM task-packet or
-dispatch assistant, deterministic verifier, adversarial read-only reviewer, and
-recovery/reserve. All five may be active while fewer than five hold work.
+For substantial work, GPT-5.6 Sol activates lanes by explicit per-lane
+execution-context binding — repo/worktree/branch/HEAD/claim — verified against
+each executor process/context, then assigns non-overlapping lane roles from the
+task DAG. Useful roles include implementation owner, GLM task-packet or
+dispatch assistant, deterministic verifier, adversarial read-only reviewer,
+and recovery/reserve. Lanes may be active while fewer hold work.
 
-Workers may help launch or supervise accepted Kilo/Claude GLM work only after the
-normal quota/provider/task gates pass. Material GLM outputs should be challenged
-by independent Worker/read-only checks when capacity permits. Worker consensus is
-not acceptance evidence by itself: GPT-5.6 Sol reconciles reports against Git,
-runtime, tests, claims and exact-SHA evidence, and retains final acceptance.
+This per-lane binding (recomposed 2026-09-17) replaces the earlier standing
+rule that every exposed Worker binds to the same Active Project. A context
+mismatch fails closed as `CONTEXT_DRIFT` and blocks only that lane.
 
-This rule never expands WIP or allows overlapping writers. Worker roles are
-logical assignments, not extra lanes: with the default WIP only one independent
-read-only review lane may run at a time; other Active Workers stay standby or
-perform deterministic checks inside already-owned lanes/native-tool paths unless
-an active Work Order explicitly changes WIP. `1 MUTABLE HOTSPOT = 1 MUTATION
-OWNER` remains binding.
+Lanes may help launch or supervise accepted Kilo/Claude GLM work only after
+the normal quota/provider/task gates pass. Material GLM outputs should be
+challenged by independent read-only checks when capacity permits. Lane
+consensus is not acceptance evidence by itself: GPT-5.6 Sol reconciles
+reports against Git, runtime, tests, claims and exact-SHA evidence, and
+retains final acceptance.
+
+This rule never expands WIP or allows overlapping writers. Lane roles are
+logical assignments, not extra lanes: with the default WIP only one
+independent read-only review lane may run at a time; other lanes stay standby
+or perform deterministic checks inside already-owned lanes/native-tool paths
+unless an active Work Order explicitly changes WIP. `1 MUTABLE HOTSPOT = 1
+MUTATION OWNER` remains binding.
 
 ## 2. Conditional accelerator surfaces
 
@@ -79,7 +85,7 @@ For every substantial multi-step task, perform `GLM_OFFLOAD_ASSESSMENT` while GP
 Use the current evidence-based order:
 1. Kilo CLI + CoinTH GLM-5.3 when the exact executable/provider/model, readiness, authorization, permission profile and quota evidence are eligible.
 2. Claude Code CLI + GLM-5.3 only after exact route/model/auth/liveness is proven on the current runtime.
-3. SunDayWorker/Serena for lightweight semantic/local repository operations.
+3. SunDay lane executors / transitional lane-local Serena for lightweight semantic/local repository operations.
 4. deterministic/native tools when inference is unnecessary.
 5. GPT-5.6 Sol directly when it is the best eligible executor or external routes are blocked.
 6. GPT-6 Astra only for material unresolved architecture/trust ambiguity, contradictory high-impact findings, or difficult repeated failure after root-cause work.
@@ -213,6 +219,7 @@ Classify accurately:
 - `TARGET_RUNTIME_UNKNOWN`
 - `WORKER_BUSY`
 - `WORKER_STATE_UNKNOWN`
+- `CONTEXT_DRIFT`
 - `ACTIVE_PROJECT_MISMATCH`
 - `CLAIM_CONFLICT`
 - `DIRTY_WORKTREE_UNEXPLAINED`
