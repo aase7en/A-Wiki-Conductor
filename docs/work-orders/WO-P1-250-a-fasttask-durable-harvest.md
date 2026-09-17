@@ -61,3 +61,21 @@ Phase 1 is now authored in the isolated WO250 worktree under the four allowed tr
 Recovered three terminal GLM lanes before new work: the WO247 exact-SHA review/rereview, the SunDayRemoteMCP cancel/shim P2 repair candidate, and the Issue #341 semantic spike. WO247 was accepted/merged/released; semantic-spike output was folded into Issue #341; the SunDayRemoteMCP P2 candidate is under separate Issue #344 independent review and does not overlap this A-Wiki docs hotspot.
 
 Phase 2 mutates only `.agents/skills/a-fasttask/SKILL.md`, `.agents/skills/a-fasttask/references/material-boundary.md`, and this WO on top of the already-committed Phase-1 files. Required next gate: deterministic scope/diff/UTF-8/reference/secret checks, freeze exact SHA, then independent read-only exact-SHA review and exact-head CI.
+
+## 2026-09-18 06:33 +07:00 — session rollover checkpoint
+
+The current ChatGPT session is intentionally rolling over because context is large. Detailed durable local handoff is at `runs/WO-P1-250/session-rollover-20260918-0633.md`. A fresh session must use A-FastTask and recover actual Git/GitHub/runtime state before trusting this summary.
+
+Current exact state:
+- WO247 / PR #332 accepted and merged at `b42d5b433ea67a7986af1132af56a584f5109a8f`.
+- WO250 candidate `258890e21059db2d064d2e76ba352f7e35274d73`, PR #345 OPEN/DRAFT; exact-head CI run `35276849639` is `success`; independent exact-SHA review is still required before acceptance/merge.
+- SunDayRemoteMCP canonical `main` remains clean at accepted local-MVP SHA `5a9fde46ffaa5230b8814a4a30b510d7aac37d3d`.
+- WO-SRM-003 / Issue #344 candidate `0c185a7c6fac709a447b3d65b48f0ef1375fa43e` passed Sol/native build, focused P2-R regressions, supervisor suite and diff-check. Kilo review attempts ended without a declared result because of tool-permission/transport/invocation failures; `runs/WO-SRM-003/rereview-result.md` is absent. Classify as `INTERRUPTED/NO_RESULT` unless fresh runtime reconciliation proves otherwise; never count it as PASS or blindly redispatch.
+- WO-SRM-004 / Issue #346 SEM-0 completed cleanly at `eb893560f3ed14e218e80ee521cbc96289c72d49`; build/focused/scope/diff checks are green and candidate is frozen awaiting independent review.
+- Issue #341 holds the provider-neutral semantic/LSP roadmap; independent implementation only, no current Serena GPL code copy and no SolidLSP reuse without separate provenance review.
+- Issue #342 tracks Kilo credential/status/share-URL redaction; Issue #343 tracks stale Kilo MCP registry/backend lifecycle.
+
+Fresh-session priority under default one-read-only-review WIP:
+`RECOVER WO-SRM-003 review -> exact-SHA review 0c185a7 -> WO250 review 258890e -> SEM-0 review eb89356 -> accepted fan-in -> continue Issue #341 SEM-1a`.
+
+Before each new material GLM dispatch, refresh CoinTH quota/readiness via the approved secret-safe resolver. Re-probe RDC because it has continued working despite a zero-remaining usage indicator. Preserve the dirty A-Wiki root and all foreign worktrees; no reset/clean/stash/force/broad-kill.
