@@ -67,6 +67,12 @@ DO NOT CREATE:
 - NEW `src/a_conductor/desktop_commander_adapter.py`
 - NEW `tests/test_sunday_runtime.py`
 - NEW `tests/test_desktop_commander_adapter.py`
+- NEW `src/a_conductor/sunday_remote_protocol.py`
+- NEW `src/a_conductor/sunday_remote_bridge.py`
+- NEW `tests/test_sunday_remote_protocol.py`
+- NEW `tests/test_sunday_remote_bridge.py`
+
+P1 expansion was explicitly published in Issue #333 after the P0 freeze; it remains the same mutable WO248 lane and does not increase global mutable WIP.
 
 Everything else is read-only unless a new explicit gate is published.
 
@@ -123,7 +129,21 @@ The adapter:
 - must not select the proprietary hosted `remote` mode by default;
 - must fail closed on unexpected package/version/configuration.
 
-This first source batch does not implement a remote relay or OAuth service.
+P0 intentionally did not implement the remote transport. P1 adds a self-hosted transport owned by this repository; it does not copy the proprietary hosted RDC relay.
+
+### P1 self-hosted remote bridge
+
+The bridge:
+- signs every request with HMAC-SHA256 using a caller-supplied secret that is never persisted by the bridge;
+- enforces timestamp freshness plus bounded request-id/nonce replay protection;
+- exposes typed operations only: context verify, bounded file read/list/create/write, bounded text search, and already-allowlisted argv execution;
+- delegates all filesystem/command/context authority to the bound `SunDayRuntime`; it cannot mint mutation authority or bypass `CONTEXT_DRIFT`;
+- has no raw-shell operation; unknown operations fail closed;
+- provides a standard-library HTTP listener that binds loopback by default; non-loopback plaintext bind requires explicit opt-in because HMAC authenticates but does not encrypt;
+- is intended to sit behind a separately-authorized encrypted tunnel/reverse proxy for actual remote-device use;
+- owns no scheduler/task/claim/provider/review/retry/completion/merge/project-memory authority.
+
+This establishes the self-hosted RDC-independent transport seam without introducing a second control plane.
 
 ## Duplicate Remote-agent incident gate
 
@@ -150,7 +170,7 @@ Stopping the duplicate is runtime cleanup, not proof of billing reduction. Tool-
 8. DesktopCommander adapter pins exact package/version.
 9. adapter local argv never contains `remote`.
 10. unexpected package/version fails closed.
-11. no touched file outside exact five-path scope.
+11. no touched file outside the exact nine-path WO248 scope (P0 five paths + P1 four new paths).
 12. targeted + related tests, compileall, diff-check, UTF-8, secret scan pass.
 13. exact candidate receives independent GLM-5.3 read-only review after fresh approved CoinTH quota/readiness preflight.
 14. exact-head hosted CI passes.
@@ -167,9 +187,9 @@ Long/mechanical work should route to Kilo + `cointh-glm/glm-5.3` after fresh app
 At claim time:
 - task/claim identity exists as Issue #333;
 - exact worktree/branch/HEAD is known;
-- exact scope is new-file-only and does not overlap WO246 source;
+- P0 was frozen before P1; the P1 expansion owns only four new transport source/test paths plus this WO doc, for nine total WO248 paths, with no WO246 overlap;
 - protected root is untouched;
 - global WIP is at, not above, its 3 mutable lane maximum.
 
-`SAFE_TO_MUTATE_WO248_SCOPE=YES` only for the exact five paths above.
+`SAFE_TO_MUTATE_WO248_SCOPE=YES` only for the exact nine paths above under the published P0 + P1 gates.
 `SAFE_TO_MUTATE_FOREIGN_SOURCE=NO`.
