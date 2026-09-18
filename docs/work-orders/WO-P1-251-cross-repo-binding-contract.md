@@ -18,11 +18,9 @@ Define the first repo-native CROSS_REPO binding contract for A-Sunday Conductor:
 
 This work must not create a second scheduler, task store, claim authority, reviewer authority, completion authority, mutable global Active Project, or copy Project Sources into repo roots.
 
-## Normative vocabulary
+## Topology vocabulary
 
-- `CONTROL_PLANE_ONLY` — all mutation lanes are in the authority repo.
-- `EXECUTION_SUBSTRATE_ONLY` — mutation lanes are in execution repo(s), while task/claim/WIP/review/acceptance remain governed by the authority repo.
-- `CROSS_REPO` — mutation spans both repo roles and is accepted as one exact-SHA compatibility set.
+The accepted definition home produced by this Work Order is `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`. This Work Order uses the exact labels `CONTROL_PLANE_ONLY`, `EXECUTION_SUBSTRATE_ONLY`, and `CROSS_REPO` without maintaining a second definition copy here.
 
 Per-lane binding:
 

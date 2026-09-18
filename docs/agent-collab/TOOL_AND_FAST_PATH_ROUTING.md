@@ -105,9 +105,11 @@ A CROSS_REPO work item freezes one exact candidate head per member repo:
 
 - any member head drift invalidates the whole set until re-pin plus focused
   review of the affected delta;
-- completion is set-level, never per-repo: no member merges or reaches
-  acceptance alone. The authority repository's active work order is the
-  single completion pointer and must record the final merged SHA pair,
+- completion is set-level, never per-repo: member repositories may merge
+  sequentially only in the declared merge order, but no member is considered
+  accepted or complete solely because its own merge succeeded. The authority
+  repository's active work order is the single completion pointer and must
+  record the final merged SHA pair,
   CI/deterministic-fallback evidence, the independent-review reference, and
   the global WIP ledger before closure;
 - merge order is authority repo first, then execution repo(s); post-main
