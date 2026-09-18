@@ -39,8 +39,16 @@ instructions into every repository.
 
 1. RECOVER — run the `00-AGENT-ENTRY.md` start sequence; recover actual
    repository/worktree/remote/branch/HEAD/dirty/claim state, plus task and
-   execution liveness per `docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md`
-   when a prior session exists.
+   execution liveness per `docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md`.
+   Before selecting new READY work, reconcile every known outstanding delegated
+   execution pointer for the current task/claim from existing job/events/
+   checkpoints/evidence plus actual process/session/log/result/Git state. Derive
+   `RUNNING`, `TERMINAL_UNHARVESTED`, `STALLED`, `INTERRUPTED`, or `UNKNOWN`.
+   Harvest and verify `TERMINAL_UNHARVESTED` results before redispatch or
+   conflicting mutation. `STALLED`, timeout, transport loss, or session loss
+   never grants replay authority; route them through existing recovery/takeover
+   rules. This is recovery/harvest routing only — A-FastTask creates no new
+   execution store or lifecycle state.
 2. BOOTSTRAP — for a substantial project/engineering session, attempt the
    lightweight READ-ONLY core-surface discovery defined by
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`: RDC exact device/runtime,
@@ -95,6 +103,9 @@ instructions into every repository.
    - chosen existing workflow (named file/risk tier);
    - evidence destination (ignored `runs/<work-item>/<lane>/` path);
    - current blocker (typed failure code or `NONE`);
+   - outstanding delegated-execution reconciliation (`NONE`, or exact execution
+     identities + derived states + harvest/recovery disposition from existing
+     authorities);
    - GLM offload disposition (`DISPATCHED`, `NOT_BENEFICIAL`, or `BLOCKED`)
      with bounded reason and safe harness/model/quota-readiness facts when
      material; never include secrets;
