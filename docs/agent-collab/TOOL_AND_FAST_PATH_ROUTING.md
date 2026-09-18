@@ -88,7 +88,9 @@ Every mutable lane binds exactly one repository through the full tuple:
 
 `repo -> worktree -> branch -> HEAD -> task/claim -> scope`
 
-- one repo per lane: a CROSS_REPO work item uses one lane per member repo;
+- each lane binds exactly one repository; multiple non-overlapping lanes may
+  share a repository when the active Work Order permits and the global WIP
+  budget still has capacity;
 - every tuple element is verified against the executor process/context
   before mutation; any mismatch fails closed as `CONTEXT_DRIFT` and blocks
   only that lane;
