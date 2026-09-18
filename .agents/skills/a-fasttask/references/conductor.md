@@ -30,11 +30,15 @@ Before mutable work in a substantial project/engineering session, attempt:
 2. GitHub — refresh repository/default branch, relevant Issue/PR, exact remote
    SHA, CI/review/post-main truth when material.
 3. Exposed SunDay lanes — discover minimal readiness/execution-context state
-   first. Each lane carries an explicit repo/worktree/branch/HEAD/claim binding
-   verified against its executor process/context; there is no mutable global
+   first. Each lane is bound to exactly one repo by the full tuple
+   `repo -> worktree -> branch -> HEAD -> task/claim -> scope`, verified
+   against its executor process/context; there is no mutable global
    Active Project to bind to (Worker 1..N is lane naming only). A context
    mismatch fails closed as `CONTEXT_DRIFT` and blocks only that lane. Busy or
-   unavailable lanes receive typed blockers.
+   unavailable lanes receive typed blockers. `CROSS_REPO` work additionally
+   pins the exact-SHA compatibility set from
+   `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md` (definition home;
+   projections never redefine topology semantics).
 
 Do not block unrelated safe work because one surface is unavailable. Reuse the
 typed failure vocabulary from `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`,
@@ -89,7 +93,11 @@ labor exists. Preferred current routing order:
    contradictory high-impact findings, or difficult repeated failures.
 
 For Kilo, prefer the exact installed executable and `kilo roll-call` as a
-practical liveness probe. Before material dispatch, resolve the CoinTH quota
+practical liveness probe. Local dispatch follows the durable Windows
+no-console rule: launch the exact installed executable directly; use hidden
+PowerShell with no new console only when unavoidable; start background
+children with `CREATE_NO_WINDOW`/`windowsHide`; never change global shell
+settings; terminate by exact PID with verified command identity only. Before material dispatch, resolve the CoinTH quota
 credential from an approved secret source: an existing environment binding, or
 an approved global secret file/resolver when the environment is empty. The
 current live-proven secret name is `COINTH_GLM_AUTH_TOKEN`; pass its value only
@@ -122,7 +130,16 @@ writers. Do not optimize for token minimization when current authorized quota is
 available, but avoid redundant prompts/rereads that do not increase accepted
 throughput. Before every material GLM dispatch, refresh approved quota evidence.
 If the five-hour tuple is unavailable, record `QUOTA_UNKNOWN`; do not report
-`RATE_LIMITED` unless exhaustion is actually observed.
+`RATE_LIMITED` unless exhaustion is actually observed. When exact upstream
+admission itself reports `RATE_LIMITED`, that live admission evidence outranks
+proxy/reseller quota counters. Record the upstream reset evidence, suppress
+repeat GLM admission probes and repeated credential/quota root-cause work until
+the reset unless material evidence changes, and keep the pipeline moving with
+GPT-5.6 Sol on eligible READY implementation/analysis work after terminal GLM
+executions are harvested and ownership is safe to transfer. This fallback does
+not waive independent-review requirements: Sol may not satisfy an independent
+review gate for its own authored mutation. At/after reset, perform one fresh
+quota + exact-admission preflight and refill GLM lanes only if admitted.
 
 Kilo/Claude Code/ZCode-native slash or goal commands (for example `/goal`,
 `/plan`, `/init`) may be used when the exact installed harness supports them.
@@ -133,7 +150,9 @@ merge, or acceptance authority.
 
 `PROJECT-GRAPH.yaml` `rules.default_wip` is the capacity authority: up to 3
 mutable implementation lanes and 1 independent read-only review lane, with
-spare capacity kept for recovery/blocker diagnosis.
+spare capacity kept for recovery/blocker diagnosis. This budget is one
+global account across every member of a `CROSS_REPO` compatibility set;
+topology never multiplies WIP per repository.
 
 - A free mutable lane is filled by claiming non-overlapping scope through the
   existing claim/lease authority — never by creating a parallel task list.
@@ -157,7 +176,11 @@ without widening scope:
    bounded task; never wait on an unexposed Worker or build a second queue.
 2. GLM route `RATE_LIMITED`, `TRANSPORT_FAILURE`, `AUTH_REQUIRED`, or unverified
    route => use only an explicitly eligible fallback or checkpoint for Sol;
-   never silently substitute another model/provider.
+   never silently substitute another model/provider. For observed upstream
+   `RATE_LIMITED`, prefer immediate Sol takeover of eligible READY
+   implementation/analysis work after harvest/ownership reconciliation, and do
+   not repeat the same provider diagnosis or live probe before reset without new
+   evidence. Independent review remains independent.
 3. Unclassifiable failure => `UNKNOWN_FAILURE`: checkpoint through the lane's
    declared result/evidence destination at a material boundary and report the
    exact blocker.

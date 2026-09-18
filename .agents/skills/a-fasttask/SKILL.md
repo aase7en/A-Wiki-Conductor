@@ -54,16 +54,31 @@ instructions into every repository.
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`: RDC exact device/runtime,
    GitHub remote truth, and exposed SunDay lane readiness. A missing or
    failed surface receives a typed blocker and blocks only dependent work.
-   LANE CONTEXT BIND: each lane receives an explicit execution-context
-   binding (repo/worktree/branch/HEAD/claim) verified against its executor
-   process/context. There is no mutable global Active Project to bind to;
-   Worker 1..N is lane naming only. A context mismatch fails closed as
-   `CONTEXT_DRIFT`, blocks only that lane, and is reconciled before resume.
-   Bound never implies mutation authority.
+   LANE CONTEXT BIND: each lane is bound to exactly one repo by the full
+   tuple `repo -> worktree -> branch -> HEAD -> task/claim -> scope`,
+   verified against its executor process/context. There is no mutable
+   global Active Project to bind to; Worker 1..N is lane naming only. A
+   context mismatch fails closed as `CONTEXT_DRIFT`, blocks only that lane,
+   and is reconciled before resume. Bound never implies mutation authority.
+   Topology (`CONTROL_PLANE_ONLY` / `EXECUTION_SUBSTRATE_ONLY` /
+   `CROSS_REPO`) is defined only in
+   `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; projected here
+   without redefining: a `CROSS_REPO` freeze pins one exact-SHA
+   compatibility set `{AUTHORITY_REPO@SHA_AUTH, EXECUTION_REPO@SHA_EXEC}`
+   and any member head drift invalidates the set until re-pin and focused
+   review of the affected delta; WIP stays one global budget across set
+   members; and CROSS_REPO evidence/results fold to the AUTHORITY_REPO.
+   Windows process routing follows the durable no-console rule from the
+   same home: exact installed executable invoked directly; hidden
+   PowerShell only when unavoidable; background children launched with
+   `CREATE_NO_WINDOW`/`windowsHide`; exact-PID-only termination with
+   verified command identity; never change global shell settings.
 3. CLASSIFY — R0/R1/R2/R3 per `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`;
    select the executor per `docs/agent-collab/CAPABILITY_MATRIX.md` and
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; check WIP capacity per
-   `PROJECT-GRAPH.yaml` `rules.default_wip`. For every substantial multi-step
+   `PROJECT-GRAPH.yaml` `rules.default_wip`, counted once across all
+   compatibility-set members (`CROSS_REPO` never multiplies WIP per
+   repository). For every substantial multi-step
    task, also perform `GLM_OFFLOAD_ASSESSMENT`. Before each material GLM
    dispatch, refresh the approved quota/readiness evidence. Resolve the CoinTH
    credential through an approved secret source: environment binding first,
@@ -74,6 +89,16 @@ instructions into every repository.
    back-to-back live check observed zero change in `used_5h` and `remaining_5h`.
    Treat that as operational supporting evidence, not a billing guarantee.
    `QUOTA_UNKNOWN` is not `RATE_LIMITED` and is never treated as unlimited.
+   If the exact upstream GLM admission is observed `RATE_LIMITED`, record the
+   provider-reported reset evidence, set GLM offload blocked for that window,
+   and do not repeat quota/credential root-cause work or live admission probes
+   before the reset unless material evidence changes. Harvest any terminal GLM
+   execution first, then let GPT-5.6 Sol take over eligible READY
+   implementation/analysis work within the verified claim/scope so throughput
+   continues. Independent-review requirements do not transfer to the authoring
+   Sol lane: a separate qualified reviewer is still required where policy says
+   independent review. At/after reset, refresh quota plus exact live admission
+   once, then refill eligible GLM lanes up to WIP.
 4. PIPELINE FILL — decompose independent READY work, then use the existing
    claim/lease + execution authorities to dispatch every eligible bounded GLM
    lane up to the current WIP/provider-capacity limits. Sol also assigns
