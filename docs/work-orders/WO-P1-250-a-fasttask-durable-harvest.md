@@ -4,7 +4,8 @@ Status: IN_PROGRESS (phase 2 candidate authored after WO247 release)
 Issue: #339
 Risk: R2 NORMAL — binding continuity/routing policy
 Owner/integrator: GPT-5.6 Sol
-Base: `018779d0d2f5a7a7a21adb277e23a617692c36fd`
+Initial base (phase 1): `018779d0d2f5a7a7a21adb277e23a617692c36fd`
+Phase-2 effective base after WO247 / PR #332 release: `b42d5b433ea67a7986af1132af56a584f5109a8f`
 
 ## Problem
 A normal ChatGPT turn can time out or roll context while a dispatched Kilo/GLM process continues. A fresh chat does not inherently remember that execution. Chat/session lifetime is therefore not execution lifetime.

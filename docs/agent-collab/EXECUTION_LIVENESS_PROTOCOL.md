@@ -79,7 +79,7 @@ A `STALLED` classification is a warning that triggers reconciliation, not automa
 5. classify whether the prior attempt is still running, completed, failed, or ambiguous;
 6. only then choose attach/recover/retry/failover under existing authority.
 
-A timeout by itself is never proof that work did not complete. Likewise, a vanished chat turn, closed browser, context rollover, transport disconnect, or missing terminal session is not replay authority. Classify the prior attempt as `NOT_STARTED`, `PARTIAL`, `COMPLETE_UNVERIFIED`, `COMPLETE_VERIFIED`, or `UNKNOWN` using existing execution evidence before any non-idempotent retry.
+A timeout by itself is never proof that work did not complete. Likewise, a vanished chat turn, closed browser, context rollover, transport disconnect, or missing terminal session is not replay authority. Before any non-idempotent retry, classify the prior attempt using the replay-safety projection `NOT_STARTED`, `PARTIAL`, `COMPLETE_UNVERIFIED`, `COMPLETE_VERIFIED`, or `UNKNOWN` from existing execution evidence. This projection maps onto the existing durable `RecoveryClassification` rather than creating a second state machine: `NOT_STARTED -> NO_MUTATION`, `PARTIAL -> PARTIAL_MUTATION`, `COMPLETE_UNVERIFIED -> MUTATION_COMPLETE_UNVERIFIED`, `COMPLETE_VERIFIED -> COMPLETE_VERIFIED`, and `UNKNOWN -> UNKNOWN`. If existing durable evidence is `UNEXPECTED_DRIFT`, preserve that classification and fail closed.
 
 ## 7. Operator reporting rule
 
