@@ -239,6 +239,12 @@ class KiloHarnessAdapter:
             "Do not claim success unless you consumed the attached task. "
             f"On successful completion emit exactly one final line: {marker}"
         )
+        try:
+            worktree = Path(dispatch.worktree_path).expanduser().resolve(strict=True)
+        except OSError as exc:
+            raise KiloHarnessError("KILO_WORKTREE_UNREADABLE") from exc
+        if not worktree.is_dir():
+            raise KiloHarnessError("KILO_WORKTREE_UNREADABLE")
         argv = [
             self._executable,
             "run",
@@ -253,7 +259,7 @@ class KiloHarnessAdapter:
             "--format",
             "json",
             "--dir",
-            str(Path(dispatch.worktree_path).expanduser().resolve(strict=True)),
+            str(worktree),
         ]
         if dispatch.effort_level not in (None, "DEFAULT"):
             variant = _EFFORT_VARIANTS.get(dispatch.effort_level)
@@ -262,24 +268,51 @@ class KiloHarnessAdapter:
             argv.extend(("--variant", variant))
         return KiloInvocation(
             argv=tuple(argv),
-            cwd=str(Path(dispatch.worktree_path).expanduser().resolve(strict=True)),
+            cwd=str(worktree),
             timeout_seconds=dispatch.timeout_seconds,
             max_output_bytes=dispatch.max_output_bytes,
         )
 
     @staticmethod
-    def _decode_events(stdout: str, redactions: tuple[str, ...]) -> tuple[dict[str, object], ...]:
+    def _validate_runner_result(raw: object) -> KiloRunnerResult:
+        if not isinstance(raw, KiloRunnerResult):
+            raise KiloHarnessError("RUNNER_RESULT_INVALID")
+        if not isinstance(raw.stdout, str) or not isinstance(raw.stderr, str):
+            raise KiloHarnessError("RUNNER_RESULT_INVALID")
+        if not isinstance(raw.timed_out, bool):
+            raise KiloHarnessError("RUNNER_RESULT_INVALID")
+        if raw.exit_code is not None and (
+            isinstance(raw.exit_code, bool) or not isinstance(raw.exit_code, int)
+        ):
+            raise KiloHarnessError("RUNNER_RESULT_INVALID")
+        if raw.error_code is not None and (
+            not isinstance(raw.error_code, str)
+            or not raw.error_code.strip()
+            or "\x00" in raw.error_code
+            or len(raw.error_code) > 256
+        ):
+            raise KiloHarnessError("RUNNER_RESULT_INVALID")
+        return raw
+
+    @staticmethod
+    def _decode_events(
+        stdout: str,
+        redactions: tuple[str, ...],
+    ) -> tuple[dict[str, object], ...]:
         events: list[dict[str, object]] = []
         for line in stdout.splitlines():
             if not line.strip():
                 continue
             try:
                 decoded = json.loads(line)
-            except (TypeError, json.JSONDecodeError) as exc:
+                if not isinstance(decoded, dict):
+                    raise KiloHarnessError("KILO_OUTPUT_INVALID")
+                redacted = _redact_json(decoded, redactions)
+            except KiloHarnessError:
+                raise
+            except (TypeError, json.JSONDecodeError, RecursionError) as exc:
                 raise KiloHarnessError("KILO_OUTPUT_INVALID") from exc
-            if not isinstance(decoded, dict):
-                raise KiloHarnessError("KILO_OUTPUT_INVALID")
-            events.append(_redact_json(decoded, redactions))
+            events.append(redacted)
         if not events:
             raise KiloHarnessError("KILO_OUTPUT_INVALID")
         return tuple(events)
@@ -299,9 +332,7 @@ class KiloHarnessAdapter:
         self._validate_dispatch(dispatch)
         packet_path = self._verified_packet(dispatch, packet)
         invocation = self._build_invocation(dispatch, packet, packet_path)
-        raw = self._runner.run(invocation)
-        if not isinstance(raw, KiloRunnerResult):
-            raise KiloHarnessError("RUNNER_RESULT_INVALID")
+        raw = self._validate_runner_result(self._runner.run(invocation))
 
         stderr = _redact_text(raw.stderr, redactions)
         try:

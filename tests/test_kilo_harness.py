@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -353,6 +354,51 @@ def test_share_urls_and_declared_secret_values_are_redacted(tmp_path) -> None:
     assert fake_share not in rendered
     assert "[REDACTED]" in rendered
     assert "[REDACTED_KILO_SHARE_URL]" in rendered
+
+
+def test_malformed_runner_result_fields_fail_closed(tmp_path) -> None:
+    dispatch = make_dispatch(tmp_path)
+    packet = make_packet(tmp_path)
+    cases = (
+        KiloRunnerResult("0", "", "", False),
+        KiloRunnerResult(0, None, "", False),  # type: ignore[arg-type]
+        KiloRunnerResult(0, "", None, False),  # type: ignore[arg-type]
+        KiloRunnerResult(0, "", "", 1),  # type: ignore[arg-type]
+        KiloRunnerResult(0, "", "", False, ""),
+        KiloRunnerResult(0, "", "", False, "bad\x00code"),
+    )
+    for raw in cases:
+        with pytest.raises(KiloHarnessError) as exc_info:
+            KiloHarnessAdapter(runner=FakeRunner(raw)).execute(dispatch, packet)
+        assert exc_info.value.code == "RUNNER_RESULT_INVALID"
+
+
+def test_worktree_loss_between_packet_verification_and_invocation_is_typed(tmp_path) -> None:
+    root = tmp_path / "worktree"
+    root.mkdir()
+    packet = make_packet(root)
+
+    class DisappearingAdapter(KiloHarnessAdapter):
+        def _verified_packet(self, dispatch, packet):
+            path = super()._verified_packet(dispatch, packet)
+            shutil.rmtree(root)
+            return path
+
+    runner = success_runner()
+    with pytest.raises(KiloHarnessError) as exc_info:
+        DisappearingAdapter(runner=runner).execute(make_dispatch(root), packet)
+    assert exc_info.value.code == "KILO_WORKTREE_UNREADABLE"
+    assert runner.calls == []
+
+
+def test_pathologically_nested_ndjson_is_output_invalid_not_native_recursion(tmp_path) -> None:
+    deeply_nested = '{"a":' * 1100 + '1' + '}' * 1100 + "\n"
+    raw = KiloRunnerResult(0, deeply_nested, "", False)
+    result = KiloHarnessAdapter(runner=FakeRunner(raw)).execute(
+        make_dispatch(tmp_path),
+        make_packet(tmp_path),
+    )
+    assert result.status is HarnessExecutionStatus.OUTPUT_INVALID
 
 
 def test_invalid_runner_result_is_rejected(tmp_path) -> None:

@@ -116,4 +116,6 @@ Freeze exact SHA, then independent read-only exact-SHA review before any integra
 
 Only after this packet-integrity foundation is accepted, claim a separate phase for a thin
 `KiloJobBackend` conforming to the existing `JobExecutionBackend` and supervised execution
-authority. Do not widen this slice automatically.
+authority. Any future real/supervised Kilo runner must satisfy `DEFECT_LESSONS.md #36` by
+sanitizing credential-bearing child output and share/session URLs before the first durable write;
+adapter-return redaction alone is not a persistence boundary. Do not widen this slice automatically.
