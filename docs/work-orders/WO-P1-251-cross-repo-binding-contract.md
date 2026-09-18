@@ -1,6 +1,6 @@
 # WO-P1-251 — CROSS_REPO binding contract
 
-Status: IN_PROGRESS
+Status: COMPLETE
 Issue: #349
 Risk: R2 NORMAL — binding coordination / SSoT policy
 Owner/integrator: GPT-5.6 Sol
@@ -130,12 +130,46 @@ Set-level:
 - post-main verification both repos;
 - Issue #349 records final merged SHA pair, CI/fallback evidence, independent-review reference, and global WIP ledger before closure.
 
-## Current checkpoint
+## Closeout / final evidence
 
-Bootstrap pair:
-- A-Wiki main: `7c0ff0d68c816a3f307fa39851129bcbab7c9f16`
-- SunDayRemoteMCP main: `2b7996ced0ceaff5b97c7bef3f601765213de5ec`
+Reviewed compatibility pair:
+- A-Wiki candidate: `ce6085cab4f1c804731f770d1baab1dc721142ff`
+- SunDayRemoteMCP candidate: `1fca9d24c37e49762ea6fbce8b2927726d94e0b7`
+- focused independent rereview: PASS, `P0=0 P1=0 P2=0`
+- rereview task SHA256: `C548B15DAEB31104D40773D1DA9653976107FC34F80CA93E945872AA9DA4E9A2`
 
-WO250 / PR #345 is merged and post-main CI run `35313602575` succeeded on A-Wiki merge SHA `7c0ff0d...`.
+Authority delivery:
+- PR #350 merged authority-first;
+- A-Wiki merge commit: `fb29fac5fe059f9a9f1ca1ac461b3e0138f7659f`;
+- reviewed authority candidate is an ancestor of the merge commit;
+- all seven reviewed authority paths have identical merged-tree content;
+- exact-head CI run `35324897261`: Windows/full, Ubuntu smoke, and macOS smoke PASS;
+- post-main CI run `35329574109` on `fb29fac5...`: Windows/full, Ubuntu smoke, and macOS smoke PASS.
 
-Next safe action: commit/push this governance bootstrap, rerun mutation gate, create isolated lane worktrees from the bootstrap authority SHA / execution base, then dispatch Lane A/B/C in parallel within global WIP.
+Execution delivery:
+- SunDayRemoteMCP canonical main: `1fca9d24c37e49762ea6fbce8b2927726d94e0b7`;
+- no hosted remote/CI is configured for this repository, so the Work Order's deterministic fallback was used;
+- exact-head fallback PASS: build, local-policy tests, tool-policy tests, MCP facade tests, diff/scope;
+- post-main verification on canonical main PASS: build, local-policy tests, tool-policy tests, MCP facade tests;
+- canonical SRM worktree clean after verification.
+
+Final merged compatibility pair:
+`{A-Wiki-Conductor@fb29fac5fe059f9a9f1ca1ac461b3e0138f7659f, SunDayRemoteMCP@1fca9d24c37e49762ea6fbce8b2927726d94e0b7}`
+
+Accepted routing addition:
+- exact upstream GLM admission `RATE_LIMITED` outranks reseller/proxy quota counters;
+- within a proven blocked window, repeat quota/credential root-cause loops and live GLM probes are suppressed unless material evidence changes;
+- after terminal execution harvest/ownership reconciliation, GPT-5.6 Sol may take over eligible READY implementation/analysis work;
+- independent-review gates remain independent, and no silent paid/provider substitution is allowed;
+- at/after reset, quota plus exact admission are refreshed before GLM lanes refill.
+
+Final WIP ledger:
+- mutable implementation lanes: 0;
+- independent read-only review lanes: 0;
+- no live WO-P1-251 delegated execution/reviewer process observed at closeout;
+- cleanup state: `PENDING` until this closeout fold is merged and Issue #349 is checkpointed/closed; branch deletion remains a separate later decision.
+
+Next READY sequence after closeout:
+1. WO-SRM-005 — re-pin the CoinTH live-admission preflight onto current SunDayRemoteMCP main, exact-SHA verify/review/accept;
+2. WO-SRM-004 / SEM-0 — re-pin onto then-current SRM main, exact-SHA review/fan-in;
+3. Issue #341 SEM-1a from freshly accepted semantic foundation.
