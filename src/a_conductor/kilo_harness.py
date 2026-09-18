@@ -417,5 +417,5 @@ class KiloHarnessAdapter:
             events,
             stderr,
             raw.exit_code,
-            raw.error_code,
+            error_code,
         )

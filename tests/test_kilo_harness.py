@@ -381,6 +381,35 @@ def test_runner_error_code_is_redacted_before_result_escape(tmp_path) -> None:
     assert "[REDACTED_KILO_SHARE_URL]" in result.error_code
 
 
+def test_success_runner_error_code_is_redacted_before_result_escape(tmp_path) -> None:
+    secret = "synthetic-success-error-secret-253"
+    fake_share = "https://app.kilo.ai/s/synthetic"
+
+    class SuccessWithErrorCode(AckRunner):
+        def run(self, invocation):
+            result = super().run(invocation)
+            return KiloRunnerResult(
+                exit_code=result.exit_code,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                timed_out=result.timed_out,
+                error_code=f"SUCCESS_{secret}_{fake_share}",
+            )
+
+    result = KiloHarnessAdapter(runner=SuccessWithErrorCode()).execute(
+        make_dispatch(tmp_path),
+        make_packet(tmp_path),
+        redaction_values=(secret,),
+    )
+
+    assert result.status is HarnessExecutionStatus.SUCCESS
+    assert result.error_code is not None
+    assert secret not in result.error_code
+    assert fake_share not in result.error_code
+    assert "[REDACTED]" in result.error_code
+    assert "[REDACTED_KILO_SHARE_URL]" in result.error_code
+
+
 def test_malformed_runner_result_fields_fail_closed(tmp_path) -> None:
     dispatch = make_dispatch(tmp_path)
     packet = make_packet(tmp_path)
