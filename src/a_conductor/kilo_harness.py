@@ -20,10 +20,8 @@ from .claude_code_harness import HarnessDispatch, HarnessExecutionStatus, TaskPa
 from .provider_configuration import HarnessStrategy
 
 
-_FIXED_PROMPT = (
-    "Execute the attached authorized task packet. "
-    "Return concise structured evidence only."
-)
+_FIXED_PROMPT = "Execute the attached authorized task packet."
+_ACK_PREFIX = "SUNDAY_TASK_ACK"
 _KILO_COMPONENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _KILO_SHARE_URL_RE = re.compile(r"https://app\.kilo\.ai/s/[A-Za-z0-9._~-]+")
 _EFFORT_VARIANTS = {
@@ -96,6 +94,37 @@ def _redact_json(value, values: tuple[str, ...]):
             for key, item in value.items()
         }
     return value
+
+
+def _task_ref_sha256(task_contract_ref: str) -> str:
+    return hashlib.sha256(task_contract_ref.encode("utf-8")).hexdigest()
+
+
+def _completion_marker(packet: TaskPacketFile) -> str:
+    return (
+        f"{_ACK_PREFIX} "
+        f"task_ref_sha256={_task_ref_sha256(packet.task_contract_ref)} "
+        f"packet_sha256={packet.sha256.casefold()} "
+        "status=COMPLETED_CLAIM"
+    )
+
+
+def _completion_marker_count(
+    events: tuple[dict[str, object], ...],
+    marker: str,
+) -> int:
+    count = 0
+    for event in events:
+        if event.get("type") != "text":
+            continue
+        part = event.get("part")
+        if not isinstance(part, dict):
+            continue
+        text = part.get("text")
+        if not isinstance(text, str):
+            continue
+        count += sum(1 for line in text.splitlines() if line.strip() == marker)
+    return count
 
 
 class KiloHarnessAdapter:
@@ -197,12 +226,23 @@ class KiloHarnessAdapter:
             raise KiloHarnessError("TASK_PACKET_HASH_MISMATCH")
         return resolved
 
-    def _build_invocation(self, dispatch: HarnessDispatch, packet_path: Path) -> KiloInvocation:
+    def _build_invocation(
+        self,
+        dispatch: HarnessDispatch,
+        packet: TaskPacketFile,
+        packet_path: Path,
+    ) -> KiloInvocation:
         model = f"{dispatch.provider_id}/{dispatch.model_id}"
+        marker = _completion_marker(packet)
+        prompt = (
+            f"{_FIXED_PROMPT} "
+            "Do not claim success unless you consumed the attached task. "
+            f"On successful completion emit exactly one final line: {marker}"
+        )
         argv = [
             self._executable,
             "run",
-            _FIXED_PROMPT,
+            prompt,
             "--file",
             str(packet_path),
             "--pure",
@@ -258,12 +298,31 @@ class KiloHarnessAdapter:
         redactions = tuple(value for value in redaction_values if isinstance(value, str) and value)
         self._validate_dispatch(dispatch)
         packet_path = self._verified_packet(dispatch, packet)
-        invocation = self._build_invocation(dispatch, packet_path)
+        invocation = self._build_invocation(dispatch, packet, packet_path)
         raw = self._runner.run(invocation)
         if not isinstance(raw, KiloRunnerResult):
             raise KiloHarnessError("RUNNER_RESULT_INVALID")
 
         stderr = _redact_text(raw.stderr, redactions)
+        try:
+            post_path = self._verified_packet(dispatch, packet)
+        except KiloHarnessError:
+            return KiloHarnessResult(
+                HarnessExecutionStatus.FAILED,
+                None,
+                stderr,
+                raw.exit_code,
+                "TASK_PACKET_POST_RUN_DRIFT",
+            )
+        if post_path != packet_path:
+            return KiloHarnessResult(
+                HarnessExecutionStatus.FAILED,
+                None,
+                stderr,
+                raw.exit_code,
+                "TASK_PACKET_POST_RUN_DRIFT",
+            )
+
         if raw.timed_out:
             return KiloHarnessResult(
                 HarnessExecutionStatus.TIMEOUT,
@@ -309,13 +368,13 @@ class KiloHarnessAdapter:
                 raw.exit_code,
                 raw.error_code,
             )
-        if not any(event.get("type") == "text" for event in events):
+        if _completion_marker_count(events, _completion_marker(packet)) != 1:
             return KiloHarnessResult(
                 HarnessExecutionStatus.OUTPUT_INVALID,
                 events,
                 stderr,
                 raw.exit_code,
-                raw.error_code,
+                "TASK_PACKET_ACK_MISSING_OR_AMBIGUOUS",
             )
         return KiloHarnessResult(
             HarnessExecutionStatus.SUCCESS,

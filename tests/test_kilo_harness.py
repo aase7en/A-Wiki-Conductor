@@ -64,19 +64,44 @@ class FakeRunner:
         return self.result
 
 
-def success_runner(*, stderr: str = "", text: str = "done") -> FakeRunner:
-    events = [
-        {"type": "text", "part": {"text": text}},
-        {"type": "step_finish", "part": {"reason": "stop"}},
-    ]
-    return FakeRunner(
-        KiloRunnerResult(
+class AckRunner:
+    def __init__(
+        self,
+        *,
+        stderr: str = "",
+        text: str = "done",
+        mutate_path: Path | None = None,
+        duplicate_ack: bool = False,
+    ) -> None:
+        self.stderr = stderr
+        self.text = text
+        self.mutate_path = mutate_path
+        self.duplicate_ack = duplicate_ack
+        self.calls = []
+
+    def run(self, invocation):
+        self.calls.append(invocation)
+        marker = invocation.argv[2].split("final line: ", 1)[1]
+        if self.mutate_path is not None:
+            self.mutate_path.write_text("# DIFFERENT TASK\n", encoding="utf-8")
+        text = f"{self.text}\n{marker}"
+        if self.duplicate_ack:
+            text += f"\n{marker}"
+        events = [
+            {"type": "text", "part": {"text": text}},
+            {"type": "step_finish", "part": {"reason": "stop"}},
+        ]
+        return KiloRunnerResult(
             exit_code=0,
             stdout="\n".join(json.dumps(event, ensure_ascii=False) for event in events) + "\n",
-            stderr=stderr,
+            stderr=self.stderr,
             timed_out=False,
         )
-    )
+
+
+def success_runner(*, stderr: str = "", text: str = "done") -> AckRunner:
+    return AckRunner(stderr=stderr, text=text)
+
 
 
 def test_valid_packet_builds_fixed_file_transport_without_task_text_in_argv(tmp_path) -> None:
@@ -100,6 +125,9 @@ def test_valid_packet_builds_fixed_file_transport_without_task_text_in_argv(tmp_
     file_index = invocation.argv.index("--file")
     assert file_index > 2
     assert invocation.argv[2].startswith("Execute the attached authorized task packet.")
+    assert packet.sha256 in invocation.argv[2]
+    assert packet.task_contract_ref not in invocation.argv[2]
+    assert "SUNDAY_TASK_ACK" in invocation.argv[2]
     assert invocation.argv[file_index + 1] == str(Path(packet.path).resolve())
     assert invocation.argv.count(str(Path(packet.path).resolve())) == 1
     assert invocation.argv[invocation.argv.index("--model") + 1] == "cointh-glm/glm-5.3"
@@ -162,6 +190,47 @@ def test_packet_mutation_after_identity_creation_fails_closed(tmp_path) -> None:
         KiloHarnessAdapter(runner=runner).execute(make_dispatch(tmp_path), packet)
     assert exc_info.value.code == "TASK_PACKET_HASH_MISMATCH"
     assert runner.calls == []
+
+
+def test_post_runner_packet_drift_never_returns_success(tmp_path) -> None:
+    packet = make_packet(tmp_path, "before")
+    runner = AckRunner(mutate_path=Path(packet.path))
+
+    result = KiloHarnessAdapter(runner=runner).execute(make_dispatch(tmp_path), packet)
+
+    assert result.status is HarnessExecutionStatus.FAILED
+    assert result.error_code == "TASK_PACKET_POST_RUN_DRIFT"
+    assert len(runner.calls) == 1
+
+
+def test_exit_zero_missing_task_prose_without_exact_ack_is_not_success(tmp_path) -> None:
+    raw = KiloRunnerResult(
+        0,
+        json.dumps({
+            "type": "text",
+            "part": {"text": "No task was provided; send the task itself."},
+        }) + "\n",
+        "",
+        False,
+    )
+
+    result = KiloHarnessAdapter(runner=FakeRunner(raw)).execute(
+        make_dispatch(tmp_path),
+        make_packet(tmp_path),
+    )
+
+    assert result.status is HarnessExecutionStatus.OUTPUT_INVALID
+    assert result.error_code == "TASK_PACKET_ACK_MISSING_OR_AMBIGUOUS"
+
+
+def test_duplicate_completion_ack_is_ambiguous_and_fails_closed(tmp_path) -> None:
+    result = KiloHarnessAdapter(runner=AckRunner(duplicate_ack=True)).execute(
+        make_dispatch(tmp_path),
+        make_packet(tmp_path),
+    )
+
+    assert result.status is HarnessExecutionStatus.OUTPUT_INVALID
+    assert result.error_code == "TASK_PACKET_ACK_MISSING_OR_AMBIGUOUS"
 
 
 def test_symlink_packet_is_rejected_without_runner(tmp_path) -> None:
