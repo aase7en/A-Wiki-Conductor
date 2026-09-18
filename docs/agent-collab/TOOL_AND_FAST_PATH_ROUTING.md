@@ -2,6 +2,7 @@
 
 Status: BINDING ROUTING ADDENDUM
 Introduced by: WO-P1-228
+Extended by: WO-P1-251 (repo-role topology, cross-repo lane binding, exact-SHA compatibility sets, global cross-repo WIP, durable Windows no-console rule)
 Purpose: keep ChatGPT Project Instructions short while preserving the core execution surfaces and reducing delivery latency without weakening repository authority.
 
 This file extends, but does not replace:
@@ -63,6 +64,75 @@ independent read-only review lane may run at a time; other lanes stay standby
 or perform deterministic checks inside already-owned lanes/native-tool paths
 unless an active Work Order explicitly changes WIP. `1 MUTABLE HOTSPOT = 1
 MUTATION OWNER` remains binding.
+
+### Repo-role topology — single definition home (WO-P1-251)
+
+These three topology values are defined once here. Every other repository
+file or skill projects them by reference and must not redefine, rename, or
+fork them:
+
+- `CONTROL_PLANE_ONLY` — all mutation lanes of the work item live in the
+  authority repository. Ordinary single-repo work is this by default.
+- `EXECUTION_SUBSTRATE_ONLY` — mutation lanes live in one or more execution
+  substrate repositories, while task/claim/WIP/review/acceptance authority
+  remains governed by the authority repository.
+- `CROSS_REPO` — mutation spans both repo roles and is accepted as one
+  exact-SHA compatibility set.
+
+Topology is declared by the active work order, never inferred from tool
+reach or executor location.
+
+### Full per-lane binding tuple
+
+Every mutable lane binds exactly one repository through the full tuple:
+
+`repo -> worktree -> branch -> HEAD -> task/claim -> scope`
+
+- one repo per lane: a CROSS_REPO work item uses one lane per member repo;
+- every tuple element is verified against the executor process/context
+  before mutation; any mismatch fails closed as `CONTEXT_DRIFT` and blocks
+  only that lane;
+- the tuple identifies and pins the lane; it never grants mutation,
+  transfer, review, or acceptance authority by itself;
+- other files project this tuple by reference to this home; they do not
+  fork it.
+
+### Exact-SHA compatibility set and set-level completion
+
+A CROSS_REPO work item freezes one exact candidate head per member repo:
+
+`{AUTHORITY_REPO@SHA_AUTH, EXECUTION_REPO@SHA_EXEC}`
+
+- any member head drift invalidates the whole set until re-pin plus focused
+  review of the affected delta;
+- completion is set-level, never per-repo: no member merges or reaches
+  acceptance alone. The authority repository's active work order is the
+  single completion pointer and must record the final merged SHA pair,
+  CI/deterministic-fallback evidence, the independent-review reference, and
+  the global WIP ledger before closure;
+- merge order is authority repo first, then execution repo(s); post-main
+  verification runs on both.
+
+### Global cross-repo WIP accounting
+
+The WIP limit in Section 6 and `PROJECT-GRAPH.yaml` `rules.default_wip`
+counts lanes globally across every repo in the compatibility set: 3 mutable
+lanes and 1 independent read-only review lane for the whole set, never
+multiplied per repository. `1 MUTABLE HOTSPOT = 1 MUTATION OWNER` holds per
+path across repos. Only an active work order may change the budget.
+
+### Durable Windows no-console rule
+
+Binding for execution routing that launches or supervises processes on
+Windows:
+
+- invoke the exact installed executable directly wherever possible;
+- when PowerShell is unavoidable, launch it hidden, with no new console
+  window;
+- background child processes use `CREATE_NO_WINDOW` / `windowsHide`;
+- never change global shell settings or profiles;
+- process termination targets an exact PID with verified command identity
+  only; broad process kill remains forbidden.
 
 ## 2. Conditional accelerator surfaces
 
