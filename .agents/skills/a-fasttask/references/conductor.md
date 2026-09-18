@@ -30,11 +30,15 @@ Before mutable work in a substantial project/engineering session, attempt:
 2. GitHub — refresh repository/default branch, relevant Issue/PR, exact remote
    SHA, CI/review/post-main truth when material.
 3. Exposed SunDay lanes — discover minimal readiness/execution-context state
-   first. Each lane carries an explicit repo/worktree/branch/HEAD/claim binding
-   verified against its executor process/context; there is no mutable global
+   first. Each lane is bound to exactly one repo by the full tuple
+   `repo -> worktree -> branch -> HEAD -> task/claim -> scope`, verified
+   against its executor process/context; there is no mutable global
    Active Project to bind to (Worker 1..N is lane naming only). A context
    mismatch fails closed as `CONTEXT_DRIFT` and blocks only that lane. Busy or
-   unavailable lanes receive typed blockers.
+   unavailable lanes receive typed blockers. `CROSS_REPO` work additionally
+   pins the exact-SHA compatibility set from
+   `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md` (definition home;
+   projections never redefine topology semantics).
 
 Do not block unrelated safe work because one surface is unavailable. Reuse the
 typed failure vocabulary from `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`,
@@ -89,7 +93,11 @@ labor exists. Preferred current routing order:
    contradictory high-impact findings, or difficult repeated failures.
 
 For Kilo, prefer the exact installed executable and `kilo roll-call` as a
-practical liveness probe. Before material dispatch, resolve the CoinTH quota
+practical liveness probe. Local dispatch follows the durable Windows
+no-console rule: launch the exact installed executable directly; use hidden
+PowerShell with no new console only when unavoidable; start background
+children with `CREATE_NO_WINDOW`/`windowsHide`; never change global shell
+settings; terminate by exact PID with verified command identity only. Before material dispatch, resolve the CoinTH quota
 credential from an approved secret source: an existing environment binding, or
 an approved global secret file/resolver when the environment is empty. The
 current live-proven secret name is `COINTH_GLM_AUTH_TOKEN`; pass its value only
@@ -133,7 +141,9 @@ merge, or acceptance authority.
 
 `PROJECT-GRAPH.yaml` `rules.default_wip` is the capacity authority: up to 3
 mutable implementation lanes and 1 independent read-only review lane, with
-spare capacity kept for recovery/blocker diagnosis.
+spare capacity kept for recovery/blocker diagnosis. This budget is one
+global account across every member of a `CROSS_REPO` compatibility set;
+topology never multiplies WIP per repository.
 
 - A free mutable lane is filled by claiming non-overlapping scope through the
   existing claim/lease authority — never by creating a parallel task list.

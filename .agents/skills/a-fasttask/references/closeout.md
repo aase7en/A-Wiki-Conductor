@@ -9,7 +9,13 @@ authorities and adds no cleanup scheduler.
 1. Evidence — the lane's outcome is accepted/reconciled, and where the lane
    produced remote deliverables, post-main evidence exists per the delivery
    gate sequence (exact reviewed head → exact-head CI → expected-head merge →
-   post-main CI → checkpoint on the driving issue). An ignored result INSIDE
+   post-main CI → checkpoint on the driving issue). In a `CROSS_REPO`
+   compatibility set, durable evidence, review results, and closeout
+   checkpoints fold to the AUTHORITY_REPO even when the lane's worktree
+   lives in the execution repo; no member is cleaned before set-level
+   completion (expected heads merged authority-repo first, post-main
+   verified in every member) or an explicit authority-repo decision. An
+   ignored result INSIDE
    the target worktree is NOT durable evidence: before cleanup, material
    review/result evidence must be folded/checkpointed to GitHub/tracked
    authority or to an evidence destination OUTSIDE the target worktree. Local
