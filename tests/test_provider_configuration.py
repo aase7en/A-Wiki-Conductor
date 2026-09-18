@@ -8,6 +8,7 @@ from a_conductor.provider_configuration import (
     ActorCapabilityEvidence,
     EgressBoundary,
     HarnessStrategy,
+    ModelCostClass,
     ProviderConfiguration,
     ProviderEndpointConfig,
     ProviderHealth,
@@ -63,6 +64,38 @@ def test_provider_configuration_is_non_secret_and_schema_aligned() -> None:
     )
     with pytest.raises(ValueError, match="credential_ref"):
         ProviderConfiguration(**{**profile.as_dict(), "credential_ref": "raw-token-value"})
+
+
+def test_model_cost_class_is_declared_typed_and_backward_compatible() -> None:
+    default_model = ProviderModelConfiguration(
+        model_id="default-model",
+        display_name="Default Model",
+    )
+    assert default_model.cost_class is ModelCostClass.UNKNOWN
+    assert default_model.as_dict()["cost_class"] == "UNKNOWN"
+
+    low_cost = ProviderModelConfiguration(
+        model_id="low-cost-model",
+        display_name="Low Cost Model",
+        cost_class="LOW_COST",
+        supported_effort_levels=("LOW", "HIGH"),
+    )
+    assert low_cost.cost_class is ModelCostClass.LOW_COST
+    assert ProviderModelConfiguration(**low_cost.as_dict()) == low_cost
+
+    old_serialized = {
+        key: value
+        for key, value in low_cost.as_dict().items()
+        if key != "cost_class"
+    }
+    assert ProviderModelConfiguration(**old_serialized).cost_class is ModelCostClass.UNKNOWN
+
+    with pytest.raises(ValueError, match="cost_class"):
+        ProviderModelConfiguration(
+            model_id="bad-cost-model",
+            display_name="Bad Cost Model",
+            cost_class="FREEISH",
+        )
 
 
 def test_endpoint_accepts_https_and_loopback_http_only() -> None:
