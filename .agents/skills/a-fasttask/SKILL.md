@@ -89,6 +89,16 @@ instructions into every repository.
    back-to-back live check observed zero change in `used_5h` and `remaining_5h`.
    Treat that as operational supporting evidence, not a billing guarantee.
    `QUOTA_UNKNOWN` is not `RATE_LIMITED` and is never treated as unlimited.
+   If the exact upstream GLM admission is observed `RATE_LIMITED`, record the
+   provider-reported reset evidence, set GLM offload blocked for that window,
+   and do not repeat quota/credential root-cause work or live admission probes
+   before the reset unless material evidence changes. Harvest any terminal GLM
+   execution first, then let GPT-5.6 Sol take over eligible READY
+   implementation/analysis work within the verified claim/scope so throughput
+   continues. Independent-review requirements do not transfer to the authoring
+   Sol lane: a separate qualified reviewer is still required where policy says
+   independent review. At/after reset, refresh quota plus exact live admission
+   once, then refill eligible GLM lanes up to WIP.
 4. PIPELINE FILL — decompose independent READY work, then use the existing
    claim/lease + execution authorities to dispatch every eligible bounded GLM
    lane up to the current WIP/provider-capacity limits. Sol also assigns

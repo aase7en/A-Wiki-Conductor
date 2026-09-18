@@ -130,7 +130,16 @@ writers. Do not optimize for token minimization when current authorized quota is
 available, but avoid redundant prompts/rereads that do not increase accepted
 throughput. Before every material GLM dispatch, refresh approved quota evidence.
 If the five-hour tuple is unavailable, record `QUOTA_UNKNOWN`; do not report
-`RATE_LIMITED` unless exhaustion is actually observed.
+`RATE_LIMITED` unless exhaustion is actually observed. When exact upstream
+admission itself reports `RATE_LIMITED`, that live admission evidence outranks
+proxy/reseller quota counters. Record the upstream reset evidence, suppress
+repeat GLM admission probes and repeated credential/quota root-cause work until
+the reset unless material evidence changes, and keep the pipeline moving with
+GPT-5.6 Sol on eligible READY implementation/analysis work after terminal GLM
+executions are harvested and ownership is safe to transfer. This fallback does
+not waive independent-review requirements: Sol may not satisfy an independent
+review gate for its own authored mutation. At/after reset, perform one fresh
+quota + exact-admission preflight and refill GLM lanes only if admitted.
 
 Kilo/Claude Code/ZCode-native slash or goal commands (for example `/goal`,
 `/plan`, `/init`) may be used when the exact installed harness supports them.
@@ -167,7 +176,11 @@ without widening scope:
    bounded task; never wait on an unexposed Worker or build a second queue.
 2. GLM route `RATE_LIMITED`, `TRANSPORT_FAILURE`, `AUTH_REQUIRED`, or unverified
    route => use only an explicitly eligible fallback or checkpoint for Sol;
-   never silently substitute another model/provider.
+   never silently substitute another model/provider. For observed upstream
+   `RATE_LIMITED`, prefer immediate Sol takeover of eligible READY
+   implementation/analysis work after harvest/ownership reconciliation, and do
+   not repeat the same provider diagnosis or live probe before reset without new
+   evidence. Independent review remains independent.
 3. Unclassifiable failure => `UNKNOWN_FAILURE`: checkpoint through the lane's
    declared result/evidence destination at a material boundary and report the
    exact blocker.

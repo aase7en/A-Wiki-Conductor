@@ -162,7 +162,7 @@ Use the current evidence-based order:
 5. GPT-5.6 Sol directly when it is the best eligible executor or external routes are blocked.
 6. GPT-6 Astra only for material unresolved architecture/trust ambiguity, contradictory high-impact findings, or difficult repeated failure after root-cause work.
 
-For Kilo, prefer the exact executable and `kilo roll-call` as a practical liveness probe. Before material GLM dispatch, resolve the CoinTH quota credential from an approved environment binding or, when absent, an approved global secret file/resolver. Current live proof uses secret name `COINTH_GLM_AUTH_TOKEN`; send the value only as `x-api-key` to `GET https://cointh.com/glm/api/quota`. Never expose/persist the key or its source-file contents. Provider guidance says this quota GET is non-consuming; a 2026-09-16 back-to-back live check observed zero change in `used_5h` and `remaining_5h`, which is supporting operational evidence rather than a billing guarantee. HTTP 401/403 is auth/entitlement evidence, not quota exhaustion; missing/stale/malformed quota evidence remains `UNKNOWN`. Never silently substitute a different or paid model/provider.
+For Kilo, prefer the exact executable and `kilo roll-call` as a practical liveness probe. Before material GLM dispatch, resolve the CoinTH quota credential from an approved environment binding or, when absent, an approved global secret file/resolver. Current live proof uses secret name `COINTH_GLM_AUTH_TOKEN`; send the value only as `x-api-key` to `GET https://cointh.com/glm/api/quota`. Never expose/persist the key or its source-file contents. Provider guidance says this quota GET is non-consuming; a 2026-09-16 back-to-back live check observed zero change in `used_5h` and `remaining_5h`, which is supporting operational evidence rather than a billing guarantee. HTTP 401/403 is auth/entitlement evidence, not quota exhaustion; missing/stale/malformed quota evidence remains `UNKNOWN`. Exact upstream model admission outranks proxy/reseller quota counters for dispatch readiness. If upstream admission is observed `RATE_LIMITED`, record its reset evidence, stop repeated GLM probes/root-cause loops until reset unless material evidence changes, harvest/reconcile any terminal GLM execution, and route eligible READY implementation/analysis work to GPT-5.6 Sol so useful work continues. Independent-review gates remain independent and cannot be satisfied by an authoring Sol lane. At/after the reset, refresh quota plus exact live admission once before refilling GLM lanes. Never silently substitute a different or paid model/provider.
 
 Parallel GLM lanes require independent READY work, explicit owners, known worktrees/branches/HEADs, valid non-overlapping claims/leases, declared result destinations and a fan-in plan. `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
 
@@ -185,7 +185,13 @@ Use available authorized quota productively, but never exceed WIP/provider
 capacity, paid-cost approvals, claim/scope boundaries, or `1 MUTABLE HOTSPOT =
 1 MUTATION OWNER`. Before every material GLM dispatch, refresh the approved
 quota/readiness evidence. `QUOTA_UNKNOWN` means evidence is unavailable;
-`RATE_LIMITED` requires observed exhaustion and must not be guessed.
+`RATE_LIMITED` requires observed exhaustion and must not be guessed. Once exact
+upstream admission has positively established `RATE_LIMITED` with reset
+evidence, that evidence remains the routing blocker for the current window:
+do not spend time re-diagnosing the same credential/quota cause or repeatedly
+probe the live model before reset absent material evidence change. Sol should
+continue eligible READY work directly after safe harvest/ownership transfer;
+at/after reset, refresh readiness and resume GLM offload only if admitted.
 
 Harness-native commands such as `/goal`, `/plan`, `/init`, skills loops, or
 similar Kilo/Claude Code/ZCode features may be used when the exact installed
