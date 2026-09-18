@@ -335,6 +335,11 @@ class KiloHarnessAdapter:
         raw = self._validate_runner_result(self._runner.run(invocation))
 
         stderr = _redact_text(raw.stderr, redactions)
+        error_code = (
+            None
+            if raw.error_code is None
+            else _redact_text(raw.error_code, redactions)
+        )
         try:
             post_path = self._verified_packet(dispatch, packet)
         except KiloHarnessError:
@@ -360,7 +365,7 @@ class KiloHarnessAdapter:
                 None,
                 stderr,
                 raw.exit_code,
-                raw.error_code,
+                error_code,
             )
 
         output_size = len(raw.stdout.encode("utf-8")) + len(raw.stderr.encode("utf-8"))
@@ -370,7 +375,7 @@ class KiloHarnessAdapter:
                 None,
                 "",
                 raw.exit_code,
-                raw.error_code,
+                error_code,
             )
         if raw.exit_code != 0:
             return KiloHarnessResult(
@@ -378,7 +383,7 @@ class KiloHarnessAdapter:
                 None,
                 stderr,
                 raw.exit_code,
-                raw.error_code,
+                error_code,
             )
 
         try:
@@ -389,7 +394,7 @@ class KiloHarnessAdapter:
                 None,
                 stderr,
                 raw.exit_code,
-                raw.error_code,
+                error_code,
             )
         if any(event.get("type") == "error" for event in events):
             return KiloHarnessResult(
@@ -397,7 +402,7 @@ class KiloHarnessAdapter:
                 events,
                 stderr,
                 raw.exit_code,
-                raw.error_code,
+                error_code,
             )
         if _completion_marker_count(events, _completion_marker(packet)) != 1:
             return KiloHarnessResult(
