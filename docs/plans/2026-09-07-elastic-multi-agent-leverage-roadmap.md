@@ -4,7 +4,8 @@ Date: 2026-09-07
 Status: SHAPING / P0 ZERO-RELAY PRIORITY FENCE / NO FLEET IMPLEMENTATION AUTHORITY
 Repository: `aase7en/A-Wiki-Conductor`
 Baseline at creation: `origin/main@df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` (PR #221 / ZRA-1 merged)
-Final shaping fold re-pinned on 2026-09-12 to `origin/main@cfcb369fe5ab3a50569defa822289f10f2f38aac`. The dependency order remains `ZRA-2 -> ZRA-3 -> ZRA-4`; Phase B is accepted/post-main and Phase C0 / WO216 is the current ZRA-2 implementation frontier.
+Final shaping fold re-pinned on 2026-09-12 to `origin/main@cfcb369fe5ab3a50569defa822289f10f2f38aac`. The dependency order at that fold was `ZRA-2 -> ZRA-3 -> ZRA-4` (relative order unchanged by the 2026-09-17 recomposition); Phase B was accepted/post-main and Phase C0 / WO216 was the ZRA-2 implementation frontier at that time.
+Recomposed on 2026-09-17 by WO-P1-247 / PR #332 (accepted controlled pivot): the `2026-09-17 SunDay Runtime recomposition` section near the end is the current authoritative sequencing and architecture direction.
 
 ## Purpose
 
@@ -14,6 +15,13 @@ This document does not authorize implementation or reorder the accepted Zero-Rel
 
 
 ## 2026-09-12 priority fence and deep-audit fold
+
+> Historical section (2026-09-12). Its production sequencing — including the
+> `ONLY AFTER P0-G` Worker Host/Fleet placement, the `After ZRA-4 baseline
+> acceptance` P1 MVP gate, and the direct ZRA-3 -> ZRA-4 path — is superseded
+> by the 2026-09-17 SunDay Runtime recomposition section below: the SunDay
+> Runtime single-device MVP and its two-lane isolation/recovery proof now sit
+> between ZRA-3 and ZRA-4 recomposed acceptance. Retained here as evidence.
 
 ### Binding product priority
 
@@ -213,6 +221,326 @@ A Fleet change is rejected if it increases busyness without accepted delivery:
 
 The deep audit is complete enough to close the research prerequisite for architecture shaping. It does **not** activate Worker Host/Fleet product work. The next production mutation remains the current Zero-Relay critical path. Worker Host/Fleet becomes `NEXT_READY` only after ZRA-4 baseline acceptance or an explicit future user decision that reorders the roadmap after fresh conflict/authority analysis.
 
+
+## 2026-09-16 SunDayMCP consumer convergence refinement — WO-P1-247
+
+Status: DOCS-ONLY SHAPING / NO HOST-FACADE-SERVICE-BROWSER SOURCE AUTHORITY
+
+This refinement consumes the user's one-connection consumer goal and the
+2026-09-16 GPT-6 Astra architecture challenge. It refines the existing Worker
+Host/Fleet roadmap; it does not create a second roadmap, scheduler, task store,
+claim/lease system, provider registry, review authority, recovery authority, or
+SSoT.
+
+### Actual-state override — 2026-09-16
+
+Current remote main at the WO247 claim is
+`018779d0d2f5a7a7a21adb277e23a617692c36fd`. Historical C0/C1 frontier text
+above remains evidence only where newer Git/GitHub/Issue truth differs.
+
+Dependency order as of 2026-09-16 — superseded 2026-09-17 by the SunDay
+Runtime recomposition section below (which inserts the SunDay Runtime
+single-device MVP and the two-lane isolation/recovery proof between ZRA-3
+and ZRA-4 recomposed); retained as history:
+
+```text
+WO246 durable author-attempt provenance
+-> WO205 / full ZRA-2 acceptance
+-> ZRA-3 accepted NEXT READY continuation
+-> ZRA-4 bounded parallel baseline
+-> Worker Host / SunDayMCP implementation
+-> consumer hardening and optional federation
+```
+
+Issue #330 / WO246 is the current Phase-D provenance blocker. WO189 / PR #261
+is an older open draft on a stale base; its Zero-Relay-first intent is retained,
+but the branch is not current SunDayMCP architecture authority. Issue #320 /
+WO240 owns its two Browser Wake docs and remains useful transport/security
+input. Its earlier proposal to place Browser Wake product implementation before
+ZRA-4 is not adopted by this refinement after the user's newer one-SunDayMCP
+architecture decision. Browser/docs shaping may continue; product mutation stays
+behind ZRA-4 unless a later explicit user decision reorders the dependency after
+fresh authority/conflict analysis.
+Final sequencing reconciliation remains reserved for the ZRA-3 exit per
+`docs/runbooks/cost-first-delivery.md`; WO247 records the current user priority
+without closing that future evidence gate.
+
+### Consumer North Star
+
+```text
+ChatGPT / compatible AI client
+            |
+            v
+one authenticated SunDayMCP connection
+            |
+            v
+thin capability facade
+            |
+            v
+A-Sunday Conductor control / trust / authority plane
+   |             |              |                 |
+Serena        native         Git/GitHub       Kilo / Claude /
+semantic      device         scoped adapter   GLM/provider adapters
+adapter       adapter
+   \_____________|______________|_________________/
+                         |
+                    Worker Host
+                         |
+          existing task / claim / lease /
+       execution / review / recovery / evidence
+```
+
+A-Wiki remains owner of brain/policy/skills/knowledge/review-policy semantics.
+A-Sunday Conductor remains owner of live execution/runtime/admission/recovery
+and evidence. SunDayMCP is a user-facing facade over those authorities, not a
+replacement authority.
+
+### SMCP dependency refinement
+
+The `SMCP-*` labels below are roadmap phases, not reserved Work Order numbers.
+Concrete implementation still requires a fresh bounded WO/claim and exact file
+ownership after dependencies pass.
+
+| Phase | Class / risk | Dependency / activation | Product outcome | Acceptance focus |
+|---|---|---|---|---|
+| `SMCP-0` Contract + ADR | REUSE/EXTEND, R2 docs; auth design R3 | docs shaping now | thin-facade contract, ADR-0001 narrow reopen, no duplicate authority | architecture review, authority map, threat/migration contract |
+| `SMCP-1` Worker Host + facade vertical slice | WRAP/EXTEND, R3 | accepted ZRA-4 + SMCP-0 | one authenticated connection can read status and perform one bounded semantic operation through existing lifecycle authority | auth negative cases, namespace collision, two-session/project isolation, reconnect/no duplicate effect, legacy parity |
+| `SMCP-2` Native + Git/GitHub capability | EXTEND/WRAP, R3 | SMCP-1 contract frozen | scoped filesystem/Git/log first, then typed exec/process/GitHub operations | traversal/junction/PID-reuse/argv/output limits, GitHub scope/revocation, mutation admission |
+| `SMCP-3` Persistent OS lifecycle | WRAP/EXTEND, R3 | Host lifecycle contract frozen | background/no-console startup and supervised availability independent of GUI | reboot, login/logout, crash, manual-stop persistence, orphan/PID reuse, duplicate supervisor rejection, no task replay |
+| `SMCP-4` Consumer installer/update/repair | EXTEND, R3 | design now; source after ZRA-4; release consumes SMCP-1..3 | one signed installer provisions approved private runtimes, Host and repair/update path without terminal prerequisites | clean VM, actual signature/hash, interrupted update, repair/uninstall, compatible rollback, data preservation |
+| `SMCP-5` Browser Companion | WRAP/NEW adapter boundary, R3 | docs/threat shaping may continue under WO240; product implementation after ZRA-4 + stable Host/auth | opt-in selected-site context and bounded user actions through authenticated user-session bridge | per-origin consent/revoke, injection/secret/session/replay/Terms tests; no page-to-shell/claim authority |
+| `SMCP-6` Unified monitor | EXTEND/WRAP, R2 read-only; controls R3 | projections frozen; product after ZRA-4 | one evidence-backed view of device/worker/job/claim/quota/process/blocker state; optional local web view later | UNKNOWN/OFFLINE/BLOCKED distinct, event gaps/restart, read causes no writes, provenance/redaction |
+| `SMCP-7` Federation | EXTEND + NEW transport only, R3 | accepted single-host product + elastic P2 gates | second authenticated host/device behind the same product surface | partition/rejoin, revoked pairing, duplicate identity, clock skew, stale capability, no double effect |
+| `SMCP-8` Legacy migration + consumer release | EXTEND, R3 | accepted single-host SMCP-1..6; federation optional | one SunDayMCP surface replaces the advertised single-device Worker1..5 + RDC workflow where parity is proven | side-by-side parity, reversible cutover, signed release evidence, no silent legacy deletion |
+
+`SMCP-8` single-device consumer release does not wait for `SMCP-7`; federation
+must not block the first useful one-machine product. Any RDC/Worker capability
+not yet matched is disclosed rather than hidden behind an unsafe fallback.
+
+### Worker Host / facade boundary
+
+The first accepted Host/facade should provide only the minimum reusable seams:
+- stable Host identity and authenticated endpoint;
+- logical Worker list/get/health/events and capability projection;
+- start/stop/restart/drain by reusing existing lifecycle/recovery authority;
+- live reconciliation of process/project/worktree/branch/HEAD/dirty/task/claim/lease;
+- collision-rejecting capability namespace and request/session binding;
+- background lifecycle plus bounded request/response/event read models;
+- legacy endpoint compatibility during migration.
+
+It owns no scheduler, task graph/store, claim/lease system, provider admission,
+review lifecycle, retry/dedup/completion authority, merge authority or project
+memory. One connection is a UX boundary, never permission to bypass per-action
+authorization.
+
+### Zero-knowledge consumer installation target
+
+Ordinary users should not need to understand Python, Node, npm/pip/uv, Serena,
+MCP ports, tunnels, PowerShell, worktrees or language-server plumbing.
+
+Reuse the existing installer/setup-wizard/runtime-setup foundation and extend it
+toward:
+- a signed self-contained bootstrap with an approved artifact manifest;
+- private/pinned runtimes and dependency verification rather than ambient PATH;
+- OS-protected credential references and separate user consent per provider;
+- least-privilege Host lifecycle separated from interactive browser/user-session bridge;
+- truthful health states for installed / Host-ready / auth-ready / semantic-ready /
+  native-ready / provider-eligible;
+- staged update/repair that verifies, drains owned work, switches versions,
+  health-checks and rolls back only when state compatibility is proven;
+- uninstall that removes only owned installation resources and explicitly
+  preserves or removes user data by policy.
+
+"Zero knowledge" means no terminal expertise, not zero consent or hidden account
+authorization.
+
+### Browser Companion trust boundary
+
+Browser/site content is untrusted input. The Companion remains an adapter and must not
+mint task, claim, lease, provider, review, completion or shell authority. Minimum controls:
+- default no-site access; explicit per-origin grants and user-visible revoke;
+- authenticated Native Messaging or equivalent user-session bridge with OS ACLs;
+- bind browser profile/tab/conversation + user/device/project/execution identity;
+- no cookie/session-token scraping and no hidden full-page surveillance;
+- treat prompt/page text as data, never as policy or executable authority;
+- validate typed message schema, size, path and requested capability again in Conductor;
+- separate read/capture/send/write/execute grants and preserve user-action boundaries;
+- provider Terms/auth/quotas remain binding; no CAPTCHA/login/access-control bypass;
+- reconnect/duplicate delivery consumes existing execution/dedup truth and never blind-replays effects.
+
+Required negative tests include malicious page injection, forged extension/native messages,
+stale nonce/session replay, conversation mismatch, path traversal/argv injection, secret-shaped
+DOM fields, revoked-origin invocation and duplicate wake/result delivery.
+
+### Consumer acceptance matrix
+
+| Gate | Required proof |
+|---|---|
+| Fresh Windows install | Supported clean VM with no Python/Node/uv/Serena prerequisite; user launches one signed installer; no manual terminal/port/tunnel editing |
+| One connection | One supported SunDayMCP app surface exposes the accepted semantic + scoped native + Git/GitHub capability set through existing authority |
+| Safe project | Explicit selected sandbox/project; registration alone creates no hidden repo binding/hook/mutation |
+| GLM eligible | Exact Kilo/provider/model/task/worktree/result identity plus fresh route/quota/authorization evidence and deterministic candidate verification |
+| GLM unavailable | Typed blocker; independent semantic/native work may continue; no silent model substitution or duplicate paid/model effect |
+| Reboot/recovery | Host returns without terminal window, user-bound capabilities wait for the correct session, durable execution identity recovers without false completion/replay |
+| Session/worktree isolation | Two sessions/projects plus alias/junction overlap, busy Worker and stale claim; no project leakage or overlapping mutable ownership |
+| Browser threat matrix | Chrome/Edge/Firefox adapters are tested independently; only granted origins/data/actions cross the bridge; revoked origin has zero privileged effect |
+| Installer failure | Tampered artifact, interrupted download/update, disk-full and incompatible state fail closed and preserve recoverable user data |
+| Uninstall | Stops/removes only owned installation resources; unknown repos/worktrees/user data are preserved unless explicitly authorized |
+| Monitor truth | OFFLINE / UNKNOWN / BLOCKED / RUNNING remain distinguishable and every state points to existing evidence/provenance |
+| Legacy migration | Legacy Workers/RDC may run side-by-side during proof, but admission/dedup prevents duplicate effect; cutover is reversible |
+| Release evidence | Actual shipped binary/version/hash/signature matches reviewed source/candidate/CI/post-main evidence; green signing workflow alone is insufficient |
+
+Future macOS/Linux support requires equivalent clean-machine lifecycle/signing/key-storage
+acceptance for each explicitly supported OS/distro. Cross-platform smoke alone is not
+consumer onboarding proof.
+
+### Migration rule
+
+Migration is additive first: inventory legacy logical Worker/device bindings read-only,
+introduce SunDayMCP for a sacrificial project, prove read-only parity, then prove bounded
+semantic/native/write paths through the same admission/dedup authorities. Do not shadow-run
+two writers or silently fall back to a different connector. Preserve legacy configuration
+until user-confirmed retirement; rollback changes routing only and never replays ambiguous
+unfinished effects.
+
+### Activation fence
+
+Architecture/docs work under a non-overlapping claim may proceed now. Product mutation for
+Worker Host, facade, persistent service, Consumer installer integration, Browser Companion,
+unified monitor or federation remains gated after accepted ZRA-4 baseline unless a later
+explicit user decision changes dependency order after a fresh authority/overlap analysis.
+
+Superseded 2026-09-17 by the activation fence in the SunDay Runtime
+recomposition section below: the Runtime single-device MVP now follows ZRA-3
+directly, while facade/persistent-service/installer/browser/monitor/federation
+product mutation stays behind ZRA-4 recomposed acceptance and the
+isolation/recovery proof.
+
+## 2026-09-17 accepted controlled pivot — SunDay Runtime recomposition (WO-P1-247 / PR #332)
+
+Status: DOCS-ONLY SHAPING / NO RUNTIME, SUPERVISOR, FACADE, OR CONSUMER SOURCE AUTHORITY
+
+This section records the accepted controlled pivot and supersedes the
+2026-09-12 and 2026-09-16 production sequencing orders above. Historical text
+is retained as evidence; where it conflicts with this section, this section
+wins for sequencing and architecture direction.
+
+### Control-plane split
+
+- A-Sunday Conductor remains the **sole control plane** (authority,
+  admission, claims/leases, review, acceptance, recovery, evidence).
+- The new **SunDay Runtime** is an **execution substrate only**:
+  `execute / observe / cancel / collect evidence`. It owns no scheduler,
+  task graph/store, claim/lease system, provider admission, review,
+  retry/dedup/completion authority, merge authority, or project memory.
+- **One Runtime Supervisor per device** supervises separate isolated
+  executor processes/contexts per lane. Isolation of process, working
+  context, and working set across lanes is a Runtime obligation.
+- There is **no mutable global Active Project authority**. Logical Worker
+  `1..N` is lane naming only, not a fleet identity.
+- Transitional Serena use is **private per lane/worktree and optional**; the
+  shared mutable Serena Active Project model is SUPERSEDED (ADR-0001 records
+  the supersede and the corrected defect analysis: a request timeout alone
+  does not prove a Serena deadlock; project-context drift from global
+  activation is the architectural defect).
+- The standing rule that every exposed Worker binds to the same Active
+  Project is **replaced** by per-lane explicit execution-context binding
+  (repo/worktree/branch/HEAD/claim) with fail-closed `CONTEXT_DRIFT` when
+  the executor process/context does not match the declared binding.
+- Default WIP is preserved: `3 mutable + 1 independent read-only review`
+  lanes, spare recovery capacity, and `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
+
+### Recomposed dependency order (authoritative)
+
+```text
+WO246 provenance design + implementation
+-> WO205 / full ZRA-2 acceptance
+-> ZRA-3 accepted NEXT READY continuation
+-> SunDay Runtime single-device MVP
+   (Runtime Supervisor + isolated per-lane executors; substrate only)
+-> two-lane multi-project isolation/recovery proof
+-> ZRA-4 recomposed bounded-parallel acceptance
+-> thin SunDayMCP facade
+-> consumer hardening / optional federation
+```
+
+The relative `ZRA-2 -> ZRA-3 -> ZRA-4` order is unchanged. The Runtime MVP
+and its two-lane multi-project isolation/recovery proof are inserted before
+ZRA-4 recomposed acceptance because the bounded-parallel proof now runs on
+the Runtime's isolated two-lane substrate; ZRA-4's accepted scope (C1/C1b/C2
+identity work, two-lane race/restart/partial-failure/fan-in proof,
+ceiling 2 raised toward 3 only from evidence) is retained, not discarded.
+Federation (P2 / SMCP-7) stays deferred until the isolation/recovery proof
+is accepted; the earlier P2 design text remains shaping history, not an
+activation grant.
+
+In the SMCP table above, read every `accepted ZRA-4` dependency as `ZRA-4
+recomposed acceptance` under this order, and read `SMCP-7` federation as
+additionally requiring the isolation/recovery proof. Read `Worker Host` in
+the consumer North Star diagram and in `SMCP-1` as the recomposed SunDay
+Runtime Supervisor/substrate: its single-device MVP and the two-lane
+isolation/recovery proof precede ZRA-4 recomposed acceptance, while the
+facade vertical-slice portion of `SMCP-1` still follows it.
+
+### Recomposition ledger
+
+| Action | Item |
+|---|---|
+| KEEP | WO246, WO205 / full ZRA-2, ZRA-3, SunDayMCP thin facade |
+| RECOMPOSE | ZRA-4, WO247 / PR #332, Worker Host -> Runtime Supervisor |
+| SUPERSEDE | shared mutable Serena Active Project binding |
+| DEFER | federation until two-lane multi-project isolation/recovery proof |
+
+### Runtime Supervisor boundary (recomposes the P1 Worker Host MVP)
+
+The P1 single-machine Worker Host MVP is recomposed into the SunDay Runtime
+single-device MVP. The supervisor may:
+
+- supervise per-lane executor processes/contexts with isolated working
+  contexts per lane;
+- start/observe/cancel executors and collect their evidence by reusing the
+  existing LocalInstanceOrchestrator/supervised-execution/recovery
+  authority;
+- reconcile live process/lane/worktree/branch/HEAD/dirty/task/claim/lease
+  identity per lane;
+- project bounded status/events and fail closed on `CONTEXT_DRIFT`.
+
+It must not become a scheduler, task store, claim/lease system, provider
+registry, review authority, recovery authority, merge authority, or a
+mutation surface beyond typed operations. Executor isolation profiles
+(ports/DB/env/secrets per lane) follow the P3 direction subordinate to
+physical worktree identity and WorkerLease.
+
+### DesktopCommanderMCP adoption strategy
+
+Adopt DesktopCommanderMCP as a **pinned upstream dependency/adapter** for its
+useful filesystem/search/remote-device mechanics — not a whole-repo fork
+initially. Existing Conductor supervised execution/process ownership remains
+the authority. The DesktopCommanderMCP hosted relay remains an optional
+external dependency, never a required control-plane component.
+
+### Security P0 — mutation surface
+
+Autonomous mutation must NOT default to unrestricted raw shell, because a
+same-user shell can bypass scope. Until stronger isolation exists, prefer
+typed file edits, a patch-apply broker, and allowlisted build/test commands.
+This applies to the Runtime executors, the future facade, and any
+DesktopCommanderMCP-backed operation alike.
+
+### Semantic transition
+
+The Serena compatibility adapter is **lane-local only**. The long-term
+direction is a small semantic interface over LSP + Tree-sitter + bounded
+ripgrep. Do not rebuild language servers or a global index initially.
+
+### Activation fence
+
+Docs/research shaping for the SunDay Runtime may proceed in parallel under a
+non-overlapping claim without consuming conflicting production mutation
+ownership. Product mutation for the Runtime supervisor/executors, facade,
+persistent service, consumer installer, browser companion, unified monitor,
+or federation remains gated behind the recomposed order above unless a later
+explicit user decision reorders it after fresh authority/overlap analysis.
 
 ## Existing foundations to reuse
 
@@ -534,6 +862,6 @@ The long-term architecture is accepted only when a user can submit a goal and A-
 
 Do not implement a new orchestration subsystem from this document.
 
-The companion upstream reuse audit is complete for architecture shaping. Continue the existing Zero-Relay critical path from the current frontier: reconcile and finish WO216 Phase C0; independently accept/merge/post-main C0; release and complete WO201 Phase C1; repair and accept the WO208 crash/effect evidence; complete ZRA-2 Phase D plus the full no-human-relay review/repair E2E; reconcile/accept ZRA-3; then execute the already-gated ZRA-4 C1/C1b/C2 work and two-lane proof.
+The companion upstream reuse audit is complete for architecture shaping. At the 2026-09-17 re-pin, the current durable frontier is Issue #330 / WO246 author-attempt provenance, opened from WO205 Phase-D's `DESIGN_GAP_AUTHOR_ATTEMPT_PROVENANCE`. The older C0/C1/WO208 execution details retained above are historical evidence and must not be replayed merely because they remain in this roadmap. Continue only through current owners and claims in this order: `WO246 provenance acceptance -> resume WO205 Phase D + full ZRA-2 acceptance -> ZRA-3 acceptance -> SunDay Runtime single-device MVP -> two-lane multi-project isolation/recovery proof -> ZRA-4 recomposed bounded-parallel acceptance -> thin SunDayMCP facade -> consumer hardening / optional federation`. Re-pin durable Git/GitHub/task truth again at each dependency release rather than treating this dated projection as live authority.
 
-Worker Host/Fleet product work remains deferred until that ZRA-4 baseline is accepted. Research-derived P0 invariants may be folded into the existing ZRA contracts/tests only through their current owners and claims; this document grants no source mutation authority. Any future Worker Host/Fleet implementation requires a fresh work order, exact-main re-pin, ownership/non-overlap gate, RED-first acceptance criteria, and independent exact-SHA review.
+SunDay Runtime product work (recomposed from Worker Host) no longer waits for ZRA-4: its single-device MVP directly follows ZRA-3 acceptance under the recomposed order, and ZRA-4 recomposed acceptance runs on that isolated substrate. Facade, consumer installer, browser companion, unified monitor, and federation product work remains gated behind ZRA-4 recomposed acceptance plus the isolation/recovery proof. Research-derived P0 invariants may be folded into the existing ZRA contracts/tests only through their current owners and claims; this document grants no source mutation authority. Any future SunDay Runtime implementation requires a fresh work order, exact-main re-pin, ownership/non-overlap gate, RED-first acceptance criteria, and independent exact-SHA review.

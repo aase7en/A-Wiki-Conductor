@@ -108,7 +108,8 @@ def runtime_selection_sha256(
         )
     ).hexdigest()
 _EVIDENCE_LEVELS = frozenset({"DECLARED", "OBSERVED", "VERIFIED", "UNKNOWN"})
-_EFFORT_LEVELS = frozenset({"LOW", "HIGH", "MAX", "DEFAULT"})
+EFFORT_LEVELS = frozenset({"LOW", "HIGH", "MAX", "DEFAULT"})
+_EFFORT_LEVELS = EFFORT_LEVELS
 
 
 def _require_text(value: str, field_name: str, *, max_length: int | None = None) -> str:
@@ -182,6 +183,14 @@ class HarnessStrategy(str, Enum):
     ZCODE_APP_SERVER = "ZCODE_APP_SERVER"
 
 
+class ModelCostClass(str, Enum):
+    UNKNOWN = "UNKNOWN"
+    FREE = "FREE"
+    LOW_COST = "LOW_COST"
+    STANDARD = "STANDARD"
+    PREMIUM = "PREMIUM"
+
+
 class ProviderHealth(str, Enum):
     UNKNOWN = "UNKNOWN"
     AVAILABLE = "AVAILABLE"
@@ -229,10 +238,12 @@ class ProviderModelConfiguration:
     supported_effort_levels: tuple[str, ...] = ()
     context_window_tokens: int | None = None
     runtime_binding: "HarnessRuntimeBinding | None" = None
+    cost_class: ModelCostClass = ModelCostClass.UNKNOWN
 
     def __post_init__(self) -> None:
         _require_text(self.model_id, "model_id", max_length=128)
         _require_text(self.display_name, "display_name", max_length=128)
+        cost_class = _coerce_enum(self.cost_class, ModelCostClass, "cost_class")
         capabilities = tuple(
             item
             if isinstance(item, ActorCapabilityEvidence)
@@ -250,6 +261,7 @@ class ProviderModelConfiguration:
         binding = self.runtime_binding
         if binding is not None and not isinstance(binding, HarnessRuntimeBinding):
             binding = HarnessRuntimeBinding.from_dict(binding)
+        object.__setattr__(self, "cost_class", cost_class)
         object.__setattr__(self, "runtime_binding", binding)
         object.__setattr__(self, "actor_capabilities", capabilities)
         object.__setattr__(self, "supported_effort_levels", efforts)
@@ -258,6 +270,7 @@ class ProviderModelConfiguration:
         return {
             "model_id": self.model_id,
             "display_name": self.display_name,
+            "cost_class": self.cost_class.value,
             "actor_capabilities": [item.as_dict() for item in self.actor_capabilities],
             "supported_effort_levels": list(self.supported_effort_levels),
             "context_window_tokens": self.context_window_tokens,

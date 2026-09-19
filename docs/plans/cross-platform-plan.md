@@ -36,7 +36,7 @@ Created: 2026-08-22 (user request; assessment + plan, not yet implemented)
 - **P1 Platform abstraction** (~3-4 PRs): OS-detect module + POSIX process controller + `.sh` instance templates + per-OS paths + tests รันบนทั้ง windows/ubuntu/macos CI matrix (ตัว Windows ยังผ่านเหมือนเดิม)
 - **P2 macOS + Linux desktop builds** (~2 PRs): PyInstaller onefile บนแต่ละ OS + packaging (.app/DMG, AppImage/install.sh) + docs
 - **P3 Raspberry Pi** (~1-2 PRs): linux-arm64 build + python3-tk ตรวจ perf (Serena บน Pi ช้ากว่า — จำกัดจำนวน instance แนะนำ 2-3) + คู่มือ
-- **P4 Umbrel / headless** (milestone แยก): daemon mode (ไม่มี Tk) + Web UI (เล็ก: status/start/stop/logs ผ่าน HTTP localhost) + umbrel-app manifest (Docker) — ต้องการ work order เฉพาะ
+- **P4 Umbrel / headless** (milestone แยก): daemon mode (ไม่มี Tk) + Web UI ผ่าน shared Hook Monitor backend/API + umbrel-app manifest (Docker). ห้ามสร้าง task/state/monitor stack แยกเฉพาะ Umbrel; Web UI/Extension UI/Desktop ต้องใช้ normalized Hook Contract + Monitor Projection เดียวกันตาม `docs/plans/2026-09-19-a-faster-hook-stm-observability-roadmap.md`. ต้องการ work order เฉพาะ
 
 ## สิ่งที่ไม่ต้องแก้ (พร้อมอยู่แล้ว)
 
@@ -48,4 +48,5 @@ Created: 2026-08-22 (user request; assessment + plan, not yet implemented)
 
 1. วันนี้: ข้อ 2 (MONITOR) + ข้อ 3 (ปิดโปรแกรมแล้วหยุดทุก server) ก่อน — ใช้ได้ทันทีบน Windows และเป็นฐานให้ทุก platform (สถานะในแอป = ไม่ต้องพึ่งหน้าต่าง CMD)
 2. GATE-0 ตรวจ tunnel-client builds
-3. P1 → P2 → P3 ตามลำดับ; P4 (Umbrel) เปิด work order แยกเมื่อพร้อม
+3. พัฒนา Hook Contract / STM / shared read-only Monitor API ตาม roadmap 2026-09-19 ก่อน Web/Extension UI เพื่อไม่ให้แต่ละ platform สร้าง state model ของตัวเอง
+4. P1 → P2 → P3 ตามลำดับ; P4 (Umbrel) เปิด work order แยกเมื่อ shared Monitor contract พร้อม

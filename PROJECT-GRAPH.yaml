@@ -18,12 +18,29 @@ workflow_nodes:
     read:
       - docs/agent-collab/FAST_EXECUTION_PROTOCOL.md
       - docs/agent-collab/COLLAB_PROTOCOL.md
+  fast_path_tool_routing:
+    when: session/tool routing, external plugins, local/remote execution surfaces, delivery-latency reduction, CI fan-out/fan-in, parallel reviewer routing, or substantial session routing, parallel-lane fill/recycle, cross-executor continuation/takeover, temporary-lane closeout (A-FastTask)
+    read:
+      - docs/agent-collab/CAPABILITY_MATRIX.md
+      - docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md
+      - .agents/skills/a-fasttask/SKILL.md
+  accelerated_multidevice_routing:
+    when: explicit A-Faster use, coordinated Windows/macOS work, parallel Kilo + Claude Code GLM harnesses, multi-device lane recycle, or accelerated merged-worktree cleanup
+    read:
+      - .agents/skills/a-fasttask/SKILL.md
+      - .agents/skills/a-faster/SKILL.md
+      - .agents/skills/a-faster/references/multidevice.md
+  cross_repo_binding:
+    when: repo-role topology, CROSS_REPO or EXECUTION_SUBSTRATE_ONLY work, per-lane repo binding, exact-SHA compatibility sets, or set-level completion
+    read:
+      - docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md
   multi_agent_coordination:
     when: parallel lanes, delegation, claim transfer, review handoff
     read:
       - COLLAB.md
       - docs/agent-collab/COLLAB_PROTOCOL.md
       - docs/agent-collab/CAPABILITY_MATRIX.md
+      - docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md
   architecture:
     when: product architecture, roadmap, trust boundary, durable workflow policy
     read:
@@ -56,6 +73,16 @@ rules:
   default_wip:
     mutable_lanes: 3
     independent_read_only_review_lanes: 1
+  repo_role_topology:
+    definition_home: docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md
+    values: [CONTROL_PLANE_ONLY, EXECUTION_SUBSTRATE_ONLY, CROSS_REPO]
+    projections_must_not_fork: true
+  lane_binding_tuple: "repo -> worktree -> branch -> HEAD -> task/claim -> scope"
+  one_repo_per_lane: true
+  context_drift_blocks_lane_only: true
+  cross_repo_wip_global_across_compatibility_set: true
+  cross_repo_freeze_requires_exact_sha_set: true
+  cross_repo_completion_set_level_with_authority_wo_pointer: true
 routing:
   bounded_ready_implementation_default: capability_matrix_selected_executor
   current_preferred_candidate: GLM_ZCode
