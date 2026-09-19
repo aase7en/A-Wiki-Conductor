@@ -74,15 +74,23 @@ def test_model_cost_class_is_declared_typed_and_backward_compatible() -> None:
     assert default_model.cost_class is ModelCostClass.UNKNOWN
     assert default_model.as_dict()["cost_class"] == "UNKNOWN"
 
+    for cost_class in ModelCostClass:
+        configured = ProviderModelConfiguration(
+            model_id=f"{cost_class.value.casefold()}-model",
+            display_name=f"{cost_class.value} Model",
+            cost_class=cost_class,
+            supported_effort_levels=("LOW", "HIGH"),
+        )
+        serialized = configured.as_dict()
+        assert serialized["cost_class"] == cost_class.value
+        assert ProviderModelConfiguration(**serialized) == configured
+
     low_cost = ProviderModelConfiguration(
         model_id="low-cost-model",
         display_name="Low Cost Model",
         cost_class="LOW_COST",
         supported_effort_levels=("LOW", "HIGH"),
     )
-    assert low_cost.cost_class is ModelCostClass.LOW_COST
-    assert ProviderModelConfiguration(**low_cost.as_dict()) == low_cost
-
     old_serialized = {
         key: value
         for key, value in low_cost.as_dict().items()

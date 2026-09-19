@@ -88,6 +88,12 @@ Requirements:
 4. cost class is declared configuration, not inferred from provider/model name;
 5. saving a changed declared cost class remains generation-stamped through the existing CAS/store path.
 
+Serialization compatibility for this slice is intentionally asymmetric and fail-closed:
+- current writers always emit the explicit `cost_class` key;
+- current readers accept older rows that omit the key and decode them as `UNKNOWN`;
+- an older binary that does not accept the new key is not promised rollback compatibility and may fail loudly rather than silently discard cost evidence;
+- rollback across this schema shape therefore requires an explicit data/schema compatibility step, not an implicit downgrade.
+
 ### Effort vocabulary
 
 Reuse the existing provider-neutral values:

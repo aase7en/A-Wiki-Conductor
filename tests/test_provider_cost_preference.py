@@ -238,6 +238,50 @@ def test_ranking_is_stable_and_identity_only_breaks_semantic_ties() -> None:
     ] == expected
 
 
+def test_misleading_identity_names_do_not_override_semantic_ranking() -> None:
+    misleading_cheap_name = candidate(
+        "aaa-free-unlimited",
+        model_id="free-fast-max",
+        cost=ModelCostClass.PREMIUM,
+        quota_snapshot=quota(used=80, remaining=20),
+    )
+    misleading_expensive_name = candidate(
+        "zzz-premium-exhausted",
+        model_id="expensive-slow",
+        cost=ModelCostClass.FREE,
+        quota_snapshot=quota(),
+    )
+
+    ranked = rank_provider_candidates(
+        (misleading_cheap_name, misleading_expensive_name),
+        requested_effort="HIGH",
+    )
+
+    assert ranked[0].candidate.provider_id == "zzz-premium-exhausted"
+    assert ranked[0].quota_tier is QuotaPreferenceTier.AVAILABLE
+    assert ranked[0].cost_class is ModelCostClass.FREE
+    assert ranked[1].candidate.provider_id == "aaa-free-unlimited"
+
+
+def test_ranking_does_not_call_execution_authority(monkeypatch) -> None:
+    from a_conductor.provider_execution_authority import ProviderExecutionAuthority
+
+    def forbidden_authorize(*args, **kwargs):
+        raise AssertionError("preference ranking must not call execution authority")
+
+    monkeypatch.setattr(ProviderExecutionAuthority, "authorize", forbidden_authorize)
+
+    item = candidate(
+        "provider-advisory-only",
+        cost=ModelCostClass.LOW_COST,
+        quota_snapshot=quota(),
+    )
+    ranked = rank_provider_candidates((item,), requested_effort="HIGH")
+
+    assert ranked[0].candidate is item
+    assert ranked[0].eligibility is PreferenceEligibility.ELIGIBLE
+
+
 def test_ranking_is_pure_and_does_not_mutate_candidate_evidence() -> None:
     original = (
         candidate(
