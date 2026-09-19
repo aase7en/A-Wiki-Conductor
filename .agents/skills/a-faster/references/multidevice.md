@@ -15,6 +15,19 @@ provider, cleanup, merge, or acceptance authority.
 
 A missing surface blocks only dependent work.
 
+## Mandatory substantial-session readiness sweep
+
+For every substantial A-Sunday Conductor engineering session, attempt READ-ONLY
+readiness discovery for SunDay-Worker 1, 2, 3, 4 and 5 individually, plus RDC
+device discovery. Record the actual result per surface. If a direct Worker tool
+is not exposed in the current harness, record `PLUGIN_NOT_EXPOSED_TO_CHAT`
+instead of claiming invocation. If both Windows and macOS are available and
+independent READY scopes exist, prefer splitting work across devices; otherwise
+keep work on the safe ready device.
+
+All discovered Workers/devices share the same capacity below. Extra Workers are
+standby/read-only/recovery helpers unless an actual global WIP slot is free.
+
 ## Global capacity
 
 One project-wide budget:
@@ -40,14 +53,23 @@ Do not allocate this budget independently on each machine.
 
 ## External advisory tools
 
-Windows desired state for WO-P1-256:
+Per-device desired state:
 
-- `ponytail@ponytail` Claude Code plugin, user scope;
-- GitHub `JuliusBrussee/caveman` skill-only install;
-- GitHub `JRA-CodingLab/grill-me` skill-only install.
+- `ponytail@ponytail` Claude Code plugin at user scope. Verify first; if
+  missing and authorized, use the upstream two-step Claude flow:
+  `/plugin marketplace add DietrichGebert/ponytail`, then
+  `/plugin install ponytail@ponytail`.
+- GitHub `JuliusBrussee/caveman` **skill-only** install. Verify first; when
+  missing, `npx skills add JuliusBrussee/caveman -g` is the supported
+  skill installer path. Do not install the optional proxy/engine just to meet
+  A-Faster readiness.
+- Preserve the device's existing local Grill Me skill. Never replace a
+  customized `grill-me` merely to normalize devices; invoke it only when real
+  intent/architecture ambiguity remains after tool/codebase/authority research.
 
 Per-device installation must be independently verified. Windows installation is
-not evidence of Mac installation.
+not evidence of Mac installation. Advisory helper availability never grants
+mutation, acceptance, merge, cleanup or provider authority.
 
 ## Cleanup proof
 

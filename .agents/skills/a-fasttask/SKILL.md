@@ -19,11 +19,16 @@ instructions into every repository.
 
 ## Accelerated profile
 
-When the user explicitly asks for **A-Faster**, coordinated multi-device work,
-or parallel Kilo + Claude Code GLM lanes, keep this A-FastTask file as the
-canonical routing base and then read `../a-faster/SKILL.md`. A-Faster may add
-device/harness/WIP/cleanup routing constraints only; it must not redefine task,
-claim, provider, review, merge, completion, or memory authority.
+For substantial **A-Sunday Conductor engineering work**, use **A-Faster** as
+the default acceleration overlay after loading this canonical A-FastTask base.
+Also use it whenever the user explicitly asks for A-Faster, coordinated
+multi-device work, parallel Kilo + Claude Code GLM lanes, or accelerated lane
+recycle/cleanup. Trivial Q&A, single obvious mechanical edits, and already-bound
+mid-lane execution remain excluded by the negative triggers below.
+
+Read `../a-faster/SKILL.md` after this file. A-Faster may add only
+device/harness/WIP/readiness/cleanup routing constraints; it must not redefine
+task, claim, provider, review, merge, completion, or memory authority.
 
 ## Trigger (use this skill)
 
