@@ -1,10 +1,16 @@
 # Claude Code Hook Adapter v1 (HOOK-3/Claude)
 
-Status: CONTRACT-ONLY FREEZE CANDIDATE — WO-P1-261 / Issue #375
+Status: CONTRACT-ONLY FREEZE CANDIDATE — WO-P1-375 / Issue #375
 Adapter id: `claude-hook-adapter`
 Adapter version: 1.0.0
 Contract version emitted: Hook Contract v1 `1.0.0` (exact)
-Dependency pin: Hook Contract (HOOK-0, WO-P1-258) at commit
+Dependency pin: Hook Contract (HOOK-0, WO-P1-258) at accepted commit
+`602f6db01e170f74456ff77e1b5df01622fb84dd`
+(`fix(WO258): review-001 dedupe identity, stream domain, late arrival`,
+merged to main via `2a461ae22ab28ad3b48f15660ab818f700faab30`;
+`docs/contracts/hook-contract-v1.md` blob `941f9731f9665fe109451a14cdc2b737555be99a`,
+`docs/contracts/hook-contract-v1.schema.json` blob `d176fd5e6393af6f5619fad372ad59aa858391ee`).
+Superseded historical pin (WO-P1-261 freeze, evidence only): commit
 `f20fff006aad1e592b150ffdcb52ac331ec00a3a`
 (`docs/contracts/hook-contract-v1.md` blob `b4f98fb8f2ce35958b4e5cfc660eeb671c46d723`,
 `docs/contracts/hook-contract-v1.schema.json` blob `23c5dc3035320dc288e376bd103d8e00409a9762`).
@@ -228,6 +234,9 @@ this contract's version, `contract_version` = the pinned `1.x.y`,
 `emits` = the registry `emits` for the pinned native version,
 `redaction_policy` = `fake-secret-corpus/1`, `supports_sequence` = `false`
 (§9). For `2.1.178` this event honestly reports zero lifecycle mappings.
+The `adapter` payload appears ONLY on this capability-discovery event, as
+the accepted 1.0.0 schema requires (Hook Contract §14): any other
+adapter-bearing event is schema-invalid.
 
 ## 7. Redaction
 
@@ -293,13 +302,21 @@ produce a clean envelope because there is no passthrough (§5).
 The adapter does not invent global sequence or clock authority:
 
 - It emits no `sequence` field and reports `supports_sequence: false`.
-- `dedupe_key` is omitted (unknown native replay identity); consumers
-  fall back per Hook Contract §4.
+- `dedupe_key` is omitted (no deliberate native replay identity is
+  claimed); per Hook Contract §4 as accepted at the pinned head,
+  consumers dedupe these envelopes on the globally unique `event_id`
+  only. `source` + `sequence` MUST NOT become duplicate identity for
+  these envelopes under any consumer configuration.
 - Retries/duplicates of the same semantic native event MUST reuse the
   same `event_id`; first-normalization identity is retained by the
   runtime seam that later Work Orders provide.
-- Interleaving, k-way merge, gap handling, and replay-window dedupe are
-  Hook Contract §4/§5 semantics; this adapter adds none.
+- Stream-domain ordering — the
+  `(source, device_id, observed transport/adapter session)` stream
+  identity, per-stream `sequence` authority, append-only emitted
+  history, late-arrival append with surfaced sequence inversion,
+  interleaving, k-way merge, gap handling, and replay-window dedupe —
+  is entirely Hook Contract §4/§5 semantics; this adapter adds none
+  of it.
 
 ## 10. Envelope size guard
 
@@ -329,7 +346,10 @@ emits); fixture/real-version isolation; typed rejects with no silent
 fallback; secret-bait confinement (corpus items appear only in marked
 input frames and never in any envelope, expected file, or the registry);
 fixed-vocabulary summaries; UTC-Z normalization; retry identity reuse;
-ordering delegation; the size guard; and that no GUARD/COMMAND envelope
+ordering delegation; the recorded dependency pin equals the actual
+pinned Hook Contract blobs (fail-closed against silent drift); the
+`adapter` payload is legal only on the capability-discovery event; the
+size guard; and that no GUARD/COMMAND envelope
 is ever produced. No network, no live CLI, no MCP, no runtime.
 
 ## 12. Out of scope / future Work Orders

@@ -1,12 +1,12 @@
-"""WO-P1-261 — Claude Code Hook Adapter v1 offline conformance.
+"""WO-P1-375 — Claude Code Hook Adapter v1 offline conformance.
 
 Deterministic, offline-only tests for the mapping contract in
 docs/contracts/claude-hook-adapter-v1.md against the Hook Contract v1
 schema (docs/contracts/hook-contract-v1.schema.json), driven exclusively
 by tests/fixtures/hook_adapters/claude/**.
 
-The reference mapper below is test-local by design: WO-P1-261 adds no
-src/runtime code. No network, no live CLI, no MCP.
+The reference mapper below is test-local by design: the adapter lane
+adds no src/runtime code. No network, no live CLI, no MCP.
 """
 
 import hashlib
@@ -26,9 +26,12 @@ REGISTRY_PATH = FIXTURE_DIR / "capability_registry.json"
 FRAMES_DIR = FIXTURE_DIR / "frames"
 EXPECTED_DIR = FIXTURE_DIR / "expected"
 
-DEPENDENCY_SHA = "f20fff006aad1e592b150ffdcb52ac331ec00a3a"
-CONTRACT_MD_BLOB = "b4f98fb8f2ce35958b4e5cfc660eeb671c46d723"
-CONTRACT_SCHEMA_BLOB = "23c5dc3035320dc288e376bd103d8e00409a9762"
+DEPENDENCY_SHA = "602f6db01e170f74456ff77e1b5df01622fb84dd"
+CONTRACT_MD_BLOB = "941f9731f9665fe109451a14cdc2b737555be99a"
+CONTRACT_SCHEMA_BLOB = "d176fd5e6393af6f5619fad372ad59aa858391ee"
+SUPERSEDED_DEPENDENCY_SHA = "f20fff006aad1e592b150ffdcb52ac331ec00a3a"
+SUPERSEDED_MD_BLOB = "b4f98fb8f2ce35958b4e5cfc660eeb671c46d723"
+SUPERSEDED_SCHEMA_BLOB = "23c5dc3035320dc288e376bd103d8e00409a9762"
 
 ADAPTER_ID = "claude-hook-adapter"
 ADAPTER_VERSION = "1.0.0"
@@ -148,6 +151,16 @@ def frames_with_outcome(outcome: str) -> list:
 # ---------------------------------------------------------------------------
 # Reference mapper (test-local; production wiring is a later Work Order)
 # ---------------------------------------------------------------------------
+
+
+def _git_blob_sha(data: bytes) -> str:
+    """Git blob object id (SHA-1) for exact working-tree pin equality.
+
+    `core.autocrlf` working trees carry CRLF while the stored blob is LF,
+    so line endings are normalized to the blob form before hashing."""
+    return hashlib.sha1(
+        b"blob %d\x00" % len(data := data.replace(b"\r\n", b"\n")) + data
+    ).hexdigest()
 
 
 def _reject(code: str, detail: str, security_invalid: bool = False) -> dict:
@@ -421,6 +434,28 @@ def test_dependency_pin_recorded_in_contract_doc() -> None:
     assert SCHEMA_PATH.exists()
 
 
+def test_recorded_pin_equals_actual_hook_contract_blobs() -> None:
+    """WO-P1-375 regression: the recorded pin must equal the actual
+    working-tree Hook Contract blobs, so dependency drift fails closed
+    here instead of passing a stale recorded pin."""
+    md_blob = _git_blob_sha(
+        (ROOT / "docs" / "contracts" / "hook-contract-v1.md").read_bytes()
+    )
+    schema_blob = _git_blob_sha(SCHEMA_PATH.read_bytes())
+    assert md_blob == CONTRACT_MD_BLOB
+    assert schema_blob == CONTRACT_SCHEMA_BLOB
+    for stale in (SUPERSEDED_MD_BLOB, SUPERSEDED_SCHEMA_BLOB):
+        assert stale not in {md_blob, schema_blob}
+
+
+def test_superseded_pin_preserved_as_historical_evidence() -> None:
+    """The WO-P1-261 freeze pin stays recorded (historical, no authority)."""
+    text = contract_doc_text()
+    assert SUPERSEDED_DEPENDENCY_SHA in text
+    assert SUPERSEDED_MD_BLOB in text
+    assert "Superseded historical pin" in text
+
+
 def test_contract_doc_records_local_evidence_without_native_names() -> None:
     text = contract_doc_flat()
     assert REAL_VERSION in text
@@ -443,6 +478,17 @@ def test_contract_doc_forbids_guard_and_command_and_delegates_ordering() -> None
     assert "does not invent global sequence or clock authority" in text
     assert "supports_sequence: false" in text
     assert "no fallback vocabulary" in text.lower() or "no default mapping" in text
+
+
+def test_contract_doc_rebinds_identity_and_dedupe_semantics() -> None:
+    """WO-P1-375 re-pin: canonical identity + accepted §4/§5 semantics."""
+    text = contract_doc_text()
+    assert "WO-P1-375 / Issue #375" in text
+    assert "WO-P1-261" not in text.split("Superseded historical pin")[0]
+    flat = contract_doc_flat()
+    assert "MUST NOT become duplicate identity" in flat
+    assert "globally unique `event_id` only" in flat
+    assert "append-only emitted history" in flat
 
 
 # ---------------------------------------------------------------------------
@@ -571,6 +617,17 @@ def test_capability_event_for_fixture_version_lists_bound_mappings(
     assert set(expected["adapter"]["emits"]) == set(
         registry["versions"][FIXTURE_VERSION]["emits"]
     )
+
+
+def test_adapter_payload_schema_invalid_outside_capability_event(
+    validator,
+) -> None:
+    """Accepted 1.0.0 schema (602f6db): the `adapter` payload is legal only
+    on `transport.adapter_capabilities`; lifecycle envelopes carrying it
+    are schema-invalid."""
+    expected = load_json(EXPECTED_DIR / "fx_session_start.json")
+    tainted = dict(expected, adapter={"adapter_id": ADAPTER_ID})
+    assert not validator.is_valid(tainted)
 
 
 # ---------------------------------------------------------------------------
