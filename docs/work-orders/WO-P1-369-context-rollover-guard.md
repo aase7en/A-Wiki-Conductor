@@ -1,9 +1,10 @@
-# WO-P1-259 — Context Rollover Guard + Durable Recovery Pointer MVP
+# WO-P1-369 — Context Rollover Guard + Durable Recovery Pointer MVP
 
 Date: 2026-09-19
 Owner: GPT-5.6 Sol integrator / mutation owner
 Status: CLAIMED / RED_FIRST
 Issue: #369
+Identity schema: GITHUB_ISSUE_V1
 Risk: R3 — continuity / authority-adjacent
 Task topology: CONTROL_PLANE_ONLY
 
@@ -21,6 +22,10 @@ historical only and does NOT represent WO-P1-258 task authority.
 Branch:
 `feat/wo-p1-259-context-rollover-guard`
 
+This is a retained historical transport branch name only (the remote PR
+transport branch); branch naming grants no task authority. Canonical task
+identity is WO-P1-369 / Issue #369 (GITHUB_ISSUE_V1).
+
 Base:
 `origin/main@95c4b9e78003c4b61083650d1698c6661f9bb545`
 
@@ -28,7 +33,7 @@ Owner:
 GPT-5.6 Sol
 
 Claim:
-`WO-P1-259-CONTEXT-ROLLOVER-001`
+`WO-P1-369-CONTEXT-ROLLOVER-001`
 ## Goal
 
 Add the smallest deterministic session/context rollover guard that lets an
@@ -186,3 +191,26 @@ behavioral acceptance criteria or implementation claims were changed.
 - The four WO259 scoped blobs at that merge-forward checkpoint are byte-identical to reviewed candidate `a2e149352ad3ba1a4fcb8b3045169541ab5cfd04`; no source/test/entry behavior changed during re-pin.
 - Re-pinned continuity battery: 245 passed (`context_rollover_guard`, `continuity_guard`, `continuity_projection`, `goal_closeout`).
 - This checkpoint changes factual binding only. Exact-head review and hosted CI must bind the new frozen SHA; prior review remains semantic evidence only.
+
+## 2026-09-19 identity rebind checkpoint — WO-P1-369
+
+Identity-only rebind (claim `WO-P1-369-CONTEXT-ROLLOVER-REBIND-001`, lane
+`fix/wo-p1-369-context-rollover-rebind`, worktree
+`A:\GitHub\_worktrees\A-Wiki-Conductor-wo369-context-rebind`, dispatch HEAD
+`95c87ab8aa7027eabc462a888e93c8428665a768`): this lane is GitHub Issue #369,
+so canonical task identity is now WO-P1-369 (identity schema GITHUB_ISSUE_V1)
+and the current canonical claim is `WO-P1-369-CONTEXT-ROLLOVER-001`.
+
+All prior WO-P1-258/WO-P1-259 identities recorded in earlier checkpoints,
+binding notes, branches, worktree names, review evidence, and SHAs above are
+historical only and retain no task authority; they are preserved unchanged as
+truthful historical record. The remote PR transport branch remains named
+`feat/wo-p1-259-context-rollover-guard`; that name is retained historical
+transport naming only.
+
+This rebind changed identity references only: the module docstring of
+`src/a_conductor/context_rollover_guard.py`, the single context-rollover WO
+reference in `00-AGENT-ENTRY.md`, and this work order's header/binding
+identity plus this checkpoint. Behavioral code, tests, and all historical
+checkpoint facts are unchanged. Behavioral semantics are frozen per the
+prior exact-SHA review of `95c87ab` (PASS, P0/P1/P2/P3=0).

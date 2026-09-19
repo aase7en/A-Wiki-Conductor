@@ -57,7 +57,7 @@ A fresh session must recover this state from runtime/Git/durable records rather 
 
 ## Context/session rollover guard
 
-Ordinary ChatGPT does not expose a trusted exact percentage of remaining context. Never invent one. When a session is materially crowded, near practical rollover, or context pressure is unknown, reuse the WO-P1-259 context-rollover contract over existing ContinuityGuard + durable checkpoint/recovery facts:
+Ordinary ChatGPT does not expose a trusted exact percentage of remaining context. Never invent one. When a session is materially crowded, near practical rollover, or context pressure is unknown, reuse the WO-P1-369 context-rollover contract over existing ContinuityGuard + durable checkpoint/recovery facts:
 
 - GREEN: continue normally under the existing mutation gate;
 - YELLOW: refresh/checkpoint at the next meaningful boundary before more substantial work or rotation;
