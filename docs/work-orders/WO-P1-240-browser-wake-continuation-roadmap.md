@@ -12,13 +12,14 @@ Repo: `aase7en/A-Wiki-Conductor`
 Docs worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo240-browser-wake-roadmap`
 Branch: `docs/wo-p1-240-browser-wake-continuation-roadmap`
 Original base: `origin/main@67744e98e538b000579bff4a45616d3a178a824b`
-Reconciled main baseline: `origin/main@cbd47608346e7510dcf5946cc8b1974b8564f31b`
+Reconciled main baseline: `origin/main@3656fb386911b5bf9e3457e8e11c67d6b11da8e6`
 Pre-edit reconciliation merge: `c4d24ff2ad6e8a6df96d61ff7db81423dbed5957`
-Current-main re-pin merge: `264dbab26cf88fd5115f91c3c3187e710995b25d`
+Prior current-main re-pin merge: `264dbab26cf88fd5115f91c3c3187e710995b25d`
+Latest current-main re-pin merge: `c3a012633b26e8785f94738b8fb5e386d99c20da`
 
 Actual runtime/Git/GitHub/durable Issue state overrides this WO. Chat is not project authority.
 
-WO223/PR #319 is merged historical evidence, not the current blocker. This lane remains docs-only and must not edit ZRA-3, WO258/HOOK-0, WO259/context-rollover, `CURRENT-WORK.md`, `handoff.md`, `COLLAB.md`, product source/tests, provider/runtime DB, or live browser/provider configuration.
+WO223/PR #319 is merged historical evidence, not the current blocker. This lane remains docs-only and must not edit ZRA-3, WO258/HOOK-0, DEX WO259/260, WO369/context-rollover, WO374 durable-lane authority, `CURRENT-WORK.md`, `handoff.md`, `COLLAB.md`, product source/tests, provider/runtime DB, or live browser/provider configuration.
 
 ## Goal
 
@@ -33,15 +34,22 @@ The desired operator outcome is one initial goal command, with no repeated human
 Current GitHub truth materially advanced after the original freeze:
 
 - WO223/PR #319 merged; the old "finish WO223" dependency is historical.
-- WO257 is merged and now owns Hook Contract -> Hook Bus/STM -> Monitor API ->
+- WO257 is merged and owns Hook Contract -> Hook Bus/STM -> Monitor API ->
   Web/Extension UI -> Command Gateway architecture.
-- WO260/PR #377 is merged and supplies durable delegated-lane identity/recovery
-  pointers (LANE_REF / DELEGATED_RUN_ID / BINDING_DIGEST) as a non-authoritative
-  routing/evidence overlay. Browser Wake consumes those pointers when relevant.
-- WO258/PR #371 is the open HOOK-0 contract lane; WO240 must consume its final
-  accepted form rather than introduce a Sunday-Family protocol.
-- WO259/PR #373 is the open context/session rollover lane; browser new-chat
-  resume consumes that contract rather than storing its own resume truth.
+- WO-P1-374 / Issue #374 / PR #377 is now the canonical durable delegated-lane
+  identity/recovery overlay. Historical pre-remediation WO260 pointers remain
+  evidence aliases only; Browser Wake consumes those pointers without gaining
+  task/retry authority.
+- WO258/PR #371 is merged as HOOK-0, with an active forward-only post-merge
+  compatibility repair. WO240 must bind implementation to the latest accepted
+  Hook Contract successor rather than fork its event vocabulary.
+- WO-P1-369 / Issue #369 / PR #373 is merged and is the canonical context/session
+  rollover contract; browser new-chat resume consumes it unchanged.
+- DEX-ARCH-1 / Issue #348 / PR #372 is merged and defines DEX-3a completion
+  notification plus DEX-3b supported resume adapter. Browser Wake is a DEX-3b
+  provider/browser realization, not a new continuation control plane.
+- WO-P1-381 / Issue #381 / PR #382 is merged and establishes current atomic
+  Work Order identity rules for future browser implementation lanes.
 - ZRA-3 PR #263 and its production-composition successors remain continuation
   dependencies until accepted.
 - Ordinary ChatGPT/Gemini web chat has no required native `/goal` contract.
@@ -49,10 +57,12 @@ Current GitHub truth materially advanced after the original freeze:
 - Schedule ownership remains outside the extension. A future schedule UI sends
   requests to a canonical A-Conductor scheduler/trigger authority only.
 
-Result: WO240 is narrowed to the missing **Browser Chat Harness Adapter** and
-its Native Messaging/provider transport. Extension monitor/control UI is reused
-from WO257; session rollover is reused from WO259; delegated-lane recovery pointers
-are reused from WO260; NEXT_READY is reused from ZRA-3.
+Result: WO240 is narrowed to the browser/provider realization of **DEX-3b
+supported resume**. Extension monitor/control UI is reused from WO257; session
+rollover is reused from WO369; delegated-lane recovery pointers are reused from
+canonical WO374 (with historical WO260 aliases preserved as evidence); completion
+notification/reconciliation follows DEX-3a/DEX-2a/DEX-2b; NEXT_READY is reused
+from ZRA-3.
 
 ## Reuse-before-build conclusions
 
@@ -88,8 +98,9 @@ architecture:
 
 1. accept the existing ZRA-3 continuation semantics rather than implementing
    "continue" logic in JavaScript;
-2. accept/re-pin HOOK-0 and context-rollover contracts;
-3. BWA-0: define the browser harness/conversation contract only;
+2. re-pin the latest accepted HOOK-0 successor; consume accepted WO369 context
+   rollover and accepted WO374 delegated-lane recovery without redefining them;
+3. BWA-0: define the browser harness/conversation contract only as a DEX-3b slice;
 4. BWA-1: Native Messaging + MV3 core + fake-provider deterministic E2E;
 5. BWA-2: ChatGPT Web and Gemini Web adapters;
 6. BWA-3: zero-human-continuation E2E with restart + context rollover;
@@ -111,7 +122,7 @@ remains in A-Sunday Conductor/A-Wiki.
 - map A-Wiki hooks/skills to REUSE rather than duplicate them;
 - audit `niawjunior/aipass-bridge` plus at least one multi-provider bridge and one Native Messaging bridge pattern;
 - define Browser Wake authority/transport boundary and Sunday-Family package modules;
-- explicitly reconcile with WO257, HOOK-0, context-rollover and ZRA-3 rather than duplicating them;
+- explicitly reconcile with WO257, latest HOOK-0, WO369, WO374, DEX-ARCH-1/DEX-3b and ZRA-3 rather than duplicating them;
 - specify that ChatGPT/Gemini web adapters require no native `/goal`;
 - keep scheduled-goal authority outside Chrome/Extension state;
 - define phased dependencies, success metrics, typed failure/security rules and implementation gates;
@@ -124,6 +135,14 @@ remains in A-Sunday Conductor/A-Wiki.
 Fresh session resume order:
 `00-AGENT-ENTRY.md -> PROJECT-GRAPH.yaml -> AGENTS.md -> actual Git/GitHub -> Issue #320 -> this WO -> roadmap`.
 
-Before implementation planning, re-read Issue #320 plus current ZRA-3, WO257, WO258/HOOK-0 and WO259/context-rollover authority. Treat PR #319 only as merged historical evidence; do not infer current dependencies from the original 2026-09-15 sequence.
+Before implementation planning, re-read Issue #320 plus current ZRA-3, WO257,
+Issue #368/HOOK-0, accepted WO369 context rollover, canonical WO374 durable-lane
+overlay, and DEX-ARCH-1 / active DEX-2a/2b authority. Treat PR #319 only as merged
+historical evidence; do not infer current dependencies from the original
+2026-09-15 sequence.
 
-Next safe action: verify the reconciled two-file diff against current main, freeze/push a new exact candidate, checkpoint Issue #320, then obtain independent exact-SHA architecture/security/reuse review plus required CI. Do not edit product source under this WO. After acceptance, open BWA-0 only when the live ZRA-3/HOOK-0/context-rollover dependency gates permit it.
+Next safe action: verify the reconciled two-file diff against current main,
+freeze/push a new exact candidate, checkpoint Issue #320, then obtain a qualified
+independent exact-SHA architecture/security/reuse review plus required CI. Do not
+edit product source under this WO. After acceptance, BWA-0 may open only as a
+bounded DEX-3b slice when the live ZRA/HOOK/DEX predecessor gates permit it.
