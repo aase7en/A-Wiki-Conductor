@@ -34,6 +34,7 @@ _SOURCE_VERSION = re.compile(r"\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?")
 _DEVICE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 _LANE_REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}")
 _HOOK_REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+_HOOK_PATH_REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}")
 _HEAD_SHA = re.compile(r"[0-9a-f]{7,64}")
 _CAUSATION_ID = re.compile(r"hk-[0-9a-f]{32}")
 _EFFORT = re.compile(r"[a-z0-9][a-z0-9._-]{0,31}")
@@ -59,10 +60,10 @@ _PATTERN_FIELDS = {
     "lane_id": _LANE_REF,
     "task_id": _LANE_REF,
     "work_order": _LANE_REF,
-    "claim_ref": _HOOK_REF,
-    "execution_id": _HOOK_REF,
-    "harness_id": _HOOK_REF,
-    "model_id": _HOOK_REF,
+    "claim_ref": _HOOK_PATH_REF,
+    "execution_id": _HOOK_PATH_REF,
+    "harness_id": _HOOK_PATH_REF,
+    "model_id": _HOOK_PATH_REF,
     "correlation_id": _HOOK_REF,
     "causation_id": _CAUSATION_ID,
     "head_sha": _HEAD_SHA,
@@ -72,12 +73,10 @@ _PATTERN_FIELDS = {
     "evidence_digest": _EVIDENCE_DIGEST,
 }
 
-_FREE_TEXT_FIELDS = frozenset(
-    {"authority_repo", "execution_repo", "repo", "worktree"}
-)
 _MAX_FREE_TEXT = 256
 _MAX_SUMMARY = 512
 _MAX_EVIDENCE_REFS = 16
+_MAX_SOURCE_VERSION = 64
 
 _REQUIRED_CONTEXT_FIELDS = frozenset(
     {"occurred_at", "source_version", "device_id", "host_os"}
@@ -181,7 +180,19 @@ def _required_occurred_at(value: object) -> str:
     return text
 
 
-def _optional_text(name: str, value: object) -> str:
+def _required_source_version(value: object) -> str:
+    if value is None:
+        _fail(_CONTEXT_REQUIRED)
+    if (
+        not isinstance(value, str)
+        or len(value) > _MAX_SOURCE_VERSION
+        or _SOURCE_VERSION.fullmatch(value) is None
+    ):
+        _fail(_SOURCE_VERSION_INVALID)
+    return value
+
+
+def _optional_text(value: object) -> str:
     if (
         not isinstance(value, str)
         or not 1 <= len(value) <= _MAX_FREE_TEXT
@@ -239,7 +250,7 @@ def _validated_optional(name: str, value: object) -> object:
         return _optional_evidence_refs(value)
     if name == "summary":
         return _optional_summary(value)
-    return _optional_text(name, value)
+    return _optional_text(value)
 
 
 def normalize_control_event(
@@ -262,9 +273,7 @@ def normalize_control_event(
         _fail(_EVENT_TYPE_UNSUPPORTED)
     hook_event_type, action = mapping
     occurred_at = _required_occurred_at(context.occurred_at)
-    source_version = _required_text(
-        context.source_version, _SOURCE_VERSION, _SOURCE_VERSION_INVALID
-    )
+    source_version = _required_source_version(context.source_version)
     device_id = _required_text(context.device_id, _DEVICE_ID, _DEVICE_ID_INVALID)
     host_os = _required_enum(context.host_os, _HOST_OS_VALUES, _HOST_OS_INVALID)
     envelope: dict[str, object] = {

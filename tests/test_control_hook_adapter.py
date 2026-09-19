@@ -255,6 +255,7 @@ def test_invalid_occurred_at_fails_typed(bad_occurred_at: object) -> None:
         ("device_id", "-device-01"),
         ("device_id", "device 01"),
         ("device_id", ""),
+        ("device_id", "D" + "a" * 64),
         ("host_os", "Windows"),
         ("host_os", "android"),
         ("host_os", ""),
@@ -412,3 +413,154 @@ def test_context_field_names_are_exactly_required_plus_allowed_optional() -> Non
 def test_production_source_has_no_jsonschema_dependency() -> None:
     source = ADAPTER_SOURCE.read_text(encoding="utf-8")
     assert "jsonschema" not in source
+
+
+def test_source_version_64_char_boundary_accepted_and_schema_valid(
+    validator: Draft202012Validator,
+) -> None:
+    source_version = "1.2.3-" + "a" * 58
+    assert len(source_version) == 64
+    envelope = normalize_control_event(
+        make_event(), make_context(source_version=source_version)
+    )
+    assert envelope["source_version"] == source_version
+    assert list(validator.iter_errors(envelope)) == []
+
+
+@pytest.mark.parametrize("prerelease_length", [59, 100])
+def test_source_version_over_64_chars_fails_typed_not_truncates(
+    prerelease_length: int,
+) -> None:
+    source_version = "1.2.3-" + "a" * prerelease_length
+    assert len(source_version) >= 65
+    with pytest.raises(ControlHookNormalizationError) as exc_info:
+        normalize_control_event(
+            make_event(), make_context(source_version=source_version)
+        )
+    assert exc_info.value.code == "CONTROL_HOOK_SOURCE_VERSION_INVALID"
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["claim_ref", "execution_id", "harness_id", "model_id"],
+)
+def test_slash_bearing_hook_path_refs_accepted_and_schema_valid(
+    validator: Draft202012Validator, field: str
+) -> None:
+    reference = "owner/reference-01"
+    envelope = normalize_control_event(make_event(), make_context(**{field: reference}))
+    assert envelope[field] == reference
+    assert list(validator.iter_errors(envelope)) == []
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["lane_id", "task_id", "work_order", "correlation_id"],
+)
+def test_slash_bearing_non_path_refs_rejected(field: str) -> None:
+    with pytest.raises(ControlHookNormalizationError) as exc_info:
+        normalize_control_event(
+            make_event(), make_context(**{field: "owner/reference-01"})
+        )
+    assert exc_info.value.code == "CONTROL_HOOK_CONTEXT_FIELD_INVALID"
+
+
+@pytest.mark.parametrize(
+    "bad_occurred_at",
+    [
+        "2026-09-19T24:48:08Z",
+        "2026-09-19T07:60:08Z",
+        "2026-02-30T07:48:08Z",
+        "2026-04-31T07:48:08Z",
+        "2026-09-19T07:48:08.1234567890Z",
+        "2026-09-19T07:48:61Z",
+    ],
+)
+def test_out_of_range_or_impossible_occurred_at_fails_typed(
+    bad_occurred_at: str,
+) -> None:
+    with pytest.raises(ControlHookNormalizationError) as exc_info:
+        normalize_control_event(make_event(), make_context(occurred_at=bad_occurred_at))
+    assert exc_info.value.code == "CONTROL_HOOK_OCCURRED_AT_INVALID"
+
+
+def test_leap_second_occurred_at_matches_rfc3339_contract_and_schema(
+    validator: Draft202012Validator,
+) -> None:
+    occurred_at = "2026-12-31T23:59:60Z"
+    envelope = normalize_control_event(
+        make_event(), make_context(occurred_at=occurred_at)
+    )
+    assert envelope["occurred_at"] == occurred_at
+    assert list(validator.iter_errors(envelope)) == []
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("lane_id", "L" + "a" * 63),
+        ("task_id", "T" + "a" * 63),
+        ("work_order", "W" + "a" * 63),
+        ("claim_ref", "C" + "a" * 127),
+        ("execution_id", "E" + "a" * 127),
+        ("harness_id", "H" + "a" * 127),
+        ("model_id", "M" + "a" * 127),
+        ("correlation_id", "R" + "a" * 127),
+        ("device_id", "D" + "a" * 63),
+        ("head_sha", "0" * 64),
+        ("evidence_digest", "0" * 128),
+        ("effort", "e" + "a" * 31),
+        ("state", "S" + "A" * 31),
+        ("blocker_code", "B" + "A" * 63),
+        ("authority_repo", "a" * 256),
+        ("execution_repo", "b" * 256),
+        ("repo", "c" * 256),
+        ("worktree", "d" * 256),
+        ("branch", "e" * 256),
+        ("summary", "s" * 512),
+    ],
+)
+def test_field_max_length_boundaries_accepted_and_schema_valid(
+    validator: Draft202012Validator, field: str, value: str
+) -> None:
+    envelope = normalize_control_event(make_event(), make_context(**{field: value}))
+    assert envelope[field] == value
+    assert list(validator.iter_errors(envelope)) == []
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("lane_id", "L" + "a" * 64),
+        ("task_id", "T" + "a" * 64),
+        ("work_order", "W" + "a" * 64),
+        ("claim_ref", "C" + "a" * 128),
+        ("execution_id", "E" + "a" * 128),
+        ("harness_id", "H" + "a" * 128),
+        ("model_id", "M" + "a" * 128),
+        ("correlation_id", "R" + "a" * 128),
+        ("head_sha", "0" * 65),
+        ("evidence_digest", "0" * 129),
+        ("effort", "e" + "a" * 32),
+        ("state", "S" + "A" * 32),
+        ("blocker_code", "B" + "A" * 64),
+        ("authority_repo", "a" * 257),
+        ("branch", "e" * 257),
+    ],
+)
+def test_field_over_max_length_fails_typed_not_truncates(
+    field: str, value: str
+) -> None:
+    with pytest.raises(ControlHookNormalizationError) as exc_info:
+        normalize_control_event(make_event(), make_context(**{field: value}))
+    assert exc_info.value.code == "CONTROL_HOOK_CONTEXT_FIELD_INVALID"
+
+
+def test_evidence_refs_max_boundaries_accepted_and_schema_valid(
+    validator: Draft202012Validator,
+) -> None:
+    refs = [f"r{i:02d}/" + "a" * 252 for i in range(16)]
+    assert all(len(ref) == 256 for ref in refs)
+    envelope = normalize_control_event(make_event(), make_context(evidence_refs=refs))
+    assert envelope["evidence_refs"] == refs
+    assert list(validator.iter_errors(envelope)) == []
