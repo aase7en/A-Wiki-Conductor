@@ -1,4 +1,4 @@
-# WO-P1-258 — Context Rollover Guard + Durable Recovery Pointer MVP
+# WO-P1-259 — Context Rollover Guard + Durable Recovery Pointer MVP
 
 Date: 2026-09-19
 Owner: GPT-5.6 Sol integrator / mutation owner
@@ -24,7 +24,7 @@ Owner:
 GPT-5.6 Sol
 
 Claim:
-`WO-P1-258-CONTEXT-ROLLOVER-001`
+`WO-P1-259-CONTEXT-ROLLOVER-001`
 ## Goal
 
 Add the smallest deterministic session/context rollover guard that lets an
@@ -154,7 +154,7 @@ GREEN implementation:
 - ordinary-chat fallback is projected through `00-AGENT-ENTRY.md`.
 
 Deterministic local evidence before freeze:
-- WO258 focused matrix: 22 passed;
+- WO259 focused matrix: 22 passed;
 - Context/Continuity/GoalCloseout/Projection battery: 245 passed;
 - compileall: PASS;
 - `git diff --check`: PASS;

@@ -1,4 +1,4 @@
-"""Pure session/context rollover guard for A-Sunday Conductor (WO-P1-258).
+"""Pure session/context rollover guard for A-Sunday Conductor (WO-P1-259).
 
 This module does not measure ChatGPT tokens and never fabricates a remaining
 context percentage.  It consumes explicit session-pressure evidence plus the
