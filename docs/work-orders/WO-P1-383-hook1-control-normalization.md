@@ -124,3 +124,69 @@ GREEN:
 Recover pointer/process/result/Git before redispatch. RUNNING never
 redispatches. TERMINAL_UNHARVESTED is harvested first. Model DONE is not
 acceptance authority.
+
+## Checkpoint — attempt-0001 READY_FOR_REVIEW (2026-09-19, GLM-5.3 MAX)
+
+Status: implementation complete, awaiting independent exact-SHA R3 review +
+exact-head CI. No merge/self-accept performed.
+
+Scope actually mutated (exact): NEW `src/a_conductor/control_hook_adapter.py`,
+NEW `tests/test_control_hook_adapter.py`, this Work Order checkpoint. Working
+tree had no other changes (`git status --porcelain` showed only the two new
+paths before this checkpoint edit).
+
+RED evidence: `python -m pytest -q tests/test_control_hook_adapter.py` before
+implementation -> collection error
+`ModuleNotFoundError: No module named 'a_conductor.control_hook_adapter'`
+(1 error), i.e. every test depended on the new module.
+
+GREEN evidence (final): `tests/test_control_hook_adapter.py` 93 passed;
+`tests/test_control_events.py tests/test_hook_contract_schema.py` 101 passed;
+`tests/test_lifecycle_assembly.py` 8 passed; `py_compile` OK; `git diff
+--check` clean; strict UTF-8 decode OK and zero U+FFFD in both new files;
+`pyproject.toml` unchanged vs HEAD; production module contains no
+`jsonschema` (test-only import, verified by source scan test and rg).
+
+Identity proof: `event-<uuid4hex>` -> `hk-<same 32 hex>` is a pure
+deterministic function; projecting the same ControlEvent twice returns the
+identical envelope (tested, including full-envelope equality), so re-projection
+needs no second identity store. Malformed/uppercase/wrong-prefix/wrong-length
+source IDs fail `CONTROL_HOOK_EVENT_ID_MALFORMED`; no replacement identity is
+invented.
+
+Authority proof: envelope carries `lane_id`/`task_id`/`work_order` only when
+the caller supplies them explicitly on `ControlHookContext`;
+`worker_id`/`project_id` are never projected into any Hook authority field
+(tested). No SQLite/schema/store mutation, no lifecycle wiring, no sequence,
+no dedupe_key, no guard/command_request/adapter surface (tested key-set
+bound). Forbidden-path blob equality vs dispatch HEAD
+04b8d159aebf8cd957f31f177cd4b1cd5604bc52:
+control_events.py 6cf1348d61319377085eb7902e3afa6205f05d01,
+lifecycle_assembly.py 533682eeb7735c70a1d88b767e28bdce05a702ca,
+__init__.py f0912298cb7712536f36b4b8920cc038e603d4ae,
+hook-contract-v1.md 941f9731f9665fe109451a14cdc2b737555be99a,
+hook-contract-v1.schema.json d176fd5e6393af6f5619fad372ad59aa858391ee,
+test_hook_contract_schema.py c4dcaa36693c76bf274f7615236ef72c4e3ef53c,
+test_control_events.py 4a2dd2846499c142722fd70b1c79259f39762217 — all equal.
+
+Schema conformance proof: all four lifecycle mappings plus the
+full-optional-context envelope and fractional-`occurred_at` envelope validate
+with zero errors under `Draft202012Validator` against the accepted
+`docs/contracts/hook-contract-v1.schema.json` loaded from disk in tests.
+Adapter validation is schema-parity plus strict RFC3339 calendar/time bounds
+(month 13 rejected), fail-not-truncate for every optional field, exact
+`task_topology`/`host_os` enums, control-character/NUL/newline rejection, and
+fake-secret-corpus/1 substring rejection on all emitted string values.
+
+Secret scan verdict: only matches are the shared `fake-secret-corpus/1`
+markers required by Hook Contract §11 for uniform leakage checks; no real
+credentials touched.
+
+Risks (bounded): adapter intentionally refuses nonconforming legacy/custom
+source event IDs (fail-closed visibility loss, no task-truth impact); strict
+calendar parsing is intentionally stricter than the JSON Schema pattern
+(documented contract text says RFC 3339); `duration_ms`/`command_digest`/
+`command_ref` are Hook fields deliberately not exposed in this micro-step.
+
+Next: independent exact-SHA R3 review + exact-head CI on the pushed branch;
+GPT integrator acceptance/merge.
