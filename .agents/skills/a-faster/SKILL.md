@@ -112,6 +112,30 @@ continue independent work.
 Run Kilo and Claude concurrently only on non-overlapping claimed scopes or as
 read-only analysis/review lanes. Freeze exact candidate SHA(s) before review.
 
+## Durable lane identity overlay
+
+Every delegated A-Faster lane carries the durable identity overlay defined in
+`references/durable-lanes.md` (projection only; never authority):
+
+- `LANE_REF` `lane:<TASK_ID>:<role>:<ordinal>` — stable routing label across
+  device/harness/session changes for the life of the lane;
+- `DELEGATED_RUN_ID` `run:<TASK_ID>:<role>:<ordinal>:a<attempt>:<random-id>`
+  — unique per-dispatch attempt identity for observation/recovery/harvest;
+- `ATTEMPT` — monotonic only inside the lane evidence directory; never retry
+  authority;
+- `BINDING_DIGEST` — SHA-256 over canonical UTF-8 JSON (sorted keys, compact
+  separators) of the safe binding tuple; drift detection only, not
+  encryption/authentication.
+
+The durable execution pointer required before or at launch is written under
+`runs/<WO>/<lane>/attempt-NNNN/pointer.md` with the minimum fields,
+secret-redaction rules, recover algorithm, and cross-device re-pin semantics
+defined in `references/durable-lanes.md`. Different recomputed digest on
+takeover is `CONTEXT_DRIFT` requiring explicit re-pin and reconciliation,
+never automatic transfer. `NEW SESSION != NEW TASK`: reconcile
+pointer/process/result/Git and harvest `TERMINAL_UNHARVESTED` work before
+redispatch. No global lane registry is created or implied.
+
 ## Advisory skill layer
 
 Advisory skills may shape work but never become authority.
@@ -158,7 +182,12 @@ Before another device takes over:
 2. preserve material evidence outside any worktree scheduled for cleanup;
 3. push/fold through the accepted remote authority where that repo has one;
 4. on the receiving device, re-pin actual repo/worktree/branch/HEAD and prove
-   no mutable overlap before continuing.
+   no mutable overlap before continuing;
+5. recompute `BINDING_DIGEST` from observed binding facts per
+   `references/durable-lanes.md`; a different digest is `CONTEXT_DRIFT`
+   (typically the device-bound fields), resolved only by explicit re-pin,
+   recorded delta, and prior-attempt reconciliation — never automatic
+   transfer.
 
 No accepted remote/source on the receiving device means
 `SOURCE_UNAVAILABLE / SAFE_TO_MUTATE=NO`.
@@ -187,6 +216,8 @@ In addition to normal A-FastTask output, report:
 - `DEVICE_ROUTE` for every active/blocked device;
 - `WIP_SLOT` and mutable/review role;
 - `HARNESS_ROUTE` + exact model/effort/readiness;
+- `LANE_REF` + latest `DELEGATED_RUN_ID`/pointer state for every delegated
+  lane (or the reconciled disposition per `references/durable-lanes.md`);
 - `ADVISORY_SKILLS` actually available/invoked;
 - `CLEANUP_STATE` for completed lanes;
 - exact next safe action.
