@@ -46,7 +46,44 @@ FAKE_SECRET_CORPUS = (
 
 MAX_ENVELOPE_BYTES = 65536
 
+FIXTURE_SERIALIZATION_NAME = "json.dumps(ensure_ascii=False)"
+
 REMOVE = object()
+
+
+def fixture_serialized(payload: dict) -> bytes:
+    """The one explicitly named deterministic serialization that test and
+    reference helpers may use as a conformance fixture (§7.4 step 1); it
+    is never a substitute for a producer's actual emitted bytes."""
+    return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+
+def envelope_bytes(payload: dict) -> int:
+    return len(fixture_serialized(payload))
+
+
+class DuplicateKeyName(ValueError):
+    """Duplicate JSON object member name rejected by the §7.4 step 2
+    duplicate-aware reference parse."""
+
+
+def _reject_duplicate_object_pairs(pairs):
+    seen = set()
+    for key, _value in pairs:
+        if key in seen:
+            raise DuplicateKeyName(key)
+        seen.add(key)
+    return dict(pairs)
+
+
+def parse_duplicate_aware(data: bytes):
+    """§7.4 step 2 reference parse: UTF-8 decode plus JSON parse that
+    fails closed on duplicate object member names at every object depth,
+    including objects inside arrays; never first-wins or last-wins."""
+    return json.loads(
+        data.decode("utf-8"),
+        object_pairs_hook=_reject_duplicate_object_pairs,
+    )
 
 
 def load_schema() -> dict:
@@ -121,10 +158,6 @@ def command_event(**request_fields) -> dict:
         action="request",
         command_request=request,
     )
-
-
-def envelope_bytes(payload: dict) -> int:
-    return len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
 
 
 def test_schema_parses_and_is_draft_2020_12(schema) -> None:
@@ -462,15 +495,25 @@ class ReferenceForwardCompatConsumer:
         if len(data) > self.max_bytes:
             return ConsumerVerdict(False, "HOOK_EVENT_OVERSIZED")
         try:
-            payload = json.loads(data.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+            payload = parse_duplicate_aware(data)
+        except (UnicodeDecodeError, json.JSONDecodeError, DuplicateKeyName):
             return ConsumerVerdict(False, "HOOK_EVENT_INVALID")
         return self._consume_parsed(payload)
 
+    def consume_inprocess(self, emitted: bytes) -> ConsumerVerdict:
+        """In-process adapter conformance ingest (§7.4 step 1): the
+        producer supplies its exact emitted serialized UTF-8 bytes and
+        the identical byte-path ingest runs on them. An object-only call
+        with no defined emission serialization is not a production
+        conformance path."""
+        return self.consume_bytes(emitted)
+
     def consume_structured(self, payload: dict) -> ConsumerVerdict:
-        if envelope_bytes(payload) > self.max_bytes:
-            return ConsumerVerdict(False, "HOOK_EVENT_OVERSIZED")
-        return self._consume_parsed(payload)
+        """Conformance-fixture ingest only: serialize with the single
+        explicitly named deterministic fixture serialization, then run
+        the identical byte-path ingest. Never a substitute for a
+        producer's actual emitted bytes."""
+        return self.consume_bytes(fixture_serialized(payload))
 
     @staticmethod
     def _raw_security_scan(node) -> str | None:
@@ -1346,3 +1389,337 @@ def test_cross_stream_rank_parses_rfc3339_instants_not_raw_strings(validator) ->
         at_20_5["event_id"],
     ]
     assert at_20_5["occurred_at"] < at_20["occurred_at"]
+
+
+def splice_raw_members(core: dict, *raw_members: str) -> bytes:
+    body = json.dumps(core, ensure_ascii=False)
+    assert body.endswith("}")
+    return (body[:-1] + ", " + ", ".join(raw_members) + "}").encode("utf-8")
+
+
+def raw_member(key: str, raw_value: str) -> str:
+    return json.dumps(key) + ": " + raw_value
+
+
+def test_duplicate_top_level_benign_key_rejected_in_strict_and_forward() -> None:
+    for version in ("1.0.0", "1.9.7"):
+        consumer = make_consumer()
+        core = mutated(minimal_event(), schema_version=version)
+        duplicated = splice_raw_members(
+            core,
+            raw_member("summary", '"first"'),
+            raw_member("summary", '"second"'),
+        )
+        verdict = consumer.consume_bytes(duplicated)
+        assert not verdict.accepted
+        assert verdict.code == "HOOK_EVENT_INVALID"
+
+        single = splice_raw_members(core, raw_member("summary", '"first"'))
+        assert consumer.consume_bytes(single).accepted
+
+
+def test_duplicate_unknown_top_level_key_forbidden_first_value_rejected() -> None:
+    consumer = make_consumer()
+    core = mutated(minimal_event(), schema_version="1.9.7")
+    duplicated = splice_raw_members(
+        core,
+        raw_member("mystery_field", '{"token": "sk-value"}'),
+        raw_member("mystery_field", '{"benign": 1}'),
+    )
+    verdict = consumer.consume_bytes(duplicated)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+    assert not verdict.security_invalid
+
+
+def test_duplicate_nested_key_inside_unknown_object_rejected() -> None:
+    for version in ("1.0.0", "1.9.7"):
+        consumer = make_consumer()
+        core = mutated(minimal_event(), schema_version=version)
+        raw = splice_raw_members(
+            core,
+            raw_member("mystery_field", '{"inner": {"dup": 1, "dup": 2}}'),
+        )
+        verdict = consumer.consume_bytes(raw)
+        assert not verdict.accepted
+        assert verdict.code == "HOOK_EVENT_INVALID"
+
+
+def test_duplicate_key_inside_object_inside_array_rejected() -> None:
+    for version in ("1.0.0", "1.9.7"):
+        consumer = make_consumer()
+        core = mutated(minimal_event(), schema_version=version)
+        raw = splice_raw_members(
+            core,
+            raw_member("mystery_field", '[{"dup": 1, "dup": 2}]'),
+        )
+        verdict = consumer.consume_bytes(raw)
+        assert not verdict.accepted
+        assert verdict.code == "HOOK_EVENT_INVALID"
+
+
+def test_duplicate_known_guard_member_cannot_flip_failure_policy() -> None:
+    consumer = make_consumer()
+    core = mutated(
+        guard_event(security_scope=True, authority_scope=True),
+        schema_version="1.9.7",
+        guard=REMOVE,
+    )
+    raw = splice_raw_members(
+        core,
+        '"guard": {"failure_policy": "FAIL_OPEN", '
+        '"failure_policy": "FAIL_CLOSED", '
+        '"security_scope": true, "authority_scope": true}',
+    )
+    verdict = consumer.consume_bytes(raw)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    control = splice_raw_members(
+        core,
+        '"guard": {"failure_policy": "FAIL_CLOSED", '
+        '"security_scope": true, "authority_scope": true}',
+    )
+    assert consumer.consume_bytes(control).accepted
+
+
+def test_contract_pins_duplicate_aware_parse() -> None:
+    section = contract_section(
+        "7.4 Reference consumer ingest algorithm (normative)"
+    )
+    assert "duplicate-aware" in section
+    assert "duplicate object member" in section
+    assert "objects within arrays" in section
+    assert "MUST NOT silently choose" in section
+    assert "not a schema field" in section
+
+
+def test_inprocess_adapter_byte_supply_rule_pinned() -> None:
+    ingest = " ".join(
+        contract_section(
+            "7.4 Reference consumer ingest algorithm (normative)"
+        ).split()
+    )
+    assert (
+        "exact serialized envelope bytes that cross the Hook Bus ingestion seam"
+        in ingest
+    )
+    assert "MUST supply or expose" in ingest
+    assert "object-only call" in ingest
+    assert "conformance fixture" in ingest
+    assert "counting characters" in ingest
+    assert "re-serializing an already-parsed object" in ingest
+
+    bounds = " ".join(contract_section("9. Payload bounds").split())
+    assert "MUST supply or expose" in bounds
+    assert "object-only call" in bounds
+    assert "counting characters" in bounds
+    assert "does not weaken the cap" in bounds
+
+
+def test_inprocess_adapter_conformance_on_exact_emitted_bytes() -> None:
+    consumer = make_consumer()
+    caps = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        **deepcopy(OPTIONAL_GROUPS["adapter"]),
+    )
+    emitted = fixture_serialized(caps)
+    verdict = consumer.consume_inprocess(emitted)
+    assert verdict.accepted
+    assert verdict.event is not None
+    assert verdict.event["event_type"] == "transport.adapter_capabilities"
+    assert verdict.event["adapter"]["supports_sequence"] is True
+
+    assert consumer.consume_structured(caps).accepted
+
+
+def test_inprocess_adapter_cap_boundary_on_emitted_bytes() -> None:
+    consumer = make_consumer()
+    core = mutated(minimal_event(), schema_version="1.9.7")
+    probe = dict(core)
+    probe["summary"] = ""
+    base_len = len(fixture_serialized(probe))
+
+    at_cap = dict(core)
+    at_cap["summary"] = "x" * (MAX_ENVELOPE_BYTES - base_len)
+    emitted = fixture_serialized(at_cap)
+    assert len(emitted) == MAX_ENVELOPE_BYTES
+    verdict = consumer.consume_inprocess(emitted)
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    over = dict(core)
+    over["summary"] = "x" * (MAX_ENVELOPE_BYTES - base_len + 1)
+    verdict = consumer.consume_inprocess(fixture_serialized(over))
+    assert verdict.code == "HOOK_EVENT_OVERSIZED"
+
+
+def test_inprocess_adapter_multibyte_emitted_bytes_count_full_byte_width() -> None:
+    consumer = make_consumer()
+    core = mutated(minimal_event(), schema_version="1.9.7")
+    multibyte = mutated(core, summary="あ" * 30000)
+    emitted = fixture_serialized(multibyte)
+    assert len(emitted.decode("utf-8")) < MAX_ENVELOPE_BYTES
+    assert len(emitted) > MAX_ENVELOPE_BYTES
+    verdict = consumer.consume_inprocess(emitted)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_OVERSIZED"
+
+
+def test_forward_mode_drops_unknown_adapter_subfield_preserving_known_semantics() -> None:
+    consumer = make_consumer()
+    future = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        **deepcopy(OPTIONAL_GROUPS["adapter"]),
+    )
+    future["adapter"]["future_subfield"] = {"future": True}
+    verdict = consumer.consume_structured(future)
+    assert verdict.accepted
+    assert "future_subfield" not in verdict.event["adapter"]
+    known = OPTIONAL_GROUPS["adapter"]["adapter"]
+    for field in (
+        "adapter_id",
+        "adapter_version",
+        "contract_version",
+        "emits",
+        "redaction_policy",
+        "supports_sequence",
+    ):
+        assert verdict.event["adapter"][field] == known[field]
+
+
+def test_command_request_on_observe_rejected_in_forward_mode_with_unknown_fields() -> None:
+    consumer = make_consumer()
+    smuggled = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        mystery_field="benign",
+        command_request={"request_id": "cmd-0001", "command": "pause"},
+    )
+    verdict = consumer.consume_structured(smuggled)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+
+def test_nested_unknown_under_known_optional_object_rejected_in_strict_mode() -> None:
+    consumer = make_consumer(known_minor=0)
+
+    strict_guard = guard_event()
+    strict_guard["guard"]["future_subfield"] = True
+    verdict = consumer.consume_structured(strict_guard)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    strict_adapter = mutated(
+        minimal_event(), **deepcopy(OPTIONAL_GROUPS["adapter"])
+    )
+    strict_adapter["adapter"]["future_subfield"] = 1
+    verdict = consumer.consume_structured(strict_adapter)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+
+def maximal_known_envelope(kind: str) -> dict:
+    action = "a" * 32
+    payload = {
+        "schema_version": "1." + "1" * 12 + ".1",
+        "event_id": "hk-" + "a" * 32,
+        "event_type": "",
+        "hook_class": {
+            "observe_adapter": "OBSERVE",
+            "command": "COMMAND",
+            "guard": "GUARD",
+        }[kind],
+        "phase": "terminal",
+        "domain": "",
+        "action": "",
+        "occurred_at": "2026-09-19T07:48:08.123456789Z",
+        "source": "claude-code",
+        "source_version": "1." + "1" * 60 + ".1",
+        "device_id": "d" + "0" * 63,
+        "host_os": "windows",
+        "privacy_class": "SENSITIVE",
+        "lane_id": "l" + "0" * 63,
+        "task_id": "t" + "0" * 63,
+        "work_order": "w" + "0" * 63,
+        "task_topology": "EXECUTION_SUBSTRATE_ONLY",
+        "authority_repo": "r" * 256,
+        "execution_repo": "r" * 256,
+        "repo": "r" * 256,
+        "worktree": "w" * 256,
+        "branch": "b" * 256,
+        "head_sha": "f" * 64,
+        "claim_ref": "c" + "0" * 127,
+        "execution_id": "e" + "0" * 127,
+        "harness_id": "h" + "0" * 127,
+        "model_id": "m" + "0" * 127,
+        "effort": "e" + "0" * 31,
+        "state": "S" + "T" * 31,
+        "duration_ms": 2147483647,
+        "blocker_code": "B" + "C" * 63,
+        "sequence": 9007199254740991,
+        "dedupe_key": "d" + "0" * 127,
+        "correlation_id": "c" + "0" * 127,
+        "causation_id": "hk-" + "b" * 32,
+        "evidence_refs": ["r" * 252 + f"{i:04d}" for i in range(16)],
+        "evidence_digest": "0" * 128,
+        "summary": "s" * 512,
+        "command_digest": "0" * 128,
+        "command_ref": "r" + "0" * 127,
+    }
+    if kind == "observe_adapter":
+        payload["domain"] = "transport"
+        payload["action"] = "adapter_capabilities"
+        payload["event_type"] = "transport.adapter_capabilities"
+        payload["adapter"] = {
+            "adapter_id": "a" + "0" * 63,
+            "adapter_version": "1." + "1" * 60 + ".1",
+            "contract_version": "1." + "1" * 12 + ".1",
+            "emits": ["tool." + "e" * 40 + ".e" + f"{i:049d}" for i in range(64)],
+            "redaction_policy": "f" + "0" * 63,
+            "supports_sequence": True,
+        }
+    elif kind == "command":
+        payload["domain"] = "control"
+        payload["action"] = action
+        payload["event_type"] = f"control.{action}.{'c' * 52}"
+        payload["command_request"] = {
+            "request_id": "q" + "0" * 127,
+            "command": "merge_request",
+            "target_ref": "t" + "0" * 127,
+            "justification": "j" * 512,
+        }
+    else:
+        payload["domain"] = "security"
+        payload["action"] = action
+        payload["event_type"] = f"security.{action}.{'c' * 52}"
+        payload["guard"] = {
+            "failure_policy": "FAIL_CLOSED",
+            "security_scope": True,
+            "authority_scope": True,
+            "policy_ref": "p" * 256,
+        }
+    return payload
+
+
+def test_maximal_known_envelopes_stay_well_below_cap_and_cap_not_weakened(
+    validator,
+) -> None:
+    consumer = make_consumer()
+    largest = 0
+    for kind in ("observe_adapter", "command", "guard"):
+        envelope = maximal_known_envelope(kind)
+        assert validator.is_valid(envelope), kind
+        assert not event_type_semantic_mismatch(envelope), kind
+        size = envelope_bytes(envelope)
+        assert size < 32768, kind
+        largest = max(largest, size)
+        assert consumer.consume_inprocess(fixture_serialized(envelope)).accepted, kind
+    assert largest > 4096
+
+    oversized = maximal_known_envelope("observe_adapter")
+    oversized["summary"] = "s" * 60000
+    assert envelope_bytes(oversized) > MAX_ENVELOPE_BYTES
+    verdict = consumer.consume_bytes(fixture_serialized(oversized))
+    assert verdict.code == "HOOK_EVENT_OVERSIZED"

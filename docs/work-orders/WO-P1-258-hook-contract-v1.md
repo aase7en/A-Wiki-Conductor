@@ -232,3 +232,42 @@ integrator flow; no history rewrite.
   focused suites green after repair. Acceptance of THIS repair requires a
   NEW independent exact-SHA rereview of the new candidate head plus CI on
   that exact head; no self-accept, no merge, no history rewrite.
+- 2026-09-19: post-review P2 hardening pass (attempt 2) on
+  `fix/wo-p1-258-forward-compat-postmerge` at 96bf746 (base 3656fb3)
+  after an independent rereview returned PASS P0=0 P1=0 P2=3; exactly
+  the three P2s repaired within the same four-path scope. P2-1 —
+  §7.4 step 1 and §9 now pin that hook validation operates on the exact
+  serialized envelope bytes crossing the Hook Bus ingestion seam; every
+  conforming producer including a structured in-process adapter MUST
+  supply or expose those exact serialized bytes before parsed-object
+  validation; an object-only call with no defined emission
+  serialization is not a production conformance path; one explicitly
+  named deterministic serialization serves test/reference fixtures
+  only; under-measurement (character counting, re-serialization of a
+  parsed object) forbidden. Tests add an in-process adapter conformance
+  case on exact emitted bytes, the exact 65536-byte cap boundary
+  (byte-cap decision ahead of schema validation), and multibyte
+  emitted-bytes full-width proof. P2-2 — §7.4 step 2 is now a
+  duplicate-aware fail-closed parse: duplicate object member names at
+  any depth (nested objects, objects inside arrays) reject
+  `HOOK_EVENT_INVALID` in strict and forward modes before projection
+  and before parsed-envelope security interpretation can lose
+  information; the reference consumer byte path uses a duplicate-aware
+  parser; schema description updated. RED-first proofs (verified
+  failing pre-repair on the last-wins parser): benign top-level
+  duplicate; duplicate unknown key whose first value carries a
+  forbidden `token` while the second is benign (last-wins
+  information-loss); duplicate nested key in unknown object; duplicate
+  key in object-in-array; duplicate known `guard` `failure_policy` that
+  a last-wins parser would flip to acceptance; non-duplicate controls
+  still accepted. P2-3 — explicit gap pins: unknown adapter subfield
+  dropped in forward mode with known adapter semantics preserved;
+  `command_request` on OBSERVE rejected in forward mode even with
+  unknown fields present; nested unknown field under a known optional
+  object rejected in strict mode; maximal known-schema-valid envelopes
+  (OBSERVE+adapter, COMMAND, GUARD variants) stay well below the MUST
+  cap and the cap is not weakened (oversized forward envelopes still
+  rejected `HOOK_EVENT_OVERSIZED`). No runtime code, no schema field
+  changes, no scope growth. New candidate SHA recorded in the packet
+  response; requires a new independent exact-SHA rereview plus CI on
+  that exact head; no merge/self-accept.

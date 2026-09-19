@@ -233,17 +233,37 @@ later step may relax an earlier decision. The published schema stays closed
 behavior defined here, not a loosening of the schema.
 
 1. Whole-envelope byte bound (BEFORE any parsing or semantic
-   normalization): measure the exact incoming UTF-8 serialized envelope
-   bytes at the consumer transport boundary. If the size exceeds the §9
-   MUST cap (65536 bytes), reject `HOOK_EVENT_OVERSIZED`. Structured
-   in-process adapters apply the identical cap to the exact bytes they
-   would enqueue/serialize, before normalization. Measurement is of the
-   incoming bytes as received/emitted; key-sorted or
-   canonical JSON re-serialization MUST NOT be used as a substitute
-   measurement.
-2. Parse fail-closed: decode UTF-8 and parse JSON. Unparseable or
-   non-UTF-8 input, or a parsed envelope that is not a JSON object,
-   rejects `HOOK_EVENT_INVALID`.
+   normalization): hook validation operates on the exact serialized
+   envelope bytes that cross the Hook Bus ingestion seam. Measure the
+   exact incoming UTF-8 serialized envelope bytes at the consumer
+   transport boundary; if the size exceeds the §9 MUST cap (65536
+   bytes), reject `HOOK_EVENT_OVERSIZED`. Every conforming producer,
+   including a structured in-process adapter, MUST supply or expose
+   those exact serialized bytes to the validator before parsed-object
+   validation, and the identical cap is applied to those bytes before
+   normalization. An object-only call with no defined emission
+   serialization is not sufficient evidence for the byte cap and MUST
+   NOT be accepted as a production conformance path. A test/reference
+   helper may use one explicitly named deterministic serialization only
+   as a conformance fixture, never as a substitute for the producer's
+   actual emitted bytes. Measurement MUST NOT under-measure: counting
+   characters instead of UTF-8 bytes, or re-serializing an
+   already-parsed object (key-sorted or canonical JSON), MUST NOT be
+   used as a substitute measurement of the incoming bytes as
+   received/emitted.
+2. Parse fail-closed, duplicate-aware: decode UTF-8 and parse JSON with
+   duplicate object member detection at every object depth. Unparseable
+   or non-UTF-8 input, a parsed envelope that is not a JSON object, or
+   any duplicate object member name at any nesting depth — including
+   inside nested objects and inside objects within arrays — rejects
+   `HOOK_EVENT_INVALID`. Duplicate-key rejection is parser input
+   validation, not a schema field: it applies identically in strict and
+   forward-compat modes, before forward projection (step 6) and before
+   parsed-envelope security interpretation can lose information, because
+   a first-wins or last-wins parser can silently discard an earlier
+   member — an earlier forbidden nested field before the step 3
+   security scan, or an earlier `guard` `failure_policy` value.
+   Consumers MUST NOT silently choose first-wins or last-wins.
 3. Raw security scan (before ANY unknown-field handling): recursively walk
    the fully parsed raw envelope — every object at every nesting depth,
    including objects inside arrays and inside unknown fields. If any
@@ -377,6 +397,20 @@ and later Work Orders that extend existing event seams.
   full byte width), and key-sorted or
   canonical JSON re-serialization MUST NOT be used as a hidden
   alternative measurement.
+- Producer byte supply: every conforming producer, including a
+  structured in-process adapter, MUST supply or expose the exact
+  serialized envelope bytes that cross the Hook Bus ingestion seam to
+  the validator before parsed-object validation. An object-only call
+  with no defined emission serialization is not sufficient evidence for
+  the byte cap and MUST NOT be accepted as a production conformance
+  path; measurement MUST NOT under-measure by counting characters or by
+  re-serializing an already-parsed object (§7.4 step 1).
+- Sizing context: a known-schema-valid envelope that fills every
+  allowed optional field to its bound stays well below the 65536-byte
+  MUST cap. This observed headroom does not weaken the cap:
+  forward-mode, duplicate-key, malformed, and adversarial envelopes
+  still reach the MUST bound and are rejected typed
+  (`HOOK_EVENT_OVERSIZED` / `HOOK_EVENT_INVALID`).
 - Oversized or invalid envelopes MUST be rejected typed; they MUST NOT be
   truncated into "valid-looking" events.
 
@@ -519,5 +553,25 @@ to consumer/Monitor deployment configuration; cross-stream `occurred_at`
 rank uses parsed RFC 3339 instants with a `20Z` vs `20.5Z` inversion
 regression; `HOOK_STREAM_DEGRADED` pinned to a local health condition
 that never depends on re-enqueueing onto the degraded stream; `event_id`
-UUIDv4 pinned producer-generation-only).
+UUIDv4 pinned producer-generation-only). Post-review P2 hardening pins:
+duplicate object member names at any depth rejected `HOOK_EVENT_INVALID`
+in strict and forward modes before projection and before parsed-envelope
+security interpretation can lose information (benign top-level
+duplicate; duplicate unknown key whose first value carries a forbidden
+field while the second is benign — the last-wins information-loss
+proof; duplicate nested key inside an unknown object; duplicate key
+inside an object inside an array; a duplicate known `guard` member that
+would flip `failure_policy` under last-wins), with non-duplicate
+controls still accepted; structured in-process adapter byte-supply
+conformance — the producer's exact emitted UTF-8 bytes are the measured
+evidence, one explicitly named deterministic serialization serves
+test/reference fixtures only, an object-only call is not a production
+conformance path, and measurement never counts characters or
+re-serializes a parsed object, proven at the exact 65536-byte boundary
+and with multibyte emitted bytes; unknown optional subfield inside
+`adapter` dropped in forward mode with known adapter semantics
+preserved; `command_request` on OBSERVE rejected in forward mode even
+with unknown fields present; nested unknown field under a known
+optional object rejected in strict mode; maximal known-schema-valid
+envelopes stay well below the MUST cap without weakening it.
 No network, no MCP, no runtime validation is added by this contract.
