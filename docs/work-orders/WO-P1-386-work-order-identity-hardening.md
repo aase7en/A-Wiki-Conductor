@@ -154,3 +154,64 @@ R3:
 Recover pointer/process/result/Git before redispatch.
 RUNNING never redispatches.
 TERMINAL_UNHARVESTED is harvested first.
+
+## 2026-09-20 author attempt-0001 checkpoint — READY_FOR_REVIEW
+
+- Binding honored: worktree/branch at dispatch HEAD
+  `c3c7fdc5b4044d54b9afcd7d4fcdfaabff249a5b`, base `3067bd32`, claim
+  `WO-P1-386-WORK-ORDER-IDENTITY-HARDENING-001`; mutable scope exactly
+  this Work Order, `tests/test_work_order_identity.py`, and NEW
+  `tests/fixtures/work_order_identity/legacy_identity_filenames.txt`.
+  No `src/**`, no A-Faster/A-FastTask, no WO381 doc, no Hook
+  Contract/adapters/WO389, no CURRENT-WORK/handoff/COLLAB/PROJECT-PLAN,
+  no history/network dependency, no destructive Git operations.
+- RED (evidence `runs/WO-P1-386/author/attempt-0001/red-pytest.txt`):
+  19 failed / 14 passed on dispatch HEAD after adding the new tests and
+  fixture first. Genuine assertion failures proved: new low numeric
+  350/370 ids with matching marker+Issue passed the old guard; new
+  revision token with matching Issue passed; malformed `WO-P1-` names
+  (`WO-P1--missing-token.md`, `WO-P1-420_bad.md`,
+  `WO-P1-420.md.extra.md`) were silently skipped; fenced fake
+  Issue/marker lines counted as authority (backtick, tilde, longer
+  closing fence, mismatched fence char, unclosed fence, 3-space-indented
+  opener). Remaining failures were the new `legacy_filenames` API shape.
+- Implemented (guard/tests only, no production code):
+  - frozen legacy exception fixture: 184 sorted/unique/newline-terminated
+    LF-only entries generated from the exact dispatch corpus via
+    `git ls-files --cached --others --exclude-standard` (index+worktree
+    only; identical in shallow CI clones); exact set equality with the
+    recomputed corpus legacy predicate proven
+    (`legacy-freeze-proof.txt`); zero numeric >=381 entries;
+  - `check_work_order_identities(files, legacy_filenames=...)`: any
+    legacy-shaped filename (non-pure-numeric token OR pure numeric
+    < 381) not in the frozen set is a violation even with exact marker +
+    matching Issue; fixture members keep prior legacy rules (marker on
+    non-numeric token still violates; numeric < 381 marker still
+    requires exactly one matching Issue);
+  - malformed rule: every `.md` under `docs/work-orders` whose name
+    begins `WO-P1-` but fails the canonical grammar reaches the checker
+    through both iterators and yields a deterministic violation; non-WO
+    names (README, WO-TEMPLATE, other prefixes) stay ignored;
+  - fence-aware authority parsing: bounded line scanner drops backtick
+    and tilde fenced blocks (opener 0-3 leading spaces, >= 3 identical
+    fence chars; closer same char and length >= opener; unclosed fence
+    hides the remainder); Issue and marker are extracted only from
+    visible lines; marker recognition is now an exact whole-line match
+    (`^Identity schema: GITHUB_ISSUE_V1[ \t]*$`), so prose/backticked
+    example mentions in WO374/WO376/WO381 bodies are no longer marker
+    declarations. No CommonMark ambitions beyond this bounded need.
+- GREEN: identity suite 33/33 twice (deterministic;
+  `green-identity.txt`); adjacent suites 166/166
+  (`test_continuity_guard`, `test_continuity_projection`,
+  `test_awiki_a_conductor_authority_contract`, `test_project_identity`;
+  `green-adjacent.txt`); grep found no other repo-policy test consuming
+  work-order filename identity.
+- Gates: `git diff --check` clean; scope exactly the three allowed
+  paths; strict UTF-8 with zero U+FFFD on all changed files; secret
+  pattern scan over 360 added lines — zero hits; added lines contain no
+  network/HTTP/socket/Git-history/GitHub-API references; corpus exposed
+  no uncovered violation (no BLOCKED condition).
+- Commit subject: `fix(WO386): harden work-order identity guard`.
+  Normal push of `fix/wo-p1-386-work-order-identity-hardening` only.
+- Next gates: independent exact-SHA R3 review + exact-head CI; GPT-5.6
+  Sol acceptance/merge only. No self-accept/merge.
