@@ -1,0 +1,11 @@
+{
+  "native_version": "0.0.0-fixture-a",
+  "expect_outcome": "envelope",
+  "contains_redaction_bait": true,
+  "frame": {
+    "fixture_event": "FxSessionStart",
+    "session_ref": "fx-session-0001",
+    "occurred_at": "2026-09-19T08:00:00Z",
+    "cwd": "A:\\FXBAIT-CWD-PATH\\demo"
+  }
+}

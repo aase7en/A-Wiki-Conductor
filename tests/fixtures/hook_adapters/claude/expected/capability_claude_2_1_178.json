@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "event_id": "hk-c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+  "event_type": "transport.adapter_capabilities",
+  "hook_class": "OBSERVE",
+  "phase": "within",
+  "domain": "transport",
+  "action": "adapter_capabilities",
+  "occurred_at": "2026-09-19T08:00:00Z",
+  "source": "claude-code",
+  "source_version": "2.1.178",
+  "device_id": "device-fx-01",
+  "host_os": "windows",
+  "privacy_class": "INTERNAL",
+  "evidence_refs": ["docs/contracts/claude-hook-adapter-v1.md"],
+  "summary": "claude hook adapter capabilities",
+  "adapter": {
+    "adapter_id": "claude-hook-adapter",
+    "adapter_version": "1.0.0",
+    "contract_version": "1.0.0",
+    "emits": ["transport.adapter_capabilities"],
+    "redaction_policy": "fake-secret-corpus/1",
+    "supports_sequence": false
+  }
+}
