@@ -105,29 +105,46 @@ integrator flow; no history rewrite.
    scope, contract-only boundary, replay safety, and this acceptance list.
 2. `docs/contracts/hook-contract-v1.md` gives normative MUST/SHOULD/MAY for a
    small required core plus bounded optional context groups and decides:
-   globally unique `event_id`; source-local dedupe identity + bounded replay
-   window; positive ordering (per-source sequence authoritative when present,
-   producer order preserved per source, never global total order from wall
-   clock, deterministic monitor merge/tie-break, correlation/causation as
-   links not time order); event classes OBSERVE/ADVISORY/GUARD/COMMAND with
-   class-scoped failure behavior; schema/version compatibility with typed
+   globally unique `event_id`; dedupe identity = explicit `dedupe_key` when
+   deliberately supplied, else the global `event_id` (never `source` +
+   `sequence`; distinct `event_id`s are never dropped for a source/sequence
+   collision) inside a bounded replay window; ordering stream domain
+   `(source, device_id, observed transport/adapter session)` — never bare
+   source, no project-wide epoch store — with per-stream sequence authority
+   (sequence authoritative among buffered events when present, producer
+   order preserved per stream, never global total order from wall clock,
+   deterministic monitor merge/tie-break, append-only emitted history with
+   late-arrival inversion/gap surfacing and no waiting for unseen events,
+   correlation/causation as links not time order); event classes
+   OBSERVE/ADVISORY/GUARD/COMMAND with class-scoped failure behavior and
+   GUARD fail-closed enforcement pinned to invocation/gate authority,
+   never eventual stream delivery; schema/version compatibility with typed
    reject/degrade; payload/string/array bounds without performance SLOs;
    privacy/redaction classification and shared fake-secret corpus; localhost
    browser origin+token boundary; backpressure/degradation; evidence
    pointers/digests not authority copies; STM read-model only; adapter
-   capability/version discovery.
+   capability/version discovery with the adapter payload constrained to
+   the capability-discovery event.
 3. `docs/contracts/hook-contract-v1.schema.json` encodes core fields, enums,
-   patterns, limits, conditional GUARD requirements, unknown-field policy,
-   and security-invalid envelope rejection; Draft 2020-12 valid.
-4. `tests/test_hook_contract_schema.py` covers all 15 packet cases, is
-   table-driven where practical, and runs green offline.
+   patterns, limits, conditional GUARD requirements, the adapter
+   capability-payload constraint on the `transport.adapter_capabilities`
+   OBSERVE event, unknown-field policy, and security-invalid envelope
+   rejection; Draft 2020-12 valid.
+4. `tests/test_hook_contract_schema.py` covers all 15 packet cases plus the
+   review-001 repair regressions (dedupe identity proofs, stream-domain
+   ordering, late-arrival append-only history, `event_type` semantic pin,
+   adapter capability constraint), is table-driven where practical, and
+   runs green offline.
 5. Focused test + smallest relevant existing regressions pass
    (`test_control_events.py`, `test_provider_harness_contract.py`).
 6. `git diff --check` clean; exact-scope check from BASE_SHA shows only the
    four allowed paths; UTF-8/JSON parse clean; fake-pattern secret scan clean.
-7. Freeze: single commit on the branch records the exact candidate SHA;
-   independent exact-SHA review is the required next step. No push/merge/
-   self-accept.
+7. Candidate re-pin: the review candidate is the exact branch head after
+   the recorded freeze → §5 ordering repair → review-001 repair history
+   (see Checkpoint); each bounded repair re-pins the exact candidate SHA
+   without history rewrite. Independent exact-SHA R3 review is the
+   required next step after each re-pin. No merge/self-accept; a repair
+   lane pushes only its own repair branch.
 
 ## Checkpoint
 
@@ -151,3 +168,29 @@ integrator flow; no history rewrite.
   envelope/schema fields unchanged; 3 focused ordering-consistency tests
   added (96 passed; all 93 original tests preserved). The repair commit is
   the new review candidate SHA. Still no push/merge/self-accept.
+- 2026-09-19: independent review 001 returned P0/P2/P3 findings; repair
+  lane `fix/wo-p1-258-hook-contract-review001` opened from dispatch HEAD
+  f20fff0 (claim WO-P1-258-HOOK0-REVIEW001-REPAIR-001, R3,
+  CONTROL_PLANE_ONLY). Repairs, RED-first: P0 — duplicate identity is now
+  explicit `dedupe_key` when deliberately supplied else the globally
+  unique `event_id`; `source` + `sequence` fallback removed (distinct
+  `event_id`s survive a source/sequence collision, including across
+  devices); ordering stream domain pinned to (source, device_id, observed
+  transport/adapter session) — never bare source; a new observed session
+  may restart sequence; no project-wide epoch store. P2 — sequence
+  constrains only currently buffered events; emitted history is
+  append-only; a late lower sequence appends at observed arrival position
+  with inversion/gap metadata; deterministic late-arrival regression
+  added. P3 — §3.2 cross-references fixed (compatibility matrix §7.2,
+  dedupe §4); `event_type` = `domain.action` semantic mismatch pinned in
+  a deterministic contract test; schema `adapter` payload constrained to
+  the `transport.adapter_capabilities` OBSERVE event; GUARD FAIL_CLOSED
+  enforcement point stated (invocation/gate authority, never eventual
+  stream delivery); acceptance/checkpoint wording updated for the actual
+  re-pin/repair history. 15 tests added (RED set of 5 verified before
+  repair); focused suite + `test_control_events.py` +
+  `test_provider_harness_contract.py` green (111 passed).
+  `git diff --check` clean; exact-scope check from f20fff0 shows only the
+  four allowed paths; UTF-8/JSON parse clean; fake-pattern secret scan
+  clean. Repair commit is the new review candidate SHA; repair branch
+  pushed. No merge/self-accept.

@@ -79,7 +79,7 @@ derived truth.
 - Execution: `execution_id`, `harness_id`, `model_id`, `effort`, `state`
   (`^[A-Z][A-Z0-9_]{1,31}$`, e.g. `RUNNING`/`BLOCKED`/`DONE`),
   `duration_ms` (integer ≥ 0), `blocker_code` (`^[A-Z][A-Z0-9_]{1,63}$`).
-- Ordering/dedupe: `sequence`, `dedupe_key` (§5).
+- Ordering/dedupe: `sequence` (§5), `dedupe_key` (§4).
 - Correlation: `correlation_id`, `causation_id` (§6).
 - Evidence: `evidence_refs` (max 16 unique pointer strings), `evidence_digest`
   (`^[0-9a-f]{16,128}$`) (§12).
@@ -90,7 +90,7 @@ derived truth.
   events only) — the schema forbids each on every other hook class.
 
 Unknown-field policy: the 1.0.0 schema is closed (`additionalProperties`
-false everywhere). Consumer forward-compatibility rules are in §9.2.
+false everywhere). Consumer forward-compatibility rules are in §7.2.
 
 ## 4. Event identity
 
@@ -100,46 +100,68 @@ false everywhere). Consumer forward-compatibility rules are in §9.2.
   the same `event_id` for the same semantic event.
 - Delivery is at-least-once where durable delivery is used; there is NO
   exactly-once promise. Consumers MUST be idempotent.
-- Consumers MUST additionally dedupe on source-local identity
-  (`dedupe_key` if present, else `source` + `sequence` if present, else
-  `event_id`) inside a bounded replay window: default 1800 s, configurable,
-  clamp 300 s–86400 s. Events seen with identical source-local identity
-  inside the window MUST be dropped as duplicates. Beyond the window,
+- Consumers MUST dedupe on explicit duplicate identity inside a bounded
+  replay window: default 1800 s, configurable, clamp 300 s–86400 s. The
+  duplicate identity is the explicit `dedupe_key` when a producer
+  deliberately supplies one, otherwise the globally unique `event_id`;
+  `source` + `sequence` MUST NOT be used as a fallback duplicate identity
+  (`sequence` is a per-stream ordering hint, §5, and may legitimately
+  restart with a new observed transport/adapter session or coincide across
+  devices). Distinct `event_id`s MUST NOT be dropped as duplicates merely
+  because their `source` and `sequence` match. Redelivery carrying an
+  already-seen `event_id`, or an already-seen deliberate `dedupe_key`
+  inside the window, MUST be dropped as a duplicate; beyond the window,
   idempotent consumer design absorbs residual risk; no global dedupe table
   is implied.
 
 ## 5. Ordering
 
-- Per-source ordered queue: the projection maintains one ordered queue per
-  observed `source` per transport session. When the producer provides
-  `sequence` (monotonically increasing non-negative integer per `source`),
-  `sequence` is authoritative for order within that source: the queue
-  orders that source's events carrying `sequence` by `sequence`, and
-  consumers MUST NOT reorder a source's events against their `sequence`.
-- When `sequence` is absent for a source, the queue preserves observed
-  producer arrival order for that source within the transport session and
+- Ordering stream domain: an ordered stream is identified by the observed
+  triple `(source, device_id, transport/adapter session context)` — never
+  by bare `source`. The session context is the transport/adapter session
+  or reconnect boundary the consumer actually observed; it is not an
+  envelope field, and no project-wide epoch or sequence store is created.
+  The projection maintains one ordered queue per observed stream. When
+  the producer provides `sequence` (a monotonically increasing
+  non-negative integer within one observed stream), `sequence` is
+  authoritative for order within that stream: the queue orders that
+  stream's buffered events carrying `sequence` by `sequence`, and
+  consumers MUST NOT reorder a stream's events against their `sequence`.
+  A new observed session may restart `sequence` without colliding with a
+  prior session's queue.
+- When `sequence` is absent for a stream, the queue preserves observed
+  producer arrival order for that stream within the transport session and
   MUST NOT claim stronger ordering than it observed.
-- Sequence gaps and mixed sequence availability within a source are
-  handled conservatively: the projection MUST NOT invent, wait for, or
+- Sequence constrains ordering only among the currently buffered/known
+  events of a stream. The projection MUST NOT wait for, invent, or
   synthesize unseen events to fill gaps, and MUST NOT demote, splice, or
-  reorder observed items because a gap or a missing `sequence` exists. In
-  a mixed queue, events without `sequence` keep their observed arrival
+  reorder observed items because a gap or a missing `sequence` exists.
+  In a mixed queue, events without `sequence` keep their observed arrival
   slots and the events carrying `sequence` fill the remaining slots in
   `sequence` order; no-sequence events are never assigned a synthesized
   or sentinel `sequence` value. Gaps and unknown ordering are surfaced as
   stale/unknown/gap metadata in the projection only where later Monitor
   work supports it; no new durable state store is added for gap tracking.
+- Emitted history is append-only. Once a projection has emitted a
+  stream's events, that history is never retroactively reordered,
+  spliced, or rewritten. A later-arriving event whose `sequence` is lower
+  than (or a reuse of) sequence values already emitted in that stream is
+  never inserted before already-emitted history: it appends at its
+  observed arrival position — joining the not-yet-emitted buffer, where
+  the buffered-ordering rules above apply — and the projection surfaces
+  sequence inversion (and gap/unknown, where metadata is supported)
+  instead of rewriting history or inventing missing events.
 - Consumers MUST NOT infer any global total order from `occurred_at` wall
   clock values. Cross-device clock skew is assumed. In the merge,
   `occurred_at` is observed presentation metadata only and carries no
   causal or global-order claim.
-- Deterministic monitor merge: when interleaving sources, the projection
-  is a stable k-way merge across the per-source ordered queues. Only the
-  current head of each source queue is eligible at each step. Among
-  eligible heads, the deterministic cross-source ranking key is
+- Deterministic monitor merge: when interleaving streams, the projection
+  is a stable k-way merge across the per-stream ordered queues. Only the
+  current head of each stream queue is eligible at each step. Among
+  eligible heads, the deterministic cross-stream ranking key is
   `(occurred_at, source, event_id)`; the head's `sequence` MAY be carried
   as redundant metadata. This key selects only among heads of different
-  source queues and MUST NOT reorder items within one source queue, so a
+  stream queues and MUST NOT reorder items within one stream queue, so a
   timestamp-first global sort of all events is non-conforming even when
   labeled as observed interleaving. The merged result MUST be labeled as
   observed interleaving, not causal order.
@@ -213,6 +235,14 @@ false everywhere). Consumer forward-compatibility rules are in §9.2.
 - A non-security, non-authority GUARD MAY declare `FAIL_OPEN` only when its
   accepted Work Order explicitly defines and tests that behavior; otherwise
   `FAIL_CLOSED` is the default.
+- Enforcement point: a GUARD's `failure_policy` is evaluated and enforced
+  at hook invocation time by the gate authority that synchronously
+  consults the hook. FAIL_CLOSED is enforced at that invocation/gate
+  authority point, never by eventual stream delivery: the Hook Bus, STM,
+  and Monitor pipeline is at-least-once and degradable (§7.3, §16) and
+  MUST NOT be the mechanism by which a fail-closed decision blocks
+  anything. A GUARD outcome lost to stream degradation is surfaced as
+  visibility loss (`HOOK_STREAM_DEGRADED`), not re-decided by the stream.
 - `guard` MUST NOT appear on non-GUARD events.
 
 ### 8.4 COMMAND
@@ -302,6 +332,10 @@ is no legal secret-carrying hook envelope in v1.
   event names across native versions. Capability mismatch is typed
   (`HOOK_VERSION_UNSUPPORTED` / `HOOK_ADAPTER_UNAVAILABLE`); silent fallback
   is forbidden.
+- In the 1.0.0 schema, the `adapter` payload is legal only on an OBSERVE
+  event whose `event_type` is exactly `transport.adapter_capabilities`
+  (`domain` `transport`, `action` `adapter_capabilities`); any other
+  adapter-bearing event is schema-invalid.
 
 ## 15. Localhost browser boundary
 
@@ -344,5 +378,16 @@ sequence/dedupe; k-way merge ordering consistency (no timestamp-first
 global sort); GUARD explicit policy; security/authority fail-open
 rejected; ambiguous GUARD cannot fail open; secret/raw-prompt exclusion;
 oversized rejection; COMMAND without direct process/Git authority;
-correlation/causation identifier-only; unknown optional field policy).
+correlation/causation identifier-only; unknown optional field policy;
+dedupe identity proofs — explicit `dedupe_key` else global `event_id`,
+never `source` + `sequence`, distinct `event_id`s survive a source/sequence
+collision across devices, a restarted sequence under a new observed session
+is not a duplicate, same-`event_id` redelivery is a duplicate, and explicit
+`dedupe_key` idempotence stays bounded by the replay window; ordering
+stream domain `(source, device_id, observed session)` — never bare source
+— with a deterministic late-lower-sequence append-only-history regression
+and no waiting for unseen gap events; `event_type` = `domain.action`
+semantic pin; adapter capability payload constrained to the
+capability-discovery event; GUARD fail-closed enforcement point pinned to
+invocation/gate authority, never eventual stream delivery).
 No network, no MCP, no runtime validation is added by this contract.
