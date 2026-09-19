@@ -30,13 +30,17 @@ For ordinary substantial single-device work, A-FastTask remains sufficient.
 
 ## Global WIP and no-collision rule
 
-The default budget remains **global across every device and harness**:
+The default budget remains **one global budget across every device, harness,
+repository, and CROSS_REPO compatibility-set member**:
 
 - max 3 mutable implementation lanes;
-- max 1 independent read-only review lane;
-- spare capacity for recovery/blocker investigation.
+- max 1 independent read-only review lane.
 
-Never multiply WIP by device.
+Recovery/blocker work uses headroom inside this same `3 mutable + 1 review`
+budget; it is not an additional lane class unless an accepted Work Order
+explicitly changes capacity.
+
+Never multiply WIP by device, harness, or repository.
 
 `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`
 

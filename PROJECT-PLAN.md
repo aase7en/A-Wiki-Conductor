@@ -956,3 +956,62 @@ Planned bounded delivery nodes:
 - `ODP-9` bounded real multi-provider pilot only after all participating providers are genuinely authorized/admitted.
 
 Current frontier coexistence: WO148/PR #199 provider service authorization and WO147/PR #200 ReviewBus adapter retain their existing ownership; ODP implementation must not overlap them. WO096 remains the independent P0 v0.7.0 release blocker. AiPASS remains ineligible while its authorization/admission gates are unsatisfied; ODP cannot bypass provider policy.
+
+## 25. A-Faster Hook / STM / Observability Architecture (2026-09-19)
+
+**Planning authority:** `docs/plans/2026-09-19-a-faster-hook-stm-observability-roadmap.md`
+**Roadmap-capture WO:** `docs/work-orders/WO-P1-257-hook-stm-observability-roadmap.md` / Issue #365
+
+A-Sunday Conductor will add a normalized Hook Contract and shared monitor
+projection so A-Conductor, SunDayRemoteMCP, Kilo, Claude Code, Workers, RDC and
+future execution surfaces can be observed through one event vocabulary without
+creating another control plane.
+
+The architecture boundary is fixed:
+
+- A-Conductor remains the sole task/claim/routing/retry/review/acceptance and
+  command-authorization authority;
+- A-FastTask remains the canonical router/binder;
+- A-Faster remains the accelerated multi-device/multi-harness profile over
+  A-FastTask;
+- SunDayRemoteMCP remains execution/capability substrate only;
+- Hook Bus, STM and Monitor UI are observability/working-state infrastructure,
+  never project SSoT;
+- Web UI, Extension UI and Desktop UI consume the same normalized Monitor
+  Projection rather than maintaining separate task state;
+- consequential UI actions are deferred until an A-Conductor Command Gateway
+  validates task/claim/safety/replay/ownership authority.
+
+Priority sequence:
+
+1. freeze Hook Contract v1, failure model, privacy/redaction, ordering/dedupe and
+   version/capability discovery;
+2. extend existing A-Conductor control/lifecycle event seams;
+3. add bounded SRM execution/process/tool hook seams;
+4. add version-bound Claude Code and Kilo adapters plus advisory
+   Ponytail/Caveman/Grill-me integration;
+5. add bounded TTL STM and Hook Bus with authoritative-state precedence;
+6. expose a shared read-only Monitor API and live event stream;
+7. build Web UI + Extension UI Hook Monitor against the same contract;
+8. only then add Command Gateway-mediated pause/cancel/retry/reassign/cleanup
+   requests;
+9. roll out Windows/macOS then Linux/Pi/Umbrel headless without a second monitor
+   stack;
+10. integrate semantic activity from Issue #341 and provider/ODP observability
+    without merging their authorities;
+11. run deterministic conformance/chaos/performance/security tests before
+    retiring legacy monitor paths.
+
+The global WIP remains one `3 mutable + 1 independent review` budget across
+devices, harnesses, repositories and CROSS_REPO compatibility-set members.
+Recovery/blocker work consumes headroom inside that budget unless an accepted
+Work Order explicitly changes capacity.
+
+The first monitor milestone is read-only. Monitoring failure may degrade
+visibility but must not rewrite task truth or imply execution failure. Security
+or authority guards that are deliberately hook-backed must state explicit
+fail-closed behavior in their own accepted Work Order.
+
+Implementation details, event fields, STM rules, Hook Monitor views,
+cross-platform integration, failure modes and acceptance gates are defined in
+the planning authority above.
