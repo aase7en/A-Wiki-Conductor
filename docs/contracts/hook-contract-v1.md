@@ -110,18 +110,39 @@ false everywhere). Consumer forward-compatibility rules are in §9.2.
 
 ## 5. Ordering
 
-- Per-source positive ordering: when the producer provides `sequence`
-  (monotonically increasing non-negative integer per `source`), `sequence`
-  is authoritative for order within that source. Consumers MUST NOT reorder
-  a source's events against its `sequence`.
-- When `sequence` is absent, the pipeline MUST preserve producer arrival
-  order per source within a transport session and MUST NOT claim stronger
-  ordering than it observed.
+- Per-source ordered queue: the projection maintains one ordered queue per
+  observed `source` per transport session. When the producer provides
+  `sequence` (monotonically increasing non-negative integer per `source`),
+  `sequence` is authoritative for order within that source: the queue
+  orders that source's events carrying `sequence` by `sequence`, and
+  consumers MUST NOT reorder a source's events against their `sequence`.
+- When `sequence` is absent for a source, the queue preserves observed
+  producer arrival order for that source within the transport session and
+  MUST NOT claim stronger ordering than it observed.
+- Sequence gaps and mixed sequence availability within a source are
+  handled conservatively: the projection MUST NOT invent, wait for, or
+  synthesize unseen events to fill gaps, and MUST NOT demote, splice, or
+  reorder observed items because a gap or a missing `sequence` exists. In
+  a mixed queue, events without `sequence` keep their observed arrival
+  slots and the events carrying `sequence` fill the remaining slots in
+  `sequence` order; no-sequence events are never assigned a synthesized
+  or sentinel `sequence` value. Gaps and unknown ordering are surfaced as
+  stale/unknown/gap metadata in the projection only where later Monitor
+  work supports it; no new durable state store is added for gap tracking.
 - Consumers MUST NOT infer any global total order from `occurred_at` wall
-  clock values. Cross-device clock skew is assumed.
+  clock values. Cross-device clock skew is assumed. In the merge,
+  `occurred_at` is observed presentation metadata only and carries no
+  causal or global-order claim.
 - Deterministic monitor merge: when interleaving sources, the projection
-  sorts by `(occurred_at, source, sequence` else `-1, `event_id`) and MUST
-  label the result as observed interleaving, not causal order.
+  is a stable k-way merge across the per-source ordered queues. Only the
+  current head of each source queue is eligible at each step. Among
+  eligible heads, the deterministic cross-source ranking key is
+  `(occurred_at, source, event_id)`; the head's `sequence` MAY be carried
+  as redundant metadata. This key selects only among heads of different
+  source queues and MUST NOT reorder items within one source queue, so a
+  timestamp-first global sort of all events is non-conforming even when
+  labeled as observed interleaving. The merged result MUST be labeled as
+  observed interleaving, not causal order.
 - `correlation_id`/`causation_id` are links, not time order. A causation
   chain MUST NOT be used to reorder events; it only connects related
   envelopes (§6).
@@ -319,7 +340,8 @@ visibility loss.
 Deterministic conformance is `tests/test_hook_contract_schema.py`
 (schema parse/draft; minimal valid OBSERVE; optional groups; invalid/missing
 identity; invalid class/phase/domain/action; version bounds;
-sequence/dedupe; GUARD explicit policy; security/authority fail-open
+sequence/dedupe; k-way merge ordering consistency (no timestamp-first
+global sort); GUARD explicit policy; security/authority fail-open
 rejected; ambiguous GUARD cannot fail open; secret/raw-prompt exclusion;
 oversized rejection; COMMAND without direct process/Git authority;
 correlation/causation identifier-only; unknown optional field policy).

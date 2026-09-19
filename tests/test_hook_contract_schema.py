@@ -1,4 +1,5 @@
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 
@@ -304,6 +305,118 @@ def test_sequence_zero_and_high_bound_are_valid(validator) -> None:
     assert validator.is_valid(
         mutated(minimal_event(), sequence=9007199254740991, dedupe_key="srm:42")
     )
+
+
+def contract_section(title: str) -> str:
+    text = CONTRACT.read_text(encoding="utf-8")
+    match = re.search(
+        rf"^## {re.escape(title)}\s*$(.*?)(?=^## |\Z)", text, re.M | re.S
+    )
+    assert match is not None
+    return match.group(1)
+
+
+def source_queue(events: list) -> list:
+    if all("sequence" in event for event in events):
+        return sorted(events, key=lambda event: event["sequence"])
+    if not any("sequence" in event for event in events):
+        return list(events)
+    queue = [None] * len(events)
+    sequenced = sorted(
+        (event for event in events if "sequence" in event),
+        key=lambda event: event["sequence"],
+    )
+    free_slots = [i for i, event in enumerate(events) if "sequence" in event]
+    for slot, event in zip(free_slots, sequenced):
+        queue[slot] = event
+    for i, event in enumerate(events):
+        if "sequence" not in event:
+            queue[i] = event
+    return queue
+
+
+def merge_projection(queues: list) -> list:
+    pending = [list(queue) for queue in queues]
+    merged = []
+    while any(pending):
+        head, idx = min(
+            ((queue[0], i) for i, queue in enumerate(pending) if queue),
+            key=lambda pair: (
+                pair[0]["occurred_at"],
+                pair[0]["source"],
+                pair[0]["event_id"],
+            ),
+        )
+        merged.append(head)
+        pending[idx].pop(0)
+    return merged
+
+
+def test_ordering_section_forbids_timestamp_first_global_sort() -> None:
+    section = contract_section("5. Ordering")
+    assert "k-way merge" in section
+    assert "MUST NOT reorder" in section
+    assert "observed interleaving, not causal" in section
+    assert "(occurred_at, source, sequence" not in section
+    assert "sorts by" not in section
+
+
+def test_kway_merge_preserves_source_local_sequence_under_clock_inversion(
+    validator,
+) -> None:
+    srm_10 = mutated(
+        minimal_event(),
+        event_id="hk-" + "10" * 16,
+        sequence=10,
+        occurred_at="2026-09-19T07:00:20Z",
+    )
+    srm_11 = mutated(
+        minimal_event(),
+        event_id="hk-" + "11" * 16,
+        sequence=11,
+        occurred_at="2026-09-19T07:00:05Z",
+    )
+    kilo_0 = mutated(
+        minimal_event(),
+        event_id="hk-" + "0c" * 16,
+        source="kilo",
+        occurred_at="2026-09-19T07:00:12Z",
+    )
+    for event in (srm_10, srm_11, kilo_0):
+        assert validator.is_valid(event)
+
+    merged = merge_projection(
+        [source_queue([srm_10, srm_11]), source_queue([kilo_0])]
+    )
+    assert [event["event_id"] for event in merged] == [
+        kilo_0["event_id"],
+        srm_10["event_id"],
+        srm_11["event_id"],
+    ]
+
+    legacy_global_sort = sorted(
+        (srm_10, srm_11, kilo_0),
+        key=lambda event: (
+            event["occurred_at"],
+            event["source"],
+            event.get("sequence", -1),
+            event["event_id"],
+        ),
+    )
+    assert legacy_global_sort.index(srm_11) < legacy_global_sort.index(srm_10)
+
+
+def test_mixed_sequence_queue_keeps_arrival_slots() -> None:
+    seq_5 = mutated(minimal_event(), event_id="hk-" + "aa" * 16, sequence=5)
+    no_seq = mutated(minimal_event(), event_id="hk-" + "bb" * 16)
+    seq_1 = mutated(minimal_event(), event_id="hk-" + "cc" * 16, sequence=1)
+    queue = source_queue([seq_5, no_seq, seq_1])
+    assert [event["event_id"] for event in queue] == [
+        seq_1["event_id"],
+        no_seq["event_id"],
+        seq_5["event_id"],
+    ]
+    assert "sequence" not in no_seq
 
 
 def test_guard_requires_explicit_failure_policy(validator) -> None:

@@ -140,3 +140,14 @@ integrator flow; no history rewrite.
 - 2026-09-19: freeze commit on this branch; exact SHA recorded in the final
   packet response. Awaiting independent exact-SHA review. No push/merge/
   self-accept.
+- 2026-09-19: integrator found a §5 contract contradiction before
+  independent review: source-local `sequence` authority conflicted with a
+  timestamp-first global monitor sort that could place sequence N+1 before
+  N for one source under inverted/skewed `occurred_at`. Bounded repair per
+  integrator task packet: §5 rewritten to per-source ordered queues plus a
+  stable k-way head-only merge ranked by `(occurred_at, source, event_id)`
+  among eligible heads; conservative gap/mixed-availability rules (no
+  invented events, no sentinel `sequence`, observed arrival slots kept);
+  envelope/schema fields unchanged; 3 focused ordering-consistency tests
+  added (96 passed; all 93 original tests preserved). The repair commit is
+  the new review candidate SHA. Still no push/merge/self-accept.
