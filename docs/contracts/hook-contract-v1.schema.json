@@ -375,6 +375,18 @@
     },
     {
       "if": {
+        "required": ["adapter"]
+      },
+      "then": {
+        "properties": {
+          "event_type": {"const": "transport.adapter_capabilities"},
+          "domain": {"const": "transport"},
+          "action": {"const": "adapter_capabilities"}
+        }
+      }
+    },
+    {
+      "if": {
         "properties": {
           "guard": {
             "anyOf": [

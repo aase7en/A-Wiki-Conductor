@@ -203,6 +203,9 @@ OPTIONAL_GROUPS = {
         "command_ref": "cmdref-0001",
     },
     "adapter": {
+        "event_type": "transport.adapter_capabilities",
+        "domain": "transport",
+        "action": "adapter_capabilities",
         "adapter": {
             "adapter_id": "kilo-plugin-adapter",
             "adapter_version": "0.1.0",
@@ -310,7 +313,9 @@ def test_sequence_zero_and_high_bound_are_valid(validator) -> None:
 def contract_section(title: str) -> str:
     text = CONTRACT.read_text(encoding="utf-8")
     match = re.search(
-        rf"^## {re.escape(title)}\s*$(.*?)(?=^## |\Z)", text, re.M | re.S
+        rf"^#{{2,3}}\s*{re.escape(title)}\s*$(.*?)(?=^#{{2,3}}\s|\Z)",
+        text,
+        re.M | re.S,
     )
     assert match is not None
     return match.group(1)
@@ -350,6 +355,74 @@ def merge_projection(queues: list) -> list:
         merged.append(head)
         pending[idx].pop(0)
     return merged
+
+
+def stream_key(event: dict, session_ref: str) -> tuple:
+    return (event["source"], event["device_id"], session_ref)
+
+
+def dedupe_identity(event: dict) -> str:
+    return event["dedupe_key"] if "dedupe_key" in event else event["event_id"]
+
+
+class BoundedReplayDedupe:
+    def __init__(self, window_s: int = 1800) -> None:
+        self.window_s = min(86400, max(300, window_s))
+        self._seen: dict = {}
+
+    def observe(self, event: dict, now_s: int) -> bool:
+        identity = dedupe_identity(event)
+        first_seen = self._seen.get(identity)
+        duplicate = first_seen is not None and (now_s - first_seen) < self.window_s
+        if not duplicate:
+            self._seen[identity] = now_s
+        return duplicate
+
+
+class StreamProjection:
+    def __init__(self, source: str, device_id: str, session_ref: str) -> None:
+        self.stream = (source, device_id, session_ref)
+        self.pending = []
+        self.emitted = []
+        self.last_emitted_sequence = None
+        self.metadata = []
+
+    def append(self, event: dict) -> None:
+        sequence = event.get("sequence")
+        if (
+            sequence is not None
+            and self.last_emitted_sequence is not None
+            and sequence <= self.last_emitted_sequence
+        ):
+            self.metadata.append(
+                ("sequence_inversion", event["event_id"], sequence, self.last_emitted_sequence)
+            )
+        self.pending.append(event)
+
+    def emit(self) -> None:
+        ordered = source_queue(self.pending)
+        previous = self.last_emitted_sequence
+        for event in ordered:
+            sequence = event.get("sequence")
+            if sequence is not None:
+                if previous is not None and sequence > previous + 1:
+                    self.metadata.append(
+                        ("sequence_gap", event["event_id"], previous, sequence)
+                    )
+                previous = sequence
+        self.last_emitted_sequence = previous
+        self.emitted.extend(ordered)
+        self.pending = []
+
+    @property
+    def history(self) -> list:
+        return list(self.emitted)
+
+
+def event_type_semantic_mismatch(event: dict) -> bool:
+    prefix = f"{event.get('domain')}.{event.get('action')}"
+    event_type = event.get("event_type", "")
+    return not (event_type == prefix or event_type.startswith(prefix + "."))
 
 
 def test_ordering_section_forbids_timestamp_first_global_sort() -> None:
@@ -569,12 +642,14 @@ def test_adapter_only_on_observe_events(validator) -> None:
     assert validator.is_valid(mutated(minimal_event(), **OPTIONAL_GROUPS["adapter"]))
 
     advisory_with_adapter = mutated(
-        minimal_event(),
-        event_type="advisory.simplify",
-        hook_class="ADVISORY",
-        domain="advisory",
-        action="simplify",
-        **OPTIONAL_GROUPS["adapter"],
+        mutated(
+            minimal_event(),
+            event_type="advisory.simplify",
+            hook_class="ADVISORY",
+            domain="advisory",
+            action="simplify",
+        ),
+        adapter=OPTIONAL_GROUPS["adapter"]["adapter"],
     )
     assert not validator.is_valid(advisory_with_adapter)
 
@@ -588,3 +663,251 @@ def test_event_type_matches_domain_and_action_in_fixtures() -> None:
     ):
         prefix = f"{payload['domain']}.{payload['action']}"
         assert payload["event_type"] == prefix or payload["event_type"].startswith(prefix + ".")
+
+
+def test_optional_group_cross_references_point_at_real_sections() -> None:
+    section = contract_section("3.2 Optional context groups")
+    assert "§9.2" not in section
+    assert "§7.2" in section
+    assert "`sequence` (§5)" in section
+    assert "`dedupe_key` (§4)" in section
+
+
+def test_dedupe_identity_is_dedupe_key_else_event_id_never_source_sequence() -> None:
+    section = contract_section("4. Event identity")
+    assert "`source` + `sequence` MUST NOT be used as a fallback duplicate identity" in section
+    assert "Distinct `event_id`s MUST NOT be dropped" in section
+
+
+def test_dedupe_identity_ladder() -> None:
+    with_key = mutated(minimal_event(), dedupe_key="upload:batch-9")
+    assert dedupe_identity(with_key) == "upload:batch-9"
+    assert dedupe_identity(minimal_event()) == EVENT_ID
+
+
+def test_dedupe_replay_window_defaults_and_clamps() -> None:
+    assert BoundedReplayDedupe().window_s == 1800
+    assert BoundedReplayDedupe(window_s=1).window_s == 300
+    assert BoundedReplayDedupe(window_s=10**9).window_s == 86400
+
+
+def test_same_source_sequence_two_devices_distinct_event_ids_are_distinct() -> None:
+    device_a = mutated(
+        minimal_event(), event_id="hk-" + "aa" * 16, device_id="device-01", sequence=7
+    )
+    device_b = mutated(
+        minimal_event(), event_id="hk-" + "bb" * 16, device_id="device-02", sequence=7
+    )
+    assert (device_a["source"], device_a["sequence"]) == (
+        device_b["source"],
+        device_b["sequence"],
+    )
+    assert device_a["event_id"] != device_b["event_id"]
+
+    dedupe = BoundedReplayDedupe()
+    assert dedupe.observe(device_a, now_s=0) is False
+    assert dedupe.observe(device_b, now_s=1) is False
+
+    assert stream_key(device_a, "session-1") != stream_key(device_b, "session-1")
+
+    merged = merge_projection([source_queue([device_a]), source_queue([device_b])])
+    assert [event["event_id"] for event in merged] == [
+        device_a["event_id"],
+        device_b["event_id"],
+    ]
+
+
+def test_same_stream_sequence_collision_distinct_event_ids_not_dropped() -> None:
+    first = mutated(minimal_event(), event_id="hk-" + "c1" * 16, sequence=4)
+    second = mutated(minimal_event(), event_id="hk-" + "c2" * 16, sequence=4)
+    dedupe = BoundedReplayDedupe()
+    assert not dedupe.observe(first, now_s=0)
+    assert not dedupe.observe(second, now_s=1)
+
+    projection = StreamProjection("srm", "device-01", "session-9")
+    projection.append(first)
+    projection.emit()
+    projection.append(second)
+    assert ("sequence_inversion", second["event_id"], 4, 4) in projection.metadata
+    projection.emit()
+    assert [event["event_id"] for event in projection.history] == [
+        first["event_id"],
+        second["event_id"],
+    ]
+
+
+def test_same_event_id_redelivery_is_duplicate() -> None:
+    event = mutated(minimal_event(), sequence=3)
+    redelivery = mutated(event)
+    dedupe = BoundedReplayDedupe()
+    assert not dedupe.observe(event, now_s=0)
+    assert dedupe.observe(redelivery, now_s=60)
+    assert not dedupe.observe(redelivery, now_s=1800)
+
+
+def test_sequence_restart_with_new_observed_session_is_not_duplicate() -> None:
+    session_a = mutated(
+        minimal_event(),
+        event_id="hk-" + "5e" * 16,
+        sequence=5,
+        occurred_at="2026-09-19T07:00:01Z",
+    )
+    session_b = mutated(
+        minimal_event(),
+        event_id="hk-" + "6f" * 16,
+        sequence=5,
+        occurred_at="2026-09-19T07:05:01Z",
+    )
+    dedupe = BoundedReplayDedupe()
+    assert not dedupe.observe(session_a, now_s=0)
+    assert not dedupe.observe(session_b, now_s=10)
+
+    assert stream_key(session_a, "session-A") != stream_key(session_b, "session-B")
+
+    merged = merge_projection([source_queue([session_a]), source_queue([session_b])])
+    assert [event["event_id"] for event in merged] == [
+        session_a["event_id"],
+        session_b["event_id"],
+    ]
+
+
+def test_explicit_dedupe_key_idempotence_remains_bounded() -> None:
+    first = mutated(
+        minimal_event(), event_id="hk-" + "d4" * 16, dedupe_key="upload:batch-9"
+    )
+    retry = mutated(
+        minimal_event(), event_id="hk-" + "e5" * 16, dedupe_key="upload:batch-9"
+    )
+    unrelated = mutated(minimal_event(), event_id="hk-" + "f6" * 16)
+    dedupe = BoundedReplayDedupe()
+    assert not dedupe.observe(first, now_s=0)
+    assert dedupe.observe(retry, now_s=30)
+    assert not dedupe.observe(unrelated, now_s=31)
+    assert not dedupe.observe(retry, now_s=1800 + 30)
+
+
+def test_ordering_stream_domain_is_never_bare_source() -> None:
+    section = contract_section("5. Ordering")
+    assert "(source, device_id," in section
+    assert "bare `source`" in section
+    assert "restart" in section
+    assert "MUST NOT wait" in section
+    assert "never retroactively" in section
+    assert "arrival position" in section
+
+
+def test_late_lower_sequence_appends_at_arrival_and_never_rewrites_history() -> None:
+    projection = StreamProjection("srm", "device-01", "session-42")
+    first = mutated(minimal_event(), event_id="hk-" + "01" * 16, sequence=1)
+    second = mutated(minimal_event(), event_id="hk-" + "02" * 16, sequence=2)
+    third = mutated(minimal_event(), event_id="hk-" + "03" * 16, sequence=3)
+    for event in (first, second, third):
+        projection.append(event)
+    projection.emit()
+    assert [event["event_id"] for event in projection.history] == [
+        first["event_id"],
+        second["event_id"],
+        third["event_id"],
+    ]
+
+    late = mutated(minimal_event(), event_id="hk-" + "04" * 16, sequence=2)
+    projection.append(late)
+    assert ("sequence_inversion", late["event_id"], 2, 3) in projection.metadata
+    projection.emit()
+    assert [event["event_id"] for event in projection.history] == [
+        first["event_id"],
+        second["event_id"],
+        third["event_id"],
+        late["event_id"],
+    ]
+    assert len(projection.metadata) == 1
+
+
+def test_projection_does_not_wait_for_unseen_gap_events() -> None:
+    projection = StreamProjection("srm", "device-01", "session-43")
+    seq_1 = mutated(minimal_event(), event_id="hk-" + "11" * 16, sequence=1)
+    seq_2 = mutated(minimal_event(), event_id="hk-" + "12" * 16, sequence=2)
+    seq_5 = mutated(minimal_event(), event_id="hk-" + "15" * 16, sequence=5)
+    projection.append(seq_1)
+    projection.append(seq_2)
+    projection.emit()
+    projection.append(seq_5)
+    projection.emit()
+    assert [event["event_id"] for event in projection.history] == [
+        seq_1["event_id"],
+        seq_2["event_id"],
+        seq_5["event_id"],
+    ]
+    assert ("sequence_gap", seq_5["event_id"], 2, 5) in projection.metadata
+
+    late_fill = mutated(minimal_event(), event_id="hk-" + "13" * 16, sequence=3)
+    projection.append(late_fill)
+    assert ("sequence_inversion", late_fill["event_id"], 3, 5) in projection.metadata
+    projection.emit()
+    assert [event["event_id"] for event in projection.history] == [
+        seq_1["event_id"],
+        seq_2["event_id"],
+        seq_5["event_id"],
+        late_fill["event_id"],
+    ]
+
+
+def test_guard_fail_closed_enforced_at_invocation_never_stream_delivery() -> None:
+    section = contract_section("8.3 GUARD")
+    assert "invocation" in section
+    assert "eventual stream delivery" in section
+
+
+def test_adapter_payload_only_on_capability_discovery_event(validator) -> None:
+    capability = mutated(minimal_event(), **OPTIONAL_GROUPS["adapter"])
+    assert validator.is_valid(capability)
+
+    on_other_observe_event = mutated(
+        minimal_event(),
+        event_type="tool.execute",
+        domain="tool",
+        action="execute",
+        adapter=OPTIONAL_GROUPS["adapter"]["adapter"],
+    )
+    assert not validator.is_valid(on_other_observe_event)
+
+    wrong_action = mutated(
+        minimal_event(),
+        event_type="transport.adapter_capabilities",
+        domain="transport",
+        action="capabilities",
+        adapter=OPTIONAL_GROUPS["adapter"]["adapter"],
+    )
+    assert not validator.is_valid(wrong_action)
+
+
+def test_event_type_domain_action_semantic_mismatch_pinned(validator) -> None:
+    rule = contract_section("3.1 Required core")
+    assert "MUST equal `domain`" in rule
+
+    for event in (
+        minimal_event(),
+        guard_event(),
+        command_event(),
+        mutated(minimal_event(), **OPTIONAL_GROUPS["adapter"]),
+        mutated(minimal_event(), **OPTIONAL_GROUPS["ordering"]),
+    ):
+        assert not event_type_semantic_mismatch(event)
+
+    schema_blind_mismatch = mutated(minimal_event(), event_type="execution.started")
+    assert validator.is_valid(schema_blind_mismatch)
+    assert event_type_semantic_mismatch(schema_blind_mismatch)
+
+    truncated = mutated(minimal_event(), event_type="process.spawn")
+    assert validator.is_valid(truncated)
+    assert event_type_semantic_mismatch(truncated)
+
+    wrong_domain = mutated(
+        minimal_event(), event_type="process.spawned", domain="execution", action="started"
+    )
+    assert validator.is_valid(wrong_domain)
+    assert event_type_semantic_mismatch(wrong_domain)
+
+    phase_qualified = mutated(minimal_event(), event_type="process.spawned.child")
+    assert validator.is_valid(phase_qualified)
+    assert not event_type_semantic_mismatch(phase_qualified)
