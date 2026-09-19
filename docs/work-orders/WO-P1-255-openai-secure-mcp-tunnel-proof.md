@@ -236,6 +236,23 @@ Not authorized in WO-P1-255:
 - automatic provider/model routing;
 - any Serena GPL application code copy.
 
+## Final accepted Tier-0 compatibility set
+
+The accepted implementation compatibility pair for this WO is:
+
+- authority/control plane: `A-Wiki-Conductor@756da5ae15774be12f34b2c1b9576882a22db2e1`
+- execution substrate: `SunDayRemoteMCP@26644849405dc65bf52fbb97b02ed86683ccbd3b`
+
+Acceptance evidence:
+- authority PR #359 merged the reviewed authority contract and all hosted CI jobs passed;
+- SRM post-main TypeScript build PASS;
+- focused OpenAI MCP entitlement test PASS;
+- Sunday MCP stdio test PASS, including stdout JSON-RPC purity and two explicit workspaces in one stdio session;
+- final exact-set R3 rereview: `PASS P0=0 P1=0 P2=1`;
+- the carried P2 is advisory for this Tier-0 slice: before any later live admission tier relies on `WRITE_MODIFY`, constrain its evidence source to `ACCOUNT_OBSERVED` / `COMBINED`.
+
+This closeout fold records the already accepted implementation pair. It is governance/evidence projection only and does not add transport, entitlement, provider, task, claim, scheduler, retry, review, completion, or write authority.
+
 ## Exit
 
 This WO is complete only when the exact cross-repo SHA pair has deterministic evidence and
