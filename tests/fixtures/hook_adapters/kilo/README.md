@@ -1,7 +1,9 @@
 # Kilo hook adapter fixtures (fake, bounded)
 
 All files under this directory are FAKE, bounded, native-shaped test data
-for `tests/test_kilo_hook_adapter_contract.py` (WO-P1-262). They encode
+for `tests/test_kilo_hook_adapter_contract.py` (WO-P1-376; authored under
+the WO-P1-262 alias before the identity rebind — fixture provenance is
+unchanged). They encode
 the fixture grammar declared in `docs/contracts/kilo-hook-adapter-v1.md`
 §3: observed stream families (top-level `type`/`timestamp`/`sessionID` +
 `part`; `step_start`; `tool_use` with name + `state.status/input/output`;

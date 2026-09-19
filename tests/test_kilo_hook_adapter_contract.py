@@ -1,8 +1,9 @@
-"""WO-P1-262 - Kilo Hook Adapter v1 offline conformance suite.
+"""WO-P1-376 - Kilo Hook Adapter v1 offline conformance suite.
 
 Reference mapper + fixtures under tests/fixtures/hook_adapters/kilo/ prove
 the adapter contract in docs/contracts/kilo-hook-adapter-v1.md against the
-frozen Hook Contract v1 schema (dependency f20fff006aad1e592b150ffdcb52ac331ec00a3a).
+accepted Hook Contract v1 schema (dependency 602f6db01e170f74456ff77e1b5df01622fb84dd,
+re-pinned by WO-P1-376 from the WO-P1-262 author pin f20fff006aad1e592b150ffdcb52ac331ec00a3a).
 
 Deterministic, offline only: no network, no MCP, no runtime, no live Kilo
 process. All native records are fake, bounded, native-shaped fixtures.
@@ -317,9 +318,11 @@ def test_dependency_contract_is_the_frozen_hook_contract_v1() -> None:
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     assert schema["$id"] == "urn:a-conductor:schema:hook-contract:1.0.0"
     contract_text = CONTRACT.read_text(encoding="utf-8")
-    assert "f20fff006aad1e592b150ffdcb52ac331ec00a3a" in contract_text
+    assert "602f6db01e170f74456ff77e1b5df01622fb84dd" in contract_text
+    assert "f20fff006aad1e592b150ffdcb52ac331ec00a3a" not in contract_text
     assert "fake-secret-corpus/1" in contract_text
     assert "supports_sequence" in contract_text
+    assert "Identity schema: GITHUB_ISSUE_V1" in contract_text
 
 
 def test_capability_document_declares_v1_surface() -> None:
@@ -363,6 +366,23 @@ def test_capability_event_is_first_and_carries_adapter_document(validator) -> No
     assert validator.is_valid(first)
 
 
+def test_adapter_payload_is_legal_only_on_capability_event(validator) -> None:
+    # Hook Contract §14 tightening (602f6db): the adapter payload is legal
+    # only on an OBSERVE event whose event_type is exactly
+    # transport.adapter_capabilities; schema rejects it anywhere else.
+    events, _ = run_stream("session-basic")
+    for envelope in events:
+        if "adapter" in envelope:
+            assert envelope["event_type"] == "transport.adapter_capabilities"
+            assert envelope["domain"] == "transport"
+            assert envelope["action"] == "adapter_capabilities"
+    tool_event = next(
+        event for event in events if event["event_type"] == "tool.execute.before"
+    )
+    smuggled = dict(tool_event, adapter=load_capability())
+    assert not validator.is_valid(smuggled)
+
+
 def test_event_ids_are_unique_v4_shaped_hk_ids() -> None:
     events, _ = run_stream("session-basic")
     ids = [event["event_id"] for event in events]
@@ -401,6 +421,23 @@ def test_no_sequence_claimed_and_arrival_order_preserved() -> None:
     # Native line 3 carries an earlier timestamp than line 2; observed
     # arrival order wins and the adapter never sorts by occurred_at.
     assert events[2]["occurred_at"] > events[3]["occurred_at"]
+
+
+def test_replay_identity_is_explicit_dedupe_key_never_source_sequence() -> None:
+    # Hook Contract §4 (review-001, 602f6db): duplicate identity is the
+    # explicit dedupe_key when deliberately supplied, else event_id;
+    # source+sequence MUST NOT be fallback identity.
+    events, _ = run_stream("session-basic")
+    assert events
+    ids = [event["event_id"] for event in events]
+    keys = [event["dedupe_key"] for event in events]
+    for envelope in events:
+        assert "sequence" not in envelope
+        assert envelope["dedupe_key"].startswith("kilo:")
+    # Distinct native records never collapse identity; every emitted
+    # event deliberately supplies an explicit dedupe_key.
+    assert len(set(ids)) == len(ids)
+    assert len(set(keys)) == len(keys)
 
 
 def test_redaction_stream_never_leaks_corpus_or_share_urls(validator) -> None:

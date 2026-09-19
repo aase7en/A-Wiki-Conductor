@@ -1,16 +1,20 @@
 # Kilo Hook Adapter v1 (HOOK-3 / Kilo lane)
 
-Status: CONTRACT-ONLY CONFORMANCE CANDIDATE — WO-P1-262 / Issue #376
+Status: CONTRACT-ONLY CONFORMANCE CANDIDATE — WO-P1-376 / Issue #376 (identity rebound from WO-P1-262; see the WO-P1-376 work-order historical alias section)
+Identity schema: GITHUB_ISSUE_V1
 Adapter contract version: 1.0.0 (emits Hook Contract `1.0.0`)
 Planning authority: `docs/plans/2026-09-19-a-faster-hook-stm-observability-roadmap.md` (P4 — HOOK-3 harness adapters, Kilo sub-lane)
-Dependency: Hook Contract v1 exact `f20fff006aad1e592b150ffdcb52ac331ec00a3a` (`docs/contracts/hook-contract-v1.md` + `docs/contracts/hook-contract-v1.schema.json`)
+Dependency: Hook Contract v1 exact `602f6db01e170f74456ff77e1b5df01622fb84dd` (accepted on main via merge `2a461ae22ab28ad3b48f15660ab818f700faab30`; `docs/contracts/hook-contract-v1.md` + `docs/contracts/hook-contract-v1.schema.json`)
 Machine conformance: `tests/test_kilo_hook_adapter_contract.py` + fixtures under `tests/fixtures/hook_adapters/kilo/`
+Claim: WO-P1-376-KILO-HOOK-ADAPTER-REBIND-001
+Result destination: `runs/WO-P1-376/repair/`
 
-The key words MUST, MUST NOT, SHOULD, and MAY are to be interpreted as
-described in RFC 2119/8174. This document defines the adapter contract and
-its offline deterministic conformance harness only; it implements no
-runtime, adds no event store, and mutates no `src/` code (WO-P1-262 is
-CONTROL_PLANE_ONLY with NEW-only docs/tests/fixtures scope).
+The key words MUST, MUST NOT, SHOULD, and MAY are to be
+interpreted as described in RFC 2119/8174. This document defines the
+adapter contract and its offline deterministic conformance harness only; it
+implements no runtime, adds no event store, and mutates no `src/` code (WO-P1-376 is
+CONTROL_PLANE_ONLY; the original NEW-only docs/tests/fixtures scope was authored
+under WO-P1-262 and is preserved as historical evidence).
 
 ## 1. Purpose and authority
 
@@ -33,7 +37,11 @@ roadmap §3):
 - The adapter adds no global time authority and no second event store; it
   defers to Hook Contract §4/§5 identity, ordering, and dedupe semantics
   without restating or weakening them.
-- Only `OBSERVE`-class normalized events are emitted by adapter v1.
+- Only `OBSERVE`-class normalized events are emitted by adapter v1. The
+  adapter MUST NOT emit `GUARD`- or `COMMAND`-class events and MUST NOT
+  borrow their gate/authority semantics (Hook Contract §8): every adapter
+  envelope is `hook_class=OBSERVE`, and stream delivery is never an
+  enforcement point.
 
 ## 2. Native surface evidence and capability truth
 
@@ -68,14 +76,17 @@ subscription syntax is documented in any help output. The Kilo plugin
 extension surface therefore exists as an install/config surface, but its
 lifecycle event APIs are UNPROVEN (UNKNOWN) and are not mapped by v1.
 
-Not inspected (forbidden by WO-P1-262): Kilo auth/credential stores, raw
+Not inspected (forbidden by WO-P1-376, and before it by WO-P1-262): Kilo
+auth/credential stores, raw
 share URLs, credentials, secret env, external web. Adapter v1 derives
 nothing from those surfaces.
 
 ### 2.2 Observed stream families (OBSERVED)
 
 From the accepted author harness (`runs/WO-P1-262/author/attempt-0001/`,
-sanitized):
+sanitized). That path is preserved historical evidence from the WO-P1-262
+author lane and remains the factual provenance of these observations after
+the WO-P1-376 identity rebind:
 
 - One JSON object per line (`kilo run --format json` NDJSON).
 - Top-level fields: `type`, `timestamp`, `sessionID`, and a `part` object.
@@ -209,23 +220,44 @@ Fail-closed gates:
 - An event type not listed in `emits` MUST NOT be emitted; if a mappable
   native record would produce an unlisted type, the record is dropped with
   a typed capability reason.
+- The `adapter` payload is legal ONLY on this `transport.adapter_capabilities`
+  OBSERVE event (`domain` `transport`, `action` `adapter_capabilities`); the
+  Hook Contract 1.0.0 schema rejects `adapter` on any other event (Hook
+  Contract §14). The adapter MUST NOT attach `adapter` to any other
+  envelope.
 
-## 6. Identity, ordering, dedupe
+## 6. Identity, ordering, dedupe (delegated)
 
+Ordering and dedupe semantics are OWNED by Hook Contract §4/§5 as accepted
+at `602f6db01e170f74456ff77e1b5df01622fb84dd` (review-001). This adapter
+delegates to them and adds no second identity, ordering, or dedupe
+authority; this section records only the adapter-local derivation facts.
+
+- Duplicate identity is exactly Hook Contract §4: the explicit
+  `dedupe_key` when a producer deliberately supplies one, otherwise the
+  globally unique `event_id`. `source` + `sequence` MUST NOT be used as
+  fallback duplicate identity; the adapter never derives identity from
+  `source` + `sequence` and never emits `sequence`, so source/sequence
+  dedupe is structurally impossible on this adapter's envelopes.
 - `event_id` = `hk-<uuid4hex>` generated at first normalization of a
   native record and memoized by `dedupe_key`, so retries/republish of the
   same semantic event reuse the same `event_id` (Hook Contract §4).
-- `dedupe_key` = `kilo:<sessionID>:<sha256(raw native line)[:16]>` —
-  stable, source-local, re-derivable from the native record alone. A
-  repeated identical native line re-derives the same `dedupe_key` and
-  reuses the memoized `event_id`; only its per-occurrence evidence
-  pointer differs.
+- `dedupe_key` = `kilo:<sessionID>:<sha256(raw native line)[:16]>` — a
+  deliberate, explicit, stable, source-local key re-derivable from the
+  native record alone. A repeated identical native line re-derives the
+  same `dedupe_key` and reuses the memoized `event_id`; only its
+  per-occurrence evidence pointer differs. Distinct native records
+  (distinct digests) always keep distinct `event_id`/`dedupe_key`
+  identity and are never collapsed.
 - `supports_sequence=false`: no native sequence was observed, so the
   adapter MUST NOT synthesize, assign, or infer any `sequence` value.
-  Per-source order is observed arrival order (Hook Contract §5); the
-  adapter preserves record order and MUST NOT sort by `occurred_at` or
-  merge across sources. Cross-source k-way merge stays wholly with the
-  downstream projection defined by Hook Contract §5.
+  Per-stream order is observed arrival order within the observed stream
+  domain `(source, device_id, transport/adapter session context)` (Hook
+  Contract §5 — never bare `source`); the adapter preserves record order
+  and MUST NOT sort by `occurred_at`, merge or interleave across streams,
+  or rewrite already-emitted history. Cross-stream k-way merge and
+  late-arrival/append-only handling stay wholly with the downstream
+  projection defined by Hook Contract §5.
 - `causation_id` is only set when the exact prior normalized `event_id`
   is known; the adapter does not invent causal links.
 
@@ -297,5 +329,6 @@ Deterministic, offline, no network, no MCP, no runtime validation:
   for envelope semantics; this adapter suite must not weaken or duplicate
   its ordering/dedupe authority.
 
-Any change to Hook Contract v1 (dependency SHA drift) invalidates this
-adapter contract until re-pinned and re-reviewed (WO-P1-262 acceptance).
+Any change to Hook Contract v1 (dependency SHA drift from
+`602f6db01e170f74456ff77e1b5df01622fb84dd`) invalidates this
+adapter contract until re-pinned and re-reviewed (WO-P1-376 acceptance).
