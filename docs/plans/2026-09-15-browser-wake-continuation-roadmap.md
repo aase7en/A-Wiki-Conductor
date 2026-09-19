@@ -1,9 +1,23 @@
 # Browser Wake / Continuation Relay Roadmap — 2026-09-15
 
-Status: PROPOSED / P0 ACCELERATOR / DOCS-ONLY SHAPING
+Status: RECONCILED ROADMAP CANDIDATE / DOCS-ONLY / SOURCE MUTATION FORBIDDEN
 Work order: `WO-P1-240`
 Durable issue: GitHub #320
-Classification: `REUSE + WRAP + EXTEND`; `NEW` only for the minimal missing transport seam.
+Classification: `REUSE + WRAP + EXTEND`; `NEW` only for a proven browser-transport/provider-adapter gap.
+
+## 0. 2026-09-19 reconciliation against current authority
+
+This roadmap was originally frozen on 2026-09-15. It is now reconciled against
+`origin/main@95c4b9e78003c4b61083650d1698c6661f9bb545` and the newer accepted/open authorities:
+
+- WO-P1-257 / Issue #365 is merged and owns the Hook/STM/Monitor/Web+Extension/Command-Gateway architecture. Browser Wake consumes that architecture; it does not create a second extension state model or command channel.
+- WO-P1-258 / Issue #368 / PR #371 is the open HOOK-0 Hook Contract v1 lane. Browser Wake must re-pin the final accepted contract before implementation and extend it only through a bounded follow-up if browser adapters need additional source/capability vocabulary.
+- WO-P1-259 / Issue #369 / PR #373 is the open context-rollover guard lane. New-chat/session resume belongs to that continuity contract; browser code must consume its verdict/pointers rather than invent another resume state machine.
+- WO223 / PR #319 is merged. ZRA-3 remains the continuation-semantics dependency and is not accepted merely because browser wake transport exists.
+- Ordinary ChatGPT/Gemini web chat does not need or provide a native `/goal`. The durable goal/task graph remains A-Sunday Conductor/A-Wiki authority; the browser adapter receives only bounded task/continuation turns and returns untrusted proposals/results.
+- Scheduled goals are a control-plane feature, not Chrome-alarm authority. An Extension UI may request/show schedules only after a canonical scheduler contract exists; a browser alarm may at most provide a non-authoritative wake hint.
+
+The current delta therefore narrows WO240 from a broad new extension protocol into the missing **Browser Chat Harness Adapter** layered on the accepted Hook/Monitor/Command-Gateway/continuity authorities.
 
 ## 1. Product problem
 
@@ -104,23 +118,30 @@ Use **Sunday-Family Extension** as an umbrella brand, but keep privilege and fai
 Proposed modules:
 
 ```text
-sunday-family-protocol        # schemas only; event/action envelopes
-sunday-family-native-host     # authenticated Native Messaging <-> Conductor adapter
-sunday-family-extension-core  # MV3 lifecycle, tab/session binding, popup/cockpit
-provider-chatgpt-web          # DOM/message adapter
-provider-gemini-web           # DOM/message adapter
-provider-claude-web           # later after MVP
-provider-aipass-web           # reuse/wrap aipass-bridge patterns subject to authorization
-wake-relay                    # consumes Conductor continuation events; sends compact turn
-conversation-index            # non-authoritative provider conversation locators
-sunday-family-doctor          # connectivity/selector/session/capability diagnostics
-embedded-helper-ai            # optional UX/diagnostic classifier; never privileged authority
+browser-harness-contract       # adapter/conversation capability contract over accepted Hook Contract
+sunday-family-native-host      # authenticated Native Messaging <-> Conductor adapter
+sunday-family-extension-core   # MV3 lifecycle, provider binding, thin cockpit shell
+provider-chatgpt-web           # bounded ChatGPT Web task/result adapter
+provider-gemini-web            # bounded Gemini Web task/result adapter
+provider-claude-web            # later after two-provider conformance
+provider-aipass-web            # later, subject to terms/authorization
+browser-wake-relay             # consumes eligible continuation events; sends bounded turn
+conversation-index             # non-authoritative provider conversation locators
+sunday-family-doctor           # selector/session/version/capability diagnostics
+embedded-helper-ai             # optional diagnostics only; never privileged authority
 ```
 
-`embedded-helper-ai` may summarize diagnostics, classify a broken selector, suggest a provider, or explain operator state. It must never bypass A-Conductor claim/mutation/cost/authorization gates or decide project completion.
+Do **not** create a separate `sunday-family-protocol`. Event envelopes, dedupe,
+privacy, causation and adapter capability discovery reuse the accepted WO257/HOOK-0
+contract family. Consequential operator commands reuse the later A-Conductor
+Command Gateway. Session/new-chat resume consumes the context-rollover contract.
+
+`embedded-helper-ai` may summarize diagnostics, classify a broken selector,
+suggest a provider, or explain operator state. It must never bypass A-Conductor
+claim/mutation/cost/authorization gates or decide project completion.
 ## 6. Continuation protocol
 
-The Browser Wake path consumes existing durable truth and emits a compact synthetic continuation turn. Example conceptual envelope:
+The Browser Wake path consumes existing durable truth. The wire/event identity MUST map to the accepted Hook Contract family plus existing durable execution/task references; the human-readable block below is only the bounded text rendered into a provider conversation, not a second protocol or SSoT. Example conceptual turn:
 
 ```text
 [A-CONDUCTOR CONTINUE v1]
@@ -153,75 +174,154 @@ Required dedupe semantics:
 - tab/extension/browser crash is transport loss and must reconcile before resend;
 - ambiguity remains UNKNOWN/RECOVERY_REQUIRED rather than blind replay.
 
-## 7. Priority order — optimize for leverage
+## 7. Priority order — reconciled 2026-09-19
 
-The guiding rule is: finish the smallest prerequisite that makes every later roadmap node faster, then immediately exploit it.
-### P0-A — Finish the current WO223 RE2-A critical repair
+The leverage rule remains: continuation semantics first, browser transport second,
+operator UI/control third, workflow scale last. Current dependencies are now
+split so Browser Wake can progress without duplicating WO257.
 
-Do not abandon a nearly-complete R3 lane. Close the remaining typed parser defect, freeze/review/CI, update PR #319 by accepted non-force ancestry only, merge and post-main verify.
+### P0-A — Finish current continuation/contract gates
 
-Why first: every continuation layer depends on trustworthy exact result/review identity. Building Browser Wake on top of a still-open duplicate-effect/recovery defect would automate unsafe continuation.
+Run these as independent accepted-authority lanes; WO240 does not mutate them:
 
-### P0-B — Release Phase-D / WO205 and WO227 / ZRA-3
+1. ZRA-3 / NEXT_READY continuation must reach accepted exact-SHA state.
+2. HOOK-0 / WO258 must freeze and be accepted; Browser Wake then binds to the
+   final Hook Contract rather than inventing its own event vocabulary.
+3. Context rollover / WO259 must be accepted for safe ordinary-chat rotation and
+   new-chat recovery.
 
-Complete the accepted-result -> existing GoalCloseout composition, then safe `NEXT_READY` continuation under existing lifecycle authority.
+Browser Wake implementation may be designed in parallel, but live automation
+must not claim these open candidates as accepted contracts.
 
-Why second: **ZRA-3 is the semantic continuation engine.** Browser Wake should transport a continuation decision to/from a browser reasoner; it must not invent its own definition of NEXT_READY, retry or COMPLETE.
+### P0-B — BWA-0 Browser Chat Harness Contract
 
-### P0-C — Browser Wake Relay MVP
+Create a bounded follow-up Work Order after the relevant contracts are pinned.
 
-Immediately after the relevant ZRA-3 contract is accepted, implement the smallest browser wake path before broad ZRA-4/ODP expansion:
+Define only the missing browser execution/harness semantics:
 
-1. one normalized continuation-event projection from existing A-Conductor job/execution events;
-2. Sunday-Family Native Messaging host;
-3. one MV3 extension core;
-4. ChatGPT Web adapter + Gemini Web adapter as the first two independent providers;
-5. exact conversation binding, wake/send, stable-response capture;
-6. structured proposal return to A-Conductor;
-7. `doctor` diagnostics and fail-closed selector/session detection.
+- exact provider + adapter version/capability discovery;
+- exact conversation binding and non-authoritative locator;
+- bounded task/continuation input;
+- stable response-completion/result capture;
+- proposal/result envelope back to A-Conductor;
+- DOM/selector/session/version drift classification;
+- event/dedupe mapping to Hook Contract;
+- context-rollover handoff mapping;
+- no goal store, scheduler, claim store, retry engine or completion authority.
 
-Acceptance pilot: **one initial user goal** -> browser reasoner -> one CLI/Worker task -> result -> automatic browser wake -> browser review/next decision -> next execution -> deterministic COMPLETE, with zero human `continue` messages.
+If HOOK-0 source/capability enums cannot represent browser adapters, extend that
+contract through a separate reviewed contract delta; do not fork it inside the
+extension.
 
-### P0-D — Normalize lifecycle hooks into the existing event fabric
+### P0-C — BWA-1 Native Messaging + fake-provider transport
 
-REUSE A-Wiki hook classifications and provider lifecycle events. Add thin adapters only:
-- Kilo session idle/error/permission/result;
-- Claude Code Stop/Notification/PermissionRequest where supported;
-- ZCode/A-Loop SessionStart/Stop continuation signals;
-- SundayWorker/RDC process/result transitions;
-- CI completion events.
+Implement the narrow transport before touching live provider DOMs:
 
-These become observations feeding existing A-Conductor durable jobs/events. Do not create a generic second event-store authority.
-### P0-E — ZRA-4 bounded parallelism on top of Browser Wake
+- authenticated Native Messaging host;
+- MV3 extension core;
+- fake browser provider fixture;
+- exact request/result correlation and replay rejection;
+- restart/reconnect reconciliation;
+- doctor diagnostics;
+- no direct Git/process/filesystem authority.
 
-After the one-goal/one-lane wake E2E is accepted, enable existing ZRA-4 bounded parallel dispatch and fan-in. Browser AI can act as planner/adjudicator, but A-Conductor remains the READY/WIP/lease authority.
+Acceptance: deterministic fake-provider E2E proves duplicate delivery causes
+zero duplicate model/mutation effect and transport loss remains distinct from
+task failure.
 
-This ordering makes parallelism useful immediately: multiple CLI lanes can finish independently, fan in, wake the browser reasoner once with bounded evidence, and receive the next decision without human relay.
+### P0-D — BWA-2 ChatGPT Web + Gemini Web adapters
 
-### P1 — Expand provider adapters and council/fan-out
+After BWA-1 conformance, implement two independent provider adapters in parallel
+when WIP permits:
 
-Add adapters only after two-provider MVP proves the abstraction:
-- Claude Web;
-- AiPASS / ThAI PASS where current terms/authorization permit;
-- other consumer browser providers when a concrete use case exists.
+- ChatGPT ordinary web conversation;
+- Gemini ordinary web conversation.
 
-Support bounded fan-out/council use: one event may ask several browser reasoners independently, then return a normalized result set to A-Wiki/A-Conductor adjudication. Partial provider failure must not erase successful results.
+They do not call `/goal`. A-Conductor sends bounded task/continuation turns.
+Each adapter must fail closed on unknown DOM/session/conversation identity and
+must use a sacrificial/non-destructive conversation for first live proof.
 
-### P1 — Package and embedded helper AI
+### P0-E — BWA-3 zero-human-continuation acceptance
 
-Ship Sunday-Family Extension as a versioned package with module capability discovery. Embedded helper AI may provide local diagnostics, selector-repair suggestions, summary/compression and operator UX. Prefer small/local/free models for these non-authoritative tasks.
+Prove the actual product outcome:
 
-### P2 — ODP integration
+```text
+one initial user goal
+-> A-Conductor task/continuation authority
+-> browser reasoner
+-> CLI/Worker execution
+-> durable result
+-> automatic browser wake
+-> bounded browser proposal/result
+-> A-Conductor revalidation
+-> NEXT_READY
+-> repeat until COMPLETE or real human-only gate
+```
 
-Treat eligible browser AI surfaces as decision-provider candidates in the existing capability-first ODP model. Keep role/capability first, provider/model second. Runtime selection remains A-Conductor; model-policy intent remains A-Wiki.
+Acceptance includes browser/extension restart and one context/session rotation
+using the accepted rollover contract. No human `continue` message is allowed
+in the successful path.
 
-### P2 — Remote human approvals and mobile cockpit
+### P1-A — UI-1 Extension cockpit integration
 
-Extend `operator.v1` and Sunday-Family UI for genuine `AUTH_REQUIRED` / `COST_APPROVAL_REQUIRED` / destructive-operation approvals. Reuse Web Push/ntfy-style patterns where useful; do not wake humans for deterministic safe continuation.
+Reuse WO257 P6/P7 Monitor projection/API for:
+
+- goal/task progress display;
+- current/next step;
+- provider/harness health;
+- evidence pointers;
+- Play/Pause/Resume/Stop controls as requests only.
+
+The Extension keeps no authoritative task or schedule state.
+
+### P1-B — ACT-1 Command Gateway controls
+
+Pause/cancel/retry/recover/reassign and later Play/Resume requests go through the
+A-Conductor Command Gateway with task/claim/replay/ownership/authorization
+checks. No content script or popup directly mutates a process, Git state, claim
+or durable task state.
+
+### P1-C — SCH-1 scheduled Goal Trigger
+
+Schedule UX is added only after the canonical A-Conductor scheduler/trigger
+contract is accepted.
+
+```text
+Extension/Desktop schedule request
+-> A-Conductor authorization + canonical schedule authority
+-> durable goal trigger
+-> router/executor
+-> Browser Wake when a browser reasoner is selected
+```
+
+Chrome alarms/service-worker timers may be used only as best-effort UI wake
+signals; they never become the durable scheduler or source of truth.
+
+### P2 — Provider/council expansion and workflow packs
+
+After two-provider Browser Wake conformance:
+
+- Claude Web and other authorized browser providers;
+- bounded multi-reasoner fan-out/council;
+- optional helper AI for diagnostics;
+- domain workflow packs.
+
+The first reference workflow may be a content-commerce pipeline:
+
+`trend research -> opportunity -> script -> assets -> video/subtitles -> QA ->
+approval/publish -> analytics -> next cycle`.
+
+That workflow is a task graph on top of A-Conductor. It does not change the
+control-plane architecture or grant an extension authority to publish, price,
+spend money or perform other consequential actions without the applicable
+policy/approval gate.
 
 ### P3 — Headless/browser-farm operation
 
-Only after desktop signed-in browser MVP is stable: evaluate dedicated profiles, Docker/noVNC/offscreen keepalive and remote hosts. Multi-account/account-rotation mechanisms must never be used to bypass provider quotas, restrictions or terms.
+Only after desktop signed-in browser MVP is stable: evaluate dedicated profiles,
+offscreen/headless operation and remote hosts. Multi-account/account-rotation
+mechanisms must never be used to bypass provider quotas, restrictions or terms.
+
 ## 8. Success metrics
 
 Primary product metric:
@@ -238,6 +338,8 @@ Supporting metrics:
 - recovery after browser/extension/native-host restart without user context reconstruction;
 - provider adapter breakage detected by `doctor` before privileged action;
 - roadmap throughput after Browser Wake compared with the pre-wake Zero-Relay baseline.
+- scheduled goal fires exactly once under canonical scheduler authority; browser/Chrome restart does not erase the schedule.
+- ordinary ChatGPT/Gemini adapter completes the reference flow without requiring provider-native `/goal` support.
 
 Target acceptance for the first production-capable loop: three consecutive sacrificial goals complete from one initial command across at least two browser providers and one CLI executor, including one forced transport restart, with deterministic evidence and zero duplicate mutation/model effect.
 
@@ -275,7 +377,7 @@ All copied source, if any is later selected, requires a fresh license/security/v
 
 Browser Wake source mutation is not authorized by this roadmap alone. Before each implementation node:
 1. re-pin current `origin/main`, active Issue/WO/claims and provider terms;
-2. prove the relevant ZRA predecessor is accepted;
+2. re-pin final accepted WO257/HOOK-0/context-rollover contracts and the relevant ZRA continuation predecessor;
 3. run A-Wiki reuse/owner-map gate;
 4. create a bounded work order and isolated worktree;
 5. define provider-specific permission/DOM failure model;
@@ -284,12 +386,25 @@ Browser Wake source mutation is not authorized by this roadmap alone. Before eac
 8. exact-SHA independent review + hosted CI for R2/R3 nodes;
 9. checkpoint durable state so a new session never needs chat reconstruction.
 
-## 13. Exact next safe actions
+## 13. Exact next safe actions — reconciled 2026-09-19
 
-1. **Critical path remains WO223 RE2-A.** Close its remaining in-scope typed parser defect, verify, freeze, independent R3 rereview, CI, PR #319 update/merge/post-main.
-2. In parallel, review this WO240 docs candidate only; do not let it take a mutable source lane from WO223.
-3. After WO223 acceptance, release/execute Phase-D WO205, then WO227/ZRA-3 according to live Issue #214 authority.
-4. At ZRA-3 acceptance, open the Browser Wake MVP implementation WO: Native Messaging host + MV3 core + ChatGPT/Gemini adapters + doctor + one-goal E2E.
-5. Only after that E2E passes, accelerate ZRA-4/ODP/provider expansion using the new wake channel.
+1. Keep WO240 docs-only. Do not implement browser/extension source under this claim.
+2. Freeze this reconciled two-file candidate on top of
+   `origin/main@95c4b9e78003c4b61083650d1698c6661f9bb545`; verify exact scope,
+   UTF-8, references and `git diff --check`.
+3. Obtain independent exact-SHA architecture/security/reuse review and hosted CI
+   appropriate to this docs-only R2 candidate.
+4. After acceptance, fold only the minimal Browser Chat Harness dependency into
+   global roadmap authority; do not duplicate WO257.
+5. When ZRA-3, HOOK-0 and context-rollover contracts are accepted, open **BWA-0**
+   as the next bounded implementation contract. It owns browser-harness semantics
+   only, not Goal/Task/Scheduler/Monitor/Command authority.
+6. Follow with BWA-1 fake-provider Native Messaging transport, then BWA-2
+   ChatGPT/Gemini adapters, then BWA-3 zero-human-continuation E2E.
+7. Add Extension cockpit controls only through WO257 Monitor/Command Gateway.
+   Add scheduled goals only through an accepted canonical scheduler contract.
 
-This ordering deliberately builds the **continuation semantics first, wake transport second, parallel scale third**. It maximizes leverage while preserving one authority for each responsibility.
+This ordering now explicitly separates **goal semantics**, **continuation
+semantics**, **browser execution transport**, **operator UI**, and **schedule
+authority**, so ordinary ChatGPT/Gemini web chat can participate without native
+`/goal` support and without creating a shadow control plane.
