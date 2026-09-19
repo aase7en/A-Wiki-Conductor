@@ -194,3 +194,80 @@ integrator flow; no history rewrite.
   four allowed paths; UTF-8/JSON parse clean; fake-pattern secret scan
   clean. Repair commit is the new review candidate SHA; repair branch
   pushed. No merge/self-accept.
+- 2026-09-19: PR #371 merged review-001 candidate 602f6db as
+  main@2a461ae BEFORE a later independent MAX review of predecessor
+  f20fff0 surfaced a still-unrepaired P1 contradiction: §7.2 promised
+  forward-compatible acceptance of same-major newer-minor envelopes while
+  ignoring unknown optional fields, but the shipped closed schema (and
+  its tests) rejected any envelope carrying an unknown field. A
+  post-merge deterministic audit confirmed the contradiction at 2a461ae.
+  Forward-only acceptance repair lane
+  `fix/wo-p1-258-forward-compat-postmerge` opened from BASE 2a461ae
+  (scope unchanged: the four contract/schema/test/WO paths only; no
+  src/runtime/store/skill/provider changes). P1 repair: new normative
+  §7.4 reference consumer ingest algorithm (whole-envelope byte bound on
+  exact incoming bytes BEFORE normalization → fail-closed parse →
+  recursive raw security scan BEFORE any unknown-field handling →
+  version gate with typed `HOOK_VERSION_UNSUPPORTED` → strict mode on
+  same/older known minor → forward-mode projection of unknown OPTIONAL
+  fields/subfields only → strict validation of the projected known
+  envelope → semantic validators); unknown required/core/enum semantics
+  remain non-additive (producer must major-bump); the published schema
+  stays closed; a deterministic reference consumer implementation plus
+  proofs pinned in the tests. P2 hardening in the same pass: `event_id`
+  UUIDv4 pinned producer-generation-only (nibble enforcement would
+  retroactively invalidate published-1.x-valid envelopes — a major-bump
+  semantic change, rejected for a 1.x repair); whole-envelope cap pinned
+  to exact incoming UTF-8 serialized bytes at the consumer transport
+  boundary including structured in-process adapters, canonical-JSON
+  substitute forbidden, UTF-8-bytes-not-chars multibyte proof added;
+  replay-window default/clamp ownership pinned to consumer/Monitor
+  deployment configuration with no envelope-side selection; §5
+  cross-stream rank now parses `occurred_at` as RFC 3339 UTC instants
+  (raw-string comparison forbidden; `20Z` vs `20.5Z` inversion regression
+  added; presentation-only framing preserved); `HOOK_STREAM_DEGRADED`
+  pinned to a local consumer/monitor health condition that never depends
+  on re-enqueueing onto the degraded stream. RED set of 14 verified
+  failing before repair (missing algorithm/consumer + missing pins);
+  focused suites green after repair. Acceptance of THIS repair requires a
+  NEW independent exact-SHA rereview of the new candidate head plus CI on
+  that exact head; no self-accept, no merge, no history rewrite.
+- 2026-09-19: post-review P2 hardening pass (attempt 2) on
+  `fix/wo-p1-258-forward-compat-postmerge` at 96bf746 (base 3656fb3)
+  after an independent rereview returned PASS P0=0 P1=0 P2=3; exactly
+  the three P2s repaired within the same four-path scope. P2-1 —
+  §7.4 step 1 and §9 now pin that hook validation operates on the exact
+  serialized envelope bytes crossing the Hook Bus ingestion seam; every
+  conforming producer including a structured in-process adapter MUST
+  supply or expose those exact serialized bytes before parsed-object
+  validation; an object-only call with no defined emission
+  serialization is not a production conformance path; one explicitly
+  named deterministic serialization serves test/reference fixtures
+  only; under-measurement (character counting, re-serialization of a
+  parsed object) forbidden. Tests add an in-process adapter conformance
+  case on exact emitted bytes, the exact 65536-byte cap boundary
+  (byte-cap decision ahead of schema validation), and multibyte
+  emitted-bytes full-width proof. P2-2 — §7.4 step 2 is now a
+  duplicate-aware fail-closed parse: duplicate object member names at
+  any depth (nested objects, objects inside arrays) reject
+  `HOOK_EVENT_INVALID` in strict and forward modes before projection
+  and before parsed-envelope security interpretation can lose
+  information; the reference consumer byte path uses a duplicate-aware
+  parser; schema description updated. RED-first proofs (verified
+  failing pre-repair on the last-wins parser): benign top-level
+  duplicate; duplicate unknown key whose first value carries a
+  forbidden `token` while the second is benign (last-wins
+  information-loss); duplicate nested key in unknown object; duplicate
+  key in object-in-array; duplicate known `guard` `failure_policy` that
+  a last-wins parser would flip to acceptance; non-duplicate controls
+  still accepted. P2-3 — explicit gap pins: unknown adapter subfield
+  dropped in forward mode with known adapter semantics preserved;
+  `command_request` on OBSERVE rejected in forward mode even with
+  unknown fields present; nested unknown field under a known optional
+  object rejected in strict mode; maximal known-schema-valid envelopes
+  (OBSERVE+adapter, COMMAND, GUARD variants) stay well below the MUST
+  cap and the cap is not weakened (oversized forward envelopes still
+  rejected `HOOK_EVENT_OVERSIZED`). No runtime code, no schema field
+  changes, no scope growth. New candidate SHA recorded in the packet
+  response; requires a new independent exact-SHA rereview plus CI on
+  that exact head; no merge/self-accept.

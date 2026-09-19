@@ -52,7 +52,7 @@ small; all other fields are bounded optional context groups.
 | Field | Type | Rule |
 |---|---|---|
 | `schema_version` | string | MUST match `^1\.\d+\.\d+$` (v1 line). |
-| `event_id` | string | MUST match `^hk-[0-9a-f]{32}$` (UUIDv4 hex). Globally unique within the normalized event domain. |
+| `event_id` | string | MUST match `^hk-[0-9a-f]{32}$`. Producers MUST generate it as UUIDv4 hex — a generation-only requirement (§4); consumers enforce the format only. Globally unique within the normalized event domain. |
 | `event_type` | string | MUST match `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,2}$`, max 96 chars. MUST equal `domain` + `"."` + `action` optionally followed by one more `.segment` for phase-qualified types. |
 | `hook_class` | enum | `OBSERVE` \| `ADVISORY` \| `GUARD` \| `COMMAND`. |
 | `phase` | enum | `before` \| `after` \| `within` \| `terminal`. |
@@ -90,16 +90,29 @@ derived truth.
   events only) — the schema forbids each on every other hook class.
 
 Unknown-field policy: the 1.0.0 schema is closed (`additionalProperties`
-false everywhere). Consumer forward-compatibility rules are in §7.2.
+false everywhere). Consumer forward-compatibility rules are in §7.2 and
+the normative reference consumer ingest algorithm is §7.4.
 
 ## 4. Event identity
 
 - `event_id` MUST be globally unique within the normalized event domain.
   v1 reserves the `hk-` prefix; producers MUST generate `hk-<uuid4hex>`.
+  UUIDv4 is producer-generation-only: the published schema and consumers
+  enforce the `hk-[0-9a-f]{32}` format and the uniqueness discipline, but
+  they MUST NOT reject a same-major envelope solely because the hex is not
+  UUIDv4-shaped. Tightening the schema pattern to enforce UUIDv4
+  version/variant nibbles would retroactively invalidate envelopes valid
+  under the published 1.x schema — a semantic change requiring a major
+  bump, not a 1.x repair.
 - Every emission (including retries by the adapter or transport) MUST reuse
   the same `event_id` for the same semantic event.
 - Delivery is at-least-once where durable delivery is used; there is NO
   exactly-once promise. Consumers MUST be idempotent.
+- The bounded replay window is consumer/Monitor deployment configuration:
+  its default (1800 s) and clamp bounds (300 s–86400 s) are chosen and
+  enforced solely by the consuming deployment, and no envelope field can select, extend, or widen it.
+  v1 defines no such envelope field; producer-side window hints are
+  non-conforming.
 - Consumers MUST dedupe on explicit duplicate identity inside a bounded
   replay window: default 1800 s, configurable, clamp 300 s–86400 s. The
   duplicate identity is the explicit `dedupe_key` when a producer
@@ -159,12 +172,19 @@ false everywhere). Consumer forward-compatibility rules are in §7.2.
   is a stable k-way merge across the per-stream ordered queues. Only the
   current head of each stream queue is eligible at each step. Among
   eligible heads, the deterministic cross-stream ranking key is
-  `(occurred_at, source, event_id)`; the head's `sequence` MAY be carried
-  as redundant metadata. This key selects only among heads of different
-  stream queues and MUST NOT reorder items within one stream queue, so a
-  timestamp-first global sort of all events is non-conforming even when
-  labeled as observed interleaving. The merged result MUST be labeled as
-  observed interleaving, not causal order.
+  `(occurred_at_instant, source, event_id)`, where `occurred_at_instant`
+  is the head's `occurred_at` value parsed as an RFC 3339 UTC instant.
+  Raw string comparison of `occurred_at` is forbidden: fractional seconds
+  can invert string order (an event at `…T07:00:20.5Z` ranks before
+  `…T07:00:20Z` as a raw string but is the later instant); the head's
+  `sequence` MAY be carried as redundant metadata. Instant parsing
+  changes presentation/interleave ordering only — never causal truth
+  (the wall-clock-skew rule above still applies). This key selects only
+  among heads of different stream queues and MUST NOT reorder items
+  within one stream queue, so a timestamp-first global sort of all
+  events is non-conforming even when labeled as observed interleaving.
+  The merged result MUST be labeled as observed interleaving, not causal
+  order.
 - `correlation_id`/`causation_id` are links, not time order. A causation
   chain MUST NOT be used to reorder events; it only connects related
   envelopes (§6).
@@ -191,7 +211,7 @@ false everywhere). Consumer forward-compatibility rules are in §7.2.
 | Producer declares | Consumer knows | Behavior |
 |---|---|---|
 | same major, minor ≤ consumer | any minor | strict validation against this schema family. |
-| same major, producer minor > consumer known minor | older minor | validate core; MUST ignore unrecognized optional fields (forward-compatible), never reject solely for new optional fields. |
+| same major, producer minor > consumer known minor | older minor | validate core; MUST ignore unrecognized optional fields (forward-compatible) via the §7.4 reference ingest algorithm — raw security scan first, then unknown-optional projection, then strict known-schema validation; never reject solely for new optional fields. |
 | different major | — | typed reject `HOOK_VERSION_UNSUPPORTED`; no silent fallback. |
 | unparseable / schema-invalid | — | typed reject `HOOK_EVENT_INVALID`; drop; monitor MUST NOT crash. |
 | over size bounds (§9) | — | typed reject `HOOK_EVENT_OVERSIZED`. |
@@ -203,6 +223,106 @@ false everywhere). Consumer forward-compatibility rules are in §7.2.
   task truth and MUST NOT block otherwise-safe execution unless an accepted
   GUARD hook declares otherwise (§8.3).
 - Transport failure is not execution failure.
+
+### 7.4 Reference consumer ingest algorithm (normative)
+
+A conforming v1 consumer ingests an incoming envelope through the following
+ordered steps. Earlier steps always decide before later steps run, and no
+later step may relax an earlier decision. The published schema stays closed
+(`additionalProperties: false`): forward compatibility is consumer ingest
+behavior defined here, not a loosening of the schema.
+
+1. Whole-envelope byte bound (BEFORE any parsing or semantic
+   normalization): hook validation operates on the exact serialized
+   envelope bytes that cross the Hook Bus ingestion seam. Measure the
+   exact incoming UTF-8 serialized envelope bytes at the consumer
+   transport boundary; if the size exceeds the §9 MUST cap (65536
+   bytes), reject `HOOK_EVENT_OVERSIZED`. Every conforming producer,
+   including a structured in-process adapter, MUST supply or expose
+   those exact serialized bytes to the validator before parsed-object
+   validation, and the identical cap is applied to those bytes before
+   normalization. An object-only call with no defined emission
+   serialization is not sufficient evidence for the byte cap and MUST
+   NOT be accepted as a production conformance path. A test/reference
+   helper may use one explicitly named deterministic serialization only
+   as a conformance fixture, never as a substitute for the producer's
+   actual emitted bytes. Measurement MUST NOT under-measure: counting
+   characters instead of UTF-8 bytes, or re-serializing an
+   already-parsed object (key-sorted or canonical JSON), MUST NOT be
+   used as a substitute measurement of the incoming bytes as
+   received/emitted.
+2. Parse fail-closed, duplicate-aware: decode UTF-8 and parse JSON with
+   duplicate object member detection at every object depth. Unparseable
+   or non-UTF-8 input, a parsed envelope that is not a JSON object, or
+   any duplicate object member name at any nesting depth — including
+   inside nested objects and inside objects within arrays — rejects
+   `HOOK_EVENT_INVALID`. Duplicate-key rejection is parser input
+   validation, not a schema field: it applies identically in strict and
+   forward-compat modes, before forward projection (step 6) and before
+   parsed-envelope security interpretation can lose information, because
+   a first-wins or last-wins parser can silently discard an earlier
+   member — an earlier forbidden nested field before the step 3
+   security scan, or an earlier `guard` `failure_policy` value.
+   Consumers MUST NOT silently choose first-wins or last-wins.
+3. Raw security scan (before ANY unknown-field handling): recursively walk
+   the fully parsed raw envelope — every object at every nesting depth,
+   including objects inside arrays and inside unknown fields. If any
+   object key is a §10 forbidden field name (`prompt`, `messages`,
+   `transcript`, `token`, `api_key`, `apikey`, `secret`, `secret_value`,
+   `password`, `credential_value`, `cookie`, `share_url`, `session_url`,
+   `argv`, `command_line`, `shell_command`), or any string value anywhere
+   contains a §11 fake-secret-corpus item, the envelope is
+   security-invalid: reject `HOOK_EVENT_INVALID` and flag it. This scan
+   runs on the RAW envelope precisely so that unknown-field filtering
+   (step 6) can never hide a future-named `token`, `cookie`, `password`,
+   argv/env/command-line carrier, raw prompt/session/share URL, or any
+   other §10 forbidden field before the security-invalid decision.
+4. Version gate: read `schema_version`. A well-formed
+   `<major>.<minor>.<patch>` whose major differs from the consumer's
+   major (v1 consumers: major 1) rejects `HOOK_VERSION_UNSUPPORTED`; no
+   silent fallback. A malformed version string falls through to strict
+   validation and rejects `HOOK_EVENT_INVALID`.
+5. Mode select: same major with producer minor ≤ the consumer's known
+   minor is strict mode — validate the whole envelope directly against
+   the consumer's known closed schema; unknown fields are NOT ignored in
+   this mode and any unknown field rejects `HOOK_EVENT_INVALID`. Same
+   major with producer minor > the consumer's known minor is forward
+   mode (steps 6–8).
+6. Forward-mode projection: recursively filter ONLY additive unknown
+   OPTIONAL fields/subfields. Top-level fields absent from the
+   consumer's known schema properties are dropped; unknown subfields
+   inside known optional objects (`guard`, `command_request`,
+   `adapter`) are dropped the same way. All known fields — required core
+   and known optionals — are preserved verbatim with their known nested
+   required fields and constraints intact. Known fields are
+   never filtered and class-condition semantics (GUARD requires `guard`;
+   `guard` is forbidden on every other class; COMMAND requires
+   `command_request`; `command_request` is forbidden on every other
+   class; `adapter` only on the `transport.adapter_capabilities` OBSERVE
+   event) are enforced on the projection exactly as in strict mode:
+   projection never makes an invalid envelope valid.
+7. Strict validation of the projection: the projected envelope MUST
+   validate against the consumer's known closed schema (required core,
+   enums, patterns, bounds, class conditionals). Unknown
+   required/core/enum semantics are NOT forward-compatible additions
+   (§7.1): a producer needing them MUST major-bump. Where such a
+   violation is detectable on the projected envelope (a known core enum
+   carrying an unknown value, a known required field missing or
+   violating its constraint), the consumer rejects
+   `HOOK_EVENT_INVALID`.
+8. Semantic validators: run the consumer's semantic checks (at minimum
+   `event_type` = `domain` + `"."` + `action` with an optional
+   `.segment`, §3.1) on the projected envelope and reject
+   `HOOK_EVENT_INVALID` on failure.
+
+Only after steps 1–8 pass is the (possibly projected) envelope accepted
+into downstream processing (dedupe §4, ordering §5, monitor projection).
+The accepted form of a forward-mode envelope is the projected known
+envelope; unknown optional data is discarded, not stored. A reference
+implementation of this algorithm is pinned deterministically in
+`tests/test_hook_contract_schema.py` as conformance test code — not
+runtime code; production runtime validation remains deferred to HOOK-1
+and later Work Orders that extend existing event seams.
 
 ## 8. Hook classes
 
@@ -267,6 +387,30 @@ false everywhere). Consumer forward-compatibility rules are in §7.2.
   to the roadmap P1 benchmark plan, not this contract.
 - Whole-envelope size: SHOULD be ≤ 32768 UTF-8 bytes; MUST be ≤ 65536 UTF-8
   bytes. Larger envelopes are `HOOK_EVENT_OVERSIZED`.
+- Size measurement is pinned to the
+  exact incoming UTF-8 serialized envelope bytes at the consumer
+  transport boundary, before parsing, semantic normalization,
+  projection, or validation (§7.4 step 1).
+  Structured in-process adapters MUST apply the identical cap to the
+  exact bytes they would enqueue/serialize before normalization; the
+  cap counts UTF-8 bytes, not characters (multibyte content counts its
+  full byte width), and key-sorted or
+  canonical JSON re-serialization MUST NOT be used as a hidden
+  alternative measurement.
+- Producer byte supply: every conforming producer, including a
+  structured in-process adapter, MUST supply or expose the exact
+  serialized envelope bytes that cross the Hook Bus ingestion seam to
+  the validator before parsed-object validation. An object-only call
+  with no defined emission serialization is not sufficient evidence for
+  the byte cap and MUST NOT be accepted as a production conformance
+  path; measurement MUST NOT under-measure by counting characters or by
+  re-serializing an already-parsed object (§7.4 step 1).
+- Sizing context: a known-schema-valid envelope that fills every
+  allowed optional field to its bound stays well below the 65536-byte
+  MUST cap. This observed headroom does not weaken the cap:
+  forward-mode, duplicate-key, malformed, and adversarial envelopes
+  still reach the MUST bound and are rejected typed
+  (`HOOK_EVENT_OVERSIZED` / `HOOK_EVENT_INVALID`).
 - Oversized or invalid envelopes MUST be rejected typed; they MUST NOT be
   truncated into "valid-looking" events.
 
@@ -353,6 +497,10 @@ is no legal secret-carrying hook envelope in v1.
 
 - The pipeline uses bounded buffers. On overflow, consumers observe typed
   `HOOK_BACKPRESSURE` and then `HOOK_STREAM_DEGRADED`.
+- `HOOK_STREAM_DEGRADED` is a local consumer/monitor health condition: it
+  reports that the consumer's local event channel is degraded. It MUST be
+  raised and recorded as local state and MUST NOT depend on successfully re-enqueueing
+  a new event onto the already degraded stream.
 - Drop policy under sustained pressure: drop/shed OBSERVE and ADVISORY
   first; never silently drop GUARD rejections or COMMAND requests —
   surface their loss as `HOOK_STREAM_DEGRADED`.
@@ -389,5 +537,41 @@ stream domain `(source, device_id, observed session)` — never bare source
 and no waiting for unseen gap events; `event_type` = `domain.action`
 semantic pin; adapter capability payload constrained to the
 capability-discovery event; GUARD fail-closed enforcement point pinned to
-invocation/gate authority, never eventual stream delivery).
+invocation/gate authority, never eventual stream delivery;
+forward-compatibility consumer algorithm proofs (§7.4): the strict schema
+stays closed on unknown fields, a reference consumer accepts same-major
+newer-minor envelopes carrying benign unknown optional fields including
+benign unknown nested subfields inside known optional objects after the
+raw security scan, rejects the same unknown field on same/older known
+minor, rejects §10 forbidden fields before filtering including nested
+attacks and corpus leakage, preserves GUARD/COMMAND/adapter class
+conditionals and `event_type` semantic validation after projection,
+rejects a different major `HOOK_VERSION_UNSUPPORTED`, and measures the
+whole-envelope cap on exact incoming UTF-8 bytes at the transport
+boundary ahead of the raw security scan; replay-window ownership pinned
+to consumer/Monitor deployment configuration; cross-stream `occurred_at`
+rank uses parsed RFC 3339 instants with a `20Z` vs `20.5Z` inversion
+regression; `HOOK_STREAM_DEGRADED` pinned to a local health condition
+that never depends on re-enqueueing onto the degraded stream; `event_id`
+UUIDv4 pinned producer-generation-only). Post-review P2 hardening pins:
+duplicate object member names at any depth rejected `HOOK_EVENT_INVALID`
+in strict and forward modes before projection and before parsed-envelope
+security interpretation can lose information (benign top-level
+duplicate; duplicate unknown key whose first value carries a forbidden
+field while the second is benign — the last-wins information-loss
+proof; duplicate nested key inside an unknown object; duplicate key
+inside an object inside an array; a duplicate known `guard` member that
+would flip `failure_policy` under last-wins), with non-duplicate
+controls still accepted; structured in-process adapter byte-supply
+conformance — the producer's exact emitted UTF-8 bytes are the measured
+evidence, one explicitly named deterministic serialization serves
+test/reference fixtures only, an object-only call is not a production
+conformance path, and measurement never counts characters or
+re-serializes a parsed object, proven at the exact 65536-byte boundary
+and with multibyte emitted bytes; unknown optional subfield inside
+`adapter` dropped in forward mode with known adapter semantics
+preserved; `command_request` on OBSERVE rejected in forward mode even
+with unknown fields present; nested unknown field under a known
+optional object rejected in strict mode; maximal known-schema-valid
+envelopes stay well below the MUST cap without weakening it.
 No network, no MCP, no runtime validation is added by this contract.
