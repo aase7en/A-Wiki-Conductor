@@ -112,8 +112,10 @@ No exact context percentage is produced.
 10. invalid enum/count/bool inputs fail closed by validation, not coercion.
 11. output includes deterministic reason codes and ordered required actions.
 12. `rotation_ready=True` only when checkpoint is current, no mutation occurred
-    after it, active-task recovery pointer is ready, outstanding executions are
-    recoverable, and continuity is FRESH.
+    after it, active-task recovery pointer is ready, and outstanding executions
+    are recoverable. A non-FRESH ContinuityVerdict still forces RED and blocks
+    mutation, but may be handed to a new session when that unsafe state itself
+    is durably checkpointed; rotation never upgrades mutation authority.
 
 ## Ordinary-chat behavioral fallback
 
@@ -135,3 +137,29 @@ secret checks -> frozen exact SHA -> independent exact-SHA R3 review -> hosted
 CI -> GPT acceptance.
 
 No merge before all R3 gates pass.
+
+## Implementation checkpoint — 2026-09-19
+
+RED proof:
+- commit `f12a1b027fd166d26e710fd1c87e6ac92ecccdd3`;
+- focused collection failed with `ModuleNotFoundError` because the production
+  module did not yet exist.
+
+GREEN implementation:
+- pure `context_rollover_guard.py`; no filesystem/network/process/store I/O;
+- existing ContinuityGuard verdict remains mutation authority;
+- rotation readiness is deliberately separate from mutation readiness: a
+  durably checkpointed non-FRESH state may rotate, but the next session remains
+  fail-closed until reconciliation;
+- ordinary-chat fallback is projected through `00-AGENT-ENTRY.md`.
+
+Deterministic local evidence before freeze:
+- WO258 focused matrix: 22 passed;
+- Context/Continuity/GoalCloseout/Projection battery: 245 passed;
+- compileall: PASS;
+- `git diff --check`: PASS;
+- strict UTF-8 / no replacement bytes: PASS;
+- bounded secret-pattern scan: PASS.
+
+Next gate: commit/freeze exact candidate SHA, independent exact-SHA R3 review,
+hosted exact-head CI, then GPT acceptance. No self-review merge.

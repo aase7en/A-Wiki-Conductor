@@ -127,12 +127,27 @@ def test_unknown_context_pressure_never_returns_green() -> None:
     assert verdict.reason_codes == ("CONTEXT_PRESSURE_UNKNOWN",)
 
 
-def test_nonfresh_continuity_dominates_context_signal() -> None:
+def test_nonfresh_continuity_dominates_context_signal_without_blocking_handoff() -> None:
     verdict = classify_context_rollover(snapshot(continuity=blocked_continuity()))
     assert verdict.status is ContextGuardStatus.RED
-    assert verdict.rotation_ready is False
+    assert verdict.rotation_ready is True
     assert verdict.reason_codes[0] == "CONTINUITY_NOT_FRESH"
     assert verdict.actions[0] is ContextGuardAction.RECONCILE_CONTINUITY
+
+
+def test_near_limit_nonfresh_state_can_rotate_but_cannot_resume_mutation() -> None:
+    verdict = classify_context_rollover(
+        snapshot(
+            continuity=blocked_continuity(),
+            context_pressure=ContextPressure.NEAR_LIMIT,
+        )
+    )
+    assert verdict.status is ContextGuardStatus.RED
+    assert verdict.rotation_ready is True
+    assert verdict.actions == (
+        ContextGuardAction.RECONCILE_CONTINUITY,
+        ContextGuardAction.ROTATE_SESSION,
+    )
 
 def test_missing_task_recovery_pointer_is_yellow_until_near_limit() -> None:
     normal = classify_context_rollover(

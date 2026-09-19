@@ -54,6 +54,17 @@ For any delegated/external-agent/tool/CI run that can outlive one immediate tool
 Required operator truth is: task/execution identity, executor, authoritative job state, derived liveness (`STARTING/RUNNING/WAITING/STALLED/TERMINAL_UNHARVESTED/INTERRUPTED/TERMINAL/UNKNOWN` per `docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md`), `last_activity_at`, `last_progress_at`, typed blocker/reason, evidence reference, and exact next safe action. Heartbeat/activity is not proof of progress. `STALLED` is a derived warning, never permission to blind-retry; reconcile process/session/log/durable state first.
 
 A fresh session must recover this state from runtime/Git/durable records rather than asking the user to reconstruct the prior chat. Existing job/events/checkpoints remain authority; this protocol must not create a second task/status store.
+
+## Context/session rollover guard
+
+Ordinary ChatGPT does not expose a trusted exact percentage of remaining context. Never invent one. When a session is materially crowded, near practical rollover, or context pressure is unknown, reuse the WO-P1-258 context-rollover contract over existing ContinuityGuard + durable checkpoint/recovery facts:
+
+- GREEN: continue normally under the existing mutation gate;
+- YELLOW: refresh/checkpoint at the next meaningful boundary before more substantial work or rotation;
+- RED: start no new non-trivial mutation; checkpoint/recover/reconcile first. If the verdict says rotation is ready, the session may rotate while the new session remains fail-closed for mutation until actual state is recovered.
+
+Context status never grants task, claim, lease, mutation, merge, or acceptance authority. Before rotation preserve the active task/WO, repo/worktree/branch/HEAD, dirty/ownership state, evidence/result pointers, outstanding execution identities/replay safety, blockers, and exact next safe action. The new session resumes from repository/runtime authority rather than requiring the user to paste the old chat.
+
 ## Cross-repo lane binding (projection)
 
 Topology values (`CONTROL_PLANE_ONLY` / `EXECUTION_SUBSTRATE_ONLY` / `CROSS_REPO`) have one definition home: `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`. This file projects them without redefining them.
