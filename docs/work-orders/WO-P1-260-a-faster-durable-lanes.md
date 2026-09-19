@@ -47,3 +47,36 @@ checks, exact-SHA independent review and CI before merge.
 
 Result destination: runs/WO-P1-260/author/
 Replay safety: recover pointer/process/result/Git before redispatch.
+
+## 2026-09-19 author checkpoint (attempt-0001) — READY_FOR_REVIEW
+
+Executed on Windows device `DESKTOP-7IB57R4`, worktree
+`A:/GitHub/_worktrees/A-Wiki-Conductor-wo260-a-faster-durable`, dispatched from
+claim HEAD `ef7d3d15fce0b66ddfdadbc56a3014875aa1bcbd` on this branch
+(recorded as a device re-pin from the Mac-prepared binding above; the digest
+binds the actual dispatching device). Lane identity for this attempt:
+`lane:WO-P1-260:author:1`, run `run:WO-P1-260:author:1:a1:352051cd`,
+`BINDING_DIGEST` `cca025dd01a90d0a86f6a86b16e2a4c42f04c618cfd1df62bec160be5fa14d3f`
+(canonicalization and pointer evidence under `runs/WO-P1-260/author/attempt-0001/`).
+
+Authored exactly the three allowed paths:
+- NEW `.agents/skills/a-faster/references/durable-lanes.md` — identity overlay
+  (LANE_REF / DELEGATED_RUN_ID / ATTEMPT / BINDING_DIGEST with canonical
+  recipe + verified worked example), `runs/<WO>/<lane>/attempt-NNNN/`
+  evidence layout and minimum pointer fields, secret-redaction rules,
+  recover algorithm (RUNNING never redispatch; TERMINAL_UNHARVESTED harvest
+  first; STALLED/INTERRUPTED/UNKNOWN reconcile before takeover),
+  cross-device handoff with digest-recompute and CONTEXT_DRIFT-as-re-pin
+  semantics, invariants, safe/unsafe examples, validation checklist.
+- `.agents/skills/a-faster/SKILL.md` — additive sections only: durable lane
+  identity overlay summary, cross-device digest re-pin step, LANE_REF/
+  DELEGATED_RUN_ID routing outputs.
+- this work order — this checkpoint.
+
+No new scheduler/DB/task/claim/lease/review/completion authority; no global
+lane registry; A-FastTask router-only boundary and global 3 mutable + 1
+review WIP unchanged. Deterministic gates run on the frozen candidate:
+scope check (exactly the three allowed paths), `git diff --check`, UTF-8
+validation, secret pattern scan, reference existence check, digest
+recomputation. Next gates: independent exact-SHA read-only review + exact-head
+CI before merge; GPT accept/merge only. No self-merge/self-accept.
