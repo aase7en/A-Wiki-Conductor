@@ -14,8 +14,12 @@ Authority repo: `aase7en/A-Wiki-Conductor`
 Worktree:
 `/Users/aase7en/GitHub/_worktrees/awiki-wo258-context-rollover`
 
+The physical worktree directory retained its pre-rebind `wo258` pathname
+after the branch-name collision reconciliation; the directory name is
+historical only and does NOT represent WO-P1-258 task authority.
+
 Branch:
-`feat/wo-p1-258-context-rollover-guard`
+`feat/wo-p1-259-context-rollover-guard`
 
 Base:
 `origin/main@95c4b9e78003c4b61083650d1698c6661f9bb545`
@@ -163,3 +167,12 @@ Deterministic local evidence before freeze:
 
 Next gate: commit/freeze exact candidate SHA, independent exact-SHA R3 review,
 hosted exact-head CI, then GPT acceptance. No self-review merge.
+
+Binding factual repair (2026-09-19, claim
+`WO-P1-259-BINDING-FACT-REPAIR-001`, lane `fix/wo-p1-259-binding-fact`):
+independent exact-SHA review returned PASS with P0/P1/P2=0 but flagged the
+Binding block's pre-collision names. Docs-only correction at dispatch HEAD
+`e4d9fa30d453510c2df7026499ee7ae8e079d73c`: the branch of record is now
+truthfully `feat/wo-p1-259-context-rollover-guard` (remote head at that SHA),
+and the Binding note above explains the retained worktree pathname. No
+behavioral acceptance criteria or implementation claims were changed.
