@@ -22,10 +22,10 @@ evidence; they are never authority.
 ### LANE_REF — stable routing label
 
 - Format: `lane:<TASK_ID>:<role>:<ordinal>`
-  - `<TASK_ID>`: work-order id, e.g. `WO-P1-260`;
+  - `<TASK_ID>`: work-order id, e.g. `WO-P1-374`;
   - `<role>`: lane role segment, e.g. `author`, `review`, `verify`;
   - `<ordinal>`: small integer distinguishing same-role lanes.
-- Example: `lane:WO-P1-260:author:1`
+- Example: `lane:WO-P1-374:author:1`
 - Stable across device, harness, and chat/session/attempt changes for the
   life of the lane. A new attempt on the same lane keeps the same LANE_REF.
 - Never task authority: holding or guessing a LANE_REF grants nothing.
@@ -37,7 +37,7 @@ evidence; they are never authority.
   - `<attempt>`: the attempt number (see ATTEMPT);
   - `<random-id>`: 8 hex chars from a CSPRNG (e.g. `secrets.token_hex(4)`),
     unique per launch.
-- Example: `run:WO-P1-260:author:1:a1:352051cd`
+- Example: `run:WO-P1-374:author:1:a1:352051cd`
 - Uniquely identifies one dispatch attempt for observation, logging,
   recovery, and harvest. Never task authority: a run id says "this attempt
   happened", not "this task is owned/done/accepted".
@@ -67,13 +67,14 @@ evidence; they are never authority.
 
 ## 2. Canonicalization worked example (verified)
 
-Input object (field order shown sorted only for readability; JSON key
-sorting is enforced by the serializer):
+Canonical post-remediation example for the A-Faster durable-lanes task
+(WO-P1-374, Issue #374). Input object (field order shown sorted only for
+readability; JSON key sorting is enforced by the serializer):
 
 ```json
 {
-  "branch": "docs/wo-p1-260-a-faster-durable-lanes",
-  "claim_ref": "WO-P1-260-A-FASTER-DURABLE-LANES-001",
+  "branch": "docs/wo-p1-374-a-faster-durable-lanes",
+  "claim_ref": "WO-P1-374-A-FASTER-DURABLE-LANES-001",
   "device_id": "DESKTOP-7IB57R4",
   "dispatch_head": "ef7d3d15fce0b66ddfdadbc56a3014875aa1bcbd",
   "harness_id": "kilo-code-cli",
@@ -82,27 +83,36 @@ sorting is enforced by the serializer):
   "mutable_scope": [
     ".agents/skills/a-faster/SKILL.md",
     ".agents/skills/a-faster/references/durable-lanes.md",
-    "docs/work-orders/WO-P1-260-a-faster-durable-lanes.md"
+    "docs/work-orders/WO-P1-374-a-faster-durable-lanes.md"
   ],
   "repo": "aase7en/A-Wiki-Conductor",
   "schema": "a-faster.binding.v1",
-  "task_id": "WO-P1-260",
-  "worktree": "A:/GitHub/_worktrees/A-Wiki-Conductor-wo260-a-faster-durable"
+  "task_id": "WO-P1-374",
+  "worktree": "A:/GitHub/_worktrees/A-Wiki-Conductor-wo374-a-faster-durable"
 }
 ```
 
 Canonical bytes (single line, compact, sorted):
 
 ```text
-{"branch":"docs/wo-p1-260-a-faster-durable-lanes","claim_ref":"WO-P1-260-A-FASTER-DURABLE-LANES-001","device_id":"DESKTOP-7IB57R4","dispatch_head":"ef7d3d15fce0b66ddfdadbc56a3014875aa1bcbd","harness_id":"kilo-code-cli","host_os":"windows","model_id":"cointh-glm/glm-5.3","mutable_scope":[".agents/skills/a-faster/SKILL.md",".agents/skills/a-faster/references/durable-lanes.md","docs/work-orders/WO-P1-260-a-faster-durable-lanes.md"],"repo":"aase7en/A-Wiki-Conductor","schema":"a-faster.binding.v1","task_id":"WO-P1-260","worktree":"A:/GitHub/_worktrees/A-Wiki-Conductor-wo260-a-faster-durable"}
+{"branch":"docs/wo-p1-374-a-faster-durable-lanes","claim_ref":"WO-P1-374-A-FASTER-DURABLE-LANES-001","device_id":"DESKTOP-7IB57R4","dispatch_head":"ef7d3d15fce0b66ddfdadbc56a3014875aa1bcbd","harness_id":"kilo-code-cli","host_os":"windows","model_id":"cointh-glm/glm-5.3","mutable_scope":[".agents/skills/a-faster/SKILL.md",".agents/skills/a-faster/references/durable-lanes.md","docs/work-orders/WO-P1-374-a-faster-durable-lanes.md"],"repo":"aase7en/A-Wiki-Conductor","schema":"a-faster.binding.v1","task_id":"WO-P1-374","worktree":"A:/GitHub/_worktrees/A-Wiki-Conductor-wo374-a-faster-durable"}
 ```
 
 Digest (reproducible with Python 3 `json.dumps(..., sort_keys=True,
 separators=(",", ":"))` → `.encode("utf-8")` → `hashlib.sha256(...)`):
 
 ```text
-BINDING_DIGEST = cca025dd01a90d0a86f6a86b16e2a4c42f04c618cfd1df62bec160be5fa14d3f
+BINDING_DIGEST = e55d20348b88454ebeb8e655afc8c3ddc571e3428560e642d884841699d7db22
 ```
+
+Historical alias note: the accepted pre-remediation attempt recorded this
+binding under the WO-P1-260 identity (task id `WO-P1-260`, claim
+`WO-P1-260-A-FASTER-DURABLE-LANES-001`, branch
+`docs/wo-p1-260-a-faster-durable-lanes`, digest
+`cca025dd01a90d0a86f6a86b16e2a4c42f04c618cfd1df62bec160be5fa14d3f`).
+Those historical WO-P1-260 pointers remain valid evidence aliases — LANE_REF
+and run ids are observation pointers, not authority — but they are not
+canonical task ids after Issue #381 rebound this task to WO-P1-374.
 
 ## 3. Evidence layout and pointer fields
 
@@ -113,7 +123,7 @@ dispatched task packet and at least one `pointer.md` written before or at
 launch and updated at terminal/handoff boundaries:
 
 ```text
-runs/WO-P1-260/author/attempt-0001/
+runs/WO-P1-374/author/attempt-0001/
   task.md       # dispatched packet (input, immutable after dispatch)
   pointer.md    # durable identity/status pointer (this section)
   result.md     # declared result destination (when the attempt declares one)
@@ -233,7 +243,7 @@ No accepted remote/source on the receiving device remains
 
 Safe:
 
-- Fresh session finds `lane:WO-P1-260:author:1` attempt-0002 pointer with
+- Fresh session finds `lane:WO-P1-374:author:1` attempt-0002 pointer with
   `status: TERMINAL_UNHARVESTED` and a `result.md`; it harvests and
   verifies the result before any new dispatch on that hotspot.
 - Mac takeover of a Windows lane: checkpoint pushed, receiving device
