@@ -2,8 +2,9 @@
 
 Reference mapper + fixtures under tests/fixtures/hook_adapters/kilo/ prove
 the adapter contract in docs/contracts/kilo-hook-adapter-v1.md against the
-accepted Hook Contract v1 schema (dependency 602f6db01e170f74456ff77e1b5df01622fb84dd,
-re-pinned by WO-P1-376 from the WO-P1-262 author pin f20fff006aad1e592b150ffdcb52ac331ec00a3a).
+Hook Contract v1 schema (post-merge repair dependency
+0d4f0c3b36ff7fad9ed14636730443119683cb1d, re-pinned after the accepted
+602f6db01e170f74456ff77e1b5df01622fb84dd baseline).
 
 Deterministic, offline only: no network, no MCP, no runtime, no live Kilo
 process. All native records are fake, bounded, native-shaped fixtures.
@@ -23,6 +24,18 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "hook_adapters" / "kilo"
 SCHEMA_PATH = ROOT / "docs" / "contracts" / "hook-contract-v1.schema.json"
 CONTRACT = ROOT / "docs" / "contracts" / "kilo-hook-adapter-v1.md"
+
+DEPENDENCY_SHA = "0d4f0c3b36ff7fad9ed14636730443119683cb1d"
+CONTRACT_MD_BLOB = "25f69a964140c082db9d43b65dd3fcd9dbfc0c3c"
+CONTRACT_SCHEMA_BLOB = "98451ee3a4b63b4f07ca7b38525f9f5016916d54"
+SUPERSEDED_DEPENDENCY_SHA = "602f6db01e170f74456ff77e1b5df01622fb84dd"
+
+
+def _git_blob_sha(data: bytes) -> str:
+    """Git blob SHA-1 for exact working-tree dependency pin equality."""
+    data = data.replace(b"\r\n", b"\n")
+    return hashlib.sha1(b"blob %d\x00" % len(data) + data).hexdigest()
+
 
 # Shared fake-secret corpus, defined by docs/contracts/hook-contract-v1.md
 # section 11 (fake-secret-corpus/1). Not secret; uniform leakage check.
@@ -318,11 +331,21 @@ def test_dependency_contract_is_the_frozen_hook_contract_v1() -> None:
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     assert schema["$id"] == "urn:a-conductor:schema:hook-contract:1.0.0"
     contract_text = CONTRACT.read_text(encoding="utf-8")
-    assert "602f6db01e170f74456ff77e1b5df01622fb84dd" in contract_text
+    assert DEPENDENCY_SHA in contract_text
+    assert CONTRACT_MD_BLOB in contract_text
+    assert CONTRACT_SCHEMA_BLOB in contract_text
+    assert SUPERSEDED_DEPENDENCY_SHA in contract_text
     assert "f20fff006aad1e592b150ffdcb52ac331ec00a3a" not in contract_text
     assert "fake-secret-corpus/1" in contract_text
     assert "supports_sequence" in contract_text
     assert "Identity schema: GITHUB_ISSUE_V1" in contract_text
+
+
+def test_dependency_pin_equals_actual_hook_contract_blobs() -> None:
+    md = (ROOT / "docs" / "contracts" / "hook-contract-v1.md").read_bytes()
+    schema = SCHEMA_PATH.read_bytes()
+    assert _git_blob_sha(md) == CONTRACT_MD_BLOB
+    assert _git_blob_sha(schema) == CONTRACT_SCHEMA_BLOB
 
 
 def test_capability_document_declares_v1_surface() -> None:

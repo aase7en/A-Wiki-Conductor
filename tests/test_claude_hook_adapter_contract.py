@@ -26,12 +26,15 @@ REGISTRY_PATH = FIXTURE_DIR / "capability_registry.json"
 FRAMES_DIR = FIXTURE_DIR / "frames"
 EXPECTED_DIR = FIXTURE_DIR / "expected"
 
-DEPENDENCY_SHA = "602f6db01e170f74456ff77e1b5df01622fb84dd"
-CONTRACT_MD_BLOB = "941f9731f9665fe109451a14cdc2b737555be99a"
-CONTRACT_SCHEMA_BLOB = "d176fd5e6393af6f5619fad372ad59aa858391ee"
-SUPERSEDED_DEPENDENCY_SHA = "f20fff006aad1e592b150ffdcb52ac331ec00a3a"
-SUPERSEDED_MD_BLOB = "b4f98fb8f2ce35958b4e5cfc660eeb671c46d723"
-SUPERSEDED_SCHEMA_BLOB = "23c5dc3035320dc288e376bd103d8e00409a9762"
+DEPENDENCY_SHA = "0d4f0c3b36ff7fad9ed14636730443119683cb1d"
+CONTRACT_MD_BLOB = "25f69a964140c082db9d43b65dd3fcd9dbfc0c3c"
+CONTRACT_SCHEMA_BLOB = "98451ee3a4b63b4f07ca7b38525f9f5016916d54"
+SUPERSEDED_DEPENDENCY_SHA = "602f6db01e170f74456ff77e1b5df01622fb84dd"
+SUPERSEDED_MD_BLOB = "941f9731f9665fe109451a14cdc2b737555be99a"
+SUPERSEDED_SCHEMA_BLOB = "d176fd5e6393af6f5619fad372ad59aa858391ee"
+LEGACY_DEPENDENCY_SHA = "f20fff006aad1e592b150ffdcb52ac331ec00a3a"
+LEGACY_MD_BLOB = "b4f98fb8f2ce35958b4e5cfc660eeb671c46d723"
+LEGACY_SCHEMA_BLOB = "23c5dc3035320dc288e376bd103d8e00409a9762"
 
 ADAPTER_ID = "claude-hook-adapter"
 ADAPTER_VERSION = "1.0.0"
@@ -444,15 +447,28 @@ def test_recorded_pin_equals_actual_hook_contract_blobs() -> None:
     schema_blob = _git_blob_sha(SCHEMA_PATH.read_bytes())
     assert md_blob == CONTRACT_MD_BLOB
     assert schema_blob == CONTRACT_SCHEMA_BLOB
-    for stale in (SUPERSEDED_MD_BLOB, SUPERSEDED_SCHEMA_BLOB):
+    for stale in (
+        SUPERSEDED_MD_BLOB,
+        SUPERSEDED_SCHEMA_BLOB,
+        LEGACY_MD_BLOB,
+        LEGACY_SCHEMA_BLOB,
+    ):
         assert stale not in {md_blob, schema_blob}
 
 
-def test_superseded_pin_preserved_as_historical_evidence() -> None:
-    """The WO-P1-261 freeze pin stays recorded (historical, no authority)."""
+def test_superseded_pins_preserved_as_historical_evidence() -> None:
+    """Prior accepted/freeze pins stay recorded as evidence, never authority."""
     text = contract_doc_text()
-    assert SUPERSEDED_DEPENDENCY_SHA in text
-    assert SUPERSEDED_MD_BLOB in text
+    for value in (
+        SUPERSEDED_DEPENDENCY_SHA,
+        SUPERSEDED_MD_BLOB,
+        SUPERSEDED_SCHEMA_BLOB,
+        LEGACY_DEPENDENCY_SHA,
+        LEGACY_MD_BLOB,
+        LEGACY_SCHEMA_BLOB,
+    ):
+        assert value in text
+    assert "Superseded accepted pin" in text
     assert "Superseded historical pin" in text
 
 

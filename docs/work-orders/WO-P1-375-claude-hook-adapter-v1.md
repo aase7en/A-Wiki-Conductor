@@ -1,13 +1,13 @@
 # WO-P1-375 — Claude Code Hook Adapter v1 Conformance
 
-Status: RE-PINNED / READY_FOR_REREVIEW
+Status: POST-MAIN VERIFIED / DEPENDENCY REBIND VIA WO-P1-258 POST-MERGE REPAIR
 Issue: #375
 Identity schema: GITHUB_ISSUE_V1
 Risk: R3 trust/redaction contract
 Topology: CONTROL_PLANE_ONLY
-Dependency: WO-P1-258 Hook Contract exact 602f6db01e170f74456ff77e1b5df01622fb84dd
-(md blob 941f9731f9665fe109451a14cdc2b737555be99a,
-schema blob d176fd5e6393af6f5619fad372ad59aa858391ee)
+Dependency: WO-P1-258 Hook Contract repair exact 0d4f0c3b36ff7fad9ed14636730443119683cb1d
+(md blob 25f69a964140c082db9d43b65dd3fcd9dbfc0c3c,
+schema blob 98451ee3a4b63b4f07ca7b38525f9f5016916d54)
 
 ## Current binding (canonical, WO-P1-375 rebind lane)
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo375-claude-hook-rebind
@@ -182,3 +182,20 @@ blobs (see the rebind/re-pin checkpoint below).
 - Stop state: READY_FOR_REREVIEW at this commit (head recorded in
   runs/WO-P1-375/repair/attempt-0002/result.md). No merge, no self-accept;
   focused exact-SHA rereview + fresh exact-head CI remain open.
+
+## Post-merge Hook repair dependency rebind (2026-09-20)
+
+- WO-P1-375 was previously accepted and post-main verified against Hook Contract
+  candidate 602f6db01e170f74456ff77e1b5df01622fb84dd.
+- WO-P1-258 later required a forward-only post-merge repair. Exact repaired
+  contract commit is 0d4f0c3b36ff7fad9ed14636730443119683cb1d with md blob
+  25f69a964140c082db9d43b65dd3fcd9dbfc0c3c and schema blob
+  98451ee3a4b63b4f07ca7b38525f9f5016916d54.
+- Deterministic compatibility on the merge-forward repair lineage found no
+  Claude mapping/runtime defect; the only failure was this adapter's stale
+  dependency pin. The contract/test pin is therefore re-bound without fixture
+  or runtime mutation.
+- Prior accepted 602f6db/941f973/d176fd5 and older WO261/f20fff evidence remain
+  recorded as historical provenance, never current authority.
+- This follow-up is executed inside the bounded WO-P1-258 repair scope expansion
+  on Issue #368; Issue #375 remains historical/post-main complete.

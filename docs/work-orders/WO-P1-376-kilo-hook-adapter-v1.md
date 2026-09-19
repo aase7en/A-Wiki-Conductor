@@ -1,12 +1,13 @@
 # WO-P1-376 — Kilo Hook Adapter v1 re-pin + canonical identity repair
 
-Status: READY_FOR_REREVIEW (rebind/re-pin candidate on this branch; no merge/self-accept)
+Status: POST-MAIN VERIFIED / DEPENDENCY REBIND VIA WO-P1-258 POST-MERGE REPAIR
 Issue: #376
 Identity schema: GITHUB_ISSUE_V1
 Risk: R3 contract/conformance
 Topology: CONTROL_PLANE_ONLY
-Dependency: WO-P1-258 Hook Contract exact 602f6db01e170f74456ff77e1b5df01622fb84dd
-(accepted on main via merge 2a461ae22ab28ad3b48f15660ab818f700faab30)
+Dependency: WO-P1-258 Hook Contract repair exact 0d4f0c3b36ff7fad9ed14636730443119683cb1d
+(md blob 25f69a964140c082db9d43b65dd3fcd9dbfc0c3c,
+schema blob 98451ee3a4b63b4f07ca7b38525f9f5016916d54)
 
 ## Binding
 Repo: aase7en/A-Wiki-Conductor
@@ -197,3 +198,19 @@ Next: integrator fast-forward the original PR transport branch
 (docs/wo-p1-262-kilo-hook-adapter-v1) if unchanged → exact-SHA
 independent review + CI on this branch head; GPT accept/merge authority
 retained. No self-accept/merge.
+
+## Post-merge Hook repair dependency rebind (2026-09-20)
+
+- WO-P1-376 was previously accepted and post-main verified against Hook Contract
+  candidate 602f6db01e170f74456ff77e1b5df01622fb84dd.
+- WO-P1-258 later required a forward-only post-merge repair. Exact repaired
+  contract commit is 0d4f0c3b36ff7fad9ed14636730443119683cb1d with md blob
+  25f69a964140c082db9d43b65dd3fcd9dbfc0c3c and schema blob
+  98451ee3a4b63b4f07ca7b38525f9f5016916d54.
+- Kilo mapping fixtures/runtime semantics remain unchanged; the adapter contract
+  and machine conformance now pin the repaired commit plus exact blobs and fail
+  closed on future blob drift.
+- Prior accepted 602f6db dependency remains explicit historical evidence;
+  earlier WO262/f20fff provenance remains unchanged where historically recorded.
+- This follow-up is executed inside the bounded WO-P1-258 repair scope expansion
+  on Issue #368; Issue #376 remains historical/post-main complete.
