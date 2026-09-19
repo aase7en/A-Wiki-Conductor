@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
+from threading import Barrier, Event, Lock, get_ident
 
 import pytest
 
@@ -370,18 +373,14 @@ def test_wo246_fresh_store_is_schema_v2_with_nullable_provenance_columns(tmp_pat
 
         # fresh-table DDL CHECKs reject invalid generation at SQL level
         with pytest.raises(sqlite3.IntegrityError):
-            connection.execute(_V1_ROW, _V1_ROW_VALUES)
-            connection.execute(
-                "UPDATE execution_records SET author_generation = 2"
-            )
-            connection.commit()
+            connection.execute("UPDATE execution_records SET author_generation = 2")
         connection.rollback()
         # ... and mixed-NULL provenance shape
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
                 "UPDATE execution_records SET author_attempt_id = NULL"
             )
-            connection.commit()
+        connection.rollback()
     finally:
         connection.close()
 
@@ -605,6 +604,244 @@ def test_wo246_record_layer_rejects_mixed_or_out_of_range_pair(tmp_path: Path) -
     assert record.author_attempt_id is None and record.author_generation is None
 
 
+# --- WO-P1-246 repair: provenance columns are validated by declared shape,
+# not by name only. A pre-existing author_attempt_id/author_generation
+# column must be canonical (exact declared type TEXT/INTEGER, nullable, no
+# default, not PK) before it is accepted, ALTERed around, or stamped v2. ---
+
+
+def _record_column_info(
+    connection: sqlite3.Connection,
+) -> dict[str, tuple[str, int, str | None, int]]:
+    return {
+        row[1]: (row[2], row[3], row[4], row[5])
+        for row in connection.execute("PRAGMA table_info(execution_records)")
+    }
+
+
+def _schema_version(connection: sqlite3.Connection) -> str | None:
+    row = connection.execute(
+        "SELECT value FROM execution_store_meta WHERE key = 'schema_version'"
+    ).fetchone()
+    return None if row is None else row[0]
+
+
+def _make_foreign_v1_database(
+    database: Path,
+    provenance_column_ddl: str,
+    *,
+    provenance_column_is_pk: bool = False,
+    meta_version: str | None = "1",
+) -> None:
+    """Foreign/manual pre-v2 database: v1 records table plus one
+    pre-existing provenance column declared by ``provenance_column_ddl``
+    in an arbitrary shape. No rows: these cases fail on schema shape
+    before any row is read."""
+    ddl = _V1_DDL
+    if provenance_column_is_pk:
+        # a table may declare only one PRIMARY KEY: demote execution_id so
+        # the provenance column can carry it
+        ddl = ddl.replace(
+            "execution_id TEXT PRIMARY KEY CHECK (trim(execution_id) <> '')",
+            "execution_id TEXT CHECK (trim(execution_id) <> '')",
+            1,
+        )
+    ddl = ddl.replace(
+        "    version INTEGER NOT NULL CHECK (version >= 1),",
+        "    version INTEGER NOT NULL CHECK (version >= 1),\n    "
+        + provenance_column_ddl
+        + ",",
+        1,
+    )
+    connection = sqlite3.connect(database)
+    try:
+        connection.executescript(ddl)
+        if meta_version is not None:
+            connection.execute(
+                "INSERT INTO execution_store_meta(key, value) "
+                "VALUES('schema_version', ?)",
+                (meta_version,),
+            )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_wo246_partial_v1_text_typed_generation_fails_closed_unstamped(
+    tmp_path: Path,
+) -> None:
+    # P2 repro: partial v1 (meta still "1") carrying author_generation
+    # declared TEXT. TEXT affinity silently coerces stored generations to
+    # text, so stamping this shape v2 makes generation 0 read as text and
+    # every record reconstruct as EXECUTION_RECORD_INVALID. The shape must
+    # fail closed instead and must never be stamped v2.
+    database = tmp_path / "executions.sqlite"
+    _make_v1_database(database, meta_version="1")
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute(
+            "ALTER TABLE execution_records ADD COLUMN author_generation TEXT"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    with pytest.raises(ExecutionStoreError) as exc_info:
+        SQLiteExecutionStore(database).initialize()
+    assert exc_info.value.code == "EXECUTION_SCHEMA_SHAPE_INVALID"
+
+    connection = sqlite3.connect(database)
+    try:
+        assert _schema_version(connection) == "1"
+    finally:
+        connection.close()
+
+
+@pytest.mark.parametrize(
+    "provenance_column_ddl",
+    [
+        "author_attempt_id INTEGER",
+        "author_attempt_id TEXT NOT NULL",
+        "author_attempt_id TEXT DEFAULT 'foreign'",
+        "author_attempt_id TEXT PRIMARY KEY",
+        "author_generation TEXT",
+        "author_generation REAL",
+        "author_generation INTEGER NOT NULL",
+        "author_generation INTEGER DEFAULT 0",
+        "author_generation INTEGER PRIMARY KEY",
+    ],
+)
+def test_wo246_noncanonical_preexisting_provenance_shapes_fail_closed_unstamped(
+    tmp_path: Path, provenance_column_ddl: str
+) -> None:
+    database = tmp_path / "executions.sqlite"
+    _make_foreign_v1_database(
+        database,
+        provenance_column_ddl,
+        provenance_column_is_pk=provenance_column_ddl.endswith("PRIMARY KEY"),
+    )
+
+    with pytest.raises(ExecutionStoreError) as exc_info:
+        SQLiteExecutionStore(database).initialize()
+    assert exc_info.value.code == "EXECUTION_SCHEMA_SHAPE_INVALID"
+
+    connection = sqlite3.connect(database)
+    try:
+        assert _schema_version(connection) == "1"
+    finally:
+        connection.close()
+
+
+def test_wo246_v2_meta_noncanonical_provenance_columns_fail_closed(
+    tmp_path: Path,
+) -> None:
+    # acceptance path: meta already claims 2, but a provenance column is a
+    # foreign shape (TEXT-typed generation) — must not be accepted as v2
+    database = tmp_path / "executions.sqlite"
+    _make_v1_database(database, meta_version="1")
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute(
+            "ALTER TABLE execution_records ADD COLUMN author_attempt_id TEXT"
+        )
+        connection.execute(
+            "ALTER TABLE execution_records ADD COLUMN author_generation TEXT"
+        )
+        connection.execute(
+            "UPDATE execution_store_meta SET value = '2' "
+            "WHERE key = 'schema_version'"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    with pytest.raises(ExecutionStoreError) as exc_info:
+        SQLiteExecutionStore(database).initialize()
+    assert exc_info.value.code == "EXECUTION_SCHEMA_SHAPE_INVALID"
+
+
+def test_wo246_missing_meta_with_noncanonical_shape_is_not_stamped_v2(
+    tmp_path: Path,
+) -> None:
+    # DDL-committed/meta-crash edge with a foreign shape present: the
+    # unsafe NOT NULL DEFAULT 0 generation would backfill legacy rows with
+    # generation 0. The stamp must require the canonical shape first.
+    database = tmp_path / "executions.sqlite"
+    _make_v1_database(database, meta_version=None)
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute(
+            "ALTER TABLE execution_records ADD COLUMN author_attempt_id TEXT"
+        )
+        connection.execute(
+            "ALTER TABLE execution_records ADD COLUMN author_generation "
+            "INTEGER NOT NULL DEFAULT 0"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    with pytest.raises(ExecutionStoreError) as exc_info:
+        SQLiteExecutionStore(database).initialize()
+    assert exc_info.value.code == "EXECUTION_SCHEMA_SHAPE_INVALID"
+
+    connection = sqlite3.connect(database)
+    try:
+        assert _schema_version(connection) is None
+    finally:
+        connection.close()
+
+
+def test_wo246_partial_migration_repairs_missing_attempt_column(
+    tmp_path: Path,
+) -> None:
+    # symmetric partial state (canonical generation column already
+    # present) still migrates and stays NULL/NULL
+    database = tmp_path / "executions.sqlite"
+    _make_v1_database(database, meta_version="1")
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute(
+            "ALTER TABLE execution_records ADD COLUMN author_generation INTEGER"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    store = SQLiteExecutionStore(database)
+    store.initialize()
+
+    connection = sqlite3.connect(database)
+    try:
+        assert _schema_version(connection) == "2"
+        columns = _record_columns(connection)
+        assert "author_attempt_id" in columns and "author_generation" in columns
+    finally:
+        connection.close()
+    record = store.get("exec-legacy-001")
+    assert record.author_attempt_id is None and record.author_generation is None
+
+
+def test_wo246_fresh_and_migrated_provenance_declared_shape_is_canonical(
+    tmp_path: Path,
+) -> None:
+    fresh = tmp_path / "fresh.sqlite"
+    SQLiteExecutionStore(fresh).create(make_record())
+
+    migrated = tmp_path / "migrated.sqlite"
+    _make_v1_database(migrated, meta_version="1")
+    SQLiteExecutionStore(migrated).initialize()
+
+    for database in (fresh, migrated):
+        connection = sqlite3.connect(database)
+        try:
+            info = _record_column_info(connection)
+        finally:
+            connection.close()
+        assert info["author_attempt_id"] == ("TEXT", 0, None, 0)
+        assert info["author_generation"] == ("INTEGER", 0, None, 0)
+
+
 def test_wo246_mutations_preserve_provenance_pair(tmp_path: Path) -> None:
     store = SQLiteExecutionStore(tmp_path / "executions.sqlite")
     attempt = "author-attempt-v1:" + "1" * 32
@@ -631,3 +868,165 @@ def test_wo246_mutations_preserve_provenance_pair(tmp_path: Path) -> None:
     reopened = SQLiteExecutionStore(tmp_path / "executions.sqlite").get("exec-001")
     assert reopened.author_attempt_id == attempt
     assert reopened.author_generation == 0
+
+
+# --- WO-P1-246 repair: concurrent first-initialize / fresh-stamp race.
+# Two initialize() callers can both observe schema_version absent on a
+# fresh v2-shaped database and then race on the stamp INSERT into
+# execution_store_meta. Mirrors the WO-P1-242 job_store precedent
+# deterministically. ---
+
+
+def test_wo246_concurrent_first_initialize_converges_on_schema_v2(
+    tmp_path: Path,
+) -> None:
+    """Deterministically force the historical SELECT-then-INSERT race.
+
+    Both initializers observe no schema_version row before either stamps;
+    the winner's INSERT is allowed to commit before the loser's executes,
+    so a plain INSERT deterministically raises IntegrityError ->
+    EXECUTION_STORE_INIT_FAILED for the loser, while an idempotent stamp
+    path converges for both callers on schema_version 2.
+    """
+    database = tmp_path / "concurrent-init.sqlite"
+    select_barrier = Barrier(2)
+    insert_lock = Lock()
+    winner_committed = Event()
+    forced_race_ready = Event()
+    winner_ident = {"value": None}
+
+    class CursorProxy:
+        def __init__(self, cursor, *, schema_select: bool = False):
+            self._cursor = cursor
+            self._schema_select = schema_select
+
+        def fetchone(self):
+            row = self._cursor.fetchone()
+            if self._schema_select:
+                select_barrier.wait(timeout=5)
+                forced_race_ready.set()
+            return row
+
+        def __iter__(self):
+            return iter(self._cursor)
+
+        def __getattr__(self, name):
+            return getattr(self._cursor, name)
+
+    class ConnectionProxy:
+        def __init__(self, connection):
+            self._connection = connection
+            self._saw_schema_insert = False
+
+        def executescript(self, script):
+            return self._connection.executescript(script)
+
+        def execute(self, sql, parameters=()):
+            normalized = " ".join(sql.upper().split())
+            schema_select = (
+                "SELECT VALUE FROM EXECUTION_STORE_META" in normalized
+                and "SCHEMA_VERSION" in normalized
+            )
+            schema_insert = (
+                "INSERT" in normalized
+                and "EXECUTION_STORE_META" in normalized
+                and "SCHEMA_VERSION" in normalized
+            )
+            select_before_insert = schema_select and not self._saw_schema_insert
+            if schema_insert:
+                self._saw_schema_insert = True
+            if schema_insert and forced_race_ready.is_set():
+                current = get_ident()
+                with insert_lock:
+                    if winner_ident["value"] is None:
+                        winner_ident["value"] = current
+                    winner = winner_ident["value"] == current
+                if not winner:
+                    assert winner_committed.wait(5), "winner did not commit schema row"
+            cursor = self._connection.execute(sql, parameters)
+            return CursorProxy(cursor, schema_select=select_before_insert)
+
+        def commit(self):
+            self._connection.commit()
+            if winner_ident["value"] == get_ident():
+                winner_committed.set()
+
+        def rollback(self):
+            self._connection.rollback()
+
+        def __getattr__(self, name):
+            return getattr(self._connection, name)
+
+    class RacingStore(SQLiteExecutionStore):
+        @contextmanager
+        def _connect(self):
+            with super()._connect() as connection:
+                yield ConnectionProxy(connection)
+
+    stores = [RacingStore(database), RacingStore(database)]
+
+    def initialize(store):
+        try:
+            store.initialize()
+            return "OK"
+        except ExecutionStoreError as exc:
+            return exc.code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(initialize, stores))
+
+    assert outcomes == ["OK", "OK"]
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM execution_store_meta ORDER BY key"
+        ).fetchall()
+    assert rows == [("schema_version", "2")]
+
+
+def test_wo246_stale_fresh_stamp_never_overwrites_conflicting_non_2_value(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # complement to the convergence repro: if a conflicting non-2 value
+    # lands between the racing absent-read and the stamp, the initializer
+    # must fail closed on the foreign value, never overwrite it with 2
+    database = tmp_path / "conflicting-stamp.sqlite"
+    SQLiteExecutionStore(database).initialize()
+
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute(
+            "UPDATE execution_store_meta SET value = '3' "
+            "WHERE key = 'schema_version'"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    real_schema_version = SQLiteExecutionStore._schema_version
+    stale_read_used = {"value": False}
+
+    def stale_absent_then_real(connection: sqlite3.Connection):
+        if not stale_read_used["value"]:
+            stale_read_used["value"] = True  # the racing read saw no row
+            return None
+        return real_schema_version(connection)
+
+    monkeypatch.setattr(
+        SQLiteExecutionStore,
+        "_schema_version",
+        staticmethod(stale_absent_then_real),
+    )
+    loser = SQLiteExecutionStore(database)
+    with pytest.raises(ExecutionStoreError) as exc_info:
+        loser.initialize()
+    assert exc_info.value.code == "EXECUTION_SCHEMA_VERSION_UNSUPPORTED"
+    monkeypatch.undo()
+
+    connection = sqlite3.connect(database)
+    try:
+        assert connection.execute(
+            "SELECT value FROM execution_store_meta WHERE key = 'schema_version'"
+        ).fetchone()[0] == "3"
+    finally:
+        connection.close()

@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Callable, Iterator, Mapping
 
 from .execution_record import (
     DurableExecutionRecord,
@@ -59,6 +59,32 @@ _CORE_RECORD_COLUMNS = frozenset(
         "updated_at",
     }
 )
+
+
+# WO-P1-246 repair: a pre-existing provenance column is accepted only in
+# this exact canonical declared shape — exact declared type (TEXT attempt,
+# INTEGER generation), nullable, no default, not part of the primary key.
+# A name-only check would accept e.g. a TEXT-typed author_generation whose
+# affinity silently coerces every stored generation to text, so generation
+# 0 would read back as text and every record reconstruct as
+# EXECUTION_RECORD_INVALID after the v2 stamp. Anything non-canonical
+# fails closed before acceptance/stamp instead.
+_PROVENANCE_COLUMN_DECLARED_TYPES = {
+    "author_attempt_id": "TEXT",
+    "author_generation": "INTEGER",
+}
+
+
+def _provenance_shape_is_canonical(
+    column_info: Mapping[str, tuple[str, int, str | None, int]],
+) -> bool:
+    for name, declared_type in _PROVENANCE_COLUMN_DECLARED_TYPES.items():
+        if name not in column_info:
+            continue
+        type_, notnull, default, pk = column_info[name]
+        if type_ != declared_type or notnull != 0 or default is not None or pk != 0:
+            return False
+    return True
 
 
 class ExecutionStoreError(RuntimeError):
@@ -259,9 +285,17 @@ class SQLiteExecutionStore:
         return None if row is None else row["value"]
 
     @staticmethod
-    def _record_columns(connection: sqlite3.Connection) -> set[str]:
+    def _record_column_info(
+        connection: sqlite3.Connection,
+    ) -> dict[str, tuple[str, int, str | None, int]]:
+        """WO-P1-246: declared shape of every execution_records column.
+
+        Maps column name to ``(declared_type, notnull, default, pk)``
+        exactly as reported by ``PRAGMA table_info``.
+        """
         return {
-            row[1] for row in connection.execute("PRAGMA table_info(execution_records)")
+            str(row[1]): (str(row[2]), int(row[3]), row[4], int(row[5]))
+            for row in connection.execute("PRAGMA table_info(execution_records)")
         }
 
     def _reconcile_schema_version(self, connection: sqlite3.Connection) -> None:
@@ -276,35 +310,62 @@ class SQLiteExecutionStore:
         both-or-neither/generation validation stays authoritative for every
         database shape (migrated tables cannot carry the cross-column
         CHECK without a rebuild, which is deliberately avoided).
+
+        WO-P1-246 repair: provenance columns are validated by declared
+        shape, never by name only. Any pre-existing
+        ``author_attempt_id``/``author_generation`` column must already be
+        canonical — exact declared type (TEXT / INTEGER), nullable, no
+        default, not part of the primary key — before it is accepted,
+        ALTERed around, or stamped ``schema_version = 2``. The shape is
+        validated before mutation and re-read/re-validated inside the
+        ``BEGIN IMMEDIATE`` transaction, so a failed shape is never
+        stamped v2.
         """
         version = self._schema_version(connection)
-        columns = self._record_columns(connection)
-        has_attempt = "author_attempt_id" in columns
-        has_generation = "author_generation" in columns
-        if _CORE_RECORD_COLUMNS - columns:
+        column_info = self._record_column_info(connection)
+        has_attempt = "author_attempt_id" in column_info
+        has_generation = "author_generation" in column_info
+        if _CORE_RECORD_COLUMNS - column_info.keys():
             raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
         if version == EXECUTION_STORE_SCHEMA_VERSION:
-            if not (has_attempt and has_generation):
+            if (
+                not (has_attempt and has_generation)
+                or not _provenance_shape_is_canonical(column_info)
+            ):
                 raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
-            return
-        if version is None and has_attempt and has_generation:
-            # fresh creation, or the DDL-committed/meta-write crash edge:
-            # stamp version 2 only after the shape is proven
-            connection.execute(
-                "INSERT INTO execution_store_meta(key, value) "
-                "VALUES('schema_version', ?)",
-                (EXECUTION_STORE_SCHEMA_VERSION,),
-            )
             return
         if version not in (None, "1"):
             raise ExecutionStoreError("EXECUTION_SCHEMA_VERSION_UNSUPPORTED")
+        if not _provenance_shape_is_canonical(column_info):
+            # a pre-existing provenance column must be canonical before any
+            # stamp or mutation
+            raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
+        if version is None and has_attempt and has_generation:
+            # fresh creation, or the DDL-committed/meta-write crash edge:
+            # stamp version 2 only after the shape is proven. WO-P1-246
+            # repair: initialize() can be reached concurrently; both
+            # callers observe this absent meta row and race on the stamp
+            # INSERT. Make the stamp idempotent at the SQLite uniqueness
+            # boundary, then re-read the durable winner and verify it —
+            # a conflicting non-2 value is never overwritten.
+            connection.execute(
+                "INSERT INTO execution_store_meta(key, value) "
+                "VALUES('schema_version', ?) ON CONFLICT(key) DO NOTHING",
+                (EXECUTION_STORE_SCHEMA_VERSION,),
+            )
+            if self._schema_version(connection) != EXECUTION_STORE_SCHEMA_VERSION:
+                raise ExecutionStoreError("EXECUTION_SCHEMA_VERSION_UNSUPPORTED")
+            return
         # version is 1, or absent while the table is legacy/partial-v2 shaped
         connection.execute("BEGIN IMMEDIATE")
         version = self._schema_version(connection)
-        columns = self._record_columns(connection)
+        column_info = self._record_column_info(connection)
         if version == EXECUTION_STORE_SCHEMA_VERSION:
             # idempotent: the migration already landed under this lock
-            if not ("author_attempt_id" in columns and "author_generation" in columns):
+            if not (
+                "author_attempt_id" in column_info
+                and "author_generation" in column_info
+            ) or not _provenance_shape_is_canonical(column_info):
                 connection.rollback()
                 raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
             connection.rollback()
@@ -312,19 +373,28 @@ class SQLiteExecutionStore:
         if version not in (None, "1"):
             connection.rollback()
             raise ExecutionStoreError("EXECUTION_SCHEMA_VERSION_UNSUPPORTED")
-        if _CORE_RECORD_COLUMNS - columns:
+        if _CORE_RECORD_COLUMNS - column_info.keys():
             connection.rollback()
             raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
-        if "author_attempt_id" not in columns:
+        # re-read and re-validate the declared shape under the write lock
+        # BEFORE any mutation
+        if not _provenance_shape_is_canonical(column_info):
+            connection.rollback()
+            raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
+        if "author_attempt_id" not in column_info:
             connection.execute(
                 "ALTER TABLE execution_records ADD COLUMN author_attempt_id TEXT"
             )
-        if "author_generation" not in columns:
+        if "author_generation" not in column_info:
             connection.execute(
                 "ALTER TABLE execution_records ADD COLUMN author_generation INTEGER"
             )
-        columns = self._record_columns(connection)
-        if not ("author_attempt_id" in columns and "author_generation" in columns):
+        # and again on the resulting shape before the v2 stamp
+        column_info = self._record_column_info(connection)
+        if not (
+            "author_attempt_id" in column_info
+            and "author_generation" in column_info
+        ) or not _provenance_shape_is_canonical(column_info):
             connection.rollback()
             raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
         connection.execute(
