@@ -39,7 +39,7 @@ Execution substrate:
 
 Accepted baseline at roadmap capture:
 
-- A-Wiki `origin/main@4f93005d20feb5781b5febb8f963ccd224d29e25`;
+- A-Wiki-Conductor `origin/main@4f93005d20feb5781b5febb8f963ccd224d29e25`;
 - A-Faster PR #363 merged; A-Faster is the accelerated profile over canonical
   A-FastTask, not a second router authority;
 - SunDayRemoteMCP `main@70046f0a46f74c1655020ef272cd9c00e41737cd`;
@@ -167,8 +167,10 @@ Failure behavior: block only the advisory feature.
 
 Safety/authority enforcement where an existing accepted policy requires a gate.
 
-Failure behavior must be explicitly defined. Security/authority guards normally
-fail closed.
+Every GUARD registration must explicitly declare its failure behavior or be
+refused. Security- or authority-classified GUARD hooks MUST fail closed. A
+non-security GUARD may fail open only when its accepted Work Order explicitly
+defines and tests that behavior.
 
 ### COMMAND
 
@@ -215,6 +217,10 @@ Minimum normalized fields:
 - `causation_id`;
 - source-local sequence/dedupe identity;
 - privacy/redaction classification.
+
+`event_id` is globally unique within the normalized event domain. Consumers
+must additionally use the source-local dedupe identity within a bounded replay
+window so a retried adapter delivery cannot create a second semantic event.
 
 Raw prompts, credentials, tokens, cookies, session/share URLs and unrestricted
 command lines are forbidden by default.
@@ -329,6 +335,11 @@ A real unresolved product/architecture choice becomes
 ## 11. STM architecture
 
 STM is **operational working memory**, not long-term memory and not project SSoT.
+
+Initial implementation should be a **derived in-memory TTL projection inside the
+Monitor backend**, not a separate durable subsystem. Promote STM into a distinct
+component only if MON-1 evidence proves the derived projection cannot satisfy
+working-set, restart, or multi-consumer requirements without duplicating logic.
 
 Example STM content:
 
@@ -582,8 +593,13 @@ Required:
 - event-source identity/version recorded;
 - user-visible evidence distinguishes observed vs derived vs unknown;
 - monitor endpoints local/private by default;
+- browser-consumed localhost endpoints must resist CSRF and DNS-rebinding;
+  require explicit origin validation plus a local authentication/session token
+  before Web/Extension UI connects, even when binding only to loopback;
 - remote exposure requires separate auth/threat-model work;
-- no extension/browser surface obtains implicit filesystem/process authority.
+- no extension/browser surface obtains implicit filesystem/process authority;
+- every adapter/redaction implementation must pass the same fake-secret corpus
+  so prompt/token/session/command leakage tests are uniform across sources.
 
 ## 19. Failure model
 
@@ -629,8 +645,10 @@ replace durable execution pointers or recovery authority.
 
 ### ODP — orchestration decision plane
 
-Hook Monitor becomes the preferred observability substrate for ODP task
-timeline / Models & Agents work such as ODP-7.
+Hook Monitor is a candidate shared observability substrate for ODP task
+timeline / Models & Agents work such as ODP-7. The ODP lane must make that
+integration decision against its own accepted contract rather than inheriting
+it implicitly from this roadmap.
 
 It does not become planner/adjudicator authority.
 
@@ -687,9 +705,11 @@ Parallel sub-lanes after P1 contract freezes:
 
 - Claude Code hook adapter;
 - Kilo plugin adapter;
-- Ponytail advisory projection;
-- Caveman/Grill-me conditional advisory integration;
 - version/capability mismatch behavior.
+
+Ponytail projection and Caveman/Grill-me advisory-monitor integration are
+DEFERRED until after MON-1 unless a concrete earlier dependency is proven; they
+do not gate the native Claude/Kilo adapter contract.
 
 Exit gate: fake/native fixture conformance and no silent fallback.
 
@@ -698,7 +718,8 @@ Exit gate: fake/native fixture conformance and no silent fallback.
 - bounded bus;
 - idempotent consumers;
 - backpressure;
-- STM partition/TTL/eviction/rebuild;
+- derived in-memory STM partition/TTL/eviction/rebuild first; separate STM
+  subsystem only after MON-1 evidence justifies it;
 - stale/unknown semantics;
 - deterministic authority-over-STM precedence.
 
@@ -712,7 +733,9 @@ Exit gate: fault tests prove bus/STM loss cannot change task truth.
 - live stream;
 - no command authority.
 
-Exit gate: read-only E2E; monitor restart does not disturb execution.
+Exit gate: read-only E2E; monitor restart does not disturb execution; before
+any browser/extension client connects, localhost API tests must prove origin +
+token enforcement against webpage-originated CSRF and DNS-rebinding attempts.
 
 ### P7 — UI-1 Web UI + Extension UI Hook Monitor
 
@@ -770,7 +793,12 @@ Fault matrix:
 - stale repo/HEAD;
 - secret-bearing malformed payload;
 - untrusted extension reconnect;
-- command replay.
+- command replay;
+- browser-to-localhost CSRF and DNS-rebinding attempts;
+- cross-device clock skew;
+- Hook Contract schema-version skew between producer and consumer;
+- sustained-load/soak with bounded memory and backpressure;
+- shared fake-secret/redaction corpus across every adapter.
 
 Exit gate: task truth and execution safety remain correct.
 
