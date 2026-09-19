@@ -176,3 +176,13 @@ Binding block's pre-collision names. Docs-only correction at dispatch HEAD
 truthfully `feat/wo-p1-259-context-rollover-guard` (remote head at that SHA),
 and the Binding note above explains the retained worktree pathname. No
 behavioral acceptance criteria or implementation claims were changed.
+
+
+## 2026-09-19 current-main re-pin checkpoint
+
+- Re-pin worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo259-repin-20260919`.
+- Re-pin baseline: `origin/main@2a461ae22ab28ad3b48f15660ab818f700faab30` (accepted DEX-ARCH-1 + WO-P1-260 durable-lane overlay + accepted WO-P1-258 Hook Contract v1).
+- Merge-forward checkpoint before this docs note: `53fcace634a0d6fbc96140684e834e91fb684c93`.
+- The four WO259 scoped blobs at that merge-forward checkpoint are byte-identical to reviewed candidate `a2e149352ad3ba1a4fcb8b3045169541ab5cfd04`; no source/test/entry behavior changed during re-pin.
+- Re-pinned continuity battery: 245 passed (`context_rollover_guard`, `continuity_guard`, `continuity_projection`, `goal_closeout`).
+- This checkpoint changes factual binding only. Exact-head review and hosted CI must bind the new frozen SHA; prior review remains semantic evidence only.
