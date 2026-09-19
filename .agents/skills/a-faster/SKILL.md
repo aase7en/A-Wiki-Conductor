@@ -18,7 +18,9 @@ multi-device and multi-harness routing constraints.
 
 ## Trigger
 
-Use A-Faster when one or more are true:
+For **substantial A-Sunday Conductor engineering work**, A-Faster is the
+default acceleration overlay after canonical A-FastTask has bound authority.
+Also use it whenever one or more are true:
 
 - the user explicitly asks for A-Faster / faster multilane execution;
 - independent READY work can run concurrently on Windows and macOS;
@@ -26,7 +28,9 @@ Use A-Faster when one or more are true:
 - a finished lane should be recycled after exact closeout/cleanup proof;
 - the task needs coordinated Workers + RDC + GitHub remote truth.
 
-For ordinary substantial single-device work, A-FastTask remains sufficient.
+Do not force A-Faster onto trivial Q&A, a single obvious mechanical edit, or
+already-bound mid-lane work that needs no new routing decision. These exclusions
+preserve A-FastTask's negative triggers and avoid routing overhead for tiny work.
 
 ## Global WIP and no-collision rule
 
@@ -56,6 +60,29 @@ Every A-Faster lane adds these fields to the normal A-FastTask binding:
 - `HARNESS_ID`;
 - `MODEL_ID` + effort/variant when a model is used;
 - durable execution/result pointer for delegated work.
+
+## Mandatory substantial-session bootstrap
+
+For every substantial A-Sunday Conductor engineering session:
+
+1. attempt lightweight READ-ONLY readiness discovery for **SunDay-Worker 1..5**
+   individually; record each as available, unavailable, or a typed surface
+   blocker such as `PLUGIN_NOT_EXPOSED_TO_CHAT`; never claim a Worker ran when
+   the current harness cannot invoke it;
+2. attempt RDC device discovery and runtime readiness for every connected
+   Windows/macOS device that can materially help the task;
+3. recover all outstanding delegated executions before allocating new work;
+4. bind the single global WIP ledger before dispatch: at most 3 mutable lanes
+   plus 1 independent read-only review lane across every Worker, device,
+   harness, repository and CROSS_REPO compatibility-set member;
+5. if Windows and macOS are both READY and independent work exists, prefer a
+   non-overlapping cross-device split; if not, continue on the safe available
+   device rather than manufacturing parallelism;
+6. keep Worker slots beyond the global WIP budget read-only/standby/recovery
+   helpers. Five discovered Workers never mean five mutable writers.
+
+Readiness discovery is routing evidence only. `WORKER/RDC ONLINE !=
+SAFE_TO_MUTATE`; exact task/claim/scope/worktree gates still apply.
 
 ## Surface routing
 
@@ -142,7 +169,22 @@ Advisory skills may shape work but never become authority.
 
 ### Ponytail
 
-On Claude Code, prefer the installed `ponytail@ponytail` plugin when useful:
+On each Claude Code device, verify the user-level `ponytail@ponytail` plugin
+before relying on it. When missing and current user/tool authorization permits
+installation, use the upstream-supported Claude Code sequence as two separate
+commands/prompts:
+
+```text
+/plugin marketplace add DietrichGebert/ponytail
+/plugin install ponytail@ponytail
+```
+
+For headless automation, use an equivalent CLI form only when that installed
+Claude Code version's help explicitly proves it is supported. Re-verify the
+installed marketplace/plugin after mutation; one device's install is never
+evidence for another device.
+
+When available, prefer Ponytail as an advisory simplification layer:
 
 - `ponytail` before implementation to challenge unnecessary work;
 - `ponytail-review` on a frozen candidate;
@@ -153,7 +195,17 @@ verification requirement.
 
 ### Caveman
 
-Use the GitHub-sourced `caveman` skill only for transient delegated-agent
+Verify the user-level GitHub-sourced `caveman` skill on every device. When
+missing and installation is authorized, install the **skill only** from
+`JuliusBrussee/caveman` using its supported skills installer, for example:
+
+```text
+npx skills add JuliusBrussee/caveman -g
+```
+
+Do not install or enable the optional Caveman proxy/engine merely to satisfy
+this skill requirement. Re-verify the resulting skill path/content after
+installation. Use Caveman only for transient delegated-agent
 communication/token compression where meaning remains unambiguous.
 
 Do **not** use Caveman compression for:
@@ -164,9 +216,13 @@ Do **not** use Caveman compression for:
 
 ### Grill Me
 
-When a real product/architecture decision remains ambiguous **after codebase and
-authority inspection**, invoke `/grill-me plan` before inventing a decision.
-Use `/grill-me check` when useful to challenge an implemented plan.
+Preserve any existing local Grill Me skill; A-Faster runtime convergence must
+never overwrite a customized `grill-me` installation. When a real
+product/architecture/intent decision remains ambiguous **after codebase,
+authority and tool inspection**, invoke the installed Grill Me flow before
+inventing the decision (for installations supporting the current project
+commands, `/grill-me plan`; `/grill-me check` may challenge an implemented
+plan).
 
 If Grill Me requires interactive user input that is unavailable, classify the
 decision normally (`HUMAN_DECISION_REQUIRED`) rather than guessing. Do not use
@@ -196,6 +252,16 @@ No accepted remote/source on the receiving device means
 
 A-Faster reuses A-FastTask `references/closeout.md`. Cleanup is never implied
 by model/Worker DONE or by a merged-looking branch.
+
+At every accepted/merged/explicitly-abandoned lane closeout, **automatically run
+a cleanup-eligibility audit** for that lane and any temporary worktree/folder it
+owns. This audit is mandatory; deletion is not. Record
+`CLEANUP_STATE=COMPLETE|PENDING|BLOCKED` with the exact path and evidence.
+Eligible registered Git worktrees should be removed promptly with canonical
+non-force `git worktree remove <exact-path>` so finished lanes do not consume
+machine storage. A non-worktree project folder may be deleted only when the
+same ownership/disposition/unique-content/process proof establishes that it is
+an exact disposable lane artifact rather than user data.
 
 A worktree/folder becomes cleanup-eligible only after all are proven:
 
