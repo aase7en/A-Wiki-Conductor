@@ -2,7 +2,7 @@
 
 Status: MERGED (authoring historically accepted under pre-remediation id WO-P1-260; canonical identity rebound to WO-P1-374 by WO-P1-381 / Issue #381)
 Issue: #374
-Identity schema: ISSUE_NUMBER_V1
+Identity schema: GITHUB_ISSUE_V1
 Risk: R3 coordination/continuity policy
 Topology: CONTROL_PLANE_ONLY
 
@@ -88,7 +88,7 @@ Canonical references after remediation:
   `WO-P1-374-A-FASTER-DURABLE-LANES-NNN`.
 - Future result destination: `runs/WO-P1-374/...`. Pre-remediation evidence
   under `runs/WO-P1-260/...` remains valid historical alias evidence.
-- Identity schema: ISSUE_NUMBER_V1 — filename numeric id 374 matches Issue #374.
+- Identity schema: GITHUB_ISSUE_V1 — filename numeric id 374 matches Issue #374.
 
 ## 2026-09-19 author checkpoint (attempt-0001) — READY_FOR_REVIEW
 (historical record; executed under the pre-remediation identity WO-P1-260 and

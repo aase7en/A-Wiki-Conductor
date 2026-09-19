@@ -2,7 +2,7 @@
 
 Status: READY_FOR_REVIEW (final checkpoint below)
 Issue: #381
-Identity schema: ISSUE_NUMBER_V1
+Identity schema: GITHUB_ISSUE_V1
 Risk: R3 coordination identity
 Topology: CONTROL_PLANE_ONLY
 
@@ -74,14 +74,16 @@ new execution, claim, or review authority.
   - scans tracked `docs/work-orders/WO-P1-*.md` filenames;
   - parses numeric N from WO-P1-N;
   - fails on more than one canonical file using the same N;
-  - for files declaring `Identity schema: ISSUE_NUMBER_V1`, requires an
-    `Issue: #N` line matching the filename N;
-  - for GitHub-backed WOs with N >= 381 that declare an Issue line,
-    requires issue number == N even when the marker is accidentally
-    omitted;
+  - for files declaring `Identity schema: GITHUB_ISSUE_V1` (the one
+    canonical marker, matching Issue #381 and accepted WO-P1-369),
+    requires exactly one `Issue: #N` line matching the filename N;
+  - for every plain numeric WO with N >= 381, requires exactly one
+    `Issue: #N` line matching N even when the marker is accidentally
+    omitted — missing and duplicate Issue lines are both violations
+    (closes the missing-Issue bypass found in repair-002 review);
   - includes the repo regression proving unique WO-P1 numeric ids plus
-    temp-directory unit fixtures for duplicate-number and issue-mismatch
-    detection. No GitHub API is used.
+    temp-directory unit fixtures for duplicate-number, issue-mismatch,
+    missing-issue and duplicate-issue detection. No GitHub API is used.
 - No new task DB, scheduler, claim, lease, or review authority is created;
   the guard only reads filenames and headers.
 
@@ -117,3 +119,63 @@ rewrite (reset/clean/stash/rebase/force).
   scan over added lines.
 - Next gates: independent exact-SHA read-only review + exact-head CI
   before merge; GPT accept/merge only. No push/merge/self-accept.
+
+## 2026-09-19 repair-002 checkpoint — READY_FOR_REVIEW
+
+Integrator review of candidate 50f02a found two authority defects: the
+marker text diverged from Issue #381 and accepted WO-P1-369 (canonical
+marker is exactly `Identity schema: GITHUB_ISSUE_V1`; 50f02a introduced
+a non-canonical variant), and the N>=381 backstop only rejected wrong
+Issue numbers when an Issue line was present, so a new numeric WO
+omitting both the marker and the Issue line could evade the atomic
+allocation rule.
+
+- RED (tests added first on dispatch head 50f02a2, clean tree):
+  `python -m pytest -q tests/test_work_order_identity.py` → 4 failed,
+  8 passed. Failing regressions:
+  `test_above_threshold_without_marker_or_issue_is_detected` (N>=381
+  with no marker and no Issue line passed the old guard),
+  `test_above_threshold_duplicate_issue_lines_is_detected` (two
+  identical Issue lines passed),
+  `test_canonical_marker_below_threshold_requires_issue` (canonical
+  marker without Issue line was not recognized),
+  `test_canonical_marker_issue_mismatch_is_detected` (canonical marker
+  with mismatching Issue below threshold was not recognized).
+  Evidence: runs/WO-P1-381/repair/attempt-0002/red-pytest.txt.
+- Implemented (repair-002, mutable scope only: the guard/tests, this
+  work order, WO-P1-374; the durable-lanes reference needed no change —
+  it carries no marker text):
+  - canonical marker constant/text unified to `Identity schema:
+    GITHUB_ISSUE_V1` in the guard, fixtures, WO-P1-374 and this work
+    order; zero occurrences of the non-canonical variant remain in the
+    candidate;
+  - every plain numeric `WO-P1-N-*.md` with N >= 381 now requires
+    exactly one `Issue: #N` line — zero Issue lines (the missing-Issue
+    bypass) and duplicate Issue lines (even identical) are violations;
+  - `GITHUB_ISSUE_V1` at any numeric N requires exactly one matching
+    Issue line; marker on a non-numeric token remains a violation;
+  - legacy/revision token files below the threshold remain untouched
+    unless they declare the marker. No GitHub API/network dependency.
+- GREEN: identity suite 12/12 (`green-identity.txt`); adjacent
+  continuity/authority suites 178/178 across
+  test_work_order_identity, test_continuity_guard,
+  test_continuity_projection, test_awiki_a_conductor_authority_contract,
+  test_project_identity (`green-adjacent.txt`).
+- Gates: full duplicate numeric sweep — 181 numeric ids, max 381, zero
+  duplicates, only N>=381 file is this work order with its matching
+  `Issue: #381` line (`duplicate-sweep.txt`); `git diff --check`
+  50f02a2..worktree clean; strict UTF-8 with zero U+FFFD on all four
+  scope files (`utf8-check.txt`); credential/secret pattern scan over
+  110 added lines — zero hits; DEX WO-P1-259/WO-P1-260 blob diffs empty;
+  `.agents/skills/a-fasttask/**` diff empty; historical WO-P1-260
+  evidence untouched — digest
+  `cca025dd01a90d0a86f6a86b16e2a4c42f04c618cfd1df62bec160be5fa14d3f`
+  and historical run/branch/claim strings
+  preserved verbatim; canonical WO374 worked-example digest
+  `e55d20348b88454ebeb8e655afc8c3ddc571e3428560e642d884841699d7db22`
+  recomputes exactly from the displayed canonical bytes
+  (`digest-recompute.txt`).
+- Commit subject: `fix(WO381): harden GitHub issue work-order identity
+  guard`.
+- Next gates: integrator push -> Draft PR -> exact-SHA independent R3
+  review + CI; GPT accept/merge only. No self-accept/merge.
