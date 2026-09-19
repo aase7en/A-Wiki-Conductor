@@ -6,7 +6,7 @@ Risk: R2 NORMAL — control-plane reconciliation/receipt behavior on existing au
 Owner/integrator: GPT-5.6 Sol
 Topology: CONTROL_PLANE_ONLY (label defined in `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`)
 Architecture: `docs/adr/ADR-0002-dex-execution-admission-receipt-boundary.md`
-Normative contract: `docs/contracts/execution-admission-receipt-v1.md` (sections 2, 5–6 are this WO's binding scope)
+Normative contract: `docs/contracts/execution-admission-receipt-v1.md` (sections 2, 5–6, plus admission-side canonical identity formation and digest stability from section 1, are this WO's binding scope)
 
 ## Goal
 
@@ -29,7 +29,8 @@ their stores.
 - Implement `TERMINAL_UNHARVESTED` harvest-before-conflict semantics per `EXECUTION_LIVENESS_PROTOCOL.md` and the admission/receipt contract.
 - Extend existing durable job store / execution records / recovery reconciliation / `operator.v1` surfaces; no second task DB, scheduler, claim store, review state machine, completion authority, or SSoT.
 - Retry authorization only through existing replay-safety classification (`NOT_STARTED`/`PARTIAL`/`COMPLETE_UNVERIFIED`/`COMPLETE_VERIFIED`/`UNKNOWN`) under the current claim generation; outcome-known never implies retry-authorized.
-- Deterministic receipt/reconciliation/fault tests: implement the control-plane halves of every DEX scenario in `docs/contracts/fault-injection.md`.
+- Canonical path identity ownership (admission side): implement canonical worktree/repo path identity canonicalization and binding-digest formation per contract section 1 — OS final physical path resolution of the existing root (Windows `GetFinalPathNameByHandleW`-equivalent following junctions/reparse points, deterministic drive/UNC/extended-prefix normalization, case-insensitive comparison; POSIX `realpath`-equivalent, case-sensitive; lexical normalization alone is insufficient), frozen into the immutable binding tuple/digest at admission. Canonicalization failure, non-existent required root, or unresolved alias identity fails closed before admission (`REJECTED: PROJECT_IDENTITY_FAILED`). Digest stability: once accepted, the canonical identity and binding digest are immutable for the attempt; later alias spelling changes never rewrite an accepted attempt, and later physical-identity drift fails new mutation closed while immutable terminal evidence stays collectable under the drift rules. SRM-side recomputation/verification belongs to WO-P1-259 only.
+- Deterministic receipt/reconciliation/fault tests: implement the control-plane halves of every v1-scope DEX scenario in `docs/contracts/fault-injection.md` — all scenarios except the future DEX-3a `NOTIFICATION_ACK_LOSS`, which v1 receipt gates MUST NOT require.
 
 ## Forbidden authority (fail-closed)
 
@@ -64,3 +65,4 @@ their stores.
 ## Checkpoint log (append-only)
 
 - [2026-09-19] DEX-ARCH-1 author: WO created as bounded future work; no runtime implementation started.
+- [2026-09-19] DEX-ARCH-1 repair-r1: added canonical path identity ownership (admission-side canonicalization/digest formation) scope and explicit v1-scope fault-gate wording per independent review (P1, P2-2); no runtime implementation started.

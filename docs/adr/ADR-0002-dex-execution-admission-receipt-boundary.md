@@ -66,6 +66,29 @@ The cross-repo authority boundary for delegated execution is:
     local executor/shim is trusted. Hardening against a hostile local executor
     is a future explicit threat-model decision; it must not be assumed as an
     implicit property of v1.
+11. **Canonical worktree/repo path identity is admission-owned.** A-Sunday
+    Conductor admission owns the canonical worktree/repo path identity used
+    in the binding tuple/digest — a control-plane admission decision, not
+    SRM authority. Canonicalization MUST use OS final physical path
+    resolution of the existing repo/worktree root, not lexical normalization
+    alone: Windows `GetFinalPathNameByHandleW`-equivalent final-path
+    resolution following junctions/reparse-point aliases, with deterministic
+    drive/UNC/extended-prefix normalization into one documented
+    comparison/digest representation and case-insensitive comparison per
+    Windows filesystem semantics; POSIX `realpath(3)`-equivalent with
+    case-sensitive semantics. Canonicalization failure, non-existent
+    required root, or unresolved alias identity fails closed before new
+    admission/mutation (typed with the existing `PROJECT_IDENTITY_FAILED`
+    vocabulary). SRM MUST independently recompute the same canonical
+    identity on the execution host and compare it with the
+    admission-supplied identity before spawn/collection binding: SRM
+    verifies, it never redefines or owns canonical task/worktree identity
+    (WO-P1-259 may REUSE/EXTEND its existing `fs.realpath`-based path
+    validation; lexical normalization alone is not sufficient for this
+    cross-repo seam). Once an admission is accepted, the canonical identity
+    and binding digest are immutable for that attempt; later physical
+    identity drift fails new mutation closed while immutable terminal
+    evidence remains collectable under the drift rules of rule 7.
 
 ## Rejected alternatives
 
@@ -93,3 +116,8 @@ The cross-repo authority boundary for delegated execution is:
   prerequisite gate for DEX-2a/2b rather than a late E2E step.
 - No new scheduler, task DB, claim store, receipt/completion authority beyond
   the Conductor seam, project SSoT, or secret store is created by this ADR.
+- Canonical path identity implementation ownership follows the same split:
+  WO-P1-260 (A-Sunday Conductor) implements admission-side canonicalization
+  and binding-digest formation; WO-P1-259 (SRM) implements execution-host
+  recomputation/verification at the physical execution seam. The
+  authority-repo-first fan-in order is preserved.

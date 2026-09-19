@@ -44,12 +44,38 @@ New terms owned by this contract:
   `TOOL_AND_FAST_PATH_ROUTING.md`), and the current claim generation of the
   owning claim. Admission against a superseded claim generation MUST be
   rejected (`STALE_GENERATION`).
+- **canonical worktree/repo path identity** — the single physical identity of
+  each repo/worktree root bound by the attempt (authority and execution
+  side). It is owned by A-Conductor admission (section 2): this is a
+  control-plane admission decision, not SRM authority. It MUST be computed by
+  OS final physical path resolution of the existing root, never by lexical
+  normalization (`path.resolve`/`abspath`-style) alone:
+  - Windows: `GetFinalPathNameByHandleW`-equivalent (realpath-equivalent)
+    final-path resolution that follows junctions/reparse-point aliases; the
+    returned final path is normalized deterministically into one documented
+    comparison/digest representation, handling drive-letter/UNC/extended-path
+    prefix aliases; comparison follows Windows case-insensitive filesystem
+    semantics.
+  - POSIX: `realpath(3)`-equivalent final-path resolution; case-sensitive
+    path semantics are preserved.
+  Canonicalization failure, a non-existent required root, or an unresolved
+  alias identity MUST fail closed before new admission/mutation
+  (`REJECTED: PROJECT_IDENTITY_FAILED`, reusing the existing
+  `PROJECT_IDENTITY_FAILED` operational failure vocabulary; evidence-level
+  mismatch quarantines per section 4).
 - **binding digest** — an immutable digest computed at admission over the
   binding tuple: `execution_id`, `attempt_id`, task/WO/lane refs, claim
-  generation, authority/execution repo SHA set, host+boot identity, and
+  generation, canonical worktree/repo path identity (this section),
+  authority/execution repo SHA set, host+boot identity, and
   executable/attempt identity. Every later supervision, collection, and
   receipt record for the attempt MUST reference the same binding digest;
   mismatch is fatal evidence rejection.
+- **digest stability.** Once an admission is accepted, the canonical
+  worktree/repo path identity and the binding digest are immutable for that
+  attempt; later alias spelling changes do not change the attempt identity.
+  If the physical identity later resolves differently, new mutation fails
+  closed; already-produced immutable terminal evidence remains collectable
+  under the drift rules (section 4), marked/quarantined as applicable.
 - **exact authority/execution repo SHA set** — the WO-P1-251 compatibility set
   `{AUTHORITY_REPO@SHA_AUTH, EXECUTION_REPO@SHA_EXEC}` pinned at admission.
   Collection receipts are only valid against this pinned set.
@@ -71,15 +97,21 @@ New terms owned by this contract:
 - **Duplicate request behavior.** A request whose idempotency key matches an
   existing admission MUST return the original admission decision (or its
   current state projection) and MUST NOT spawn a second process.
-- **Admission states.** An attempt is exactly one of `ACCEPTED`, `REJECTED`
-  (with typed reason, at minimum `STALE_GENERATION`, `DUPLICATE_LIVE_ATTEMPT`,
-  `SHA_SET_MISMATCH`, `QUOTA/PROVIDER`, `SCOPE`), or `AMBIGUOUS`.
-- **LAUNCH_AMBIGUOUS.** If the admission response path can fail after the spawn
-  decision point (shim crash, response loss), the attempt state MUST be
-  representable as `LAUNCH_AMBIGUOUS`: admission accepted, spawn outcome
-  unconfirmed. `LAUNCH_AMBIGUOUS` MUST be resolved only by physical
-  reconciliation (process creation identity lookup + immutable evidence),
-  never by assumption or timeout expiry.
+- **Admission-decision states.** `ACCEPTED`, `REJECTED` (with typed reason,
+  at minimum `STALE_GENERATION`, `DUPLICATE_LIVE_ATTEMPT`,
+  `SHA_SET_MISMATCH`, `PROJECT_IDENTITY_FAILED`, `QUOTA/PROVIDER`, `SCOPE`),
+  and `AMBIGUOUS` are admission-decision states: they classify the admission
+  decision point only. `AMBIGUOUS` is reserved for decision-point ambiguity —
+  before a durable accepted/rejected decision can be proven.
+- **LAUNCH_AMBIGUOUS (post-decision refinement).** `LAUNCH_AMBIGUOUS` is not
+  an admission-decision state. It is a post-decision execution/spawn
+  refinement of an `ACCEPTED` attempt: the admission decision is known
+  (accepted) but the spawn outcome is not (admission response path can fail
+  after the spawn decision point — shim crash, response loss). The attempt
+  state MUST be representable as `LAUNCH_AMBIGUOUS` in that window.
+  `LAUNCH_AMBIGUOUS` MUST be resolved only by physical reconciliation
+  (process creation identity lookup + immutable evidence), never by
+  assumption or timeout expiry.
 - **Lost admission response.** A client that loses the admission response MUST
   re-query by idempotency key. It MUST NOT re-dispatch a new attempt.
 - **Simultaneous dispatch fencing.** If two dispatches arrive for the same
@@ -108,6 +140,17 @@ New terms owned by this contract:
   name/pattern heuristics. PID reuse MUST be detectable: a PID re-observed
   with a different creation identity or boot epoch is a different process and
   MUST NOT be treated as the live child.
+- **Canonical path identity verification (not ownership).** Before spawn and
+  again before collection binding, SRM MUST independently recompute the
+  canonical worktree/repo path identity on the execution host using the same
+  OS final-path-resolution algorithm (section 1) and compare it with the
+  admission-supplied identity. SRM verifies; it never redefines or owns
+  canonical task/worktree identity. Recomputation mismatch or
+  canonicalization failure MUST fail closed: no spawn, no collection binding,
+  typed `PROJECT_IDENTITY_FAILED`, quarantine marker on any affected
+  evidence. WO-P1-259 MAY REUSE/EXTEND SRM's existing `fs.realpath`-based
+  security/path validation for this; lexical sunday/path-lock normalization
+  alone is not sufficient evidence for this cross-repo seam.
 - **No broad kill.** Cancellation targets the exact supervised process tree by
   verified identity only. Broad process kill by name/pattern remains forbidden
   (repository-wide rule; see AGENTS.md).
@@ -179,6 +222,16 @@ New terms owned by this contract:
   epoch change, prior live-process observations are void and the attempt MUST
   be reclassified from durable evidence (typically `UNKNOWN` or terminal per
   evidence) before any action.
+- **Binding digest across reboot.** Binding digest verification is
+  attempt-scoped record-to-record equality: a supervision/collection/receipt
+  record for an attempt MUST equal that attempt's admission-recorded binding
+  digest; it is never recomputed against the current boot epoch. A boot
+  epoch change voids current live-process identity and attach assumptions;
+  it does NOT invalidate immutable pre-reboot evidence or the original
+  accepted binding digest for that attempt. Post-reboot collection/receipt of
+  pre-reboot terminal evidence is legal when the immutable evidence and
+  digest chain verifies record-to-record; it remains subject to the
+  reconciliation and acceptance rules of sections 5–6.
 - **No blind replay.** No response loss, timeout, session loss, or
   transport failure is replay authority. `UNKNOWN` fails closed.
 
@@ -200,7 +253,8 @@ New terms owned by this contract:
 ## 8. Conformance and fault gates
 
 Deterministic expected invariants for this seam are catalogued in
-`docs/contracts/fault-injection.md` (DEX boundary scenarios). WO-P1-259 and
-WO-P1-260 are not acceptable until their fake/fault suites cover those
-scenarios deterministically. A future notification-ack boundary (DEX-3a) is
-explicitly out of scope for v1 receipts.
+`docs/contracts/fault-injection.md` (DEX boundary scenarios). Acceptance of
+WO-P1-259 and WO-P1-260 explicitly requires their fake/fault suites to cover
+every v1-scope DEX scenario deterministically. `NOTIFICATION_ACK_LOSS` is the
+DEX-3a/future notification boundary: it is out of scope for v1 and MUST NOT
+be required by WO-P1-259/WO-P1-260 v1 receipt/supervision gates.
