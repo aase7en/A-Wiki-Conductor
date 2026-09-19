@@ -783,15 +783,19 @@ WO-P1-250 extends this existing supervisor/recovery authority for a defect repro
 
 DEX reuses existing job/events/checkpoints, claims, execution identity, recovery reconciliation, liveness projection, and operator surfaces. It must not introduce another scheduler, task DB, claim/lease store, retry engine, review state machine, completion authority, or SSoT.
 
-- `DEX-0` — durable dispatch pointer bound to existing execution/job authority, including task/lane/executor/repo/worktree/claim/evidence destinations/replay-safety without secrets.
-- `DEX-1` — A-FastTask entry recovery reconciles outstanding delegated executions and harvests `TERMINAL_UNHARVESTED` results before new conflicting work.
-- `DEX-2` — supervisor/reconciler continues independently of ChatGPT turn/session lifetime and derives execution truth from runtime + durable evidence.
-- `DEX-3` — completion event/notification through supported operator surfaces; never claim that plain chat self-wakes after a local process completes.
-- `DEX-4` — SunDay Runtime / SunDayRemoteMCP batch `dispatch/status/harvest/recover` adapter as execution substrate only; A-Sunday Conductor remains the sole control plane.
-- `DEX-5` — reboot/process-loss recovery classifies `NOT_STARTED/PARTIAL/COMPLETE_UNVERIFIED/COMPLETE_VERIFIED/UNKNOWN`; ambiguous state blocks blind replay.
-- `DEX-6` — deterministic E2E faults cover chat timeout, context rollover, transport loss, worker exit, machine restart, and terminal result awaiting harvest.
+The cross-repo authority boundary for delegated execution is frozen by `docs/adr/ADR-0002-dex-execution-admission-receipt-boundary.md` and its normative contract `docs/contracts/execution-admission-receipt-v1.md`: A-Sunday Conductor owns admission/reconciliation/receipt/retry-authorization/review/acceptance; SunDayRemoteMCP owns physical supervision + immutable collection evidence only; A-FastTask routes/binds only; substrate markers are advisory, never acceptance; `OUTCOME-KNOWN != RETRY-AUTHORIZED`; old terminal evidence may be collected under repo drift while new mutation stays fail-closed.
 
-Dependency rule: DEX policy/recovery entry may be folded independently where scope does not overlap another claim; runtime implementation follows the accepted resilient-supervisor / Zero-Relay / SunDay Runtime dependency chain. The user-facing target is that an instruction equivalent to “use A-FastTask and continue” performs `RECOVER -> RECONCILE OUTSTANDING EXECUTIONS -> HARVEST TERMINAL RESULTS -> CONTINUE NEXT READY` without asking the human to reconstruct a prior chat.
+- `DEX-0` (MODIFY) — durable dispatch pointer bound to existing execution/job authority, including task/lane/executor/repo/worktree/claim/evidence destinations/replay-safety without secrets. Policy accepted via WO-P1-250 / PR #345.
+- `DEX-1` (MODIFY) — A-FastTask entry recovery reconciles outstanding delegated executions and harvests `TERMINAL_UNHARVESTED` results before new conflicting work. Router/binder only; accepted via PR #345.
+- `DEX-2a` — SunDayRemoteMCP physical supervision (per-execution shim boundary, exact process identity + PID-reuse defense, descendant quiescence, immutable collect) as execution substrate only; `WO-P1-259`, `EXECUTION_SUBSTRATE_ONLY`.
+- `DEX-2b` — A-Sunday Conductor reconciliation + idempotent receipt of immutable substrate evidence, extending existing job/execution authorities; `TERMINAL_UNHARVESTED` harvest-before-conflict semantics; `WO-P1-260`, `CONTROL_PLANE_ONLY`.
+- `DEX-3a` — completion event/notification through supported operator surfaces; never claim that plain chat self-wakes after a local process completes.
+- `DEX-3b` — supported resume adapter; wake/resume only via a supported capability-proven surface.
+- `DEX-4` — hardened SunDayRemoteMCP backend/adapter only (substrate hardening under ADR-0002 threat-model decisions; no control-plane authority growth).
+- `DEX-5` — ambiguity/quarantine handling precedes any later authorized replay/resume; ambiguous state blocks blind replay.
+- `DEX-6` — deterministic E2E fault gate (chat timeout, context rollover, transport loss, worker exit, machine restart, terminal result awaiting harvest, and the DEX boundary scenarios in `docs/contracts/fault-injection.md`), moved earlier as a prerequisite and continuous gate for `DEX-2a`/`DEX-2b` rather than a late step.
+
+Dependency rule: DEX policy/recovery entry may be folded independently where scope does not overlap another claim; DEX-2a/DEX-2b runtime implementation follows the accepted ADR-0002 boundary, the resilient-supervisor / Zero-Relay / SunDay Runtime dependency chain, and exact-SHA compatibility sets (WO-P1-251). The user-facing target is that an instruction equivalent to “use A-FastTask and continue” performs `RECOVER -> RECONCILE OUTSTANDING EXECUTIONS -> HARVEST TERMINAL RESULTS -> CONTINUE NEXT READY` without asking the human to reconstruct a prior chat.
 
 ## 20. Responsive Global UI + Multilingual Guidance (2026-08-24)
 
