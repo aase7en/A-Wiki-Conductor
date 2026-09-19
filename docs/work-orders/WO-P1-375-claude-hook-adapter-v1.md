@@ -140,3 +140,45 @@ blobs (see the rebind/re-pin checkpoint below).
 - Stop state: READY_FOR_REREVIEW at this commit (head recorded in
   runs/WO-P1-375/repair/attempt-0001/result.md). No merge, no self-accept;
   independent exact-SHA review + CI remain open per acceptance gates.
+
+## Repair-002 checkpoint (2026-09-19, WO-P1-375 repair-002 lane)
+
+- Independent exact-SHA review of candidate ea79b4ff02d2b4b65737d6b32878d2df4b244bd6
+  (base for this repair) returned P0=0, P1=0, P2=1: the negative test
+  `test_adapter_payload_schema_invalid_outside_capability_event` tainted a
+  lifecycle envelope with an adapter_id-only `adapter` stub, which violates
+  the accepted schema's own adapter-required-fields rule — so the test
+  passed even with the capability-event-only allOf location rule removed
+  and did not prove the WO375 adapter-payload location constraint.
+- Repair: that single negative test now reuses the complete, internally
+  schema-valid `adapter` payload from the accepted
+  `expected/capability_fixture.json` fixture (adapter_id claude-hook-adapter)
+  and proves both directions against the accepted 602f6db schema:
+  - RED — a local schema variant with ONLY the capability-event-only allOf
+    location rule deleted (rule asserted to be exactly the one allOf entry
+    `if required [adapter] -> then event_type/domain/action const
+    transport.adapter_capabilities/transport/adapter_capabilities`) makes
+    the tainted `execution.session_started` envelope VALID (0 errors),
+    proving every other adapter field satisfies the schema.
+  - GREEN — under the accepted schema the same tainted envelope fails with
+    exactly 3 const errors (paths event_type/domain/action expecting
+    transport.adapter_capabilities / transport / adapter_capabilities),
+    i.e. solely because event_type is not `transport.adapter_capabilities`.
+- Evidence: runs/WO-P1-375/repair/attempt-0002/evidence-red-green.txt also
+  shows the old adapter_id-only stub staying invalid (5 adapter `required`
+  errors) under the loosened schema — the defect mechanism itself.
+- Verification: adapter suite 77 passed; Hook Contract suite 97 passed
+  (174 total, deterministic offline); `git diff --check` clean; strict
+  UTF-8 with no U+FFFD and zero secret-marker hits on the 61 added lines;
+  scope diff vs ea79b4ff is exactly
+  tests/test_claude_hook_adapter_contract.py and this Work Order file;
+  the Claude adapter contract doc, Hook Contract md/schema, all
+  tests/fixtures/hook_adapters/**, tests/test_hook_contract_schema.py,
+  tests/test_kilo_*.py, and src/** are byte-identical to dispatch HEAD.
+- P3 reviewer note disposition: the optional file-count arithmetic
+  correction was not applied — the rebind checkpoint contains no
+  file-count arithmetic; the counts in the historical author checkpoint
+  are historical evidence and were not rewritten.
+- Stop state: READY_FOR_REREVIEW at this commit (head recorded in
+  runs/WO-P1-375/repair/attempt-0002/result.md). No merge, no self-accept;
+  focused exact-SHA rereview + fresh exact-head CI remain open.

@@ -619,15 +619,72 @@ def test_capability_event_for_fixture_version_lists_bound_mappings(
     )
 
 
+def _capability_only_location_rule_index(schema: dict) -> int:
+    """Index of the allOf entry that confines the `adapter` payload to the
+    capability event: if `adapter` is present, event_type/domain/action are
+    const-pinned to transport.adapter_capabilities. Exactly one such rule
+    must exist, so the loosened RED variant below removes that rule and
+    nothing else."""
+    matches = [
+        i
+        for i, entry in enumerate(schema["allOf"])
+        if entry.get("if", {}).get("required") == ["adapter"]
+    ]
+    assert len(matches) == 1, matches
+    rule = schema["allOf"][matches[0]]
+    assert rule["then"]["properties"]["event_type"] == {
+        "const": "transport.adapter_capabilities"
+    }
+    return matches[0]
+
+
 def test_adapter_payload_schema_invalid_outside_capability_event(
-    validator,
+    schema, validator
 ) -> None:
     """Accepted 1.0.0 schema (602f6db): the `adapter` payload is legal only
     on `transport.adapter_capabilities`; lifecycle envelopes carrying it
-    are schema-invalid."""
+    are schema-invalid solely because of that location rule.
+
+    repair-002: the tainted envelope reuses the complete, internally
+    schema-valid adapter payload from the accepted capability_fixture.json
+    expected fixture. The prior adapter_id-only stub violated the adapter's
+    own required-fields rule, so it stayed invalid even with the location
+    rule removed and proved nothing. RED: with only the capability-event-
+    only allOf rule deleted, the tainted envelope is VALID. GREEN: under
+    the accepted schema its only errors are that rule's capability const
+    pins, i.e. it fails solely because event_type is not
+    transport.adapter_capabilities."""
     expected = load_json(EXPECTED_DIR / "fx_session_start.json")
-    tainted = dict(expected, adapter={"adapter_id": ADAPTER_ID})
-    assert not validator.is_valid(tainted)
+    adapter = load_json(EXPECTED_DIR / "capability_fixture.json")["adapter"]
+    assert adapter["adapter_id"] == ADAPTER_ID
+    tainted = dict(expected, adapter=adapter)
+    assert tainted["event_type"] == "execution.session_started"
+
+    rule_index = _capability_only_location_rule_index(schema)
+    loosened = json.loads(json.dumps(schema))
+    del loosened["allOf"][rule_index]
+    loosened_validator = Draft202012Validator(loosened)
+    assert loosened_validator.is_valid(tainted), sorted(
+        e.message for e in loosened_validator.iter_errors(tainted)
+    )
+
+    capability_consts = {
+        "event_type": "transport.adapter_capabilities",
+        "domain": "transport",
+        "action": "adapter_capabilities",
+    }
+    errors = sorted(validator.iter_errors(tainted), key=lambda e: str(e.path))
+    assert errors
+    seen = set()
+    for error in errors:
+        assert error.validator == "const", error.message
+        assert len(error.path) == 1, list(error.path)
+        field = error.path[0]
+        assert field in capability_consts, error.message
+        assert error.validator_value == capability_consts[field], error.message
+        assert tainted[field] != capability_consts[field], error.message
+        seen.add(field)
+    assert seen == set(capability_consts)
 
 
 # ---------------------------------------------------------------------------
