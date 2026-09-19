@@ -264,22 +264,23 @@ in the successful path.
 
 ### P1-A — UI-1 Extension cockpit integration
 
-Reuse WO257 P6/P7 Monitor projection/API for:
+Reuse WO257 P6/P7 Monitor projection/API for a **read-only first milestone**:
 
 - goal/task progress display;
 - current/next step;
 - provider/harness health;
-- evidence pointers;
-- Play/Pause/Resume/Stop controls as requests only.
+- evidence pointers.
 
-The Extension keeps no authoritative task or schedule state.
+UI-1 exposes no consequential control channel. The Extension keeps no
+authoritative task or schedule state.
 
 ### P1-B — ACT-1 Command Gateway controls
 
-Pause/cancel/retry/recover/reassign and later Play/Resume requests go through the
-A-Conductor Command Gateway with task/claim/replay/ownership/authorization
-checks. No content script or popup directly mutates a process, Git state, claim
-or durable task state.
+Only after the WO257 Command Gateway is accepted, expose
+Play/Pause/Resume/Stop plus pause/cancel/retry/recover/reassign as typed command
+requests. Every request goes through A-Conductor
+task/claim/replay/ownership/authorization checks. No content script or popup
+directly mutates a process, Git state, claim or durable task state.
 
 ### P1-C — SCH-1 scheduled Goal Trigger
 
