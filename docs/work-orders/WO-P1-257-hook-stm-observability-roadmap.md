@@ -1,6 +1,6 @@
 # WO-P1-257 — Hook, STM, and Observability architecture roadmap
 
-Status: IN_PROGRESS
+Status: COMPLETE
 Issue: #365
 Risk: R3 — cross-repo architecture/protocol roadmap
 Task topology: CROSS_REPO
@@ -17,7 +17,7 @@ Branch:
 `docs/wo-p1-257-hook-stm-roadmap`
 
 Base:
-`A-Wiki origin/main@4f93005d20feb5781b5febb8f963ccd224d29e25`
+`A-Wiki-Conductor origin/main@4f93005d20feb5781b5febb8f963ccd224d29e25`
 
 Read-only execution-substrate baseline:
 `SunDayRemoteMCP main@70046f0a46f74c1655020ef272cd9c00e41737cd`
@@ -110,8 +110,53 @@ Parallel roadmaps:
 11. YAML/UTF-8/diff/reference/secret/scope checks pass.
 12. Frozen exact SHA receives independent R3 review + CI before merge.
 
+## Closeout evidence
+
+Accepted candidate:
+`bff33f041405b427e8be308f759032eae06cae0e`
+
+Independent exact-SHA R3 rereview:
+`PASS; P0=0; P1=0; P2=6`
+
+Hosted CI on the accepted candidate:
+
+- main test: SUCCESS;
+- Ubuntu cross-platform smoke: SUCCESS;
+- macOS cross-platform smoke: SUCCESS;
+- PR #366: CLEAN / MERGEABLE before merge.
+
+Accepted merge:
+
+`fe1edad5dcce8b399fac1923a2c49e4f75c1b646`
+
+Post-main proof:
+
+- accepted candidate is an ancestor of `origin/main`;
+- all five WO257 tracked paths are byte-identical between the reviewed candidate
+  and merged main;
+- Issue #365 is CLOSED.
+
+GPT-6 Astra was attempted only as optional advisory architecture analysis.
+No Astra architecture text was produced: direct OpenAI OAuth stalled before
+inference with observed usage remaining zero, while Kilo Gateway/OpenRouter
+routes were provider-credit constrained before inference. Astra is not an
+acceptance authority, so route unavailability did not block deterministic R3
+acceptance.
+
+Carry these nonblocking review findings into HOOK-0 / implementation WOs:
+
+1. align PROJECT-PLAN summary wording with deferred advisory-skill monitor
+   integration;
+2. phrase Astra as optional independent review rather than a required route;
+3. define positive cross-source ordering semantics in Hook Contract v1;
+4. move clock/schema-version skew checks into the multi-device exit gate as
+   appropriate;
+5. ambiguous GUARD classification defaults fail closed;
+6. split Hook Contract v1 into a small required core plus optional fields for
+   lightweight emitters.
+
 ## Next safe action
 
-Author the bounded roadmap/docs delta, run deterministic checks, freeze exact
-SHA, dispatch one independent read-only review lane, run hosted CI in parallel,
-then reconcile/repair/merge only the reviewed exact candidate.
+WO-P1-257 is complete. Start the first implementation milestone only through a
+new bounded Work Order, beginning with HOOK-0 Contract + threat/failure model
+unless current authority/dependency state selects a higher-priority blocker.
