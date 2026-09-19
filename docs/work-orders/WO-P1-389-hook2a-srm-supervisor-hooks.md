@@ -208,3 +208,25 @@ SRM has no configured remote at claim time. Candidate durability is therefore:
 local Git commit + isolated worktree/branch + durable run evidence. Do not invent,
 initialize or publish a remote. A later explicit repository/publication decision
 may add remote-backed CI; this Work Order does not.
+
+## Semantic-idempotence caveat before implementation
+
+The native supervisor may observe the same durable terminal evidence more than once.
+Therefore `terminal-evidence-seen -> process.terminal` is allowed only if the
+execution implementation proves one of these bounded conditions:
+
+1. the native `terminal-evidence-seen` record is persisted exactly once per
+   semantic process terminal; or
+2. repeated observations of that same terminal reuse one already-persisted Hook
+   event identity.
+
+Generating a fresh `process.terminal` event_id for every repeated observation of
+the same terminal outcome is non-conforming.
+
+If neither condition can be implemented/proven without widening this Work Order
+into a new identity/store authority, the author MUST return
+`BLOCKED_TERMINAL_IDEMPOTENCE` and defer `process.terminal` from this micro-step.
+The safe subset may still implement persisted native identities plus
+`process.spawned` and `execution.recovery` if their semantics are proven
+non-duplicative. Do not hide the blocker by deriving identity from
+`source+sequence`, wall-clock time, PID, or execution id.
