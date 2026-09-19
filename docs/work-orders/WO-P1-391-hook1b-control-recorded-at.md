@@ -122,3 +122,24 @@ failure cannot block otherwise-safe lifecycle execution.
 Recover pointer/process/result/Git before redispatch.
 RUNNING never redispatches.
 TERMINAL_UNHARVESTED is harvested first.
+
+## Checkpoint — author attempt-0001 (2026-09-20)
+
+- Implementer: GLM-5.3 MAX (Kilo), claim WO-P1-391-HOOK1B-CONTROL-RECORDED-AT-001.
+- Base: dispatch HEAD 4ce9a48e3e5c4e267f2df7c7c1f0454f57325e93 (clean worktree,
+  branch feat/wo-p1-391-control-recorded-at).
+- RED first: 3 new failing tests (append exposes persisted recorded_at;
+  get/list preserve it; 4-positional construction stays recorded_at None) —
+  3 failed / 4 passed, evidence runs/WO-P1-391/author/attempt-0001/red.md.
+- Implementation: final optional dataclass field `recorded_at: str | None = None`;
+  append returns the inserted timestamp; _from_row + get/list SELECT include
+  recorded_at. No schema change, no clock injection, no migration.
+- GREEN: tests/test_control_events.py 7 passed;
+  test_control_hook_adapter.py + test_lifecycle_assembly.py 156 passed;
+  py_compile OK; git diff --check clean.
+- Proofs (runs/WO-P1-391/author/attempt-0001/): schema DDL + PRAGMA columns
+  identical to dispatch HEAD; forbidden files diff empty; strict UTF-8 / zero
+  U+FFFD; added-line secret scan clean; exact scope = this WO's three files.
+- Status: READY_FOR_REVIEW at the candidate commit on
+  feat/wo-p1-391-control-recorded-at; no self-accept/merge. Next: independent
+  exact-SHA R3 review + exact-head CI.
