@@ -17,6 +17,14 @@ Conductor-specific authority paths, routing references, and constraints. Do not
 fork the generic policy into another global skill or hand-copy divergent full
 instructions into every repository.
 
+## Accelerated profile
+
+When the user explicitly asks for **A-Faster**, coordinated multi-device work,
+or parallel Kilo + Claude Code GLM lanes, keep this A-FastTask file as the
+canonical routing base and then read `../a-faster/SKILL.md`. A-Faster may add
+device/harness/WIP/cleanup routing constraints only; it must not redefine task,
+claim, provider, review, merge, completion, or memory authority.
+
 ## Trigger (use this skill)
 
 - Substantial repo/session routing: a multi-step task that needs entry

@@ -24,6 +24,12 @@ workflow_nodes:
       - docs/agent-collab/CAPABILITY_MATRIX.md
       - docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md
       - .agents/skills/a-fasttask/SKILL.md
+  accelerated_multidevice_routing:
+    when: explicit A-Faster use, coordinated Windows/macOS work, parallel Kilo + Claude Code GLM harnesses, multi-device lane recycle, or accelerated merged-worktree cleanup
+    read:
+      - .agents/skills/a-fasttask/SKILL.md
+      - .agents/skills/a-faster/SKILL.md
+      - .agents/skills/a-faster/references/multidevice.md
   cross_repo_binding:
     when: repo-role topology, CROSS_REPO or EXECUTION_SUBSTRATE_ONLY work, per-lane repo binding, exact-SHA compatibility sets, or set-level completion
     read:
