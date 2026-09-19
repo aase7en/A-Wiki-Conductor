@@ -1,0 +1,11 @@
+{
+  "native_version": "0.0.0-fixture-a",
+  "expect_outcome": "reject",
+  "expect_code": "HOOK_ADAPTER_UNAVAILABLE",
+  "contains_redaction_bait": false,
+  "frame": {
+    "fixture_event": "FxMystery",
+    "session_ref": "fx-session-0001",
+    "occurred_at": "2026-09-19T08:46:00Z"
+  }
+}
