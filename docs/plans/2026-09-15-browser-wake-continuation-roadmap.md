@@ -8,11 +8,12 @@ Classification: `REUSE + WRAP + EXTEND`; `NEW` only for a proven browser-transpo
 ## 0. 2026-09-19 reconciliation against current authority
 
 This roadmap was originally frozen on 2026-09-15. It is now reconciled against
-`origin/main@95c4b9e78003c4b61083650d1698c6661f9bb545` and the newer accepted/open authorities:
+`origin/main@cbd47608346e7510dcf5946cc8b1974b8564f31b` and the newer accepted/open authorities:
 
 - WO-P1-257 / Issue #365 is merged and owns the Hook/STM/Monitor/Web+Extension/Command-Gateway architecture. Browser Wake consumes that architecture; it does not create a second extension state model or command channel.
 - WO-P1-258 / Issue #368 / PR #371 is the open HOOK-0 Hook Contract v1 lane. Browser Wake must re-pin the final accepted contract before implementation and extend it only through a bounded follow-up if browser adapters need additional source/capability vocabulary.
 - WO-P1-259 / Issue #369 / PR #373 is the open context-rollover guard lane. New-chat/session resume belongs to that continuity contract; browser code must consume its verdict/pointers rather than invent another resume state machine.
+- WO-P1-260 / Issue #374 / PR #377 is merged and adds the A-Faster durable delegated-lane identity/recovery overlay (LANE_REF, DELEGATED_RUN_ID, ATTEMPT, BINDING_DIGEST). Browser Wake may carry or reference these evidence pointers when delegated work is involved, but they never become browser task/retry authority.
 - WO223 / PR #319 is merged. ZRA-3 remains the continuation-semantics dependency and is not accepted merely because browser wake transport exists.
 - Ordinary ChatGPT/Gemini web chat does not need or provide a native `/goal`. The durable goal/task graph remains A-Sunday Conductor/A-Wiki authority; the browser adapter receives only bounded task/continuation turns and returns untrusted proposals/results.
 - Scheduled goals are a control-plane feature, not Chrome-alarm authority. An Extension UI may request/show schedules only after a canonical scheduler contract exists; a browser alarm may at most provide a non-authoritative wake hint.
@@ -207,6 +208,7 @@ Define only the missing browser execution/harness semantics:
 - DOM/selector/session/version drift classification;
 - event/dedupe mapping to Hook Contract;
 - context-rollover handoff mapping;
+- delegated-lane evidence mapping to accepted WO260 LANE_REF / DELEGATED_RUN_ID pointers when applicable;
 - no goal store, scheduler, claim store, retry engine or completion authority.
 
 If HOOK-0 source/capability enums cannot represent browser adapters, extend that
@@ -259,8 +261,9 @@ one initial user goal
 ```
 
 Acceptance includes browser/extension restart and one context/session rotation
-using the accepted rollover contract. No human `continue` message is allowed
-in the successful path.
+using the accepted rollover contract. When a wake follows delegated lane work,
+recover the accepted WO260 pointer/process/result/Git evidence before any redispatch.
+No human `continue` message is allowed in the successful path.
 
 ### P1-A — UI-1 Extension cockpit integration
 
@@ -378,7 +381,7 @@ All copied source, if any is later selected, requires a fresh license/security/v
 
 Browser Wake source mutation is not authorized by this roadmap alone. Before each implementation node:
 1. re-pin current `origin/main`, active Issue/WO/claims and provider terms;
-2. re-pin final accepted WO257/HOOK-0/context-rollover contracts and the relevant ZRA continuation predecessor;
+2. re-pin final accepted WO257/HOOK-0/context-rollover contracts, the accepted WO260 durable-lane overlay, and the relevant ZRA continuation predecessor;
 3. run A-Wiki reuse/owner-map gate;
 4. create a bounded work order and isolated worktree;
 5. define provider-specific permission/DOM failure model;
@@ -391,13 +394,13 @@ Browser Wake source mutation is not authorized by this roadmap alone. Before eac
 
 1. Keep WO240 docs-only. Do not implement browser/extension source under this claim.
 2. Freeze this reconciled two-file candidate on top of
-   `origin/main@95c4b9e78003c4b61083650d1698c6661f9bb545`; verify exact scope,
+   `origin/main@cbd47608346e7510dcf5946cc8b1974b8564f31b`; verify exact scope,
    UTF-8, references and `git diff --check`.
 3. Obtain independent exact-SHA architecture/security/reuse review and hosted CI
    appropriate to this docs-only R2 candidate.
 4. After acceptance, fold only the minimal Browser Chat Harness dependency into
    global roadmap authority; do not duplicate WO257.
-5. When ZRA-3, HOOK-0 and context-rollover contracts are accepted, open **BWA-0**
+5. When ZRA-3, HOOK-0 and context-rollover contracts are accepted and the current WO260 overlay is re-pinned, open **BWA-0**
    as the next bounded implementation contract. It owns browser-harness semantics
    only, not Goal/Task/Scheduler/Monitor/Command authority.
 6. Follow with BWA-1 fake-provider Native Messaging transport, then BWA-2

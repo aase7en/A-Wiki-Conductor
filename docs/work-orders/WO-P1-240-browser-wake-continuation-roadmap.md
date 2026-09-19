@@ -12,8 +12,9 @@ Repo: `aase7en/A-Wiki-Conductor`
 Docs worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo240-browser-wake-roadmap`
 Branch: `docs/wo-p1-240-browser-wake-continuation-roadmap`
 Original base: `origin/main@67744e98e538b000579bff4a45616d3a178a824b`
-Reconciled main baseline: `origin/main@95c4b9e78003c4b61083650d1698c6661f9bb545`
+Reconciled main baseline: `origin/main@cbd47608346e7510dcf5946cc8b1974b8564f31b`
 Pre-edit reconciliation merge: `c4d24ff2ad6e8a6df96d61ff7db81423dbed5957`
+Current-main re-pin merge: `264dbab26cf88fd5115f91c3c3187e710995b25d`
 
 Actual runtime/Git/GitHub/durable Issue state overrides this WO. Chat is not project authority.
 
@@ -34,6 +35,9 @@ Current GitHub truth materially advanced after the original freeze:
 - WO223/PR #319 merged; the old "finish WO223" dependency is historical.
 - WO257 is merged and now owns Hook Contract -> Hook Bus/STM -> Monitor API ->
   Web/Extension UI -> Command Gateway architecture.
+- WO260/PR #377 is merged and supplies durable delegated-lane identity/recovery
+  pointers (LANE_REF / DELEGATED_RUN_ID / BINDING_DIGEST) as a non-authoritative
+  routing/evidence overlay. Browser Wake consumes those pointers when relevant.
 - WO258/PR #371 is the open HOOK-0 contract lane; WO240 must consume its final
   accepted form rather than introduce a Sunday-Family protocol.
 - WO259/PR #373 is the open context/session rollover lane; browser new-chat
@@ -47,7 +51,8 @@ Current GitHub truth materially advanced after the original freeze:
 
 Result: WO240 is narrowed to the missing **Browser Chat Harness Adapter** and
 its Native Messaging/provider transport. Extension monitor/control UI is reused
-from WO257; continuity is reused from WO259; NEXT_READY is reused from ZRA-3.
+from WO257; session rollover is reused from WO259; delegated-lane recovery pointers
+are reused from WO260; NEXT_READY is reused from ZRA-3.
 
 ## Reuse-before-build conclusions
 
