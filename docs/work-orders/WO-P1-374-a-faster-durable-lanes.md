@@ -1,12 +1,20 @@
-# WO-P1-260 — A-Faster Durable Lane Identity / Cross-Chat Recovery
+# WO-P1-374 — A-Faster Durable Lane Identity / Cross-Chat Recovery
 
-Status: CLAIMED / BOOTSTRAP
+Status: MERGED (authoring historically accepted under pre-remediation id WO-P1-260; canonical identity rebound to WO-P1-374 by WO-P1-381 / Issue #381)
 Issue: #374
+Identity schema: GITHUB_ISSUE_V1
 Risk: R3 coordination/continuity policy
 Topology: CONTROL_PLANE_ONLY
 
 ## Binding
 Authority repo: aase7en/A-Wiki-Conductor
+Canonical identity: WO-P1-374 (Issue #374), per Issue #381 / WO-P1-381.
+Canonical claim family for any future lane on this work order:
+WO-P1-374-A-FASTER-DURABLE-LANES-NNN.
+
+Historical authoring binding of the accepted attempt (recorded under the
+pre-remediation identity WO-P1-260, preserved verbatim; superseded identity
+evidence, see "Historical alias / migration" below):
 Worktree: /Users/aase7en/GitHub/_worktrees/awiki-wo260-a-faster-durable
 Branch: docs/wo-p1-260-a-faster-durable-lanes
 Base: 95c4b9e78003c4b61083650d1698c6661f9bb545
@@ -45,10 +53,46 @@ No new DB/daemon/scheduler/task/claim/review/completion authority. Global 3 muta
 canonicalization/example guidance and cross-device handoff. Diff/scope/UTF-8/secret
 checks, exact-SHA independent review and CI before merge.
 
-Result destination: runs/WO-P1-260/author/
+Result destination (canonical, post-remediation): runs/WO-P1-374/author/
 Replay safety: recover pointer/process/result/Git before redispatch.
 
+## Historical alias / migration (WO-P1-381 / Issue #381)
+
+Chronology and resolution:
+
+- origin/main contained two distinct canonical files both claiming numeric id
+  WO-P1-260: this file (A-Faster durable lanes, Issue #374) and
+  `docs/work-orders/WO-P1-260-dex-2b-conductor-reconciliation-receipt.md`
+  (DEX-2b, Issue #348).
+- Issue #381 resolved the collision: DEX keeps WO-P1-259 / WO-P1-260; the
+  A-Faster durable-lane record rebinds to Issue #374 => canonical id WO-P1-374;
+  this file was renamed accordingly by WO-P1-381.
+
+Historical evidence (superseded identity, never rewritten):
+
+- The old author attempt used WO-P1-260 identifiers and run directories before
+  collision remediation: claim `WO-P1-260-A-FASTER-DURABLE-LANES-001`, lane
+  `lane:WO-P1-260:author:1`, run `run:WO-P1-260:author:1:a1:352051cd`,
+  `BINDING_DIGEST`
+  `cca025dd01a90d0a86f6a86b16e2a4c42f04c618cfd1df62bec160be5fa14d3f`, branch
+  `docs/wo-p1-260-a-faster-durable-lanes`, dispatch head
+  `ef7d3d15fce0b66ddfdadbc56a3014875aa1bcbd`, and evidence under
+  `runs/WO-P1-260/author/attempt-0001/` (gitignored, device-local).
+- Old hashes, run ids, branch names and merge/PR history are historical
+  identity-alias evidence only. Git history was not rewritten and old run ids
+  are not denied; they are simply not canonical task ids after Issue #381.
+
+Canonical references after remediation:
+
+- Canonical task id: WO-P1-374. Canonical claim family:
+  `WO-P1-374-A-FASTER-DURABLE-LANES-NNN`.
+- Future result destination: `runs/WO-P1-374/...`. Pre-remediation evidence
+  under `runs/WO-P1-260/...` remains valid historical alias evidence.
+- Identity schema: GITHUB_ISSUE_V1 — filename numeric id 374 matches Issue #374.
+
 ## 2026-09-19 author checkpoint (attempt-0001) — READY_FOR_REVIEW
+(historical record; executed under the pre-remediation identity WO-P1-260 and
+preserved verbatim as superseded identity evidence)
 
 Executed on Windows device `DESKTOP-7IB57R4`, worktree
 `A:/GitHub/_worktrees/A-Wiki-Conductor-wo260-a-faster-durable`, dispatched from
