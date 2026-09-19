@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "event_id": "hk-06060606060606060606060606060606",
+  "event_type": "tool.execute.failed",
+  "hook_class": "OBSERVE",
+  "phase": "after",
+  "domain": "tool",
+  "action": "execute",
+  "occurred_at": "2026-09-19T08:20:10Z",
+  "source": "claude-code",
+  "source_version": "0.0.0-fixture-a",
+  "device_id": "device-fx-01",
+  "host_os": "windows",
+  "privacy_class": "INTERNAL",
+  "correlation_id": "fx-session-0001",
+  "execution_id": "fx-turn-0008",
+  "duration_ms": 3000,
+  "command_digest": "6c8c5cf638d28158c2a65295ec1a15d97fa4f962e4e070d9d39ca5dbd7159fc2",
+  "blocker_code": "NATIVE_TOOL_ERROR",
+  "summary": "tool execution failed"
+}

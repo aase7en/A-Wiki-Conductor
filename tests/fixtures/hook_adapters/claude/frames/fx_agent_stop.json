@@ -1,0 +1,14 @@
+{
+  "native_version": "0.0.0-fixture-a",
+  "expect_outcome": "envelope",
+  "contains_redaction_bait": true,
+  "frame": {
+    "fixture_event": "FxAgentStop",
+    "session_ref": "fx-session-0001",
+    "turn_ref": "fx-turn-0007",
+    "model_ref": "fx-model-a",
+    "occurred_at": "2026-09-19T08:44:55.500Z",
+    "duration_ms": 30500,
+    "last_message": "FXBAIT-LAST-MESSAGE"
+  }
+}
