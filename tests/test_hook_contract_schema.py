@@ -1,3 +1,4 @@
+import datetime
 import json
 import re
 from copy import deepcopy
@@ -347,7 +348,7 @@ def merge_projection(queues: list) -> list:
         head, idx = min(
             ((queue[0], i) for i, queue in enumerate(pending) if queue),
             key=lambda pair: (
-                pair[0]["occurred_at"],
+                parse_rfc3339_instant(pair[0]["occurred_at"]),
                 pair[0]["source"],
                 pair[0]["event_id"],
             ),
@@ -423,6 +424,116 @@ def event_type_semantic_mismatch(event: dict) -> bool:
     prefix = f"{event.get('domain')}.{event.get('action')}"
     event_type = event.get("event_type", "")
     return not (event_type == prefix or event_type.startswith(prefix + "."))
+
+
+def parse_rfc3339_instant(value: str) -> datetime.datetime:
+    return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+class ConsumerVerdict:
+    def __init__(
+        self,
+        accepted: bool,
+        code: str | None = None,
+        event: dict | None = None,
+        security_invalid: bool = False,
+    ) -> None:
+        self.accepted = accepted
+        self.code = code
+        self.event = event
+        self.security_invalid = security_invalid
+
+
+class ReferenceForwardCompatConsumer:
+    """Reference implementation of the §7.4 consumer ingest algorithm."""
+
+    def __init__(
+        self,
+        schema: dict,
+        known_minor: int = 0,
+        max_bytes: int = MAX_ENVELOPE_BYTES,
+    ) -> None:
+        self._schema = schema
+        self._validator = Draft202012Validator(schema)
+        self.known_minor = known_minor
+        self.max_bytes = max_bytes
+
+    def consume_bytes(self, data: bytes) -> ConsumerVerdict:
+        if len(data) > self.max_bytes:
+            return ConsumerVerdict(False, "HOOK_EVENT_OVERSIZED")
+        try:
+            payload = json.loads(data.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return ConsumerVerdict(False, "HOOK_EVENT_INVALID")
+        return self._consume_parsed(payload)
+
+    def consume_structured(self, payload: dict) -> ConsumerVerdict:
+        if envelope_bytes(payload) > self.max_bytes:
+            return ConsumerVerdict(False, "HOOK_EVENT_OVERSIZED")
+        return self._consume_parsed(payload)
+
+    @staticmethod
+    def _raw_security_scan(node) -> str | None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in FORBIDDEN_FIELDS:
+                    return key
+                hit = ReferenceForwardCompatConsumer._raw_security_scan(value)
+                if hit is not None:
+                    return hit
+        elif isinstance(node, list):
+            for item in node:
+                hit = ReferenceForwardCompatConsumer._raw_security_scan(item)
+                if hit is not None:
+                    return hit
+        elif isinstance(node, str):
+            for corpus_item in FAKE_SECRET_CORPUS:
+                if corpus_item in node:
+                    return corpus_item
+        return None
+
+    def _project_known(self, node, subschema):
+        if not isinstance(subschema, dict):
+            return node
+        if subschema.get("type") == "object" and isinstance(node, dict):
+            properties = subschema.get("properties", {})
+            return {
+                key: self._project_known(value, properties[key])
+                for key, value in node.items()
+                if key in properties
+            }
+        if subschema.get("type") == "array" and isinstance(node, list):
+            items = subschema.get("items")
+            return [self._project_known(item, items) for item in node]
+        return node
+
+    def _consume_parsed(self, payload) -> ConsumerVerdict:
+        if not isinstance(payload, dict):
+            return ConsumerVerdict(False, "HOOK_EVENT_INVALID")
+        forbidden = self._raw_security_scan(payload)
+        if forbidden is not None:
+            return ConsumerVerdict(False, "HOOK_EVENT_INVALID", None, True)
+        version = payload.get("schema_version")
+        match = (
+            re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
+            if isinstance(version, str)
+            else None
+        )
+        if match is not None and int(match.group(1)) != 1:
+            return ConsumerVerdict(False, "HOOK_VERSION_UNSUPPORTED")
+        if match is not None and int(match.group(2)) > self.known_minor:
+            candidate = self._project_known(payload, self._schema)
+        else:
+            candidate = payload
+        if not self._validator.is_valid(candidate):
+            return ConsumerVerdict(False, "HOOK_EVENT_INVALID", candidate)
+        if event_type_semantic_mismatch(candidate):
+            return ConsumerVerdict(False, "HOOK_EVENT_INVALID", candidate)
+        return ConsumerVerdict(True, None, candidate)
+
+
+def make_consumer(known_minor: int = 0) -> ReferenceForwardCompatConsumer:
+    return ReferenceForwardCompatConsumer(load_schema(), known_minor=known_minor)
 
 
 def test_ordering_section_forbids_timestamp_first_global_sort() -> None:
@@ -911,3 +1022,327 @@ def test_event_type_domain_action_semantic_mismatch_pinned(validator) -> None:
     phase_qualified = mutated(minimal_event(), event_type="process.spawned.child")
     assert validator.is_valid(phase_qualified)
     assert not event_type_semantic_mismatch(phase_qualified)
+
+
+def test_strict_schema_stays_closed_on_unknown_fields(validator) -> None:
+    schema = load_schema()
+    assert schema["additionalProperties"] is False
+    assert not validator.is_valid(mutated(minimal_event(), mystery_field="value"))
+    assert not validator.is_valid(
+        mutated(minimal_event(), schema_version="1.9.7", mystery_field="value")
+    )
+
+
+def test_forward_compat_reference_algorithm_section_is_normative() -> None:
+    section = contract_section(
+        "7.4 Reference consumer ingest algorithm (normative)"
+    )
+    assert "before ANY unknown-field handling" in section
+    for field_name in FORBIDDEN_FIELDS:
+        assert f"`{field_name}`" in section
+    assert "HOOK_EVENT_OVERSIZED" in section
+    assert "HOOK_VERSION_UNSUPPORTED" in section
+    assert "HOOK_EVENT_INVALID" in section
+    assert "never filtered" in section
+    assert "MUST major-bump" in section
+
+
+def test_reference_consumer_accepts_newer_minor_benign_unknown_optional_field() -> None:
+    consumer = make_consumer()
+    future = mutated(minimal_event(), schema_version="1.9.7", mystery_field="benign")
+    verdict = consumer.consume_structured(future)
+    assert verdict.accepted
+    assert verdict.event is not None
+    assert "mystery_field" not in verdict.event
+    assert verdict.event["schema_version"] == "1.9.7"
+    assert verdict.event["event_id"] == EVENT_ID
+
+    strict_future = consumer.consume_structured(
+        mutated(minimal_event(), schema_version="1.9.7")
+    )
+    assert strict_future.accepted
+
+
+def test_reference_consumer_accepts_benign_unknown_nested_subfield_in_newer_minor() -> None:
+    consumer = make_consumer()
+    future_guard = mutated(guard_event(), schema_version="1.9.7", mystery_field="benign")
+    future_guard["guard"]["future_subfield"] = True
+    verdict = consumer.consume_structured(future_guard)
+    assert verdict.accepted
+    assert "future_subfield" not in verdict.event["guard"]
+    assert verdict.event["guard"]["failure_policy"] == "FAIL_CLOSED"
+    assert verdict.event["guard"]["security_scope"] is False
+
+    future_command = mutated(command_event(), schema_version="1.9.7")
+    future_command["command_request"]["future_hint"] = "hint"
+    verdict = consumer.consume_structured(future_command)
+    assert verdict.accepted
+    assert "future_hint" not in verdict.event["command_request"]
+    assert verdict.event["command_request"]["command"] == "pause"
+
+
+def test_reference_consumer_rejects_unknown_field_on_same_or_older_known_minor() -> None:
+    consumer = make_consumer(known_minor=0)
+    same_minor = mutated(minimal_event(), schema_version="1.0.0", mystery_field="benign")
+    verdict = consumer.consume_structured(same_minor)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    consumer9 = make_consumer(known_minor=9)
+    older_known = mutated(minimal_event(), schema_version="1.9.0", mystery_field="benign")
+    verdict = consumer9.consume_structured(older_known)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    newer_minor = mutated(minimal_event(), schema_version="1.10.0", mystery_field="benign")
+    assert consumer9.consume_structured(newer_minor).accepted
+
+
+def test_reference_consumer_rejects_forbidden_fields_before_filtering() -> None:
+    consumer = make_consumer()
+
+    top_level = mutated(minimal_event(), schema_version="1.9.7", token="sk-value")
+    verdict = consumer.consume_structured(top_level)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+    assert verdict.security_invalid
+
+    hidden_in_known_object = mutated(guard_event(), schema_version="1.9.7")
+    hidden_in_known_object["guard"]["password"] = "hunter2"
+    verdict = consumer.consume_structured(hidden_in_known_object)
+    assert not verdict.accepted
+    assert verdict.security_invalid
+
+    hidden_in_unknown_object = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        mystery_field={"inner": {"cookie": "session=1"}},
+    )
+    verdict = consumer.consume_structured(hidden_in_unknown_object)
+    assert not verdict.accepted
+    assert verdict.security_invalid
+
+    hidden_in_array = mutated(
+        minimal_event(), schema_version="1.9.7", mystery_field=[{"argv": ["x"]}]
+    )
+    verdict = consumer.consume_structured(hidden_in_array)
+    assert not verdict.accepted
+    assert verdict.security_invalid
+
+    corpus_leak = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        mystery_field="Bearer FAKE000000000000000000000000000",
+    )
+    verdict = consumer.consume_structured(corpus_leak)
+    assert not verdict.accepted
+    assert verdict.security_invalid
+
+    strict_mode_forbidden = mutated(minimal_event(), token="sk-value")
+    verdict = consumer.consume_structured(strict_mode_forbidden)
+    assert not verdict.accepted
+    assert verdict.security_invalid
+
+
+def test_projection_preserves_class_conditionals_and_semantic_validators() -> None:
+    consumer = make_consumer()
+
+    guard_ok = mutated(guard_event(), schema_version="1.9.7", mystery_field="benign")
+    assert consumer.consume_structured(guard_ok).accepted
+
+    guard_missing = mutated(guard_event(), schema_version="1.9.7", mystery_field="benign")
+    guard_missing.pop("guard")
+    verdict = consumer.consume_structured(guard_missing)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    guard_on_observe_future = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        guard={
+            "failure_policy": "FAIL_CLOSED",
+            "security_scope": False,
+            "authority_scope": False,
+        },
+    )
+    verdict = consumer.consume_structured(guard_on_observe_future)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    adapter_future = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        mystery_field="benign",
+        **OPTIONAL_GROUPS["adapter"],
+    )
+    assert consumer.consume_structured(adapter_future).accepted
+
+    adapter_wrong_event = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        event_type="tool.execute",
+        domain="tool",
+        action="execute",
+        adapter=OPTIONAL_GROUPS["adapter"]["adapter"],
+    )
+    verdict = consumer.consume_structured(adapter_wrong_event)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    semantic_mismatch = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        event_type="execution.started",
+        mystery_field="b",
+    )
+    verdict = consumer.consume_structured(semantic_mismatch)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    phase_qualified = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        event_type="process.spawned.child",
+        mystery_field="b",
+    )
+    assert consumer.consume_structured(phase_qualified).accepted
+
+
+def test_newer_minor_cannot_smuggle_core_changes() -> None:
+    consumer = make_consumer()
+
+    missing_required = mutated(minimal_event(), schema_version="1.9.7", mystery_field="b")
+    missing_required.pop("event_id")
+    verdict = consumer.consume_structured(missing_required)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    unknown_enum_value = mutated(
+        minimal_event(), schema_version="1.9.7", hook_class="MONITOR", mystery_field="b"
+    )
+    verdict = consumer.consume_structured(unknown_enum_value)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    unknown_domain = mutated(
+        minimal_event(),
+        schema_version="1.9.7",
+        domain="runtime",
+        event_type="runtime.tick",
+        action="tick",
+        mystery_field="b",
+    )
+    verdict = consumer.consume_structured(unknown_domain)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+
+def test_version_gate_rejects_different_major_unsupported() -> None:
+    consumer = make_consumer()
+
+    major2 = mutated(minimal_event(), schema_version="2.0.0")
+    verdict = consumer.consume_structured(major2)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_VERSION_UNSUPPORTED"
+
+    major0 = mutated(minimal_event(), schema_version="0.9.0")
+    verdict = consumer.consume_structured(major0)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_VERSION_UNSUPPORTED"
+
+    malformed = mutated(minimal_event(), schema_version="1.0")
+    verdict = consumer.consume_structured(malformed)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_INVALID"
+
+    unparseable = consumer.consume_bytes(b'{"schema_version": "1.0.0", ')
+    assert not unparseable.accepted
+    assert unparseable.code == "HOOK_EVENT_INVALID"
+
+    not_json = consumer.consume_bytes(b"not-json")
+    assert not not_json.accepted
+    assert not_json.code == "HOOK_EVENT_INVALID"
+
+    not_utf8 = consumer.consume_bytes(b"\xff\xfe{}")
+    assert not not_utf8.accepted
+    assert not_utf8.code == "HOOK_EVENT_INVALID"
+
+
+def test_byte_bound_measured_on_exact_utf8_bytes_before_normalization() -> None:
+    consumer = make_consumer()
+    multibyte = mutated(minimal_event(), summary="あ" * 30000)
+    assert len("あ" * 30000) < MAX_ENVELOPE_BYTES
+    assert envelope_bytes(multibyte) > MAX_ENVELOPE_BYTES
+
+    verdict = consumer.consume_structured(multibyte)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_OVERSIZED"
+
+    data = json.dumps(multibyte, ensure_ascii=False).encode("utf-8")
+    verdict = consumer.consume_bytes(data)
+    assert not verdict.accepted
+    assert verdict.code == "HOOK_EVENT_OVERSIZED"
+
+    oversized_forbidden = mutated(multibyte, token="sk-value")
+    verdict = consumer.consume_structured(oversized_forbidden)
+    assert verdict.code == "HOOK_EVENT_OVERSIZED"
+
+
+def test_whole_envelope_cap_measurement_pinned_in_contract() -> None:
+    section = contract_section("9. Payload bounds")
+    assert "exact incoming UTF-8 serialized envelope bytes" in section
+    assert "transport boundary" in section
+    assert "in-process adapters" in section
+    assert "canonical JSON re-serialization MUST NOT" in section
+
+
+def test_replay_window_is_consumer_deployment_configuration() -> None:
+    section = contract_section("4. Event identity")
+    assert "consumer/Monitor deployment configuration" in section
+    assert "no envelope field can select, extend, or widen it" in section
+    schema = load_schema()
+    for forbidden in ("replay_window", "replay_window_s", "dedupe_window", "window_s"):
+        assert forbidden not in schema["properties"]
+
+
+def test_event_id_uuidv4_is_producer_generation_only(validator) -> None:
+    section = contract_section("4. Event identity")
+    assert "producer-generation-only" in section
+    assert "MUST NOT reject a same-major envelope solely" in section
+    non_uuid4_hex = mutated(
+        minimal_event(), event_id="hk-0123456789abcdef0123456789abcdef"
+    )
+    assert validator.is_valid(non_uuid4_hex)
+
+
+def test_hook_stream_degraded_is_local_health_condition() -> None:
+    section = contract_section("16. Backpressure and degradation")
+    assert "local consumer/monitor health condition" in section
+    assert "MUST NOT depend on successfully re-enqueueing" in section
+
+
+def test_cross_stream_rank_parses_rfc3339_instants_not_raw_strings(validator) -> None:
+    section = contract_section("5. Ordering")
+    assert "parsed as an RFC 3339 UTC instant" in section
+    assert "Raw string comparison" in section
+
+    at_20 = mutated(
+        minimal_event(),
+        event_id="hk-" + "20" * 16,
+        occurred_at="2026-09-19T07:00:20Z",
+    )
+    at_20_5 = mutated(
+        minimal_event(),
+        event_id="hk-" + "21" * 16,
+        source="kilo",
+        occurred_at="2026-09-19T07:00:20.5Z",
+    )
+    for event in (at_20, at_20_5):
+        assert validator.is_valid(event)
+
+    merged = merge_projection([source_queue([at_20]), source_queue([at_20_5])])
+    assert [event["event_id"] for event in merged] == [
+        at_20["event_id"],
+        at_20_5["event_id"],
+    ]
+    assert at_20_5["occurred_at"] < at_20["occurred_at"]

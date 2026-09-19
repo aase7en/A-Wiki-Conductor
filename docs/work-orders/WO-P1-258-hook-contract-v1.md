@@ -194,3 +194,41 @@ integrator flow; no history rewrite.
   four allowed paths; UTF-8/JSON parse clean; fake-pattern secret scan
   clean. Repair commit is the new review candidate SHA; repair branch
   pushed. No merge/self-accept.
+- 2026-09-19: PR #371 merged review-001 candidate 602f6db as
+  main@2a461ae BEFORE a later independent MAX review of predecessor
+  f20fff0 surfaced a still-unrepaired P1 contradiction: §7.2 promised
+  forward-compatible acceptance of same-major newer-minor envelopes while
+  ignoring unknown optional fields, but the shipped closed schema (and
+  its tests) rejected any envelope carrying an unknown field. A
+  post-merge deterministic audit confirmed the contradiction at 2a461ae.
+  Forward-only acceptance repair lane
+  `fix/wo-p1-258-forward-compat-postmerge` opened from BASE 2a461ae
+  (scope unchanged: the four contract/schema/test/WO paths only; no
+  src/runtime/store/skill/provider changes). P1 repair: new normative
+  §7.4 reference consumer ingest algorithm (whole-envelope byte bound on
+  exact incoming bytes BEFORE normalization → fail-closed parse →
+  recursive raw security scan BEFORE any unknown-field handling →
+  version gate with typed `HOOK_VERSION_UNSUPPORTED` → strict mode on
+  same/older known minor → forward-mode projection of unknown OPTIONAL
+  fields/subfields only → strict validation of the projected known
+  envelope → semantic validators); unknown required/core/enum semantics
+  remain non-additive (producer must major-bump); the published schema
+  stays closed; a deterministic reference consumer implementation plus
+  proofs pinned in the tests. P2 hardening in the same pass: `event_id`
+  UUIDv4 pinned producer-generation-only (nibble enforcement would
+  retroactively invalidate published-1.x-valid envelopes — a major-bump
+  semantic change, rejected for a 1.x repair); whole-envelope cap pinned
+  to exact incoming UTF-8 serialized bytes at the consumer transport
+  boundary including structured in-process adapters, canonical-JSON
+  substitute forbidden, UTF-8-bytes-not-chars multibyte proof added;
+  replay-window default/clamp ownership pinned to consumer/Monitor
+  deployment configuration with no envelope-side selection; §5
+  cross-stream rank now parses `occurred_at` as RFC 3339 UTC instants
+  (raw-string comparison forbidden; `20Z` vs `20.5Z` inversion regression
+  added; presentation-only framing preserved); `HOOK_STREAM_DEGRADED`
+  pinned to a local consumer/monitor health condition that never depends
+  on re-enqueueing onto the degraded stream. RED set of 14 verified
+  failing before repair (missing algorithm/consumer + missing pins);
+  focused suites green after repair. Acceptance of THIS repair requires a
+  NEW independent exact-SHA rereview of the new candidate head plus CI on
+  that exact head; no self-accept, no merge, no history rewrite.
