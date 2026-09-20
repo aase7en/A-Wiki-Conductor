@@ -23,13 +23,22 @@ Risk: R2 — read-only shared operator projection + desktop integration
 
 Satisfied:
 - GOT chain accepted, including WO-P1-419 post-main verification.
-- FMG-1 accepted local-only at exact compatibility set:
-  `{A-Wiki-Conductor@bd4892185195d8c6a7c3a8652a75ec4db7f003b4, SunDayRemoteMCP@7c3c048d3d21291e842a944e50ecf0ca5d71f475}`.
+- FMG-1 repaired acceptance is current and local-only at exact compatibility set:
+  `{A-Wiki-Conductor@7394322f14b6878c0c7fef61c618b9ae31898a72, SunDayRemoteMCP@2e6aeabd09a321232098187dba4c522e37e4b1de}`.
+  The earlier `7c3c048...` completion marker is superseded by the post-mutation outcome-integrity repair and focused independent R3 rereview.
 - COCKPIT-0 shaping #421 re-pinned on `bd489218...` and classified `READY_AFTER_FMG`.
 
 Still intentionally UNKNOWN at bootstrap:
 - durable desktop Hook read-back is not accepted; Hook-derived cockpit fields MUST render UNKNOWN.
 - WTL-1 is not accepted on main; WTL-derived cockpit fields MUST render UNKNOWN until a later accepted re-pin.
+
+## Recovery checkpoint after interrupted author attempt
+
+- `run:WO-P1-424:author:1:a1:948e2e42538f` terminated with harness exit `0xffffffff` after writing only `tests/test_cockpit_projection.py`; no production source file was modified.
+- The preserved test file is syntactically valid and is intentional RED-first evidence: focused pytest currently fails during collection because the not-yet-implemented `cockpit_monitor_lines` symbol is absent.
+- Git ownership is reconciled: the untracked test is inside this WO's allowed scope and belongs to the interrupted author attempt; no live runner/child remains.
+- Classification: `PARTIAL / SAFE_TO_CONTINUE_FROM_RED`. Do not delete/recreate the test blindly; a continuation attempt may refine it only within the claimed scope.
+- FMG dependency is re-accepted at SRM `2e6aeabd...` against A-Wiki main `7394322...`; source mutation is unblocked subject to the normal mutation/collision/quota gate.
 
 ## Goal
 
