@@ -163,3 +163,109 @@ Freeze exact candidate SHA after deterministic GREEN. Require independent GLM-5.
 STOP and checkpoint if correctness requires mutation outside the three paths, new durable schema/store, planner/classifier changes, network Git mutation/fetch, or evidence semantics inconsistent with accepted GOT-1a/1b-A contracts.
 
 No self-review, self-accept, or self-merge.
+
+## Author checkpoint (attempt-0001, 2026-09-20)
+
+Status: READY_FOR_INDEPENDENT_EXACT_SHA_R3_REVIEW (GLM author does not review/accept/merge).
+
+### RED proof (captured before implementation)
+
+`python -m pytest tests/test_production_closeout_observation.py` at dispatch head
+`ed544258af9c554882d0761e27932afeb7165f5a` failed deterministically during
+collection: `ModuleNotFoundError: No module named
+'a_conductor.production_closeout_observation'` — the provider module was
+absent; every test in the new focused suite was RED by construction.
+
+### Implementation summary (exact changed paths)
+
+1. `src/a_conductor/production_closeout_observation.py` (NEW, read-only
+   provider + bounded observation seams):
+   - `ProductionCloseoutObservationError` typed fail-closed errors.
+   - Frozen observation DTOs: `MergeObservation`, `PostMainRunObservation`,
+     `LocalGitObservation`, `AcceptedReviewObservation` (malformed
+     SHA/repo/run/disposition rejected at the DTO boundary).
+   - Ports: `MergeObservationPort`, `PostMainRunObservationPort`,
+     `LocalGitObservationPort`, `ReviewObservationPort`.
+   - `StrictLocalGitObserver`: fixed read-only Git argv only
+     (rev-parse / status --porcelain / cat-file -e / merge-base
+     --is-ancestor), `project_identity` precedent; merge object provable
+     locally or ancestry is UNKNOWN; zero mutation/fetch.
+   - `BoundedGitHubObservationAdapter`: injected fetcher
+     (`upstream_check` transport precedent), fixed timeout, bounded PR/runs
+     payload sizes, strict duplicate-key/JSON-constant rejection, strict
+     required identity validation (repo / PR / workflow id+name / run head),
+     no credential persistence, no secret logging. Observation identity is
+     constructor-bound; frozen module constants pin this WO's production
+     identity (`aase7en/A-Wiki-Conductor`, workflow 338737025 / `CI`);
+     `bind_production_github_adapter` is the only binding helper (no
+     mutable global registry).
+   - `ProductionCloseoutEvidenceProvider`: implements the existing
+     `CloseoutEvidenceProvider` protocol. One `evidence()` call = ordered
+     bounded reads: durable checkpoint journal (`completed_closeout_checkpoint_refs`
+     REUSE) + job state + canonical lease health/list + accepted review ->
+     local Git identity -> merge observation -> post-main run observation ->
+     RE-PIN journal + local Git -> drift compare -> one immutable
+     `CloseoutEvidenceBundle`. `classify_continuity` (REUSE) is the sole
+     classifier via a composed `ContinuitySnapshot` (remote_head = observed
+     PR head — no network Git); `MergeFoldFact` fold/release completeness
+     derives only from the exact existing fold/release checkpoint refs and
+     canonical lease authority; verification ok derives only from the
+     identity-bound verify checkpoint ref in the journal; review maps
+     durable ACCEPTED/rejected/stale-head observations onto the existing
+     planner `REVIEW_*` semantics; planner `MERGE_*`/`POST_MAIN_*` blocking
+     findings are reused unchanged. Zero writes: no job/lease/review/
+     checkpoint/Git/GitHub mutation originates in the provider.
+2. `tests/test_production_closeout_observation.py` (NEW): 61 deterministic
+   tests covering matrix A-P incl. DTO boundary rejection, adapter payload
+   bounds/malformation/duplicate keys/identity mismatch, journal drift
+   (CHECKPOINT_JOURNAL_DRIFT) and local Git drift (LOCAL_GIT_DRIFT) typed
+   failures with zero writes, PR-head != candidate typed
+   MERGE_CANDIDATE_MISMATCH, post-main head != merge commit typed
+   POST_MAIN_IDENTITY_MISMATCH, repo/workflow identity mismatch,
+   ancestry false/unknown, post-main missing/pending/failed, review
+   missing/REJECTED/stale-head, fold/release derivation, canonical lease
+   conflict/unknown semantics, repeated-observation determinism with zero
+   writes, no-network source scan of pure planner modules, read-only Git
+   argv behavioral capture, and a full E2E through
+   `assemble_goal_closeout_facade` (FOLD_REQUIRED -> RELEASE_REQUIRED ->
+   COMPLETE_ALLOWED -> job COMPLETE with canonical projection writes).
+3. This work order file (checkpoint only).
+
+### GREEN evidence (deterministic, this worktree)
+
+- Focused: `tests/test_production_closeout_observation.py` — 61 passed.
+- Fan-in (unmodified): `test_goal_closeout.py`, `test_goal_closeout_assembly.py`,
+  `test_job_control.py`, `test_continuity_guard.py`,
+  `test_work_order_identity.py`, `test_project_identity.py`,
+  `test_zero_relay_review_evidence.py` — 283 passed (344 incl. focused).
+- Related: `test_native_git_transactions.py`, `test_upstream_check.py` — 15 passed.
+- Baseline before mutation: fan-in suites 231 passed at dispatch head.
+- Hygiene: `py_compile` PASS; `git diff --check` PASS; strict UTF-8, no
+  U+FFFD PASS; added-line secret-shaped scan 0 hits; exact three-path
+  scope (two new files + this WO), no other tracked/untracked changes.
+
+### Residual risks / notes
+
+- Provider raises typed errors (no bundle) for observation-channel failures:
+  transport/fetch failures, malformed/oversized payloads, repo/PR/workflow
+  identity mismatches, PR head != candidate, post-main run head != merge
+  commit, journal/local-Git drift inside one `evidence()` window. Fact-level
+  missing/unknown (merged unknown, post-main missing/pending/failed, review
+  missing, ancestry unknown) stays UNKNOWN and blocks through the EXISTING
+  planner findings; UNKNOWN is never coerced into success.
+- `StrictLocalGitObserver` argv is Windows-tested via behavioral capture;
+  real-worktree integration is exercised only through the facade E2E with
+  the injected observer port (no live GitHub/network Git in tests by
+  design).
+- The bounded GitHub adapter observes only unauthenticated public REST
+  reads; authenticated/private-repo transport is out of scope for this WO.
+
+### Delivery
+
+Committed and pushed to the existing branch
+`feat/wo-p1-419-got1bb-production-evidence` only; no PR opened/merged, no
+Issue edit, no self-review/acceptance. Final candidate SHA recorded below.
+
+Final candidate SHA: the head of the single delivery commit on this branch
+(exact SHA returned in the dispatch final response and recorded by the
+integrator on Issue #419; not self-referenced inside this file).
