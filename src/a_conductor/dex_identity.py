@@ -54,7 +54,7 @@ def _normalize_windows_final_path(value: str) -> str:
     path = ntpath.normpath(path)
     if not ntpath.isabs(path):
         raise DexIdentityError("PROJECT_IDENTITY_FAILED")
-    return path.casefold()
+    return path.lower()
 
 
 def _windows_final_path(path: Path) -> str:

@@ -66,6 +66,25 @@ def test_windows_final_path_normalization_is_deterministic(tmp_path: Path) -> No
     ) == r"\\server\share\repo"
 
 
+def test_windows_final_nonascii_case_matches_srm_lowercase_not_casefold(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    canonical = canonicalize_existing_root(
+        root,
+        platform_name="nt",
+        final_path_resolver=lambda _: r"\\?\C:\Repo\Straße",
+    )
+    assert "straße".casefold() == "strasse"
+    assert canonical == "c:\\repo\\straße"
+    assert canonical != "c:\\repo\\strasse"
+    assert (
+        dex_identity.canonical_root_digest(canonical, platform_tag="win32")
+        == "364893ee1c50f5c718bdaab1598cfee477a2659312ed41e7d045628dd87e996a"
+    )
+
+
 def test_binding_digest_is_stable_and_attempt_scoped(tmp_path: Path) -> None:
     auth = tmp_path / "auth"
     exec_root = tmp_path / "exec"
