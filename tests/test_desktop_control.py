@@ -1257,3 +1257,98 @@ def test_wo431_direct_composition_rejects_explicit_control_database_identity_spl
 
     assert exc.value.code == "AUTHORITY_DATABASE_IDENTITY_MISMATCH"
     assert other.exists() is False
+
+
+def test_wo433_runtime_activation_rejects_db_mismatch_before_runtime_composition(
+    tmp_path, monkeypatch
+) -> None:
+    import pytest
+
+    from a_conductor.desktop_control import RuntimeAuthorityError
+    from a_conductor.runtime_activation import RuntimeActivationRequest
+
+    canonical = _wo431_canonical(tmp_path)
+    desktop = DesktopControlService.open(
+        canonical,
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+    called = []
+
+    import a_conductor.runtime_activation as runtime_activation
+
+    def _must_not_activate(**kwargs):
+        called.append(kwargs)
+        raise AssertionError("runtime composition must not run on DB mismatch")
+
+    monkeypatch.setattr(
+        runtime_activation,
+        "activate_production_runtime",
+        _must_not_activate,
+        raising=False,
+    )
+    sibling = tmp_path / "sibling.sqlite"
+    request = RuntimeActivationRequest(
+        graph_id="graph-1",
+        graph_run_id="run-1",
+        node_id="n1",
+        runtime_kind="serena",
+        project_root=str(tmp_path),
+        task_contract_ref="tasks/task.json",
+        task_packet_path=str(tmp_path / "task.md"),
+        provider_id="provider-1",
+        model_id="model-1",
+    )
+
+    with pytest.raises(RuntimeAuthorityError) as exc:
+        desktop.activate_runtime(sibling, request)
+
+    assert exc.value.code == "AUTHORITY_DATABASE_IDENTITY_MISMATCH"
+    assert called == []
+    assert sibling.exists() is False
+
+
+def test_wo433_runtime_activation_delegates_exact_canonical_identity(
+    tmp_path, monkeypatch
+) -> None:
+    from a_conductor.runtime_activation import RuntimeActivationRequest
+
+    canonical = _wo431_canonical(tmp_path)
+    desktop = DesktopControlService.open(
+        canonical,
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+    request = RuntimeActivationRequest(
+        graph_id="graph-1",
+        graph_run_id="run-1",
+        node_id="n1",
+        runtime_kind="serena",
+        project_root=str(tmp_path),
+        task_contract_ref="tasks/task.json",
+        task_packet_path=str(tmp_path / "task.md"),
+        provider_id="provider-1",
+        model_id="model-1",
+    )
+    captured = {}
+
+    import a_conductor.runtime_activation as runtime_activation
+
+    def _activate(**kwargs):
+        captured.update(kwargs)
+        return "ACTIVATED"
+
+    monkeypatch.setattr(
+        runtime_activation,
+        "activate_production_runtime",
+        _activate,
+        raising=False,
+    )
+
+    result = desktop.activate_runtime(canonical, request)
+
+    assert result == "ACTIVATED"
+    assert captured["database_path"] == desktop.runtime_authority_database
+    assert captured["request"] is request
+    assert captured["control_center"] is desktop.control_center
+    assert captured["settings_store"] is desktop.settings_store
+    assert captured["provider_store"] is desktop._provider_store
+    assert captured["lifecycle"] is desktop.lifecycle
