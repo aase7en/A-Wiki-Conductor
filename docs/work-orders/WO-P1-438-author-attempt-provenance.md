@@ -1,12 +1,27 @@
-# WO-P1-246 — durable author-attempt provenance design / RED contract
+# WO-P1-438 — durable author-attempt provenance design / RED contract
 
 Date: 2026-09-16
-Status: DESIGN CANDIDATE / R3 / SOURCE HOLD
-Driving authority: Issue #330 / Issue #214 / WO-P1-205 Phase-D
+Status: IMPLEMENTATION CANDIDATE / R3 / CANONICAL IDENTITY REBOUND
+Issue: #438
+Identity schema: GITHUB_ISSUE_V1
+Canonical authority: Issue #438 / WO-P1-438
+Historical authority alias: Issue #330 / WO-P1-246
+Historical claim alias: WO-P1-246-AUTHOR-PROVENANCE-SOURCE-001
+Driving dependency: Issue #214 / WO-P1-205 Phase-D
 Owner/integrator: GPT-5.6 Sol
 Exact design base: `018779d0d2f5a7a7a21adb277e23a617692c36fd`
 Branch: `docs/wo-p1-246-author-attempt-provenance-current-main`
 Worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo246-provenance-design-current`
+
+## Canonical identity migration - 2026-09-20
+
+This design was minted as WO-P1-246 before WO-P1-381 / WO-P1-386 established and froze the repository current GitHub-backed Work Order identity policy. It remained unmerged when the WO-P1-386 legacy exception corpus was frozen, so the deterministic guard correctly rejects introducing the old low-number filename now.
+
+Issue #438 / WO-P1-438 is the canonical live identity for implementation, review, merge, and closeout. Issue #330 and every pre-rebind WO-P1-246 branch, claim, lane/run ID, commit, test name, and prose reference remain immutable historical evidence aliases. They are not rewritten and they do not constitute a second live authority.
+
+The frozen legacy exception fixture is intentionally unchanged. This identity migration changes no production/test semantics.
+
+Current implementation branch remains the historical alias feat/wo-p1-246-author-attempt-provenance.
 
 Revision r2 (2026-09-16): folds in the independent fourth-pass rereview
 findings (column-shape-driven migration incl. the "tables present, meta row
