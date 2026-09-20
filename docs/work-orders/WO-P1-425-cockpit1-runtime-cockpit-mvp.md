@@ -2,7 +2,7 @@
 
 Identity schema: GITHUB_ISSUE_V1
 Issue: #425
-Status: CLAIMED / READY_FOR_IMPLEMENTATION
+Status: CLAIMED / BLOCKED_FMG_POSTMUTATION_REPAIR
 Parent roadmap: #397 / `docs/plans/2026-09-20-dwb-convergence-product-acceleration-roadmap.md`
 Topology: CONTROL_PLANE_ONLY
 Risk: R2 — read-only projection and existing desktop UI only; no consequential commands
@@ -25,6 +25,12 @@ Claim: `WO-P1-425-COCKPIT1-RUNTIME-COCKPIT-MVP-001`
 - COCKPIT-0 current-main Flash refresh `run:WO-P1-421:refresh:1:a3:5b362ddf247f` completed exit 0 at exact `bd489218` and classified READY_AFTER_FMG.
 - WTL-1 remains parallel/unmerged at claim time. WTL-derived lifecycle/ownership fields MUST remain UNKNOWN until an accepted source exists.
 - Durable desktop Hook read-back remains absent. Hook-derived fields MUST remain UNKNOWN; this WO does not create a hook store.
+
+## Dependency regression after claim
+
+After this Work Order was claimed, deterministic integration evidence invalidated the earlier FMG-1 completion marker: a successful inner mutation could be followed by post-mutation ephemeral refresh failure, producing an `EINTERNAL/isError` response and false `mutated:false` evidence after disk state had already changed. A bounded FMG repair is therefore the current sole owner of that execution-substrate hotspot.
+
+Until FMG-1 freezes a replacement exact SHA, passes focused independent R3 rereview, and is re-accepted by GPT-5.6 Sol, this Work Order authorizes **no COCKPIT source mutation**. The Issue #425 claim and docs-only branch remain valid continuity anchors only. This section supersedes the earlier dependency-satisfied bullets while the repair gate is open.
 
 ## Goal
 
