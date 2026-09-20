@@ -9,13 +9,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import sys
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Protocol
 
 from .claude_code_harness import HarnessDispatch, MutationIntent, TaskPacketFile
-from .elastic_worker_capacity import ElasticCapacityPolicy
+from .claude_code_job_backend import ClaudeCodeOperationDefinition
+from .elastic_worker_capacity import (
+    ElasticCapacityPolicy,
+    ElasticWorkerCapacityCoordinator,
+    ProductionElasticWorkerExecutor,
+    SQLiteWorkerProvisioningReservations,
+)
 from .graph.dispatch import (
     DispatchGateDecision,
     GraphDispatchCoordinator,
@@ -29,14 +38,31 @@ from .graph.lifecycle_bridge import project_graph_node_states
 from .graph.ready import ReadySetResult, compute_ready_set
 from .graph.store import GraphStore
 from .graph.scheduler import NodeEligibility, SchedulePolicy, SelectedAssignment
+from .execution_store import SQLiteExecutionStore
 from .job_control import DurableJobControlService
 from .job_execution import DurableJobExecutionCoordinator
+from .owned_process import WindowsOwnedProcessController
+from .parallel_ready_execution import GraphDispatchParallelRunner, ParallelReadyExecutor
 from .job_store import JobStoreError, SQLiteJobStore
 from .provider_config_store import ProviderConfigurationSnapshot
 from .provider_configuration import HarnessStrategy
 from .provider_execution_authority import ProviderExecutionRequirement
-from .worker_candidate_assembly import ParallelReadyNodeContract
-from .worker_lease import LeaseMutationIntent, WorkerLeaseRequest
+from .provider_runtime_assembly import build_sqlite_supervised_claude_job_backend
+from .supervised_execution import SupervisedExecutionService
+from .windows_io import LoopbackReadyzHttpProbe, StrictPowerShellInspectionRunner
+from .windows_observer import WindowsRuntimeObserver
+from .worker_candidate_assembly import (
+    MappingRuntimeCapabilityResolver,
+    NativeGitWorktreeStateObserver,
+    ParallelReadyNodeContract,
+    WorkerCandidateAssembler,
+)
+from .worker_lease import (
+    LeaseMutationIntent,
+    SQLiteWorkerLeaseStore,
+    WorkerLeaseBroker,
+    WorkerLeaseRequest,
+)
 
 
 class RuntimeActivationError(RuntimeError):
@@ -320,7 +346,7 @@ def _pull_worker_row(control_center, authority: RuntimeActivationAuthority):
     return row
 
 
-def offer_interactive_runtime(
+def _offer_interactive_runtime(
     *,
     database_path: str | Path,
     request: RuntimeActivationRequest,
@@ -476,17 +502,11 @@ def build_activation_contract(
 
     if authority.mutation_allowed and not authority.allowed_files:
         raise RuntimeActivationError("ACTIVATION_MUTABLE_SCOPE_REQUIRED")
-    lease_intent = (
-        LeaseMutationIntent.MUTATION
-        if authority.mutation_allowed
-        else LeaseMutationIntent.READ_ONLY
-    )
-    harness_intent = (
-        MutationIntent.PROJECT_MUTATION
-        if authority.mutation_allowed
-        else MutationIntent.READ_ONLY
-    )
-    mutable_scope = authority.allowed_files if authority.mutation_allowed else ()
+    if authority.mutation_allowed:
+        raise RuntimeActivationError("PROGRAMMATIC_MUTATION_BACKEND_UNAVAILABLE")
+    lease_intent = LeaseMutationIntent.READ_ONLY
+    harness_intent = MutationIntent.READ_ONLY
+    mutable_scope: tuple[str, ...] = ()
     lease = WorkerLeaseRequest(
         session_id=key.job_id,
         task_id=authority.task_id,
@@ -539,6 +559,447 @@ def build_activation_contract(
         max_attempts=authority.max_attempts,
         provider_requirement=requirement,
     )
+
+
+def _require_programmatic_push_platform(
+    *, platform_name: str | None = None
+) -> None:
+    """Fail closed where the accepted owned-process supervisor is unavailable.
+
+    The current production supervised Claude assembly is backed by the accepted
+    Windows ownership/PowerShell observer stack.  Exposing the CLI on another
+    host must not imply that PROGRAMMATIC_PUSH can launch there.
+    """
+    resolved = os.name if platform_name is None else platform_name
+    if resolved != "nt":
+        raise RuntimeActivationError("PROGRAMMATIC_PUSH_PLATFORM_UNSUPPORTED")
+
+
+class _AuthorizedWorkerSupplyAssembler:
+    """Restrict existing observed supply to task-authorized push workers."""
+
+    def __init__(self, base: WorkerCandidateAssembler, worker_ids: tuple[str, ...]) -> None:
+        if not isinstance(base, WorkerCandidateAssembler):
+            raise ValueError("base must be WorkerCandidateAssembler")
+        if not worker_ids:
+            raise ValueError("worker_ids must not be empty")
+        self._base = base
+        self._worker_ids = tuple(worker_ids)
+
+    @property
+    def lease_evidence_database_path(self):
+        return self._base.lease_evidence_database_path
+
+    def _filter(self, records):
+        by_id = {item.worker_id: item for item in records}
+        return tuple(by_id[item] for item in self._worker_ids if item in by_id)
+
+    def assemble_all(self):
+        return self._filter(self._base.assemble_all())
+
+    def assemble_all_for_owner(self, *, session_id: str, task_id: str):
+        return self._filter(
+            self._base.assemble_all_for_owner(
+                session_id=session_id,
+                task_id=task_id,
+            )
+        )
+
+    def assemble(self, worker_id: str):
+        if worker_id not in self._worker_ids:
+            raise RuntimeActivationError("WORKER_NOT_AUTHORIZED_FOR_PUSH")
+        return self._base.assemble(worker_id)
+
+    def assemble_for_owner(
+        self,
+        worker_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+    ):
+        if worker_id not in self._worker_ids:
+            raise RuntimeActivationError("WORKER_NOT_AUTHORIZED_FOR_PUSH")
+        return self._base.assemble_for_owner(
+            worker_id,
+            session_id=session_id,
+            task_id=task_id,
+        )
+
+
+class _NoElasticProvisioner:
+    def provision(self, *args, **kwargs):
+        raise AssertionError("elastic provisioning is disabled for WO-P1-433")
+
+
+class _SelectedWorkerClaudeBackend:
+    """Bind the scheduler-selected worker into the accepted Claude job backend."""
+
+    def __init__(
+        self,
+        *,
+        database_path: Path,
+        contract: ParallelReadyNodeContract,
+        execution_store: SQLiteExecutionStore,
+        clock: Callable[[], object],
+    ) -> None:
+        self._database_path = database_path
+        self._contract = contract
+        self._execution_store = execution_store
+        self._clock = clock
+
+    def execute(self, operation_ref, context):
+        from .job_execution import JobExecutionContext
+
+        if not isinstance(context, JobExecutionContext):
+            raise ValueError("context must be JobExecutionContext")
+        if operation_ref != self._contract.operation_ref:
+            raise ValueError("RUNTIME_ACTIVATION_OPERATION_MISMATCH")
+        if context.worker_id not in self._contract.lease_request.ordered_worker_ids:
+            raise ValueError("RUNTIME_ACTIVATION_WORKER_MISMATCH")
+
+        definition = ClaudeCodeOperationDefinition(
+            operation_ref=self._contract.operation_ref,
+            dispatch=self._contract.harness_dispatch,
+            packet=self._contract.task_packet,
+            worker_id=context.worker_id,
+            provider_security=self._contract.provider_security,
+            expected_configuration_generation=(
+                self._contract.expected_configuration_generation
+            ),
+            require_quota=self._contract.require_quota,
+            provider_requirement=self._contract.provider_requirement,
+        )
+        observer = WindowsRuntimeObserver(
+            runner=StrictPowerShellInspectionRunner(),
+            http_probe=LoopbackReadyzHttpProbe(),
+        )
+        controller = WindowsOwnedProcessController(observer=observer)
+        supervised = SupervisedExecutionService(
+            store=self._execution_store,
+            controller=controller,
+            observer=observer,
+            allowed_target_executables=("claude",),
+            python_executable=sys.executable,
+        )
+        backend = build_sqlite_supervised_claude_job_backend(
+            database_path=self._database_path,
+            operations=(definition,),
+            execution_store=self._execution_store,
+            supervised=supervised,
+            clock=self._clock,
+        )
+        return backend.execute(operation_ref, context)
+
+
+def _build_runtime_job_backend(
+    *,
+    database_path: Path,
+    contract: ParallelReadyNodeContract,
+    execution_store: SQLiteExecutionStore,
+    clock: Callable[[], object],
+):
+    return _SelectedWorkerClaudeBackend(
+        database_path=database_path,
+        contract=contract,
+        execution_store=execution_store,
+        clock=clock,
+    )
+
+
+def _require_canonical_runtime_dependencies(
+    database_path: str | Path,
+    *,
+    settings_store,
+    provider_store,
+) -> Path:
+    canonical = Path(database_path).expanduser().resolve(strict=False)
+    for source, code in (
+        (settings_store, "SETTINGS_AUTHORITY_UNAVAILABLE"),
+        (provider_store, "PROVIDER_AUTHORITY_UNAVAILABLE"),
+    ):
+        raw = getattr(source, "database_path", None)
+        if raw is None:
+            raise RuntimeActivationError(code)
+        observed = Path(raw).expanduser().resolve(strict=False)
+        if observed != canonical:
+            raise RuntimeActivationError("AUTHORITY_DATABASE_IDENTITY_MISMATCH")
+    return canonical
+
+
+def _programmatic_worker_ids(
+    control_center,
+    authority: RuntimeActivationAuthority,
+) -> tuple[str, ...]:
+    snapshot = control_center.snapshot()
+    by_id = {row.worker_id: row for row in snapshot.workers}
+    root = Path(authority.worktree).expanduser().resolve(strict=False)
+    accepted: list[str] = []
+    for worker_id in authority.worker_ids:
+        row = by_id.get(worker_id)
+        if (
+            row is None
+            or row.assignment_id is None
+            or row.project_id != authority.project_id
+            or row.project_root_path is None
+            or row.runtime_id is None
+        ):
+            raise RuntimeActivationError("PROGRAMMATIC_PUSH_WORKER_UNAVAILABLE")
+        try:
+            worker_root = Path(row.project_root_path).expanduser().resolve(
+                strict=False
+            )
+        except OSError as exc:
+            raise RuntimeActivationError(
+                "PROGRAMMATIC_PUSH_WORKER_PROJECT_MISMATCH"
+            ) from exc
+        if worker_root != root:
+            raise RuntimeActivationError(
+                "PROGRAMMATIC_PUSH_WORKER_PROJECT_MISMATCH"
+            )
+        accepted.append(worker_id)
+    if tuple(accepted) != authority.worker_ids:
+        raise RuntimeActivationError("WORKER_CANDIDATE_AUTHORITY_MISMATCH")
+    return tuple(accepted)
+
+
+def _provider_inflight_count(provider_store, snapshot, now: object) -> int:
+    if not hasattr(now, "tzinfo") or getattr(now, "tzinfo", None) is None:
+        raise RuntimeActivationError("ACTIVATION_CLOCK_INVALID")
+    generation = snapshot.generation
+    if isinstance(generation, bool) or not isinstance(generation, int):
+        raise RuntimeActivationError("PROVIDER_GENERATION_AUTHORITY_MISSING")
+    try:
+        records = provider_store.list_provider_admissions(
+            provider_id=snapshot.profile.provider_id,
+            limit=200,
+        )
+    except Exception as exc:
+        raise RuntimeActivationError(
+            "PROVIDER_INFLIGHT_EVIDENCE_UNAVAILABLE"
+        ) from exc
+    # The accepted owner exposes a bounded recent-list API. A full page means
+    # older active evidence may exist outside the observation window, so fail
+    # closed at scheduler capacity rather than under-counting.
+    if len(records) >= 200:
+        return snapshot.profile.max_concurrency
+    count = 0
+    for record in records:
+        if (
+            record.status == "ACTIVE"
+            and record.released_at is None
+            and record.configuration_generation == generation
+            and record.expires_at > now
+        ):
+            count += 1
+    return count
+
+
+def _initialize_runtime_authority_stores(
+    database_path: Path,
+    *,
+    provider_store,
+    provider_id: str,
+):
+    """Initialize existing owning schemas, then prove each is readable.
+
+    Partial initialization is intentionally surfaced as RECOVERY_REQUIRED.
+    This helper never launches a backend and never retries a failed external
+    side effect; the DDL owners themselves are idempotent CREATE-IF-NOT-EXISTS
+    stores so a reconciled operator can re-open the same sacrificial database.
+    """
+    try:
+        job_store = SQLiteJobStore(database_path)
+        job_store.initialize()
+        try:
+            job_store.get_job("runtime-activation-schema-probe")
+        except Exception as exc:
+            if getattr(exc, "code", None) != "JOB_NOT_FOUND":
+                raise
+        else:
+            raise RuntimeActivationError("JOB_SCHEMA_VERIFICATION_FAILED")
+
+        execution_store = SQLiteExecutionStore(database_path)
+        execution_store.initialize()
+        try:
+            execution_store.get("runtime-activation-schema-probe")
+        except Exception as exc:
+            if getattr(exc, "code", None) != "EXECUTION_NOT_FOUND":
+                raise
+        else:
+            raise RuntimeActivationError("EXECUTION_SCHEMA_VERIFICATION_FAILED")
+
+        lease_store = SQLiteWorkerLeaseStore(database_path)
+        lease_store.list_active()
+        provider_store.list_provider_admissions(
+            provider_id=provider_id,
+            limit=1,
+        )
+    except RuntimeActivationError:
+        raise
+    except Exception as exc:
+        raise RuntimeActivationError(
+            "RUNTIME_AUTHORITY_INITIALIZATION_RECOVERY_REQUIRED"
+        ) from exc
+
+    return job_store, execution_store, lease_store
+
+
+def activate_production_runtime(
+    *,
+    database_path: str | Path,
+    request: RuntimeActivationRequest,
+    control_center,
+    settings_store,
+    provider_store,
+    lifecycle,
+    clock: Callable[[], object],
+):
+    """Activate one explicit task over existing durable production authorities."""
+    canonical = _require_canonical_runtime_dependencies(
+        database_path,
+        settings_store=settings_store,
+        provider_store=provider_store,
+    )
+    if not callable(clock):
+        raise ValueError("clock must be callable")
+    authority = load_activation_authority(request)
+    if authority.dispatch_mode == GraphDispatchMode.INTERACTIVE_PULL.value:
+        return _offer_interactive_runtime(
+            database_path=canonical,
+            request=request,
+            control_center=control_center,
+        )
+    if authority.dispatch_mode != GraphDispatchMode.PROGRAMMATIC_PUSH.value:
+        raise RuntimeActivationError("DISPATCH_MODE_INVALID")
+    _require_programmatic_push_platform()
+
+    # Validate all read-side authorities before initializing write-capable
+    # runtime stores.
+    try:
+        graph = GraphStore.open_read_only(canonical).load_graph(request.graph_id)
+    except Exception as exc:
+        raise RuntimeActivationError("ACTIVATION_GRAPH_UNAVAILABLE") from exc
+    node = next((item for item in graph.nodes() if item.id == request.node_id), None)
+    if node is None:
+        raise RuntimeActivationError("ACTIVATION_NODE_NOT_FOUND")
+    if node.worker_requirement:
+        raise RuntimeActivationError("RUNTIME_CAPABILITY_AUTHORITY_UNAVAILABLE")
+
+    worker_ids = _programmatic_worker_ids(control_center, authority)
+    snapshot = provider_store.load_provider_snapshot(request.provider_id)
+    if snapshot is None:
+        raise RuntimeActivationError("PROVIDER_SNAPSHOT_UNAVAILABLE")
+    contract = build_activation_contract(
+        request,
+        node,
+        database_path=canonical,
+        provider_snapshot=snapshot,
+        ordered_worker_ids=worker_ids,
+    )
+    now = clock()
+    provider_inflight = {
+        snapshot.profile.provider_id: _provider_inflight_count(
+            provider_store,
+            snapshot,
+            now,
+        )
+    }
+
+    # Explicit activation is the owner boundary at which existing runtime
+    # schemas may be initialized in the canonical database.  The helper also
+    # performs bounded post-initialization read-back before any backend exists.
+    job_store, execution_store, lease_store = _initialize_runtime_authority_stores(
+        canonical,
+        provider_store=provider_store,
+        provider_id=snapshot.profile.provider_id,
+    )
+
+    runtime_capabilities = {}
+    rows = {row.worker_id: row for row in control_center.snapshot().workers}
+    for worker_id in worker_ids:
+        runtime_id = rows[worker_id].runtime_id
+        assert runtime_id is not None
+        runtime_capabilities[runtime_id] = ("runtime:serena",)
+    candidate_base = WorkerCandidateAssembler(
+        control_center=control_center,
+        config_store=settings_store,
+        lifecycle_context_provider=lifecycle,
+        git_state_observer=NativeGitWorktreeStateObserver(),
+        lease_store=lease_store,
+        capability_resolver=MappingRuntimeCapabilityResolver(
+            runtime_capabilities
+        ),
+    )
+    candidate_assembler = _AuthorizedWorkerSupplyAssembler(
+        candidate_base,
+        worker_ids,
+    )
+    broker = WorkerLeaseBroker(
+        store=lease_store,
+        lease_id_factory=lambda: f"runtime-lease-{uuid.uuid4().hex}",
+        clock=clock,
+    )
+    reservations = SQLiteWorkerProvisioningReservations(lease_store)
+    capacity = ElasticWorkerCapacityCoordinator(
+        broker=broker,
+        reservations=reservations,
+        provisioner=_NoElasticProvisioner(),
+        candidate_assembler=candidate_assembler,
+        reservation_id_factory=lambda: f"runtime-reservation-{uuid.uuid4().hex}",
+        clock=clock,
+    )
+
+    backend = _build_runtime_job_backend(
+        database_path=canonical,
+        contract=contract,
+        execution_store=execution_store,
+        clock=clock,
+    )
+    durable = DurableJobControlService(
+        store=job_store,
+        coordinator=DurableJobExecutionCoordinator(
+            store=job_store,
+            backend=backend,
+        ),
+    )
+    coordinator = GraphDispatchCoordinator(
+        service=durable,
+        mode_resolver=StaticWorkerDispatchModeResolver(
+            {
+                worker_id: GraphDispatchMode.PROGRAMMATIC_PUSH
+                for worker_id in worker_ids
+            }
+        ),
+    )
+    runner = GraphDispatchParallelRunner(coordinator)
+    parallel = ParallelReadyExecutor(
+        broker=broker,
+        runner=runner,
+        clock=clock,
+        provider_admission_store=provider_store,
+        require_provider_authority=True,
+    )
+    executor = ProductionElasticWorkerExecutor(
+        candidate_assembler=candidate_assembler,
+        capacity_coordinator=capacity,
+        parallel_executor=parallel,
+    )
+
+    service = RuntimeActivationService(
+        graph_loader=lambda graph_id: graph,
+        state_projector=lambda current_graph, graph_id, graph_run_id: (
+            project_graph_node_states(
+                current_graph,
+                graph_id,
+                graph_run_id,
+                job_store,
+            )
+        ),
+        contract_builder=lambda current_request, current_node: contract,
+        executor=executor,
+        provider_inflight=provider_inflight,
+    )
+    return service.activate(request)
 
 
 def derive_runtime_activation_batch_id(
