@@ -55,6 +55,18 @@ class LifecycleCommandService(Protocol):
     def execute(self, worker_id: str, action: LifecycleAction): ...
 
 
+class RuntimeAuthorityError(ValueError):
+    """Runtime-authority identity composition failure (WO-P1-431).
+
+    Codes use the frozen WO431 failure vocabulary. Identity mismatch always
+    fails before any writer construction or file/table side effect.
+    """
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
+
+
 A_WIKI_DATA_BACKUP_DIR = Path("L:/My Drive/A-Wiki-Data/backups/a-conductor-instances")
 
 _COCKPIT_EXECUTION_SQL = (
@@ -189,6 +201,7 @@ class DesktopControlService:
         instance_orchestrator: LocalInstanceOrchestrator | None = None,
         connector_recovery: ConnectorRecoveryCoordinator | None = None,
         cockpit_authority_database: str | Path | None = None,
+        control_database: str | Path | None = None,
     ) -> None:
         if settings_store is not None and provider_store is not None:
             settings_database = Path(settings_store.database_path).expanduser().resolve(strict=False)
@@ -208,6 +221,20 @@ class DesktopControlService:
             Path(cockpit_authority_database).expanduser()
             if cockpit_authority_database is not None
             else None
+        )
+        settings_database_path = (
+            getattr(settings_store, "database_path", None)
+            if settings_store is not None
+            else None
+        )
+        self._control_database = (
+            Path(control_database).expanduser().resolve(strict=False)
+            if control_database is not None
+            else (
+                Path(settings_database_path).expanduser().resolve(strict=False)
+                if settings_database_path is not None
+                else None
+            )
         )
         self._pending_instance_starts: set[str] = set()
         self._pending_instance_starts_lock = Lock()
@@ -244,7 +271,21 @@ class DesktopControlService:
             settings_store=config_store,
             provider_store=provider_store,
             instances_root=resolved_root,
+            control_database=database,
         )
+
+    @property
+    def runtime_authority_database(self) -> Path | None:
+        """Resolved canonical control DB retained as authority identity locator.
+
+        WO-P1-431 frozen model: this path is an identity locator/comparator
+        only, never authority itself — the existing job/execution/lease
+        stores remain the durable authorities. Runtime stores may live as
+        namespaced tables in this same file once their owning subsystem is
+        activated (#433); a legacy DB without runtime tables keeps this
+        locator valid while runtime truth stays UNKNOWN.
+        """
+        return self._control_database
 
     def snapshot(self):
         return self.control_center.snapshot()
@@ -432,15 +473,27 @@ class DesktopControlService:
         The `supervised` preference defaults to ON (user decision 2026-08-22):
         native commands run under durable records, duplicate protection, and
         bounded collection. Flipping it off trades durability for raw speed.
+
+        WO-P1-431: the requested writer path must be exactly the retained
+        canonical control database identity. A mismatch fails typed and
+        closed before DurableJobControlService construction or any
+        file/table side effect — sibling databases never gain runtime
+        writer authority by pathname resemblance.
         """
         store = self._require_settings_store()
+        canonical = self.runtime_authority_database
+        if canonical is None:
+            raise RuntimeAuthorityError("RUNTIME_AUTHORITY_UNBOUND")
+        requested = Path(database_path).expanduser().resolve(strict=False)
+        if requested != canonical:
+            raise RuntimeAuthorityError("AUTHORITY_DATABASE_IDENTITY_MISMATCH")
         supervised = store.get_preference("supervised")
         if supervised is None:
             supervised = True
         from .job_control import DurableJobControlService
 
         return DurableJobControlService.open(
-            database_path,
+            canonical,
             operations=operations,
             control_center=self.control_center,
             supervised=supervised,

@@ -1,6 +1,6 @@
 # WO-P1-431 — RUNTIME-AUTH-1 Production Durable Runtime Authority Composition
 
-Status: R3_AUTHORITY_MODEL_FROZEN / SOURCE_BLOCKED_ON_424_ACCEPTANCE
+Status: R3_IMPLEMENTED_LOCAL / AWAITING_EXACT_SHA_REVIEW_AND_GPT_ACCEPTANCE
 Issue: #431
 Blocks: #429 COCKPIT-1B / LOCAL-USABLE-1
 Topology: CONTROL_PLANE_ONLY
@@ -197,16 +197,49 @@ gate:
 
 ## Current checkpoint
 
-WO424 has now been explicitly re-scoped to COCKPIT-1A foundation at exact
-`823263bc46c756a3fbb081edfecfa5e94020c9a4`. Its fresh independent foundation
-R2 is active as
-`run:WO-P1-424:foundation-r2:1:a1:63df92c0fb0c`; exact-head CI #1087 is also
-active. Product/test blobs are unchanged from the prior reviewed `e624728d...`
-candidate.
+WO431 bounded R3 implementation executed as claim
+`WO-P1-431-RUNTIME-AUTHORITY-IMPL-001` on branch
+`feat/wo-p1-431-runtime-authority-identity` from exact base
+`ccdbe99d87af0e33d316513457790da576e11bab` (post-#432 main), mutable scope
+held to `desktop_control.py` + `tests/test_desktop_control.py` + this WO.
 
-Therefore WO431 source mutation remains blocked until #424 foundation is
-accepted and merged, because `desktop_control.py` is the overlapping hotspot.
-After post-main re-pin, rerun the source mutation gate from then-current main
-using the frozen authority model above.
+RED-first proof (before implementation, focused subset): 3 RED —
+`test_wo431_open_retains_resolved_canonical_control_db_as_authority_locator`
+(AttributeError: no retained locator), `test_wo431_open_job_control_rejects_identity_mismatch_before_mutation`
+(ImportError: no typed `RuntimeAuthorityError`; pre-gate `open_job_control`
+accepted an arbitrary sibling DB), and
+`test_wo431_open_job_control_accepts_exact_canonical_db_with_supervised_preference`
+(no locator identity to pin). Legacy fail-closed and no-owning-store
+construction were pinned green pre-change and stay green.
 
-#429 remains `DEPENDENCY_REQUIRED` until a WO431 implementation is accepted.
+Implemented seam (smallest design, frozen #431 model):
+- `RuntimeAuthorityError(ValueError)` typed codes `RUNTIME_AUTHORITY_UNBOUND`
+  and `AUTHORITY_DATABASE_IDENTITY_MISMATCH`;
+- `DesktopControlService.open()` retains its already-resolved canonical
+  control DB (`Path.expanduser().resolve(strict=False)`); direct construction
+  derives the locator from the settings store when no explicit locator is
+  given; exposed read-only as `runtime_authority_database`;
+- `open_job_control()` compares the requested path's exact resolved identity
+  against the retained locator BEFORE `DurableJobControlService.open` and
+  passes the canonical identity onward; mismatch leaves the target file
+  nonexistent and the canonical table inventory unchanged.
+
+Cockpit semantics unchanged and fail-closed: read path constructs no
+`SQLiteJobStore`/`SQLiteExecutionStore`/`SQLiteWorkerLeaseStore` (explicitly
+pinned via module-level monkeypatch), never initializes/migrates; legacy
+canonical DB without runtime tables stays usable and projects
+UNKNOWN/EVIDENCE_INCOMPLETE with `EXECUTION_AUTHORITY_READ_FAILED` /
+`LEASE_AUTHORITY_READ_FAILED` and no created files/tables.
+
+#433 dependency refinement: runtime producer activation (#433) remains the
+only authorized path that may initialize job/execution/lease tables inside
+the canonical control DB. This slice is authority identity/composition only —
+ordinary desktop use still does NOT produce durable runtime rows, and Cockpit
+product binding remains #429's after #433.
+
+Verification: `tests/test_desktop_control.py` +
+`tests/test_cockpit_projection.py` = 83 passed; related
+job/execution/lease/provider/operator suites = 219 passed; py_compile OK;
+`git diff --check` clean; strict UTF-8/no-U+FFFD OK; added-line secret scan 0
+hits. One local commit created on the claimed branch; NOT pushed/merged;
+independent exact-SHA review + GPT-5.6 Sol acceptance still required.
