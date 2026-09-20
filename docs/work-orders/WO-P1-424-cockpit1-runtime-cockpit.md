@@ -1,6 +1,6 @@
 # WO-P1-424 — COCKPIT-1 Runtime Cockpit MVP durable truth projection
 
-Status: CLAIMED / GOVERNANCE_BOOTSTRAP
+Status: CLAIMED / READY_FOR_IMPLEMENTATION
 Issue: #424
 Identity schema: GITHUB_ISSUE_V1
 Topology: CONTROL_PLANE_ONLY
@@ -12,7 +12,8 @@ Risk: R2 — read-only shared operator projection + desktop integration
 - isolated worktree: `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo424-cockpit1`
 - branch: `feat/wo-p1-424-cockpit1-runtime-cockpit`
 - bootstrap base SHA: `bd4892185195d8c6a7c3a8652a75ec4db7f003b4`
-- required current-main re-pin before source mutation: `7394322f14b6878c0c7fef61c618b9ae31898a72`
+- current-main re-pin accepted: `7394322f14b6878c0c7fef61c618b9ae31898a72`
+- post-fan-in branch anchor before source mutation: `2013145f352945bfd1c71cc962d5d906db219bae`
 - claim: `WO-P1-424-COCKPIT1-RUNTIME-COCKPIT-001`
 - owner: bounded implementation lane selected by A-Faster; GPT-5.6 Sol remains integrator/acceptance authority.
 - evidence destination: `runs/WO-P1-424/`
