@@ -202,3 +202,26 @@ Any need to add a new serialized task/route authority, scheduler, store, schema,
 - WO191/WO195/WO227 worktrees are clean but stale by roughly 223-265 current-main commits; no live ZRA-3 process exists. Their branches are evidence, not a safe current mutation base.
 - This repair therefore adds the missing ownership fence. Source mutation remains blocked pending fresh exact-SHA rereview and #215/#433 ownership reconciliation.
 - #429 remains dependency-required until #433 is accepted.
+
+
+## 2026-09-21 session-rollover checkpoint — source gate re-pin required
+
+This checkpoint supersedes only the stale *runtime/source-entry status* above; accepted architecture, ownership split, failure model, and acceptance requirements remain binding.
+
+- Observed remote main at rollover: `75d9e96e46e15cc8ef647d12194d677657689bde`.
+- The earlier R3 source claim in Issue #433 comment `5751797434` was bound to `d2ad5bdcac521d4803a84edabe56fb57eda9a2e8`; its mutation verdict does not survive head drift automatically.
+- Fresh relevance diff from that base to the rollover main changes none of the frozen #433 implementation/test paths. The only related inspected drift is WO246 author-provenance wiring in `zcode_production_assembly.py`.
+- Current main still has `ClaudeCodeJobBackend`, while `ClaudeCodeHarnessAdapter` rejects `PROJECT_MUTATION` as `HARNESS_MUTATION_NOT_READY`.
+- Current main still has `SupervisedZCodeRunner` but no accepted `ZCodeJobBackend` that GraphDispatch can use as the generic job backend.
+- Therefore the smallest truthful first LOCAL-USABLE slice is **explicit/manual READ_ONLY activation** through the accepted supervised Claude durable backend. Mutation-capable harness activation is a successor architecture/scope decision.
+- The manual command consumes one caller-named existing graph/run/node and cross-checks all authority-bearing identities. It never chooses a successor and never implements automatic NEXT_READY.
+- Fixed-pool only: no elastic worker provisioning in this slice.
+- Required capability evidence fails closed; non-empty canonical TaskNode capability demand must not be inferred from runtime-type markers.
+- No live installed database activation is authorized during implementation or review; migration/initialization behavior is proven on sacrificial databases first.
+- Prior GLM-5.3-Flash source-scope assist was recovered as TERMINAL exit 0 and supported REUSE+WRAP/thin composition. It is advisory evidence, not review or acceptance authority.
+- No #433 source writer or material GLM implementation dispatch was started before this deliberate chat rollover.
+- Durable rollover claim/checkpoint: Issue #433 comment `5753493574`.
+
+### Exact next safe action after session rotation
+
+Fresh session must run canonical ENTRY/A-Faster recovery, fetch/re-pin actual `origin/main`, reconcile global delegated runs/WIP, and rerun collision/relevance checks. Only then may it create a new clean isolated R3 source worktree/claim for the frozen manual READ_ONLY activation scope and begin RED-first implementation. Automatic NEXT_READY remains #215-exclusive.
