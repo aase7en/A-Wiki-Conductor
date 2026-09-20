@@ -125,3 +125,32 @@ Required proof:
 Harvest canonical #424 exact-SHA R2 rereview when terminal, fold any new evidence
 into this shaping decision, then freeze the smallest production-binding design.
 Do not start implementation merely because a free mutable slot exists.
+
+## Shaping disposition — dependency required
+
+Classification: `DEPENDENCY_REQUIRED`.
+
+Read-only archaeology found no accepted production locator that ordinary desktop
+startup can use today:
+- supervised execution persistence is explicitly opt-in (WO-P1-047/049);
+- `DurableJobControlService.open(database_path, ...)` requires an explicit path
+  and has no top-level desktop production caller;
+- elastic worker lease composition likewise requires an explicit path and has no
+  top-level desktop production caller;
+- `operator.v1` is a protocol/dispatcher over an injected job-control service,
+  not a bound production status backend;
+- graph operator view reads job/runtime facts only from a caller-supplied DB;
+- A-Faster `execution-pointer.json` files have no accepted production reader;
+- GOT continuity projection is a closeout projection, explicitly not an authority
+  database or general live-execution store;
+- the installed default Control Center DB contains none of `job_records`,
+  `execution_records`, or `worker_leases`.
+
+Therefore COCKPIT-1B must not invent a locator, scan `runs/` as a new UI
+authority, or initialize execution/lease tables merely to make the screen look
+complete.
+
+Required predecessor: an R3 production-runtime authority composition/locator
+slice that binds existing job/execution/lease authorities to one explicit,
+inspectable product composition boundary. COCKPIT-1B resumes only after that
+predecessor is accepted and can consume its read-only identity without mutation.
