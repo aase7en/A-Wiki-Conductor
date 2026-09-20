@@ -1,9 +1,9 @@
 # WO-P1-433 — RUNTIME-ACT-1 Production Durable Runtime Producer Activation
 
-Status: R3_SHAPING / SOURCE_BLOCKED_ON_FRONT_DOOR_PROOF
+Status: R3_SHAPING / SOURCE_BLOCKED_ON_ZERO_RELAY_OWNERSHIP_AND_FRONT_DOOR_PROOF
 Issue: #433
 Parent roadmap: #397 / LOCAL-USABLE-1
-Depends on: #431 RUNTIME-AUTH-1 source implementation acceptance
+Depends on: #431 RUNTIME-AUTH-1 RELEASED + active #215 / WO227 ownership reconciliation
 Blocks: #429 COCKPIT-1B / LOCAL-USABLE-1
 Topology: CONTROL_PLANE_ONLY
 Risk: R3 — durable job/execution/lease activation, process ownership, replay/recovery, schema initialization
@@ -14,19 +14,39 @@ Claim: WO-P1-433-RUNTIME-ACTIVATION-SHAPING-001
 
 - authority/execution repo: `A:\GitHub\A-Wiki-Conductor`
 - authoritative remote branch: `docs/wo-p1-433-runtime-activation-shaping`
-- shaping base: `ccdbe99d87af0e33d316513457790da576e11bab`
+- original shaping base: `ccdbe99d87af0e33d316513457790da576e11bab`
+- current accepted main after #431: `de8b037cfd78e4513656b726981caee05d5bb39b`
 - current tracked mutable scope: this Work Order only
-- source mutation: FORBIDDEN until #431 implementation is accepted and the runtime owner, product front door, migration/failure model, and exact source/test scope are frozen
+- source mutation: FORBIDDEN until Zero-Relay ownership is consumed/transferred explicitly, the runtime owner/product front door/input authority is proven, the migration/failure model remains valid, and exact source/test scope is frozen
 - live installed DB/runtime mutation: FORBIDDEN in shaping
 - local collision commit `c2bed66046f99a190164ddb7e3446a7442fda695` is non-authoritative evidence only and is not a merge source
 
 ## Product gap
 
-#431 establishes one canonical control-database identity locator and fail-closed identity comparison. That is necessary but not sufficient for LOCAL-USABLE-1.
+#431 is now accepted/released and establishes one canonical control-database identity locator plus fail-closed identity comparison. That is necessary but not sufficient for LOCAL-USABLE-1.
 
 Current ordinary desktop startup composes Control Center/settings/provider/connector-lifecycle/read-only operator surfaces but does not invoke an accepted durable task-execution producer. The Graph Monitor is read-only. Connector Start/Stop owns connector lifecycle, not work-order/job execution truth.
 
-Current source contains production-capable durable execution assemblies, but no inspected ordinary product caller activates the complete chain from a shipped front door. Library callability alone is not LOCAL-USABLE-1.
+Repo-wide non-test tracing finds production-capable durable execution assemblies but no shipped caller for the complete producer chain. Library callability alone is not LOCAL-USABLE-1.
+
+## Cross-roadmap ownership fence
+
+The accepted WO397 roadmap explicitly states that it **does not cancel any active Zero-Relay claim**.
+
+Issue #215 remains OPEN under claim `GPT1-ZRA3-PREFLIGHT-001` and owns automatic NEXT READY continuation. Its prepared WO227 already names the same two gaps rediscovered here:
+- real production reachability into the existing scheduler/provider/lease/GraphDispatch execution fabric; and
+- authoritative construction of `ParallelReadyNodeContract` inputs.
+
+Historical PR #263 / #269 / #274 and WO191/WO195 source candidates are Draft/unaccepted and hundreds of commits behind current main. They are research evidence only, not source authority. However, the durable #215 ownership has not been released.
+
+Therefore #433 MUST NOT implement a second production-reachability or contract-producer path while #215 remains active.
+
+Default disposition:
+1. **CONSUME / VERIFY** an accepted #215/WO227 producer when it lands, proving that it uses #431's canonical runtime-authority identity and produces the durable execution/lease truth required by LOCAL-USABLE-1; or
+2. if Product Fast Lane needs a narrower non-continuation activation first, record an explicit ownership split/transfer in both #215 and #433 before any overlapping source claim.
+
+Until one of those is durably true:
+`SOURCE_MUTATION_433 = NO`.
 
 ## Reuse-before-build audit
 
@@ -46,6 +66,8 @@ Existing accepted seams already cover the lower-level composition and MUST be re
 - `build_sqlite_parallel_ready_executor(...)` already composes `ParallelReadyExecutor` with the SQLite provider-admission authority; it is a reusable assembly seam, not the missing product front door.
 - #431 owns the canonical product control-DB identity locator/comparator shared by these owning stores.
 
+These lower-level seams are shared capability, not permission for #433 to duplicate #215's continuation/product-reachability ownership.
+
 ### REUSE — recovery/replay precedent
 
 `zero_relay_review_execution.execute_review_dispatch(...)` is an existing top-level composition precedent for durable job + execution + lease + provider-admission truth. It demonstrates exact-identity recovery, equivalent-execution reconciliation, lease/admission cleanup, and no blind replay.
@@ -57,6 +79,7 @@ It is review-specialized and is not automatically the generic product owner, but
 Do not add:
 - another `ParallelReadyRunner`;
 - another scheduler, task/job store, claim/lease store, retry/recovery engine, provider-admission store, review/completion plane, or execution journal;
+- another ZRA-3/WO227 production-reachability or `ParallelReadyNodeContract` producer under #433;
 - a writable Graph Monitor/operator projection;
 - synthetic task semantics around connector Start/Stop;
 - A-Faster `runs/**/execution-pointer.json` scanning as product authority.
@@ -65,40 +88,41 @@ Do not add:
 
 The remaining gap is narrower than the first shaping draft:
 
-1. no ordinary shipped product front door has been proven to instantiate and invoke the accepted production chain;
-2. durable product input authority for `TaskGraph`, `ReadySetResult`, per-node `ParallelReadyNodeContract`, eligibility/provider-inflight evidence, batch identity, and runtime policy must be traced to existing accepted owners;
-3. the canonical #431 DB identity must be bound before any write-capable runtime store is constructed;
-4. the default product operation/backend used by the selected PROGRAMMATIC_PUSH task must already exist or be explicitly shaped without inventing a second execution universe.
+1. active #215/WO227 production-reachability ownership must be consumed, formally split, or transferred before #433 source work;
+2. no ordinary shipped product front door has been proven to instantiate and invoke the accepted production chain;
+3. durable product input authority for `TaskGraph`, `ReadySetResult`, per-node `ParallelReadyNodeContract`, eligibility/provider-inflight evidence, batch identity, and runtime policy must be traced to existing accepted owners;
+4. the canonical #431 DB identity must be bound before any write-capable runtime store is constructed;
+5. the default product operation/backend used by the selected PROGRAMMATIC_PUSH task must already exist or be explicitly shaped without inventing a second execution universe.
 
 ## R3 activation direction
 
-Preferred reuse stack:
+Target reuse stack, to be **consumed from the accepted owner rather than reimplemented by #433**:
 
-`explicit product trigger -> accepted graph/ready/contracts/eligibility inputs -> ProductionElasticWorkerExecutor -> ParallelReadyExecutor -> provider admission + WorkerLease -> GraphDispatchParallelRunner -> GraphDispatchCoordinator -> DurableJobControlService -> supervised execution`.
+`accepted product/continuation trigger -> authoritative graph/ready/contracts/eligibility inputs -> ProductionElasticWorkerExecutor -> ParallelReadyExecutor -> provider admission + WorkerLease -> GraphDispatchParallelRunner -> GraphDispatchCoordinator -> DurableJobControlService -> supervised execution`.
 
-Do not bypass `ProductionElasticWorkerExecutor` by manually rebuilding scheduler + worker-supply + task assembly unless a post-#431 exact call-path proof shows that higher-level seam is incompatible with the chosen product input authority.
+If #215/WO227 lands this chain, #433's job is compatibility/integration proof against #431 canonical DB identity and LOCAL-USABLE-1 observation needs.
+
+Do not bypass `ProductionElasticWorkerExecutor` by manually rebuilding scheduler + worker-supply + task assembly. Do not port unaccepted WO191/WO195/WO227 code merely because it demonstrates a plausible shape.
 
 Only PROGRAMMATIC_PUSH lanes may launch. INTERACTIVE_PULL remains OFFERED/pull-mode and must never be fake-pushed.
 
 ## Product front-door gate
 
-Before source mutation, prove a thin existing product/control entry can invoke the runtime owner from durable accepted inputs.
+Before any #433 source mutation, prove one of these ownership-safe cases:
 
-The activation command MUST live at a runtime-owner control seam. The read-only Graph Monitor/operator projection may display context and outcome but may not become scheduling/execution authority or initialize runtime stores.
+A. **Preferred:** an accepted #215/WO227 production path already owns the front door and authoritative contract production. #433 only consumes/verifies it against #431 identity.
 
-Preferred proof order:
+B. #215 and #433 both durably record a non-overlapping ownership split or transfer for a narrower activation path; then re-derive the smallest existing control/CLI/application entry from current main.
 
-A. Reuse an already-shipped control/CLI/application entry that can reconstruct the required graph/ready/contracts/eligibility/runtime inputs from accepted durable state and call the existing production executor.
+C. Neither A nor B is true: STOP with `OWNERSHIP_RECONCILIATION_REQUIRED`. Do not create a new durable request file/store or parallel contract producer merely to bridge the gap.
 
-B. If A is unavailable, reuse an already-accepted durable operator/graph request contract that can reach the same owner without adding a parallel serialized task/route authority.
-
-C. If neither is true, STOP with `SCOPE_EXPANSION_REQUIRED`. Do not invent a new durable request file/store merely to bridge process boundaries.
+The activation command, wherever owned, MUST live at a runtime-owner control seam. The read-only Graph Monitor/operator projection may display context and outcome but may not become scheduling/execution authority or initialize runtime stores.
 
 A library-only helper or test-only call path is insufficient.
 
 ## Initialization / migration boundary
 
-Runtime tables may be created only because an explicit runtime-owner activation is executing a real product action:
+Runtime tables may be created only because an accepted runtime owner is activating a real product action:
 
 - Cockpit/Graph Monitor/operator reads never initialize or migrate runtime stores.
 - App startup alone must not fabricate empty runtime truth.
@@ -118,57 +142,63 @@ A failed or ambiguous activation never means safe retry. Reconcile job/execution
 
 Fail closed on:
 1. #431 canonical authority identity unavailable/mismatch;
-2. graph/run/node/contract identity unavailable or stale;
-3. required ready/eligibility/provider-inflight/batch evidence missing;
-4. worker dispatch mode unknown;
-5. INTERACTIVE_PULL presented to a push-only execution path;
-6. provider configuration/admission generation drift;
-7. worker lease conflict/expiry/ambiguous recovery;
-8. durable equivalent execution live, terminal-unharvested, or outcome-unknown;
-9. migration/init/concurrency/post-migration verification failure;
-10. repeated product command after ambiguous response;
-11. any cross-authority identity mismatch;
-12. product front door cannot prove the durable input owner.
+2. #215/#433 ownership unresolved for the proposed product-reachability or contract-producer seam;
+3. graph/run/node/contract identity unavailable or stale;
+4. required ready/eligibility/provider-inflight/batch evidence missing;
+5. worker dispatch mode unknown;
+6. INTERACTIVE_PULL presented to a push-only execution path;
+7. provider configuration/admission generation drift;
+8. worker lease conflict/expiry/ambiguous recovery;
+9. durable equivalent execution live, terminal-unharvested, or outcome-unknown;
+10. migration/init/concurrency/post-migration verification failure;
+11. repeated product command after ambiguous response;
+12. any cross-authority identity mismatch;
+13. product front door cannot prove the durable input owner.
 
 ## RED-first acceptance matrix before source mutation
 
-Tests must prove:
-1. ordinary product invocation reaches the selected existing runtime owner, not a test-only helper;
-2. startup/read-only Graph/Cockpit observation creates no runtime tables;
-3. canonical DB mismatch fails before job/execution/lease/provider construction or mutation;
-4. legacy canonical DB remains unchanged until explicit activation;
-5. sacrificial activation initializes only existing owning-store schemas and passes rollback/concurrency/post-migration verification;
-6. one bounded PROGRAMMATIC_PUSH assignment creates/reuses the canonical durable job, exact WorkerLease/provider admission, and durable execution truth;
-7. RUNNING execution is observable from the same canonical DB while the process is live;
-8. successful terminal execution reaches existing verification/terminal semantics;
-9. timeout/disconnect/ambiguous child state remains terminal-unharvested/outcome-unknown/reconcile-required and never authorizes blind replay;
-10. exact replay of a live/equivalent dispatch does not launch a second child;
-11. lease/provider cleanup occurs only when exact terminality/ownership is proven;
-12. INTERACTIVE_PULL is OFFERED with no process launch;
-13. Cockpit/read-only refresh constructs none of the owning runtime stores;
-14. concurrent activation is idempotent or fails typed without split authority;
-15. provider, job-CAS, execution-fingerprint/dedup, scheduler/conflict and lease invariants remain green;
-16. connector Start/Stop never masquerades as durable task execution evidence;
-17. no new scheduler/store/claim/retry/review/completion authority exists;
-18. installed default startup remains usable when runtime activation is never invoked.
+Any future #433 source entry must first prove:
+1. #215/WO227 ownership is accepted/consumed or a non-overlapping transfer/split is durably recorded;
+2. ordinary product invocation reaches the selected existing runtime owner, not a test-only helper;
+3. startup/read-only Graph/Cockpit observation creates no runtime tables;
+4. canonical DB mismatch fails before job/execution/lease/provider construction or mutation;
+5. legacy canonical DB remains unchanged until explicit activation;
+6. sacrificial activation initializes only existing owning-store schemas and passes rollback/concurrency/post-migration verification;
+7. one bounded PROGRAMMATIC_PUSH assignment creates/reuses the canonical durable job, exact WorkerLease/provider admission, and durable execution truth;
+8. RUNNING execution is observable from the same canonical DB while the process is live;
+9. successful terminal execution reaches existing verification/terminal semantics;
+10. timeout/disconnect/ambiguous child state remains terminal-unharvested/outcome-unknown/reconcile-required and never authorizes blind replay;
+11. exact replay of a live/equivalent dispatch does not launch a second child;
+12. lease/provider cleanup occurs only when exact terminality/ownership is proven;
+13. INTERACTIVE_PULL is OFFERED with no process launch;
+14. Cockpit/read-only refresh constructs none of the owning runtime stores;
+15. concurrent activation is idempotent or fails typed without split authority;
+16. provider, job-CAS, execution-fingerprint/dedup, scheduler/conflict and lease invariants remain green;
+17. connector Start/Stop never masquerades as durable task execution evidence;
+18. no new scheduler/store/claim/retry/review/completion authority exists;
+19. no duplicate #215/WO227 continuation/contract-producer authority exists;
+20. installed default startup remains usable when runtime activation is never invoked.
 
 ## Scope gate
 
 Do not assume source paths yet.
 
-After #431 implementation acceptance, run a fresh exact-main call-graph/ownership audit to prove:
-- the narrow product front door;
-- the durable graph/ready/contracts/eligibility input owners;
-- the minimal production assembly needed to instantiate `ProductionElasticWorkerExecutor` and its existing dependencies under the #431 canonical DB identity;
-- the exact source/test paths.
+#431 implementation is accepted. The remaining source-entry gate is now:
+- current-main #215/WO227 ownership disposition;
+- narrow product front door;
+- durable graph/ready/contracts/eligibility input owners;
+- minimal accepted assembly under #431 canonical DB identity;
+- exact source/test paths with no overlap against the active Zero-Relay owner.
 
-Any need to add a new serialized task/route authority, scheduler, store, schema, or retry/completion lifecycle is `SCOPE_EXPANSION_REQUIRED` and requires a new R3 architecture decision.
+Any need to add a new serialized task/route authority, scheduler, store, schema, retry/completion lifecycle, or duplicate Zero-Relay producer is `SCOPE_EXPANSION_REQUIRED` and requires a new R3 architecture decision.
 
 ## Current checkpoint
 
-- #431 authority-model docs are merged, but #431 source implementation acceptance is still the dependency gate.
-- PR #434 first candidate `2ef328aff0c2df9fe4ffaa7a5308dde079107812` received independent R3 `CHANGES_REQUIRED` (P0/P1/P2/P3 = 0/0/1/4) because it missed existing `GraphDispatchParallelRunner` / `build_sqlite_parallel_ready_executor` and needed stronger trigger/migration wording.
-- Additional read-only archaeology identified `ProductionElasticWorkerExecutor.execute_once(...)` as the higher-level existing production orchestration seam and found no ordinary product caller.
-- The repaired shaping contract therefore reuses that stack and narrows the remaining problem to durable input/front-door composition.
-- Source mutation remains blocked until this repaired docs candidate passes fresh independent exact-SHA review and #431 implementation is accepted.
-- #429 remains dependency-required until #431 and #433 are accepted.
+- #431 is ACCEPTED / MERGED / POST_MAIN_VERIFIED at `main@de8b037cfd78e4513656b726981caee05d5bb39b`.
+- PR #434 first candidate `2ef328aff0c2df9fe4ffaa7a5308dde079107812` received independent R3 `CHANGES_REQUIRED` (P0/P1/P2/P3 = 0/0/1/4) for missed reuse seams and weaker trigger/migration wording.
+- Repaired candidate `bdfc6857629d433fcbb2bb2cb05862c8999281dd` received independent R3 `PASS 0/0/0/0` for its internal reuse/failure model.
+- After that rereview was dispatched, integrator recovery found a material cross-roadmap fact: WO397 preserves active Zero-Relay claims, Issue #215 is still OPEN, and prepared WO227 owns the same production-reachability + contract-producer gap.
+- Current non-test repo census still finds no shipped caller for `ProductionElasticWorkerExecutor.execute_once`, no production `ParallelReadyNodeContract` constructor, and no production `GraphStore` writer.
+- WO191/WO195/WO227 worktrees are clean but stale by roughly 223-265 current-main commits; no live ZRA-3 process exists. Their branches are evidence, not a safe current mutation base.
+- This repair therefore adds the missing ownership fence. Source mutation remains blocked pending fresh exact-SHA rereview and #215/#433 ownership reconciliation.
+- #429 remains dependency-required until #433 is accepted.
