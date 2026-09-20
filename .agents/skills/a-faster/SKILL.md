@@ -37,11 +37,13 @@ preserve A-FastTask's negative triggers and avoid routing overhead for tiny work
 For substantial A-Sunday engineering, a user instruction equivalent to
 **"use A-Faster" / "ใช้ A-Faster"** requests the whole acceleration behavior
 of this profile for that session: delegated-run census/recovery, global WIP
-reconstruction, automatic lane fill, GLM model/harness routing, advisory
-Ponytail/Caveman consideration, and autonomous continuation. The user need
-not restate multiagent/multilane/multitasking/GLM/advisory-skill
-instructions each session. The clause routes only; the normal A-FastTask
-binding and authority gates still apply.
+reconstruction, automatic lane fill, the default Windows/macOS execution
+surfaces below, GLM-first long-running labor, event-driven cross-device
+collision pulses, GPT-5.6 Sol fallback when eligible external GLM routes are
+blocked, advisory Ponytail/Caveman consideration, and autonomous continuation.
+The user need not restate multiagent/multilane/multitasking/device-routing/
+GLM/fallback/advisory-skill instructions each session. The clause routes only;
+the normal A-FastTask binding and authority gates still apply.
 
 ## Global WIP and no-collision rule
 
@@ -113,6 +115,28 @@ For every substantial A-Sunday Conductor engineering session:
 
 Readiness discovery is routing evidence only. `WORKER/RDC ONLINE !=
 SAFE_TO_MUTATE`; exact task/claim/scope/worktree gates still apply.
+
+## Default device execution routes
+
+These are routing preferences, not authority and not permanent Worker roles:
+
+- **Windows:** prefer exposed SunDay-Worker 1..5 as the primary chat-visible
+  repo/code execution surface after exact lane binding. Use RDC secondarily for
+  device/process/runtime inspection, recovery, local shell/build/test work, or
+  when the required Worker surface is unavailable. For long-running bounded
+  inference labor inside an admitted Windows lane, prefer Kilo/Claude CLI with
+  the eligible GLM class below.
+- **macOS:** prefer RDC as the primary chat-visible device/repo/shell/CLI
+  execution surface. Local Serena or similar tooling may exist, but A-Faster
+  must not require, infer, or claim a Mac Worker/Serena surface unless the
+  current harness actually exposes and verifies it. For long-running bounded
+  inference labor, launch the admitted Kilo/Claude CLI route through the
+  RDC-bound Mac lane.
+- **GitHub:** remains remote Issue/PR/SHA/CI/merge truth, not a substitute for
+  either device's local dirty-state/ownership proof.
+
+A missing preferred surface blocks only dependent work. Re-route through the
+next already-authorized surface without changing task/claim/scope semantics.
 
 ## PROJECT/TASK DELEGATED-RUN CENSUS (every A-Faster entry)
 
@@ -186,10 +210,30 @@ Different sessions, chats, or devices never get separate WIP budgets and
 never bypass this gate. A lane blocked here keeps its typed blocker and
 exact next safe action; independent non-overlapping lanes proceed.
 
+### Collision pulse — event-driven refresh boundaries
+
+Within every active A-Faster invocation, refresh/reconstruct the delegated-run
+census + lane occupancy projection and rerun the collision gate at least:
+
+- before allocating new work on A-Faster entry;
+- before every material delegated dispatch;
+- before every material mutation;
+- after a material lane transition, harvest, takeover, or scope change;
+- before Windows <-> macOS handoff;
+- before candidate freeze;
+- before fan-in / merge;
+- after material remote-main/claim/ownership drift is observed.
+
+This is lifecycle/event-driven reconciliation, not background polling. Plain
+ChatGPT does not self-wake after a turn ends; a later turn/session reconstructs
+truth from durable Issue/WO/run-pointer/Git/runtime evidence before continuing.
+
 ## Model routing by benchmark
 
-Prefer GLM labor where capable, selected by task benchmark rather than fear
-of quota:
+Prefer GLM labor where capable, especially for bounded work that can run
+longer than one chat/tool interaction, selected by task benchmark rather than
+fear of quota. GPT-5.6 Sol remains integrator and is the direct-execution
+fallback when eligible external GLM routes are unavailable:
 
 - **GLM-5.3 MAX** (effort `max`) is the default for R2/R3 implementation,
   durable state/concurrency/idempotency/security/protocol work, complex
@@ -211,17 +255,27 @@ of quota:
 
 ### Windows
 
-Prefer SunDay-Worker 1..5 for repo/file/code work after exact lane activation
-and mutation gating. Workers are dynamic lanes, not permanent roles.
+Prefer SunDay-Worker 1..5 as the primary chat-visible repo/file/code surface
+after exact lane activation and mutation gating. Workers are dynamic lanes,
+not permanent roles. Use RDC as the secondary Windows surface for exact
+device/process/runtime inspection, recovery, shell/build/test operations, or
+when the needed Worker surface is unavailable.
 
 Kilo Code CLI and Claude Code CLI may execute delegated packets from isolated
-Windows worktrees when their exact route is READY.
+Windows worktrees when their exact route is READY; for eligible long-running
+bounded labor they are preferred over keeping Sol occupied with routine
+implementation.
 
 ### macOS
 
-Use Remote Desktop Commander (RDC) for exact Mac device discovery, shell,
-filesystem, process, repo/worktree, test, and CLI operations when RDC is
-actually exposed and online.
+Use Remote Desktop Commander (RDC) as the primary chat-visible Mac surface for
+exact device discovery, shell, filesystem, process, repo/worktree, test, and
+CLI operations when RDC is actually exposed and online. Kilo/Claude CLI may
+run inside the RDC-bound Mac lane after normal route/quota/task gates.
+
+Local Serena or another semantic tool may exist on the Mac, but A-Faster must
+not require or claim a Mac Serena/Worker route unless that surface is actually
+exposed and verified in the current harness.
 
 `RDC ONLINE != SAFE_TO_MUTATE`.
 
@@ -263,6 +317,17 @@ Preferred routes:
 Never silently fall back to another model/provider/harness. A failed Claude GLM
 probe blocks only that route; Kilo or another already-authorized route may
 continue independent work.
+
+When all eligible GLM routes for a task are blocked, classify the actual cause
+(`QUOTA_EXHAUSTED`, `QUOTA_UNKNOWN`, auth/entitlement, transport, route,
+harness, cost, etc.) without collapsing unlike failures. After reconciling any
+prior GLM attempt and transferring/confirming mutable ownership, GPT-5.6 Sol
+directly continues the eligible safe task instead of leaving it idle. This is
+an executor fallback only: it never relaxes task/claim/scope/WIP/verification
+gates, never silently changes provider/model, and an authoring Sol lane cannot
+satisfy an independent-review requirement that still applies. If the task
+specifically requires an unavailable independent model/reviewer, that review
+gate remains blocked while other safe work may continue.
 
 Run Kilo and Claude concurrently only on non-overlapping claimed scopes or as
 read-only analysis/review lanes. Freeze exact candidate SHA(s) before review.
@@ -420,10 +485,13 @@ to make cleanup succeed. Branch deletion remains a separate decision.
 
 After routing, dispatch, harvest, or fan-in, continue with the next safe
 READY step automatically — within already-bound authority, without waiting
-for the user to repeat "continue" for each step. Stop only on a real gate
-(quota, collision, route, verification failure), genuine authority
-ambiguity, or terminal completion; when stopping, report the exact blocker
-and next safe action.
+for the user to repeat "continue" for each step. A GLM quota/route/harness
+failure routes eligible work to the Sol direct fallback above after recovery
+and ownership reconciliation; it is not by itself a reason to idle the whole
+project. Stop only when the affected task still has a real unresolved gate
+(collision, required-independent-review unavailability, verification failure,
+authority/safety ambiguity, no safe fallback) or at terminal completion; when
+stopping, report the exact blocker and next safe action.
 
 ## Routing output additions
 
@@ -436,6 +504,9 @@ In addition to normal A-FastTask output, report:
 - lane occupancy matrix summary (projection, with its checkpoint location
   when one was written);
 - `HARNESS_ROUTE` + exact model/effort/readiness;
+- `EXECUTOR_FALLBACK` when a preferred GLM/device route is blocked, including
+  the typed blocker and the verified next executor;
+- latest collision-pulse boundary/result when material;
 - `LANE_REF` + latest `DELEGATED_RUN_ID`/pointer state for every delegated
   lane (or the reconciled disposition per `references/durable-lanes.md`);
 - `ADVISORY_SKILLS` actually available/invoked;
