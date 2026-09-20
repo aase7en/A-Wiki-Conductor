@@ -1,6 +1,6 @@
 # WO-P1-424 — COCKPIT-1 Runtime Cockpit MVP durable truth projection
 
-Status: CANDIDATE_FROZEN / READY_FOR_INDEPENDENT_R2_REVIEW
+Status: FOUNDATION_RESCOPED / READY_FOR_FOUNDATION_EXACT_SHA_R2_REVIEW
 Issue: #424
 Identity schema: GITHUB_ISSUE_V1
 Topology: CONTROL_PLANE_ONLY
@@ -173,6 +173,36 @@ Before/with implementation prove:
 - integrator verification at `e446b53...`: focused cockpit **32 passed**, related desktop/control-center/graph/provider/continuity/WTL **355 passed**, py_compile PASS, strict UTF-8 PASS, exact path scope PASS;
 - independent R2 review must explicitly audit whether the real `DesktopControlService.cockpit_projection()` wiring satisfies the Work Order/LOCAL-USABLE operator-truth requirement. The current implementation composes ControlCenter worker rows while execution/lease/git/gate observations remain unavailable in the real facade. Pure projection tests prove those states when injected, but reviewer must decide whether leaving accepted durable execution truth unwired is a blocking product-acceptance gap rather than truthful UNKNOWN behavior;
 - no merge/acceptance is permitted until that focused product-truth question and ordinary R2 safety review both pass.
+
+## Canonical R2 harvest and explicit foundation re-scope
+
+Canonical repaired-candidate review:
+- run `run:WO-P1-424:r2-rereview:1:a1:b6d13ae09610`;
+- reviewed exact SHA `e624728d420d187f0b4ef9be604e9dd0948c50fb`;
+- terminal exit 0;
+- verdict `CHANGES_REQUIRED`, severity P0/P1/P2/P3 = 0/1/0/4;
+- focused 44 PASS; related 438 PASS + 1 environment skip; compile/diff/UTF-8/secret/read-only adversarial probes PASS;
+- prior P2 gate-provenance defect is resolved;
+- explicit durable execution/lease facade binding is correct and fail-closed;
+- blocking P1 remains only at ordinary product composition: normal desktop startup has no accepted durable runtime authority binding, so LOCAL-USABLE-1 is not met by this slice.
+
+Integrator disposition: **foundation re-scope**.
+- This Work Order / PR #428 is COCKPIT-1A: a safe read-only projection/provenance/UI foundation only.
+- It does **not** claim LOCAL-USABLE-1 completion and does not own production runtime authority composition.
+- R3 successor #431 `RUNTIME-AUTH-1` owns production durable job/execution/lease authority composition/locator.
+- #429 `COCKPIT-1B` consumes the accepted #431 identity read-only in ordinary desktop startup.
+- Refined critical path: `accepted GOT/FMG -> COCKPIT-1A (#424 foundation) + RUNTIME-AUTH-1 (#431) -> COCKPIT-1B (#429) -> LOCAL-USABLE-1`.
+- Product/test bytes from `e624728d...` remain the foundation candidate; only this Work Order semantics change in the re-scope commit.
+- Because the re-scope creates a new exact SHA, merge remains blocked until fresh exact-head CI and independent exact-SHA R2 review accept the narrowed foundation contract.
+
+Foundation acceptance requires:
+1. read-only projection/provenance behavior remains fail-closed and deterministic;
+2. operator-declared gate evidence cannot yield `COMPLETED_VERIFIED`;
+3. injected accepted durable execution/lease evidence reaches the bounded projection states without writing durable state;
+4. unbound/unreadable authority remains explicit UNKNOWN/EVIDENCE_INCOMPLETE;
+5. no new DB/store/schema/scheduler/task/claim/lease/review/completion authority;
+6. no claim that ordinary desktop startup has production durable authority binding;
+7. #431/#429 remain the explicit owners of that missing product path.
 
 ## Completion
 
