@@ -1233,3 +1233,27 @@ def test_wo134_real_sqlite_e2e_statuses_drift_and_relation(tmp_path) -> None:
     assert evidence.admissions[1].expiry_observation == "TERMINAL"
     assert evidence.admissions[1].released_at is not None
     assert row.configuration_generation == 2
+
+
+def test_wo431_direct_composition_rejects_explicit_control_database_identity_split(
+    tmp_path,
+) -> None:
+    import pytest
+
+    from a_conductor.desktop_control import RuntimeAuthorityError
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+
+    settings = SQLiteSerenaConfigStore(tmp_path / "settings.sqlite")
+    settings.initialize()
+    other = tmp_path / "other.sqlite"
+
+    with pytest.raises(RuntimeAuthorityError) as exc:
+        DesktopControlService(
+            control_center=_FakeControlCenter(),
+            lifecycle=_FakeLifecycle(),
+            settings_store=settings,
+            control_database=other,
+        )
+
+    assert exc.value.code == "AUTHORITY_DATABASE_IDENTITY_MISMATCH"
+    assert other.exists() is False

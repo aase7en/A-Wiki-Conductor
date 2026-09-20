@@ -227,14 +227,37 @@ class DesktopControlService:
             if settings_store is not None
             else None
         )
-        self._control_database = (
+        provider_database_path = (
+            getattr(provider_store, "database_path", None)
+            if provider_store is not None
+            else None
+        )
+        settings_identity = (
+            Path(settings_database_path).expanduser().resolve(strict=False)
+            if settings_database_path is not None
+            else None
+        )
+        provider_identity = (
+            Path(provider_database_path).expanduser().resolve(strict=False)
+            if provider_database_path is not None
+            else None
+        )
+        explicit_identity = (
             Path(control_database).expanduser().resolve(strict=False)
             if control_database is not None
-            else (
-                Path(settings_database_path).expanduser().resolve(strict=False)
-                if settings_database_path is not None
-                else None
-            )
+            else None
+        )
+        if explicit_identity is not None:
+            for retained_identity in (settings_identity, provider_identity):
+                if (
+                    retained_identity is not None
+                    and retained_identity != explicit_identity
+                ):
+                    raise RuntimeAuthorityError(
+                        "AUTHORITY_DATABASE_IDENTITY_MISMATCH"
+                    )
+        self._control_database = (
+            explicit_identity if explicit_identity is not None else settings_identity
         )
         self._pending_instance_starts: set[str] = set()
         self._pending_instance_starts_lock = Lock()
