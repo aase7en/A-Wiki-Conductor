@@ -84,6 +84,29 @@ def _require_optional_exit_code(value: int | None) -> int | None:
     return value
 
 
+def _require_optional_author_pair(
+    attempt_id: str | None, generation: int | None
+) -> None:
+    """WO-P1-246: the author provenance pair is one atomic semantic unit.
+
+    Both present or both ``None``. When present the attempt id is non-blank
+    single-line bounded opaque text and the generation is exactly 0 or 1.
+    """
+    if attempt_id is None and generation is None:
+        return
+    if attempt_id is None or generation is None:
+        raise ValueError(
+            "author provenance pair must be both present or both None"
+        )
+    _require_text(attempt_id, "author_attempt_id")
+    if (
+        isinstance(generation, bool)
+        or not isinstance(generation, int)
+        or generation not in (0, 1)
+    ):
+        raise ValueError("author_generation must be exactly 0 or 1")
+
+
 @dataclass(frozen=True, slots=True)
 class DurableExecutionRecord:
     execution_id: str
@@ -112,6 +135,8 @@ class DurableExecutionRecord:
     started_at: str | None = None
     finished_at: str | None = None
     version: int = 1
+    author_attempt_id: str | None = None
+    author_generation: int | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.execution_id, "execution_id")
@@ -149,6 +174,7 @@ class DurableExecutionRecord:
         _require_optional_text(self.started_at, "started_at")
         _require_optional_text(self.finished_at, "finished_at")
         _require_positive_int(self.version, "version")
+        _require_optional_author_pair(self.author_attempt_id, self.author_generation)
 
 
 def new_execution_record(
@@ -178,6 +204,8 @@ def new_execution_record(
     exit_code: int | None = None,
     started_at: str | None = None,
     finished_at: str | None = None,
+    author_attempt_id: str | None = None,
+    author_generation: int | None = None,
 ) -> DurableExecutionRecord:
     return DurableExecutionRecord(
         execution_id=execution_id,
@@ -205,6 +233,8 @@ def new_execution_record(
         exit_code=exit_code,
         started_at=started_at,
         finished_at=finished_at,
+        author_attempt_id=author_attempt_id,
+        author_generation=author_generation,
         version=1,
     )
 

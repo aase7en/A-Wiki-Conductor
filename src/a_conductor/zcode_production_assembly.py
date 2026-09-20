@@ -29,6 +29,11 @@ from pathlib import Path
 
 from .claude_code_harness import TaskPacketFile
 from .provider_configuration import HarnessRuntimeBinding, HarnessStrategy, ProtocolFamily
+from .zero_relay_author_provenance import (
+    AuthorProvenanceBinding,
+    AuthorProvenanceError,
+    classify_author_provenance,
+)
 from .zcode_protocol import ZCodeRuntimeModel
 from .zcode_runner import (
     ZCODE_BACKEND_ID,
@@ -483,6 +488,25 @@ def _assemble_zcode_execution_impl(
         execution_store=authorities.execution_store,
         child_observer=ZCodeProcessTruthChildObserver(),
     )
+
+    # 9. AUTHOR PROVENANCE classification (WO-P1-246 §3.3): the ONLY
+    #    producer of AuthorProvenanceBinding, after packet + lease authority
+    #    are verified and before SupervisedRunIdentity is constructed.
+    #    Original verified packets classify generation 0; any zra2-repair-
+    #    family contract enters the repair-proof path and fails closed at
+    #    this base (no durable Phase-D rejected-review lineage predecessor
+    #    exists) — NEVER a silent downgrade to generation 0. Reviewer
+    #    executions carry no author provenance at all.
+    author_provenance: AuthorProvenanceBinding | None = None
+    if not review_only:
+        try:
+            author_provenance = classify_author_provenance(
+                task_contract_ref=packet.task_contract_ref,
+                packet_sha256=packet_identity.packet_sha256,
+            )
+        except AuthorProvenanceError as exc:
+            raise ZCodeAssemblyError(f"ZCODE_{exc.code}") from exc
+
     identity = SupervisedRunIdentity(
         job_id=f"job:{packet.task_contract_ref}",
         work_order_ref=packet.task_contract_ref,
@@ -493,6 +517,7 @@ def _assemble_zcode_execution_impl(
         head_before=authorities.head,
         runtime_profile_ref=runtime_profile_ref,  # derived runtime identity
         repo_root=authorities.repo_root,
+        author_provenance=author_provenance,
     )
     return SupervisedZCodeRunner(
         execution_store=authorities.execution_store,
