@@ -5,19 +5,40 @@
 > **Current authoritative projection.** Actual Git/GitHub/runtime/durable evidence overrides this file if it drifts.
 
 - Topology: `CONTROL_PLANE_ONLY`. Canonical authority: Issue #438 / WO-P1-438. Historical predecessor only: Issue #330 / WO-P1-246.
-- Remote `main`: `75d9e96e46e15cc8ef647d12194d677657689bde`.
+- WO438 merge SHA: `75d9e96e46e15cc8ef647d12194d677657689bde`; current remote `main` is `894c64d32ca63dd0bfaf9f23d97a3e1180ce09d7` after disjoint PR #440 continuity drift.
 - PR #336 merged at 2026-09-21 06:20:49 +07 from exact candidate `f93e16377f500d16cbed66763058c2f4a2237790`.
 - Independent GLM-5.3 MAX exact-SHA R3 review finished before merge: `PASS`, P0/P1/P2=0, P3=3 non-blocking. Durable result: `A:\GitHub\_worktrees\A-Wiki-Conductor-review-wo438-f93e163\runs\WO-P1-438\r3-review\attempt-0001\result.md`.
 - Exact-head hosted CI #1102 / run `35529389831` finished before merge: `SUCCESS`; Windows, Ubuntu and macOS jobs all green.
 - Detached post-main verification worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-post438-75d9e96`.
 - Post-main local proof: all 11 WO438 blobs are byte-identical to the reviewed candidate; focused set 177 PASS; work-order identity 33 PASS; `git diff --check` PASS; `py_compile` PASS.
 - The post-main wrapper returned exit 1 only after all gates because the PowerShell harness used unsupported three-argument `[Math]::Max`; this is harness-only, not a test/repo failure.
-- Hosted post-main CI for merge SHA `75d9e96...` had **no workflow run yet** at the latest re-pin. Therefore status is `MERGED / LOCAL_POST_MAIN_VERIFIED / POST_MAIN_CI_PENDING`.
+- Hosted post-main push CI now exists: run `35544371466`, exact head `75d9e96...`. Ubuntu/macOS are SUCCESS; Windows is still RUNNING in isolated core suites. Status: `MERGED / LOCAL_POST_MAIN_VERIFIED / POST_MAIN_CI_RUNNING`.
 - Issue #438 stays OPEN and claim/closeout remains unreleased until post-main CI policy/evidence is reconciled.
-- Protected root `A:\GitHub\A-Wiki-Conductor` is stale at `1a5ea1b...`, 14 commits behind, with pre-existing untracked `$null`, `0`, and `docs/prompts/GLM-WO230-ZRA2-REVIEW-TASK-CONTRACT-AUTHORITY.md`; do not reset/clean/stash or use it for mutation.
+- Protected root `A:\GitHub\A-Wiki-Conductor` is stale at `1a5ea1b...`, 16 commits behind current main, with pre-existing untracked `$null`, `0`, and `docs/prompts/GLM-WO230-ZRA2-REVIEW-TASK-CONTRACT-AUTHORITY.md`; do not reset/clean/stash or use it for mutation.
 - Session rollover checkpoint branch: `docs/wo-p1-438-session-handoff`; worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo438-session-handoff`.
 
-**Exact next safe action:** recover `origin/main`, Issue #438, PR #336, review result, and hosted workflows for merge SHA `75d9e96...`. If post-main CI is green, fold/close/release WO438 and resume Issue #214 / WO205 §14 provenance archaeology. If no post-main run exists, inspect the accepted CI trigger policy before deciding whether a manual/replacement post-main gate is required. Do not start new source mutation before that reconciliation.
+**Exact next safe action:** harvest existing post-main run `35544371466` without rerun. If SUCCESS, mark WO438 POST_MAIN_VERIFIED/COMPLETE, close Issue #438, and release Issue #214 / WO205 §14 source archaeology only. If failure, classify/root-cause before retry. Then re-pin current main before any new source mutation.
+
+## 2026-09-21 — WO433 RUNTIME-ACT-1 session rollover — CURRENT FRONTIER
+
+> Projection only. Actual Git/GitHub/runtime/durable evidence overrides this section if it differs.
+
+- Critical path: **#433 RUNTIME-ACT-1 -> #429 COCKPIT-1B -> LOCAL-USABLE-1**.
+- Topology: `CONTROL_PLANE_ONLY`; source implementation has **not** started in this rollover session.
+- Checkpoint remote main: `75d9e96e46e15cc8ef647d12194d677657689bde`.
+- #215↔#433 bilateral split is durable: #433 owns explicit/manual activation; #215 exclusively retains automatic accepted-completion -> NEXT_READY continuation/provenance.
+- Rollover claim/checkpoint: Issue #433 comment `5753493574`.
+- Prior GLM-5.3-Flash source-scope assist was recovered as TERMINAL exit 0 on detached `d2ad5bd...`; it is advisory evidence only.
+- Earlier source claim comment `5751797434` was based on `d2ad5bd...`; its old SAFE_TO_MUTATE verdict is stale and must be re-pinned before source mutation.
+- Relevance diff `d2ad5bd... -> 75d9e96...` changes none of the frozen #433 source/test paths; related drift is only WO246 author-provenance wiring in `zcode_production_assembly.py`.
+- Current main still has no `ZCodeJobBackend`; Claude durable job backend exists but the Claude harness rejects `PROJECT_MUTATION` with `HARNESS_MUTATION_NOT_READY`.
+- First LOCAL-USABLE activation slice is therefore frozen as **explicit/manual READ_ONLY production activation** through the accepted supervised Claude durable backend.
+- Mutation-capable harness support is successor scope; do not expand #433 implicitly.
+- Frozen implementation scope: NEW `runtime_activation.py`; MODIFY `desktop_control.py`, `desktop_app.py`; `lifecycle_coordinator.py` only if a read-only observation seam is strictly required; NEW `test_runtime_activation.py`; MODIFY `test_desktop_control.py`; NEW `test_desktop_app.py` only if isolated CLI coverage is required.
+- Hard forbidden: automatic NEXT_READY/successor selection, elastic provisioning, writable Graph Monitor/UI authority, new store/schema/task/request/retry/review/completion authority, Zero-Relay source, SunDayRemoteMCP, live installed DB mutation.
+- A-Faster census found no matching live A-Wiki Kilo/Claude delegated process for #433. Windows and Mac RDC devices are online; chat-visible SunDay-Worker developer MCP remains unavailable in this harness.
+- Legacy/stale execution pointers exist in old review worktrees; do not infer WIP occupancy from PID numbers. Reconstruct global WIP from exact pointer/process/Git/Issue evidence in the next session before dispatch.
+- Next safe action: fresh-session ENTRY/recovery -> fetch/re-pin current main -> recover delegated runs/global WIP -> collision pulse -> create a clean isolated **R3 source implementation** worktree/claim -> RED-first manual READ_ONLY activation implementation -> deterministic verification -> frozen SHA -> independent MAX review/CI -> merge/post-main -> unblock #429.
 
 ## 2026-09-15 — R5 repair verified for freeze, R3 acceptance pending
 

@@ -19,6 +19,27 @@ This handoff is written specifically so a new ChatGPT session can resume without
 
 **Resume sequence:** (1) fetch/re-pin remote main and Issue #438; (2) recover workflows for merge SHA; (3) if post-main gate passes, record GPT-5.6 Sol closeout, close Issue #438 completed and release claim; (4) re-run Issue #214 / WO205 §14 provenance archaeology from actual main; (5) then continue the roadmap from the newly unblocked Phase-D boundary. Never redispatch completed WO438 review or rewrite historical WO246 aliases.
 
+## 2026-09-21 — Session rollover handoff: WO433 is the active Product Fast Lane frontier
+
+This handoff is intentionally sufficient for a new chat with no access to the old conversation.
+
+- Active issue/WO: GitHub **#433 / `docs/work-orders/WO-P1-433-runtime-producer-activation.md`**.
+- Dependency chain: #433 -> #429 -> LOCAL-USABLE-1.
+- Authority repo/execution repo for this task: `A:\GitHub\A-Wiki-Conductor` / same repo; topology `CONTROL_PLANE_ONLY`.
+- Last checkpoint main: `75d9e96e46e15cc8ef647d12194d677657689bde`; always fetch/re-pin because main may advance.
+- Durable rollover checkpoint comment: Issue #433 `5753493574`.
+- Source claim comment `5751797434` is architecturally useful but its base `d2ad5bd...` is stale; never reuse its mutation verdict without a fresh gate.
+- Bilateral #215↔#433 ownership split remains binding. #433 may manually activate an exact existing graph/run/node only; automatic NEXT_READY remains #215-only.
+- First implementation slice is **READ_ONLY manual activation via existing supervised Claude durable backend**. Current Claude harness is not mutation-capable; ZCode has a supervised runner but no accepted `ZCodeJobBackend` for GraphDispatch.
+- No #433 source writer was launched before rollover. No live #433 delegated execution remains to harvest.
+- Prior Flash scope assist completed exit 0 and supported REUSE+WRAP/thin composition; model output is evidence, not acceptance authority.
+- Frozen source/test paths and forbidden boundaries are recorded at the top of `CURRENT-WORK.md` and in Issue #433.
+- Root checkout remains protected; create a fresh isolated worktree from then-current `origin/main`.
+- Before every material GLM dispatch refresh CoinTH quota/readiness with the approved secret-safe resolver and bind a durable run pointer.
+- Next session MUST reconstruct global A-Faster WIP; legacy pointers with stale/reused PIDs are not proof of RUNNING.
+- Exact first action after recovery: re-run relevance/collision diff against the frozen #433 scope; if clean, claim the R3 source lane and write RED tests before production code.
+- Required finish path remains targeted+related+adversarial verification -> exact candidate SHA -> strongest independent GLM-5.3 MAX review -> exact-head CI -> GPT acceptance/expected-head merge -> detached post-main proof -> #429 source gate.
+
 ## 2026-09-15 — R5 repair verified for freeze, R3 acceptance pending
 
 Existing Kilo/cointh-glm/glm-5.3 MAX writer completed the packet at
