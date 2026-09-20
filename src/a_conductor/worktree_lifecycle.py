@@ -104,6 +104,7 @@ _EVIDENCE_INCOMPLETE_CODES = (
     "LEASE_BINDING_CONFLICT",
     "DIRTY_STATE_UNKNOWN",
     "UNTRACKED_STATE_UNKNOWN",
+    "REVIEW_EVIDENCE_UNKNOWN",
     "REVIEW_FREEZE_HEAD_CONFLICT",
     "REVIEW_FREEZE_BINDING_CONFLICT",
     "MERGE_STATUS_UNKNOWN",
@@ -661,6 +662,10 @@ def _classify_dirty(facts: WtlWorktreeFacts, findings: list[WtlReason]) -> None:
 
 def _classify_review_freezes(facts: WtlWorktreeFacts, findings: list[WtlReason]) -> None:
     if facts.review_freezes is None:
+        # Unknown review-freeze evidence (unavailable/raising collector) is
+        # never observed absence: it fails closed to EVIDENCE_INCOMPLETE so a
+        # proven release cannot rest on unproven review evidence.
+        findings.append(WtlReason("REVIEW_EVIDENCE_UNKNOWN", "review_freezes"))
         return
     for fact in facts.review_freezes:
         detail = f"review {fact.review_ref}"

@@ -173,3 +173,38 @@ Status: IMPLEMENTED / AWAITING INDEPENDENT REVIEW.
 
 Author result is a claim only: requires independent exact-SHA R2 review,
 exact-head hosted CI, and GPT acceptance per the acceptance section.
+
+## Repair checkpoint (2026-09-20) — review-evidence UNKNOWN fail-closed
+
+Status: REPAIRED / AWAITING FOCUSED INDEPENDENT R2 REREVIEW.
+
+- Blocking review finding: at dispatch head `02ef0d8`,
+  `_classify_review_freezes` returned with no finding when
+  `facts.review_freezes is None`, so an unavailable/raising review-freeze
+  collector was treated like observed empty evidence and an otherwise fully
+  proven release could classify RELEASED_SAFE_TO_ARCHIVE /
+  cleanup_eligible=True. This violated UNKNOWN != observed absence and
+  invariant 11.
+- Repair (claim WO-P1-417-WTL1-REVIEW-EVIDENCE-UNKNOWN-REPAIR-001): new
+  typed reason `REVIEW_EVIDENCE_UNKNOWN` mapped to EVIDENCE_INCOMPLETE at
+  the existing incompleteness rank (10); `_classify_review_freezes` emits
+  it for `review_freezes is None` and returns. `review_freezes == ()`
+  remains observed absence (no finding); exact-match REVIEW_FROZEN and
+  binding/head conflict behavior unchanged; precedence and
+  cleanup_eligible iff RELEASED_SAFE_TO_ARCHIVE unchanged.
+- RED-first: 5 new tests captured failing at `02ef0d8` (3 classifier —
+  including otherwise-safe facts + `review_freezes=None` returning
+  RELEASED_SAFE_TO_ARCHIVE/cleanup True pre-repair; 2 observation
+  end-to-end parametrized over raising and None-returning review-freeze
+  collector, with every other release fact proven, pre-repair verdict
+  RELEASED_SAFE_TO_ARCHIVE/cleanup True).
+- GREEN after repair: focused 107 passed; work-order/project identity 46
+  passed; registry/owned_process/windows_observer/continuity_guard/
+  worker_lease(+recovery) seams 217 passed; py_compile clean;
+  `git diff --check` clean; strict UTF-8 / no U+FFFD; added-line secret
+  scan clean; exact 4-path delta vs `02ef0d8` (source + two test files +
+  this checkpoint).
+- No unrelated P3 fixes; no WTL-2 executor; no new authority paths.
+
+Author result is a claim only: requires focused independent R2 rereview at
+the exact candidate SHA, exact-head hosted CI, and GPT acceptance.

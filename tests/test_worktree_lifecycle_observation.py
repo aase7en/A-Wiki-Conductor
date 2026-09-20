@@ -9,9 +9,11 @@ from datetime import datetime, timezone
 import pytest
 
 from a_conductor.worktree_lifecycle import (
+    WtlLifecycleState,
     WtlMergeFoldFact,
     WtlRemoteEvidence,
     WtlWorktreeFacts,
+    classify_worktree_lifecycle,
     wtl_input_fingerprint,
 )
 from a_conductor.worktree_lifecycle_observation import (
@@ -227,6 +229,43 @@ def test_raising_collector_fails_closed_to_unknown() -> None:
     ).collect(WORKTREE)
     assert bundle.leases is None
     assert bundle.remote is None
+
+
+# WO-P1-417 repair: end-to-end UNKNOWN review-freeze evidence must classify
+# EVIDENCE_INCOMPLETE. A raising or unavailable review-freeze collector maps
+# to review_freezes=None, and with every other release fact fully proven the
+# final classification must still fail closed with cleanup_eligible=False.
+
+
+@pytest.mark.parametrize(
+    "review_collector",
+    [
+        FakeCollector(RuntimeError("review freeze store unreadable")),
+        FakeCollector(None),
+    ],
+)
+def test_unknown_review_freezes_classify_evidence_incomplete_end_to_end(
+    review_collector,
+) -> None:
+    bundle = service(
+        git=FakeGitPort(status=()),
+        leases=FakeCollector(()),
+        executions=FakeCollector(()),
+        processes=FakeCollector(()),
+        reviews=review_collector,
+        merge_fold=FakeCollector(WtlMergeFoldFact(True, True, True, HEAD_B)),
+        remote=FakeRemotePort(WtlRemoteEvidence(False, False, False)),
+    ).collect(
+        WORKTREE,
+        repo_root=r"A:\repo",
+        protected_worktrees=(r"A:\repo\wt-b",),
+    )
+    assert bundle.review_freezes is None
+    assert bundle.protected_root is False
+    verdict = classify_worktree_lifecycle(bundle)
+    assert verdict.state is WtlLifecycleState.EVIDENCE_INCOMPLETE
+    assert verdict.cleanup_eligible is False
+    assert "REVIEW_EVIDENCE_UNKNOWN" in tuple(reason.code for reason in verdict.reasons)
 
 
 def test_collectors_receive_the_normalized_worktree_key() -> None:

@@ -508,6 +508,39 @@ def test_review_freeze_bound_to_other_worktree_is_conflict_evidence() -> None:
     assert "REVIEW_FREEZE_BINDING_CONFLICT" in reason_codes(verdict)
 
 
+# WO-P1-417 repair: UNKNOWN review-freeze evidence must fail closed. An
+# unavailable/raising review-freeze collector yields review_freezes=None,
+# which is unknown evidence — never observed absence — and must never let an
+# otherwise fully proven release become RELEASED_SAFE_TO_ARCHIVE.
+
+
+def test_review_evidence_unknown_fails_closed_not_released() -> None:
+    verdict = classify(review_freezes=None)
+    assert verdict.state is WtlLifecycleState.EVIDENCE_INCOMPLETE
+    assert verdict.cleanup_eligible is False
+    codes = reason_codes(verdict)
+    assert "REVIEW_EVIDENCE_UNKNOWN" in codes
+    assert "RELEASE_PROVEN" not in codes
+
+
+def test_unknown_review_freezes_distinguishable_from_observed_absent() -> None:
+    unknown = classify(review_freezes=None)
+    absent = classify(review_freezes=())
+    assert unknown.state is WtlLifecycleState.EVIDENCE_INCOMPLETE
+    assert "REVIEW_EVIDENCE_UNKNOWN" in reason_codes(unknown)
+    assert absent.state is WtlLifecycleState.RELEASED_SAFE_TO_ARCHIVE
+    assert absent.cleanup_eligible is True
+
+
+def test_review_evidence_unknown_keeps_incompleteness_rank_below_protective() -> None:
+    verdict = classify(review_freezes=None, tracked_dirty=True)
+    assert verdict.state is WtlLifecycleState.DIRTY_PROTECTED
+    codes = reason_codes(verdict)
+    assert "TRACKED_DIRTY" in codes
+    assert "REVIEW_EVIDENCE_UNKNOWN" in codes
+    assert codes.index("TRACKED_DIRTY") < codes.index("REVIEW_EVIDENCE_UNKNOWN")
+
+
 # ---------------------------------------------------------------------------
 # Matrix case 12: required fold/merge/remote evidence missing -> EVIDENCE_INCOMPLETE
 # ---------------------------------------------------------------------------
