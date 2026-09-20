@@ -18,7 +18,9 @@ multi-device and multi-harness routing constraints.
 
 ## Trigger
 
-Use A-Faster when one or more are true:
+For **substantial A-Sunday Conductor engineering work**, A-Faster is the
+default acceleration overlay after canonical A-FastTask has bound authority.
+Also use it whenever one or more are true:
 
 - the user explicitly asks for A-Faster / faster multilane execution;
 - independent READY work can run concurrently on Windows and macOS;
@@ -26,7 +28,9 @@ Use A-Faster when one or more are true:
 - a finished lane should be recycled after exact closeout/cleanup proof;
 - the task needs coordinated Workers + RDC + GitHub remote truth.
 
-For ordinary substantial single-device work, A-FastTask remains sufficient.
+Do not force A-Faster onto trivial Q&A, a single obvious mechanical edit, or
+already-bound mid-lane work that needs no new routing decision. These exclusions
+preserve A-FastTask's negative triggers and avoid routing overhead for tiny work.
 
 ## Global WIP and no-collision rule
 
@@ -40,7 +44,14 @@ Recovery/blocker work uses headroom inside this same `3 mutable + 1 review`
 budget; it is not an additional lane class unless an accepted Work Order
 explicitly changes capacity.
 
-Never multiply WIP by device, harness, or repository.
+Never multiply WIP by device, harness, repository, or session.
+
+Fill safe independent lanes quickly, dispatch-first / harvest-later. Do not
+serialize independent GLM jobs just to conserve quota: when refreshed quota
+evidence says `QUOTA_AVAILABLE`, treat the remaining amount as capacity
+evidence, not a reason to self-throttle. Still refresh quota before EACH
+material dispatch and obey actual `QUOTA_EXHAUSTED`/auth/transport/cost
+gates.
 
 `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`
 
@@ -56,6 +67,123 @@ Every A-Faster lane adds these fields to the normal A-FastTask binding:
 - `HARNESS_ID`;
 - `MODEL_ID` + effort/variant when a model is used;
 - durable execution/result pointer for delegated work.
+
+## Mandatory substantial-session bootstrap
+
+For every substantial A-Sunday Conductor engineering session:
+
+1. attempt lightweight READ-ONLY readiness discovery for **SunDay-Worker 1..5**
+   individually; record each as available, unavailable, or a typed surface
+   blocker such as `PLUGIN_NOT_EXPOSED_TO_CHAT`; never claim a Worker ran when
+   the current harness cannot invoke it;
+2. attempt RDC device discovery and runtime readiness for every connected
+   Windows/macOS device that can materially help the task;
+3. run the PROJECT/TASK DELEGATED-RUN CENSUS below and reconcile or
+   harvest everything it finds before allocating new work;
+4. bind the single global WIP ledger before dispatch: at most 3 mutable lanes
+   plus 1 independent read-only review lane across every Worker, device,
+   harness, repository and CROSS_REPO compatibility-set member;
+5. if Windows and macOS are both READY and independent work exists, prefer a
+   non-overlapping cross-device split; if not, continue on the safe available
+   device rather than manufacturing parallelism;
+6. keep Worker slots beyond the global WIP budget read-only/standby/recovery
+   helpers. Five discovered Workers never mean five mutable writers.
+
+Readiness discovery is routing evidence only. `WORKER/RDC ONLINE !=
+SAFE_TO_MUTATE`; exact task/claim/scope/worktree gates still apply.
+
+## PROJECT/TASK DELEGATED-RUN CENSUS (every A-Faster entry)
+
+At every A-Faster entry, BEFORE selecting new READY work, run a mandatory
+delegated-run census over existing authorities only:
+
+- active work-order/Issue checkpoints for the current project;
+- known durable lane pointers under `runs/` when local
+  (`references/durable-lanes.md` layout);
+- exact process/session identity where the device is reachable;
+- result/exit/log evidence at the declared destinations;
+- actual Git/worktree/branch/HEAD/dirty state.
+
+Never infer `RUNNING` from a stale PID number alone: a PID proves liveness
+only when it matches the recorded creation/command/boot identity where
+available. The census scope is the current project — its active/open work
+orders and Issues plus material recent lane pointers — and it MUST include
+old GLM assignments from prior A-Faster invocations, including ones started
+by another ChatGPT session, whenever they are discoverable from that durable
+evidence. Do not scan arbitrary ancient unrelated projects.
+
+Derive each outstanding attempt as `RUNNING` / `TERMINAL_UNHARVESTED` /
+`STALLED` / `INTERRUPTED` / `UNKNOWN` / `TERMINAL` using the existing
+`docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md` classes, and apply the
+`references/durable-lanes.md` dispositions: `RUNNING` never redispatches;
+`TERMINAL_UNHARVESTED` harvests and verifies first; other ambiguous states
+reconcile side effects and replay safety before takeover. A fresh
+chat/session never means a fresh task. This census is read-only recovery
+routing; it creates no new execution store or lifecycle state machine.
+
+## LANE OCCUPANCY MATRIX (per-invocation projection)
+
+After the census, derive a deterministic LANE OCCUPANCY MATRIX for this
+invocation. The matrix is a **projection reconstructed from authority and
+evidence on every invocation** — not a scheduler, registry, database, or
+state store, and nothing in it is task authority. Reuse the stable
+`LANE_REF` / `DELEGATED_RUN_ID` / `ATTEMPT` / pointer identity from
+`references/durable-lanes.md`; never invent a second identity scheme.
+
+Each occupied or candidate lane row carries at minimum:
+
+- `WIP_SLOT` — ephemeral slot label only (`M1`/`M2`/`M3` for mutable,
+  `R1` for the independent read-only review lane); labels are per-invocation
+  projections, not durable identities;
+- `LANE_REF` + task/claim reference;
+- repo / worktree / branch / HEAD;
+- mutable scope;
+- owner / execution surface;
+- harness/model (`MODEL_ID` + effort/variant);
+- latest run id / attempt / pointer location;
+- derived liveness state from the census;
+- exact next safe action.
+
+Checkpoint the matrix to the active work order/Issue when material (lane
+state changes, terminal-unharvested destinations, rollover, takeover), then
+reconstruct it fresh from evidence next invocation — never treat a stale
+checkpoint as live occupancy truth.
+
+## Collision gate before material dispatch/mutation
+
+Before every material dispatch or mutation, compare the candidate's mutable
+scope against every recovered active mutable scope in the global project WIP
+(the occupancy matrix above). `SAFE_TO_MUTATE=NO` for that lane when any of:
+
+- same repo path overlap with an active mutable scope;
+- same mutable hotspot;
+- branch/worktree ownership conflict;
+- unknown ownership for an overlapping scope.
+
+Different sessions, chats, or devices never get separate WIP budgets and
+never bypass this gate. A lane blocked here keeps its typed blocker and
+exact next safe action; independent non-overlapping lanes proceed.
+
+## Model routing by benchmark
+
+Prefer GLM labor where capable, selected by task benchmark rather than fear
+of quota:
+
+- **GLM-5.3 MAX** (effort `max`) is the default for R2/R3 implementation,
+  durable state/concurrency/idempotency/security/protocol work, complex
+  repair, and any required independent R3 review.
+- **GLM-5.3-Flash** is the default for bounded read-only reconnaissance,
+  pointer/run census assistance, dependency/scope scans, task-packet
+  shaping, compatibility precheck, and advisory pre-review — where a MAX
+  independent review is still required by policy, Flash only prepares, it
+  never satisfies that requirement.
+- Flash must not silently satisfy an R3 MAX/qualified independent-review
+  requirement, and no model identity grants task, claim, mutation, or
+  acceptance authority.
+- Route by proven quality/latency/task class and deterministic evidence.
+  Benchmark data may change routing later without rewriting task semantics:
+  the task packet's scope/authority stays model-neutral, and only the
+  routing decision records the harness/model evidence.
 
 ## Surface routing
 
@@ -103,7 +231,12 @@ Preferred routes:
 
 - Kilo Code CLI: exact `cointh-glm/glm-5.3`, effort/variant `max`;
 - Claude Code CLI: exact `glm-5.3` with `--effort max`, only after a live
-  route probe proves that exact model is accepted.
+  route probe proves that exact model is accepted;
+- GLM-5.3-Flash on a proven route for the bounded read-only assist classes
+  in "Model routing by benchmark" (reconnaissance, census assistance,
+  dependency/scope scans, task-packet shaping, compatibility precheck,
+  advisory pre-review). Flash assist lanes never hold mutation authority
+  and never satisfy a required independent R3 MAX/qualified review.
 
 Never silently fall back to another model/provider/harness. A failed Claude GLM
 probe blocks only that route; Kilo or another already-authorized route may
@@ -142,7 +275,22 @@ Advisory skills may shape work but never become authority.
 
 ### Ponytail
 
-On Claude Code, prefer the installed `ponytail@ponytail` plugin when useful:
+On each Claude Code device, verify the user-level `ponytail@ponytail` plugin
+before relying on it. When missing and current user/tool authorization permits
+installation, use the upstream-supported Claude Code sequence as two separate
+commands/prompts:
+
+```text
+/plugin marketplace add DietrichGebert/ponytail
+/plugin install ponytail@ponytail
+```
+
+For headless automation, use an equivalent CLI form only when that installed
+Claude Code version's help explicitly proves it is supported. Re-verify the
+installed marketplace/plugin after mutation; one device's install is never
+evidence for another device.
+
+When available, prefer Ponytail as an advisory simplification layer:
 
 - `ponytail` before implementation to challenge unnecessary work;
 - `ponytail-review` on a frozen candidate;
@@ -153,7 +301,17 @@ verification requirement.
 
 ### Caveman
 
-Use the GitHub-sourced `caveman` skill only for transient delegated-agent
+Verify the user-level GitHub-sourced `caveman` skill on every device. When
+missing and installation is authorized, install the **skill only** from
+`JuliusBrussee/caveman` using its supported skills installer, for example:
+
+```text
+npx skills add JuliusBrussee/caveman -g
+```
+
+Do not install or enable the optional Caveman proxy/engine merely to satisfy
+this skill requirement. Re-verify the resulting skill path/content after
+installation. Use Caveman only for transient delegated-agent
 communication/token compression where meaning remains unambiguous.
 
 Do **not** use Caveman compression for:
@@ -164,9 +322,13 @@ Do **not** use Caveman compression for:
 
 ### Grill Me
 
-When a real product/architecture decision remains ambiguous **after codebase and
-authority inspection**, invoke `/grill-me plan` before inventing a decision.
-Use `/grill-me check` when useful to challenge an implemented plan.
+Preserve any existing local Grill Me skill; A-Faster runtime convergence must
+never overwrite a customized `grill-me` installation. When a real
+product/architecture/intent decision remains ambiguous **after codebase,
+authority and tool inspection**, invoke the installed Grill Me flow before
+inventing the decision (for installations supporting the current project
+commands, `/grill-me plan`; `/grill-me check` may challenge an implemented
+plan).
 
 If Grill Me requires interactive user input that is unavailable, classify the
 decision normally (`HUMAN_DECISION_REQUIRED`) rather than guessing. Do not use
@@ -192,10 +354,30 @@ Before another device takes over:
 No accepted remote/source on the receiving device means
 `SOURCE_UNAVAILABLE / SAFE_TO_MUTATE=NO`.
 
+## Session rollover checkpoint
+
+Before a chat/session/context rotation (not only a device handoff), fold the
+durable state into the active work-order/Issue checkpoint: the current lane
+occupancy matrix, outstanding LANE_REF/DELEGATED_RUN_ID pointers, and every
+terminal-unharvested result destination with its harvest instruction. The
+new session then starts with census + harvest per this skill — never with
+redispatch of work a prior session may still be running or may have finished
+unharvested.
+
 ## Lane recycle and cleanup
 
 A-Faster reuses A-FastTask `references/closeout.md`. Cleanup is never implied
 by model/Worker DONE or by a merged-looking branch.
+
+At every accepted/merged/explicitly-abandoned lane closeout, **automatically run
+a cleanup-eligibility audit** for that lane and any temporary worktree/folder it
+owns. This audit is mandatory; deletion is not. Record
+`CLEANUP_STATE=COMPLETE|PENDING|BLOCKED` with the exact path and evidence.
+Eligible registered Git worktrees should be removed promptly with canonical
+non-force `git worktree remove <exact-path>` so finished lanes do not consume
+machine storage. A non-worktree project folder may be deleted only when the
+same ownership/disposition/unique-content/process proof establishes that it is
+an exact disposable lane artifact rather than user data.
 
 A worktree/folder becomes cleanup-eligible only after all are proven:
 
@@ -215,6 +397,10 @@ In addition to normal A-FastTask output, report:
 
 - `DEVICE_ROUTE` for every active/blocked device;
 - `WIP_SLOT` and mutable/review role;
+- census disposition: `NONE`, or per-lane derived states with
+  harvest/recovery disposition for every outstanding attempt found;
+- lane occupancy matrix summary (projection, with its checkpoint location
+  when one was written);
 - `HARNESS_ROUTE` + exact model/effort/readiness;
 - `LANE_REF` + latest `DELEGATED_RUN_ID`/pointer state for every delegated
   lane (or the reconciled disposition per `references/durable-lanes.md`);
