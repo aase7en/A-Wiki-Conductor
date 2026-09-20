@@ -154,3 +154,73 @@ Required predecessor: an R3 production-runtime authority composition/locator
 slice that binds existing job/execution/lease authorities to one explicit,
 inspectable product composition boundary. COCKPIT-1B resumes only after that
 predecessor is accepted and can consume its read-only identity without mutation.
+
+
+## 2026-09-21 current-main re-pin and dependency refresh
+
+Re-pinned shaping branch to accepted `main@d2ad5bdcac521d4803a84edabe56fb57eda9a2e8`
+after the following predecessor truth became durable:
+
+- **COCKPIT-1A / #424** is accepted/post-main. Its projection/read adapter is a
+  foundation only and intentionally does not claim LOCAL-USABLE-1.
+- **RUNTIME-AUTH-1 / #431** is accepted/post-main. The desktop composition now
+  exposes the canonical control-database identity as a locator/comparator and
+  rejects runtime-writer DB identity mismatch before downstream writer
+  construction. This closes the bootstrap-locator design gap for Cockpit
+  consumers without making a pathname a second authority.
+- **RUNTIME-ACT-1 / #433** shaping is accepted, but source activation remains
+  fenced against Zero-Relay producer ownership. The accepted shaping contract
+  says the existing runtime stack must be consumed/reused rather than rebuilt:
+  `ProductionElasticWorkerExecutor -> ParallelReadyExecutor -> WorkerLease /
+  provider admission -> GraphDispatchParallelRunner -> GraphDispatchCoordinator
+  -> DurableJobControlService -> supervised execution`.
+- The production producer/trigger path is therefore **not yet accepted runtime
+  truth merely because #431 exposes the canonical DB identity**. Empty or absent
+  runtime tables still mean UNKNOWN/EVIDENCE_INCOMPLETE to Cockpit.
+- Zero-Relay author provenance / Phase-D remains on the current critical path:
+  WO246 / Issue #330 must be accepted and post-main, then WO205 Phase-D may
+  resume its thin durable-author-result -> trusted review -> ACCEPTED-only ->
+  current job/SHA re-observation -> existing GoalCloseout flow. #215 / WO227
+  remains the producer-ownership frontier after that sequence.
+
+### Updated implementation entry gate
+
+COCKPIT-1B source mutation remains **FORBIDDEN** until all of the following are
+durably true on current main:
+
+1. #431 runtime-authority identity/composition remains accepted (already true);
+2. an accepted production runtime-owner/trigger path writes the existing durable
+   job/execution/lease truth in the canonical control DB under the existing
+   authority model;
+3. that producer path is post-main verified and its ownership/scope no longer
+   conflicts with #215 / WO227 / WO205 critical-path work;
+4. a fresh read-only desktop call-graph re-pin proves the smallest binding scope;
+5. a RED production-startup test proves that the ordinary desktop composition
+   can consume that accepted runtime truth without initializing/migrating from
+   the Cockpit read path.
+
+### Expected smallest Cockpit change after producer acceptance
+
+The preferred shape is still **consume, do not own**:
+
+- reuse the #431 canonical DB identity already retained by
+  `DesktopControlService`;
+- bind the existing Cockpit read adapter to that exact accepted authority
+  identity only after the runtime producer is activated;
+- preserve read-only SQLite access, UNKNOWN/EVIDENCE_INCOMPLETE on absent or
+  unsupported runtime schema, and the existing background monitor cadence;
+- do not create a Cockpit database, scheduler, retry/reassign command, runtime
+  initializer, runs-directory scanner, or new task/job/lease/review/completion
+  state plane.
+
+Whether `desktop_app.py` must change remains **TBD until the fresh post-producer
+call-graph gate**. Do not pre-authorize it from old archaeology.
+
+### Current state
+
+`WO429_STATUS=DEPENDENCY_REQUIRED`
+
+`SAFE_TO_MUTATE_WO429_SOURCE=NO`
+
+`NEXT_SAFE_ACTION=wait for accepted production runtime producer/trigger path,
+then rerun the exact desktop binding archaeology and RED-first scope gate`.
