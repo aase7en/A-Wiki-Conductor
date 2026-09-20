@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 from .control_center import ControlCenterError, ControlCenterService, WorkerScreenRow
-from .control_events import ControlEventLogError, SQLiteControlEventLog
+from .control_events import (
+    ControlEvent,
+    ControlEventLogError,
+    SQLiteControlEventLog,
+)
+from .control_hook_adapter import ControlHookContext, normalize_control_event
 from .lifecycle import LifecycleAction, LifecycleContext
 from .lifecycle_coordinator import LifecycleCoordinator
 from .lifecycle_journal import SQLiteLifecycleJournal
@@ -244,9 +249,20 @@ class ControlCenterAssignmentService:
 
 
 class SQLiteLifecycleEvidenceService:
-    def __init__(self, event_log: SQLiteControlEventLog, action: LifecycleAction) -> None:
+    def __init__(
+        self,
+        event_log: SQLiteControlEventLog,
+        action: LifecycleAction,
+        *,
+        hook_context_factory: Callable[[ControlEvent], ControlHookContext] | None = None,
+        hook_observe_sink: Callable[[dict[str, object]], None] | None = None,
+    ) -> None:
+        if (hook_context_factory is None) != (hook_observe_sink is None):
+            raise LifecycleAssemblyError("HOOK_COLLABORATORS_INCOMPLETE")
         self._event_log = event_log
         self._action = action
+        self._hook_context_factory = hook_context_factory
+        self._hook_observe_sink = hook_observe_sink
 
     def emit(self, worker_id: str, project_id: str) -> SerenaOperationResult:
         try:
@@ -257,7 +273,27 @@ class SQLiteLifecycleEvidenceService:
                 error_code=exc.code,
                 recovery_required=True,
             )
+        if self._hook_context_factory is None or self._hook_observe_sink is None:
+            return SerenaOperationResult(success=True, evidence_ref=event.event_id)
+        try:
+            if not event.recorded_at:
+                return self._observability_degraded(event)
+            context = self._hook_context_factory(event)
+            if context.occurred_at != event.recorded_at:
+                return self._observability_degraded(event)
+            envelope = normalize_control_event(event, context)
+            self._hook_observe_sink(envelope)
+        except Exception:
+            return self._observability_degraded(event)
         return SerenaOperationResult(success=True, evidence_ref=event.event_id)
+
+    @staticmethod
+    def _observability_degraded(event: ControlEvent) -> SerenaOperationResult:
+        return SerenaOperationResult(
+            success=True,
+            evidence_ref=event.event_id,
+            error_code="OBSERVABILITY_DEGRADED",
+        )
 
 
 class LocalSerenaBackendFactory:
@@ -271,6 +307,8 @@ class LocalSerenaBackendFactory:
         preflight_service: PreflightService,
         project_identity_service: ProjectIdentityService,
         event_log: SQLiteControlEventLog,
+        hook_context_factory: Callable[[ControlEvent], ControlHookContext] | None = None,
+        hook_observe_sink: Callable[[dict[str, object]], None] | None = None,
         materializer: SerenaRuntimeMaterializer | None = None,
     ) -> None:
         self._service = service
@@ -280,6 +318,8 @@ class LocalSerenaBackendFactory:
         self._preflight = preflight_service
         self._identity = project_identity_service
         self._event_log = event_log
+        self._hook_context_factory = hook_context_factory
+        self._hook_observe_sink = hook_observe_sink
         self._materializer = materializer or SerenaRuntimeMaterializer()
 
     def _reference_store(self, worker) -> LocalFileReferenceStore:
@@ -326,7 +366,12 @@ class LocalSerenaBackendFactory:
             preflight_service=self._preflight,
             project_identity_service=self._identity,
             assignment_service=ControlCenterAssignmentService(self._service),
-            evidence_service=SQLiteLifecycleEvidenceService(self._event_log, action),
+            evidence_service=SQLiteLifecycleEvidenceService(
+                self._event_log,
+                action,
+                hook_context_factory=self._hook_context_factory,
+                hook_observe_sink=self._hook_observe_sink,
+            ),
         )
         return SerenaLifecycleBackend(operations)
 
@@ -341,6 +386,8 @@ def build_local_lifecycle_coordinator(
     process_controller: ProcessController | None = None,
     preflight_service: PreflightService | None = None,
     event_log: SQLiteControlEventLog | None = None,
+    hook_context_factory: Callable[[ControlEvent], ControlHookContext] | None = None,
+    hook_observe_sink: Callable[[dict[str, object]], None] | None = None,
 ) -> LifecycleCoordinator:
     database = Path(database_path)
     service = service or ControlCenterService.open(SQLiteRegistryStore(database))
@@ -369,6 +416,8 @@ def build_local_lifecycle_coordinator(
         preflight_service=preflight,
         project_identity_service=identity,
         event_log=events,
+        hook_context_factory=hook_context_factory,
+        hook_observe_sink=hook_observe_sink,
     )
     return LifecycleCoordinator(
         context_provider=context_provider,

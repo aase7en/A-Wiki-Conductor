@@ -131,3 +131,50 @@ RUNNING is never duplicated. TERMINAL_UNHARVESTED is harvested first.
 
 Implementation must stop with `DECISION_REQUIRED` rather than widening scope
 or inventing a new observability authority.
+
+## Checkpoint — author attempt-0001 (2026-09-20)
+
+- Implementer: GLM-5.3 MAX (Kilo), claim WO-P1-394-HOOK1C-LIFECYCLE-OBSERVE-001.
+- Base: dispatch HEAD dad41a7005c0733575b710ea1c5048032950fc8f (clean worktree,
+  branch feat/wo-p1-394-lifecycle-hook-observe).
+- Implementation: `SQLiteLifecycleEvidenceService` gained optional injected
+  `hook_context_factory` (ControlEvent -> ControlHookContext) and
+  `hook_observe_sink` (envelope -> None) collaborators; both-or-none enforced at
+  construction (`HOOK_COLLABORATORS_INCOMPLETE`). After a successful append:
+  require `event.recorded_at`, require `context.occurred_at == event.recorded_at`
+  (byte equality), normalize via existing `normalize_control_event`, then deliver
+  the validated envelope to the sink. Any secondary failure (missing recorded_at,
+  factory throw, timestamp drift, normalization failure, sink throw) returns
+  `success=True, evidence_ref=event.event_id, error_code=OBSERVABILITY_DEGRADED`
+  with no lifecycle FAILED/RECOVERY conversion; append failures keep the existing
+  `success=False, recovery_required=True` semantics. Collaborators propagate
+  additively through `LocalSerenaBackendFactory` and
+  `build_local_lifecycle_coordinator`; defaults preserve legacy callers
+  (`desktop_control.py` unchanged and green).
+- RED evidence: 11 new tests failed before implementation with `TypeError:
+  SQLiteLifecycleEvidenceService.__init__() got an unexpected keyword argument
+  'hook_context_factory'` (runs/WO-P1-394/author/attempt-0001/red.md);
+  8 pre-existing tests stayed green at RED.
+- Timestamp authority: sink `occurred_at` is the exact persisted SQLite
+  `recorded_at` read back from the database row (test monkeypatches only the
+  test-scoped clock in `a_conductor.control_events` to persist Hook-contract
+  `Z`-shaped timestamps; no production timestamp conversion). With the current
+  production `+00:00` store format, delivery deterministically degrades
+  (`OBSERVABILITY_DEGRADED`, sink not called) — the `+00:00`->`Z` projection
+  remains deferred to its own Work Order per WO-P1-391.
+- GREEN evidence: tests/test_lifecycle_assembly.py 19 passed;
+  test_control_events.py + test_control_hook_adapter.py +
+  test_lifecycle_assembly.py 174 passed; test_hook_contract_schema.py +
+  test_work_order_identity.py 130 passed; related lifecycle/
+  coordinator/executor/serena-operations 63 passed; test_desktop_control.py
+  34 passed; py_compile OK; `git diff --check` clean.
+- Proofs: exact scope = the 3 allowed paths; forbidden-path diff vs dad41a7
+  empty (incl. control_events.py -> SQLite schema unchanged,
+  control_hook_adapter.py, Hook Contract docs/schema, planner/coordinator/
+  executor semantics, pyproject.toml); strict UTF-8 and zero U+FFFD in all 3
+  mutated files; added-line secret scan: only the sanctioned
+  `fake-secret-corpus/1` marker `sk-FAKE...` required by RED item 6; tests
+  touch only tmp_path + monkeypatch (no network/runtime host side effects).
+- Status: READY_FOR_REVIEW at the candidate commit on
+  feat/wo-p1-394-lifecycle-hook-observe; no self-accept/merge. Next:
+  independent exact-SHA R3 review + exact-head CI.
