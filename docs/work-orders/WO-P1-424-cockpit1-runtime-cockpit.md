@@ -1,6 +1,6 @@
 # WO-P1-424 — COCKPIT-1 Runtime Cockpit MVP durable truth projection
 
-Status: CLAIMED / READY_FOR_IMPLEMENTATION
+Status: CANDIDATE_FROZEN / READY_FOR_INDEPENDENT_R2_REVIEW
 Issue: #424
 Identity schema: GITHUB_ISSUE_V1
 Topology: CONTROL_PLANE_ONLY
@@ -12,7 +12,7 @@ Risk: R2 — read-only shared operator projection + desktop integration
 - isolated worktree: `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo424-cockpit1`
 - branch: `feat/wo-p1-424-cockpit1-runtime-cockpit`
 - bootstrap base SHA: `bd4892185195d8c6a7c3a8652a75ec4db7f003b4`
-- current-main re-pin accepted: `7394322f14b6878c0c7fef61c618b9ae31898a72`
+- current-main re-pin accepted: `27d644405f008e50771599d08669893e5caa80f6`
 - post-fan-in branch anchor before source mutation: `2013145f352945bfd1c71cc962d5d906db219bae`
 - claim: `WO-P1-424-COCKPIT1-RUNTIME-COCKPIT-001`
 - owner: bounded implementation lane selected by A-Faster; GPT-5.6 Sol remains integrator/acceptance authority.
@@ -24,13 +24,14 @@ Risk: R2 — read-only shared operator projection + desktop integration
 Satisfied:
 - GOT chain accepted, including WO-P1-419 post-main verification.
 - FMG-1 repaired acceptance is current and local-only at exact compatibility set:
-  `{A-Wiki-Conductor@7394322f14b6878c0c7fef61c618b9ae31898a72, SunDayRemoteMCP@2e6aeabd09a321232098187dba4c522e37e4b1de}`.
+  `{A-Wiki-Conductor@27d644405f008e50771599d08669893e5caa80f6, SunDayRemoteMCP@2e6aeabd09a321232098187dba4c522e37e4b1de}`.
+  The authority re-pin from `7394322...` to `27d6444...` adds only accepted WTL-1 paths and does not alter the FMG/DEX authority blobs.
   The earlier `7c3c048...` completion marker is superseded by the post-mutation outcome-integrity repair and focused independent R3 rereview.
 - COCKPIT-0 shaping #421 re-pinned on `bd489218...` and classified `READY_AFTER_FMG`.
 
-Still intentionally UNKNOWN at bootstrap:
+Still intentionally UNKNOWN at this candidate:
 - durable desktop Hook read-back is not accepted; Hook-derived cockpit fields MUST render UNKNOWN.
-- WTL-1 is not accepted on main; WTL-derived cockpit fields MUST render UNKNOWN until a later accepted re-pin.
+- WTL-1 is accepted on main at `27d6444...`, but COCKPIT-1 does not add a WTL read-back adapter in this slice; WTL-derived cockpit fields remain UNKNOWN unless an already-accepted read seam is reused without widening authority.
 
 ## Recovery checkpoint after interrupted author attempt
 
@@ -163,7 +164,16 @@ Before/with implementation prove:
 - exact-head hosted CI;
 - expected-head merge and post-main verification.
 
+## Candidate checkpoint after A-Faster recovery
+
+- author continuation `run:WO-P1-424:author:1:a2:4662b50f92e6` completed terminal-success and froze local implementation commit `f0c046387886e51009d416cec6cf8f64a21b5204` over dispatch head `94e4a25...`;
+- exact implementation delta is the four claimed product/test paths only;
+- current-main fan-in is `27d644405f008e50771599d08669893e5caa80f6` (WTL-1), with zero overlap against the four implementation paths;
+- post-fan-in candidate before this documentation checkpoint is `e446b537511d4d0970647bf25f460e450bf407f7`;
+- integrator verification at `e446b53...`: focused cockpit **32 passed**, related desktop/control-center/graph/provider/continuity/WTL **355 passed**, py_compile PASS, strict UTF-8 PASS, exact path scope PASS;
+- independent R2 review must explicitly audit whether the real `DesktopControlService.cockpit_projection()` wiring satisfies the Work Order/LOCAL-USABLE operator-truth requirement. The current implementation composes ControlCenter worker rows while execution/lease/git/gate observations remain unavailable in the real facade. Pure projection tests prove those states when injected, but reviewer must decide whether leaving accepted durable execution truth unwired is a blocking product-acceptance gap rather than truthful UNKNOWN behavior;
+- no merge/acceptance is permitted until that focused product-truth question and ordinary R2 safety review both pass.
+
 ## Completion
 
 Agent/GLM DONE is only a claim. Completion requires frozen exact SHA, deterministic evidence, independent exact-SHA R2 review with P0/P1/P2=0, exact-head CI, GPT acceptance/merge, post-main verification, and durable checkpoint.
-
