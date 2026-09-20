@@ -120,3 +120,41 @@ Everything else read-only.
 - Status: READY_FOR_REVIEW — awaiting independent exact-SHA R3 review and
   exact-head CI on the pushed branch head. Integrator (GPT-5.6 Sol)
   merges; no self-accept/merge by the author lane.
+
+## Fan-in verification / bounded repair (post GOT-1a #409 acceptance)
+
+- Dispatch: merge-forward `d4fd5bad` (candidate `9afef27e` + accepted main
+  `f46531db`, merge-base `f46531db` verified) under claim
+  `WO-P1-410-GOT1B-MERGE-FOLD-RECONCILIATION-001`, child issue #411.
+- RED (deterministic, captured before any edit):
+  `tests/test_goal_closeout_assembly.py::test_one_immutable_snapshot_bound_through_single_stage`
+  — `RECOVERY_REQUIRED` != expected `FOLD_REQUIRED` (1 failed, 89 passed).
+- Root cause: candidate routing sent ANY merge-identity fold through the
+  typed admission, which (correctly) admits only exact MERGED_NOT_FOLDED
+  (settled contract 5). The accepted GOT-1a #409 production composition
+  folds during normal closeout with FRESH continuity while MergeEvidence
+  carries merge identity — a normal projection write under settled
+  contract 8. Two compounding layers: (a) typed gate denies the FRESH
+  classification; (b) `apply`-only applier ports (accepted assembly
+  contract) do not expose the typed method at all.
+- Repair (adapter selection only, in `continuity_projection.py`): the
+  typed admission publishes only when the authority itself classifies
+  MERGED_NOT_FOLDED and the applier provides the typed admission; a
+  `RECONCILIATION_CLASSIFICATION_DENIED` typed outcome (fold debt absent)
+  republishes through the generic FRESH-only `apply`; every other typed
+  denial stays fail-closed. No gate weakened; no second authority;
+  executor/typed-admission contracts untouched.
+- Owned-test reconciliation (same file scope):
+  `test_wo410_typed_request_with_fresh_continuity_denies_zero_writes`
+  rewritten as `..._publishes_generic` (FRESH + merge identity = normal
+  write, completes via generic admission — matches accepted main);
+  added `test_wo410_merge_identity_request_non_fresh_non_debt_denies_zero_writes`
+  (DIRTY snapshot: neither admission publishes, zero writes).
+- Post-repair green: 339 passed across the three owned files + fan-in
+  regressions (`tests/test_goal_closeout_assembly.py`,
+  `tests/test_job_control.py`, `tests/test_lifecycle_assembly.py`,
+  `tests/test_work_order_identity.py`).
+- FoldRequest audit: every construction site is keyword-based; the
+  additive `merge_commit=None` default keeps all pre-existing callers
+  valid; the assembly call chain is proven by the green end-to-end
+  assembly suite including the previously failing test.

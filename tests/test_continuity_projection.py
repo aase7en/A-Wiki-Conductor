@@ -860,9 +860,10 @@ def test_r2_d10_released_never_in_active_leases():
 
 # ══════════════════════════════════════════════════════════════════════
 # WO-P1-410 GOT-1b-A — typed merge-fold reconciliation path in the
-# adapter (RED-first). The adapter selects the typed admission ONLY when
-# the FoldRequest carries merge identity; normal projection writes keep
-# the generic FRESH-only behavior proven above.
+# adapter (RED-first), reconciled with the accepted GOT-1a #409 fan-in:
+# the typed admission publishes only the exact MERGED_NOT_FOLDED fold
+# debt; every other fold — including a merge-identity request over a
+# FRESH snapshot — keeps the generic FRESH-only behavior proven above.
 # ══════════════════════════════════════════════════════════════════════
 from a_conductor.agent_change_packets import MERGE_FOLD_TARGETS  # noqa: E402
 from a_conductor.continuity_guard import MergeFoldFact, ProjectionClaim  # noqa: E402
@@ -929,12 +930,36 @@ def test_wo410_typed_fold_completes_under_merged_not_folded(tmp_path):
         assert f"merge-commit: {MERGE}" in text
 
 
-def test_wo410_typed_request_with_fresh_continuity_denies_zero_writes(tmp_path):
-    """The typed path is admission for MERGED_NOT_FOLDED only — a FRESH
-    snapshot (no fold debt) never admits it."""
+def test_wo410_typed_request_with_fresh_continuity_publishes_generic(tmp_path):
+    """Fan-in reconciliation with accepted GOT-1a #409: a FRESH snapshot
+    carries no fold debt, so a merge-identity request is a normal
+    projection write and publishes through the generic FRESH-only
+    admission (the typed path is admission for MERGED_NOT_FOLDED only)."""
+    seed(tmp_path)
+    outcome = typed_adapter(tmp_path, provider=FreshProvider()).fold(typed_request())
+    assert outcome.completed is True
+    for name in CANONICAL_TARGETS:
+        text = (tmp_path / name).read_text(encoding="utf-8")
+        assert "old machine block" not in text
+        assert f"merge-commit: {MERGE}" in text
+
+
+class DirtyProvider(FreshProvider):
+    """Trusted fact source: identity-bound snapshot with a DIRTY worktree —
+    neither FRESH nor MERGED_NOT_FOLDED, so no admission may publish."""
+
+    def continuity_snapshot(self, request) -> ContinuitySnapshot:
+        snap = super().continuity_snapshot(request)
+        return replace(snap, dirty_state="DIRTY")
+
+
+def test_wo410_merge_identity_request_non_fresh_non_debt_denies_zero_writes(tmp_path):
+    """A merge-identity request over a state that is neither FRESH nor
+    MERGED_NOT_FOLDED admits through neither path: typed denies the
+    classification, generic denies non-FRESH — zero writes, fail closed."""
     seed(tmp_path)
     before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
-    outcome = typed_adapter(tmp_path, provider=FreshProvider()).fold(typed_request())
+    outcome = typed_adapter(tmp_path, provider=DirtyProvider()).fold(typed_request())
     assert outcome.completed is False
     assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
 

@@ -14,9 +14,11 @@ machine, review authority, or projection authority):
    preconditions), one target packet at a time, then read-back verifies
    EVERY intended target before ``completed=True``. WO-P1-410: a fold
    request carrying merge identity publishes through the typed
-   ``apply_merge_fold_reconciliation`` admission (the only path that may
-   run while continuity is MERGED_NOT_FOLDED); a fold request without
-   merge identity keeps the generic FRESH-only ``apply`` path.
+   ``apply_merge_fold_reconciliation`` admission only while continuity
+   is MERGED_NOT_FOLDED (the only path that may run in that state);
+   every other fold — including a normal FRESH closeout fold that
+   carries merge identity, per the accepted GOT-1a #409 production
+   composition — keeps the generic FRESH-only ``apply`` path.
 
 The adapter writes files one-by-one (AgentChangeApplier is atomic per
 file, not per bundle). A crash/failure after the first target can leave
@@ -403,6 +405,9 @@ class ContinuityProjectionFoldAdapter:
 
         # 3. publish through the mutation authority, one packet per target
         wrote_any = False
+        typed_admission = getattr(
+            self._applier, "apply_merge_fold_reconciliation", None
+        )
         for name, content, expected in pending:
             change = AgentFileChange(name, content, expected)
             packet = AgentResultPacket(
@@ -415,7 +420,7 @@ class ContinuityProjectionFoldAdapter:
                 evidence_refs=("projection-fold",),
             )
             try:
-                if reconciliation is None:
+                if reconciliation is None or not callable(typed_admission):
                     self._applier.apply(
                         packet, self._lease_id,
                         session_id=self._session_id,
@@ -423,11 +428,33 @@ class ContinuityProjectionFoldAdapter:
                         actual_head=self._actual_head or ("0" * 40),
                     )
                 else:
-                    self._applier.apply_merge_fold_reconciliation(
-                        packet, reconciliation,
-                        session_id=self._session_id,
-                        actual_head=self._actual_head or ("0" * 40),
-                    )
+                    try:
+                        typed_admission(
+                            packet, reconciliation,
+                            session_id=self._session_id,
+                            actual_head=self._actual_head or ("0" * 40),
+                        )
+                    except AgentChangeError as exc:
+                        # WO-P1-410 fan-in reconciliation with the
+                        # accepted GOT-1a #409 production composition:
+                        # the typed admission exists solely for the exact
+                        # MERGED_NOT_FOLDED fold debt. When the trusted
+                        # snapshot classifies that debt absent — a normal
+                        # FRESH closeout fold that merely carries merge
+                        # identity — this is a normal projection write
+                        # and publishes through the generic FRESH-only
+                        # admission, never a second authority. Every
+                        # other typed denial (merge identity, reconcile
+                        # residue, unrelated drift, lease/head) stays
+                        # fail-closed below.
+                        if exc.code != "RECONCILIATION_CLASSIFICATION_DENIED":
+                            raise
+                        self._applier.apply(
+                            packet, self._lease_id,
+                            session_id=self._session_id,
+                            task_id=self._task_id,
+                            actual_head=self._actual_head or ("0" * 40),
+                        )
             except AgentChangeError:
                 # preflight conflict / ownership / drift: no NEW write in
                 # this packet. Earlier targets may already have landed =>
