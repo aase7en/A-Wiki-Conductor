@@ -152,6 +152,40 @@ class DesktopControlService:
             store.database_path, graph_id, graph_run_id, event_limit=event_limit
         )
 
+    def cockpit_projection(self, generated_at: str | None = None):
+        """Read-only Runtime Cockpit snapshot (WO-P1-424 COCKPIT-1).
+
+        Bounded first pin plus immediate recheck pin of the same accepted
+        ControlCenterService read authority: drift between the two pins
+        renders the snapshot STALE instead of mixing observations. A failed
+        read degrades to an explicitly marked empty snapshot rather than
+        raising or inventing lanes. Pure read path over existing
+        authorities — no store, command, timer, or scheduler authority.
+        """
+        from .cockpit_projection import (
+            CockpitObservations,
+            CockpitSnapshot,
+            build_control_center_lane_inputs,
+            project_cockpit_snapshot,
+        )
+
+        stamp = generated_at if generated_at else self._clock().isoformat()
+        try:
+            first = build_control_center_lane_inputs(self.control_center.snapshot())
+            recheck = build_control_center_lane_inputs(self.control_center.snapshot())
+        except Exception:
+            return CockpitSnapshot(
+                lanes=(),
+                generated_at=stamp,
+                stale=False,
+                stale_reason=None,
+                degraded_observability=("CONTROL_CENTER_READ_FAILED",),
+            )
+        return project_cockpit_snapshot(
+            CockpitObservations(lanes=first, generated_at=stamp),
+            recheck=CockpitObservations(lanes=recheck, generated_at=stamp),
+        )
+
     def register_project(self, root_path, *, display_name=None, project_id=None):
         return self.control_center.register_project(
             root_path,
