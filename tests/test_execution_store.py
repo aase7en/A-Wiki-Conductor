@@ -430,13 +430,14 @@ def test_concurrent_conflicting_receipt_races_fail_closed_deterministically(
 def test_additive_initialization_on_existing_v1_db_preserves_records_and_events(
     tmp_path: Path,
 ) -> None:
+    # WO-P1-246 fan-in: fresh databases are now created in the v2 shape, so a
+    # genuine current-main accepted v1 database (legacy execution_records,
+    # DEX execution_receipts support, schema_version 1) is built explicitly.
+    # Additive initialization must migrate it to v2 while preserving records
+    # and events, and must recreate a missing receipts table without
+    # fabricating receipt evidence.
     database = tmp_path / "executions.sqlite"
-    store = SQLiteExecutionStore(database)
-    created = store.create(make_record())
-    updated = store.set_transport_state(
-        "exec-001", TransportState.LOST, expected_version=created.version
-    )
-    events_before = store.list_events("exec-001")
+    _make_main_v1_database(database)
 
     connection = sqlite3.connect(database)
     try:
@@ -449,17 +450,23 @@ def test_additive_initialization_on_existing_v1_db_preserves_records_and_events(
     migrated.initialize()
     migrated.initialize()
 
-    assert migrated.get("exec-001") == updated
-    assert migrated.list_events("exec-001") == events_before
+    record = migrated.get("exec-legacy-001")
+    assert record.execution_state is ExecutionProcessState.SUCCEEDED
+    assert record.author_attempt_id is None
+    assert record.author_generation is None
     connection = sqlite3.connect(database)
     try:
         version = connection.execute(
             "SELECT value FROM execution_store_meta WHERE key = 'schema_version'"
         ).fetchone()[0]
+        receipt_rows = connection.execute(
+            "SELECT COUNT(*) FROM execution_receipts"
+        ).fetchone()[0]
     finally:
         connection.close()
     assert version == "2"
-    recorded = migrated.record_receipt(make_receipt())
+    assert receipt_rows == 0
+    recorded = migrated.record_receipt(make_receipt(execution_id="exec-legacy-001"))
     assert migrated.get_receipt(recorded.receipt_id) == recorded
 
 
@@ -528,9 +535,6 @@ def test_initialize_is_safe_for_two_callers_that_both_observe_missing_schema_ver
                 select_barrier.wait(timeout=5)
                 forced_race_ready.set()
             return row
-
-        def __iter__(self):
-            return iter(self._cursor)
 
         def __getattr__(self, name):
             return getattr(self._cursor, name)
@@ -647,8 +651,6 @@ def test_initialize_still_rejects_unsupported_schema_version(tmp_path: Path) -> 
     with pytest.raises(ExecutionStoreError) as exc_info:
         store.initialize()
     assert exc_info.value.code == "EXECUTION_SCHEMA_VERSION_UNSUPPORTED"
-
-
 # ---------------- WO-P1-246: author-attempt provenance persistence ----------
 
 _V1_DDL = """
@@ -1447,3 +1449,224 @@ def test_wo246_stale_fresh_stamp_never_overwrites_conflicting_non_2_value(
         ).fetchone()[0] == "3"
     finally:
         connection.close()
+
+
+# ---- WO-P1-246 fan-in: current-main v1 (receipt-capable) DB integration ----
+# The accepted current-main v1 shape differs from the legacy WO246 _V1_DDL
+# fixture: it carries DEX execution_receipts support. Migration must cover
+# BOTH shapes and never delete or rewrite receipt evidence.
+
+_MAIN_V1_RECEIPTS_DDL = """
+CREATE TABLE IF NOT EXISTS execution_receipts (
+    receipt_id TEXT PRIMARY KEY CHECK (length(receipt_id) = 64),
+    execution_id TEXT NOT NULL CHECK (trim(execution_id) <> ''),
+    attempt_id TEXT NOT NULL CHECK (trim(attempt_id) <> ''),
+    result_digest TEXT NOT NULL CHECK (length(result_digest) = 64),
+    binding_digest TEXT NOT NULL CHECK (length(binding_digest) = 64),
+    claim_generation INTEGER NOT NULL CHECK (claim_generation >= 1),
+    authority_sha TEXT NOT NULL CHECK (length(authority_sha) = 40),
+    execution_sha TEXT NOT NULL CHECK (length(execution_sha) = 40),
+    disposition TEXT NOT NULL CHECK (
+        disposition IN ('ACCEPTED', 'QUARANTINED')
+    ),
+    evidence_ref TEXT,
+    recorded_at TEXT NOT NULL DEFAULT (
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    ),
+    UNIQUE (execution_id, attempt_id, result_digest, binding_digest),
+    FOREIGN KEY (execution_id)
+        REFERENCES execution_records(execution_id)
+        ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_execution_receipts_execution_recorded
+ON execution_receipts(execution_id, recorded_at DESC, receipt_id DESC);
+"""
+
+
+def _legacy_receipt_id() -> str:
+    return compute_receipt_id(
+        execution_id="exec-legacy-001",
+        attempt_id="dex-attempt-001",
+        result_digest="c" * 64,
+        binding_digest="d" * 64,
+    )
+
+
+def _make_main_v1_database(database: Path) -> None:
+    """A genuine current-main accepted v1 database: legacy execution_records
+    shape (no provenance columns), DEX execution_receipts support, and
+    schema_version 1, holding one record, one durable receipt, and its
+    RECEIPT_RECORDED event."""
+    connection = sqlite3.connect(database)
+    try:
+        connection.executescript(_V1_DDL)
+        connection.executescript(_MAIN_V1_RECEIPTS_DDL)
+        connection.execute(
+            "INSERT INTO execution_store_meta(key, value) "
+            "VALUES('schema_version', '1')"
+        )
+        connection.execute(_V1_ROW, _V1_ROW_VALUES)
+        connection.execute(
+            "INSERT INTO execution_receipts("
+            "receipt_id, execution_id, attempt_id, result_digest, binding_digest, "
+            "claim_generation, authority_sha, execution_sha, disposition, "
+            "evidence_ref"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                _legacy_receipt_id(),
+                "exec-legacy-001",
+                "dex-attempt-001",
+                "c" * 64,
+                "d" * 64,
+                3,
+                "1" * 40,
+                "2" * 40,
+                "ACCEPTED",
+                "evidence:dex-collect-legacy",
+            ),
+        )
+        connection.execute(
+            "INSERT INTO execution_events("
+            "event_id, execution_id, sequence_no, event_type, evidence_ref"
+            ") VALUES ('evt-legacy-receipt-1', 'exec-legacy-001', 1, "
+            "'RECEIPT_RECORDED', ?)",
+            (_legacy_receipt_id(),),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_wo246_fanin_main_v1_receipt_db_migrates_preserving_receipt_evidence(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "executions.sqlite"
+    _make_main_v1_database(database)
+
+    def snapshot() -> tuple:
+        connection = sqlite3.connect(database)
+        try:
+            receipts = connection.execute(
+                "SELECT receipt_id, execution_id, attempt_id, result_digest, "
+                "binding_digest, claim_generation, authority_sha, execution_sha, "
+                "disposition, evidence_ref, recorded_at "
+                "FROM execution_receipts ORDER BY receipt_id"
+            ).fetchall()
+            events = connection.execute(
+                "SELECT execution_id, sequence_no, event_type, evidence_ref, "
+                "recorded_at FROM execution_events "
+                "ORDER BY execution_id, sequence_no"
+            ).fetchall()
+            return receipts, events
+        finally:
+            connection.close()
+
+    receipts_before, events_before = snapshot()
+
+    store = SQLiteExecutionStore(database)
+    store.initialize()
+    store.initialize()
+
+    receipts_after, events_after = snapshot()
+    assert receipts_after == receipts_before
+    assert events_after == events_before
+
+    connection = sqlite3.connect(database)
+    try:
+        assert connection.execute(
+            "SELECT value FROM execution_store_meta WHERE key = 'schema_version'"
+        ).fetchone()[0] == "2"
+        columns = _record_columns(connection)
+    finally:
+        connection.close()
+    assert {"author_attempt_id", "author_generation"} <= columns
+
+    record = store.get("exec-legacy-001")
+    assert record.author_attempt_id is None
+    assert record.author_generation is None
+
+    durable = store.get_receipt(_legacy_receipt_id())
+    assert durable.attempt_id == "dex-attempt-001"
+    assert durable.claim_generation == 3
+
+    replay = store.record_receipt(durable)
+    assert replay == durable
+    assert receipt_row_count(database) == 1
+    assert receipt_event_count(store, "exec-legacy-001") == 1
+
+    with pytest.raises(ExecutionStoreError) as exc_info:
+        store.record_receipt(
+            make_receipt(
+                execution_id="exec-legacy-001",
+                attempt_id="dex-attempt-001",
+                result_digest="c" * 64,
+                binding_digest="d" * 64,
+                claim_generation=4,
+                authority_sha="1" * 40,
+                execution_sha="2" * 40,
+                evidence_ref="evidence:dex-collect-legacy",
+            )
+        )
+    assert exc_info.value.code == "RECEIPT_CONFLICT"
+    assert receipt_row_count(database) == 1
+
+
+def test_wo246_fanin_legacy_v1_db_without_receipts_gains_empty_receipts_table(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "executions.sqlite"
+    _make_v1_database(database, meta_version="1")
+
+    store = SQLiteExecutionStore(database)
+    store.initialize()
+
+    assert receipt_row_count(database) == 0
+    record = store.get("exec-legacy-001")
+    assert record.author_attempt_id is None
+    assert record.author_generation is None
+    recorded = store.record_receipt(
+        make_receipt(execution_id="exec-legacy-001", attempt_id="dex-new-001")
+    )
+    assert store.get_receipt(recorded.receipt_id) == recorded
+
+
+def test_wo246_fanin_author_provenance_and_dex_receipt_stay_distinct(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "executions.sqlite"
+    store = SQLiteExecutionStore(database)
+    store.create(
+        make_record(
+            execution_id="exec-001",
+            author_attempt_id="author-attempt-v1:" + "1" * 32,
+            author_generation=1,
+        )
+    )
+
+    receipt = store.record_receipt(
+        make_receipt(attempt_id="dex-attempt-9", claim_generation=7)
+    )
+
+    fetched = store.get("exec-001")
+    assert fetched.author_attempt_id == "author-attempt-v1:" + "1" * 32
+    assert fetched.author_generation == 1
+
+    durable = store.get_receipt(receipt.receipt_id)
+    assert durable.attempt_id == "dex-attempt-9"
+    assert durable.claim_generation == 7
+    assert durable.execution_id == fetched.execution_id
+
+    updated = store.set_transport_state(
+        "exec-001", TransportState.LOST, expected_version=fetched.version
+    )
+    assert updated.author_attempt_id == fetched.author_attempt_id
+    assert updated.author_generation == fetched.author_generation
+    assert store.get_receipt(receipt.receipt_id) == durable
+
+    second = store.record_receipt(
+        make_receipt(attempt_id="dex-attempt-10", claim_generation=8)
+    )
+    assert second.receipt_id != receipt.receipt_id
+    assert receipt_row_count(database) == 2
+    assert store.get("exec-001").author_attempt_id == "author-attempt-v1:" + "1" * 32

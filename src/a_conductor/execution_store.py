@@ -296,9 +296,13 @@ class SQLiteExecutionStore:
                     ON execution_receipts(execution_id, recorded_at DESC, receipt_id DESC);
                     """
                 )
-
+                # WO-P1-246 fan-in: the reconciler owns schema-version
+                # stamping, v1 -> v2 migration, and the concurrent-init
+                # idempotent-stamp semantics (INSERT ... ON CONFLICT DO
+                # NOTHING, then re-read and strictly validate the durable
+                # winner) that current-main added for the shared-control-DB
+                # initialization race.
                 self._reconcile_schema_version(connection)
-
                 connection.commit()
             except ExecutionStoreError:
                 connection.rollback()
@@ -323,9 +327,13 @@ class SQLiteExecutionStore:
         Maps column name to ``(declared_type, notnull, default, pk)``
         exactly as reported by ``PRAGMA table_info``.
         """
+        # fetchall() (not cursor iteration) so wrapped/proxied cursors that
+        # only forward attribute access remain usable by callers/tests.
         return {
             str(row[1]): (str(row[2]), int(row[3]), row[4], int(row[5]))
-            for row in connection.execute("PRAGMA table_info(execution_records)")
+            for row in connection.execute(
+                "PRAGMA table_info(execution_records)"
+            ).fetchall()
         }
 
     def _reconcile_schema_version(self, connection: sqlite3.Connection) -> None:
