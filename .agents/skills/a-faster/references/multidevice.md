@@ -36,7 +36,10 @@ One project-wide budget:
 
 `3 mutable + 1 independent read-only review`
 
-Do not allocate this budget independently on each machine.
+All ChatGPT sessions, devices, and harnesses for the project share this one
+budget. Each invocation reconstructs occupancy from durable evidence; a
+session or tool timeout is not failure and never resets occupancy. Do not
+allocate this budget independently on each machine or session.
 
 ## Safe parallel examples
 

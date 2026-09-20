@@ -1,6 +1,6 @@
 # WO-P1-404 — A-Faster self-directing multi-session multilane profile
 
-Status: ACTIVE / CLAIMED
+Status: ACTIVE / READY_FOR_REVIEW
 Issue: #404
 Risk: R3 — routing/provider/recovery policy
 Topology: CONTROL_PLANE_ONLY
@@ -17,7 +17,7 @@ Topology: CONTROL_PLANE_ONLY
 
 ## Goal
 
-Make the phrase “use A-Faster” / “ใช้ A-Faster” sufficient for a substantial A-Sunday engineering session to recover project-wide delegated work, reconstruct the single global WIP occupancy projection, fill safe non-overlapping free lanes automatically, route bounded work to the right GLM class/harness, and continue through harvest/fan-in without requiring the user to repeat multiagent/multilane instructions.
+Make the phrase “use A-Faster” / “ใช้ A-Faster” sufficient for a substantial A-Sunday engineering session to recover project-wide delegated work, reconstruct the global WIP budget occupancy projection, fill safe non-overlapping free lanes automatically, route bounded work to the right GLM class/harness, and continue through harvest/fan-in without requiring the user to repeat multiagent/multilane instructions.
 
 This EXTENDS the accepted A-Faster/A-FastTask contracts. It creates no scheduler, lane registry, task store, claim/lease store, review/completion authority, provider authority or memory SSoT.
 
@@ -57,3 +57,11 @@ Everything else is read-only.
 ## Replay safety
 
 Before any retry or fresh-session continuation, recover `runs/WO-P1-404/`, actual process identity, Git state and GitHub Issue/PR state. Never infer failure from chat/tool timeout alone.
+
+## Author evidence
+
+- Attempt: 0001 — GLM-5.3 MAX (effort max) via Kilo Code CLI harness, lane M1, this worktree.
+- Evidence directory: `runs/WO-P1-404/author/attempt-0001/` (gitignored).
+- Changes: one-clause invocation contract; explicit AUTO-FILL after recovery/census/harvest + collision gate up to the global `3 mutable + 1 review` budget; explicit multi-session shared-budget/timeout semantics; explicit autonomous continuation; Ponytail/Caveman automatic-consideration scoping; “single global WIP ledger” wording replaced with global WIP budget / reconstructed occupancy projection semantics. No cleanup-implementation, installer, or version-pinning widening.
+- Verification: `git diff --check` clean; exact three-path scope; strict UTF-8 / no U+FFFD; frontmatter + referenced files valid; `tests/test_work_order_identity.py` green; added-line secret-shaped scan clean; duplication/contradiction diff review done.
+- Status: READY_FOR_REVIEW — awaiting independent exact-SHA R3 review and exact-head hosted CI on the pushed branch head. Integrator (GPT-5.6 Sol) merges; no self-accept/merge by the author lane.
