@@ -1,6 +1,6 @@
 # WO-P1-413 — FMG-1: SunDayRemoteMCP File Mutation Guard v2
 
-Status: CLAIMED / READY_FOR_IMPLEMENTATION
+Status: ACCEPTED / LOCAL_ONLY_EXECUTION_CLOSEOUT
 Issue: #413
 Parent roadmap: #397 / `docs/plans/2026-09-20-dwb-convergence-product-acceleration-roadmap.md`
 Topology: CROSS_REPO
@@ -268,3 +268,52 @@ Before redispatch:
 FMG-1 is complete only when the exact local SRM candidate is independently R3-accepted against the exact A-Wiki compatibility main and all acceptance families above are green.
 
 COCKPIT-1 remains blocked until FMG-1 acceptance.
+
+## Acceptance checkpoint — 2026-09-20
+
+FMG-1 satisfied the R3 acceptance gate and is accepted as a **local-only**
+SunDayRemoteMCP execution candidate.
+
+Accepted exact compatibility set:
+`{A-Wiki-Conductor@bd4892185195d8c6a7c3a8652a75ec4db7f003b4, SunDayRemoteMCP@7c3c048d3d21291e842a944e50ecf0ca5d71f475}`.
+
+Execution candidate:
+- SRM parent / accepted DEX-2a anchor:
+  `fe5abb3eb51ec712a970ec3a8cdcd5402619e992`;
+- frozen FMG-1 candidate:
+  `7c3c048d3d21291e842a944e50ecf0ca5d71f475`;
+- exact changed tracked paths: 9, matching this Work Order;
+- SRM remains local-only with no accepted remote, push, or publication.
+
+Independent exact-SHA R3 review:
+- durable run:
+  `run:WO-P1-413:r3-review:1:a1:c509c9d84b7f`;
+- verdict: PASS;
+- severities: P0=0 / P1=0 / P2=0 / P3=4 nonblocking;
+- pipeline ordering, DEX/root authority reuse, physical child identity,
+  stale/cancel/drift, atomic move/error semantics, server first-slice
+  integration, degraded admission and DWB provenance/license all passed.
+
+Deterministic evidence:
+- `npm run build`: PASS;
+- live Windows FMG M1-M14 / U1-U6 guard suite: PASS;
+- directly related file/path/symlink/edit suites: PASS;
+- current-main DEX identity/evidence/execution tests: 85 PASS;
+- authority PR #423 merged to
+  `bd4892185195d8c6a7c3a8652a75ec4db7f003b4`;
+- post-main CI run `35501688689`: SUCCESS at that exact SHA.
+
+Nonblocking P3 residuals remain outside FMG-1:
+- dedicated EINTERNAL / non-EXDEV generic handler-throw tests are absent;
+- Windows trailing-dot/space alias policy remains a DEX/platform policy gap,
+  not an FMG-local normalization authority;
+- one supervisor-suite failure was not reproducible and touched no FMG source;
+- `THIRD-PARTY-NOTICES.md` UTF-8 BOM pre-existed the candidate.
+
+Acceptance consequences:
+- FMG-1 is **ACCEPTED_LOCAL_ONLY**;
+- this does not authorize SRM remote creation, push, merge or publication;
+- the COCKPIT-1 dependency gate is satisfied together with the accepted GOT
+  chain;
+- subsequent A-Wiki main movement requires ordinary consumer re-pin but does
+  not rewrite the accepted FMG candidate bytes.
