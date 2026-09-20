@@ -1019,3 +1019,43 @@ fail-closed behavior in their own accepted Work Order.
 Implementation details, event fields, STM rules, Hook Monitor views,
 cross-platform integration, failure modes and acceptance gates are defined in
 the planning authority above.
+
+## 26. Product Fast Lane — DWB Convergence to LOCAL-USABLE-1 (2026-09-20)
+
+**Planning authority:** `docs/plans/2026-09-20-dwb-convergence-product-acceleration-roadmap.md`
+**Roadmap-capture WO:** `docs/work-orders/WO-P1-397-dwb-convergence-roadmap.md` / Issue #397
+
+This section is the authoritative PROJECT-PLAN pointer for a fresh session
+resolving "use A-Faster and continue the roadmap". The full roadmap lives in
+the planning authority above; PROJECT-PLAN does not duplicate it.
+
+**LOCAL-USABLE-1** (first genuinely usable local product gate) is reached when
+task/execution/repo truth is generated from durable authority (GOT-1 Generated
+Operational Truth), the local SRM execution path cannot silently overwrite an
+observed file (FMG-1 SRM File Mutation Guard v2), and the existing A-Sunday
+desktop app shows one concise read-only Runtime Cockpit over that truth
+(COCKPIT-1) — with interruption/unknown-outcome states operator-visible and a
+fresh session able to recover from durable state without chat history.
+
+Fast-lane dependency order:
+
+1. `GOT-1` and `FMG-1` are independent and may run in parallel in free,
+   non-overlapping global WIP;
+2. `GOT-1` + `FMG-1` -> `COCKPIT-1` -> `LOCAL-USABLE-1`.
+
+`WTL` worktree lifecycle/classification is read-only and may proceed in
+parallel when it does not consume a needed review slot; consequential cleanup
+(`WTL-2`) is later. Payload Guard (`PAYLOAD-1`), dependency diet (`DEPDIET-1`)
+and Windows front-door polish (`FRONTDOOR-1`) come after LOCAL-USABLE-1 or are
+local-use optional unless they become measured blockers.
+
+Authority boundaries are unchanged: A-Wiki/A-Sunday Conductor owns
+task/claim/retry/review/acceptance authority; SunDayRemoteMCP is execution
+substrate only. An A-Faster/A-FastTask invocation resolves actual
+CURRENT-WORK/active WOs/Git/runtime/delegated-run state first; this pointer
+authorizes no preemption and no duplicate dispatch.
+
+Legacy PROJECT-PLAN draft PRs #243 (WO-P1-170) and #244 (WO-P1-171) are closed
+historical proposals — preserved in branch/commit history, not deleted — and no
+longer own PROJECT-PLAN roadmap authority. Dispositions are recorded in
+`docs/work-orders/WO-P1-406-product-fast-lane-pointer.md` / Issue #406.

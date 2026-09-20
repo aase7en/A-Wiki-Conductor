@@ -1,6 +1,6 @@
 # WO-P1-406 — Product Fast Lane pointer and legacy roadmap reconciliation
 
-Status: ACTIVE / CLAIMED
+Status: READY_FOR_REVIEW
 Issue: #406
 Risk: R2 — roadmap/authority documentation
 Topology: CONTROL_PLANE_ONLY
@@ -98,3 +98,13 @@ No other roadmap/source/continuity file is authorized.
 ## Replay safety
 
 A fresh session must re-read PR #243/#244 state before touching PROJECT-PLAN. If either overlapping branch has changed since the recorded disposition, fail closed and re-reconcile.
+
+## Execution evidence — attempt-0001 (2026-09-20)
+
+- Dispatch head verified exactly: `2237cd9f79f97f180b3b717f6deded65372b2f8c` on branch `docs/wo-p1-406-product-fast-lane-pointer`, clean tree.
+- Mutable scope used exactly: `PROJECT-PLAN.md` + this WO file.
+- PROJECT-PLAN change: one concise pointer section `## 26. Product Fast Lane — DWB Convergence to LOCAL-USABLE-1 (2026-09-20)` appended after §25; no existing section/history modified; the 900+ line convergence roadmap was NOT reproduced (pointer-only per acceptance).
+- Legacy dispositions recorded in-plan: PR #243 = `KEEP_AS_DEFERRED_HISTORY`, PR #244 = `SUPERSEDED_AND_DEFERRED_HISTORY`; both closed historical proposals, branches/history preserved, no longer own PROJECT-PLAN.
+- Internal pointers verified to exist: `docs/plans/2026-09-20-dwb-convergence-product-acceleration-roadmap.md`, `docs/work-orders/WO-P1-397-dwb-convergence-roadmap.md`.
+- Verification: `git diff --check` clean; strict UTF-8 / no U+FFFD on both files; `python -m pytest -q tests/test_work_order_identity.py` passed; added-line secret-shaped scan clean; diff reviewed for duplicate authority/roadmap blocks (§26 is pointer-only, no duplicate task/roadmap authority).
+- Not done here (correctly out of scope): merge, self-accept, CI trigger, CURRENT-WORK/handoff/COLAB edits.
