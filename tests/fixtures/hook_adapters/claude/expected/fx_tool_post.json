@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0.0",
+  "event_id": "hk-05050505050505050505050505050505",
+  "event_type": "tool.execute.after",
+  "hook_class": "OBSERVE",
+  "phase": "after",
+  "domain": "tool",
+  "action": "execute",
+  "occurred_at": "2026-09-19T08:10:06.220Z",
+  "source": "claude-code",
+  "source_version": "0.0.0-fixture-a",
+  "device_id": "device-fx-01",
+  "host_os": "windows",
+  "privacy_class": "INTERNAL",
+  "correlation_id": "fx-session-0001",
+  "execution_id": "fx-turn-0007",
+  "duration_ms": 1200,
+  "command_digest": "5ab31b8ba859f2c0ebaaf0db464dc74c524252cc314709c4b8e5405e3f0e689e",
+  "summary": "tool execution after"
+}

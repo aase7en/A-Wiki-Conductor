@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0.0",
+  "event_id": "hk-01010101010101010101010101010101",
+  "event_type": "execution.session_started",
+  "hook_class": "OBSERVE",
+  "phase": "within",
+  "domain": "execution",
+  "action": "session_started",
+  "occurred_at": "2026-09-19T08:00:00Z",
+  "source": "claude-code",
+  "source_version": "0.0.0-fixture-a",
+  "device_id": "device-fx-01",
+  "host_os": "windows",
+  "privacy_class": "INTERNAL",
+  "correlation_id": "fx-session-0001",
+  "summary": "session started"
+}

@@ -1,0 +1,6 @@
+{"type": "step_start", "timestamp": "2026-09-19T08:41:05.123Z", "sessionID": "kilo-fixture-session-0001", "part": {}}
+{"type": "tool_use", "timestamp": "2026-09-19T08:41:06.000Z", "sessionID": "kilo-fixture-session-0001", "part": {"name": "bash", "state": {"status": "running", "input": {"command": "git status --porcelain"}}}}
+{"type": "tool_use", "timestamp": "2026-09-19T08:41:04.000Z", "sessionID": "kilo-fixture-session-0001", "part": {"name": "read", "state": {"status": "completed", "input": {"path": "docs/contracts/hook-contract-v1.md"}, "output": {"lines": 348}}}}
+{"type": "tool_use", "timestamp": "2026-09-19T08:41:07.500Z", "sessionID": "kilo-fixture-session-0001", "part": {"name": "bash", "state": {"status": "failed", "input": {"command": "python -m pytest -q tests/test_missing.py"}, "output": {"error": "exit code 2"}}}}
+{"type": "text", "timestamp": "2026-09-19T08:41:08.250Z", "sessionID": "kilo-fixture-session-0001", "part": {"text": "Implementation checkpoint complete; proceeding to focused tests."}}
+{"type": "permission_request", "timestamp": "2026-09-19T08:41:09.000Z", "sessionID": "kilo-fixture-session-0001", "part": {"tool": "bash", "decision": "pending"}}

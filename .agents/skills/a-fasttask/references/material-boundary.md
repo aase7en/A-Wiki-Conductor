@@ -29,15 +29,43 @@ claimed scope. A transport timeout or ownership uncertainty is
 `RECOVERY_REQUIRED` — never a blind replay of a command that may already have
 run.
 
+### Fresh-session delegated-run reconciliation
+
+Before any new dispatch or conflicting mutation, enumerate the current task's
+known outstanding delegated-execution pointers from the existing job/events/
+checkpoint/evidence authorities and reconcile each against actual runtime,
+bounded logs/result destination, Git/worktree state, and provider/CI evidence
+when applicable.
+
+- `STARTING`: preserve the existing dispatch pointer and owner/claim while launch identity is still being established; do not redispatch until startup resolves to a stronger observed state or is explicitly classified as interrupted.
+- `RUNNING`: preserve the existing owner/claim and do not duplicate-dispatch;
+  unrelated non-overlapping READY work may continue.
+- `WAITING`: preserve the existing owner/claim and typed dependency reason; known intentional waiting is not takeover authority.
+- `TERMINAL_UNHARVESTED`: harvest the declared result/evidence first, verify its
+  execution/task/exact-SHA/scope identity, then continue from the accepted or
+  repair-required outcome.
+- `STALLED`, `INTERRUPTED`, or `UNKNOWN`: classify `RECOVERY_REQUIRED`; inspect
+  process/session side effects and replay safety before attach/recover/takeover.
+  None of these states grants automatic retry.
+
+If an intentional context/session rollover occurs while delegated work remains
+outstanding, checkpoint the existing task/claim reference, execution/session or
+PID identity when known, repo/worktree/branch/HEAD, scope, start time,
+log/result/evidence destinations, replay-safety state, derived liveness, and the
+exact next harvest/reconcile action. These are pointers into existing authority,
+not a second task or execution store.
+
 ## Takeover (new executor replaces a stopped one, e.g. Codex/Astra → Sol)
 
 Takeover is fail-closed. ALL of the following must be proven with evidence
 before any takeover; any UNKNOWN => NO takeover:
 
-1. Old writer INACTIVE — the old executor's session/task is TERMINAL, or it is
-   unreachable AND no child process it started is still executing. OFFLINE is
-   not INACTIVE: a rate-limited or transport-stopped executor may still have a
-   running child process that can mutate state.
+1. Old writer INACTIVE — the old executor's session/task is durably `TERMINAL`
+   with harvest/cleanup/reconciliation complete, or it is unreachable AND no
+   child process it started is still executing. `STARTING`, `RUNNING`, `WAITING`,
+   and `TERMINAL_UNHARVESTED` are not INACTIVE. OFFLINE is not INACTIVE: a
+   rate-limited or transport-stopped executor may still have a running child
+   process that can mutate state.
 2. Exact state recheck — repository, worktree, remote, branch, HEAD, dirty
    inventory, untracked files, observed now, not from chat memory.
 3. Pending-command inventory — no in-flight or queued command from the old
