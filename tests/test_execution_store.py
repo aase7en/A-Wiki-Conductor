@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+import threading
 
 import pytest
 
 from a_conductor.execution_record import (
+    DurableExecutionReceipt,
     DurableExecutionRecord,
     ExecutionProcessState,
+    ReceiptDisposition,
     TransportState,
+    compute_receipt_id,
     new_execution_record,
+    new_execution_receipt,
 )
 from a_conductor.execution_store import (
     ExecutionEventType,
@@ -221,9 +226,274 @@ def test_schema_contains_no_raw_prompt_command_environment_or_output_columns(tmp
     try:
         record_columns = {row[1] for row in connection.execute("PRAGMA table_info(execution_records)")}
         event_columns = {row[1] for row in connection.execute("PRAGMA table_info(execution_events)")}
+        receipt_columns = {row[1] for row in connection.execute("PRAGMA table_info(execution_receipts)")}
     finally:
         connection.close()
 
     forbidden = {"prompt", "transcript", "command", "argv", "environment", "env", "stdout", "stderr", "token", "secret"}
     assert not (record_columns & forbidden)
     assert not (event_columns & forbidden)
+    assert not (receipt_columns & forbidden)
+
+
+def make_receipt(execution_id: str = "exec-001", **overrides) -> DurableExecutionReceipt:
+    values = dict(
+        execution_id=execution_id,
+        attempt_id="attempt-001",
+        result_digest="c" * 64,
+        binding_digest="d" * 64,
+        claim_generation=3,
+        authority_sha="1" * 40,
+        execution_sha="2" * 40,
+        disposition=ReceiptDisposition.ACCEPTED,
+        evidence_ref="evidence:dex-collect-1",
+    )
+    values.update(overrides)
+    return new_execution_receipt(**values)
+
+
+def receipt_row_count(database: Path) -> int:
+    connection = sqlite3.connect(database)
+    try:
+        return int(
+            connection.execute("SELECT COUNT(*) FROM execution_receipts").fetchone()[0]
+        )
+    finally:
+        connection.close()
+
+
+def receipt_event_count(store: SQLiteExecutionStore, execution_id: str) -> int:
+    return sum(
+        1
+        for event in store.list_events(execution_id)
+        if event.event_type is ExecutionEventType.RECEIPT_RECORDED
+    )
+
+
+def test_receipt_round_trip_and_reopen_persists_durable_receipt(tmp_path: Path) -> None:
+    database = tmp_path / "executions.sqlite"
+    store = SQLiteExecutionStore(database)
+    store.create(make_record())
+
+    recorded = store.record_receipt(make_receipt())
+
+    assert recorded.recorded_at
+    assert recorded == store.get_receipt(recorded.receipt_id)
+    assert recorded == SQLiteExecutionStore(database).get_receipt(recorded.receipt_id)
+
+
+def test_repeated_identical_receipt_returns_existing_without_duplicates(tmp_path: Path) -> None:
+    database = tmp_path / "executions.sqlite"
+    store = SQLiteExecutionStore(database)
+    store.create(make_record())
+
+    first = store.record_receipt(make_receipt())
+    second = store.record_receipt(make_receipt())
+
+    assert second == first
+    assert second.recorded_at == first.recorded_at
+    assert receipt_row_count(database) == 1
+    assert receipt_event_count(store, "exec-001") == 1
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"claim_generation": 4},
+        {"authority_sha": "9" * 40},
+        {"execution_sha": "8" * 40},
+        {"disposition": ReceiptDisposition.QUARANTINED},
+        {"evidence_ref": "evidence:dex-collect-2"},
+        {"evidence_ref": None},
+    ],
+)
+def test_conflicting_immutable_receipt_facts_fail_closed(
+    tmp_path: Path, overrides: dict
+) -> None:
+    database = tmp_path / "executions.sqlite"
+    store = SQLiteExecutionStore(database)
+    store.create(make_record())
+    original = store.record_receipt(make_receipt())
+    events_before = store.list_events("exec-001")
+
+    with pytest.raises(ExecutionStoreError) as exc_info:
+        store.record_receipt(make_receipt(**overrides))
+    assert exc_info.value.code == "RECEIPT_CONFLICT"
+
+    assert store.get_receipt(original.receipt_id) == original
+    assert receipt_row_count(database) == 1
+    assert store.list_events("exec-001") == events_before
+
+
+def test_receipt_for_missing_execution_fails_closed(tmp_path: Path) -> None:
+    database = tmp_path / "executions.sqlite"
+    store = SQLiteExecutionStore(database)
+    store.initialize()
+
+    with pytest.raises(ExecutionStoreError) as exc_info:
+        store.record_receipt(make_receipt(execution_id="exec-missing"))
+    assert exc_info.value.code == "EXECUTION_NOT_FOUND"
+    assert receipt_row_count(database) == 0
+
+
+def test_concurrent_identical_receipt_writes_converge_to_one_durable_row(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "executions.sqlite"
+    setup = SQLiteExecutionStore(database)
+    setup.create(make_record())
+
+    worker_count = 8
+    stores = [SQLiteExecutionStore(database) for _ in range(worker_count)]
+    for worker_store in stores:
+        worker_store.initialize()
+    barrier = threading.Barrier(worker_count)
+    results: list[DurableExecutionReceipt | BaseException] = [None] * worker_count
+
+    def ingest(index: int) -> None:
+        try:
+            barrier.wait()
+            results[index] = stores[index].record_receipt(make_receipt())
+        except BaseException as exc:  # noqa: BLE001 - collected for assertion
+            results[index] = exc
+
+    threads = [
+        threading.Thread(target=ingest, args=(index,)) for index in range(worker_count)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    for outcome in results:
+        assert not isinstance(outcome, BaseException), outcome
+    durable = {outcome for outcome in results}
+    assert len(durable) == 1
+    assert receipt_row_count(database) == 1
+    assert receipt_event_count(setup, "exec-001") == 1
+
+
+def test_concurrent_conflicting_receipt_races_fail_closed_deterministically(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "executions.sqlite"
+    setup = SQLiteExecutionStore(database)
+    setup.create(make_record())
+
+    worker_count = 8
+    stores = [SQLiteExecutionStore(database) for _ in range(worker_count)]
+    for worker_store in stores:
+        worker_store.initialize()
+    barrier = threading.Barrier(worker_count)
+    outcomes: list[tuple[str, object]] = [None] * worker_count  # type: ignore[list-item]
+
+    def ingest(index: int) -> None:
+        try:
+            barrier.wait()
+            if index % 2 == 0:
+                outcomes[index] = ("ok", stores[index].record_receipt(make_receipt()))
+            else:
+                outcomes[index] = (
+                    "ok",
+                    stores[index].record_receipt(make_receipt(claim_generation=4)),
+                )
+        except ExecutionStoreError as exc:
+            outcomes[index] = ("conflict", exc.code)
+        except BaseException as exc:  # noqa: BLE001 - collected for assertion
+            outcomes[index] = ("error", exc)
+
+    threads = [
+        threading.Thread(target=ingest, args=(index,)) for index in range(worker_count)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    successes = [payload for kind, payload in outcomes if kind == "ok"]
+    conflicts = [payload for kind, payload in outcomes if kind == "conflict"]
+    errors = [payload for kind, payload in outcomes if kind == "error"]
+    assert not errors, errors
+    assert successes
+    assert len(successes) + len(conflicts) == worker_count
+    assert len({receipt.recorded_at for receipt in successes}) == 1
+    assert set(conflicts) == {"RECEIPT_CONFLICT"}
+    assert receipt_row_count(database) == 1
+    durable = setup.get_receipt(successes[0].receipt_id)
+    assert durable in successes
+    assert receipt_event_count(setup, "exec-001") == 1
+
+
+def test_additive_initialization_on_existing_v1_db_preserves_records_and_events(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "executions.sqlite"
+    store = SQLiteExecutionStore(database)
+    created = store.create(make_record())
+    updated = store.set_transport_state(
+        "exec-001", TransportState.LOST, expected_version=created.version
+    )
+    events_before = store.list_events("exec-001")
+
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute("DROP TABLE execution_receipts")
+        connection.commit()
+    finally:
+        connection.close()
+
+    migrated = SQLiteExecutionStore(database)
+    migrated.initialize()
+    migrated.initialize()
+
+    assert migrated.get("exec-001") == updated
+    assert migrated.list_events("exec-001") == events_before
+    connection = sqlite3.connect(database)
+    try:
+        version = connection.execute(
+            "SELECT value FROM execution_store_meta WHERE key = 'schema_version'"
+        ).fetchone()[0]
+    finally:
+        connection.close()
+    assert version == "1"
+    recorded = migrated.record_receipt(make_receipt())
+    assert migrated.get_receipt(recorded.receipt_id) == recorded
+
+
+def test_distinct_binding_digest_is_distinct_receipt_identity(tmp_path: Path) -> None:
+    database = tmp_path / "executions.sqlite"
+    store = SQLiteExecutionStore(database)
+    store.create(make_record())
+
+    first = store.record_receipt(make_receipt())
+    second = store.record_receipt(make_receipt(binding_digest="e" * 64))
+
+    assert second.receipt_id != first.receipt_id
+    assert receipt_row_count(database) == 2
+    assert store.get_receipt(first.receipt_id) == first
+    assert store.get_receipt(second.receipt_id) == second
+
+
+def test_get_missing_receipt_returns_stable_error_code(tmp_path: Path) -> None:
+    store = SQLiteExecutionStore(tmp_path / "executions.sqlite")
+    store.initialize()
+    with pytest.raises(ExecutionStoreError) as exc_info:
+        store.get_receipt("f" * 64)
+    assert exc_info.value.code == "RECEIPT_NOT_FOUND"
+
+
+def test_record_receipt_requires_receipt_model(tmp_path: Path) -> None:
+    store = SQLiteExecutionStore(tmp_path / "executions.sqlite")
+    with pytest.raises(ValueError):
+        store.record_receipt({"receipt_id": "not-a-receipt"})
+
+
+def test_receipt_persistence_exposes_no_rewrite_or_delete_api(tmp_path: Path) -> None:
+    store = SQLiteExecutionStore(tmp_path / "executions.sqlite")
+    for forbidden in (
+        "update_receipt",
+        "delete_receipt",
+        "rewrite_receipt",
+        "replace_receipt",
+    ):
+        assert not hasattr(store, forbidden)

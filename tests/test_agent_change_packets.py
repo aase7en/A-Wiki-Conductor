@@ -813,3 +813,333 @@ def test_p0b2_review_expiry_unknown_maps_to_unknown_fencing(tmp_path):
     with pytest.raises(AgentChangeError, match="CONTINUITY_NOT_FRESH"):
         _apply(applier(tmp_path, lease(tmp_path), continuity_provider=provider))
     assert target.read_bytes() == b"OLD\n"
+
+
+# ── WO-P1-410 GOT-1b-A: typed merge-fold reconciliation admission ──────
+from a_conductor.agent_change_packets import (  # noqa: E402
+    MERGE_FOLD_TARGETS,
+    MergeFoldReconciliation,
+)
+from a_conductor.continuity_guard import (  # noqa: E402
+    LeaseFact as _ForeignLease,
+    MergeFoldFact as _MergeFoldFact,
+    ProjectionClaim as _ProjectionClaim,
+)
+
+MERGE = "ab12cd34ef"
+MERGE_OTHER = "cd34ef56ab"
+FOLD_REF = f"closeout:fold:task-1:{'a' * 40}:{MERGE}:required"
+
+
+def fold_lease(root: Path, *, head: str = "a" * 40) -> WorkerLease:
+    return replace(
+        lease(root, head=head),
+        allowed_scope=("CURRENT-WORK.md", "handoff.md", "COLLAB.md"),
+        mutable_scope=("CURRENT-WORK.md", "handoff.md", "COLLAB.md"),
+    )
+
+
+class MergedNotFoldedProvider(FreshContinuityProvider):
+    """Trusted fact source: identity-bound snapshot whose accepted merge
+    has an outstanding fold obligation (MERGED_NOT_FOLDED)."""
+
+    def __init__(self, *, merge_commit: str = MERGE, overrides=None) -> None:
+        values = {
+            "merge_fold": _MergeFoldFact(
+                merge_commit=merge_commit, fold_complete=False, release_complete=True,
+            ),
+        }
+        values.update(overrides or {})
+        super().__init__(snapshot_overrides=values)
+
+
+def recon(**over) -> MergeFoldReconciliation:
+    base = dict(
+        task_id="task-1", lease_id="lease-1", candidate_sha="a" * 40,
+        merge_commit=MERGE, checkpoint_ref=FOLD_REF,
+    )
+    base.update(over)
+    return MergeFoldReconciliation(**base)
+
+
+def _fold_file(tmp_path: Path, name: str = "CURRENT-WORK.md") -> Path:
+    target = tmp_path / name
+    target.write_bytes(b"OLD\n")
+    return target
+
+
+def _typed_apply(
+    applier_instance, r: MergeFoldReconciliation | None = None, *,
+    path: str = "CURRENT-WORK.md", head: str = "a" * 40,
+):
+    return applier_instance.apply_merge_fold_reconciliation(
+        packet(AgentFileChange(path, "NEW\n", digest("OLD\n"))),
+        r or recon(),
+        session_id="session-1", actual_head=head,
+    )
+
+
+def test_wo410_generic_apply_still_denies_merged_not_folded(tmp_path):
+    """Contract 1/10: the generic path stays FRESH-only even for the exact
+    state the merge-fold action exists to repair."""
+    target = _fold_file(tmp_path)
+    provider = MergedNotFoldedProvider()
+    with pytest.raises(AgentChangeError, match="CONTINUITY_NOT_FRESH"):
+        applier(tmp_path, fold_lease(tmp_path), continuity_provider=provider).apply(
+            packet(AgentFileChange("CURRENT-WORK.md", "NEW\n", digest("OLD\n"))),
+            "lease-1", session_id="session-1", task_id="task-1", actual_head="a" * 40,
+        )
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_admission_completes_merge_fold_for_canonical_target(tmp_path):
+    target = _fold_file(tmp_path)
+    result = _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=MergedNotFoldedProvider()))
+    assert result.changed_paths == ("CURRENT-WORK.md",)
+    assert target.read_text(encoding="utf-8") == "NEW\n"
+
+
+def test_wo410_no_generic_non_fresh_flag_exists():
+    import inspect
+    apply_params = inspect.signature(AgentChangeApplier.apply).parameters
+    assert "allow_non_fresh" not in apply_params and "non_fresh" not in apply_params
+    init_params = inspect.signature(AgentChangeApplier.__init__).parameters
+    assert "allow_non_fresh" not in init_params and "non_fresh" not in init_params
+    typed_params = inspect.signature(
+        AgentChangeApplier.apply_merge_fold_reconciliation
+    ).parameters
+    assert "reconciliation" in typed_params
+
+
+def test_wo410_typed_admission_requires_typed_inputs(tmp_path):
+    _fold_file(tmp_path)
+    instance = applier(tmp_path, fold_lease(tmp_path), continuity_provider=MergedNotFoldedProvider())
+    with pytest.raises(ValueError, match="packet is required"):
+        instance.apply_merge_fold_reconciliation(
+            "not-a-packet", recon(), session_id="session-1", actual_head="a" * 40,
+        )
+    with pytest.raises(ValueError, match="reconciliation is required"):
+        instance.apply_merge_fold_reconciliation(
+            packet(AgentFileChange("CURRENT-WORK.md", "NEW\n", digest("OLD\n"))),
+            "not-a-reconciliation", session_id="session-1", actual_head="a" * 40,
+        )
+
+
+def test_wo410_reconciliation_identity_is_validated():
+    for bad in (
+        {"task_id": ""}, {"lease_id": " "}, {"candidate_sha": "xyz"},
+        {"candidate_sha": "a" * 4}, {"merge_commit": ""}, {"checkpoint_ref": ""},
+    ):
+        with pytest.raises(ValueError):
+            recon(**bad)
+
+
+def test_wo410_typed_wrong_merge_commit_denies_zero_writes(tmp_path):
+    target = _fold_file(tmp_path)
+    provider = MergedNotFoldedProvider(merge_commit=MERGE_OTHER)
+    with pytest.raises(AgentChangeError, match="RECONCILIATION_MERGE_IDENTITY_MISMATCH"):
+        _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=provider))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_snapshot_without_matching_merge_fold_fact_denies(tmp_path):
+    """A MERGED_NOT_FOLDED snapshot whose merge-fold fact is for a
+    DIFFERENT merge (release still pending, fold recorded under another
+    identity) denies on merge identity, not classification."""
+    target = _fold_file(tmp_path)
+    provider = MergedNotFoldedProvider(overrides={
+        "merge_fold": _MergeFoldFact(
+            merge_commit=MERGE_OTHER, fold_complete=True, release_complete=None,
+        ),
+    })
+    with pytest.raises(AgentChangeError, match="RECONCILIATION_MERGE_IDENTITY_MISMATCH"):
+        _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=provider))
+    assert target.read_bytes() == b"OLD\n"
+
+
+TYPED_CLASSIFICATION_CASES = {
+    "UNKNOWN": {"remote_head": None},
+    "CLAIM_CONFLICT": {
+        "leases": (
+            _ForeignLease(
+                lease_id="lease-foreign", session_id="session-other",
+                task_id="task-other", worktree_key=r"C:\other\worktree",
+                mutable_scope=("CURRENT-WORK.md",), state="ACTIVE",
+            ),
+        ),
+    },
+    "WORKTREE_DIRTY_OR_UNKNOWN": {"dirty_state": "DIRTY"},
+    "STALE_LOCAL_CHECKOUT": {"remote_head": "b" * 40},
+    "FRESH_HAS_NO_FOLD_DEBT": {"merge_fold": None},
+}
+
+
+@pytest.mark.parametrize("case", sorted(TYPED_CLASSIFICATION_CASES))
+def test_wo410_typed_non_merged_not_folded_classification_denies(tmp_path, case):
+    """Contract 5: only an exactly-MERGED_NOT_FOLDED snapshot admits the
+    typed path; FRESH, UNKNOWN, CLAIM_CONFLICT, DIRTY and STALE_LOCAL all
+    deny with zero writes (typed path is not a generic bypass)."""
+    target = _fold_file(tmp_path)
+    provider = MergedNotFoldedProvider(overrides=TYPED_CLASSIFICATION_CASES[case])
+    with pytest.raises(AgentChangeError, match="RECONCILIATION_CLASSIFICATION_DENIED"):
+        _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=provider))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_generic_reconcile_required_denies(tmp_path):
+    """Contract 5: generic RECONCILE_REQUIRED residue beneath a
+    MERGED_NOT_FOLDED primary classification still denies."""
+    target = _fold_file(tmp_path)
+    provider = MergedNotFoldedProvider(overrides={
+        "job": JobFact(job_id="job-1", state=TaskState.RECOVERY_NEEDED),
+    })
+    with pytest.raises(AgentChangeError, match="RECONCILIATION_RECONCILE_REQUIRED"):
+        _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=provider))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_unrelated_ssot_drift_denies_zero_writes(tmp_path):
+    """Contract 6: SSOT drift from a source that is NOT a canonical
+    projection target is unrelated drift and denies."""
+    target = _fold_file(tmp_path)
+    provider = MergedNotFoldedProvider(overrides={
+        "projections": (
+            _ProjectionClaim(source="docs/other.md", asserted_head="b" * 40),
+        ),
+    })
+    with pytest.raises(AgentChangeError, match="RECONCILIATION_DRIFT_UNRELATED"):
+        _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=provider))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_canonical_target_drift_is_tolerated(tmp_path):
+    """Contract 6 positive: drift on a canonical projection target is
+    precisely the debt being repaired and admits."""
+    target = _fold_file(tmp_path)
+    provider = MergedNotFoldedProvider(overrides={
+        "projections": (
+            _ProjectionClaim(source="CURRENT-WORK.md", asserted_head="b" * 40),
+        ),
+    })
+    result = _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=provider))
+    assert result.changed_paths == ("CURRENT-WORK.md",)
+    assert target.read_text(encoding="utf-8") == "NEW\n"
+
+
+def test_wo410_typed_noncanonical_target_denies_zero_writes(tmp_path):
+    """Contract 4: the requested target set is restricted to canonical
+    continuity projection targets."""
+    target = tmp_path / "src/a_conductor/demo.py"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"OLD\n")
+    wide = replace(
+        fold_lease(tmp_path),
+        allowed_scope=("CURRENT-WORK.md", "handoff.md", "COLLAB.md", "src/a_conductor/demo.py"),
+        mutable_scope=("CURRENT-WORK.md", "handoff.md", "COLLAB.md", "src/a_conductor/demo.py"),
+    )
+    with pytest.raises(AgentChangeError, match="RECONCILIATION_TARGET_UNSUPPORTED"):
+        _typed_apply(
+            applier(tmp_path, wide, continuity_provider=MergedNotFoldedProvider()),
+            path="src/a_conductor/demo.py",
+        )
+    assert target.read_bytes() == b"OLD\n"
+    assert set(MERGE_FOLD_TARGETS) == {"CURRENT-WORK.md", "handoff.md", "COLLAB.md"}
+
+
+def test_wo410_typed_wrong_lease_owner_denies_zero_writes(tmp_path):
+    target = _fold_file(tmp_path)
+    instance = applier(tmp_path, fold_lease(tmp_path), continuity_provider=MergedNotFoldedProvider())
+    with pytest.raises(AgentChangeError, match="LEASE_OWNER_MISMATCH"):
+        instance.apply_merge_fold_reconciliation(
+            packet(AgentFileChange("CURRENT-WORK.md", "NEW\n", digest("OLD\n"))),
+            recon(), session_id="session-other", actual_head="a" * 40,
+        )
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_released_lease_denies_zero_writes(tmp_path):
+    target = _fold_file(tmp_path)
+    released = replace(fold_lease(tmp_path), released_at="2026-08-29T15:01:00.000000Z")
+    with pytest.raises(AgentChangeError, match="LEASE_NOT_ACTIVE"):
+        _typed_apply(applier(tmp_path, released, continuity_provider=MergedNotFoldedProvider()))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_wrong_worktree_or_head_denies_zero_writes(tmp_path):
+    target = _fold_file(tmp_path)
+    wrong_root = tmp_path / "other"
+    wrong_root.mkdir()
+    wrong = replace(fold_lease(wrong_root), worktree_key=str(wrong_root))
+    with pytest.raises(AgentChangeError, match="WORKTREE_MISMATCH"):
+        _typed_apply(applier(tmp_path, wrong, continuity_provider=MergedNotFoldedProvider()))
+    with pytest.raises(AgentChangeError, match="HEAD_MISMATCH"):
+        _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=MergedNotFoldedProvider()), head="b" * 40)
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_snapshot_identity_mismatch_denies(tmp_path):
+    """Contract 4: the typed path reuses the same identity binding — a
+    snapshot for another task/worktree/branch/head denies."""
+    target = _fold_file(tmp_path)
+    provider = MergedNotFoldedProvider(overrides={"task_id": "task-other"})
+    with pytest.raises(AgentChangeError, match="CONTINUITY_IDENTITY_MISMATCH"):
+        _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=provider))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_provider_unavailable_fails_closed(tmp_path):
+    target = _fold_file(tmp_path)
+
+    class Down:
+        def continuity_snapshot(self, request):
+            raise RuntimeError("observer down")
+
+    with pytest.raises(AgentChangeError, match="CONTINUITY_UNAVAILABLE"):
+        _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=Down()))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_provider_invalid_snapshot_fails_closed(tmp_path):
+    target = _fold_file(tmp_path)
+
+    class Liar:
+        def continuity_snapshot(self, request):
+            return "MERGED_NOT_FOLDED"
+
+    with pytest.raises(AgentChangeError, match="CONTINUITY_SNAPSHOT_INVALID"):
+        _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=Liar()))
+    assert target.read_bytes() == b"OLD\n"
+
+
+def test_wo410_typed_reuses_scope_and_precondition_pipeline(tmp_path):
+    """Contract 3: mutable/forbidden scope and content preconditions are
+    the existing typed failures, not new ones."""
+    target = _fold_file(tmp_path)
+    narrowed = replace(fold_lease(tmp_path), mutable_scope=("handoff.md",), allowed_scope=("handoff.md",))
+    with pytest.raises(AgentChangeError, match="CHANGE_SCOPE_DENIED"):
+        _typed_apply(applier(tmp_path, narrowed, continuity_provider=MergedNotFoldedProvider()))
+    assert target.read_bytes() == b"OLD\n"
+    with pytest.raises(AgentChangeError, match="CHANGE_PRECONDITION_REQUIRED"):
+        applier(tmp_path, fold_lease(tmp_path), continuity_provider=MergedNotFoldedProvider()).apply_merge_fold_reconciliation(
+            packet(AgentFileChange("CURRENT-WORK.md", "NEW\n")),
+            recon(), session_id="session-1", actual_head="a" * 40,
+        )
+    assert target.read_bytes() == b"OLD\n"
+    drifted = _fold_file(tmp_path)
+    drifted.write_bytes(b"DRIFTED\n")
+    with pytest.raises(AgentChangeError, match="CHANGE_PRECONDITION_FAILED"):
+        _typed_apply(applier(tmp_path, fold_lease(tmp_path), continuity_provider=MergedNotFoldedProvider()))
+    assert drifted.read_bytes() == b"DRIFTED\n"
+
+
+def test_wo410_typed_no_changes_status_is_zero_effect(tmp_path):
+    _fold_file(tmp_path)
+    instance = applier(tmp_path, fold_lease(tmp_path), continuity_provider=MergedNotFoldedProvider())
+    empty = AgentResultPacket(
+        task_id="task-1", provider_id="zai", model_id="glm-5.3",
+        status="NO_CHANGES", base_head="a" * 40,
+    )
+    result = instance.apply_merge_fold_reconciliation(
+        empty, recon(), session_id="session-1", actual_head="a" * 40,
+    )
+    assert result.changed_paths == ()
