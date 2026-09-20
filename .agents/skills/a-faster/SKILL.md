@@ -32,6 +32,17 @@ Do not force A-Faster onto trivial Q&A, a single obvious mechanical edit, or
 already-bound mid-lane work that needs no new routing decision. These exclusions
 preserve A-FastTask's negative triggers and avoid routing overhead for tiny work.
 
+### Invocation contract (one clause is enough)
+
+For substantial A-Sunday engineering, a user instruction equivalent to
+**"use A-Faster" / "ใช้ A-Faster"** requests the whole acceleration behavior
+of this profile for that session: delegated-run census/recovery, global WIP
+reconstruction, automatic lane fill, GLM model/harness routing, advisory
+Ponytail/Caveman consideration, and autonomous continuation. The user need
+not restate multiagent/multilane/multitasking/GLM/advisory-skill
+instructions each session. The clause routes only; the normal A-FastTask
+binding and authority gates still apply.
+
 ## Global WIP and no-collision rule
 
 The default budget remains **one global budget across every device, harness,
@@ -46,12 +57,22 @@ explicitly changes capacity.
 
 Never multiply WIP by device, harness, repository, or session.
 
-Fill safe independent lanes quickly, dispatch-first / harvest-later. Do not
-serialize independent GLM jobs just to conserve quota: when refreshed quota
-evidence says `QUOTA_AVAILABLE`, treat the remaining amount as capacity
-evidence, not a reason to self-throttle. Still refresh quota before EACH
-material dispatch and obey actual `QUOTA_EXHAUSTED`/auth/transport/cost
-gates.
+All ChatGPT sessions, devices, and harnesses for the project share this one
+global WIP budget. Every invocation reconstructs current occupancy from
+durable evidence (census + lane occupancy matrix), never from chat/session
+memory. A session or tool timeout is not failure and never resets occupancy:
+a slot stays occupied until census evidence shows that lane terminal/absent
+per the disposition rules.
+
+AUTO-FILL: after recovery/census/harvest and the collision gate,
+automatically fill every free safe WIP slot from independent READY nodes up
+to the global `3 mutable + 1 review` budget — dispatch-first, harvest-later.
+Do not manufacture work to occupy slots and do not preempt active owned
+lanes. Do not serialize independent GLM jobs just to conserve quota: when
+refreshed quota evidence says `QUOTA_AVAILABLE`, treat the remaining amount
+as capacity evidence, not a reason to self-throttle. Still refresh quota
+before EACH material dispatch and obey actual
+`QUOTA_EXHAUSTED`/auth/transport/cost gates.
 
 `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`
 
@@ -80,9 +101,10 @@ For every substantial A-Sunday Conductor engineering session:
    Windows/macOS device that can materially help the task;
 3. run the PROJECT/TASK DELEGATED-RUN CENSUS below and reconcile or
    harvest everything it finds before allocating new work;
-4. bind the single global WIP ledger before dispatch: at most 3 mutable lanes
-   plus 1 independent read-only review lane across every Worker, device,
-   harness, repository and CROSS_REPO compatibility-set member;
+4. reconstruct the global WIP budget occupancy projection before dispatch:
+   at most 3 mutable lanes plus 1 independent read-only review lane across
+   every Worker, device, harness, repository and CROSS_REPO
+   compatibility-set member;
 5. if Windows and macOS are both READY and independent work exists, prefer a
    non-overlapping cross-device split; if not, continue on the safe available
    device rather than manufacturing parallelism;
@@ -290,14 +312,16 @@ Claude Code version's help explicitly proves it is supported. Re-verify the
 installed marketplace/plugin after mutation; one device's install is never
 evidence for another device.
 
-When available, prefer Ponytail as an advisory simplification layer:
+When a Claude lane is actually used and the plugin is verified available,
+automatically consider Ponytail as an advisory simplification layer at each
+applicable boundary:
 
 - `ponytail` before implementation to challenge unnecessary work;
-- `ponytail-review` on a frozen candidate;
-- `ponytail-audit` / `ponytail-debt` for bounded simplification analysis.
+- `ponytail-review` at a frozen-candidate/review boundary;
+- `ponytail-audit` / `ponytail-debt` at applicable review/debt boundaries.
 
-Do not let YAGNI advice override an accepted Work Order, safety gate, or
-verification requirement.
+This consideration is advisory only. Do not let YAGNI advice override an
+accepted Work Order, safety gate, or verification requirement.
 
 ### Caveman
 
@@ -311,8 +335,9 @@ npx skills add JuliusBrussee/caveman -g
 
 Do not install or enable the optional Caveman proxy/engine merely to satisfy
 this skill requirement. Re-verify the resulting skill path/content after
-installation. Use Caveman only for transient delegated-agent
-communication/token compression where meaning remains unambiguous.
+installation. Automatically consider Caveman only for transient
+agent-to-agent communication/token compression where exact semantics are
+not needed and meaning remains unambiguous.
 
 Do **not** use Caveman compression for:
 
@@ -390,6 +415,15 @@ A worktree/folder becomes cleanup-eligible only after all are proven:
 
 Use canonical non-force worktree removal. Never reset/clean/stash/force merely
 to make cleanup succeed. Branch deletion remains a separate decision.
+
+## Autonomous continuation
+
+After routing, dispatch, harvest, or fan-in, continue with the next safe
+READY step automatically — within already-bound authority, without waiting
+for the user to repeat "continue" for each step. Stop only on a real gate
+(quota, collision, route, verification failure), genuine authority
+ambiguity, or terminal completion; when stopping, report the exact blocker
+and next safe action.
 
 ## Routing output additions
 
