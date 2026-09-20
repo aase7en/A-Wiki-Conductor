@@ -27,7 +27,9 @@ REUSE / WRAP only:
 - existing `SerenaOperationResult.error_code` as bounded degradation signal
 
 No Hook Bus, STM, monitor store, scheduler, task DB, claim authority, review authority,
-or second event store is authorized.## Goal
+or second event store is authorized.
+
+## Goal
 
 After the authoritative lifecycle control event is durably appended, optionally
 project that exact persisted event through the accepted HOOK-1 normalizer to an
@@ -94,7 +96,9 @@ Everything else read-only.
 - SunDayRemoteMCP / WO-P1-389
 - CURRENT-WORK / handoff / COLLAB
 - new Hook Bus / STM / monitor persistence
-- reset/clean/stash/rebase/force-push/history rewrite## RED-first acceptance
+- reset/clean/stash/rebase/force-push/history rewrite
+
+## RED-first acceptance
 
 Before implementation prove failing regressions for:
 1. successful append reaches injected sink as a normalized OBSERVE envelope;
@@ -178,3 +182,22 @@ or inventing a new observability authority.
 - Status: READY_FOR_REVIEW at the candidate commit on
   feat/wo-p1-394-lifecycle-hook-observe; no self-accept/merge. Next:
   independent exact-SHA R3 review + exact-head CI.
+
+## Checkpoint — post-WO399 fan-in repair (2026-09-20)
+
+- WO-P1-399 accepted into main: main merge `246a9aa107e56d451563ed1bd3fe1cae0931eb5c`;
+  fan-in merge into this branch at dispatch head `eedf23daba2a09285d50f0bce7d10f81a685bd3a`.
+- Accepted dependency candidate: `8cdb1e06987f6f29fc4d2b38541e1a57773489ef`
+  (feat(WO399): persist Hook-compatible UTC timestamps), verified ancestor of HEAD.
+- The old `+00:00` store-format limitation is closed for NEW rows: production
+  `SQLiteControlEventLog.append` now persists `recorded_at` as UTC `Z`-suffixed
+  timestamps, so the lifecycle OBSERVE path delivers on the REAL production clock
+  with `error_code=None`, exactly one sink envelope, and sink `occurred_at`
+  byte-for-byte equal to the persisted `recorded_at` — proven without any test
+  clock monkeypatch (`test_hook_emit_real_store_clock_persists_z_and_delivers_single_envelope`).
+- Legacy `+00:00` rows remain readable; this lifecycle path operates only on
+  newly appended events, so no migration is required here.
+- Source lifecycle composition remains unchanged by this repair:
+  `lifecycle_assembly.py`, `control_events.py`, and `control_hook_adapter.py`
+  are untouched; the stale `+00:00`-degradation test was replaced and the two
+  reviewed heading seams in this Work Order were fixed.

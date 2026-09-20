@@ -548,7 +548,7 @@ def test_hook_emit_rejects_fake_secret_context_before_sink_delivery(
     assert log.get(result.evidence_ref) is not None
 
 
-def test_hook_emit_current_store_timestamp_format_degrades_without_sink_delivery(
+def test_hook_emit_real_store_clock_persists_z_and_delivers_single_envelope(
     tmp_path: Path,
 ) -> None:
     sink = RecordingHookSink()
@@ -563,9 +563,24 @@ def test_hook_emit_current_store_timestamp_format_degrades_without_sink_delivery
     result = service.emit("a-worker-01", "project-1")
 
     persisted = persisted_recorded_at(log.database_path, result.evidence_ref)
-    assert persisted.endswith("+00:00")
-    assert result == degraded_result(result.evidence_ref)
-    assert sink.envelopes == []
+    assert persisted.endswith("Z")
+    assert not persisted.endswith("+00:00")
+    assert result.success is True
+    assert result.error_code is None
+    assert result.recovery_required is False
+    assert result.evidence_ref is not None
+    assert result.evidence_ref.startswith("event-")
+    assert len(sink.envelopes) == 1
+    envelope = sink.envelopes[0]
+    assert envelope["occurred_at"] == persisted
+    assert envelope["event_id"] == f"hk-{result.evidence_ref[len('event-'):]}"
+    assert envelope["event_type"] == "control.start.after"
+    assert envelope["hook_class"] == "OBSERVE"
+    assert envelope["phase"] == "after"
+    assert envelope["domain"] == "control"
+    assert envelope["action"] == "start"
+    assert envelope["source"] == "a-conductor"
+    assert envelope["privacy_class"] == "INTERNAL"
 
 
 def test_hook_emit_append_failure_keeps_failure_and_recovery_semantics(
