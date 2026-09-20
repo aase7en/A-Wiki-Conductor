@@ -18,15 +18,30 @@ RED-first matrix from the work order:
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from a_conductor.desktop_control import DesktopControlService
 from a_conductor.desktop_ui import cockpit_monitor_lines
+from a_conductor.execution_record import (
+    ExecutionProcessState,
+    TransportState,
+    new_execution_record,
+)
+from a_conductor.execution_store import SQLiteExecutionStore
+from a_conductor.registry import windows_worktree_key
 from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+from a_conductor.worker_lease import (
+    LeaseMutationIntent,
+    SQLiteWorkerLeaseStore,
+    WorkerLeaseCandidate,
+    WorkerLeaseRequest,
+)
 
 from a_conductor.cockpit_projection import (
     CockpitExecutionObservation,
@@ -41,6 +56,7 @@ from a_conductor.cockpit_projection import (
     CockpitProjectionError,
     CockpitState,
     build_control_center_lane_inputs,
+    build_observed_lane_inputs,
     cockpit_fingerprint,
     project_cockpit_lane,
     project_cockpit_snapshot,
@@ -413,6 +429,7 @@ def test_accepted_evidence_renders_completed_verified() -> None:
         merge=CockpitGateStatus.PROVEN,
         post_main=CockpitGateStatus.PROVEN,
         ci=CockpitGateStatus.PROVEN,
+        provenance="DURABLE_GATE_RECORD",
     )
     lane = project_cockpit_lane(
         _inputs(
@@ -427,6 +444,38 @@ def test_accepted_evidence_renders_completed_verified() -> None:
 
     assert lane.state is CockpitState.COMPLETED_VERIFIED
     assert lane.blocker_code is None
+
+
+def test_operator_declared_gates_never_reach_completed_verified() -> None:
+    # P2 regression: operator-declared/untrusted gate evidence must never
+    # produce COMPLETED_VERIFIED even when every gate is PROVEN.
+    gates = _gates(
+        verification=CockpitGateStatus.PROVEN,
+        review=CockpitGateStatus.PROVEN,
+        merge=CockpitGateStatus.PROVEN,
+        post_main=CockpitGateStatus.PROVEN,
+        ci=CockpitGateStatus.PROVEN,
+        provenance="OPERATOR_DECLARED",
+    )
+    lane = project_cockpit_lane(
+        _inputs(
+            execution=_execution(
+                execution_state="SUCCEEDED",
+                exit_code=0,
+                finished_at=GENERATED_AT,
+            ),
+            gates=gates,
+        )
+    )
+
+    assert lane.state is CockpitState.TERMINAL_UNHARVESTED
+    assert lane.state is not CockpitState.COMPLETED_VERIFIED
+    assert lane.blocker_code == "GATE_PROVENANCE_NOT_AUTHORITATIVE"
+
+
+def test_gate_evidence_rejects_unknown_provenance_tag() -> None:
+    with pytest.raises(CockpitProjectionError):
+        CockpitGateEvidence(provenance="SOME_RANDOM_TRUST_TAG")
 
 
 def test_lifecycle_vocabulary_mapping() -> None:
@@ -516,6 +565,45 @@ def test_projection_rejects_invalid_inputs() -> None:
         _execution(execution_state="ALSO_WEIRD")
     with pytest.raises(CockpitProjectionError):
         _execution(available=True, provenance="OPERATOR_DECLARED")
+    with pytest.raises(CockpitProjectionError):
+        CockpitGateEvidence(provenance="MYSTERY_AUTHORITY")
+
+
+def test_durable_execution_vocabulary_maps_without_inventing_lifecycle() -> None:
+    # every accepted SQLiteExecutionStore state projects to an existing
+    # operator vocabulary entry, fail-closed
+    cases = (
+        ("STARTING", "CONNECTED", CockpitState.WAITING_EXTERNAL),
+        ("PROCESS_STILL_RUNNING", "CONNECTED", CockpitState.RUNNING),
+        ("VERIFICATION_REQUIRED", "CONNECTED", CockpitState.TERMINAL_UNHARVESTED),
+        ("PARTIAL", "CONNECTED", CockpitState.OUTCOME_UNKNOWN),
+        ("CANCELLED", "CONNECTED", CockpitState.TERMINAL_UNHARVESTED),
+        ("PROCESS_EXITED_UNKNOWN_RESULT", "LOST", CockpitState.OUTCOME_UNKNOWN),
+    )
+    for execution_state, transport_state, expected in cases:
+        lane = project_cockpit_lane(
+            _inputs(
+                execution=_execution(
+                    execution_state=execution_state,
+                    transport_state=transport_state,
+                )
+            )
+        )
+        assert lane.state is expected, execution_state
+
+    # transport UNAVAILABLE while the durable record says the process runs:
+    # still RUNNING, explicitly degraded observability
+    lane = project_cockpit_lane(
+        _inputs(
+            execution=_execution(
+                execution_state="PROCESS_STILL_RUNNING",
+                transport_state="UNAVAILABLE",
+            )
+        )
+    )
+    assert lane.state is CockpitState.RUNNING
+    assert "DEGRADED_OBSERVABILITY" in lane.state_markers
+    assert lane.state is not CockpitState.COMPLETED_VERIFIED
 
 
 # ---------------------------------------------------------------- Model 9
@@ -736,9 +824,425 @@ def test_build_control_center_lane_inputs_maps_workers_only() -> None:
 
     assert len(inputs) == 1
     assert inputs[0].identity.lane == "a-worker-02"
+    assert inputs[0].identity.executor == "Worker 2"
     assert inputs[0].identity.provenance == "CONTROL_CENTER_SNAPSHOT"
     assert inputs[0].execution.available is False
     assert inputs[0].execution.reason == "PORT_UNAVAILABLE"
+
+
+# ------------------------------------- bound durable authority (R2 repair P1)
+
+
+_WORKER_ID = "a-worker-01"
+_LEASE_WORKER_ID = "a-worker-02"
+_REPO_ROOT = "A:/GitHub/_worktrees/A-Wiki-Conductor-wo424-run"
+_BRANCH = "feat/wo-p1-424-cockpit1-runtime-cockpit"
+_HEAD = "5f4f9bd3b44a5314dbd85a92872c82533efa7509"
+_FIXED_NOW = datetime(2026, 9, 20, 10, 0, tzinfo=timezone.utc)
+_LEASE_EXPIRES = "2026-09-20T10:05:00.000000Z"
+
+
+def _authority_row(worker_id: str, project_root: str | None):
+    from a_conductor.control_center import WorkerScreenRow
+    from a_conductor.domain import WorkerState
+
+    return WorkerScreenRow(
+        worker_id=worker_id,
+        display_name=f"SunDay Worker {worker_id[-1]}",
+        state=WorkerState.BUSY,
+        runtime_id="serena",
+        assignment_id="assignment-1",
+        project_id="project-1",
+        project_display_name="A-Wiki-Conductor",
+        project_root_path=project_root,
+        mutation_allowed=True,
+    )
+
+
+class StaticRowsControl:
+    def __init__(self, rows) -> None:
+        self._rows = tuple(rows)
+        self.calls = 0
+
+    def snapshot(self):
+        self.calls += 1
+        from a_conductor.control_center import ControlCenterSnapshot
+
+        return ControlCenterSnapshot(projects=(), workers=self._rows)
+
+
+class DriftingRowsControl:
+    def __init__(self, first_rows, recheck_rows) -> None:
+        self._first = tuple(first_rows)
+        self._recheck = tuple(recheck_rows)
+        self.calls = 0
+
+    def snapshot(self):
+        self.calls += 1
+        from a_conductor.control_center import ControlCenterSnapshot
+
+        rows = self._first if self.calls == 1 else self._recheck
+        return ControlCenterSnapshot(projects=(), workers=rows)
+
+
+def _bound_service(
+    tmp_path: Path,
+    rows,
+    authority_db,
+    *,
+    control=None,
+    clock=None,
+) -> DesktopControlService:
+    database = tmp_path / "control.sqlite"
+    settings = SQLiteSerenaConfigStore(database)
+    settings.initialize()
+    return DesktopControlService(
+        control_center=control or StaticRowsControl(rows),
+        lifecycle=NullLifecycle(),
+        settings_store=settings,
+        instances_root=tmp_path,
+        cockpit_authority_database=authority_db,
+        clock=clock or (lambda: _FIXED_NOW),
+    )
+
+
+def _create_execution(
+    store: SQLiteExecutionStore,
+    execution_id: str,
+    execution_state: ExecutionProcessState,
+    *,
+    pid: int | None = None,
+    exit_code: int | None = None,
+    finished_at: str | None = None,
+    worker_id: str = _WORKER_ID,
+):
+    record = new_execution_record(
+        execution_id=execution_id,
+        job_id=f"job-{execution_id}",
+        work_order_ref="WO-P1-424",
+        project_id="project-1",
+        worker_id=worker_id,
+        backend_id="backend-zcode",
+        agent_ref=None,
+        repo_root=_REPO_ROOT,
+        branch=_BRANCH,
+        head_before=_HEAD,
+        operation_ref=f"operation-{execution_id}",
+        command_fingerprint="a" * 64,
+        command_summary="cockpit repair verification",
+        runtime_profile_ref=None,
+        run_dir_ref=None,
+        stdout_ref=None,
+        stderr_ref=None,
+        result_ref=None,
+        report_ref=None,
+        transport_state=TransportState.CONNECTED,
+    )
+    record = store.create(record)
+    if pid is not None:
+        record = store.set_process_metadata(
+            execution_id,
+            pid=pid,
+            started_at="2026-09-20T09:00:00.000000Z",
+            expected_version=record.version,
+        )
+    if exit_code is not None:
+        record = store.set_result_metadata(
+            execution_id,
+            exit_code=exit_code,
+            finished_at=finished_at,
+            expected_version=record.version,
+        )
+    if execution_state is not ExecutionProcessState.QUEUED:
+        record = store.set_execution_state(
+            execution_id, execution_state, expected_version=record.version
+        )
+    return record
+
+
+def _prepare_authority(
+    tmp_path: Path, name: str = "authority.sqlite"
+) -> tuple[Path, SQLiteExecutionStore, SQLiteWorkerLeaseStore]:
+    authority = tmp_path / name
+    execution_store = SQLiteExecutionStore(authority)
+    execution_store.initialize()
+    lease_store = SQLiteWorkerLeaseStore(authority)
+    lease_store.initialize()
+    return authority, execution_store, lease_store
+
+
+def _file_digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_real_facade_projects_running_from_bound_durable_authority(
+    tmp_path: Path,
+) -> None:
+    authority, execution_store, _lease_store = _prepare_authority(tmp_path)
+    _create_execution(execution_store, "exec-running", ExecutionProcessState.RUNNING, pid=4242)
+    service = _bound_service(tmp_path, [_authority_row(_WORKER_ID, _REPO_ROOT)], authority)
+
+    snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
+
+    assert snapshot.stale is False
+    assert snapshot.degraded_observability == ()
+    assert len(snapshot.lanes) == 1
+    lane = snapshot.lanes[0]
+    assert lane.state is CockpitState.RUNNING
+    assert lane.identity.provenance == "DURABLE_EXECUTION_RECORD"
+    assert lane.identity.work_order_ref == "WO-P1-424"
+    assert lane.identity.task_ref == "job-exec-running"
+    assert lane.identity.worktree == windows_worktree_key(_REPO_ROOT)
+    assert lane.identity.expected_head == _HEAD
+    assert lane.process_identity.pid == 4242
+    assert lane.process_identity.authoritative is True
+    assert lane.process_identity.provenance == "DURABLE_EXECUTION_RECORD"
+    assert lane.identity.executor == "SunDay Worker 1"
+    assert lane.state is not CockpitState.COMPLETED_VERIFIED
+
+
+def test_real_facade_projects_terminal_unharvested_from_bound_authority(
+    tmp_path: Path,
+) -> None:
+    authority, execution_store, _lease_store = _prepare_authority(tmp_path)
+    _create_execution(
+        execution_store,
+        "exec-succeeded",
+        ExecutionProcessState.SUCCEEDED,
+        exit_code=0,
+        finished_at=GENERATED_AT,
+    )
+    service = _bound_service(tmp_path, [_authority_row(_WORKER_ID, _REPO_ROOT)], authority)
+
+    snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
+
+    lane = snapshot.lanes[0]
+    assert lane.state is CockpitState.TERMINAL_UNHARVESTED
+    assert lane.state is not CockpitState.COMPLETED_VERIFIED
+    assert lane.blocker_code == "MISSING_VERIFICATION_PROOF"
+
+
+def test_real_facade_projects_outcome_unknown_from_bound_authority(
+    tmp_path: Path,
+) -> None:
+    authority, execution_store, _lease_store = _prepare_authority(tmp_path)
+    _create_execution(
+        execution_store,
+        "exec-exited-unknown",
+        ExecutionProcessState.PROCESS_EXITED_UNKNOWN_RESULT,
+        pid=4242,
+    )
+    service = _bound_service(tmp_path, [_authority_row(_WORKER_ID, _REPO_ROOT)], authority)
+
+    snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
+
+    lane = snapshot.lanes[0]
+    assert lane.state is CockpitState.OUTCOME_UNKNOWN
+    assert lane.blocker_code == "PROCESS_EXITED_UNKNOWN_RESULT"
+    assert lane.replay_safety == "RECOVER_POINTER_PROCESS_RESULT_GIT_BEFORE_REDISPATCH"
+
+
+def test_real_facade_projects_pending_scope_from_active_lease(
+    tmp_path: Path,
+) -> None:
+    authority, _execution_store, lease_store = _prepare_authority(tmp_path)
+    request = WorkerLeaseRequest(
+        session_id="session-0001",
+        task_id="WO-P1-424-COCKPIT1-R2-REPAIR-001",
+        project_id="project-1",
+        ordered_worker_ids=(_LEASE_WORKER_ID,),
+        required_capabilities=(),
+        required_runtime_id=None,
+        worktree=_REPO_ROOT,
+        branch=_BRANCH,
+        expected_head=_HEAD,
+        mutation_intent=LeaseMutationIntent.READ_ONLY,
+    )
+    candidate = WorkerLeaseCandidate(
+        worker_id=_LEASE_WORKER_ID,
+        state="READY",
+        reserved=False,
+        active_task=False,
+        capabilities=(),
+        runtime_id=None,
+        project_id="project-1",
+        worktree=_REPO_ROOT,
+        branch=_BRANCH,
+        head=_HEAD,
+        health_fresh=True,
+        ownership_known=True,
+        dirty_state="CLEAN",
+        mutation_authorized=False,
+    )
+    lease = lease_store.try_acquire(
+        request,
+        candidate,
+        lease_id="lease-0001",
+        acquired_at=_FIXED_NOW,
+        expires_at=_LEASE_EXPIRES,
+    )
+    assert lease is not None
+    service = _bound_service(
+        tmp_path, [_authority_row(_LEASE_WORKER_ID, _REPO_ROOT)], authority
+    )
+
+    snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
+
+    lane = snapshot.lanes[0]
+    assert lane.state is CockpitState.PENDING_SCOPE
+    assert lane.identity.provenance == "CONTROL_CENTER_SNAPSHOT"
+    assert lane.identity.lease_id == "lease-0001"
+    assert lane.replay_safety == "NO_EXECUTION_IN_FLIGHT"
+
+
+def test_real_facade_without_bound_authority_stays_fail_closed_unknown(
+    tmp_path: Path,
+) -> None:
+    authority = tmp_path / "authority.sqlite"
+    execution_store = SQLiteExecutionStore(authority)
+    _create_execution(execution_store, "exec-running", ExecutionProcessState.RUNNING, pid=4242)
+    service = _bound_service(tmp_path, [_authority_row(_WORKER_ID, _REPO_ROOT)], None)
+
+    snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
+
+    assert snapshot.stale is False
+    assert snapshot.degraded_observability == ()
+    lane = snapshot.lanes[0]
+    assert lane.state is CockpitState.UNKNOWN
+    assert lane.blocker_code == "EXECUTION_EVIDENCE_UNAVAILABLE"
+    assert lane.execution_id is None
+    assert lane.process_identity.pid is None
+
+
+def test_bound_authority_reads_never_write_the_authority_db(
+    tmp_path: Path,
+) -> None:
+    authority, execution_store, lease_store = _prepare_authority(tmp_path)
+    _create_execution(execution_store, "exec-running", ExecutionProcessState.RUNNING, pid=4242)
+    before = _file_digest(authority)
+    service = _bound_service(tmp_path, [_authority_row(_WORKER_ID, _REPO_ROOT)], authority)
+    sidecars_before = sorted(p.name for p in tmp_path.iterdir())
+
+    for _ in range(3):
+        snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
+        assert snapshot.stale is False
+
+    assert _file_digest(authority) == before
+    assert sorted(p.name for p in tmp_path.iterdir()) == sidecars_before
+    connection = sqlite3.connect(f"file:{authority}?mode=ro", uri=True)
+    try:
+        tables = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+        ).fetchall()
+    finally:
+        connection.close()
+    assert [row[0] for row in tables] == [
+        "execution_events",
+        "execution_receipts",
+        "execution_records",
+        "execution_store_meta",
+        "worker_leases",
+        "worker_provisioning_reservations",
+    ]
+
+
+def test_bound_authority_without_tables_fails_closed_and_creates_nothing(
+    tmp_path: Path,
+) -> None:
+    empty = tmp_path / "empty.sqlite"
+    connection = sqlite3.connect(empty)
+    connection.close()
+    before = _file_digest(empty)
+    service = _bound_service(tmp_path, [_authority_row(_WORKER_ID, _REPO_ROOT)], empty)
+
+    snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
+
+    lane = snapshot.lanes[0]
+    assert lane.state is CockpitState.UNKNOWN
+    assert lane.blocker_code == "EXECUTION_EVIDENCE_UNAVAILABLE"
+    assert "EXECUTION_AUTHORITY_READ_FAILED" in snapshot.degraded_observability
+    assert "LEASE_AUTHORITY_READ_FAILED" in snapshot.degraded_observability
+    connection = sqlite3.connect(f"file:{empty}?mode=ro", uri=True)
+    try:
+        tables = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    finally:
+        connection.close()
+    assert tables == []
+    assert _file_digest(empty) == before
+
+
+def test_bound_authority_snapshot_goes_stale_on_control_center_drift(
+    tmp_path: Path,
+) -> None:
+    authority, execution_store, _lease_store = _prepare_authority(tmp_path)
+    _create_execution(execution_store, "exec-running", ExecutionProcessState.RUNNING, pid=4242)
+    control = DriftingRowsControl(
+        [_authority_row(_WORKER_ID, _REPO_ROOT)],
+        [_authority_row(_WORKER_ID, _REPO_ROOT), _authority_row("a-worker-09", None)],
+    )
+    service = _bound_service(
+        tmp_path, (), authority, control=control
+    )
+
+    snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
+
+    assert snapshot.stale is True
+    assert snapshot.stale_reason == "SOURCE_DRIFT_DETECTED"
+    for lane in snapshot.lanes:
+        assert lane.state is CockpitState.UNKNOWN
+        assert "STALE" in lane.state_markers
+        assert lane.execution_id is None
+
+
+def test_build_observed_lane_inputs_truthful_absence_semantics() -> None:
+    from a_conductor.control_center import ControlCenterSnapshot
+
+    snapshot = ControlCenterSnapshot(
+        projects=(), workers=(_authority_row(_WORKER_ID, _REPO_ROOT),)
+    )
+    durable = CockpitExecutionObservation(
+        available=True,
+        provenance="DURABLE_EXECUTION_RECORD",
+        execution_id="exec-0001",
+        job_id="job-0001",
+        work_order_ref="WO-P1-424",
+        worker_id=_WORKER_ID,
+        backend_id="backend-zcode",
+        repo_root=windows_worktree_key(_REPO_ROOT),
+        branch=_BRANCH,
+        head_before=_HEAD,
+        transport_state="CONNECTED",
+        execution_state="RUNNING",
+    )
+
+    lanes = build_observed_lane_inputs(
+        snapshot,
+        (durable,),
+        (),
+        execution_authority_readable=True,
+        lease_authority_readable=True,
+    )
+
+    assert len(lanes) == 1
+    assert lanes[0].identity.provenance == "DURABLE_EXECUTION_RECORD"
+    assert lanes[0].execution.available is True
+    assert lanes[0].lease.reason == "RECORD_NOT_FOUND"
+    assert lanes[0].identity.worktree == windows_worktree_key(_REPO_ROOT)
+
+    unreadable = build_observed_lane_inputs(
+        snapshot,
+        (),
+        (),
+        execution_authority_readable=False,
+        lease_authority_readable=False,
+    )
+
+    assert len(unreadable) == 1
+    assert unreadable[0].identity.provenance == "CONTROL_CENTER_SNAPSHOT"
+    assert unreadable[0].execution.reason == "PORT_UNAVAILABLE"
+    assert unreadable[0].lease.reason == "PORT_UNAVAILABLE"
 
 
 # ---------------------------------------------------------------- UI boundary

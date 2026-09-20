@@ -8,6 +8,7 @@ credential implementation.
 from __future__ import annotations
 
 import os
+import sqlite3
 import time
 from collections import deque
 from dataclasses import replace
@@ -56,6 +57,114 @@ class LifecycleCommandService(Protocol):
 
 A_WIKI_DATA_BACKUP_DIR = Path("L:/My Drive/A-Wiki-Data/backups/a-conductor-instances")
 
+_COCKPIT_EXECUTION_SQL = (
+    "SELECT execution_id, job_id, work_order_ref, worker_id, backend_id, "
+    "repo_root, branch, head_before, transport_state, execution_state, "
+    "pid, exit_code, started_at, finished_at "
+    "FROM execution_records ORDER BY created_at, rowid"
+)
+_COCKPIT_LEASE_SQL = (
+    "SELECT lease_id, worker_id, worktree_key, branch, expected_head, "
+    "acquired_at, heartbeat_at, expires_at, quarantined_at, quarantine_code "
+    "FROM worker_leases WHERE released_at IS NULL ORDER BY worker_id, lease_id"
+)
+
+
+def _cockpit_authority_connection(database: Path) -> sqlite3.Connection:
+    path = database.expanduser().resolve(strict=False)
+    connection = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def _cockpit_parse_timestamp(value: str | None) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _cockpit_lease_health(row: sqlite3.Row, now: datetime) -> str | None:
+    if row["quarantine_code"] is not None:
+        return "QUARANTINED"
+    expires = _cockpit_parse_timestamp(row["expires_at"])
+    if expires is None:
+        return "EXPIRY_UNKNOWN"
+    if now >= expires:
+        return "STALE"
+    return "ACTIVE"
+
+
+def _read_cockpit_execution_observations(
+    database: Path,
+) -> tuple:
+    from .cockpit_projection import CockpitExecutionObservation
+    from .registry import windows_worktree_key
+
+    connection = _cockpit_authority_connection(database)
+    try:
+        rows = connection.execute(_COCKPIT_EXECUTION_SQL).fetchall()
+    finally:
+        connection.close()
+    observations = []
+    for row in rows:
+        repo_root = row["repo_root"]
+        head_before = row["head_before"]
+        observations.append(
+            CockpitExecutionObservation(
+                available=True,
+                provenance="DURABLE_EXECUTION_RECORD",
+                execution_id=row["execution_id"],
+                job_id=row["job_id"],
+                work_order_ref=row["work_order_ref"],
+                worker_id=row["worker_id"],
+                backend_id=row["backend_id"],
+                repo_root=windows_worktree_key(repo_root),
+                branch=row["branch"],
+                head_before=head_before.lower() if head_before else head_before,
+                transport_state=row["transport_state"],
+                execution_state=row["execution_state"],
+                pid=row["pid"],
+                exit_code=row["exit_code"],
+                started_at=row["started_at"],
+                finished_at=row["finished_at"],
+            )
+        )
+    return tuple(observations)
+
+
+def _read_cockpit_lease_observations(database: Path, now: datetime) -> tuple:
+    from .cockpit_projection import CockpitLeaseObservation
+
+    connection = _cockpit_authority_connection(database)
+    try:
+        rows = connection.execute(_COCKPIT_LEASE_SQL).fetchall()
+    finally:
+        connection.close()
+    observations = []
+    for row in rows:
+        observations.append(
+            CockpitLeaseObservation(
+                available=True,
+                provenance="WORKER_LEASE_STORE",
+                lease_id=row["lease_id"],
+                worker_id=row["worker_id"],
+                worktree_key=row["worktree_key"],
+                branch=row["branch"],
+                expected_head=row["expected_head"],
+                health=_cockpit_lease_health(row, now),
+                acquired_at=row["acquired_at"],
+                heartbeat_at=row["heartbeat_at"],
+                expires_at=row["expires_at"],
+            )
+        )
+    return tuple(observations)
+
 
 def default_backup_dir() -> Path:
     """Prefer the A-Wiki-Data Drive layer; fall back to the local profile."""
@@ -79,6 +188,7 @@ class DesktopControlService:
         instances_root: str | Path = DEFAULT_INSTANCES_ROOT,
         instance_orchestrator: LocalInstanceOrchestrator | None = None,
         connector_recovery: ConnectorRecoveryCoordinator | None = None,
+        cockpit_authority_database: str | Path | None = None,
     ) -> None:
         if settings_store is not None and provider_store is not None:
             settings_database = Path(settings_store.database_path).expanduser().resolve(strict=False)
@@ -94,6 +204,11 @@ class DesktopControlService:
         self.instances_root = instances_root
         self._instance_orchestrator = instance_orchestrator
         self._connector_recovery = connector_recovery
+        self._cockpit_authority_database = (
+            Path(cockpit_authority_database).expanduser()
+            if cockpit_authority_database is not None
+            else None
+        )
         self._pending_instance_starts: set[str] = set()
         self._pending_instance_starts_lock = Lock()
         self._connector_intent_locks_guard = Lock()
@@ -155,24 +270,28 @@ class DesktopControlService:
     def cockpit_projection(self, generated_at: str | None = None):
         """Read-only Runtime Cockpit snapshot (WO-P1-424 COCKPIT-1).
 
-        Bounded first pin plus immediate recheck pin of the same accepted
-        ControlCenterService read authority: drift between the two pins
-        renders the snapshot STALE instead of mixing observations. A failed
-        read degrades to an explicitly marked empty snapshot rather than
-        raising or inventing lanes. Pure read path over existing
-        authorities — no store, command, timer, or scheduler authority.
+        Bounded first pin plus immediate recheck pin of every bound read
+        authority: drift between the two pins renders the snapshot STALE
+        instead of mixing observations. A failed read degrades to an
+        explicitly marked empty snapshot rather than raising or inventing
+        lanes. When an authority database is explicitly bound, durable
+        execution records and active worker leases are observed through
+        read-only connections only — the cockpit path never initializes,
+        migrates, or writes an authority store, and never guesses a
+        database identity. No store, command, timer, or scheduler authority.
         """
         from .cockpit_projection import (
             CockpitObservations,
             CockpitSnapshot,
             build_control_center_lane_inputs,
+            build_observed_lane_inputs,
             project_cockpit_snapshot,
         )
 
         stamp = generated_at if generated_at else self._clock().isoformat()
         try:
-            first = build_control_center_lane_inputs(self.control_center.snapshot())
-            recheck = build_control_center_lane_inputs(self.control_center.snapshot())
+            cc_first = self.control_center.snapshot()
+            cc_recheck = self.control_center.snapshot()
         except Exception:
             return CockpitSnapshot(
                 lanes=(),
@@ -181,10 +300,72 @@ class DesktopControlService:
                 stale_reason=None,
                 degraded_observability=("CONTROL_CENTER_READ_FAILED",),
             )
-        return project_cockpit_snapshot(
+        authority = self._cockpit_authority_database
+        if authority is None:
+            first = build_control_center_lane_inputs(cc_first)
+            recheck = build_control_center_lane_inputs(cc_recheck)
+            return project_cockpit_snapshot(
+                CockpitObservations(lanes=first, generated_at=stamp),
+                recheck=CockpitObservations(lanes=recheck, generated_at=stamp),
+            )
+        first_exec, first_exec_ok, first_lease, first_lease_ok = (
+            self._read_durable_authority_observations()
+        )
+        recheck_exec, recheck_exec_ok, recheck_lease, recheck_lease_ok = (
+            self._read_durable_authority_observations()
+        )
+        first = build_observed_lane_inputs(
+            cc_first,
+            first_exec,
+            first_lease,
+            execution_authority_readable=first_exec_ok,
+            lease_authority_readable=first_lease_ok,
+        )
+        recheck = build_observed_lane_inputs(
+            cc_recheck,
+            recheck_exec,
+            recheck_lease,
+            execution_authority_readable=recheck_exec_ok,
+            lease_authority_readable=recheck_lease_ok,
+        )
+        snapshot = project_cockpit_snapshot(
             CockpitObservations(lanes=first, generated_at=stamp),
             recheck=CockpitObservations(lanes=recheck, generated_at=stamp),
         )
+        degraded = list(snapshot.degraded_observability)
+        if not first_exec_ok or not recheck_exec_ok:
+            degraded.append("EXECUTION_AUTHORITY_READ_FAILED")
+        if not first_lease_ok or not recheck_lease_ok:
+            degraded.append("LEASE_AUTHORITY_READ_FAILED")
+        if degraded:
+            snapshot = replace(snapshot, degraded_observability=tuple(degraded))
+        return snapshot
+
+    def _read_durable_authority_observations(self) -> tuple:
+        """Pin one bounded read of the explicitly bound authority database.
+
+        Read-only SELECTs over the accepted execution-record and worker-lease
+        tables. Any failure degrades that source to explicitly unreadable so
+        affected lanes stay truthful UNKNOWN instead of raising; absent
+        tables stay absent because the connection can never write.
+        """
+        authority = self._cockpit_authority_database
+        if authority is None:
+            return (), False, (), False
+        now = self._clock()
+        try:
+            executions = _read_cockpit_execution_observations(authority)
+            execution_ok = True
+        except Exception:
+            executions = ()
+            execution_ok = False
+        try:
+            leases = _read_cockpit_lease_observations(authority, now)
+            lease_ok = True
+        except Exception:
+            leases = ()
+            lease_ok = False
+        return executions, execution_ok, leases, lease_ok
 
     def register_project(self, root_path, *, display_name=None, project_id=None):
         return self.control_center.register_project(

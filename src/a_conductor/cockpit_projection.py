@@ -7,6 +7,10 @@ EVIDENCE_INCOMPLETE semantics. The module never reads files, spawns
 processes, keeps mutable state, schedules work, or issues commands. Hook and
 WTL read-back authorities are not accepted in this candidate, so their
 fields stay UNKNOWN by contract.
+
+The durable execution-state and transport vocabularies mirror the accepted
+SQLiteExecutionStore enums so real durable records project without inventing
+a second lifecycle.
 """
 
 from __future__ import annotations
@@ -15,6 +19,8 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 from enum import Enum
+
+from .registry import windows_worktree_key
 
 
 class CockpitProjectionError(ValueError):
@@ -45,21 +51,30 @@ class CockpitGateStatus(Enum):
     REFUTED = "REFUTED"
 
 
-_TRANSPORT_STATES = ("CONNECTED", "DEGRADED", "LOST")
+_TRANSPORT_STATES = ("CONNECTED", "DEGRADED", "LOST", "UNAVAILABLE")
 _EXECUTION_STATES = (
     "QUEUED",
+    "STARTING",
     "RUNNING",
+    "PROCESS_STILL_RUNNING",
     "SUCCEEDED",
     "FAILED",
+    "PARTIAL",
+    "CANCELLED",
     "PROCESS_EXITED_UNKNOWN_RESULT",
     "RECOVERY_REQUIRED",
+    "VERIFICATION_REQUIRED",
 )
 _EXECUTION_PROVENANCES = ("DURABLE_EXECUTION_RECORD", "OPERATOR_DECLARED")
 _ACCEPTED_EXECUTION_PROVENANCE = "DURABLE_EXECUTION_RECORD"
+_GATE_PROVENANCES = ("OPERATOR_DECLARED", "DURABLE_GATE_RECORD")
+_ACCEPTED_GATE_PROVENANCE = "DURABLE_GATE_RECORD"
 _PORT_UNAVAILABLE = "PORT_UNAVAILABLE"
 _RECORD_NOT_FOUND = "RECORD_NOT_FOUND"
 _ACTIVE_LEASE = "ACTIVE"
 _NOT_DECLARED = "NOT_DECLARED"
+_DURABLE_PROVENANCE = "DURABLE_EXECUTION_RECORD"
+_CONTROL_CENTER_PROVENANCE = "CONTROL_CENTER_SNAPSHOT"
 
 _HOOK_UNACCEPTED_REASON = (
     "Hook read-back authority not accepted (WO-P1-424); field stays UNKNOWN."
@@ -111,6 +126,7 @@ class CockpitExecutionObservation:
     reason: str | None = None
     execution_id: str | None = None
     job_id: str | None = None
+    work_order_ref: str | None = None
     worker_id: str | None = None
     backend_id: str | None = None
     repo_root: str | None = None
@@ -151,6 +167,7 @@ class CockpitLeaseObservation:
     provenance: str | None = None
     reason: str | None = None
     lease_id: str | None = None
+    worker_id: str | None = None
     worktree_key: str | None = None
     branch: str | None = None
     expected_head: str | None = None
@@ -198,6 +215,10 @@ class CockpitGateEvidence:
     post_main: CockpitGateStatus = CockpitGateStatus.UNKNOWN
     ci: CockpitGateStatus = CockpitGateStatus.UNKNOWN
     provenance: str = "OPERATOR_DECLARED"
+
+    def __post_init__(self) -> None:
+        if self.provenance not in _GATE_PROVENANCES:
+            raise CockpitProjectionError("GATE_PROVENANCE_UNSUPPORTED")
 
 
 @dataclass(frozen=True)
@@ -316,6 +337,8 @@ def _evaluate_gates(gates: CockpitGateEvidence) -> tuple[bool, str | None]:
             continue
         if status is not CockpitGateStatus.PROVEN:
             return False, missing_code
+    if gates.provenance != _ACCEPTED_GATE_PROVENANCE:
+        return False, "GATE_PROVENANCE_NOT_AUTHORITATIVE"
     return True, None
 
 
@@ -429,7 +452,17 @@ def project_cockpit_lane(inputs: CockpitLaneInputs) -> CockpitLaneProjection:
             **common,
         )
 
-    if execution_state == "RUNNING":
+    if execution_state == "STARTING":
+        return CockpitLaneProjection(
+            state=CockpitState.WAITING_EXTERNAL,
+            state_markers=base_markers,
+            blocker_code=None,
+            replay_safety=_REPLAY_ACTIVE,
+            next_safe_action="AWAIT_EXTERNAL_EXECUTION_PROGRESS",
+            **common,
+        )
+
+    if execution_state in ("RUNNING", "PROCESS_STILL_RUNNING"):
         if transport_state == "LOST":
             return CockpitLaneProjection(
                 state=CockpitState.STALLED_RECONCILE,
@@ -440,7 +473,9 @@ def project_cockpit_lane(inputs: CockpitLaneInputs) -> CockpitLaneProjection:
                 **common,
             )
         markers = base_markers + (
-            ("DEGRADED_OBSERVABILITY",) if transport_state == "DEGRADED" else ()
+            ("DEGRADED_OBSERVABILITY",)
+            if transport_state in ("DEGRADED", "UNAVAILABLE")
+            else ()
         )
         return CockpitLaneProjection(
             state=CockpitState.RUNNING,
@@ -448,6 +483,36 @@ def project_cockpit_lane(inputs: CockpitLaneInputs) -> CockpitLaneProjection:
             blocker_code=None,
             replay_safety=_REPLAY_ACTIVE,
             next_safe_action="AWAIT_NEXT_OBSERVATION",
+            **common,
+        )
+
+    if execution_state == "VERIFICATION_REQUIRED":
+        return CockpitLaneProjection(
+            state=CockpitState.TERMINAL_UNHARVESTED,
+            state_markers=base_markers,
+            blocker_code="VERIFICATION_PROOF_REQUIRED",
+            replay_safety=_REPLAY_RECONCILE,
+            next_safe_action="COMPLETE_VERIFICATION_UNDER_EXISTING_AUTHORITY",
+            **common,
+        )
+
+    if execution_state == "PARTIAL":
+        return CockpitLaneProjection(
+            state=CockpitState.OUTCOME_UNKNOWN,
+            state_markers=base_markers,
+            blocker_code="PARTIAL_OUTCOME_NOT_VERIFIED",
+            replay_safety=_REPLAY_RECOVER,
+            next_safe_action="RECOVER_RESULT_EVIDENCE_BEFORE_TRUST",
+            **common,
+        )
+
+    if execution_state == "CANCELLED":
+        return CockpitLaneProjection(
+            state=CockpitState.TERMINAL_UNHARVESTED,
+            state_markers=base_markers,
+            blocker_code="EXECUTION_CANCELLED",
+            replay_safety=_REPLAY_RECONCILE,
+            next_safe_action="RECORD_CANCELLED_OUTCOME_UNDER_EXISTING_AUTHORITY",
             **common,
         )
 
@@ -559,6 +624,20 @@ def project_cockpit_snapshot(
     )
 
 
+def _worker_display(row) -> str | None:
+    display = getattr(row, "display_name", None)
+    if isinstance(display, str) and display.strip():
+        return display
+    return None
+
+
+def _worker_worktree_anchor(row) -> str | None:
+    path = getattr(row, "project_root_path", None)
+    if not isinstance(path, str) or not path.strip():
+        return None
+    return windows_worktree_key(path)
+
+
 def build_control_center_lane_inputs(snapshot) -> tuple[CockpitLaneInputs, ...]:
     """Wrap ControlCenterSnapshot workers as lane inputs with UNKNOWN truth.
 
@@ -574,17 +653,17 @@ def build_control_center_lane_inputs(snapshot) -> tuple[CockpitLaneInputs, ...]:
                 task_ref=_NOT_DECLARED,
                 topology=None,
                 lane=row.worker_id,
-                executor=row.worker_id,
+                executor=_worker_display(row) or row.worker_id,
                 provider=None,
                 harness=getattr(row, "runtime_id", None),
                 authority_repo=None,
                 execution_repo=None,
-                worktree=getattr(row, "project_root_path", None),
+                worktree=_worker_worktree_anchor(row),
                 branch=None,
                 expected_head=None,
                 execution_id=None,
                 lease_id=None,
-                provenance="CONTROL_CENTER_SNAPSHOT",
+                provenance=_CONTROL_CENTER_PROVENANCE,
             ),
             execution=CockpitExecutionObservation.unavailable(_PORT_UNAVAILABLE),
             lease=CockpitLeaseObservation.unavailable(_PORT_UNAVAILABLE),
@@ -593,6 +672,115 @@ def build_control_center_lane_inputs(snapshot) -> tuple[CockpitLaneInputs, ...]:
         )
         for row in workers
     )
+
+
+def build_observed_lane_inputs(
+    snapshot,
+    executions: tuple[CockpitExecutionObservation, ...],
+    leases: tuple[CockpitLeaseObservation, ...],
+    *,
+    execution_authority_readable: bool,
+    lease_authority_readable: bool,
+) -> tuple[CockpitLaneInputs, ...]:
+    """Compose durable observations with control-center worker context.
+
+    Durable execution records render as their own lanes anchored by the
+    record itself; control-center workers without any durable record render
+    NOT_DECLARED lanes whose execution truth is positively RECORD_NOT_FOUND
+    when the execution authority read succeeded, and PORT_UNAVAILABLE
+    otherwise. Worker display names are attached where the control-center
+    snapshot permits; worker_id remains the stable lane identity.
+    """
+    workers = tuple(getattr(snapshot, "workers", None) or ())
+    displays = {
+        row.worker_id: display
+        for row in workers
+        if (display := _worker_display(row)) is not None
+    }
+    runtimes = {
+        row.worker_id: runtime
+        for row in workers
+        if (runtime := getattr(row, "runtime_id", None)) is not None
+    }
+    leases_by_worker: dict[str, CockpitLeaseObservation] = {}
+    for lease in leases:
+        if lease.worker_id and lease.worker_id not in leases_by_worker:
+            leases_by_worker[lease.worker_id] = lease
+
+    def _unavailable_lease() -> CockpitLeaseObservation:
+        return CockpitLeaseObservation.unavailable(
+            _RECORD_NOT_FOUND if lease_authority_readable else _PORT_UNAVAILABLE
+        )
+
+    lanes: list[CockpitLaneInputs] = []
+    observed_workers: set[str] = set()
+    for execution in executions:
+        if not execution.available:
+            continue
+        worker_id = execution.worker_id
+        if worker_id:
+            observed_workers.add(worker_id)
+        lease = leases_by_worker.get(worker_id) if worker_id else None
+        execution_id = execution.execution_id or _NOT_DECLARED
+        lanes.append(
+            CockpitLaneInputs(
+                identity=CockpitLaneIdentity(
+                    work_order_ref=execution.work_order_ref or _NOT_DECLARED,
+                    task_ref=execution.job_id or _NOT_DECLARED,
+                    topology=None,
+                    lane=(
+                        f"{worker_id}:{execution_id}" if worker_id else execution_id
+                    ),
+                    executor=displays.get(worker_id) or worker_id or _NOT_DECLARED,
+                    provider=None,
+                    harness=runtimes.get(worker_id),
+                    authority_repo=None,
+                    execution_repo=None,
+                    worktree=execution.repo_root,
+                    branch=execution.branch,
+                    expected_head=execution.head_before,
+                    execution_id=execution.execution_id,
+                    lease_id=lease.lease_id if lease else None,
+                    provenance=_DURABLE_PROVENANCE,
+                ),
+                execution=execution,
+                lease=lease or _unavailable_lease(),
+                git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
+                gates=CockpitGateEvidence(),
+            )
+        )
+    for row in workers:
+        if row.worker_id in observed_workers:
+            continue
+        lease = leases_by_worker.get(row.worker_id)
+        lanes.append(
+            CockpitLaneInputs(
+                identity=CockpitLaneIdentity(
+                    work_order_ref=_NOT_DECLARED,
+                    task_ref=_NOT_DECLARED,
+                    topology=None,
+                    lane=row.worker_id,
+                    executor=_worker_display(row) or row.worker_id,
+                    provider=None,
+                    harness=getattr(row, "runtime_id", None),
+                    authority_repo=None,
+                    execution_repo=None,
+                    worktree=_worker_worktree_anchor(row),
+                    branch=None,
+                    expected_head=None,
+                    execution_id=None,
+                    lease_id=lease.lease_id if lease else None,
+                    provenance=_CONTROL_CENTER_PROVENANCE,
+                ),
+                execution=CockpitExecutionObservation.unavailable(
+                    _RECORD_NOT_FOUND if execution_authority_readable else _PORT_UNAVAILABLE
+                ),
+                lease=lease or _unavailable_lease(),
+                git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
+                gates=CockpitGateEvidence(),
+            )
+        )
+    return tuple(lanes)
 
 
 def cockpit_fingerprint(snapshot: CockpitSnapshot) -> str:
