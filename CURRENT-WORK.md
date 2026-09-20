@@ -1,5 +1,26 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-09-21 — WO433 RUNTIME-ACT-1 session rollover — CURRENT FRONTIER
+
+> Projection only. Actual Git/GitHub/runtime/durable evidence overrides this section if it differs.
+
+- Critical path: **#433 RUNTIME-ACT-1 -> #429 COCKPIT-1B -> LOCAL-USABLE-1**.
+- Topology: `CONTROL_PLANE_ONLY`; source implementation has **not** started in this rollover session.
+- Checkpoint remote main: `75d9e96e46e15cc8ef647d12194d677657689bde`.
+- #215↔#433 bilateral split is durable: #433 owns explicit/manual activation; #215 exclusively retains automatic accepted-completion -> NEXT_READY continuation/provenance.
+- Rollover claim/checkpoint: Issue #433 comment `5753493574`.
+- Prior GLM-5.3-Flash source-scope assist was recovered as TERMINAL exit 0 on detached `d2ad5bd...`; it is advisory evidence only.
+- Earlier source claim comment `5751797434` was based on `d2ad5bd...`; its old SAFE_TO_MUTATE verdict is stale and must be re-pinned before source mutation.
+- Relevance diff `d2ad5bd... -> 75d9e96...` changes none of the frozen #433 source/test paths; related drift is only WO246 author-provenance wiring in `zcode_production_assembly.py`.
+- Current main still has no `ZCodeJobBackend`; Claude durable job backend exists but the Claude harness rejects `PROJECT_MUTATION` with `HARNESS_MUTATION_NOT_READY`.
+- First LOCAL-USABLE activation slice is therefore frozen as **explicit/manual READ_ONLY production activation** through the accepted supervised Claude durable backend.
+- Mutation-capable harness support is successor scope; do not expand #433 implicitly.
+- Frozen implementation scope: NEW `runtime_activation.py`; MODIFY `desktop_control.py`, `desktop_app.py`; `lifecycle_coordinator.py` only if a read-only observation seam is strictly required; NEW `test_runtime_activation.py`; MODIFY `test_desktop_control.py`; NEW `test_desktop_app.py` only if isolated CLI coverage is required.
+- Hard forbidden: automatic NEXT_READY/successor selection, elastic provisioning, writable Graph Monitor/UI authority, new store/schema/task/request/retry/review/completion authority, Zero-Relay source, SunDayRemoteMCP, live installed DB mutation.
+- A-Faster census found no matching live A-Wiki Kilo/Claude delegated process for #433. Windows and Mac RDC devices are online; chat-visible SunDay-Worker developer MCP remains unavailable in this harness.
+- Legacy/stale execution pointers exist in old review worktrees; do not infer WIP occupancy from PID numbers. Reconstruct global WIP from exact pointer/process/Git/Issue evidence in the next session before dispatch.
+- Next safe action: fresh-session ENTRY/recovery -> fetch/re-pin current main -> recover delegated runs/global WIP -> collision pulse -> create a clean isolated **R3 source implementation** worktree/claim -> RED-first manual READ_ONLY activation implementation -> deterministic verification -> frozen SHA -> independent MAX review/CI -> merge/post-main -> unblock #429.
+
 ## 2026-09-15 — R5 repair verified for freeze, R3 acceptance pending
 
 Existing Kilo/cointh-glm/glm-5.3 MAX writer completed the packet at
