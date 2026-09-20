@@ -17,6 +17,7 @@ from a_conductor.goal_closeout import (
     CloseoutDecision,
     CloseoutStage,
     FoldRequirement,
+    FoldRequest,
     GoalCloseoutFacts,
     GoalCloseoutExecutor,
     LeaseEvidence,
@@ -422,12 +423,14 @@ class FakeLeasePort:
 class FakeFoldPort:
     def __init__(self, *, fail=False, unknown=False):
         self.calls: list[str] = []
+        self.requests: list[FoldRequest] = []
         self.fail = fail
         self.unknown = unknown
 
     def fold(self, request):
         from a_conductor.goal_closeout import FoldOutcome
         self.calls.append(request.task_id)
+        self.requests.append(request)
         if self.fail:
             raise RuntimeError("fold backend down")
         return FoldOutcome(completed=None) if self.unknown else FoldOutcome(completed=True)
@@ -910,3 +913,48 @@ def test_wo224_release_contradiction_fails_before_port_call():
     assert r.detail == "LEASE_RELEASE_CONTRADICTION"
     assert lease.released == []
     assert store.checkpoints == [] and store.transitions == []
+
+
+# ── WO-P1-410 GOT-1b-A: FoldRequest additive merge identity ───────────
+def test_wo410_fold_request_merge_identity_is_additive_optional():
+    """Contract 7: existing FoldRequest constructions stay valid; the
+    merge identity is additive and defaults to absent."""
+    request = FoldRequest(task_id=TASK, candidate_sha=SHA, checkpoint_ref="c:fold")
+    assert request.merge_commit is None
+    typed = FoldRequest(
+        task_id=TASK, candidate_sha=SHA, checkpoint_ref="c:fold",
+        merge_commit="ab12",
+    )
+    assert typed.merge_commit == "ab12"
+
+
+def test_wo410_executor_populates_merge_identity_from_merge_evidence():
+    """Contract 7: the executor (the MergeEvidence holder's caller)
+    populates the fold request's merge identity — never the adapter."""
+    store, fold = FakeJobStore(), FakeFoldPort()
+    r = executor(store=store, fold=fold).execute_next(facts(
+        fold=FoldEvidence(requirement=FoldRequirement.REQUIRED, completed=None),
+        lease=L(lease_id=LEASE, state="ACTIVE"),
+    ))
+    assert r.decision is CloseoutDecision.FOLD_REQUIRED
+    request = fold.requests[0]
+    assert request.merge_commit == "ab12"
+    assert request.task_id == TASK
+    assert request.candidate_sha == SHA
+    assert request.checkpoint_ref == closeout_checkpoint_ref(
+        CloseoutStage.FOLD, task_id=TASK, candidate_sha=SHA,
+        merge_key="ab12", fold_key="required",
+    )
+
+
+def test_wo410_executor_merge_not_required_passes_absent_merge_identity():
+    fold = FakeFoldPort()
+    r = executor(fold=fold).execute_next(facts(
+        merge=M(required=False, merged=None, merge_commit=None,
+                accepted_candidate_sha=None, accepted_candidate_ancestor=None,
+                post_main_required=False, post_main_run_id=None,
+                post_main_success=None, post_main_merge_commit=None),
+        fold=FoldEvidence(requirement=FoldRequirement.REQUIRED, completed=None),
+    ))
+    assert r.decision is CloseoutDecision.FOLD_REQUIRED
+    assert fold.requests[0].merge_commit is None

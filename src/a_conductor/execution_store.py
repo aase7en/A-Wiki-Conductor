@@ -16,8 +16,10 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from .execution_record import (
+    DurableExecutionReceipt,
     DurableExecutionRecord,
     ExecutionProcessState,
+    ReceiptDisposition,
     TransportState,
 )
 
@@ -38,6 +40,7 @@ class ExecutionEventType(str, Enum):
     EXECUTION_STATE_CHANGED = "EXECUTION_STATE_CHANGED"
     PROCESS_METADATA_UPDATED = "PROCESS_METADATA_UPDATED"
     RESULT_METADATA_UPDATED = "RESULT_METADATA_UPDATED"
+    RECEIPT_RECORDED = "RECEIPT_RECORDED"
 
 
 def _require_text(value: str, field_name: str) -> str:
@@ -196,6 +199,31 @@ class SQLiteExecutionStore:
                             REFERENCES execution_records(execution_id)
                             ON DELETE RESTRICT
                     );
+
+                    CREATE TABLE IF NOT EXISTS execution_receipts (
+                        receipt_id TEXT PRIMARY KEY CHECK (length(receipt_id) = 64),
+                        execution_id TEXT NOT NULL CHECK (trim(execution_id) <> ''),
+                        attempt_id TEXT NOT NULL CHECK (trim(attempt_id) <> ''),
+                        result_digest TEXT NOT NULL CHECK (length(result_digest) = 64),
+                        binding_digest TEXT NOT NULL CHECK (length(binding_digest) = 64),
+                        claim_generation INTEGER NOT NULL CHECK (claim_generation >= 1),
+                        authority_sha TEXT NOT NULL CHECK (length(authority_sha) = 40),
+                        execution_sha TEXT NOT NULL CHECK (length(execution_sha) = 40),
+                        disposition TEXT NOT NULL CHECK (
+                            disposition IN ('ACCEPTED', 'QUARANTINED')
+                        ),
+                        evidence_ref TEXT,
+                        recorded_at TEXT NOT NULL DEFAULT (
+                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                        ),
+                        UNIQUE (execution_id, attempt_id, result_digest, binding_digest),
+                        FOREIGN KEY (execution_id)
+                            REFERENCES execution_records(execution_id)
+                            ON DELETE RESTRICT
+                    );
+
+                    CREATE INDEX IF NOT EXISTS idx_execution_receipts_execution_recorded
+                    ON execution_receipts(execution_id, recorded_at DESC, receipt_id DESC);
                     """
                 )
                 # Initialization may be reached concurrently by multiple callers
@@ -604,3 +632,149 @@ class SQLiteExecutionStore:
         except (TypeError, ValueError) as exc:
             raise ExecutionStoreError("EXECUTION_EVENT_INVALID") from exc
         return tuple(events)
+
+    _RECEIPT_COLUMNS = (
+        "receipt_id, execution_id, attempt_id, result_digest, binding_digest, "
+        "claim_generation, authority_sha, execution_sha, disposition, "
+        "evidence_ref, recorded_at"
+    )
+
+    @staticmethod
+    def _row_to_receipt(row: sqlite3.Row) -> DurableExecutionReceipt:
+        try:
+            return DurableExecutionReceipt(
+                receipt_id=row["receipt_id"],
+                execution_id=row["execution_id"],
+                attempt_id=row["attempt_id"],
+                result_digest=row["result_digest"],
+                binding_digest=row["binding_digest"],
+                claim_generation=row["claim_generation"],
+                authority_sha=row["authority_sha"],
+                execution_sha=row["execution_sha"],
+                disposition=ReceiptDisposition(row["disposition"]),
+                evidence_ref=row["evidence_ref"],
+                recorded_at=row["recorded_at"],
+            )
+        except (TypeError, ValueError) as exc:
+            raise ExecutionStoreError("RECEIPT_RECORD_INVALID") from exc
+
+    def _select_receipt_by_id(
+        self, connection: sqlite3.Connection, receipt_id: str
+    ) -> sqlite3.Row | None:
+        return connection.execute(
+            f"SELECT {self._RECEIPT_COLUMNS} FROM execution_receipts "
+            "WHERE receipt_id = ?",
+            (receipt_id,),
+        ).fetchone()
+
+    def _select_receipt_by_identity(
+        self, connection: sqlite3.Connection, receipt: DurableExecutionReceipt
+    ) -> sqlite3.Row | None:
+        return connection.execute(
+            f"SELECT {self._RECEIPT_COLUMNS} FROM execution_receipts "
+            "WHERE execution_id = ? AND attempt_id = ? AND result_digest = ? "
+            "AND binding_digest = ?",
+            (
+                receipt.execution_id,
+                receipt.attempt_id,
+                receipt.result_digest,
+                receipt.binding_digest,
+            ),
+        ).fetchone()
+
+    @staticmethod
+    def _verify_receipt_agreement(
+        receipt: DurableExecutionReceipt, existing: sqlite3.Row
+    ) -> None:
+        conflicts = (
+            ("claim_generation", receipt.claim_generation),
+            ("authority_sha", receipt.authority_sha),
+            ("execution_sha", receipt.execution_sha),
+            ("disposition", receipt.disposition.value),
+            ("evidence_ref", receipt.evidence_ref),
+        )
+        for column, presented in conflicts:
+            if existing[column] != presented:
+                raise ExecutionStoreError("RECEIPT_CONFLICT")
+
+    def record_receipt(self, receipt: DurableExecutionReceipt) -> DurableExecutionReceipt:
+        """Idempotently persist an immutable execution receipt (append-only).
+
+        The contract identity is (execution_id, attempt_id, result digest)
+        plus the binding digest; identical evidence converges to the existing
+        durable receipt, conflicting immutable facts fail closed, and no API
+        rewrites or deletes a stored receipt.
+        """
+        if not isinstance(receipt, DurableExecutionReceipt):
+            raise ValueError("receipt must be a DurableExecutionReceipt")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                record = self._row_to_record(
+                    self._select_record(connection, receipt.execution_id)
+                )
+                changes_before = connection.total_changes
+                connection.execute(
+                    "INSERT INTO execution_receipts("
+                    "receipt_id, execution_id, attempt_id, result_digest, "
+                    "binding_digest, claim_generation, authority_sha, "
+                    "execution_sha, disposition, evidence_ref"
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(receipt_id) DO NOTHING",
+                    (
+                        receipt.receipt_id,
+                        receipt.execution_id,
+                        receipt.attempt_id,
+                        receipt.result_digest,
+                        receipt.binding_digest,
+                        receipt.claim_generation,
+                        receipt.authority_sha,
+                        receipt.execution_sha,
+                        receipt.disposition.value,
+                        receipt.evidence_ref,
+                    ),
+                )
+                if connection.total_changes > changes_before:
+                    self._insert_event(
+                        connection,
+                        record=record,
+                        event_type=ExecutionEventType.RECEIPT_RECORDED,
+                        evidence_ref=receipt.receipt_id,
+                    )
+                    durable = self._select_receipt_by_id(
+                        connection, receipt.receipt_id
+                    )
+                    if durable is None:
+                        raise ExecutionStoreError("EXECUTION_STORE_WRITE_FAILED")
+                    connection.commit()
+                    return self._row_to_receipt(durable)
+                existing = self._select_receipt_by_id(connection, receipt.receipt_id)
+                if existing is None:
+                    existing = self._select_receipt_by_identity(connection, receipt)
+                if existing is None:
+                    raise ExecutionStoreError("EXECUTION_STORE_WRITE_FAILED")
+                self._verify_receipt_agreement(receipt, existing)
+                connection.commit()
+                return self._row_to_receipt(existing)
+            except ExecutionStoreError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise ExecutionStoreError("EXECUTION_STORE_WRITE_FAILED") from exc
+
+    def get_receipt(self, receipt_id: str) -> DurableExecutionReceipt:
+        if not isinstance(receipt_id, str) or not _SHA256_RE.fullmatch(receipt_id):
+            raise ValueError("receipt_id must be lowercase SHA-256 hex")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                row = self._select_receipt_by_id(connection, receipt_id)
+                if row is None:
+                    raise ExecutionStoreError("RECEIPT_NOT_FOUND")
+                return self._row_to_receipt(row)
+            except ExecutionStoreError:
+                raise
+            except sqlite3.Error as exc:
+                raise ExecutionStoreError("EXECUTION_STORE_READ_FAILED") from exc

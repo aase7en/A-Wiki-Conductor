@@ -74,3 +74,27 @@ This reproduces the exact PR #388 CI failure signature on old code.
 Fresh sessions recover from actual Git/GitHub/Issue #401, then this WO. Agent/model output is evidence only; deterministic tests/CI and exact Git state are completion authority. Do not merge or self-accept.
 
 Next: independent exact-SHA R3 review + exact-head CI, then expected-head acceptance per the standing delivery-gate sequence.
+
+
+## Current-main fan-in checkpoint — 2026-09-20
+
+A-Faster recovery found the original R3 author candidate `a14d696a7a83124ddfc158f016b5b8a437dcc911` dormant, clean, and terminal while accepted authority main had advanced to `bd4892185195d8c6a7c3a8652a75ec4db7f003b4`.
+
+Read-only merge-tree showed one expected conflict only in `tests/test_execution_store.py`: accepted WO260 added durable DEX receipt tests in the same tail/import regions after the WO401 base. `src/a_conductor/execution_store.py` merged automatically.
+
+Fan-in resolution preserves:
+- current-main DEX receipt source/tests;
+- the WO401 atomic schema-version upsert + durable re-read exactly;
+- all three WO401 init-race regression tests;
+- schema version `"1"`, existing receipt schema/API, and all authority boundaries.
+
+Fresh fan-in evidence before commit:
+- `tests/test_execution_store.py`: 30 passed;
+- DEX/execution-record adjacent suites: 63 passed;
+- original PR #388 failing zero-relay concurrency test: 1 passed;
+- full zero-relay review execution suite, invoked from the worktree root: 80 passed;
+- job-store/graph-store/work-order/project-identity adjacent set: 70 passed;
+- `py_compile` and `git diff --check`: PASS;
+- unique delta versus current main remains exactly this Work Order, `execution_store.py`, and `test_execution_store.py`.
+
+The first absolute-path invocation of the zero-relay suite produced one unrelated test-package import failure; rerunning from the repository worktree root reproduced that single test PASS and the full suite 80/80 PASS. No product change was made for that harness invocation artifact.
