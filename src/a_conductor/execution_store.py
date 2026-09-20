@@ -198,15 +198,22 @@ class SQLiteExecutionStore:
                     );
                     """
                 )
+                # Initialization may be reached concurrently by multiple callers
+                # sharing the same control database. Make creation of the single
+                # schema-version row idempotent at the SQLite uniqueness boundary,
+                # then re-read the durable winner and validate it exactly.
+                connection.execute(
+                    "INSERT INTO execution_store_meta(key, value) "
+                    "VALUES('schema_version', ?) "
+                    "ON CONFLICT(key) DO NOTHING",
+                    (EXECUTION_STORE_SCHEMA_VERSION,),
+                )
                 row = connection.execute(
                     "SELECT value FROM execution_store_meta WHERE key = 'schema_version'"
                 ).fetchone()
                 if row is None:
-                    connection.execute(
-                        "INSERT INTO execution_store_meta(key, value) VALUES('schema_version', ?)",
-                        (EXECUTION_STORE_SCHEMA_VERSION,),
-                    )
-                elif row["value"] != EXECUTION_STORE_SCHEMA_VERSION:
+                    raise ExecutionStoreError("EXECUTION_STORE_INIT_FAILED")
+                if row["value"] != EXECUTION_STORE_SCHEMA_VERSION:
                     raise ExecutionStoreError("EXECUTION_SCHEMA_VERSION_UNSUPPORTED")
                 connection.commit()
             except ExecutionStoreError:
