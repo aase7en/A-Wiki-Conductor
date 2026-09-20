@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Callable, Iterator, Mapping
 
 from .execution_record import (
     DurableExecutionReceipt,
@@ -24,8 +24,69 @@ from .execution_record import (
 )
 
 
-EXECUTION_STORE_SCHEMA_VERSION = "1"
+EXECUTION_STORE_SCHEMA_VERSION = "2"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+# WO-P1-246: every recognized execution_records shape (v1 legacy, partial-v2,
+# full v2) must carry these core columns; anything else fails closed.
+_CORE_RECORD_COLUMNS = frozenset(
+    {
+        "execution_id",
+        "job_id",
+        "work_order_ref",
+        "project_id",
+        "worker_id",
+        "backend_id",
+        "agent_ref",
+        "repo_root",
+        "branch",
+        "head_before",
+        "operation_ref",
+        "command_fingerprint",
+        "command_summary",
+        "runtime_profile_ref",
+        "run_dir_ref",
+        "stdout_ref",
+        "stderr_ref",
+        "result_ref",
+        "report_ref",
+        "transport_state",
+        "execution_state",
+        "pid",
+        "exit_code",
+        "started_at",
+        "finished_at",
+        "version",
+        "created_at",
+        "updated_at",
+    }
+)
+
+
+# WO-P1-246 repair: a pre-existing provenance column is accepted only in
+# this exact canonical declared shape — exact declared type (TEXT attempt,
+# INTEGER generation), nullable, no default, not part of the primary key.
+# A name-only check would accept e.g. a TEXT-typed author_generation whose
+# affinity silently coerces every stored generation to text, so generation
+# 0 would read back as text and every record reconstruct as
+# EXECUTION_RECORD_INVALID after the v2 stamp. Anything non-canonical
+# fails closed before acceptance/stamp instead.
+_PROVENANCE_COLUMN_DECLARED_TYPES = {
+    "author_attempt_id": "TEXT",
+    "author_generation": "INTEGER",
+}
+
+
+def _provenance_shape_is_canonical(
+    column_info: Mapping[str, tuple[str, int, str | None, int]],
+) -> bool:
+    for name, declared_type in _PROVENANCE_COLUMN_DECLARED_TYPES.items():
+        if name not in column_info:
+            continue
+        type_, notnull, default, pk = column_info[name]
+        if type_ != declared_type or notnull != 0 or default is not None or pk != 0:
+            return False
+    return True
 
 
 class ExecutionStoreError(RuntimeError):
@@ -168,11 +229,20 @@ class SQLiteExecutionStore:
                         started_at TEXT,
                         finished_at TEXT,
                         version INTEGER NOT NULL CHECK (version >= 1),
+                        author_attempt_id TEXT,
+                        author_generation INTEGER CHECK (author_generation IN (0, 1)),
                         created_at TEXT NOT NULL DEFAULT (
                             strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                         ),
                         updated_at TEXT NOT NULL DEFAULT (
                             strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                        ),
+                        CHECK (
+                            (author_attempt_id IS NULL AND author_generation IS NULL)
+                            OR (
+                                author_attempt_id IS NOT NULL
+                                AND author_generation IS NOT NULL
+                            )
                         )
                     );
 
@@ -226,23 +296,13 @@ class SQLiteExecutionStore:
                     ON execution_receipts(execution_id, recorded_at DESC, receipt_id DESC);
                     """
                 )
-                # Initialization may be reached concurrently by multiple callers
-                # sharing the same control database. Make creation of the single
-                # schema-version row idempotent at the SQLite uniqueness boundary,
-                # then re-read the durable winner and validate it exactly.
-                connection.execute(
-                    "INSERT INTO execution_store_meta(key, value) "
-                    "VALUES('schema_version', ?) "
-                    "ON CONFLICT(key) DO NOTHING",
-                    (EXECUTION_STORE_SCHEMA_VERSION,),
-                )
-                row = connection.execute(
-                    "SELECT value FROM execution_store_meta WHERE key = 'schema_version'"
-                ).fetchone()
-                if row is None:
-                    raise ExecutionStoreError("EXECUTION_STORE_INIT_FAILED")
-                if row["value"] != EXECUTION_STORE_SCHEMA_VERSION:
-                    raise ExecutionStoreError("EXECUTION_SCHEMA_VERSION_UNSUPPORTED")
+                # WO-P1-246 fan-in: the reconciler owns schema-version
+                # stamping, v1 -> v2 migration, and the concurrent-init
+                # idempotent-stamp semantics (INSERT ... ON CONFLICT DO
+                # NOTHING, then re-read and strictly validate the durable
+                # winner) that current-main added for the shared-control-DB
+                # initialization race.
+                self._reconcile_schema_version(connection)
                 connection.commit()
             except ExecutionStoreError:
                 connection.rollback()
@@ -250,6 +310,137 @@ class SQLiteExecutionStore:
             except sqlite3.Error as exc:
                 connection.rollback()
                 raise ExecutionStoreError("EXECUTION_STORE_INIT_FAILED") from exc
+
+    @staticmethod
+    def _schema_version(connection: sqlite3.Connection) -> str | None:
+        row = connection.execute(
+            "SELECT value FROM execution_store_meta WHERE key = 'schema_version'"
+        ).fetchone()
+        return None if row is None else row["value"]
+
+    @staticmethod
+    def _record_column_info(
+        connection: sqlite3.Connection,
+    ) -> dict[str, tuple[str, int, str | None, int]]:
+        """WO-P1-246: declared shape of every execution_records column.
+
+        Maps column name to ``(declared_type, notnull, default, pk)``
+        exactly as reported by ``PRAGMA table_info``.
+        """
+        # fetchall() (not cursor iteration) so wrapped/proxied cursors that
+        # only forward attribute access remain usable by callers/tests.
+        return {
+            str(row[1]): (str(row[2]), int(row[3]), row[4], int(row[5]))
+            for row in connection.execute(
+                "PRAGMA table_info(execution_records)"
+            ).fetchall()
+        }
+
+    def _reconcile_schema_version(self, connection: sqlite3.Connection) -> None:
+        """WO-P1-246 v1 -> v2 migration, INSIDE ``initialize()``.
+
+        Runs after the ``executescript`` DDL has completed/committed and
+        BEFORE the strict version rejection. Fresh databases are created in
+        the v2 shape by the DDL; existing v1 (or shape-equivalent) databases
+        are migrated by nullable ``ALTER TABLE`` steps inside one explicit
+        ``BEGIN IMMEDIATE`` transaction. Legacy rows are preserved exactly
+        and remain ``NULL/NULL`` — there is no backfill. Record-layer
+        both-or-neither/generation validation stays authoritative for every
+        database shape (migrated tables cannot carry the cross-column
+        CHECK without a rebuild, which is deliberately avoided).
+
+        WO-P1-246 repair: provenance columns are validated by declared
+        shape, never by name only. Any pre-existing
+        ``author_attempt_id``/``author_generation`` column must already be
+        canonical — exact declared type (TEXT / INTEGER), nullable, no
+        default, not part of the primary key — before it is accepted,
+        ALTERed around, or stamped ``schema_version = 2``. The shape is
+        validated before mutation and re-read/re-validated inside the
+        ``BEGIN IMMEDIATE`` transaction, so a failed shape is never
+        stamped v2.
+        """
+        version = self._schema_version(connection)
+        column_info = self._record_column_info(connection)
+        has_attempt = "author_attempt_id" in column_info
+        has_generation = "author_generation" in column_info
+        if _CORE_RECORD_COLUMNS - column_info.keys():
+            raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
+        if version == EXECUTION_STORE_SCHEMA_VERSION:
+            if (
+                not (has_attempt and has_generation)
+                or not _provenance_shape_is_canonical(column_info)
+            ):
+                raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
+            return
+        if version not in (None, "1"):
+            raise ExecutionStoreError("EXECUTION_SCHEMA_VERSION_UNSUPPORTED")
+        if not _provenance_shape_is_canonical(column_info):
+            # a pre-existing provenance column must be canonical before any
+            # stamp or mutation
+            raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
+        if version is None and has_attempt and has_generation:
+            # fresh creation, or the DDL-committed/meta-write crash edge:
+            # stamp version 2 only after the shape is proven. WO-P1-246
+            # repair: initialize() can be reached concurrently; both
+            # callers observe this absent meta row and race on the stamp
+            # INSERT. Make the stamp idempotent at the SQLite uniqueness
+            # boundary, then re-read the durable winner and verify it —
+            # a conflicting non-2 value is never overwritten.
+            connection.execute(
+                "INSERT INTO execution_store_meta(key, value) "
+                "VALUES('schema_version', ?) ON CONFLICT(key) DO NOTHING",
+                (EXECUTION_STORE_SCHEMA_VERSION,),
+            )
+            if self._schema_version(connection) != EXECUTION_STORE_SCHEMA_VERSION:
+                raise ExecutionStoreError("EXECUTION_SCHEMA_VERSION_UNSUPPORTED")
+            return
+        # version is 1, or absent while the table is legacy/partial-v2 shaped
+        connection.execute("BEGIN IMMEDIATE")
+        version = self._schema_version(connection)
+        column_info = self._record_column_info(connection)
+        if version == EXECUTION_STORE_SCHEMA_VERSION:
+            # idempotent: the migration already landed under this lock
+            if not (
+                "author_attempt_id" in column_info
+                and "author_generation" in column_info
+            ) or not _provenance_shape_is_canonical(column_info):
+                connection.rollback()
+                raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
+            connection.rollback()
+            return
+        if version not in (None, "1"):
+            connection.rollback()
+            raise ExecutionStoreError("EXECUTION_SCHEMA_VERSION_UNSUPPORTED")
+        if _CORE_RECORD_COLUMNS - column_info.keys():
+            connection.rollback()
+            raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
+        # re-read and re-validate the declared shape under the write lock
+        # BEFORE any mutation
+        if not _provenance_shape_is_canonical(column_info):
+            connection.rollback()
+            raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
+        if "author_attempt_id" not in column_info:
+            connection.execute(
+                "ALTER TABLE execution_records ADD COLUMN author_attempt_id TEXT"
+            )
+        if "author_generation" not in column_info:
+            connection.execute(
+                "ALTER TABLE execution_records ADD COLUMN author_generation INTEGER"
+            )
+        # and again on the resulting shape before the v2 stamp
+        column_info = self._record_column_info(connection)
+        if not (
+            "author_attempt_id" in column_info
+            and "author_generation" in column_info
+        ) or not _provenance_shape_is_canonical(column_info):
+            connection.rollback()
+            raise ExecutionStoreError("EXECUTION_SCHEMA_SHAPE_INVALID")
+        connection.execute(
+            "INSERT INTO execution_store_meta(key, value) VALUES('schema_version', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (EXECUTION_STORE_SCHEMA_VERSION,),
+        )
+        connection.commit()
 
     @staticmethod
     def _row_to_record(row: sqlite3.Row) -> DurableExecutionRecord:
@@ -281,6 +472,8 @@ class SQLiteExecutionStore:
                 started_at=row["started_at"],
                 finished_at=row["finished_at"],
                 version=row["version"],
+                author_attempt_id=row["author_attempt_id"],
+                author_generation=row["author_generation"],
             )
         except (TypeError, ValueError) as exc:
             raise ExecutionStoreError("EXECUTION_RECORD_INVALID") from exc
@@ -292,7 +485,8 @@ class SQLiteExecutionStore:
             "backend_id, agent_ref, repo_root, branch, head_before, operation_ref, "
             "command_fingerprint, command_summary, runtime_profile_ref, run_dir_ref, "
             "stdout_ref, stderr_ref, result_ref, report_ref, transport_state, "
-            "execution_state, pid, exit_code, started_at, finished_at, version "
+            "execution_state, pid, exit_code, started_at, finished_at, version, "
+            "author_attempt_id, author_generation "
             "FROM execution_records WHERE execution_id = ?",
             (execution_id,),
         ).fetchone()
@@ -359,8 +553,9 @@ class SQLiteExecutionStore:
                     "backend_id, agent_ref, repo_root, branch, head_before, operation_ref, "
                     "command_fingerprint, command_summary, runtime_profile_ref, run_dir_ref, "
                     "stdout_ref, stderr_ref, result_ref, report_ref, transport_state, "
-                    "execution_state, pid, exit_code, started_at, finished_at, version"
-                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "execution_state, pid, exit_code, started_at, finished_at, version, "
+                    "author_attempt_id, author_generation"
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         record.execution_id,
                         record.job_id,
@@ -388,6 +583,8 @@ class SQLiteExecutionStore:
                         record.started_at,
                         record.finished_at,
                         record.version,
+                        record.author_attempt_id,
+                        record.author_generation,
                     ),
                 )
                 self._insert_event(
@@ -429,7 +626,8 @@ class SQLiteExecutionStore:
                     "backend_id, agent_ref, repo_root, branch, head_before, operation_ref, "
                     "command_fingerprint, command_summary, runtime_profile_ref, run_dir_ref, "
                     "stdout_ref, stderr_ref, result_ref, report_ref, transport_state, "
-                    "execution_state, pid, exit_code, started_at, finished_at, version "
+                    "execution_state, pid, exit_code, started_at, finished_at, version, "
+                    "author_attempt_id, author_generation "
                     "FROM execution_records WHERE command_fingerprint = ? "
                     "ORDER BY created_at DESC, rowid DESC",
                     (fingerprint,),
