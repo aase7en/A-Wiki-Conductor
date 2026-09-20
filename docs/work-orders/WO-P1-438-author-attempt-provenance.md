@@ -791,3 +791,12 @@ Until all seven steps pass:
 
 No implementation, schema edit, test edit, merge, or deployment is authorized
 by this design document alone.
+
+
+## 2026-09-21 — merged/post-main/session-rollover checkpoint
+
+Canonical candidate `f93e16377f500d16cbed66763058c2f4a2237790` received an independent GLM-5.3 MAX exact-SHA R3 review: PASS, P0/P1/P2=0, P3=3 non-blocking. The review finished at 2026-09-20T18:50:23Z. Exact-head CI #1102 / run `35529389831` completed SUCCESS at 2026-09-20T19:01:42Z. Both gates therefore existed before PR #336 merged at 2026-09-21T06:20:49+07 as `75d9e96e46e15cc8ef647d12194d677657689bde`.
+
+Detached post-main verification at `A:\GitHub\_worktrees\A-Wiki-Conductor-post438-75d9e96` proved all 11 WO438 blobs identical to the reviewed candidate, focused 177 PASS, identity 33 PASS, `git diff --check` PASS and `py_compile` PASS. A wrapper-only PowerShell `[Math]::Max` arity error occurred after all verification and changed no repository state.
+
+At session rollover, no hosted post-main workflow was yet returned for merge SHA `75d9e96...`. Issue #438 therefore remains OPEN with status `MERGED / LOCAL_POST_MAIN_VERIFIED / POST_MAIN_CI_PENDING`. The next session must reconcile the post-main CI trigger/evidence before closing/releasing this Work Order, then resume Issue #214 / WO205 §14 provenance archaeology.

@@ -1,5 +1,24 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-09-21 — session rollover from WO438 closeout
+
+This handoff is written specifically so a new ChatGPT session can resume without access to the prior chat.
+
+- Start with `00-AGENT-ENTRY.md`, `PROJECT-GRAPH.yaml`, `AGENTS.md`, then actual Git/GitHub/runtime truth.
+- Active closeout authority: Issue #438 / WO-P1-438; historical alias only: Issue #330 / WO-P1-246.
+- Remote main / merged PR #336: `75d9e96e46e15cc8ef647d12194d677657689bde`.
+- Exact reviewed candidate: `f93e16377f500d16cbed66763058c2f4a2237790`.
+- Exact reviewer evidence: `A:\GitHub\_worktrees\A-Wiki-Conductor-review-wo438-f93e163\runs\WO-P1-438\r3-review\attempt-0001\execution-pointer.json`, `exit.json`, `result.md`. Status TERMINAL, exit 0, VERDICT PASS, P0/P1/P2=0.
+- Stale review at `A:\GitHub\_worktrees\A-Wiki-Conductor-review-wo246-3603bb4` is historical only; it terminated exit 1 and must never authorize the merged SHA.
+- Exact-head CI #1102 / `35529389831`: SUCCESS before merge; all three hosted jobs green.
+- Post-main local worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-post438-75d9e96`; 11/11 relevant blobs equal candidate, 177 focused PASS, 33 identity PASS, diff-check and py_compile PASS.
+- No hosted workflow was yet returned for merge SHA `75d9e96...` at the last check. Treat closeout as `POST_MAIN_CI_PENDING`, not COMPLETE.
+- Do not mutate the protected root checkout: it is stale/dirty with preserved untracked files.
+- No SunDay-Worker tool surface was exposed in the outgoing chat; RDC + GitHub were the verified surfaces.
+- Global WIP at handoff: no active WO438 writer/reviewer process; continuity-only lane owns only this checkpoint branch/files.
+
+**Resume sequence:** (1) fetch/re-pin remote main and Issue #438; (2) recover workflows for merge SHA; (3) if post-main gate passes, record GPT-5.6 Sol closeout, close Issue #438 completed and release claim; (4) re-run Issue #214 / WO205 §14 provenance archaeology from actual main; (5) then continue the roadmap from the newly unblocked Phase-D boundary. Never redispatch completed WO438 review or rewrite historical WO246 aliases.
+
 ## 2026-09-15 — R5 repair verified for freeze, R3 acceptance pending
 
 Existing Kilo/cointh-glm/glm-5.3 MAX writer completed the packet at

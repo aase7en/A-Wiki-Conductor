@@ -1,5 +1,24 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-09-21 — WO438 merged; local post-main verified; hosted post-main CI pending
+
+> **Current authoritative projection.** Actual Git/GitHub/runtime/durable evidence overrides this file if it drifts.
+
+- Topology: `CONTROL_PLANE_ONLY`. Canonical authority: Issue #438 / WO-P1-438. Historical predecessor only: Issue #330 / WO-P1-246.
+- Remote `main`: `75d9e96e46e15cc8ef647d12194d677657689bde`.
+- PR #336 merged at 2026-09-21 06:20:49 +07 from exact candidate `f93e16377f500d16cbed66763058c2f4a2237790`.
+- Independent GLM-5.3 MAX exact-SHA R3 review finished before merge: `PASS`, P0/P1/P2=0, P3=3 non-blocking. Durable result: `A:\GitHub\_worktrees\A-Wiki-Conductor-review-wo438-f93e163\runs\WO-P1-438\r3-review\attempt-0001\result.md`.
+- Exact-head hosted CI #1102 / run `35529389831` finished before merge: `SUCCESS`; Windows, Ubuntu and macOS jobs all green.
+- Detached post-main verification worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-post438-75d9e96`.
+- Post-main local proof: all 11 WO438 blobs are byte-identical to the reviewed candidate; focused set 177 PASS; work-order identity 33 PASS; `git diff --check` PASS; `py_compile` PASS.
+- The post-main wrapper returned exit 1 only after all gates because the PowerShell harness used unsupported three-argument `[Math]::Max`; this is harness-only, not a test/repo failure.
+- Hosted post-main CI for merge SHA `75d9e96...` had **no workflow run yet** at the latest re-pin. Therefore status is `MERGED / LOCAL_POST_MAIN_VERIFIED / POST_MAIN_CI_PENDING`.
+- Issue #438 stays OPEN and claim/closeout remains unreleased until post-main CI policy/evidence is reconciled.
+- Protected root `A:\GitHub\A-Wiki-Conductor` is stale at `1a5ea1b...`, 14 commits behind, with pre-existing untracked `$null`, `0`, and `docs/prompts/GLM-WO230-ZRA2-REVIEW-TASK-CONTRACT-AUTHORITY.md`; do not reset/clean/stash or use it for mutation.
+- Session rollover checkpoint branch: `docs/wo-p1-438-session-handoff`; worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo438-session-handoff`.
+
+**Exact next safe action:** recover `origin/main`, Issue #438, PR #336, review result, and hosted workflows for merge SHA `75d9e96...`. If post-main CI is green, fold/close/release WO438 and resume Issue #214 / WO205 §14 provenance archaeology. If no post-main run exists, inspect the accepted CI trigger policy before deciding whether a manual/replacement post-main gate is required. Do not start new source mutation before that reconciliation.
+
 ## 2026-09-15 — R5 repair verified for freeze, R3 acceptance pending
 
 Existing Kilo/cointh-glm/glm-5.3 MAX writer completed the packet at
