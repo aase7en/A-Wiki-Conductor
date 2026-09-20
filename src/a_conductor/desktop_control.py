@@ -522,6 +522,31 @@ class DesktopControlService:
             supervised=supervised,
         )
 
+    def activate_runtime(self, database_path: str | Path, request):
+        """Explicit WO433 runtime-owner activation over the canonical DB only.
+
+        This is deliberately absent from startup/refresh paths. Identity is
+        checked before importing/calling the write-capable runtime composition.
+        """
+        canonical = self.runtime_authority_database
+        if canonical is None:
+            raise RuntimeAuthorityError("RUNTIME_AUTHORITY_UNBOUND")
+        requested = Path(database_path).expanduser().resolve(strict=False)
+        if requested != canonical:
+            raise RuntimeAuthorityError("AUTHORITY_DATABASE_IDENTITY_MISMATCH")
+
+        from .runtime_activation import activate_production_runtime
+
+        return activate_production_runtime(
+            database_path=canonical,
+            request=request,
+            control_center=self.control_center,
+            settings_store=self.settings_store,
+            provider_store=self._provider_store,
+            lifecycle=self.lifecycle,
+            clock=self._clock,
+        )
+
     def start_worker(self, worker_id: str):
         self.apply_worker_settings_to_home(worker_id)
         return self.lifecycle.execute(worker_id, LifecycleAction.START)
