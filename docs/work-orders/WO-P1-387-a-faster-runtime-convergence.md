@@ -149,3 +149,59 @@ Surface/readiness:
 
 NEXT: deterministic tracked-diff gates -> freeze/commit/push candidate -> PR/CI;
 qualified independent review remains required before acceptance/merge.
+
+## 2026-09-20 attempt-0003 extension checkpoint
+
+User-requested extension on the same open WO/PR after merge-forward to
+current origin/main; delegated GLM-5.3 MAX author lane
+`lane:WO-P1-387:author:1` attempt-0003.
+
+Re-pin: dispatch head `19f806f91094b1330b2c45231bf02687649f2d5f` on branch
+`docs/wo-p1-387-a-faster-runtime-convergence` (merge-forward of this branch
+onto origin/main), clean tree at dispatch; same four-path mutable scope only.
+
+Policy extension implemented (additive, authority-preserving):
+
+- mandatory PROJECT/TASK DELEGATED-RUN CENSUS at every A-Faster entry before
+  selecting new READY work, over existing WO/Issue/runs-pointer/process/
+  result/Git authorities only, with stale-PID identity discipline and a
+  current-project scope that still recovers other sessions' GLM assignments;
+- liveness derivation and dispositions (RUNNING/TERMINAL_UNHARVESTED/STALLED/
+  INTERRUPTED/UNKNOWN/TERMINAL) reused from EXECUTION_LIVENESS_PROTOCOL and
+  durable-lanes; fresh session never means fresh task;
+- deterministic per-invocation LANE OCCUPANCY MATRIX as a projection (WIP_SLOT
+  M1/M2/M3/R1 labels, LANE_REF identity, binding/owner/harness/model/state/
+  next-action columns), checkpointed when material — explicitly not a
+  scheduler/registry/state store;
+- collision gate before every material dispatch/mutation (repo-path overlap,
+  same hotspot, branch/worktree ownership conflict, or unknown ownership =>
+  SAFE_TO_MUTATE=NO), with no separate WIP budget per session/device;
+- throughput: dispatch-first/harvest-later, no serializing independent GLM
+  jobs to conserve quota, QUOTA_AVAILABLE remainder treated as capacity
+  evidence while quota is refreshed before each material dispatch and actual
+  QUOTA_EXHAUSTED/auth/transport/cost gates stay binding;
+- model benchmark routing: GLM-5.3 MAX default for R2/R3 implementation and
+  required independent R3 review; GLM-5.3-Flash default for bounded read-only
+  assist classes; Flash never silently satisfies a MAX/qualified review and no
+  model identity grants authority; routing may change with benchmark data
+  without rewriting task semantics;
+- session rollover checkpoint duty: fold occupancy/pointers/terminal-
+  unharvested destinations into the WO/Issue checkpoint before rotation; new
+  session starts with census + harvest, never redispatch;
+- multidevice reference updated with two-MAX-authors + frozen-candidate
+  review and Flash read-only-assist safe examples, plus stale-PID-reuse and
+  duplicate-redispatch-after-session-loss unsafe examples.
+
+Quota/readiness observed externally by the integrator at dispatch
+(attempt-0003 route preflight, 2026-09-20T00:17:31Z): QUOTA_AVAILABLE,
+remaining_5h 70,946,614 of limit_5h 80,000,000, probe latency 2885 ms,
+model cointh-glm/glm-5.3. Values are recorded observations, not guarantees.
+
+Deterministic gates for this attempt: exact four-path tracked-diff scope,
+git diff --check, strict UTF-8 / no U+FFFD, reference existence + skill
+frontmatter checks, tests/test_work_order_identity.py, added-line
+secret/credential scan, and a grep/prose audit that no text creates a global
+lane registry or second authority.
+
+NEXT: freeze exact candidate SHA on this branch -> independent exact-SHA R3
+read-only review + exact-head CI -> GPT acceptance/merge; no self-accept.

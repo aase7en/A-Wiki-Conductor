@@ -55,12 +55,21 @@ task, claim, provider, review, merge, completion, or memory authority.
    execution liveness per `docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md`.
    Before selecting new READY work, reconcile every known outstanding delegated
    execution pointer for the current task/claim from existing job/events/
-   checkpoints/evidence plus actual process/session/log/result/Git state. Derive
-   `RUNNING`, `TERMINAL_UNHARVESTED`, `STALLED`, `INTERRUPTED`, or `UNKNOWN`.
-   Harvest and verify `TERMINAL_UNHARVESTED` results before redispatch or
+   checkpoints/evidence plus actual process/session/log/result/Git state.
+   The census scope is the current project: its active/open work orders and
+   Issues plus material recent lane pointers, including GLM assignments from
+   prior invocations and from sessions other than this one whenever they are
+   discoverable from that durable evidence. Do not scan arbitrary ancient
+   unrelated projects. Derive `RUNNING`, `TERMINAL_UNHARVESTED`, `STALLED`,
+   `INTERRUPTED`, `UNKNOWN`, or `TERMINAL`. Never infer `RUNNING` from a
+   stale PID number alone: a PID is live evidence only when it matches the
+   recorded creation/command/boot identity where available. Harvest and
+   verify `TERMINAL_UNHARVESTED` results before redispatch or
    conflicting mutation. `STALLED`, timeout, transport loss, or session loss
    never grants replay authority; route them through existing recovery/takeover
-   rules. This is recovery/harvest routing only — A-FastTask creates no new
+   rules, and reconcile side effects/replay safety before any takeover of an
+   ambiguous state. A fresh chat/session never means a fresh task. This is
+   recovery/harvest routing only — A-FastTask creates no new
    execution store or lifecycle state.
 2. BOOTSTRAP — for a substantial project/engineering session, attempt the
    lightweight READ-ONLY core-surface discovery defined by
@@ -102,6 +111,16 @@ task, claim, provider, review, merge, completion, or memory authority.
    back-to-back live check observed zero change in `used_5h` and `remaining_5h`.
    Treat that as operational supporting evidence, not a billing guarantee.
    `QUOTA_UNKNOWN` is not `RATE_LIMITED` and is never treated as unlimited.
+   When refreshed evidence says `QUOTA_AVAILABLE`, the remaining amount is
+   capacity evidence, not a reason to self-throttle: refresh quota before
+   EACH material GLM dispatch, keep filling independent safe lanes up to
+   WIP, do not serialize independent GLM jobs merely to conserve quota, and
+   obey only actual `QUOTA_EXHAUSTED`/auth/transport/cost gates. Route the
+   GLM model by the benchmark guidance projected in the A-Faster overlay
+   (GLM-5.3 MAX for R2/R3 implementation and required independent review;
+   GLM-5.3-Flash for bounded read-only assist); a cheaper or faster model
+   never silently satisfies a required independent R3/qualified review, and
+   no model identity grants authority.
    If the exact upstream GLM admission is observed `RATE_LIMITED`, record the
    provider-reported reset evidence, set GLM offload blocked for that window,
    and do not repeat quota/credential root-cause work or live admission probes
