@@ -48,6 +48,7 @@ from a_conductor.worker_lease import (
 from a_conductor.goal_closeout_assembly import (
     CloseoutEvidenceBundle,
     GoalCloseoutAssemblyError,
+    StaticCloseoutEvidenceProvider,
     assemble_goal_closeout_facade,
     completed_closeout_checkpoint_refs,
 )
@@ -336,7 +337,7 @@ def make_facade(
         job_store=store,
         lease_store=lease_store,
         applier=applier,
-        evidence=evidence or bundle(),
+        evidence_provider=StaticCloseoutEvidenceProvider(evidence or bundle()),
         job_id=job_id,
         task_id=TASK,
         attempt_id=ATTEMPT,
@@ -357,7 +358,7 @@ def make_service(store, facade) -> DurableJobControlService:
     )
 
 
-def build_harness(tmp_path, *, job_state, evidence=None, provider=None, applier_wrapper=None, lease_id=LEASE):
+def build_harness(tmp_path, *, job_state, evidence=None, evidence_provider=None, provider=None, applier_wrapper=None, lease_id=LEASE):
     store = make_job_store(tmp_path)
     lease_store = make_lease_store(tmp_path)
     root = tmp_path / "repo"
@@ -382,7 +383,8 @@ def build_harness(tmp_path, *, job_state, evidence=None, provider=None, applier_
         job_store=store,
         lease_store=lease_store,
         applier=applier,
-        evidence=evidence or bundle(),
+        evidence_provider=evidence_provider
+        or StaticCloseoutEvidenceProvider(evidence or bundle()),
         job_id=JOB,
         task_id=TASK,
         attempt_id=ATTEMPT,
@@ -727,7 +729,7 @@ def test_stage_after_completed_fold_does_not_rewrite_targets(tmp_path):
             job_store=store,
             lease_store=lease_store,
             applier=counting,
-            evidence=bundle(),
+            evidence_provider=StaticCloseoutEvidenceProvider(bundle()),
             job_id=JOB,
             task_id=TASK,
             attempt_id=ATTEMPT,
@@ -778,7 +780,7 @@ def test_fold_idempotent_republish_zero_apply_calls(tmp_path):
             job_store=store,
             lease_store=lease_store,
             applier=counting,
-            evidence=bundle(),
+            evidence_provider=StaticCloseoutEvidenceProvider(bundle()),
             job_id=JOB,
             task_id=TASK,
             attempt_id=ATTEMPT,
@@ -850,3 +852,244 @@ def test_assembly_module_creates_no_second_authority():
         "datetime.now",
     ):
         assert banned not in source, banned
+
+
+# ── attempt-0002 P1-1: production open() composition path (RED-first) ──
+class NoNativeResolver:
+    def resolve(self, *args, **kwargs):
+        raise AssertionError("closeout composition must not resolve native adapters")
+
+
+def open_composed_service(tmp_path, *, evidence_provider=None):
+    from a_conductor.goal_closeout_assembly import (
+        GoalCloseoutCompositionConfig,
+        StaticCloseoutEvidenceProvider,
+    )
+
+    lease_store = make_lease_store(tmp_path)
+    root = tmp_path / "repo"
+    root.mkdir(parents=True, exist_ok=True)
+    seed(root)
+    make_lease(lease_store, root)
+    config = GoalCloseoutCompositionConfig(
+        evidence_provider=evidence_provider
+        or StaticCloseoutEvidenceProvider(bundle()),
+        applier=AgentChangeApplier(
+            filesystem=NativeFileSystem(
+                NativeExecutionScope(root=root, mutation_allowed=True)
+            ),
+            lease_store=lease_store,
+            continuity_provider=FreshProvider(),
+            clock=lambda: NOW,
+        ),
+        lease_store=lease_store,
+        job_id=JOB,
+        task_id=TASK,
+        attempt_id=ATTEMPT,
+        session_id=SESSION,
+        lease_id=LEASE,
+        candidate_sha=HEAD,
+        branch=BRANCH,
+        actual_head=HEAD,
+        clock=lambda: NOW,
+    )
+    return DurableJobControlService.open(
+        tmp_path / "jobs.sqlite",
+        operations=(),
+        native_resolver=NoNativeResolver(),
+        closeout_composition=config,
+    )
+
+
+def test_open_composes_closeout_using_same_store_end_to_end(tmp_path):
+    seed_store = make_job_store(tmp_path)
+    drive_to_verifying(seed_store)
+    service = open_composed_service(tmp_path)
+    assert service.get_job(JOB).state is TaskState.VERIFYING
+    assert service._closeout is not None
+    assert service._closeout._job_store is service._store
+
+    r1 = service.closeout_next_stage(JOB)
+    assert r1.decision == "VERIFY_CHECKPOINT_REQUIRED"
+    r2 = service.closeout_next_stage(JOB)
+    assert r2.decision == "PROMOTED_TO_REVIEW_PENDING"
+    r3 = service.closeout_next_stage(JOB)
+    assert r3.decision == "FOLD_REQUIRED"
+    r4 = service.closeout_next_stage(JOB)
+    assert r4.decision == "RELEASE_REQUIRED"
+    r5 = service.closeout_next_stage(JOB)
+    assert r5.decision == "COMPLETE_ALLOWED"
+    assert seed_store.get_job(JOB).state is TaskState.COMPLETE
+
+
+def test_open_without_closeout_composition_still_plain_service(tmp_path):
+    service = DurableJobControlService.open(
+        tmp_path / "jobs.sqlite",
+        operations=(),
+        native_resolver=NoNativeResolver(),
+    )
+    service.create_job(job_id=JOB, work_order_ref="WO-P1-409", project_id="project-409")
+    assert service.get_job(JOB).job_id == JOB
+    with pytest.raises(JobControlError) as exc:
+        service.closeout_next_stage(JOB)
+    assert exc.value.code == "CLOSEOUT_NOT_CONFIGURED"
+
+
+# ── attempt-0002 P1-2: per-stage trusted evidence refresh (RED-first) ──
+class SequenceEvidenceProvider:
+    def __init__(self, bundles):
+        self._bundles = list(bundles)
+        self.calls = 0
+
+    def evidence(self):
+        index = min(self.calls, len(self._bundles) - 1)
+        self.calls += 1
+        return self._bundles[index]
+
+
+class CountingEvidenceProvider:
+    def __init__(self, inner):
+        self.inner = inner
+        self.calls = 0
+
+    def evidence(self):
+        self.calls += 1
+        return self.inner.evidence()
+
+
+class InvalidEvidenceProvider:
+    def evidence(self):
+        return object()
+
+
+def provider_service(tmp_path, *, evidence_provider):
+    from a_conductor.goal_closeout_assembly import assemble_goal_closeout_facade
+
+    store = make_job_store(tmp_path)
+    lease_store = make_lease_store(tmp_path)
+    root = tmp_path / "repo"
+    root.mkdir(parents=True, exist_ok=True)
+    seed(root)
+    drive_to_review_pending(store)
+    make_lease(lease_store, root)
+    counting = CountingApplier(
+        AgentChangeApplier(
+            filesystem=NativeFileSystem(
+                NativeExecutionScope(root=root, mutation_allowed=True)
+            ),
+            lease_store=lease_store,
+            continuity_provider=FreshProvider(),
+            clock=lambda: NOW,
+        )
+    )
+    facade = assemble_goal_closeout_facade(
+        job_store=store,
+        lease_store=lease_store,
+        applier=counting,
+        evidence_provider=evidence_provider,
+        job_id=JOB,
+        task_id=TASK,
+        attempt_id=ATTEMPT,
+        session_id=SESSION,
+        lease_id=LEASE,
+        candidate_sha=HEAD,
+        branch=BRANCH,
+        actual_head=HEAD,
+        clock=lambda: NOW,
+    )
+    return store, lease_store, root, make_service(store, facade), counting
+
+
+def test_changed_trusted_evidence_between_stages_is_not_ignored(tmp_path):
+    provider = SequenceEvidenceProvider(
+        [
+            bundle(),
+            bundle(blocking_findings=("integrator-blocking-finding",)),
+        ]
+    )
+    store, lease_store, _, service, _ = provider_service(
+        tmp_path, evidence_provider=provider
+    )
+    r1 = service.closeout_next_stage(JOB)
+    assert r1.decision == "FOLD_REQUIRED"
+    assert provider.calls == 1
+    r2 = service.closeout_next_stage(JOB)
+    assert r2.decision == "BLOCK"
+    assert r2.detail == "BLOCKING_FINDINGS"
+    assert store.get_job(JOB).state is TaskState.REVIEW_PENDING
+    assert lease_store.inspect_health(LEASE, now=NOW).kind is LeaseHealthKind.ACTIVE
+
+
+def test_evidence_refreshed_exactly_once_per_stage(tmp_path):
+    provider = CountingEvidenceProvider(SequenceEvidenceProvider([bundle()]))
+    store, _, _, service, counting = provider_service(tmp_path, evidence_provider=provider)
+    r1 = service.closeout_next_stage(JOB)
+    assert r1.decision == "FOLD_REQUIRED"
+    assert counting.apply_calls == len(CANONICAL_TARGETS)
+    assert provider.calls == 1
+    r2 = service.closeout_next_stage(JOB)
+    assert r2.decision == "RELEASE_REQUIRED"
+    assert provider.calls == 2
+
+
+def test_invalid_bundle_from_provider_fails_typed_zero_writes(tmp_path):
+    store, _, root, service, counting = provider_service(
+        tmp_path, evidence_provider=InvalidEvidenceProvider()
+    )
+    before = target_bytes(root)
+    with pytest.raises(GoalCloseoutAssemblyError) as exc:
+        service.closeout_next_stage(JOB)
+    assert exc.value.code == "EVIDENCE_BUNDLE_INVALID"
+    assert store.get_job(JOB).state is TaskState.REVIEW_PENDING
+    assert counting.apply_calls == 0
+    assert target_bytes(root) == before
+
+
+def test_one_immutable_snapshot_bound_through_single_stage(tmp_path):
+    def merged(commit):
+        return MergeEvidence(
+            required=True,
+            merged=True,
+            merge_commit=commit,
+            accepted_candidate_sha=HEAD,
+            accepted_candidate_ancestor=True,
+            post_main_required=False,
+            post_main_run_id=None,
+            post_main_success=None,
+            post_main_merge_commit=None,
+        )
+
+    fold_ref_a = closeout_checkpoint_ref(
+        CloseoutStage.FOLD,
+        task_id=TASK,
+        candidate_sha=HEAD,
+        merge_key="aaaaaaa",
+        fold_key="required",
+    )
+    fold_ref_b = closeout_checkpoint_ref(
+        CloseoutStage.FOLD,
+        task_id=TASK,
+        candidate_sha=HEAD,
+        merge_key="bbbbbbb",
+        fold_key="required",
+    )
+    provider = SequenceEvidenceProvider(
+        [bundle(merge=merged("aaaaaaa")), bundle(merge=merged("bbbbbbb"))]
+    )
+    store, _, root, service, counting = provider_service(
+        tmp_path, evidence_provider=provider
+    )
+    r1 = service.closeout_next_stage(JOB)
+    assert r1.decision == "FOLD_REQUIRED"
+    assert fold_ref_a in refs(store)
+    assert fold_ref_b not in refs(store)
+    assert "merge-commit: aaaaaaa" in (root / "CURRENT-WORK.md").read_text(
+        encoding="utf-8"
+    )
+    r2 = service.closeout_next_stage(JOB)
+    assert r2.decision == "FOLD_REQUIRED"
+    assert fold_ref_b in refs(store)
+    assert "merge-commit: bbbbbbb" in (root / "CURRENT-WORK.md").read_text(
+        encoding="utf-8"
+    )
+    assert provider.calls == 2

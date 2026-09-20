@@ -21,6 +21,15 @@ existing job from VERIFYING to REVIEW_PENDING only when verification
 evidence is identity-bound to the same task and attempt and the
 identity-bound verify checkpoint is durably reconstructible from the job
 event journal. Missing, stale, or contradictory proof fails closed.
+
+Evidence freshness (attempt-0002): closeout spans multiple durable
+calls, so review/merge/ownership/continuity/blocking facts are supplied
+by a trusted ``CloseoutEvidenceProvider`` that is re-observed exactly
+once at the beginning of each ``next_stage()`` call. The single returned
+immutable ``CloseoutEvidenceBundle`` is the one internally-consistent
+evidence snapshot bound through that entire stage (promotion decision,
+closeout facts, and fold projection); the next ``next_stage()`` call
+gets a fresh bundle.
 """
 
 from __future__ import annotations
@@ -210,6 +219,31 @@ class ProductionCloseoutResult:
     detail: str = ""
 
 
+class CloseoutEvidenceProvider(Protocol):
+    """Trusted per-stage closeout evidence source.
+
+    The production contract: called exactly once at the beginning of
+    each ``next_stage()``; must return one immutable, internally
+    consistent :class:`CloseoutEvidenceBundle` re-observed from
+    durable/observed authorities for THAT stage. A raise propagates as
+    a trusted-source failure; a non-bundle return fails closed typed."""
+
+    def evidence(self) -> CloseoutEvidenceBundle: ...
+
+
+class StaticCloseoutEvidenceProvider:
+    """Deterministic provider returning one immutable, fully
+    pre-observed bundle for every stage (bounded lanes/tests)."""
+
+    def __init__(self, bundle: CloseoutEvidenceBundle) -> None:
+        if not isinstance(bundle, CloseoutEvidenceBundle):
+            raise GoalCloseoutAssemblyError("EVIDENCE_BUNDLE_INVALID")
+        self._bundle = bundle
+
+    def evidence(self) -> CloseoutEvidenceBundle:
+        return self._bundle
+
+
 def _closeout_status(state: TaskState) -> str:
     if state is TaskState.COMPLETE:
         return "COMPLETE"
@@ -279,7 +313,7 @@ class ProductionGoalCloseoutFacade:
         job_store: SQLiteJobStore,
         lease_store: SQLiteWorkerLeaseStore,
         executor: GoalCloseoutExecutor | None = None,
-        evidence: CloseoutEvidenceBundle,
+        evidence_provider: CloseoutEvidenceProvider,
         job_id: str,
         task_id: str,
         attempt_id: str,
@@ -292,10 +326,13 @@ class ProductionGoalCloseoutFacade:
     ) -> None:
         if executor is not None and not isinstance(executor, GoalCloseoutExecutor):
             raise GoalCloseoutAssemblyError("EXECUTOR_INVALID")
+        if not callable(getattr(evidence_provider, "evidence", None)):
+            raise GoalCloseoutAssemblyError("EVIDENCE_PROVIDER_INVALID")
         self._executor = executor
         self._job_store = job_store
         self._lease_store = lease_store
-        self._evidence = evidence
+        self._evidence_provider = evidence_provider
+        self._stage_evidence: CloseoutEvidenceBundle | None = None
         self._job_id = _text(job_id, "job_id", max_length=128)
         self._task_id = _text(task_id, "task_id", max_length=256)
         self._attempt_id = _text(attempt_id, "attempt_id", max_length=256)
@@ -322,23 +359,48 @@ class ProductionGoalCloseoutFacade:
         requested = _text(job_id, "job_id", max_length=128)
         if requested != self._job_id:
             raise GoalCloseoutAssemblyError("CLOSEOUT_JOB_MISMATCH")
-        job = self._job_store.get_job(self._job_id)
-        if job.state is TaskState.COMPLETE:
-            return ProductionCloseoutResult(CloseoutStage.DONE.value, "ALREADY_COMPLETE")
-        if job.state in (TaskState.FAILED, TaskState.CANCELLED):
+        bundle = self._begin_stage()
+        try:
+            job = self._job_store.get_job(self._job_id)
+            if job.state is TaskState.COMPLETE:
+                return ProductionCloseoutResult(
+                    CloseoutStage.DONE.value, "ALREADY_COMPLETE"
+                )
+            if job.state in (TaskState.FAILED, TaskState.CANCELLED):
+                return ProductionCloseoutResult(
+                    CloseoutStage.DONE.value, "REFUSED", job.state.value
+                )
+            if job.state is TaskState.VERIFYING:
+                return self._promotion_stage(job, bundle)
+            if job.state is TaskState.REVIEW_PENDING:
+                return self._executor_stage(job, bundle)
             return ProductionCloseoutResult(
-                CloseoutStage.DONE.value, "REFUSED", job.state.value
+                _STAGE_CLOSEOUT_GATE, "CLOSEOUT_STATE_INVALID", job.state.value
             )
-        if job.state is TaskState.VERIFYING:
-            return self._promotion_stage(job)
-        if job.state is TaskState.REVIEW_PENDING:
-            return self._executor_stage(job)
-        return ProductionCloseoutResult(
-            _STAGE_CLOSEOUT_GATE, "CLOSEOUT_STATE_INVALID", job.state.value
-        )
+        finally:
+            self._end_stage()
 
-    def _promotion_stage(self, job) -> ProductionCloseoutResult:
-        evidence = self._evidence.verification
+    def _begin_stage(self) -> CloseoutEvidenceBundle:
+        """Re-observe trusted evidence exactly once for this stage; the
+        returned immutable bundle is the single snapshot bound through
+        the whole stage."""
+        bundle = self._evidence_provider.evidence()
+        if not isinstance(bundle, CloseoutEvidenceBundle):
+            raise GoalCloseoutAssemblyError("EVIDENCE_BUNDLE_INVALID")
+        self._stage_evidence = bundle
+        return bundle
+
+    def _end_stage(self) -> None:
+        self._stage_evidence = None
+
+    def _stage_bundle(self) -> CloseoutEvidenceBundle:
+        bundle = self._stage_evidence
+        if bundle is None:
+            raise GoalCloseoutAssemblyError("EVIDENCE_STAGE_NOT_ACTIVE")
+        return bundle
+
+    def _promotion_stage(self, job, bundle: CloseoutEvidenceBundle) -> ProductionCloseoutResult:
+        evidence = bundle.verification
         if not evidence.ok:
             return ProductionCloseoutResult(
                 _STAGE_VERIFYING_PROMOTION, "BLOCK", "VERIFY_EVIDENCE_MISSING"
@@ -359,7 +421,7 @@ class ProductionGoalCloseoutFacade:
             )
         refs = completed_closeout_checkpoint_refs(self._job_store, self._job_id)
         if self._verify_ref not in refs:
-            result = self._executor.execute_next(self._build_facts(job, refs))
+            result = self._executor.execute_next(self._build_facts(job, refs, bundle))
             return ProductionCloseoutResult(
                 result.stage.value, result.decision.value, result.detail
             )
@@ -380,15 +442,19 @@ class ProductionGoalCloseoutFacade:
             _STAGE_VERIFYING_PROMOTION, "PROMOTED_TO_REVIEW_PENDING", self._verify_ref
         )
 
-    def _executor_stage(self, job) -> ProductionCloseoutResult:
+    def _executor_stage(
+        self, job, bundle: CloseoutEvidenceBundle
+    ) -> ProductionCloseoutResult:
         refs = completed_closeout_checkpoint_refs(self._job_store, self._job_id)
-        result = self._executor.execute_next(self._build_facts(job, refs))
+        result = self._executor.execute_next(self._build_facts(job, refs, bundle))
         return ProductionCloseoutResult(
             result.stage.value, result.decision.value, result.detail
         )
 
-    def _build_facts(self, job, refs: frozenset[str]) -> GoalCloseoutFacts:
-        evidence = self._evidence
+    def _build_facts(
+        self, job, refs: frozenset[str], bundle: CloseoutEvidenceBundle
+    ) -> GoalCloseoutFacts:
+        evidence = bundle
         raw_verification = evidence.verification
         checkpoint_version = raw_verification.checkpoint_version
         if self._verify_ref in refs and checkpoint_version is None:
@@ -457,6 +523,7 @@ class ProductionGoalCloseoutFacade:
         return LeaseEvidence(lease_id=self._lease_id, state=state, owner_ok=owner_ok)
 
     def _projection_facts(self) -> ProjectionFacts:
+        evidence = self._stage_bundle()
         job = self._job_store.get_job(self._job_id)
         now_text = _clock_text(self._clock())
         leases = tuple(
@@ -473,11 +540,11 @@ class ProductionGoalCloseoutFacade:
             candidate_sha=self._candidate_sha,
             branch=self._branch,
             head=self._actual_head,
-            merge_commit=self._evidence.merge.merge_commit,
-            post_main_status=_post_main_status(self._evidence.merge),
+            merge_commit=evidence.merge.merge_commit,
+            post_main_status=_post_main_status(evidence.merge),
             closeout_status=_closeout_status(job.state),
             leases=leases,
-            ownership_known=self._evidence.ownership.known,
+            ownership_known=evidence.ownership.known,
             writer_session=self._session_id,
         )
 
@@ -487,7 +554,7 @@ def assemble_goal_closeout_facade(
     job_store: SQLiteJobStore,
     lease_store: SQLiteWorkerLeaseStore,
     applier: FoldMutationApplierPort,
-    evidence: CloseoutEvidenceBundle,
+    evidence_provider: CloseoutEvidenceProvider,
     job_id: str,
     task_id: str,
     attempt_id: str,
@@ -502,15 +569,16 @@ def assemble_goal_closeout_facade(
     """Assemble the production closeout composition from existing
     authorities only: job store journal, canonical lease store release,
     AgentChangeApplier-gated projection fold, and the GoalCloseout
-    executor."""
+    executor. The trusted evidence provider is re-observed exactly once
+    per ``next_stage()`` call."""
     for method in ("get_job", "transition", "checkpoint", "list_events"):
         if not callable(getattr(job_store, method, None)):
             raise GoalCloseoutAssemblyError("JOB_STORE_INVALID")
     for method in ("release", "inspect_health", "list_active"):
         if not callable(getattr(lease_store, method, None)):
             raise GoalCloseoutAssemblyError("LEASE_STORE_INVALID")
-    if not isinstance(evidence, CloseoutEvidenceBundle):
-        raise GoalCloseoutAssemblyError("EVIDENCE_INVALID")
+    if not callable(getattr(evidence_provider, "evidence", None)):
+        raise GoalCloseoutAssemblyError("EVIDENCE_PROVIDER_INVALID")
     if not callable(getattr(applier, "apply", None)):
         raise GoalCloseoutAssemblyError("APPLIER_INVALID")
     if not callable(clock):
@@ -519,7 +587,7 @@ def assemble_goal_closeout_facade(
         job_store=job_store,
         lease_store=lease_store,
         executor=None,
-        evidence=evidence,
+        evidence_provider=evidence_provider,
         job_id=job_id,
         task_id=task_id,
         attempt_id=attempt_id,
@@ -551,3 +619,58 @@ def assemble_goal_closeout_facade(
         fold_port=fold_port,
     )
     return facade
+
+
+@dataclass(frozen=True, slots=True)
+class GoalCloseoutCompositionConfig:
+    """Bounded production closeout composition input for
+    ``DurableJobControlService.open()``.
+
+    ``compose`` assembles the closeout facade from the SAME
+    ``SQLiteJobStore`` the service opens — no second store, database, or
+    lifecycle. The trusted evidence provider is re-observed once per
+    closeout stage; everything else is existing authority."""
+
+    evidence_provider: CloseoutEvidenceProvider
+    applier: FoldMutationApplierPort
+    lease_store: SQLiteWorkerLeaseStore
+    job_id: str
+    task_id: str
+    attempt_id: str
+    session_id: str
+    lease_id: str | None
+    candidate_sha: str
+    branch: str
+    actual_head: str
+    clock: Callable[[], object]
+    targets: tuple[str, ...] = CANONICAL_TARGETS
+
+    def __post_init__(self) -> None:
+        if not callable(getattr(self.evidence_provider, "evidence", None)):
+            raise GoalCloseoutAssemblyError("EVIDENCE_PROVIDER_INVALID")
+        if not callable(getattr(self.applier, "apply", None)):
+            raise GoalCloseoutAssemblyError("APPLIER_INVALID")
+        for method in ("release", "inspect_health", "list_active"):
+            if not callable(getattr(self.lease_store, method, None)):
+                raise GoalCloseoutAssemblyError("LEASE_STORE_INVALID")
+        if not callable(self.clock):
+            raise GoalCloseoutAssemblyError("CLOCK_INVALID")
+        object.__setattr__(self, "targets", tuple(self.targets))
+
+    def compose(self, *, job_store: SQLiteJobStore) -> ProductionGoalCloseoutFacade:
+        return assemble_goal_closeout_facade(
+            job_store=job_store,
+            lease_store=self.lease_store,
+            applier=self.applier,
+            evidence_provider=self.evidence_provider,
+            job_id=self.job_id,
+            task_id=self.task_id,
+            attempt_id=self.attempt_id,
+            session_id=self.session_id,
+            lease_id=self.lease_id,
+            candidate_sha=self.candidate_sha,
+            branch=self.branch,
+            actual_head=self.actual_head,
+            clock=self.clock,
+            targets=self.targets,
+        )

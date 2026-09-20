@@ -118,6 +118,65 @@ GLM/result completion is only a claim. Every delegated run must persist a durabl
 - Verification: `tests/test_goal_closeout_assembly.py` 24 passed; unchanged `tests/test_goal_closeout.py` + `tests/test_continuity_projection.py` 154 passed; related job-control/job-state/job-store/job-execution/agent-change/worker-lease battery 144 passed; compileall, `git diff --check`, exact four-path scope, strict UTF-8, added-line secret scan (one benign `secrets/**` scope-glob fixture match) PASS.
 - Stop state: READY_FOR_INDEPENDENT_EXACT_SHA_R3_REVIEW. Author does not merge or self-accept.
 
+## Repair checkpoint (2026-09-20, GLM-5.3 MAX author attempt-0002 — integrator P1 findings)
+
+Integrator audit of candidate `f20e8605aec4140bd6afac2d05032861b1ea7b01` returned
+CHANGES_REQUIRED (runs/WO-P1-409/integrator-p1-findings.md):
+
+- P1-1 production assembly gap: `assemble_goal_closeout_facade` had no production
+  caller; `DurableJobControlService.open()` built no closeout, so production open
+  callers stayed `CLOSEOUT_NOT_CONFIGURED`.
+- P1-2 stale multi-stage evidence: `ProductionGoalCloseoutFacade` captured one
+  static `CloseoutEvidenceBundle` at construction and reused it across
+  verify checkpoint -> promotion -> fold -> release -> complete.
+
+RED proof (before src mutation) at dispatch head `f20e860` in
+`runs/WO-P1-409/repair/attempt-0002/` (red-proof.txt, red-pytest.txt,
+red-behavior.py/.txt):
+
+- P1-1: `test_open_composes_closeout_using_same_store_end_to_end` fails
+  `ImportError: cannot import name 'GoalCloseoutCompositionConfig'`; open() has
+  no closeout composition input.
+- P1-2: `assemble_goal_closeout_facade()` rejects `evidence_provider` (TypeError,
+  4 RED tests); behavioral contrast on unmodified code: static facade returned
+  RELEASE_REQUIRED and durably released the lease while the current trusted
+  observation (blocking finding) returned BLOCK — a proven stale decision.
+- RED run: 5 failed / 25 passed (24 prior tests stayed green).
+
+Repair (same four-path scope only):
+
+- `goal_closeout_assembly.py`: added `CloseoutEvidenceProvider` protocol
+  (trusted per-stage evidence source, re-observed exactly once at the beginning
+  of each `next_stage()`), `StaticCloseoutEvidenceProvider` (deterministic
+  single-bundle lanes), per-stage bundle lifecycle (`_begin_stage`/`_end_stage`/
+  `_stage_bundle` with typed `EVIDENCE_BUNDLE_INVALID` /
+  `EVIDENCE_STAGE_NOT_ACTIVE` guards); `_promotion_stage`, `_executor_stage`,
+  `_build_facts` and `_projection_facts` now bind ONE immutable
+  `CloseoutEvidenceBundle` snapshot per stage (no mid-stage re-read); added
+  `GoalCloseoutCompositionConfig.compose(job_store=...)` typed open-path
+  composition helper. `assemble_goal_closeout_facade` now takes
+  `evidence_provider` (explicit production contract).
+- `job_control.py`: `open()` accepts optional typed `closeout_composition`;
+  composes the facade from the SAME `SQLiteJobStore` open() creates (asserted by
+  test); ordinary open() without closeout stays backward compatible
+  (`CLOSEOUT_NOT_CONFIGURED`).
+
+Verification (attempt-0002):
+
+- `tests/test_goal_closeout_assembly.py` 30 passed (24 prior adapted to the
+  provider API, semantically equivalent; 6 new: open-composition end-to-end,
+  plain-open backward compat, changed-evidence-between-stages BLOCK,
+  refresh-exactly-once-per-stage, invalid-bundle typed fail-closed zero writes,
+  one-immutable-snapshot-through-single-stage with merge-identity switch).
+- Unchanged `tests/test_goal_closeout.py` + `tests/test_continuity_projection.py`
+  154 passed; related job-control/job-state/job-store/job-execution/
+  agent-change/worker-lease(+recovery) battery 177 passed.
+- compileall/py_compile, `git diff --check`, exact four-path scope, strict
+  UTF-8 (no U+FFFD), added-line secret scan: PASS.
+- GOT-1b MERGED_NOT_FOLDED gate untouched (test_merged_not_folded_... green).
+- Stop state: READY_FOR_INDEPENDENT_EXACT_SHA_R3_REVIEW on the new candidate
+  SHA. Author does not merge or self-accept.
+
 ## Stop conditions
 
 Stop mutation and return typed blocker if:

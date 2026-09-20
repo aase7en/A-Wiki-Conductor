@@ -12,6 +12,7 @@ from typing import Sequence
 
 from .domain import TaskState
 from .goal_closeout_assembly import (
+    GoalCloseoutCompositionConfig,
     ProductionCloseoutResult,
     ProductionGoalCloseoutFacade,
 )
@@ -57,6 +58,7 @@ class DurableJobControlService:
         control_center: ControlCenterSnapshotProvider | None = None,
         native_resolver: WorkerNativeAdapterResolver | None = None,
         supervised: bool = False,
+        closeout_composition: GoalCloseoutCompositionConfig | None = None,
     ) -> "DurableJobControlService":
         if native_resolver is None:
             if control_center is None:
@@ -86,7 +88,12 @@ class DurableJobControlService:
             store=store,
             backend=backend,
         )
-        return cls(store=store, coordinator=coordinator)
+        closeout = (
+            closeout_composition.compose(job_store=store)
+            if closeout_composition is not None
+            else None
+        )
+        return cls(store=store, coordinator=coordinator, closeout=closeout)
 
     def create_job(
         self,
