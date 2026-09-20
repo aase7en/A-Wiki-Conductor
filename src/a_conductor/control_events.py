@@ -23,6 +23,7 @@ class ControlEvent:
     event_type: str
     worker_id: str
     project_id: str
+    recorded_at: str | None = None
 
 
 def _require_text(value: str) -> str:
@@ -109,7 +110,7 @@ class SQLiteControlEventLog:
             except sqlite3.Error as exc:
                 connection.rollback()
                 raise ControlEventLogError("EVENT_STORE_WRITE_FAILED") from exc
-        return ControlEvent(event_id, event_type, worker_id, project_id)
+        return ControlEvent(event_id, event_type, worker_id, project_id, recorded_at)
 
     @staticmethod
     def _from_row(row: sqlite3.Row) -> ControlEvent:
@@ -118,6 +119,7 @@ class SQLiteControlEventLog:
             event_type=row["event_type"],
             worker_id=row["worker_id"],
             project_id=row["project_id"],
+            recorded_at=row["recorded_at"],
         )
 
     def get(self, event_id: str) -> ControlEvent | None:
@@ -126,7 +128,7 @@ class SQLiteControlEventLog:
         with self._connect() as connection:
             try:
                 row = connection.execute(
-                    "SELECT event_id, event_type, worker_id, project_id FROM control_events WHERE event_id = ?",
+                    "SELECT event_id, event_type, worker_id, project_id, recorded_at FROM control_events WHERE event_id = ?",
                     (event_id,),
                 ).fetchone()
             except sqlite3.Error as exc:
@@ -140,7 +142,7 @@ class SQLiteControlEventLog:
         with self._connect() as connection:
             try:
                 rows = connection.execute(
-                    "SELECT event_id, event_type, worker_id, project_id FROM control_events ORDER BY recorded_at DESC, rowid DESC LIMIT ?",
+                    "SELECT event_id, event_type, worker_id, project_id, recorded_at FROM control_events ORDER BY recorded_at DESC, rowid DESC LIMIT ?",
                     (limit,),
                 ).fetchall()
             except sqlite3.Error as exc:
