@@ -1,6 +1,6 @@
 # WO-P1-409 — GOT-1a Production GoalCloseout Projection Wiring
 
-Status: CLAIMED / IMPLEMENTATION_READY
+Status: IMPLEMENTED / PENDING_INDEPENDENT_REVIEW
 Issue: #409
 Parent: #405
 Topology: CONTROL_PLANE_ONLY
@@ -109,6 +109,14 @@ Freeze exact candidate SHA, then independent exact-SHA R3 review and exact-head 
 ## Replay safety
 
 GLM/result completion is only a claim. Every delegated run must persist a durable pointer under `runs/WO-P1-409/`. A new chat/session recovers pointer/process/result/Git before any redispatch. RUNNING is never duplicated. TERMINAL_UNHARVESTED is harvested first.
+
+## Implementation checkpoint (2026-09-20, GLM-5.3 MAX author attempt-0001)
+
+- RED proof captured at dispatch head `bdfda249f5ac2466335a0a33ecf84545a3f7c58d` in `runs/WO-P1-409/author/attempt-0001/red-proof.txt`: no `closeout` entry on `DurableJobControlService`, `goal_closeout_assembly` absent, bounded canonical fixture receives no fold through the current facade.
+- `goal_closeout_assembly.py` (new): `WorkerLeaseReleaseAdapter` binds the canonical `SQLiteWorkerLeaseStore.release` signature into `LeaseReleasePort.release(lease_id)`; `completed_closeout_checkpoint_refs` reconstructs stage refs from the durable CHECKPOINT journal; `CloseoutEvidenceBundle` carries identity-bound observed evidence; `assemble_goal_closeout_facade` wires `AgentChangeApplier -> ContinuityProjectionFoldAdapter -> GoalCloseoutExecutor`; `ProductionGoalCloseoutFacade.next_stage` performs at most one durable stage per call and enforces D1 (VERIFYING -> REVIEW_PENDING only with identity-bound, journal-reconstructible verify checkpoint; missing/stale/contradictory proof fails closed).
+- `job_control.py`: optional `closeout` composition + bounded `closeout_next_stage` entry + typed `JobControlError`.
+- Verification: `tests/test_goal_closeout_assembly.py` 24 passed; unchanged `tests/test_goal_closeout.py` + `tests/test_continuity_projection.py` 154 passed; related job-control/job-state/job-store/job-execution/agent-change/worker-lease battery 144 passed; compileall, `git diff --check`, exact four-path scope, strict UTF-8, added-line secret scan (one benign `secrets/**` scope-glob fixture match) PASS.
+- Stop state: READY_FOR_INDEPENDENT_EXACT_SHA_R3_REVIEW. Author does not merge or self-accept.
 
 ## Stop conditions
 

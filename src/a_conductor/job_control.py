@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Sequence
 
 from .domain import TaskState
+from .goal_closeout_assembly import (
+    ProductionCloseoutResult,
+    ProductionGoalCloseoutFacade,
+)
 from .job_execution import DurableJobExecutionCoordinator, JobExecutionOutcome
 from .job_state import JobRuntimeState
 from .job_store import JobEvent, SQLiteJobStore
@@ -26,15 +30,23 @@ from .native_operations import (
 )
 
 
+class JobControlError(RuntimeError):
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
+
+
 class DurableJobControlService:
     def __init__(
         self,
         *,
         store: SQLiteJobStore,
         coordinator: DurableJobExecutionCoordinator,
+        closeout: ProductionGoalCloseoutFacade | None = None,
     ) -> None:
         self._store = store
         self._coordinator = coordinator
+        self._closeout = closeout
 
     @classmethod
     def open(
@@ -179,3 +191,11 @@ class DurableJobControlService:
             worker_id=worker_id,
             operation_ref=operation_ref,
         )
+
+    def closeout_next_stage(self, job_id: str) -> ProductionCloseoutResult:
+        """Perform at most one durable closeout stage for the job through the
+        injected production composition (D1 promotion gate + existing
+        GoalCloseoutExecutor stages)."""
+        if self._closeout is None:
+            raise JobControlError("CLOSEOUT_NOT_CONFIGURED")
+        return self._closeout.next_stage(job_id)
