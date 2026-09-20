@@ -146,6 +146,33 @@ def canonicalize_existing_root(
     return resolved
 
 
+_SRM_PLATFORM_TAGS = ("win32", "posix")
+
+
+def canonical_root_digest(canonical_path: str, *, platform_tag: str) -> str:
+    """Return the SRM AdmissionBinding.canonicalDigest for one canonical root.
+
+    Byte-compatible with SunDayRemoteMCP ``canonicalDigest`` at the frozen
+    SRM reference (src/sunday/canonical-path.ts@251b052): SHA-256 lowercase
+    hex over UTF-8 bytes ``platform_tag + NUL + canonical_path``, where
+    CanonicalPlatform is exactly ``"win32"`` or ``"posix"``.
+
+    The caller must pass the already-normalized final physical spelling
+    produced by :func:`canonicalize_existing_root`; this helper performs no
+    path resolution or normalization of its own and has no alternate
+    normalization authority.
+
+    This is the cross-repo physical-root identity digest only. It is
+    deliberately distinct from :func:`binding_digest`, which identifies the
+    full attempt/admission tuple and must not change or be repurposed here.
+    """
+    path = _text(canonical_path, "canonical_path")
+    if not isinstance(platform_tag, str) or platform_tag not in _SRM_PLATFORM_TAGS:
+        raise ValueError("platform_tag must be exactly 'win32' or 'posix'")
+    body = f"{platform_tag}\0{path}".encode("utf-8")
+    return hashlib.sha256(body).hexdigest()
+
+
 @dataclass(frozen=True, slots=True)
 class DexBindingIdentity:
     execution_id: str
