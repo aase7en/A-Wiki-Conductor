@@ -1,6 +1,6 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-09-21 — WO438 merged; local post-main verified; hosted post-main CI pending
+## 2026-09-21 — WO438 COMPLETE; WO205 §14 released — CURRENT
 
 > **Current authoritative projection.** Actual Git/GitHub/runtime/durable evidence overrides this file if it drifts.
 
@@ -12,12 +12,12 @@
 - Detached post-main verification worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-post438-75d9e96`.
 - Post-main local proof: all 11 WO438 blobs are byte-identical to the reviewed candidate; focused set 177 PASS; work-order identity 33 PASS; `git diff --check` PASS; `py_compile` PASS.
 - The post-main wrapper returned exit 1 only after all gates because the PowerShell harness used unsupported three-argument `[Math]::Max`; this is harness-only, not a test/repo failure.
-- Hosted post-main push CI now exists: run `35544371466`, exact head `75d9e96...`. Ubuntu/macOS are SUCCESS; Windows is still RUNNING in isolated core suites. Status: `MERGED / LOCAL_POST_MAIN_VERIFIED / POST_MAIN_CI_RUNNING`.
-- Issue #438 stays OPEN and claim/closeout remains unreleased until post-main CI policy/evidence is reconciled.
+- Hosted post-main push CI run `35544371466` on exact `75d9e96...` is **SUCCESS** on Windows + Ubuntu + macOS, including core suites, Portable/Setup build, archive verification, Portable smoke, and Setup install/uninstall E2E.
+- Issue #438 is **CLOSED / COMPLETE / POST_MAIN_VERIFIED**; claim released. Issue #214 comment `5753611455` releases WO205 §14 source-gate work only.
 - Protected root `A:\GitHub\A-Wiki-Conductor` is stale at `1a5ea1b...`, 16 commits behind current main, with pre-existing untracked `$null`, `0`, and `docs/prompts/GLM-WO230-ZRA2-REVIEW-TASK-CONTRACT-AUTHORITY.md`; do not reset/clean/stash or use it for mutation.
 - Session rollover checkpoint branch: `docs/wo-p1-438-session-handoff`; worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo438-session-handoff`.
 
-**Exact next safe action:** harvest existing post-main run `35544371466` without rerun. If SUCCESS, mark WO438 POST_MAIN_VERIFIED/COMPLETE, close Issue #438, and release Issue #214 / WO205 §14 source archaeology only. If failure, classify/root-cause before retry. Then re-pin current main before any new source mutation.
+**Exact next safe action:** in the new session re-pin actual main / Issue #214 / WO205, recover global WIP/collisions, create a fresh isolated Phase-D source worktree, execute WO205 §14 steps 1–7, freeze exact source/test scope, then RED-first implementation. `SAFE_TO_MUTATE_PHASE_D_SOURCE=NO` until that checklist completes.
 
 ## 2026-09-21 — WO433 RUNTIME-ACT-1 session rollover — CURRENT FRONTIER
 
