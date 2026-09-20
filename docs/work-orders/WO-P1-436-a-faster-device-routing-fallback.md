@@ -61,3 +61,14 @@ Fresh sessions recover Issue #436, this WO, actual Git/worktree state, active de
 ## Initial checkpoint
 
 Collision census before claim found no recent local A-Faster pointer on Mac or Windows. Historical A-Faster branches `WO256`, `WO260`, `WO387`, and `WO404` are all fully behind current main with zero commits ahead. Open PR search found no current branch owning this exact A-Faster hotspot. The claim therefore owns only the exact mutable scope above.
+
+## Author checkpoint
+
+- Author executor: GPT-5.6 Sol direct on the isolated Mac/RDC worktree.
+- `GLM_OFFLOAD_ASSESSMENT=NOT_BENEFICIAL` for the author pass: the mutation was a small, surgical routing-policy delta with exact user-specified semantics; GLM capacity is reserved for the required independent frozen-SHA review.
+- Changed behavior: one-clause A-Faster invocation now carries Windows Worker-first/RDC-second routing, Mac RDC-first routing, GLM-first long-running labor, typed Sol direct fallback, and event-driven collision pulses.
+- `git diff --check`: PASS.
+- UTF-8 / U+FFFD / A-Faster frontmatter-reference check: PASS.
+- `tests/test_work_order_identity.py`: 33 passed.
+- Added-line secret-shaped scan: 0 hits.
+- Candidate must still be frozen, independently reviewed, exact-head CI-verified, accepted and merged before this WO can close.
