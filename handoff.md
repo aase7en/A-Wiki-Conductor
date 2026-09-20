@@ -5,7 +5,7 @@
 This handoff is written specifically so a new ChatGPT session can resume without access to the prior chat.
 
 - Start with `00-AGENT-ENTRY.md`, `PROJECT-GRAPH.yaml`, `AGENTS.md`, then actual Git/GitHub/runtime truth.
-- Active closeout authority: Issue #438 / WO-P1-438; historical alias only: Issue #330 / WO-P1-246.
+- Completed provenance authority: Issue #438 / WO-P1-438 is CLOSED / COMPLETE / POST_MAIN_VERIFIED; historical alias only: Issue #330 / WO-P1-246.
 - Remote main / merged PR #336: `75d9e96e46e15cc8ef647d12194d677657689bde`.
 - Exact reviewed candidate: `f93e16377f500d16cbed66763058c2f4a2237790`.
 - Exact reviewer evidence: `A:\GitHub\_worktrees\A-Wiki-Conductor-review-wo438-f93e163\runs\WO-P1-438\r3-review\attempt-0001\execution-pointer.json`, `exit.json`, `result.md`. Status TERMINAL, exit 0, VERDICT PASS, P0/P1/P2=0.
@@ -17,7 +17,7 @@ This handoff is written specifically so a new ChatGPT session can resume without
 - No SunDay-Worker tool surface was exposed in the outgoing chat; RDC + GitHub were the verified surfaces.
 - Global WIP at handoff: no active WO438 writer/reviewer process; continuity-only lane owns only this checkpoint branch/files.
 
-**Resume sequence:** (1) fetch/re-pin remote main and Issue #438; (2) recover workflows for merge SHA; (3) if post-main gate passes, record GPT-5.6 Sol closeout, close Issue #438 completed and release claim; (4) re-run Issue #214 / WO205 §14 provenance archaeology from actual main; (5) then continue the roadmap from the newly unblocked Phase-D boundary. Never redispatch completed WO438 review or rewrite historical WO246 aliases.
+**Resume sequence:** (1) fetch/re-pin actual remote main, Issue #214 and WO205; (2) recover global A-Faster WIP/collisions; (3) execute WO205 §14 steps 1–7 in a fresh isolated source worktree; (4) freeze exact mutable source/test scope; (5) only then RED-first Phase-D implementation. Issue #438 is complete; never redispatch its review or rewrite historical WO246 aliases.
 
 ## 2026-09-21 — Session rollover handoff: WO433 is the active Product Fast Lane frontier
 
