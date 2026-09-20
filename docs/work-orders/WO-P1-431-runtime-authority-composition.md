@@ -1,6 +1,6 @@
 # WO-P1-431 — RUNTIME-AUTH-1 Production Durable Runtime Authority Composition
 
-Status: SHAPING / R3_AUTHORITY_MODEL / SOURCE_BLOCKED
+Status: R3_AUTHORITY_MODEL_FROZEN / SOURCE_BLOCKED_ON_424_ACCEPTANCE
 Issue: #431
 Blocks: #429 COCKPIT-1B / LOCAL-USABLE-1
 Topology: CONTROL_PLANE_ONLY
@@ -53,7 +53,7 @@ CUT / FORBID:
 - PID/branch/prose/age inference;
 - initializing job/execution/lease schemas from a read-only monitor tick.
 
-## R3 authority decision candidate
+## R3 authority decision (frozen for source-entry gate)
 
 Canonical product authority identity is the **existing canonical control
 database path supplied to product composition**. Runtime stores may use
@@ -150,9 +150,63 @@ R3 implementation requires:
 - GPT-5.6 Sol acceptance;
 - expected-head merge + detached post-main proof.
 
+## Deterministic shaping proofs
+
+Temp-only compatibility proof on Windows used a fresh temporary SQLite path and
+the real production classes. It did not touch the installed live database.
+
+One exact path was supplied to:
+- `DesktopControlService.open()`;
+- `SQLiteJobStore.initialize()`;
+- `SQLiteExecutionStore.initialize()`;
+- `SQLiteWorkerLeaseStore`.
+
+Observed proof:
+- every store/facade retained the same canonical path: `DB_IDENTITY_EQUAL=True`;
+- job tables, `execution_records`, and `worker_leases` coexisted in one file;
+- all three authorities reopened successfully from the same path;
+- no second database identity was required.
+
+A separate temp-only concurrency stress launched 24 initializations against one
+fresh shared SQLite file (8 job + 8 execution + 8 lease) and observed
+`CONCURRENT_TOTAL=24`, `CONCURRENT_ERRORS=0`.
+
+These proofs establish compatibility/mechanism only. They do not by themselves
+authorize migration of an installed database or make a pathname authoritative.
+The authority decision remains the product composition contract plus the
+existing owning stores.
+
+## Frozen R3 authority model
+
+GPT-5.6 Sol integrator freezes the shaping decision for the next implementation
+gate:
+1. the product composition's canonical control database path is the single
+   runtime-authority identity locator;
+2. existing job/execution/lease stores remain the only durable authorities and
+   may use namespaced tables in that same file;
+3. initialization/migration is performed only by the owning runtime subsystem,
+   never by Cockpit/read-only observation;
+4. a legacy installed database with absent runtime tables is valid but exposes
+   runtime authority as unavailable/UNKNOWN until an authorized runtime owner
+   activates those stores;
+5. exact identity mismatch fails before mutation;
+6. no filename/table scan/runs-directory scan creates authority;
+7. later activation/migration of an installed database remains a consequential
+   R3 product step requiring sacrificial-copy, rollback, concurrency, schema and
+   post-migration verification before any live mutation.
+
 ## Current checkpoint
 
-Evidence supports the single-control-DB identity direction, but source mutation
-remains blocked by #424 hotspot/review ownership. The canonical #424 reviewer
-must be harvested first. #429 remains DEPENDENCY_REQUIRED until this authority
-composition is accepted.
+WO424 has now been explicitly re-scoped to COCKPIT-1A foundation at exact
+`823263bc46c756a3fbb081edfecfa5e94020c9a4`. Its fresh independent foundation
+R2 is active as
+`run:WO-P1-424:foundation-r2:1:a1:63df92c0fb0c`; exact-head CI #1087 is also
+active. Product/test blobs are unchanged from the prior reviewed `e624728d...`
+candidate.
+
+Therefore WO431 source mutation remains blocked until #424 foundation is
+accepted and merged, because `desktop_control.py` is the overlapping hotspot.
+After post-main re-pin, rerun the source mutation gate from then-current main
+using the frozen authority model above.
+
+#429 remains `DEPENDENCY_REQUIRED` until a WO431 implementation is accepted.
