@@ -1,0 +1,17 @@
+{
+  "native_version": "0.0.0-fixture-a",
+  "expect_outcome": "reject",
+  "expect_code": "HOOK_EVENT_INVALID",
+  "contains_redaction_bait": false,
+  "frame": {
+    "fixture_event": "FxToolFail",
+    "session_ref": "fx-session-0001",
+    "turn_ref": "fx-turn-0009",
+    "occurred_at": "2026-09-19T08:21:00Z",
+    "tool_ref": "FxBash",
+    "tool_payload": {
+      "command": "echo ok"
+    },
+    "failure_code": "tool broke badly!"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0.0",
+  "event_id": "hk-03030303030303030303030303030303",
+  "event_type": "execution.prompt_submitted",
+  "hook_class": "OBSERVE",
+  "phase": "before",
+  "domain": "execution",
+  "action": "prompt_submitted",
+  "occurred_at": "2026-09-19T01:30:15.250Z",
+  "source": "claude-code",
+  "source_version": "0.0.0-fixture-a",
+  "device_id": "device-fx-01",
+  "host_os": "windows",
+  "privacy_class": "SENSITIVE",
+  "correlation_id": "fx-session-0001",
+  "summary": "prompt submitted"
+}

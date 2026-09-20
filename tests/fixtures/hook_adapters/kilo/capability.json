@@ -1,0 +1,14 @@
+{
+  "adapter_id": "kilo-hook-adapter",
+  "adapter_version": "1.0.0",
+  "contract_version": "1.0.0",
+  "emits": [
+    "transport.adapter_capabilities",
+    "execution.step_start",
+    "execution.message",
+    "tool.execute.before",
+    "tool.execute.after"
+  ],
+  "redaction_policy": "fake-secret-corpus/1",
+  "supports_sequence": false
+}
