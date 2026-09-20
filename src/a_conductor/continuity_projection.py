@@ -12,7 +12,11 @@ machine, review authority, or projection authority):
    the existing ``AgentChangeApplier`` mutation authority (lease-gated,
    all-or-nothing per-file preflight, content ``expected_sha256``
    preconditions), one target packet at a time, then read-back verifies
-   EVERY intended target before ``completed=True``.
+   EVERY intended target before ``completed=True``. WO-P1-410: a fold
+   request carrying merge identity publishes through the typed
+   ``apply_merge_fold_reconciliation`` admission (the only path that may
+   run while continuity is MERGED_NOT_FOLDED); a fold request without
+   merge identity keeps the generic FRESH-only ``apply`` path.
 
 The adapter writes files one-by-one (AgentChangeApplier is atomic per
 file, not per bundle). A crash/failure after the first target can leave
@@ -38,6 +42,7 @@ from .agent_change_packets import (
     AgentChangeError,
     AgentFileChange,
     AgentResultPacket,
+    MergeFoldReconciliation,
 )
 from .goal_closeout import FoldOutcome, FoldRequest
 
@@ -361,6 +366,26 @@ class ContinuityProjectionFoldAdapter:
             or request.candidate_sha.casefold() != facts.candidate_sha
         ):
             raise ProjectionError("PROJECTION_CANDIDATE_MISMATCH")
+        # WO-P1-410: a fold request carrying merge identity selects the
+        # typed merge-fold reconciliation admission (the ONLY path that may
+        # publish while continuity is MERGED_NOT_FOLDED). The adapter never
+        # invents merge identity: it forwards the request's identity after
+        # binding it against the current projection facts.
+        reconciliation: MergeFoldReconciliation | None = None
+        request_merge_commit = getattr(request, "merge_commit", None)
+        if request_merge_commit is not None:
+            if (
+                facts.merge_commit is None
+                or facts.merge_commit != request_merge_commit.casefold()
+            ):
+                raise ProjectionError("PROJECTION_MERGE_MISMATCH")
+            reconciliation = MergeFoldReconciliation(
+                task_id=self._task_id,
+                lease_id=self._lease_id,
+                candidate_sha=request.candidate_sha,
+                merge_commit=request_merge_commit,
+                checkpoint_ref=request.checkpoint_ref,
+            )
         rendered: dict[str, str] = {}
         for name in self._targets:
             prior = self._prior_text_loader(name)
@@ -390,12 +415,19 @@ class ContinuityProjectionFoldAdapter:
                 evidence_refs=("projection-fold",),
             )
             try:
-                self._applier.apply(
-                    packet, self._lease_id,
-                    session_id=self._session_id,
-                    task_id=self._task_id,
-                    actual_head=self._actual_head or ("0" * 40),
-                )
+                if reconciliation is None:
+                    self._applier.apply(
+                        packet, self._lease_id,
+                        session_id=self._session_id,
+                        task_id=self._task_id,
+                        actual_head=self._actual_head or ("0" * 40),
+                    )
+                else:
+                    self._applier.apply_merge_fold_reconciliation(
+                        packet, reconciliation,
+                        session_id=self._session_id,
+                        actual_head=self._actual_head or ("0" * 40),
+                    )
             except AgentChangeError:
                 # preflight conflict / ownership / drift: no NEW write in
                 # this packet. Earlier targets may already have landed =>

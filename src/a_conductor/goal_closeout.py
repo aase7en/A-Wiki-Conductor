@@ -639,9 +639,15 @@ class FoldOutcome:
 
 @dataclass(frozen=True, slots=True)
 class FoldRequest:
+    """Fold obligation identity for the fold port. ``merge_commit`` is the
+    WO-P1-410 additive merge identity: populated by the executor from the
+    ``MergeEvidence`` holder when the fold repairs an accepted merge; the
+    fold adapter never invents it."""
+
     task_id: str
     candidate_sha: str
     checkpoint_ref: str
+    merge_commit: str | None = None
 
 
 class LeaseReleasePort(Protocol):
@@ -722,6 +728,7 @@ class GoalCloseoutExecutor:
                     task_id=facts.task_id,
                     candidate_sha=facts.current_candidate_sha or "",
                     checkpoint_ref=plan.checkpoint_ref or "",
+                    merge_commit=facts.merge.merge_commit,
                 ))
                 if outcome.completed is not True:
                     return GoalCloseoutExecutionResult(

@@ -3,6 +3,13 @@
 Models propose complete file replacements. Only this deterministic boundary may
 materialize them after identity, lease, scope, and content-precondition checks.
 It owns no scheduler, provider, retry loop, Git mutation, or lease lifecycle.
+
+WO-P1-410: exactly ONE typed non-fresh admission exists —
+``apply_merge_fold_reconciliation``, bound to the single reconciliation
+action ``ReconciliationAction.COMPLETE_MERGE_FOLD`` over the canonical
+continuity projection targets. It reuses the same mutation pipeline and
+typed failures as the generic FRESH-only ``apply``; generic ``apply``
+itself never admits a non-FRESH snapshot.
 """
 from __future__ import annotations
 
@@ -27,6 +34,11 @@ from .registry import windows_worktree_key
 from .worker_lease import LeaseHealth, LeaseHealthKind, LeaseMutationIntent, WorkerLeaseError
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
+_MERGE_COMMIT_RE = re.compile(r"^[A-Za-z0-9._:/-]{1,256}$")
+MERGE_FOLD_TARGETS: frozenset[str] = frozenset({
+    "CURRENT-WORK.md", "handoff.md", "COLLAB.md",
+})
 _ALLOWED_STATUSES = frozenset({"CHANGES_PROPOSED", "NO_CHANGES", "BLOCKED"})
 _AGENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
@@ -153,6 +165,36 @@ class AgentChangeApplyResult:
 
 
 @dataclass(frozen=True, slots=True)
+class MergeFoldReconciliation:
+    """Typed admission identity for the ONE reconciliation action that may
+    mutate a MERGED_NOT_FOLDED worktree: completing the accepted merge's
+    projection fold over the canonical continuity targets.
+
+    Every field is caller-supplied authority binding — the applier never
+    invents or infers merge identity, and no free-form evidence string
+    grants permission: admission still requires the trusted continuity
+    snapshot to classify MERGED_NOT_FOLDED for exactly this merge."""
+
+    task_id: str
+    lease_id: str
+    candidate_sha: str
+    merge_commit: str
+    checkpoint_ref: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "task_id", _text(self.task_id, "task_id", max_length=128))
+        object.__setattr__(self, "lease_id", _text(self.lease_id, "lease_id", max_length=128))
+        if not isinstance(self.candidate_sha, str) or not _SHA_RE.fullmatch(self.candidate_sha):
+            raise ValueError("candidate_sha is invalid")
+        object.__setattr__(self, "candidate_sha", self.candidate_sha.casefold())
+        if not isinstance(self.merge_commit, str) or not _MERGE_COMMIT_RE.fullmatch(self.merge_commit):
+            raise ValueError("merge_commit is invalid")
+        object.__setattr__(
+            self, "checkpoint_ref", _text(self.checkpoint_ref, "checkpoint_ref", max_length=512)
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class MutationContinuityRequest:
     """The apply path's own continuity request, derived at apply time from
     authoritative inputs (apply identity + active lease facts + packet
@@ -221,7 +263,7 @@ class AgentChangeApplier:
         self._continuity_provider = continuity_provider
         self._clock = clock
 
-    def _gate_continuity(
+    def _continuity_snapshot(
         self,
         *,
         lease: WorkerLease,
@@ -230,15 +272,13 @@ class AgentChangeApplier:
         actual_head: str,
         expected_head: str,
         change_paths: tuple[str, ...],
-    ) -> None:
-        """P0-B2 mandatory fail-closed continuity gate (WO-P1-166).
-
-        Builds the mutation continuity request from authoritative apply-time
-        facts, obtains a snapshot from the TRUSTED provider (never a
-        caller-supplied verdict or free-form snapshot), validates the
-        snapshot is identity-bound to this exact mutation, and internally
-        classifies it. Only FRESH with safe_to_mutate=True passes. No state
-        is cached across apply calls."""
+    ) -> ContinuitySnapshot:
+        """Obtain and identity-bind the trusted continuity snapshot for one
+        mutation (P0-B2). Builds the request from authoritative apply-time
+        facts, obtains the snapshot from the TRUSTED provider (never a
+        caller-supplied verdict or free-form snapshot), and validates the
+        snapshot is identity-bound to this exact mutation. Classification
+        is the caller's gate; nothing is cached across calls."""
         request = MutationContinuityRequest(
             session_id=session_id,
             task_id=task_id,
@@ -296,6 +336,30 @@ class AgentChangeApplier:
                 change_path, snapshot.mutable_scope
             ):
                 raise _deny("mutable_scope_coverage")
+        return snapshot
+
+    def _gate_continuity(
+        self,
+        *,
+        lease: WorkerLease,
+        session_id: str,
+        task_id: str,
+        actual_head: str,
+        expected_head: str,
+        change_paths: tuple[str, ...],
+    ) -> None:
+        """P0-B2 mandatory fail-closed continuity gate (WO-P1-166).
+
+        Internally classifies the identity-bound snapshot. Only FRESH with
+        safe_to_mutate=True passes."""
+        snapshot = self._continuity_snapshot(
+            lease=lease,
+            session_id=session_id,
+            task_id=task_id,
+            actual_head=actual_head,
+            expected_head=expected_head,
+            change_paths=change_paths,
+        )
         verdict = classify_continuity(snapshot)
         if (
             verdict.classification is not ContinuityClassification.FRESH
@@ -303,17 +367,77 @@ class AgentChangeApplier:
         ):
             raise AgentChangeError("CONTINUITY_NOT_FRESH")
 
-    def apply(
+    def _gate_merge_fold_reconciliation(
         self,
-        packet: AgentResultPacket,
+        reconciliation: MergeFoldReconciliation,
+        *,
+        lease: WorkerLease,
+        session_id: str,
+        actual_head: str,
+        expected_head: str,
+        change_paths: tuple[str, ...],
+    ) -> None:
+        """WO-P1-410 typed admission for ReconciliationAction
+        COMPLETE_MERGE_FOLD over the canonical continuity targets.
+
+        Fail-closed semantics: the trusted snapshot must classify exactly
+        MERGED_NOT_FOLDED (denying UNKNOWN, CLAIM_CONFLICT, DIRTY,
+        HEAD_DRIFT, STALE_LOCAL and every other primary classification)
+        for the EXACT merge identity; generic RECONCILE_REQUIRED residue
+        denies; SSOT drift is tolerated only when every contradicting
+        source is one of the canonical projection targets being repaired
+        (the fold's defined repair surface)."""
+        snapshot = self._continuity_snapshot(
+            lease=lease,
+            session_id=session_id,
+            task_id=reconciliation.task_id,
+            actual_head=actual_head,
+            expected_head=expected_head,
+            change_paths=change_paths,
+        )
+        verdict = classify_continuity(snapshot)
+        if verdict.classification is not ContinuityClassification.MERGED_NOT_FOLDED:
+            raise AgentChangeError("RECONCILIATION_CLASSIFICATION_DENIED")
+        if any(
+            finding.kind is ContinuityClassification.RECONCILE_REQUIRED
+            for finding in verdict.findings
+        ):
+            raise AgentChangeError("RECONCILIATION_RECONCILE_REQUIRED")
+        fold = snapshot.merge_fold
+        if fold is None or fold.merge_commit != reconciliation.merge_commit:
+            raise AgentChangeError("RECONCILIATION_MERGE_IDENTITY_MISMATCH")
+        actual_active_lease_ids = frozenset(
+            item.lease_id for item in snapshot.leases if item.state == "ACTIVE"
+        )
+        for claim in sorted(snapshot.projections, key=lambda item: item.source):
+            contradicts = (
+                (
+                    claim.asserted_head is not None
+                    and snapshot.local_head is not None
+                    and claim.asserted_head != snapshot.local_head
+                )
+                or (
+                    claim.asserted_branch is not None
+                    and claim.asserted_branch != snapshot.branch
+                )
+                or (
+                    claim.asserted_active_lease_ids is not None
+                    and frozenset(claim.asserted_active_lease_ids) != actual_active_lease_ids
+                )
+            )
+            if contradicts and claim.source not in MERGE_FOLD_TARGETS:
+                raise AgentChangeError("RECONCILIATION_DRIFT_UNRELATED")
+
+    def _active_lease(
+        self,
         lease_id: str,
         *,
         session_id: str,
         task_id: str,
-        actual_head: str,
-    ) -> AgentChangeApplyResult:
-        if not isinstance(packet, AgentResultPacket):
-            raise ValueError("packet is required")
+        packet_task_id: str,
+    ) -> WorkerLease:
+        """Shared authoritative lease/owner/worktree preflight (fail-closed,
+        zero filesystem writes) reused by both admission paths."""
         try:
             health = self._lease_store.inspect_health(lease_id, now=self._clock())
         except WorkerLeaseError as exc:
@@ -321,7 +445,7 @@ class AgentChangeApplier:
         if not isinstance(health, LeaseHealth) or health.kind is not LeaseHealthKind.ACTIVE:
             raise AgentChangeError("LEASE_NOT_ACTIVE")
         lease = health.lease
-        if lease.session_id != session_id or lease.task_id != task_id or packet.task_id != task_id:
+        if lease.session_id != session_id or lease.task_id != task_id or packet_task_id != task_id:
             raise AgentChangeError("LEASE_OWNER_MISMATCH")
         if windows_worktree_key(str(self._filesystem.root)) != windows_worktree_key(lease.worktree_key):
             raise AgentChangeError("WORKTREE_MISMATCH")
@@ -329,26 +453,17 @@ class AgentChangeApplier:
             raise AgentChangeError("LEASE_NOT_MUTATING")
         if lease.released_at is not None or lease.quarantined_at is not None:
             raise AgentChangeError("LEASE_NOT_ACTIVE")
-        expected_head = lease.expected_head.casefold()
-        if packet.base_head != expected_head or actual_head.casefold() != expected_head:
-            raise AgentChangeError("HEAD_MISMATCH")
-        if packet.status != "CHANGES_PROPOSED":
-            return AgentChangeApplyResult(())
+        return lease
 
-        # P0-B2: the ContinuityGuard gate runs before scope/content preflight
-        # so every continuity failure happens with ZERO filesystem writes.
-        self._gate_continuity(
-            lease=lease,
-            session_id=session_id,
-            task_id=task_id,
-            actual_head=actual_head,
-            expected_head=expected_head,
-            change_paths=tuple(change.path for change in packet.changes),
-        )
-
-        # Preflight every change before the first write. This makes policy failures
-        # all-or-nothing; NativeFileSystem still provides per-file TOCTOU protection.
-        for change in packet.changes:
+    def _materialize(
+        self,
+        changes: tuple[AgentFileChange, ...],
+        lease: WorkerLease,
+    ) -> AgentChangeApplyResult:
+        """Shared scope preflight + content precondition + atomic write path.
+        Policy failures are all-or-nothing; NativeFileSystem still provides
+        per-file TOCTOU protection."""
+        for change in changes:
             if _matches(change.path, lease.forbidden_scope):
                 raise AgentChangeError("CHANGE_SCOPE_DENIED")
             if not _matches(change.path, lease.mutable_scope):
@@ -369,7 +484,7 @@ class AgentChangeApplier:
 
         changed: list[str] = []
         try:
-            for change in packet.changes:
+            for change in changes:
                 result = self._filesystem.write_text(
                     change.path,
                     change.content,
@@ -379,6 +494,81 @@ class AgentChangeApplier:
         except NativeExecutionError as exc:
             raise AgentChangeError("CHANGE_APPLY_FAILED") from exc
         return AgentChangeApplyResult(tuple(changed))
+
+    def apply(
+        self,
+        packet: AgentResultPacket,
+        lease_id: str,
+        *,
+        session_id: str,
+        task_id: str,
+        actual_head: str,
+    ) -> AgentChangeApplyResult:
+        if not isinstance(packet, AgentResultPacket):
+            raise ValueError("packet is required")
+        lease = self._active_lease(
+            lease_id, session_id=session_id, task_id=task_id, packet_task_id=packet.task_id,
+        )
+        expected_head = lease.expected_head.casefold()
+        if packet.base_head != expected_head or actual_head.casefold() != expected_head:
+            raise AgentChangeError("HEAD_MISMATCH")
+        if packet.status != "CHANGES_PROPOSED":
+            return AgentChangeApplyResult(())
+
+        # P0-B2: the ContinuityGuard gate runs before scope/content preflight
+        # so every continuity failure happens with ZERO filesystem writes.
+        self._gate_continuity(
+            lease=lease,
+            session_id=session_id,
+            task_id=task_id,
+            actual_head=actual_head,
+            expected_head=expected_head,
+            change_paths=tuple(change.path for change in packet.changes),
+        )
+        return self._materialize(packet.changes, lease)
+
+    def apply_merge_fold_reconciliation(
+        self,
+        packet: AgentResultPacket,
+        reconciliation: MergeFoldReconciliation,
+        *,
+        session_id: str,
+        actual_head: str,
+    ) -> AgentChangeApplyResult:
+        """WO-P1-410 typed admission for the merge-fold reconciliation
+        action ONLY. Reuses the full existing mutation pipeline — active
+        lease/health, task/owner/worktree/branch/head, mutable/forbidden
+        scope, content preconditions, atomic write — with the same typed
+        failures as ``apply``; the sole difference is the continuity
+        admission gate (see ``_gate_merge_fold_reconciliation``)."""
+        if not isinstance(packet, AgentResultPacket):
+            raise ValueError("packet is required")
+        if not isinstance(reconciliation, MergeFoldReconciliation):
+            raise ValueError("reconciliation is required")
+        lease = self._active_lease(
+            reconciliation.lease_id,
+            session_id=session_id,
+            task_id=reconciliation.task_id,
+            packet_task_id=packet.task_id,
+        )
+        expected_head = lease.expected_head.casefold()
+        if packet.base_head != expected_head or actual_head.casefold() != expected_head:
+            raise AgentChangeError("HEAD_MISMATCH")
+        if packet.status != "CHANGES_PROPOSED":
+            return AgentChangeApplyResult(())
+        change_paths = tuple(change.path for change in packet.changes)
+        for path in change_paths:
+            if path not in MERGE_FOLD_TARGETS:
+                raise AgentChangeError("RECONCILIATION_TARGET_UNSUPPORTED")
+        self._gate_merge_fold_reconciliation(
+            reconciliation,
+            lease=lease,
+            session_id=session_id,
+            actual_head=actual_head,
+            expected_head=expected_head,
+            change_paths=change_paths,
+        )
+        return self._materialize(packet.changes, lease)
 
 
 def agent_result_from_claude_payload(payload: dict[str, object]) -> AgentResultPacket:
