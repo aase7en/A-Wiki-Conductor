@@ -1,6 +1,6 @@
 # WO-P1-399 — HOOK-1b.1 persisted UTC Z timestamp
 
-Status: CLAIMED / READY_FOR_IMPLEMENTATION
+Status: AUTHOR_GREEN / AWAITING_INDEPENDENT_EXACT_SHA_REVIEW
 Issue: #399
 Identity schema: GITHUB_ISSUE_V1
 Risk: R3 — time/interface compatibility
@@ -23,7 +23,9 @@ Topology: CONTROL_PLANE_ONLY
 `datetime.now(timezone.utc).isoformat()`, which ends in `+00:00`.
 Hook Contract v1 requires `occurred_at` to end in UTC `Z`.
 WO-P1-394 correctly reuses the exact persisted timestamp byte-for-byte,
-so current production Hook delivery degrades instead of emitting.## Settled design
+so current production Hook delivery degrades instead of emitting.
+
+## Settled design
 
 Change only the timestamp serialization used for newly appended control events.
 
@@ -58,7 +60,9 @@ Everything else read-only.
 - planner/coordinator/executor semantics
 - CURRENT-WORK / handoff / COLLAB
 - new scheduler/task/claim/review/time authority
-- reset/clean/stash/rebase/force-push/history rewrite## RED-first acceptance
+- reset/clean/stash/rebase/force-push/history rewrite
+
+## RED-first acceptance
 
 Before production mutation add deterministic failures proving:
 1. a newly appended event does not yet end in `Z`;
@@ -91,7 +95,47 @@ Run at minimum:
 If a direct existing normalizer assertion can prove the new timestamp is
 accepted without widening source scope, add that assertion only in the
 already-owned `tests/test_control_events.py`; otherwise report the boundary
-and let the integrator perform cross-candidate integration verification.## R3 / fan-in gates
+and let the integrator perform cross-candidate integration verification.
+
+## Author evidence (GLM-5.3 MAX attempt-0001, 2026-09-20)
+
+Dispatch base: `7241ca13df711f2abcbae8d0655f25a5c2c7b9e8`, tree clean.
+
+RED (before any source mutation): added focused tests in
+`tests/test_control_events.py`; `python -m pytest -q tests/test_control_events.py`
+-> 3 failed, 8 passed, failures exactly on the timestamp contract:
+
+- `test_new_appended_recorded_at_is_canonical_utc_z` (persisted
+  `...+00:00` fails the canonical-Z regex)
+- `test_new_append_get_and_list_expose_identical_persisted_z_bytes`
+- `test_persisted_z_timestamp_is_accepted_by_existing_hook_normalizer`
+  (existing normalizer rejects with `CONTROL_HOOK_OCCURRED_AT_INVALID`)
+
+Guard tests passing already: seeded legacy `+00:00` row returned
+byte-for-byte via get/list, schema `PRAGMA` unchanged (recorded_at TEXT
+notnull), strengthened append/get/list UTF-8 byte equality.
+
+GREEN: one serialization change at the existing store in
+`src/a_conductor/control_events.py` `append()`:
+`datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")`
+(integrator-preferred fixed six-digit fraction variant; same clock, same
+column, no schema/DDL change, no new authority). Results:
+
+- `python -m pytest -q tests/test_control_events.py` -> 11 passed
+- `python -m pytest -q tests/test_control_events.py tests/test_control_hook_adapter.py`
+  -> 159 passed (baseline 155 + 4 new, adapter source untouched)
+- `python -m pytest -q tests/test_work_order_identity.py` -> 33 passed
+- `git diff --check` clean; strict UTF-8, no U+FFFD; added-line secret
+  scan 0 hits; changed scope exactly the three files of this Work Order.
+
+Direct normalizer acceptance proof lives only in the owned test file; no
+change to `control_hook_adapter.py`. Candidate = the single commit
+`feat(WO399): persist Hook-compatible UTC timestamps` on top of the
+dispatch base; exact candidate SHA is frozen in the author result at
+`runs/WO-P1-399/author/attempt-0001/result.md` for independent review.
+Author does not merge or self-accept.
+
+## R3 / fan-in gates
 
 1. freeze exact candidate SHA;
 2. independent exact-SHA review;
