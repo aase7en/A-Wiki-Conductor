@@ -1,6 +1,6 @@
 # WO-P1-396 — HOOK-2b canonical terminal semantic identity
 
-Status: CLAIMED / READY_FOR_IMPLEMENTATION
+Status: ACCEPTED / AUTHORITY_CLOSEOUT_READY
 Issue: #396
 Identity schema: GITHUB_ISSUE_V1
 Risk: R3 — concurrency / idempotency / durable execution evidence
@@ -188,3 +188,44 @@ is proven.
 
 Recover durable pointer/process/result/Git before redispatch. RUNNING is never
 duplicated. Unknown concurrent side effects fail closed.
+
+## Acceptance / authority closeout checkpoint — 2026-09-20
+
+Final accepted execution candidate:
+- SunDayRemoteMCP branch: `feat/wo396-terminal-semantic-id`
+- exact local-only SRM SHA: `63ec1a0c3d6030fbf53a6ed01059d1a694d63554`
+- production repair parent: `789505771f5b35376787773b1fc77f611080d1cb`
+- final repair delta from `7895057...` to `63ec1a0...`: test-only
+  `test/test-sunday-supervisor.js`; production `src/sunday/supervisor.ts`
+  remains byte-identical.
+
+Independent exact-SHA R3 rereview:
+- durable run:
+  `run:WO-P1-396:rereview:1:a2:712cbbc3e2dd`
+- verdict: PASS
+- severities: P0=0 / P1=0 / P2=0 / P3=3 nonblocking
+- reviewer re-proved the per-runtime synchronous non-reentrancy guard,
+  terminal identity/finalization invariants, and deterministic concurrency
+  regression strength.
+- focused pair: 5/5 unloaded + 18/18 under bounded CPU load.
+- known `kill ESRCH` and output-tail failures were independently reproduced
+  on the byte-exact parent test and remain pre-existing/out of this WO scope.
+
+Pre-closeout exact compatibility set:
+`{A-Wiki-Conductor@bd4892185195d8c6a7c3a8652a75ec4db7f003b4, SunDayRemoteMCP@63ec1a0c3d6030fbf53a6ed01059d1a694d63554}`.
+
+Post-fan-in compatibility proof on this authority branch:
+- accepted Hook roadmap blob remains
+  `a7d376e3d646064406e6f80b66ac57fe47759632`;
+- accepted WO-P1-389 Hook contract blob remains
+  `9589ae6c16303a475fa494a911e0010cdda9fdfe`;
+- both blobs are byte-identical between accepted HOOK-2a authority
+  `9afe16cd6b07a1175be47e70855734b86bc3afa8` and current accepted main
+  `bd4892185195d8c6a7c3a8652a75ec4db7f003b4`;
+- fan-in is non-overlapping: the unique branch delta versus current main is
+  only this Work Order file.
+
+SRM remains local-only. This acceptance authorizes A-Wiki authority closeout
+only; it does not create an SRM remote, publish SRM, or broaden the five-file
+execution scope. The final A-Wiki merge SHA and post-main CI are recorded on
+Issue #396 after expected-head merge.
