@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 import threading
+from threading import Barrier, Event, Lock, get_ident
 
 import pytest
 
@@ -497,3 +500,147 @@ def test_receipt_persistence_exposes_no_rewrite_or_delete_api(tmp_path: Path) ->
         "replace_receipt",
     ):
         assert not hasattr(store, forbidden)
+
+
+def test_initialize_is_safe_for_two_callers_that_both_observe_missing_schema_version(tmp_path: Path) -> None:
+    """Deterministically force the historical SELECT-then-INSERT race.
+
+    Both initializers observe no schema-version row before either INSERT. The
+    first INSERT is allowed to commit before the second executes, so a plain
+    INSERT deterministically raises while an idempotent initialization path
+    succeeds for both callers.
+    """
+    database = tmp_path / "concurrent-init.sqlite"
+    select_barrier = Barrier(2)
+    insert_lock = Lock()
+    winner_committed = Event()
+    forced_race_ready = Event()
+    winner_ident = {"value": None}
+
+    class CursorProxy:
+        def __init__(self, cursor, *, schema_select: bool = False):
+            self._cursor = cursor
+            self._schema_select = schema_select
+
+        def fetchone(self):
+            row = self._cursor.fetchone()
+            if self._schema_select:
+                select_barrier.wait(timeout=5)
+                forced_race_ready.set()
+            return row
+
+        def __getattr__(self, name):
+            return getattr(self._cursor, name)
+
+    class ConnectionProxy:
+        def __init__(self, connection):
+            self._connection = connection
+            self._saw_schema_insert = False
+
+        def executescript(self, script):
+            return self._connection.executescript(script)
+
+        def execute(self, sql, parameters=()):
+            normalized = " ".join(sql.upper().split())
+            schema_select = (
+                "SELECT VALUE FROM EXECUTION_STORE_META" in normalized
+                and "SCHEMA_VERSION" in normalized
+            )
+            schema_insert = (
+                "INSERT" in normalized
+                and "EXECUTION_STORE_META" in normalized
+                and "SCHEMA_VERSION" in normalized
+            )
+            select_before_insert = schema_select and not self._saw_schema_insert
+            if schema_insert:
+                self._saw_schema_insert = True
+            if schema_insert and forced_race_ready.is_set():
+                current = get_ident()
+                with insert_lock:
+                    if winner_ident["value"] is None:
+                        winner_ident["value"] = current
+                    winner = winner_ident["value"] == current
+                if not winner:
+                    assert winner_committed.wait(5), "winner did not commit schema row"
+            cursor = self._connection.execute(sql, parameters)
+            return CursorProxy(cursor, schema_select=select_before_insert)
+
+        def commit(self):
+            self._connection.commit()
+            if winner_ident["value"] == get_ident():
+                winner_committed.set()
+
+        def rollback(self):
+            self._connection.rollback()
+
+        def __getattr__(self, name):
+            return getattr(self._connection, name)
+
+    class RacingStore(SQLiteExecutionStore):
+        @contextmanager
+        def _connect(self):
+            with super()._connect() as connection:
+                yield ConnectionProxy(connection)
+
+    stores = [RacingStore(database), RacingStore(database)]
+
+    def initialize(store):
+        try:
+            store.initialize()
+            return "OK"
+        except ExecutionStoreError as exc:
+            return exc.code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(initialize, stores))
+
+    assert outcomes == ["OK", "OK"]
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM execution_store_meta ORDER BY key"
+        ).fetchall()
+    assert rows == [("schema_version", "1")]
+
+
+def test_concurrent_initialize_stress_yields_single_schema_row_per_database(tmp_path: Path) -> None:
+    threads = 8
+    rounds = 10
+    for round_no in range(rounds):
+        database = tmp_path / f"stress-init-{round_no}.sqlite"
+        stores = [SQLiteExecutionStore(database) for _ in range(threads)]
+        start = Barrier(threads)
+
+        def initialize(store):
+            start.wait(timeout=5)
+            try:
+                store.initialize()
+                return "OK"
+            except ExecutionStoreError as exc:
+                return exc.code
+
+        with ThreadPoolExecutor(max_workers=threads) as pool:
+            outcomes = list(pool.map(initialize, stores))
+
+        assert outcomes == ["OK"] * threads
+        with sqlite3.connect(database) as connection:
+            rows = connection.execute(
+                "SELECT key, value FROM execution_store_meta ORDER BY key"
+            ).fetchall()
+        assert rows == [("schema_version", "1")]
+
+
+def test_initialize_still_rejects_unsupported_schema_version(tmp_path: Path) -> None:
+    database = tmp_path / "unsupported.sqlite"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "CREATE TABLE execution_store_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        connection.execute(
+            "INSERT INTO execution_store_meta(key, value) VALUES('schema_version', '999')"
+        )
+        connection.commit()
+
+    store = SQLiteExecutionStore(database)
+    with pytest.raises(ExecutionStoreError) as exc_info:
+        store.initialize()
+    assert exc_info.value.code == "EXECUTION_SCHEMA_VERSION_UNSUPPORTED"
