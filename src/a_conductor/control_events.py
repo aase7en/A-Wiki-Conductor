@@ -95,7 +95,11 @@ class SQLiteControlEventLog:
             raise
         except Exception as exc:
             raise ControlEventLogError("EVENT_ID_INVALID") from exc
-        recorded_at = datetime.now(timezone.utc).isoformat()
+        recorded_at = (
+            datetime.now(timezone.utc)
+            .isoformat(timespec="microseconds")
+            .replace("+00:00", "Z")
+        )
         self.initialize()
         with self._connect() as connection:
             try:
