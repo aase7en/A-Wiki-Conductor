@@ -12,7 +12,7 @@ Integrator: GPT-5.6 Sol
 ## Lane binding
 
 Authority repo: `aase7en/A-Wiki-Conductor`
-Authority design base: `5c2cb89892a644f241caa553e0190d0207dc64be`
+Authority design base/current-main fan-in: `18b55b11be1558cc931014a9ab604edfaff8f38d`
 Design worktree: `/Users/aase7en/Desktop/_worktrees/A-Wiki-Conductor-wo453-fmg-prod-design`
 Design branch: `docs/wo-p1-453-fmg-prod-cutover-design`
 Design mutable scope: this Work Order only.
@@ -48,17 +48,19 @@ Preferred integration class: `FAST_FORWARD_EXISTING_ACCEPTED_LINEAGE`.
 Forbidden substitutions: cherry-pick, rebase, reset, force, clean, stash, or a shadow integration branch used as product authority.
 ## Runtime observation correction
 
-A process `node A:\GitHub\SunDayRemoteMCP\dist\index.js --no-onboarding` was observed from the canonical checkout. Parent-chain re-observation binds that process to the active WO449 Kilo review harness, not to a proven persistent product service.
+An earlier process observation included `node A:\GitHub\SunDayRemoteMCP\dist\index.js --no-onboarding` while the WO449 review lifecycle was active. That observation was transient review-harness evidence, not proof of a persistent product service.
+
+Fresh post-WO449 census after current-main fan-in searched only real `node.exe` / npm / cmd process records for the canonical SRM path and `--no-onboarding`; it found **no active SRM runtime process**. A broader PowerShell query had previously matched its own command text and is explicitly rejected as a false positive.
 
 Consequences:
 
-1. its existence still blocks mutation/build of the canonical checkout while that reviewer is live;
-2. its termination is owned by the WO449 review lifecycle, not WO453;
-3. WO453 must not kill, stop, or restart it;
-4. after WO449 is terminal, the Windows cutover owner must census again for every process using the canonical SRM root;
-5. only an independently proven persistent/operator runtime may receive a cutover restart action.
+1. there is currently no proven persistent SRM process to stop or restart;
+2. absence now does not grant future mutation authority — Windows must re-census immediately before cutover;
+3. every future process match must bind exact PID + creation time + executable/command identity and owner/service boundary;
+4. WO453 must never kill a process solely because its text mentions the SRM root;
+5. if an exact owned persistent/operator runtime is later found, only that accepted owner/service boundary may stop/restart it.
 
-Elapsed time or a stale PID never grants termination authority.
+Elapsed time, PID number, textual self-match, or a stale observation never grants termination authority.
 
 ## Authority split
 
@@ -69,6 +71,20 @@ SunDayRemoteMCP owns execution/capability implementation, build artifacts and ex
 FMG v2 remains execution-local safety. It does not become task, claim, retry, scheduler, review or completion authority.
 
 The Windows cutover owner may advance canonical SRM only after this design is accepted and a fresh non-overlapping execution claim is published.
+## Current-main recovery checkpoint — 2026-09-21
+
+After chat/tool timeout recovery, actual authority state was re-read instead of replaying the prior plan:
+
+- A-Wiki `origin/main = 18b55b11be1558cc931014a9ab604edfaff8f38d`;
+- the only main drift since the original #453 claim base was accepted BWA-0 / PR #451, four non-overlapping files;
+- this WO file had zero main-side drift and merged forward without conflict;
+- Windows canonical SRM remains `main@ac01b37ba2e4b9d0249addf7694c0b91deb352c7` with protected untracked `.serena/`;
+- accepted FMG final SHA `2e6aeabd09a321232098187dba4c522e37e4b1de` remains on its isolated accepted branch/worktree and is not an ancestor of canonical SRM main;
+- no real SRM `node.exe` / npm runtime was present in the fresh process census;
+- Mac SRM remains stale/non-authoritative and is not synchronized by this lane.
+
+This checkpoint changes no cutover authority: design-only on Mac; consequential canonical SRM mutation remains Windows-owned and HOLD until design acceptance plus fresh WIP/claim gates.
+
 ## Pre-cutover gates — all mandatory
 
 1. Re-pin current A-Wiki main and Windows SRM canonical main.
@@ -167,7 +183,7 @@ Mac / this lane owns only this A-Wiki design document. It must not mutate or syn
 
 Windows / later cutover lane owns the canonical SRM fast-forward/build/runtime operation after explicit takeover/claim. It must not mutate this Mac design worktree.
 
-Current Windows #447/#449/#452 lanes keep their existing ownership. #453 does not preempt them. If the global mutable budget has no free slot when design acceptance is complete, cutover waits instead of stealing a lane.
+Windows #452 keeps its current governance/design ownership. #447 and #449 are already completed/merged; their historical worktrees/processes do not grant new #453 authority. #453 does not preempt any Windows lane. If the global mutable budget has no free slot when design acceptance is complete, cutover waits instead of stealing a lane.
 
 ## Closeout / next actions
 
