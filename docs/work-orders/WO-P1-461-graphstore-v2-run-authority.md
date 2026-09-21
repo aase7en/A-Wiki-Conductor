@@ -1,6 +1,6 @@
 # WO-P1-461 — ZRA-3A Child A GraphStore v2 Run-Authority Persistence
 
-Status: R3_REPAIRED / LOCAL_GREEN / FREEZE_PENDING
+Status: POST_MAIN_REPAIR_CYCLE_1_FROZEN / AWAITING EXACT-SHA R3 REREVIEW + CI
 Issue: #461
 Parent: #215
 Accepted design: #452 / PR #454
