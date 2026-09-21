@@ -1,6 +1,6 @@
 # WO-P1-449 — BWA-0 DEX-3b Browser Chat Resume Adapter Contract
 
-Status: R3_REPAIR_CYCLE_3_COMPLETE / PRE-FREEZE
+Status: CANDIDATE_READY / R3 REPAIR CYCLE 3 / AWAITING EXACT-SHA REREVIEW + CI
 Issue: #449
 Identity schema: GITHUB_ISSUE_V1
 Risk: R3 protocol/schema + replay/dedupe/security trust boundary
@@ -23,8 +23,12 @@ conflict with this later finding.
 - repo: `aase7en/A-Wiki-Conductor`
 - worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo449-secretshape-repair`
 - branch: `fix/wo-p1-449-bwa0-secret-shape-postmain`
-- post-main repair base: `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`
-- parent merge: PR #455 / `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`
+- current integration base: `777779e83873a6f2b9f02b71a8944189102a73a2`
+- fan-in merge commit before final freeze: `e8274b8578af606febfe5357f4d1167b44c8a071`
+- fan-in source: PR #454 / WO452; incoming delta is exactly one disjoint
+  WO452 governance file with zero WO449-path overlap
+- historical post-PR-455 repair base: `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`
+- historical parent merge: PR #455 / `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`
 - historical cycle-1 worktree:
   `A:\GitHub\_worktrees\A-Wiki-Conductor-wo449-postmain-r3-repair`
 - historical cycle-1 candidate: `5550f14d6a652722085a4ce7a7858c718f7e2108`
@@ -259,7 +263,10 @@ GREEN evidence after cycle-3 repair:
 - focused Browser Wake contract: 99 passed;
 - Browser Wake + work-order identity + Hook schema: 229 passed;
 - read-only precise-gate prototype: 49/49 synthetic security probes rejected
-  and 100/100 harmless schema-valid marker probes accepted.
+  and 100/100 harmless schema-valid marker probes accepted;
+- post-WO452 fan-in exhaustive pre-freeze audit: 93 schema-valid shared-corpus
+  plus credential-shape placements rejected with zero gaps, and 100 harmless
+  marker-containing placements accepted with zero false rejects.
 
 This repair remains bounded to the same WO449 contract/work-order/test scope and
 adds no runtime or execution authority.
