@@ -280,6 +280,57 @@ Post-repair evidence:
 - repair diff remains inside `src/a_conductor/graph/store.py` +
   `tests/test_graph_run_authority.py` plus this WO evidence.
 
+## Post-main defect / repair cycle 1 — 2026-09-21
+
+PR #463 merged candidate `ae01abb73fc128acd9cdb27d272f7a95b79c0695`
+as main `a37746f67631c9ed8edd23fa20b80b8ef4d3dfd9`.
+Hosted post-main CI run `35585192491` passed the Windows test/build/install
+job plus Ubuntu/macOS cross-platform smoke.
+
+Cross-session reconciliation then preserved one material independent-review
+finding that had been adjudicated inconsistently before merge. The exact v2
+schema comparator lowercased all `sqlite_master.sql` text, so tampering the
+binding CHECK literal from `'serena'` to `'SERENA'` compared equal even
+though the stored DDL was not the exact canonical v2 shape required by this
+Work Order. Later read/write paths failed closed, but the schema classifier
+itself false-accepted the wrong shape. The merged state was therefore
+classified `MERGED_WITH_POSTMAIN_DEFECT / REPAIR_REQUIRED`; no rollback,
+reset, revert, or history rewrite was authorized.
+
+Repair cycle 1 continues the existing Child-A claim from exact
+`main@a37746f67631c9ed8edd23fa20b80b8ef4d3dfd9` in
+`fix/wo-p1-461-schema-literal-case-postmain` and remains bounded to this WO,
+`src/a_conductor/graph/store.py`, and
+`tests/test_graph_run_authority.py`.
+
+Recovered repair diff:
+- preserve quoted-literal case by removing whole-DDL lowercasing from
+  `_normalize_schema_sql()`;
+- add an executable regression proving `'serena'` -> `'SERENA'` is rejected
+  as `GRAPH_STORE_SCHEMA_SHAPE_INVALID` and leaves the tampered schema
+  unchanged.
+
+Deterministic repair evidence:
+- focused `tests/test_graph_store.py tests/test_graph_run_authority.py`:
+  35 PASS;
+- graph-impact `python -m pytest -q tests -k graph`: 216 PASS / 3 unrelated
+  Tk-display SKIP;
+- concurrency/replay stress: 20 iterations x 3 tests = 60/60 PASS;
+- `git diff --check`: clean;
+- no retry/sleep loop, scheduler/NEXT_READY/runtime-activation/provider/job/
+  execution/lease/review/completion authority change was introduced.
+
+The historical RED proof for this repair is the accepted independent
+adversarial probe that reproduced the exact literal-case false accept on the
+merged candidate. The recovered repair lane already contained the bounded
+source + regression edits, so no claim is made that this session observed a
+fresh pre-edit RED run.
+
+Repair acceptance remains R3: freeze exact repair SHA, hosted exact-head CI,
+one fresh independent GLM-5.3 MAX exact-SHA rereview with P0/P1/P2=0,
+GPT-5.6 Sol adjudication, expected-head repair merge, post-main verification,
+then Issue #461 fold/release/closeout.
+
 ## Verification / acceptance
 
 - RED then bounded GREEN implementation;
