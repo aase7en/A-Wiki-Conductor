@@ -1,5 +1,24 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-09-21 — WO438 COMPLETE; WO205 §14 released — CURRENT
+
+> **Current authoritative projection.** Actual Git/GitHub/runtime/durable evidence overrides this file if it drifts.
+
+- Topology: `CONTROL_PLANE_ONLY`. Canonical authority: Issue #438 / WO-P1-438. Historical predecessor only: Issue #330 / WO-P1-246.
+- WO438 merge SHA: `75d9e96e46e15cc8ef647d12194d677657689bde`; current remote `main` is `894c64d32ca63dd0bfaf9f23d97a3e1180ce09d7` after disjoint PR #440 continuity drift.
+- PR #336 merged at 2026-09-21 06:20:49 +07 from exact candidate `f93e16377f500d16cbed66763058c2f4a2237790`.
+- Independent GLM-5.3 MAX exact-SHA R3 review finished before merge: `PASS`, P0/P1/P2=0, P3=3 non-blocking. Durable result: `A:\GitHub\_worktrees\A-Wiki-Conductor-review-wo438-f93e163\runs\WO-P1-438\r3-review\attempt-0001\result.md`.
+- Exact-head hosted CI #1102 / run `35529389831` finished before merge: `SUCCESS`; Windows, Ubuntu and macOS jobs all green.
+- Detached post-main verification worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-post438-75d9e96`.
+- Post-main local proof: all 11 WO438 blobs are byte-identical to the reviewed candidate; focused set 177 PASS; work-order identity 33 PASS; `git diff --check` PASS; `py_compile` PASS.
+- The post-main wrapper returned exit 1 only after all gates because the PowerShell harness used unsupported three-argument `[Math]::Max`; this is harness-only, not a test/repo failure.
+- Hosted post-main push CI run `35544371466` on exact `75d9e96...` is **SUCCESS** on Windows + Ubuntu + macOS, including core suites, Portable/Setup build, archive verification, Portable smoke, and Setup install/uninstall E2E.
+- Issue #438 is **CLOSED / COMPLETE / POST_MAIN_VERIFIED**; claim released. Issue #214 comment `5753611455` releases WO205 §14 source-gate work only.
+- Protected root `A:\GitHub\A-Wiki-Conductor` is stale at `1a5ea1b...`, 16 commits behind current main, with pre-existing untracked `$null`, `0`, and `docs/prompts/GLM-WO230-ZRA2-REVIEW-TASK-CONTRACT-AUTHORITY.md`; do not reset/clean/stash or use it for mutation.
+- Session rollover checkpoint branch: `docs/wo-p1-438-session-handoff`; worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo438-session-handoff`.
+
+**Exact next safe action:** in the new session re-pin actual main / Issue #214 / WO205, recover global WIP/collisions, create a fresh isolated Phase-D source worktree, execute WO205 §14 steps 1–7, freeze exact source/test scope, then RED-first implementation. `SAFE_TO_MUTATE_PHASE_D_SOURCE=NO` until that checklist completes.
+
 ## 2026-09-21 — WO433 RUNTIME-ACT-1 session rollover — CURRENT FRONTIER
 
 > Projection only. Actual Git/GitHub/runtime/durable evidence overrides this section if it differs.

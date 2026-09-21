@@ -791,3 +791,12 @@ Until all seven steps pass:
 
 No implementation, schema edit, test edit, merge, or deployment is authorized
 by this design document alone.
+
+
+## 2026-09-21 — merged/post-main/session-rollover checkpoint
+
+Canonical candidate `f93e16377f500d16cbed66763058c2f4a2237790` received an independent GLM-5.3 MAX exact-SHA R3 review: PASS, P0/P1/P2=0, P3=3 non-blocking. The review finished at 2026-09-20T18:50:23Z. Exact-head CI #1102 / run `35529389831` completed SUCCESS at 2026-09-20T19:01:42Z. Both gates therefore existed before PR #336 merged at 2026-09-21T06:20:49+07 as `75d9e96e46e15cc8ef647d12194d677657689bde`.
+
+Detached post-main verification at `A:\GitHub\_worktrees\A-Wiki-Conductor-post438-75d9e96` proved all 11 WO438 blobs identical to the reviewed candidate, focused 177 PASS, identity 33 PASS, `git diff --check` PASS and `py_compile` PASS. A wrapper-only PowerShell `[Math]::Max` arity error occurred after all verification and changed no repository state.
+
+Hosted post-main push CI run `35544371466` on exact merge SHA `75d9e96...` completed SUCCESS on Windows, Ubuntu and macOS, including core suites, Portable/Setup build, archive verification, Portable smoke and Setup install/uninstall E2E. Issue #438 is CLOSED / COMPLETE / POST_MAIN_VERIFIED and its claim is released. Current remote main is `894c64d...` after disjoint PR #440 continuity drift; WO438 candidate/merge remain ancestors and its source/test paths are unchanged. Issue #214 now has `PHASE_D_SECTION14_NEXT_READY=YES`; source mutation remains NO until WO205 Section 14 steps 1-7 complete on then-current main.
