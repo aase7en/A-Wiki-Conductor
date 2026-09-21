@@ -136,6 +136,6 @@ above with identical module paths (`pythonpath = ["src"]`).
 ## Next gate
 
 Freeze the exact candidate SHA -> fresh independent exact-SHA focused review
-(P0/P1 = 0 required) -> exact-head hosted CI green -> GPT-5.6 Sol
+(P0/P1/P2 = 0 required) -> exact-head hosted CI green -> GPT-5.6 Sol
 acceptance/expected-head merge and post-main verification. The author does
 not merge or self-accept.
