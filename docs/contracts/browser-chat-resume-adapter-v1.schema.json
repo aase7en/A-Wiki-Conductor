@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:a-conductor:schema:browser-chat-resume-adapter:1.0.0",
   "title": "A-Sunday Conductor Browser Chat Resume Adapter Contract v1 (BWA-0)",
-  "description": "DEX-3b browser/provider adapter contract envelope. Transport, binding, replay, and security semantics only; no runtime is implemented here. Whole-envelope UTF-8 size SHOULD be <= 16384 bytes and MUST be <= 32768 bytes (consumer-enforced BWA_EVENT_OVERSIZED). Raw prompts, credentials, cookies, session tokens, share URLs, command lines, Git operations, and PIDs are forbidden fields; any envelope carrying them is security-invalid (BWA_EVENT_INVALID). Browser results are UNTRUSTED until A-Conductor revalidates durable authority. TEST_ONLY fake-ingress vocabulary is structurally disjoint from production DEX-3a correlation vocabulary.",
+  "description": "DEX-3b browser/provider adapter contract envelope. Transport, binding, replay, and security semantics only; no runtime is implemented here. Whole-envelope UTF-8 size SHOULD be <= 16384 bytes and MUST be <= 32768 bytes (consumer-enforced BWA_EVENT_OVERSIZED). Raw prompts, credentials, cookies, session tokens, share URLs, command lines, Git operations, and PIDs are forbidden fields. Pointer/ref fields structurally reject URL schemes, while the normative consumer-side sensitive-value gate rejects prohibited values that JSON Schema alone cannot classify. Browser results are UNTRUSTED until A-Conductor revalidates durable authority. TEST_ONLY fake-ingress vocabulary is structurally disjoint from production DEX-3a correlation vocabulary.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -104,7 +104,7 @@
       "uniqueItems": true,
       "items": {
         "type": "string",
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*://)[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
         "maxLength": 256
       }
     },
@@ -115,23 +115,26 @@
     },
     "goal_ref": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,127}$",
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*://)[A-Za-z0-9][A-Za-z0-9._:/#-]{0,127}$",
       "maxLength": 128
     },
     "task_ref": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,127}$",
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*://)[A-Za-z0-9][A-Za-z0-9._:/#-]{0,127}$",
       "maxLength": 128
     },
     "work_order_ref": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,127}$",
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*://)[A-Za-z0-9][A-Za-z0-9._:/#-]{0,127}$",
       "maxLength": 128
     },
     "reason": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
+      "enum": [
+        "AGENT_RESULT_READY",
+        "REVIEW_REQUIRED",
+        "NEXT_READY",
+        "RECOVERY_REQUIRED"
+      ]
     },
     "evidence_refs": {
       "type": "array",
@@ -139,7 +142,7 @@
       "uniqueItems": true,
       "items": {
         "type": "string",
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*://)[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
         "maxLength": 256
       }
     },
@@ -151,7 +154,7 @@
     },
     "source_event_ref": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*://)[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
       "maxLength": 256
     },
     "delivery_attempt": {
@@ -181,7 +184,7 @@
       "uniqueItems": true,
       "items": {
         "type": "string",
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*://)[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
         "maxLength": 256
       }
     },
@@ -191,7 +194,7 @@
       "uniqueItems": true,
       "items": {
         "type": "string",
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*://)[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
         "maxLength": 256
       }
     },

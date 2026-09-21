@@ -91,6 +91,13 @@ FAKE_SECRET_CORPUS = (
 SHOULD_ENVELOPE_BYTES = 16384
 MAX_ENVELOPE_BYTES = 32768
 
+WAKE_REASONS = (
+    "AGENT_RESULT_READY",
+    "REVIEW_REQUIRED",
+    "NEXT_READY",
+    "RECOVERY_REQUIRED",
+)
+
 AUTHORITY_FIELD_NAMES = (
     "scheduler",
     "task_router",
@@ -177,7 +184,7 @@ def wake_request_message() -> dict:
         "wake_event_id": WAKE_EVENT_ID,
         "work_order_ref": "WO-P1-449",
         "task_ref": "Issue-449-BWA0-contract",
-        "reason": "delegated execution reached a reviewable checkpoint",
+        "reason": "REVIEW_REQUIRED",
         "requested_next_decision": "PROPOSE_CONTINUATION",
         "evidence_refs": ["runs/WO-P1-449/author/attempt-0001/result.md"],
     }
@@ -255,6 +262,36 @@ MINIMAL_EXAMPLES = {
 
 def envelope_bytes(payload: dict) -> int:
     return len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+
+
+def contains_sensitive_value(value) -> bool:
+    """Reference consumer-side value gate for contract conformance.
+
+    JSON Schema closes field names and shapes, but the normative security
+    boundary also forbids sensitive values inside otherwise legal strings.
+    This pure helper models the BWA-1 consumer gate without adding runtime
+    authority or persistent state.
+    """
+    if isinstance(value, str):
+        lowered = value.lower()
+        if "://" in value:
+            return True
+        return any(item.lower() in lowered for item in FAKE_SECRET_CORPUS)
+    if isinstance(value, list):
+        return any(contains_sensitive_value(item) for item in value)
+    if isinstance(value, dict):
+        return any(contains_sensitive_value(item) for item in value.values())
+    return False
+
+
+def envelope_conformance(payload: dict, validator: Draft202012Validator) -> str:
+    if envelope_bytes(payload) > MAX_ENVELOPE_BYTES:
+        return "BWA_EVENT_OVERSIZED"
+    if not validator.is_valid(payload):
+        return "BWA_EVENT_INVALID"
+    if contains_sensitive_value(payload):
+        return "BWA_EVENT_INVALID"
+    return "BWA_EVENT_VALID"
 
 
 def contract_section(title: str) -> str:
@@ -513,6 +550,16 @@ def test_v1_compatibility_rule_pinned_in_contract() -> None:
     assert "BWA_VERSION_UNSUPPORTED" in section
     assert "no silent fallback" in section
     assert "1.x" in section
+    assert "MUST NOT ignore unrecognized fields" in section
+    assert "closed schema" in section
+
+
+def test_higher_minor_unknown_fields_fail_closed(validator) -> None:
+    known_only = mutated(wake_request_message(), schema_version="1.1.0")
+    assert validator.is_valid(known_only)
+    assert not validator.is_valid(
+        mutated(known_only, future_optional_field="future-value")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -839,6 +886,53 @@ def test_fake_secret_corpus_pinned_and_excluded(schema) -> None:
         serialized = json.dumps(builder(), ensure_ascii=False)
         for item in FAKE_SECRET_CORPUS:
             assert item not in serialized, item
+
+
+def test_sensitive_values_rejected_by_full_conformance_gate(validator) -> None:
+    targets = (
+        (binding_message(), "project_locator"),
+        (binding_message(), "conversation_locator"),
+        (binding_message(), "observed_evidence"),
+        (wake_request_message(), "conversation_locator"),
+        (wake_request_message(), "task_ref"),
+        (wake_request_message(), "work_order_ref"),
+        (wake_request_message(), "evidence_refs"),
+        (browser_response_message(), "conversation_locator"),
+        (browser_response_message(), "proposal_refs"),
+        (arm_control_message(), "conversation_locator"),
+        (fake_ingress_message(), "fake_conversation_locator"),
+    )
+    synthetic = FAKE_SECRET_CORPUS[0]
+    for base, field in targets:
+        injected = [synthetic] if isinstance(base[field], list) else synthetic
+        payload = mutated(base, **{field: injected})
+        assert envelope_conformance(payload, validator) == "BWA_EVENT_INVALID", field
+
+
+def test_pointer_fields_reject_url_shaped_values_in_schema(validator) -> None:
+    url = "https://chat.example/FAKE/share/0000"
+    cases = (
+        (binding_message(), {"observed_evidence": [url]}),
+        (wake_request_message(), {"goal_ref": url}),
+        (wake_request_message(), {"task_ref": url}),
+        (wake_request_message(), {"work_order_ref": url}),
+        (wake_request_message(), {"evidence_refs": [url]}),
+        (wake_request_message(), {"source_event_ref": url}),
+        (browser_response_message(), {"proposal_refs": [url]}),
+        (browser_response_message(), {"result_refs": [url]}),
+    )
+    for base, change in cases:
+        assert not validator.is_valid(mutated(base, **change)), change
+
+
+def test_wake_reason_is_typed_not_free_text(validator) -> None:
+    for reason in WAKE_REASONS:
+        assert validator.is_valid(mutated(wake_request_message(), reason=reason))
+    for invalid in ("free form", "review now please", FAKE_SECRET_CORPUS[0]):
+        assert not validator.is_valid(mutated(wake_request_message(), reason=invalid))
+    section = contract_section("6. Wake request")
+    for reason in WAKE_REASONS:
+        assert reason in section
 
 
 # ---------------------------------------------------------------------------

@@ -137,10 +137,13 @@ bounded continuation prompt to the human-operated browser chat.
 - `wake_event_id` (`^bwk-[0-9a-f]{32}$`) is the exact wake identity
   used for dedupe and replay control (Section 8).
 - Content is pointers only: at least one of `goal_ref`, `task_ref`,
-  `work_order_ref` MUST be present, plus bounded `reason`,
+  `work_order_ref` MUST be present, plus typed `reason`, bounded
   `evidence_refs`, and `requested_next_decision`
-  (`PROPOSE_CONTINUATION` | `AWAIT_OPERATOR_DECISION`). Copied task
-  truth, task state, or executable content is forbidden.
+  (`PROPOSE_CONTINUATION` | `AWAIT_OPERATOR_DECISION`). `reason` is
+  closed to `AGENT_RESULT_READY` | `REVIEW_REQUIRED` | `NEXT_READY` |
+  `RECOVERY_REQUIRED`; it is event context only and grants no successor
+  selection or continuation authority. Copied task truth, task state,
+  free-form prompt text, or executable content is forbidden.
 - `source_event_ref` correlates the wake to an accepted source event
   only when one is available (for example an accepted DEX-2b receipt
   pointer or a normalized Hook event identifier). It is a pointer, never
@@ -250,16 +253,20 @@ browser conversation after a wake.
 - Producers MUST pin an exact `schema_version` they conform to.
   Additive optional fields require a minor bump; core changes,
   removals, or semantic changes require a major bump.
-- Consumers: within the same `1.x` major line, validate strictly
-  against this schema family; a producer minor above the consumer's
-  known minor is forward-compatible (validate core, ignore
-  unrecognized optional fields). A different major is a typed reject
+- Consumers recognize `1.x.y` as the v1 schema family, but recognition
+  is not blanket forward compatibility. A consumer validates against
+  its exact known closed schema and MUST NOT ignore unrecognized fields.
+  A higher producer minor may validate only when its payload remains
+  entirely inside the consumer's known closed vocabulary; unknown
+  additive fields are `BWA_EVENT_INVALID` until that newer schema is
+  explicitly supported. A different major is a typed reject
   `BWA_VERSION_UNSUPPORTED` with no silent fallback, and an
   unparseable/schema-invalid message is `BWA_EVENT_INVALID` (drop; the
   consumer MUST NOT crash).
 - The v1 compatibility rule is pinned here: only `1.x.y` versions are
-  v1-conformant; `0.x`, `2.x`, partial, or prefixed versions are never
-  silently coerced into v1.
+  v1-family versions; `0.x`, `2.x`, partial, or prefixed versions are
+  never silently coerced into v1. Closed-schema fail-closed behavior
+  always outranks convenience forward parsing.
 
 ## 13. Security
 
@@ -273,8 +280,20 @@ browser conversation after a wake.
   `share_url`, `session_url`, `argv`, `command_line`, `shell_command`,
   `git_operation`, `pid`. There is no legal secret-carrying envelope in
   v1.
-- No raw prompt/transcript credential envelope exists; free-text
-  fields are bounded and sanitized.
+- Schema validity alone is not full v1 conformance. After schema
+  validation and the whole-envelope byte gate, every consumer MUST run
+  a value-level sanitation gate before accepting the envelope. The gate
+  recursively inspects string/list values and returns `BWA_EVENT_INVALID`
+  if a shared `fake-secret-corpus/1` value is present or if URL-shaped
+  material containing `://` appears anywhere in v1. v1 defines no URL
+  field. This is a bounded validation step only, not a credential store,
+  redaction authority, or browser-content parser.
+- Pointer/reference fields additionally reject URL-scheme shapes in the
+  JSON Schema itself while preserving local durable refs such as
+  `runs/...` and normalized colon-delimited event identities.
+- No raw prompt/transcript credential envelope exists; `reason` is a
+  typed enum rather than free text, and all remaining string values are
+  bounded plus subject to the mandatory sanitation gate.
 - No direct Git, process, filesystem, or task mutation fields exist;
   DOM/page observations grant no such authority.
 - Native Messaging is a future BWA-1 transport choice, not implemented
@@ -332,8 +351,10 @@ fail-closed binding reconciliation including URL/cookie locator
 rejection; single-effect wake dedupe; at-least-one durable pointer;
 transport counter non-authority; duplicate response drop; consumed
 replay and restart reconcile; ambiguous delivery never blind-retries;
-TEST_ONLY fake-ingress isolation; forbidden field matrix; fake-secret
-corpus pinning and exclusion; Play/Pause arm-only semantics;
+TEST_ONLY fake-ingress isolation; forbidden field matrix; mandatory
+value-level sanitation across all strings/lists; URL-shaped pointer
+rejection; typed wake reasons; fake-secret corpus pinning and exclusion;
+strict closed-schema higher-minor handling; Play/Pause arm-only semantics;
 pointer-only payloads with pinned UNTRUSTED trust; pinned authority
 boundaries; authority-fence vocabulary; and the offline BWA-1 cycle).
 No network, no MCP, no live browser, and no production runtime is
