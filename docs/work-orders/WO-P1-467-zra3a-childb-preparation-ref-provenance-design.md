@@ -1,6 +1,7 @@
 # WO-P1-467 — ZRA-3A Child-B Preparation-Ref Durable Provenance Design
 
 Status: DESIGN_ONLY_CANDIDATE / AWAITING EXACT-SHA R3 DESIGN REVIEW
+Revision: REPAIR-0001 (pre-freeze) — recovery determinism: one driving job owns at most ONE distinct `preparation_ref`; intentional rerun requires a NEW driving job.
 Identity schema: GITHUB_ISSUE_V1
 Issue: #467
 Parent: #215
@@ -9,7 +10,7 @@ Accepted Child A: #461 / PR #466 (WO-P1-461)
 Exact base re-derived: `cb5f9b6b5188df68abb57fa9967b70a4004cca04` (current main, clean worktree, branch `docs/wo-p1-467-zra3a-childb-prep-ref-design`)
 Topology: CONTROL_PLANE_ONLY
 Risk: R3 DESIGN_ONLY — durable provenance seam resolution; zero source mutation in this WO.
-Claim: WO-P1-467-CHILDB-PREP-REF-DESIGN-WINDOWS-001
+Claim: WO-P1-467-CHILDB-PREP-REF-DESIGN-WINDOWS-002
 
 ## 0. Exact binding
 
@@ -26,6 +27,8 @@ WO452 §10.1 leaves one DESIGN_GAP open for Child B:
 
 A volatile `preparation_ref` held only in process/chat memory is insufficient: a crash before observing the prepare response would lose the recovery key, and the no-blind-replay property of WO452 §10/§11 would degrade into duplicate-run risk. This WO resolves the gap against exact current main `cb5f9b6...` by classifying every candidate seam REUSE → WRAP → EXTEND → REJECT and choosing the smallest truthful design.
 
+This revision (repair window 002) closes one review-found defect of the frozen candidate: the earlier text let several DISTINCT preparation refs accumulate on one driving job and read a new ref on the same job as an intentional rerun. After a crash between checkpoint commit and `prepare_run`, more than one distinct ref made "which intent is current?" undecidable without forbidden latest/sequence/time inference. The corrected design adds a one-distinct-ref invariant per driving job (§5), a count-based fail-closed recovery (§5.3), and moves intentional reruns onto distinct authoritative driving jobs (§5.2).
+
 Hard constraints inherited from WO452 (all still verified at this base):
 
 - GraphStore never infers the ref from time, latest rows, prose, branch names, filenames, or mutable process state (§10.1);
@@ -33,6 +36,14 @@ Hard constraints inherited from WO452 (all still verified at this base):
 - preparation and durable job creation remain separate authority transactions (§16);
 - no second idempotency/replay ledger, scheduler, retry engine, or completion plane may be invented (§17, §23);
 - Child B does not dispatch, does not select successors, does not rank/select providers/models (§18).
+
+Repair invariants adopted by REPAIR-0001 (binding for the first Child-B path):
+
+- one already-authoritative driving job owns at most ONE distinct `preparation_ref`; provenance reads are therefore deterministic — zero distinct refs ⇒ missing, one distinct ref ⇒ the ref, more than one ⇒ ambiguous — and every missing/ambiguous outcome fails closed with no latest-event/highest-sequence/newest-time selection;
+- duplicate checkpoint rows carrying the same canonical ref are idempotent evidence for that same ref;
+- an intentional graph rerun requires a NEW already-authoritative driving job, created by the existing lifecycle authority outside Child B, carrying a fresh opaque/domain-separated `preparation_ref`;
+- Child B never creates jobs and never uses `job_id` itself as the ref;
+- JobStore checkpoint evidence is provenance for the opaque ref only — never activation-binding storage (WO452 §17); the REUSE/WRAP classification of the checkpoint seam is unchanged and no new store/schema/task/job/idempotency/retry/completion authority is added.
 
 ## 2. Current-main authority map (exact base `cb5f9b6...`)
 
@@ -69,9 +80,9 @@ Criteria: (A) exists durably before first `prepare_run`; (B) survives crash / lo
 
 | # | Candidate | A | B | C | D | E | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1 | `job_id` itself as the ref | yes | yes | **no** — one job may legitimately cover one retry AND a later intentional rerun; a job-lifetime constant cannot express two intents | yes | yes | REJECT as ref source; job identity is reused as provenance context instead |
+| 1 | `job_id` itself as the ref | yes | yes | **no** — a lifecycle/authority identifier is not an opaque minted intent token; using it would let job identity act as GraphStore run authority | yes | yes | REJECT as ref source; the selected checkpoint seam is valid because the job scopes ONE preparation intent, not because job identity is reused as GraphStore authority |
 | 2 | `job_id` + `attempt_no` composite | yes | yes | **no** — attempt increments on every recovery attempt, so a lost-response retry on attempt 2 would derive a *different* ref and mint a duplicate run — exactly the failure §10 exists to prevent | yes | yes | REJECT as derivation |
-| 3 | JobStore checkpoint event row (`checkpoint_ref` on the driving job) | **yes** — committed via `checkpoint()` before prepare is invoked | **yes** — `BEGIN IMMEDIATE` commit; recoverable via `list_events` after any crash | **yes** — new ref ⇒ new evidence ⇒ intentional rerun; same ref ⇒ same-intent replay | **yes** — needs only the driving `job_id` | **yes** — JobStore owns `job_events`; accepted API + accepted `JOB_CHECKPOINT` protocol surface; no schema change | **SELECTED — REUSE** |
+| 3 | JobStore checkpoint event row (`checkpoint_ref` on the driving job) | **yes** — committed via `checkpoint()` before prepare is invoked | **yes** — `BEGIN IMMEDIATE` commit; recoverable via `list_events` after any crash | **yes** — same ref ⇒ same-intent replay; one job carries at most ONE DISTINCT ref (§5 invariant), and intentional rerun happens on a new distinct driving job (§5.2), never as a second ref on the same job | **yes** — needs only the driving `job_id` | **yes** — JobStore owns `job_events`; accepted API + accepted `JOB_CHECKPOINT` protocol surface; no schema change | **SELECTED — REUSE** |
 | 4 | Execution record `operation_ref` | no — rows exist only after job claim / execution start | yes | no — registry-key semantics (`native_operations.py:105-123`), shared across all intents of the same operation class | yes | yes | REJECT |
 | 5 | `TaskPacketFile` / `task_contract_ref`+sha | yes (file/digest) | yes | **no** — content identity, blind to intent | yes | yes | REJECT |
 | 6 | GraphDispatch metadata | no — written at/after dispatch | yes | no | **no** — key requires `graph_run_id` | yes | REJECT (also WO452 §17) |
@@ -86,9 +97,11 @@ Criteria: (A) exists durably before first `prepare_run`; (B) survives crash / lo
 
 This is a REUSE, not an EXTEND: the exact semantics WO452 §10.1 demands — durable-before-use, crash-committed, append-only evidence, caller-invocable, already exposed at the accepted `JOB_CHECKPOINT` protocol surface — are already implemented and accepted at `job_store.py:445-506` / `operator_protocol.py:151-153`. Declaring `DESIGN_GAP` would be false, because a fitting accepted seam demonstrably exists at Child-B release time. Inventing storage is forbidden and unnecessary.
 
+First Child-B path invariant: **one driving job may own at most ONE DISTINCT graph-run preparation intent/ref.** This invariant is what makes recovery deterministic without any new durable authority: recovery is a pure count over the job's canonical checkpoint refs with fail-closed dispatch (§5.3) — never a selection by latest row, highest sequence, newest timestamp, or arbitrary first.
+
 ### 5.1 Roles (ownership split)
 
-- **Intent author (accepted caller):** mints the `preparation_ref`, durably checkpoints it on the driving job through the existing `JobStore.checkpoint()` API (directly or via `OperatorRequest.JOB_CHECKPOINT`) BEFORE any prepare attempt. The driving job is created through the existing accepted `JOB_CREATE` path by the integrator/caller — Child B never creates jobs (WO452 §17 rejection of pre-created activation jobs stands; that rejection targets jobs invented *during preparation* as hidden state, not the accepted intent-holder job of the initiating operation).
+- **Intent author (accepted caller):** mints the `preparation_ref`, durably checkpoints it on the driving job through the existing `JobStore.checkpoint()` API (directly or via `OperatorRequest.JOB_CHECKPOINT`) BEFORE any prepare attempt. The driving job is created through the existing accepted `JOB_CREATE` path by the integrator/caller — Child B never creates jobs (WO452 §17 rejection of pre-created activation jobs stands; that rejection targets jobs invented *during preparation* as hidden state, not the accepted intent-holder job of the initiating operation). Each preparation intent uses its own driving job: the author checkpoints exactly one distinct ref per job and never adds a second distinct ref to a job that already carries one.
 - **Child B preparation seam (future source, after acceptance):** validates inputs, verifies durable provenance by READ-ONLY `get_job` + `list_events` exact-match, then invokes `GraphStore.prepare_run` exactly once per call. Child B writes nothing to the job store and never mints refs.
 - **GraphStore (Child A, unchanged):** sole writer of runs/bindings; sole enforcer of preparation digest/replay rules.
 
@@ -100,35 +113,38 @@ This is a REUSE, not an EXTEND: the exact semantics WO452 §10.1 demands — dur
   - **intent binding:** WO452 §10.2 preparation digest over `graph_id`, `project_id`, `graph_definition_sha256`, and the canonical binding set; same ref + changed intent fails `GRAPH_RUN_PREPARATION_IDENTITY_MISMATCH` (already implemented, `store.py:1178-1181`).
 - Evidence form: one `CHECKPOINT` event with canonical `checkpoint_ref = "graph-run-preparation:" + preparation_ref` (80 chars, well inside job-store text bounds); `evidence_ref` optional and never authoritative.
 - Replay identity: exact ref + matching digest returns the same server-minted `run_id` per WO452 §10.3 / `store.py:1161-1198`.
-- Intentional rerun: author mints a NEW ref and checkpoints it; the new ref has no durable run yet, so prepare mints a new run id. The previous run stays durably inert — no GC, expiry, cancel, or lifecycle transition (WO452 §16).
+- `job_id` itself remains REJECTED as a `preparation_ref` (§4 row 1): the seam is authoritative because the driving job scopes exactly ONE preparation intent, not because job identity is reused as GraphStore authority.
+- Intentional rerun: requires a DISTINCT, already-authoritative driving job, created beforehand by the existing accepted lifecycle authority (`JOB_CREATE`) outside Child B — never during preparation (WO452 §16/§17; Child B never creates jobs). The author mints a fresh opaque ref and checkpoints it on that NEW job; the new ref has no durable run yet, so prepare mints a new run id. The previous job, ref, and run stay durably inert — no GC, expiry, cancel, or lifecycle transition. A second distinct ref checkpointed on the ORIGINAL job is never an intentional rerun; it is an ambiguity state that fails closed (§5.3).
 
 ### 5.3 Child-B verification order (all fail closed, typed, before any GraphStore write)
 
 1. preparation_ref grammar exact match;
 2. driving job exists and is not terminal;
 3. job/project/work-order binding equality (§5.2);
-4. `list_events(job_id)` contains ≥ 1 `CHECKPOINT` event whose `checkpoint_ref` exactly equals the canonical evidence form;
+4. recovery from the driving job: `list_events(job_id)` is scanned for `CHECKPOINT` events whose `checkpoint_ref` matches the canonical evidence form, reduced to the set of DISTINCT canonical refs; dispatch on the count, every branch failing closed BEFORE any GraphStore write — zero distinct refs ⇒ typed provenance-missing failure; exactly one distinct ref ⇒ that ref is recovered as THE job's preparation ref (duplicate identical checkpoint events are idempotent) and the submitted ref must equal it exactly; more than one distinct ref ⇒ typed provenance-ambiguous failure. Selection by latest event, highest sequence, newest timestamp, or arbitrary first is never attempted;
 5. only then call `GraphStore.prepare_run(graph_id, project_id, preparation_ref, bindings)`.
 
-Multiple same-ref evidence rows are idempotent (≥ 1 match). A ref checkpointed on a *different* job never satisfies step 4 — no cross-job ref laundering. A v1 (unmigrated) GraphStore surfaces Child A's `GRAPH_RUN_BINDING_AUTHORITY_UNAVAILABLE` with no auto-upgrade.
+Multiple same-ref evidence rows are idempotent (the distinct-ref count stays 1). A ref checkpointed on a *different* job never satisfies step 4 — no cross-job ref laundering. Because reruns use new driving jobs, a well-formed second distinct ref on the same job is treated as corruption/ambiguity, never as a rerun: it fails closed before any GraphStore write. A v1 (unmigrated) GraphStore surfaces Child A's `GRAPH_RUN_BINDING_AUTHORITY_UNAVAILABLE` with no auto-upgrade.
 
 ## 6. Crash matrix
 
 | # | Crash point | Durable state before retry | Retry outcome |
 |---|---|---|---|
 | 1 | Before provenance durability (checkpoint not committed) | No evidence row; no run. Contract ordering (checkpoint BEFORE prepare) plus Child-B verification makes out-of-order prepare impossible (typed provenance failure, zero store writes). | Author re-checkpoints the same ref, then prepare mints the run. No orphan. |
-| 2 | After checkpoint commit, before prepare | Evidence row durable; no run exists. | Retry same ref: verification passes; prepare mints the run. |
+| 2 | After checkpoint commit, before prepare | Canonical ref(s) durable on the driving job; no run exists. | Recovery collects DISTINCT canonical refs from the job: exactly one ⇒ recover that exact ref (duplicate identical events idempotent); retry prepare mints the run. Zero distinct ⇒ typed provenance-missing failure; >1 distinct ⇒ row 7. |
 | 3 | Prepare commit, response lost | Run + bindings + evidence all durable. | Retry same ref/digest: Child A exact-compares durable run + binding set and returns the SAME `run_id`. No second run. |
 | 4 | Same-intent retry (e.g., job recovery, new attempt) | Evidence row reused — the ref is attempt-independent by design (opaque token, not derived from attempt number). | Replay path ⇒ same `run_id`. |
-| 5 | Same ref, changed intent | Ref durable; digest differs. | `GRAPH_RUN_PREPARATION_IDENTITY_MISMATCH`; fail closed; no mutation. Deliberate re-run requires an explicit new ref (row 6). |
-| 6 | Intentional rerun | New ref + new evidence checkpoint. | New `run_id`; prior run remains durably inert evidence. |
-| 7 | Ambiguous provenance read | — | Zero matching events ⇒ typed provenance-required failure. Job binding mismatch ⇒ typed failure. ≥ 1 exact match ⇒ deterministic single prepare/replay outcome. Cross-job ref ⇒ never accepted. |
+| 5 | Same ref, changed intent | Ref durable; digest differs. | `GRAPH_RUN_PREPARATION_IDENTITY_MISMATCH`; fail closed; no mutation. Deliberate re-run requires a new DISTINCT driving job with a new ref (row 6). |
+| 6 | Intentional rerun | NEW distinct authoritative driving job (created by existing lifecycle authority outside Child B) + fresh opaque ref checkpointed on that new job. | New `run_id`; prior job/ref/run remain durably inert evidence. Never a second distinct ref on the original job. |
+| 7 | Multi-distinct-ref corruption/ambiguity (>1 distinct canonical refs on one driving job) | All refs durable; current intent not derivable. | Typed provenance-ambiguous failure BEFORE any GraphStore write. No latest/highest-sequence/newest-timestamp/arbitrary-first selection; repair is an out-of-band governance decision on the durable evidence, not an inference. |
+| 8 | Other ambiguous provenance reads | — | Zero canonical refs ⇒ typed provenance-missing failure. Job binding mismatch ⇒ typed failure. Exactly one distinct ref ⇒ deterministic single prepare/replay outcome. Cross-job ref ⇒ never accepted. |
 
 ## 7. Ownership proof — no second authority
 
 - Writers: `JobStore` remains the ONLY writer of `job_events` (via its accepted API / `JOB_CHECKPOINT`). `GraphStore.prepare_run` remains the ONLY writer of `graph_runs`/`graph_run_bindings`. Child B writes nothing anywhere.
 - Readers: Child B reads job rows/events through an injected read-only port (`get_job` + `list_events`); GraphStore reads only its own store.
 - No second scheduler/retry/completion authority: `CHECKPOINT` events are state-preserving (`from_state == to_state`, `job_store.py:477-479`) and drive no transitions; recovery stays with existing job/execution recovery; completion stays with existing closeout boundaries; #215 retains automatic NEXT_READY/successor selection; #433 retains generic/manual runtime activation; GraphStore retains run/binding persistence; provider route selection remains external — Child B only validates the explicit pre-pinned provider/model/effort per WO452 §13.1. No new durable lifecycle authority exists in this design.
+- The one-distinct-ref invariant is enforced only by Child B's fail-closed READ of existing evidence (§5.3); the job store continues to hold no ref-selection or activation-selection authority (WO452 §17 preserved).
 
 ## 8. Future Child-B source contract (AUTHORIZED ONLY AFTER this design's exact-SHA acceptance)
 
@@ -142,18 +158,18 @@ Explicitly out of Child-B scope: `job_store.py`, `job_execution.py`, `graph/disp
 
 ## 9. What would have falsified this design
 
-Recorded for the reviewer: this REUSE verdict would be wrong if any of the following held at re-derivation time — (a) `JobStore.checkpoint()` were not crash-committed or not append-only; (b) the checkpoint evidence were unreachable through an accepted surface without protocol extension; (c) `list_events` lost ordering or rows; (d) WO452 §17's job-store rejection were read as banning ALL job-bound provenance (it bans jobs *created during preparation* as hidden activation state — the driving intent-holder job is accepted lifecycle, created before preparation through `JOB_CREATE`). None hold at `cb5f9b6...`.
+Recorded for the reviewer: this REUSE verdict would be wrong if any of the following held at re-derivation time — (a) `JobStore.checkpoint()` were not crash-committed or not append-only; (b) the checkpoint evidence were unreachable through an accepted surface without protocol extension; (c) `list_events` lost ordering or rows; (d) WO452 §17's job-store rejection were read as banning ALL job-bound provenance (it bans jobs *created during preparation* as hidden activation state — the driving intent-holder job is accepted lifecycle, created before preparation through `JOB_CREATE`); (e) a single driving job ever needed to legitimately hold multiple distinct preparation refs across its lifetime (it must not: rerun ⇒ new distinct driving job, and >1 distinct refs on one job ⇒ fail closed per §5.3). None hold at `cb5f9b6...`.
 
 ## 10. RED-first matrix for future implementation
 
-1. prepare attempted with no durable evidence ⇒ typed provenance failure; zero `graph_runs`/`graph_run_bindings` writes;
+1. prepare attempted with zero distinct canonical graph-run-preparation refs on the driving job ⇒ typed provenance-missing failure; zero `graph_runs`/`graph_run_bindings` writes;
 2. ref grammar violations (wrong prefix, uppercase hex, wrong length, whitespace, non-opaque structured payload) ⇒ typed failure before any read;
 3. evidence present but driving-job `project_id` mismatched ⇒ typed failure;
 4. evidence present but `work_order_ref` mismatched ⇒ typed failure;
 5. evidence present and valid ⇒ `prepare_run` invoked exactly once with the identical ref; run id returned;
 6. replay windows: checkpoint-only → retry completes preparation; prepare-commit-only (evidence pre-exists) → retry returns the SAME run id; both committed → retry fully idempotent;
 7. same ref, changed digest ⇒ `GRAPH_RUN_PREPARATION_IDENTITY_MISMATCH` surfaced, nothing mutated;
-8. intentional rerun with a new ref ⇒ distinct run id; original run row untouched;
+8. intentional rerun via a NEW distinct authoritative driving job (created by the existing lifecycle authority outside Child B) plus a fresh ref checkpointed on that new job ⇒ distinct run id; original job/ref/run untouched;
 9. terminal driving job ⇒ verification fails closed;
 10. ref checkpointed on a different job never satisfies verification;
 11. Child B performs zero writes to `job_events`/`job_records` (write-count assertion);
@@ -162,7 +178,10 @@ Recorded for the reviewer: this REUSE verdict would be wrong if any of the follo
 14. multiple same-ref evidence rows ⇒ exactly one prepare/replay outcome;
 15. WO452 §13.1 regression guard: missing explicit provider/model/effort still fails closed inside the same seam;
 16. v1 GraphStore + valid provenance ⇒ typed authority-unavailable, no auto-upgrade;
-17. concurrent identical preparations (two callers, same evidence+ref) converge on one run via the existing unique index + transaction.
+17. concurrent identical preparations (two callers, same evidence+ref) converge on one run via the existing unique index + transaction;
+18. a second DISTINCT canonical ref on the same driving job (each ref individually well-formed and binding-correct) ⇒ typed provenance-ambiguous failure before any `graph_runs`/`graph_run_bindings` write — never treated as an intentional rerun;
+19. recovery ordering-independence: with multiple distinct refs present, the outcome is the identical typed ambiguous failure regardless of event order, sequence, or timestamp — the recovery function is a distinct-ref set-count with fail-closed dispatch and contains no latest/highest-sequence/newest-timestamp/arbitrary-first selection path;
+20. duplicate identical checkpoint events (same ref, N rows) ⇒ distinct-ref count 1 ⇒ recovery returns that exact ref and exactly one prepare/replay outcome.
 
 ## 11. Preserved boundaries
 
@@ -193,7 +212,7 @@ Until every gate passes:
 
 ## 13. Current verdict
 
-The WO452 §10.1 DESIGN_GAP is resolved by REUSE: the accepted, crash-committed JobStore checkpoint-event seam (already exposed at the accepted `JOB_CHECKPOINT` operator surface) durably holds the caller-minted opaque `preparation_ref` before the first `prepare_run`; Child B verifies it read-only and fails closed otherwise. No candidate required an EXTEND; no second store is invented; every rejected alternative and inference path is recorded.
+The WO452 §10.1 DESIGN_GAP is resolved by REUSE: the accepted, crash-committed JobStore checkpoint-event seam (already exposed at the accepted `JOB_CHECKPOINT` operator surface) durably holds the caller-minted opaque `preparation_ref` before the first `prepare_run`; Child B recovers and verifies it read-only and fails closed otherwise. Recovery is deterministic because one driving job owns at most ONE DISTINCT preparation ref: zero distinct refs ⇒ provenance missing; exactly one ⇒ recover that exact ref (duplicate identical events idempotent); more than one ⇒ provenance ambiguous, failing closed before any GraphStore write, with no latest/sequence/time/arbitrary-first selection. Intentional rerun is expressed only by a new distinct authoritative driving job created by existing lifecycle authority outside Child B — never by a second ref on the same job — and `job_id` itself remains rejected as a ref: the seam is valid because the job scopes ONE preparation intent, not because job identity is reused as GraphStore authority. No candidate required an EXTEND; no second store is invented; every rejected alternative and inference path is recorded.
 
 `SAFE_TO_MUTATE_ZRA3A_CHILDB_SOURCE = NO`
 
