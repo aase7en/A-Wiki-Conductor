@@ -39,8 +39,9 @@ For substantial A-Sunday engineering, a user instruction equivalent to
 of this profile for that session: delegated-run census/recovery, global WIP
 reconstruction, automatic lane fill, the default Windows/macOS execution
 surfaces below, GLM-first long-running labor, event-driven cross-device
-collision pulses, GPT-5.6 Sol fallback when eligible external GLM routes are
-blocked, advisory Ponytail/Caveman consideration, and autonomous continuation.
+collision and lifecycle-status pulses, GPT-5.6 Sol fallback when eligible
+external GLM routes are blocked, advisory Ponytail/Caveman consideration, and
+autonomous continuation.
 The user need not restate multiagent/multilane/multitasking/device-routing/
 GLM/fallback/advisory-skill instructions each session. The clause routes only;
 the normal A-FastTask binding and authority gates still apply.
@@ -89,7 +90,9 @@ Every A-Faster lane adds these fields to the normal A-FastTask binding:
 - `EXECUTION_SURFACE` (Worker, RDC, GitHub, Kilo, Claude Code, etc.);
 - `HARNESS_ID`;
 - `MODEL_ID` + effort/variant when a model is used;
-- durable execution/result pointer for delegated work.
+- durable execution/result pointer for delegated work;
+- latest cross-device lifecycle pulse + freshness timestamps when the lane is
+  material/long-running.
 
 ## Mandatory substantial-session bootstrap
 
@@ -101,8 +104,10 @@ For every substantial A-Sunday Conductor engineering session:
    the current harness cannot invoke it;
 2. attempt RDC device discovery and runtime readiness for every connected
    Windows/macOS device that can materially help the task;
-3. run the PROJECT/TASK DELEGATED-RUN CENSUS below and reconcile or
-   harvest everything it finds before allocating new work;
+3. run the PROJECT/TASK DELEGATED-RUN CENSUS below, including the latest
+   durable cross-device lifecycle pulse/freshness evidence for every material
+   lane, and reconcile or harvest everything it finds before allocating new
+   work;
 4. reconstruct the global WIP budget occupancy projection before dispatch:
    at most 3 mutable lanes plus 1 independent read-only review lane across
    every Worker, device, harness, repository and CROSS_REPO
@@ -143,7 +148,8 @@ next already-authorized surface without changing task/claim/scope semantics.
 At every A-Faster entry, BEFORE selecting new READY work, run a mandatory
 delegated-run census over existing authorities only:
 
-- active work-order/Issue checkpoints for the current project;
+- active work-order/Issue checkpoints for the current project, including
+  the latest A-Faster lifecycle pulse when one exists;
 - known durable lane pointers under `runs/` when local
   (`references/durable-lanes.md` layout);
 - exact process/session identity where the device is reachable;
@@ -164,8 +170,13 @@ Derive each outstanding attempt as `RUNNING` / `TERMINAL_UNHARVESTED` /
 `references/durable-lanes.md` dispositions: `RUNNING` never redispatches;
 `TERMINAL_UNHARVESTED` harvests and verifies first; other ambiguous states
 reconcile side effects and replay safety before takeover. A fresh
-chat/session never means a fresh task. This census is read-only recovery
-routing; it creates no new execution store or lifecycle state machine.
+chat/session never means a fresh task. Also compare `last_activity_at`,
+`last_progress_at`, optional `last_heartbeat_at`, and the lane's declared
+task/adapter-specific stall policy. Crossing a declared freshness bound makes
+the lane a stall candidate requiring reconciliation; elapsed time alone never
+proves the owner is gone and never grants replay/takeover authority. This
+census is read-only recovery routing; it creates no new execution store or
+lifecycle state machine.
 
 ## LANE OCCUPANCY MATRIX (per-invocation projection)
 
@@ -188,12 +199,77 @@ Each occupied or candidate lane row carries at minimum:
 - harness/model (`MODEL_ID` + effort/variant);
 - latest run id / attempt / pointer location;
 - derived liveness state from the census;
+- latest lifecycle pulse label + `observed_at`;
+- `last_activity_at`, `last_progress_at`, optional `last_heartbeat_at`;
+- declared stall/freshness policy and derived `stall_candidate_after_at` when
+  deterministically available;
 - exact next safe action.
 
 Checkpoint the matrix to the active work order/Issue when material (lane
 state changes, terminal-unharvested destinations, rollover, takeover), then
 reconstruct it fresh from evidence next invocation — never treat a stale
 checkpoint as live occupancy truth.
+
+## Cross-device lifecycle pulse projection
+
+A-Faster MUST publish and recover a compact durable lifecycle pulse for every
+material mutable/delegated lane so another device/session can understand the
+lane without chat memory. This is a **projection/checkpoint over existing
+authorities**, never a scheduler, lease, registry, heartbeat service, or second
+execution state machine.
+
+Use these pulse labels only as communication events. The pulse `event` and
+existing `liveness_class` are separate fields with separate meanings; even when
+literal names overlap, never derive, overwrite, or promote authoritative
+liveness/task state from the event label alone:
+
+- `STARTED` — an authorized lane/continuation began;
+- `PROGRESS` — a material task milestone advanced;
+- `WAITING` — the known owner is intentionally waiting on a typed dependency;
+- `STOPPED` — the current executor/session intentionally ceased work without
+  claiming completion; replay safety and the exact next action are mandatory;
+- `TERMINAL_UNHARVESTED` — the attempt ended but result/evidence still needs
+  harvest/reconciliation;
+- `COMPLETED` — the claimed scope is accepted/reconciled terminal; an
+  agent/model merely saying DONE is insufficient;
+- `TAKEOVER_STARTED` — a receiving device/session passed the existing
+  ownership/replay-safety/collision gates and became the current mutable owner.
+
+Every pulse carries at least: `LANE_REF`, latest `DELEGATED_RUN_ID` when one
+exists, task/claim, device, repo/worktree/branch/HEAD/scope, existing
+`liveness_class`, `observed_at`, `started_at`, `last_activity_at`,
+`last_progress_at`, optional `last_heartbeat_at`, typed reason/blocker,
+task/adapter-specific `stall_policy`, derived `stall_candidate_after_at` when
+deterministically computable, replay-safety, evidence/result reference, and
+exact next safe action. Timestamps are ISO-8601 with offset or `UNKNOWN`; never
+invent missing times.
+
+Publish/fold the pulse to the active Work Order/Issue at least on `STARTED`,
+material `PROGRESS`, `WAITING`/`STOPPED`, `TERMINAL_UNHARVESTED`,
+`COMPLETED`, and `TAKEOVER_STARTED`, plus before session/device handoff when
+state changed materially. Device-local `runs/` pointers retain detailed local
+evidence; the Issue/WO pulse is the durable cross-device carrier. If that
+carrier is unavailable, record `PULSE_CARRIER_UNAVAILABLE` in local evidence,
+do not claim the pulse was published, and block handoff/takeover/cleanup steps
+that depend on cross-device publication until the pulse is durably folded.
+Local work may continue only when its existing task/claim/ownership/replay gates
+remain independently satisfied.
+
+Activity, progress and heartbeat remain distinct per
+`docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md`. Repeated polling or
+identical logs do not advance progress. There is **no global timeout**:
+each task/executor declares its appropriate bounded activity/heartbeat policy.
+When the current time crosses a deterministically derived
+`stall_candidate_after_at`, classify `RECONCILE_REQUIRED` / possible
+`STALLED`; do not automatically cancel, replay, reassign, or take over.
+
+Before a takeover, reconcile the exact prior process/session, logs/results,
+Git/worktree/branch/HEAD/dirty state, claim/ownership and replay-safety. An
+explicit handoff or evidence that the prior mutable owner is no longer active
+is required. The receiving device then publishes `TAKEOVER_STARTED` with the
+old/new device identity and binding-digest delta. If the old device later
+resumes, it MUST rerun census/collision first and yield to the valid current
+owner instead of resuming mutation from stale chat state.
 
 ## Collision gate before material dispatch/mutation
 
@@ -218,7 +294,8 @@ census + lane occupancy projection and rerun the collision gate at least:
 - before allocating new work on A-Faster entry;
 - before every material delegated dispatch;
 - before every material mutation;
-- after a material lane transition, harvest, takeover, or scope change;
+- after a material lane transition, lifecycle-pulse publication, harvest,
+  takeover, or scope change;
 - before Windows <-> macOS handoff;
 - before candidate freeze;
 - before fan-in / merge;
@@ -430,7 +507,8 @@ A device handoff is a normal lane handoff, not a new task.
 
 Before another device takes over:
 
-1. checkpoint task/claim/scope/current SHA and delegated-run state;
+1. checkpoint task/claim/scope/current SHA and delegated-run state, and
+   publish a timestamped `WAITING` or `STOPPED` lifecycle pulse as truthful;
 2. preserve material evidence outside any worktree scheduled for cleanup;
 3. push/fold through the accepted remote authority where that repo has one;
 4. on the receiving device, re-pin actual repo/worktree/branch/HEAD and prove
@@ -439,7 +517,10 @@ Before another device takes over:
    `references/durable-lanes.md`; a different digest is `CONTEXT_DRIFT`
    (typically the device-bound fields), resolved only by explicit re-pin,
    recorded delta, and prior-attempt reconciliation — never automatic
-   transfer.
+   transfer;
+6. only after takeover gates pass, publish `TAKEOVER_STARTED` with the prior
+   and receiving device identities plus the binding-digest delta. A stale
+   timestamp by itself is never takeover authority.
 
 No accepted remote/source on the receiving device means
 `SOURCE_UNAVAILABLE / SAFE_TO_MUTATE=NO`.
@@ -449,10 +530,11 @@ No accepted remote/source on the receiving device means
 Before a chat/session/context rotation (not only a device handoff), fold the
 durable state into the active work-order/Issue checkpoint: the current lane
 occupancy matrix, outstanding LANE_REF/DELEGATED_RUN_ID pointers, and every
-terminal-unharvested result destination with its harvest instruction. The
-new session then starts with census + harvest per this skill — never with
-redispatch of work a prior session may still be running or may have finished
-unharvested.
+terminal-unharvested result destination with its harvest instruction. Publish
+a truthful timestamped `WAITING`/`STOPPED` pulse when the current executor is
+intentionally ceasing work. The new session then starts with census + harvest
+per this skill — never with redispatch of work a prior session may still be
+running or may have finished unharvested.
 
 ## Lane recycle and cleanup
 
@@ -491,7 +573,8 @@ and ownership reconciliation; it is not by itself a reason to idle the whole
 project. Stop only when the affected task still has a real unresolved gate
 (collision, required-independent-review unavailability, verification failure,
 authority/safety ambiguity, no safe fallback) or at terminal completion; when
-stopping, report the exact blocker and next safe action.
+stopping, publish the truthful `WAITING`/`STOPPED`/`COMPLETED` lifecycle pulse
+with timestamps, replay-safety, exact blocker and next safe action.
 
 ## Routing output additions
 
@@ -507,6 +590,8 @@ In addition to normal A-FastTask output, report:
 - `EXECUTOR_FALLBACK` when a preferred GLM/device route is blocked, including
   the typed blocker and the verified next executor;
 - latest collision-pulse boundary/result when material;
+- latest lifecycle pulse label, `observed_at`, activity/progress/heartbeat
+  timestamps, stall policy, and stall-candidate time when available;
 - `LANE_REF` + latest `DELEGATED_RUN_ID`/pointer state for every delegated
   lane (or the reconciled disposition per `references/durable-lanes.md`);
 - `ADVISORY_SKILLS` actually available/invoked;
