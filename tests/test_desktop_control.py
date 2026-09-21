@@ -1192,6 +1192,194 @@ def test_wo431_cockpit_read_never_constructs_owning_runtime_stores(
     assert constructions == []
 
 
+def _wo429_seed_execution(
+    database: Path,
+    *,
+    execution_id: str,
+    state_name: str,
+    pid: int | None = None,
+    exit_code: int | None = None,
+    finished_at: str | None = None,
+) -> None:
+    from a_conductor.execution_record import (
+        ExecutionProcessState,
+        TransportState,
+        new_execution_record,
+    )
+    from a_conductor.execution_store import SQLiteExecutionStore
+    from a_conductor.worker_lease import SQLiteWorkerLeaseStore
+
+    store = SQLiteExecutionStore(database)
+    store.initialize()
+    # Accepted runtime activation owns this schema.  Seed the sibling lease
+    # authority too so Cockpit can distinguish "empty" from "unreadable".
+    SQLiteWorkerLeaseStore(database)
+    store.create(
+        new_execution_record(
+            execution_id=execution_id,
+            job_id=f"job-{execution_id}",
+            work_order_ref="WO-P1-429",
+            project_id="project-1",
+            worker_id="a-worker-01",
+            backend_id="runtime-activation-test",
+            agent_ref=None,
+            repo_root=str(database.parent / "repo"),
+            branch="main",
+            head_before="a" * 40,
+            operation_ref=f"runtime:{execution_id}",
+            command_fingerprint="b" * 64,
+            command_summary="WO429 production startup fixture",
+            runtime_profile_ref=None,
+            run_dir_ref=None,
+            stdout_ref=None,
+            stderr_ref=None,
+            result_ref=None,
+            report_ref=None,
+            transport_state=TransportState.CONNECTED,
+            execution_state=ExecutionProcessState(state_name),
+            pid=pid,
+            exit_code=exit_code,
+            started_at=(
+                "2026-09-21T02:00:00+00:00" if pid is not None else None
+            ),
+            finished_at=finished_at,
+        )
+    )
+
+
+def test_wo429_ordinary_open_legacy_db_reads_fail_closed_without_runtime_schema(
+    tmp_path,
+) -> None:
+    canonical = _wo431_canonical(tmp_path)
+    service = DesktopControlService.open(
+        canonical,
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+    before = _wo431_table_inventory(canonical)
+
+    snapshot = service.cockpit_projection(
+        generated_at="2026-09-21T02:00:01+00:00"
+    )
+
+    assert snapshot.lanes
+    assert all(lane.state.value == "UNKNOWN" for lane in snapshot.lanes)
+    assert all(
+        "EVIDENCE_INCOMPLETE" in lane.state_markers for lane in snapshot.lanes
+    )
+    assert "EXECUTION_AUTHORITY_READ_FAILED" in snapshot.degraded_observability
+    assert "LEASE_AUTHORITY_READ_FAILED" in snapshot.degraded_observability
+    after = _wo431_table_inventory(canonical)
+    assert after == before
+    assert "execution_records" not in after
+    assert "worker_leases" not in after
+
+
+def test_wo429_ordinary_open_projects_existing_canonical_execution_truth(
+    tmp_path,
+) -> None:
+    cases = (
+        ("running", "RUNNING", 4242, None, None, "RUNNING"),
+        (
+            "terminal",
+            "SUCCEEDED",
+            None,
+            0,
+            "2026-09-21T02:00:02+00:00",
+            "TERMINAL_UNHARVESTED",
+        ),
+        (
+            "unknown",
+            "PROCESS_EXITED_UNKNOWN_RESULT",
+            4242,
+            None,
+            None,
+            "OUTCOME_UNKNOWN",
+        ),
+    )
+    for label, state_name, pid, exit_code, finished_at, expected_state in cases:
+        case_root = tmp_path / label
+        case_root.mkdir()
+        canonical = case_root / "canonical.sqlite"
+        execution_id = f"exec-wo429-{label}"
+        _wo429_seed_execution(
+            canonical,
+            execution_id=execution_id,
+            state_name=state_name,
+            pid=pid,
+            exit_code=exit_code,
+            finished_at=finished_at,
+        )
+
+        service = DesktopControlService.open(
+            canonical,
+            coordinator_builder=lambda path, *, service: FakeCoordinator(),
+        )
+        snapshot = service.cockpit_projection(
+            generated_at="2026-09-21T02:00:03+00:00"
+        )
+
+        lane = next(
+            item for item in snapshot.lanes if item.execution_id == execution_id
+        )
+        assert lane.state.value == expected_state
+        assert snapshot.degraded_observability == ()
+
+
+def test_wo429_ordinary_open_cockpit_never_constructs_owning_runtime_stores(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    canonical = _wo431_canonical(tmp_path)
+    _wo429_seed_execution(
+        canonical,
+        execution_id="exec-wo429-no-owner",
+        state_name="RUNNING",
+        pid=4242,
+    )
+    constructions: list[str] = []
+
+    def _forbidden(name):
+        def _boom(*args, **kwargs):
+            constructions.append(name)
+            raise AssertionError(f"{name} must never be constructed by Cockpit reads")
+
+        return _boom
+
+    import a_conductor.execution_store as execution_store_module
+    import a_conductor.job_store as job_store_module
+    import a_conductor.worker_lease as worker_lease_module
+
+    monkeypatch.setattr(
+        job_store_module, "SQLiteJobStore", _forbidden("SQLiteJobStore")
+    )
+    monkeypatch.setattr(
+        execution_store_module,
+        "SQLiteExecutionStore",
+        _forbidden("SQLiteExecutionStore"),
+    )
+    monkeypatch.setattr(
+        worker_lease_module,
+        "SQLiteWorkerLeaseStore",
+        _forbidden("SQLiteWorkerLeaseStore"),
+    )
+
+    service = DesktopControlService.open(
+        canonical,
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+    snapshot = service.cockpit_projection(
+        generated_at="2026-09-21T02:00:04+00:00"
+    )
+
+    lane = next(
+        item
+        for item in snapshot.lanes
+        if item.execution_id == "exec-wo429-no-owner"
+    )
+    assert lane.state.value == "RUNNING"
+    assert constructions == []
+
+
 def test_wo134_real_sqlite_e2e_statuses_drift_and_relation(tmp_path) -> None:
     import sqlite3
     from datetime import datetime, timedelta, timezone
