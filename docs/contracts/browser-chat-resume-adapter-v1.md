@@ -284,10 +284,15 @@ browser conversation after a wake.
   validation and the whole-envelope byte gate, every consumer MUST run
   a value-level sanitation gate before accepting the envelope. The gate
   recursively inspects string/list values and returns `BWA_EVENT_INVALID`
-  if a shared `fake-secret-corpus/1` value is present or if URL-shaped
-  material containing `://` appears anywhere in v1. v1 defines no URL
-  field. This is a bounded validation step only, not a credential store,
-  redaction authority, or browser-content parser.
+  if a shared `fake-secret-corpus/1` value is present, if URL-shaped
+  material containing `://` appears anywhere in v1, or if a value matches
+  the accepted adapter secret-shape profile: token-like prefixes (`sk-`,
+  `ghp_`, `xoxb-`, `AKIA`, `Bearer `), private-key headers, or
+  session/share markers. This reuses the accepted Claude Hook adapter
+  security-invalid destination pattern instead of inventing a second
+  redaction vocabulary. v1 defines no URL field. This is a bounded validation
+  step only, not a credential store, redaction authority, or browser-content
+  parser.
 - Pointer/reference fields additionally reject URL-scheme shapes in the
   JSON Schema itself while preserving local durable refs such as
   `runs/...` and normalized colon-delimited event identities.
@@ -352,8 +357,9 @@ rejection; single-effect wake dedupe; at-least-one durable pointer;
 transport counter non-authority; duplicate response drop; consumed
 replay and restart reconcile; ambiguous delivery never blind-retries;
 TEST_ONLY fake-ingress isolation; forbidden field matrix; mandatory
-value-level sanitation across all strings/lists; URL-shaped pointer
-rejection; typed wake reasons; fake-secret corpus pinning and exclusion;
+value-level sanitation across all strings/lists, including accepted
+adapter secret-shape markers; URL-shaped pointer rejection; typed wake
+reasons; fake-secret corpus pinning and exclusion;
 strict closed-schema higher-minor handling; Play/Pause arm-only semantics;
 pointer-only payloads with pinned UNTRUSTED trust; pinned authority
 boundaries; authority-fence vocabulary; and the offline BWA-1 cycle).

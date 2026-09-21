@@ -88,6 +88,28 @@ FAKE_SECRET_CORPUS = (
     "Bearer FAKE000000000000000000000000000",
 )
 
+SECRET_SHAPE_MARKERS = (
+    "sk-",
+    "ghp_",
+    "xoxb-",
+    "AKIA",
+    "Bearer ",
+    "-----BEGIN ",
+    "PRIVATE KEY-----",
+    "SESSIONCOOKIE",
+    "/share/",
+)
+
+SECRET_SHAPE_PROBES = (
+    "sk-proj-SYNTHETIC000000000000000000000000",
+    "ghp_SYNTHETIC000000000000000000000000",
+    "xoxb-SYNTHETIC-000000000000000000000000",
+    "AKIASYNTHETIC000000",
+    "Bearer SYNTHETIC000000000000000000000000",
+    "-----BEGIN SYNTHETIC PRIVATE KEY-----",
+    "SESSIONCOOKIE-SYNTHETIC-0000000000000000",
+)
+
 SHOULD_ENVELOPE_BYTES = 16384
 MAX_ENVELOPE_BYTES = 32768
 
@@ -273,10 +295,12 @@ def contains_sensitive_value(value) -> bool:
     authority or persistent state.
     """
     if isinstance(value, str):
-        lowered = value.lower()
+        lowered = value.casefold()
         if "://" in value:
             return True
-        return any(item.lower() in lowered for item in FAKE_SECRET_CORPUS)
+        if any(item.casefold() in lowered for item in FAKE_SECRET_CORPUS):
+            return True
+        return any(marker.casefold() in lowered for marker in SECRET_SHAPE_MARKERS)
     if isinstance(value, list):
         return any(contains_sensitive_value(item) for item in value)
     if isinstance(value, dict):
@@ -907,6 +931,29 @@ def test_sensitive_values_rejected_by_full_conformance_gate(validator) -> None:
         injected = [synthetic] if isinstance(base[field], list) else synthetic
         payload = mutated(base, **{field: injected})
         assert envelope_conformance(payload, validator) == "BWA_EVENT_INVALID", field
+
+
+def test_noncorpus_secret_shapes_rejected_everywhere(validator) -> None:
+    checked = 0
+    for message_type, builder in MINIMAL_EXAMPLES.items():
+        base = builder()
+        for field, current in base.items():
+            probes = (
+                ([probe] for probe in SECRET_SHAPE_PROBES)
+                if isinstance(current, list)
+                else SECRET_SHAPE_PROBES
+            )
+            if not isinstance(current, (str, list)):
+                continue
+            for probe in probes:
+                payload = mutated(base, **{field: probe})
+                if not validator.is_valid(payload):
+                    continue
+                checked += 1
+                assert (
+                    envelope_conformance(payload, validator) == "BWA_EVENT_INVALID"
+                ), (message_type, field, probe)
+    assert checked >= 20
 
 
 def test_pointer_fields_reject_url_shaped_values_in_schema(validator) -> None:

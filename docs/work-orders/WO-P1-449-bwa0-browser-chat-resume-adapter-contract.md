@@ -1,6 +1,6 @@
 # WO-P1-449 — BWA-0 DEX-3b Browser Chat Resume Adapter Contract
 
-Status: CANDIDATE_READY / POST-MAIN R3 REPAIR / AWAITING EXACT-SHA REREVIEW + CI
+Status: CANDIDATE_READY / R3 REPAIR CYCLE 2 / AWAITING EXACT-SHA REREVIEW + CI
 Issue: #449
 Identity schema: GITHUB_ISSUE_V1
 Risk: R3 protocol/schema + replay/dedupe/security trust boundary
@@ -12,25 +12,34 @@ Date: 2026-09-21
 
 ## Exact binding
 
-Initial BWA-0 authoring is historical and was merged by PR #451 at
-`18b55b11be1558cc931014a9ab604edfaff8f38d`. The current active binding is the
-post-main R3 defect-repair lane below; actual Git/GitHub truth supersedes the
-initial dispatch binding where they differ.
+Initial BWA-0 authoring was merged by PR #451 at
+`18b55b11be1558cc931014a9ab604edfaff8f38d`. Post-main repair cycle 1 was
+merged by PR #455 at `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`.
+A later deterministic Sol probe found the cycle-2 credential-shape security
+gap, so the current active binding is the post-PR-455 repair lane below.
+Actual Git/GitHub truth supersedes earlier acceptance checkpoints where they
+conflict with this later finding.
 
 - repo: `aase7en/A-Wiki-Conductor`
-- worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo449-postmain-r3-repair`
-- branch: `fix/wo-p1-449-bwa0-postmain-r3-repair`
-- post-main repair base: `18b55b11be1558cc931014a9ab604edfaff8f38d`
-- parent merge: PR #451 / `18b55b11be1558cc931014a9ab604edfaff8f38d`
+- worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo449-secretshape-repair`
+- branch: `fix/wo-p1-449-bwa0-secret-shape-postmain`
+- post-main repair base: `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`
+- parent merge: PR #455 / `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`
+- historical cycle-1 worktree:
+  `A:\GitHub\_worktrees\A-Wiki-Conductor-wo449-postmain-r3-repair`
+- historical cycle-1 candidate: `5550f14d6a652722085a4ce7a7858c718f7e2108`
 - historical authoring branch: `docs/wo-p1-449-bwa0-browser-chat-resume-contract`
 - historical initial dispatch/base: `1d3449c04622fb84a9b36de1963460c7100e2683`
-- repair pre-mutation state: clean exact post-main base; Issue #449 remains OPEN;
-  repair claim/checkpoint is durable on the Issue; exact tracked scope remains
-  the same four WO449 files
-- previous dirty repair was transferred by an exact diff with matching SHA-256;
-  the historical worktree is preserved and receives no further mutation
+- cycle-2 pre-mutation state: clean exact post-PR-455 main; Issue #449 remains
+  the durable repair authority; exact allowed tracked scope remains the same
+  four WO449 files
+- cycle-2 patch was transferred from the preserved historical worktree with
+  exact diff SHA-256
+  `3e67c05f7c076965dedb5aa5292e2107bac2ddd8eb2bc1e57f7245768ac18921`;
+  source and applied diff hashes matched exactly
+- the historical dirty worktree is preserved and receives no further mutation
 
-## Exact mutable scope (4 tracked files, NEW only)
+## Exact mutable scope (4 tracked files; bounded modification only)
 
 1. `docs/contracts/browser-chat-resume-adapter-v1.md`
 2. `docs/contracts/browser-chat-resume-adapter-v1.schema.json`
@@ -168,12 +177,53 @@ Repair GREEN subset: 5 passed. Focused Browser Wake contract after repair:
 schema). Exhaustive post-main R3 audit reports zero value-level sensitive
 surface gaps and zero blocking findings.
 
+## R3 repair cycle 2 — 2026-09-21
+
+Candidate `5550f14d6a652722085a4ce7a7858c718f7e2108` received a fresh
+independent GLM-5.3 MAX rereview PASS with reviewer counts P0/P1/P2/P3 =
+0/0/0/3 and exact-head hosted CI SUCCESS. Sol did not accept that result
+because a fresh deterministic probe covered credential-shaped values outside
+the exact `fake-secret-corpus/1`.
+
+The probe injected synthetic non-secret values shaped like real credential
+families (for example `sk-proj-`, `ghp_`, `xoxb-`, and `AKIA`) into
+schema-legal string/list surfaces. The existing full conformance gate accepted
+the first credential-shaped probe across 21 legal destinations, contradicting
+Security §13's MUST-level prohibition on credential relay.
+
+The repair reuses the accepted Claude Hook adapter security-invalid destination
+pattern rather than inventing a second secret vocabulary:
+
+- token-like prefixes `sk-`, `ghp_`, `xoxb-`, `AKIA`, `Bearer `;
+- private-key header markers;
+- session-cookie and share markers;
+- the exact shared `fake-secret-corpus/1`;
+- the existing v1 URL-shape rejection.
+
+RED evidence before this repair:
+`test_noncorpus_secret_shapes_rejected_everywhere` failed on
+`conversation_binding.project_locator = sk-proj-SYNTHETIC...` because the
+full gate returned `BWA_EVENT_VALID`.
+
+GREEN evidence after the bounded repair:
+
+- new targeted test: 1 passed;
+- focused BWA-0 contract: 98 passed;
+- BWA-0 + work-order identity + Hook schema: 228 passed;
+- read-only prototype of the reused marker policy: zero minimal-message false
+  positives and zero synthetic secret-shape gaps.
+
+The repair remains contract/test-only inside the existing WO449 scope. No
+runtime, browser, MV3, Native Messaging, provider, scheduler, NEXT_READY,
+Command-Gateway, DEX-3a, Git/process/filesystem, or secret-store authority is
+added.
+
 ## Next gate
 
 GPT-5.6 Sol final R3 adversarial/authority audit -> freeze a NEW exact candidate
-SHA -> fresh independent exact-SHA GLM-5.3 MAX R3 rereview focused on the two
-repaired trust boundaries plus prior blocking findings, with P0/P1/P2 = 0 ->
-new exact-head hosted CI green -> Sol acceptance/expected-head merge and
-post-main verification. The author does not merge or self-accept. BWA-1 tracked
-implementation starts only after BWA-0 acceptance plus a free mutable WIP slot,
-with source placement re-derived from the owner map.
+SHA -> fresh independent exact-SHA GLM-5.3 MAX focused rereview of repair cycle
+2, with P0/P1/P2 = 0 -> new exact-head hosted CI green -> Sol
+acceptance/expected-head merge and post-main verification. The author does not
+merge or self-accept. BWA-1 tracked implementation starts only after repaired
+BWA-0 acceptance plus a free mutable WIP slot, with source placement re-derived
+from the owner map.
