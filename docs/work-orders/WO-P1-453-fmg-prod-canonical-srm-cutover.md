@@ -12,7 +12,7 @@ Integrator: GPT-5.6 Sol
 ## Lane binding
 
 Authority repo: `aase7en/A-Wiki-Conductor`
-Authority design base/current-main fan-in: `777779e83873a6f2b9f02b71a8944189102a73a2`
+Authority design base/current-main fan-in: `eb9305957d4bfc71b1e53bca1206b84c9ee1105b`
 Design worktree: `/Users/aase7en/Desktop/_worktrees/A-Wiki-Conductor-wo453-fmg-prod-design`
 Design branch: `docs/wo-p1-453-fmg-prod-cutover-design`
 Design mutable scope: this Work Order only.
@@ -88,7 +88,7 @@ After chat/tool timeout recovery, actual authority state was re-read instead of 
 
 This checkpoint changes no cutover authority: design-only on Mac; consequential canonical SRM mutation remains Windows-owned and HOLD until design acceptance plus fresh WIP/claim gates.
 
-Latest re-pin proof before independent review: `3db441f3... -> 777779e...` adds only the accepted WO452 graph-run/activation-binding design file; the preceding `18b55b11... -> 3db441f3...` drift was only the four Browser-Wake repair paths. WO453 has zero main-side drift across both intervals, both merge-trees were clean, and normal merge fan-in preserved one-file PR scope.
+Latest re-pin proof before independent review: `777779e... -> eb930595...` is the accepted WO449 cycle-3 fan-in and changes exactly three Browser-Wake files, with zero overlap against the WO453 document. The preceding `3db441f3... -> 777779e...` interval adds only the accepted WO452 graph-run/activation-binding design file, while `18b55b11... -> 3db441f3...` was the earlier Browser-Wake repair drift. All observed intervals remain disjoint from WO453, merge-tree/fan-in checks are clean, and normal merge-forward preserves one-file PR scope.
 
 ## Pre-cutover gates — all mandatory
 
