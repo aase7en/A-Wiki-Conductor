@@ -108,6 +108,7 @@ Current authority after re-pin:
 - DEX-2b identity/receipt foundation is merged (PR #403); DEX-2a substrate
   supervision and production DEX-3a completion-event delivery remain open.
 - WO205 Phase-D advanced independently into current main via PR #445; Browser Wake does not own or reopen that source scope.
+- WO443 / PR #444 advanced current main again to `b7b7e370876a16a3a8907d50d769544eb2e5c03c` with only A-Faster lifecycle-pulse skill/reference/docs paths. That drift is disjoint from this two-file Browser Wake lane and changes coordination transport, not Browser Wake authority.
 
 To reduce idle dependency time without weakening authority, after WO446 itself is
 accepted:
