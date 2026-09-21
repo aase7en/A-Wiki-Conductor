@@ -1,6 +1,6 @@
 # WO-P1-449 — BWA-0 DEX-3b Browser Chat Resume Adapter Contract
 
-Status: CANDIDATE_READY / POST-MAIN R3 REPAIR / AWAITING EXACT-SHA REREVIEW + CI
+Status: CANDIDATE_READY / R3 REPAIR CYCLE 3 / AWAITING EXACT-SHA REREVIEW + CI
 Issue: #449
 Identity schema: GITHUB_ISSUE_V1
 Risk: R3 protocol/schema + replay/dedupe/security trust boundary
@@ -12,25 +12,38 @@ Date: 2026-09-21
 
 ## Exact binding
 
-Initial BWA-0 authoring is historical and was merged by PR #451 at
-`18b55b11be1558cc931014a9ab604edfaff8f38d`. The current active binding is the
-post-main R3 defect-repair lane below; actual Git/GitHub truth supersedes the
-initial dispatch binding where they differ.
+Initial BWA-0 authoring was merged by PR #451 at
+`18b55b11be1558cc931014a9ab604edfaff8f38d`. Post-main repair cycle 1 was
+merged by PR #455 at `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`.
+A later deterministic Sol probe found the cycle-2 credential-shape security
+gap, so the current active binding is the post-PR-455 repair lane below.
+Actual Git/GitHub truth supersedes earlier acceptance checkpoints where they
+conflict with this later finding.
 
 - repo: `aase7en/A-Wiki-Conductor`
-- worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo449-postmain-r3-repair`
-- branch: `fix/wo-p1-449-bwa0-postmain-r3-repair`
-- post-main repair base: `18b55b11be1558cc931014a9ab604edfaff8f38d`
-- parent merge: PR #451 / `18b55b11be1558cc931014a9ab604edfaff8f38d`
+- worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo449-secretshape-repair`
+- branch: `fix/wo-p1-449-bwa0-secret-shape-postmain`
+- current integration base: `777779e83873a6f2b9f02b71a8944189102a73a2`
+- fan-in merge commit before final freeze: `e8274b8578af606febfe5357f4d1167b44c8a071`
+- fan-in source: PR #454 / WO452; incoming delta is exactly one disjoint
+  WO452 governance file with zero WO449-path overlap
+- historical post-PR-455 repair base: `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`
+- historical parent merge: PR #455 / `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`
+- historical cycle-1 worktree:
+  `A:\GitHub\_worktrees\A-Wiki-Conductor-wo449-postmain-r3-repair`
+- historical cycle-1 candidate: `5550f14d6a652722085a4ce7a7858c718f7e2108`
 - historical authoring branch: `docs/wo-p1-449-bwa0-browser-chat-resume-contract`
 - historical initial dispatch/base: `1d3449c04622fb84a9b36de1963460c7100e2683`
-- repair pre-mutation state: clean exact post-main base; Issue #449 remains OPEN;
-  repair claim/checkpoint is durable on the Issue; exact tracked scope remains
-  the same four WO449 files
-- previous dirty repair was transferred by an exact diff with matching SHA-256;
-  the historical worktree is preserved and receives no further mutation
+- cycle-2 pre-mutation state: clean exact post-PR-455 main; Issue #449 remains
+  the durable repair authority; exact allowed tracked scope remains the same
+  four WO449 files
+- cycle-2 patch was transferred from the preserved historical worktree with
+  exact diff SHA-256
+  `3e67c05f7c076965dedb5aa5292e2107bac2ddd8eb2bc1e57f7245768ac18921`;
+  source and applied diff hashes matched exactly
+- the historical dirty worktree is preserved and receives no further mutation
 
-## Exact mutable scope (4 tracked files, NEW only)
+## Exact mutable scope (4 tracked files; bounded modification only)
 
 1. `docs/contracts/browser-chat-resume-adapter-v1.md`
 2. `docs/contracts/browser-chat-resume-adapter-v1.schema.json`
@@ -168,12 +181,102 @@ Repair GREEN subset: 5 passed. Focused Browser Wake contract after repair:
 schema). Exhaustive post-main R3 audit reports zero value-level sensitive
 surface gaps and zero blocking findings.
 
+## R3 repair cycle 2 — 2026-09-21
+
+Candidate `5550f14d6a652722085a4ce7a7858c718f7e2108` received a fresh
+independent GLM-5.3 MAX rereview PASS with reviewer counts P0/P1/P2/P3 =
+0/0/0/3 and exact-head hosted CI SUCCESS. Sol did not accept that result
+because a fresh deterministic probe covered credential-shaped values outside
+the exact `fake-secret-corpus/1`.
+
+The probe injected synthetic non-secret values shaped like real credential
+families (for example `sk-proj-`, `ghp_`, `xoxb-`, and `AKIA`) into
+schema-legal string/list surfaces. The existing full conformance gate accepted
+the first credential-shaped probe across 21 legal destinations, contradicting
+Security §13's MUST-level prohibition on credential relay.
+
+The repair reuses the accepted Claude Hook adapter security-invalid destination
+pattern rather than inventing a second secret vocabulary:
+
+- token-like prefixes `sk-`, `ghp_`, `xoxb-`, `AKIA`, `Bearer `;
+- private-key header markers;
+- session-cookie and share markers;
+- the exact shared `fake-secret-corpus/1`;
+- the existing v1 URL-shape rejection.
+
+RED evidence before this repair:
+`test_noncorpus_secret_shapes_rejected_everywhere` failed on
+`conversation_binding.project_locator = sk-proj-SYNTHETIC...` because the
+full gate returned `BWA_EVENT_VALID`.
+
+GREEN evidence after the bounded repair:
+
+- new targeted test: 1 passed;
+- focused BWA-0 contract: 98 passed;
+- BWA-0 + work-order identity + Hook schema: 228 passed;
+- read-only prototype of the reused marker policy: zero minimal-message false
+  positives and zero synthetic secret-shape gaps.
+
+The repair remains contract/test-only inside the existing WO449 scope. No
+runtime, browser, MV3, Native Messaging, provider, scheduler, NEXT_READY,
+Command-Gateway, DEX-3a, Git/process/filesystem, or secret-store authority is
+added.
+
+## R3 repair cycle 3 — 2026-09-21
+
+Candidate `d2cc2c4de898cb3b00c9f2ef0957999a65721449` had exact-head hosted
+CI SUCCESS across Windows, Ubuntu, and macOS, but the independent MAX run did
+not satisfy the acceptance packet: it returned a static/plan-oriented
+preliminary PASS direction while explicitly leaving the required dynamic probe
+matrix unexecuted. Its review worktree also gained reviewer-generated untracked
+`.kilo/` plan material, so that run is retained as advisory evidence only.
+
+Both the reviewer static analysis and a separate frozen-SHA Sol probe found the
+same semantic defect in cycle 2: the helper used case-folded substring matching
+for secret markers while the contract described token-like prefixes and
+claimed direct reuse of the accepted Claude Hook profile. Deterministic
+harmless-value injection found 100 schema-valid placements rejected only
+because an incidental substring matched, including examples such as
+`project-sk-alpha`, `MakiaProject`, and `runs/share/result.json`.
+
+Cycle 3 narrows the value gate to credential-bearing positions while preserving
+the MUST-level no-secret boundary:
+
+- token families are matched only at the start of the value:
+  `sk-`, `ghp_`, `xoxb-`, `AKIA`, `Bearer `;
+- private-key material is matched as an actual leading private-key header shape;
+- session/cookie material is matched as an assignment-like leading prefix such
+  as `sessionid:` or `cookie=`;
+- any `://` URL shape remains invalid, so share URLs stay blocked;
+- exact `fake-secret-corpus/1` items remain invalid;
+- incidental marker substrings and local paths are not secrets by shape alone.
+
+RED evidence before cycle-3 repair:
+`test_harmless_marker_substrings_remain_conformant` failed on
+`adapter_capability.adapter_id = project-sk-alpha` because the cycle-2 gate
+returned `BWA_EVENT_INVALID`.
+
+GREEN evidence after cycle-3 repair:
+
+- harmless-marker targeted test: 1 passed;
+- non-corpus secret-shape targeted test: 1 passed;
+- focused Browser Wake contract: 99 passed;
+- Browser Wake + work-order identity + Hook schema: 229 passed;
+- read-only precise-gate prototype: 49/49 synthetic security probes rejected
+  and 100/100 harmless schema-valid marker probes accepted;
+- post-WO452 fan-in exhaustive pre-freeze audit: 93 schema-valid shared-corpus
+  plus credential-shape placements rejected with zero gaps, and 100 harmless
+  marker-containing placements accepted with zero false rejects.
+
+This repair remains bounded to the same WO449 contract/work-order/test scope and
+adds no runtime or execution authority.
+
 ## Next gate
 
 GPT-5.6 Sol final R3 adversarial/authority audit -> freeze a NEW exact candidate
-SHA -> fresh independent exact-SHA GLM-5.3 MAX R3 rereview focused on the two
-repaired trust boundaries plus prior blocking findings, with P0/P1/P2 = 0 ->
-new exact-head hosted CI green -> Sol acceptance/expected-head merge and
-post-main verification. The author does not merge or self-accept. BWA-1 tracked
-implementation starts only after BWA-0 acceptance plus a free mutable WIP slot,
-with source placement re-derived from the owner map.
+SHA -> fresh independent exact-SHA GLM-5.3 MAX focused rereview of repair cycle
+2, with P0/P1/P2 = 0 -> new exact-head hosted CI green -> Sol
+acceptance/expected-head merge and post-main verification. The author does not
+merge or self-accept. BWA-1 tracked implementation starts only after repaired
+BWA-0 acceptance plus a free mutable WIP slot, with source placement re-derived
+from the owner map.
