@@ -11,7 +11,7 @@ Integrator / design owner: GPT-5.6 Sol — Windows lane
 Repository: A-Wiki-Conductor
 Topology: CONTROL_PLANE_ONLY
 Risk: R3 — durable identity / migration / replay / automatic-continuation trust boundary
-Prepared base: `18b55b11be1558cc931014a9ab604edfaff8f38d`
+Prepared base: `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`
 Governance worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo452-design`
 Governance branch: `docs/wo-p1-452-zra3a-design`
 
@@ -55,7 +55,7 @@ It must not create a second scheduler, graph/job lifecycle, provider registry, l
 
 ## 3. Confirmed current-main gaps
 
-Current main `18b55b11...` proves all of the following. This base includes the disjoint WO449/PR451 Browser-Wake contract merge; that four-file fan-in does not touch the WO452 authority surface.
+Current main `3db441f3...` proves all of the following. This base includes the disjoint WO449 Browser-Wake contract history through PR #455; that four-file fan-in does not touch the WO452 authority surface. A later WO449 cycle-2 security repair remains separately owned and cannot grant or revoke WO452 mutation authority.
 
 ### 3.1 Graph-run identity has semantics but no production authority
 
@@ -150,7 +150,8 @@ Reuse, without copying their authority:
 - ControlCenter project registry for `project_id -> root_path`;
 - task contract for exact worktree/branch/HEAD/scope/budget/dispatch authority;
 - task packet bytes for packet identity;
-- provider store for current provider/model/generation/endpoint authority;
+- provider store for current provider/model/generation/endpoint validity authority;
+- the explicit run-preparation request/front door for per-node route-selection intent — never an advisory ranking result or inferred default;
 - worker/lease stores for current worker authority;
 - DurableJobControl/GraphDispatch for job lifecycle, dedup and recovery;
 - #433 for generic production runtime activation;
@@ -243,7 +244,7 @@ Input is canonical UTF-8 JSON containing:
 - nodes sorted by node id;
 - every persisted TaskNode field, with tuples represented as arrays and enums represented by values;
 - edges sorted by `(from_id, to_id, dep_type)`;
-- stable JSON key ordering and compact separators.
+- `json.dumps(..., sort_keys=True, separators=(",", ":"), ensure_ascii=False)` semantics, encoded as strict UTF-8 with no BOM or trailing newline in the digest material.
 
 Digest material is domain-separated:
 
@@ -315,14 +316,17 @@ Logical sequence under one `BEGIN IMMEDIATE`:
 2. look up `preparation_ref`;
 3. if present, load the exact run row plus complete binding set, verify schema/canonical field validity, compare preparation digest **and** canonical durable contents, then return/reject without mutation;
 4. verify graph id exists and the supplied graph digest matches the stored graph definition just read;
-5. require every supplied contract/packet ref and hash to be canonical before persistence;
-6. mint `graph_run_id` only when this preparation does not already exist;
-7. insert one run row including project/digest/preparation identity;
-8. insert the complete per-node binding set;
-9. re-read the run plus complete binding set from SQLite and exact-compare all authority fields to the canonical requested preparation;
-10. commit.
+5. require every binding `node_id` to exist in that exact loaded graph, reject duplicate/unknown nodes, and validate canonical runtime kind plus contract/packet refs and hashes before persistence;
+6. require an explicit pre-pinned provider/model/effort selection for every supplied binding; validate it against current accepted provider configuration/policy but do not rank, infer, default or fall back;
+7. mint `graph_run_id` only when this preparation does not already exist;
+8. insert one run row including project/digest/preparation identity;
+9. insert the complete supplied per-node binding set;
+10. re-read the run plus complete binding set from SQLite and exact-compare all authority fields to the canonical requested preparation;
+11. commit.
 
 Crash before commit leaves no run/bindings. Crash after commit is recovered by `preparation_ref`.
+
+SQLite write-lock contention is bounded by the existing connection/store policy. `SQLITE_BUSY`/`SQLITE_LOCKED` or equivalent acquisition failure returns a typed store/preparation failure; this design adds no spin loop, sleep loop or blind retry around `BEGIN IMMEDIATE`.
 
 No partially prepared run is externally authoritative.
 
@@ -423,6 +427,21 @@ Do not persist as replacement authority:
 
 Binding consumption first verifies immutable digests/current project/graph identity, then #433 revalidates current authorities before any runtime store or external execution.
 
+### 13.1 Explicit route-selection authority
+
+Current main does **not** contain an accepted automatic provider/model selector. `provider_cost_preference.rank_provider_candidates()` is advisory preference evidence only; `provider_selection_observability` deliberately reports absent selection authority as `UNKNOWN`; `TaskNode.model_requirement` is not a canonical provider route.
+
+Therefore the first bounded ZRA-3A preparation path is explicit, not automatic routing:
+
+1. the accepted run-preparation front door/request must supply one complete per-node route selection: `runtime_kind`, `provider_id`, `model_id`, `effort_level`;
+2. absence of any required route field fails closed — no default provider, inferred model, cost-ranked winner or silent fallback;
+3. Child B validates the explicitly selected route against current accepted provider configuration/policy and accepted runtime-kind vocabulary, but **does not choose** among candidates;
+4. the validated explicit selection becomes immutable run-binding identity only because the whole preparation is bound to the durable `preparation_ref`/digest transaction;
+5. #433 still performs fresh provider/model/effort/generation/endpoint/readiness/admission checks at activation time and may reject a route that was valid when prepared;
+6. automatic provider/model selection, cost-aware switching or fallback is a separate future routing-authority slice and cannot be introduced by Child A, Child B or #215 continuation integration.
+
+A free caller string presented outside the accepted run-preparation front door is not route authority.
+
 ## 14. Consumer flow
 
 A future binding consumer performs:
@@ -467,6 +486,7 @@ This is acceptable only because:
 - GraphDispatch derives stable job identity from exact `{graph_id, graph_run_id, node_id}`;
 - existing durable job/dispatch metadata deduplicates/reconciles dispatch;
 - a crash after preparation but before job creation leaves an inert prepared binding;
+- a prepared-but-never-dispatched run/binding remains inert evidence only; this slice adds no implicit garbage-collection, expiry, cancellation or lifecycle transition for it;
 - a crash after job creation uses existing durable job/execution recovery;
 - no cross-store pseudo-transaction or second replay ledger is introduced.
 
@@ -500,6 +520,10 @@ Rejected: crash windows create unbound runs and retry can mint duplicates.
 
 Rejected: violates GE-11 and the no-inference authority rule.
 
+### Treat advisory provider ranking or free caller strings as route authority
+
+Rejected: current cost/quota ranking is explicitly advisory, provider-selection observability reports missing selection authority as `UNKNOWN`, and #433 validates a requested route but does not choose one. The first ZRA-3A path accepts only an explicit route supplied through the accepted run-preparation front door and fails closed when it is absent or invalid.
+
 ## 18. Ordered implementation decomposition
 
 One large source WO is not authorized.
@@ -526,11 +550,12 @@ Owns:
 - project-id resolution;
 - preparation input validation;
 - contract/packet digest validation;
-- provider/model/effort selection validation at prepare time;
+- validation/binding of the caller's explicit pre-pinned `runtime_kind/provider_id/model_id/effort_level` route;
+- rejection of missing route selection, advisory-ranking substitution, implicit defaults and fallback;
 - thin application/service seam;
 - typed binding-to-`RuntimeActivationRequest` reconstruction with fresh digest checks.
 
-It does not select successors and does not dispatch.
+It does not select successors, does not rank/select providers/models, and does not dispatch.
 
 ### Child C — #215 automatic continuation integration
 
@@ -560,59 +585,65 @@ Children are ordered A -> B -> C. Each consequential boundary receives its own e
 6. no legacy activation binding is fabricated;
 7. two concurrent initializers converge on exact v2;
 8. read-only v1 stays read-only and usable for GE-11 graph reads;
-9. read-only v1 binding lookup fails typed with no DDL.
+9. read-only v1 binding lookup fails typed with no DDL;
+10. SQLite write-lock contention returns bounded typed failure and creates no internal retry/spin loop.
 
 ### Graph definition identity
 
-10. same graph canonicalizes deterministically across restart;
-11. node insertion/order differences do not change digest when semantic graph is equal;
-12. semantic node/edge change changes digest;
-13. same graph_id with changed definition makes prepared run stale;
-14. missing graph id and persisted-empty/no-node graph are both rejected before run minting under current schema.
+11. same graph canonicalizes deterministically across restart;
+12. node insertion/order differences do not change digest when semantic graph is equal;
+13. non-ASCII graph metadata canonicalizes with `ensure_ascii=False` + strict UTF-8 deterministically;
+14. semantic node/edge change changes digest;
+15. same graph_id with changed definition makes prepared run stale;
+16. missing graph id and persisted-empty/no-node graph are both rejected before run minting under current schema.
 
 ### Preparation replay/concurrency
 
-15. first preparation mints one server-side run id inside the transaction;
-16. commit + lost response + same preparation_ref/digest returns the same run id after exact durable run+binding-set comparison;
-17. missing/blank preparation_ref fails closed — no volatile implicit mint path exists;
-18. same preparation_ref with different intent fails identity mismatch;
-19. intentional rerun with new preparation_ref creates a different run id;
-20. injected failure before commit leaves no partial run/bindings;
-21. two concurrent identical prepares converge on one run;
-22. concurrent conflicting prepares with the same ref produce one winner + typed mismatch;
-23. duplicate `(run_id,node_id)` binding cannot change identity;
-24. same ref/digest with a missing persisted binding fails `GRAPH_RUN_PREPARATION_RECOVERY_REQUIRED`;
-25. same ref/digest with an extra, malformed or mismatching durable binding fails recovery-required rather than returning the run id.
+17. first preparation mints one server-side run id inside the transaction;
+18. commit + lost response + same preparation_ref/digest returns the same run id after exact durable run+binding-set comparison;
+19. missing/blank preparation_ref fails closed — no volatile implicit mint path exists;
+20. same preparation_ref with different intent fails identity mismatch;
+21. intentional rerun with new preparation_ref creates a different run id;
+22. injected failure before commit leaves no partial run/bindings;
+23. two concurrent identical prepares converge on one run;
+24. concurrent conflicting prepares with the same ref produce one winner + typed mismatch;
+25. duplicate `(run_id,node_id)` binding cannot change identity;
+26. same ref/digest with a missing persisted binding fails `GRAPH_RUN_PREPARATION_RECOVERY_REQUIRED`;
+27. same ref/digest with an extra, malformed or mismatching durable binding fails recovery-required rather than returning the run id;
+28. a binding whose `node_id` is absent from the exact loaded graph is rejected before any run/binding commit;
+29. prepared-but-never-dispatched rows remain inert and do not acquire implicit expiry/GC/cancel lifecycle authority.
 
 ### Project/contract/packet binding
 
-26. missing project_id fails closed;
-27. changed registered project root causes exact authority failure;
-28. absolute/escaping/ambiguous contract ref fails before persistence;
-29. absolute/escaping/ambiguous packet ref fails before persistence;
-30. semantically equivalent refs canonicalize to one `/`-separated durable representation;
-31. malformed/noncanonical SHA-256 values fail before persistence/read acceptance;
-32. contract SHA drift -> stale binding;
-33. packet SHA drift -> stale binding;
-34. binding for absent graph node -> stale/identity failure.
+30. missing project_id fails closed;
+31. changed registered project root causes exact authority failure;
+32. absolute/escaping/ambiguous contract ref fails before persistence;
+33. absolute/escaping/ambiguous packet ref fails before persistence;
+34. semantically equivalent refs canonicalize to one `/`-separated durable representation;
+35. malformed/noncanonical SHA-256 values fail before persistence/read acceptance;
+36. contract SHA drift -> stale binding;
+37. packet SHA drift -> stale binding.
 
 ### Provider/runtime selection
 
-35. unknown provider/model/effort at prepare fails;
-36. provider/model later deauthorized fails through fresh #433 checks;
-37. current provider generation/endpoint is never read from the binding row.
+38. missing explicit `runtime_kind/provider_id/model_id/effort_level` route at prepare fails closed;
+39. unknown/invalid runtime_kind or provider/model/effort at prepare fails;
+40. advisory cost/quota ranking cannot become route authority;
+41. no provider/model defaulting, inference or fallback occurs inside Child A/B;
+42. provider/model later deauthorized fails through fresh #433 checks;
+43. current provider generation/endpoint is never read from the binding row.
 
 ### Continuation/replay boundary
 
-38. zero READY -> no binding activation;
-39. parent not COMPLETE -> no activation;
-40. one READY with valid binding -> #433 called at most once;
-41. missing/stale binding -> no #433 call;
-42. existing successor durable job -> reconcile/existing behavior, no second physical execution;
-43. WAIT -> no same-tick retry;
-44. RECOVERY_REQUIRED -> no same-tick retry;
-45. restart uses same graph_run_id and existing binding/job identity;
-46. no implicit latest/current graph-run query exists in the automatic authority path.
+44. zero READY -> no binding activation;
+45. parent not COMPLETE -> no activation;
+46. one READY with valid binding -> #433 called at most once;
+47. missing/stale binding -> no #433 call;
+48. existing successor durable job -> reconcile/existing behavior, no second physical execution;
+49. WAIT -> no same-tick retry;
+50. RECOVERY_REQUIRED -> no same-tick retry;
+51. restart uses same graph_run_id and existing binding/job identity;
+52. no implicit latest/current graph-run query exists in the automatic authority path.
 
 ## 20. Likely future source/test scope
 
@@ -663,11 +694,11 @@ Until all gates pass:
 
 Windows current session owns only this WO452 governance file.
 
-Mac's WO429 source lane is complete/closed. Windows other session completed the WO449/PR451 merge into current main `18b55b11...`; any WO449 post-main closeout remains that session's authority and this lane does not mutate its files or issue state. Issue #453 is a separate Windows-owned shaping frontier but has no mutation claim from this lane.
+Mac owns WO453 / PR #456 design-only on `docs/work-orders/WO-P1-453-fmg-prod-canonical-srm-cutover.md`; this Windows lane does not mutate that file, branch, worktree or SunDayRemoteMCP cutover state. Windows other session owns WO449 security repair cycle 2 on the same four Browser-Wake files after PR #455 merged into `main@3db441f3...`; this lane may observe its liveness for global review-slot accounting but does not mutate its issue, branch, worktree or repair files.
 
-A temporary coordination deviation occurred when the WO449 and WO452 independent GLM reviewers were both already RUNNING, exceeding the A-Faster preferred single independent-review lane. Neither exact identified reviewer was blindly killed solely to repair accounting. WO452 was harvested terminal; no further independent reviewer may be dispatched until the remaining WO449 reviewer is terminal/harvested.
+The prior WO452 exact-SHA reviewer is terminal/harvested. WO449's rereviewer later ran on exact `5550f14...`; at this checkpoint its reviewer PID is no longer live and its detached result reports PASS, but folding/acceptance remains the WO449 owner session's responsibility. Before any new WO452 reviewer dispatch this lane must recheck actual process/pointer/Issue state and must not overlap an active WO449 or Mac reviewer.
 
-This deviation changes scheduling evidence only. It grants no authority and does not erase exact-SHA review requirements.
+A previous temporary review-slot overlap remains historical process evidence only. It grants no authority and does not erase exact-SHA review requirements.
 
 ## 23. Current verdict
 
@@ -677,20 +708,24 @@ The earlier generic-node-events design is rejected.
 
 The corrected candidate direction is:
 
-**typed GraphStore v2 run preparation + typed immutable per-node selection binding + existing-authority fresh revalidation**
+**typed GraphStore v2 run preparation + explicit pre-pinned per-node route binding + existing-authority fresh revalidation**
 
 with:
 
 - strict fail-closed migration;
 - ControlCenter `project_id -> root_path` reuse;
-- graph definition digest;
+- graph definition digest with explicit UTF-8 canonicalization;
 - replay-safe `preparation_ref` + preparation digest;
 - graph_run_id minted only inside atomic prepare;
+- explicit `runtime_kind/provider/model/effort` selection at the accepted preparation front door — no advisory ranking/default/fallback authority;
 - same-run continuation reusing the existing graph_run_id;
-- no second scheduler/lifecycle/activation authority.
+- inert prepared-only rows and bounded lock-failure semantics;
+- no second scheduler/lifecycle/activation/model-routing authority.
+
+Historical exact candidate `8edaa315...` received independent `PASS_DESIGN` with P0/P1/P2/P3 = 0/0/0/5 and exact-head CI green, but is superseded for acceptance because Sol found the provider-route authority ambiguity after review dispatch. Those results remain historical evidence only.
 
 Current mutation verdict:
 
 `SAFE_TO_MUTATE_ZRA3_SOURCE = NO`
 
-Exact next safe action: freeze this one-file governance candidate, run deterministic identity/hygiene checks, publish it for exact-head CI, and obtain a fresh exact-SHA independent R3 design review only after global review occupancy returns to zero.
+Exact next safe action: freeze a new one-file governance SHA with this explicit-route repair, rerun deterministic identity/hygiene checks and exact-head CI, then obtain a fresh exact-SHA independent R3 design review only after global review occupancy is verified zero.
