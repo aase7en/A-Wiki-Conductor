@@ -12,7 +12,7 @@ Integrator: GPT-5.6 Sol
 ## Lane binding
 
 Authority repo: `aase7en/A-Wiki-Conductor`
-Authority design base/current-main fan-in: `18b55b11be1558cc931014a9ab604edfaff8f38d`
+Authority design base/current-main fan-in: `3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`
 Design worktree: `/Users/aase7en/Desktop/_worktrees/A-Wiki-Conductor-wo453-fmg-prod-design`
 Design branch: `docs/wo-p1-453-fmg-prod-cutover-design`
 Design mutable scope: this Work Order only.
@@ -78,15 +78,17 @@ The Windows cutover owner may advance canonical SRM only after this design is ac
 
 After chat/tool timeout recovery, actual authority state was re-read instead of replaying the prior plan:
 
-- A-Wiki `origin/main = 18b55b11be1558cc931014a9ab604edfaff8f38d`;
-- the only main drift since the original #453 claim base was accepted BWA-0 / PR #451, four non-overlapping files;
-- this WO file had zero main-side drift and merged forward without conflict;
+- A-Wiki `origin/main = 3db441f3aa2ec7ef3a7f41ce98d41df047b72a3c`;
+- main first advanced through accepted BWA-0 / PR #451 and then the accepted four-file WO449 contract/schema hardening repair; all drift remained disjoint from this WO453 path;
+- this WO file had zero main-side drift and both normal merge fan-ins completed without conflict;
 - Windows canonical SRM remains `main@ac01b37ba2e4b9d0249addf7694c0b91deb352c7` with protected untracked `.serena/`;
 - accepted FMG final SHA `2e6aeabd09a321232098187dba4c522e37e4b1de` remains on its isolated accepted branch/worktree and is not an ancestor of canonical SRM main;
 - no real SRM `node.exe` / npm runtime was present in the fresh process census;
 - Mac SRM remains stale/non-authoritative and is not synchronized by this lane.
 
 This checkpoint changes no cutover authority: design-only on Mac; consequential canonical SRM mutation remains Windows-owned and HOLD until design acceptance plus fresh WIP/claim gates.
+
+Latest re-pin proof before independent review: `18b55b11... -> 3db441f3...` changes only the four Browser-Wake contract/schema/test/work-order paths; this WO453 file has zero main-side drift, merge-tree was clean, and the normal merge fan-in preserved one-file PR scope.
 
 ## Pre-cutover gates — all mandatory
 
