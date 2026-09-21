@@ -1,6 +1,6 @@
 # WO-P1-449 — BWA-0 DEX-3b Browser Chat Resume Adapter Contract
 
-Status: CANDIDATE_READY / R3 REPAIR CYCLE 2 / AWAITING EXACT-SHA REREVIEW + CI
+Status: R3_REPAIR_CYCLE_3_COMPLETE / PRE-FREEZE
 Issue: #449
 Identity schema: GITHUB_ISSUE_V1
 Risk: R3 protocol/schema + replay/dedupe/security trust boundary
@@ -217,6 +217,52 @@ The repair remains contract/test-only inside the existing WO449 scope. No
 runtime, browser, MV3, Native Messaging, provider, scheduler, NEXT_READY,
 Command-Gateway, DEX-3a, Git/process/filesystem, or secret-store authority is
 added.
+
+## R3 repair cycle 3 — 2026-09-21
+
+Candidate `d2cc2c4de898cb3b00c9f2ef0957999a65721449` had exact-head hosted
+CI SUCCESS across Windows, Ubuntu, and macOS, but the independent MAX run did
+not satisfy the acceptance packet: it returned a static/plan-oriented
+preliminary PASS direction while explicitly leaving the required dynamic probe
+matrix unexecuted. Its review worktree also gained reviewer-generated untracked
+`.kilo/` plan material, so that run is retained as advisory evidence only.
+
+Both the reviewer static analysis and a separate frozen-SHA Sol probe found the
+same semantic defect in cycle 2: the helper used case-folded substring matching
+for secret markers while the contract described token-like prefixes and
+claimed direct reuse of the accepted Claude Hook profile. Deterministic
+harmless-value injection found 100 schema-valid placements rejected only
+because an incidental substring matched, including examples such as
+`project-sk-alpha`, `MakiaProject`, and `runs/share/result.json`.
+
+Cycle 3 narrows the value gate to credential-bearing positions while preserving
+the MUST-level no-secret boundary:
+
+- token families are matched only at the start of the value:
+  `sk-`, `ghp_`, `xoxb-`, `AKIA`, `Bearer `;
+- private-key material is matched as an actual leading private-key header shape;
+- session/cookie material is matched as an assignment-like leading prefix such
+  as `sessionid:` or `cookie=`;
+- any `://` URL shape remains invalid, so share URLs stay blocked;
+- exact `fake-secret-corpus/1` items remain invalid;
+- incidental marker substrings and local paths are not secrets by shape alone.
+
+RED evidence before cycle-3 repair:
+`test_harmless_marker_substrings_remain_conformant` failed on
+`adapter_capability.adapter_id = project-sk-alpha` because the cycle-2 gate
+returned `BWA_EVENT_INVALID`.
+
+GREEN evidence after cycle-3 repair:
+
+- harmless-marker targeted test: 1 passed;
+- non-corpus secret-shape targeted test: 1 passed;
+- focused Browser Wake contract: 99 passed;
+- Browser Wake + work-order identity + Hook schema: 229 passed;
+- read-only precise-gate prototype: 49/49 synthetic security probes rejected
+  and 100/100 harmless schema-valid marker probes accepted.
+
+This repair remains bounded to the same WO449 contract/work-order/test scope and
+adds no runtime or execution authority.
 
 ## Next gate
 

@@ -88,16 +88,17 @@ FAKE_SECRET_CORPUS = (
     "Bearer FAKE000000000000000000000000000",
 )
 
-SECRET_SHAPE_MARKERS = (
+TOKEN_PREFIXES = (
     "sk-",
     "ghp_",
     "xoxb-",
     "AKIA",
     "Bearer ",
-    "-----BEGIN ",
-    "PRIVATE KEY-----",
-    "SESSIONCOOKIE",
-    "/share/",
+)
+
+PRIVATE_KEY_HEADER_RE = re.compile(r"^-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
+SESSION_ASSIGNMENT_RE = re.compile(
+    r"(?i)^(?:session(?:id|token|cookie)?|cookie)\s*[=:]"
 )
 
 SECRET_SHAPE_PROBES = (
@@ -107,7 +108,17 @@ SECRET_SHAPE_PROBES = (
     "AKIASYNTHETIC000000",
     "Bearer SYNTHETIC000000000000000000000000",
     "-----BEGIN SYNTHETIC PRIVATE KEY-----",
-    "SESSIONCOOKIE-SYNTHETIC-0000000000000000",
+    "sessioncookie=SYNTHETIC0000000000000000",
+    "sessionid:SYNTHETIC0000000000000000",
+)
+
+HARMLESS_MARKER_PROBES = (
+    "project-sk-alpha",
+    "alpha-ghp_team",
+    "foo-xoxb-bar",
+    "MakiaProject",
+    "runs/share/result.json",
+    "sessioncookie-project",
 )
 
 SHOULD_ENVELOPE_BYTES = 16384
@@ -295,12 +306,15 @@ def contains_sensitive_value(value) -> bool:
     authority or persistent state.
     """
     if isinstance(value, str):
-        lowered = value.casefold()
         if "://" in value:
             return True
-        if any(item.casefold() in lowered for item in FAKE_SECRET_CORPUS):
+        if any(item in value for item in FAKE_SECRET_CORPUS):
             return True
-        return any(marker.casefold() in lowered for marker in SECRET_SHAPE_MARKERS)
+        if value.startswith(TOKEN_PREFIXES):
+            return True
+        if PRIVATE_KEY_HEADER_RE.match(value):
+            return True
+        return SESSION_ASSIGNMENT_RE.match(value) is not None
     if isinstance(value, list):
         return any(contains_sensitive_value(item) for item in value)
     if isinstance(value, dict):
@@ -954,6 +968,29 @@ def test_noncorpus_secret_shapes_rejected_everywhere(validator) -> None:
                     envelope_conformance(payload, validator) == "BWA_EVENT_INVALID"
                 ), (message_type, field, probe)
     assert checked >= 20
+
+
+def test_harmless_marker_substrings_remain_conformant(validator) -> None:
+    checked = 0
+    for message_type, builder in MINIMAL_EXAMPLES.items():
+        base = builder()
+        for field, current in base.items():
+            probes = (
+                ([probe] for probe in HARMLESS_MARKER_PROBES)
+                if isinstance(current, list)
+                else HARMLESS_MARKER_PROBES
+            )
+            if not isinstance(current, (str, list)):
+                continue
+            for probe in probes:
+                payload = mutated(base, **{field: probe})
+                if not validator.is_valid(payload):
+                    continue
+                checked += 1
+                assert (
+                    envelope_conformance(payload, validator) == "BWA_EVENT_VALID"
+                ), (message_type, field, probe)
+    assert checked >= 50
 
 
 def test_pointer_fields_reject_url_shaped_values_in_schema(validator) -> None:

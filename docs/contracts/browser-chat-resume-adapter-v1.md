@@ -286,13 +286,18 @@ browser conversation after a wake.
   recursively inspects string/list values and returns `BWA_EVENT_INVALID`
   if a shared `fake-secret-corpus/1` value is present, if URL-shaped
   material containing `://` appears anywhere in v1, or if a value matches
-  the accepted adapter secret-shape profile: token-like prefixes (`sk-`,
-  `ghp_`, `xoxb-`, `AKIA`, `Bearer `), private-key headers, or
-  session/share markers. This reuses the accepted Claude Hook adapter
-  security-invalid destination pattern instead of inventing a second
-  redaction vocabulary. v1 defines no URL field. This is a bounded validation
-  step only, not a credential store, redaction authority, or browser-content
-  parser.
+  the bounded credential-shape profile: token families only at the start of
+  the value (`sk-`, `ghp_`, `xoxb-`, `AKIA`, `Bearer `), a
+  private-key header shape at the start of the value, or a session/cookie
+  assignment-like prefix (for example `sessionid:` or `cookie=`).
+  These families are reused from the accepted Claude Hook security policy,
+  but Browser Wake intentionally narrows matching to credential-bearing
+  positions instead of copying Hook's broad substring matcher. Incidental
+  substrings in legitimate identifiers/refs and local paths such as
+  `runs/share/result.json` are not secrets by shape alone. Share URLs remain
+  rejected by the `://` rule; v1 defines no URL field. This is a bounded
+  validation step only, not a credential store, redaction authority, or
+  browser-content parser.
 - Pointer/reference fields additionally reject URL-scheme shapes in the
   JSON Schema itself while preserving local durable refs such as
   `runs/...` and normalized colon-delimited event identities.
@@ -357,9 +362,10 @@ rejection; single-effect wake dedupe; at-least-one durable pointer;
 transport counter non-authority; duplicate response drop; consumed
 replay and restart reconcile; ambiguous delivery never blind-retries;
 TEST_ONLY fake-ingress isolation; forbidden field matrix; mandatory
-value-level sanitation across all strings/lists, including accepted
-adapter secret-shape markers; URL-shaped pointer rejection; typed wake
-reasons; fake-secret corpus pinning and exclusion;
+value-level sanitation across all strings/lists, including precise
+credential-prefix/header/assignment shapes without incidental-substring
+false positives; URL-shaped pointer rejection; typed wake reasons;
+fake-secret corpus pinning and exclusion;
 strict closed-schema higher-minor handling; Play/Pause arm-only semantics;
 pointer-only payloads with pinned UNTRUSTED trust; pinned authority
 boundaries; authority-fence vocabulary; and the offline BWA-1 cycle).
