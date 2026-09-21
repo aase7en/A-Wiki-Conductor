@@ -9,10 +9,10 @@ Repo: A-Wiki-Conductor
 Worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo459-awiki-secret-writer-r2`
 Branch: `feat/wo-p1-459-awiki-secret-writer-r2`
 Dispatch base/head expected: `a37746f67631c9ed8edd23fa20b80b8ef4d3dfd9`
-Status: REPAIR-CYCLE2-GREEN / CURRENT-MAIN-FANIN-PENDING (exact candidate
-643891f review returned CHANGES_REQUIRED P2=1; bounded Windows temp-cleanup +
-line-boundary repair is deterministic-green locally; current main advanced to
-b7cd755 after accepted WO458 and must be fanned in before the next freeze)
+Status: REPAIR-CYCLE2-FANIN-GREEN / FREEZE-PENDING (reviewed candidate
+643891f returned CHANGES_REQUIRED P2=1; bounded repair is deterministic-green;
+current main b7cd755 has been normally merged and exact post-fan-in gates pass;
+final freeze waits only for the roadmap merge queue to settle before push/review)
 
 ## Binding
 
@@ -246,12 +246,16 @@ Cycle-2 RED/GREEN evidence on Windows, before folding the latest current main:
 - strict UTF-8 + `git diff --check` — PASS.
 - dirty scope before fan-in is exactly the three authorized WO459 paths.
 
-Current authority main is now
-`b7cd755c08adf889727d68489ddcaa4de51615ce` after accepted WO458. The next
-safe step is to commit this bounded repair, normal-merge that exact main (no
-rebase/reset/stash), rerun the affected gates, freeze a new exact SHA, push PR
-#468, then require fresh hosted CI plus an independent exact-SHA R3 MAX
-rereview with P0/P1/P2=0.
+The bounded repair was checkpointed as
+`3b95d67844181b3184553f2d23810594f894ede7`, then current authority main
+`b7cd755c08adf889727d68489ddcaa4de51615ce` was folded by normal merge (no
+rebase/reset/stash) as `89ab20d559bb1fbdd4ad45ea0c9060388152017a`.
+Post-fan-in verification is green: the combined focused/related/WO458 regression
+set is **267 passed, 1 skipped**; py_compile and diff-check pass; diff vs current
+main remains exactly the three authorized WO459 paths. Final remote freeze/push
+is intentionally delayed until the current roadmap merge queue settles, so the
+candidate can absorb any immediately preceding accepted main without another
+stale exact-SHA review.
 
 ## Remaining risks / blockers
 
@@ -264,7 +268,7 @@ rereview with P0/P1/P2=0.
   byte comparison and `os.replace`; a lock-file authority was deliberately
   not invented (fail-closed typing instead). If a future slice needs a
   cooperative lock, it must be its own work order.
-- Repair-cycle-1 source output has been integrator-adjudicated and fanned into
-  accepted WO461 repair main. Remaining gates are fanned-in deterministic
-  verification, exact candidate freeze, independent R3 review, hosted CI,
-  Sol acceptance, merge and post-main verification.
+- Repair cycle 2 is deterministic-green and has folded accepted WO458 main.
+  Remaining gates are final current-main re-pin/freeze, push, fresh exact-head
+  hosted CI, independent exact-SHA R3 rereview, Sol acceptance, merge and
+  post-main verification.
