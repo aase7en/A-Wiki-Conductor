@@ -69,6 +69,31 @@ material lane transition/harvest/scope change or observed remote/claim drift.
 This is event-driven reconciliation, not a claim that plain ChatGPT polls or
 self-wakes after a turn ends.
 
+## Cross-device lifecycle pulse
+
+For every material A-Faster lane, the active Work Order/Issue carries the
+latest timestamped lifecycle pulse while the device-local `runs/` pointer
+holds detailed evidence. Required communication events are `STARTED`,
+material `PROGRESS`, truthful `WAITING`/`STOPPED`,
+`TERMINAL_UNHARVESTED`, `COMPLETED`, and valid `TAKEOVER_STARTED`.
+
+The pulse includes the existing liveness class plus `observed_at`,
+`last_activity_at`, `last_progress_at`, optional `last_heartbeat_at`, the
+task/adapter-specific stall policy, a derived `stall_candidate_after_at` when
+available, replay safety, exact binding, reason/evidence, and next safe action.
+
+No global timeout exists. A stale pulse is only a reason to reconcile exact
+runtime/process/session, result/log, Git/worktree/HEAD, claim and replay
+safety. It never grants automatic cancellation, duplicate dispatch, or
+takeover. On a valid cross-device takeover, publish `TAKEOVER_STARTED` with
+old/new device identities and the binding-digest delta. If an old device later
+resumes, its A-Faster entry must observe the newer pulse and yield to the
+current owner unless another explicit handoff occurs.
+
+Plain ChatGPT is not assumed to wake or poll in the background. This mechanism
+makes the next invocation/device able to recover fresh-enough truth; accepted
+external runtime heartbeats may supply evidence but are not authority.
+
 ## Safe parallel examples
 
 - Windows lane edits A-Wiki docs; Mac lane edits a separate claimed SRM adapter
@@ -88,6 +113,8 @@ self-wakes after a turn ends.
 - Windows and Mac push edits to the same mutable branch at the same time.
 - Kilo and Claude both edit the same hotspot because one appears idle.
 - Reusing a branch/worktree after chat timeout without recovering the old run.
+- Treating an expired pulse timestamp as permission to seize a mutable hotspot
+  without process/result/Git/claim/replay reconciliation.
 - Deleting a merged worktree whose ignored review/result files were never
   folded elsewhere.
 - Stale PID reuse: a recycled OS PID happens to match the number recorded in

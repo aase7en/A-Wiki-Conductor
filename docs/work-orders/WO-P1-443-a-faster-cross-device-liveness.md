@@ -99,3 +99,16 @@ Every later device/session must start from Issue #443 + this WO + actual Git/run
 ## Initial checkpoint
 
 The user explicitly requested cross-device awareness with start/working/complete/stop timestamps and safe help/takeover after long stalls. Existing liveness authority already defines activity/progress/heartbeat distinctions and STALLED reconciliation, while A-Faster currently does not require these timestamp fields or explicit lifecycle-pulse publication at every lane boundary. This WO fills that routing/projection gap by REUSE -> EXTEND only.
+
+## Author checkpoint
+
+- Author surface: GPT-5.6 Sol direct through macOS RDC in the isolated claimed worktree.
+- `GLM_OFFLOAD_ASSESSMENT=NOT_BENEFICIAL` for authorship: the change is a bounded governance projection over already accepted liveness authority; preserve GLM capacity/independence for the required R2 review.
+- Added automatic A-Faster lifecycle-pulse recovery/publication at STARTED, material PROGRESS, WAITING/STOPPED, TERMINAL_UNHARVESTED, COMPLETED, and TAKEOVER_STARTED.
+- Extended local pointer timing with activity/progress/heartbeat freshness plus task-specific stall policy and derived stall-candidate time.
+- Made stale/expired pulses reconciliation triggers only; time never grants retry/cancel/takeover authority.
+- Cross-device takeover now requires prior-owner/process/result/Git/claim/replay reconciliation and a TAKEOVER_STARTED pulse; a resumed old device must yield to the valid newer owner.
+- Global WIP remains `3 mutable + 1 review`; no scheduler/registry/lease/heartbeat daemon/state-machine authority was added.
+- Deterministic author checks: exact four-path scope PASS; `git diff --check` PASS; work-order identity 33 PASS; strict UTF-8/no U+FFFD PASS; frontmatter/reference/required-semantic assertions PASS; added-line secret-shaped scan 0 hits.
+- Durable progress pulse: Issue #443 comment `5754040165`.
+- Candidate still requires freeze, independent exact-SHA R2 review, exact-head hosted CI, GPT acceptance, expected-head merge, and post-main verification.

@@ -151,12 +151,73 @@ Minimum `pointer.md` fields:
   `mutable_scope`;
 - execution identity when known: runner/child/session ids (PID +
   verified command identity, never a broad process class);
-- timing: `started_at`, `finished_at` (ISO-8601 with offset, or `UNKNOWN`);
+- timing: `observed_at`, `started_at`, `last_activity_at`,
+  `last_progress_at`, optional `last_heartbeat_at`, and `finished_at`
+  (ISO-8601 with offset, or `UNKNOWN`);
+- freshness: task/adapter-specific `stall_policy` plus
+  `stall_candidate_after_at` when deterministically computable; there is no
+  global A-Faster timeout and expiry alone grants no takeover/replay authority;
+- latest lifecycle pulse label:
+  `STARTED/PROGRESS/WAITING/STOPPED/TERMINAL_UNHARVESTED/COMPLETED/TAKEOVER_STARTED`
+  (communication projection only, never a second state machine);
 - destinations: `task_ref`, `result_ref`, `exit_ref`, `log_ref`;
 - `replay_safety`: `NOT_STARTED/PARTIAL/COMPLETE_UNVERIFIED/
   COMPLETE_VERIFIED/UNKNOWN` per the liveness protocol projection;
 - `expected_completion`: what evidence will prove completion (tests,
   checks, review gates) and where it lands.
+
+## 3.1 Cross-device lifecycle pulse
+
+The device-local pointer is detailed recovery evidence. For cross-device
+awareness, fold a compact pulse into the active Work Order/Issue at material
+lane boundaries. This pulse reuses the pointer and
+`EXECUTION_LIVENESS_PROTOCOL.md`; it is not a registry or lease.
+
+Minimum pulse shape:
+
+```text
+A-FASTER LANE PULSE v1
+event: STARTED|PROGRESS|WAITING|STOPPED|TERMINAL_UNHARVESTED|COMPLETED|TAKEOVER_STARTED
+observed_at: <ISO-8601 offset timestamp or UNKNOWN>
+lane_ref: <LANE_REF>
+delegated_run_id: <latest run id or NONE>
+task_ref: <WO/task>
+claim_ref: <claim>
+device_id: <verified device>
+liveness_class: <existing liveness class>
+repo: <repo>
+worktree: <absolute worktree>
+branch: <branch or DETACHED>
+head: <exact SHA>
+mutable_scope: <bounded scope>
+last_activity_at: <timestamp or UNKNOWN>
+last_progress_at: <timestamp or UNKNOWN>
+last_heartbeat_at: <timestamp or UNKNOWN>
+stall_policy: <task/adapter-specific bounded policy or UNKNOWN>
+stall_candidate_after_at: <derived timestamp or UNKNOWN>
+replay_safety: <existing projection>
+reason: <typed reason/blocker or NONE>
+evidence: <result/log/Issue/PR pointer>
+next_safe_action: <exact action>
+```
+
+Publish at `STARTED`, material `PROGRESS`, truthful `WAITING`/`STOPPED`,
+`TERMINAL_UNHARVESTED`, `COMPLETED`, and every valid
+`TAKEOVER_STARTED`. `STOPPED` means only that the current executor/session
+ceased work; it is not automatically durable CANCELLED/FAILED/TERMINAL.
+`COMPLETED` requires accepted/reconciled evidence, never a model DONE claim.
+
+Freshness is advisory routing evidence. If the current time exceeds a
+deterministically derived `stall_candidate_after_at`, the next A-Faster
+invocation marks the lane `RECONCILE_REQUIRED` / possible `STALLED` and then
+checks exact process/session, result/log, Git/worktree, ownership and replay
+safety. Time alone never authorizes a new attempt or takeover.
+
+When a receiving device validly takes over, it records the prior device,
+new device, prior/latest run identity, and the binding-digest field delta in
+the `TAKEOVER_STARTED` pulse. If the prior device later resumes, that session
+must recover this pulse and yield to the current owner unless an explicit
+subsequent handoff transfers ownership again.
 
 ## 4. Secret safety
 
@@ -174,8 +235,9 @@ rule to pasted tool output folded into evidence.
 redispatch/takeover, reconcile every outstanding LANE_REF for the task:
 
 1. **Issue/WO pointer** — read the active work order/Issue checkpoint for
-   outstanding lane refs, latest attempt, and declared result
-   destinations. Chat memory is convenience context only, after facts.
+   outstanding lane refs, latest attempt, latest lifecycle pulse/freshness
+   timestamps, and declared result destinations. Chat memory is convenience
+   context only, after facts.
 2. **Process/session** — check the exact runner/child/session identity
    (PID + verified command identity) recorded in the pointer, when the
    device is reachable. Never broad-kill or assume from a process name.
@@ -184,7 +246,11 @@ redispatch/takeover, reconcile every outstanding LANE_REF for the task:
 4. **Git** — verify actual worktree/branch/HEAD/dirty state against
    `dispatch_head`, `mutable_scope`, and the expected outputs; recompute
    BINDING_DIGEST from observed facts.
-5. **Derive state** (per the liveness protocol) and act:
+5. **Freshness check** — compare trustworthy activity/progress/heartbeat
+   timestamps with the lane's declared task/adapter-specific stall policy.
+   If its derived bound is exceeded, mark `RECONCILE_REQUIRED` / stall
+   candidate; do not infer interruption/ownership loss from time alone.
+6. **Derive state** (per the liveness protocol) and act:
 
 | Derived state | Disposition |
 |---|---|
@@ -204,8 +270,9 @@ A device handoff is a lane handoff, not a new task, and not an automatic
 transfer:
 
 1. **Checkpoint** on the sending device: task/claim/scope, current SHA,
-   outstanding LANE_REF/DELEGATED_RUN_ID + pointer state, exact next safe
-   action — written to the work order checkpoint.
+   outstanding LANE_REF/DELEGATED_RUN_ID + pointer state, latest freshness
+   timestamps, truthful `WAITING`/`STOPPED` pulse, and exact next safe action
+   — written to the work order/Issue checkpoint.
 2. **Push durable state**: push the branch; fold material evidence out of
    `runs/` into the work order/Issue (runs/ is gitignored and does not
    travel with the repo).
@@ -219,8 +286,10 @@ transfer:
      a handoff, so a mismatch is expected and must be resolved by an
      explicit re-pin: record the field-level delta in a new attempt
      pointer, reconcile the prior attempt per Section 5, prove no mutable
-     overlap, and only then continue. Digest mismatch never silently
-     transfers ownership, and never bypasses the WO/claim authority.
+     overlap, publish `TAKEOVER_STARTED` with the old/new device identity
+     and field-level digest delta, and only then continue. Digest mismatch
+     never silently transfers ownership, and never bypasses the WO/claim
+     authority.
 
 No accepted remote/source on the receiving device remains
 `SOURCE_UNAVAILABLE / SAFE_TO_MUTATE=NO`.
@@ -260,6 +329,9 @@ Unsafe:
   packet (duplicate mutable attempt; violates harvest-first).
 - `STALLED` for 40 minutes → kill and relaunch without process/result/Git
   reconciliation (timeout is not replay authority).
+- An old `STARTED` pulse crosses `stall_candidate_after_at` → declare the old
+  owner dead and mutate the same hotspot without exact runtime/Git/claim
+  reconciliation (freshness breach is only a stall candidate).
 - Copying a pointer from the other device and continuing without
   re-pinning HEAD (digest mismatch ignored).
 - A pointer logging `Authorization: Bearer <raw token>` or a Kilo share
