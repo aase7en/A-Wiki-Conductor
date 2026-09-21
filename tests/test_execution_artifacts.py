@@ -25,6 +25,7 @@ def create_record(
     stdout_ref: str = "runs/exec-001/stdout.log",
     stderr_ref: str = "runs/exec-001/stderr.log",
     report_ref: str | None = "runs/exec-001/report.txt",
+    result_ref: str = "runs/exec-001/result.json",
 ):
     repo = tmp_path / "repo"
     run_dir = repo / "runs" / "exec-001"
@@ -49,7 +50,7 @@ def create_record(
             run_dir_ref="runs/exec-001",
             stdout_ref=stdout_ref,
             stderr_ref=stderr_ref,
-            result_ref="runs/exec-001/result.json",
+            result_ref=result_ref,
             report_ref=report_ref,
             transport_state=TransportState.CONNECTED,
             execution_state=ExecutionProcessState.VERIFICATION_REQUIRED,
@@ -206,3 +207,39 @@ def test_service_exposes_no_arbitrary_path_or_mutation_surface(tmp_path: Path) -
         "push",
     ):
         assert not hasattr(service, forbidden)
+
+
+# ---------------- WO-P1-205 Phase D RESULT artifact authority ----------------
+
+def test_result_kind_reads_exact_record_result_ref_and_full_digest(tmp_path: Path) -> None:
+    _, run_dir, store, record = create_record(tmp_path)
+    payload = b'{"execution_id":"exec-001","exit_code":0}'
+    (run_dir / "result.json").write_bytes(payload)
+
+    artifact = ExecutionArtifactService(store=store).read_chunk(
+        "exec-001",
+        ExecutionArtifactKind.RESULT,
+        offset=0,
+        max_bytes=64 * 1024,
+    )
+
+    assert artifact.artifact_ref == record.result_ref
+    assert artifact.raw == payload
+    assert artifact.offset == 0
+    assert artifact.truncated is False
+    assert artifact.sha256 == hashlib.sha256(payload).hexdigest()
+
+
+def test_result_kind_reuses_run_dir_confinement(tmp_path: Path) -> None:
+    _, _, store, _ = create_record(
+        tmp_path,
+        result_ref="../foreign-result.json",
+    )
+    with pytest.raises(ExecutionArtifactError) as exc_info:
+        ExecutionArtifactService(store=store).read_chunk(
+            "exec-001",
+            ExecutionArtifactKind.RESULT,
+            offset=0,
+            max_bytes=1024,
+        )
+    assert exc_info.value.code == "ARTIFACT_OUTSIDE_RUN_DIR"

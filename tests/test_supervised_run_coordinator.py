@@ -806,3 +806,188 @@ def test_wo246_no_bare_generation_or_required_trust_surface():
     fields = _dataclasses.fields(coord_module.SupervisedRunIdentity)
     provenance_fields = [f.name for f in fields if "author" in f.name or "provenance" in f.name]
     assert provenance_fields == ["author_provenance"]
+
+
+# ---------------- WO-P1-205 Phase D exact execution handle ----------------
+
+def test_phase_d_run_with_outcome_fresh_exposes_exact_durable_id(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    _, store, _, _, coordinator = _harness(tmp_path)
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.FRESH
+    assert outcome.execution_id is not None
+    assert store.get(outcome.execution_id).execution_id == outcome.execution_id
+    assert outcome.native.exit_code == 0
+    # Existing API remains behavior-compatible and returns only NativeCommandResult.
+    legacy = coordinator.run(ARGV, timeout_seconds=30)
+    assert legacy.exit_code == 0
+    assert not hasattr(legacy, "execution_id")
+
+
+def test_phase_d_run_with_outcome_reuse_preserves_exact_id(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    _, _, supervised, _, coordinator = _harness(tmp_path)
+    first = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    launches = supervised.launch_calls
+    second = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert first.kind is SupervisedRunOutcomeKind.FRESH
+    assert second.kind is SupervisedRunOutcomeKind.REUSE_COMPLETED
+    assert second.execution_id == first.execution_id
+    assert supervised.launch_calls == launches
+
+
+def test_phase_d_blocked_unknown_exposes_no_execution_id(tmp_path):
+    from a_conductor.execution_deduplication import (
+        DuplicateExecutionAssessment,
+        DuplicateExecutionDecision,
+    )
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    _, _, _, _, coordinator = _harness(tmp_path)
+    fingerprint = coordinator.fingerprint_for_argv(ARGV)
+
+    class BlockedGuard:
+        def assess(self, _spec):
+            return DuplicateExecutionAssessment(
+                decision=DuplicateExecutionDecision.BLOCKED_UNKNOWN,
+                fingerprint=fingerprint,
+                record=None,
+                reason_code="AMBIGUOUS_HISTORY",
+            )
+
+    coordinator._guard = BlockedGuard()
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.BLOCKED_UNKNOWN
+    assert outcome.execution_id is None
+    assert outcome.native.exit_code is None
+    assert outcome.native.stderr == "SUPERVISED_DUPLICATE_BLOCKED"
+
+
+def test_phase_d_pre_persistence_provenance_failure_exposes_no_id(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    bad_binding = classify_author_provenance(
+        task_contract_ref="different-contract",
+        packet_sha256="c" * 64,
+    )
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=SupervisedRunIdentity(
+            repo_root=str(repo),
+            author_provenance=bad_binding,
+            **IDENTITY,
+        ),
+        poll_interval_seconds=0.01,
+    )
+
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert "SUPERVISOR_PROVENANCE_AUTHORITY_INVALID" in outcome.native.stderr
+    assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_phase_d_timeout_after_persistence_retains_exact_nonaccepted_id(tmp_path):
+    import time as _time
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class NeverResolves(ScriptedSupervised):
+        def inspect(self, execution_id):
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.SUPERVISOR_RUNNING,
+                supervisor_pid=None,
+                result_available=False,
+                recovery_required=False,
+            )
+
+    supervised = NeverResolves(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        poll_interval_seconds=0.001,
+        clock_fn=_time.monotonic,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=1)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.TIMED_OUT
+    assert outcome.execution_id is not None
+    assert store.get(outcome.execution_id).execution_id == outcome.execution_id
+    assert outcome.native.timed_out is True
+
+
+def test_phase_d_attach_running_propagates_existing_exact_id(tmp_path):
+    from a_conductor.execution_deduplication import (
+        DuplicateExecutionAssessment,
+        DuplicateExecutionDecision,
+    )
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    _, store, supervised, _, coordinator = _harness(tmp_path)
+    first = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    record = store.get(first.execution_id)
+    fingerprint = coordinator.fingerprint_for_argv(ARGV)
+
+    class AttachGuard:
+        def assess(self, _spec):
+            return DuplicateExecutionAssessment(
+                decision=DuplicateExecutionDecision.ATTACH_RUNNING,
+                fingerprint=fingerprint,
+                record=record,
+                reason_code="EXISTING_ACTIVE_EXECUTION",
+            )
+
+    coordinator._guard = AttachGuard()
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.ATTACH_RUNNING
+    assert outcome.execution_id == first.execution_id
+
+
+def test_phase_d_recovery_after_persistence_retains_exact_nonaccepted_id(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class RecoveryRequired(ScriptedSupervised):
+        def inspect(self, execution_id):
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.RECOVERY_REQUIRED,
+                supervisor_pid=None,
+                result_available=False,
+                recovery_required=True,
+                error_code="CHILD_DIED",
+            )
+
+    supervised = RecoveryRequired(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        poll_interval_seconds=0.001,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.RECOVERY_REQUIRED
+    assert outcome.execution_id is not None
+    assert store.get(outcome.execution_id).execution_id == outcome.execution_id
+    assert "SUPERVISOR_RECOVERY_REQUIRED:CHILD_DIED" in outcome.native.stderr
