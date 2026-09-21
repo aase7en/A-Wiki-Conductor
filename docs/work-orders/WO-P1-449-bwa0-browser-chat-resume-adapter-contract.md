@@ -1,6 +1,6 @@
 # WO-P1-449 — BWA-0 DEX-3b Browser Chat Resume Adapter Contract
 
-Status: CANDIDATE_READY / AWAITING EXACT-SHA R3 REVIEW + CI + SOL ACCEPTANCE
+Status: CANDIDATE_READY / POST-MAIN R3 REPAIR / AWAITING EXACT-SHA REREVIEW + CI
 Issue: #449
 Identity schema: GITHUB_ISSUE_V1
 Risk: R3 protocol/schema + replay/dedupe/security trust boundary
@@ -12,12 +12,23 @@ Date: 2026-09-21
 
 ## Exact binding
 
+Initial BWA-0 authoring is historical and was merged by PR #451 at
+`18b55b11be1558cc931014a9ab604edfaff8f38d`. The current active binding is the
+post-main R3 defect-repair lane below; actual Git/GitHub truth supersedes the
+initial dispatch binding where they differ.
+
 - repo: `aase7en/A-Wiki-Conductor`
-- worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo449-bwa0-contract`
-- branch: `docs/wo-p1-449-bwa0-browser-chat-resume-contract`
-- dispatch/base HEAD: `1d3449c04622fb84a9b36de1963460c7100e2683`
-- pre-mutation state verified: exact HEAD/branch match, clean tree, Issue #449 scope equal to this lane
-- nothing is committed, pushed, or merged by the author
+- worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo449-postmain-r3-repair`
+- branch: `fix/wo-p1-449-bwa0-postmain-r3-repair`
+- post-main repair base: `18b55b11be1558cc931014a9ab604edfaff8f38d`
+- parent merge: PR #451 / `18b55b11be1558cc931014a9ab604edfaff8f38d`
+- historical authoring branch: `docs/wo-p1-449-bwa0-browser-chat-resume-contract`
+- historical initial dispatch/base: `1d3449c04622fb84a9b36de1963460c7100e2683`
+- repair pre-mutation state: clean exact post-main base; Issue #449 remains OPEN;
+  repair claim/checkpoint is durable on the Issue; exact tracked scope remains
+  the same four WO449 files
+- previous dirty repair was transferred by an exact diff with matching SHA-256;
+  the historical worktree is preserved and receives no further mutation
 
 ## Exact mutable scope (4 tracked files, NEW only)
 
@@ -123,11 +134,46 @@ memory, or model-policy authority is introduced anywhere.
 - added-lines secret-pattern scan -> clean
 - `git status --short` -> exactly the four scope files, nothing else
 
+## R3 repair cycle 1 — 2026-09-21
+
+The first current-main-fanned candidate `804e3ae1cc9dea1e55cef6e8baa070894d3e1df7`
+received independent GLM-5.3 MAX review PASS with reviewer counts
+P0/P1/P2/P3 = 0/0/0/3 and exact-head hosted CI SUCCESS. GPT-5.6 Sol did
+not accept it because adversarial probes confirmed two MUST-level contract
+inconsistencies:
+
+1. value-level sanitation: legal field shapes could still carry synthetic
+   sensitive values / URL-shaped pointer material even though Security §13
+   says no conformant envelope may carry them;
+2. versioning: prose claimed higher-minor unknown optional fields were ignored
+   while the root schema is deliberately closed with `additionalProperties:false`.
+
+The bounded repair preserves the same four-file scope and adds RED-first
+coverage plus:
+
+- typed wake reasons (`AGENT_RESULT_READY`, `REVIEW_REQUIRED`, `NEXT_READY`,
+  `RECOVERY_REQUIRED`) instead of free-form reason text;
+- schema-level URL-scheme rejection on durable pointer/reference fields;
+- a mandatory consumer-side value sanitation gate in addition to schema and
+  byte-size validation, with the shared fake-secret corpus rejected across
+  all legal string/list surfaces;
+- coherent closed-schema minor handling: `1.x.y` identifies the v1 family,
+  but unknown additive fields fail closed until the newer schema is explicitly
+  supported; consumers MUST NOT ignore unrecognized fields.
+
+Repair RED subset: 3 failed / 2 passed before the schema/contract repair.
+Repair GREEN subset: 5 passed. Focused Browser Wake contract after repair:
+97 passed. Combined related regression after repair: 227 passed
+(`test_browser_chat_resume_adapter_contract.py` + work-order identity + Hook
+schema). Exhaustive post-main R3 audit reports zero value-level sensitive
+surface gaps and zero blocking findings.
+
 ## Next gate
 
-GPT-5.6 Sol R3 adversarial/authority audit -> freeze of the exact candidate SHA ->
-strongest independent exact-SHA GLM-5.3 MAX R3 review with P0/P1/P2 = 0 ->
-exact-head hosted CI green -> Sol acceptance/expected-head merge and post-main verification. The
-author does not merge or self-accept. BWA-1 tracked implementation
-starts only after BWA-0 acceptance plus a free mutable WIP slot, with
-source placement re-derived from the owner map.
+GPT-5.6 Sol final R3 adversarial/authority audit -> freeze a NEW exact candidate
+SHA -> fresh independent exact-SHA GLM-5.3 MAX R3 rereview focused on the two
+repaired trust boundaries plus prior blocking findings, with P0/P1/P2 = 0 ->
+new exact-head hosted CI green -> Sol acceptance/expected-head merge and
+post-main verification. The author does not merge or self-accept. BWA-1 tracked
+implementation starts only after BWA-0 acceptance plus a free mutable WIP slot,
+with source placement re-derived from the owner map.
