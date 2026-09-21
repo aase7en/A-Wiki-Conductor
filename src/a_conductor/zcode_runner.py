@@ -62,6 +62,7 @@ from .supervised_run_coordinator import (
     SupervisedLauncher,
     SupervisedRunCoordinator,
     SupervisedRunIdentity,
+    SupervisedRunOutcome,
 )
 from .execution_deduplication import (
     ExecutionFingerprintSpec,
@@ -1012,15 +1013,14 @@ class SupervisedZCodeRunner:
             raise ValueError("ZCODE_ARGV_GRAMMAR_INVALID")
         return argv
 
-    def run(self, *, operation_ref: str | None = None, timeout_seconds: int = 300) -> object:
-        """Execute through the coordinator: dedup → record → launch → poll →
-        collect/version-CAS. Returns the coordinator's native-style result
-        mapping; the canonical ZCode artifacts live in the run dir.
+    def run_with_outcome(
+        self, *, operation_ref: str | None = None, timeout_seconds: int = 300
+    ) -> SupervisedRunOutcome:
+        """Execute one turn and expose the exact durable execution locator.
 
-        Operation identity is DERIVED from the verified task identity
-        (task_contract_ref + packet SHA). A caller ``operation_ref`` is
-        accepted only as a diagnostic label when it exactly matches the
-        derived identity; it can never choose a different dedup identity.
+        The operation identity and selection checks are identical to run().
+        The returned locator is evidence for exact store re-read only; it is
+        never acceptance or terminality authority by itself.
         """
         derived = self._task_packet.canonical_operation_ref()
         if operation_ref is not None and operation_ref != derived:
@@ -1028,11 +1028,16 @@ class SupervisedZCodeRunner:
                 "operation_ref must match the derived task identity: " + derived
             )
         coordinator = self._coordinator()
-        # preparation-time selection authorization (1st check) — fail before
-        # any durable record exists when the selection is wrong
         self._adapter.authorized_selection_digest("PREP")
-        return coordinator.run(
+        return coordinator.run_with_outcome(
             self.argv(),
             environment_overrides=(),
             timeout_seconds=timeout_seconds,
         )
+
+    def run(self, *, operation_ref: str | None = None, timeout_seconds: int = 300) -> object:
+        """Preserve the historical native-result API exactly."""
+        return self.run_with_outcome(
+            operation_ref=operation_ref,
+            timeout_seconds=timeout_seconds,
+        ).native
