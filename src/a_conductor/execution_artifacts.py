@@ -31,6 +31,7 @@ class ExecutionArtifactKind(str, Enum):
     STDOUT = "STDOUT"
     STDERR = "STDERR"
     REPORT = "REPORT"
+    RESULT = "RESULT"
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +140,7 @@ class ExecutionArtifactService:
             ExecutionArtifactKind.STDOUT: record.stdout_ref,
             ExecutionArtifactKind.STDERR: record.stderr_ref,
             ExecutionArtifactKind.REPORT: record.report_ref,
+            ExecutionArtifactKind.RESULT: record.result_ref,
         }[kind]
         if ref is None:
             raise ExecutionArtifactError("ARTIFACT_NOT_CONFIGURED")
