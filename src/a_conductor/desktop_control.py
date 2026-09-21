@@ -294,6 +294,7 @@ class DesktopControlService:
             settings_store=config_store,
             provider_store=provider_store,
             instances_root=resolved_root,
+            cockpit_authority_database=database,
             control_database=database,
         )
 
