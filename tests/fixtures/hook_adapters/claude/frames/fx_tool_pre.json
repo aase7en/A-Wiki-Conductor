@@ -1,0 +1,19 @@
+{
+  "native_version": "0.0.0-fixture-a",
+  "expect_outcome": "envelope",
+  "contains_redaction_bait": true,
+  "frame": {
+    "fixture_event": "FxToolPre",
+    "session_ref": "fx-session-0001",
+    "turn_ref": "fx-turn-0007",
+    "occurred_at": "2026-09-19T08:10:05Z",
+    "tool_ref": "FxEdit",
+    "tool_payload": {
+      "path": "src/app.py"
+    },
+    "argv": ["FXBAIT-ARGV-0", "FXBAIT-ARGV-1"],
+    "env": {
+      "FXBAIT_ENV": "FXBAIT-ENV-VALUE"
+    }
+  }
+}

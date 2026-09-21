@@ -630,8 +630,163 @@ def test_wo226_mutation_entrypoint_still_rejects_read_only(tmp_path):
         assemble_zcode_execution(
             authorities=_review_authorities(tmp_path, lease=_review_lease(tmp_path)),
             packet=_e2e_packet(tmp_path),
-            model_id="glm-5.3", expected_generation=1, expected_base_url=BASE_URL,
+            model_id="glm-5.3",
+            expected_generation=1,
+            expected_base_url=BASE_URL,
             secret_reference="secret-ref:zcode-credential",
             workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
         )
     assert e.value.code == "ZCODE_LEASE_MUTATION_INTENT_INSUFFICIENT"
+
+
+# ---------------- WO-P1-246: author provenance classification ----------------
+
+REPAIR_REF = "zra2-repair-v1:" + "e" * 64
+
+
+def _mutation_authorities(tmp_path, *, task_ref: str):
+    from dataclasses import replace as _replace
+    from tests.test_zcode_authority_bound_assembly import _Controller, _Obs, _Store
+    from tests.test_zcode_real_helper_e2e import Snapshot as _E2ESnapshot
+    from tests.test_zcode_real_helper_e2e import _profile as _e2e_profile
+    from tests.test_zcode_real_helper_e2e import build_admission, build_lease
+    return ZCodeExecutionAuthorities(
+        provider_snapshot=_E2ESnapshot(1, _e2e_profile()),
+        secret_resolver=Secrets(),
+        execution_store=_Store(),
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        lease_evidence=_replace(build_lease(tmp_path), task_id=task_ref),
+        admission_evidence=build_admission(),
+        dispatch_batch_id="batch-e2e-0001",
+        dispatch_execution_id="exec-e2e-bound-0001",
+        project_id="zcode",
+        requested_mutable_scope=("src/a_conductor/zcode_runner.py",),
+        worker_id="a-worker-01", repo_root=str(tmp_path),
+        branch="feat/wo-p1-158-zcode-zero-relay", head="h" * 40, dirty=False,
+    )
+
+
+def _ref_packet(tmp_path, task_ref: str):
+    path = tmp_path / "task-packet.md"
+    path.write_text(f"Author task under {task_ref}.", encoding="utf-8")
+    return TaskPacketFile(
+        task_contract_ref=task_ref,
+        path=str(path),
+        sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+    )
+
+
+def test_wo246_original_author_packet_classifies_generation0(tmp_path):
+    """Test 9 (assembly seam): the verified original packet + canonical lease
+    yields a generation-0 binding bound to the exact contract."""
+    runner = assemble_zcode_execution(
+        authorities=_mutation_authorities(tmp_path, task_ref="WO-P1-246-AUTHOR"),
+        packet=_ref_packet(tmp_path, "WO-P1-246-AUTHOR"),
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+    )
+    binding = runner._identity.author_provenance
+    assert binding is not None
+    assert binding.author_generation == 0
+    assert binding.task_contract_ref == "WO-P1-246-AUTHOR"
+    assert binding.task_packet_sha256 == runner._task_packet.packet_sha256
+
+
+def test_wo246_reviewer_assembly_gets_no_author_provenance(tmp_path):
+    """Test 14: review_only=True carries no author provenance."""
+    from a_conductor.zcode_production_assembly import assemble_zcode_review_execution
+    runner = assemble_zcode_review_execution(
+        authorities=_review_authorities(tmp_path, lease=_review_lease(tmp_path)),
+        packet=_e2e_review_packet(tmp_path),
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+    )
+    assert runner._identity.author_provenance is None
+
+
+def _e2e_review_packet(tmp_path):
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    return _e2e_packet(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("ref", "code"),
+    [
+        (REPAIR_REF, "ZCODE_REPAIR_LINEAGE_UNAVAILABLE"),
+        ("zra2-repair-v1:" + "E" * 64, "ZCODE_REPAIR_CONTRACT_UNSUPPORTED"),
+        ("zra2-repair-v1:" + "e" * 63, "ZCODE_REPAIR_CONTRACT_UNSUPPORTED"),
+        ("zra2-repair-v2:" + "e" * 64, "ZCODE_REPAIR_CONTRACT_UNSUPPORTED"),
+        ("zra2-repair-v1:", "ZCODE_REPAIR_CONTRACT_UNSUPPORTED"),
+        ("zra2-repair-bogus", "ZCODE_REPAIR_CONTRACT_UNSUPPORTED"),
+    ],
+)
+def test_wo246_repair_family_fails_closed_before_launch(tmp_path, ref, code):
+    """Tests 10/11/12: any zra2-repair- family packet fails closed with the
+    typed assembly error BEFORE launch — never generation 0, no external
+    effect, and prefix-only grammar matches classify nothing."""
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_execution(
+            authorities=_mutation_authorities(tmp_path, task_ref=ref),
+            packet=_ref_packet(tmp_path, ref),
+            model_id="glm-5.3",
+            expected_generation=1,
+            expected_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == code
+
+
+@NT_ONLY
+def test_wo246_e2e_author_run_persists_generation0_pair(tmp_path):
+    """Test 9 (full production chain): assemble → run through the real
+    specialized helper; the durable record carries generation 0 and one
+    opaque attempt id."""
+    import re as _re
+    import sqlite3
+
+    from tests.test_zcode_real_helper_e2e import build_admission, build_lease
+    from tests.test_zcode_real_helper_e2e import build_real_service_authorities
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    from tests.test_zcode_real_helper_e2e import _write_fake_app_server
+    import sys as _sys
+
+    runtime_python = getattr(_sys, "_base_executable", _sys.executable)
+    fake_script = _write_fake_app_server(tmp_path / "fake", tmp_path / "receipts", "ok")
+    authorities = replace(
+        build_real_service_authorities(tmp_path),
+        lease_evidence=build_lease(tmp_path),
+        admission_evidence=build_admission(),
+    )
+    runner = assemble_zcode_execution(
+        authorities=authorities,
+        packet=_e2e_packet(tmp_path),
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path),
+        executable=runtime_python,
+        bundle_js=str(fake_script),
+        deadline_seconds=20.0,
+    )
+    result = runner.run(operation_ref=None, timeout_seconds=80)
+    assert result.exit_code == 0
+
+    con = sqlite3.connect(tmp_path / "control.sqlite")
+    try:
+        attempt, generation = con.execute(
+            "SELECT author_attempt_id, author_generation FROM execution_records"
+        ).fetchone()
+    finally:
+        con.close()
+    assert generation == 0
+    assert _re.fullmatch(r"author-attempt-v1:[0-9a-f]{32}", attempt)

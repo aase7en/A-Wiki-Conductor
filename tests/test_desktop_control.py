@@ -990,6 +990,208 @@ def test_wo134_single_provider_api_no_cross_provider_surface() -> None:
     assert not any("providers" in name for name in signature.parameters)
 
 
+# --- WO-P1-431 RUNTIME-AUTH-1: canonical authority identity seam (RED-first) ---
+
+
+def _wo431_canonical(tmp_path: Path) -> Path:
+    return tmp_path / "canonical.sqlite"
+
+
+def _wo431_table_inventory(database: Path) -> tuple:
+    import sqlite3
+
+    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    try:
+        rows = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        ).fetchall()
+    finally:
+        connection.close()
+    return tuple(row[0] for row in rows)
+
+
+def test_wo431_open_retains_resolved_canonical_control_db_as_authority_locator(
+    tmp_path, monkeypatch
+) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    monkeypatch.chdir(first)
+
+    desktop = DesktopControlService.open(
+        "control.sqlite",
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+    expected = (first / "control.sqlite").resolve(strict=False)
+
+    locator = desktop.runtime_authority_database
+
+    assert locator == expected
+    assert locator == desktop.settings_store.database_path
+    monkeypatch.chdir(second)
+    assert desktop.runtime_authority_database == locator
+
+
+def test_wo431_open_job_control_rejects_identity_mismatch_before_mutation(
+    tmp_path, monkeypatch
+) -> None:
+    import pytest
+
+    from a_conductor.desktop_control import RuntimeAuthorityError
+
+    canonical = _wo431_canonical(tmp_path)
+    desktop = DesktopControlService.open(
+        canonical,
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+    before = _wo431_table_inventory(canonical)
+
+    import a_conductor.job_control as jc
+
+    def _must_not_open(*args, **kwargs):
+        raise AssertionError("DurableJobControlService.open must not run on mismatch")
+
+    monkeypatch.setattr(jc, "DurableJobControlService", _must_not_open)
+
+    sibling = tmp_path / "sibling.sqlite"
+    with pytest.raises(RuntimeAuthorityError) as exc:
+        desktop.open_job_control(sibling, ())
+
+    assert exc.value.code == "AUTHORITY_DATABASE_IDENTITY_MISMATCH"
+    assert isinstance(exc.value, ValueError)
+    assert sibling.exists() is False
+    assert _wo431_table_inventory(canonical) == before
+
+
+def test_wo431_open_job_control_accepts_exact_canonical_db_with_supervised_preference(
+    tmp_path, monkeypatch
+) -> None:
+    from a_conductor.native_operations import NativeOperationDefinition, NativeOperationKind
+
+    canonical = _wo431_canonical(tmp_path)
+    desktop = DesktopControlService.open(
+        canonical,
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+    operations = (
+        NativeOperationDefinition(
+            operation_ref="op:pytest",
+            kind=NativeOperationKind.PYTEST,
+            paths=("tests",),
+            timeout_seconds=60,
+        ),
+    )
+    captured = {}
+    import a_conductor.job_control as jc
+
+    class _RecordingJobControl:
+        def __init__(self, *, supervised, **kwargs):
+            captured["supervised"] = supervised
+
+        @classmethod
+        def open(cls, *args, **kwargs):
+            captured["database_path"] = args[0] if args else kwargs.get("database_path")
+            return cls(**kwargs)
+
+    monkeypatch.setattr(jc, "DurableJobControlService", _RecordingJobControl)
+
+    desktop.open_job_control(canonical, operations)
+
+    assert captured["database_path"] == desktop.runtime_authority_database
+    assert captured["supervised"] is True  # default ON per user decision
+
+    desktop.set_preference("supervised", False)
+    desktop.open_job_control(canonical, operations)
+    assert captured["supervised"] is False
+
+
+def test_wo431_legacy_canonical_db_without_runtime_tables_stays_fail_closed(
+    tmp_path, monkeypatch
+) -> None:
+    import sqlite3
+
+    canonical = _wo431_canonical(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    desktop = DesktopControlService.open(
+        canonical,
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+
+    # Legacy composition stays usable: control-center rows still readable.
+    assert len(desktop.snapshot().workers) == 3
+
+    # Cockpit read bound to the canonical legacy DB (the seam #429 will bind)
+    # reports UNKNOWN/EVIDENCE_INCOMPLETE and never initializes runtime tables.
+    bound = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        settings_store=desktop.settings_store,
+        cockpit_authority_database=canonical,
+    )
+    snapshot = bound.cockpit_projection(generated_at="2026-09-20T00:00:00+00:00")
+
+    lane = snapshot.lanes[0]
+    assert lane.state.value == "UNKNOWN"
+    assert "EVIDENCE_INCOMPLETE" in lane.state_markers
+    assert lane.blocker_code == "EXECUTION_EVIDENCE_UNAVAILABLE"
+    assert "EXECUTION_AUTHORITY_READ_FAILED" in snapshot.degraded_observability
+    assert "LEASE_AUTHORITY_READ_FAILED" in snapshot.degraded_observability
+    tables = _wo431_table_inventory(canonical)
+    assert "execution_records" not in tables
+    assert "worker_leases" not in tables
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["canonical.sqlite"]
+
+
+def test_wo431_cockpit_read_never_constructs_owning_runtime_stores(
+    tmp_path, monkeypatch
+) -> None:
+    from a_conductor.execution_store import SQLiteExecutionStore
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+    from a_conductor.worker_lease import SQLiteWorkerLeaseStore
+
+    authority = tmp_path / "authority.sqlite"
+    SQLiteExecutionStore(authority).initialize()
+    SQLiteWorkerLeaseStore(authority)
+    settings = SQLiteSerenaConfigStore(tmp_path / "control.sqlite")
+    settings.initialize()
+
+    constructions: list[str] = []
+
+    def _forbidden(name):
+        def _boom(*args, **kwargs):
+            constructions.append(name)
+            raise AssertionError(f"{name} must never be constructed by cockpit reads")
+
+        return _boom
+
+    import a_conductor.execution_store as execution_store_module
+    import a_conductor.job_store as job_store_module
+    import a_conductor.worker_lease as worker_lease_module
+
+    monkeypatch.setattr(job_store_module, "SQLiteJobStore", _forbidden("SQLiteJobStore"))
+    monkeypatch.setattr(
+        execution_store_module, "SQLiteExecutionStore", _forbidden("SQLiteExecutionStore")
+    )
+    monkeypatch.setattr(
+        worker_lease_module, "SQLiteWorkerLeaseStore", _forbidden("SQLiteWorkerLeaseStore")
+    )
+
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        settings_store=settings,
+        cockpit_authority_database=authority,
+    )
+
+    snapshot = service.cockpit_projection(generated_at="2026-09-20T00:00:00+00:00")
+
+    assert snapshot.stale is False
+    assert "EXECUTION_AUTHORITY_READ_FAILED" not in snapshot.degraded_observability
+    assert "LEASE_AUTHORITY_READ_FAILED" not in snapshot.degraded_observability
+    assert constructions == []
+
+
 def test_wo134_real_sqlite_e2e_statuses_drift_and_relation(tmp_path) -> None:
     import sqlite3
     from datetime import datetime, timedelta, timezone
@@ -1031,3 +1233,122 @@ def test_wo134_real_sqlite_e2e_statuses_drift_and_relation(tmp_path) -> None:
     assert evidence.admissions[1].expiry_observation == "TERMINAL"
     assert evidence.admissions[1].released_at is not None
     assert row.configuration_generation == 2
+
+
+def test_wo431_direct_composition_rejects_explicit_control_database_identity_split(
+    tmp_path,
+) -> None:
+    import pytest
+
+    from a_conductor.desktop_control import RuntimeAuthorityError
+    from a_conductor.serena_config_store import SQLiteSerenaConfigStore
+
+    settings = SQLiteSerenaConfigStore(tmp_path / "settings.sqlite")
+    settings.initialize()
+    other = tmp_path / "other.sqlite"
+
+    with pytest.raises(RuntimeAuthorityError) as exc:
+        DesktopControlService(
+            control_center=_FakeControlCenter(),
+            lifecycle=_FakeLifecycle(),
+            settings_store=settings,
+            control_database=other,
+        )
+
+    assert exc.value.code == "AUTHORITY_DATABASE_IDENTITY_MISMATCH"
+    assert other.exists() is False
+
+
+def test_wo433_runtime_activation_rejects_db_mismatch_before_runtime_composition(
+    tmp_path, monkeypatch
+) -> None:
+    import pytest
+
+    from a_conductor.desktop_control import RuntimeAuthorityError
+    from a_conductor.runtime_activation import RuntimeActivationRequest
+
+    canonical = _wo431_canonical(tmp_path)
+    desktop = DesktopControlService.open(
+        canonical,
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+    called = []
+
+    import a_conductor.runtime_activation as runtime_activation
+
+    def _must_not_activate(**kwargs):
+        called.append(kwargs)
+        raise AssertionError("runtime composition must not run on DB mismatch")
+
+    monkeypatch.setattr(
+        runtime_activation,
+        "activate_production_runtime",
+        _must_not_activate,
+        raising=False,
+    )
+    sibling = tmp_path / "sibling.sqlite"
+    request = RuntimeActivationRequest(
+        graph_id="graph-1",
+        graph_run_id="run-1",
+        node_id="n1",
+        runtime_kind="serena",
+        project_root=str(tmp_path),
+        task_contract_ref="tasks/task.json",
+        task_packet_path=str(tmp_path / "task.md"),
+        provider_id="provider-1",
+        model_id="model-1",
+    )
+
+    with pytest.raises(RuntimeAuthorityError) as exc:
+        desktop.activate_runtime(sibling, request)
+
+    assert exc.value.code == "AUTHORITY_DATABASE_IDENTITY_MISMATCH"
+    assert called == []
+    assert sibling.exists() is False
+
+
+def test_wo433_runtime_activation_delegates_exact_canonical_identity(
+    tmp_path, monkeypatch
+) -> None:
+    from a_conductor.runtime_activation import RuntimeActivationRequest
+
+    canonical = _wo431_canonical(tmp_path)
+    desktop = DesktopControlService.open(
+        canonical,
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+    request = RuntimeActivationRequest(
+        graph_id="graph-1",
+        graph_run_id="run-1",
+        node_id="n1",
+        runtime_kind="serena",
+        project_root=str(tmp_path),
+        task_contract_ref="tasks/task.json",
+        task_packet_path=str(tmp_path / "task.md"),
+        provider_id="provider-1",
+        model_id="model-1",
+    )
+    captured = {}
+
+    import a_conductor.runtime_activation as runtime_activation
+
+    def _activate(**kwargs):
+        captured.update(kwargs)
+        return "ACTIVATED"
+
+    monkeypatch.setattr(
+        runtime_activation,
+        "activate_production_runtime",
+        _activate,
+        raising=False,
+    )
+
+    result = desktop.activate_runtime(canonical, request)
+
+    assert result == "ACTIVATED"
+    assert captured["database_path"] == desktop.runtime_authority_database
+    assert captured["request"] is request
+    assert captured["control_center"] is desktop.control_center
+    assert captured["settings_store"] is desktop.settings_store
+    assert captured["provider_store"] is desktop._provider_store
+    assert captured["lifecycle"] is desktop.lifecycle

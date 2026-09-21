@@ -1,5 +1,45 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-09-21 — session rollover from WO438 closeout
+
+This handoff is written specifically so a new ChatGPT session can resume without access to the prior chat.
+
+- Start with `00-AGENT-ENTRY.md`, `PROJECT-GRAPH.yaml`, `AGENTS.md`, then actual Git/GitHub/runtime truth.
+- Completed provenance authority: Issue #438 / WO-P1-438 is CLOSED / COMPLETE / POST_MAIN_VERIFIED; historical alias only: Issue #330 / WO-P1-246.
+- WO438 merge from PR #336: `75d9e96e46e15cc8ef647d12194d677657689bde`; current remote main is `894c64d32ca63dd0bfaf9f23d97a3e1180ce09d7` after disjoint continuity PR #440.
+- Exact reviewed candidate: `f93e16377f500d16cbed66763058c2f4a2237790`.
+- Exact reviewer evidence: `A:\GitHub\_worktrees\A-Wiki-Conductor-review-wo438-f93e163\runs\WO-P1-438\r3-review\attempt-0001\execution-pointer.json`, `exit.json`, `result.md`. Status TERMINAL, exit 0, VERDICT PASS, P0/P1/P2=0.
+- Stale review at `A:\GitHub\_worktrees\A-Wiki-Conductor-review-wo246-3603bb4` is historical only; it terminated exit 1 and must never authorize the merged SHA.
+- Exact-head CI #1102 / `35529389831`: SUCCESS before merge; all three hosted jobs green.
+- Post-main local worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-post438-75d9e96`; 11/11 relevant blobs equal candidate, 177 focused PASS, 33 identity PASS, diff-check and py_compile PASS.
+- Hosted post-main push CI run `35544371466` on exact merge SHA `75d9e96...` completed `SUCCESS` on Windows, Ubuntu and macOS, including core suites, Portable/Setup build, archive verification, Portable smoke and Setup install/uninstall E2E. Treat WO438 as `COMPLETE / POST_MAIN_VERIFIED`.
+- Do not mutate the protected root checkout: it is stale/dirty with preserved untracked files.
+- No SunDay-Worker tool surface was exposed in the outgoing chat; RDC + GitHub were the verified surfaces.
+- Global WIP at handoff: no active WO438 writer/reviewer process; continuity-only lane owns only this checkpoint branch/files.
+
+**Resume sequence:** (1) fetch/re-pin actual remote main, Issue #214 and WO205; (2) recover global A-Faster WIP/collisions; (3) execute WO205 §14 steps 1–7 in a fresh isolated source worktree; (4) freeze exact mutable source/test scope; (5) only then RED-first Phase-D implementation. Issue #438 is complete; never redispatch its review or rewrite historical WO246 aliases.
+
+## 2026-09-21 — Session rollover handoff: WO433 is the active Product Fast Lane frontier
+
+This handoff is intentionally sufficient for a new chat with no access to the old conversation.
+
+- Active issue/WO: GitHub **#433 / `docs/work-orders/WO-P1-433-runtime-producer-activation.md`**.
+- Dependency chain: #433 -> #429 -> LOCAL-USABLE-1.
+- Authority repo/execution repo for this task: `A:\GitHub\A-Wiki-Conductor` / same repo; topology `CONTROL_PLANE_ONLY`.
+- Last checkpoint main: `75d9e96e46e15cc8ef647d12194d677657689bde`; always fetch/re-pin because main may advance.
+- Durable rollover checkpoint comment: Issue #433 `5753493574`.
+- Source claim comment `5751797434` is architecturally useful but its base `d2ad5bd...` is stale; never reuse its mutation verdict without a fresh gate.
+- Bilateral #215↔#433 ownership split remains binding. #433 may manually activate an exact existing graph/run/node only; automatic NEXT_READY remains #215-only.
+- First implementation slice is **READ_ONLY manual activation via existing supervised Claude durable backend**. Current Claude harness is not mutation-capable; ZCode has a supervised runner but no accepted `ZCodeJobBackend` for GraphDispatch.
+- No #433 source writer was launched before rollover. No live #433 delegated execution remains to harvest.
+- Prior Flash scope assist completed exit 0 and supported REUSE+WRAP/thin composition; model output is evidence, not acceptance authority.
+- Frozen source/test paths and forbidden boundaries are recorded at the top of `CURRENT-WORK.md` and in Issue #433.
+- Root checkout remains protected; create a fresh isolated worktree from then-current `origin/main`.
+- Before every material GLM dispatch refresh CoinTH quota/readiness with the approved secret-safe resolver and bind a durable run pointer.
+- Next session MUST reconstruct global A-Faster WIP; legacy pointers with stale/reused PIDs are not proof of RUNNING.
+- Exact first action after recovery: re-run relevance/collision diff against the frozen #433 scope; if clean, claim the R3 source lane and write RED tests before production code.
+- Required finish path remains targeted+related+adversarial verification -> exact candidate SHA -> strongest independent GLM-5.3 MAX review -> exact-head CI -> GPT acceptance/expected-head merge -> detached post-main proof -> #429 source gate.
+
 ## 2026-09-15 — R5 repair verified for freeze, R3 acceptance pending
 
 Existing Kilo/cointh-glm/glm-5.3 MAX writer completed the packet at

@@ -166,6 +166,46 @@ def _read_existing(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class RepairTaskIdentity:
+    """Pure derived identity of one repair task packet (WO-P1-246).
+
+    Canonical rendered bytes, their SHA-256, the deterministic packet path,
+    and the ``zra2-repair-v1:<digest>`` contract ref. Produced with ZERO
+    filesystem effects; shared by ``materialize_repair_task()`` and by the
+    trusted author-provenance classification seam.
+    """
+
+    content: str
+    content_sha256: str
+    path: str
+    task_contract_ref: str
+
+
+def derive_repair_task_identity(
+    request: RepairTaskMaterializationRequest,
+) -> RepairTaskIdentity:
+    """Pure, zero-write derivation of the deterministic repair identity.
+
+    Exactly the identity half of ``materialize_repair_task()``: one verified
+    ``RepairTaskMaterializationRequest`` maps to exactly one rendered bytes
+    value, hash, canonical path, and contract ref. Classification authority
+    must use THIS helper (never the side-effecting materializer) so that
+    reading identity can never create the canonical packet file.
+    """
+    if not isinstance(request, RepairTaskMaterializationRequest):
+        raise RepairTaskMaterializationError("MATERIALIZATION_REQUEST_INVALID")
+    content = build_repair_task_markdown(request.repair_request)
+    content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    identity_sha256 = _identity_digest(request, rendered_sha256=content_sha256)
+    return RepairTaskIdentity(
+        content=content,
+        content_sha256=content_sha256,
+        path=f"{_PATH_PREFIX}{identity_sha256}.md",
+        task_contract_ref=f"zra2-repair-v1:{identity_sha256}",
+    )
+
+
 def materialize_repair_task(
     request: RepairTaskMaterializationRequest,
     *,
@@ -178,11 +218,11 @@ def materialize_repair_task(
     if not isinstance(filesystem, NativeFileSystem):
         raise RepairTaskMaterializationError("FILESYSTEM_INVALID")
 
-    content = build_repair_task_markdown(request.repair_request)
-    content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
-    identity_sha256 = _identity_digest(request, rendered_sha256=content_sha256)
-    path = f"{_PATH_PREFIX}{identity_sha256}.md"
-    task_contract_ref = f"zra2-repair-v1:{identity_sha256}"
+    identity = derive_repair_task_identity(request)
+    content = identity.content
+    content_sha256 = identity.content_sha256
+    path = identity.path
+    task_contract_ref = identity.task_contract_ref
 
     existing = _read_existing(
         filesystem,

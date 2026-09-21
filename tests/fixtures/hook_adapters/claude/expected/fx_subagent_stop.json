@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "event_id": "hk-08080808080808080808080808080808",
+  "event_type": "execution.subagent_stopped",
+  "hook_class": "OBSERVE",
+  "phase": "after",
+  "domain": "execution",
+  "action": "subagent_stopped",
+  "occurred_at": "2026-09-19T08:15:08.800Z",
+  "source": "claude-code",
+  "source_version": "0.0.0-fixture-a",
+  "device_id": "device-fx-01",
+  "host_os": "windows",
+  "privacy_class": "INTERNAL",
+  "correlation_id": "fx-session-0001",
+  "execution_id": "fx-subagent-01",
+  "duration_ms": 8800,
+  "summary": "subagent stopped"
+}

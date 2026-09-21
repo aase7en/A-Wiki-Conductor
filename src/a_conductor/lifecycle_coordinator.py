@@ -126,17 +126,30 @@ class LifecycleCoordinator:
                 recovery_required=recovery_required,
             ) from exc
 
-    def _observe_and_plan(
+    def observe(
         self,
         worker_id: str,
         action: LifecycleAction,
-    ) -> LifecyclePlan:
+    ) -> LifecycleContext:
+        """Expose the existing side-effect-free lifecycle observation authority."""
+        if not isinstance(worker_id, str) or not worker_id.strip():
+            raise LifecycleCoordinatorError("WORKER_ID_INVALID")
+        if not isinstance(action, LifecycleAction):
+            raise LifecycleCoordinatorError("LIFECYCLE_ACTION_INVALID")
         try:
             context = self._context_provider.observe(worker_id, action)
         except Exception as exc:
             raise LifecycleCoordinatorError("LIFECYCLE_CONTEXT_UNAVAILABLE") from exc
         if not isinstance(context, LifecycleContext) or context.action is not action:
             raise LifecycleCoordinatorError("LIFECYCLE_CONTEXT_INVALID")
+        return context
+
+    def _observe_and_plan(
+        self,
+        worker_id: str,
+        action: LifecycleAction,
+    ) -> LifecyclePlan:
+        context = self.observe(worker_id, action)
         try:
             return self._planner(context)
         except Exception as exc:

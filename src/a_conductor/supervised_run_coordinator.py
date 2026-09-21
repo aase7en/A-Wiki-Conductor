@@ -44,6 +44,11 @@ from .supervised_execution import (
     SupervisedLaunchOutcome,
     SupervisedLaunchPlan,
 )
+from .zero_relay_author_provenance import (
+    AuthorProvenanceBinding,
+    is_valid_author_attempt_id,
+    mint_author_attempt_id,
+)
 
 
 _EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
@@ -81,6 +86,7 @@ class SupervisedRunIdentity:
     head_before: str
     runtime_profile_ref: str
     repo_root: str
+    author_provenance: AuthorProvenanceBinding | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -95,6 +101,16 @@ class SupervisedRunIdentity:
             "repo_root",
         ):
             _require_text(getattr(self, name), name)
+        # WO-P1-246: the ONLY provenance surface is the proof-carrying
+        # binding produced by the trusted ZCode classification seam. No bare
+        # generation integer and no required-flag may cross this boundary;
+        # provenance-shaped junk (strings/ints) fails closed at construction.
+        if self.author_provenance is not None and not isinstance(
+            self.author_provenance, AuthorProvenanceBinding
+        ):
+            raise ValueError(
+                "author_provenance must be an AuthorProvenanceBinding or None"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,6 +361,23 @@ class SupervisedRunCoordinator:
         else:
             execution_id = f"exec-{uuid.uuid4().hex[:16]}"
             run_rel = f"runs/{execution_id}"
+            # WO-P1-246 §3.2/§3.6: mint the author attempt pair ONLY in the
+            # SAFE_TO_LAUNCH fresh-record branch, iff the identity carries a
+            # proof-carrying binding from the trusted classification seam.
+            # The binding must name the SAME verified packet as the identity;
+            # the pair persists on the exact artifact-owning record via the
+            # single existing creation INSERT (no second write, no crash
+            # window between record creation and provenance persistence).
+            binding = self._identity.author_provenance
+            author_attempt_id: str | None = None
+            author_generation: int | None = None
+            if binding is not None:
+                if binding.task_contract_ref != self._identity.work_order_ref:
+                    return self._failure_result(
+                        argv, error_code="SUPERVISOR_PROVENANCE_AUTHORITY_INVALID"
+                    )
+                author_attempt_id = mint_author_attempt_id()
+                author_generation = binding.author_generation
             record = new_execution_record(
                 execution_id=execution_id,
                 job_id=self._identity.job_id,
@@ -367,7 +400,20 @@ class SupervisedRunCoordinator:
                 report_ref=self._policy.report_ref(run_rel),
                 transport_state=TransportState.CONNECTED,
                 execution_state=ExecutionProcessState.QUEUED,
+                author_attempt_id=author_attempt_id,
+                author_generation=author_generation,
             )
+            if binding is not None and not (
+                is_valid_author_attempt_id(record.author_attempt_id)
+                and record.author_generation == binding.author_generation
+            ):
+                # WO-P1-246 §3.4 layer-2 defense in depth: a required-but-
+                # absent/malformed pair aborts BEFORE the plan is handed to
+                # supervised.launch(), so controller.start(...) is never
+                # reached and no external effect occurs.
+                return self._failure_result(
+                    argv, error_code="SUPERVISOR_PROVENANCE_PAIR_INVALID"
+                )
             plan = SupervisedLaunchPlan(
                 record=record,
                 runtime_root=self._repo_root,
