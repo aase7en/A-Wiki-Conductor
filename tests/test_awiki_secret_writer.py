@@ -17,6 +17,7 @@ import re
 import socket
 import stat
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -392,6 +393,43 @@ def test_duplicate_assignments_fail_closed_despite_last_wins_reader(tmp_path: Pa
         with pytest.raises(AWikiSecretWriteError) as exc:
             call()
         assert exc.value.code == "DUPLICATE_KEY_ASSIGNMENT"
+    assert target_of(writer).read_bytes() == raw
+    only_global_env(root)
+
+
+# ---------------------------------------------------------------------------
+# repair cycle 2 (P3) — bare-CR structure must fail closed before mutation
+# ---------------------------------------------------------------------------
+
+
+def test_bare_cr_is_a_line_boundary_to_the_accepted_reader(tmp_path: Path) -> None:
+    probe = tmp_path / "probe.env"
+    probe.write_bytes(b"TARGET_KEY=old\rSHADOW_KEY=shadow-value\n")
+    assert _parse_env_file(probe) == {"TARGET_KEY": "old", "SHADOW_KEY": "shadow-value"}
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"TARGET_KEY=old\rSHADOW_KEY=shadow-value\nOTHER=1\n",
+        b"OTHER=1\r",
+        b"OTHER=1\r\r\nTARGET_KEY=old\n",
+    ],
+    ids=["embedded", "trailing", "doubled-before-crlf"],
+)
+def test_bare_cr_target_structure_fails_closed_before_mutation_preserving_bytes(
+    tmp_path: Path, raw: bytes
+) -> None:
+    root = make_drive(tmp_path, raw)
+    writer = make_writer(root)
+    for call in (
+        lambda: writer.insert("NEW_KEY", CANARY),
+        lambda: writer.rotate("TARGET_KEY", CANARY),
+        lambda: writer.delete("TARGET_KEY"),
+    ):
+        with pytest.raises(AWikiSecretWriteError) as exc:
+            call()
+        assert exc.value.code == "TARGET_LINE_BOUNDARY_UNSUPPORTED"
     assert target_of(writer).read_bytes() == raw
     only_global_env(root)
 
@@ -860,7 +898,7 @@ def test_ambiguous_replace_rollback_mode_restoration_failure_requires_recovery(m
     only_global_env(root)
 
 
-def test_no_orphan_writer_temp_or_backup_artifacts_after_failure_battery(tmp_path: Path) -> None:
+def test_no_orphan_writer_temp_or_backup_artifacts_after_failure_battery(monkeypatch, tmp_path: Path) -> None:
     root = make_drive(tmp_path, "TARGET_KEY=old\nOTHER=1\n")
     writer = make_writer(root)
     outcomes = []
@@ -877,8 +915,119 @@ def test_no_orphan_writer_temp_or_backup_artifacts_after_failure_battery(tmp_pat
     with pytest.raises(AWikiSecretWriteError):
         writer.insert("TARGET_KEY", CANARY)
     outcomes.append(snapshot_names())
+
+    real_replace = os.replace
+
+    def broken_replace(src, dst) -> None:
+        raise OSError("simulated replace failure before effect")
+
+    monkeypatch.setattr(os, "replace", broken_replace)
+    with pytest.raises(AWikiSecretWriteError) as exc:
+        writer.rotate("TARGET_KEY", CANARY)
+    assert exc.value.code == "REPLACE_FAILED"
+    outcomes.append(snapshot_names())
+    monkeypatch.setattr(os, "replace", real_replace)
+
+    def broken_verify(operation: str, key: str, value: str | None) -> None:
+        raise RuntimeError("simulated read-back mismatch")
+
+    monkeypatch.setattr(writer, "_verify_after_write", broken_verify)
+    with pytest.raises(AWikiSecretWriteError) as exc:
+        writer.rotate("TARGET_KEY", CANARY)
+    assert exc.value.code == "WRITE_ROLLED_BACK"
+    outcomes.append(snapshot_names())
+
     for names in outcomes:
         assert names == ["global.env"]
+
+
+# ---------------------------------------------------------------------------
+# repair cycle 2 (P2) — owned secret-bearing temp removal on replace failure
+# ---------------------------------------------------------------------------
+
+
+def scan_secrets_for_canary(root: Path) -> None:
+    for path in (root / "secrets").iterdir():
+        assert CANARY.encode() not in path.read_bytes()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows read-only replace semantics")
+def test_readonly_target_replace_failure_still_removes_owned_readonly_temp(tmp_path: Path) -> None:
+    raw = b"TARGET_KEY=old\nOTHER=fixture-secret-1\n"
+    root = make_drive(tmp_path, raw)
+    writer = make_writer(root)
+    target = target_of(writer)
+    os.chmod(target, stat.S_IREAD)
+    try:
+        with pytest.raises(AWikiSecretWriteError) as exc:
+            writer.rotate("TARGET_KEY", CANARY)
+        assert exc.value.code == "REPLACE_FAILED"
+        assert target.read_bytes() == raw
+        only_global_env(root)
+        scan_secrets_for_canary(root)
+    finally:
+        os.chmod(target, stat.S_IWRITE)
+
+
+def test_owned_readonly_temp_cleanup_never_touches_unrelated_files(monkeypatch, tmp_path: Path) -> None:
+    raw = b"TARGET_KEY=old\nOTHER=fixture-secret-1\n"
+    root = make_drive(tmp_path, raw)
+    writer = make_writer(root)
+    target = target_of(writer)
+    unrelated = root / "secrets" / "unrelated-readonly.txt"
+    unrelated.write_bytes(b"unrelated-bytes")
+    os.chmod(unrelated, stat.S_IREAD)
+    os.chmod(target, stat.S_IREAD)
+    try:
+        def broken_replace(src, dst) -> None:
+            raise OSError("simulated replace failure before effect")
+
+        monkeypatch.setattr(os, "replace", broken_replace)
+        with pytest.raises(AWikiSecretWriteError) as exc:
+            writer.rotate("TARGET_KEY", CANARY)
+        assert exc.value.code == "REPLACE_FAILED"
+        assert target.read_bytes() == raw
+        assert sorted(path.name for path in (root / "secrets").iterdir()) == [
+            "global.env",
+            "unrelated-readonly.txt",
+        ]
+        assert unrelated.read_bytes() == b"unrelated-bytes"
+        assert (os.stat(unrelated).st_mode & stat.S_IWRITE) == 0
+        scan_secrets_for_canary(root)
+    finally:
+        os.chmod(unrelated, stat.S_IWRITE)
+        os.chmod(target, stat.S_IWRITE)
+
+
+def test_unremovable_owned_temp_fails_typed_after_bounded_attempts(monkeypatch, tmp_path: Path) -> None:
+    root = make_drive(tmp_path, "TARGET_KEY=old\n")
+    writer = make_writer(root)
+    real_unlink = Path.unlink
+    unlink_calls = {"count": 0}
+
+    def locked_owned_temp_unlink(self, missing_ok: bool = False) -> None:
+        if self.name.startswith(TEMP_PREFIX) and self.name.endswith(".tmp"):
+            unlink_calls["count"] += 1
+            raise PermissionError("simulated locked owned temp")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    def broken_replace(src, dst) -> None:
+        raise OSError("simulated replace failure before effect")
+
+    monkeypatch.setattr(Path, "unlink", locked_owned_temp_unlink)
+    monkeypatch.setattr(os, "replace", broken_replace)
+    with pytest.raises(AWikiSecretWriteError) as exc:
+        writer.rotate("TARGET_KEY", CANARY)
+    assert exc.value.code == "RECOVERY_REQUIRED"
+    assert unlink_calls["count"] == 2
+    names = sorted(path.name for path in (root / "secrets").iterdir())
+    assert len(names) == 2
+    assert "global.env" in names
+    owned_temps = [name for name in names if name != "global.env"]
+    assert len(owned_temps) == 1
+    assert owned_temps[0].startswith(TEMP_PREFIX) and owned_temps[0].endswith(".tmp")
+    monkeypatch.undo()
+    (root / "secrets" / owned_temps[0]).unlink()
 
 
 # ---------------------------------------------------------------------------
@@ -1183,3 +1332,134 @@ def test_line_classification_matches_accepted_reader_line_semantics(tmp_path: Pa
         else:
             assert list(projected) == [owner], (line, projected)
         probe.unlink()
+
+
+# ---------------------------------------------------------------------------
+# repair cycle 2 — Windows read-only orphan + reader-only line boundaries
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows read-only attribute semantics")
+def test_windows_readonly_target_replace_fails_typed_without_orphan(tmp_path: Path) -> None:
+    """Real Windows reproducer: a 0444/read-only target must yield the typed
+    REPLACE_FAILED with original bytes intact and NO orphaned secret-bearing
+    temp in secrets/ (owned-temp cleanup must clear the read-only bit on the
+    exact owned temp and delete it)."""
+    raw = b"TARGET_KEY=old\nOTHER=1\n"
+    root = make_drive(tmp_path, raw)
+    writer = make_writer(root)
+    target = target_of(writer)
+    os.chmod(target, 0o444)
+    try:
+        for invoke, code in (
+            (lambda: writer.insert("NEW_KEY", CANARY), "REPLACE_FAILED"),
+            (lambda: writer.rotate("TARGET_KEY", CANARY), "REPLACE_FAILED"),
+            (lambda: writer.delete("TARGET_KEY"), "REPLACE_FAILED"),
+        ):
+            with pytest.raises(AWikiSecretWriteError) as exc:
+                invoke()
+            assert exc.value.code == code
+            assert target.read_bytes() == raw
+            only_global_env(root)
+    finally:
+        os.chmod(target, 0o644)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows read-only attribute semantics")
+def test_windows_owned_readonly_temp_cleanup_clears_bit_and_unlinks(tmp_path: Path) -> None:
+    fd, name = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".tmp", dir=str(tmp_path))
+    os.close(fd)
+    owned = Path(name)
+    owned.write_bytes(b"synthetic-secret-bearing-bytes")
+    os.chmod(owned, 0o444)
+    awiki_secret_writer._cleanup_owned_temp(owned)
+    assert not owned.exists()
+
+
+def test_unprovable_owned_temp_cleanup_requires_recovery(monkeypatch, tmp_path: Path) -> None:
+    fd, name = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".tmp", dir=str(tmp_path))
+    os.close(fd)
+    owned = Path(name)
+    owned.write_bytes(b"synthetic-secret-bearing-bytes")
+
+    def unlink_denied(self, missing_ok: bool = False) -> None:
+        raise PermissionError("simulated unlink denial")
+
+    def chmod_denied(path, mode) -> None:
+        raise PermissionError("simulated chmod denial")
+
+    monkeypatch.setattr(Path, "unlink", unlink_denied)
+    monkeypatch.setattr(os, "chmod", chmod_denied)
+    with pytest.raises(AWikiSecretWriteError) as exc:
+        awiki_secret_writer._cleanup_owned_temp(owned)
+    assert exc.value.code == "RECOVERY_REQUIRED"
+    assert owned.read_bytes() == b"synthetic-secret-bearing-bytes"
+
+    monkeypatch.setattr(os, "chmod", lambda path, mode: None)
+    with pytest.raises(AWikiSecretWriteError) as exc:
+        awiki_secret_writer._cleanup_owned_temp(owned)
+    assert exc.value.code == "RECOVERY_REQUIRED"
+
+    monkeypatch.undo()
+    owned.unlink()
+
+    unrelated = tmp_path / "unrelated-file.txt"
+    unrelated.write_bytes(b"keep-me")
+    chmod_calls: list[str] = []
+
+    def recording_chmod(path, mode) -> None:
+        chmod_calls.append(str(path))
+        return None
+
+    monkeypatch.setattr(os, "chmod", recording_chmod)
+    with pytest.raises(AWikiSecretWriteError) as exc:
+        awiki_secret_writer._cleanup_owned_temp(unrelated)
+    assert exc.value.code == "RECOVERY_REQUIRED"
+    assert chmod_calls == []
+    assert unrelated.read_bytes() == b"keep-me"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"OTHER=1\nTARGET_KEY=old\rplain trailing bytes\n",
+        b"OTHER=1\nTARGET_KEY=old\r",
+        b"OTHER=1\nTARGET_KEY=old\x0btrailing junk\n",
+        "OTHER=1\nTARGET_KEY=old\x85trailing junk\n".encode("utf-8"),
+        "OTHER=1\nTARGET_KEY=old\u2028trailing junk\n".encode("utf-8"),
+        b"OTHER=1\x0bnon-assignment tail\nTARGET_KEY=old\n",
+    ],
+)
+def test_reader_only_line_boundaries_rejected_fail_closed_before_mutation(
+    tmp_path: Path, raw: bytes
+) -> None:
+    """The accepted reader splits lines on bare CR and other str.splitlines
+    boundaries the writer's unit model does not represent; rotating/deleting
+    such a unit would silently drop unrelated bytes. All operations must
+    reject the target typed before mutation instead of rewriting ambiguous
+    bytes."""
+    root = make_drive(tmp_path, raw)
+    writer = make_writer(root)
+    for call in (
+        lambda: writer.insert("NEW_KEY", CANARY),
+        lambda: writer.rotate("TARGET_KEY", CANARY),
+        lambda: writer.delete("TARGET_KEY"),
+    ):
+        with pytest.raises(AWikiSecretWriteError) as exc:
+            call()
+        assert exc.value.code == "TARGET_LINE_BOUNDARY_UNSUPPORTED"
+    assert target_of(writer).read_bytes() == raw
+    only_global_env(root)
+
+
+def test_crlf_and_lf_line_boundaries_remain_accepted(tmp_path: Path) -> None:
+    crlf_root = make_drive(tmp_path / "crlf", "OTHER=1\r\nTARGET_KEY=old\r\n")
+    make_writer(crlf_root).rotate("TARGET_KEY", CANARY)
+    assert (crlf_root / "secrets" / "global.env").read_bytes() == (
+        f"OTHER=1\r\nTARGET_KEY={CANARY}\r\n".encode()
+    )
+    lf_root = make_drive(tmp_path / "lf", "OTHER=1\nTARGET_KEY=old\n")
+    make_writer(lf_root).rotate("TARGET_KEY", CANARY)
+    assert (lf_root / "secrets" / "global.env").read_bytes() == (
+        f"OTHER=1\nTARGET_KEY={CANARY}\n".encode()
+    )

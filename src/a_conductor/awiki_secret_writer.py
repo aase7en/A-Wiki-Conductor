@@ -18,6 +18,12 @@ Bounded contract:
 - Encoding marker (UTF-8 BOM), per-line newline style, final-newline shape,
   and unrelated bytes are preserved; the only documented exception is that
   INSERT may add the missing terminator after an unterminated final line.
+- Targets are rejected typed before mutation when they contain line
+  boundaries the accepted reader honors (``str.splitlines``: bare CR and
+  the other non-LF boundaries) but the unit model does not represent;
+  rotating or deleting such a unit would silently drop unrelated bytes, so
+  the writer fails closed (``TARGET_LINE_BOUNDARY_UNSUPPORTED``) instead of
+  rewriting ambiguous bytes.
 - Writes go through a uniquely owned same-directory temporary file with
   flush+fsync, mode preservation, a pre-replace drift fence, atomic replace,
   read-back verification through the accepted source, and verified rollback.
@@ -26,6 +32,11 @@ Bounded contract:
   mode restoration is reported as RECOVERY_REQUIRED, never WRITE_ROLLED_BACK.
   Ambiguous outcomes return distinct typed errors; there is never a blind
   retry. The writer never creates a missing target or secrets directory.
+- Owned temporary files are never abandoned silently: cleanup may clear the
+  read-only bit on that exact owned temp and retry the unlink once (Windows
+  read-only destinations make owned temps undeletable otherwise); a cleanup
+  that cannot be proven is a typed ``RECOVERY_REQUIRED``, never reported as
+  success, and no unrelated path is ever touched by that cleanup.
 - ``_ENV_KEY_RE`` is shape validation only; every key must additionally be
   present in an explicit caller-supplied ``AWikiSecretWriteAuthority`` before
   any disk access. Raw values never appear in results, representations,
@@ -55,6 +66,9 @@ _ROLLBACK_PREFIX = ".awiki-secret-writer-rollback-"
 _TEMP_SUFFIX = ".tmp"
 _MAX_ALLOWED_KEYS = 64
 _VALUE_FORBIDDEN_RE = re.compile(r"[\x00\x0b\x0c\r\n\x1c\x1d\x1e\x85\u2028\u2029]")
+# Line boundaries the accepted reader honors via str.splitlines but the
+# writer's unit model does not represent. \r is accepted only as the CRLF pair.
+_READER_ONLY_BOUNDARY_RE = re.compile(r"\r(?!\n)|[\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
 
 
 class AWikiSecretWriteError(RuntimeError):
@@ -183,21 +197,63 @@ def _write_owned_temp(directory: Path, data: bytes, mode: int) -> Path:
             handle.flush()
             os.fsync(handle.fileno())
     except OSError as exc:
-        _best_effort_unlink(temp_path)
+        _cleanup_owned_temp(temp_path)
         raise AWikiSecretWriteError("WRITE_FAILED") from exc
     try:
         os.chmod(temp_path, stat.S_IMODE(mode))
     except OSError as exc:
-        _best_effort_unlink(temp_path)
+        _cleanup_owned_temp(temp_path)
         raise AWikiSecretWriteError("TARGET_INSPECTION_FAILED") from exc
     return temp_path
 
 
-def _best_effort_unlink(path: Path) -> None:
+def _is_owned_temp_name(name: str) -> bool:
+    return name.endswith(_TEMP_SUFFIX) and (
+        name.startswith(_TEMP_PREFIX) or name.startswith(_ROLLBACK_PREFIX)
+    )
+
+
+def _cleanup_owned_temp(path: Path) -> None:
+    """Delete an owned secret-bearing temp; never leave one silently.
+
+    May clear the read-only bit on this exact owned temp (Windows read-only
+    destinations make the mode-preserved temp undeletable) and retry the
+    unlink once. Never touches an unrelated path, never retries the replace
+    or the secret write, and reports an unprovable cleanup as the typed
+    ``RECOVERY_REQUIRED`` instead of success.
+    """
+    if not _is_owned_temp_name(path.name):
+        raise AWikiSecretWriteError("RECOVERY_REQUIRED")
     try:
         path.unlink(missing_ok=True)
+        return
     except OSError:
         pass
+    try:
+        os.chmod(path, stat.S_IMODE(os.stat(path).st_mode) | stat.S_IWUSR)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise AWikiSecretWriteError("RECOVERY_REQUIRED") from exc
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        raise AWikiSecretWriteError("RECOVERY_REQUIRED") from exc
+
+
+def _reject_ambiguous_line_boundaries(captured: bytes) -> None:
+    """Fail closed when the target carries reader-only line boundaries.
+
+    ``str.splitlines`` (the accepted reader) treats bare CR and several other
+    characters as line boundaries; the unit model represents only LF and
+    CRLF. A unit spanning such a boundary can own multiple reader lines, so
+    rotating or deleting it would silently drop unrelated bytes. The target
+    is rejected typed before any mutation instead of rewriting the ambiguous
+    bytes.
+    """
+    text = captured.decode("utf-8-sig", errors="strict")
+    if _READER_ONLY_BOUNDARY_RE.search(text) is not None:
+        raise AWikiSecretWriteError("TARGET_LINE_BOUNDARY_UNSUPPORTED")
 
 
 def _observe_target_bytes(path: Path) -> bytes | None:
@@ -310,6 +366,7 @@ class AWikiSecretWriter:
             units, has_bom = _split_line_units(captured)
         except UnicodeDecodeError as exc:
             raise AWikiSecretWriteError("TARGET_PARSE_FAILED") from exc
+        _reject_ambiguous_line_boundaries(captured)
 
         plain: list[int] = []
         exported: list[int] = []
@@ -437,7 +494,7 @@ class AWikiSecretWriter:
             raise AWikiSecretWriteError("WRITE_FAILED") from exc
         finally:
             if temp_path is not None:
-                _best_effort_unlink(temp_path)
+                _cleanup_owned_temp(temp_path)
 
     def _verify_after_write(self, operation: str, key: str, value: str | None) -> None:
         if operation == "delete":
@@ -489,4 +546,4 @@ class AWikiSecretWriter:
                 raise AWikiSecretWriteError("RECOVERY_REQUIRED")
         finally:
             if rollback_temp is not None:
-                _best_effort_unlink(rollback_temp)
+                _cleanup_owned_temp(rollback_temp)

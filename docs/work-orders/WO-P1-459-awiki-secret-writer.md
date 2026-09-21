@@ -2,16 +2,17 @@
 
 Issue: #459
 Parent: Browser Wake / BWA-1B2
-Claim: WO-P1-459-AWIKI-SECRET-WRITER-WINDOWS-002
+Claim: WO-P1-459-AWIKI-SECRET-WRITER-REPAIR-WINDOWS-003
 Topology: CONTROL_PLANE_ONLY
 Risk class: R3 credential/filesystem trust boundary
 Repo: A-Wiki-Conductor
 Worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo459-awiki-secret-writer-r2`
 Branch: `feat/wo-p1-459-awiki-secret-writer-r2`
 Dispatch base/head expected: `a37746f67631c9ed8edd23fa20b80b8ef4d3dfd9`
-Status: FANIN-GREEN / FREEZE-PENDING (repair cycle 1 accepted locally; WO461
-post-main repair merged/post-main verified as main cb5f9b6; current-main fan-in
-complete; exact-SHA freeze/review/CI pending)
+Status: REPAIR-CYCLE2-GREEN / CURRENT-MAIN-FANIN-PENDING (exact candidate
+643891f review returned CHANGES_REQUIRED P2=1; bounded Windows temp-cleanup +
+line-boundary repair is deterministic-green locally; current main advanced to
+b7cd755 after accepted WO458 and must be fanned in before the next freeze)
 
 ## Binding
 
@@ -191,8 +192,9 @@ temp file):
 Repair-cycle verification (repo test interpreter, this worktree):
 
 - `python -m pytest tests/test_awiki_secret_writer.py -q` —
-  **82 passed, 1 skipped** (skip = POSIX-only mode test on Windows);
-  was 80 passed + 1 skipped at author time, +2 for the new regressions
+  **85 passed, 1 skipped** at frozen candidate `643891f` (skip = POSIX-only
+  mode test on Windows); the earlier 82-pass note was a documentation miscount
+  corrected by the independent exact-SHA review
 - `python -m pytest tests/test_awiki_environment_resolver.py
   tests/test_provider_configuration.py tests/test_provider_runtime_assembly.py
   tests/test_desktop_control.py tests/test_work_order_identity.py -q` —
@@ -201,6 +203,55 @@ Repair-cycle verification (repo test interpreter, this worktree):
 - `git diff --check` — clean
 - Final status remains exactly the three allowed paths; added-line
   secret-shape scan shows only synthetic canaries/vocabulary
+
+## Repair cycle 2 — independent-review P2/P3 closure
+
+Independent GLM-5.3 MAX review of frozen candidate
+`643891fffeb2ac99da7610d9f773292da89366c1` returned
+`CHANGES_REQUIRED` with P0/P1/P2/P3 = 0/0/1/2.
+
+Blocking P2 reproduced on real Windows synthetic fixtures: a write-bit-less
+target can make `os.replace` return `REPLACE_FAILED` after the owned temp has
+inherited read-only mode; the former best-effort unlink could then leave a
+readable secret-bearing owned temp. Repair cycle 2 replaces silent best-effort
+cleanup with exact-owned-temp cleanup: first unlink, then clear only the
+write/read-only bit on that exact writer-owned temp and retry unlink once. If
+cleanup still cannot be proven, the operation fails typed
+`RECOVERY_REQUIRED`; no unrelated path is touched and the secret write itself
+is never blindly retried.
+
+The review's P3 bare-CR/parser mirror edge is also closed fail-closed:
+reader-only line boundaries accepted by `str.splitlines()` but not represented
+by the writer's LF/CRLF unit model now raise
+`TARGET_LINE_BOUNDARY_UNSUPPORTED` before mutation. LF and CRLF remain
+accepted.
+
+Delegated repair transport note: a later GLM-5.3 MAX repair run was classified
+`TERMINAL_SECURITY_INVALID` because its process monitor observed an
+MCP-specific `node.exe` descendant. That model result is not acceptance
+evidence. The in-scope partial mutation was preserved, reconciled by the
+integrator, and verified deterministically rather than blindly redispatched.
+
+Cycle-2 RED/GREEN evidence on Windows, before folding the latest current main:
+
+- RED: the new regression batch reproduced the read-only orphan and
+  reader-only line-boundary failures against the pre-repair behavior.
+- `python -m pytest -q tests/test_awiki_secret_writer.py` —
+  **102 passed, 1 skipped** (POSIX-only mode test).
+- `python -m pytest -q tests/test_awiki_environment_resolver.py
+  tests/test_provider_configuration.py tests/test_provider_runtime_assembly.py
+  tests/test_desktop_control.py tests/test_work_order_identity.py` —
+  **117 passed**.
+- `python -m py_compile src/a_conductor/awiki_secret_writer.py` — PASS.
+- strict UTF-8 + `git diff --check` — PASS.
+- dirty scope before fan-in is exactly the three authorized WO459 paths.
+
+Current authority main is now
+`b7cd755c08adf889727d68489ddcaa4de51615ce` after accepted WO458. The next
+safe step is to commit this bounded repair, normal-merge that exact main (no
+rebase/reset/stash), rerun the affected gates, freeze a new exact SHA, push PR
+#468, then require fresh hosted CI plus an independent exact-SHA R3 MAX
+rereview with P0/P1/P2=0.
 
 ## Remaining risks / blockers
 
