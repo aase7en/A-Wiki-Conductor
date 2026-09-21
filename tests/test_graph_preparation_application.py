@@ -777,11 +777,11 @@ def test_same_ref_replay_returns_same_run_id(env):
 def test_same_ref_changed_intent_surfaces_graphstore_identity_mismatch(env):
     app = _app()
     env.baseline()
-    _prepare(env, _intent(app, env))
+    application, _, graph_port, _, _ = env.build_app()
+    application.prepare(_intent(app, env))
     mod = _app()
-    app2, _, graph_port, _, _ = env.build_app()
     with pytest.raises(mod.PreparationApplicationError) as excinfo:
-        app2.prepare(
+        application.prepare(
             _intent(app, env, bindings=(_binding(app, env, model_id=MODEL_ALT),))
         )
     assert excinfo.value.code == "GRAPH_RUN_PREPARATION_IDENTITY_MISMATCH"
