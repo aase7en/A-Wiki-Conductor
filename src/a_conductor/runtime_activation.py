@@ -21,6 +21,7 @@ from typing import Callable, Mapping, Protocol
 from .claude_code_harness import HarnessDispatch, MutationIntent, TaskPacketFile
 from .claude_code_job_backend import ClaudeCodeOperationDefinition
 from .elastic_worker_capacity import (
+    ElasticCapacityError,
     ElasticCapacityPolicy,
     ElasticWorkerCapacityCoordinator,
     ProductionElasticWorkerExecutor,
@@ -28,6 +29,7 @@ from .elastic_worker_capacity import (
 )
 from .graph.dispatch import (
     DispatchGateDecision,
+    GraphDispatchError,
     GraphDispatchCoordinator,
     GraphDispatchKey,
     GraphDispatchMode,
@@ -39,13 +41,13 @@ from .graph.lifecycle_bridge import project_graph_node_states
 from .graph.ready import ReadySetResult, compute_ready_set
 from .graph.store import GraphStore
 from .graph.scheduler import NodeEligibility, SchedulePolicy, SelectedAssignment
-from .execution_store import SQLiteExecutionStore
+from .execution_store import ExecutionStoreError, SQLiteExecutionStore
 from .job_control import DurableJobControlService
-from .job_execution import DurableJobExecutionCoordinator
+from .job_execution import DurableJobExecutionCoordinator, JobExecutionCoordinatorError
 from .owned_process import WindowsOwnedProcessController
 from .parallel_ready_execution import GraphDispatchParallelRunner, ParallelReadyExecutor
 from .job_store import JobStoreError, SQLiteJobStore
-from .provider_config_store import ProviderConfigurationSnapshot
+from .provider_config_store import ProviderConfigStoreError, ProviderConfigurationSnapshot
 from .provider_configuration import HarnessStrategy
 from .provider_execution_authority import ProviderExecutionRequirement
 from .provider_runtime_assembly import build_sqlite_supervised_claude_job_backend
@@ -54,12 +56,14 @@ from .windows_io import LoopbackReadyzHttpProbe, StrictPowerShellInspectionRunne
 from .windows_observer import WindowsRuntimeObserver
 from .worker_candidate_assembly import (
     MappingRuntimeCapabilityResolver,
+    WorkerCandidateAssemblyError,
     NativeGitWorktreeStateObserver,
     ParallelReadyNodeContract,
     WorkerCandidateAssembler,
 )
 from .worker_lease import (
     LeaseMutationIntent,
+    WorkerLeaseError,
     SQLiteWorkerLeaseStore,
     WorkerLeaseBroker,
     WorkerLeaseRequest,
@@ -888,7 +892,7 @@ def _provider_inflight_count(provider_store, snapshot, now: object) -> int:
     return count
 
 
-def activate_production_runtime(
+def _activate_production_runtime_once(
     *,
     database_path: str | Path,
     request: RuntimeActivationRequest,
@@ -1038,6 +1042,52 @@ def activate_production_runtime(
         provider_inflight=provider_inflight,
     )
     return service.activate(request)
+
+
+_RUNTIME_AUTHORITY_EXCEPTIONS = (
+    ProviderConfigStoreError,
+    JobStoreError,
+    ExecutionStoreError,
+    WorkerLeaseError,
+    WorkerCandidateAssemblyError,
+    ElasticCapacityError,
+    GraphDispatchError,
+    JobExecutionCoordinatorError,
+)
+
+
+def activate_production_runtime(
+    *,
+    database_path: str | Path,
+    request: RuntimeActivationRequest,
+    control_center,
+    settings_store,
+    provider_store,
+    lifecycle,
+    clock: Callable[[], object],
+):
+    """Typed product facade over the bounded activation composition.
+
+    Known durable-authority/runtime failures are reconciliation states, not
+    user-facing tracebacks.  Programming errors and assertion failures remain
+    visible so this boundary does not hide implementation defects.
+    """
+    try:
+        return _activate_production_runtime_once(
+            database_path=database_path,
+            request=request,
+            control_center=control_center,
+            settings_store=settings_store,
+            provider_store=provider_store,
+            lifecycle=lifecycle,
+            clock=clock,
+        )
+    except RuntimeActivationError:
+        raise
+    except _RUNTIME_AUTHORITY_EXCEPTIONS as exc:
+        raise RuntimeActivationError(
+            "ACTIVATION_RUNTIME_RECONCILE_REQUIRED"
+        ) from exc
 
 
 def derive_runtime_activation_batch_id(

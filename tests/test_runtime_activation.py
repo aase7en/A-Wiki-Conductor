@@ -1304,3 +1304,71 @@ def test_runtime_schema_concurrent_initialization_is_idempotent_or_typed(
     # Whatever the concurrent outcome, a later bounded reconciliation must
     # verify the canonical owner schemas before execution can proceed.
     _initialize_runtime_authority_stores(database)
+
+
+def test_production_activation_translates_provider_store_failure_to_typed_reconcile(
+    tmp_path, monkeypatch
+):
+    from a_conductor.provider_config_store import ProviderConfigStoreError
+    import a_conductor.runtime_activation as runtime_activation
+
+    database = tmp_path / "control.sqlite"
+    contract_ref, packet_path = _write_activation_authority(
+        tmp_path,
+        dispatch_mode="PROGRAMMATIC_PUSH",
+        worker_ids=("a-worker-01",),
+    )
+    request = _contract_request(tmp_path, contract_ref, packet_path)
+
+    class _Settings:
+        database_path = database
+
+    class _ProviderStore:
+        database_path = database
+
+        def load_provider_snapshot(self, provider_id):
+            raise ProviderConfigStoreError("CONFIG_STORE_READ_FAILED")
+
+    # Get past the host gate without constructing any backend/process. The
+    # provider read itself is the fault under test.
+    monkeypatch.setattr(
+        runtime_activation,
+        "_require_programmatic_push_platform",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        runtime_activation,
+        "GraphStore",
+        type(
+            "_GraphStoreFacade",
+            (),
+            {
+                "open_read_only": staticmethod(
+                    lambda path: type(
+                        "_Reader",
+                        (),
+                        {"load_graph": lambda self, graph_id: _graph(TaskNode("n1", "x"))},
+                    )()
+                )
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        runtime_activation,
+        "_programmatic_worker_ids",
+        lambda control_center, authority: ("a-worker-01",),
+    )
+
+    with pytest.raises(
+        RuntimeActivationError,
+        match="ACTIVATION_RUNTIME_RECONCILE_REQUIRED",
+    ):
+        runtime_activation.activate_production_runtime(
+            database_path=database,
+            request=request,
+            control_center=object(),
+            settings_store=_Settings(),
+            provider_store=_ProviderStore(),
+            lifecycle=object(),
+            clock=lambda: object(),
+        )
