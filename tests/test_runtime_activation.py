@@ -1314,3 +1314,121 @@ def test_provider_inflight_read_failure_is_typed():
             _provider_snapshot(generation=7),
             datetime(2026, 9, 21, tzinfo=timezone.utc),
         )
+
+
+def test_interactive_pull_contract_drift_is_typed_runtime_activation_error(tmp_path):
+    import json
+
+    from a_conductor.graph.store import GraphStore
+    from a_conductor.runtime_activation import RuntimeActivationError
+    import a_conductor.runtime_activation as runtime_activation
+
+    database = tmp_path / "control.sqlite"
+    GraphStore(database).save_graph(
+        _graph(TaskNode("n1", "pull task")),
+        "graph-1",
+    )
+    contract_ref, packet_path = _write_activation_authority(
+        tmp_path,
+        dispatch_mode="INTERACTIVE_PULL",
+        worker_id="a-worker-01",
+        worker_ids=None,
+    )
+    request = _contract_request(tmp_path, contract_ref, packet_path)
+
+    first = runtime_activation._offer_interactive_runtime(
+        database_path=database,
+        request=request,
+        control_center=_control_center_for_pull(tmp_path),
+    )
+    assert first.reason_code == "INTERACTIVE_PULL_OFFERED"
+
+    contract_path = tmp_path / contract_ref
+    payload = json.loads(contract_path.read_text(encoding="utf-8"))
+    payload["budget"]["max_elapsed_seconds"] += 1
+    contract_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(
+        RuntimeActivationError,
+        match="DISPATCH_JOB_IDENTITY_MISMATCH",
+    ):
+        runtime_activation._offer_interactive_runtime(
+            database_path=database,
+            request=request,
+            control_center=_control_center_for_pull(tmp_path),
+        )
+
+
+def test_programmatic_worker_binding_uses_one_authoritative_snapshot(tmp_path):
+    import a_conductor.runtime_activation as runtime_activation
+
+    _init_git_project(tmp_path)
+    contract_ref, packet_path = _write_activation_authority(
+        tmp_path,
+        dispatch_mode="PROGRAMMATIC_PUSH",
+        worker_ids=("a-worker-01",),
+    )
+    request = _contract_request(tmp_path, contract_ref, packet_path)
+    authority = runtime_activation.load_activation_authority(request)
+    base = _push_control_center(tmp_path)
+
+    class _CountingControlCenter:
+        def __init__(self):
+            self.calls = 0
+
+        def snapshot(self):
+            self.calls += 1
+            return base.snapshot()
+
+    control = _CountingControlCenter()
+    worker_ids, runtime_capabilities = runtime_activation._programmatic_worker_binding(
+        control,
+        authority,
+    )
+
+    assert control.calls == 1
+    assert worker_ids == ("a-worker-01",)
+    assert runtime_capabilities == {
+        "runtime-a-worker-01": ("runtime:serena",),
+    }
+
+
+def test_build_activation_contract_pins_provider_requirement_to_validated_contract_hash(
+    tmp_path, monkeypatch
+):
+    import a_conductor.runtime_activation as runtime_activation
+
+    _init_git_project(tmp_path)
+    contract_ref, packet_path = _write_activation_authority(
+        tmp_path,
+        dispatch_mode="PROGRAMMATIC_PUSH",
+        worker_ids=("a-worker-01",),
+    )
+    request = _contract_request(tmp_path, contract_ref, packet_path)
+    authority = runtime_activation.load_activation_authority(request)
+    original = (
+        runtime_activation.ProviderExecutionRequirement.from_task_contract_file
+    )
+    observed = {}
+
+    def _capture(cls, **kwargs):
+        observed["expected_authority_sha256"] = kwargs.get(
+            "expected_authority_sha256"
+        )
+        return original(**kwargs)
+
+    monkeypatch.setattr(
+        runtime_activation.ProviderExecutionRequirement,
+        "from_task_contract_file",
+        classmethod(_capture),
+    )
+
+    runtime_activation.build_activation_contract(
+        request,
+        TaskNode("n1", "push task"),
+        database_path=tmp_path / "control.sqlite",
+        provider_snapshot=_provider_snapshot(),
+        ordered_worker_ids=("a-worker-01",),
+    )
+
+    assert observed["expected_authority_sha256"] == authority.task_contract_sha256

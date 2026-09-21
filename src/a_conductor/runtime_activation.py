@@ -28,6 +28,7 @@ from .elastic_worker_capacity import (
 from .graph.dispatch import (
     DispatchGateDecision,
     GraphDispatchCoordinator,
+    GraphDispatchError,
     GraphDispatchKey,
     GraphDispatchMode,
     GraphDispatchRequest,
@@ -433,7 +434,12 @@ def _offer_interactive_runtime(
         ):
             raise RuntimeActivationError("ACTIVATION_JOB_IDENTITY_MISMATCH")
 
-    return coordinator.dispatch(dispatch_request, gate=gate)
+    try:
+        return coordinator.dispatch(dispatch_request, gate=gate)
+    except (GraphDispatchError, JobStoreError) as exc:
+        raise RuntimeActivationError(
+            getattr(exc, "code", None) or "INTERACTIVE_PULL_DISPATCH_FAILED"
+        ) from exc
 
 
 def build_activation_contract(
@@ -498,6 +504,7 @@ def build_activation_contract(
         expected_configuration_generation=generation,
         task_contract_ref=request.task_contract_ref,
         base_operation_ref=f"runtime-activation:{key.job_id}",
+        expected_authority_sha256=authority.task_contract_sha256,
     )
 
     if authority.mutation_allowed and not authority.allowed_files:
@@ -555,6 +562,9 @@ def build_activation_contract(
         expected_configuration_generation=generation,
         harness_dispatch=dispatch,
         task_packet=authority.task_packet,
+        # READ_ONLY RUNTIME-ACT-1 deliberately keeps the accepted Claude
+        # backend's optional quota gate off. Provider generation, admission,
+        # policy and readiness remain enforced by their existing authorities.
         require_quota=False,
         max_attempts=authority.max_attempts,
         provider_requirement=requirement,
@@ -726,14 +736,16 @@ def _require_canonical_runtime_dependencies(
     return canonical
 
 
-def _programmatic_worker_ids(
+def _programmatic_worker_binding(
     control_center,
     authority: RuntimeActivationAuthority,
-) -> tuple[str, ...]:
+) -> tuple[tuple[str, ...], dict[str, tuple[str, ...]]]:
+    """Bind exact authorized workers and their current runtime IDs from one snapshot."""
     snapshot = control_center.snapshot()
     by_id = {row.worker_id: row for row in snapshot.workers}
     root = Path(authority.worktree).expanduser().resolve(strict=False)
     accepted: list[str] = []
+    runtime_capabilities: dict[str, tuple[str, ...]] = {}
     for worker_id in authority.worker_ids:
         row = by_id.get(worker_id)
         if (
@@ -757,9 +769,13 @@ def _programmatic_worker_ids(
                 "PROGRAMMATIC_PUSH_WORKER_PROJECT_MISMATCH"
             )
         accepted.append(worker_id)
+        # This marker proves only that the already-authorized worker has an
+        # observed Serena runtime. It is NOT task capability authority:
+        # non-empty TaskNode capability demand is rejected before this binding.
+        runtime_capabilities[row.runtime_id] = ("runtime:serena",)
     if tuple(accepted) != authority.worker_ids:
         raise RuntimeActivationError("WORKER_CANDIDATE_AUTHORITY_MISMATCH")
-    return tuple(accepted)
+    return tuple(accepted), runtime_capabilities
 
 
 def _provider_inflight_count(provider_store, snapshot, now: object) -> int:
@@ -885,7 +901,10 @@ def activate_production_runtime(
     if node.worker_requirement:
         raise RuntimeActivationError("RUNTIME_CAPABILITY_AUTHORITY_UNAVAILABLE")
 
-    worker_ids = _programmatic_worker_ids(control_center, authority)
+    worker_ids, runtime_capabilities = _programmatic_worker_binding(
+        control_center,
+        authority,
+    )
     snapshot = provider_store.load_provider_snapshot(request.provider_id)
     if snapshot is None:
         raise RuntimeActivationError("PROVIDER_SNAPSHOT_UNAVAILABLE")
@@ -914,12 +933,6 @@ def activate_production_runtime(
         provider_id=snapshot.profile.provider_id,
     )
 
-    runtime_capabilities = {}
-    rows = {row.worker_id: row for row in control_center.snapshot().workers}
-    for worker_id in worker_ids:
-        runtime_id = rows[worker_id].runtime_id
-        assert runtime_id is not None
-        runtime_capabilities[runtime_id] = ("runtime:serena",)
     candidate_base = WorkerCandidateAssembler(
         control_center=control_center,
         config_store=settings_store,
