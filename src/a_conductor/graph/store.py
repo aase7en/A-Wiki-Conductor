@@ -99,6 +99,47 @@ _V2_BINDING_SHAPE: tuple[tuple[Any, ...], ...] = (
     ("bound_at", "TEXT", 1, None, 0),
 )
 
+_V2_BINDING_SQL = """
+CREATE TABLE graph_run_bindings (
+    run_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    runtime_kind TEXT NOT NULL
+        CHECK (runtime_kind = 'serena'),
+    task_contract_ref TEXT NOT NULL
+        CHECK (trim(task_contract_ref) <> ''),
+    task_contract_sha256 TEXT NOT NULL
+        CHECK (
+            length(task_contract_sha256) = 64
+            AND task_contract_sha256 = lower(task_contract_sha256)
+        ),
+    task_packet_ref TEXT NOT NULL
+        CHECK (trim(task_packet_ref) <> ''),
+    task_packet_sha256 TEXT NOT NULL
+        CHECK (
+            length(task_packet_sha256) = 64
+            AND task_packet_sha256 = lower(task_packet_sha256)
+        ),
+    provider_id TEXT NOT NULL CHECK (trim(provider_id) <> ''),
+    model_id TEXT NOT NULL CHECK (trim(model_id) <> ''),
+    effort_level TEXT NOT NULL CHECK (trim(effort_level) <> ''),
+    bound_at TEXT NOT NULL CHECK (trim(bound_at) <> ''),
+    PRIMARY KEY (run_id, node_id),
+    FOREIGN KEY (run_id)
+        REFERENCES graph_runs(run_id)
+        ON DELETE RESTRICT
+)
+"""
+
+_PREPARATION_INDEX_SQL = """
+CREATE UNIQUE INDEX idx_graph_runs_preparation_ref
+    ON graph_runs(preparation_ref)
+    WHERE preparation_ref IS NOT NULL
+"""
+
+
+def _normalize_schema_sql(value: Any) -> str:
+    return " ".join(str(value).split()).strip().lower()
+
 
 def _normalize_default(value: Any) -> str | None:
     if value is None:
@@ -496,6 +537,17 @@ class GraphStore:
             return False
         if cls._table_shape(connection, _BINDING_TABLE) != _V2_BINDING_SHAPE:
             return False
+        binding_sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+            (_BINDING_TABLE,),
+        ).fetchone()
+        if (
+            binding_sql is None
+            or not isinstance(binding_sql[0], str)
+            or _normalize_schema_sql(binding_sql[0])
+            != _normalize_schema_sql(_V2_BINDING_SQL)
+        ):
+            return False
         if not cls._required_index_is_present(
             connection,
             table="node_events",
@@ -512,6 +564,17 @@ class GraphStore:
             columns=("preparation_ref",),
             unique=True,
             partial=True,
+        ):
+            return False
+        index_sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND name=?",
+            ("idx_graph_runs_preparation_ref",),
+        ).fetchone()
+        if (
+            index_sql is None
+            or not isinstance(index_sql[0], str)
+            or _normalize_schema_sql(index_sql[0])
+            != _normalize_schema_sql(_PREPARATION_INDEX_SQL)
         ):
             return False
         foreign_keys = connection.execute(

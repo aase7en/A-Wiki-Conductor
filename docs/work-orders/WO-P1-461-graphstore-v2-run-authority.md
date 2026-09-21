@@ -1,6 +1,6 @@
 # WO-P1-461 — ZRA-3A Child A GraphStore v2 Run-Authority Persistence
 
-Status: R3_IMPLEMENTED / LOCAL_GREEN / FREEZE_PENDING
+Status: R3_REPAIRED / LOCAL_GREEN / FREEZE_PENDING
 Issue: #461
 Parent: #215
 Accepted design: #452 / PR #454
@@ -254,6 +254,31 @@ Post-repair:
 - skips are unrelated Tk-display availability cases;
 - `git diff --check`: clean;
 - tracked mutable diff remains only this WO plus `src/a_conductor/graph/store.py`.
+
+### Adversarial exact-schema repair cycle — 2026-09-21
+
+Detached exact-SHA audit of candidate `c1962d6b582856a39c39a3815856f6d345de1009`
+found two deterministic schema-shape gaps:
+- a same-name UNIQUE partial preparation index with the wrong WHERE predicate was accepted;
+- a same-column/FK `graph_run_bindings` table with required CHECK constraints removed was accepted.
+
+Both violate the WO requirement that v2 table/index/constraint/FK shape be exact and
+fail closed. Temp-database probes reproduced both false accepts without touching live data.
+
+Repair:
+- canonicalize and compare the binding-table `sqlite_master.sql` against the exact
+  Child-A DDL;
+- canonicalize and compare the preparation-index `sqlite_master.sql` against the
+  exact `WHERE preparation_ref IS NOT NULL` DDL;
+- add executable regressions proving both corrupted shapes fail typed and remain unchanged.
+
+Post-repair evidence:
+- focused GraphStore/run-authority: 34 PASS;
+- graph impact: 215 PASS / 3 unrelated Tk-display SKIP;
+- concurrency/replay stress: 20 iterations × 3 tests = 60 PASS;
+- `git diff --check`: clean;
+- repair diff remains inside `src/a_conductor/graph/store.py` +
+  `tests/test_graph_run_authority.py` plus this WO evidence.
 
 ## Verification / acceptance
 

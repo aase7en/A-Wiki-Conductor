@@ -129,6 +129,15 @@ def _version(path: Path) -> str | None:
     return None if row is None else row[0]
 
 
+def _schema_sql(path: Path, *, kind: str, name: str) -> str | None:
+    with sqlite3.connect(path) as conn:
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type=? AND name=?",
+            (kind, name),
+        ).fetchone()
+    return None if row is None else row[0]
+
+
 def _binding(node_id: str = "a", *, provider_id: str = "cointh-glm"):
     _, binding_type, _, _, _ = _api()
     return binding_type(
@@ -219,6 +228,77 @@ def test_partial_v2_is_not_stamped_or_repaired(tmp_path: Path) -> None:
             "SELECT 1 FROM sqlite_master WHERE type='table' "
             "AND name='graph_run_bindings'"
         ).fetchone() is None
+
+
+def test_wrong_partial_preparation_index_predicate_is_rejected_unchanged(
+    tmp_path: Path,
+) -> None:
+    error, *_ = _api()
+    db = tmp_path / "graphs.sqlite"
+    store_module.GraphStore(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute("DROP INDEX idx_graph_runs_preparation_ref")
+        conn.execute(
+            "CREATE UNIQUE INDEX idx_graph_runs_preparation_ref "
+            "ON graph_runs(preparation_ref) "
+            "WHERE preparation_ref = 'never'"
+        )
+    before = _schema_sql(
+        db,
+        kind="index",
+        name="idx_graph_runs_preparation_ref",
+    )
+
+    with pytest.raises(error) as exc:
+        store_module.GraphStore(db)
+
+    _assert_code(exc.value, "GRAPH_STORE_SCHEMA_SHAPE_INVALID")
+    assert _version(db) == "2"
+    assert (
+        _schema_sql(
+            db,
+            kind="index",
+            name="idx_graph_runs_preparation_ref",
+        )
+        == before
+    )
+
+
+def test_missing_binding_constraints_are_rejected_unchanged(tmp_path: Path) -> None:
+    error, *_ = _api()
+    db = tmp_path / "graphs.sqlite"
+    store_module.GraphStore(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute("DROP TABLE graph_run_bindings")
+        conn.execute(
+            """
+            CREATE TABLE graph_run_bindings (
+                run_id TEXT NOT NULL,
+                node_id TEXT NOT NULL,
+                runtime_kind TEXT NOT NULL,
+                task_contract_ref TEXT NOT NULL,
+                task_contract_sha256 TEXT NOT NULL,
+                task_packet_ref TEXT NOT NULL,
+                task_packet_sha256 TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                model_id TEXT NOT NULL,
+                effort_level TEXT NOT NULL,
+                bound_at TEXT NOT NULL,
+                PRIMARY KEY (run_id, node_id),
+                FOREIGN KEY (run_id)
+                    REFERENCES graph_runs(run_id)
+                    ON DELETE RESTRICT
+            )
+            """
+        )
+    before = _schema_sql(db, kind="table", name="graph_run_bindings")
+
+    with pytest.raises(error) as exc:
+        store_module.GraphStore(db)
+
+    _assert_code(exc.value, "GRAPH_STORE_SCHEMA_SHAPE_INVALID")
+    assert _version(db) == "2"
+    assert _schema_sql(db, kind="table", name="graph_run_bindings") == before
 
 
 def test_exact_v1_migrates_to_v2_preserving_legacy_rows(tmp_path: Path) -> None:
