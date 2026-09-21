@@ -9,9 +9,9 @@ Repo: A-Wiki-Conductor
 Worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo459-awiki-secret-writer-r2`
 Branch: `feat/wo-p1-459-awiki-secret-writer-r2`
 Dispatch base/head expected: `a37746f67631c9ed8edd23fa20b80b8ef4d3dfd9`
-Status: REPAIR-CYCLE-1-COMPLETE (rollback mode-restoration repair + WO461
-dependency truth applied; candidate awaiting integrator adjudication/fan-in/
-freeze; not merged; freeze/acceptance blocked on WO461 post-main repair)
+Status: FANIN-GREEN / FREEZE-PENDING (repair cycle 1 accepted locally; WO461
+post-main repair merged/post-main verified as main cb5f9b6; current-main fan-in
+complete; exact-SHA freeze/review/CI pending)
 
 ## Binding
 
@@ -145,15 +145,20 @@ the accepted WO461 post-main repair was **false**. Truth:
   post-main repair.
 - The WO461 post-main repair is PR #466, candidate
   `44f1f3dff4f5fa5b8662a81e2071978447b72deb`.
-- At repair-cycle-1 time PR #466 is still awaiting/under exact-SHA
-  independent rereview and merge/post-main verification.
+- PR #466 candidate `44f1f3dff4f5fa5b8662a81e2071978447b72deb`
+  received an independent GLM-5.3 MAX PASS with P0/P1/P2=0, exact-head CI
+  green on Windows/Ubuntu/macOS, and was merged as
+  `main@cb5f9b6b5188df68abb57fa9967b70a4004cca04`.
+- WO461 post-main verification then passed focused 35, graph-impact 219,
+  work-order identity 33, and concurrency/replay stress 60/60; Issue #461 is
+  COMPLETE / POST_MAIN_VERIFIED.
 
-Consequence: final WO459 freeze/acceptance remains **blocked** until the
-accepted WO461 repair (PR #466 or its accepted successor) is merged and
-post-main verified on the exact expected head. Only then may current main be
-fanned into this lane (rebase or re-dispatch decision is integrator
-authority), and the affected verification block above rerun against the
-fanned-in state before any freeze.
+Current-main fan-in is complete in this lane. The pre-fan-in feature commit is
+`8aa269fe5b7b549838fb56a8b06f6026fe961e5d`; normal merge of
+`main@cb5f9b6...` produced fan-in head
+`bec8d5e129b1566e45dc355cb97d7a6369db413c` with no path conflict. Final
+freeze now requires rerunning the WO459 verification block on this fanned-in
+state, then exact-SHA independent R3 review + hosted CI.
 
 ## Repair cycle 1 (this revision)
 
@@ -208,7 +213,7 @@ Repair-cycle verification (repo test interpreter, this worktree):
   byte comparison and `os.replace`; a lock-file authority was deliberately
   not invented (fail-closed typing instead). If a future slice needs a
   cooperative lock, it must be its own work order.
-- Repair-cycle-1 output is a claim; integrator adjudication/fan-in/freeze
-  pending, and additionally blocked until the accepted WO461 post-main repair
-  (PR #466 candidate `44f1f3d`) is merged and post-main verified, after which
-  this lane must re-run its verification against the fanned-in main.
+- Repair-cycle-1 source output has been integrator-adjudicated and fanned into
+  accepted WO461 repair main. Remaining gates are fanned-in deterministic
+  verification, exact candidate freeze, independent R3 review, hosted CI,
+  Sol acceptance, merge and post-main verification.
