@@ -1,6 +1,6 @@
 # WO-P1-461 — ZRA-3A Child A GraphStore v2 Run-Authority Persistence
 
-Status: R3_RED_PROVEN / IMPLEMENTATION_PENDING
+Status: R3_IMPLEMENTED / LOCAL_GREEN / FREEZE_PENDING
 Issue: #461
 Parent: #215
 Accepted design: #452 / PR #454
@@ -233,6 +233,27 @@ Observed before any production-source mutation:
 - `src/a_conductor/graph/store.py` remains byte-identical to `main@eb930595...` at this checkpoint.
 
 This is the required RED boundary. Implementation must not weaken/delete the tests merely to turn GREEN.
+
+### GREEN / local implementation evidence — 2026-09-21
+
+Recovered an already-started claimed implementation with no live WO461 executor process.
+The dirty source remained inside the exact one-file production scope.
+
+First focused harvest:
+- 31 PASS / 1 FAIL;
+- only failure: concurrent v1 initializers could inspect a transient migration shape before acquiring writer authority.
+
+Bounded repair:
+- writable schema classification now occurs only after `BEGIN IMMEDIATE`;
+- no retry/sleep loop was added;
+- unsupported/invalid schema still rolls back and fails typed.
+
+Post-repair:
+- `python -m pytest tests/test_graph_store.py tests/test_graph_run_authority.py -q`: 32 PASS;
+- `python -m pytest tests -q -k graph`: 213 PASS / 3 SKIP / 3963 deselected;
+- skips are unrelated Tk-display availability cases;
+- `git diff --check`: clean;
+- tracked mutable diff remains only this WO plus `src/a_conductor/graph/store.py`.
 
 ## Verification / acceptance
 
