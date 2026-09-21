@@ -34,10 +34,10 @@ Docs worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo240-browser-wake-roadmap
 Branch: `docs/wo-p1-240-browser-wake-continuation-roadmap`
 Original base: `origin/main@67744e98e538b000579bff4a45616d3a178a824b`
 Prior reconciled main baseline: `origin/main@3656fb386911b5bf9e3457e8e11c67d6b11da8e6`
-Current re-pin baseline (2026-09-21): `origin/main@9a37e02ba833004ddf4317fd39cbf5927cf26d58`
+Current re-pin baseline (2026-09-21): `origin/main@0ce82be15355bf3af782cd488b54d77c475d285b`
 Pre-edit reconciliation merge: `c4d24ff2ad6e8a6df96d61ff7db81423dbed5957`
-Prior current-main re-pin merges: `264dbab26cf88fd5115f91c3c3187e710995b25d`, `c3a012633b26e8785f94738b8fb5e386d99c20da`
-Latest current-main re-pin merge: `51122ebbf06fc1e0238b0243f887f59fe905305e`
+Prior current-main re-pin merges: `264dbab26cf88fd5115f91c3c3187e710995b25d`, `c3a012633b26e8785f94738b8fb5e386d99c20da`, `51122ebbf06fc1e0238b0243f887f59fe905305e`
+Latest current-main re-pin merge: `662347aaa035e894e7eb9c4190a90f6029634069`
 
 Actual runtime/Git/GitHub/durable Issue state overrides this WO. Chat is not project authority.
 
@@ -95,7 +95,7 @@ accelerator because ordinary browser ChatGPT still needs a human to create the
 next turn after delegated work or a tool turn becomes idle.
 
 Current authority after re-pin:
-- COCKPIT-1A / WO424 and RUNTIME-AUTH-1 / WO431 are merged; `main@9a37e02...`
+- COCKPIT-1A / WO424 and RUNTIME-AUTH-1 / WO431 are merged; current main
   includes merged WO433 / PR #441 with the accepted explicit/manual bounded
   runtime activation primitive. #429 COCKPIT-1B is the current product-binding
   frontier. Browser Wake reuses these seams and creates no second runtime producer.
@@ -107,7 +107,7 @@ Current authority after re-pin:
   binds the latest accepted Hook-contract family and never forks stale vocabulary.
 - DEX-2b identity/receipt foundation is merged (PR #403); DEX-2a substrate
   supervision and production DEX-3a completion-event delivery remain open.
-- WO205 Phase-D is an active separate mutable lane and is not part of WO446 scope.
+- WO205 Phase-D advanced independently into current main via PR #445; Browser Wake does not own or reopen that source scope.
 
 To reduce idle dependency time without weakening authority, after WO446 itself is
 accepted:

@@ -11,7 +11,7 @@ Classification: `REUSE + WRAP + EXTEND`; `NEW` only for a proven browser-transpo
 
 This roadmap was originally frozen on 2026-09-15. It was first reconciled against
 `origin/main@3656fb386911b5bf9e3457e8e11c67d6b11da8e6` and is now re-pinned on
-2026-09-21 against `origin/main@9a37e02ba833004ddf4317fd39cbf5927cf26d58` plus the newer accepted/open authorities:
+2026-09-21 against `origin/main@0ce82be15355bf3af782cd488b54d77c475d285b` plus the newer accepted/open authorities:
 
 - WO-P1-257 / Issue #365 is merged and owns the Hook/STM/Monitor/Web+Extension/Command-Gateway architecture. Browser Wake consumes that architecture; it does not create a second extension state model or command channel.
 - WO-P1-258 / Issue #368 / PR #371 established Hook Contract v1. Main has since advanced through accepted HOOK-1 / HOOK-1B / HOOK-1C / HOOK-2A / HOOK-2B successors, while the forward-compatibility repair PR #385 remains open. Browser Wake must bind to the latest accepted Hook-contract family at each implementation freeze and must not pin or fork a stale pre-repair schema.
@@ -28,7 +28,7 @@ The current delta therefore narrows WO446 into the browser/provider implementati
 ### 2026-09-21 acceleration update
 
 - COCKPIT-1A / WO424 and RUNTIME-AUTH-1 / WO431 are merged, and WO433 / PR #441
-  is now merged in `main@9a37e02...` with the accepted explicit/manual bounded
+  is in current main with the accepted explicit/manual bounded
   runtime activation primitive. #429 COCKPIT-1B is the current product-binding
   frontier. Browser Wake consumes these seams; it does not create a second runtime
   producer or a parallel operator truth.
@@ -37,8 +37,8 @@ The current delta therefore narrows WO446 into the browser/provider implementati
 - HOOK-0 forward-compatibility repair PR #385 is still open. Any browser
   implementation freeze must bind the latest accepted Hook successor rather than
   the older pre-repair contract.
-- WO205 Phase-D is an active independent mutable lane and must not be interrupted
-  or overlapped by Browser Wake work.
+- WO205 Phase-D advanced independently into current main via PR #445. Browser Wake
+  consumes current-main truth and does not own or reopen that source scope.
 
 User priority is now to minimize the human `continue` relay as early as safely
 possible. Therefore the dependency strategy changes from **wait-then-build** to
@@ -478,7 +478,7 @@ Node-specific gates:
 
 1. Keep WO446 source-forbidden; finish only this two-file roadmap lane.
 2. Freeze the reconciled candidate on top of
-   `origin/main@9a37e02ba833004ddf4317fd39cbf5927cf26d58`; verify exact two-file
+   `origin/main@0ce82be15355bf3af782cd488b54d77c475d285b`; verify exact two-file
    scope, UTF-8, references, secret hygiene and `git diff --check`.
 3. Obtain a fresh qualified GLM-5.3 MAX independent exact-SHA
    architecture/security/reuse review plus exact-head hosted CI.
