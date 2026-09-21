@@ -138,7 +138,7 @@ CREATE UNIQUE INDEX idx_graph_runs_preparation_ref
 
 
 def _normalize_schema_sql(value: Any) -> str:
-    return " ".join(str(value).split()).strip().lower()
+    return " ".join(str(value).split()).strip()
 
 
 def _normalize_default(value: Any) -> str | None:

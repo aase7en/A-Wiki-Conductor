@@ -301,6 +301,31 @@ def test_missing_binding_constraints_are_rejected_unchanged(tmp_path: Path) -> N
     assert _schema_sql(db, kind="table", name="graph_run_bindings") == before
 
 
+def test_binding_check_literal_case_drift_is_rejected_unchanged(
+    tmp_path: Path,
+) -> None:
+    error, *_ = _api()
+    db = tmp_path / "graphs.sqlite"
+    store_module.GraphStore(db)
+    canonical = _schema_sql(db, kind="table", name="graph_run_bindings")
+    assert canonical is not None
+    assert "'serena'" in canonical
+    tampered = canonical.replace("'serena'", "'SERENA'", 1)
+    assert tampered != canonical
+
+    with sqlite3.connect(db) as conn:
+        conn.execute("DROP TABLE graph_run_bindings")
+        conn.execute(tampered)
+    before = _schema_sql(db, kind="table", name="graph_run_bindings")
+
+    with pytest.raises(error) as exc:
+        store_module.GraphStore(db)
+
+    _assert_code(exc.value, "GRAPH_STORE_SCHEMA_SHAPE_INVALID")
+    assert _version(db) == "2"
+    assert _schema_sql(db, kind="table", name="graph_run_bindings") == before
+
+
 def test_exact_v1_migrates_to_v2_preserving_legacy_rows(tmp_path: Path) -> None:
     _api()
     db = tmp_path / "graphs.sqlite"
