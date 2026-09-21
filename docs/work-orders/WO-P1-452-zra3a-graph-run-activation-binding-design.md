@@ -211,6 +211,8 @@ PRIMARY KEY (run_id, node_id)
 
 The v2 table/API must also enforce non-empty bounded text and canonical lower-case 64-hex SHA-256 values through application validation plus SQLite `CHECK` constraints where practical. `PRAGMA foreign_keys=ON` remains mandatory for every GraphStore connection that can touch the binding relation.
 
+For this first bounded ZRA-3A path, `runtime_kind` is **not** a free vocabulary. Accepted #433 fixed-pool source proves an observed Serena runtime (`runtime:serena`) but exposes no generic runtime-kind selection authority. Therefore the only accepted persisted value in this slice is exactly `serena`. Any other value fails `RUNTIME_KIND_AUTHORITY_UNAVAILABLE`. A future additional runtime kind requires a separately accepted runtime-routing authority; Child A/B must not infer one from elastic-capacity configuration, CLI defaults or arbitrary strings.
+
 There is no update/rebind API. A conflicting binding for the same `(run_id, node_id)` is a typed identity mismatch. Intentional new selection requires a new prepared run.
 
 ## 8. Project-root authority
@@ -284,12 +286,14 @@ The application caller owns preserving/reusing the same ref across a retry. **Th
 
 ### 10.2 preparation_sha256
 
-The service computes a canonical preparation digest over:
+The service computes a canonical preparation digest over exactly the preparation-intent fields:
 
 - `graph_id`;
 - `project_id`;
 - `graph_definition_sha256`;
-- the complete sorted per-node immutable binding set.
+- bindings sorted by `node_id`, where each binding contributes exactly `node_id`, `runtime_kind`, `task_contract_ref`, `task_contract_sha256`, `task_packet_ref`, `task_packet_sha256`, `provider_id`, `model_id`, and `effort_level`.
+
+Server-generated or observational fields are deliberately excluded: `run_id`, `bound_at`, graph-run `created_at`, `completed_at`, and legacy `status` are **not** preparation-digest material. This is required so commit-success/response-loss replay of unchanged intent cannot false-mismatch because a timestamp or server-minted id differs.
 
 Domain separation:
 
@@ -316,7 +320,7 @@ Logical sequence under one `BEGIN IMMEDIATE`:
 2. look up `preparation_ref`;
 3. if present, load the exact run row plus complete binding set, verify schema/canonical field validity, compare preparation digest **and** canonical durable contents, then return/reject without mutation;
 4. verify graph id exists and the supplied graph digest matches the stored graph definition just read;
-5. require every binding `node_id` to exist in that exact loaded graph, reject duplicate/unknown nodes, and validate canonical runtime kind plus contract/packet refs and hashes before persistence;
+5. require every binding `node_id` to exist in that exact loaded graph, reject duplicate/unknown nodes, require that node's `worker_requirement` is empty for the current #433 capability boundary, require `runtime_kind == "serena"`, and validate canonical contract/packet refs and hashes before persistence;
 6. require an explicit pre-pinned provider/model/effort selection for every supplied binding; validate it against current accepted provider configuration/policy but do not rank, infer, default or fall back;
 7. mint `graph_run_id` only when this preparation does not already exist;
 8. insert one run row including project/digest/preparation identity;
@@ -433,14 +437,15 @@ Current main does **not** contain an accepted automatic provider/model selector.
 
 Therefore the first bounded ZRA-3A preparation path is explicit, not automatic routing:
 
-1. the accepted run-preparation front door/request must supply one complete per-node route selection: `runtime_kind`, `provider_id`, `model_id`, `effort_level`;
-2. absence of any required route field fails closed — no default provider, inferred model, cost-ranked winner or silent fallback;
-3. Child B validates the explicitly selected route against current accepted provider configuration/policy and accepted runtime-kind vocabulary, but **does not choose** among candidates;
-4. the validated explicit selection becomes immutable run-binding identity only because the whole preparation is bound to the durable `preparation_ref`/digest transaction;
-5. #433 still performs fresh provider/model/effort/generation/endpoint/readiness/admission checks at activation time and may reject a route that was valid when prepared;
-6. automatic provider/model selection, cost-aware switching or fallback is a separate future routing-authority slice and cannot be introduced by Child A, Child B or #215 continuation integration.
+1. the accepted run-preparation front door/request must supply one complete per-node route selection: `provider_id`, `model_id`, `effort_level`; its runtime discriminator is fixed to exact `runtime_kind="serena"` by this slice;
+2. absence of any required provider/model/effort field fails closed — no default provider, inferred model, cost-ranked winner or silent fallback;
+3. any runtime kind other than exact `serena` fails `RUNTIME_KIND_AUTHORITY_UNAVAILABLE`; neither `ElasticCapacityPolicy.permitted_runtime_kinds` nor the #433 CLI/dataclass default is selection authority for this fixed-pool path;
+4. Child B validates the explicitly selected provider/model/effort against current accepted provider configuration/policy and validates the fixed runtime discriminator, but **does not choose** among candidates;
+5. the validated explicit selection becomes immutable run-binding identity only because the whole preparation is bound to the durable `preparation_ref`/digest transaction;
+6. #433 still performs fresh provider/model/effort/generation/endpoint/readiness/admission checks at activation time and may reject a route that was valid when prepared;
+7. automatic provider/model selection, runtime-kind expansion, cost-aware switching or fallback is a separate future routing-authority slice and cannot be introduced by Child A, Child B or #215 continuation integration.
 
-A free caller string presented outside the accepted run-preparation front door is not route authority.
+A free caller string presented outside the accepted run-preparation front door is not route authority. Child B reconstruction must populate every `RuntimeActivationRequest` field explicitly from trusted binding/current authorities; it must never rely on the request dataclass or CLI defaults.
 
 ## 14. Consumer flow
 
@@ -550,8 +555,8 @@ Owns:
 - project-id resolution;
 - preparation input validation;
 - contract/packet digest validation;
-- validation/binding of the caller's explicit pre-pinned `runtime_kind/provider_id/model_id/effort_level` route;
-- rejection of missing route selection, advisory-ranking substitution, implicit defaults and fallback;
+- validation/binding of exact `runtime_kind="serena"` plus the caller's explicit pre-pinned `provider_id/model_id/effort_level` selection;
+- rejection of non-Serena runtime kinds, non-empty node `worker_requirement` under the current #433 capability boundary, missing route selection, advisory-ranking substitution, implicit defaults and fallback;
 - thin application/service seam;
 - typed binding-to-`RuntimeActivationRequest` reconstruction with fresh digest checks.
 
@@ -626,24 +631,25 @@ Children are ordered A -> B -> C. Each consequential boundary receives its own e
 
 ### Provider/runtime selection
 
-38. missing explicit `runtime_kind/provider_id/model_id/effort_level` route at prepare fails closed;
-39. unknown/invalid runtime_kind or provider/model/effort at prepare fails;
-40. advisory cost/quota ranking cannot become route authority;
-41. no provider/model defaulting, inference or fallback occurs inside Child A/B;
-42. provider/model later deauthorized fails through fresh #433 checks;
-43. current provider generation/endpoint is never read from the binding row.
+38. missing explicit `provider_id/model_id/effort_level` selection at prepare fails closed;
+39. runtime kind other than exact `serena` fails `RUNTIME_KIND_AUTHORITY_UNAVAILABLE` before persistence/activation;
+40. a selected node with non-empty `worker_requirement` fails `RUNTIME_CAPABILITY_AUTHORITY_UNAVAILABLE` before run/binding commit under the current #433 capability boundary;
+41. unknown/unauthorized provider/model/effort at prepare fails;
+42. advisory cost/quota ranking, CLI/dataclass defaults, inference and fallback cannot become route authority;
+43. provider/model later deauthorized fails through fresh #433 checks;
+44. current provider generation/endpoint is never read from the binding row.
 
 ### Continuation/replay boundary
 
-44. zero READY -> no binding activation;
-45. parent not COMPLETE -> no activation;
-46. one READY with valid binding -> #433 called at most once;
-47. missing/stale binding -> no #433 call;
-48. existing successor durable job -> reconcile/existing behavior, no second physical execution;
-49. WAIT -> no same-tick retry;
-50. RECOVERY_REQUIRED -> no same-tick retry;
-51. restart uses same graph_run_id and existing binding/job identity;
-52. no implicit latest/current graph-run query exists in the automatic authority path.
+45. zero READY -> no binding activation;
+46. parent not COMPLETE -> no activation;
+47. one READY with valid binding -> #433 called at most once;
+48. missing/stale binding -> no #433 call;
+49. existing successor durable job -> reconcile/existing behavior, no second physical execution;
+50. WAIT -> no same-tick retry;
+51. RECOVERY_REQUIRED -> no same-tick retry;
+52. restart uses same graph_run_id and existing binding/job identity;
+53. no implicit latest/current graph-run query exists in the automatic authority path.
 
 ## 20. Likely future source/test scope
 
@@ -694,7 +700,9 @@ Until all gates pass:
 
 Windows current session owns only this WO452 governance file.
 
-Mac owns WO453 / PR #456 design-only on `docs/work-orders/WO-P1-453-fmg-prod-canonical-srm-cutover.md`; this Windows lane does not mutate that file, branch, worktree or SunDayRemoteMCP cutover state. Windows other session owns WO449 security repair cycle 2 on the same four Browser-Wake files after PR #455 merged into `main@3db441f3...`; this lane may observe its liveness for global review-slot accounting but does not mutate its issue, branch, worktree or repair files.
+Mac owns WO453 / PR #456 design-only on `docs/work-orders/WO-P1-453-fmg-prod-canonical-srm-cutover.md`; this Windows lane does not mutate that file, branch, worktree or SunDayRemoteMCP cutover state. PR #456 is still based on pre-`3db441f3...` main and Mac has already been told to re-pin/fan-in the disjoint main delta before final review/acceptance.
+
+WO449/PR #455 remains a separate four-file Browser-Wake ownership history. Issue #449 is currently closed, but an independently verified cycle-2 non-corpus credential-shape HOLD remains unresolved in merged `main@3db441f3...`; this lane observes that conflict only and does not mutate/reopen its issue, branch, worktree or files.
 
 The prior WO452 exact-SHA reviewer is terminal/harvested. WO449's rereviewer later ran on exact `5550f14...`; at this checkpoint its reviewer PID is no longer live and its detached result reports PASS, but folding/acceptance remains the WO449 owner session's responsibility. Before any new WO452 reviewer dispatch this lane must recheck actual process/pointer/Issue state and must not overlap an active WO449 or Mac reviewer.
 
@@ -717,15 +725,19 @@ with:
 - graph definition digest with explicit UTF-8 canonicalization;
 - replay-safe `preparation_ref` + preparation digest;
 - graph_run_id minted only inside atomic prepare;
-- explicit `runtime_kind/provider/model/effort` selection at the accepted preparation front door — no advisory ranking/default/fallback authority;
+- exact fixed `runtime_kind="serena"` plus explicit provider/model/effort selection at the accepted preparation front door — no generic runtime routing, advisory ranking, default or fallback authority;
+- exact preparation digest over intent fields only, excluding server-minted ids/timestamps and legacy status;
+- non-empty `worker_requirement` fails closed before preparation while #433 lacks accepted capability-supply authority;
 - same-run continuation reusing the existing graph_run_id;
 - inert prepared-only rows and bounded lock-failure semantics;
 - no second scheduler/lifecycle/activation/model-routing authority.
 
-Historical exact candidate `8edaa315...` received independent `PASS_DESIGN` with P0/P1/P2/P3 = 0/0/0/5 and exact-head CI green, but is superseded for acceptance because Sol found the provider-route authority ambiguity after review dispatch. Those results remain historical evidence only.
+Historical exact candidate `8edaa315...` received independent `PASS_DESIGN` with P0/P1/P2/P3 = 0/0/0/5 and exact-head CI green, but was superseded because Sol found the provider-route authority ambiguity after review dispatch.
+
+Historical exact candidate `2cdabef...` then received independent `PASS_DESIGN` with P0/P1/P2/P3 = 0/0/0/5 and exact-head CI run `35563767403` green on Windows/Ubuntu/macOS. Sol adjudication nevertheless rejected it for final acceptance after proving that accepted #433 has no generic runtime-kind authority and that preparation-digest intent fields must explicitly exclude server-generated state. Those review/CI results remain historical evidence only after this repair.
 
 Current mutation verdict:
 
 `SAFE_TO_MUTATE_ZRA3_SOURCE = NO`
 
-Exact next safe action: freeze a new one-file governance SHA with this explicit-route repair, rerun deterministic identity/hygiene checks and exact-head CI, then obtain a fresh exact-SHA independent R3 design review only after global review occupancy is verified zero.
+Exact next safe action: freeze a new one-file governance SHA with the fixed-Serena/runtime-capability/digest-intent repair, rerun deterministic identity/hygiene checks and exact-head CI, then obtain a fresh exact-SHA independent R3 design review only after global review occupancy is verified zero.
