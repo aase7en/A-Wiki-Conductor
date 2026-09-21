@@ -253,6 +253,12 @@ Including all persisted node fields is intentionally conservative: replacing any
 
 At binding consumption, the graph is reloaded and its digest must exact-match the run row before a request can be constructed.
 
+### 9.1 Empty/missing graph ambiguity
+
+Current v1 GraphStore has no graph-header row. `save_graph()` persists only node/edge rows and `list_graph_ids()` derives existence only from `graph_nodes`. Therefore an empty graph saved under a graph id is durably indistinguishable from a missing graph id.
+
+Child A must **not** add a new graph-definition registry merely to hide this ambiguity. Run preparation is allowed only when the exact `graph_id` has at least one persisted TaskNode and the loaded graph canonicalizes successfully. Empty/missing/corrupt graph input fails typed before run-id minting or any run/binding insert. If future product requirements need executable empty graphs, that requires a separate accepted graph-identity/schema decision.
+
 ## 10. Preparation identity and no-blind-replay
 
 A random server-minted run id alone is not replay-safe.
@@ -561,51 +567,52 @@ Children are ordered A -> B -> C. Each consequential boundary receives its own e
 10. same graph canonicalizes deterministically across restart;
 11. node insertion/order differences do not change digest when semantic graph is equal;
 12. semantic node/edge change changes digest;
-13. same graph_id with changed definition makes prepared run stale.
+13. same graph_id with changed definition makes prepared run stale;
+14. missing graph id and persisted-empty/no-node graph are both rejected before run minting under current schema.
 
 ### Preparation replay/concurrency
 
-14. first preparation mints one server-side run id inside the transaction;
-15. commit + lost response + same preparation_ref/digest returns the same run id after exact durable run+binding-set comparison;
-16. missing/blank preparation_ref fails closed — no volatile implicit mint path exists;
-17. same preparation_ref with different intent fails identity mismatch;
-18. intentional rerun with new preparation_ref creates a different run id;
-19. injected failure before commit leaves no partial run/bindings;
-20. two concurrent identical prepares converge on one run;
-21. concurrent conflicting prepares with the same ref produce one winner + typed mismatch;
-22. duplicate `(run_id,node_id)` binding cannot change identity;
-23. same ref/digest with a missing persisted binding fails `GRAPH_RUN_PREPARATION_RECOVERY_REQUIRED`;
-24. same ref/digest with an extra, malformed or mismatching durable binding fails recovery-required rather than returning the run id.
+15. first preparation mints one server-side run id inside the transaction;
+16. commit + lost response + same preparation_ref/digest returns the same run id after exact durable run+binding-set comparison;
+17. missing/blank preparation_ref fails closed — no volatile implicit mint path exists;
+18. same preparation_ref with different intent fails identity mismatch;
+19. intentional rerun with new preparation_ref creates a different run id;
+20. injected failure before commit leaves no partial run/bindings;
+21. two concurrent identical prepares converge on one run;
+22. concurrent conflicting prepares with the same ref produce one winner + typed mismatch;
+23. duplicate `(run_id,node_id)` binding cannot change identity;
+24. same ref/digest with a missing persisted binding fails `GRAPH_RUN_PREPARATION_RECOVERY_REQUIRED`;
+25. same ref/digest with an extra, malformed or mismatching durable binding fails recovery-required rather than returning the run id.
 
 ### Project/contract/packet binding
 
-25. missing project_id fails closed;
-26. changed registered project root causes exact authority failure;
-27. absolute/escaping/ambiguous contract ref fails before persistence;
-28. absolute/escaping/ambiguous packet ref fails before persistence;
-29. semantically equivalent refs canonicalize to one `/`-separated durable representation;
-30. malformed/noncanonical SHA-256 values fail before persistence/read acceptance;
-31. contract SHA drift -> stale binding;
-32. packet SHA drift -> stale binding;
-33. binding for absent graph node -> stale/identity failure.
+26. missing project_id fails closed;
+27. changed registered project root causes exact authority failure;
+28. absolute/escaping/ambiguous contract ref fails before persistence;
+29. absolute/escaping/ambiguous packet ref fails before persistence;
+30. semantically equivalent refs canonicalize to one `/`-separated durable representation;
+31. malformed/noncanonical SHA-256 values fail before persistence/read acceptance;
+32. contract SHA drift -> stale binding;
+33. packet SHA drift -> stale binding;
+34. binding for absent graph node -> stale/identity failure.
 
 ### Provider/runtime selection
 
-34. unknown provider/model/effort at prepare fails;
-35. provider/model later deauthorized fails through fresh #433 checks;
-36. current provider generation/endpoint is never read from the binding row.
+35. unknown provider/model/effort at prepare fails;
+36. provider/model later deauthorized fails through fresh #433 checks;
+37. current provider generation/endpoint is never read from the binding row.
 
 ### Continuation/replay boundary
 
-37. zero READY -> no binding activation;
-38. parent not COMPLETE -> no activation;
-39. one READY with valid binding -> #433 called at most once;
-40. missing/stale binding -> no #433 call;
-41. existing successor durable job -> reconcile/existing behavior, no second physical execution;
-42. WAIT -> no same-tick retry;
-43. RECOVERY_REQUIRED -> no same-tick retry;
-44. restart uses same graph_run_id and existing binding/job identity;
-45. no implicit latest/current graph-run query exists in the automatic authority path.
+38. zero READY -> no binding activation;
+39. parent not COMPLETE -> no activation;
+40. one READY with valid binding -> #433 called at most once;
+41. missing/stale binding -> no #433 call;
+42. existing successor durable job -> reconcile/existing behavior, no second physical execution;
+43. WAIT -> no same-tick retry;
+44. RECOVERY_REQUIRED -> no same-tick retry;
+45. restart uses same graph_run_id and existing binding/job identity;
+46. no implicit latest/current graph-run query exists in the automatic authority path.
 
 ## 20. Likely future source/test scope
 
