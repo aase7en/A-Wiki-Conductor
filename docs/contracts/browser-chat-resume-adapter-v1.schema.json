@@ -1,0 +1,1225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a-conductor:schema:browser-chat-resume-adapter:1.0.0",
+  "title": "A-Sunday Conductor Browser Chat Resume Adapter Contract v1 (BWA-0)",
+  "description": "DEX-3b browser/provider adapter contract envelope. Transport, binding, replay, and security semantics only; no runtime is implemented here. Whole-envelope UTF-8 size SHOULD be <= 16384 bytes and MUST be <= 32768 bytes (consumer-enforced BWA_EVENT_OVERSIZED). Raw prompts, credentials, cookies, session tokens, share URLs, command lines, Git operations, and PIDs are forbidden fields; any envelope carrying them is security-invalid (BWA_EVENT_INVALID). Browser results are UNTRUSTED until A-Conductor revalidates durable authority. TEST_ONLY fake-ingress vocabulary is structurally disjoint from production DEX-3a correlation vocabulary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "message_id",
+    "message_type",
+    "occurred_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.\\d+\\.\\d+$",
+      "maxLength": 16
+    },
+    "message_id": {
+      "type": "string",
+      "pattern": "^bwa-[0-9a-f]{32}$",
+      "maxLength": 36
+    },
+    "message_type": {
+      "enum": [
+        "adapter_capability",
+        "conversation_binding",
+        "wake_request",
+        "browser_response",
+        "wake_delivery_status",
+        "wake_arm_control",
+        "test_only_fake_ingress"
+      ]
+    },
+    "occurred_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?Z$",
+      "maxLength": 32
+    },
+    "adapter_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+      "maxLength": 64
+    },
+    "adapter_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$",
+      "maxLength": 64
+    },
+    "provider_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+      "maxLength": 64
+    },
+    "provider_surface": {
+      "enum": [
+        "web_chat"
+      ]
+    },
+    "contract_version": {
+      "type": "string",
+      "pattern": "^1\\.\\d+\\.\\d+$",
+      "maxLength": 16
+    },
+    "capabilities": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,31}$",
+        "maxLength": 32
+      }
+    },
+    "capability_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$",
+      "maxLength": 64
+    },
+    "project_locator": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+      "maxLength": 128
+    },
+    "conversation_locator": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+      "maxLength": 128
+    },
+    "binding_generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "binding_version": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "observed_evidence": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "maxLength": 256
+      }
+    },
+    "wake_event_id": {
+      "type": "string",
+      "pattern": "^bwk-[0-9a-f]{32}$",
+      "maxLength": 36
+    },
+    "goal_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,127}$",
+      "maxLength": 128
+    },
+    "task_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,127}$",
+      "maxLength": 128
+    },
+    "work_order_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,127}$",
+      "maxLength": 128
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidence_refs": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "maxLength": 256
+      }
+    },
+    "requested_next_decision": {
+      "enum": [
+        "PROPOSE_CONTINUATION",
+        "AWAIT_OPERATOR_DECISION"
+      ]
+    },
+    "source_event_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "maxLength": 256
+    },
+    "delivery_attempt": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000
+    },
+    "response_capture_id": {
+      "type": "string",
+      "pattern": "^bwr-[0-9a-f]{32}$",
+      "maxLength": 36
+    },
+    "observed_completion_state": {
+      "enum": [
+        "RESPONSE_OBSERVED",
+        "RESPONSE_PARTIAL",
+        "RESPONSE_ABSENT",
+        "RESPONSE_UNKNOWN"
+      ]
+    },
+    "trust_state": {
+      "const": "UNTRUSTED"
+    },
+    "proposal_refs": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "maxLength": 256
+      }
+    },
+    "result_refs": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "maxLength": 256
+      }
+    },
+    "delivery_state": {
+      "enum": [
+        "WAKE_DELIVERY_CONFIRMED",
+        "WAKE_DELIVERY_FAILED",
+        "WAKE_DELIVERY_UNKNOWN"
+      ]
+    },
+    "arm_command": {
+      "enum": [
+        "PLAY",
+        "PAUSE"
+      ]
+    },
+    "test_only": {
+      "const": true
+    },
+    "fake_source_kind": {
+      "const": "FAKE_INGRESS"
+    },
+    "fake_provider_id": {
+      "type": "string",
+      "pattern": "^fake-[a-z0-9][a-z0-9._-]{0,62}$",
+      "maxLength": 64
+    },
+    "fake_conversation_locator": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+      "maxLength": 128
+    },
+    "fake_binding_generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "fake_trigger_kind": {
+      "enum": [
+        "FAKE_COMPLETION_EVENT",
+        "FAKE_MANUAL_PING"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "const": "adapter_capability"
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "adapter_id",
+          "adapter_version",
+          "provider_id",
+          "provider_surface",
+          "contract_version",
+          "capabilities",
+          "capability_version"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "const": "conversation_binding"
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "adapter_id",
+          "provider_id",
+          "project_locator",
+          "conversation_locator",
+          "binding_generation",
+          "binding_version"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "const": "wake_request"
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "adapter_id",
+          "provider_id",
+          "conversation_locator",
+          "binding_generation",
+          "wake_event_id",
+          "reason",
+          "requested_next_decision"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "const": "browser_response"
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "adapter_id",
+          "provider_id",
+          "conversation_locator",
+          "binding_generation",
+          "wake_event_id",
+          "response_capture_id",
+          "observed_completion_state",
+          "trust_state"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "const": "wake_delivery_status"
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "wake_event_id",
+          "delivery_state"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "const": "wake_arm_control"
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "adapter_id",
+          "provider_id",
+          "conversation_locator",
+          "binding_generation",
+          "arm_command"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "const": "test_only_fake_ingress"
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "test_only",
+          "fake_source_kind",
+          "fake_provider_id",
+          "fake_conversation_locator",
+          "fake_binding_generation",
+          "fake_trigger_kind"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "const": "wake_request"
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": [
+              "goal_ref"
+            ]
+          },
+          {
+            "required": [
+              "task_ref"
+            ]
+          },
+          {
+            "required": [
+              "work_order_ref"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "wake_delivery_status",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "adapter_id": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "adapter_version": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "wake_delivery_status",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provider_id": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provider_surface": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "contract_version": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilities": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capability_version": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "project_locator": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "wake_delivery_status",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "conversation_locator": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "wake_delivery_status",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "binding_generation": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "binding_version": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "observed_evidence": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "wake_event_id": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "goal_ref": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "task_ref": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "work_order_ref": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "reason": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "evidence_refs": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "requested_next_decision": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source_event_ref": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "delivery_attempt": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "response_capture_id": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "observed_completion_state": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "trust_state": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "proposal_refs": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "wake_delivery_status",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result_refs": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_arm_control",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "delivery_state": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "test_only_fake_ingress"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "arm_command": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "test_only": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fake_source_kind": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fake_provider_id": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fake_conversation_locator": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fake_binding_generation": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "message_type": {
+            "enum": [
+              "adapter_capability",
+              "conversation_binding",
+              "wake_request",
+              "browser_response",
+              "wake_delivery_status",
+              "wake_arm_control"
+            ]
+          }
+        },
+        "required": [
+          "message_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fake_trigger_kind": false
+        }
+      }
+    }
+  ]
+}
