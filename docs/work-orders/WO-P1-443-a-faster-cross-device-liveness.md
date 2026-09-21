@@ -46,7 +46,7 @@ Everything else is read-only unless a separately accepted finding reopens scope.
 7. Crossing the declared time bound produces only a `STALLED`/stall-candidate reconciliation trigger. Time alone never grants replay, cancellation, takeover, or mutation authority.
 8. Before takeover/help, the receiving device reconciles exact process/session identity, result/exit/log evidence, Git/worktree state, claim/ownership and replay safety. An explicit handoff or proof that the prior mutable owner is no longer active is required.
 9. A takeover publishes a new cross-device pulse with old/new device identity and binding-digest delta. A previously stopped/stale device that resumes must census/collision-check first and yield to the valid current owner.
-10. GitHub Issue/WO checkpoint is the durable cross-device carrier. Device-local `runs/` remains detailed evidence and must be folded before cleanup.
+10. GitHub Issue/WO checkpoint is the durable cross-device carrier. Device-local `runs/` remains detailed evidence and must be folded before cleanup. If the carrier is unavailable, record typed `PULSE_CARRIER_UNAVAILABLE`, do not claim publication, and block handoff/takeover/cleanup that depends on the missing fold until it succeeds.
 11. Plain ChatGPT is not claimed to self-wake or continuously poll after a turn ends. The next invocation reconstructs truth; an accepted external/runtime heartbeat source may provide evidence but never authority by itself.
 12. Global WIP remains `3 mutable + 1 independent read-only review`; `1 MUTABLE HOTSPOT = 1 MUTATION OWNER`.
 
@@ -112,3 +112,15 @@ The user explicitly requested cross-device awareness with start/working/complete
 - Deterministic author checks: exact four-path scope PASS; `git diff --check` PASS; work-order identity 33 PASS; strict UTF-8/no U+FFFD PASS; frontmatter/reference/required-semantic assertions PASS; added-line secret-shaped scan 0 hits.
 - Durable progress pulse: Issue #443 comment `5754040165`.
 - Candidate still requires freeze, independent exact-SHA R2 review, exact-head hosted CI, GPT acceptance, expected-head merge, and post-main verification.
+
+## Independent review attempt 1 and P3 repair checkpoint
+
+- Frozen candidate `95eb13b8187adb7dd8ce8f7d9752ca5727532558` received independent Windows Kilo/GLM-5.3 MAX R2 verdict `PASS`, P0/P1/P2/P3 = `0/0/0/3`.
+- Exact-head CI #1117 on that SHA = SUCCESS.
+- P3-1 repaired: canonical `A-FASTER LANE PULSE v1` template now includes required `started_at`.
+- P3-2 repaired: pulse `event` and existing `liveness_class` are explicitly separate projections; overlapping literal names never derive, overwrite, promote, or substitute authoritative liveness/task state.
+- P3-3 repaired: carrier outage is explicitly `PULSE_CARRIER_UNAVAILABLE`; local evidence must record the failure, publication must not be claimed, and handoff/takeover/cleanup that depends on the missing cross-device fold remains blocked until durable publication succeeds.
+- Local work may continue during carrier outage only when its pre-existing task/claim/ownership/replay-safety gates independently remain valid.
+- Current main advanced to `0ce82be15355bf3af782cd488b54d77c475d285b` via WO205/PR #445. The old-base→current-main relevance diff touches none of the four WO443 paths, so the claim remains non-overlapping.
+- Repair checks: `git diff --check` PASS; work-order identity 33 PASS; strict UTF-8/no U+FFFD PASS; explicit P3 semantic assertions PASS; exact four-path scope PASS; added-line secret-shaped scan 0 hits.
+- Next gate: commit/push repaired candidate, prove current-main merge-tree on committed SHA, then focused independent rereview of P3-1/P3-2/P3-3 plus exact-head hosted CI.

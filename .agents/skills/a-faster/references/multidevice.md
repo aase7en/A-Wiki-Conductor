@@ -78,9 +78,11 @@ material `PROGRESS`, truthful `WAITING`/`STOPPED`,
 `TERMINAL_UNHARVESTED`, `COMPLETED`, and valid `TAKEOVER_STARTED`.
 
 The pulse includes the existing liveness class plus `observed_at`,
-`last_activity_at`, `last_progress_at`, optional `last_heartbeat_at`, the
-task/adapter-specific stall policy, a derived `stall_candidate_after_at` when
-available, replay safety, exact binding, reason/evidence, and next safe action.
+`started_at`, `last_activity_at`, `last_progress_at`, optional
+`last_heartbeat_at`, the task/adapter-specific stall policy, a derived
+`stall_candidate_after_at` when available, replay safety, exact binding,
+reason/evidence, and next safe action. Pulse `event` and `liveness_class` stay
+separate even when names overlap; neither field is derived from the other.
 
 No global timeout exists. A stale pulse is only a reason to reconcile exact
 runtime/process/session, result/log, Git/worktree/HEAD, claim and replay
@@ -92,7 +94,11 @@ current owner unless another explicit handoff occurs.
 
 Plain ChatGPT is not assumed to wake or poll in the background. This mechanism
 makes the next invocation/device able to recover fresh-enough truth; accepted
-external runtime heartbeats may supply evidence but are not authority.
+external runtime heartbeats may supply evidence but are not authority. If the
+Work Order/Issue carrier is unavailable, record `PULSE_CARRIER_UNAVAILABLE`
+locally and never report a successful cross-device pulse; handoff/takeover and
+cleanup that rely on that publication remain blocked until the durable fold
+succeeds.
 
 ## Safe parallel examples
 

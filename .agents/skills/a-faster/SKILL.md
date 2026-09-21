@@ -218,7 +218,10 @@ lane without chat memory. This is a **projection/checkpoint over existing
 authorities**, never a scheduler, lease, registry, heartbeat service, or second
 execution state machine.
 
-Use these pulse labels only as communication events:
+Use these pulse labels only as communication events. The pulse `event` and
+existing `liveness_class` are separate fields with separate meanings; even when
+literal names overlap, never derive, overwrite, or promote authoritative
+liveness/task state from the event label alone:
 
 - `STARTED` — an authorized lane/continuation began;
 - `PROGRESS` — a material task milestone advanced;
@@ -245,7 +248,12 @@ Publish/fold the pulse to the active Work Order/Issue at least on `STARTED`,
 material `PROGRESS`, `WAITING`/`STOPPED`, `TERMINAL_UNHARVESTED`,
 `COMPLETED`, and `TAKEOVER_STARTED`, plus before session/device handoff when
 state changed materially. Device-local `runs/` pointers retain detailed local
-evidence; the Issue/WO pulse is the durable cross-device carrier.
+evidence; the Issue/WO pulse is the durable cross-device carrier. If that
+carrier is unavailable, record `PULSE_CARRIER_UNAVAILABLE` in local evidence,
+do not claim the pulse was published, and block handoff/takeover/cleanup steps
+that depend on cross-device publication until the pulse is durably folded.
+Local work may continue only when its existing task/claim/ownership/replay gates
+remain independently satisfied.
 
 Activity, progress and heartbeat remain distinct per
 `docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md`. Repeated polling or

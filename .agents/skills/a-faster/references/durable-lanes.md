@@ -179,6 +179,7 @@ Minimum pulse shape:
 A-FASTER LANE PULSE v1
 event: STARTED|PROGRESS|WAITING|STOPPED|TERMINAL_UNHARVESTED|COMPLETED|TAKEOVER_STARTED
 observed_at: <ISO-8601 offset timestamp or UNKNOWN>
+started_at: <ISO-8601 offset timestamp or UNKNOWN>
 lane_ref: <LANE_REF>
 delegated_run_id: <latest run id or NONE>
 task_ref: <WO/task>
@@ -203,7 +204,9 @@ next_safe_action: <exact action>
 
 Publish at `STARTED`, material `PROGRESS`, truthful `WAITING`/`STOPPED`,
 `TERMINAL_UNHARVESTED`, `COMPLETED`, and every valid
-`TAKEOVER_STARTED`. `STOPPED` means only that the current executor/session
+`TAKEOVER_STARTED`. The `event` field and `liveness_class` field are independent
+projections; overlapping literals never allow the event label to mutate or
+substitute for authoritative liveness/task state. `STOPPED` means only that the current executor/session
 ceased work; it is not automatically durable CANCELLED/FAILED/TERMINAL.
 `COMPLETED` requires accepted/reconciled evidence, never a model DONE claim.
 
@@ -218,6 +221,13 @@ new device, prior/latest run identity, and the binding-digest field delta in
 the `TAKEOVER_STARTED` pulse. If the prior device later resumes, that session
 must recover this pulse and yield to the current owner unless an explicit
 subsequent handoff transfers ownership again.
+
+If the active Work Order/Issue carrier cannot be written, record
+`PULSE_CARRIER_UNAVAILABLE` in the device-local pointer/evidence and do not
+claim cross-device publication succeeded. Continue local work only when its
+existing authority/ownership/replay-safety gates remain independently valid;
+block cross-device handoff/takeover and cleanup that depends on the missing
+fold until the carrier is restored and the pulse is published.
 
 ## 4. Secret safety
 
