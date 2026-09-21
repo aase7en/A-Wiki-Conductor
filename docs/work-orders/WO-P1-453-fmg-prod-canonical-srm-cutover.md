@@ -39,7 +39,10 @@ Windows read-only Git archaeology established:
 - `merge-base(ac01b37..., 2e6aeabd...) = ac01b37...`;
 - `ac01b37...` has zero commits unique against `2e6aeabd...`;
 - the accepted forward chain is `251b052 -> fe5abb3 -> 7c3c048 -> 2e6aeab`;
-- `package.json` is unchanged across the observed base/candidate comparison;
+- `package.json` and `package-lock.json` are blob-identical across `ac01b37... -> 2e6aeab...`;
+- the accepted target tracks no `.serena/` path;
+- the accepted `2e6aeab...` worktree is tracked-clean and currently has both `node_modules/` and generated `dist/`;
+- the canonical root also currently has `node_modules/` and `dist/`, while its visible untracked inventory is exactly `.serena/.gitignore` + `.serena/project.yml`;
 - accepted delta is 21 tracked files: DEX supervision/canonical-path support, FMG implementation/tests, server integration and DWB attribution;
 - `dist/` is ignored/generated, not tracked authority;
 - canonical checkout has protected untracked `.serena/`; it must remain untouched.
@@ -90,7 +93,7 @@ This checkpoint changes no cutover authority: design-only on Mac; consequential 
 1. Re-pin current A-Wiki main and Windows SRM canonical main.
 2. Re-prove canonical SRM is an ancestor of the accepted FMG target or explicitly stop as `LINEAGE_DRIFT`.
 3. If SRM main gained commits, do not infer compatibility; freeze a new exact candidate/compatibility set and review the delta.
-4. Inventory canonical SRM tracked, untracked and ignored state. Preserve `.serena/`; any additional unexplained dirty/untracked state blocks mutation.
+4. Inventory canonical SRM tracked, untracked and ignored state. At the design freeze the only visible untracked paths are `.serena/.gitignore` and `.serena/project.yml`, and the accepted target tracks no `.serena/` path. Preserve them; any additional unexplained dirty/untracked state or target collision blocks mutation.
 5. Recover every process whose command/root points at canonical SRM. Exact PID + creation/command identity is required.
 6. Wait for WO449 reviewer/runtime children to become terminal and harvested; WO453 never terminates them.
 7. Verify no other active lane/worktree owns SRM main or the accepted FMG paths.
@@ -115,6 +118,8 @@ On an isolated exact accepted-candidate worktree, run at minimum:
 - directly related server/tool exposure tests.
 The verification must prove the candidate itself, not whatever source happens to be on canonical main. No live credentials, remote publication, or destructive file target may be used.
 
+Because the accepted target does not change package manifests/lockfile and both exact worktrees currently have dependencies present, this cutover grants **no package-install authority**. Do not run `npm install`, `npm ci`, `npm setup`, upgrade dependencies, or contact a package registry merely to make verification pass. If required dependencies are missing/corrupt at execution time, stop as `DEPENDENCY_ENV_UNAVAILABLE` and obtain a separately bounded environment-repair decision. `npm run build` and the frozen local test commands are the allowed verification surface.
+
 ## Canonical fast-forward operation contract
 
 Only after every pre-cutover gate is green:
@@ -123,7 +128,7 @@ Only after every pre-cutover gate is green:
 2. Re-prove target is a descendant of current HEAD with `git merge-base --is-ancestor HEAD <target>`.
 3. Re-prove current HEAD has no unique commit relative to target.
 4. Ensure no process is using the canonical checkout in a way that makes source/build replacement unsafe. Exact owned processes are handled only through their existing owner/service boundary.
-5. Advance with `git merge --ff-only <accepted-target>` or an equivalent exact fast-forward operation. No merge commit is needed for a descendant target.
+5. Advance with `git merge --ff-only 2e6aeabd09a321232098187dba4c522e37e4b1de` (or a separately accepted later exact SHA). Do not use a moving branch name as the consequential target. No merge commit is needed for a descendant target.
 6. Verify new `HEAD == accepted-target` (or the separately accepted later descendant).
 7. Verify `.serena/` and every protected unknown path remain present/unmodified.
 8. Run `npm run build` to materialize the generated `dist/` from the new canonical source.
@@ -153,6 +158,7 @@ If no persistent product service exists, record that truth and prove the next or
 - unexplained dirty/untracked files -> `DIRTY_PROTECTED`;
 - exact process ownership unknown -> `PROCESS_OWNERSHIP_UNKNOWN`;
 - isolated accepted-candidate tests fail -> `CANDIDATE_VERIFICATION_FAILED`;
+- required local dependency environment missing/corrupt -> `DEPENDENCY_ENV_UNAVAILABLE`; do not install/update packages under this WO;
 - ff-only refused -> `FAST_FORWARD_REFUSED`; do not force;
 - canonical build fails after fast-forward -> `CUTOVER_RECOVERY_REQUIRED`; preserve HEAD and repair forward;
 - runtime start outcome unknown -> reconcile exact PID/process evidence before any retry;
