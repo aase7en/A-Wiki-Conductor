@@ -418,6 +418,9 @@ Every delegated A-Faster lane carries the durable identity overlay defined in
   device/harness/session changes for the life of the lane;
 - `DELEGATED_RUN_ID` `run:<TASK_ID>:<role>:<ordinal>:a<attempt>:<random-id>`
   — unique per-dispatch attempt identity for observation/recovery/harvest;
+  recovery of proven pre-grammar legacy pointer aliases (WO-P1-480 P1
+  repair seam) is pointer-evidence-only, preserves the original string
+  verbatim, and never grants minting/path authority;
 - `ATTEMPT` — monotonic only inside the lane evidence directory; never retry
   authority;
 - `BINDING_DIGEST` — SHA-256 over canonical UTF-8 JSON (sorted keys, compact
@@ -425,9 +428,14 @@ Every delegated A-Faster lane carries the durable identity overlay defined in
   encryption/authentication.
 
 The durable execution pointer required before or at launch is written under
-`runs/<WO>/<lane>/attempt-NNNN/pointer.md` with the minimum fields,
-secret-redaction rules, recover algorithm, and cross-device re-pin semantics
-defined in `references/durable-lanes.md`. Different recomputed digest on
+`runs/<WO>/<lane>/attempt-NNNN-<random-id>/pointer.md` (WO-P1-480 / MSP-0
+collision-proof naming: the suffix is the DELEGATED_RUN_ID's exact accepted 8- or 12-hex random
+id; legacy `attempt-NNNN/` directories remain readable/recoverable and are
+never rewritten) with the minimum fields, secret-redaction rules, recover
+algorithm, and cross-device re-pin semantics defined in
+`references/durable-lanes.md`. The pure parse/derive/enumerate/recover
+helper is `src/a_conductor/delegated_run_artifacts.py`. Different
+recomputed digest on
 takeover is `CONTEXT_DRIFT` requiring explicit re-pin and reconciliation,
 never automatic transfer. `NEW SESSION != NEW TASK`: reconcile
 pointer/process/result/Git and harvest `TERMINAL_UNHARVESTED` work before
