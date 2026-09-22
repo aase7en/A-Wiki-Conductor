@@ -350,6 +350,192 @@ def test_noul_response_rejects_invented_confidence(
         )
 
 
+def _choice_payload() -> dict:
+    return {
+        "model": contract.PINNED_BENCHMARK_MODEL,
+        "answers": {
+            "decision": {
+                "type": "choice",
+                "choice": "bugfix",
+                "confidence": 0.91,
+                "probabilities": {
+                    "bugfix": 0.92,
+                    "feature": 0.03,
+                    "docs": 0.02,
+                    "review": 0.03,
+                },
+            }
+        },
+        "usage": {"input_tokens": 392, "output_tokens": 40},
+    }
+
+
+def _score_payload() -> dict:
+    return {
+        "model": contract.PINNED_BENCHMARK_MODEL,
+        "answers": {
+            "decision": {
+                "type": "score",
+                "score": 2.0,
+                "confidence": 0.88,
+                "legend": {
+                    "0": "none",
+                    "1": "minor",
+                    "2": "material",
+                    "3": "critical",
+                },
+                "probabilities": {
+                    "0": 0.01,
+                    "1": 0.05,
+                    "2": 0.90,
+                    "3": 0.04,
+                },
+            }
+        },
+        "usage": {"input_tokens": 410, "output_tokens": 44},
+    }
+
+
+def _noul_payload() -> dict:
+    return {
+        "model": contract.PINNED_BENCHMARK_MODEL,
+        "answers": {
+            "decision": {
+                "type": "noul",
+                "noul": 0.94,
+            }
+        },
+        "usage": {"input_tokens": 300, "output_tokens": 18},
+    }
+
+
+def _normalize(case: shadow.BenchmarkCase, spec, payload: dict):
+    return contract.normalize_typesafe_response(
+        case,
+        spec,
+        payload,
+        elapsed_ms=100.0,
+        input_price_per_million_usd=0.042,
+    )
+
+
+def test_strict_response_rejects_unknown_top_level_fields(
+    cases: list[shadow.BenchmarkCase],
+    specs: dict[str, contract.QuestionSpec],
+) -> None:
+    case = get_case(cases, "taskx-001")
+    payload = _choice_payload()
+    payload["pricing"] = {"output_usd_per_million": 0.0}
+
+    with pytest.raises(
+        contract.TypeSafeContractError, match="top-level fields"
+    ):
+        _normalize(case, specs[case.decision_family], payload)
+
+
+def test_strict_response_rejects_unknown_usage_fields(
+    cases: list[shadow.BenchmarkCase],
+    specs: dict[str, contract.QuestionSpec],
+) -> None:
+    case = get_case(cases, "taskx-001")
+    payload = _choice_payload()
+    payload["usage"]["total_tokens"] = 432
+
+    with pytest.raises(contract.TypeSafeContractError, match="usage fields"):
+        _normalize(case, specs[case.decision_family], payload)
+
+
+@pytest.mark.parametrize("extra", ["reasoning", "choice_label"])
+def test_strict_choice_answer_rejects_unknown_fields(
+    cases: list[shadow.BenchmarkCase],
+    specs: dict[str, contract.QuestionSpec],
+    extra: str,
+) -> None:
+    case = get_case(cases, "taskx-001")
+    payload = _choice_payload()
+    payload["answers"]["decision"][extra] = "because"
+
+    with pytest.raises(
+        contract.TypeSafeContractError, match="choice answer fields"
+    ):
+        _normalize(case, specs[case.decision_family], payload)
+
+
+@pytest.mark.parametrize("extra", ["legend_rationale", "score_label"])
+def test_strict_score_answer_rejects_unknown_fields(
+    cases: list[shadow.BenchmarkCase],
+    specs: dict[str, contract.QuestionSpec],
+    extra: str,
+) -> None:
+    case = get_case(cases, "reviewx-003")
+    payload = _score_payload()
+    payload["answers"]["decision"][extra] = "note"
+
+    with pytest.raises(
+        contract.TypeSafeContractError, match="score answer fields"
+    ):
+        _normalize(case, specs[case.decision_family], payload)
+
+
+def test_strict_noul_answer_rejects_unknown_fields_beyond_type_and_noul(
+    cases: list[shadow.BenchmarkCase],
+    specs: dict[str, contract.QuestionSpec],
+) -> None:
+    case = get_case(cases, "evidx-001")
+    payload = _noul_payload()
+    payload["answers"]["decision"]["explanation"] = "aligned with claim"
+
+    with pytest.raises(
+        contract.TypeSafeContractError, match="noul answer fields"
+    ):
+        _normalize(case, specs[case.decision_family], payload)
+
+
+@pytest.mark.parametrize(
+    "legend",
+    [
+        {"0": 0, "1": "minor", "2": "material", "3": "critical"},
+        {"0": "none", "1": 1, "2": "material", "3": "critical"},
+        {"0": "none", "1": "minor", "2": 2.0, "3": "critical"},
+        {"0": "none", "1": "minor", "2": "material", "3": True},
+        {"0": "none", "1": "minor", "2": "material", "3": None},
+    ],
+)
+def test_score_legend_values_must_be_strings(
+    cases: list[shadow.BenchmarkCase],
+    specs: dict[str, contract.QuestionSpec],
+    legend: dict,
+) -> None:
+    case = get_case(cases, "reviewx-003")
+    payload = _score_payload()
+    payload["answers"]["decision"]["legend"] = legend
+
+    with pytest.raises(
+        contract.TypeSafeContractError, match="legend values must be strings"
+    ):
+        _normalize(case, specs[case.decision_family], payload)
+
+
+def test_score_legend_keys_must_remain_exact_level_indices(
+    cases: list[shadow.BenchmarkCase],
+    specs: dict[str, contract.QuestionSpec],
+) -> None:
+    case = get_case(cases, "reviewx-003")
+    payload = _score_payload()
+    payload["answers"]["decision"]["legend"] = {
+        "0": "none",
+        "1": "minor",
+        "2": "material",
+        "3": "critical",
+        "4": "beyond declared levels",
+    }
+
+    with pytest.raises(
+        contract.TypeSafeContractError, match="legend keys must match"
+    ):
+        _normalize(case, specs[case.decision_family], payload)
+
+
 def test_manifest_cli_is_deterministic_and_contains_no_expected_truth(
     tmp_path: Path,
 ) -> None:

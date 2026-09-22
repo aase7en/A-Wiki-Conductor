@@ -23,6 +23,16 @@ PINNED_BENCHMARK_MODEL = "jev-1.13.0"
 DEFAULT_QUESTION_ID = "decision"
 _VERSIONED_JEV_RE = re.compile(r"^jev-\d+\.\d+\.\d+$")
 
+_RESPONSE_TOP_LEVEL_FIELDS = frozenset({"model", "answers", "usage"})
+_RESPONSE_USAGE_FIELDS = frozenset({"input_tokens", "output_tokens"})
+_CHOICE_ANSWER_FIELDS = frozenset(
+    {"type", "choice", "probabilities", "confidence"}
+)
+_SCORE_ANSWER_FIELDS = frozenset(
+    {"type", "score", "legend", "probabilities", "confidence"}
+)
+_NOUL_ANSWER_FIELDS = frozenset({"type", "noul"})
+
 
 class TypeSafeContractError(ValueError):
     """Raised when offline TypeSafe request/response contract data is invalid."""
@@ -75,6 +85,17 @@ def _validate_versioned_model(model: str) -> None:
     if not isinstance(model, str) or not _VERSIONED_JEV_RE.fullmatch(model):
         raise TypeSafeContractError(
             "benchmark model must be a pinned versioned Jev model ID"
+        )
+
+
+def _reject_unknown_fields(
+    mapping: Mapping[str, Any], allowed: frozenset[str], *, context: str
+) -> None:
+    unexpected = set(mapping) - allowed
+    if unexpected:
+        raise TypeSafeContractError(
+            f"{context} must be exactly {', '.join(sorted(allowed))}; "
+            f"unexpected: {sorted(unexpected)}"
         )
 
 
@@ -254,6 +275,9 @@ def normalize_typesafe_response(
 
     if not isinstance(payload, Mapping):
         raise TypeSafeContractError("response payload must be an object")
+    _reject_unknown_fields(
+        payload, _RESPONSE_TOP_LEVEL_FIELDS, context="response top-level fields"
+    )
     model = payload.get("model")
     if model != expected_model:
         raise TypeSafeContractError("response model does not match pinned model")
@@ -269,6 +293,9 @@ def normalize_typesafe_response(
     usage = payload.get("usage")
     if not isinstance(usage, Mapping):
         raise TypeSafeContractError("usage must be an object")
+    _reject_unknown_fields(
+        usage, _RESPONSE_USAGE_FIELDS, context="usage fields"
+    )
     input_tokens = _nonnegative_int(
         usage.get("input_tokens"), field="usage.input_tokens"
     )
@@ -284,10 +311,16 @@ def normalize_typesafe_response(
     probabilities: Mapping[str, float] | None = None
 
     if case.question_type == "choice":
+        _reject_unknown_fields(
+            answer, _CHOICE_ANSWER_FIELDS, context="choice answer fields"
+        )
         raw_answer = answer.get("choice")
         confidence = answer.get("confidence")
         probabilities = answer.get("probabilities")
     elif case.question_type == "score":
+        _reject_unknown_fields(
+            answer, _SCORE_ANSWER_FIELDS, context="score answer fields"
+        )
         raw_answer = answer.get("score")
         confidence = answer.get("confidence")
         probabilities = answer.get("probabilities")
@@ -301,12 +334,22 @@ def normalize_typesafe_response(
             raise TypeSafeContractError(
                 "score legend keys must match declared levels"
             )
+        for key, value in legend.items():
+            if not isinstance(value, str):
+                raise TypeSafeContractError(
+                    "score legend values must be strings; "
+                    f"legend[{key!r}] is not a string"
+                )
     else:
-        raw_answer = answer.get("noul")
-        if "confidence" in answer or "probabilities" in answer:
-            raise TypeSafeContractError(
-                "noul answer must not invent confidence or probabilities"
+        if set(answer) - _NOUL_ANSWER_FIELDS:
+            if set(answer) & {"confidence", "probabilities"}:
+                raise TypeSafeContractError(
+                    "noul answer must not invent confidence or probabilities"
+                )
+            _reject_unknown_fields(
+                answer, _NOUL_ANSWER_FIELDS, context="noul answer fields"
             )
+        raw_answer = answer.get("noul")
 
     result = ProviderResult(
         question_type=case.question_type,
