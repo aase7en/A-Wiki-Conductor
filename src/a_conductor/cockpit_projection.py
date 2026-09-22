@@ -8,15 +8,24 @@ processes, keeps mutable state, schedules work, or issues commands. Hook and
 WTL read-back authorities are not accepted in this candidate, so their
 fields stay UNKNOWN by contract.
 
+WO-P1-493 MSP-3: lanes may additionally carry one origin/session provenance
+observation as read-model display context only. Origin data never joins a
+state decision, gate, replay, next-action, process, or ownership path. The
+pre-MSP1 read-back wiring does not exist yet, so composed lanes render typed
+UNAVAILABLE/NOT_RECORDED absence instead of inferring provenance.
+
 The durable execution-state and transport vocabularies mirror the accepted
 SQLiteExecutionStore enums so real durable records project without inventing
-a second lifecycle.
+a second lifecycle. The origin-ref grammar mirrors the accepted MSP-1
+origin_provenance vocabulary (WO-P1-482) so opaque derived references
+project without importing that module.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 
@@ -88,6 +97,17 @@ _REPLAY_RECOVER = "RECOVER_POINTER_PROCESS_RESULT_GIT_BEFORE_REDISPATCH"
 _REPLAY_RECONCILE = "RECONCILE_BEFORE_ANY_REDISPATCH"
 _REPLAY_SETTLED = "SETTLED_NO_REPLAY"
 _REPLAY_NO_FLIGHT = "NO_EXECUTION_IN_FLIGHT"
+
+_ORIGIN_REF_PATTERN = re.compile(
+    r"origin-chat-v1:[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?:[0-9a-f]{64}"
+)
+_ORIGIN_SURFACES = frozenset({"a-conductor", "srm", "claude-code", "kilo", "rdc"})
+_ORIGIN_PROVENANCES = ("CONTROL_HOOK_EVENT",)
+_ORIGIN_STATUS_RECORDED = "RECORDED"
+_ORIGIN_STATUS_NOT_RECORDED = "NOT_RECORDED"
+_ORIGIN_STATUS_UNAVAILABLE = "UNAVAILABLE"
+_ORIGIN_STATUS_UNKNOWN = "UNKNOWN"
+_ORIGIN_PROVENANCE_UNSUPPORTED_REASON = "ORIGIN_PROVENANCE_UNSUPPORTED"
 
 
 @dataclass(frozen=True)
@@ -222,6 +242,85 @@ class CockpitGateEvidence:
 
 
 @dataclass(frozen=True)
+class CockpitOriginObservation:
+    """Injected origin/session provenance; display context only (WO-P1-493).
+
+    Carries only the opaque MSP-1 derived reference grammar — never a raw
+    chat/session identifier. Unsupported provenance stays constructible so it
+    can render typed UNKNOWN display, but its payload is dropped at this
+    boundary and is never held or rendered anywhere.
+    """
+
+    available: bool = False
+    provenance: str | None = None
+    reason: str | None = None
+    origin_ref: str | None = None
+    origin_surface: str | None = None
+    observed_at: str | None = None
+    execution_id: str | None = None
+
+    @classmethod
+    def unavailable(cls, reason: str) -> "CockpitOriginObservation":
+        return cls(available=False, reason=reason)
+
+    def __post_init__(self) -> None:
+        if not self.available:
+            return
+        if not (
+            isinstance(self.provenance, str) and self.provenance.strip()
+        ):
+            raise CockpitProjectionError("ORIGIN_PROVENANCE_REQUIRED")
+        if self.provenance not in _ORIGIN_PROVENANCES:
+            # Unsupported provenance renders typed UNKNOWN display only; it
+            # must never hold or expose an origin payload.
+            object.__setattr__(self, "origin_ref", None)
+            object.__setattr__(self, "origin_surface", None)
+            return
+        if not (
+            isinstance(self.origin_ref, str)
+            and _ORIGIN_REF_PATTERN.fullmatch(self.origin_ref)
+        ):
+            raise CockpitProjectionError("ORIGIN_REF_MUST_BE_OPAQUE_DERIVED_REF")
+        if not (
+            isinstance(self.origin_surface, str)
+            and self.origin_surface in _ORIGIN_SURFACES
+        ):
+            raise CockpitProjectionError("ORIGIN_SURFACE_UNSUPPORTED")
+
+
+@dataclass(frozen=True)
+class CockpitOriginDisplay:
+    """Rendered origin provenance context; carries no authority fields."""
+
+    status: str = _ORIGIN_STATUS_UNAVAILABLE
+    origin_ref: str | None = None
+    origin_surface: str | None = None
+    key_version: str | None = None
+    reason: str | None = None
+
+
+def _origin_display(origin: CockpitOriginObservation) -> CockpitOriginDisplay:
+    if not origin.available:
+        if origin.reason == _RECORD_NOT_FOUND:
+            return CockpitOriginDisplay(status=_ORIGIN_STATUS_NOT_RECORDED)
+        return CockpitOriginDisplay(
+            status=_ORIGIN_STATUS_UNAVAILABLE, reason=origin.reason
+        )
+    if origin.provenance not in _ORIGIN_PROVENANCES:
+        return CockpitOriginDisplay(
+            status=_ORIGIN_STATUS_UNKNOWN,
+            reason=_ORIGIN_PROVENANCE_UNSUPPORTED_REASON,
+        )
+    _, key_version, _digest = origin.origin_ref.split(":")
+    return CockpitOriginDisplay(
+        status=_ORIGIN_STATUS_RECORDED,
+        origin_ref=origin.origin_ref,
+        origin_surface=origin.origin_surface,
+        key_version=key_version,
+    )
+
+
+@dataclass(frozen=True)
 class CockpitProcessIdentity:
     """Observed process identity; authoritative only with exact provenance."""
 
@@ -243,6 +342,9 @@ class CockpitLaneInputs:
         default_factory=lambda: CockpitGitObservation.unavailable(_PORT_UNAVAILABLE)
     )
     gates: CockpitGateEvidence = field(default_factory=CockpitGateEvidence)
+    origin: CockpitOriginObservation = field(
+        default_factory=lambda: CockpitOriginObservation.unavailable(_PORT_UNAVAILABLE)
+    )
 
 
 @dataclass(frozen=True)
@@ -272,6 +374,11 @@ class CockpitLaneProjection:
     wtl_state: str = "UNKNOWN"
     wtl_reason: str = _WTL_UNACCEPTED_REASON
     gates: CockpitGateEvidence = field(default_factory=CockpitGateEvidence)
+    origin_display: CockpitOriginDisplay = field(
+        default_factory=lambda: CockpitOriginDisplay(
+            status=_ORIGIN_STATUS_UNAVAILABLE, reason=_PORT_UNAVAILABLE
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -360,6 +467,7 @@ def project_cockpit_lane(inputs: CockpitLaneInputs) -> CockpitLaneProjection:
         ),
         last_meaningful_progress=execution.updated_at if execution.available else None,
         gates=inputs.gates,
+        origin_display=_origin_display(inputs.origin),
     )
 
     if execution.available and execution.provenance != _ACCEPTED_EXECUTION_PROVENANCE:
@@ -587,6 +695,9 @@ def _stale_lane(inputs: CockpitLaneInputs) -> CockpitLaneProjection:
         replay_safety="REPIN_SOURCES_BEFORE_TRUST",
         next_safe_action="REPIN_BOTH_SOURCES_THEN_REPROJECT",
         gates=inputs.gates,
+        origin_display=CockpitOriginDisplay(
+            status=_ORIGIN_STATUS_UNKNOWN, reason="SOURCE_DRIFT_DETECTED"
+        ),
     )
 
 
@@ -681,6 +792,7 @@ def build_observed_lane_inputs(
     *,
     execution_authority_readable: bool,
     lease_authority_readable: bool,
+    origins: tuple[CockpitOriginObservation, ...] = (),
 ) -> tuple[CockpitLaneInputs, ...]:
     """Compose durable observations with control-center worker context.
 
@@ -690,6 +802,12 @@ def build_observed_lane_inputs(
     when the execution authority read succeeded, and PORT_UNAVAILABLE
     otherwise. Worker display names are attached where the control-center
     snapshot permits; worker_id remains the stable lane identity.
+
+    Origin/session provenance (WO-P1-493) joins by execution_id as display
+    context only, deterministically pinned to the earliest observed opaque
+    reference. Multiple origins for one accepted lane never duplicate the
+    lane or its durable owner, and lanes without a joined origin render
+    typed UNAVAILABLE absence.
     """
     workers = tuple(getattr(snapshot, "workers", None) or ())
     displays = {
@@ -706,6 +824,16 @@ def build_observed_lane_inputs(
     for lease in leases:
         if lease.worker_id and lease.worker_id not in leases_by_worker:
             leases_by_worker[lease.worker_id] = lease
+    origins_by_execution: dict[str, CockpitOriginObservation] = {}
+    for origin in sorted(
+        origins,
+        key=lambda item: ((item.observed_at or ""), (item.origin_ref or "")),
+    ):
+        if not origin.available or not origin.execution_id:
+            continue
+        if origin.execution_id not in origins_by_execution:
+            origins_by_execution[origin.execution_id] = origin
+    _unavailable_origin = CockpitOriginObservation.unavailable(_PORT_UNAVAILABLE)
 
     def _unavailable_lease() -> CockpitLeaseObservation:
         return CockpitLeaseObservation.unavailable(
@@ -747,6 +875,10 @@ def build_observed_lane_inputs(
                 lease=lease or _unavailable_lease(),
                 git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
                 gates=CockpitGateEvidence(),
+                origin=(
+                    origins_by_execution.get(execution.execution_id)
+                    or _unavailable_origin
+                ),
             )
         )
     for row in workers:
@@ -778,6 +910,7 @@ def build_observed_lane_inputs(
                 lease=lease or _unavailable_lease(),
                 git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
                 gates=CockpitGateEvidence(),
+                origin=_unavailable_origin,
             )
         )
     return tuple(lanes)
