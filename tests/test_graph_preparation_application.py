@@ -598,6 +598,48 @@ def test_contract_and_packet_refs_must_be_project_relative(env, bad_ref):
     )
 
 
+CONTROL_CHAR_REFS = [
+    "contracts\x00/node-a.json",
+    "contracts/node-a\x00.json",
+    "contracts/node-a.json\x00",
+    "contracts\r/node-a.json",
+    "contracts/node-a\r.json",
+    "contracts/node-a\n.json",
+]
+
+
+@pytest.mark.parametrize("bad_ref", CONTROL_CHAR_REFS)
+def test_control_char_contract_ref_fails_typed_before_filesystem(env, bad_ref):
+    app = _app()
+    env.baseline()
+    before_jobs = env.job_row_counts()
+    before_graph = env.graph_row_counts()
+    _fails(
+        env,
+        _intent(app, env, bindings=(_binding(app, env, task_contract_ref=bad_ref),)),
+        code="TASK_CONTRACT_REF_INVALID",
+    )
+    assert env.job_row_counts() == before_jobs
+    assert env.graph_row_counts() == before_graph
+
+
+@pytest.mark.parametrize(
+    "bad_ref", [ref.replace("contracts", "packets") for ref in CONTROL_CHAR_REFS]
+)
+def test_control_char_packet_ref_fails_typed_before_filesystem(env, bad_ref):
+    app = _app()
+    env.baseline()
+    before_jobs = env.job_row_counts()
+    before_graph = env.graph_row_counts()
+    _fails(
+        env,
+        _intent(app, env, bindings=(_binding(app, env, task_packet_ref=bad_ref),)),
+        code="TASK_PACKET_REF_INVALID",
+    )
+    assert env.job_row_counts() == before_jobs
+    assert env.graph_row_counts() == before_graph
+
+
 BAD_DIGESTS = ["A" * 64, "a" * 63, "z" * 64, ""]
 
 

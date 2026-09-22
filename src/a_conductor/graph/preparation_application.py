@@ -135,6 +135,8 @@ def _canonical_preparation_refs(events: Iterable[JobEvent]) -> set[str]:
 def _require_project_relative_ref(value: object, *, code: str) -> str:
     if not isinstance(value, str) or not value or value != value.strip():
         raise PreparationApplicationError(code)
+    if any(char in value for char in ("\x00", "\r", "\n")):
+        raise PreparationApplicationError(code)
     if (
         value.startswith("/")
         or "\\" in value
