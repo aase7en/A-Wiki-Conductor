@@ -959,6 +959,25 @@ Planned bounded delivery nodes:
 - `ODP-8` deterministic fake/fault-injection E2E across plan -> parallel execute -> verify -> repair/review -> resume;
 - `ODP-9` bounded real multi-provider pilot only after all participating providers are genuinely authorized/admitted.
 
+### JEV-ACCEL — System One decision acceleration experiment (2026-09-22)
+
+**Planning authority:** `docs/plans/2026-09-22-jev-system-one-acceleration-roadmap.md`
+**Active evaluation WO:** `docs/work-orders/WO-P1-484-jev1-shadow-decision-benchmark.md` / Issue #484
+
+JEV-ACCEL is an **experimental child track of ODP**, not a new control plane or production provider authority. JEV-1 benchmarks TypeSafe Jev/System One in shadow mode against bounded semantic-decision workloads and records quality, false-action, escalation, latency, throughput, cost, retry/error and typed-schema evidence. It may inform ODP-2/4/7/8, but JEV-1 itself changes no production routing.
+
+Progression is evidence-gated:
+
+`JEV-0 docs/threat model -> JEV-1 shadow benchmark -> [GO?] -> JEV-2 provider-neutral semantic seam -> JEV-3 advisory A-FastTask pilot -> JEV-4 cascade -> JEV-5 production admission -> JEV-6 Thai/domain pilots -> JEV-7 scale`
+
+Hard boundaries:
+- Jev output is proposal/evidence only; it never grants task, claim, mutation, review, merge, completion or SSoT authority.
+- deterministic facts and exact calculations stay in code/tools;
+- no private project/user payload is sent in JEV-1;
+- no live provider call is accepted until secret-safe credential safety is proven;
+- JEV work must not block LOCAL-USABLE-1 or overlap active MSP mutation scopes;
+- failing or inconclusive benchmark evidence leaves Jev unadmitted and the architecture provider-neutral.
+
 Current frontier coexistence: WO148/PR #199 provider service authorization and WO147/PR #200 ReviewBus adapter retain their existing ownership; ODP implementation must not overlap them. WO096 remains the independent P0 v0.7.0 release blocker. AiPASS remains ineligible while its authorization/admission gates are unsatisfied; ODP cannot bypass provider policy.
 
 ## 25. A-Faster Hook / STM / Observability Architecture (2026-09-19)
