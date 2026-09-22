@@ -1,5 +1,25 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-09-22 — WO473 DEPDIET-1 first package slice accepted and integrated
+
+This section is sufficient to resume #473/#472 without prior chat context.
+
+- Recover actual A-Wiki/SRM Git, GitHub Issue #473/#472 and delegated state before mutation.
+- WO-P1-473 is accepted: execution candidate `e3ec2e06baf464e68c4166faae65f51c60fd5477` is a direct child of `2e6aeabd09a321232098187dba4c522e37e4b1de` and was fast-forwarded into canonical local `A:\GitHub\SunDayRemoteMCP\main`.
+- SunDayRemoteMCP has no configured Git remote; no remote repo/PR was created.
+- Accepted change is package-only: `package.json` + `package-lock.json`; direct roots removed are `@tiptap/pm`, `remark`, `remark-gfm`, `remark-parse`, `unified`.
+- Independent accepted review evidence is under `runs/WO-P1-473/r2-review/attempt-0005-static-e3ec2e0-v1/`: run `run:WO-P1-473:r2-static-review:a5:f05646ef0027`, GLM-5.3 MAX, PASS, P0/P1/P2/P3=0/0/0/3, exit 0, 2,620 samples, no MCP descendant, no scope violation.
+- Do not accept attempt-0001, attempt-0002-collision-invalid, attempt-0003, or attempt-0004 as review authority.
+- Deterministic acceptance included build, compact/full-toolset facades, focused supervisor, package graph/lock semantics, UTF-8/diff checks and base-vs-candidate full-run differential adjudication.
+- Post-main proof preserved exact `.serena/.gitignore` and `.serena/project.yml` hashes and did not restart existing Node runtime processes.
+- #473 claim is released on closeout; #473 should be CLOSED after the A-Wiki closeout merge.
+- Parent #472 remains OPEN: first dependency-removal slice completion does not authorize broad package deletion. Continue with read-only audit until another bounded candidate is proven.
+- FRONTDOOR-1 is not automatically READY; roadmap requires measured launch/setup friction first.
+- #457 remains `HUMAN_DECISION_REQUIRED`; do not create/merge extension source from this handoff.
+
+**Resume sequence:** universal entry -> actual state recovery -> confirm #473 CLOSED and A-Wiki closeout merged -> inspect #472 current audit frontier -> only then select a new READY bounded lane.
+
+
 ## 2026-09-21 — session rollover from WO438 closeout
 
 This handoff is written specifically so a new ChatGPT session can resume without access to the prior chat.

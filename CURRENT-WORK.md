@@ -1,5 +1,26 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-09-22 — WO473 DEPDIET-1 first removal slice COMPLETE / POST_MAIN_VERIFIED — CURRENT
+
+> **Current cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts.
+
+- Authority: Issue #473 / `docs/work-orders/WO-P1-473-srm-dependency-diet.md`; topology `EXECUTION_SUBSTRATE_ONLY`; risk R2.
+- Canonical execution repo: local `A:\GitHub\SunDayRemoteMCP` with no configured Git remote.
+- Accepted base: `2e6aeabd09a321232098187dba4c522e37e4b1de`.
+- Accepted candidate and canonical SRM main after ff-only integration: `e3ec2e06baf464e68c4166faae65f51c60fd5477`.
+- Exact mutation: `package.json` + `package-lock.json` only; removed direct roots `@tiptap/pm`, `remark`, `remark-gfm`, `remark-parse`, `unified`.
+- Lock graph: 67 unreachable entries removed, 0 added, survivor semantics unchanged, and `@tiptap/pm` remains transitively reachable through retained Tiptap packages.
+- Deterministic acceptance: build PASS; compact facade PASS; full-toolset facade PASS; focused supervisor PASS; atomic-write alternating BASE/CANDIDATE replay 3/3 each; UTF-8/diff/scope checks PASS.
+- Full-run differential was base-compared: base 70/78 PASS vs candidate 69/78 PASS; no deterministic candidate-specific regression remained after targeted replays.
+- Accepted independent GLM-5.3 MAX static/adjudicative R2 review: run `run:WO-P1-473:r2-static-review:a5:f05646ef0027`, PASS, P0/P1/P2/P3 = 0/0/0/3, exit 0, 2,620 security samples, no MCP descendant/scope violation.
+- Earlier attempts 0001/0003 security-invalid, 0002 provenance-collision-invalid, 0004 prelaunch-invalid; none are acceptance authority.
+- Post-main proof: canonical SRM HEAD matches the accepted SHA; protected `.serena` state hashes are unchanged; live Node runtime was not restarted.
+- Claim `WO-P1-473-DEPDIET1-WINDOWS-001` is released by the #473 closeout. Parent #472 remains open for broader DEPDIET-1 feature-pack/audit scope.
+- FRONTDOOR-1 remains gated on measured launch/setup friction. Issue #457 remains `HUMAN_DECISION_REQUIRED` and is not advanced by this closeout.
+
+**Exact next safe action:** complete the A-Wiki closeout merge/Issue #473 closure, then keep #472 read-only until a new bounded dependency/feature-pack candidate is proven or launch-friction evidence makes FRONTDOOR-1 READY.
+
+
 ## 2026-09-21 — WO438 COMPLETE; WO205 §14 released — CURRENT
 
 > **Current authoritative projection.** Actual Git/GitHub/runtime/durable evidence overrides this file if it drifts.
