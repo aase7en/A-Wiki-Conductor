@@ -833,6 +833,16 @@ def cockpit_monitor_lines(snapshot: CockpitSnapshot) -> tuple[str, ...]:
             f"ci={gates.ci.value} [{gates.provenance}]"
         )
         lines.append(f"  HOOK: {lane.hook_state}   WTL: {lane.wtl_state}")
+        origin = lane.origin_display
+        origin_line = (
+            f"  ORIGIN: {origin.status}"
+            f"   surface: {origin.origin_surface or '-'}"
+            f"   key version: {origin.key_version or '-'}"
+            f"   ref: {origin.origin_ref or '-'}"
+        )
+        if origin.reason:
+            origin_line += f"   reason: {origin.reason}"
+        lines.append(origin_line)
         if lane.blocker_code:
             lines.append(f"  blocker: {lane.blocker_code}")
         lines.append(f"  replay safety: {lane.replay_safety}")

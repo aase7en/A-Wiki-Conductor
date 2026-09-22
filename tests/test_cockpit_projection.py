@@ -53,6 +53,8 @@ from a_conductor.cockpit_projection import (
     CockpitLaneInputs,
     CockpitLeaseObservation,
     CockpitObservations,
+    CockpitOriginDisplay,
+    CockpitOriginObservation,
     CockpitProjectionError,
     CockpitState,
     build_control_center_lane_inputs,
@@ -154,7 +156,9 @@ def _gates(**overrides) -> CockpitGateEvidence:
     return CockpitGateEvidence(**base)
 
 
-def _inputs(identity=None, execution=None, lease=None, git=None, gates=None) -> CockpitLaneInputs:
+def _inputs(
+    identity=None, execution=None, lease=None, git=None, gates=None, origin=None
+) -> CockpitLaneInputs:
     return CockpitLaneInputs(
         identity=identity or _identity(),
         execution=execution if execution is not None else CockpitExecutionObservation.unavailable(
@@ -167,6 +171,9 @@ def _inputs(identity=None, execution=None, lease=None, git=None, gates=None) -> 
             reason="PORT_UNAVAILABLE"
         ),
         gates=gates if gates is not None else _gates(),
+        origin=origin if origin is not None else CockpitOriginObservation.unavailable(
+            reason="PORT_UNAVAILABLE"
+        ),
     )
 
 
@@ -1336,3 +1343,269 @@ def test_cockpit_monitor_unavailable_service_renders_error(tmp_path: Path) -> No
     app._update_cockpit_monitor_now()
 
     assert "COCKPIT_UNAVAILABLE" in app.monitor_text.text
+
+
+# --------------------------------------------------- WO-P1-493 MSP-3 origin
+
+
+_ORIGIN_REF = "origin-chat-v1:kv1:" + "1f" + "0" * 62
+_ORIGIN_REF_ALT = "origin-chat-v1:kv2:" + "2e" + "0" * 62
+
+
+def _origin(**overrides) -> CockpitOriginObservation:
+    base = dict(
+        available=True,
+        provenance="CONTROL_HOOK_EVENT",
+        reason=None,
+        origin_ref=_ORIGIN_REF,
+        origin_surface="a-conductor",
+        observed_at="2026-09-22T08:00:00.000000Z",
+        execution_id="exec-0001",
+    )
+    base.update(overrides)
+    return CockpitOriginObservation(**base)
+
+
+def test_origin_present_or_absent_leaves_authority_truth_equivalent() -> None:
+    without = project_cockpit_lane(_inputs(execution=_execution()))
+    with_origin = project_cockpit_lane(
+        _inputs(execution=_execution(), origin=_origin())
+    )
+
+    assert without.state is with_origin.state is CockpitState.RUNNING
+    assert without.state_markers == with_origin.state_markers
+    assert without.blocker_code == with_origin.blocker_code
+    assert without.replay_safety == with_origin.replay_safety
+    assert without.next_safe_action == with_origin.next_safe_action
+    assert without.gates == with_origin.gates
+    assert without.process_identity == with_origin.process_identity
+    assert without.execution_id == with_origin.execution_id
+    assert without.job_id == with_origin.job_id
+    assert without.transport_state == with_origin.transport_state
+    assert without.hook_state == with_origin.hook_state
+    assert without.wtl_state == with_origin.wtl_state
+
+    # only the read-model display context differs
+    assert without.origin_display != with_origin.origin_display
+    assert with_origin.origin_display == CockpitOriginDisplay(
+        status="RECORDED",
+        origin_ref=_ORIGIN_REF,
+        origin_surface="a-conductor",
+        key_version="kv1",
+        reason=None,
+    )
+    assert without.origin_display.status == "UNAVAILABLE"
+
+
+def test_missing_pre_msp1_origin_renders_typed_absence_never_inferred() -> None:
+    not_recorded = project_cockpit_lane(
+        _inputs(
+            execution=_execution(),
+            origin=CockpitOriginObservation.unavailable("RECORD_NOT_FOUND"),
+        )
+    )
+    assert not_recorded.origin_display.status == "NOT_RECORDED"
+    assert not_recorded.origin_display.origin_ref is None
+    assert not_recorded.origin_display.origin_surface is None
+
+    port_unavailable = project_cockpit_lane(_inputs(execution=_execution()))
+    assert port_unavailable.origin_display.status == "UNAVAILABLE"
+    assert port_unavailable.origin_display.reason == "PORT_UNAVAILABLE"
+
+    # absence is never upgraded from identity aliases or worker rows
+    assert not_recorded.state is port_unavailable.state is CockpitState.RUNNING
+
+
+def test_unsupported_origin_provenance_renders_typed_unknown_display_only() -> None:
+    origin = _origin(provenance="OPERATOR_DECLARED", origin_ref="raw-session-XYZ")
+
+    # unsupported provenance never carries origin payload inside the model
+    assert origin.origin_ref is None
+    assert origin.origin_surface is None
+
+    lane = project_cockpit_lane(_inputs(execution=_execution(), origin=origin))
+    assert lane.origin_display.status == "UNKNOWN"
+    assert lane.origin_display.reason == "ORIGIN_PROVENANCE_UNSUPPORTED"
+    assert lane.origin_display.origin_ref is None
+    assert lane.origin_display.origin_surface is None
+    # degraded display only: lane truth unchanged
+    assert lane.state is CockpitState.RUNNING
+    assert lane.blocker_code is None
+
+
+def test_secret_shaped_or_raw_origin_refs_are_rejected() -> None:
+    for bad_ref in (
+        "sess_abc123",
+        "origin-chat-v1:kv1:not-hex-at-all",
+        "origin-chat-v1:kv1:" + "f" * 63,
+        "user@host/session",
+        "sk-ant-api03-secret",
+        "",
+    ):
+        with pytest.raises(CockpitProjectionError):
+            _origin(origin_ref=bad_ref)
+    with pytest.raises(CockpitProjectionError):
+        _origin(origin_surface="some-unknown-surface")
+    with pytest.raises(CockpitProjectionError):
+        _origin(provenance=None)
+
+
+def test_origin_never_rescues_terminal_unharvested_or_unknown_runtime() -> None:
+    terminal = project_cockpit_lane(
+        _inputs(
+            execution=_execution(execution_state="VERIFICATION_REQUIRED"),
+            origin=_origin(),
+        )
+    )
+    assert terminal.state is CockpitState.TERMINAL_UNHARVESTED
+    assert terminal.blocker_code == "VERIFICATION_PROOF_REQUIRED"
+    assert terminal.replay_safety == "RECONCILE_BEFORE_ANY_REDISPATCH"
+
+    unknown_runtime = project_cockpit_lane(
+        _inputs(
+            execution=_execution(
+                execution_state="PROCESS_STILL_RUNNING", transport_state="UNAVAILABLE"
+            ),
+            origin=_origin(),
+        )
+    )
+    assert unknown_runtime.state is CockpitState.RUNNING
+    assert "DEGRADED_OBSERVABILITY" in unknown_runtime.state_markers
+
+
+def test_multiple_origin_refs_keep_one_lane_and_one_owner() -> None:
+    from a_conductor.control_center import ControlCenterSnapshot
+
+    snapshot = ControlCenterSnapshot(
+        projects=(), workers=(_authority_row(_WORKER_ID, _REPO_ROOT),)
+    )
+    durable = CockpitExecutionObservation(
+        available=True,
+        provenance="DURABLE_EXECUTION_RECORD",
+        execution_id="exec-0001",
+        job_id="job-0001",
+        work_order_ref="WO-P1-493",
+        worker_id=_WORKER_ID,
+        backend_id="backend-zcode",
+        repo_root=windows_worktree_key(_REPO_ROOT),
+        branch=_BRANCH,
+        head_before=_HEAD,
+        transport_state="CONNECTED",
+        execution_state="RUNNING",
+    )
+    earliest = _origin(observed_at="2026-09-22T08:00:00.000000Z")
+    latest = _origin(
+        origin_ref=_ORIGIN_REF_ALT, observed_at="2026-09-22T09:00:00.000000Z"
+    )
+
+    baseline = build_observed_lane_inputs(
+        snapshot,
+        (durable,),
+        (),
+        execution_authority_readable=True,
+        lease_authority_readable=True,
+    )
+    multi = build_observed_lane_inputs(
+        snapshot,
+        (durable,),
+        (),
+        execution_authority_readable=True,
+        lease_authority_readable=True,
+        origins=(latest, earliest),
+    )
+    reordered = build_observed_lane_inputs(
+        snapshot,
+        (durable,),
+        (),
+        execution_authority_readable=True,
+        lease_authority_readable=True,
+        origins=(earliest, latest),
+    )
+
+    assert len(baseline) == len(multi) == 1
+    assert multi[0].identity == baseline[0].identity
+    assert multi[0].execution == baseline[0].execution
+    assert multi[0].lease == baseline[0].lease
+    assert multi[0].gates == baseline[0].gates
+    # deterministic: earliest observed origin wins regardless of tuple order
+    assert multi[0].origin == reordered[0].origin == earliest
+    # and origin absence baseline still renders typed unavailable display
+    baseline_lane = project_cockpit_lane(baseline[0])
+    multi_lane = project_cockpit_lane(multi[0])
+    assert baseline_lane.state is multi_lane.state is CockpitState.RUNNING
+    assert baseline_lane.origin_display.status == "UNAVAILABLE"
+    assert multi_lane.origin_display.origin_ref == _ORIGIN_REF
+
+
+def test_fresh_projection_reconstructs_equivalent_origin_display() -> None:
+    lanes = (_inputs(execution=_execution(), origin=_origin()),)
+    snap_a = project_cockpit_snapshot(
+        CockpitObservations(lanes=lanes, generated_at=GENERATED_AT)
+    )
+    snap_b = project_cockpit_snapshot(
+        CockpitObservations(lanes=lanes, generated_at=GENERATED_AT),
+        recheck=CockpitObservations(lanes=lanes, generated_at=GENERATED_AT),
+    )
+    assert snap_b.stale is False
+    assert snap_a.lanes[0].origin_display == snap_b.lanes[0].origin_display
+    assert (
+        cockpit_fingerprint(snap_a)
+        == cockpit_fingerprint(project_cockpit_snapshot(
+            CockpitObservations(lanes=lanes, generated_at=GENERATED_AT)
+        ))
+    )
+
+
+def test_origin_drift_between_pins_renders_stale_not_mixed() -> None:
+    first = CockpitObservations(
+        lanes=(_inputs(execution=_execution(), origin=_origin()),),
+        generated_at=GENERATED_AT,
+    )
+    drifted = CockpitObservations(
+        lanes=(
+            _inputs(
+                execution=_execution(),
+                origin=_origin(
+                    origin_ref=_ORIGIN_REF_ALT,
+                    observed_at="2026-09-22T09:00:00.000000Z",
+                ),
+            ),
+        ),
+        generated_at=GENERATED_AT,
+    )
+    snapshot = project_cockpit_snapshot(first, recheck=drifted)
+
+    assert snapshot.stale is True
+    lane = snapshot.lanes[0]
+    assert lane.origin_display.status == "UNKNOWN"
+    assert lane.origin_display.reason == "SOURCE_DRIFT_DETECTED"
+    assert lane.origin_display.origin_ref is None
+
+
+def test_origin_display_renders_in_monitor_lines() -> None:
+    recorded = project_cockpit_snapshot(
+        CockpitObservations(
+            lanes=(_inputs(execution=_execution(), origin=_origin()),),
+            generated_at=GENERATED_AT,
+        )
+    )
+    text = "\n".join(cockpit_monitor_lines(recorded))
+    assert "ORIGIN: RECORDED" in text
+    assert _ORIGIN_REF in text
+    assert "surface: a-conductor" in text
+    assert "key version: kv1" in text
+
+    absent = project_cockpit_snapshot(
+        CockpitObservations(
+            lanes=(
+                _inputs(
+                    execution=_execution(),
+                    origin=CockpitOriginObservation.unavailable("RECORD_NOT_FOUND"),
+                ),
+            ),
+            generated_at=GENERATED_AT,
+        )
+    )
+    absent_text = "\n".join(cockpit_monitor_lines(absent))
+    assert "ORIGIN: NOT_RECORDED" in absent_text
+    assert _ORIGIN_REF not in absent_text

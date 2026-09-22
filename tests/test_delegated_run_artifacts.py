@@ -12,8 +12,15 @@ closed; one delegated run maps to exactly one immutable physical path.
 Also pins the WO-P1-480 P1 repair seam: the five proven real-world
 pre-grammar pointer aliases recover pointer-only (entire original
 string preserved as immutable recovery identity; only trailing
-``a<attempt>`` + 8/12-hex suffix bound) while canonical minting and
+``a<attempt>`` + accepted-hex suffix bound) while canonical minting and
 physical path generation stay strictly canonical.
+
+Also pins the WO-P1-480 P2 repair seam: three further proven real
+pointer values widen ONLY the bounded legacy recovery classes —
+lowercase-hex recovery tails of length 7 through 12 and a bounded
+opaque numeric legacy tag in the ordinal position (never reinterpreted
+as ordinal). Canonical parser, minting, and directory-name grammar stay
+strictly canonical; 6-hex and 13-hex tails stay outside the window.
 """
 
 from __future__ import annotations
@@ -26,6 +33,7 @@ import pytest
 from a_conductor.delegated_run_artifacts import (
     DelegatedRunArtifactError,
     DelegatedRunIdentity,
+    LegacyPointerRunIdentity,
     attempt_dir_name,
     attempt_dir_path,
     enumerate_attempt_dirs,
@@ -504,7 +512,10 @@ LEGACY_NEAR_MISSES = [
     "run:WO-P1-478:r3-review:a0:2933deb345c2",  # zero attempt
     "run:WO-P1-478:r3-review:b1:2933deb345c2",  # non-attempt marker
     "run:WO-P1-478:r3-review:a1:2933DEB345C2",  # uppercase hex suffix
-    "run:WO-P1-478:r3-review:a1:2933deb345c",  # 11-hex suffix
+    # 11-hex tail near-miss from the P1 list was superseded by the P2
+    # repair: 7..12-hex is now the bounded legacy recovery window, so
+    # the in-window lengths are pinned as positives in the P2 section
+    # below instead of as near-misses here.
     "run:WO-P1-478:r3-review:a1:2933deb345c2:extra",  # unobserved extra segment
     "run:WO-P1-478:r3-review:01:a1:2933deb345c2",  # leading-zero decimal middle
     "run:WO-P1-478:r3-review:0:a1:2933deb345c2",  # zero decimal middle
@@ -747,7 +758,299 @@ def test_legacy_aliases_never_mint_physical_paths(
         assert excinfo.value.code == "RUN_ID_INVALID"
 
 
-# ── authority boundaries (structural) ───────────────────────────────────────
+# ── recovery-only widened bounded classes (WO-P1-480 P2 repair) ──────────────
+
+# Three further proven real-world pointer values (WO-P1-480 P2 repair
+# packet; independent full durable-pointer census at exact head
+# ef61fe14c55452979265137eb39e9cf5245be545). The canonical parser
+# correctly rejects each one; the recovery-only legacy seam must accept
+# them pointer-only, preserving the entire original string verbatim.
+#   1. 10-hex legacy recovery tail (decimal middle, non-8/12 tail);
+#      note: the packet annotates this value as "9-hex" but the exact
+#      string is authoritative and its tail is 10 lowercase-hex chars —
+#      both lengths sit inside the declared 7..12 recovery window;
+#   2. 7-hex legacy recovery tail (decimal middle, non-8/12 tail);
+#   3. numeric legacy tag 20260922 in the ordinal-position slot
+#      (canonical decimal ordinal range rejects it as out-of-range).
+P2_TEN_HEX_TAIL = "run:WO-P1-449:r3-review:1:a1:1516601fcc"
+P2_SEVEN_HEX_TAIL = "run:WO-P1-449:r3-rereview-cycle2:1:a1:d2cc2c4"
+P2_NUMERIC_TAG = "run:WO-P1-453:cutover-flash-advisory:20260922:a2:dfe48eaa88fe"
+P2_REAL_VALUES = [P2_TEN_HEX_TAIL, P2_SEVEN_HEX_TAIL, P2_NUMERIC_TAG]
+
+
+def test_p2_ten_hex_tail_recovers_end_to_end(tmp_path: Path) -> None:
+    # Real directory shape: suffixed with the run's exact 10-hex tail
+    # (directory grammar accepts 8..64-hex suffixes; 10-hex is
+    # non-canonical census-visible, and exact suffix agreement binds).
+    attempt_dir = (
+        tmp_path / "runs" / "WO-P1-449" / "r3-review" / "attempt-0001-1516601fcc"
+    )
+    attempt_dir.mkdir(parents=True)
+    original = (
+        "lane_ref: lane:WO-P1-449:r3-review:1\n"
+        "delegated_run_id: run:WO-P1-449:r3-review:1:a1:1516601fcc\n"
+        "attempt: 1\n"
+        "status: TERMINAL\n"
+    )
+    (attempt_dir / "pointer.md").write_text(original, encoding="utf-8")
+
+    identity = recover_attempt_run(attempt_dir)
+    assert isinstance(identity, LegacyPointerRunIdentity)
+    assert identity.run_id == P2_TEN_HEX_TAIL  # verbatim, never rewritten
+    assert identity.attempt == 1
+    assert identity.suffix == "1516601fcc"
+    assert not isinstance(identity, DelegatedRunIdentity)
+    assert (attempt_dir / "pointer.md").read_text(encoding="utf-8") == original
+
+
+def test_p2_seven_hex_tail_recovers_on_legacy_dir(tmp_path: Path) -> None:
+    # Real directory shape: unsuffixed legacy attempt directory — a
+    # 7-hex tail can never form a recognizable suffixed directory name
+    # (directory grammar requires >=8 hex), so recovery is
+    # attempt-bound with the full pointer string preserved.
+    attempt_dir = (
+        tmp_path / "runs" / "WO-P1-449" / "r3-rereview-cycle2" / "attempt-0001"
+    )
+    attempt_dir.mkdir(parents=True)
+    original = (
+        "lane_ref: lane:WO-P1-449:r3-rereview-cycle2:1\n"
+        "delegated_run_id: run:WO-P1-449:r3-rereview-cycle2:1:a1:d2cc2c4\n"
+        "attempt: 1\n"
+        "status: TERMINAL\n"
+    )
+    (attempt_dir / "pointer.md").write_text(original, encoding="utf-8")
+
+    identity = recover_attempt_run(attempt_dir)
+    assert isinstance(identity, LegacyPointerRunIdentity)
+    assert identity.run_id == P2_SEVEN_HEX_TAIL
+    assert identity.attempt == 1
+    assert identity.suffix == "d2cc2c4"
+    assert (attempt_dir / "pointer.md").read_text(encoding="utf-8") == original
+
+
+def test_p2_numeric_tag_recovers_as_legacy_evidence(tmp_path: Path) -> None:
+    # Real directory shape: suffixed with the run's exact 12-hex tail.
+    # The numeric legacy tag 20260922 recovers ONLY as legacy evidence
+    # and is never normalized/reinterpreted as an ordinal.
+    attempt_dir = (
+        tmp_path / "runs" / "WO-P1-453" / "cutover-flash-advisory"
+        / "attempt-0002-dfe48eaa88fe"
+    )
+    attempt_dir.mkdir(parents=True)
+    _write_execution_pointer(attempt_dir, P2_NUMERIC_TAG)
+
+    identity = recover_attempt_run(attempt_dir)
+    assert isinstance(identity, LegacyPointerRunIdentity)
+    assert identity.run_id == P2_NUMERIC_TAG
+    assert identity.attempt == 2
+    assert identity.suffix == "dfe48eaa88fe"
+    assert not isinstance(identity, DelegatedRunIdentity)  # no ordinal binding
+
+
+def test_p2_ten_hex_tail_via_pointer_md_and_json_agree(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001-1516601fcc"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(pointer_md(P2_TEN_HEX_TAIL), encoding="utf-8")
+    _write_execution_pointer(attempt_dir, P2_TEN_HEX_TAIL)
+    identity = read_pointer_run_id(attempt_dir)
+    assert identity.run_id == P2_TEN_HEX_TAIL
+
+    # Dual sources must agree on the exact full string even when both
+    # values are individually inside the widened recovery classes.
+    _write_execution_pointer(
+        attempt_dir, "run:WO-P1-449:r3-review:1:a1:1516601fc"  # 9-hex variant
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "POINTER_RUN_ID_AMBIGUOUS"
+
+
+def test_p2_ten_hex_tail_wrong_attempt_or_suffix_rejected(
+    tmp_path: Path,
+) -> None:
+    wrong_attempt = tmp_path / "attempt-0002-1516601fcc"
+    wrong_attempt.mkdir()
+    (wrong_attempt / "pointer.md").write_text(
+        pointer_md(P2_TEN_HEX_TAIL), encoding="utf-8"
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(wrong_attempt)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_RUN_MISMATCH"
+
+    wrong_suffix = tmp_path / "attempt-0001-9e8f7a6b"
+    wrong_suffix.mkdir()
+    (wrong_suffix / "pointer.md").write_text(
+        pointer_md(P2_TEN_HEX_TAIL), encoding="utf-8"
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(wrong_suffix)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_RUN_MISMATCH"
+
+
+def test_p2_seven_hex_pointer_on_suffixed_dir_fails_closed(
+    tmp_path: Path,
+) -> None:
+    # A 7-hex alias tail can never equal an 8..64-hex directory suffix,
+    # so a suffixed directory always fails closed instead of binding
+    # pointer-only.
+    attempt_dir = tmp_path / "attempt-0001-d2cc2c4a"  # 8-hex directory suffix
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        pointer_md(P2_SEVEN_HEX_TAIL), encoding="utf-8"
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(attempt_dir)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_RUN_MISMATCH"
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        "d2cc2c4",  # 7 (real P2 evidence tail)
+        "352051cd",  # 8 (historical canonical length)
+        "1516601fc",  # 9 (synthetic; 9-char prefix of the real 10-hex tail)
+        "1516601fcc",  # 10 (real P2 evidence tail)
+        "2933deb345c",  # 11 (former P1 near-miss, now in-window)
+        "dfe48eaa88fe",  # 12 (current canonical length; real P2 evidence tail)
+    ],
+)
+def test_p2_recovery_tail_window_seven_through_twelve(
+    tmp_path: Path, tail: str
+) -> None:
+    # The whole declared 7..12-hex window recovers on a legacy
+    # directory (synthetic in-class tails beyond the three real
+    # values; no directory suffix agreement is involved).
+    run_id = f"run:WO-P1-449:r3-window:a1:{tail}"
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    _write_execution_pointer(attempt_dir, run_id)
+    identity = read_pointer_run_id(attempt_dir)
+    assert isinstance(identity, LegacyPointerRunIdentity)
+    assert identity.run_id == run_id
+    assert identity.attempt == 1
+    assert identity.suffix == tail
+
+
+@pytest.mark.parametrize(
+    "run_id",
+    [
+        "run:WO-P1-449:r3-review:1:a1:d2cc2c",  # 6-hex tail: below window
+        "run:WO-P1-449:r3-review:1:a1:1516601fcc0dd",  # 13-hex: above window
+        "run:WO-P1-449:r3-window:a1:d2cc2c",  # 6-hex on 4-part shape
+        "run:WO-P1-449:r3-window:a1:1516601fcc0dd",  # 13-hex on 4-part shape
+        "run:WO-P1-449:r3-review:1:a1:1516601FCC",  # uppercase stays closed
+    ],
+)
+def test_p2_recovery_tails_outside_window_fail_closed(
+    tmp_path: Path, run_id: str
+) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    _write_execution_pointer(attempt_dir, run_id)
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "RUN_ID_INVALID"
+    assert str(excinfo.value) == "RUN_ID_INVALID"
+
+
+P2_NUMERIC_TAG_NEAR_MISSES = [
+    "run:WO-P1-453:cutover-flash-advisory:0:a2:dfe48eaa88fe",  # zero tag
+    "run:WO-P1-453:cutover-flash-advisory:01:a2:dfe48eaa88fe",  # leading zero
+    "run:WO-P1-453:cutover-flash-advisory:0123:a2:dfe48eaa88fe",  # leading zero
+    "run:WO-P1-453:cutover-flash-advisory:123456789:a2:dfe48eaa88fe",  # 9 digits
+    "run:WO-P1-453:cutover-flash-advisory:+1:a2:dfe48eaa88fe",  # plus sign
+    "run:WO-P1-453:cutover-flash-advisory:1.5:a2:dfe48eaa88fe",  # decimal point
+    "run:WO-P1-453:cutover-flash-advisory:..:a2:dfe48eaa88fe",  # traversal
+    "run:WO-P1-453:cutover-flash-advisory:2026/22:a2:dfe48eaa88fe",  # separator
+    "run:WO-P1-453:cutover-flash-advisory:20260922:x:a2:dfe48eaa88fe",  # 6 segments
+    "run:WO-P1-453:cutover-flash-advisory:20260922:a02:dfe48eaa88fe",  # lz attempt
+]
+
+
+@pytest.mark.parametrize("run_id", P2_NUMERIC_TAG_NEAR_MISSES)
+def test_p2_numeric_tag_near_misses_fail_closed(
+    tmp_path: Path, run_id: str
+) -> None:
+    attempt_dir = tmp_path / "attempt-0002"
+    attempt_dir.mkdir()
+    _write_execution_pointer(attempt_dir, run_id)
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "RUN_ID_INVALID"
+    assert str(excinfo.value) == "RUN_ID_INVALID"
+
+
+def test_p2_valid_canonical_decimal_ordinal_stays_canonical(
+    tmp_path: Path,
+) -> None:
+    # Real canonical durable pointer for the same lane as the 7-hex
+    # evidence (runs/WO-P1-449/review-terminal-harvest-notice.md): a
+    # valid canonical decimal ordinal plus a 12-hex tail must keep
+    # parsing canonically, never as a legacy alias.
+    canonical = "run:WO-P1-449:r3-rereview-cycle2:1:a1:e7c88021eadd"
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(pointer_md(canonical), encoding="utf-8")
+    identity = recover_attempt_run(attempt_dir)
+    assert isinstance(identity, DelegatedRunIdentity)
+    assert identity.ordinal == 1
+    assert identity.attempt == 1
+    assert identity.random_id == "e7c88021eadd"
+    assert identity.run_id == canonical
+
+
+def test_p2_directory_name_grammar_not_widened() -> None:
+    # Directory-name recognition is untouched by the P2 repair: 7-hex
+    # suffixes and uppercase stay unrecognized, 9-hex stays the
+    # non-canonical census-visible suffixed form it already was.
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        parse_attempt_dir_name("attempt-0001-d2cc2c4")
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_INVALID"
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        parse_attempt_dir_name("attempt-0001-1516601FCC")
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_INVALID"
+    nine = parse_attempt_dir_name("attempt-0001-1516601fcc")
+    assert nine.attempt == 1
+    assert nine.suffix == "1516601fcc"
+    assert nine.form == "suffixed"
+    assert nine.canonical is False
+
+
+@pytest.mark.parametrize("run_id", P2_REAL_VALUES)
+def test_p2_real_values_rejected_by_canonical_parser(run_id: str) -> None:
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        parse_delegated_run_id(run_id)
+    assert excinfo.value.code == "RUN_ID_INVALID"
+    assert str(excinfo.value) == "RUN_ID_INVALID"
+
+
+@pytest.mark.parametrize("run_id", P2_REAL_VALUES)
+def test_p2_real_values_never_mint_physical_paths(run_id: str) -> None:
+    # 20260922 (and every other P2 value) can never mint a new attempt
+    # directory: minting stays strictly canonical.
+    for factory in (attempt_dir_name, lambda r: str(attempt_dir_path("lane", r))):
+        with pytest.raises(DelegatedRunArtifactError) as excinfo:
+            factory(run_id)
+        assert excinfo.value.code == "RUN_ID_INVALID"
+
+
+@pytest.mark.parametrize(
+    "run_id",
+    [
+        "run:WO-P1-480:author:1:a1:352051c",  # 7-hex tail canonical reject
+        "run:WO-P1-480:author:1:a1:352051cdef",  # 10-hex tail canonical reject
+        "run:WO-P1-453:cutover-flash-advisory:20260922:a2:dfe48eaa88fe",
+    ],
+)
+def test_p2_canonical_parser_still_rejects_non_8_12_tails(run_id: str) -> None:
+    # The canonical parser was NOT broadened by the recovery-window
+    # widening: only 8/12-hex tails mint and parse canonically.
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        parse_delegated_run_id(run_id)
+    assert excinfo.value.code == "RUN_ID_INVALID"
+
+
+
 
 
 def test_module_declares_no_authority_surfaces() -> None:

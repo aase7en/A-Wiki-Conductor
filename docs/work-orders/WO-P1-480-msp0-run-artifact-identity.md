@@ -5,7 +5,7 @@ Parent: Issue #475 / `docs/work-orders/WO-P1-475-multi-session-provenance-collis
 Claim: WO-P1-480-MSP0-WINDOWS-001
 Topology: CONTROL_PLANE_ONLY
 Risk: R3 (identity/concurrency/authority surface)
-Status: IMPLEMENTED + P1 REPAIR (attempt 3) — focused verification green; left uncommitted for GPT-5.6 Sol harvest
+Status: IMPLEMENTED + P1 REPAIR (attempt 3) + P2 REPAIR (attempt 4) — focused verification green; left uncommitted for GPT-5.6 Sol harvest
 Exact base/head: e6f96e7526742cfaca65917933fc299b21bf439e / repaired from f3d2b412e0106c69456d84a34221d31a4bbeb7c7
 Branch: feat/wo-p1-480-msp0-run-artifact-identity
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo480-msp0
@@ -189,6 +189,101 @@ Repair verification (deterministic, focused):
   tests/test_work_order_identity.py
   tests/test_zero_relay_author_provenance.py -q` → **190 passed**
   (127 artifact-identity incl. the repair regressions + 63 related).
+- `py -3.13 -m py_compile src/a_conductor/delegated_run_artifacts.py`
+  → clean.
+- `git diff --check` → clean.
+- Final tracked dirty paths are exactly the five allowed paths; all
+  changes left uncommitted for GPT-5.6 Sol harvest.
+
+## 8. P2 repair record (attempt 4, repaired at exact head ef61fe14)
+
+Independent exact-SHA review of ef61fe14 (full durable-pointer
+census) returned CHANGES_REQUIRED (P0/P1/P2/P3 = 0/0/1/2): three
+further proven module-reachable recovery values were rejected by the
+P1 seam. Blocking P2 evidence (exact values authoritative):
+
+1. `run:WO-P1-449:r3-review:1:a1:1516601fcc` — decimal middle with a
+   non-8/12 legacy tail (the packet annotates this tail as "9-hex";
+   the exact string is 10 lowercase-hex chars — both inside the
+   repaired window);
+2. `run:WO-P1-449:r3-rereview-cycle2:1:a1:d2cc2c4` — 7-hex legacy
+   recovery tail (a pinned git short-SHA);
+3. `run:WO-P1-453:cutover-flash-advisory:20260922:a2:dfe48eaa88fe` —
+   numeric legacy date tag `20260922` in the ordinal-position slot
+   (canonical parser correctly rejects it as an out-of-range decimal
+   ordinal; it must recover only as legacy evidence).
+
+Repair implemented on the same uncommitted candidate (no
+commit/push/merge/rebase/reset/stash/clean/branch switch):
+
+- RED first: new P2 regression section in
+  `tests/test_delegated_run_artifacts.py` using the three real values
+  and real directory shapes (10-hex tail on the matching suffixed
+  directory; 7-hex tail on an unsuffixed legacy directory, since a
+  7-hex tail can never form a recognizable suffixed name; numeric tag
+  via `execution-pointer.json` on its 12-hex suffixed directory) →
+  **10 failed / 154 passed at RED** — only recovery-intent tests
+  failed (each real value failed with pre-repair `RUN_ID_INVALID`);
+  no existing test regressed.
+- `src/a_conductor/delegated_run_artifacts.py`: recovery-only
+  widening inside `_parse_legacy_pointer_run_id()` only —
+  (a) bounded legacy tail family `[0-9a-f]{7,12}` via a new
+  `_LEGACY_RECOVERY_RANDOM_ID_RE` (the canonical `_RANDOM_ID_RE`
+  stays exactly 8/12-hex); (b) new
+  `_legacy_middle_token_ok()` accepting either the P1 non-decimal
+  safe token or a bounded numeric legacy tag (digits only, no leading
+  zero, at most 8 digits — `_MAX_LEGACY_TAG_LEN`; proven evidence is
+  the 8-digit `20260922` date tag and small counters like `1` whose
+  id is non-canonical for other reasons) treated as opaque, never
+  normalized/reinterpreted as an ordinal. Canonical-first order
+  unchanged in `read_pointer_run_id()`; `parse_delegated_run_id()`,
+  `attempt_dir_name()`, `attempt_dir_path()`, and
+  `parse_attempt_dir_name()` untouched in strictness (no new legacy
+  alias gains minting or physical-path authority; directory-name
+  grammar unchanged). Exact full-string dual-pointer agreement,
+  exact suffix agreement on suffixed directories, attempt agreement
+  everywhere, and fail-closed behavior on 6-/13-hex tails, uppercase,
+  leading-zero/plus/decimal-point/traversal/separator payloads, and
+  six-segment shapes all preserved.
+- Tests (reported separately per the repair contract):
+  - recovery-only: 3 real-value end-to-end recoveries (verbatim
+    string preserved, pointer never rewritten), dual-source
+    exact-agreement on a widened value, wrong-attempt/wrong-suffix
+    rejection (`ATTEMPT_DIR_NAME_RUN_MISMATCH`), 7-hex-tail
+    fail-closed on suffixed directories, full 7..12 window pinning
+    (including the former 11-hex P1 near-miss, now in-window by
+    contract), 10 numeric-tag near-misses (zero/leading-zero/9-digit/
+    plus/decimal-point/traversal/separator/six-segment/leading-zero
+    attempt), and canonical-decimal-ordinal-stays-canonical pinning
+    the real canonical pointer
+    `run:WO-P1-449:r3-rereview-cycle2:1:a1:e7c88021eadd`.
+  - canonical-minting strictness guards: the three real values plus
+    7-/10-hex tails rejected by `parse_delegated_run_id()`; the three
+    real values never mint `attempt_dir_name()`/`attempt_dir_path()`
+    paths (`20260922` can never mint a new attempt directory);
+    directory-name grammar not widened (7-hex/uppercase dir names
+    still unrecognized; 10-hex dir suffix stays non-canonical
+    census-visible).
+  - supersession: the P1 11-hex near-miss
+    (`run:WO-P1-478:r3-review:a1:2933deb345c`) moved from
+    near-miss to in-window positive; 6-hex and 13-hex near-misses
+    added at the new window boundaries.
+- P3 documentation hardening folded into
+  `references/durable-lanes.md` + `SKILL.md`: bounded historical
+  suffix variants (7..12-hex) are recovery compatibility only and
+  12-hex remains the preferred current/new minting form; six-segment
+  attempt-postreset evidence stays out-of-contract
+  (census/reconcile-only); deterministic/pinned suffixes can repeat
+  across attempts, so physical uniqueness may rely on attempt-ordinal
+  divergence when the suffix is not random.
+
+P2 repair verification (deterministic, focused):
+
+- `python -m pytest tests/test_delegated_run_artifacts.py
+  tests/test_work_order_identity.py
+  tests/test_zero_relay_author_provenance.py -q` → **227 passed**
+  (164 artifact-identity incl. the P2 repair regressions + 63
+  related).
 - `py -3.13 -m py_compile src/a_conductor/delegated_run_artifacts.py`
   → clean.
 - `git diff --check` → clean.

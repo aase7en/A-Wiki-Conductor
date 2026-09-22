@@ -1540,3 +1540,40 @@ def test_wo433_runtime_activation_delegates_exact_canonical_identity(
     assert captured["settings_store"] is desktop.settings_store
     assert captured["provider_store"] is desktop._provider_store
     assert captured["lifecycle"] is desktop.lifecycle
+
+
+# --- WO-P1-493 MSP-3: origin/session provenance stays typed read-model display ---
+
+
+def test_wo493_service_cockpit_origin_display_stays_typed_unavailable(
+    tmp_path, monkeypatch
+) -> None:
+    canonical = _wo431_canonical(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    desktop = DesktopControlService.open(
+        canonical,
+        coordinator_builder=lambda path, *, service: FakeCoordinator(),
+    )
+
+    bound = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        settings_store=desktop.settings_store,
+        cockpit_authority_database=canonical,
+    )
+    snapshot = bound.cockpit_projection(generated_at="2026-09-22T00:00:00+00:00")
+
+    assert snapshot.lanes
+    for lane in snapshot.lanes:
+        assert lane.origin_display.status == "UNAVAILABLE"
+        assert lane.origin_display.reason == "PORT_UNAVAILABLE"
+        assert lane.origin_display.origin_ref is None
+        assert lane.origin_display.origin_surface is None
+        assert lane.origin_display.key_version is None
+
+    # origin display adds no authority surface: legacy DB still has no
+    # runtime tables and the directory inventory is unchanged
+    tables = _wo431_table_inventory(canonical)
+    assert "execution_records" not in tables
+    assert "worker_leases" not in tables
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["canonical.sqlite"]
