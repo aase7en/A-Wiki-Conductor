@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import uuid
 from dataclasses import fields as dataclass_fields
 from pathlib import Path
@@ -14,12 +15,19 @@ from a_conductor.control_hook_adapter import (
     ControlHookNormalizationError,
     normalize_control_event,
 )
+from a_conductor.origin_provenance import derive_origin_chat_session_ref
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "docs" / "contracts" / "hook-contract-v1.schema.json"
 ADAPTER_SOURCE = ROOT / "src" / "a_conductor" / "control_hook_adapter.py"
 
 VALID_HEX = "0123456789abcdef0123456789abcdef"
+FAKE_SHARE_URL = "https://chat.example/" + "FAKE/share/0000"
+FAKE_CHAT_URL = "https://chat.openai.com/c/" + "sess-abc123"
+FAKE_BEARER = "Bearer " + "FAKE" + "0" * 27
+FAKE_SK = "sk-" + "FAKE" + "0" * 36
+FAKE_GHP = "ghp_" + "FAKE" + "0" * 31
+FAKE_COOKIE = "FAKESESSIONCOOKIE=" + "0" * 16
 
 OPTIONAL_FIELDS = (
     "lane_id",
@@ -44,6 +52,8 @@ OPTIONAL_FIELDS = (
     "evidence_refs",
     "evidence_digest",
     "summary",
+    "origin_surface",
+    "origin_chat_session_ref",
 )
 
 CORE_FIELDS = (
@@ -287,6 +297,9 @@ def test_explicit_optional_context_passes_through_unchanged() -> None:
     envelope = normalize_control_event(make_event(), context)
     for name in OPTIONAL_FIELDS:
         expected = getattr(context, name)
+        if expected is None:
+            assert name not in envelope
+            continue
         if name == "evidence_refs":
             assert envelope[name] == list(expected)
         else:
@@ -327,9 +340,9 @@ def test_explicit_optional_context_passes_through_unchanged() -> None:
         ("summary", ""),
         ("summary", "line1\nline2"),
         ("summary", "x" * 513),
-        ("summary", "sk-FAKE0000000000000000000000000000000000 leaked"),
-        ("summary", "ghp_FAKE0000000000000000000000000000000 leaked"),
-        ("summary", "Bearer FAKE000000000000000000000000000 token"),
+        ("summary", FAKE_SK + " leaked"),
+        ("summary", FAKE_GHP + " leaked"),
+        ("summary", FAKE_BEARER + " token"),
     ],
 )
 def test_invalid_optional_context_fails_not_truncates(field: str, bad_value: object) -> None:
@@ -564,3 +577,138 @@ def test_evidence_refs_max_boundaries_accepted_and_schema_valid(
     envelope = normalize_control_event(make_event(), make_context(evidence_refs=refs))
     assert envelope["evidence_refs"] == refs
     assert list(validator.iter_errors(envelope)) == []
+
+
+FAKE_ORIGIN_KEY = bytes(range(32))
+RAW_ORIGIN_SESSION_ID = "sess-FAKE-0123456789abcdef"
+DERIVED_ORIGIN_REF = derive_origin_chat_session_ref(
+    FAKE_ORIGIN_KEY,
+    key_version="k1",
+    origin_surface="kilo",
+    raw_session_ref=RAW_ORIGIN_SESSION_ID,
+)
+
+
+def origin_context(**overrides: object) -> ControlHookContext:
+    values: dict[str, object] = {
+        "origin_surface": "kilo",
+        "origin_chat_session_ref": DERIVED_ORIGIN_REF,
+    }
+    values.update(overrides)
+    return make_context(**values)
+
+
+def test_origin_fields_round_trip_into_envelope_and_json() -> None:
+    envelope = normalize_control_event(make_event(), origin_context())
+    assert envelope["origin_surface"] == "kilo"
+    assert envelope["origin_chat_session_ref"] == DERIVED_ORIGIN_REF
+    serialized = json.dumps(envelope)
+    assert RAW_ORIGIN_SESSION_ID not in serialized
+    assert json.loads(serialized) == envelope
+
+
+@pytest.mark.parametrize(
+    "surface", ["a-conductor", "srm", "claude-code", "kilo", "rdc"]
+)
+def test_each_accepted_origin_surface_round_trips(surface: str) -> None:
+    envelope = normalize_control_event(
+        make_event(), origin_context(origin_surface=surface)
+    )
+    assert envelope["origin_surface"] == surface
+
+
+@pytest.mark.parametrize(
+    "bad_surface",
+    [
+        "chatgpt",
+        "slack",
+        "CHATGPT",
+        "Kilo",
+        " kilo",
+        "kilo ",
+        "",
+        "kil o",
+        42,
+        b"kilo",
+    ],
+)
+def test_unknown_or_malformed_origin_surface_fails_typed(
+    bad_surface: object,
+) -> None:
+    with pytest.raises(ControlHookNormalizationError) as exc_info:
+        normalize_control_event(
+            make_event(), origin_context(origin_surface=bad_surface)
+        )
+    assert exc_info.value.code == "CONTROL_HOOK_CONTEXT_FIELD_INVALID"
+
+
+@pytest.mark.parametrize(
+    "bad_ref",
+    [
+        RAW_ORIGIN_SESSION_ID,
+        RAW_ORIGIN_SESSION_ID.upper(),
+        FAKE_SHARE_URL,
+        FAKE_CHAT_URL,
+        FAKE_BEARER,
+        FAKE_SK,
+        FAKE_COOKIE,
+        "origin-chat-v1:k1:" + "0F" * 32,
+        "origin-chat-v1:k1:" + "0f" * 31,
+        "origin-chat-v1:k1:" + "0f" * 33,
+        "origin-chat-v1:k1:" + "0f" * 32 + ":extra",
+        "origin-chat-v2:k1:" + "0f" * 32,
+        "origin-chat-v1:K1:" + "0f" * 32,
+        "origin-chat-v1:" + "0f" * 32,
+        "origin-chat-v1:k1",
+        " origin-chat-v1:k1:" + "0f" * 32,
+        "origin-chat-v1:k1:" + "0f" * 32 + "\n",
+        "hk-" + "0f" * 16,
+        "",
+        42,
+    ],
+)
+def test_raw_looking_or_malformed_origin_ref_fails_typed(bad_ref: object) -> None:
+    with pytest.raises(ControlHookNormalizationError) as exc_info:
+        normalize_control_event(
+            make_event(), origin_context(origin_chat_session_ref=bad_ref)
+        )
+    assert exc_info.value.code == "CONTROL_HOOK_CONTEXT_FIELD_INVALID"
+    assert str(exc_info.value) == "CONTROL_HOOK_CONTEXT_FIELD_INVALID"
+    if isinstance(bad_ref, str) and bad_ref.strip():
+        assert bad_ref not in str(exc_info.value)
+
+
+def test_origin_fields_absent_stays_backward_compatible() -> None:
+    envelope = normalize_control_event(make_event(), make_context())
+    assert "origin_surface" not in envelope
+    assert "origin_chat_session_ref" not in envelope
+
+
+def test_origin_fields_change_nothing_else_authority_neutral() -> None:
+    event = make_event()
+    without_origin = normalize_control_event(event, make_context())
+    with_origin = normalize_control_event(event, origin_context())
+    for key, value in without_origin.items():
+        assert with_origin[key] == value
+    assert set(with_origin) == set(without_origin) | {
+        "origin_surface",
+        "origin_chat_session_ref",
+    }
+    assert with_origin["hook_class"] == "OBSERVE"
+    assert with_origin["event_id"] == without_origin["event_id"]
+
+
+def test_origin_only_surface_without_ref_is_accepted() -> None:
+    envelope = normalize_control_event(
+        make_event(), origin_context(origin_chat_session_ref=None)
+    )
+    assert envelope["origin_surface"] == "kilo"
+    assert "origin_chat_session_ref" not in envelope
+
+
+def test_hook_observation_failure_does_not_mutate_inputs() -> None:
+    event = make_event()
+    context = origin_context(origin_surface="chatgpt")
+    with pytest.raises(ControlHookNormalizationError):
+        normalize_control_event(event, context)
+    assert context.origin_surface == "chatgpt"
