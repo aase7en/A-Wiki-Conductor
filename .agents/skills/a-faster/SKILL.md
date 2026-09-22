@@ -34,14 +34,36 @@ preserve A-FastTask's negative triggers and avoid routing overhead for tiny work
 
 ### Invocation contract (one clause is enough)
 
-For substantial A-Sunday engineering, a user instruction equivalent to
-**"use A-Faster" / "ใช้ A-Faster"** requests the whole acceleration behavior
-of this profile for that session: delegated-run census/recovery, global WIP
-reconstruction, automatic lane fill, the default Windows/macOS execution
-surfaces below, GLM-first long-running labor, event-driven cross-device
-collision and lifecycle-status pulses, GPT-5.6 Sol fallback when eligible
-external GLM routes are blocked, advisory Ponytail/Caveman consideration, and
-autonomous continuation.
+For substantial A-Sunday engineering, any of these canonical user clauses —
+**"use A-Faster"**, **"ใช้ A-Faster"**, or the roadmap shorthand
+**"ใช้ A-Faster ทำงานต่อ ตาม Roadmap"** — requests the whole acceleration
+behavior of this profile for that session. The roadmap shorthand is
+semantically equivalent to the verbose multilane intent
+("ใช้ A-Faster ทำงานต่อ ตาม Roadmap และสั่งงาน GLM-5.3/GLM-5.3-Flash หลาย lane
+พร้อม GPT-5.6 Sol แบบผสานงานกัน ไม่ชนกัน ไม่ซ้ำซ้อน"): the verbose form
+adds emphasis only and never grants more WIP, authority, quota, or collision
+tolerance than the short form. After the normal A-FastTask binding and
+authority gates, the routed default profile is:
+
+- delegated-run recovery/harvest and the mandatory entry census first;
+- one global WIP reconstruction across every device/harness — at most
+  `3 mutable + 1 independent review` — then AUTO-FILL of every independent
+  safe READY slot up to that budget;
+- GLM-first long-running labor with MAX/Flash task-class routing:
+  GLM-5.3 MAX for eligible R2/R3 implementation/repair/required independent
+  review; GLM-5.3-Flash only for bounded read-only
+  reconnaissance/shaping/precheck/advisory;
+- GPT-5.6 Sol as fleet integrator for decomposition, collision prevention,
+  deterministic verification, fan-in, repair, acceptance, and next-READY
+  routing, with direct Sol execution only as the eligible fallback when GLM
+  routes are blocked;
+- the default Windows/macOS/GitHub execution surfaces below with event-driven
+  cross-device collision and lifecycle-status pulses, plus advisory
+  Ponytail/Caveman consideration;
+- autonomous continuation through the next safe READY steps; and
+- no-overlap: one mutable hotspot has one mutation owner, always enforced
+  through the collision gate and the PRE-DISPATCH DEDUPE GATE.
+
 The user need not restate multiagent/multilane/multitasking/device-routing/
 GLM/fallback/advisory-skill instructions each session. The clause routes only;
 the normal A-FastTask binding and authority gates still apply.
@@ -305,12 +327,42 @@ This is lifecycle/event-driven reconciliation, not background polling. Plain
 ChatGPT does not self-wake after a turn ends; a later turn/session reconstructs
 truth from durable Issue/WO/run-pointer/Git/runtime evidence before continuing.
 
+## PRE-DISPATCH DEDUPE GATE (before every material GLM launch)
+
+Motivated by the WO493 duplicate-dispatch incident: a wrapper timeout or a
+missing UI card is never evidence that a delegated run stopped. Before every
+material GLM launch, reconcile ALL of:
+
+1. durable task/claim identity for the candidate (work order / Issue /
+   claim reference);
+2. repo / worktree / branch / HEAD / dirty state;
+3. mutable scope / hotspot overlap against every active lane;
+4. durable execution pointer plus result/exit/log evidence at the declared
+   destinations;
+5. exact process identity where the device is reachable — recorded PID plus
+   creation/command identity, never a bare PID number.
+
+Then apply the census dispositions to any matching attempt:
+
+- `RUNNING` => do not dispatch; attach or wait on the existing owner;
+- `TERMINAL_UNHARVESTED` => harvest and verify before any conflicting work;
+- `STALLED` / `INTERRUPTED` / `UNKNOWN` => reconcile side effects and replay
+  safety before any takeover or retry.
+
+A wrapper/tool timeout, a missing tool/UI card, chat/session loss, or an
+executor's Active Project drift never grants redispatch authority; each is
+`UNKNOWN/RECOVER` until the reconciliation above proves otherwise. This gate
+reuses the census, the collision gate, and the durable-lane identity — it
+creates no new scheduler, registry, or retry authority — and
+`1 MUTABLE HOTSPOT = 1 MUTATION OWNER` still applies.
+
 ## Model routing by benchmark
 
 Prefer GLM labor where capable, especially for bounded work that can run
 longer than one chat/tool interaction, selected by task benchmark rather than
-fear of quota. GPT-5.6 Sol remains integrator and is the direct-execution
-fallback when eligible external GLM routes are unavailable:
+fear of quota. GPT-5.6 Sol remains fleet integrator — decomposition, collision
+prevention, deterministic verification, fan-in, acceptance — and is the
+direct-execution fallback when eligible external GLM routes are unavailable:
 
 - **GLM-5.3 MAX** (effort `max`) is the default for R2/R3 implementation,
   durable state/concurrency/idempotency/security/protocol work, complex
@@ -374,7 +426,8 @@ provider, review, or acceptance authority.
 
 Before **every material GLM dispatch**:
 
-1. recover outstanding delegated executions first;
+1. pass the PRE-DISPATCH DEDUPE GATE above (recover outstanding delegated
+   executions first);
 2. verify exact repo/worktree/branch/HEAD/task/claim/scope;
 3. refresh CoinTH quota/readiness through the approved secret-safe resolver;
 4. prove the exact harness/model route;
@@ -408,6 +461,67 @@ gate remains blocked while other safe work may continue.
 
 Run Kilo and Claude concurrently only on non-overlapping claimed scopes or as
 read-only analysis/review lanes. Freeze exact candidate SHA(s) before review.
+
+## SHORT_BURST execution policy
+
+Every A-Faster burst follows the frozen SHORT_BURST loop and bounded budgets
+defined in `references/short-burst.md` (WO-P1-483):
+
+```
+RECOVER EXACT EVIDENCE -> ONE BOUNDED ACTION/DISPATCH -> USER CHECKPOINT -> NEXT BURST
+```
+
+One burst = one bounded action (or one bounded dispatch), then a durable
+user-visible checkpoint, then the next burst; no burst contains a second
+material action after an UNKNOWN/RECOVER outcome. Prefer exact-path/pointer
+reads before any broad scan; broad recursive scans are forbidden in the
+critical path except the one bounded staged escalation defined there. Any
+command or dispatch estimated to run longer than 120 s goes background-first:
+write the durable pointer before or at launch recording PID + verified
+command identity plus `log_ref`/`exit_ref` destinations. A wrapper or tool
+timeout is `UNKNOWN/RECOVER` — never automatic FAILURE and never redispatch
+permission — until reconciled per the dispositions above. Checkpoint cadence
+is independent of tool-card UI rendering.
+
+## Mandatory enforcement-hook checkpoints
+
+A-Faster MUST treat the accepted Hook Contract v1 as the enforcement backstop
+for every **material** boundary once an executable GUARD route exists. The
+canonical checkpoint sequence is:
+
+`ENTRY -> RECOVERY -> PRE_DISPATCH -> PRE_MUTATION -> PRE_FREEZE -> PRE_REVIEW -> PRE_MERGE -> POST_MAIN`
+
+Each checkpoint is a policy gate even before runtime GUARD wiring exists. An
+agent MUST NOT skip a checkpoint merely because chat context, a tool card, or
+its own prompt memory omitted it.
+
+Hook enforcement state is explicit:
+
+- `POLICY_ONLY` — the A-Faster skill/checklist and deterministic tests require
+  the checkpoint, but no accepted executable GUARD invocation is proven on the
+  current route. The agent must follow the gate, but MUST NOT claim that runtime
+  enforcement prevented bypass.
+- `GUARD_ENFORCED` — an accepted Hook Contract `GUARD` invocation is proven
+  on the exact material-action path. Security/authority guard failures are
+  fail-closed; `DENY`, unavailable guard evidence, malformed guard evidence,
+  or ambiguous scope blocks the dependent action.
+- `OBSERVE_ONLY` — Hook telemetry exists but is non-blocking. OBSERVE events
+  never satisfy a required GUARD checkpoint.
+
+For every material action, the integrator records the checkpoint verdict and
+evidence reference in the existing WO/run-pointer lifecycle evidence; no new
+hook state store is created. The Hook Bus/STM/Monitor remain projections, never
+task/claim/retry/review/acceptance authority.
+
+Until all material mutation/dispatch/merge routes are behind an accepted
+guarded execution/Command Gateway path, raw shell/Git/tool capability remains a
+possible bypass at the harness level. Therefore A-Faster MUST fail honestly:
+do not report `GUARD_ENFORCED` unless the exact action passed the executable
+GUARD. The roadmap target is to route material actions through guarded entry
+points so prompt forgetfulness cannot bypass these gates.
+
+See `references/short-burst.md` for the per-checkpoint evidence minimum and
+fail-closed disposition.
 
 ## Durable lane identity overlay
 

@@ -148,7 +148,7 @@ checkpoint or the lane result destination:
 
 For substantial A-Sunday Conductor work, the short user instruction
 
-`ใช้ A-Faster ทำงานต่อตาม Roadmap`
+`ใช้ A-Faster ทำงานต่อ ตาม Roadmap`
 
 is the canonical shorthand for the full acceleration intent. After normal
 recovery/authority gates, it MUST behave as if the user had explicitly asked:
@@ -239,6 +239,11 @@ DOCS ONLY. Until #480 follow-up PR #490 is accepted/merged/post-main:
 - do not modify shared runner behavior
 - do not overlap JEV family scopes
 
+RELEASED for the attempt-0002 implementation slice: PR #490 was merged
+post-main (fb455f1), so paths 2–3 of the future mutable set plus the
+invocation-contract regression test are now mutable under the attempt-0002
+task packet's exact four-path scope; see the implementation checkpoint below.
+
 ## JEV protected scope
 
 Do not touch any JEV #484/#486/#488/#492 scripts/tests/fixtures/docs/roadmap.
@@ -248,3 +253,44 @@ Do not touch any JEV #484/#486/#488/#492 scripts/tests/fixtures/docs/roadmap.
 - docs/work-orders/WO-P1-483-a-faster-short-burst-hardening.md
 
 Flash shaping may read current A-Faster docs/helpers but must leave all other tracked files unchanged.
+
+## User-directed hook-enforcement extension (2026-09-23)
+
+Latest user direction requires A-Faster not only to describe the sequence but to
+use hooks as a backstop so an AI Agent cannot silently skip required stages.
+
+This WO therefore freezes two enforcement layers:
+
+1. **Skill/policy layer now:** mandatory material-boundary sequence
+   `ENTRY -> RECOVERY -> PRE_DISPATCH -> PRE_MUTATION -> PRE_FREEZE -> PRE_REVIEW -> PRE_MERGE -> POST_MAIN`,
+   deterministic regression coverage, explicit `POLICY_ONLY` vs
+   `GUARD_ENFORCED` vs `OBSERVE_ONLY`, and fail-honest reporting.
+2. **Executable GUARD child next:** reuse/extend Hook Contract v1 `GUARD` at
+   invocation boundaries. Authority/security GUARD failures fail closed. This
+   child must reuse existing dispatch/dedupe/claim/merge authorities and may not
+   create a hook task store, retry engine, lease system or second control plane.
+
+Current limitation is binding and explicit: Hook OBSERVE telemetry on main does
+not make material actions unskippable. Full technical enforcement requires the
+material dispatch/mutation/merge entry points to route through an accepted
+executable GUARD / Command Gateway path. Raw shell/Git/tool calls remain a
+possible harness-level bypass until that routing is accepted; A-Faster must
+never mislabel such a path as `GUARD_ENFORCED`.
+
+Reuse classification for the executable follow-up: **EXTEND** existing HOOK-0 /
+Hook Contract v1, existing duplicate-execution guard / supervised execution
+seams, and accepted mutation/merge authority. Do not create a parallel Hook Bus,
+scheduler or authority store. HOOK-0 repair PR #385 must be reconciled/accepted
+before a new GUARD implementation pins that contract as its dependency.
+
+## Implementation slice checkpoint (attempt-0002, Windows lane)
+
+- Claim: WO-P1-483-SHORT-BURST-IMPLEMENTATION-WINDOWS-002
+- Dispatch HEAD: b4e330809eaed5f132b989c24ca14fb844533362 (base 90d92bf)
+- Mutable scope (exact, from the task packet): `.agents/skills/a-faster/SKILL.md`, `.agents/skills/a-faster/references/short-burst.md` (NEW), `tests/test_a_faster_invocation_contract.py` (NEW), this file. `src/a_conductor` untouched; JEV/#482/#493/#265 protected scopes untouched.
+- RED evidence: `python -m pytest tests/test_a_faster_invocation_contract.py -q` before edits => 8 failed, 2 passed (missing roadmap shorthand, equivalence statement, full default-profile markers, Sol fleet-integrator role, PRE-DISPATCH DEDUPE GATE, short-burst reference + link, WO literal).
+- GREEN evidence: same command after edits => 10 passed in 0.17s (2026-09-23, Windows lane); `tests/test_delegated_run_artifacts.py` stays 127 passed; `git diff --check` clean; strict UTF-8 readback clean for all three touched markdown files.
+- SKILL.md changes (bounded): invocation contract expanded to the three canonical clauses + emphasis-only equivalence + enumerated default profile; new `## PRE-DISPATCH DEDUPE GATE` section bound into the GLM dispatch checklist; Sol fleet-integrator role named; new `## SHORT_BURST execution policy` section linking `references/short-burst.md`.
+- `references/short-burst.md` (NEW): frozen loop, exact-path-first + one bounded staged escalation, frozen budget table, timeout semantics (UNKNOWN/RECOVER), >120 s background-first rule, pre-model transport taxonomy, tool-card-independent checkpoint cadence.
+- Tests are semantic assertions (section extraction + markers), not full-file snapshots.
+- Changes left uncommitted for GPT-5.6 Sol harvest; no commit/push/merge performed by this slice.
