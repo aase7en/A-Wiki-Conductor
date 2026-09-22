@@ -8,10 +8,17 @@ accepted DELEGATED_RUN_ID grammar (``run:<TASK_ID>:<role>:<ordinal>:a<attempt>:<
 readable/recoverable and are never rewritten; enumeration is
 deterministic; mismatched, malformed, traversal/separator inputs fail
 closed; one delegated run maps to exactly one immutable physical path.
+
+Also pins the WO-P1-480 P1 repair seam: the five proven real-world
+pre-grammar pointer aliases recover pointer-only (entire original
+string preserved as immutable recovery identity; only trailing
+``a<attempt>`` + 8/12-hex suffix bound) while canonical minting and
+physical path generation stay strictly canonical.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -466,6 +473,278 @@ def test_recover_rejects_unrecognized_directory_name(tmp_path: Path) -> None:
     with pytest.raises(DelegatedRunArtifactError) as excinfo:
         recover_attempt_run(attempt_dir)
     assert excinfo.value.code == "ATTEMPT_DIR_NAME_INVALID"
+
+
+# ── recovery-only legacy pointer aliases (WO-P1-480 P1 repair) ──────────────
+
+# Five proven real-world pre-grammar delegated_run_id values observed
+# in actual durable pointers (WO-P1-480 P1 repair packet). Structural
+# shapes: missing ordinal segment, or a non-decimal token in the
+# ordinal position. Recovery-only; canonical minting/path generation
+# must keep rejecting them.
+LEGACY_ALIAS_NO_ORDINAL = "run:WO-P1-478:r3-review:a1:2933deb345c2"
+LEGACY_ALIAS_LONG_ROLE = "run:WO-P1-478:phase-a-implementation:a2:b1a96741c8d5"
+LEGACY_ALIAS_HEX_IN_ROLE = "run:WO-P1-475:msp2-shaping-e6f96e7:a1:8ed239b4d54f"
+LEGACY_ALIAS_HEX_MIDDLE_A2 = "run:WO-P1-475:r3-max-review:acfa39d:a2:923935febee8"
+LEGACY_ALIAS_HEX_MIDDLE_A1 = "run:WO-P1-475:flash-architecture:acfa39d:a1:16b32a2f6ea9"
+
+PROVEN_LEGACY_ALIASES = [
+    (LEGACY_ALIAS_NO_ORDINAL, 1, "2933deb345c2"),
+    (LEGACY_ALIAS_LONG_ROLE, 2, "b1a96741c8d5"),
+    (LEGACY_ALIAS_HEX_IN_ROLE, 1, "8ed239b4d54f"),
+    (LEGACY_ALIAS_HEX_MIDDLE_A2, 2, "923935febee8"),
+    (LEGACY_ALIAS_HEX_MIDDLE_A1, 1, "16b32a2f6ea9"),
+]
+
+LEGACY_NEAR_MISSES = [
+    "run:WO-P1-478:r3-review:2933deb345c2",  # attempt segment missing (never infer)
+    "run:WO-P1-478:r3-review:a1",  # random suffix missing (never infer)
+    "run:WO-P1-478:r3-review:a1:",  # trailing blank segment
+    "run:WO-P1-478:r3-review:a01:2933deb345c2",  # leading-zero attempt
+    "run:WO-P1-478:r3-review:a0:2933deb345c2",  # zero attempt
+    "run:WO-P1-478:r3-review:b1:2933deb345c2",  # non-attempt marker
+    "run:WO-P1-478:r3-review:a1:2933DEB345C2",  # uppercase hex suffix
+    "run:WO-P1-478:r3-review:a1:2933deb345c",  # 11-hex suffix
+    "run:WO-P1-478:r3-review:a1:2933deb345c2:extra",  # unobserved extra segment
+    "run:WO-P1-478:r3-review:01:a1:2933deb345c2",  # leading-zero decimal middle
+    "run:WO-P1-478:r3-review:0:a1:2933deb345c2",  # zero decimal middle
+    "run:A:B:C:D:a1:2933deb345c2",  # six legacy segments (unobserved)
+    "run:WO-P1-478:R3-Review:a1:2933deb345c2",  # uppercase role
+    "run:WO-P1-478::a1:2933deb345c2",  # blank role segment
+    "run::r3-review:a1:2933deb345c2",  # blank task-id segment
+    "run:..:r3-review:a1:2933deb345c2",  # traversal task id
+    "run:.:r3-review:a1:2933deb345c2",  # dot task id
+    "run:WO/../x:r3-review:a1:2933deb345c2",  # separator/traversal task id
+    "run:WO-P1-478:au/thor:a1:2933deb345c2",  # separator in role
+    "run:WO-P1-478:r3-review:a1:../evil",  # traversal suffix
+    "run:WO-P1-478:r3-review:a1:2933deb345c2 ",  # trailing whitespace
+    " run:WO-P1-478:r3-review:a1:2933deb345c2",  # leading whitespace
+    "run:WO-P1-478:r3-review:a1:2933deb345c2\x00",  # control byte
+    "run:" + "x" * 300 + ":r3-review:a1:2933deb345c2",  # oversized task id
+]
+
+
+def _write_execution_pointer(attempt_dir: Path, run_id: str) -> None:
+    (attempt_dir / "execution-pointer.json").write_text(
+        json.dumps({"delegated_run_id": run_id}), encoding="utf-8"
+    )
+
+
+@pytest.mark.parametrize(
+    "alias,attempt,suffix", PROVEN_LEGACY_ALIASES
+)
+def test_proven_legacy_aliases_recover_from_legacy_attempt_dirs(
+    tmp_path: Path, alias: str, attempt: int, suffix: str
+) -> None:
+    attempt_dir = tmp_path / f"attempt-{attempt:04d}"
+    attempt_dir.mkdir()
+    original = pointer_md(alias, attempt=attempt)
+    (attempt_dir / "pointer.md").write_text(original, encoding="utf-8")
+
+    identity = recover_attempt_run(attempt_dir)
+    assert identity.run_id == alias  # entire original string preserved
+    assert identity.attempt == attempt
+    assert identity.suffix == suffix
+    assert not isinstance(identity, DelegatedRunIdentity)  # nothing inferred
+    assert (attempt_dir / "pointer.md").read_text(encoding="utf-8") == original
+
+
+def test_end_to_end_legacy_alias_recovery_reproduces_pre_repair_failure(
+    tmp_path: Path,
+) -> None:
+    # Pre-repair (exact head f3d2b41) this exact real-world layout failed
+    # recovery with RUN_ID_INVALID on the attempt-0001 directory because
+    # the strict canonical parser rejected the structurally non-canonical
+    # legacy pointer value.
+    attempt_dir = tmp_path / "runs" / "WO-P1-478" / "r3-review" / "attempt-0001"
+    attempt_dir.mkdir(parents=True)
+    original = (
+        "lane_ref: lane:WO-P1-478:r3-review:1\n"
+        "delegated_run_id: run:WO-P1-478:r3-review:a1:2933deb345c2\n"
+        "attempt: 1\n"
+        "status: TERMINAL_UNHARVESTED\n"
+    )
+    (attempt_dir / "pointer.md").write_text(original, encoding="utf-8")
+
+    identity = recover_attempt_run(attempt_dir)
+    assert identity.run_id == LEGACY_ALIAS_NO_ORDINAL
+    assert identity.attempt == 1
+    assert identity.suffix == "2933deb345c2"
+    assert not isinstance(identity, DelegatedRunIdentity)
+    assert (attempt_dir / "pointer.md").read_text(encoding="utf-8") == original
+
+
+def test_proven_legacy_alias_via_execution_pointer_json(
+    tmp_path: Path,
+) -> None:
+    attempt_dir = tmp_path / "attempt-0002"
+    attempt_dir.mkdir()
+    _write_execution_pointer(attempt_dir, LEGACY_ALIAS_HEX_MIDDLE_A2)
+    identity = recover_attempt_run(attempt_dir)
+    assert identity.run_id == LEGACY_ALIAS_HEX_MIDDLE_A2
+    assert identity.attempt == 2
+    assert identity.suffix == "923935febee8"
+
+
+def test_legacy_alias_identity_surface(tmp_path: Path) -> None:
+    from a_conductor.delegated_run_artifacts import LegacyPointerRunIdentity
+
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        pointer_md(LEGACY_ALIAS_NO_ORDINAL), encoding="utf-8"
+    )
+    identity = recover_attempt_run(attempt_dir)
+    assert isinstance(identity, LegacyPointerRunIdentity)
+    assert identity.run_id == LEGACY_ALIAS_NO_ORDINAL
+    assert identity.attempt == 1
+    assert identity.random_id == "2933deb345c2"
+    assert identity.suffix == "2933deb345c2"
+
+
+def test_legacy_alias_on_suffixed_dir_binds_only_with_exact_suffix(
+    tmp_path: Path,
+) -> None:
+    bound = tmp_path / "attempt-0001-2933deb345c2"
+    bound.mkdir()
+    (bound / "pointer.md").write_text(
+        pointer_md(LEGACY_ALIAS_NO_ORDINAL), encoding="utf-8"
+    )
+    identity = recover_attempt_run(bound)
+    assert identity.run_id == LEGACY_ALIAS_NO_ORDINAL
+
+    wrong_suffix = tmp_path / "attempt-0001-9e8f7a6b1111"
+    wrong_suffix.mkdir()
+    (wrong_suffix / "pointer.md").write_text(
+        pointer_md(LEGACY_ALIAS_NO_ORDINAL), encoding="utf-8"
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(wrong_suffix)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_RUN_MISMATCH"
+
+    wrong_attempt = tmp_path / "attempt-0002-2933deb345c2"
+    wrong_attempt.mkdir()
+    (wrong_attempt / "pointer.md").write_text(
+        pointer_md(LEGACY_ALIAS_NO_ORDINAL), encoding="utf-8"
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(wrong_attempt)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_RUN_MISMATCH"
+
+
+def test_legacy_alias_on_noncanonical_suffix_dir_fails_closed(
+    tmp_path: Path,
+) -> None:
+    # A legacy alias cannot prove physical suffix agreement on a
+    # non-8/12-hex suffixed directory, so recovery fails closed instead
+    # of binding pointer-only.
+    attempt_dir = tmp_path / "attempt-0001-a096ec5b8e23ffff"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        pointer_md(LEGACY_ALIAS_NO_ORDINAL), encoding="utf-8"
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(attempt_dir)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_RUN_MISMATCH"
+
+
+def test_legacy_alias_attempt_mismatch_on_legacy_dir_rejected(
+    tmp_path: Path,
+) -> None:
+    attempt_dir = tmp_path / "attempt-0003"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        pointer_md(LEGACY_ALIAS_NO_ORDINAL), encoding="utf-8"
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(attempt_dir)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_RUN_MISMATCH"
+
+
+def test_dual_pointer_sources_must_agree_on_exact_legacy_string(
+    tmp_path: Path,
+) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+
+    (attempt_dir / "pointer.md").write_text(
+        pointer_md(LEGACY_ALIAS_NO_ORDINAL), encoding="utf-8"
+    )
+    _write_execution_pointer(attempt_dir, LEGACY_ALIAS_NO_ORDINAL)
+    assert read_pointer_run_id(attempt_dir).run_id == LEGACY_ALIAS_NO_ORDINAL
+
+    _write_execution_pointer(attempt_dir, LEGACY_ALIAS_HEX_IN_ROLE)
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "POINTER_RUN_ID_AMBIGUOUS"
+
+    # Same attempt + same trailing suffix but a different full string
+    # (canonical vs legacy alias) is still an exact-string disagreement.
+    (attempt_dir / "pointer.md").write_text(
+        pointer_md("run:WO-P1-478:r3-review:1:a1:2933deb345c2"),
+        encoding="utf-8",
+    )
+    _write_execution_pointer(attempt_dir, LEGACY_ALIAS_NO_ORDINAL)
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "POINTER_RUN_ID_AMBIGUOUS"
+
+
+def test_decimal_ordinal_still_uses_canonical_parser(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    canonical = "run:WO-P1-478:r3-review:2:a1:2933deb345c2"
+    (attempt_dir / "pointer.md").write_text(pointer_md(canonical), encoding="utf-8")
+    identity = recover_attempt_run(attempt_dir)
+    assert isinstance(identity, DelegatedRunIdentity)
+    assert identity.ordinal == 2
+    assert identity.run_id == canonical
+
+
+@pytest.mark.parametrize("run_id", LEGACY_NEAR_MISSES)
+def test_legacy_near_misses_fail_closed(tmp_path: Path, run_id: str) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    _write_execution_pointer(attempt_dir, run_id)
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "RUN_ID_INVALID"
+    assert str(excinfo.value) == "RUN_ID_INVALID"
+
+
+def test_legacy_near_miss_via_pointer_md_fails_closed(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        pointer_md("run:WO-P1-478:r3-review:01:a1:2933deb345c2"),
+        encoding="utf-8",
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "RUN_ID_INVALID"
+
+
+# ── canonical minting strictness (repair guard) ─────────────────────────────
+
+
+@pytest.mark.parametrize("alias,attempt,suffix", PROVEN_LEGACY_ALIASES)
+def test_legacy_aliases_rejected_by_canonical_parser(
+    alias: str, attempt: int, suffix: str
+) -> None:
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        parse_delegated_run_id(alias)
+    assert excinfo.value.code == "RUN_ID_INVALID"
+    assert str(excinfo.value) == "RUN_ID_INVALID"
+
+
+@pytest.mark.parametrize("alias,attempt,suffix", PROVEN_LEGACY_ALIASES)
+def test_legacy_aliases_never_mint_physical_paths(
+    alias: str, attempt: int, suffix: str
+) -> None:
+    for factory in (attempt_dir_name, lambda r: str(attempt_dir_path("lane", r))):
+        with pytest.raises(DelegatedRunArtifactError) as excinfo:
+            factory(alias)
+        assert excinfo.value.code == "RUN_ID_INVALID"
 
 
 # ── authority boundaries (structural) ───────────────────────────────────────

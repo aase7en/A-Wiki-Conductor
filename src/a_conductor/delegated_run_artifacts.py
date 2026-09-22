@@ -28,6 +28,17 @@ names under ``runs/<WO>/<lane>/``:
 - Other non-canonical lowercase-hex suffix shapes are enumerated for
   census visibility but bind to runs via
   pointer only, still requiring ordinal agreement.
+- Recovery-only legacy compatibility (P1 repair): structurally
+  non-canonical pointer values with the two proven pre-grammar alias
+  shapes — missing ordinal segment, or a non-decimal token in the
+  ordinal position — are accepted ONLY when recovering an existing
+  attempt directory from pointer.md / execution-pointer.json
+  evidence. The entire original string is preserved as the immutable
+  recovery identity; only the trailing ``a<attempt>`` and 8/12-hex
+  random suffix are extracted for physical directory agreement.
+  Legacy aliases never gain minting or physical path generation
+  authority (``attempt_dir_name()`` stays strictly canonical), never
+  get rewritten, and never become canonical.
 
 ``DELEGATED_RUN_ID`` remains observation/recovery identity only. This
 module grants no task, claim, lease, retry, review, merge, or
@@ -145,6 +156,94 @@ def parse_delegated_run_id(run_id: object) -> DelegatedRunIdentity:
         ordinal=ordinal,
         attempt=attempt,
         random_id=random_id,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyPointerRunIdentity:
+    """Recovery-only identity for one proven pre-grammar pointer alias.
+
+    Carries the entire original ``delegated_run_id`` string verbatim
+    as the immutable observation/recovery identity, plus only the
+    trailing ``a<attempt>`` and 8/12-hex random suffix extracted to
+    prove physical directory agreement. No task/role/ordinal binding
+    is inferred for the alias, the pointer is never rewritten, and
+    this type is never accepted by :func:`parse_delegated_run_id` or
+    :func:`attempt_dir_name` (minting and physical path generation
+    stay strictly canonical).
+    """
+
+    run_id: str
+    attempt: int
+    random_id: str
+
+    @property
+    def suffix(self) -> str:
+        return self.random_id
+
+
+#: Identity recovered from pointer evidence: canonical run identity,
+#: or a recovery-only legacy alias identity (P1 repair seam).
+RecoveredRunIdentity = DelegatedRunIdentity | LegacyPointerRunIdentity
+
+
+def _parse_legacy_pointer_run_id(run_id: str) -> LegacyPointerRunIdentity:
+    """Recovery-only compatibility seam for proven legacy aliases.
+
+    Accepts exactly the two pre-grammar alias shapes observed in real
+    durable pointer evidence (WO-P1-480 P1 repair), and nothing else:
+
+    - ``run:<TASK_ID>:<role>:a<attempt>:<random-id>`` — ordinal
+      segment absent (e.g. ``run:WO-P1-478:r3-review:a1:2933deb345c2``);
+    - ``run:<TASK_ID>:<role>:<middle>:a<attempt>:<random-id>`` — a
+      stable safe non-decimal token sits in the ordinal position
+      (e.g. ``run:WO-P1-475:flash-architecture:acfa39d:a1:16b32a2f6ea9``).
+
+    Reached only after the canonical parser rejected the exact same
+    string, only from :func:`read_pointer_run_id` (pointer-evidence
+    recovery of an existing attempt directory). The whole original
+    string is preserved verbatim; only the trailing ``a<attempt>``
+    and 8/12-hex random suffix are extracted. Missing attempt or
+    suffix segments are never inferred; unobserved shapes, decimal
+    tokens in the ordinal position, blank/control/separator/traversal
+    payloads, and oversized segments all fail closed with the same
+    stable code-only ``RUN_ID_INVALID`` error as the canonical parser
+    (no input echo).
+    """
+    if not run_id or len(run_id) > _MAX_RUN_ID_LEN:
+        raise DelegatedRunArtifactError("RUN_ID_INVALID")
+    if run_id != run_id.strip() or not run_id.startswith(_RUN_PREFIX):
+        raise DelegatedRunArtifactError("RUN_ID_INVALID")
+    if "\x00" in run_id or "\r" in run_id or "\n" in run_id:
+        raise DelegatedRunArtifactError("RUN_ID_INVALID")
+    parts = run_id[len(_RUN_PREFIX) :].split(":")
+    if len(parts) == 4:
+        task_id, role, attempt_segment, random_id = parts
+    elif len(parts) == 5:
+        task_id, role, middle, attempt_segment, random_id = parts
+        if (
+            not _ROLE_RE.fullmatch(middle)
+            or len(middle) > _MAX_ROLE_LEN
+            or _DIGITS_RE.fullmatch(middle) is not None
+        ):
+            raise DelegatedRunArtifactError("RUN_ID_INVALID")
+    else:
+        raise DelegatedRunArtifactError("RUN_ID_INVALID")
+    if (
+        not _TASK_ID_RE.fullmatch(task_id)
+        or len(task_id) > _MAX_TASK_ID_LEN
+        or task_id in (".", "..")
+    ):
+        raise DelegatedRunArtifactError("RUN_ID_INVALID")
+    if not _ROLE_RE.fullmatch(role) or len(role) > _MAX_ROLE_LEN:
+        raise DelegatedRunArtifactError("RUN_ID_INVALID")
+    if not _ATTEMPT_SEGMENT_RE.fullmatch(attempt_segment):
+        raise DelegatedRunArtifactError("RUN_ID_INVALID")
+    if not _RANDOM_ID_RE.fullmatch(random_id):
+        raise DelegatedRunArtifactError("RUN_ID_INVALID")
+    attempt = _counter(attempt_segment[1:], "attempt")
+    return LegacyPointerRunIdentity(
+        run_id=run_id, attempt=attempt, random_id=random_id
     )
 
 
@@ -272,13 +371,17 @@ def enumerate_attempt_dirs(lane_dir: object) -> tuple[AttemptDirRecord, ...]:
     return tuple(records)
 
 
-def read_pointer_run_id(attempt_dir: object) -> DelegatedRunIdentity:
+def read_pointer_run_id(attempt_dir: object) -> RecoveredRunIdentity:
     """Recover one delegated run id from accepted pointer evidence.
 
     Historical/canonical A-Faster evidence uses ``pointer.md``; current
     hardened delegated runners also persist ``execution-pointer.json``.
-    Either source may recover a run. When both exist they must agree exactly.
-    Unreadable, malformed, missing, or conflicting evidence fails closed.
+    Either source may recover a run. When both exist they must agree on
+    the exact full ``delegated_run_id`` string. Canonical pointer ids
+    still use the canonical parser; a value the canonical parser
+    rejects is offered to the recovery-only legacy alias seam (P1
+    repair) exactly once, verbatim. Unreadable, malformed, missing, or
+    conflicting evidence fails closed with stable code-only errors.
     """
     directory = Path(attempt_dir)
     values: list[str] = []
@@ -317,28 +420,42 @@ def read_pointer_run_id(attempt_dir: object) -> DelegatedRunIdentity:
         raise DelegatedRunArtifactError("POINTER_RUN_ID_MISSING")
     if len(set(values)) > 1:
         raise DelegatedRunArtifactError("POINTER_RUN_ID_AMBIGUOUS")
-    return parse_delegated_run_id(values[0])
+    value = values[0]
+    try:
+        return parse_delegated_run_id(value)
+    except DelegatedRunArtifactError:
+        return _parse_legacy_pointer_run_id(value)
 
 
-def recover_attempt_run(attempt_dir: object) -> DelegatedRunIdentity:
+def recover_attempt_run(attempt_dir: object) -> RecoveredRunIdentity:
     """Map one attempt directory back to exactly one delegated run.
 
     Binding rules (fail closed on any mismatch):
 
-    - the pointer's run id must parse, and its attempt number must
-      equal the directory's ordinal — for legacy directories the
-      pointer is the only binding, and it is never rewritten;
+    - the pointer's run id must parse canonically or as a recovery-only
+      legacy alias, and its attempt number must equal the directory's
+      ordinal — for legacy directories the pointer is the only binding,
+      and it is never rewritten;
     - a canonical suffixed directory must additionally carry exactly
       the run's accepted 8- or 12-hex random id as its directory suffix, so one
       physical path proves one immutable delegated run;
-    - a non-canonical suffixed directory (pre-grammar suffix shapes)
-      binds pointer-only with ordinal agreement, staying visible for
-      census/reconciliation instead of silently disappearing.
+    - a legacy recovery alias on a suffixed directory must still prove
+      exact attempt number plus exact physical suffix agreement via its
+      trailing random id (a non-8/12-hex suffixed directory can never
+      satisfy an 8/12-hex alias suffix, so it fails closed rather than
+      binding pointer-only);
+    - a non-canonical suffixed directory with a canonical pointer id
+      (pre-grammar suffix shapes) binds pointer-only with ordinal
+      agreement, staying visible for census/reconciliation instead of
+      silently disappearing.
     """
     parsed = parse_attempt_dir_name(Path(attempt_dir).name)
     identity = read_pointer_run_id(attempt_dir)
     if parsed.attempt != identity.attempt:
         raise DelegatedRunArtifactError("ATTEMPT_DIR_NAME_RUN_MISMATCH")
-    if parsed.canonical and parsed.suffix != identity.random_id:
+    if isinstance(identity, LegacyPointerRunIdentity):
+        if parsed.suffix is not None and parsed.suffix != identity.random_id:
+            raise DelegatedRunArtifactError("ATTEMPT_DIR_NAME_RUN_MISMATCH")
+    elif parsed.canonical and parsed.suffix != identity.random_id:
         raise DelegatedRunArtifactError("ATTEMPT_DIR_NAME_RUN_MISMATCH")
     return identity

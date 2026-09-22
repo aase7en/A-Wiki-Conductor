@@ -43,6 +43,21 @@ evidence; they are never authority.
 - Uniquely identifies one dispatch attempt for observation, logging,
   recovery, and harvest. Never task authority: a run id says "this attempt
   happened", not "this task is owned/done/accepted".
+- Recovery-only legacy aliases (WO-P1-480 P1 repair): real pre-MSP0
+  durable pointers also contain proven pre-grammar alias shapes, e.g.
+  `run:WO-P1-478:r3-review:a1:2933deb345c2` (ordinal segment absent)
+  and `run:WO-P1-475:flash-architecture:acfa39d:a1:16b32a2f6ea9`
+  (non-decimal token in the ordinal position). These are accepted ONLY
+  when recovering an existing attempt directory from
+  `pointer.md`/`execution-pointer.json` evidence: the entire original
+  string is preserved verbatim as the immutable recovery identity, only
+  the trailing `a<attempt>` and 8/12-hex suffix are bound to the
+  physical directory (exact suffix agreement on suffixed directories,
+  attempt agreement on legacy unsuffixed ones), and they are never
+  valid for new minting or physical path generation — the canonical
+  parser and `attempt_dir_name()` stay strictly canonical. Dual pointer
+  sources must agree on the exact full string; any mismatch, ambiguity,
+  or malformed value fails closed with stable code-only errors.
 
 ### ATTEMPT — evidence-local attempt counter
 
@@ -61,6 +76,12 @@ evidence; they are never authority.
   never rewritten in place. The canonical pure helper is
   `src/a_conductor/delegated_run_artifacts.py` (parse/derive/enumerate/
   recover, fail-closed on mismatch/malformed/traversal input).
+- Physical injectivity assumes uniqueness of the CSPRNG random suffix.
+  The current 12-hex form (48 bits of entropy) is the preferred
+  new-minting form; the historical 8-hex form (32 bits) carries a
+  residual birthday-bound collision probability across many runs and
+  is recovery compatibility, not preferred new minting entropy. New
+  generators must not mint 8-hex suffixes.
 - Never grants retry authority. Starting attempt N+1 requires the existing
   replay-safety and claim/recovery rules (reconcile side effects and replay
   classification first); the counter only records that a new attempt exists.
@@ -142,7 +163,15 @@ recovery maps each suffixed directory back to exactly one delegated
 run by name+pointer agreement (mismatch fails closed). Historical/canonical
 A-Faster lanes use `pointer.md`; current hardened delegated runners may also
 persist `execution-pointer.json`. The canonical helper accepts either recovery
-surface and requires exact run-id agreement when both exist. Each attempt
+surface and requires exact run-id agreement when both exist. The helper
+intentionally treats every `delegated_run_id:`-shaped line in a `pointer.md`
+(including lines inside fenced blocks) as pointer evidence, so an extra
+example-shaped `delegated_run_id` line that disagrees with the real one
+triggers fail-closed `POINTER_RUN_ID_AMBIGUOUS` by design. Keep live
+`pointer.md` files to exactly one plain `field: value` `delegated_run_id`
+line; keep pointer.md *examples* as plain `field:value` text only inside
+fenced examples in documentation, never as extra bare lines in a live
+pointer file. Each attempt
 directory holds the dispatched task packet and durable pointer evidence written
 before or at launch and updated at terminal/handoff boundaries:
 
@@ -392,6 +421,10 @@ Before freezing a lane that uses this overlay, verify deterministically:
       new directories carry the run's exact accepted 8- or 12-hex random suffix
       (`attempt-NNNN-<random-id>`, WO-P1-480) so the ordinal is never
       uniqueness authority, and legacy `attempt-NNNN` recovery still works;
+- [ ] proven pre-grammar legacy pointer aliases (WO-P1-480 P1 repair seam)
+      recover pointer-only with the original string preserved verbatim and
+      never mint paths; dual pointer sources agree on the exact full
+      `delegated_run_id` string;
 - [ ] no new scheduler/DB/registry/state machine was introduced
       (router-only boundary intact);
 - [ ] recover algorithm disposition recorded for every outstanding lane

@@ -418,6 +418,9 @@ Every delegated A-Faster lane carries the durable identity overlay defined in
   device/harness/session changes for the life of the lane;
 - `DELEGATED_RUN_ID` `run:<TASK_ID>:<role>:<ordinal>:a<attempt>:<random-id>`
   — unique per-dispatch attempt identity for observation/recovery/harvest;
+  recovery of proven pre-grammar legacy pointer aliases (WO-P1-480 P1
+  repair seam) is pointer-evidence-only, preserves the original string
+  verbatim, and never grants minting/path authority;
 - `ATTEMPT` — monotonic only inside the lane evidence directory; never retry
   authority;
 - `BINDING_DIGEST` — SHA-256 over canonical UTF-8 JSON (sorted keys, compact
