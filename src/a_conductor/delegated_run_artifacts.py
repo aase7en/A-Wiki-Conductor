@@ -34,11 +34,24 @@ names under ``runs/<WO>/<lane>/``:
   ordinal position — are accepted ONLY when recovering an existing
   attempt directory from pointer.md / execution-pointer.json
   evidence. The entire original string is preserved as the immutable
-  recovery identity; only the trailing ``a<attempt>`` and 8/12-hex
-  random suffix are extracted for physical directory agreement.
+  recovery identity; only the trailing ``a<attempt>`` and random
+  suffix are extracted for physical directory agreement.
   Legacy aliases never gain minting or physical path generation
   authority (``attempt_dir_name()`` stays strictly canonical), never
   get rewritten, and never become canonical.
+- Recovery-only bounded widening (P2 repair, proven by durable pointer
+  census): inside that same legacy seam the random-suffix family
+  accepts bounded lowercase-hex tails of length 7 through 12
+  (historical evidence includes 7-, 10-, and 12-hex tails), and the
+  ordinal-position token may additionally be a bounded numeric legacy
+  tag (digits only, no leading zero, at most 8 digits — e.g. a
+  ``20260922`` date tag) treated as an opaque tag, never normalized
+  or reinterpreted as an ordinal. The widening exists ONLY in legacy
+  pointer recovery: the canonical parser still accepts exactly 8- and
+  12-hex tails and valid decimal ordinals, minting stays strictly
+  canonical, 6-/13-hex tails and six-segment shapes stay rejected,
+  and exact suffix/attempt agreement with the physical directory
+  remains mandatory.
 
 ``DELEGATED_RUN_ID`` remains observation/recovery identity only. This
 module grants no task, claim, lease, retry, review, merge, or
@@ -55,6 +68,7 @@ from pathlib import Path
 
 _RUN_PREFIX = "run:"
 _RANDOM_ID_RE = re.compile(r"(?:[0-9a-f]{8}|[0-9a-f]{12})")
+_LEGACY_RECOVERY_RANDOM_ID_RE = re.compile(r"[0-9a-f]{7,12}")
 _TASK_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 _ROLE_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
 _DIGITS_RE = re.compile(r"[0-9]+")
@@ -71,6 +85,10 @@ _MAX_RUN_ID_LEN = 512
 _MAX_TASK_ID_LEN = 128
 _MAX_ROLE_LEN = 64
 _MAX_COUNTER = 999999
+#: Bounded numeric legacy tag in the ordinal-position slot (P2 repair):
+#: digits only, no leading zero, at most 8 digits (proven real evidence
+#: is the ``20260922`` date tag). Never parsed or reused as an ordinal.
+_MAX_LEGACY_TAG_LEN = 8
 
 
 class DelegatedRunArtifactError(RuntimeError):
@@ -165,11 +183,15 @@ class LegacyPointerRunIdentity:
 
     Carries the entire original ``delegated_run_id`` string verbatim
     as the immutable observation/recovery identity, plus only the
-    trailing ``a<attempt>`` and 8/12-hex random suffix extracted to
-    prove physical directory agreement. No task/role/ordinal binding
-    is inferred for the alias, the pointer is never rewritten, and
-    this type is never accepted by :func:`parse_delegated_run_id` or
-    :func:`attempt_dir_name` (minting and physical path generation
+    trailing ``a<attempt>`` and recovery suffix extracted to prove
+    physical directory agreement. The recovery suffix family is the
+    bounded legacy window of 7..12 lowercase-hex chars (P2 repair);
+    the ordinal-position token — non-decimal safe token or bounded
+    numeric legacy tag — stays inside the verbatim string and is never
+    normalized or reinterpreted as an ordinal. No task/role/ordinal
+    binding is inferred for the alias, the pointer is never rewritten,
+    and this type is never accepted by :func:`parse_delegated_run_id`
+    or :func:`attempt_dir_name` (minting and physical path generation
     stay strictly canonical).
     """
 
@@ -187,28 +209,62 @@ class LegacyPointerRunIdentity:
 RecoveredRunIdentity = DelegatedRunIdentity | LegacyPointerRunIdentity
 
 
+def _legacy_middle_token_ok(middle: str) -> bool:
+    """Validate the ordinal-position token of a legacy alias (P2 repair).
+
+    Accepted only inside the bounded legacy classes:
+
+    - a non-decimal safe token (``_ROLE_RE`` shape, bounded length) —
+      the P1-proven alias family; or
+    - a bounded numeric legacy tag: digits only, no leading zero, at
+      most ``_MAX_LEGACY_TAG_LEN`` digits (proven evidence: the
+      ``20260922`` date tag and small counters like ``1`` whose id is
+      non-canonical for other reasons, e.g. a 7..12-hex tail).
+
+    The tag is opaque: it is never normalized or reinterpreted as an
+    ordinal (fully canonical ids never reach this seam because the
+    canonical parser is always attempted first). Leading-zero, zero,
+    plus-sign, decimal-point, control, traversal, and separator
+    payloads all fail closed.
+    """
+    if _DIGITS_RE.fullmatch(middle) is not None:
+        return len(middle) <= _MAX_LEGACY_TAG_LEN and not middle.startswith("0")
+    return bool(_ROLE_RE.fullmatch(middle)) and len(middle) <= _MAX_ROLE_LEN
+
+
 def _parse_legacy_pointer_run_id(run_id: str) -> LegacyPointerRunIdentity:
     """Recovery-only compatibility seam for proven legacy aliases.
 
-    Accepts exactly the two pre-grammar alias shapes observed in real
-    durable pointer evidence (WO-P1-480 P1 repair), and nothing else:
+    Accepts exactly the pre-grammar alias shapes observed in real
+    durable pointer evidence (WO-P1-480 P1 + P2 repairs), and nothing
+    else:
 
     - ``run:<TASK_ID>:<role>:a<attempt>:<random-id>`` — ordinal
       segment absent (e.g. ``run:WO-P1-478:r3-review:a1:2933deb345c2``);
-    - ``run:<TASK_ID>:<role>:<middle>:a<attempt>:<random-id>`` — a
-      stable safe non-decimal token sits in the ordinal position
-      (e.g. ``run:WO-P1-475:flash-architecture:acfa39d:a1:16b32a2f6ea9``).
+    - ``run:<TASK_ID>:<role>:<middle>:a<attempt>:<random-id>`` — the
+      ordinal position holds either a stable safe non-decimal token
+      (e.g. ``run:WO-P1-475:flash-architecture:acfa39d:a1:16b32a2f6ea9``)
+      or a bounded numeric legacy tag treated opaquely (e.g.
+      ``run:WO-P1-453:cutover-flash-advisory:20260922:a2:dfe48eaa88fe``;
+      canonical decimal ordinals remain canonical because the
+      canonical parser is always attempted first).
+
+    The legacy random-suffix family is bounded lowercase hex of length
+    7 through 12 (P2 widening; real evidence includes 7-, 10-, and
+    12-hex tails). The widening exists ONLY here — the canonical
+    parser still accepts exactly 8/12-hex tails, and 6-/13-hex or
+    non-hex tails fail closed.
 
     Reached only after the canonical parser rejected the exact same
     string, only from :func:`read_pointer_run_id` (pointer-evidence
     recovery of an existing attempt directory). The whole original
     string is preserved verbatim; only the trailing ``a<attempt>``
-    and 8/12-hex random suffix are extracted. Missing attempt or
-    suffix segments are never inferred; unobserved shapes, decimal
-    tokens in the ordinal position, blank/control/separator/traversal
-    payloads, and oversized segments all fail closed with the same
-    stable code-only ``RUN_ID_INVALID`` error as the canonical parser
-    (no input echo).
+    and recovery suffix are extracted. Missing attempt or suffix
+    segments are never inferred; unobserved shapes (including
+    six-segment values), leading-zero/zero/oversized numeric tags,
+    blank/control/separator/traversal payloads, and oversized
+    segments all fail closed with the same stable code-only
+    ``RUN_ID_INVALID`` error as the canonical parser (no input echo).
     """
     if not run_id or len(run_id) > _MAX_RUN_ID_LEN:
         raise DelegatedRunArtifactError("RUN_ID_INVALID")
@@ -221,11 +277,7 @@ def _parse_legacy_pointer_run_id(run_id: str) -> LegacyPointerRunIdentity:
         task_id, role, attempt_segment, random_id = parts
     elif len(parts) == 5:
         task_id, role, middle, attempt_segment, random_id = parts
-        if (
-            not _ROLE_RE.fullmatch(middle)
-            or len(middle) > _MAX_ROLE_LEN
-            or _DIGITS_RE.fullmatch(middle) is not None
-        ):
+        if not _legacy_middle_token_ok(middle):
             raise DelegatedRunArtifactError("RUN_ID_INVALID")
     else:
         raise DelegatedRunArtifactError("RUN_ID_INVALID")
@@ -239,7 +291,7 @@ def _parse_legacy_pointer_run_id(run_id: str) -> LegacyPointerRunIdentity:
         raise DelegatedRunArtifactError("RUN_ID_INVALID")
     if not _ATTEMPT_SEGMENT_RE.fullmatch(attempt_segment):
         raise DelegatedRunArtifactError("RUN_ID_INVALID")
-    if not _RANDOM_ID_RE.fullmatch(random_id):
+    if not _LEGACY_RECOVERY_RANDOM_ID_RE.fullmatch(random_id):
         raise DelegatedRunArtifactError("RUN_ID_INVALID")
     attempt = _counter(attempt_segment[1:], "attempt")
     return LegacyPointerRunIdentity(
@@ -380,8 +432,10 @@ def read_pointer_run_id(attempt_dir: object) -> RecoveredRunIdentity:
     the exact full ``delegated_run_id`` string. Canonical pointer ids
     still use the canonical parser; a value the canonical parser
     rejects is offered to the recovery-only legacy alias seam (P1
-    repair) exactly once, verbatim. Unreadable, malformed, missing, or
-    conflicting evidence fails closed with stable code-only errors.
+    shapes; P2 widened the bounded tail window to 7..12 lowercase-hex
+    and added the bounded opaque numeric legacy tag) exactly once,
+    verbatim. Unreadable, malformed, missing, or conflicting evidence
+    fails closed with stable code-only errors.
     """
     directory = Path(attempt_dir)
     values: list[str] = []
@@ -441,9 +495,11 @@ def recover_attempt_run(attempt_dir: object) -> RecoveredRunIdentity:
       physical path proves one immutable delegated run;
     - a legacy recovery alias on a suffixed directory must still prove
       exact attempt number plus exact physical suffix agreement via its
-      trailing random id (a non-8/12-hex suffixed directory can never
-      satisfy an 8/12-hex alias suffix, so it fails closed rather than
-      binding pointer-only);
+      trailing recovery suffix (the alias suffix family is bounded
+      7..12-hex while directory suffixes are 8..64-hex, so a
+      different-length alias tail — e.g. 7-hex against any recognizable
+      suffixed directory — can never agree and fails closed rather
+      than binding pointer-only);
     - a non-canonical suffixed directory with a canonical pointer id
       (pre-grammar suffix shapes) binds pointer-only with ordinal
       agreement, staying visible for census/reconciliation instead of
