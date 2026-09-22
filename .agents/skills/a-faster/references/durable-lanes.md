@@ -43,21 +43,34 @@ evidence; they are never authority.
 - Uniquely identifies one dispatch attempt for observation, logging,
   recovery, and harvest. Never task authority: a run id says "this attempt
   happened", not "this task is owned/done/accepted".
-- Recovery-only legacy aliases (WO-P1-480 P1 repair): real pre-MSP0
-  durable pointers also contain proven pre-grammar alias shapes, e.g.
-  `run:WO-P1-478:r3-review:a1:2933deb345c2` (ordinal segment absent)
-  and `run:WO-P1-475:flash-architecture:acfa39d:a1:16b32a2f6ea9`
-  (non-decimal token in the ordinal position). These are accepted ONLY
-  when recovering an existing attempt directory from
+- Recovery-only legacy aliases (WO-P1-480 P1 + P2 repairs): real
+  pre-MSP0 durable pointers also contain proven pre-grammar alias
+  shapes, e.g. `run:WO-P1-478:r3-review:a1:2933deb345c2` (ordinal
+  segment absent), `run:WO-P1-475:flash-architecture:acfa39d:a1:16b32a2f6ea9`
+  (non-decimal token in the ordinal position),
+  `run:WO-P1-449:r3-review:1:a1:1516601fcc` /
+  `run:WO-P1-449:r3-rereview-cycle2:1:a1:d2cc2c4` (decimal middle
+  with a 10-/7-hex tail), and
+  `run:WO-P1-453:cutover-flash-advisory:20260922:a2:dfe48eaa88fe`
+  (numeric legacy date tag in the ordinal-position slot). These are
+  accepted ONLY when recovering an existing attempt directory from
   `pointer.md`/`execution-pointer.json` evidence: the entire original
-  string is preserved verbatim as the immutable recovery identity, only
-  the trailing `a<attempt>` and 8/12-hex suffix are bound to the
-  physical directory (exact suffix agreement on suffixed directories,
-  attempt agreement on legacy unsuffixed ones), and they are never
-  valid for new minting or physical path generation — the canonical
-  parser and `attempt_dir_name()` stay strictly canonical. Dual pointer
-  sources must agree on the exact full string; any mismatch, ambiguity,
-  or malformed value fails closed with stable code-only errors.
+  string is preserved verbatim as the immutable recovery identity,
+  only the trailing `a<attempt>` and suffix are bound to the physical
+  directory (exact suffix agreement on suffixed directories, attempt
+  agreement on legacy unsuffixed ones), and they are never valid for
+  new minting or physical path generation — the canonical parser and
+  `attempt_dir_name()` stay strictly canonical. The bounded historical
+  suffix variants (lowercase hex 7 through 12 chars) are recovery
+  compatibility only; 12-hex remains the preferred current/new
+  minting form. The numeric legacy tag (digits only, no leading zero,
+  at most 8 digits) is treated as an opaque tag and is never
+  normalized or reinterpreted as an ordinal; valid canonical decimal
+  ordinals remain canonical. Six-segment attempt-postreset evidence
+  stays out-of-contract: census/reconcile-only, never recovered as
+  identity. Dual pointer sources must agree on the exact full string;
+  any mismatch, ambiguity, or malformed value fails closed with
+  stable code-only errors.
 
 ### ATTEMPT — evidence-local attempt counter
 
@@ -81,7 +94,11 @@ evidence; they are never authority.
   new-minting form; the historical 8-hex form (32 bits) carries a
   residual birthday-bound collision probability across many runs and
   is recovery compatibility, not preferred new minting entropy. New
-  generators must not mint 8-hex suffixes.
+  generators must not mint 8-hex suffixes. Deterministic or pinned
+  suffixes (e.g. a reused git short-SHA like the 7-hex legacy
+  recovery tail) can repeat across attempts, so when the suffix is
+  not random the physical uniqueness of `attempt-NNNN-<random-id>`
+  may rely on attempt-ordinal divergence instead.
 - Never grants retry authority. Starting attempt N+1 requires the existing
   replay-safety and claim/recovery rules (reconcile side effects and replay
   classification first); the counter only records that a new attempt exists.
@@ -155,7 +172,9 @@ Per-device lane evidence lives under the gitignored runs directory
 (`runs/<WO>/<lane>/`), where `<lane>` is the plain role segment of
 LANE_REF (e.g. `author`). New attempts (WO-P1-480 / MSP-0) use the
 collision-proof suffixed form `attempt-NNNN-<random-id>/` whose
-`<random-id>` is the DELEGATED_RUN_ID's accepted 8- or 12-hex random suffix; legacy
+`<random-id>` is the DELEGATED_RUN_ID's accepted 8- or 12-hex random suffix
+(new minting stays 8/12-hex; the 7..12-hex family is legacy recovery
+compatibility only); legacy
 `attempt-NNNN/` directories stay readable/recoverable and are never
 rewritten. Enumeration over mixed legacy/new directories is
 deterministic via `src/a_conductor/delegated_run_artifacts.py`, and
@@ -421,10 +440,15 @@ Before freezing a lane that uses this overlay, verify deterministically:
       new directories carry the run's exact accepted 8- or 12-hex random suffix
       (`attempt-NNNN-<random-id>`, WO-P1-480) so the ordinal is never
       uniqueness authority, and legacy `attempt-NNNN` recovery still works;
-- [ ] proven pre-grammar legacy pointer aliases (WO-P1-480 P1 repair seam)
-      recover pointer-only with the original string preserved verbatim and
-      never mint paths; dual pointer sources agree on the exact full
-      `delegated_run_id` string;
+- [ ] proven pre-grammar legacy pointer aliases (WO-P1-480 P1 + P2
+      repair seams) recover pointer-only with the original string
+      preserved verbatim and never mint paths; recovery tails stay
+      inside the bounded 7..12-hex legacy window (6/13-hex and
+      uppercase fail closed), numeric legacy tags stay bounded,
+      opaque, and never reinterpreted as ordinals, six-segment
+      attempt-postreset evidence stays out-of-contract
+      (census/reconcile-only), and dual pointer sources agree on the
+      exact full `delegated_run_id` string;
 - [ ] no new scheduler/DB/registry/state machine was introduced
       (router-only boundary intact);
 - [ ] recover algorithm disposition recorded for every outstanding lane
