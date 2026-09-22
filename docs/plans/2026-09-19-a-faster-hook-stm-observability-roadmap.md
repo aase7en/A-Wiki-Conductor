@@ -551,6 +551,32 @@ accepted Work Order explicitly changes capacity.
 
 Windows and macOS never concurrently mutate the same branch/worktree/hotspot.
 
+### Multi-session ChatGPT integrator hardening (Issue #475 / MSP)
+
+The normal operator workflow may use 2-4 ChatGPT sessions against the same project.
+Those sessions share the same project-wide WIP, claim and hotspot authorities; a new
+chat is not a new task and never receives mutation authority from browser/session
+identity alone.
+
+MSP extends the existing architecture in four bounded slices:
+
+1. `MSP-0` — collision-proof delegated-run artifact identity. The existing random
+   `DELEGATED_RUN_ID` remains logical execution identity; physical
+   `attempt-NNNN` directories must become uniquely namespaced so concurrent
+   sessions cannot overwrite task/config/pointer artifacts.
+2. `MSP-1` — privacy-preserving chat-origin provenance projected through existing
+   Hook/harness/MCP metadata. Origin metadata is trace-only and excluded from
+   task/claim mutation authority.
+3. `MSP-2` — atomic/fenced multi-session hotspot admission that reuses the
+   accepted A-Wiki claim identity and existing A-Conductor mutation/lease
+   mechanics. Do not create a session-lock database or browser-owned claim.
+4. `MSP-3` — Monitor/UI projection of
+   chat-origin -> command -> claim -> lane -> delegated run -> model/device/PID/SHA.
+
+The losing side of a same-hotspot race must receive a typed attach/conflict outcome
+and launch no second writer. Legitimate recovery/takeover by a different chat after
+release remains allowed.
+
 ## 17. Multi-device / cross-platform direction
 
 ### Windows
@@ -643,6 +669,20 @@ Provider/model/harness remains separate from task semantics.
 Hook monitor observes durable dispatch/reconcile/harvest lifecycle but does not
 replace durable execution pointers or recovery authority.
 
+### Issue #475 — multi-session provenance / collision hardening
+
+MSP is a cross-cutting dependency, not a second scheduler or claim system.
+
+- MSP-0 hardens physical delegated-run artifacts before deliberate multi-session
+  writer scaling.
+- MSP-1 extends HOOK-3/harness/MCP provenance without changing binding authority.
+- MSP-2 hardens the existing mutation admission boundary against concurrent
+  ChatGPT integrators and is R3.
+- MSP-3 extends MON-1/UI-1 with session/lane traceability.
+
+Goal-runner, Chrome Extension, Web UI and Tampermonkey surfaces consume these
+accepted contracts. Browser/tab state never becomes project authority.
+
 ### ODP — orchestration decision plane
 
 Hook Monitor is a candidate shared observability substrate for ODP task
@@ -666,6 +706,28 @@ It does not become planner/adjudicator authority.
 - define ownership boundaries before runtime work.
 
 Exit gate: no shadow authority and no ambiguous WIP semantics.
+
+### MSP critical path — multi-session provenance & collision hardening
+
+**Priority: immediate alongside the accepted baseline; Issue #475.**
+
+Dependency order:
+
+1. `MSP-0` collision-proof delegated-run artifact identity — P0, implement before
+   scaling same-project ChatGPT writer sessions.
+2. `MSP-1` chat-origin provenance — bind to HOOK-3/harness/MCP adapter work after
+   the hook identity/privacy contract is frozen.
+3. `MSP-2` atomic hotspot admission — P0/R3, reuse accepted claim + mutation/lease
+   authority and prove concurrent same-hotspot winner/loser behavior.
+4. `MSP-3` session/lane observability — integrate with MON-1/UI-1 after provenance
+   fields are accepted.
+
+MSP-0 and MSP-2 are required before a goal-runner/browser surface intentionally
+drives multiple same-project ChatGPT sessions without human supervision.
+
+Exit gate: concurrent-session adversarial tests prove one writer per hotspot,
+collision-proof run artifacts, deterministic attach/recovery, no shadow authority
+and no privacy leak.
 
 ### P1 — HOOK-0 Contract + threat/failure model
 
@@ -705,6 +767,8 @@ Parallel sub-lanes after P1 contract freezes:
 
 - Claude Code hook adapter;
 - Kilo plugin adapter;
+- MSP-1 chat-origin provenance adapter where the harness/MCP surface exposes a
+  session/conversation reference;
 - version/capability mismatch behavior.
 
 Ponytail projection and Caveman/Grill-me advisory-monitor integration are
@@ -729,6 +793,7 @@ Exit gate: fault tests prove bus/STM loss cannot change task truth.
 
 - monitor projection;
 - fleet/timeline/lane/hook-health/STM/evidence views;
+- MSP-3 chat-origin/command -> claim/lane/run correlation view;
 - authenticated local API;
 - live stream;
 - no command authority.
@@ -742,7 +807,7 @@ token enforcement against webpage-originated CSRF and DNS-rebinding attempts.
 Parallel UI lanes against frozen MON-1 contract:
 
 - Web UI;
-- Extension UI;
+- Extension UI, including MSP-3 multi-session lane visibility;
 - optional desktop UI adapter to same projection.
 
 Exit gate: same event semantics across all UI surfaces; no shadow state.
@@ -754,6 +819,7 @@ Only after read-only monitor acceptance.
 - typed command request;
 - A-Conductor authorization;
 - claim/replay/ownership validation;
+- MSP-2 atomic/fenced hotspot admission before any material writer dispatch;
 - result/evidence binding;
 - no direct UI mutation.
 
