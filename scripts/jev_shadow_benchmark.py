@@ -101,6 +101,10 @@ class FixtureProvider:
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             raise BenchmarkSchemaError("fixture provider file must contain an object")
+        if _contains_secret_shape(data):
+            raise BenchmarkSchemaError(
+                "fixture provider file contains a secret-shaped value"
+            )
         return cls(data)
 
     def evaluate(self, case: BenchmarkCase) -> ProviderResult:
@@ -238,6 +242,10 @@ def _case_from_mapping(raw: Mapping[str, Any]) -> BenchmarkCase:
         tolerance = _require_finite_number(
             raw.get("tolerance", 0.0), field="tolerance", minimum=0.0
         )
+        if tolerance > float(score_levels - 1):
+            raise BenchmarkSchemaError(
+                "score tolerance cannot exceed the declared score span"
+            )
         if "min_confidence" in policy:
             min_confidence = _require_probability(
                 policy["min_confidence"], field="policy.min_confidence"
@@ -450,11 +458,18 @@ def evaluate_case(case: BenchmarkCase, provider: BenchmarkProvider) -> CaseOutco
     result = provider.evaluate(case)
     schema_error: str | None = None
     provider_error = result.error
+    if provider_error is not None and _contains_secret_shape(provider_error):
+        provider_error = "[REDACTED_PROVIDER_ERROR]"
 
     try:
         validate_provider_result(case, result)
     except BenchmarkSchemaError as exc:
-        schema_error = str(exc)
+        detail = str(exc)
+        schema_error = (
+            "[REDACTED_SCHEMA_ERROR]"
+            if _contains_secret_shape(detail)
+            else detail
+        )
 
     valid_response = schema_error is None and provider_error is None
     raw_correct = _raw_correct(case, result) if valid_response else None
@@ -481,7 +496,11 @@ def evaluate_case(case: BenchmarkCase, provider: BenchmarkProvider) -> CaseOutco
         decision_family=case.decision_family,
         question_type=case.question_type,
         risk=case.risk,
-        model=result.model,
+        model=(
+            "[REDACTED_MODEL]"
+            if _contains_secret_shape(result.model)
+            else result.model
+        ),
         valid_response=valid_response,
         schema_error=schema_error,
         provider_error=provider_error,
@@ -530,31 +549,67 @@ def _summarize(outcomes: Sequence[CaseOutcome], *, include_families: bool) -> di
     correct = [item for item in valid if item.raw_correct is True]
     auto = [item for item in valid if not item.escalated]
     auto_correct = [item for item in auto if item.raw_correct is True]
-    latencies = [item.latency_ms for item in outcomes]
-    baseline_latencies = [
-        item.baseline_latency_ms
-        for item in outcomes
-        if item.baseline_latency_ms is not None
-    ]
-    baseline_costs = [
-        item.baseline_cost_usd
-        for item in outcomes
-        if item.baseline_cost_usd is not None
-    ]
 
+    # Headline performance metrics intentionally use only valid semantic responses.
+    # Provider/schema failures remain visible in their own counters and escalation rate;
+    # fabricated zeroes from missing/malformed outcomes must never make latency/cost look
+    # better than the successfully measured population.
+    latencies = [item.latency_ms for item in valid]
+    valid_costs = [item.cost_usd for item in valid]
     p50 = _percentile(latencies, 0.50)
     p95 = _percentile(latencies, 0.95)
+    total_latency_ms = sum(latencies)
+    valid_cost_total = sum(valid_costs)
+    provider_cost_per_1000 = (
+        valid_cost_total / len(valid) * 1000.0 if valid else None
+    )
+
+    latency_pairs = [
+        (item.latency_ms, item.baseline_latency_ms)
+        for item in valid
+        if item.baseline_latency_ms is not None
+    ]
+    cost_pairs = [
+        (item.cost_usd, item.baseline_cost_usd)
+        for item in valid
+        if item.baseline_cost_usd is not None
+    ]
+    latency_comparable = (
+        bool(outcomes)
+        and len(valid) == total
+        and len(latency_pairs) == total
+    )
+    cost_comparable = (
+        bool(outcomes)
+        and len(valid) == total
+        and len(cost_pairs) == total
+    )
+
+    baseline_latencies = [baseline for _, baseline in latency_pairs]
+    baseline_costs = [baseline for _, baseline in cost_pairs]
     baseline_p50 = _percentile(baseline_latencies, 0.50)
     baseline_p95 = _percentile(baseline_latencies, 0.95)
-
-    total_cost = sum(item.cost_usd for item in outcomes)
-    provider_cost_per_1000 = (total_cost / total * 1000.0) if total else None
     baseline_cost_per_1000 = (
         sum(baseline_costs) / len(baseline_costs) * 1000.0
         if baseline_costs
         else None
     )
-    total_latency_ms = sum(latencies)
+
+    comparison_provider_p50 = (
+        _percentile([provider for provider, _ in latency_pairs], 0.50)
+        if latency_comparable
+        else None
+    )
+    comparison_provider_p95 = (
+        _percentile([provider for provider, _ in latency_pairs], 0.95)
+        if latency_comparable
+        else None
+    )
+    comparison_provider_cost_per_1000 = (
+        sum(provider for provider, _ in cost_pairs) / len(cost_pairs) * 1000.0
+        if cost_comparable
+        else None
+    )
 
     result: dict[str, Any] = {
         "total_cases": total,
@@ -574,22 +629,29 @@ def _summarize(outcomes: Sequence[CaseOutcome], *, include_families: bool) -> di
         ),
         "frontier_call_avoidance_rate": (len(auto) / total) if total else None,
         "latency_ms": {
+            "scope": "valid_responses",
+            "measured_cases": len(valid),
             "p50": p50,
             "p95": p95,
             "sum": total_latency_ms,
         },
         "sequential_equivalent_throughput_per_sec": (
-            total * 1000.0 / total_latency_ms if total_latency_ms > 0 else None
+            len(valid) * 1000.0 / total_latency_ms
+            if total_latency_ms > 0
+            else None
         ),
         "input_tokens": sum(item.input_tokens for item in outcomes),
         "output_tokens": sum(item.output_tokens for item in outcomes),
         "retries": sum(item.retries for item in outcomes),
         "cost_usd": {
-            "total": total_cost,
+            "scope": "valid_responses",
+            "measured_cases": len(valid),
+            "total": valid_cost_total,
             "per_1000_decisions": provider_cost_per_1000,
         },
         "baseline": {
-            "measured_cases": len(baseline_latencies),
+            "latency_measured_cases": len(latency_pairs),
+            "cost_measured_cases": len(cost_pairs),
             "latency_ms": {
                 "p50": baseline_p50,
                 "p95": baseline_p95,
@@ -597,10 +659,25 @@ def _summarize(outcomes: Sequence[CaseOutcome], *, include_families: bool) -> di
             "cost_per_1000_decisions": baseline_cost_per_1000,
         },
         "comparison": {
-            "p50_speedup_x": _safe_ratio(baseline_p50, p50),
-            "p95_speedup_x": _safe_ratio(baseline_p95, p95),
-            "cost_reduction_x": _safe_ratio(
-                baseline_cost_per_1000, provider_cost_per_1000
+            "latency_population_matched": latency_comparable,
+            "cost_population_matched": cost_comparable,
+            "p50_speedup_x": (
+                _safe_ratio(baseline_p50, comparison_provider_p50)
+                if latency_comparable
+                else None
+            ),
+            "p95_speedup_x": (
+                _safe_ratio(baseline_p95, comparison_provider_p95)
+                if latency_comparable
+                else None
+            ),
+            "cost_reduction_x": (
+                _safe_ratio(
+                    baseline_cost_per_1000,
+                    comparison_provider_cost_per_1000,
+                )
+                if cost_comparable
+                else None
             ),
         },
     }

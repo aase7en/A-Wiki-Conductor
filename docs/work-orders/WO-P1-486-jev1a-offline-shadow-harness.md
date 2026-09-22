@@ -137,6 +137,10 @@ R2 acceptance requires:
 - [2026-09-22] Fixture CLI smoke PASS. Simulated fixture-only comparison produced raw accuracy 1.0, escalation 1/6, p50 speedup 21.06x, p95 speedup 23.09x, and cost reduction 67.29x. These are harness fixtures, not Jev performance evidence.
 - [2026-09-22] `py_compile`, `git diff --check`, UTF-8/U+FFFD and secret-shaped committed-content scans PASS. A committed secret-shaped test literal was caught by the scan and replaced with runtime construction before freeze.
 
+- [2026-09-22] Independent exact-SHA review attempt-0002 on `e9844e844770b537bb001c377e4cb232d7e6991b`: `CHANGES_REQUIRED`, P0/P1=0, P2=2, P3=2. P2 findings: committed failure-model tests did not yet prove all malformed-value/confidence/Score-low-confidence cases; invalid/missing outcomes could contribute fabricated zero latency/cost and partial-baseline populations could overstate comparison ratios. Reviewer independently confirmed 14 tests, CLI fixture numbers, fail-closed runtime behavior and no network/env/credential access.
+- [2026-09-22] Repair batch: added malformed answer/confidence/metrics/token and Score/Noul failure tests; headline performance now uses valid responses only; speedup/cost comparison is emitted only for a fully matched all-valid population; partial/failing populations explicitly report comparison as unavailable. Defense-in-depth also rejects secret-shaped fixture values, redacts secret-shaped model/schema diagnostics, and bounds Score tolerance to its declared span.
+- [2026-09-22] Post-repair targeted suite: `28 passed`; CLI fixture smoke preserves the simulated-only 21.06x p50 / 23.09x p95 / 67.29x cost ratios for the fully valid six-case fixture corpus. These remain harness fixtures, not live Jev evidence.
+
 ## Next safe action
 
 Implement tests/fixtures and offline harness only within the allowlist, run targeted verification, freeze exact SHA, then independent review/CI as required.

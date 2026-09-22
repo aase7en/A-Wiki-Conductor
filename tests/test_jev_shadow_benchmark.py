@@ -319,6 +319,242 @@ def test_cli_can_write_deterministic_json_report(tmp_path: Path) -> None:
     assert second == first
 
 
+
+@pytest.mark.parametrize(
+    ("mutator", "expected_message"),
+    [
+        (lambda raw: raw.update(answer="unknown"), "choice answer must be a declared option"),
+        (lambda raw: raw.update(confidence="high"), "confidence must be a finite number"),
+        (lambda raw: raw.update(confidence=-0.1), "confidence must be between 0 and 1"),
+        (lambda raw: raw.update(confidence=1.1), "confidence must be between 0 and 1"),
+        (lambda raw: raw.update(latency_ms=-1.0), "latency_ms must be >= 0.0"),
+        (lambda raw: raw.update(cost_usd=float("nan")), "cost_usd must be a finite number"),
+        (lambda raw: raw.update(input_tokens=1.5), "tokens/retries must be non-negative integers"),
+    ],
+)
+def test_malformed_provider_values_fail_closed(
+    mutator, expected_message: str
+) -> None:
+    case = choice_case()
+    raw = choice_result()
+    mutator(raw)
+    provider = bench.FixtureProvider({case.case_id: raw})
+
+    outcome = bench.evaluate_case(case, provider)
+
+    assert outcome.valid_response is False
+    assert outcome.escalated is True
+    assert outcome.high_risk_false_action is False
+    assert expected_message in (outcome.schema_error or "")
+
+
+def test_out_of_range_score_and_boolean_noul_fail_closed() -> None:
+    score_case = bench.BenchmarkCase(
+        case_id="score-invalid",
+        decision_family="test_score",
+        question_type="score",
+        state={"text": "sanitized"},
+        expected=1.0,
+        risk="medium",
+        score_levels=3,
+        min_confidence=0.8,
+    )
+    noul_case = bench.BenchmarkCase(
+        case_id="noul-invalid",
+        decision_family="test_noul",
+        question_type="noul",
+        state={"text": "sanitized"},
+        expected=True,
+        risk="medium",
+        decision_threshold=0.5,
+        review_band=(0.3, 0.7),
+    )
+    provider = bench.FixtureProvider(
+        {
+            score_case.case_id: {
+                "type": "score",
+                "answer": 4.0,
+                "confidence": 0.99,
+                "probabilities": {"0": 0.0, "1": 0.0, "2": 1.0},
+                "model": "fixture-test",
+                "latency_ms": 50.0,
+            },
+            noul_case.case_id: {
+                "type": "noul",
+                "answer": True,
+                "model": "fixture-test",
+                "latency_ms": 50.0,
+            },
+        }
+    )
+
+    score_outcome = bench.evaluate_case(score_case, provider)
+    noul_outcome = bench.evaluate_case(noul_case, provider)
+
+    assert score_outcome.valid_response is False
+    assert score_outcome.escalated is True
+    assert "outside declared levels" in (score_outcome.schema_error or "")
+    assert noul_outcome.valid_response is False
+    assert noul_outcome.escalated is True
+    assert "finite number" in (noul_outcome.schema_error or "")
+
+
+def test_low_confidence_score_escalates() -> None:
+    case = bench.BenchmarkCase(
+        case_id="score-low-confidence",
+        decision_family="test_score",
+        question_type="score",
+        state={"text": "sanitized"},
+        expected=1.0,
+        risk="medium",
+        score_levels=3,
+        min_confidence=0.8,
+    )
+    provider = bench.FixtureProvider(
+        {
+            case.case_id: {
+                "type": "score",
+                "answer": 1.0,
+                "confidence": 0.45,
+                "probabilities": {"0": 0.1, "1": 0.8, "2": 0.1},
+                "model": "fixture-test",
+                "latency_ms": 50.0,
+            }
+        }
+    )
+
+    outcome = bench.evaluate_case(case, provider)
+
+    assert outcome.valid_response is True
+    assert outcome.raw_correct is True
+    assert outcome.escalated is True
+
+
+def test_invalid_outcomes_do_not_improve_headline_performance_metrics() -> None:
+    valid_case = choice_case(case_id="valid")
+    missing_case = choice_case(case_id="missing")
+    provider = bench.FixtureProvider(
+        {
+            valid_case.case_id: choice_result(),
+        }
+    )
+
+    report = bench.build_report([valid_case, missing_case], provider)
+    summary = report["summary"]
+
+    assert summary["total_cases"] == 2
+    assert summary["valid_cases"] == 1
+    assert summary["provider_errors"] == 1
+    assert summary["latency_ms"]["scope"] == "valid_responses"
+    assert summary["latency_ms"]["measured_cases"] == 1
+    assert summary["latency_ms"]["p50"] == 100.0
+    assert summary["latency_ms"]["p95"] == 100.0
+    assert summary["sequential_equivalent_throughput_per_sec"] == 10.0
+    assert summary["cost_usd"]["scope"] == "valid_responses"
+    assert summary["cost_usd"]["measured_cases"] == 1
+    assert summary["cost_usd"]["per_1000_decisions"] == pytest.approx(0.01)
+    assert summary["comparison"]["latency_population_matched"] is False
+    assert summary["comparison"]["cost_population_matched"] is False
+    assert summary["comparison"]["p50_speedup_x"] is None
+    assert summary["comparison"]["p95_speedup_x"] is None
+    assert summary["comparison"]["cost_reduction_x"] is None
+
+
+def test_partial_baseline_coverage_disables_comparison_ratios() -> None:
+    measured = choice_case(case_id="measured")
+    unmeasured = bench.BenchmarkCase(
+        case_id="unmeasured",
+        decision_family="test_choice",
+        question_type="choice",
+        state={"request": "sanitized test request"},
+        expected="safe",
+        risk="medium",
+        options=("safe", "danger"),
+        min_confidence=0.8,
+    )
+    provider = bench.FixtureProvider(
+        {
+            measured.case_id: choice_result(),
+            unmeasured.case_id: choice_result(),
+        }
+    )
+
+    summary = bench.build_report([measured, unmeasured], provider)["summary"]
+
+    assert summary["valid_cases"] == 2
+    assert summary["baseline"]["latency_measured_cases"] == 1
+    assert summary["baseline"]["cost_measured_cases"] == 1
+    assert summary["comparison"]["latency_population_matched"] is False
+    assert summary["comparison"]["cost_population_matched"] is False
+    assert summary["comparison"]["p50_speedup_x"] is None
+    assert summary["comparison"]["cost_reduction_x"] is None
+
+
+def test_fixture_file_rejects_secret_shaped_provider_values(tmp_path: Path) -> None:
+    fixture_file = tmp_path / "provider.json"
+    fixture_file.write_text(
+        json.dumps(
+            {
+                "case": {
+                    "type": "choice",
+                    "answer": "safe",
+                    "model": "apikey_" + ("x" * 24),
+                    "latency_ms": 10.0,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(bench.BenchmarkSchemaError, match="secret-shaped"):
+        bench.FixtureProvider.from_path(fixture_file)
+
+
+def test_in_memory_secret_shaped_diagnostics_are_redacted_from_report() -> None:
+    case = choice_case()
+    provider = bench.FixtureProvider(
+        {
+            case.case_id: {
+                **choice_result(),
+                "model": "apikey_" + ("x" * 24),
+                "type": "Bearer " + ("y" * 24),
+            }
+        }
+    )
+
+    report = bench.build_report([case], provider)
+    rendered = json.dumps(report, sort_keys=True)
+
+    assert "apikey_" not in rendered
+    assert "Bearer " not in rendered
+    assert report["cases"][0]["model"] == "[REDACTED_MODEL]"
+    assert report["cases"][0]["schema_error"] == "[REDACTED_SCHEMA_ERROR]"
+
+
+def test_score_tolerance_cannot_exceed_declared_span(tmp_path: Path) -> None:
+    case_file = tmp_path / "cases.jsonl"
+    case_file.write_text(
+        json.dumps(
+            {
+                "schema_version": bench.CASE_SCHEMA_VERSION,
+                "case_id": "wide-tolerance",
+                "decision_family": "test",
+                "question": {"type": "score", "levels": 3},
+                "state": {"message": "sanitized"},
+                "expected": 1.0,
+                "tolerance": 5.0,
+                "risk": "low",
+                "policy": {"min_confidence": 0.8},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(bench.BenchmarkSchemaError, match="score span"):
+        bench.load_cases(case_file)
+
+
 @pytest.mark.parametrize(
     ("values", "percentile", "expected"),
     [
