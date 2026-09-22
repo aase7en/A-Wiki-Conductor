@@ -83,3 +83,35 @@ Issue #484 / JEV family and active #492 JEV-1C are protected. Do not touch:
 - expected-head merge + post-main verification
 
 Before source mutation read DEFECT_LESSONS.md and re-run exact mutation gate.
+
+## Implementation checkpoint — attempt-0001 (2026-09-22)
+
+Status: IMPLEMENTED (uncommitted, awaiting GPT-5.6 Sol harvest + independent review).
+
+- Dispatch HEAD verified exactly: `a86f21f0cc4e183b69a9f9aa05a6dacd810eba0f`, clean tree before mutation, branch `feat/wo-p1-493-msp3-origin-projection`.
+- RED first: 11 new tests failed on missing `CockpitOriginObservation` / `CockpitOriginDisplay` / `origin_display` before any source change.
+- GREEN: `python -m pytest tests/test_cockpit_projection.py tests/test_desktop_control.py -q` = **99 passed** (88 pre-existing + 11 new). Affected UI/projection regression set = 120 passed, 78 skipped (known Tcl/display environment skips only).
+- `py_compile` on all changed Python: OK. `git diff --check`: OK.
+- Dirty tracked paths exactly: `src/a_conductor/cockpit_projection.py`, `src/a_conductor/desktop_ui.py`, `tests/test_cockpit_projection.py`, `tests/test_desktop_control.py`, plus this WO file — all within the declared mutable scope. No commit/push/merge performed.
+
+### Changed symbols (additive only)
+
+- `cockpit_projection.py`: new `CockpitOriginObservation` (opaque MSP-1 `origin-chat-v1:<kv>:<64hex>` grammar gate; unsupported provenance stays constructible with payload stripped, renders typed UNKNOWN only), new `CockpitOriginDisplay`, `_origin_display()`, mirrored MSP-1 vocabulary constants, `CockpitLaneInputs.origin` (defaulted), `CockpitLaneProjection.origin_display` (defaulted), origin wired into `project_cockpit_lane` common dict and `_stale_lane`, `build_observed_lane_inputs(..., origins=())` deterministic earliest-observed join by `execution_id`.
+- `desktop_ui.py`: one ORIGIN display line per lane in `cockpit_monitor_lines`.
+
+### Authority-neutrality proof (test-pinned)
+
+- origin present vs absent leaves state/markers/blocker/replay/next-action/gates/process identity/execution/job/transport/hook/wtl equivalent;
+- multiple origins for one lane stay one lane, one identity/lease/owner (deterministic earliest pin, order-independent);
+- unsupported provenance renders `ORIGIN_PROVENANCE_UNSUPPORTED` UNKNOWN display, payload never held or rendered;
+- raw/secret-shaped refs rejected at DTO boundary (`ORIGIN_REF_MUST_BE_OPAQUE_DERIVED_REF`);
+- pre-MSP1 absence renders typed `NOT_RECORDED`/`UNAVAILABLE`, never inferred;
+- terminal-unharvested and DEGRADED runtime states unchanged with origin present;
+- origin drift between pins renders STALE with origin display `UNKNOWN/SOURCE_DRIFT_DETECTED`;
+- service-level: unchanged `desktop_control.py` composition renders typed UNAVAILABLE origin display on every lane, legacy DB gains no tables, directory inventory unchanged;
+- no new command/dispatch/retry/cancel/merge/reassign surface; `desktop_control.py`, `origin_provenance.py`, `control_hook_adapter.py` untouched (verified by dirty-path scope).
+
+### Residual
+
+- Live origin observation wiring lands with #482 MSP-1 acceptance; this slice intentionally leaves composed lanes typed UNAVAILABLE/NOT_RECORDED.
+- Pending gates: independent GLM-5.3 MAX R3 review, hosted CI, expected-head merge + post-main verification.
