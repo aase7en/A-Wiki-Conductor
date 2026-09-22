@@ -35,8 +35,10 @@ evidence; they are never authority.
 
 - Format: `run:<TASK_ID>:<role>:<ordinal>:a<attempt>:<random-id>`
   - `<attempt>`: the attempt number (see ATTEMPT);
-  - `<random-id>`: 8 hex chars from a CSPRNG (e.g. `secrets.token_hex(4)`),
-    unique per launch.
+  - `<random-id>`: lowercase CSPRNG hex, historically 8 chars and currently
+    observed as 12 chars in durable dispatch evidence; both 8 and 12 are
+    accepted canonical forms for recovery. New generators should preserve the
+    exact random suffix they mint rather than truncate or reinterpret it.
 - Example: `run:WO-P1-374:author:1:a1:352051cd`
 - Uniquely identifies one dispatch attempt for observation, logging,
   recovery, and harvest. Never task authority: a run id says "this attempt
@@ -45,8 +47,20 @@ evidence; they are never authority.
 ### ATTEMPT — evidence-local attempt counter
 
 - Monotonic only within the lane evidence directory
-  (`runs/<WO>/<lane>/attempt-NNNN/`): 1, 2, 3 ... as `attempt-0001`,
+  (`runs/<WO>/<lane>/`): 1, 2, 3 ... rendered as `attempt-0001`,
   `attempt-0002`, ...
+- Physical directory naming (WO-P1-480 / MSP-0): new attempt
+  directories are `attempt-NNNN-<random-id>`, where `NNNN` is the
+  run's attempt number zero-padded to 4 digits (human-readable
+  bookkeeping only, never uniqueness authority) and `<random-id>` is
+  exactly the DELEGATED_RUN_ID's accepted 8- or 12-hex random suffix. One delegated
+  run maps to exactly one immutable directory; two sessions that
+  collide on the same ordinal therefore cannot overwrite each other's
+  task/config/pointer/result artifacts. Legacy `attempt-NNNN`
+  directories remain readable/recoverable via their pointer and are
+  never rewritten in place. The canonical pure helper is
+  `src/a_conductor/delegated_run_artifacts.py` (parse/derive/enumerate/
+  recover, fail-closed on mismatch/malformed/traversal input).
 - Never grants retry authority. Starting attempt N+1 requires the existing
   replay-safety and claim/recovery rules (reconcile side effects and replay
   classification first); the counter only records that a new attempt exists.
@@ -117,13 +131,23 @@ canonical task ids after Issue #381 rebound this task to WO-P1-374.
 ## 3. Evidence layout and pointer fields
 
 Per-device lane evidence lives under the gitignored runs directory
-(`runs/<WO>/<lane>/attempt-NNNN/`), where `<lane>` is the plain role
-segment of LANE_REF (e.g. `author`). Each attempt directory holds the
-dispatched task packet and at least one `pointer.md` written before or at
-launch and updated at terminal/handoff boundaries:
+(`runs/<WO>/<lane>/`), where `<lane>` is the plain role segment of
+LANE_REF (e.g. `author`). New attempts (WO-P1-480 / MSP-0) use the
+collision-proof suffixed form `attempt-NNNN-<random-id>/` whose
+`<random-id>` is the DELEGATED_RUN_ID's accepted 8- or 12-hex random suffix; legacy
+`attempt-NNNN/` directories stay readable/recoverable and are never
+rewritten. Enumeration over mixed legacy/new directories is
+deterministic via `src/a_conductor/delegated_run_artifacts.py`, and
+recovery maps each suffixed directory back to exactly one delegated
+run by name+pointer agreement (mismatch fails closed). Historical/canonical
+A-Faster lanes use `pointer.md`; current hardened delegated runners may also
+persist `execution-pointer.json`. The canonical helper accepts either recovery
+surface and requires exact run-id agreement when both exist. Each attempt
+directory holds the dispatched task packet and durable pointer evidence written
+before or at launch and updated at terminal/handoff boundaries:
 
 ```text
-runs/WO-P1-374/author/attempt-0001/
+runs/WO-P1-374/author/attempt-0001-352051cd/
   task.md       # dispatched packet (input, immutable after dispatch)
   pointer.md    # durable identity/status pointer (this section)
   result.md     # declared result destination (when the attempt declares one)
@@ -365,6 +389,9 @@ Before freezing a lane that uses this overlay, verify deterministically:
 - [ ] pointer/evidence files contain no secret values, credential-bearing
       argv/env, cookies, or share URLs (pattern scan);
 - [ ] attempt directories are strictly monotonic, one per actual dispatch;
+      new directories carry the run's exact accepted 8- or 12-hex random suffix
+      (`attempt-NNNN-<random-id>`, WO-P1-480) so the ordinal is never
+      uniqueness authority, and legacy `attempt-NNNN` recovery still works;
 - [ ] no new scheduler/DB/registry/state machine was introduced
       (router-only boundary intact);
 - [ ] recover algorithm disposition recorded for every outstanding lane

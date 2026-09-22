@@ -1,0 +1,488 @@
+"""WO-P1-480 (MSP-0) RED-first tests — collision-proof delegated-run
+artifact identity.
+
+Pins the frozen physical attempt-directory grammar derived from the
+accepted DELEGATED_RUN_ID grammar (``run:<TASK_ID>:<role>:<ordinal>:a<attempt>:<random-id>``,
+``references/durable-lanes.md``): new attempt directories are
+``attempt-NNNN-<random-id>``; legacy ``attempt-NNNN`` directories stay
+readable/recoverable and are never rewritten; enumeration is
+deterministic; mismatched, malformed, traversal/separator inputs fail
+closed; one delegated run maps to exactly one immutable physical path.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from a_conductor.delegated_run_artifacts import (
+    DelegatedRunArtifactError,
+    DelegatedRunIdentity,
+    attempt_dir_name,
+    attempt_dir_path,
+    enumerate_attempt_dirs,
+    parse_attempt_dir_name,
+    parse_delegated_run_id,
+    recover_attempt_run,
+    read_pointer_run_id,
+)
+
+RUN_A = "run:WO-P1-480:author:1:a1:352051cd"
+RUN_B = "run:WO-P1-480:author:1:a1:9e8f7a6b"
+RUN_A2 = "run:WO-P1-480:author:1:a2:11111111"
+RUN_12 = "run:WO-P1-480:author:1:a1:a096ec5b8e23"
+
+VALID_RUN_IDS = [
+    RUN_A,
+    RUN_B,
+    RUN_A2,
+    RUN_12,
+    "run:WO-P1-374:review:3:a12:00000000",
+    "run:WO-P1-475:implementation:2:a100:abcdef01",
+    "run:WO-P1-480:verify:1:a1:ffffffff",
+]
+
+
+def pointer_md(run_id: str, attempt: int = 1) -> str:
+    return (
+        "lane_ref: lane:WO-P1-480:author:1\n"
+        f"delegated_run_id: {run_id}\n"
+        f"attempt: {attempt}\n"
+        "status: RUNNING\n"
+    )
+
+
+# ── run-id grammar ──────────────────────────────────────────────────────────
+
+
+def test_valid_run_ids_parse_and_round_trip() -> None:
+    for run_id in VALID_RUN_IDS:
+        identity = parse_delegated_run_id(run_id)
+        assert identity.run_id == run_id
+
+
+def test_parse_extracts_components() -> None:
+    identity = parse_delegated_run_id(RUN_A2)
+    assert identity == DelegatedRunIdentity(
+        task_id="WO-P1-480",
+        role="author",
+        ordinal=1,
+        attempt=2,
+        random_id="11111111",
+    )
+    assert identity.suffix == "11111111"
+
+
+@pytest.mark.parametrize(
+    "run_id",
+    [
+        None,
+        123,
+        "",
+        "lane:WO-P1-480:author:1",
+        "run:WO-P1-480:author:1",
+        "run:WO-P1-480:author:1:a1",
+        "run:WO-P1-480:author:1:a1:352051cd:extra",
+        "run:WO-P1-480:author:1:a1:352051CD",
+        "run:WO-P1-480:author:1:a1:352051c",
+        "run:WO-P1-480:author:1:a1:352051cdef",
+        "run:WO-P1-480:author:0:a1:352051cd",
+        "run:WO-P1-480:author:01:a1:352051cd",
+        "run:WO-P1-480:author:1:a01:352051cd",
+        "run:WO-P1-480:author:1:a0:352051cd",
+        "run:WO-P1-480:author:1:b1:352051cd",
+        "run:WO-P1-480:Author:1:a1:352051cd",
+        "run:WO-P1-480::1:a1:352051cd",
+        "run::author:1:a1:352051cd",
+        "run:..:author:1:a1:352051cd",
+        "run:.:author:1:a1:352051cd",
+        "run:WO/../x:author:1:a1:352051cd",
+        "run:WO\\x:author:1:a1:352051cd",
+        "run:WO-P1-480:au/thor:1:a1:352051cd",
+        "run:WO-P1-480:author:1:a1:35/2051cd",
+        "run:WO-P1-480:author:1:a1:352051cd ",
+        " run:WO-P1-480:author:1:a1:352051cd",
+        "run:WO-P1-480:author:1:a1:352051cd\n",
+        "run:WO-P1-480:author:1:a1:352051cd\x00",
+        "run:" + "x" * 300 + ":author:1:a1:352051cd",
+    ],
+)
+def test_malformed_run_ids_fail_closed(run_id: object) -> None:
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        parse_delegated_run_id(run_id)
+    assert excinfo.value.code == "RUN_ID_INVALID"
+    assert str(excinfo.value) == "RUN_ID_INVALID"
+
+
+# ── physical name grammar ───────────────────────────────────────────────────
+
+
+def test_attempt_dir_name_uses_run_suffix_and_readable_ordinal() -> None:
+    assert attempt_dir_name(RUN_A) == "attempt-0001-352051cd"
+    assert attempt_dir_name(RUN_A2) == "attempt-0002-11111111"
+    assert attempt_dir_name("run:WO-P1-374:review:3:a12:00000000") == (
+        "attempt-0012-00000000"
+    )
+    assert attempt_dir_name("run:WO-P1-475:implementation:2:a10000:abcdef01") == (
+        "attempt-10000-abcdef01"
+    )
+
+
+def test_same_ordinal_distinct_run_ids_diverge() -> None:
+    assert attempt_dir_name(RUN_A) != attempt_dir_name(RUN_B)
+
+
+def test_same_run_id_deterministic_same_path() -> None:
+    lane = Path("runs/WO-P1-480/author")
+    first = attempt_dir_path(lane, RUN_A)
+    for _ in range(3):
+        assert attempt_dir_path(lane, RUN_A) == first
+    assert first.name == attempt_dir_name(RUN_A)
+
+
+def test_one_run_one_path_injective_within_lane() -> None:
+    lane = Path("runs/WO-P1-480/author")
+    names = {attempt_dir_name(r) for r in VALID_RUN_IDS}
+    paths = {attempt_dir_path(lane, r) for r in VALID_RUN_IDS}
+    assert len(names) == len(VALID_RUN_IDS)
+    assert len(paths) == len(VALID_RUN_IDS)
+    for name in names:
+        assert "/" not in name
+        assert "\\" not in name
+        assert ".." not in name
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "attempt-0001",
+        "attempt-0001-352051cd",
+        "attempt-10000-abcdef01",
+        "attempt-0001-a096ec5b8e23",
+    ],
+)
+def test_recognized_attempt_dir_names(name: str) -> None:
+    parsed = parse_attempt_dir_name(name)
+    assert parsed.dir_name == name
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        None,
+        7,
+        "",
+        "attempt-",
+        "attempt-01",
+        "attempt-0000",
+        "attempt-1-352051cd",
+        "attempt-00001",
+        "attempt-0001-352051c",
+        "attempt-0001-352051CDA",
+        "attempt-0001-352051cd-extra",
+        "attempt-0001-352051cd/..",
+        "../attempt-0001",
+        "Attempt-0001",
+        "attempt-0001-352051cd\\x",
+        "attempt-" + "9" * 12,
+    ],
+)
+def test_unrecognized_attempt_dir_names_fail_closed(name: object) -> None:
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        parse_attempt_dir_name(name)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_INVALID"
+
+
+def test_parse_attempt_dir_name_forms() -> None:
+    legacy = parse_attempt_dir_name("attempt-0007")
+    assert legacy.attempt == 7
+    assert legacy.suffix is None
+    assert legacy.form == "legacy"
+    assert legacy.canonical is False
+    new = parse_attempt_dir_name("attempt-0007-352051cd")
+    assert new.attempt == 7
+    assert new.suffix == "352051cd"
+    assert new.form == "suffixed"
+    assert new.canonical is True
+    current = parse_attempt_dir_name("attempt-0007-a096ec5b8e23")
+    assert current.form == "suffixed"
+    assert current.canonical is True
+
+
+# ── deterministic enumeration over mixed legacy/new ─────────────────────────
+
+
+def test_mixed_enumeration_is_deterministic(tmp_path: Path) -> None:
+    lane = tmp_path / "author"
+    entries = [
+        "attempt-0004-a096ec5b8e23",
+        "attempt-0003",
+        "garbage-dir",
+        "attempt-0002-abcdef99",
+        "attempt-0001",
+        "attempt-0002-11111111",
+    ]
+    lane.mkdir()
+    for name in entries:
+        (lane / name).mkdir()
+    (lane / "notes.txt").write_text("not a dir", encoding="utf-8")
+    (lane / "attempt-01").mkdir()
+    (lane / "attempt-0009").write_text("file not dir", encoding="utf-8")
+
+    records = enumerate_attempt_dirs(lane)
+    assert [r.dir_name for r in records] == [
+        "attempt-0001",
+        "attempt-0002-11111111",
+        "attempt-0002-abcdef99",
+        "attempt-0003",
+        "attempt-0004-a096ec5b8e23",
+    ]
+    assert [r.attempt for r in records] == [1, 2, 2, 3, 4]
+    assert [r.form for r in records] == [
+        "legacy",
+        "suffixed",
+        "suffixed",
+        "legacy",
+        "suffixed",
+    ]
+    assert [r.canonical for r in records] == [False, True, True, False, True]
+    again = enumerate_attempt_dirs(lane)
+    assert [r.dir_name for r in again] == [r.dir_name for r in records]
+
+
+def test_enumeration_missing_lane_dir_is_empty(tmp_path: Path) -> None:
+    assert enumerate_attempt_dirs(tmp_path / "absent") == ()
+
+
+def test_enumeration_same_ordinal_distinct_runs_coexist(tmp_path: Path) -> None:
+    lane = tmp_path / "author"
+    lane.mkdir()
+    for run_id in (RUN_A, RUN_B):
+        (lane / attempt_dir_name(run_id)).mkdir()
+    records = enumerate_attempt_dirs(lane)
+    assert [r.dir_name for r in records] == [
+        "attempt-0001-352051cd",
+        "attempt-0001-9e8f7a6b",
+    ]
+
+
+# ── pointer recovery ────────────────────────────────────────────────────────
+
+
+def test_legacy_pointer_recovery_preserved_and_not_rewritten(
+    tmp_path: Path,
+) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    original = pointer_md(RUN_A)
+    (attempt_dir / "pointer.md").write_text(original, encoding="utf-8")
+
+    identity = recover_attempt_run(attempt_dir)
+    assert identity.run_id == RUN_A
+    assert identity.attempt == 1
+    assert (attempt_dir / "pointer.md").read_text(encoding="utf-8") == original
+
+
+def test_new_pointer_recovery_round_trip(tmp_path: Path) -> None:
+    for run_id in (RUN_A, RUN_B, RUN_12):
+        attempt_dir = tmp_path / attempt_dir_name(run_id)
+        attempt_dir.mkdir()
+        (attempt_dir / "pointer.md").write_text(pointer_md(run_id), encoding="utf-8")
+    identities = [
+        recover_attempt_run(tmp_path / attempt_dir_name(r)).run_id
+        for r in (RUN_A, RUN_B, RUN_12)
+    ]
+    assert identities == [RUN_A, RUN_B, RUN_12]
+
+
+def test_current_execution_pointer_json_recovery(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / attempt_dir_name(RUN_12)
+    attempt_dir.mkdir()
+    (attempt_dir / "execution-pointer.json").write_text(
+        '{"delegated_run_id":"' + RUN_12 + '","status":"TERMINAL"}',
+        encoding="utf-8",
+    )
+    assert recover_attempt_run(attempt_dir).run_id == RUN_12
+
+
+def test_pointer_sources_must_agree(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / attempt_dir_name(RUN_A)
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(pointer_md(RUN_A), encoding="utf-8")
+    (attempt_dir / "execution-pointer.json").write_text(
+        '{"delegated_run_id":"' + RUN_B + '"}', encoding="utf-8"
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "POINTER_RUN_ID_AMBIGUOUS"
+
+
+def test_malformed_execution_pointer_json_fails_closed(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / attempt_dir_name(RUN_A)
+    attempt_dir.mkdir()
+    (attempt_dir / "execution-pointer.json").write_text("{broken", encoding="utf-8")
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "POINTER_READ_FAILED"
+
+
+def test_pointer_field_style_variants_parse(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001-352051cd"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        "# pointer\n\n- delegated_run_id: " + RUN_A + "\n- attempt: 1\n",
+        encoding="utf-8",
+    )
+    assert read_pointer_run_id(attempt_dir).run_id == RUN_A
+
+
+def test_pointer_crlf_lines_parse(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_bytes(
+        ("delegated_run_id: " + RUN_A + "\r\nattempt: 1\r\n").encode("utf-8")
+    )
+    assert recover_attempt_run(attempt_dir).run_id == RUN_A
+
+
+def test_new_pointer_run_suffix_mismatch_rejected(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0005-abcd1234"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        pointer_md("run:WO-P1-480:author:1:a5:ffffffff", attempt=5),
+        encoding="utf-8",
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(attempt_dir)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_RUN_MISMATCH"
+
+
+def test_new_pointer_attempt_ordinal_mismatch_rejected(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0005-abcd1234"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        pointer_md("run:WO-P1-480:author:1:a4:abcd1234", attempt=4),
+        encoding="utf-8",
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(attempt_dir)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_RUN_MISMATCH"
+
+
+def test_legacy_pointer_attempt_ordinal_mismatch_rejected(
+    tmp_path: Path,
+) -> None:
+    attempt_dir = tmp_path / "attempt-0003"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        pointer_md("run:WO-P1-480:author:1:a1:352051cd", attempt=1),
+        encoding="utf-8",
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(attempt_dir)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_RUN_MISMATCH"
+
+
+def test_current_12_hex_suffix_binds_exact_pointer(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / attempt_dir_name(RUN_12)
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(pointer_md(RUN_12), encoding="utf-8")
+    identity = recover_attempt_run(attempt_dir)
+    assert identity.run_id == RUN_12
+
+
+def test_noncanonical_suffix_dir_recovers_pointer_only(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001-a096ec5b8e23ffff"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(pointer_md(RUN_A), encoding="utf-8")
+    identity = recover_attempt_run(attempt_dir)
+    assert identity.run_id == RUN_A
+
+
+def test_pointer_run_id_field_missing(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text("lane_ref: lane:WO:author:1\n")
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "POINTER_RUN_ID_MISSING"
+
+
+def test_pointer_run_id_ambiguous(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        f"delegated_run_id: {RUN_A}\ndelegated_run_id: {RUN_B}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "POINTER_RUN_ID_AMBIGUOUS"
+
+
+def test_pointer_identical_duplicates_are_unambiguous(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        f"delegated_run_id: {RUN_A}\ndelegated_run_id: {RUN_A}\n",
+        encoding="utf-8",
+    )
+    assert read_pointer_run_id(attempt_dir).run_id == RUN_A
+
+
+def test_pointer_absent_fails_closed(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "POINTER_READ_FAILED"
+
+
+def test_pointer_undecodable_bytes_fail_closed(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_bytes(b"\xff\xfe\x00bad")
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "POINTER_READ_FAILED"
+
+
+def test_pointer_traversal_value_fails_closed(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "attempt-0001"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(
+        "delegated_run_id: ../../evil\n", encoding="utf-8"
+    )
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        read_pointer_run_id(attempt_dir)
+    assert excinfo.value.code == "RUN_ID_INVALID"
+
+
+def test_recover_rejects_unrecognized_directory_name(tmp_path: Path) -> None:
+    attempt_dir = tmp_path / "not-an-attempt"
+    attempt_dir.mkdir()
+    (attempt_dir / "pointer.md").write_text(pointer_md(RUN_A), encoding="utf-8")
+    with pytest.raises(DelegatedRunArtifactError) as excinfo:
+        recover_attempt_run(attempt_dir)
+    assert excinfo.value.code == "ATTEMPT_DIR_NAME_INVALID"
+
+
+# ── authority boundaries (structural) ───────────────────────────────────────
+
+
+def test_module_declares_no_authority_surfaces() -> None:
+    import a_conductor.delegated_run_artifacts as module
+
+    for forbidden in (
+        "sqlite3",
+        "threading",
+        "multiprocessing",
+        "subprocess",
+        "asyncio",
+        "sched",
+        "socket",
+    ):
+        assert not hasattr(module, forbidden)
+    assert not hasattr(module, "acquire")
+    assert not hasattr(module, "release")
