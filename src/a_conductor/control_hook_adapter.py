@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import NoReturn, Sequence
 
 from .control_events import ControlEvent
+from .origin_provenance import ORIGIN_REF_PATTERN, ORIGIN_SURFACES
 
 __all__ = [
     "ControlHookContext",
@@ -128,6 +129,8 @@ class ControlHookContext:
     evidence_refs: Sequence[str] | None = None
     evidence_digest: str | None = None
     summary: str | None = None
+    origin_surface: str | None = None
+    origin_chat_session_ref: str | None = None
 
 
 def _fail(code: str) -> NoReturn:
@@ -244,6 +247,14 @@ def _validated_optional(name: str, value: object) -> object:
             or _BRANCH.fullmatch(value) is None
             or _has_control_characters(value)
         ):
+            _fail(_CONTEXT_FIELD_INVALID)
+        return value
+    if name == "origin_surface":
+        if not isinstance(value, str) or value not in ORIGIN_SURFACES:
+            _fail(_CONTEXT_FIELD_INVALID)
+        return value
+    if name == "origin_chat_session_ref":
+        if not isinstance(value, str) or ORIGIN_REF_PATTERN.fullmatch(value) is None:
             _fail(_CONTEXT_FIELD_INVALID)
         return value
     if name == "evidence_refs":
