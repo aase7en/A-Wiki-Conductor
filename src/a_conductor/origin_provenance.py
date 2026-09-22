@@ -30,10 +30,10 @@ ORIGIN_REF_PREFIX = "origin-chat-v1"
 
 ORIGIN_SURFACES = frozenset({"a-conductor", "srm", "claude-code", "kilo", "rdc"})
 
-_KEY_VERSION = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?")
+_KEY_VERSION_FRAGMENT = r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?"
+_KEY_VERSION = re.compile(_KEY_VERSION_FRAGMENT)
 ORIGIN_REF_PATTERN = re.compile(
-    rf"{ORIGIN_REF_PREFIX}"
-    r":[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?:[0-9a-f]{64}"
+    rf"{ORIGIN_REF_PREFIX}:{_KEY_VERSION_FRAGMENT}:[0-9a-f]{{64}}"
 )
 
 _MIN_KEY_BYTES = 32

@@ -29,6 +29,20 @@ FAKE_SHARE_URL = "https://chat.example/" + "FAKE/share/0000"
 FAKE_BEARER = "Bearer " + "FAKE" + "0" * 27
 FAKE_SK = "sk-" + "FAKE" + "0" * 36
 
+KAT_KEY = b"msp1-kat-fake-key-00000000000000"
+KAT_KEY_VERSION = "kv1"
+KAT_SURFACE = "srm"
+KAT_RAW_REF = "kat-frozen-raw-session-ref-482"
+# Frozen 2026-09-22 from an independently computed HMAC-SHA256 over the
+# documented construction "a-conductor/msp1/origin-chat-session-v1" \0 "kv1"
+# \0 "srm" \0 "kat-frozen-raw-session-ref-482" (UTF-8, NUL-separated) keyed
+# by KAT_KEY. The literal freezes the exact byte construction; it must never
+# be recomputed from production logic inside this file.
+KAT_REF = (
+    "origin-chat-v1:kv1:"
+    "865ceea78246446f2f68a7f64850100e1b2e49143fbc7a345a38f6b7f5a70383"
+)
+
 REF_GRAMMAR = re.compile(
     r"origin-chat-v1:[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?:[0-9a-f]{64}"
 )
@@ -62,6 +76,39 @@ def test_derive_is_deterministic_and_exact_grammar() -> None:
     assert len(digest) == 64
     assert digest == digest.lower()
     assert set(digest) <= set("0123456789abcdef")
+
+
+def test_known_answer_freezes_exact_derivation_construction() -> None:
+    ref = derive(
+        KAT_KEY,
+        key_version=KAT_KEY_VERSION,
+        origin_surface=KAT_SURFACE,
+        raw_session_ref=KAT_RAW_REF,
+    )
+    assert ref == KAT_REF
+
+
+def test_kat_literal_anchors_every_component_and_grammar() -> None:
+    assert validate_origin_chat_session_ref(KAT_REF) is True
+    assert parse_origin_chat_session_ref(KAT_REF) == (
+        KAT_KEY_VERSION,
+        KAT_REF.split(":")[2],
+    )
+    base = {
+        "key": KAT_KEY,
+        "key_version": KAT_KEY_VERSION,
+        "origin_surface": KAT_SURFACE,
+        "raw_session_ref": KAT_RAW_REF,
+    }
+    for field, value in (
+        ("key", FAKE_KEY),
+        ("key_version", "v1"),
+        ("origin_surface", "kilo"),
+        ("raw_session_ref", KAT_RAW_REF + "-x"),
+    ):
+        perturbed = dict(base)
+        perturbed[field] = value
+        assert derive(**perturbed) != KAT_REF
 
 
 @pytest.mark.parametrize(

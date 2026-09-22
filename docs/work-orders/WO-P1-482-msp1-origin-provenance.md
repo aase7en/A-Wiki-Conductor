@@ -5,9 +5,11 @@ Parent: #475 / MSP-1
 Claim: WO-P1-482-MSP1-WINDOWS-001
 Topology: CONTROL_PLANE_ONLY
 Risk: R3
-Status: PHASE_A_GREEN_UNCOMMITTED
+Status: PHASE_A_REVIEWED_REPAIR1_DIRTY_UNCOMMITTED
 Exact base: 5d6cc12f8dfdcb069b2b4b8d9cd09aae76d54bf4
 Dispatch HEAD (bootstrap accepted + claim bound): cbc05c0325f5cb71637e953dabc8284f637127ea
+Reviewed candidate (PR #491 head): 18713ab31b0c4a9ab724ab8a51f02447e5041738
+Repair claim: attempt-0001-482482482482 (sole owner; see Repair 1)
 Branch: feat/wo-p1-482-msp1-origin-provenance
 Worktree: A:\GitHub\_worktrees\A-Wiki-Conductor-wo482-msp1
 
@@ -82,6 +84,9 @@ No source mutation is authorized until this docs-only bootstrap is committed/pus
 
 Dispatch HEAD `cbc05c0` matched the committed bootstrap; mutation gate re-run
 by the dispatcher authorized Phase A mutation of the five allowed paths only.
+This is the consolidated record of the collision-affected attempt (two
+executor-written evidence blocks were deduplicated in Repair 1); both
+collision accounts below are preserved verbatim as material evidence.
 
 ### Design decisions
 
@@ -106,19 +111,23 @@ by the dispatcher authorized Phase A mutation of the five allowed paths only.
   fullmatch) and projected as observation-only envelope fields when present;
   absent fields keep envelopes byte-identical to the old contract (authority
   neutrality proven by test). No second command-ID namespace; correlation_id /
-  causation_id unchanged. Parent candidate `origin_command_ref` deferred.
+  causation_id unchanged; lifecycle observability degradation path untouched.
+  Parent candidate `origin_command_ref` deferred.
 
 ### RED evidence
 
-1. Author RED suite + extended adapter tests before any production module:
-   `2 collection errors — ModuleNotFoundError: a_conductor.origin_provenance`.
+1. Author RED suite + extended adapter tests before any production module
+   (dispatch-HEAD base tree `git archive cbc05c0` into isolated temp copy,
+   candidate tests overlaid): `2 collection errors — ModuleNotFoundError:
+   a_conductor.origin_provenance` — seam absent at base.
 2. After the module existed but before the adapter extension:
    `41 failed / 258 passed` — every failure is a missing adapter origin seam.
 
-### GREEN evidence (final on-disk state)
+### GREEN evidence (final committed state at 18713ab)
 
 - `python -m pytest tests/test_origin_provenance.py tests/test_control_hook_adapter.py -q` -> `282 passed`.
 - `python -m pytest tests/test_lifecycle_assembly.py tests/test_control_events.py -q` -> `30 passed`.
+- Related impacted: `tests/test_hook_contract_schema.py tests/test_lifecycle_assembly.py tests/test_control_events.py` -> `127 passed`.
 - `py -3.13 -m py_compile src/a_conductor/origin_provenance.py src/a_conductor/control_hook_adapter.py` -> OK.
 - `git diff --check` -> clean (CRLF normalization warnings only).
 - Full suite: `3 failed / 4335 passed / 243 skipped`; the 3 failures
@@ -126,7 +135,9 @@ by the dispatcher authorized Phase A mutation of the five allowed paths only.
   relationship to the seam and are pre-existing environment failures.
 - Dirty tracked scope: exactly the five allowed paths.
 
-### Lane-collision disclosure (blocker for adjudication)
+### Collision history — duplicate dispatch on claim WO-P1-482-MSP1-WINDOWS-001 (material, preserved)
+
+#### Collision account 1 — lane-collision disclosure (author perspective, post-incident)
 
 During final verification an unidentified parallel writer overwrote
 `tests/test_origin_provenance.py` twice (23:00:21, 23:00:57 local) inside this
@@ -140,7 +151,11 @@ No second attempt lane exists under runs/WO-P1-482 and no peer announced
 itself. Ownership of the final test-file content needs GPT adjudication before
 merge; the worktree must be checked for further foreign writes before freeze.
 
-### Residual risks
+#### Collision account 2 — execution collision report (executor B, contemporaneous)
+
+Attempt-0001 ran with TWO concurrent executors on claim WO-P1-482-MSP1-WINDOWS-001 (duplicate dispatch; claim admission did not fence the second writer). Timeline (local): module written 22:45:35, adapter/tests 22:45-22:49 + full-suite + py3.13 compiles 22:46 by executor A; executor B (Kilo, this evidence) wrote module-level adversarial tests 22:48:59 and detected the collision 22:50-22:55. Resolution without clobbering: executor A's production seam adopted as canonical (first writer, complete, verified); executor B reconciled `tests/test_origin_provenance.py` to the canonical API, preserving its unique NFC/domain-separation/boundary/no-echo/import-surface/no-reverse-API coverage. Files were hash-guarded during reconciliation; no writes were lost. This incident is direct evidence for the MSP-2 admission-gap thesis (observe→dispatch race across integrators).
+
+### Residual risks at review
 
 1. `docs/contracts/hook-contract-v1.schema.json` is 1.0.0 with
    `additionalProperties:false` and was outside this WO's mutable scope, so
@@ -148,45 +163,72 @@ merge; the worktree must be checked for further foreign writes before freeze.
    representable in the frozen schema. A separate contract-schema WO (e.g.
    1.1.0 adding both optional properties) is required before cross-surface
    schema-validated transport; until then existing schema tests intentionally
-   omit origin fields.
+   omit origin fields. (Deferred by Repair 1 adjudication.)
 2. The parallel-authored test suite dropped the author's frozen-construction
-   known-answer HMAC test, so the exact derivation byte-construction is no
-   longer test-frozen. Re-adding it (see collision-evidence/author suite) is
-   recommended at adjudication because durable refs must never drift.
+   known answer HMAC test, so the exact derivation byte-construction is no
+   longer test-frozen. (Resolved by Repair 1: KAT re-added with an
+   independently frozen literal.)
 3. `chatgpt` origin surface intentionally unsupported in Phase A; adding it
    requires the separately accepted ChatGPT/SRM ingress child WO.
 4. Production key custody remains entirely on the existing accepted secret
-   resolver surface; nothing in this slice wires the helper to any key source.
+   resolver surface; nothing in this slice wires the helper to any key source
+   (Phase A is derive/validate only; no runtime caller passes real keys; tests
+   use fake keys exclusively).
+5. `origin_command_ref` from the parent contract is deliberately not
+   implemented (Phase A candidate fields limited to surface + session ref);
+   origin fields are independently optional — pairing enforcement, if ever
+   wanted, is a later contract decision.
 
-## Phase A implementation evidence (2026-09-22, attempt-0001-47757f98e87b)
+Adjudication of the collision accounts above is recorded in Repair 1.
 
-### Executed seam
+## Repair 1 — independent-review remediation (attempt-0001-482482482482, 2026-09-22)
 
-- `src/a_conductor/origin_provenance.py`: pure HMAC-SHA256 derivation with domain label `a-conductor/msp1/origin-chat-session-v1`; grammar `origin-chat-v1:<key-version>:<64-lowercase-hex>`; key floor 32 bytes; raw-ref cap 256 chars / 1024 UTF-8 bytes post-NFC; Cc/Cf/Cn/Co/Cs + Zl/Zp + non-space Zs + C0/DEL + surrogate rejection; leading/trailing/whitespace-only rejection; typed code-only errors (`ORIGIN_PROVENANCE_{KEY,KEY_VERSION,SURFACE,SESSION_REF}_*`, ValueError base); public API derive/validate/parse only — parse takes no key.
-- `src/a_conductor/control_hook_adapter.py`: optional `origin_surface` / `origin_chat_session_ref` context fields; surface must be in `ORIGIN_SURFACES`; ref must fullmatch the derived grammar; absent fields stay absent (backward compatible); correlation_id/causation_id remain command provenance; lifecycle observability degradation path untouched.
-- `ORIGIN_SURFACES` = `{a-conductor, srm, claude-code, kilo, rdc}` (current Hook Contract v1 `source` evidence; `chatgpt` intentionally NOT accepted in Phase A — extendable by code change when ingress capture exists).
+Independent R3 review of exact candidate `18713ab31b0c4a9ab724ab8a51f02447e5041738`
+(PR #491 head): behavior PASS — 409 tests plus adversarial probes green — with
+acceptance blocked by:
+- P2-1: no Known-Answer Test froze the exact HMAC byte construction/domain
+  separation across releases.
+- P2-2: the historical duplicate-dispatch collision required explicit
+  integrator ownership adjudication in this durable record.
+- P3-1: `_KEY_VERSION` and `ORIGIN_REF_PATTERN` duplicated the key-version
+  regex fragment (drift risk).
+- P3-2: WO header/narrative stale and duplicated after commit/collision.
+- P3-3: keyless grammar-only derived-ref validation is BY DESIGN
+  observation-only, never authentication.
+- P3-4: hook schema 1.0 remains read-only/additionalProperties:false; not
+  touched by this repair.
 
-### RED evidence
+Sol adjudication (durable, closes P2-2 and the collision accounts above): the
+final committed test content at `18713ab` was inspected by the integrator; 409
+tests green; tree clean at the reviewed head; no live writer on the lane. The
+duplicate-dispatch incident is closed with the committed content canonical.
+This repair claim (attempt-0001-482482482482) is sole owner of exactly the
+three mutable repair paths: `src/a_conductor/origin_provenance.py`,
+`tests/test_origin_provenance.py`, and this WO file. The hook-contract schema
+residual is explicitly deferred to a separate contract-schema WO; the schema
+file was not touched (P3-4).
 
-Dispatch-HEAD base tree (`git archive cbc05c0` into isolated temp copy, candidate tests overlaid):
-`python -m pytest tests/test_origin_provenance.py tests/test_control_hook_adapter.py -q` →
-`ModuleNotFoundError: No module named 'a_conductor.origin_provenance'` — 2 collection errors, 0 run. Seam absent at base.
+Repair actions on top of `18713ab` (tree left uncommitted for Sol harvest):
+- P2-1: added `test_known_answer_freezes_exact_derivation_construction` with
+  fixed fake key/version/surface/raw-ref and a literally frozen expected full
+  ref, computed independently (standalone HMAC-SHA256 over the documented
+  domain \0 version \0 surface \0 raw message; never recomputed from
+  production logic inside the assertion). Companion
+  `test_kat_literal_anchors_every_component_and_grammar` proves each component
+  (key/version/surface/raw) changes the frozen literal and that the literal
+  itself validates/parses under the durable grammar.
+- P3-1: key-version grammar now composes one shared `_KEY_VERSION_FRAGMENT`
+  used by both `_KEY_VERSION` validation and `ORIGIN_REF_PATTERN`; composed
+  pattern verified byte-identical to the prior inline grammar.
+- P2-2/P3-2: header status corrected; attempt-0001 evidence consolidated to a
+  single section; both collision accounts preserved verbatim; residual-risk
+  list merged with schema deferral and KAT resolution annotated.
+- P3-3: no behavior change to validate/parse (keyless, observation-only);
+  reaffirmed by the existing no-key/no-reverse-API tests.
 
-### GREEN evidence (worktree)
-
-- `python -m pytest tests/test_origin_provenance.py tests/test_control_hook_adapter.py -q` → 282 passed.
-- Related impacted: `tests/test_hook_contract_schema.py tests/test_lifecycle_assembly.py tests/test_control_events.py` → 127 passed.
-- `py -3.13 -m py_compile src/a_conductor/origin_provenance.py src/a_conductor/control_hook_adapter.py` → OK.
-- `git diff --check` → clean.
-- Dirty tracked scope: exactly the five allowed paths (3 modified, 2 new).
-
-### Execution collision report (material)
-
-Attempt-0001 ran with TWO concurrent executors on claim WO-P1-482-MSP1-WINDOWS-001 (duplicate dispatch; claim admission did not fence the second writer). Timeline (local): module written 22:45:35, adapter/tests 22:45-22:49 + full-suite + py3.13 compiles 22:46 by executor A; executor B (Kilo, this evidence) wrote module-level adversarial tests 22:48:59 and detected the collision 22:50-22:55. Resolution without clobbering: executor A's production seam adopted as canonical (first writer, complete, verified); executor B reconciled `tests/test_origin_provenance.py` to the canonical API, preserving its unique NFC/domain-separation/boundary/no-echo/import-surface/no-reverse-API coverage. Files were hash-guarded during reconciliation; no writes were lost. This incident is direct evidence for the MSP-2 admission-gap thesis (observe→dispatch race across integrators).
-
-### Residual risks
-
-1. `docs/contracts/hook-contract-v1.schema.json` (read-only in this WO) pins `additionalProperties: false` at 1.0.0 without origin properties: origin-bearing envelopes pass adapter/JSON-round-trip validation but are rejected by strict schema validators until a schema minor-bump slice declares `origin_surface`/`origin_chat_session_ref`.
-2. Production key custody injection site does not exist yet (Phase A is derive/validate only; no runtime caller passes real keys). Tests use fake keys exclusively.
-3. `origin_command_ref` from the parent contract is deliberately not implemented (Phase A candidate fields limited to surface + session ref).
-4. Origin fields are independently optional (surface without ref accepted); pairing enforcement, if ever wanted, is a later contract decision.
+Repair verification:
+- `python -m pytest tests/test_origin_provenance.py tests/test_control_hook_adapter.py tests/test_hook_contract_schema.py tests/test_lifecycle_assembly.py tests/test_control_events.py -q` -> 411 passed.
+- `python -m py_compile src/a_conductor/origin_provenance.py` -> OK.
+- `git diff --check` -> clean.
+- Dirty tracked scope: exactly the three repair paths.
+- Added-line secret/session scan: none found.
