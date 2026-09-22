@@ -18,6 +18,7 @@ import hashlib
 import time
 import uuid
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path, PureWindowsPath
 from typing import Callable, Protocol
 
@@ -44,6 +45,11 @@ from .supervised_execution import (
     SupervisedLaunchOutcome,
     SupervisedLaunchPlan,
 )
+from .zero_relay_author_provenance import (
+    AuthorProvenanceBinding,
+    is_valid_author_attempt_id,
+    mint_author_attempt_id,
+)
 
 
 _EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
@@ -68,6 +74,39 @@ def _require_text(value: str, field_name: str) -> str:
     return value
 
 
+class SupervisedRunOutcomeKind(str, Enum):
+    """Typed lifecycle disposition for one supervised run call."""
+
+    FRESH = "FRESH"
+    ATTACH_RUNNING = "ATTACH_RUNNING"
+    REUSE_COMPLETED = "REUSE_COMPLETED"
+    BLOCKED_UNKNOWN = "BLOCKED_UNKNOWN"
+    FAILED = "FAILED"
+    TIMED_OUT = "TIMED_OUT"
+    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
+
+
+@dataclass(frozen=True, slots=True)
+class SupervisedRunOutcome:
+    """Additive exact-run handoff.
+
+    execution_id is present only when this call can prove the exact durable
+    record exists. The native result remains the legacy return surface and is
+    never itself completion authority.
+    """
+
+    kind: SupervisedRunOutcomeKind
+    execution_id: str | None
+    native: NativeCommandResult
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.kind, SupervisedRunOutcomeKind):
+            raise ValueError("kind must be a SupervisedRunOutcomeKind")
+        if self.execution_id is not None:
+            _require_text(self.execution_id, "execution_id")
+        if not isinstance(self.native, NativeCommandResult):
+            raise ValueError("native must be a NativeCommandResult")
+
 @dataclass(frozen=True, slots=True)
 class SupervisedRunIdentity:
     """Durable identity bundle bound into every run this coordinator makes."""
@@ -81,6 +120,7 @@ class SupervisedRunIdentity:
     head_before: str
     runtime_profile_ref: str
     repo_root: str
+    author_provenance: AuthorProvenanceBinding | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -95,6 +135,16 @@ class SupervisedRunIdentity:
             "repo_root",
         ):
             _require_text(getattr(self, name), name)
+        # WO-P1-246: the ONLY provenance surface is the proof-carrying
+        # binding produced by the trusted ZCode classification seam. No bare
+        # generation integer and no required-flag may cross this boundary;
+        # provenance-shaped junk (strings/ints) fails closed at construction.
+        if self.author_provenance is not None and not isinstance(
+            self.author_provenance, AuthorProvenanceBinding
+        ):
+            raise ValueError(
+                "author_provenance must be an AuthorProvenanceBinding or None"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,17 +372,38 @@ class SupervisedRunCoordinator:
                 consecutive_unknown = 0
             self._sleep_fn(self._poll_interval_seconds)
 
-    def run(
+    def _durable_execution_id(self, execution_id: str | None) -> str | None:
+        """Expose a locator only when the exact durable record is observable.
+
+        This side-effect-free proof is used only by the additive outcome
+        surface. Any read ambiguity fails closed to no locator and must not
+        alter the historical native-result behavior.
+        """
+        if execution_id is None:
+            return None
+        try:
+            record = self._store.get(execution_id)
+        except Exception:
+            return None
+        if not isinstance(record, DurableExecutionRecord):
+            return None
+        return execution_id if record.execution_id == execution_id else None
+
+    def run_with_outcome(
         self,
         argv: tuple[str, ...],
         *,
         environment_overrides: tuple[tuple[str, str], ...] = (),
         timeout_seconds: int,
-    ) -> NativeCommandResult:
+    ) -> SupervisedRunOutcome:
         fingerprint = compute_execution_fingerprint(self.fingerprint_spec(argv))
         assessment: DuplicateExecutionAssessment = self._guard.assess(self.fingerprint_spec(argv))
         if assessment.decision is DuplicateExecutionDecision.BLOCKED_UNKNOWN:
-            return self._failure_result(argv, error_code="SUPERVISED_DUPLICATE_BLOCKED")
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.BLOCKED_UNKNOWN,
+                None,
+                self._failure_result(argv, error_code="SUPERVISED_DUPLICATE_BLOCKED"),
+            )
 
         execution_id: str | None = None
         if assessment.decision in (
@@ -340,11 +411,35 @@ class SupervisedRunCoordinator:
             DuplicateExecutionDecision.REUSE_COMPLETED,
         ):
             if assessment.record is None:
-                return self._failure_result(argv, error_code="SUPERVISED_ATTACH_RECORD_MISSING")
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    None,
+                    self._failure_result(argv, error_code="SUPERVISED_ATTACH_RECORD_MISSING"),
+                )
             execution_id = assessment.record.execution_id
+            success_kind = (
+                SupervisedRunOutcomeKind.ATTACH_RUNNING
+                if assessment.decision is DuplicateExecutionDecision.ATTACH_RUNNING
+                else SupervisedRunOutcomeKind.REUSE_COMPLETED
+            )
         else:
+            success_kind = SupervisedRunOutcomeKind.FRESH
             execution_id = f"exec-{uuid.uuid4().hex[:16]}"
             run_rel = f"runs/{execution_id}"
+            binding = self._identity.author_provenance
+            author_attempt_id: str | None = None
+            author_generation: int | None = None
+            if binding is not None:
+                if binding.task_contract_ref != self._identity.work_order_ref:
+                    return SupervisedRunOutcome(
+                        SupervisedRunOutcomeKind.FAILED,
+                        None,
+                        self._failure_result(
+                            argv, error_code="SUPERVISOR_PROVENANCE_AUTHORITY_INVALID"
+                        ),
+                    )
+                author_attempt_id = mint_author_attempt_id()
+                author_generation = binding.author_generation
             record = new_execution_record(
                 execution_id=execution_id,
                 job_id=self._identity.job_id,
@@ -367,7 +462,20 @@ class SupervisedRunCoordinator:
                 report_ref=self._policy.report_ref(run_rel),
                 transport_state=TransportState.CONNECTED,
                 execution_state=ExecutionProcessState.QUEUED,
+                author_attempt_id=author_attempt_id,
+                author_generation=author_generation,
             )
+            if binding is not None and not (
+                is_valid_author_attempt_id(record.author_attempt_id)
+                and record.author_generation == binding.author_generation
+            ):
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    None,
+                    self._failure_result(
+                        argv, error_code="SUPERVISOR_PROVENANCE_PAIR_INVALID"
+                    ),
+                )
             plan = SupervisedLaunchPlan(
                 record=record,
                 runtime_root=self._repo_root,
@@ -376,18 +484,34 @@ class SupervisedRunCoordinator:
                 environment_overrides=environment_overrides,
             )
             try:
-                outcome = self._supervised.launch(plan)
+                launch_outcome = self._supervised.launch(plan)
             except SupervisedExecutionError as exc:
-                return self._failure_result(argv, error_code=f"SUPERVISED_LAUNCH_FAILED:{exc.code}")
-            if outcome.recovery_required:
-                code = outcome.error_code or "SUPERVISED_LAUNCH_FAILED"
-                return self._failure_result(argv, error_code=f"SUPERVISED_LAUNCH_FAILED:{code}")
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    self._durable_execution_id(execution_id),
+                    self._failure_result(
+                        argv, error_code=f"SUPERVISED_LAUNCH_FAILED:{exc.code}"
+                    ),
+                )
+            if launch_outcome.recovery_required:
+                code = launch_outcome.error_code or "SUPERVISED_LAUNCH_FAILED"
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                    self._durable_execution_id(execution_id),
+                    self._failure_result(
+                        argv, error_code=f"SUPERVISED_LAUNCH_FAILED:{code}"
+                    ),
+                )
 
         inspection, timed_out = self._poll_until_resolved(
             execution_id, timeout_seconds=timeout_seconds
         )
         if inspection is None:
-            return self._failure_result(argv, error_code="SUPERVISED_INSPECT_FAILED")
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                self._durable_execution_id(execution_id),
+                self._failure_result(argv, error_code="SUPERVISED_INSPECT_FAILED"),
+            )
         if timed_out:
             record = self._store.get(execution_id)
             stdout, stdout_sha, stdout_truncated = self._read_artifact(
@@ -396,7 +520,7 @@ class SupervisedRunCoordinator:
             stderr, stderr_sha, stderr_truncated = self._read_artifact(
                 self._repo_root / record.stderr_ref
             )
-            return NativeCommandResult(
+            native = NativeCommandResult(
                 executable=PureWindowsPath(argv[0]).name,
                 argument_count=len(argv),
                 exit_code=None,
@@ -408,9 +532,20 @@ class SupervisedRunCoordinator:
                 stdout_truncated=stdout_truncated,
                 stderr_truncated=stderr_truncated,
             )
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.TIMED_OUT,
+                execution_id,
+                native,
+            )
         if inspection.recovery_required:
             code = inspection.error_code or "SUPERVISOR_RECOVERY_REQUIRED"
-            return self._failure_result(argv, error_code=f"SUPERVISOR_RECOVERY_REQUIRED:{code}")
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                self._durable_execution_id(execution_id),
+                self._failure_result(
+                    argv, error_code=f"SUPERVISOR_RECOVERY_REQUIRED:{code}"
+                ),
+            )
 
         try:
             current = self._store.get(execution_id)
@@ -419,10 +554,46 @@ class SupervisedRunCoordinator:
                 expected_version=current.version,
             )
         except ExecutionStoreError:
-            return self._failure_result(argv, error_code="SUPERVISED_VERSION_CONFLICT")
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                self._durable_execution_id(execution_id),
+                self._failure_result(argv, error_code="SUPERVISED_VERSION_CONFLICT"),
+            )
         except SupervisedExecutionError as exc:
-            return self._failure_result(argv, error_code=f"SUPERVISED_COLLECT_FAILED:{exc.code}")
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                self._durable_execution_id(execution_id),
+                self._failure_result(
+                    argv, error_code=f"SUPERVISED_COLLECT_FAILED:{exc.code}"
+                ),
+            )
         if collected.result is None:
             code = collected.error_code or "SUPERVISED_COLLECT_FAILED"
-            return self._failure_result(argv, error_code=f"SUPERVISED_COLLECT_FAILED:{code}")
-        return self._mapped_result(argv, collected.record, exit_code=collected.result.exit_code)
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                self._durable_execution_id(execution_id),
+                self._failure_result(
+                    argv, error_code=f"SUPERVISED_COLLECT_FAILED:{code}"
+                ),
+            )
+        return SupervisedRunOutcome(
+            success_kind,
+            execution_id,
+            self._mapped_result(
+                argv, collected.record, exit_code=collected.result.exit_code
+            ),
+        )
+
+    def run(
+        self,
+        argv: tuple[str, ...],
+        *,
+        environment_overrides: tuple[tuple[str, str], ...] = (),
+        timeout_seconds: int,
+    ) -> NativeCommandResult:
+        """Preserve the historical native-result API exactly."""
+        return self.run_with_outcome(
+            argv,
+            environment_overrides=environment_overrides,
+            timeout_seconds=timeout_seconds,
+        ).native

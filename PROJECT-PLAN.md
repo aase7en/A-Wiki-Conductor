@@ -959,6 +959,25 @@ Planned bounded delivery nodes:
 - `ODP-8` deterministic fake/fault-injection E2E across plan -> parallel execute -> verify -> repair/review -> resume;
 - `ODP-9` bounded real multi-provider pilot only after all participating providers are genuinely authorized/admitted.
 
+### JEV-ACCEL — System One decision acceleration experiment (2026-09-22)
+
+**Planning authority:** `docs/plans/2026-09-22-jev-system-one-acceleration-roadmap.md`
+**Active evaluation WO:** `docs/work-orders/WO-P1-484-jev1-shadow-decision-benchmark.md` / Issue #484
+
+JEV-ACCEL is an **experimental child track of ODP**, not a new control plane or production provider authority. JEV-1 benchmarks TypeSafe Jev/System One in shadow mode against bounded semantic-decision workloads and records quality, false-action, escalation, latency, throughput, cost, retry/error and typed-schema evidence. It may inform ODP-2/4/7/8, but JEV-1 itself changes no production routing.
+
+Progression is evidence-gated:
+
+`JEV-0 docs/threat model -> JEV-1 shadow benchmark -> [GO?] -> JEV-2 provider-neutral semantic seam -> JEV-3 advisory A-FastTask pilot -> JEV-4 cascade -> JEV-5 production admission -> JEV-6 Thai/domain pilots -> JEV-7 scale`
+
+Hard boundaries:
+- Jev output is proposal/evidence only; it never grants task, claim, mutation, review, merge, completion or SSoT authority.
+- deterministic facts and exact calculations stay in code/tools;
+- no private project/user payload is sent in JEV-1;
+- no live provider call is accepted until secret-safe credential safety is proven;
+- JEV work must not block LOCAL-USABLE-1 or overlap active MSP mutation scopes;
+- failing or inconclusive benchmark evidence leaves Jev unadmitted and the architecture provider-neutral.
+
 Current frontier coexistence: WO148/PR #199 provider service authorization and WO147/PR #200 ReviewBus adapter retain their existing ownership; ODP implementation must not overlap them. WO096 remains the independent P0 v0.7.0 release blocker. AiPASS remains ineligible while its authorization/admission gates are unsatisfied; ODP cannot bypass provider policy.
 
 ## 25. A-Faster Hook / STM / Observability Architecture (2026-09-19)
@@ -1019,3 +1038,43 @@ fail-closed behavior in their own accepted Work Order.
 Implementation details, event fields, STM rules, Hook Monitor views,
 cross-platform integration, failure modes and acceptance gates are defined in
 the planning authority above.
+
+## 26. Product Fast Lane — DWB Convergence to LOCAL-USABLE-1 (2026-09-20)
+
+**Planning authority:** `docs/plans/2026-09-20-dwb-convergence-product-acceleration-roadmap.md`
+**Roadmap-capture WO:** `docs/work-orders/WO-P1-397-dwb-convergence-roadmap.md` / Issue #397
+
+This section is the authoritative PROJECT-PLAN pointer for a fresh session
+resolving "use A-Faster and continue the roadmap". The full roadmap lives in
+the planning authority above; PROJECT-PLAN does not duplicate it.
+
+**LOCAL-USABLE-1** (first genuinely usable local product gate) is reached when
+task/execution/repo truth is generated from durable authority (GOT-1 Generated
+Operational Truth), the local SRM execution path cannot silently overwrite an
+observed file (FMG-1 SRM File Mutation Guard v2), and the existing A-Sunday
+desktop app shows one concise read-only Runtime Cockpit over that truth
+(COCKPIT-1) — with interruption/unknown-outcome states operator-visible and a
+fresh session able to recover from durable state without chat history.
+
+Fast-lane dependency order:
+
+1. `GOT-1` and `FMG-1` are independent and may run in parallel in free,
+   non-overlapping global WIP;
+2. `GOT-1` + `FMG-1` -> `COCKPIT-1` -> `LOCAL-USABLE-1`.
+
+`WTL` worktree lifecycle/classification is read-only and may proceed in
+parallel when it does not consume a needed review slot; consequential cleanup
+(`WTL-2`) is later. Payload Guard (`PAYLOAD-1`), dependency diet (`DEPDIET-1`)
+and Windows front-door polish (`FRONTDOOR-1`) come after LOCAL-USABLE-1 or are
+local-use optional unless they become measured blockers.
+
+Authority boundaries are unchanged: A-Wiki/A-Sunday Conductor owns
+task/claim/retry/review/acceptance authority; SunDayRemoteMCP is execution
+substrate only. An A-Faster/A-FastTask invocation resolves actual
+CURRENT-WORK/active WOs/Git/runtime/delegated-run state first; this pointer
+authorizes no preemption and no duplicate dispatch.
+
+Legacy PROJECT-PLAN draft PRs #243 (WO-P1-170) and #244 (WO-P1-171) are closed
+historical proposals — preserved in branch/commit history, not deleted — and no
+longer own PROJECT-PLAN roadmap authority. Dispositions are recorded in
+`docs/work-orders/WO-P1-406-product-fast-lane-pointer.md` / Issue #406.

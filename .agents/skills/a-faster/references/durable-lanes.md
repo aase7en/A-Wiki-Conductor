@@ -35,18 +35,70 @@ evidence; they are never authority.
 
 - Format: `run:<TASK_ID>:<role>:<ordinal>:a<attempt>:<random-id>`
   - `<attempt>`: the attempt number (see ATTEMPT);
-  - `<random-id>`: 8 hex chars from a CSPRNG (e.g. `secrets.token_hex(4)`),
-    unique per launch.
+  - `<random-id>`: lowercase CSPRNG hex, historically 8 chars and currently
+    observed as 12 chars in durable dispatch evidence; both 8 and 12 are
+    accepted canonical forms for recovery. New generators should preserve the
+    exact random suffix they mint rather than truncate or reinterpret it.
 - Example: `run:WO-P1-374:author:1:a1:352051cd`
 - Uniquely identifies one dispatch attempt for observation, logging,
   recovery, and harvest. Never task authority: a run id says "this attempt
   happened", not "this task is owned/done/accepted".
+- Recovery-only legacy aliases (WO-P1-480 P1 + P2 repairs): real
+  pre-MSP0 durable pointers also contain proven pre-grammar alias
+  shapes, e.g. `run:WO-P1-478:r3-review:a1:2933deb345c2` (ordinal
+  segment absent), `run:WO-P1-475:flash-architecture:acfa39d:a1:16b32a2f6ea9`
+  (non-decimal token in the ordinal position),
+  `run:WO-P1-449:r3-review:1:a1:1516601fcc` /
+  `run:WO-P1-449:r3-rereview-cycle2:1:a1:d2cc2c4` (decimal middle
+  with a 10-/7-hex tail), and
+  `run:WO-P1-453:cutover-flash-advisory:20260922:a2:dfe48eaa88fe`
+  (numeric legacy date tag in the ordinal-position slot). These are
+  accepted ONLY when recovering an existing attempt directory from
+  `pointer.md`/`execution-pointer.json` evidence: the entire original
+  string is preserved verbatim as the immutable recovery identity,
+  only the trailing `a<attempt>` and suffix are bound to the physical
+  directory (exact suffix agreement on suffixed directories, attempt
+  agreement on legacy unsuffixed ones), and they are never valid for
+  new minting or physical path generation — the canonical parser and
+  `attempt_dir_name()` stay strictly canonical. The bounded historical
+  suffix variants (lowercase hex 7 through 12 chars) are recovery
+  compatibility only; 12-hex remains the preferred current/new
+  minting form. The numeric legacy tag (digits only, no leading zero,
+  at most 8 digits) is treated as an opaque tag and is never
+  normalized or reinterpreted as an ordinal; valid canonical decimal
+  ordinals remain canonical. Six-segment attempt-postreset evidence
+  stays out-of-contract: census/reconcile-only, never recovered as
+  identity. Dual pointer sources must agree on the exact full string;
+  any mismatch, ambiguity, or malformed value fails closed with
+  stable code-only errors.
 
 ### ATTEMPT — evidence-local attempt counter
 
 - Monotonic only within the lane evidence directory
-  (`runs/<WO>/<lane>/attempt-NNNN/`): 1, 2, 3 ... as `attempt-0001`,
+  (`runs/<WO>/<lane>/`): 1, 2, 3 ... rendered as `attempt-0001`,
   `attempt-0002`, ...
+- Physical directory naming (WO-P1-480 / MSP-0): new attempt
+  directories are `attempt-NNNN-<random-id>`, where `NNNN` is the
+  run's attempt number zero-padded to 4 digits (human-readable
+  bookkeeping only, never uniqueness authority) and `<random-id>` is
+  exactly the DELEGATED_RUN_ID's accepted 8- or 12-hex random suffix. One delegated
+  run maps to exactly one immutable directory; two sessions that
+  collide on the same ordinal therefore cannot overwrite each other's
+  task/config/pointer/result artifacts. Legacy `attempt-NNNN`
+  directories remain readable/recoverable via their pointer and are
+  never rewritten in place. The canonical pure helper is
+  `src/a_conductor/delegated_run_artifacts.py` (parse/derive/enumerate/
+  recover, fail-closed on mismatch/malformed/traversal input).
+- Physical injectivity assumes uniqueness of the CSPRNG random suffix.
+  The current 12-hex form (48 bits of entropy) is the preferred
+  new-minting form; the historical 8-hex form (32 bits) carries a
+  residual birthday-bound collision probability across many runs and
+  is recovery compatibility, not preferred new minting entropy. New
+  generators must not mint 8-hex suffixes. Deterministic or pinned
+  suffixes (e.g. a reused git short-SHA like the 7-hex legacy
+  recovery tail) can repeat across attempts, so when the suffix is
+  not random the physical uniqueness of `attempt-NNNN-<random-id>`
+  may rely on attempt-ordinal divergence instead.
 - Never grants retry authority. Starting attempt N+1 requires the existing
   replay-safety and claim/recovery rules (reconcile side effects and replay
   classification first); the counter only records that a new attempt exists.
@@ -117,13 +169,33 @@ canonical task ids after Issue #381 rebound this task to WO-P1-374.
 ## 3. Evidence layout and pointer fields
 
 Per-device lane evidence lives under the gitignored runs directory
-(`runs/<WO>/<lane>/attempt-NNNN/`), where `<lane>` is the plain role
-segment of LANE_REF (e.g. `author`). Each attempt directory holds the
-dispatched task packet and at least one `pointer.md` written before or at
-launch and updated at terminal/handoff boundaries:
+(`runs/<WO>/<lane>/`), where `<lane>` is the plain role segment of
+LANE_REF (e.g. `author`). New attempts (WO-P1-480 / MSP-0) use the
+collision-proof suffixed form `attempt-NNNN-<random-id>/` whose
+`<random-id>` is the DELEGATED_RUN_ID's accepted 8- or 12-hex random suffix
+(new minting stays 8/12-hex; the 7..12-hex family is legacy recovery
+compatibility only); legacy
+`attempt-NNNN/` directories stay readable/recoverable and are never
+rewritten. Enumeration over mixed legacy/new directories is
+deterministic via `src/a_conductor/delegated_run_artifacts.py`, and
+recovery maps each suffixed directory back to exactly one delegated
+run by name+pointer agreement (mismatch fails closed). Historical/canonical
+A-Faster lanes use `pointer.md`; current hardened delegated runners may also
+persist `execution-pointer.json`. The canonical helper accepts either recovery
+surface and requires exact run-id agreement when both exist. The helper
+intentionally treats every `delegated_run_id:`-shaped line in a `pointer.md`
+(including lines inside fenced blocks) as pointer evidence, so an extra
+example-shaped `delegated_run_id` line that disagrees with the real one
+triggers fail-closed `POINTER_RUN_ID_AMBIGUOUS` by design. Keep live
+`pointer.md` files to exactly one plain `field: value` `delegated_run_id`
+line; keep pointer.md *examples* as plain `field:value` text only inside
+fenced examples in documentation, never as extra bare lines in a live
+pointer file. Each attempt
+directory holds the dispatched task packet and durable pointer evidence written
+before or at launch and updated at terminal/handoff boundaries:
 
 ```text
-runs/WO-P1-374/author/attempt-0001/
+runs/WO-P1-374/author/attempt-0001-352051cd/
   task.md       # dispatched packet (input, immutable after dispatch)
   pointer.md    # durable identity/status pointer (this section)
   result.md     # declared result destination (when the attempt declares one)
@@ -151,12 +223,83 @@ Minimum `pointer.md` fields:
   `mutable_scope`;
 - execution identity when known: runner/child/session ids (PID +
   verified command identity, never a broad process class);
-- timing: `started_at`, `finished_at` (ISO-8601 with offset, or `UNKNOWN`);
+- timing: `observed_at`, `started_at`, `last_activity_at`,
+  `last_progress_at`, optional `last_heartbeat_at`, and `finished_at`
+  (ISO-8601 with offset, or `UNKNOWN`);
+- freshness: task/adapter-specific `stall_policy` plus
+  `stall_candidate_after_at` when deterministically computable; there is no
+  global A-Faster timeout and expiry alone grants no takeover/replay authority;
+- latest lifecycle pulse label:
+  `STARTED/PROGRESS/WAITING/STOPPED/TERMINAL_UNHARVESTED/COMPLETED/TAKEOVER_STARTED`
+  (communication projection only, never a second state machine);
 - destinations: `task_ref`, `result_ref`, `exit_ref`, `log_ref`;
 - `replay_safety`: `NOT_STARTED/PARTIAL/COMPLETE_UNVERIFIED/
   COMPLETE_VERIFIED/UNKNOWN` per the liveness protocol projection;
 - `expected_completion`: what evidence will prove completion (tests,
   checks, review gates) and where it lands.
+
+## 3.1 Cross-device lifecycle pulse
+
+The device-local pointer is detailed recovery evidence. For cross-device
+awareness, fold a compact pulse into the active Work Order/Issue at material
+lane boundaries. This pulse reuses the pointer and
+`EXECUTION_LIVENESS_PROTOCOL.md`; it is not a registry or lease.
+
+Minimum pulse shape:
+
+```text
+A-FASTER LANE PULSE v1
+event: STARTED|PROGRESS|WAITING|STOPPED|TERMINAL_UNHARVESTED|COMPLETED|TAKEOVER_STARTED
+observed_at: <ISO-8601 offset timestamp or UNKNOWN>
+started_at: <ISO-8601 offset timestamp or UNKNOWN>
+lane_ref: <LANE_REF>
+delegated_run_id: <latest run id or NONE>
+task_ref: <WO/task>
+claim_ref: <claim>
+device_id: <verified device>
+liveness_class: <existing liveness class>
+repo: <repo>
+worktree: <absolute worktree>
+branch: <branch or DETACHED>
+head: <exact SHA>
+mutable_scope: <bounded scope>
+last_activity_at: <timestamp or UNKNOWN>
+last_progress_at: <timestamp or UNKNOWN>
+last_heartbeat_at: <timestamp or UNKNOWN>
+stall_policy: <task/adapter-specific bounded policy or UNKNOWN>
+stall_candidate_after_at: <derived timestamp or UNKNOWN>
+replay_safety: <existing projection>
+reason: <typed reason/blocker or NONE>
+evidence: <result/log/Issue/PR pointer>
+next_safe_action: <exact action>
+```
+
+Publish at `STARTED`, material `PROGRESS`, truthful `WAITING`/`STOPPED`,
+`TERMINAL_UNHARVESTED`, `COMPLETED`, and every valid
+`TAKEOVER_STARTED`. The `event` field and `liveness_class` field are independent
+projections; overlapping literals never allow the event label to mutate or
+substitute for authoritative liveness/task state. `STOPPED` means only that the current executor/session
+ceased work; it is not automatically durable CANCELLED/FAILED/TERMINAL.
+`COMPLETED` requires accepted/reconciled evidence, never a model DONE claim.
+
+Freshness is advisory routing evidence. If the current time exceeds a
+deterministically derived `stall_candidate_after_at`, the next A-Faster
+invocation marks the lane `RECONCILE_REQUIRED` / possible `STALLED` and then
+checks exact process/session, result/log, Git/worktree, ownership and replay
+safety. Time alone never authorizes a new attempt or takeover.
+
+When a receiving device validly takes over, it records the prior device,
+new device, prior/latest run identity, and the binding-digest field delta in
+the `TAKEOVER_STARTED` pulse. If the prior device later resumes, that session
+must recover this pulse and yield to the current owner unless an explicit
+subsequent handoff transfers ownership again.
+
+If the active Work Order/Issue carrier cannot be written, record
+`PULSE_CARRIER_UNAVAILABLE` in the device-local pointer/evidence and do not
+claim cross-device publication succeeded. Continue local work only when its
+existing authority/ownership/replay-safety gates remain independently valid;
+block cross-device handoff/takeover and cleanup that depends on the missing
+fold until the carrier is restored and the pulse is published.
 
 ## 4. Secret safety
 
@@ -174,8 +317,9 @@ rule to pasted tool output folded into evidence.
 redispatch/takeover, reconcile every outstanding LANE_REF for the task:
 
 1. **Issue/WO pointer** — read the active work order/Issue checkpoint for
-   outstanding lane refs, latest attempt, and declared result
-   destinations. Chat memory is convenience context only, after facts.
+   outstanding lane refs, latest attempt, latest lifecycle pulse/freshness
+   timestamps, and declared result destinations. Chat memory is convenience
+   context only, after facts.
 2. **Process/session** — check the exact runner/child/session identity
    (PID + verified command identity) recorded in the pointer, when the
    device is reachable. Never broad-kill or assume from a process name.
@@ -184,7 +328,11 @@ redispatch/takeover, reconcile every outstanding LANE_REF for the task:
 4. **Git** — verify actual worktree/branch/HEAD/dirty state against
    `dispatch_head`, `mutable_scope`, and the expected outputs; recompute
    BINDING_DIGEST from observed facts.
-5. **Derive state** (per the liveness protocol) and act:
+5. **Freshness check** — compare trustworthy activity/progress/heartbeat
+   timestamps with the lane's declared task/adapter-specific stall policy.
+   If its derived bound is exceeded, mark `RECONCILE_REQUIRED` / stall
+   candidate; do not infer interruption/ownership loss from time alone.
+6. **Derive state** (per the liveness protocol) and act:
 
 | Derived state | Disposition |
 |---|---|
@@ -204,8 +352,9 @@ A device handoff is a lane handoff, not a new task, and not an automatic
 transfer:
 
 1. **Checkpoint** on the sending device: task/claim/scope, current SHA,
-   outstanding LANE_REF/DELEGATED_RUN_ID + pointer state, exact next safe
-   action — written to the work order checkpoint.
+   outstanding LANE_REF/DELEGATED_RUN_ID + pointer state, latest freshness
+   timestamps, truthful `WAITING`/`STOPPED` pulse, and exact next safe action
+   — written to the work order/Issue checkpoint.
 2. **Push durable state**: push the branch; fold material evidence out of
    `runs/` into the work order/Issue (runs/ is gitignored and does not
    travel with the repo).
@@ -219,8 +368,10 @@ transfer:
      a handoff, so a mismatch is expected and must be resolved by an
      explicit re-pin: record the field-level delta in a new attempt
      pointer, reconcile the prior attempt per Section 5, prove no mutable
-     overlap, and only then continue. Digest mismatch never silently
-     transfers ownership, and never bypasses the WO/claim authority.
+     overlap, publish `TAKEOVER_STARTED` with the old/new device identity
+     and field-level digest delta, and only then continue. Digest mismatch
+     never silently transfers ownership, and never bypasses the WO/claim
+     authority.
 
 No accepted remote/source on the receiving device remains
 `SOURCE_UNAVAILABLE / SAFE_TO_MUTATE=NO`.
@@ -260,6 +411,9 @@ Unsafe:
   packet (duplicate mutable attempt; violates harvest-first).
 - `STALLED` for 40 minutes → kill and relaunch without process/result/Git
   reconciliation (timeout is not replay authority).
+- An old `STARTED` pulse crosses `stall_candidate_after_at` → declare the old
+  owner dead and mutate the same hotspot without exact runtime/Git/claim
+  reconciliation (freshness breach is only a stall candidate).
 - Copying a pointer from the other device and continuing without
   re-pinning HEAD (digest mismatch ignored).
 - A pointer logging `Authorization: Bearer <raw token>` or a Kilo share
@@ -283,6 +437,18 @@ Before freezing a lane that uses this overlay, verify deterministically:
 - [ ] pointer/evidence files contain no secret values, credential-bearing
       argv/env, cookies, or share URLs (pattern scan);
 - [ ] attempt directories are strictly monotonic, one per actual dispatch;
+      new directories carry the run's exact accepted 8- or 12-hex random suffix
+      (`attempt-NNNN-<random-id>`, WO-P1-480) so the ordinal is never
+      uniqueness authority, and legacy `attempt-NNNN` recovery still works;
+- [ ] proven pre-grammar legacy pointer aliases (WO-P1-480 P1 + P2
+      repair seams) recover pointer-only with the original string
+      preserved verbatim and never mint paths; recovery tails stay
+      inside the bounded 7..12-hex legacy window (6/13-hex and
+      uppercase fail closed), numeric legacy tags stay bounded,
+      opaque, and never reinterpreted as ordinals, six-segment
+      attempt-postreset evidence stays out-of-contract
+      (census/reconcile-only), and dual pointer sources agree on the
+      exact full `delegated_run_id` string;
 - [ ] no new scheduler/DB/registry/state machine was introduced
       (router-only boundary intact);
 - [ ] recover algorithm disposition recorded for every outstanding lane

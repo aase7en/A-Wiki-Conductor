@@ -1,5 +1,66 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-09-22 — WO473 DEPDIET-1 first removal slice COMPLETE / POST_MAIN_VERIFIED — CURRENT
+
+> **Current cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts.
+
+- Authority: Issue #473 / `docs/work-orders/WO-P1-473-srm-dependency-diet.md`; topology `EXECUTION_SUBSTRATE_ONLY`; risk R2.
+- Canonical execution repo: local `A:\GitHub\SunDayRemoteMCP` with no configured Git remote.
+- Accepted base: `2e6aeabd09a321232098187dba4c522e37e4b1de`.
+- Accepted candidate and canonical SRM main after ff-only integration: `e3ec2e06baf464e68c4166faae65f51c60fd5477`.
+- Exact mutation: `package.json` + `package-lock.json` only; removed direct roots `@tiptap/pm`, `remark`, `remark-gfm`, `remark-parse`, `unified`.
+- Lock graph: 67 unreachable entries removed, 0 added, survivor semantics unchanged, and `@tiptap/pm` remains transitively reachable through retained Tiptap packages.
+- Deterministic acceptance: build PASS; compact facade PASS; full-toolset facade PASS; focused supervisor PASS; atomic-write alternating BASE/CANDIDATE replay 3/3 each; UTF-8/diff/scope checks PASS.
+- Full-run differential was base-compared: base 70/78 PASS vs candidate 69/78 PASS; no deterministic candidate-specific regression remained after targeted replays.
+- Accepted independent GLM-5.3 MAX static/adjudicative R2 review: run `run:WO-P1-473:r2-static-review:a5:f05646ef0027`, PASS, P0/P1/P2/P3 = 0/0/0/3, exit 0, 2,620 security samples, no MCP descendant/scope violation.
+- Earlier attempts 0001/0003 security-invalid, 0002 provenance-collision-invalid, 0004 prelaunch-invalid; none are acceptance authority.
+- Post-main proof: canonical SRM HEAD matches the accepted SHA; protected `.serena` state hashes are unchanged; live Node runtime was not restarted.
+- Claim `WO-P1-473-DEPDIET1-WINDOWS-001` is released by the #473 closeout. Parent #472 remains open for broader DEPDIET-1 feature-pack/audit scope.
+- FRONTDOOR-1 remains gated on measured launch/setup friction. Issue #457 remains `HUMAN_DECISION_REQUIRED` and is not advanced by this closeout.
+
+**Exact next safe action:** complete the A-Wiki closeout merge/Issue #473 closure, then keep #472 read-only until a new bounded dependency/feature-pack candidate is proven or launch-friction evidence makes FRONTDOOR-1 READY.
+
+
+## 2026-09-21 — WO438 COMPLETE; WO205 §14 released — CURRENT
+
+> **Current authoritative projection.** Actual Git/GitHub/runtime/durable evidence overrides this file if it drifts.
+
+- Topology: `CONTROL_PLANE_ONLY`. Canonical authority: Issue #438 / WO-P1-438. Historical predecessor only: Issue #330 / WO-P1-246.
+- WO438 merge SHA: `75d9e96e46e15cc8ef647d12194d677657689bde`; current remote `main` is `894c64d32ca63dd0bfaf9f23d97a3e1180ce09d7` after disjoint PR #440 continuity drift.
+- PR #336 merged at 2026-09-21 06:20:49 +07 from exact candidate `f93e16377f500d16cbed66763058c2f4a2237790`.
+- Independent GLM-5.3 MAX exact-SHA R3 review finished before merge: `PASS`, P0/P1/P2=0, P3=3 non-blocking. Durable result: `A:\GitHub\_worktrees\A-Wiki-Conductor-review-wo438-f93e163\runs\WO-P1-438\r3-review\attempt-0001\result.md`.
+- Exact-head hosted CI #1102 / run `35529389831` finished before merge: `SUCCESS`; Windows, Ubuntu and macOS jobs all green.
+- Detached post-main verification worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-post438-75d9e96`.
+- Post-main local proof: all 11 WO438 blobs are byte-identical to the reviewed candidate; focused set 177 PASS; work-order identity 33 PASS; `git diff --check` PASS; `py_compile` PASS.
+- The post-main wrapper returned exit 1 only after all gates because the PowerShell harness used unsupported three-argument `[Math]::Max`; this is harness-only, not a test/repo failure.
+- Hosted post-main push CI run `35544371466` on exact `75d9e96...` is **SUCCESS** on Windows + Ubuntu + macOS, including core suites, Portable/Setup build, archive verification, Portable smoke, and Setup install/uninstall E2E.
+- Issue #438 is **CLOSED / COMPLETE / POST_MAIN_VERIFIED**; claim released. Issue #214 comment `5753611455` releases WO205 §14 source-gate work only.
+- Protected root `A:\GitHub\A-Wiki-Conductor` is stale at `1a5ea1b...`, 16 commits behind current main, with pre-existing untracked `$null`, `0`, and `docs/prompts/GLM-WO230-ZRA2-REVIEW-TASK-CONTRACT-AUTHORITY.md`; do not reset/clean/stash or use it for mutation.
+- Session rollover checkpoint branch: `docs/wo-p1-438-session-handoff`; worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo438-session-handoff`.
+
+**Exact next safe action:** in the new session re-pin actual main / Issue #214 / WO205, recover global WIP/collisions, create a fresh isolated Phase-D source worktree, execute WO205 §14 steps 1–7, freeze exact source/test scope, then RED-first implementation. `SAFE_TO_MUTATE_PHASE_D_SOURCE=NO` until that checklist completes.
+
+## 2026-09-21 — WO433 RUNTIME-ACT-1 session rollover — CURRENT FRONTIER
+
+> Projection only. Actual Git/GitHub/runtime/durable evidence overrides this section if it differs.
+
+- Critical path: **#433 RUNTIME-ACT-1 -> #429 COCKPIT-1B -> LOCAL-USABLE-1**.
+- Topology: `CONTROL_PLANE_ONLY`; source implementation has **not** started in this rollover session.
+- Checkpoint remote main: `75d9e96e46e15cc8ef647d12194d677657689bde`.
+- #215↔#433 bilateral split is durable: #433 owns explicit/manual activation; #215 exclusively retains automatic accepted-completion -> NEXT_READY continuation/provenance.
+- Rollover claim/checkpoint: Issue #433 comment `5753493574`.
+- Prior GLM-5.3-Flash source-scope assist was recovered as TERMINAL exit 0 on detached `d2ad5bd...`; it is advisory evidence only.
+- Earlier source claim comment `5751797434` was based on `d2ad5bd...`; its old SAFE_TO_MUTATE verdict is stale and must be re-pinned before source mutation.
+- Relevance diff `d2ad5bd... -> 75d9e96...` changes none of the frozen #433 source/test paths; related drift is only WO246 author-provenance wiring in `zcode_production_assembly.py`.
+- Current main still has no `ZCodeJobBackend`; Claude durable job backend exists but the Claude harness rejects `PROJECT_MUTATION` with `HARNESS_MUTATION_NOT_READY`.
+- First LOCAL-USABLE activation slice is therefore frozen as **explicit/manual READ_ONLY production activation** through the accepted supervised Claude durable backend.
+- Mutation-capable harness support is successor scope; do not expand #433 implicitly.
+- Frozen implementation scope: NEW `runtime_activation.py`; MODIFY `desktop_control.py`, `desktop_app.py`; `lifecycle_coordinator.py` only if a read-only observation seam is strictly required; NEW `test_runtime_activation.py`; MODIFY `test_desktop_control.py`; NEW `test_desktop_app.py` only if isolated CLI coverage is required.
+- Hard forbidden: automatic NEXT_READY/successor selection, elastic provisioning, writable Graph Monitor/UI authority, new store/schema/task/request/retry/review/completion authority, Zero-Relay source, SunDayRemoteMCP, live installed DB mutation.
+- A-Faster census found no matching live A-Wiki Kilo/Claude delegated process for #433. Windows and Mac RDC devices are online; chat-visible SunDay-Worker developer MCP remains unavailable in this harness.
+- Legacy/stale execution pointers exist in old review worktrees; do not infer WIP occupancy from PID numbers. Reconstruct global WIP from exact pointer/process/Git/Issue evidence in the next session before dispatch.
+- Next safe action: fresh-session ENTRY/recovery -> fetch/re-pin current main -> recover delegated runs/global WIP -> collision pulse -> create a clean isolated **R3 source implementation** worktree/claim -> RED-first manual READ_ONLY activation implementation -> deterministic verification -> frozen SHA -> independent MAX review/CI -> merge/post-main -> unblock #429.
+
 ## 2026-09-15 — R5 repair verified for freeze, R3 acceptance pending
 
 Existing Kilo/cointh-glm/glm-5.3 MAX writer completed the packet at

@@ -21,6 +21,7 @@ from tkinter import filedialog, simpledialog, ttk
 import webbrowser
 
 from .branding import APP_NAME, APP_VERSION
+from .cockpit_projection import CockpitSnapshot
 from .connector_recovery import ConnectorRecoveryRecord
 from .graph.domain import TaskNodeStatus
 from .graph.operator_view import GraphOperatorSnapshot
@@ -773,6 +774,79 @@ def graph_monitor_lines(snapshot: GraphOperatorSnapshot) -> tuple[str, ...]:
                 f"  {event.recorded_at} {event.node_id} {event.event_type}"
                 f"{transition}{worker}"
             )
+    return tuple(lines)
+
+
+def cockpit_monitor_lines(snapshot: CockpitSnapshot) -> tuple[str, ...]:
+    if not isinstance(snapshot, CockpitSnapshot):
+        raise ValueError("snapshot must be CockpitSnapshot")
+    header = "MONITOR · COCKPIT"
+    if snapshot.stale:
+        header += f" · STALE ({snapshot.stale_reason or 'SOURCE_DRIFT_DETECTED'})"
+    lines = [header, f"  generated: {snapshot.generated_at or '-'}"]
+    if snapshot.degraded_observability:
+        lines.append("  observability: " + ", ".join(snapshot.degraded_observability))
+    if not snapshot.lanes:
+        lines.append("  (no lanes observed)")
+    for lane in snapshot.lanes:
+        identity = lane.identity
+        lines.append(f"-- lane: {identity.lane or '-'} --")
+        lines.append(
+            f"  WO/task: {identity.work_order_ref} / {identity.task_ref}"
+            f"   topology: {identity.topology or '-'}"
+        )
+        lines.append(
+            f"  executor: {identity.executor or '-'}"
+            f"   provider: {identity.provider or '-'}"
+            f"   harness: {identity.harness or '-'}"
+        )
+        lines.append(
+            f"  authority repo: {identity.authority_repo or '-'}"
+            f"   execution repo: {identity.execution_repo or '-'}"
+        )
+        lines.append(
+            f"  worktree: {_monitor_safe_text(identity.worktree or '-')}"
+            f"   branch: {identity.branch or '-'}"
+            f"   expected HEAD: {identity.expected_head or '-'}"
+        )
+        markers = ",".join(lane.state_markers) if lane.state_markers else "-"
+        lines.append(f"  state: {lane.state.value}   markers: {markers}")
+        process = lane.process_identity
+        pid_text = f"PID {process.pid}" if process.pid is not None else "PID -"
+        trust = "AUTHORITATIVE" if process.authoritative else "UNPROVEN"
+        lines.append(
+            f"  execution: {lane.execution_id or '-'}   job: {lane.job_id or '-'}"
+            f"   {pid_text} ({trust}, {process.provenance or '-'})"
+        )
+        lines.append(
+            f"  transport: {lane.transport_state or '-'}"
+            f"   last activity: {lane.last_activity or '-'}"
+            f"   last progress: {lane.last_meaningful_progress or '-'}"
+        )
+        gates = lane.gates
+        lines.append(
+            "  gates: "
+            f"verify={gates.verification.value} "
+            f"review={gates.review.value} "
+            f"merge={gates.merge.value} "
+            f"post-main={gates.post_main.value} "
+            f"ci={gates.ci.value} [{gates.provenance}]"
+        )
+        lines.append(f"  HOOK: {lane.hook_state}   WTL: {lane.wtl_state}")
+        origin = lane.origin_display
+        origin_line = (
+            f"  ORIGIN: {origin.status}"
+            f"   surface: {origin.origin_surface or '-'}"
+            f"   key version: {origin.key_version or '-'}"
+            f"   ref: {origin.origin_ref or '-'}"
+        )
+        if origin.reason:
+            origin_line += f"   reason: {origin.reason}"
+        lines.append(origin_line)
+        if lane.blocker_code:
+            lines.append(f"  blocker: {lane.blocker_code}")
+        lines.append(f"  replay safety: {lane.replay_safety}")
+        lines.append(f"  next safe action: {lane.next_safe_action}")
     return tuple(lines)
 
 
@@ -1647,16 +1721,20 @@ class AConductorDesktopApp:
         self._graph_monitor_button = self._button(
             monitor_panel, "Graph...", self.open_graph_monitor
         )
+        self._cockpit_monitor_button = self._button(
+            monitor_panel, "Cockpit", self.show_cockpit_monitor
+        )
         self._connector_monitor_button = self._button(
             monitor_panel, "Connector", self.show_connector_monitor
         )
         self._graph_monitor_button.grid(row=0, column=1, sticky="e", padx=(4, 0), pady=1)
+        self._cockpit_monitor_button.grid(row=0, column=2, sticky="e", padx=(4, 0), pady=1)
         self._connector_monitor_button.grid(
-            row=0, column=2, sticky="e", padx=(4, 0), pady=1
+            row=0, column=3, sticky="e", padx=(4, 0), pady=1
         )
         self._button(
             monitor_panel, "Copy All", lambda: self.copy_text_widget_all(self.monitor_text)
-        ).grid(row=0, column=3, sticky="e", padx=(4, 9), pady=1)
+        ).grid(row=0, column=4, sticky="e", padx=(4, 9), pady=1)
         self.instance_tree.bind(
             "<<TreeviewSelect>>", lambda _event: self._refresh_monitor_async(), add="+"
         )
@@ -1798,6 +1876,10 @@ class AConductorDesktopApp:
         self._monitor_mode = "connector"
         self._refresh_monitor_async()
 
+    def show_cockpit_monitor(self) -> None:
+        self._monitor_mode = "cockpit"
+        self._refresh_monitor_async()
+
     def _render_graph_monitor(
         self,
         snapshot: GraphOperatorSnapshot | None,
@@ -1844,8 +1926,12 @@ class AConductorDesktopApp:
 
     def _update_monitor_now(self) -> None:
         """Sync render (tests / no-selection hint path)."""
-        if getattr(self, "_monitor_mode", "connector") == "graph":
+        mode = getattr(self, "_monitor_mode", "connector")
+        if mode == "graph":
             self._update_graph_monitor_now()
+            return
+        if mode == "cockpit":
+            self._update_cockpit_monitor_now()
             return
         from .local_instances import instance_health_state
 
@@ -1946,8 +2032,12 @@ class AConductorDesktopApp:
         if self._monitor_future is not None and not self._monitor_future.done():
             self._monitor_refresh_pending = True
             return
-        if getattr(self, "_monitor_mode", "connector") == "graph":
+        mode = getattr(self, "_monitor_mode", "connector")
+        if mode == "graph":
             self._refresh_graph_monitor_async()
+            return
+        if mode == "cockpit":
+            self._refresh_cockpit_monitor_async()
             return
         from .local_instances import instance_health_state
 
@@ -2057,6 +2147,94 @@ class AConductorDesktopApp:
         if self._monitor_refresh_pending and not self._closing:
             self._monitor_refresh_pending = False
             self._schedule_after(0, self._refresh_monitor_async)
+
+    def _refresh_cockpit_monitor_async(self) -> None:
+        """Fetch the cockpit projection off the UI thread, then render."""
+        if self._closing:
+            return
+        if self._monitor_future is not None and not self._monitor_future.done():
+            self._monitor_refresh_pending = True
+            return
+        projection_fn = getattr(self.service, "cockpit_projection", None)
+        if not callable(projection_fn):
+            self._update_cockpit_monitor_now()
+            return
+
+        def work():
+            try:
+                return projection_fn(), None
+            except Exception as exc:
+                return None, self._cockpit_error_code(exc)
+
+        try:
+            future = self._background_executor.submit(work)
+        except Exception:
+            self._update_cockpit_monitor_now()
+            return
+        self._monitor_future = future
+        self._monitor_refresh_pending = False
+        self._poll_cockpit_monitor(future)
+
+    def _poll_cockpit_monitor(self, future) -> None:
+        self._cancel_after(self._monitor_poll_after_id)
+        self._monitor_poll_after_id = None
+        if self._closing or future is not self._monitor_future:
+            return
+        if not future.done():
+            self._monitor_poll_after_id = self._schedule_after(
+                25, self._poll_cockpit_monitor, future
+            )
+            return
+        self._monitor_future = None
+        try:
+            snapshot, error_code = future.result()
+        except Exception:
+            snapshot, error_code = None, "COCKPIT_UNAVAILABLE"
+        if not self._closing and self._monitor_mode == "cockpit":
+            self._render_cockpit_monitor(snapshot, error_code)
+        if self._monitor_refresh_pending and not self._closing:
+            self._monitor_refresh_pending = False
+            self._schedule_after(0, self._refresh_monitor_async)
+
+    @staticmethod
+    def _cockpit_error_code(exc: Exception) -> str:
+        code = getattr(exc, "code", None)
+        if isinstance(code, str) and code.strip() and "\n" not in code and "\r" not in code:
+            return code.strip()
+        return "COCKPIT_UNAVAILABLE"
+
+    def _render_cockpit_monitor(
+        self,
+        snapshot: CockpitSnapshot | None,
+        error_code: str | None = None,
+    ) -> None:
+        if not self.monitor_text.winfo_exists():
+            return
+        lines = (
+            cockpit_monitor_lines(snapshot)
+            if snapshot is not None
+            else ("MONITOR · COCKPIT", f"  error: {error_code or 'COCKPIT_UNAVAILABLE'}")
+        )
+        try:
+            self.monitor_text.configure(state="normal")
+            self.monitor_text.delete("1.0", "end")
+            self.monitor_text.insert("1.0", chr(10).join(lines))
+            self.monitor_text.yview_moveto(0.0)
+            self.monitor_text.configure(state="disabled")
+        except tk.TclError:
+            pass
+
+    def _update_cockpit_monitor_now(self) -> None:
+        projection_fn = getattr(self.service, "cockpit_projection", None)
+        if not callable(projection_fn):
+            self._render_cockpit_monitor(None, "COCKPIT_UNAVAILABLE")
+            return
+        try:
+            snapshot = projection_fn()
+        except Exception:
+            self._render_cockpit_monitor(None, "COCKPIT_UNAVAILABLE")
+            return
+        self._render_cockpit_monitor(snapshot)
 
     def _stop_instance_monitor(self) -> None:
         self._cancel_after(self._monitor_tick_after_id)

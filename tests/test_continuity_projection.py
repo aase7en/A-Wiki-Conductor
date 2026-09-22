@@ -370,6 +370,13 @@ class FailingApplier:
             raise E("CHANGE_APPLY_FAILED")
         return self._inner.apply(packet, lease_id, **kw)
 
+    def apply_merge_fold_reconciliation(self, packet, reconciliation, **kw):
+        self._seen += 1
+        if self._seen == self._fail_on:
+            from a_conductor.agent_change_packets import AgentChangeError as E
+            raise E("CHANGE_APPLY_FAILED")
+        return self._inner.apply_merge_fold_reconciliation(packet, reconciliation, **kw)
+
 
 def test_failure_after_first_file_not_completed(tmp_path):
     seed(tmp_path)
@@ -849,3 +856,213 @@ def test_r2_d10_released_never_in_active_leases():
     active_line = [l for l in text.splitlines() if l.startswith("active-leases:")][0]
     assert active_line == "active-leases: NONE"
     assert "released-leases: lease-1" in text
+
+
+# ══════════════════════════════════════════════════════════════════════
+# WO-P1-410 GOT-1b-A — typed merge-fold reconciliation path in the
+# adapter (RED-first), reconciled with the accepted GOT-1a #409 fan-in:
+# the typed admission publishes only the exact MERGED_NOT_FOLDED fold
+# debt; every other fold — including a merge-identity request over a
+# FRESH snapshot — keeps the generic FRESH-only behavior proven above.
+# ══════════════════════════════════════════════════════════════════════
+from a_conductor.agent_change_packets import MERGE_FOLD_TARGETS  # noqa: E402
+from a_conductor.continuity_guard import MergeFoldFact, ProjectionClaim  # noqa: E402
+
+MERGE = "ab12cd34ef"
+MERGE_OTHER = "cd34ef56ab"
+
+
+class MergedNotFoldedProvider(FreshProvider):
+    """Trusted fact source: identity-bound CLEAN snapshot carrying an
+    accepted merge with an outstanding fold obligation."""
+
+    def __init__(self, *, merge_commit: str = MERGE, claim=None):
+        self._merge_commit = merge_commit
+        self._claim = claim
+
+    def continuity_snapshot(self, request) -> ContinuitySnapshot:
+        snap = super().continuity_snapshot(request)
+        values = {
+            "merge_fold": MergeFoldFact(
+                merge_commit=self._merge_commit,
+                fold_complete=False, release_complete=True,
+            ),
+        }
+        if self._claim is not None:
+            values["projections"] = (self._claim,)
+        return replace(snap, **values)
+
+
+def typed_request(**over) -> FoldRequest:
+    base = dict(
+        task_id=TASK, candidate_sha=HEAD,
+        checkpoint_ref=f"closeout:fold:{TASK}:{HEAD}:{MERGE}:required",
+        merge_commit=MERGE,
+    )
+    base.update(over)
+    return FoldRequest(**base)
+
+
+def typed_adapter(root, *, lease_value=None, provider=None, facts_over=None, read_back=None):
+    return ContinuityProjectionFoldAdapter(
+        applier=applier(root, lease_value or lease(root), provider=provider),
+        lease_id="lease-1",
+        session_id=SESSION,
+        task_id=TASK,
+        actual_head=HEAD,
+        facts_factory=lambda: facts(**{"merge_commit": MERGE, **(facts_over or {})}),
+        targets=CANONICAL_TARGETS,
+        read_back=read_back,
+    )
+
+
+def test_wo410_canonical_targets_equal_typed_admission_targets():
+    assert set(CANONICAL_TARGETS) == set(MERGE_FOLD_TARGETS)
+
+
+def test_wo410_typed_fold_completes_under_merged_not_folded(tmp_path):
+    seed(tmp_path)
+    outcome = typed_adapter(tmp_path, provider=MergedNotFoldedProvider()).fold(typed_request())
+    assert outcome.completed is True
+    for name in CANONICAL_TARGETS:
+        text = (tmp_path / name).read_text(encoding="utf-8")
+        assert "old machine block" not in text
+        assert f"merge-commit: {MERGE}" in text
+
+
+def test_wo410_typed_request_with_fresh_continuity_publishes_generic(tmp_path):
+    """Fan-in reconciliation with accepted GOT-1a #409: a FRESH snapshot
+    carries no fold debt, so a merge-identity request is a normal
+    projection write and publishes through the generic FRESH-only
+    admission (the typed path is admission for MERGED_NOT_FOLDED only)."""
+    seed(tmp_path)
+    outcome = typed_adapter(tmp_path, provider=FreshProvider()).fold(typed_request())
+    assert outcome.completed is True
+    for name in CANONICAL_TARGETS:
+        text = (tmp_path / name).read_text(encoding="utf-8")
+        assert "old machine block" not in text
+        assert f"merge-commit: {MERGE}" in text
+
+
+class DirtyProvider(FreshProvider):
+    """Trusted fact source: identity-bound snapshot with a DIRTY worktree —
+    neither FRESH nor MERGED_NOT_FOLDED, so no admission may publish."""
+
+    def continuity_snapshot(self, request) -> ContinuitySnapshot:
+        snap = super().continuity_snapshot(request)
+        return replace(snap, dirty_state="DIRTY")
+
+
+def test_wo410_merge_identity_request_non_fresh_non_debt_denies_zero_writes(tmp_path):
+    """A merge-identity request over a state that is neither FRESH nor
+    MERGED_NOT_FOLDED admits through neither path: typed denies the
+    classification, generic denies non-FRESH — zero writes, fail closed."""
+    seed(tmp_path)
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    outcome = typed_adapter(tmp_path, provider=DirtyProvider()).fold(typed_request())
+    assert outcome.completed is False
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+def test_wo410_typed_fold_merge_identity_mismatch_zero_writes(tmp_path):
+    seed(tmp_path)
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    with pytest.raises(ProjectionError) as exc:
+        typed_adapter(
+            tmp_path, provider=MergedNotFoldedProvider(),
+            facts_over={"merge_commit": MERGE_OTHER},
+        ).fold(typed_request())
+    assert exc.value.code == "PROJECTION_MERGE_MISMATCH"
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+def test_wo410_typed_fold_facts_merge_unknown_denies_zero_writes(tmp_path):
+    """Projection facts without merge identity cannot satisfy a typed
+    request — the adapter never invents merge identity."""
+    seed(tmp_path)
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    adapter_obj = ContinuityProjectionFoldAdapter(
+        applier=applier(tmp_path, lease(tmp_path), provider=MergedNotFoldedProvider()),
+        lease_id="lease-1", session_id=SESSION, task_id=TASK, actual_head=HEAD,
+        facts_factory=lambda: facts(), targets=CANONICAL_TARGETS,
+    )
+    with pytest.raises(ProjectionError) as exc:
+        adapter_obj.fold(typed_request())
+    assert exc.value.code == "PROJECTION_MERGE_MISMATCH"
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+def test_wo410_typed_fold_wrong_merge_commit_at_snapshot_denies(tmp_path):
+    seed(tmp_path)
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    outcome = typed_adapter(
+        tmp_path, provider=MergedNotFoldedProvider(merge_commit=MERGE_OTHER),
+    ).fold(typed_request())
+    assert outcome.completed is False
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+def test_wo410_typed_fold_stale_candidate_denies_zero_writes(tmp_path):
+    seed(tmp_path)
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    with pytest.raises(ProjectionError):
+        typed_adapter(tmp_path, provider=MergedNotFoldedProvider()).fold(
+            typed_request(candidate_sha=HEAD_OTHER),
+        )
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+def test_wo410_typed_fold_unrelated_drift_denies_zero_writes(tmp_path):
+    seed(tmp_path)
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    claim = ProjectionClaim(source="docs/other.md", asserted_head=HEAD_OTHER)
+    outcome = typed_adapter(tmp_path, provider=MergedNotFoldedProvider(claim=claim)).fold(typed_request())
+    assert outcome.completed is False
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+def test_wo410_typed_fold_canonical_target_drift_tolerated(tmp_path):
+    seed(tmp_path)
+    claim = ProjectionClaim(source="CURRENT-WORK.md", asserted_head=HEAD_OTHER)
+    outcome = typed_adapter(tmp_path, provider=MergedNotFoldedProvider(claim=claim)).fold(typed_request())
+    assert outcome.completed is True
+
+
+def test_wo410_typed_fold_idempotent_replay_converges(tmp_path):
+    """Contract 12: deterministic identical replay re-verifies and stays
+    completed=True with zero byte churn (checkpoint CAS is the
+    executor's, never a blind retry here)."""
+    seed(tmp_path)
+    adapter_obj = typed_adapter(tmp_path, provider=MergedNotFoldedProvider())
+    first = adapter_obj.fold(typed_request())
+    assert first.completed is True
+    before = {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS}
+    second = adapter_obj.fold(typed_request())
+    assert second.completed is True
+    assert {n: (tmp_path / n).read_bytes() for n in CANONICAL_TARGETS} == before
+
+
+def test_wo410_typed_fold_failure_after_first_target_ambiguous(tmp_path):
+    """Contract 12: a partial typed fold is ambiguous (completed=None),
+    never success and never retried inside the adapter."""
+    seed(tmp_path)
+    adapter_obj = ContinuityProjectionFoldAdapter(
+        applier=FailingApplier(
+            applier(tmp_path, lease(tmp_path), provider=MergedNotFoldedProvider()),
+            fail_on=2,
+        ),
+        lease_id="lease-1", session_id=SESSION, task_id=TASK, actual_head=HEAD,
+        facts_factory=lambda: facts(merge_commit=MERGE), targets=CANONICAL_TARGETS,
+    )
+    outcome = adapter_obj.fold(typed_request())
+    assert outcome.completed is None
+
+
+def test_wo410_generic_fold_without_merge_identity_unchanged(tmp_path):
+    """Contract 8 positive control: no merge identity in the request =>
+    the generic FRESH-only apply path is used exactly as before."""
+    seed(tmp_path)
+    outcome = adapter(tmp_path).fold(
+        FoldRequest(task_id=TASK, candidate_sha=HEAD, checkpoint_ref="c:fold")
+    )
+    assert outcome.completed is True
