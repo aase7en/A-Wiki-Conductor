@@ -213,6 +213,63 @@ Before GREEN implementation, tests must prove:
 
 Later phases add adversarial bypass tests for mutation/merge gateways.
 
+## Flash shaping findings and dependency split
+
+GLM-5.3-Flash read-only advisory on `a30cd994` returned `ADVISORY_PASS`.
+It confirmed the PRE_DISPATCH coordinator seam and identified five P1 items
+that must be frozen before any source implementation:
+
+1. **Fingerprint stability:** claim/scope/device facts remain outside
+   `ExecutionFingerprintSpec`; GUARD validates them on a separate injected
+   binding path so accepted durable dedupe fingerprints do not change.
+2. **Requiredness is explicit:** `POLICY_ONLY / guard not required on this
+   route` is distinct from `GUARD required + unavailable`, which fails closed.
+3. **Atomic race belongs to MSP-2:** `DuplicateExecutionGuard.assess()` is a
+   check-then-act read over a non-unique fingerprint index. #498 MUST NOT
+   invent a uniqueness/claim store. Cross-session exactly-one writer requires
+   the accepted MSP-2 atomic/fenced hotspot admission contract from parent
+   #475.
+4. **RED matrix adds adversarial cases:** guard missing on required route,
+   stale-HEAD TOCTOU, evidence replay, claim/lease expiry between checks,
+   fabricated/late bus allow after synchronous deny, concurrent fresh race,
+   attach compatibility under deny, and Windows repo-root normalization.
+5. **ATTACH/REUSE remain dedupe-owned:** executable GUARD is placed only on
+   the consequential FRESH launch path after the existing assessment and
+   before record creation / backend launch.
+
+### MSP-2 dependency boundary
+
+`MSP-2 — Atomic multi-session hotspot admission` is a separate R3 authority
+slice required by the accepted #475 roadmap. Its job is one transactional/
+fenced admission winner per mutable hotspot using existing claim/lease/fencing
+authority. Losers receive typed conflict/attach outcomes and launch no writer.
+
+#498A consumes an accepted admission result; it does not implement a second
+admission algorithm. Until MSP-2 is accepted, 498A may truthfully enforce its
+guard on supervised dispatch but MUST NOT claim cross-session exactly-one
+writer semantics.
+
+### Likely 498A source family after dependencies clear
+
+Not yet authorized, but the reuse-first candidate is:
+- NEW small pure/injected dispatch-GUARD decision module (final name frozen at
+  source gate);
+- MODIFY `src/a_conductor/supervised_run_coordinator.py` only at the fresh
+  dispatch seam;
+- focused NEW guard tests plus RED additions in
+  `tests/test_supervised_run_coordinator.py`;
+- optional `src/a_conductor/__init__.py` export only if public API policy
+  requires it.
+
+Explicitly avoid modifying `execution_deduplication.py`,
+`control_hook_adapter.py`, `delegated_run_artifacts.py`,
+`production_closeout_observation.py`, and provider-specific Claude guard code
+unless later impact analysis proves a real dependency.
+
+GUARD envelope emission is deferred from 498A; enforcement is synchronous and
+must never depend on Hook Bus delivery. Existing WO/run-pointer evidence is
+the durable fold target.
+
 ## Acceptance path
 
 Phase 0:
