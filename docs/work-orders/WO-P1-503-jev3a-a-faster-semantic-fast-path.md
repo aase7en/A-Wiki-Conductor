@@ -51,6 +51,31 @@ Extend the existing A-Faster acceleration overlay so bounded semantic judgments 
 
 Keep `SKILL.md` concise. Add only the trigger/routing summary and link to the detailed reference. Put eligibility, fallback, telemetry and examples in `references/jev-semantic-fast-path.md`.
 
+## Review repair checkpoint — 2026-09-23
+
+Independent GLM-5.3 MAX exact-SHA review of `72e1362b6d176d5ae46db4e0c57c1c75241b487e`
+returned `CHANGES_REQUIRED` with P0=0 / P1=0 / P2=2 / P3=3. Hosted CI on
+that reviewed head later completed green.
+
+Repairs remain inside the original three-path scope:
+
+- live benchmark provenance now points to Issue #499 and is explicitly framed
+  as a candidate SHADOW/ADVISORY allowlist; formal JEV-1 GO/CONDITIONAL_GO
+  remains pending comparative-baseline reconciliation;
+- failed semantic decisions escalate first; this slice authorizes no call-level
+  retry. Any typed 429/529 bounded backoff/retry belongs to the later R3
+  TypeSafe adapter admission in Issue #505, while ambiguous transport outcomes
+  must be reconciled before replay;
+- effective executable mode is OFF until the provider-neutral seam and provider
+  route are accepted/admitted;
+- JEV-3A is explicitly mapped to roadmap JEV-3 and JEV-2A/JEV-2B to roadmap
+  JEV-2;
+- evidence-only immediate semantic calls do not automatically become durable
+  delegated-run census entries.
+
+Next gate: deterministic docs/skill checks -> freeze repaired SHA -> focused
+independent rereview + exact-head CI.
+
 ## Verification
 
 - no duplicated scheduler/provider registry/authority semantics;

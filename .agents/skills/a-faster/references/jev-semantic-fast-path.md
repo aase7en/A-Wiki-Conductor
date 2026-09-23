@@ -47,9 +47,14 @@ own. Resolve these before semantic assessment:
 
 Semantic provider output is evidence only and cannot override any of these facts.
 
-## Initial eligible decision families
+## Initial candidate decision families
 
-Project-local JEV-1 live evidence supports advisory use for:
+Issue #499 records the first sanitized live Jev shadow capture: 60/60 provider
+calls succeeded, the five families below each scored 100% raw accuracy, and
+`review_severity` scored 70%. That evidence supports a **candidate
+SHADOW/ADVISORY pilot allowlist only**; the parent JEV-1 formal
+GO/CONDITIONAL_GO verdict remains pending comparative-baseline reconciliation,
+and JEV-5 still gates any automatic product consequence.
 
 1. `task_classification`
 2. `skill_suggestion`
@@ -80,8 +85,10 @@ Expose a validated provider recommendation to the deterministic policy/integrato
 It may reduce unnecessary frontier classification work, but the surrounding lane
 and existing A-FastTask/A-Faster gates remain authoritative.
 
-JEV-5 production admission is required before adding any mode with automatic
-product consequence.
+Until the provider-neutral seam and an admitted provider route are accepted, the
+effective executable mode is `OFF`; executors must not improvise a direct
+TypeSafe call merely because this routing reference exists. JEV-5 production
+admission is required before adding any mode with automatic product consequence.
 
 ## Advisory eligibility gate
 
@@ -176,15 +183,26 @@ state text, session/share URLs, or hidden reasoning.
 
 ## Retry and recovery
 
-Semantic calls are ordinary provider executions for liveness/retry purposes:
+A failed semantic decision **first fails closed to `ESCALATE`**. This advisory
+contract does not currently authorize call-level retry.
 
-- unambiguous provider rejection/error may use the existing bounded retry policy;
-- ambiguous transport outcome must be reconciled before replay;
+- ambiguous transport outcome must be reconciled before any replay;
+- authentication/schema/provider rejection does not retry here; use the
+  deterministic/frontier fallback;
+- typed 429/529 backoff/retry may be introduced only after the R3 TypeSafe
+  adapter admission in Issue #505 defines and verifies its bounded policy;
 - repeated material failure without new evidence enters root-cause mode;
-- provider unavailable => use deterministic/frontier fallback without changing
-  the underlying Work Order/claim/scope.
+- provider unavailable never changes the underlying Work Order/claim/scope.
+
+Evidence-only, replay-safe semantic calls do not automatically require a
+`DELEGATED_RUN_ID` or durable lane pointer. Use the normal A-Faster delegated
+run/census machinery only when the provider execution is material or can
+outlive the immediate bounded call.
 
 ## Roadmap relationship
+
+Issue #501 splits implementation into bounded child slices: JEV-2A/JEV-2B map
+to roadmap JEV-2, and this JEV-3A routing slice maps to roadmap JEV-3.
 
 - JEV-2 supplies the provider-neutral `SemanticDecisionProvider` seam.
 - JEV-3 uses this reference for OFF/SHADOW/ADVISORY routing.

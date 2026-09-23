@@ -358,9 +358,11 @@ creates no new scheduler, registry, or retry authority — and
 
 ## JEV semantic fast path
 
-For bounded semantic triage, A-Faster may consult the provider-neutral semantic
-decision seam **after deterministic facts and normal lane authority are known**.
-Read `references/jev-semantic-fast-path.md` when a READY task needs task
+For bounded semantic triage, A-Faster may consult an **accepted/admitted**
+provider-neutral semantic decision seam after deterministic facts and normal
+lane authority are known. Until that seam/route exists, effective mode is
+`OFF`; do not improvise direct provider calls from this skill. Read
+`references/jev-semantic-fast-path.md` when a READY task needs task
 classification, skill suggestion, failure classification, evidence relevance,
 or escalation triage.
 
