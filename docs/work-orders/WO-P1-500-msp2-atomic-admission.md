@@ -342,8 +342,9 @@ remained untouched and pass unchanged. `dex_identity.py` untouched (reused).
      linked worktrees of one repository (junction/reparse/case/separator);
   2. existing directory without Git metadata → digest of the canonicalized
      directory itself;
-  3. absent path → digest of the accepted legacy `worktree_key` spelling,
-     preserving historical admission equivalence classes exactly.
+  3. absent, non-directory, or unprobeable path → fail closed as
+     `HOTSPOT_IDENTITY_FAILED`; mutation admission never falls back to a path
+     spelling when physical hotspot identity cannot be proved.
 - Mutation admission resolves the hotspot BEFORE the write transaction;
   `BEGIN IMMEDIATE` now fences active mutation leases by `hotspot_key`
   (not `worktree_key`) plus `write_sets_overlap` (unchanged seam).
@@ -361,6 +362,42 @@ remained untouched and pass unchanged. `dex_identity.py` untouched (reused).
   (stable across instances of the same physical DB; bindable evidence only).
 - Read-only leases: no hotspot resolution, NULL hotspot persisted, never
   fence or get fenced by mutation hotspot authority (behavior preserved).
+
+### R3 review repair checkpoint — 2026-09-23
+
+Independent GLM-5.3 MAX review of exact candidate
+`df84e8f434b1448a71fcfc9892fd3d10a173543f` returned
+`CHANGES_REQUIRED` with one P1 driver: the absent-path compatibility fallback
+could assign a legacy spelling-derived hotspot to an unproven physical
+worktree, allowing false independence while `hotspot_fence_status()` still
+reported `LOCAL_FENCE_ENFORCED`.
+
+Repair remains within the originally admitted five-path scope:
+
+- default physical hotspot resolution now fails closed when the worktree path
+  is absent, not a directory, or cannot be probed;
+- the legacy path-spelling fallback was removed from mutation admission;
+- RED coverage pins absent-path and existence-probe failures to
+  `HOTSPOT_IDENTITY_FAILED`;
+- the true two-process race now uses two distinct physical linked-worktree
+  paths that share one Git common directory, proving exactly one winner under
+  the real resolver;
+- pre-MSP2 lease/recovery suites inject a deterministic test-only hotspot
+  resolver so those legacy behavioral tests do not depend on fake filesystem
+  paths;
+- `hotspot_fence_status()` now reads total/missing counts in one aggregate
+  query, removing the reviewer-noted torn-read P3;
+- submodule documentation now matches the implemented module-admin physical
+  identity instead of claiming convergence with the superproject.
+
+Deterministic repair evidence:
+- `tests/test_msp2_atomic_admission.py`: 31 passed;
+- `test_worker_lease.py + test_worker_lease_recovery.py + test_dex_identity.py`:
+  95 passed;
+- no production scheduler/claim/retry/takeover authority added.
+
+Next gate: compile/diff/secret/scope checks -> repaired exact SHA -> hosted CI ->
+independent focused rereview after the global review slot is released.
 
 ### Verification evidence
 
@@ -393,8 +430,10 @@ remained untouched and pass unchanged. `dex_identity.py` untouched (reused).
 - Mixed old/new mutation writers are not globally safe: an old binary can
   still write NULL-hotspot mutation rows; `hotspot_fence_status()` reflects
   only what this store can see. `LOCAL_FENCE_ENFORCED` ≠ `GUARD_ENFORCED`.
-- Submodule worktrees converge onto their superproject's Git common dir
-  (conservative over-blocking, never false independence).
+- Submodule worktrees resolve to their own Git module admin directory
+  (for example `.git/modules/<name>`) and therefore remain a distinct physical
+  hotspot from the superproject; linked worktrees of that same submodule still
+  converge through their module common-dir identity.
 - No foreign-session takeover (P1-1); stale/quarantined leases still require
   accepted owner recovery.
 - Same-owner retry against a legacy NULL-hotspot row cannot detect drift and
@@ -402,10 +441,10 @@ remained untouched and pass unchanged. `dex_identity.py` untouched (reused).
 
 ### Remaining R3 review risks
 
-- Independent exact-SHA review of the resolver tier semantics (especially the
-  absent-path legacy fallback tier) and of the global legacy-NULL block
-  (blocks all new mutations store-wide until reconciliation — intended
-  fail-closed behavior, reviewer should confirm deployment impact).
+- Independent exact-SHA rereview must confirm the repaired resolver now fails
+  closed for absent/unprobeable mutation worktrees and that physical linked
+  worktrees still converge to one hotspot while the global legacy-NULL block
+  retains its intended reconciliation behavior.
 - Broker duck-typed store detection (`getattr resolve_mutation_hotspot`) —
   confirm no production fake-store path masks the fence.
 - Hosted CI run on the exact reviewed head before merge (repo delivery gate).

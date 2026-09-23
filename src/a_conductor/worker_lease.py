@@ -124,20 +124,21 @@ def _resolve_relative(base: Path, value: str) -> Path:
     return Path(os.path.normpath(str(base / raw)))
 
 
-def _hotspot_canonical_root(worktree: Path) -> Path | None:
-    """Return the canonicalization root for one worktree, or None if absent.
+def _hotspot_canonical_root(worktree: Path) -> Path:
+    """Return the physical canonicalization root for one existing worktree.
 
     The root is the Git common directory when the worktree belongs to one
     (linked worktrees share it with their main repository), otherwise the
-    existing directory itself. A missing worktree path returns ``None`` so
-    the caller can fall back to deterministic legacy string identity.
+    existing directory itself. Missing, non-directory, or unprobeable paths
+    fail closed because mutation admission cannot prove physical hotspot
+    identity from a legacy path spelling.
     """
 
     try:
         if not worktree.exists() or not worktree.is_dir():
-            return None
-    except OSError:
-        return None
+            raise DexIdentityError("PROJECT_IDENTITY_FAILED")
+    except OSError as exc:
+        raise DexIdentityError("PROJECT_IDENTITY_FAILED") from exc
     dot = worktree / ".git"
     try:
         if not dot.exists():
@@ -183,10 +184,6 @@ def default_hotspot_resolver(worktree: str) -> str:
     except (OSError, RuntimeError, ValueError) as exc:
         raise DexIdentityError("PROJECT_IDENTITY_FAILED") from exc
     root = _hotspot_canonical_root(candidate)
-    if root is None:
-        return canonical_root_digest(
-            windows_worktree_key(text), platform_tag=_current_platform_tag()
-        )
     canonical = canonicalize_existing_root(root)
     return canonical_root_digest(canonical, platform_tag=_current_platform_tag())
 
@@ -691,17 +688,15 @@ class SQLiteWorkerLeaseStore:
 
         with self._connect() as connection:
             try:
-                total = int(connection.execute(
-                    "SELECT COUNT(*) FROM worker_leases "
+                row = connection.execute(
+                    "SELECT COUNT(*), "
+                    "COALESCE(SUM(CASE WHEN hotspot_key IS NULL THEN 1 ELSE 0 END), 0) "
+                    "FROM worker_leases "
                     "WHERE released_at IS NULL AND mutation_intent = ?",
                     (LeaseMutationIntent.MUTATION.value,),
-                ).fetchone()[0])
-                missing = int(connection.execute(
-                    "SELECT COUNT(*) FROM worker_leases "
-                    "WHERE released_at IS NULL AND mutation_intent = ? "
-                    "AND hotspot_key IS NULL",
-                    (LeaseMutationIntent.MUTATION.value,),
-                ).fetchone()[0])
+                ).fetchone()
+                total = int(row[0])
+                missing = int(row[1])
             except sqlite3.Error as exc:
                 raise WorkerLeaseError("LEASE_STORE_READ_FAILED") from exc
         kind = (

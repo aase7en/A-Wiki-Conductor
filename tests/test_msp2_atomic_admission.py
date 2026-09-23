@@ -225,13 +225,22 @@ def test_same_hotspot_disjoint_scopes_proceed_independently(tmp_path: Path) -> N
 
 def test_active_legacy_null_hotspot_mutation_row_blocks_new_mutation(tmp_path: Path) -> None:
     database = tmp_path / "leases.sqlite"
+    worktree = tmp_path / "new-worktree"
+    worktree.mkdir()
     seed_legacy_row(database)
     store = SQLiteWorkerLeaseStore(database)
 
     with pytest.raises(WorkerLeaseError, match="HOTSPOT_RECONCILIATION_REQUIRED"):
         store.try_acquire(
-            mutation_request(session="s2", task="t2", worktree=r"A:\Other", mutable=("docs/x.md",), allowed=("docs/**", "src/**", "tests/**"), worker="a-worker-01"),
-            candidate("a-worker-01", worktree=r"A:\Other"),
+            mutation_request(
+                session="s2",
+                task="t2",
+                worktree=str(worktree),
+                mutable=("docs/x.md",),
+                allowed=("docs/**", "src/**", "tests/**"),
+                worker="a-worker-01",
+            ),
+            candidate("a-worker-01", worktree=str(worktree)),
             lease_id="lease-new", acquired_at=NOW,
         )
     assert len(store.list_active()) == 1
@@ -244,18 +253,23 @@ def test_active_legacy_null_hotspot_mutation_row_blocks_new_mutation(tmp_path: P
 
 def test_legacy_row_owner_retry_still_reuses_its_own_lease(tmp_path: Path) -> None:
     database = tmp_path / "leases.sqlite"
-    seed_legacy_row(database)
+    worktree = tmp_path / "legacy-worktree"
+    worktree.mkdir()
+    seed_legacy_row(
+        database,
+        worktree_key=worker_lease_module.windows_worktree_key(str(worktree)),
+    )
     store = SQLiteWorkerLeaseStore(database)
     retry = WorkerLeaseRequest(
         session_id="legacy-session", task_id="legacy-task", project_id="project-1",
         ordered_worker_ids=("a-worker-09",), required_capabilities=("shell",),
-        required_runtime_id=None, worktree=r"A:\Legacy", branch="feat/test",
+        required_runtime_id=None, worktree=str(worktree), branch="feat/test",
         expected_head="a" * 40, mutation_intent=LeaseMutationIntent.MUTATION,
         allowed_scope=("src/**",), forbidden_scope=("secrets/**",),
         mutable_scope=("src/legacy.py",), lease_ttl_seconds=60,
     )
     result = store.try_acquire_result(
-        retry, candidate("a-worker-09", worktree=r"A:\Legacy"),
+        retry, candidate("a-worker-09", worktree=str(worktree)),
         lease_id="lease-retry", acquired_at=NOW,
     )
     assert result.created is False
@@ -266,6 +280,8 @@ def test_legacy_row_owner_retry_still_reuses_its_own_lease(tmp_path: Path) -> No
 
 def test_released_legacy_row_no_longer_blocks_new_mutation(tmp_path: Path) -> None:
     database = tmp_path / "leases.sqlite"
+    worktree = tmp_path / "new-worktree"
+    worktree.mkdir()
     seed_legacy_row(database)
     store = SQLiteWorkerLeaseStore(database)
     store.release(
@@ -273,8 +289,11 @@ def test_released_legacy_row_no_longer_blocks_new_mutation(tmp_path: Path) -> No
         released_at="2026-09-23T00:00:30.000000Z",
     )
     lease = store.try_acquire(
-        mutation_request(session="s2", task="t2", worker="a-worker-01"),
-        candidate("a-worker-01"), lease_id="lease-new", acquired_at=NOW,
+        mutation_request(
+            session="s2", task="t2", worker="a-worker-01", worktree=str(worktree)
+        ),
+        candidate("a-worker-01", worktree=str(worktree)),
+        lease_id="lease-new", acquired_at=NOW,
     )
     assert lease is not None
     assert lease.hotspot_key is not None
@@ -446,16 +465,29 @@ def test_default_resolver_converges_separator_and_case_aliases(tmp_path: Path) -
     assert len(hotspots) == 1
 
 
-def test_default_resolver_converges_nonexistent_alias_spellings(tmp_path: Path) -> None:
+def test_default_resolver_missing_worktree_fails_closed(tmp_path: Path) -> None:
     store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
-    spellings = [r"A:\Repo", r"a:/repo/.", "A:\\Repo\\.\\"]
+    for spelling in (r"A:\Repo", r"a:/repo/.", "A:\\Repo\\.\\"):
+        with pytest.raises(WorkerLeaseError, match="HOTSPOT_IDENTITY_FAILED"):
+            store.resolve_mutation_hotspot(spelling)
 
-    hotspots = {store.resolve_mutation_hotspot(spelling) for spelling in spellings}
-    assert len(hotspots) == 1
-    expected = canonical_root_digest(
-        worker_lease_module.windows_worktree_key(r"A:\Repo"), platform_tag=PLATFORM_TAG
-    )
-    assert hotspots == {expected}
+
+def test_default_resolver_probe_error_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    worktree = tmp_path / "blocked"
+    worktree.mkdir()
+    store = SQLiteWorkerLeaseStore(tmp_path / "leases.sqlite")
+    original_exists = Path.exists
+
+    def failing_exists(path: Path) -> bool:
+        if path == worktree:
+            raise OSError("probe denied")
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", failing_exists)
+    with pytest.raises(WorkerLeaseError, match="HOTSPOT_IDENTITY_FAILED"):
+        store.resolve_mutation_hotspot(str(worktree))
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="junction alias requires win32")
@@ -658,11 +690,12 @@ def test_two_process_same_hotspot_race_has_exactly_one_winner(tmp_path: Path) ->
     database = tmp_path / "leases.sqlite"
     ready = tmp_path / "child-ready.txt"
     go = tmp_path / "go.txt"
+    main, linked = make_git_worktree_family(tmp_path)
     source_root = Path(__file__).resolve().parents[1] / "src"
     process = subprocess.Popen(
         [
             sys.executable, "-c", RACE_CHILD, str(source_root), str(database),
-            r"A:\Repo", "child-session", "child-task", "a-worker-02",
+            str(linked), "child-session", "child-task", "a-worker-02",
             str(ready), str(go),
         ],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
@@ -675,8 +708,15 @@ def test_two_process_same_hotspot_race_has_exactly_one_winner(tmp_path: Path) ->
         parent_created = False
         try:
             lease = store.try_acquire(
-                mutation_request(session="parent-session", task="parent-task", worker="a-worker-01"),
-                candidate("a-worker-01"), lease_id="lease-parent", acquired_at=NOW,
+                mutation_request(
+                    session="parent-session",
+                    task="parent-task",
+                    worker="a-worker-01",
+                    worktree=str(main),
+                ),
+                candidate("a-worker-01", worktree=str(main)),
+                lease_id="lease-parent",
+                acquired_at=NOW,
             )
             parent_created = lease is not None
         except WorkerLeaseError as exc:
@@ -693,7 +733,8 @@ def test_two_process_same_hotspot_race_has_exactly_one_winner(tmp_path: Path) ->
     assert loser_codes == ["MUTABLE_SCOPE_OVERLAP"]
     active = SQLiteWorkerLeaseStore(database).list_active()
     assert len(active) == 1
-    assert active[0].hotspot_key == default_hotspot_resolver(r"A:\Repo")
+    assert active[0].hotspot_key == default_hotspot_resolver(str(main))
+    assert default_hotspot_resolver(str(main)) == default_hotspot_resolver(str(linked))
 
 
 CONTENTION_CHILD = """
@@ -713,6 +754,8 @@ con.close()
 def test_subprocess_db_contention_yields_typed_outcome(tmp_path: Path) -> None:
     database = tmp_path / "leases.sqlite"
     marker = tmp_path / "child-held.txt"
+    worktree = tmp_path / "physical-worktree"
+    worktree.mkdir()
     store = SQLiteWorkerLeaseStore(database)
     process = subprocess.Popen(
         [sys.executable, "-c", CONTENTION_CHILD, str(database), str(marker)],
@@ -721,8 +764,11 @@ def test_subprocess_db_contention_yields_typed_outcome(tmp_path: Path) -> None:
     try:
         wait_for_file(marker)
         lease = store.try_acquire(
-            mutation_request(session="s1", task="t1", worker="a-worker-01"),
-            candidate("a-worker-01"), lease_id="lease-1", acquired_at=NOW,
+            mutation_request(
+                session="s1", task="t1", worker="a-worker-01", worktree=str(worktree)
+            ),
+            candidate("a-worker-01", worktree=str(worktree)),
+            lease_id="lease-1", acquired_at=NOW,
         )
         out, err = process.communicate(timeout=60)
     finally:
@@ -730,5 +776,5 @@ def test_subprocess_db_contention_yields_typed_outcome(tmp_path: Path) -> None:
             process.kill()
     assert process.returncode == 0, err
     assert lease is not None
-    assert lease.hotspot_key == default_hotspot_resolver(r"A:\Repo")
+    assert lease.hotspot_key == default_hotspot_resolver(str(worktree))
     assert len(store.list_active()) == 1
