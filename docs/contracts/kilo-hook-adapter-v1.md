@@ -4,7 +4,7 @@ Status: CONTRACT-ONLY CONFORMANCE CANDIDATE — WO-P1-376 / Issue #376 (identity
 Identity schema: GITHUB_ISSUE_V1
 Adapter contract version: 1.0.0 (emits Hook Contract `1.0.0`)
 Planning authority: `docs/plans/2026-09-19-a-faster-hook-stm-observability-roadmap.md` (P4 — HOOK-3 harness adapters, Kilo sub-lane)
-Dependency: Hook Contract v1 exact `602f6db01e170f74456ff77e1b5df01622fb84dd` (accepted on main via merge `2a461ae22ab28ad3b48f15660ab818f700faab30`; `docs/contracts/hook-contract-v1.md` + `docs/contracts/hook-contract-v1.schema.json`)
+Dependency: Hook Contract v1 post-merge repair exact `0d4f0c3b36ff7fad9ed14636730443119683cb1d` (`docs/contracts/hook-contract-v1.md` blob `25f69a964140c082db9d43b65dd3fcd9dbfc0c3c`; `docs/contracts/hook-contract-v1.schema.json` blob `98451ee3a4b63b4f07ca7b38525f9f5016916d54`). Superseded accepted dependency (evidence only): `602f6db01e170f74456ff77e1b5df01622fb84dd` via merge `2a461ae22ab28ad3b48f15660ab818f700faab30`.
 Machine conformance: `tests/test_kilo_hook_adapter_contract.py` + fixtures under `tests/fixtures/hook_adapters/kilo/`
 Claim: WO-P1-376-KILO-HOOK-ADAPTER-REBIND-001
 Result destination: `runs/WO-P1-376/repair/`
@@ -228,8 +228,8 @@ Fail-closed gates:
 
 ## 6. Identity, ordering, dedupe (delegated)
 
-Ordering and dedupe semantics are OWNED by Hook Contract §4/§5 as accepted
-at `602f6db01e170f74456ff77e1b5df01622fb84dd` (review-001). This adapter
+Ordering and dedupe semantics are OWNED by Hook Contract §4/§5 at the
+post-merge repair pin `0d4f0c3b36ff7fad9ed14636730443119683cb1d`. This adapter
 delegates to them and adds no second identity, ordering, or dedupe
 authority; this section records only the adapter-local derivation facts.
 
@@ -329,6 +329,8 @@ Deterministic, offline, no network, no MCP, no runtime validation:
   for envelope semantics; this adapter suite must not weaken or duplicate
   its ordering/dedupe authority.
 
-Any change to Hook Contract v1 (dependency SHA drift from
-`602f6db01e170f74456ff77e1b5df01622fb84dd`) invalidates this
-adapter contract until re-pinned and re-reviewed (WO-P1-376 acceptance).
+Any change to Hook Contract v1 (dependency SHA or exact blob drift from
+`0d4f0c3b36ff7fad9ed14636730443119683cb1d` /
+`25f69a964140c082db9d43b65dd3fcd9dbfc0c3c` /
+`98451ee3a4b63b4f07ca7b38525f9f5016916d54`) invalidates this
+adapter contract until re-pinned and re-reviewed under the governing repair.
