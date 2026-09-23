@@ -15,6 +15,7 @@ import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 from typing import Callable, Mapping, Protocol
 
 from .claude_code_harness import HarnessDispatch, MutationIntent, TaskPacketFile
@@ -810,7 +811,26 @@ def _provider_inflight_count(provider_store, snapshot, now: object) -> int:
     return count
 
 
+_RUNTIME_AUTHORITY_INITIALIZATION_LOCK = Lock()
+
+
 def _initialize_runtime_authority_stores(
+    database_path: Path,
+    *,
+    provider_store,
+    provider_id: str,
+):
+    """Serialize same-process schema assembly without creating new authority."""
+
+    with _RUNTIME_AUTHORITY_INITIALIZATION_LOCK:
+        return _initialize_runtime_authority_stores_unlocked(
+            database_path,
+            provider_store=provider_store,
+            provider_id=provider_id,
+        )
+
+
+def _initialize_runtime_authority_stores_unlocked(
     database_path: Path,
     *,
     provider_store,
