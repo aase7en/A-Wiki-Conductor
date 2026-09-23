@@ -203,6 +203,104 @@ race tests.
 - no shadow authority design;
 - exact implementation scope frozen only after advisory findings are folded.
 
+## Current-state advisory adjudication (Flash / 2026-09-23)
+
+The read-only GLM-5.3-Flash current-state challenge returned
+`ADVISORY_PASS (conditional)` on exact HEAD
+`256f8812c78aa7ce04011a6c04448364b5dad729`. The following P1 decisions are
+now frozen for the next shaping step; they do **not** yet authorize source
+mutation.
+
+### P1-1 — takeover authority
+
+MSP-2A does **not** add cross-session takeover. Existing owner-only release/
+reconcile semantics remain fail-closed. A dead owner may leave a lease stale or
+quarantined, but a foreign session does not gain release/takeover authority.
+Typed takeover belongs to MSP-2C after an accepted claim-generation/recovery
+authority is identified. Chat/origin provenance never grants takeover.
+
+### P1-2 — lease-store identity / split authority
+
+MSP-2A makes a deliberately bounded claim: one-winner atomicity applies only
+among callers sharing the same accepted local WorkerLease SQLite authority.
+It must not describe a second SQLite path as the same authority. The store
+identity must be observable/bindable for #498 and later integration rather than
+silently re-derived by each guard. A durable global/cross-device claim remains
+A-Wiki `repo_coordination_claim` authority, not WorkerLease.
+
+The first source slice may add a stable read-only store identity if needed to
+prove same-store binding, but must not create another DB or registry. Any
+unresolved/mismatched store identity is fail-closed.
+
+### P1-3 — legacy / NULL hotspot identity and mixed versions
+
+A new binary must never treat an active mutation row with missing/legacy
+`hotspot_key` as independent. Such a row blocks/requires reconciliation rather
+than creating an unfenced path. Additive migration must preserve existing rows
+and explicit-column readers/writers.
+
+Concurrent old/new writer binaries cannot be advertised as providing the new
+cross-worktree atomic guarantee because an old writer does not understand the
+new hotspot fence. Deployment/compatibility therefore has an explicit
+homogeneous-writer gate: until all mutation admission writers understand the
+new fence, enforcement state remains partial/fail-closed rather than
+`GUARD_ENFORCED` globally.
+
+Concurrent initialization/migration and active legacy rows require deterministic
+tests before source acceptance.
+
+### P1-4 — session namespace
+
+`WorkerLease.session_id` is the A-Sunday control-plane lease-owner session
+identity, not a ChatGPT conversation/origin provenance identifier. MSP-1 origin
+refs remain observational. Chat/session loss does not rewrite lease ownership;
+recovery/takeover must use accepted durable lease/claim authority.
+
+### MSP-2A bounded guarantee
+
+MSP-2A targets **same accepted local store + same logical Git repository
+hotspot + overlapping mutable scope => at most one active mutation lease**.
+It does not claim:
+
+- cross-device atomicity;
+- global WIP counting;
+- automatic foreign-session takeover;
+- claim-generation convergence;
+- protection from an old binary that bypasses the new fence;
+- #498 PRE_DISPATCH GUARD semantics.
+
+Those boundaries remain separate accepted authorities/phases.
+
+### Canonical hotspot direction
+
+The leading candidate is a digest of the canonical physical Git common
+directory, because separate worktrees of one logical repository share that
+directory while unrelated repositories do not. Resolution must occur before
+the SQLite write transaction and use an injectable resolver for deterministic
+tests. Reuse existing DEX final-path/canonical-digest semantics rather than
+creating a fourth path-normalization authority.
+
+`project_id` is not included in the physical repo hotspot key because it is an
+operator/control grouping, not Git physical identity; two project IDs pointing
+at the same physical repository must not create false independence.
+
+Windows mutable-scope case semantics remain a separate decision and must be
+frozen/tested before MSP-2A source mutation; do not silently change historical
+`write_sets_overlap()` behavior inside the hotspot-identity change.
+
+### Additional required REDs before source authorization
+
+- real two-process same-DB race;
+- distinct worktree paths sharing one Git common-dir + overlapping scope;
+- junction/reparse/case/separator alias convergence for hotspot identity;
+- store-path/identity mismatch fail-closed;
+- active legacy NULL-hotspot row blocks new mutation admission;
+- concurrent initialize/additive migration;
+- old-reader/new-row compatibility plus explicit mixed-writer limitation;
+- ambiguous SQLite write result never authorizes launch;
+- stale HEAD after lease admission remains #498/reverification responsibility;
+- owner-death/takeover remains blocked until MSP-2C authority exists.
+
 ## Future source gate
 
 Before any `src/a_conductor/` mutation:
