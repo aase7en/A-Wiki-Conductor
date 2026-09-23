@@ -30,7 +30,12 @@ from a_conductor.provider_configuration import (
     ProtocolFamily,
 )
 from a_conductor.registry import windows_worktree_key
-from a_conductor.worker_lease import LeaseMutationIntent, WorkerLease
+from a_conductor.worker_lease import (
+    LeaseHealth,
+    LeaseHealthKind,
+    LeaseMutationIntent,
+    WorkerLease,
+)
 from a_conductor.zcode_production_assembly import (
     ZCodeAssemblyError,
     ZCodeExecutionAuthorities,
@@ -430,3 +435,114 @@ def _assemble_full(tmp_path, *, dispatch_batch_id="batch-0001",
         executable=EXEC,
         bundle_js=BUNDLE,
     )
+
+
+# ---------------- WO-P1-498 / 498A: launch-time PRE_DISPATCH GUARD ----------
+
+
+class _HealthReader:
+    """Injected read-only lease-health authority from the SAME configured
+    lease store (deterministic double; records reads)."""
+
+    def __init__(self, health):
+        self.health = health
+        self.calls = []
+
+    def inspect_health(self, lease_id, *, now):
+        self.calls.append(lease_id)
+        return self.health
+
+
+def _authorities_with_reader(tmp_path, *, lease=None, reader=None,
+                             requested_mutable_scope=("src/a_conductor/zcode_runner.py",),
+                             review=False):
+    accepted = lease if lease is not None else _lease(tmp_path)
+    if review:
+        accepted = _lease(
+            tmp_path,
+            mutation_intent=LeaseMutationIntent.READ_ONLY,
+            allowed_scope=(),
+            forbidden_scope=(),
+            mutable_scope=(),
+        )
+        requested_mutable_scope = ()
+    return ZCodeExecutionAuthorities(
+        provider_snapshot=Snapshot(1, _profile()),
+        secret_resolver=_Secrets(),
+        execution_store=_Store(),
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        lease_evidence=accepted,
+        admission_evidence=_admission(execution_id="exec-bound-0001"),
+        dispatch_batch_id="batch-0001",
+        dispatch_execution_id="exec-bound-0001",
+        project_id="zcode",
+        requested_mutable_scope=requested_mutable_scope,
+        worker_id="a-worker-01",
+        repo_root=str(tmp_path),
+        branch="feat/wo-p1-158-zcode-zero-relay",
+        head="h" * 40,
+        dirty=False,
+        lease_health_reader=reader if reader is not None else _HealthReader(
+            LeaseHealth(LeaseHealthKind.ACTIVE, accepted)
+        ),
+    )
+
+
+def test_wo498_mutation_assembly_with_reader_binds_required_guard(tmp_path):
+    reader = _HealthReader(LeaseHealth(LeaseHealthKind.ACTIVE, _lease(tmp_path)))
+    runner = _assemble(
+        tmp_path,
+        authorities=_authorities_with_reader(tmp_path, reader=reader),
+    )
+    assert runner._pre_dispatch_guard is not None
+    assert runner._pre_dispatch_guard_required is True
+    assert reader.calls == []  # no health read happens at assembly time
+
+
+def test_wo498_invalid_health_reader_fails_closed(tmp_path):
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble(
+            tmp_path,
+            authorities=_authorities_with_reader(tmp_path, reader=object()),
+        )
+    assert e.value.code == "ZCODE_PRE_DISPATCH_GUARD_INVALID"
+
+
+def test_wo498_assembly_without_reader_preserves_historical_behavior(tmp_path):
+    runner = _assemble(tmp_path)  # default authorities carry no reader
+    assert runner._pre_dispatch_guard is None
+    assert runner._pre_dispatch_guard_required is False
+
+
+def test_wo498_review_route_stays_policy_only_even_with_reader(tmp_path):
+    from a_conductor.zcode_production_assembly import assemble_zcode_review_execution
+
+    runner = assemble_zcode_review_execution(
+        authorities=_authorities_with_reader(tmp_path, review=True),
+        packet=_packet(tmp_path),
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url="http://127.0.0.1:1",
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path),
+        executable=EXEC,
+        bundle_js=BUNDLE,
+    )
+    assert runner._pre_dispatch_guard is None
+    assert runner._pre_dispatch_guard_required is False
+
+
+def test_wo498_historical_lease_gate_order_precedes_guard_construction(tmp_path):
+    """Existing negative lease gates keep firing with their historical codes
+    even when a health reader is present (guard is built LAST)."""
+    expired = (_now() - timedelta(seconds=1)).isoformat()
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble(
+            tmp_path,
+            authorities=_authorities_with_reader(
+                tmp_path, lease=_lease(tmp_path, expires_at=expired)
+            ),
+        )
+    assert e.value.code == "ZCODE_LEASE_EXPIRED"

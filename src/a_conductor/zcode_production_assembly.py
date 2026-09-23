@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .claude_code_harness import TaskPacketFile
+from .pre_dispatch_guard import WorkerLeasePreDispatchGuard
 from .provider_configuration import HarnessRuntimeBinding, HarnessStrategy, ProtocolFamily
 from .zero_relay_author_provenance import (
     AuthorProvenanceBinding,
@@ -115,6 +116,7 @@ class ZCodeExecutionAuthorities:
     python_executable: str = ""                    # REQUIRED for the real helper
     lease_evidence: object | None = None   # accepted canonical WorkerLease (REQUIRED)
     admission_evidence: object | None = None  # accepted canonical ProviderAdmissionRecord (REQUIRED)
+    lease_health_reader: object | None = None  # accepted read-only lease-health authority (REQUIRED on the 498A mutation writer route)
     dispatch_batch_id: str = ""                    # independently-derived dispatch batch identity (REQUIRED)
     dispatch_execution_id: str | None = None       # REQUIRED execution binding from the dispatch context
     project_id: str = ""                           # REQUIRED dispatch-context project identity (vs lease)
@@ -519,6 +521,29 @@ def _assemble_zcode_execution_impl(
         repo_root=authorities.repo_root,
         author_provenance=author_provenance,
     )
+
+    # 10. 498A PRE_DISPATCH GUARD — launch-time revalidation of the accepted
+    #     lease binding on the mutation-capable writer route ONLY, after every
+    #     historical gate above has passed so their typed codes keep firing
+    #     first. The guard consumes the SAME accepted read-only lease-health
+    #     authority the Conductor injected (never a second SQLite path). The
+    #     injection is ADDITIVE: a mutation assembly without a health reader
+    #     preserves the historical unguarded behavior (POLICY_ONLY), and one
+    #     with a reader binds a REQUIRED guard to the accepted baseline lease
+    #     + declared requested mutable scope. The review-only route stays
+    #     POLICY_ONLY here and receives no mutation guard authority in 498A.
+    pre_dispatch_guard = None
+    if not review_only and authorities.lease_health_reader is not None:
+        if not callable(getattr(authorities.lease_health_reader, "inspect_health", None)):
+            raise ZCodeAssemblyError("ZCODE_PRE_DISPATCH_GUARD_INVALID")
+        try:
+            pre_dispatch_guard = WorkerLeasePreDispatchGuard(
+                health_reader=authorities.lease_health_reader,
+                baseline_lease=lease,
+                requested_mutable_scope=tuple(authorities.requested_mutable_scope or ()),
+            )
+        except (ValueError, TypeError):
+            raise ZCodeAssemblyError("ZCODE_PRE_DISPATCH_GUARD_INVALID") from None
     return SupervisedZCodeRunner(
         execution_store=authorities.execution_store,
         identity=identity,
@@ -526,6 +551,8 @@ def _assemble_zcode_execution_impl(
         executable=executable,
         bundle_js=bundle_js,
         task_packet=packet_identity,
+        pre_dispatch_guard=pre_dispatch_guard,
+        pre_dispatch_guard_required=pre_dispatch_guard is not None,
     )
 
 

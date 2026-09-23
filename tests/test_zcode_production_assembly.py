@@ -790,3 +790,35 @@ def test_wo246_e2e_author_run_persists_generation0_pair(tmp_path):
         con.close()
     assert generation == 0
     assert _re.fullmatch(r"author-attempt-v1:[0-9a-f]{32}", attempt)
+
+
+# ---- WO-P1-498 / 498A: guarded writer route through REAL service authorities ----
+
+@NT_ONLY
+def test_wo498_real_service_assembly_binds_required_lease_guard(tmp_path):
+    """Through the REAL owned-process authorities, an injected lease-health
+    reader (same configured lease authority) binds a REQUIRED launch-time
+    PRE_DISPATCH guard onto the mutation-capable supervised ZCode runner."""
+    from a_conductor.worker_lease import LeaseHealth, LeaseHealthKind
+
+    from tests.test_zcode_real_helper_e2e import build_lease, build_real_service_authorities
+
+    class _Reader:
+        def __init__(self, health):
+            self.health = health
+            self.calls = []
+
+        def inspect_health(self, lease_id, *, now):
+            self.calls.append(lease_id)
+            return self.health
+
+    lease = build_lease(tmp_path)
+    reader = _Reader(LeaseHealth(LeaseHealthKind.ACTIVE, lease))
+    authorities = replace(
+        build_real_service_authorities(tmp_path),
+        lease_health_reader=reader,
+    )
+    runner = _service_assemble(tmp_path, authorities=authorities)
+    assert runner._pre_dispatch_guard is not None
+    assert runner._pre_dispatch_guard_required is True
+    assert reader.calls == []  # no launch-time read before any run()
