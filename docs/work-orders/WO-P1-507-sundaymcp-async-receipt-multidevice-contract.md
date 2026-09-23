@@ -138,6 +138,33 @@ It is transport/session evidence only. It is not a task generation, retry
 number, Worker generation, semantic-engine generation, claim version, or
 completion generation.
 
+### Executor context is not authority
+
+Serena / Worker `Active Project` is executor-local, session-bound,
+transitional context only. It MUST NOT identify or grant task, lane, owner,
+claim, mutation, merge, completion, recovery, or replay authority.
+
+Every material request/dispatch MUST carry or resolve from durable authority an
+explicit lane binding sufficient to prove the intended execution target:
+
+- `authority_repo` and `execution_repo`;
+- canonical repository/worktree identity;
+- branch and expected HEAD;
+- task / Work Order identity;
+- claim / lease and generation when applicable;
+- mutable scope and mutation intent;
+- `execution_id + attempt_id`;
+- `device_id + connection_generation` for remote/device-routed execution.
+
+A matching `Active Project` is at most corroborating evidence. It never
+substitutes for that explicit binding.
+
+Before any consequential mutation or process launch through a Serena-compatible
+adapter, the observed executor context MUST be checked against the explicit
+lane binding. Mismatch, stale context, or unknown context fails closed before
+side effect with a typed context-drift outcome. The adapter MUST NOT silently
+mutate whichever project happens to be active in that session.
+
 ### Correlation identity
 
 Every remote request/result path MUST be correlatable across:
