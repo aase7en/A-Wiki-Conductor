@@ -108,6 +108,29 @@ Freeze only:
 
 Next gate: exact-SHA independent review + hosted CI. No TypeSafe transport or A-Faster routing mutation is part of this candidate.
 
+## Independent review repair checkpoint — 2026-09-23
+
+SunDay-Worker 4 reviewed exact candidate
+`23a87636aadfabe57014e03b7761927b9215afec` read-only and returned
+`CHANGES_REQUIRED` with P0=0 / P1=0 / P2=1.
+
+Finding: `_validate_probabilities()` treated `None` as valid. That allowed
+Choice/Score evidence without the probability map required by the accepted
+JEV-1C strict contract to reach SHADOW `OBSERVE` or ADVISORY `ADVISE`
+instead of failing closed.
+
+Repair is intentionally narrow:
+
+- added RED coverage proving Choice `probabilities=None` escalates;
+- added RED coverage proving Score `probabilities=None` escalates;
+- reproduced both failures before code mutation;
+- changed `_validate_probabilities(None)` to invalid;
+- final core suite: `73 passed`;
+- related JEV/provider regression suite: `110 passed`;
+- `py_compile` and `git diff --check`: PASS.
+
+Next gate: freeze repaired SHA -> focused independent rereview -> exact-head CI.
+
 ## Replay / closeout
 
 Worker/GLM DONE is a claim only. If an external writer terminates, harvest exact Git/result evidence before retry. No blind replay.

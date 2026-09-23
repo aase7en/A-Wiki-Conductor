@@ -570,7 +570,7 @@ def _validate_probabilities(
     expected_keys: tuple[str, ...],
 ) -> bool:
     if probabilities is None:
-        return True
+        return False
     if set(probabilities) != set(expected_keys):
         return False
     total = 0.0

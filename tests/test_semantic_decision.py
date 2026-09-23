@@ -471,6 +471,10 @@ def test_advisory_mode_advises_when_all_gates_pass() -> None:
             SemanticDecisionReason.EVIDENCE_CONFIDENCE_INVALID,
         ),
         (
+            make_evidence(probabilities=None),
+            SemanticDecisionReason.EVIDENCE_PROBABILITIES_INVALID,
+        ),
+        (
             make_evidence(
                 probabilities={"bugfix": 0.5, "feature": 0.4, "docs": 0.0, "review": 0.0}
             ),
@@ -497,6 +501,22 @@ def test_invalid_evidence_escalates_in_shadow_and_advisory(
         decision = evaluate_semantic_decision(make_request(), evidence, mode)
         assert decision.disposition is SemanticDisposition.ESCALATE
         assert decision.reason is reason
+
+
+def test_score_missing_probabilities_escalates() -> None:
+    request = make_request(
+        primitive=SemanticPrimitive.SCORE, options=(), score_levels=4, min_confidence=None
+    )
+    evidence = make_evidence(
+        primitive=SemanticPrimitive.SCORE,
+        answer=2.0,
+        confidence=0.9,
+        probabilities=None,
+    )
+    for mode in (SemanticDecisionMode.SHADOW, SemanticDecisionMode.ADVISORY):
+        decision = evaluate_semantic_decision(request, evidence, mode)
+        assert decision.disposition is SemanticDisposition.ESCALATE
+        assert decision.reason is SemanticDecisionReason.EVIDENCE_PROBABILITIES_INVALID
 
 
 def test_out_of_range_and_nonfinite_answers_escalate() -> None:
