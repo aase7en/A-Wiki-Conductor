@@ -209,6 +209,33 @@ Next gate: exact-scope/UTF-8/secret scan -> freeze exact SHA -> independent R3
 review + hosted CI. Live held-out capture remains a later, separately bounded
 evidence action.
 
+## Independent review repair checkpoint — 2026-09-23
+
+Detached Worker-4 review of exact SHA
+`5c45f0d8b89a343f8771f5b56821c4ebf7f083eb` returned
+`CHANGES_REQUIRED` with P0=0 / P1=0 / P2=3.
+
+Repairs remain inside the same four-path scope:
+
+1. Removed `heldout_tag` from all model states. A read-only review probe proved
+   the stripped corpus still has 50/50 unique states and zero exact overlap
+   against 66 tuning states.
+2. Enforced Noul center / decision threshold = 0.5 at corpus load time and added
+   a fail-closed regression.
+3. Added explicit family-wide and aggregate automatic-decision, auto-accuracy,
+   false-auto, high-risk false-action, escalation/frontier-avoidance,
+   provider-error and schema-failure metrics plus deterministic regressions.
+
+Targeted repair suite is now `27 passed`.
+
+The reviewer also noted one non-blocking P3: this script reuses private
+`jev_shadow_benchmark` helpers for raw correctness and percentile calculation.
+That coupling is same-repo, deterministic, and does not create new authority;
+it remains a follow-up hardening note rather than an acceptance blocker.
+
+Next gate: related regressions + static freeze gates -> repaired exact SHA ->
+focused independent rereview + hosted CI.
+
 ## Stop / authority rules
 
 - provider evidence can never grant task/claim/WIP/mutation/review/merge or

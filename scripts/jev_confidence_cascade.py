@@ -176,6 +176,12 @@ def load_heldout_cases(
                 raise CascadeContractError(
                     f"{case.case_id}: Noul expected value must be boolean"
                 )
+            if case.decision_threshold is None or not math.isclose(
+                float(case.decision_threshold), 0.5, rel_tol=0.0, abs_tol=1e-12
+            ):
+                raise CascadeContractError(
+                    f"{case.case_id}: Noul center/decision threshold must be 0.5"
+                )
 
         split = _split_from_case_id(case.case_id, case.decision_family)
         family_counts[case.decision_family][split] += 1
@@ -473,6 +479,12 @@ def _family_report(
         reasons.append("validation_has_no_auto_decision")
 
     verdict = "CANDIDATE" if not reasons else "INCONCLUSIVE"
+    auto_decisions = cal_metrics["auto_decisions"] + val_metrics["auto_decisions"]
+    false_auto_decisions = (
+        cal_metrics["false_auto_decisions"] + val_metrics["false_auto_decisions"]
+    )
+    auto_correct = auto_decisions - false_auto_decisions
+    escalations = cal_metrics["escalations"] + val_metrics["escalations"]
     report = {
         "verdict": verdict,
         "inconclusive_reasons": reasons,
@@ -483,8 +495,18 @@ def _family_report(
         "provider_errors": len(provider_errors),
         "schema_failures": len(schema_failures),
         "high_risk_false_actions": high_risk_false,
+        "raw_correct": sum(o.raw_correct for o in valid),
         "raw_accuracy": (
             sum(o.raw_correct for o in valid) / len(valid) if valid else None
+        ),
+        "auto_decisions": auto_decisions,
+        "auto_accuracy": (
+            auto_correct / auto_decisions if auto_decisions else None
+        ),
+        "false_auto_decisions": false_auto_decisions,
+        "escalations": escalations,
+        "frontier_avoidance": (
+            auto_decisions / len(outcomes) if outcomes else 0.0
         ),
         "calibration": cal_metrics,
         "validation": val_metrics,
@@ -530,12 +552,38 @@ def run_cascade(
     valid = [o for o in outcomes if o.valid]
     total_cost = sum(o.cost_usd for o in valid)
     total_decisions = len(outcomes)
+    auto_decisions = sum(
+        int(item["auto_decisions"]) for item in family_reports.values()
+    )
+    false_auto_decisions = sum(
+        int(item["false_auto_decisions"]) for item in family_reports.values()
+    )
+    auto_correct = auto_decisions - false_auto_decisions
     aggregate = {
         "total_cases": total_decisions,
+        "split_counts": {"calibration": 25, "validation": 25},
         "valid_cases": len(valid),
+        "provider_errors": sum(
+            int(item["provider_errors"]) for item in family_reports.values()
+        ),
+        "schema_failures": sum(
+            int(item["schema_failures"]) for item in family_reports.values()
+        ),
         "raw_correct": sum(o.raw_correct for o in valid),
         "raw_accuracy": (
             sum(o.raw_correct for o in valid) / len(valid) if valid else None
+        ),
+        "auto_decisions": auto_decisions,
+        "auto_accuracy": (
+            auto_correct / auto_decisions if auto_decisions else None
+        ),
+        "false_auto_decisions": false_auto_decisions,
+        "high_risk_false_actions": sum(
+            int(item["high_risk_false_actions"]) for item in family_reports.values()
+        ),
+        "escalations": total_decisions - auto_decisions,
+        "frontier_avoidance": (
+            auto_decisions / total_decisions if total_decisions else 0.0
         ),
         "input_tokens": sum(o.input_tokens for o in valid),
         "output_tokens": sum(o.output_tokens for o in valid),

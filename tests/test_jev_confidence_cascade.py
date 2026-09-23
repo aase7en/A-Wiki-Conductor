@@ -156,6 +156,10 @@ def test_heldout_corpus_shape_is_exact() -> None:
             )
             assert indices == [1, 2, 3, 4, 5]
         assert all(case.question_type != "score" for case in family_cases)
+        assert all(
+            not isinstance(case.state, dict) or "heldout_tag" not in case.state
+            for case in family_cases
+        )
 
 
 def test_choice_templates_match_accepted_typesafe_fixture() -> None:
@@ -244,6 +248,20 @@ def test_score_question_rejected(tmp_path: Path) -> None:
             record["expected"] = 2
     path = write_corpus(tmp_path, records)
     with pytest.raises(cascade.CascadeContractError, match="score"):
+        cascade.load_heldout_cases(path, TUNING_CORPORA)
+
+
+def test_noul_center_must_be_fixed_at_half(tmp_path: Path) -> None:
+    records = load_corpus_records()
+    for record in records:
+        if record["case_id"] == "j4-evidence-cal-01":
+            record["policy"]["decision_threshold"] = 0.4
+            break
+    path = write_corpus(tmp_path, records)
+    with pytest.raises(
+        cascade.CascadeContractError,
+        match=r"center/decision threshold must be 0\.5",
+    ):
         cascade.load_heldout_cases(path, TUNING_CORPORA)
 
 
@@ -460,6 +478,8 @@ def test_missing_result_forces_inconclusive_with_honest_denominators(
     assert family["valid_cases"] == 9
     assert family["provider_errors"] == 1
     assert any("j4-evidence-val-05" in reason for reason in family["inconclusive_reasons"])
+    assert report["aggregate"]["provider_errors"] == 1
+    assert report["aggregate"]["valid_cases"] == 49
     assert all(
         report["families"][name]["verdict"] == "CANDIDATE"
         for name in ("task_classification", "skill_suggestion")
@@ -478,6 +498,8 @@ def test_schema_failure_forces_inconclusive(tmp_path: Path) -> None:
     assert any(
         "j4-escalate-val-02" in reason for reason in family["inconclusive_reasons"]
     )
+    assert report["aggregate"]["schema_failures"] == 1
+    assert report["aggregate"]["valid_cases"] == 49
 
 
 def test_latency_usage_and_cost_metrics(tmp_path: Path) -> None:
@@ -504,6 +526,39 @@ def test_latency_usage_and_cost_metrics(tmp_path: Path) -> None:
     assert aggregate["output_tokens"] == 50 * 40
     assert aggregate["cost_usd"]["total"] == pytest.approx(50 * 0.0002)
     assert aggregate["cost_usd"]["per_1000_decisions"] == pytest.approx(0.2)
+
+
+def test_family_and_aggregate_metrics_are_complete(tmp_path: Path) -> None:
+    report = run_with_results(tmp_path, build_full_results())
+
+    for family in report["families"].values():
+        assert family["total_cases"] == 10
+        assert family["valid_cases"] == 10
+        assert family["raw_correct"] == 10
+        assert family["raw_accuracy"] == pytest.approx(1.0)
+        assert family["auto_decisions"] == 10
+        assert family["auto_accuracy"] == pytest.approx(1.0)
+        assert family["false_auto_decisions"] == 0
+        assert family["high_risk_false_actions"] == 0
+        assert family["escalations"] == 0
+        assert family["frontier_avoidance"] == pytest.approx(1.0)
+        assert family["provider_errors"] == 0
+        assert family["schema_failures"] == 0
+
+    aggregate = report["aggregate"]
+    assert aggregate["total_cases"] == 50
+    assert aggregate["split_counts"] == {"calibration": 25, "validation": 25}
+    assert aggregate["valid_cases"] == 50
+    assert aggregate["provider_errors"] == 0
+    assert aggregate["schema_failures"] == 0
+    assert aggregate["raw_correct"] == 50
+    assert aggregate["raw_accuracy"] == pytest.approx(1.0)
+    assert aggregate["auto_decisions"] == 50
+    assert aggregate["auto_accuracy"] == pytest.approx(1.0)
+    assert aggregate["false_auto_decisions"] == 0
+    assert aggregate["high_risk_false_actions"] == 0
+    assert aggregate["escalations"] == 0
+    assert aggregate["frontier_avoidance"] == pytest.approx(1.0)
 
 
 def test_report_carries_no_raw_state(tmp_path: Path) -> None:
