@@ -270,6 +270,108 @@ GUARD envelope emission is deferred from 498A; enforcement is synchronous and
 must never depend on Hook Bus delivery. Existing WO/run-pointer evidence is
 the durable fold target.
 
+## 498A source authorization — lease-bound PRE_DISPATCH guard
+
+HOOK-0 / Issue #368 / PR #385 is now POST_MAIN_VERIFIED on
+`main@bf1d9727c6f0b88abd11b6a744e6276c69e769ca`. The dependency gate for a
+bounded 498A source slice is therefore satisfied.
+
+498A is deliberately narrower than full multi-session A-Faster enforcement.
+It protects the accepted mutation-capable supervised ZCode **FRESH launch**
+against lease/HEAD/scope authority drift between initial assembly and the
+actual consequential launch. It does not implement atomic hotspot admission,
+claim convergence, Command Gateway, merge authority, or Hook Bus delivery.
+
+### Exact mutable scope
+
+- `src/a_conductor/pre_dispatch_guard.py` (NEW)
+- `src/a_conductor/supervised_run_coordinator.py`
+- `src/a_conductor/zcode_runner.py`
+- `src/a_conductor/zcode_production_assembly.py`
+- `tests/test_pre_dispatch_guard.py` (NEW)
+- `tests/test_supervised_run_coordinator.py`
+- `tests/test_zcode_production_assembly.py`
+- `tests/test_zcode_authority_bound_assembly.py`
+- `tests/test_zcode_real_helper_e2e.py`
+- `docs/work-orders/WO-P1-498-a-faster-executable-guard-enforcement.md`
+
+Everything else is read-only. In particular this slice MUST NOT modify:
+`worker_lease.py`, `execution_deduplication.py`, `control_hook_adapter.py`,
+`execution_store.py`, MSP-2/WO500 files, provider-specific guard code,
+Command Gateway roadmaps, A-Faster skill files, or any JEV/MSP closed scope.
+
+### Reuse-first design
+
+1. Add one small typed/injected pre-dispatch guard contract and a
+   `WorkerLease`-backed implementation. Reuse the existing
+   `LeaseHealthReader.inspect_health()` shape and `LeaseHealthKind`; do not
+   create a store or reacquire a lease.
+2. ZCode production assembly keeps its existing initial lease/worktree/HEAD/
+   scope validation. It additionally receives the same accepted read-only
+   lease-health authority used by the owner control path and constructs a
+   launch-time guard bound to the accepted baseline lease + requested scope.
+3. `SupervisedZCodeRunner` passes the injected guard to
+   `SupervisedRunCoordinator` without changing fingerprint identity.
+4. `SupervisedRunCoordinator.run_with_outcome()` invokes the guard exactly on
+   the consequential FRESH branch after duplicate assessment and before
+   execution-id/record creation or backend launch.
+5. `ATTACH_RUNNING` and `REUSE_COMPLETED` remain dedupe-owned and do not invoke
+   the fresh-launch guard.
+6. A route marked guard-required with no guard, malformed guard result, guard
+   exception, non-ACTIVE lease, store-read failure, lease identity drift,
+   branch/HEAD drift, or scope drift fails closed before persistence/launch.
+7. Guard reason values are treated as untrusted authority output: stable bounded
+   reason codes only; malformed values collapse to a typed guard-invalid code.
+8. No Hook Bus delivery is needed to enforce deny. Evidence serialization is
+   later work; the synchronous invocation boundary is the enforcement point.
+
+### Authority binding checked at launch
+
+The guard re-reads the accepted lease by `lease_id` and requires ACTIVE health.
+The observed lease must still match the accepted baseline and route on
+authority-bearing fields: worker, session/task, project, worktree, branch,
+expected HEAD, mutation intent, allowed/forbidden/mutable scope, and the
+declared requested mutable scope. Heartbeat/lifecycle timestamps may advance;
+release/quarantine/stale/expiry uncertainty denies launch.
+
+498A MUST consume an injected health reader from the same configured lease
+authority; it must not derive another SQLite path. Store-identity/cross-device
+convergence is MSP-2/WO500. Until MSP-2 is accepted, 498A must not claim
+cross-worktree/cross-device exactly-one-writer semantics.
+
+### RED-first acceptance
+
+Before GREEN, deterministic tests must prove:
+
+1. FRESH + required guard allow -> exactly one record/launch;
+2. required guard missing -> no record, no launch;
+3. guard exception -> no record, no launch, typed unavailable result;
+4. malformed/unsafe guard reason -> no record/launch, typed invalid result;
+5. guard deny -> no record/launch;
+6. ATTACH_RUNNING and REUSE_COMPLETED do not call fresh-launch guard;
+7. guard invocation happens after dedupe assessment but before author-attempt
+   mint, execution-id persistence, or backend launch;
+8. fingerprint bytes remain unchanged with/without guard configuration;
+9. ACTIVE exact lease passes;
+10. STALE/QUARANTINED/RELEASED/EXPIRY_UNKNOWN fail closed;
+11. health-read exception/malformed health fails closed;
+12. worker/session/task/project/worktree/branch/HEAD drift fails closed;
+13. mutation-intent or requested-scope/allowed/forbidden/mutable-scope drift
+    fails closed;
+14. heartbeat-only changes do not create false denial;
+15. review-only ZCode route remains backward-compatible/POLICY_ONLY in 498A;
+16. existing supervised attach/reuse/timeout/recovery semantics stay green;
+17. no new durable table/store/index/scheduler/retry/claim authority appears;
+18. exact changed-path set remains inside this ten-path scope.
+
+### Truthful enforcement label
+
+After 498A acceptance, only the protected supervised mutation-capable ZCode
+fresh-launch seam may be described as lease-bound executable PRE_DISPATCH
+GUARD enforcement. Full A-Faster PRE_DISPATCH remains partially `POLICY_ONLY`
+until MSP-2 claim/hotspot admission and all relevant dispatch routes are
+converged. Raw shell/Kilo/Git routes are not upgraded by 498A.
+
 ## Acceptance path
 
 Phase 0:
