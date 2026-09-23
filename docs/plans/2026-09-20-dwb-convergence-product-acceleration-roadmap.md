@@ -681,6 +681,82 @@ Candidates for optional/later packs:
 
 Do not delete a capability solely because it is outside `src/sunday`; prove the default product no longer needs it first.
 
+### 13.1 Feature-pack boundary design — WO-P1-518 (2026-09-23)
+
+Status: bounded design only. WO-P1-518 mutates no SunDayRemoteMCP package or source; every SRM fact below is READ_ONLY evidence from the exact clones cited. This design converts the parent #472 `NO_DIRECT_DELETE_CANDIDATE` audit into pack boundaries, coupling truth, acceptance contracts and successor packet conditions.
+
+Evidence snapshot:
+
+- Current accepted execution-substrate evidence is exact SRM SHA `2f033cfb1f61b6dff9c2e55264cca6f2a9125e95`: later accepted WO-P1-507 pins `A:\\GitHub\\SunDayRemoteMCP` at that SHA, and the current macOS clone is clean `main@2f033cfb...` at the same commit. The repository still has no configured Git remote, so this is accepted local-SHA execution-substrate evidence rather than a remotely verified repository identity.
+- `e3ec2e06baf464e68c4166faae65f51c60fd5477` is the accepted first dependency-diet predecessor (#473) and direct parent of `2f033cfb...`; it is not the current execution-substrate HEAD.
+- Post-slice direct graph: 27 production roots + 1 optional (`caffeinate`) + 14 dev roots.
+
+#### Pack definitions and dependency ownership
+
+`PACK-R` — remote-device/cloud transport (2 roots + 1 optional):
+
+- Roots: `@supabase/supabase-js`, `open`; optional `caffeinate` (macOS no-sleep, used only by `npm-scripts/remote.ts`).
+- Source surface: `src/remote-device/**` (device, authenticator, remote-channel, desktop-commander-integration, scripts) + `src/npm-scripts/remote.ts` CLI (`sunday-mcp remote` argv branch in `src/index.ts`).
+- Function: a device/transport mode, not MCP tools; zero compact-tool-surface overlap.
+- Tests: `test-remote-channel-reconnect.js`, `test-remote-channel-signed-out.js`, `test-remote-inflight-call-fast-fail.js`, `test-remote-transport.js`.
+
+`PACK-D` — rich-document/editor (17 roots, two independently isolatable facets):
+
+- Facet `D1` editor-preview (browser, 10 roots): `@tiptap/core`, `@tiptap/starter-kit`, `@tiptap/extension-image`, `@tiptap/extension-table`, `@tiptap/extension-table-row`, `@tiptap/extension-table-header`, `@tiptap/extension-table-cell`, `tiptap-markdown`, `markdown-it`, `highlight.js`.
+  Source surface: `src/ui/file-preview/**` browser modules; served artifact is the esbuild bundle `dist/ui/file-preview/preview-runtime.js` produced by `scripts/build-ui-runtime.cjs`. Node-side reference is types-only (`shared/preview-file-types.js` used by `src/handlers/filesystem-handlers.ts`).
+  Tests: `test-markdown-editor-edit-diff.js`, `test-markdown-editor-roundtrip.js`, `test-markdown-preview.js`, `test-file-preview-image-runtime.js`, `test-file-preview-directory-runtime.js` (jsdom-style tests mount the real compiled editor from `dist`).
+- Facet `D2` document handlers (Node, 7 roots): `@opendocsg/pdf2md`, `md-to-pdf`, `pdf-lib`, `unpdf`, `exceljs`, `pizzip`, `sharp`.
+  Source surface: `src/tools/pdf/**`, `src/utils/files/{pdf,docx,excel}.ts`, factory routing in `src/utils/files/factory.ts`, `src/tools/pdf/lib/pdf2md.ts` (CJS `require` of `@opendocsg/pdf2md/lib/util/pdf`), dynamic `sharp` in `src/tools/pdf/extract-images.ts`.
+  Tests: `test-pdf-chrome-cache.js`, `test-pdf-creation.js`, `test-pdf-parsing.js`, `test-excel-files.js`.
+
+Compact core retained roots (8): `@modelcontextprotocol/sdk`, `@vscode/ripgrep`, `cross-fetch`, `fastest-levenshtein`, `isbinaryfile`, `proper-lockfile`, `zod`, `zod-to-json-schema`.
+
+#### Verified coupling truth (build/package/test/release)
+
+1. TypeScript build: `tsconfig.json` compiles all of `src/**` — including `src/remote-device/**`, `src/ui/file-preview/**` and every D2 module — into `dist`. Any root removal without a compile seam breaks `tsc` before runtime.
+2. Startup import chains (ESM, eagerly evaluated on every `sunday-mcp` invocation, compact included):
+   - `src/index.ts` → `npm-scripts/remote.ts` → `remote-device/device.ts` → `remote-channel.ts` → `@supabase/supabase-js`; authenticator → `open`. PACK-R is import-chain coupled to the entrypoint.
+   - `src/index.ts` imports `ensureChromeAvailable` from `tools/pdf/markdown.js` and calls it at server init: the compact default pre-checks/downloads Chrome for PDF generation. D2 is entrypoint-coupled.
+3. Compact tool semantics: `read_file`, `write_file`, `get_file_info` all route through `getFileHandler`; the factory statically registers `PdfFileHandler`, `DocxFileHandler`, `ExcelFileHandler`; `src/tools/filesystem.ts` additionally imports `tools/pdf/index.js` statically. Compact `start_search` indexes `.docx` (static `pizzip`) and `.xlsx` (dynamic `exceljs`). D2 is semantically fused with four compact-allowlisted tools.
+4. PACK-D1 editor has no Node-runtime import; its coupling is build-time only (tsc compile + esbuild bundle + tests against `dist`).
+5. Package/publish: `files: ["dist", ...]` ships prebuilt `dist`; `scripts/build-mcpb.cjs` copies `package.json.dependencies` verbatim into the MCPB bundle and runs `npm install --omit=dev`, so every production root — both packs — ships in the default `.mcpb`. Dockerfile installs and builds from source (needs build-time availability of D1 roots).
+6. Tests: `test/run-all-tests.js` auto-discovers every `test-*.js`; pack tests hard-fail when pack roots are absent. Test isolation needs pack-gated skips (dependency-presence probe or env), never test deletion.
+7. Full-toolset compatibility: `SUNDAY_FULL_TOOLSET=1` (`src/sunday/tool-policy.ts`) exposes all tools. With both packs installed, full-toolset behavior must remain byte-equivalent; without a pack, full-toolset must degrade to the same typed fallbacks as compact for that pack's surfaces.
+8. Successor-verify oddity: `device:install` runs `npm install` inside `src/remote-device/`, which contains no `package.json` at the audited SHAs — likely vestigial; the successor must classify it before touching PACK-R packaging.
+
+#### Deterministic before/after acceptance matrix
+
+Baseline `B` is the exact frozen SRM SHA before each successor slice; candidate `C` is the slice head. All checks are deterministic; no LLM assertion substitutes for them.
+
+| # | Check | B (before) | C (after, per slice) |
+|---|---|---|---|
+| A1 | Static import scan of `dist/index.js` module graph for pack root specifiers | ≥1 hit for PACK-R and D2 chains (current truth) | 0 hits for the isolated pack; scan method and hit list recorded |
+| A2 | `npm run build` (tsc + shx staging + UI runtime esbuild) | PASS | PASS |
+| A3 | Compact facade (`SUNDAY_FULL_TOOLSET` unset): exposed tool set | = allowlist + `sunday_*` (19 + facade) | identical set, order-insensitive compare recorded |
+| A4 | Full facade (`SUNDAY_FULL_TOOLSET=1`) with all packs installed | full tool list | byte-equivalent list |
+| A5 | Full test run (`node test/run-all-tests.js`) | recorded PASS/fail counts (see #473: 70/78 base replay) | pack-gated skips replace pack-test failures; non-pack results identical to B; skipped set enumerated |
+| A6 | `read_file`/`write_file`/`get_file_info` on `.txt`/`.md`/`.py` fixtures | PASS, byte-identical results | byte-identical to B |
+| A7 | Same tools on `.pdf`/`.docx`/`.xlsx` without D2 installed | current rich parsing results (recorded) | typed `UNSUPPORTED_FORMAT_PACK` degradation with deterministic text; no silent wrong content; no crash |
+| A8 | Same tools on `.pdf`/`.docx`/`.xlsx` with D2 installed | rich parsing results | byte-equivalent to B |
+| A9 | `start_search` over mixed tree (txt+md+docx+xlsx) without D2 | content hits in office formats | text hits identical; office-format hits degrade to typed skip/filename-match per defined contract; enumerated diff |
+| A10 | `sunday-mcp remote` without PACK-R installed | remote mode starts | typed `PACK_NOT_INSTALLED` error, exit ≠ 0, no partial state |
+| A11 | `sunday-mcp remote` with PACK-R installed | current behavior | equivalent to B (4 remote tests PASS) |
+| A12 | `ensureChromeAvailable` at init without D2 | Chrome pre-check/download runs | not invoked; no network probe; init log delta recorded |
+| A13 | `npm pack` / tarball contents + `files` set | includes `dist` incl. `preview-runtime.js` | unchanged deliverable shape; D1 runtime still shipped prebuilt |
+| A14 | `build:mcpb` bundle `dependencies` diff vs B | all 27 roots | exactly the slice's roots removed; ripgrep wrapper/binaries intact; bundle size delta recorded |
+| A15 | Lock semantics (#473 style) | — | removed roots absent; unreachable transitives removed; 0 entries added; surviving entries unchanged; root metadata preserved; no version churn |
+| A16 | Hygiene | — | `git diff --check` PASS; strict UTF-8/no BOM; no secrets; scope diff = declared paths only |
+
+#### Successor mutation packet conditions
+
+A successor slice may mutate SRM only as a separately claimed `EXECUTION_SUBSTRATE_ONLY` WO that: re-pins actual SRM state; if the execution-substrate HEAD remains `2f033cfb1f61b6dff9c2e55264cca6f2a9125e95`, uses that accepted local-SHA base, otherwise reconciles the drift before mutation; cites this section; and explicitly re-opens the exact source seams it will touch (a package-only ceiling like #473's cannot create seams). One pack slice per WO, cheapest-first order:
+
+1. `D1` editor-preview roots to build-time-only dependency class (dev-style), shipping the prebuilt `preview-runtime.js`. Lowest risk: no Node import chain. Prove A1–A6, A13–A16 plus D1 tests still green in dev/CI where roots remain installed.
+2. `PACK-R` remote-device/cloud: lazy `import()` seam at the `remote` argv branch in `src/index.ts`, typed `PACK_NOT_INSTALLED` failure, roots moved to an optional/meta-pack mechanism chosen and justified by that WO (optionalDependencies vs feature manifest consumed by `build-mcpb.cjs`); caffeinate classified with it. Prove A1–A5, A10, A11, A13–A16.
+3. `D2` document handlers: lazy factory registration, lazy `tools/pdf` imports in `src/tools/filesystem.ts`, `search-manager` typed fallback, `ensureChromeAvailable` gating, and the A7/A8/A9 degradation contract. Highest coupling; requires the A7–A9 contract to be frozen in that WO's tests RED-first.
+
+Hard fences for every slice: no capability deletion without its typed degradation; no break of `SUNDAY_FULL_TOOLSET=1` with packs present; isolation proof (A1) precedes any root removal; no `npm install/prune/update/audit-fix/publish` lifecycle runs — offline, no-script, no-churn lock rewriting only, proven in claim evidence first; no runtime restart; protected `.serena` state untouched; independent exact-SHA R2 review before acceptance because package/release behavior changes.
+
 ## 14. Phase FRONTDOOR-1 — Productized Windows Front Door
 
 Priority: after LOCAL-USABLE-1 unless launch/setup friction blocks actual use.
