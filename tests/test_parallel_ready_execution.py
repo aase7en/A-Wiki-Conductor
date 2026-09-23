@@ -11,6 +11,8 @@ from threading import Barrier, Event, Lock
 
 import pytest
 
+from a_conductor import worker_lease as worker_lease_module
+
 from a_conductor.claude_code_harness import HarnessDispatch, MutationIntent, TaskPacketFile
 from a_conductor.graph.dispatch import (
     DispatchGateDecision,
@@ -62,6 +64,17 @@ from a_conductor.worker_lease import (
 
 NOW = datetime(2026, 8, 30, 2, 0, tzinfo=timezone.utc)
 HEAD = "a" * 40
+
+
+@pytest.fixture(autouse=True)
+def _legacy_suite_hotspot_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep parallel-ready tests focused on execution semantics, not disk identity."""
+
+    def resolver(worktree: str) -> str:
+        normalized = worker_lease_module.windows_worktree_key(worktree)
+        return "test-" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    monkeypatch.setattr(worker_lease_module, "default_hotspot_resolver", resolver)
 
 
 def _profile(provider_id: str = "cointh-glm", *, max_concurrency: int = 2) -> ProviderConfiguration:

@@ -448,3 +448,20 @@ independent focused rereview after the global review slot is released.
 - Broker duck-typed store detection (`getattr resolve_mutation_hotspot`) —
   confirm no production fake-store path masks the fence.
 - Hosted CI run on the exact reviewed head before merge (repo delivery gate).
+
+
+### Exact-head CI fixture compatibility checkpoint - 2026-09-23
+
+Hosted CI on repaired head 7bef261470b9268347d91317dd6f6c95d40a5317 exposed legacy test suites that intentionally use nonexistent A:\... mutation worktree spellings. The new production resolver is correctly fail-closed, so those tests must inject deterministic test-only hotspot identity rather than weakening production admission.
+
+Authorized test-only compatibility updates:
+- tests/test_elastic_worker_capacity.py: autouse deterministic hotspot resolver;
+- tests/test_parallel_ready_execution.py: same test-only resolver for fake A:\Work\... paths.
+
+Fresh deterministic evidence after the fixture updates:
+- elastic + parallel-ready: 79 passed;
+- MSP2 + worker lease/recovery + DEX: 126 passed;
+- worker-candidate assembly: 13 passed;
+- git diff --check PASS; no production resolver/source weakening.
+
+These fixtures are test isolation only. Production mutation admission still requires provable physical worktree identity and fails closed otherwise.
