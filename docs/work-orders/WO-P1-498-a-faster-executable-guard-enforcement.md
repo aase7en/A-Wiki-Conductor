@@ -364,6 +364,29 @@ Before GREEN, deterministic tests must prove:
 17. no new durable table/store/index/scheduler/retry/claim authority appears;
 18. exact changed-path set remains inside this ten-path scope.
 
+### Sol pre-review repair checkpoint — lease identity drift
+
+After the current-main fan-in candidate `88dc3e47ab759228f0d4003969d2cb5b3d603e48`
+was frozen, GPT-5.6 Sol adversarial pre-review found one R3 fail-closed gap:
+`WorkerLeasePreDispatchGuard` called `inspect_health()` with the accepted
+`lease_id` but did not verify that the returned ACTIVE `WorkerLease.lease_id`
+still matched the baseline. Because authority results are untrusted at the
+consumer boundary, a mismatched lease record could otherwise pass when the
+remaining checked fields matched.
+
+RED evidence: `test_authority_identity_drift_denies` added an observed
+`lease_id` mismatch and failed because the guard returned `ALLOW`.
+
+Repair: compare observed vs baseline `lease_id` before the other identity
+fields and deny with bounded code `LEASE_ID_MISMATCH`. The focused RED then
+passed. This repair changes no lease store, atomic-admission, dedupe,
+scheduler, retry, claim, or Hook Bus authority.
+
+Review follow-up after the accepted MSP-2 fan-in: the independent MAX reviewer
+must explicitly challenge whether any MSP-2-added lease metadata (for example
+`hotspot_key`) belongs in 498A launch-time revalidation or remains solely
+admission-layer truth. Do not widen authority semantics without that review.
+
 ### Truthful enforcement label
 
 After 498A acceptance, only the protected supervised mutation-capable ZCode

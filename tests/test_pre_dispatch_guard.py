@@ -152,6 +152,7 @@ def test_malformed_health_denies_invalid():
 
 def test_authority_identity_drift_denies():
     drift = {
+        "LEASE_ID_MISMATCH": {"lease_id": "lease-498a-other"},
         "LEASE_WORKER_MISMATCH": {"worker_id": "a-worker-99"},
         "LEASE_SESSION_MISMATCH": {"session_id": "sess-other"},
         "LEASE_TASK_MISMATCH": {"task_id": "WO-P1-999-OTHER"},

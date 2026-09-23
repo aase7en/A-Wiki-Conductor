@@ -154,6 +154,8 @@ class WorkerLeasePreDispatchGuard:
         if not isinstance(observed, WorkerLease):
             return self._deny("LEASE_HEALTH_INVALID")
         baseline = self._baseline
+        if observed.lease_id != baseline.lease_id:
+            return self._deny("LEASE_ID_MISMATCH")
         if observed.worker_id != baseline.worker_id:
             return self._deny("LEASE_WORKER_MISMATCH")
         if observed.session_id != baseline.session_id:
