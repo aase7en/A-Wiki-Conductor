@@ -106,6 +106,118 @@ R3 minimum:
 - exact-head hosted CI;
 - post-main verification.
 
+## Phase A root-cause checkpoint — 2026-09-23
+
+Diagnosis completed without tracked source/test mutation.
+
+Evidence:
+- existing concurrent RuntimeActivation test under natural local timing: `12/12 PASS`;
+- sacrificial external probe reduced the existing store busy-timeout to 1 ms
+  without changing tracked code and ran four concurrent initializers over one
+  fresh authority database for 20 iterations;
+- result: `41` failure events, of which `37` were the exact hosted chain
+  `RuntimeActivationError -> JOB_STORE_INITIALIZE_FAILED ->
+  sqlite3.OperationalError(database is locked)` at JobStore DDL;
+- remaining failures included ExecutionStore initialization/read and another
+  SQLite read-lock path, proving this is a multi-store initialization window,
+  not a JobStore schema-version UNIQUE race;
+- SQL traces showed multiple threads interleaving JobStore `CREATE TABLE`
+  statements while peers advanced into ExecutionStore/provider/lease phases;
+- control probe serializing only the RuntimeActivation multi-store
+  initialization assembly under the same 1 ms lock pressure: `30/30 PASS`,
+  `0` failures.
+
+Root cause: same-process callers stampede the same idempotent multi-store
+schema-initialization assembly. Individual stores remain the schema owners;
+simultaneous DDL/read phases create avoidable SQLite schema/write-lock
+contention. Increasing `busy_timeout` would mask the stampede rather than
+remove it.
+
+Phase B/C scope is now explicitly widened to:
+- `tests/test_runtime_activation.py`
+- `src/a_conductor/runtime_activation.py`
+- this Work Order
+
+Everything else remains read-only.
+
+Repair boundary:
+- add deterministic RED coverage that forces the contention condition;
+- serialize only RuntimeActivation authority-store initialization in-process;
+- add no durable lock/store/schema/task authority;
+- add no retry loop and do not increase timeout;
+- operational store reads/writes remain concurrent;
+- existing SQLite busy-timeout remains the cross-process contention fallback;
+- preserve #322/#401 store semantics and public error codes.
+
+## Phase B RED checkpoint — 2026-09-23
+
+Deterministic regression is now RED before production repair:
+
+`test_runtime_authority_initialization_serializes_same_process_schema_pressure`
+
+The test leaves the provider schema pre-initialized, shortens only JobStore's
+test connection busy timeout to 1 ms, and makes the first JobStore initializer
+hold an external SQLite `BEGIN EXCLUSIVE` lock for 50 ms while peer
+RuntimeActivation initializers enter. Current code deterministically raises
+`RUNTIME_AUTHORITY_INITIALIZATION_RECOVERY_REQUIRED`.
+
+This reproducer isolates the same-process initialization stampede without
+changing production timeouts or depending on hosted timing.
+
+Implementation handoff contract:
+- only `src/a_conductor/runtime_activation.py`,
+  `tests/test_runtime_activation.py`, and this WO may mutate;
+- serialize only the RuntimeActivation multi-store initialization assembly;
+- no JobStore/ExecutionStore/WorkerLeaseStore/provider-store mutation;
+- no timeout increase, retry loop, new schema, durable lock service, or task
+  authority;
+- preserve public error codes and existing store ownership;
+- run the RED test first, then the existing concurrency test and directly
+  related runtime/store initialization regressions.
+
+## Phase C repair / verification checkpoint — 2026-09-23
+
+The deterministic RED regression was repaired at the RuntimeActivation assembly
+boundary only.
+
+Implementation:
+- added one process-local startup initialization lock in
+  `runtime_activation.py`;
+- `_initialize_runtime_authority_stores()` acquires that transient lock and
+  delegates to an unlocked helper containing the previously-existing store
+  initialization/read-verification sequence;
+- no JobStore, ExecutionStore, WorkerLeaseStore or provider-store code changed;
+- no timeout changed;
+- no retry loop, durable lock record, schema, scheduler, task/claim authority or
+  provider authority was added;
+- operational store reads/writes remain outside this synchronization boundary;
+- this only removes the proven same-process schema-initialization stampede.
+  Existing SQLite locking/busy-timeout semantics remain responsible for
+  cross-process contention.
+
+Verification:
+- deterministic pressure regression + existing four-way concurrent init:
+  `2 passed`;
+- full `tests/test_runtime_activation.py`: `33 passed`;
+- store regressions
+  `test_job_store.py + test_execution_store.py + test_worker_lease.py +
+  test_provider_config_store.py`: `177 passed`;
+- deterministic pressure regression repeated 12 times: `0` failures;
+- `py_compile`: PASS;
+- `git diff --check`: PASS;
+- exact changed scope: this WO + `runtime_activation.py` +
+  `test_runtime_activation.py`;
+- added-line credential/session/share-URL scan: PASS.
+
+A GLM-5.3 MAX implementation attempt was admitted after the RED checkpoint but
+never entered model execution (0 input/0 output, no production mutation). It is
+classified as interrupted/no-model-progress rather than a code/model failure;
+the integrator continued the already-owned lane without replaying that attempt.
+
+Next gate: freeze exact SHA -> independent R3 exact-SHA review -> exact-head
+hosted CI -> expected-head merge -> post-main verification. #498 remains frozen
+and must not receive another blind CI rerun from this checkpoint.
+
 ## Replay / stop rules
 
 - RUNNING/UNKNOWN external execution is never redispatched.

@@ -1237,6 +1237,86 @@ def test_runtime_authority_concurrent_initialization_converges_on_one_database(
     ) == ()
 
 
+def test_runtime_authority_initialization_serializes_same_process_schema_pressure(
+    tmp_path,
+    monkeypatch,
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from contextlib import contextmanager
+    import sqlite3
+    import threading
+    import time
+
+    import a_conductor.runtime_activation as runtime_activation
+    from a_conductor.job_store import SQLiteJobStore
+    from a_conductor.provider_config_store import SQLiteProviderConfigStore
+
+    database = tmp_path / "control.sqlite"
+    provider_store = SQLiteProviderConfigStore(database)
+    provider_store.initialize()
+
+    real_connect = sqlite3.connect
+
+    @contextmanager
+    def _short_busy_connect(self):
+        connection = real_connect(self.database_path, timeout=0.001)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA busy_timeout = 1")
+        try:
+            yield connection
+        finally:
+            connection.close()
+
+    monkeypatch.setattr(SQLiteJobStore, "_connect", _short_busy_connect)
+
+    original_initialize = SQLiteJobStore.initialize
+    first_call_guard = threading.Lock()
+    first_call_started = False
+    exclusive_acquired = threading.Event()
+
+    def _contended_initialize(self):
+        nonlocal first_call_started
+        with first_call_guard:
+            should_hold = not first_call_started
+            if should_hold:
+                first_call_started = True
+
+        if should_hold:
+            locker = real_connect(self.database_path, timeout=1.0)
+            try:
+                locker.execute("BEGIN EXCLUSIVE")
+                exclusive_acquired.set()
+                time.sleep(0.05)
+            finally:
+                locker.rollback()
+                locker.close()
+        else:
+            assert exclusive_acquired.wait(timeout=1.0)
+
+        return original_initialize(self)
+
+    monkeypatch.setattr(SQLiteJobStore, "initialize", _contended_initialize)
+
+    def _open_once():
+        return runtime_activation._initialize_runtime_authority_stores(
+            database,
+            provider_store=provider_store,
+            provider_id="provider-1",
+        )
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = tuple(pool.map(lambda _: _open_once(), range(4)))
+
+    assert len(results) == 4
+    assert all(
+        job_store.database_path == database
+        and execution_store.database_path == database
+        and lease_store.database_path == database
+        for job_store, execution_store, lease_store in results
+    )
+
+
 def test_provider_inflight_count_uses_complete_bounded_evidence():
     from datetime import datetime, timedelta, timezone
     from types import SimpleNamespace
