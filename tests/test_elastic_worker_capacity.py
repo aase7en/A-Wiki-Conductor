@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -9,6 +10,7 @@ from threading import Barrier
 
 import pytest
 
+from a_conductor import worker_lease as worker_lease_module
 from a_conductor.elastic_worker_capacity import (
     ElasticCapacityError,
     ElasticCapacityOutcomeKind,
@@ -41,6 +43,17 @@ from a_conductor.worker_lease import (
 NOW = datetime(2026, 8, 31, 1, 0, tzinfo=timezone.utc)
 HEAD = "a" * 40
 ELIGIBILITY = {"node-1": NodeEligibility()}
+
+
+@pytest.fixture(autouse=True)
+def _legacy_suite_hotspot_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep elastic-capacity tests focused on capacity semantics, not disk identity."""
+
+    def resolver(worktree: str) -> str:
+        normalized = worker_lease_module.windows_worktree_key(worktree)
+        return "test-" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    monkeypatch.setattr(worker_lease_module, "default_hotspot_resolver", resolver)
 
 
 def capacity_plan(kind: BlockedReasonKind = BlockedReasonKind.CAPACITY) -> SchedulePlan:
