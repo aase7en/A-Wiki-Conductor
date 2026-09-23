@@ -4,10 +4,14 @@ Status: CONTRACT-ONLY FREEZE CANDIDATE — WO-P1-375 / Issue #375
 Adapter id: `claude-hook-adapter`
 Adapter version: 1.0.0
 Contract version emitted: Hook Contract v1 `1.0.0` (exact)
-Dependency pin: Hook Contract (HOOK-0, WO-P1-258) at accepted commit
+Dependency pin: Hook Contract (HOOK-0, WO-P1-258) post-merge repair commit
+`0d4f0c3b36ff7fad9ed14636730443119683cb1d`
+(`fix(WO258): harden post-review P2 findings in hook contract`;
+`docs/contracts/hook-contract-v1.md` blob `25f69a964140c082db9d43b65dd3fcd9dbfc0c3c`,
+`docs/contracts/hook-contract-v1.schema.json` blob `98451ee3a4b63b4f07ca7b38525f9f5016916d54`).
+Superseded accepted pin (pre-repair main baseline, evidence only): commit
 `602f6db01e170f74456ff77e1b5df01622fb84dd`
-(`fix(WO258): review-001 dedupe identity, stream domain, late arrival`,
-merged to main via `2a461ae22ab28ad3b48f15660ab818f700faab30`;
+(merged to main via `2a461ae22ab28ad3b48f15660ab818f700faab30`;
 `docs/contracts/hook-contract-v1.md` blob `941f9731f9665fe109451a14cdc2b737555be99a`,
 `docs/contracts/hook-contract-v1.schema.json` blob `d176fd5e6393af6f5619fad372ad59aa858391ee`).
 Superseded historical pin (WO-P1-261 freeze, evidence only): commit
