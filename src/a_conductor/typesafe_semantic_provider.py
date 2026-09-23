@@ -45,9 +45,10 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol, runtime_checkable
+from typing import Any, Callable, Mapping, Protocol, runtime_checkable
 
 from .semantic_decision import (
+    SemanticDecisionFamily,
     SemanticDecisionRequest,
     SemanticEvidence,
     SemanticEvidenceErrorKind,
@@ -83,6 +84,57 @@ _SCORE_ANSWER_FIELDS = frozenset(
     {"type", "score", "legend", "probabilities", "confidence"}
 )
 _NOUL_ANSWER_FIELDS = frozenset({"type", "noul"})
+
+_FAMILY_TEMPLATES: Mapping[SemanticDecisionFamily, Mapping[str, Any]] = {
+    SemanticDecisionFamily.TASK_CLASSIFICATION: {
+        "type": "choice",
+        "instructions": "Classify the requested repository task by its primary delivery intent.",
+        "criteria": {
+            "bugfix": "Restore existing behavior that is broken, regressed, or producing an incorrect result.",
+            "feature": "Add a new product capability or behavior that did not previously exist.",
+            "docs": "Change documentation, governance, plans, or explanatory text without product behavior mutation.",
+            "review": "Inspect or evaluate an existing candidate and report findings without implementing the change.",
+        },
+    },
+    SemanticDecisionFamily.SKILL_SUGGESTION: {
+        "type": "choice",
+        "instructions": "Select the one specialized workflow that best matches the requested work.",
+        "criteria": {
+            "repo_semantic": "Navigate repository code semantically: symbols, references, call graph, definitions, or code structure.",
+            "pdf": "Create, edit, transform, or analyze a PDF artifact.",
+            "slides": "Create or edit a slide presentation or PowerPoint artifact.",
+            "spreadsheet": "Create, edit, transform, or analyze a spreadsheet or workbook artifact.",
+            "none": "No specialized workflow above is needed.",
+        },
+    },
+    SemanticDecisionFamily.FAILURE_CLASSIFICATION: {
+        "type": "choice",
+        "instructions": "Classify the observed failure by its primary failure class.",
+        "criteria": {
+            "CODE_FAILURE": "Production or implementation code is invalid or behaves incorrectly.",
+            "TEST_FAILURE": "A test assertion, test setup, or test execution reports a failing expected behavior.",
+            "TRANSPORT_FAILURE": "A connection, session, tunnel, or transport path failed without proving the underlying execution failed.",
+            "RATE_LIMITED": "The provider rejected or delayed work because a quota or request/token rate limit was reached.",
+            "AUTH_FAILURE": "Authentication or authorization failed because credentials or permissions are missing, invalid, expired, or denied.",
+        },
+    },
+    SemanticDecisionFamily.EVIDENCE_RELEVANCE: {
+        "type": "noul",
+        "instructions": "Does the supplied evidence directly support the stated claim?",
+        "criteria": {
+            "true": "The evidence directly demonstrates the claim under the relevant identity, scope, or artifact.",
+            "false": "The evidence is missing, indirect, from the wrong artifact/population, or does not establish the claim.",
+        },
+    },
+    SemanticDecisionFamily.ESCALATION_DECISION: {
+        "type": "noul",
+        "instructions": "Should this case escalate to stronger reasoning, the integrator, or a human because authority, risk, ambiguity, or evidence remains unresolved?",
+        "criteria": {
+            "true": "The case has unresolved authority, consequential risk, conflicting evidence, or material ambiguity that bounded deterministic handling cannot safely resolve.",
+            "false": "The case has a clear deterministic/local handling path and no unresolved consequential authority or ambiguity.",
+        },
+    },
+}
 
 _SECRET_PATTERNS = (
     re.compile(r"apikey_[A-Za-z0-9]{16,}", re.IGNORECASE),
@@ -171,6 +223,8 @@ def classify_transport_exception(
 
     if isinstance(exc, TimeoutError) or _reason_chain_is_timeout(exc):
         return SemanticEvidenceErrorKind.TIMEOUT
+    if isinstance(exc, UnicodeDecodeError):
+        return SemanticEvidenceErrorKind.SCHEMA
     if isinstance(exc, OSError):
         return SemanticEvidenceErrorKind.TRANSPORT
     return SemanticEvidenceErrorKind.UNKNOWN
@@ -187,8 +241,10 @@ def http_error_kind(status_code: int) -> SemanticEvidenceErrorKind | None:
         return SemanticEvidenceErrorKind.RATE_LIMIT
     if status_code == 422:
         return SemanticEvidenceErrorKind.SCHEMA
-    if status_code == 529 or status_code >= 500:
+    if status_code == 529:
         return SemanticEvidenceErrorKind.OVERLOAD
+    if status_code >= 500:
+        return SemanticEvidenceErrorKind.TRANSPORT
     return SemanticEvidenceErrorKind.UNKNOWN
 
 
@@ -202,35 +258,36 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
-def _build_instructions(request: SemanticDecisionRequest) -> str:
-    family = request.family.value.replace("_", " ")
-    if request.primitive is SemanticPrimitive.CHOICE:
-        return (
-            f"Answer the {family} question by selecting exactly one "
-            "declared option."
-        )
-    if request.primitive is SemanticPrimitive.SCORE:
-        levels = request.score_levels
-        assert levels is not None
-        return (
-            f"Answer the {family} question with a level index from 0 "
-            f"to {levels - 1}."
-        )
-    return f"Answer the {family} question with a probability between 0 and 1."
-
-
 def _build_question(request: SemanticDecisionRequest) -> dict[str, Any]:
-    question: dict[str, Any] = {
-        "type": request.primitive.value,
-        "instructions": _build_instructions(request),
-    }
+    template = _FAMILY_TEMPLATES.get(request.family)
+    if template is None:
+        raise _ResponseContractError(
+            f"decision family {request.family.value!r} is not admitted for live TypeSafe routing"
+        )
+
+    expected_type = template["type"]
+    if request.primitive.value != expected_type:
+        raise _ResponseContractError(
+            "request primitive does not match the admitted family template"
+        )
+
+    criteria = template["criteria"]
     if request.primitive is SemanticPrimitive.CHOICE:
-        question["criteria"] = {option: None for option in request.options}
-    elif request.primitive is SemanticPrimitive.SCORE:
-        levels = request.score_levels
-        assert levels is not None
-        question["criteria"] = [f"level {index}" for index in range(levels)]
-    return question
+        assert isinstance(criteria, Mapping)
+        if tuple(criteria.keys()) != request.options:
+            raise _ResponseContractError(
+                "choice options must exactly match the admitted family template"
+            )
+    elif request.primitive is not SemanticPrimitive.NOUL:
+        raise _ResponseContractError(
+            "only admitted Choice/Noul families may use the live TypeSafe adapter"
+        )
+
+    return {
+        "type": expected_type,
+        "instructions": template["instructions"],
+        "criteria": dict(criteria) if isinstance(criteria, Mapping) else list(criteria),
+    }
 
 
 def _finite_number(value: Any) -> float | None:
@@ -385,16 +442,38 @@ def _validated_response_payload(
     )
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Reject every redirect so Authorization can never follow a new target."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 class UrllibTypeSafeTransport:
     """Production stdlib transport for the still-gated live TypeSafe call.
 
-    Reads are bounded, HTTP error bodies are surfaced as responses (never
-    raised across the boundary), and timeout/network failures propagate as
-    stdlib exceptions for :func:`classify_transport_exception`.
+    Redirects are rejected, reads are bounded, HTTP error bodies are discarded,
+    and response bytes must be strict UTF-8. Timeout/network failures propagate
+    for :func:`classify_transport_exception`.
     """
 
+    def __init__(
+        self,
+        *,
+        opener: Any | None = None,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if opener is None:
+            opener = urllib.request.build_opener(_NoRedirectHandler())
+        if not callable(getattr(opener, "open", None)):
+            raise TypeSafeAdapterError("opener must provide open()")
+        if not callable(monotonic):
+            raise TypeSafeAdapterError("monotonic must be callable")
+        self._opener = opener
+        self._monotonic = monotonic
+
     def post(self, request: TypeSafeHTTPRequest) -> TypeSafeHTTPResponse:
-        started = time.monotonic()
+        started = self._monotonic()
         wire = urllib.request.Request(
             request.url,
             data=request.body.encode("utf-8"),
@@ -402,19 +481,16 @@ class UrllibTypeSafeTransport:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(wire, timeout=request.timeout_seconds) as resp:
+            with self._opener.open(wire, timeout=request.timeout_seconds) as resp:
                 status = int(resp.status)
                 raw = resp.read(TYPESAFE_MAX_RESPONSE_BYTES + 1)
         except urllib.error.HTTPError as exc:
             status = int(exc.code)
-            try:
-                raw = exc.read(TYPESAFE_MAX_RESPONSE_BYTES + 1)
-            except Exception:
-                raw = b""
-        elapsed_ms = (time.monotonic() - started) * 1000.0
+            raw = b""
+        elapsed_ms = (self._monotonic() - started) * 1000.0
         return TypeSafeHTTPResponse(
             status_code=status,
-            body=raw.decode("utf-8", errors="replace"),
+            body=raw.decode("utf-8", errors="strict"),
             elapsed_ms=elapsed_ms,
         )
 
@@ -511,12 +587,16 @@ class TypeSafeSemanticDecisionProvider:
             raise _ResponseContractError("credential value contains invalid characters")
         return credential
 
-    def _build_wire_request(self, credential: str, request: SemanticDecisionRequest) -> str:
+    def _build_wire_request(
+        self,
+        request: SemanticDecisionRequest,
+        question: Mapping[str, Any],
+    ) -> str:
         payload = {
             "state": _json_safe(request.state),
             "model": self._model,
             "questions": {
-                DEFAULT_TYPESAFE_QUESTION_ID: _build_question(request),
+                DEFAULT_TYPESAFE_QUESTION_ID: dict(question),
             },
         }
         return json.dumps(
@@ -534,6 +614,15 @@ class TypeSafeSemanticDecisionProvider:
                 )
 
             try:
+                question = _build_question(request)
+            except _ResponseContractError as exc:
+                return self._error(
+                    primitive,
+                    SemanticEvidenceErrorKind.SCHEMA,
+                    str(exc),
+                )
+
+            try:
                 credential = self._resolve_credential()
             except Exception as exc:
                 if isinstance(exc, _ResponseContractError):
@@ -548,7 +637,7 @@ class TypeSafeSemanticDecisionProvider:
                     f"credential resolution failed: {type(exc).__name__}",
                 )
 
-            body = self._build_wire_request(credential, request)
+            body = self._build_wire_request(request, question)
             if len(body.encode("utf-8")) > TYPESAFE_MAX_REQUEST_BYTES:
                 return self._error(
                     primitive,

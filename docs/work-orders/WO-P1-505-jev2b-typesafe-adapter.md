@@ -112,6 +112,42 @@ call and no credential read occurred in this slice.
 - No A-Faster routing, #498/#500 files, MCP descendants, global env
   mutation, commit/push/merge in this slice.
 
+## R3 repair checkpoint — 2026-09-23
+
+Exact candidate `409aefa9d28e38a01ea712d357eea76f3e6b8f6e` was rejected by
+Sol fan-in despite green deterministic tests/CI because it violated the stricter
+pre-implementation pins frozen by Issue #505.
+
+This repair closes the accepted findings inside the original three-path scope:
+
+- live provider admission is restricted to the five JEV-1 candidate families
+  before secret resolution or transport; `review_severity` / Score is
+  frontier-only and fails closed without touching the resolver;
+- question templates are fixed in production code and tests prove exact equality
+  with `tests/fixtures/jev_shadow/typesafe_questions.json`;
+- Choice option sets must exactly match the admitted family template;
+- the stdlib transport installs an explicit no-redirect handler so Authorization
+  cannot follow a redirect;
+- HTTP error bodies are discarded without reading;
+- only HTTP 529 maps to `OVERLOAD`; other 5xx map to `TRANSPORT`;
+- response bytes decode with strict UTF-8; invalid UTF-8 maps to typed
+  `SCHEMA` evidence through the transport classifier;
+- the transport monotonic clock is injected and deterministically tested;
+- Choice and Noul normalizer outputs are checked against the accepted JEV-1C
+  oracle; Score normalization remains covered offline but cannot be invoked
+  through the live adapter.
+
+Verification after repair:
+
+- `tests/test_typesafe_semantic_provider.py`: 99 passed;
+- related semantic/JEV/resolver regression set: 145 passed;
+- `py_compile` and `git diff --check`: PASS;
+- added-line credential/session scan: PASS;
+- no live TypeSafe call occurred in this repair.
+
+Next gate: freeze repaired SHA, exact-head CI, then focused independent R3
+rereview after the single global review slot is released by WO-P1-500.
+
 ## Result
 
 safe-to-freeze: YES — dirty scope is exactly the three allowed paths,
