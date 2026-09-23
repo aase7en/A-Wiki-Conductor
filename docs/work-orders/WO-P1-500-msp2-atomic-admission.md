@@ -312,3 +312,100 @@ Before any `src/a_conductor/` mutation:
 - deterministic race/fault suites;
 - independent exact-SHA MAX review + hosted CI;
 - expected-head merge + post-main verification.
+
+## MSP-2A implementation checkpoint (2026-09-23)
+
+Status: SOURCE SLICE IMPLEMENTED — candidate frozen for independent review.
+
+Binding: worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo500-msp2a`, branch
+`feat/wo-p1-500-msp2a-hotspot-admission`, dispatch HEAD
+`202b172d3e27fbebe707e30b690d4678cba529d7`, base main
+`19ee92ca3888ce563ac743cfcca7707334cc8189`. Not committed, not pushed.
+
+Exact mutation scope (3 files):
+- `src/a_conductor/worker_lease.py`
+- `tests/test_msp2_atomic_admission.py` (new)
+- `docs/work-orders/WO-P1-500-msp2-atomic-admission.md` (this checkpoint)
+
+`tests/test_worker_lease.py` and `tests/test_worker_lease_recovery.py`
+remained untouched and pass unchanged. `dex_identity.py` untouched (reused).
+
+### Design delivered
+
+- Additive schema: nullable `worker_leases.hotspot_key` via migration inside
+  `BEGIN IMMEDIATE` with duplicate-column tolerance, so concurrent
+  initialization/migration is deterministic across connections/processes.
+- Injectable `hotspot_resolver` at `SQLiteWorkerLeaseStore` construction.
+  Default resolver (accepted seam reuse, no new normalization authority):
+  1. existing worktree with Git metadata → digest of canonicalized Git common
+     dir (`canonicalize_existing_root` + `canonical_root_digest`), converging
+     linked worktrees of one repository (junction/reparse/case/separator);
+  2. existing directory without Git metadata → digest of the canonicalized
+     directory itself;
+  3. absent path → digest of the accepted legacy `worktree_key` spelling,
+     preserving historical admission equivalence classes exactly.
+- Mutation admission resolves the hotspot BEFORE the write transaction;
+  `BEGIN IMMEDIATE` now fences active mutation leases by `hotspot_key`
+  (not `worktree_key`) plus `write_sets_overlap` (unchanged seam).
+- Fail-closed typed boundaries: `HOTSPOT_IDENTITY_FAILED` (resolver
+  failure/invalid output), `HOTSPOT_RECONCILIATION_REQUIRED` (any active
+  legacy mutation row with NULL hotspot blocks new mutation admission until
+  reconciled; the row's own owner retry still reuses its lease).
+- Same-owner retry with hotspot drift → `LEASE_REQUEST_CONFLICT` (store and
+  broker paths; broker resolves only for real stores, keeping duck-typed
+  legacy stores working).
+- Observable compatibility state: `hotspot_fence_status()` returns
+  `LOCAL_FENCE_ENFORCED` / `LOCAL_FENCE_RECONCILIATION_REQUIRED` with counts —
+  deliberately not a global `GUARD_ENFORCED` claim for #498.
+- Store identity: read-only `store_identity` digest of the canonical DB path
+  (stable across instances of the same physical DB; bindable evidence only).
+- Read-only leases: no hotspot resolution, NULL hotspot persisted, never
+  fence or get fenced by mutation hotspot authority (behavior preserved).
+
+### Verification evidence
+
+- `tests/test_msp2_atomic_admission.py`: 30 passed (RED-first; import failure
+  observed before implementation). Covers the full MSP-2A adversarial floor:
+  independent-connection race, distinct-worktree same-hotspot convergence
+  (physical Git common-dir fixture, case/separator/junction alias convergence,
+  `_winapi.CreateJunction` on win32), disjoint hotspot/scope independence,
+  legacy NULL row blocking + owner-retry carve-out + release unblocking,
+  additive migration preservation, concurrent initialize on fresh/legacy DB,
+  drift/resolver-failure fail-closed, store identity stability, seam identity
+  (`worker_lease.write_sets_overlap is analyze.write_sets_overlap`),
+  provenance independence, DB-restart fence persistence, released-lease
+  re-acquisition, read-only non-authority, fence-status observability, a true
+  two-process same-hotspot race (file-handshake subprocess, exactly one
+  winner), and a subprocess DB-contention test.
+- Existing suites: `test_worker_lease.py` + `test_worker_lease_recovery.py` +
+  `test_dex_identity.py` 95 passed; dependency-selected importers: elastic
+  capacity/fencing 48, parallel-ready/goal-closeout/production-closeout 153,
+  zcode-production/zero-relay-review/cockpit/desktop-control 245,
+  agent-change-packets/provider-runtime-assembly/runtime-activation/
+  worker-candidate-assembly/worktree-lifecycle 248 — all passed.
+- `python -m compileall` clean; `git diff --check` clean; dirty scope audited
+  to exactly the three allowed paths above.
+
+### Known limitations (bounded claim)
+
+- Local-store-only atomicity: two different SQLite DB paths are different
+  authorities (observable via `store_identity`; no cross-device convergence).
+- Mixed old/new mutation writers are not globally safe: an old binary can
+  still write NULL-hotspot mutation rows; `hotspot_fence_status()` reflects
+  only what this store can see. `LOCAL_FENCE_ENFORCED` ≠ `GUARD_ENFORCED`.
+- Submodule worktrees converge onto their superproject's Git common dir
+  (conservative over-blocking, never false independence).
+- No foreign-session takeover (P1-1); stale/quarantined leases still require
+  accepted owner recovery.
+- Same-owner retry against a legacy NULL-hotspot row cannot detect drift and
+  reuses the lease (legacy compatibility; it never admits a second lease).
+
+### Remaining R3 review risks
+
+- Independent exact-SHA review of the resolver tier semantics (especially the
+  absent-path legacy fallback tier) and of the global legacy-NULL block
+  (blocks all new mutations store-wide until reconciliation — intended
+  fail-closed behavior, reviewer should confirm deployment impact).
+- Broker duck-typed store detection (`getattr resolve_mutation_hotspot`) —
+  confirm no production fake-store path masks the fence.
+- Hosted CI run on the exact reviewed head before merge (repo delivery gate).
