@@ -100,8 +100,8 @@ the primary engineer. At activation, select the
 smallest/cheapest currently available capable supervisor profile from what
 the harness actually exposes, defaulting to LOW effort for routing and
 harvest steps. Escalate effort or profile only for genuinely ambiguous
-recovery, collision, authority, or acceptance questions; never escalate
-just to speed up routine waiting.
+recovery, collision, authority, acceptance, or terminal-classification
+questions; never escalate just to speed up routine waiting.
 
 Do not permanently pin a Codex product model name in this skill: selection
 is per-invocation from the currently available profiles, and a cheaper
@@ -118,6 +118,47 @@ event-driven wakeups; when events are unavailable, fall back to bounded
 infrequent polling on a declared low-frequency interval instead of busy
 polling or chatty narration. Compact receipts record state transitions and
 evidence references only — no secrets, no log dumps.
+
+## External liveness and WAITING_EXTERNAL
+
+A recheckable external dependency — CI job, provider/device run, external
+review, tunnel — whose authoritative state is non-terminal (`RUNNING`,
+`WAITING`, or derived `STALLED`) is `WAITING_EXTERNAL`, never a terminal
+Goal state and never a stop. `STALLED` means expected runtime remains
+non-terminal but progress age exceeded the declared bound: it is a warning
+that triggers reconciliation against the authoritative source, never
+automatic replay or termination.
+
+`RECHECK_ACTION_EXISTS => NO_SAFE_NEXT_ACTION = FALSE`: when a bounded
+authorized observation/re-poll/reconcile action exists — including a
+checkpoint's already-declared exact next safe action — the terminal gate
+`NO_SAFE_NEXT_ACTION` is forbidden. `NO_MUTATION_AVAILABLE` is not
+`NO_SAFE_NEXT_ACTION`: an empty mutable READY lane never stops the night
+while read-only recovery/reconciliation, `TERMINAL_UNHARVESTED` harvest,
+independent review, authorized external observation/recheck, or bounded
+monitoring work remains.
+
+Before any terminal `NO_SAFE_NEXT_ACTION`, prove ALL of these absent:
+mutable READY work; read-only recovery/reconciliation;
+`TERMINAL_UNHARVESTED` harvest; independent review action; authorized
+external observation/recheck; bounded monitoring action; any
+already-declared exact next safe action. If any exists,
+`NO_SAFE_NEXT_ACTION=FALSE`; only this exhaustive proof is
+`TRUE_NO_SAFE_NEXT_ACTION`.
+
+While `WAITING_EXTERNAL`, the Goal remains alive: preserve ownership,
+context, and the exact dependency/job identity; prefer event-driven wake,
+with bounded infrequent polling/recheck as the fallback per the
+quiet-waiting rules. Unchanged polls are not progress and must not consume
+turns by busy polling. On dependency state change, run
+`RECOVER -> RECONCILE -> HARVEST` as needed, recompute the DAG, then
+continue/refill under the same authorities.
+
+Escalation guard: before converting an ambiguous `STALLED` or
+`WAITING_EXTERNAL` state into terminal blocked/`NO_SAFE_NEXT_ACTION`, the
+low-cost supervisor must escalate the classification to the configured
+stronger/integrator path or fail closed as `WAITING_EXTERNAL`. Never
+terminate merely because the low-cost model is uncertain.
 
 ## Fanout and refill
 
@@ -173,20 +214,29 @@ Never commit the ephemeral copy; it is a runtime artifact outside Git.
 ## Cleanup of the ephemeral run
 
 Cleanup happens only at terminal state, after every child run is harvested
-or durably checkpointed. Delete by exact path only — the one run directory
-created for this activation; never wildcard or glob deletion, and never the
-temp root itself. Record the deletion in the `A_NIGHTSHIFT` receipt. If any
-child run is unharvested and not durably checkpointed, cleanup stays
-blocked with its typed blocker.
+or durably checkpointed, and never while any lane or external dependency
+is `RUNNING`, `WAITING`, `WAITING_EXTERNAL`, `STALLED`,
+INTERRUPTED-recoverable, UNKNOWN-recoverable, or otherwise holds a valid
+recheck or exact next safe action. Cleanup is eligible only after
+`GOAL_COMPLETE`, or a TRUE terminal human/safety/authorization gate, or
+`TRUE_NO_SAFE_NEXT_ACTION` proven by the exhaustive predicate; a
+"blocked" label alone is never cleanup authority. Delete by exact path
+only — the one run directory created for this activation; never wildcard
+or glob deletion, and never the temp root itself. Record the deletion in
+the `A_NIGHTSHIFT` receipt. If any child run is unharvested and not durably
+checkpointed, cleanup stays blocked with its typed blocker.
 
 ## Stop gates
 
 Stop only on `HUMAN_ACTION_REQUIRED`, `HUMAN_DECISION_REQUIRED`,
-`AUTHORIZATION_REQUIRED`, `SAFETY_BLOCK`, or `NO_SAFE_NEXT_ACTION`. On any
-stop, checkpoint durable state, publish a truthful lifecycle pulse, clean
-up per the cleanup rules when eligible, and record the stop gate in the
-`A_NIGHTSHIFT` receipt. Any other overnight pause is a WAITING state, not a
-stop.
+`AUTHORIZATION_REQUIRED`, `SAFETY_BLOCK`, or `NO_SAFE_NEXT_ACTION` — and
+that last gate only as `TRUE_NO_SAFE_NEXT_ACTION` proven by the exhaustive
+absence predicate under "External liveness and WAITING_EXTERNAL";
+`WAITING_EXTERNAL` and `STALLED` are waiting states, never stop gates. On
+any stop, checkpoint durable state, publish a truthful lifecycle pulse,
+clean up per the cleanup rules when eligible, and record the stop gate in
+the `A_NIGHTSHIFT` receipt. Any other overnight pause is a WAITING state,
+not a stop.
 
 ## Routing output additions
 
@@ -194,7 +244,10 @@ In addition to normal A-Faster output, report the `A_NIGHTSHIFT` receipt:
 run id, exact ephemeral contract path, the compact `/goal` pointer used,
 selected supervisor profile (model + effort, per-invocation), current loop
 position, harvested/unharvested counts, quota freshness, stop gate (or
-`NONE`), cleanup state, and the exact next safe action. When the accepted
+`NONE`), cleanup state, and the exact next safe action — plus the active
+external-liveness classification when a dependency is non-terminal
+(`NIGHTSHIFT_STATE=WAITING_EXTERNAL` with `GOAL_TERMINAL=NO`,
+`CLEANUP_ALLOWED=NO`). When the accepted
 base exposes them, the receipt also carries the A-Faster utilization
 markers compactly and verbatim — `A_FASTER_ACTIVE` (implied `YES` after
 base activation succeeds), `FANOUT_TARGET`, `UNUSED_SAFE_CAPACITY`,

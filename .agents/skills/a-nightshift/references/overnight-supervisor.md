@@ -48,6 +48,41 @@ utilization markers compactly and verbatim — `A_FASTER_ACTIVE`,
 `AUTO_REFILL_REQUIRED` — passed through from A-Faster, never recomputed.
 No secrets, no log dumps, no narration.
 
+## Liveness and terminal classification (canonical)
+
+- `WAITING` = execution intentionally blocked on a typed dependency
+  (including CI/external dependency). `STALLED` = expected runtime
+  remains non-terminal but progress age exceeded the declared bound.
+  `STALLED` is a warning that triggers reconciliation, never automatic
+  replay or termination.
+- A recheckable external CI/provider/review/device dependency that is
+  `RUNNING`, `WAITING`, or `STALLED` is `WAITING_EXTERNAL`, not a
+  terminal Goal state. The Goal stays alive with ownership/context and
+  the exact dependency/job identity preserved.
+- `RECHECK_ACTION_EXISTS => NO_SAFE_NEXT_ACTION = FALSE`: a bounded
+  authorized observation/re-poll/reconcile action — including a
+  checkpoint's already-declared exact next safe action — forbids the
+  terminal gate. `NO_MUTATION_AVAILABLE` is not `NO_SAFE_NEXT_ACTION`.
+- Terminal `NO_SAFE_NEXT_ACTION` requires `TRUE_NO_SAFE_NEXT_ACTION`:
+  proof that ALL of the following are absent — mutable READY work;
+  read-only recovery/reconciliation; `TERMINAL_UNHARVESTED` harvest;
+  independent review action; authorized external observation/recheck;
+  bounded monitoring action; any already-declared exact next safe
+  action. If any exists, `NO_SAFE_NEXT_ACTION=FALSE`.
+- Escalation guard: before converting an ambiguous `STALLED` or
+  `WAITING_EXTERNAL` state into terminal blocked/`NO_SAFE_NEXT_ACTION`,
+  the low-cost supervisor escalates the classification to the configured
+  stronger/integrator path or fails closed as `WAITING_EXTERNAL`. Never
+  terminate merely because the low-cost model is uncertain.
+- Incident regression 2026-09-23 (premature terminal on GitHub Actions
+  Windows job 107304826658): external_kind=CI, authoritative state
+  IN_PROGRESS, derived liveness STALLED with progress age above the
+  declared bound, can_repoll=YES, mutable_ready=0. Required
+  classification: `NIGHTSHIFT_STATE=WAITING_EXTERNAL`,
+  `GOAL_TERMINAL=NO`, `CLEANUP_ALLOWED=NO`, `NO_SAFE_NEXT_ACTION=FALSE`,
+  `NEXT_SAFE_ACTION=bounded re-poll/reconcile`. mutable_ready=0 with a
+  running, recheckable CI dependency is not terminal.
+
 ## Compact /goal pointer
 
 The pointer is one self-contained instruction that carries only the exact
@@ -116,6 +151,23 @@ Wait quietly and event-driven; when events are unavailable, use bounded
 infrequent polling on the declared interval {{POLL_INTERVAL}}. Emit compact
 receipts on state transitions only. No busy polling, no narration.
 
+## External liveness (WAITING_EXTERNAL)
+A recheckable external CI/provider/review/device dependency that is
+RUNNING, WAITING, or derived STALLED is WAITING_EXTERNAL: the goal stays
+alive (GOAL_TERMINAL=NO, CLEANUP_ALLOWED=NO) with the exact
+dependency/job identity preserved. STALLED triggers reconciliation,
+never automatic replay or termination. RECHECK_ACTION_EXISTS =>
+NO_SAFE_NEXT_ACTION=FALSE; NO_MUTATION_AVAILABLE is not
+NO_SAFE_NEXT_ACTION. Unchanged polls are not progress; on state change,
+run RECOVER -> RECONCILE -> HARVEST as needed, recompute, continue. Any
+terminal NO_SAFE_NEXT_ACTION requires TRUE_NO_SAFE_NEXT_ACTION: prove
+mutable READY work, read-only recovery/reconciliation,
+TERMINAL_UNHARVESTED harvest, independent review action, authorized
+external recheck, bounded monitoring, and any declared exact next safe
+action ALL absent. Ambiguous STALLED/WAITING_EXTERNAL terminal
+conversion must escalate to the configured stronger/integrator path or
+fail closed as WAITING_EXTERNAL.
+
 ## Quota
 Refresh approved quota/readiness before every material GLM dispatch.
 QUOTA_UNKNOWN is not RATE_LIMITED and is never treated as unlimited. Obey
@@ -130,16 +182,25 @@ permission. Apply the PRE-DISPATCH DEDUPE GATE before every launch.
 
 ## Stop gates
 Stop only on HUMAN_ACTION_REQUIRED, HUMAN_DECISION_REQUIRED,
-AUTHORIZATION_REQUIRED, SAFETY_BLOCK, or NO_SAFE_NEXT_ACTION. On stop:
-checkpoint durable state, publish a truthful lifecycle pulse, record the
-gate in the receipt. Any other overnight pause is WAITING, not a stop.
+AUTHORIZATION_REQUIRED, SAFETY_BLOCK, or NO_SAFE_NEXT_ACTION — the last
+only as TRUE_NO_SAFE_NEXT_ACTION per External liveness.
+WAITING_EXTERNAL and STALLED are waiting states, never stop gates. On
+stop: checkpoint durable state, publish a truthful lifecycle pulse,
+record the gate in the receipt. Any other overnight pause is WAITING,
+not a stop.
 
 ## Cleanup
-Cleanup only at terminal state, only after every child run is harvested or
-durably checkpointed (harvest instructions preserved outside this directory
-first). Delete this run directory by exact path only. Never wildcard or
-glob deletion. Never delete the temp root, sibling runs, or anything not
-created under this run_id. Record CLEANUP_STATE in the receipt.
+Cleanup only at terminal state — GOAL_COMPLETE, a TRUE terminal
+human/safety/authorization gate, or TRUE_NO_SAFE_NEXT_ACTION — and only
+after every child run is harvested or durably checkpointed (harvest
+instructions preserved outside this directory first). Never clean up
+while any lane or external dependency is RUNNING, WAITING,
+WAITING_EXTERNAL, STALLED, INTERRUPTED-recoverable, UNKNOWN-recoverable,
+or holds a valid recheck or exact next safe action; a "blocked" label
+alone is never cleanup authority. Delete this run directory by exact path
+only. Never wildcard or glob deletion. Never delete the temp root,
+sibling runs, or anything not created under this run_id. Record
+CLEANUP_STATE in the receipt.
 
 ## Ephemeral status
 This contract is an ephemeral runtime artifact outside Git. It is never
@@ -149,6 +210,13 @@ repository, worktree, issue, or PR.
 
 ## Cleanup rules (canonical)
 
+- Cleanup is forbidden while any lane or external dependency is RUNNING,
+  WAITING, WAITING_EXTERNAL, STALLED, INTERRUPTED-recoverable,
+  UNKNOWN-recoverable, or otherwise holds a valid recheck or exact next
+  safe action. Eligibility requires GOAL_COMPLETE, or a TRUE terminal
+  human/safety/authorization gate, or TRUE_NO_SAFE_NEXT_ACTION proven by
+  the exhaustive absence predicate; a "blocked" label alone is never
+  cleanup authority.
 - Cleanup runs only at terminal state and only after every child run is
   harvested or durably checkpointed; an unharvested, uncheckpointed child
   keeps cleanup blocked with its typed blocker.

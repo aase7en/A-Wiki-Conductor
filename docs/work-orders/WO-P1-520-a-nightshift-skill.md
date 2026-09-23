@@ -1,7 +1,7 @@
 # WO-P1-520 — A-NightShift overnight-supervisor skill
 
-Status: ACTIVE / AUTHORING — attempt-0002 bounded semantic-alignment
-repair (successor to attempt-0001, RED-first)
+Status: ACTIVE / AUTHORING — attempt-0003 premature-terminal regression
+repair (successor to attempt-0002 and attempt-0001, RED-first)
 Issue: #520
 Topology: CONTROL_PLANE_ONLY
 Risk: R3 coordination policy
@@ -91,7 +91,53 @@ template. Attempt-0002 adds semantic pins for the five A-Faster
 utilization receipt markers (`A_FASTER_ACTIVE` / `FANOUT_TARGET` /
 `UNUSED_SAFE_CAPACITY` / `A_FASTER_UNDERUTILIZED` /
 `AUTO_REFILL_REQUIRED`), the `A_FASTER_ACTIVE=YES` implication, and the
-no-second-authority boundary.
+no-second-authority boundary. Attempt-0003 adds the premature-terminal
+regression pins (issue #520): WAITING_EXTERNAL classification,
+recheck-forbids-terminal-gate, `NO_MUTATION_AVAILABLE` !=
+`NO_SAFE_NEXT_ACTION`, exhaustive `TRUE_NO_SAFE_NEXT_ACTION` proof,
+WAITING_EXTERNAL lifecycle, cleanup hardening, escalation guard, the
+pinned 2026-09-23 CI incident outcome vector, and the
+no-new-scheduler/timer/state-store constraint.
+
+## Attempt-0003 — premature-terminal regression repair (issue #520)
+
+Production incident: the first real overnight run stopped prematurely at
+2026-09-23T18:06:44Z. The supervisor checkpoint classified GitHub Actions
+Windows job 107304826658 as derived STALLED (step age since 17:48:43Z),
+ended the Goal as blocked, and deleted the ephemeral supervisor contract.
+Authoritative GitHub truth: the job remained IN_PROGRESS (not terminal),
+the long step completed SUCCESS at 18:17:51Z, the job completed SUCCESS
+at 18:19:41Z, and the checkpoint itself declared the exact next safe
+action (re-poll the job after external state changes).
+
+Root cause: NightShift stop classification let "cannot safely
+cancel/retry a STALLED external job" collapse into NO_SAFE_NEXT_ACTION
+even while a safe bounded recheck action existed; cleanup then deleted
+the ephemeral contract too early.
+
+Repair (RED-first, policy/contract hardening only — no new scheduler,
+timer, or state store): a recheckable external CI/provider/review/device
+dependency that is RUNNING/WAITING/STALLED is WAITING_EXTERNAL, never a
+terminal Goal state or stop gate; RECHECK_ACTION_EXISTS =>
+NO_SAFE_NEXT_ACTION=FALSE; NO_MUTATION_AVAILABLE is not
+NO_SAFE_NEXT_ACTION; terminal NO_SAFE_NEXT_ACTION requires
+TRUE_NO_SAFE_NEXT_ACTION proven by the exhaustive absence predicate
+(mutable READY work; read-only recovery/reconciliation;
+TERMINAL_UNHARVESTED harvest; independent review action; authorized
+external observation/recheck; bounded monitoring action; any
+already-declared exact next safe action — ALL absent); the
+WAITING_EXTERNAL lifecycle keeps the Goal alive with ownership/context
+and exact dependency/job identity, prefers event-driven wake with
+bounded infrequent recheck fallback, counts unchanged polls as
+non-progress, and runs RECOVER -> RECONCILE -> HARVEST on state change;
+cleanup is forbidden for RUNNING/WAITING/WAITING_EXTERNAL/STALLED/
+INTERRUPTED-recoverable/UNKNOWN-recoverable or any state with a valid
+recheck/next-safe-action, and a "blocked" label alone is never cleanup
+authority; ambiguous STALLED/WAITING_EXTERNAL terminal conversion must
+escalate to the configured stronger/integrator path or fail closed as
+WAITING_EXTERNAL. The incident scenario is pinned as regression
+semantics in the tests. Existing #517 pass-through utilization
+semantics and the no-second-authority boundary are unchanged.
 
 ## Attempt-0002 — successor alignment with #517
 
@@ -111,7 +157,8 @@ untouched; the four-file mutation scope is unchanged.
 ## Verification matrix
 
 - run `tests/test_a_nightshift_skill_contract.py` (RED observed at
-  attempt-0001 before GREEN);
+  attempt-0001 before GREEN; RED observed at attempt-0003 for the nine
+  new incident regression tests before GREEN);
 - run `tests/test_a_faster_invocation_contract.py`;
 - strict UTF-8 on all four files;
 - `git diff --check`;
@@ -122,6 +169,7 @@ untouched; the four-file mutation scope is unchanged.
 
 ## Result
 
-Compact result at `runs/WO-P1-520/author/attempt-0002/result.md`
-(attempt-0001 result retained at `runs/WO-P1-520/author/attempt-0001/result.md`).
+Compact result at `runs/WO-P1-520/author/attempt-0003/result.md`
+(attempt-0002 result retained at `runs/WO-P1-520/author/attempt-0002/result.md`;
+attempt-0001 result retained at `runs/WO-P1-520/author/attempt-0001/result.md`).
 Do not commit/push/merge.

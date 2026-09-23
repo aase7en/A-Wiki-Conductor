@@ -33,11 +33,25 @@ overnight-supervisor template. These tests fail if a future edit removes:
 - exact-path-only cleanup at terminal state (no wildcard/glob deletion);
 - the frozen stop gates;
 - the canonical tracked template that never instructs committing the
-  ephemeral copy.
+  ephemeral copy;
+- the attempt-0003 premature-terminal regression repair (issue #520):
+  STALLED and WAITING_EXTERNAL recheckable external dependencies are
+  waiting states, never terminal Goal states or stop gates;
+  RECHECK_ACTION_EXISTS forbids NO_SAFE_NEXT_ACTION;
+  NO_MUTATION_AVAILABLE is not NO_SAFE_NEXT_ACTION; terminal
+  NO_SAFE_NEXT_ACTION requires the exhaustive TRUE_NO_SAFE_NEXT_ACTION
+  absence proof; the WAITING_EXTERNAL lifecycle keeps the Goal alive with
+  ownership/context and exact dependency/job identity; cleanup is
+  forbidden for recheckable non-terminal states and a "blocked" label
+  alone is never cleanup authority; ambiguous terminal conversion must
+  escalate or fail closed as WAITING_EXTERNAL; the 2026-09-23 CI incident
+  outcome vector is pinned verbatim; and no new scheduler, timer, or
+  state store is created.
 
 Deliberately not a full-file snapshot: wording may evolve as long as the
 semantic markers stay. WO-P1-520 attempt-0001; A-Faster utilization-marker
-pins added at attempt-0002.
+pins added at attempt-0002; premature-terminal regression pins (issue
+#520 incident) added at attempt-0003.
 """
 
 from __future__ import annotations
@@ -320,3 +334,186 @@ def test_work_order_pins_scope_tests_and_verification() -> None:
     assert "84696b2360197c981d6f9fa2f33fb065b7b8ef07" in wo
     assert "CONTROL_PLANE_ONLY" in wo
     assert "R3" in wo
+
+
+# --- attempt-0003: premature-terminal regression repair (issue #520) ---
+# The first real overnight run stopped prematurely: a derived-STALLED
+# external CI job (authoritative state IN_PROGRESS, recheck available)
+# collapsed into terminal NO_SAFE_NEXT_ACTION and early cleanup. These
+# tests pin the corrected terminal-classification semantics.
+
+
+_INCIDENT_520_SCENARIO = {
+    "external_kind": "CI",
+    "authoritative_state": "IN_PROGRESS",
+    "derived_liveness": "STALLED",
+    "last_progress_age": "above the declared stall bound",
+    "can_repoll": "YES",
+    "mutable_ready": 0,
+}
+
+_INCIDENT_520_EXPECTED = {
+    "NIGHTSHIFT_STATE": "WAITING_EXTERNAL",
+    "GOAL_TERMINAL": "NO",
+    "CLEANUP_ALLOWED": "NO",
+    "NO_SAFE_NEXT_ACTION": "FALSE",
+    "NEXT_SAFE_ACTION": "bounded re-poll/reconcile",
+}
+
+
+def _liveness_section() -> str:
+    return _norm(_section(_read_strict(SKILL), "External liveness"))
+
+
+def test_stalled_external_dependency_is_waiting_external_not_terminal() -> None:
+    # Invariant 1: a recheckable RUNNING/WAITING/STALLED external
+    # dependency is WAITING_EXTERNAL, never a terminal Goal state.
+    section = _liveness_section()
+    combined = section + " " + _norm(_read_strict(REFERENCE))
+    assert "WAITING_EXTERNAL" in section
+    for kind in ("CI", "provider", "review", "device"):
+        assert kind in combined, f"lost external-dependency kind: {kind}"
+    assert "never a terminal" in section or "not a terminal" in section
+    # STALLED is a reconciliation warning, never replay/termination.
+    assert "STALLED" in section and "reconciliation" in section
+    assert "never automatic replay" in combined
+
+
+def test_recheck_action_forbids_no_safe_next_action() -> None:
+    # Invariant 2: RECHECK_ACTION_EXISTS => NO_SAFE_NEXT_ACTION = FALSE.
+    section = _liveness_section()
+    assert "RECHECK_ACTION_EXISTS" in section
+    assert (
+        "NO_SAFE_NEXT_ACTION = FALSE" in section
+        or "NO_SAFE_NEXT_ACTION=FALSE" in section
+    )
+    assert "bounded" in section and "re-poll" in section
+    # A checkpoint's own declared exact next safe action counts as recheck.
+    assert "already-declared exact next safe action" in section
+
+
+def test_no_mutation_available_is_not_terminal_stop() -> None:
+    # Invariant 3: NO_MUTATION_AVAILABLE != NO_SAFE_NEXT_ACTION.
+    section = _liveness_section()
+    assert "NO_MUTATION_AVAILABLE" in section
+    assert "is not `NO_SAFE_NEXT_ACTION`" in section
+    for remains in (
+        "read-only recovery/reconciliation",
+        "independent review",
+        "bounded monitoring work",
+    ):
+        assert remains in section, f"lost remaining-work class: {remains}"
+
+
+def test_terminal_gate_requires_exhaustive_absence_proof() -> None:
+    # Invariant 4: terminal NO_SAFE_NEXT_ACTION requires proving ALL
+    # seven action classes absent (TRUE_NO_SAFE_NEXT_ACTION).
+    section = _liveness_section()
+    combined = section + " " + _norm(_read_strict(REFERENCE))
+    assert "TRUE_NO_SAFE_NEXT_ACTION" in combined
+    for absent in (
+        "mutable READY work",
+        "read-only recovery/reconciliation",
+        "`TERMINAL_UNHARVESTED` harvest",
+        "independent review action",
+        "authorized external observation/recheck",
+        "bounded monitoring action",
+        "already-declared exact next safe action",
+    ):
+        assert absent in combined, f"lost required-absent proof: {absent}"
+    assert "If any exists" in combined
+    assert "prove ALL" in section
+
+
+def test_waiting_external_lifecycle_keeps_goal_alive() -> None:
+    # Invariant 5: WAITING_EXTERNAL lifecycle semantics.
+    section = _liveness_section()
+    assert "Goal remains alive" in section
+    assert "ownership" in section and "dependency/job identity" in section
+    assert "event-driven wake" in section
+    assert "Unchanged polls are not progress" in section
+    assert "busy polling" in section
+    assert "recompute the DAG" in section
+    assert "continue/refill" in section
+
+
+def test_cleanup_forbidden_for_recheckable_non_terminal_states() -> None:
+    # Invariant 6: cleanup hardening — non-terminal/recheckable states
+    # and a bare "blocked" label are never cleanup authority.
+    skill = _norm(_section(_read_strict(SKILL), "cleanup"))
+    ref = _norm(_read_strict(REFERENCE))
+    combined = skill + " " + ref
+    for state in (
+        "RUNNING",
+        "WAITING",
+        "WAITING_EXTERNAL",
+        "STALLED",
+        "INTERRUPTED-recoverable",
+        "UNKNOWN-recoverable",
+    ):
+        assert state in combined, f"cleanup hardening lost state: {state}"
+    assert "valid recheck" in combined
+    for eligible in (
+        "GOAL_COMPLETE",
+        "TRUE terminal human/safety/authorization gate",
+        "TRUE_NO_SAFE_NEXT_ACTION",
+    ):
+        assert eligible in combined, f"lost cleanup eligibility proof: {eligible}"
+    assert '"blocked" label alone is never cleanup authority' in combined
+
+
+def test_escalation_guard_before_terminal_conversion() -> None:
+    # Invariant 7: ambiguous STALLED/WAITING_EXTERNAL terminal conversion
+    # must escalate or fail closed, never terminate on model uncertainty.
+    section = _liveness_section()
+    combined = section + " " + _norm(_read_strict(REFERENCE))
+    assert "Escalation guard" in section
+    assert (
+        "escalate the classification to the configured stronger/integrator path"
+        in combined
+    )
+    assert "fail closed as `WAITING_EXTERNAL`" in combined
+    assert (
+        "Never terminate merely because the low-cost model is uncertain" in combined
+    )
+    codex = _norm(_section(_read_strict(SKILL), "Codex supervisor"))
+    assert "terminal-classification" in codex
+
+
+def test_incident_520_regression_pinned() -> None:
+    # Invariant 8: the actual incident scenario and its required outcome
+    # vector are pinned as regression semantics.
+    assert _INCIDENT_520_SCENARIO["external_kind"] == "CI"
+    assert _INCIDENT_520_SCENARIO["authoritative_state"] == "IN_PROGRESS"
+    assert _INCIDENT_520_SCENARIO["derived_liveness"] == "STALLED"
+    assert _INCIDENT_520_SCENARIO["can_repoll"] == "YES"
+    assert _INCIDENT_520_SCENARIO["mutable_ready"] == 0
+    assert _INCIDENT_520_EXPECTED["NIGHTSHIFT_STATE"] == "WAITING_EXTERNAL"
+    assert _INCIDENT_520_EXPECTED["GOAL_TERMINAL"] == "NO"
+    assert _INCIDENT_520_EXPECTED["CLEANUP_ALLOWED"] == "NO"
+    assert _INCIDENT_520_EXPECTED["NO_SAFE_NEXT_ACTION"] == "FALSE"
+    assert _INCIDENT_520_EXPECTED["NEXT_SAFE_ACTION"] == "bounded re-poll/reconcile"
+    # The contract carries the same machine-visible outcomes verbatim.
+    ref = _norm(_read_strict(REFERENCE))
+    for needle in (
+        "external_kind=CI",
+        "IN_PROGRESS",
+        "STALLED",
+        "can_repoll=YES",
+        "mutable_ready=0",
+        "NIGHTSHIFT_STATE=WAITING_EXTERNAL",
+        "GOAL_TERMINAL=NO",
+        "CLEANUP_ALLOWED=NO",
+        "NO_SAFE_NEXT_ACTION=FALSE",
+        "NEXT_SAFE_ACTION=bounded re-poll/reconcile",
+        "running, recheckable CI dependency is not terminal",
+    ):
+        assert needle in ref, f"incident regression marker lost: {needle}"
+
+
+def test_no_new_scheduler_timer_or_state_store() -> None:
+    # Invariant 10: policy/contract hardening only — the overlay still
+    # creates no scheduler, timer, or state store of its own.
+    text = _norm(_read_strict(SKILL))
+    assert "never becomes a scheduler, task store, claim/lease system" in text
+    assert "WAITING_EXTERNAL" in _liveness_section()
