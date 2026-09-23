@@ -86,6 +86,28 @@ The module must provide:
 - exact-scope audit + added-line secret/session scan.
 - freeze exact SHA -> independent review + hosted CI -> merge/post-main.
 
+## Integrator harvest checkpoint — 2026-09-23
+
+- Jev advisory routed this bounded core to GLM-5.3 MAX (confidence 0.86); GPT retained routing/acceptance authority.
+- CoinTH quota/readiness and exact `cointh-glm/glm-5.3` route passed before dispatch.
+- A transport timeout left a live delegated process. A duplicate replay was detected by A-Faster census before source mutation and the later duplicate process tree was stopped by exact verified PIDs only.
+- Kilo durable-session recovery identified the retained writer session and proved RED-first progress: `tests/test_semantic_decision.py` was authored and `ModuleNotFoundError` was reproduced before implementation.
+- The retained writer later entered a pending write-tool state. GPT/Worker-1 performed an explicit same-scope takeover after exact process shutdown; the GLM-written module had landed by the takeover boundary, so it was harvested rather than overwritten.
+- First deterministic harvest: `69 passed, 2 failed`. One failure was a duplicate-keyword test bug. The other incorrectly treated a structurally valid Choice probability distribution as invalid; JEV-1C only requires exact keys, bounded probabilities and sum=1, so the test was repaired without inventing a new provider invariant.
+- Final targeted: `71 passed`.
+- Related JEV/provider regression set: `110 passed`.
+- `py_compile`, `git diff --check`, added-line credential/session scan, and anchored forbidden-I/O import scan: PASS.
+- Production module imports only `math`, `re`, `dataclasses`, `enum`, `types`, and `typing`; it performs no filesystem/network/environment/secret/process access.
+
+## Freeze candidate
+
+Freeze only:
+- `src/a_conductor/semantic_decision.py`
+- `tests/test_semantic_decision.py`
+- this Work Order
+
+Next gate: exact-SHA independent review + hosted CI. No TypeSafe transport or A-Faster routing mutation is part of this candidate.
+
 ## Replay / closeout
 
 Worker/GLM DONE is a claim only. If an external writer terminates, harvest exact Git/result evidence before retry. No blind replay.
