@@ -356,6 +356,21 @@ reuses the census, the collision gate, and the durable-lane identity — it
 creates no new scheduler, registry, or retry authority — and
 `1 MUTABLE HOTSPOT = 1 MUTATION OWNER` still applies.
 
+## JEV semantic fast path
+
+For bounded semantic triage, A-Faster may consult the provider-neutral semantic
+decision seam **after deterministic facts and normal lane authority are known**.
+Read `references/jev-semantic-fast-path.md` when a READY task needs task
+classification, skill suggestion, failure classification, evidence relevance,
+or escalation triage.
+
+Initial modes are `OFF`, `SHADOW`, and `ADVISORY` only. Semantic output is
+evidence, never task/claim/mutation/review/merge/completion authority; it never
+creates a separate WIP slot. `review_severity`, security/authority/ownership
+judgment, and any consequential acceptance remain frontier/deterministic work.
+Provider failure, malformed evidence, low confidence, or policy uncertainty
+fails closed to the existing GPT/GLM path rather than blind retry.
+
 ## Model routing by benchmark
 
 Prefer GLM labor where capable, especially for bounded work that can run
