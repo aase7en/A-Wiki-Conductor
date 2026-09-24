@@ -104,3 +104,18 @@ retroactively turn historical compatibility evidence into mutation admission.
 
 The repaired candidate requires a new exact SHA, focused deterministic
 verification, fresh independent R3 review, and exact-head hosted CI before merge.
+
+## Independent R3 mutation-probe repair — 2026-09-24
+
+Rereview of 7ae2eb1db15ec9a46302c2f54dadf4c4c7a86161 closed prior F1/P1
+and F2/P2 but found one new P2 test-assurance gap: the WO529 assertions did
+not reject an injected contradictory
+REMOTE_CONFIGURED=NO => HUMAN_DECISION_REQUIRED rule.
+
+The repair adds a structural no-false-human-gate validator and an adversarial
+mutation probe over all three copies: SKILL, canonical reference, and embedded
+supervisor template. The injected contradiction must fail the validator in
+every copy. No production/contract semantics change in this slice.
+
+A new exact SHA, deterministic verification, fresh exact-SHA independent R3
+review, and exact-head hosted CI remain required before merge.

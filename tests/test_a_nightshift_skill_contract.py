@@ -1458,6 +1458,61 @@ def test_attempt0003_reviewer_escape_vectors_are_rejected_per_copy() -> None:
 
 # --- WO-P1-529 one-shot continuation regression pins ---
 
+_FALSE_HUMAN_GATE_RE = re.compile(
+    r"REMOTE_CONFIGURED=NO\s*(?:=>|(?:alone\s+)?(?:means|requires|sets|yields))"
+    r"\s*HUMAN_DECISION_REQUIRED(?:=TRUE)?",
+    re.IGNORECASE,
+)
+
+
+def _wo529_terminal_gate_copies() -> dict[str, str]:
+    return {
+        "skill": _section(
+            _read_strict(SKILL), "One-shot continuation terminal gate"
+        ),
+        "canonical": _section(
+            _reference_without_supervisor_template_body(),
+            "One-shot continuation terminal gate",
+        ),
+        "template": _section(
+            _supervisor_template_body(), "One-shot continuation terminal gate"
+        ),
+    }
+
+
+def _assert_wo529_no_false_human_gate(label: str, body: str) -> None:
+    corpus = _norm(body)
+    assert re.search(
+        r"REMOTE_CONFIGURED=NO.{0,200}?"
+        r"(?:does not manufacture|never manufactures|MUST NOT manufacture)"
+        r"\s+HUMAN_DECISION_REQUIRED",
+        corpus,
+        re.IGNORECASE,
+    ), f"{label}: remote-absence no-human-gate rule is not structurally bound"
+    assert not _FALSE_HUMAN_GATE_RE.search(
+        corpus
+    ), f"{label}: remote absence incorrectly grants a human gate"
+
+
+def _inject_wo529_false_human_gate(body: str) -> str:
+    return (
+        _norm(body)
+        + " REMOTE_CONFIGURED=NO => HUMAN_DECISION_REQUIRED=TRUE."
+    )
+
+
+def test_wo529_false_human_gate_mutation_is_rejected_per_copy() -> None:
+    for label, body in _wo529_terminal_gate_copies().items():
+        _assert_wo529_no_false_human_gate(label, body)
+        mutated = _inject_wo529_false_human_gate(body)
+        _expect_contract_validator_rejects(
+            f"{label}: false human gate from remote absence",
+            lambda label=label, mutated=mutated: _assert_wo529_no_false_human_gate(
+                label, mutated
+            ),
+        )
+
+
 def test_wo529_skill_pins_frontier_local_only_quota_and_integrator_semantics() -> None:
     body = _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate"))
     for token in (
