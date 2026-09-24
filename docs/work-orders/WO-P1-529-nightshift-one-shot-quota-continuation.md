@@ -81,3 +81,26 @@ Sol then applied the bounded repair inside this WO's exact scope:
 Verification: NightShift + adjacent A-Faster contract suite 113/113 PASS;
 git diff --check PASS. Independent R3 review and hosted CI remain required
 before acceptance.
+
+## Independent R3 repair checkpoint — 2026-09-24
+
+Independent exact-SHA review of 1e4cd0a3575577bc572b132c447690f29f9b8fd0
+returned CHANGES_REQUIRED / P0=0 P1=1 P2=1 P3=0.
+
+Accepted repairs:
+- local-only compatibility/provenance evidence is no longer treated as mutation
+  admission; EXECUTION_REPO_COMPATIBILITY=LOCAL_ONLY_CANONICAL remains
+  observational until the exact lane proves its claim/lease/guard mutation
+  admission, while remote absence alone does not manufacture a human gate;
+- the SAFE_READY frontier vector now proves only GOAL_TERMINAL=NO; NightShift
+  consumes AUTO_REFILL_REQUIRED from accepted A-Faster truth verbatim and
+  never derives TRUE from SAFE_READY alone. Quota/route/WIP gates may keep the
+  marker FALSE or UNKNOWN.
+
+Operator decision B separately established canonical private SRM remote identity
+at aase7en/SunDayRemoteMCP with remote/local main pinned to
+2f033cfb1f61b6dff9c2e55264cca6f2a9125e95; that publication decision does not
+retroactively turn historical compatibility evidence into mutation admission.
+
+The repaired candidate requires a new exact SHA, focused deterministic
+verification, fresh independent R3 review, and exact-head hosted CI before merge.

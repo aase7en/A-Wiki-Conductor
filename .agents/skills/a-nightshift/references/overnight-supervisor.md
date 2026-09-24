@@ -211,12 +211,16 @@ frontier census after RECOVER -> RECONCILE -> HARVEST and classify every
 dependency-unblocked candidate. A blocker on one candidate never terminates
 the parent while another independent SAFE_READY candidate exists.
 
-Accepted local-only execution-repo evidence is sufficient for local-only
-work when the accepted authority already froze that compatibility anchor.
-Classify this as EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL; absence of a
-Git remote alone MUST NOT manufacture HUMAN_DECISION_REQUIRED. This binding
-never grants publication, remote push, remote merge, or cross-device authority.
-Those capabilities still require their own accepted identity/admission.
+Accepted local-only execution-repo compatibility evidence is identity/provenance
+only unless the current lane's durable authority separately proves mutation
+admission. Classify accepted compatibility as
+EXECUTION_REPO_COMPATIBILITY=LOCAL_ONLY_CANONICAL, but keep
+MUTATION_ADMISSION=REQUIRED and MUTATION_ALLOWED=NO until the exact lane's
+claim/lease/guard admission is proven. Absence of a Git remote alone MUST NOT
+manufacture HUMAN_DECISION_REQUIRED: the affected mutation lane may remain
+blocked while the parent continues any independent SAFE_READY work or bounded
+recheck. Compatibility evidence never grants publication, remote push, remote
+merge, cross-device authority, or mutation authority by itself.
 
 Integrator discovery is capability-based, not PATH-name based. A verified
 configured CODEX_BIN or exact bundled Codex binary/capability probe may prove
@@ -231,11 +235,16 @@ one blocked lane, or an empty current mutable slot is never quota-terminal.
 Never manufacture work merely to consume quota.
 
 Pinned incident vectors:
-- LOCAL_ONLY_ACCEPTED_ANCHOR=YES REMOTE_CONFIGURED=NO ACTION=LOCAL_ONLY
-  => EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL,
-  HUMAN_DECISION_REQUIRED=FALSE.
+- LOCAL_ONLY_COMPATIBILITY_ANCHOR=ACCEPTED REMOTE_CONFIGURED=NO
+  MUTATION_ADMISSION=UNPROVEN
+  => EXECUTION_REPO_COMPATIBILITY=LOCAL_ONLY_CANONICAL,
+  MUTATION_ALLOWED=NO; REMOTE_CONFIGURED=NO alone does not manufacture
+  HUMAN_DECISION_REQUIRED.
 - FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY
-  => GOAL_TERMINAL=NO, AUTO_REFILL_REQUIRED=TRUE.
+  => GOAL_TERMINAL=NO; AUTO_REFILL_REQUIRED=FROM_A_FASTER.
+  NightShift preserves the accepted A-Faster marker verbatim and MUST NOT
+  derive TRUE from SAFE_READY alone; quota/route/WIP gates may keep it FALSE
+  or UNKNOWN while the parent remains nonterminal.
 - FRONTIER=A:HUMAN_DECISION_REQUIRED with no independent SAFE READY,
   waiting, harvest, review, monitoring, or exact next-safe action remaining
   => the genuine human gate may be terminal.
@@ -403,10 +412,14 @@ frontier census after RECOVER -> RECONCILE -> HARVEST. A blocker on one
 candidate never terminates the parent while another independent SAFE_READY
 candidate exists.
 
-Accepted local-only execution-repo evidence for local-only work classifies
-EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL. REMOTE_CONFIGURED=NO alone never
-manufactures HUMAN_DECISION_REQUIRED and grants no publication, remote push,
-remote merge, or cross-device authority.
+Accepted local-only execution-repo compatibility evidence classifies
+EXECUTION_REPO_COMPATIBILITY=LOCAL_ONLY_CANONICAL only. It is not mutation
+admission: MUTATION_ADMISSION=REQUIRED and MUTATION_ALLOWED=NO until the exact
+lane's durable claim/lease/guard admission is proven. REMOTE_CONFIGURED=NO alone
+never manufactures HUMAN_DECISION_REQUIRED; the mutation lane may stay blocked
+while independent SAFE_READY/recheck work continues. Compatibility evidence
+grants no publication, remote push, remote merge, cross-device, or mutation
+authority by itself.
 
 A verified configured CODEX_BIN or exact bundled Codex capability probe may
 prove INTEGRATOR_ROUTE=AVAILABLE even when PATH_CODEX=ABSENT. AVAILABLE =>
@@ -418,10 +431,14 @@ QUOTA_UNKNOWN, one blocked lane, or an empty mutable slot is never
 quota-terminal. Never manufacture work to burn quota.
 
 Pinned vectors:
-LOCAL_ONLY_ACCEPTED_ANCHOR=YES REMOTE_CONFIGURED=NO ACTION=LOCAL_ONLY =>
-EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL, HUMAN_DECISION_REQUIRED=FALSE.
+LOCAL_ONLY_COMPATIBILITY_ANCHOR=ACCEPTED REMOTE_CONFIGURED=NO
+MUTATION_ADMISSION=UNPROVEN =>
+EXECUTION_REPO_COMPATIBILITY=LOCAL_ONLY_CANONICAL, MUTATION_ALLOWED=NO;
+REMOTE_CONFIGURED=NO alone does not manufacture HUMAN_DECISION_REQUIRED.
 FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY =>
-GOAL_TERMINAL=NO, AUTO_REFILL_REQUIRED=TRUE.
+GOAL_TERMINAL=NO; AUTO_REFILL_REQUIRED=FROM_A_FASTER.
+NightShift preserves the accepted A-Faster marker verbatim and MUST NOT derive
+TRUE from SAFE_READY alone; quota/route/WIP gates may keep it FALSE or UNKNOWN.
 QUOTA_AVAILABLE => QUOTA_TERMINAL=FORBIDDEN.
 QUOTA_EXHAUSTED_FRESH=YES CHILDREN_RECONCILED=YES =>
 GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.

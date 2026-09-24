@@ -1461,12 +1461,14 @@ def test_attempt0003_reviewer_escape_vectors_are_rejected_per_copy() -> None:
 def test_wo529_skill_pins_frontier_local_only_quota_and_integrator_semantics() -> None:
     body = _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate"))
     for token in (
-        "EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL",
-        "LOCAL_ONLY_ACCEPTED_ANCHOR=YES",
+        "EXECUTION_REPO_COMPATIBILITY=LOCAL_ONLY_CANONICAL",
+        "LOCAL_ONLY_COMPATIBILITY_ANCHOR=ACCEPTED",
+        "MUTATION_ADMISSION=REQUIRED",
+        "MUTATION_ALLOWED=NO",
         "REMOTE_CONFIGURED=NO",
         "FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY",
         "GOAL_TERMINAL=NO",
-        "AUTO_REFILL_REQUIRED=TRUE",
+        "AUTO_REFILL_REQUIRED=FROM_A_FASTER",
         "QUOTA_TERMINAL=FORBIDDEN",
         "QUOTA_EXHAUSTED_FRESH=YES",
         "CHILDREN_RECONCILED=YES",
@@ -1484,12 +1486,14 @@ def test_wo529_canonical_and_template_copy_terminal_gate_vectors() -> None:
     canonical = _norm(_section(_reference_without_supervisor_template_body(), "One-shot continuation terminal gate"))
     template = _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate"))
     required = (
-        "EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL",
+        "EXECUTION_REPO_COMPATIBILITY=LOCAL_ONLY_CANONICAL",
+        "MUTATION_ADMISSION=REQUIRED",
+        "MUTATION_ALLOWED=NO",
         "REMOTE_CONFIGURED=NO",
-        "HUMAN_DECISION_REQUIRED=FALSE",
+        "HUMAN_DECISION_REQUIRED",
         "FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY",
         "GOAL_TERMINAL=NO",
-        "AUTO_REFILL_REQUIRED=TRUE",
+        "AUTO_REFILL_REQUIRED=FROM_A_FASTER",
         "QUOTA_TERMINAL=FORBIDDEN",
         "GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED",
         "PATH_CODEX=ABSENT",
@@ -1507,9 +1511,11 @@ def test_wo529_blocked_candidate_is_not_parent_terminal_when_safe_ready_exists()
         _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate")),
     ):
         assert re.search(
-            r"FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY.{0,160}?GOAL_TERMINAL=NO.{0,120}?AUTO_REFILL_REQUIRED=TRUE",
+            r"FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY.{0,180}?GOAL_TERMINAL=NO.{0,180}?AUTO_REFILL_REQUIRED=FROM_A_FASTER",
             body,
         )
+        assert "AUTO_REFILL_REQUIRED=TRUE" not in body
+        assert "quota/route/WIP" in body
 
 
 def test_wo529_local_only_binding_does_not_grant_remote_authority() -> None:
@@ -1517,10 +1523,13 @@ def test_wo529_local_only_binding_does_not_grant_remote_authority() -> None:
         _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate")),
         _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate")),
     ):
-        assert "LOCAL_ONLY_CANONICAL" in body
+        assert "EXECUTION_REPO_COMPATIBILITY=LOCAL_ONLY_CANONICAL" in body
+        assert "MUTATION_ADMISSION=REQUIRED" in body
+        assert "MUTATION_ALLOWED=NO" in body
         assert "REMOTE_CONFIGURED=NO" in body
         assert "publication" in body.lower()
         assert "cross-device" in body.lower()
+        assert "mutation authority" in body.lower()
 
 
 def test_wo529_quota_terminal_requires_fresh_exhaustion_after_child_reconciliation() -> None:
