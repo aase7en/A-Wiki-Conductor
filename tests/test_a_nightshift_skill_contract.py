@@ -46,12 +46,23 @@ overnight-supervisor template. These tests fail if a future edit removes:
   alone is never cleanup authority; ambiguous terminal conversion must
   escalate or fail closed as WAITING_EXTERNAL; the 2026-09-23 CI incident
   outcome vector is pinned verbatim; and no new scheduler, timer, or
-  state store is created.
+  state store is created;
+- the attempt-0004 no-model-spin waiting regression repair (issue #520):
+  WAITING_EXTERNAL with unchanged authoritative state never completes a
+  model turn merely to report still waiting and never emits a
+  user-visible repeated WAITING_EXTERNAL reply solely because a /goal
+  continuation fired; the wait itself happens inside ONE foreground
+  read-only blocking call bound to the exact dependency identity
+  (gh run watch preferred, silent unchanged-wait output,
+  WAIT_TOOL_TIMEOUT_RECHECK timeout fallback, no detached watcher or new
+  scheduler/task store/state store); and the pinned 2026-09-23/24
+  reply-spin incident vector with its state_changed=YES transition.
 
 Deliberately not a full-file snapshot: wording may evolve as long as the
 semantic markers stay. WO-P1-520 attempt-0001; A-Faster utilization-marker
 pins added at attempt-0002; premature-terminal regression pins (issue
-#520 incident) added at attempt-0003.
+#520 incident) added at attempt-0003; no-model-spin blocking-wait pins
+(issue #520 reply-spin incident) added at attempt-0004.
 """
 
 from __future__ import annotations
@@ -517,3 +528,258 @@ def test_no_new_scheduler_timer_or_state_store() -> None:
     text = _norm(_read_strict(SKILL))
     assert "never becomes a scheduler, task store, claim/lease system" in text
     assert "WAITING_EXTERNAL" in _liveness_section()
+
+
+# --- attempt-0005: no-model-spin blocking-wait repair (issue #520) ---
+# Resumed from the cooperatively cancelled attempt-0004, preserving its
+# partial docstring mutation. The 2026-09-23/24 reply-spin incident: on a
+# live /goal, an unchanged WAITING_EXTERNAL CI dependency caused
+# seconds-scale model turns — poll -> visible still-waiting reply ->
+# model turn completes -> /goal auto-continues -> poll again — burning
+# Codex/model usage. A prose polling interval is not a timer. These tests
+# pin the blocking-wait contract (WO-P1-520 Phase 1: RED proof required
+# before any SKILL.md/reference/WO implementation edit).
+
+_REPLY_SPIN_520_SCENARIO = {
+    "external_kind": "CI",
+    "authoritative_state": "IN_PROGRESS",
+    "state_changed": "NO",
+    "blocking_wait_capable": "YES",
+    "independent_ready_work": "NO",
+}
+
+_REPLY_SPIN_520_EXPECTED = {
+    "USE_BLOCKING_WAIT": "YES",
+    "MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT": "YES",
+    "USER_VISIBLE_REPEAT_REPLY": "FORBIDDEN",
+    "AUTO_CONTINUATION_REPOLL": "FORBIDDEN",
+    "UNCHANGED_WAIT_OUTPUT": "SILENT",
+    "GOAL_TERMINAL": "NO",
+    "CLEANUP_ALLOWED": "NO",
+}
+
+
+def _wait_contract_sections() -> str:
+    # External-liveness bodies of the overlay and the canonical template,
+    # where the blocking-wait semantics live.
+    skill = _read_strict(SKILL)
+    ref = _read_strict(REFERENCE)
+    return _norm(_section(skill, "External liveness")) + " " + _norm(
+        _section(ref, "External liveness")
+    )
+
+
+def _combined_contract_text() -> str:
+    return _norm(_read_strict(SKILL)) + " " + _norm(_read_strict(REFERENCE))
+
+
+def test_no_model_spin_markers_pinned_in_skill_and_template() -> None:
+    # The six machine-visible markers of the no-model-spin contract must
+    # appear verbatim in both the overlay and the canonical template.
+    skill = _norm(_read_strict(SKILL))
+    ref = _norm(_read_strict(REFERENCE))
+    for marker in (
+        "USE_BLOCKING_WAIT=YES",
+        "MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES",
+        "USER_VISIBLE_REPEAT_REPLY=FORBIDDEN",
+        "AUTO_CONTINUATION_REPOLL=FORBIDDEN",
+        "UNCHANGED_WAIT_OUTPUT=SILENT",
+        "WAIT_TOOL_TIMEOUT_RECHECK",
+    ):
+        assert marker in skill, f"no-model-spin marker lost from SKILL.md: {marker}"
+        assert marker in ref, f"no-model-spin marker lost from template: {marker}"
+
+
+def test_unchanged_external_wait_is_one_foreground_blocking_wait() -> None:
+    # Invariant 1: WAITING_EXTERNAL + unchanged authoritative state +
+    # blocking wait capable + no independent READY work resolves to ONE
+    # foreground read-only blocking wait bound to the exact dependency
+    # identity.
+    corpus = _wait_contract_sections()
+    assert "foreground" in corpus
+    assert "read-only" in corpus
+    assert "blocking wait" in corpus
+    assert "bound to the exact dependency" in corpus
+    assert "unchanged authoritative state" in corpus
+    assert (
+        "no independent READY work" in corpus
+        or "no independent SAFE READY work" in corpus
+    )
+
+
+def test_waiting_never_completes_model_turn_to_report_unchanged_state() -> None:
+    # Invariant 2: waiting does not complete the model turn solely to
+    # report unchanged state.
+    corpus = _wait_contract_sections()
+    assert (
+        "never completes the model turn" in corpus
+        or "does not complete the model turn" in corpus
+        or "must not complete the model turn" in corpus
+    )
+    assert "solely to report" in corpus
+    assert "unchanged" in corpus
+
+
+def test_no_repeated_user_visible_reply_on_goal_auto_continuation() -> None:
+    # Invariant 3: no repeated user-visible WAITING_EXTERNAL reply solely
+    # because /goal auto-continued.
+    corpus = _combined_contract_text()
+    assert "/goal" in corpus
+    assert "auto-continu" in corpus
+    assert "user-visible" in corpus
+    assert "solely because" in corpus
+
+
+def test_gh_run_watch_is_the_preferred_ci_blocking_primitive() -> None:
+    # Invariant 4: the GitHub Actions preferred primitive references the
+    # exact foreground blocking watch command (or an equivalent one).
+    ref = _norm(_read_strict(REFERENCE))
+    assert "gh run watch" in ref
+    for fragment in (
+        "<RUN_ID>",
+        "<OWNER/REPO>",
+        "--compact",
+        "--exit-status",
+        "--interval 60",
+    ):
+        assert fragment in ref, f"gh run watch primitive lost fragment: {fragment}"
+    assert "foreground" in _combined_contract_text()
+
+
+def test_unchanged_watcher_output_suppressed_from_model_context() -> None:
+    # Invariant 5: repetitive unchanged watcher output is suppressed or
+    # redirected out of model context.
+    corpus = _combined_contract_text()
+    assert (
+        "suppress" in corpus
+        or "suppressed" in corpus
+        or "redirect" in corpus
+        or "redirected" in corpus
+    )
+    assert "model context" in corpus
+
+
+def test_generic_fallback_is_one_silent_in_tool_loop() -> None:
+    # Invariant 6: the generic fallback is one foreground bounded silent
+    # loop inside a tool call; sleep/poll internally; return output only
+    # on transition, terminal state, real error, or bounded tool timeout.
+    corpus = _combined_contract_text()
+    assert "inside a tool call" in corpus
+    assert "sleep" in corpus
+    assert "silent" in corpus
+    assert "only on transition" in corpus
+    assert "real error" in corpus
+    assert "bounded tool timeout" in corpus
+
+
+def test_no_detached_watcher_or_new_state_store() -> None:
+    # Invariant 7: the wait mechanics create no detached/unowned
+    # watcher/timer, scheduler, task store, or new state store.
+    corpus = _combined_contract_text()
+    assert "no detached" in corpus or "never detached" in corpus
+    assert "unowned" in corpus
+    assert "watcher" in corpus and "timer" in corpus
+    assert "new state store" in corpus or "no state store" in corpus
+
+
+def test_wait_tool_timeout_recheck_not_progress_gate_or_cleanup() -> None:
+    # Invariant 8: WAIT_TOOL_TIMEOUT_RECHECK is not progress, not a stop
+    # gate, not cleanup authority; fresh-read then re-enter the blocking
+    # wait while still recheckable with no READY work.
+    corpus = _combined_contract_text()
+    assert "WAIT_TOOL_TIMEOUT_RECHECK" in corpus
+    assert "not progress" in corpus
+    assert "not a stop gate" in corpus or "never a stop gate" in corpus
+    assert "not cleanup authority" in corpus or "never cleanup authority" in corpus
+    assert "fresh-read" in corpus or "fresh read" in corpus
+    assert "re-enter" in corpus
+
+
+def test_seconds_scale_goal_response_loops_forbidden() -> None:
+    # Invariant 9: seconds-scale goal response loops are explicitly
+    # forbidden.
+    corpus = _combined_contract_text()
+    assert "seconds-scale" in corpus
+    assert re.search(
+        r"seconds-scale.{0,120}forbidden|forbidden.{0,120}seconds-scale", corpus
+    )
+
+
+def test_safe_ready_work_dispatched_before_blocking() -> None:
+    # Invariant 10: before blocking, dispatch/harvest independent SAFE
+    # READY work first.
+    corpus = _combined_contract_text()
+    assert (
+        "Before blocking" in corpus
+        or "before entering the blocking wait" in corpus
+        or "before any blocking wait" in corpus
+    )
+    assert "dispatch" in corpus and "harvest" in corpus
+    assert "independent SAFE READY" in corpus or "independent safe READY" in corpus
+
+
+def test_state_changed_yes_returns_to_recover_reconcile_harvest() -> None:
+    # Invariant 11: state_changed=YES causes the watcher to return, then
+    # RECOVER -> RECONCILE -> HARVEST as needed -> recompute the DAG ->
+    # continue/refill.
+    sections = _wait_contract_sections()
+    corpus = _combined_contract_text()
+    assert "state_changed=YES" in sections
+    assert "RECOVER -> RECONCILE -> HARVEST" in sections
+    assert "recompute the DAG" in sections
+    assert "continue/refill" in sections
+    assert "watcher return" in corpus
+
+
+def test_unchanged_polls_do_not_append_repeated_receipts() -> None:
+    # Invariant 12: unchanged internal polls are not progress and do not
+    # append repeated receipts; record watcher start plus transition or
+    # timeout summary at most.
+    corpus = _combined_contract_text()
+    assert "Unchanged polls are not progress" in corpus
+    assert "watcher start" in corpus
+    assert (
+        "transition/timeout summary" in corpus
+        or "transition or timeout summary" in corpus
+    )
+    assert "at most" in corpus
+    assert "do not append" in corpus or "never append" in corpus
+    assert "repeated receipts" in corpus
+
+
+def test_reply_spin_incident_vector_pinned() -> None:
+    # Regression vector: the 2026-09-23/24 reply-spin incident scenario
+    # and its required outcome vector (including the state_changed=YES
+    # transition) are pinned as machine-visible markers in the template.
+    assert _REPLY_SPIN_520_SCENARIO["external_kind"] == "CI"
+    assert _REPLY_SPIN_520_SCENARIO["authoritative_state"] == "IN_PROGRESS"
+    assert _REPLY_SPIN_520_SCENARIO["state_changed"] == "NO"
+    assert _REPLY_SPIN_520_SCENARIO["blocking_wait_capable"] == "YES"
+    assert _REPLY_SPIN_520_SCENARIO["independent_ready_work"] == "NO"
+    assert _REPLY_SPIN_520_EXPECTED["USE_BLOCKING_WAIT"] == "YES"
+    assert (
+        _REPLY_SPIN_520_EXPECTED["MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT"]
+        == "YES"
+    )
+    assert _REPLY_SPIN_520_EXPECTED["USER_VISIBLE_REPEAT_REPLY"] == "FORBIDDEN"
+    assert _REPLY_SPIN_520_EXPECTED["AUTO_CONTINUATION_REPOLL"] == "FORBIDDEN"
+    assert _REPLY_SPIN_520_EXPECTED["UNCHANGED_WAIT_OUTPUT"] == "SILENT"
+    assert _REPLY_SPIN_520_EXPECTED["GOAL_TERMINAL"] == "NO"
+    assert _REPLY_SPIN_520_EXPECTED["CLEANUP_ALLOWED"] == "NO"
+    ref = _norm(_read_strict(REFERENCE))
+    for needle in (
+        "external_kind=CI",
+        "authoritative_state=IN_PROGRESS",
+        "state_changed=NO",
+        "blocking_wait_capable=YES",
+        "independent_ready_work=NO",
+        "USE_BLOCKING_WAIT=YES",
+        "MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES",
+        "USER_VISIBLE_REPEAT_REPLY=FORBIDDEN",
+        "AUTO_CONTINUATION_REPOLL=FORBIDDEN",
+        "UNCHANGED_WAIT_OUTPUT=SILENT",
+        "GOAL_TERMINAL=NO",
+        "CLEANUP_ALLOWED=NO",
+        "state_changed=YES",
+    ):
+        assert needle in ref, f"reply-spin regression marker lost: {needle}"

@@ -1,7 +1,8 @@
 # WO-P1-520 — A-NightShift overnight-supervisor skill
 
-Status: ACTIVE / AUTHORING — attempt-0003 premature-terminal regression
-repair (successor to attempt-0002 and attempt-0001, RED-first)
+Status: ACTIVE / AUTHORING — attempt-0006 no-model-spin blocking-wait
+repair (successor to attempt-0005 Phase 1 RED proof, attempt-0003
+premature-terminal repair, attempt-0002 and attempt-0001, RED-first)
 Issue: #520
 Topology: CONTROL_PLANE_ONLY
 Risk: R3 coordination policy
@@ -99,6 +100,77 @@ WAITING_EXTERNAL lifecycle, cleanup hardening, escalation guard, the
 pinned 2026-09-23 CI incident outcome vector, and the
 no-new-scheduler/timer/state-store constraint.
 
+Attempt-0005 adds the no-model-spin blocking-wait pins (issue #520
+reply-spin incident): the six verbatim markers
+(`USE_BLOCKING_WAIT=YES` / `MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES`
+/ `USER_VISIBLE_REPEAT_REPLY=FORBIDDEN` / `AUTO_CONTINUATION_REPOLL=FORBIDDEN`
+/ `UNCHANGED_WAIT_OUTPUT=SILENT` / `WAIT_TOOL_TIMEOUT_RECHECK`) in both
+overlay and template; the one-foreground-blocking-wait resolution; the
+no-turn-completion / no-repeat-reply / no-auto-continuation-repoll
+rules; the `gh run watch` preferred CI primitive; watcher-output
+suppression from model context; the one-silent-in-tool-loop generic
+fallback; the no-detached-watcher / no-new-state-store constraint; the
+WAIT_TOOL_TIMEOUT_RECHECK recheck (not progress/stop gate/cleanup
+authority); the seconds-scale-loop prohibition; SAFE-READY-work-first;
+the state_changed=YES return to RECOVER -> RECONCILE -> HARVEST; the
+no-repeated-receipts rule; and the pinned reply-spin regression vector.
+
+## Attempt-0006 — no-model-spin blocking-wait repair (issue #520)
+
+Production defect (observed live 2026-09-23/24): while a `/goal` ran
+with a WAITING_EXTERNAL GitHub Actions CI dependency whose
+authoritative state stayed IN_PROGRESS (unchanged), the supervisor spun
+a seconds-scale loop — poll, emit a visible still-waiting reply,
+complete the model turn, `/goal` auto-continue, poll again — burning
+Codex/model usage without progress. Root cause: the quiet-waiting
+"declared low-frequency polling interval" was semantic prose, not a
+real timer; nothing bound the wait to a blocking call, so turn
+completion plus `/goal` auto-continuation manufactured an unbounded
+repoll loop.
+
+Attempt history: attempt-0004 was cancelled mid-flight by a
+continuation race after mutating only part of the test-file docstring;
+that partial state was preserved verbatim (never reset or discarded)
+and attempt-0005 resumed from it. Attempt-0005 completed Phase 1
+(tests only): RED proven at committed HEAD
+15f0f3ad6e8ba2c85d008497fb412b82a74e281a — 43 collected => 14 NEW
+failed / 29 pre-existing passed in
+`tests/test_a_nightshift_skill_contract.py`; A-Faster
+invocation-contract control 11 passed. Attempt-0006 (this repair)
+implements Phase 2 GREEN: SKILL.md + canonical reference/template now
+carry the blocking-wait semantics; all 43 NightShift tests pass with
+the 29 prior semantics and the A-Faster 11/11 control intact.
+
+Repair semantics (policy/contract only — no scheduler, timer, or state
+store): with WAITING_EXTERNAL + unchanged authoritative state +
+blocking_wait_capable=YES + independent_ready_work=NO, the wait is ONE
+foreground read-only blocking wait bound to the exact dependency
+identity (`USE_BLOCKING_WAIT=YES`); the supervisor never completes the
+model turn solely to report the unchanged wait
+(`MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES`); no repeated
+user-visible WAITING_EXTERNAL reply and no repoll solely because
+`/goal` auto-continued (`USER_VISIBLE_REPEAT_REPLY=FORBIDDEN`,
+`AUTO_CONTINUATION_REPOLL=FORBIDDEN`); unchanged watch output is
+suppressed/redirected out of model context
+(`UNCHANGED_WAIT_OUTPUT=SILENT`); the GitHub Actions preferred
+foreground primitive is
+`gh run watch <RUN_ID> --repo <OWNER/REPO> --compact --exit-status --interval 60`;
+the generic fallback is one foreground bounded silent loop inside a
+tool call (internal sleep/poll; output only on transition, terminal
+state, real error, or bounded tool timeout); no detached or unowned
+watcher/timer and no new scheduler/task store/state store;
+`WAIT_TOOL_TIMEOUT_RECHECK` is not progress, not a stop gate, and not
+cleanup authority (fresh-read, then re-enter the blocking wait while
+recheckable with no independent SAFE READY work); independent SAFE
+READY work is dispatched/harvested before blocking; on
+`state_changed=YES` the watcher returns and the loop runs
+RECOVER -> RECONCILE -> HARVEST as needed, recomputes the DAG, then
+continues/refills; unchanged polls are not progress and never append
+repeated receipts (at most watcher start plus one transition/timeout
+summary). Existing attempt-0003 premature-terminal semantics, #517
+pass-through markers, WIP, model hierarchy, quota refresh, and
+exact-path cleanup are unchanged.
+
 ## Attempt-0003 — premature-terminal regression repair (issue #520)
 
 Production incident: the first real overnight run stopped prematurely at
@@ -158,8 +230,11 @@ untouched; the four-file mutation scope is unchanged.
 
 - run `tests/test_a_nightshift_skill_contract.py` (RED observed at
   attempt-0001 before GREEN; RED observed at attempt-0003 for the nine
-  new incident regression tests before GREEN);
-- run `tests/test_a_faster_invocation_contract.py`;
+  new incident regression tests before GREEN; RED observed at
+  attempt-0005 for the fourteen new no-model-spin tests — 14 failed /
+  29 passed — before the attempt-0006 Phase 2 GREEN: 43 passed);
+- run `tests/test_a_faster_invocation_contract.py` (11 passed at every
+  checkpoint, including attempt-0005 RED and attempt-0006 GREEN);
 - strict UTF-8 on all four files;
 - `git diff --check`;
 - exact scope: no tracked changes and no new paths outside the four files
@@ -169,7 +244,9 @@ untouched; the four-file mutation scope is unchanged.
 
 ## Result
 
-Compact result at `runs/WO-P1-520/author/attempt-0003/result.md`
-(attempt-0002 result retained at `runs/WO-P1-520/author/attempt-0002/result.md`;
+Compact result at `runs/WO-P1-520/author/attempt-0006/result.md`
+(attempt-0005 result retained at `runs/WO-P1-520/author/attempt-0005/result.md`;
+attempt-0003 result retained at `runs/WO-P1-520/author/attempt-0003/result.md`;
+attempt-0002 result retained at `runs/WO-P1-520/author/attempt-0002/result.md`;
 attempt-0001 result retained at `runs/WO-P1-520/author/attempt-0001/result.md`).
 Do not commit/push/merge.

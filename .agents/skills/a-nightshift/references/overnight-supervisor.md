@@ -83,6 +83,59 @@ No secrets, no log dumps, no narration.
   `NEXT_SAFE_ACTION=bounded re-poll/reconcile`. mutable_ready=0 with a
   running, recheckable CI dependency is not terminal.
 
+## No-model-spin blocking wait (canonical)
+
+The canonical quiet-waiting rules are not a timer: a declared polling
+interval in prose never bounds model turns by itself. When
+`WAITING_EXTERNAL` holds with an unchanged authoritative state, the
+supervisor waits without spinning the model:
+
+- `USE_BLOCKING_WAIT=YES`: when `blocking_wait_capable=YES` and
+  `independent_ready_work=NO`, the wait is ONE foreground read-only
+  blocking wait bound to the exact dependency identity. Before blocking,
+  dispatch and harvest any independent SAFE READY work first; the model
+  turn stays open inside that one tool call while it blocks.
+- `MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES`: the supervisor
+  must not complete the model turn solely to report an unchanged
+  waiting state. `USER_VISIBLE_REPEAT_REPLY=FORBIDDEN`: never emit a
+  repeated user-visible WAITING_EXTERNAL reply solely because a `/goal`
+  auto-continuation fired. `AUTO_CONTINUATION_REPOLL=FORBIDDEN`: a
+  completed turn or auto-continuation is never permission to repoll; a
+  seconds-scale goal response loop is forbidden.
+- `UNCHANGED_WAIT_OUTPUT=SILENT`: suppress or redirect repetitive
+  unchanged watch output out of model context; only compact
+  transition/terminal/error/timeout evidence returns to the model.
+- GitHub Actions preferred foreground primitive (literal form; an
+  equivalent must preserve every fragment):
+
+  `gh run watch <RUN_ID> --repo <OWNER/REPO> --compact --exit-status --interval 60`
+
+- Generic fallback when no native blocking watcher exists: ONE
+  foreground bounded silent loop inside a tool call that sleeps/polls
+  internally and returns output only on transition, terminal state,
+  real error, or bounded tool timeout.
+- `WAIT_TOOL_TIMEOUT_RECHECK`: a bounded tool timeout is not progress,
+  not a stop gate, and not cleanup authority — fresh-read the
+  authoritative state, then re-enter the blocking wait while the
+  dependency remains recheckable and no independent SAFE READY work
+  exists.
+- Never detached, never unowned: the wait mechanics create no detached
+  watcher, timer, scheduler, task store, or new state store.
+- On `state_changed=YES`: watcher return, then RECOVER -> RECONCILE ->
+  HARVEST as needed, recompute the DAG, continue/refill. Unchanged
+  internal polls are not progress and never append repeated receipts;
+  record at most the watcher start plus one transition/timeout summary.
+- Incident regression 2026-09-23/24 (reply-spin on unchanged CI wait on
+  a live `/goal`): external_kind=CI, authoritative_state=IN_PROGRESS,
+  state_changed=NO, blocking_wait_capable=YES, independent_ready_work=NO.
+  Required outcomes: USE_BLOCKING_WAIT=YES,
+  MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES,
+  USER_VISIBLE_REPEAT_REPLY=FORBIDDEN, AUTO_CONTINUATION_REPOLL=FORBIDDEN,
+  UNCHANGED_WAIT_OUTPUT=SILENT, GOAL_TERMINAL=NO, CLEANUP_ALLOWED=NO;
+  when state_changed=YES, the watcher returns and the loop runs
+  RECOVER -> RECONCILE -> HARVEST as needed, recomputes the DAG, and
+  continues/refills.
+
 ## Compact /goal pointer
 
 The pointer is one self-contained instruction that carries only the exact
@@ -167,6 +220,29 @@ external recheck, bounded monitoring, and any declared exact next safe
 action ALL absent. Ambiguous STALLED/WAITING_EXTERNAL terminal
 conversion must escalate to the configured stronger/integrator path or
 fail closed as WAITING_EXTERNAL.
+No-model-spin wait: with an unchanged authoritative state,
+blocking_wait_capable=YES, and no independent SAFE READY work, enter ONE
+foreground read-only blocking wait bound to the exact dependency
+identity and do not complete the model turn solely to report the
+unchanged wait (no repeated user-visible WAITING_EXTERNAL reply solely
+because /goal auto-continued; AUTO_CONTINUATION_REPOLL=FORBIDDEN; a
+seconds-scale goal response loop is forbidden). GitHub Actions preferred
+foreground primitive:
+gh run watch <RUN_ID> --repo <OWNER/REPO> --compact --exit-status --interval 60
+Suppress/redirect repetitive unchanged watch output out of model
+context; return only compact transition/terminal/error/timeout
+evidence. Generic fallback: ONE foreground bounded silent loop inside a
+tool call that sleeps/polls internally and returns output only on
+transition, terminal state, real error, or bounded tool timeout. A
+bounded WAIT_TOOL_TIMEOUT_RECHECK is not progress, not a stop gate, not
+cleanup authority: fresh-read the authoritative state, then re-enter
+the blocking wait while the dependency stays recheckable and no
+independent SAFE READY work exists. Never a detached or unowned
+watcher/timer; no scheduler, task store, or new state store. On
+state_changed=YES: watcher return, then RECOVER -> RECONCILE -> HARVEST
+as needed, recompute the DAG, continue/refill. Record at most the
+watcher start plus one transition/timeout summary; never append
+repeated receipts for unchanged polls.
 
 ## Quota
 Refresh approved quota/readiness before every material GLM dispatch.

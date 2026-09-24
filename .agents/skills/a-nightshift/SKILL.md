@@ -160,6 +160,48 @@ low-cost supervisor must escalate the classification to the configured
 stronger/integrator path or fail closed as `WAITING_EXTERNAL`. Never
 terminate merely because the low-cost model is uncertain.
 
+### No-model-spin blocking wait (issue #520 reply-spin repair)
+
+The quiet-waiting rules are not a timer by themselves: a prose polling
+interval never bounds model turns. When `WAITING_EXTERNAL` holds with an
+unchanged authoritative state, waiting must not spin the supervisor or
+the model:
+
+- `USE_BLOCKING_WAIT=YES`: when `blocking_wait_capable=YES` and
+  `independent_ready_work=NO`, the wait is ONE foreground read-only
+  blocking wait bound to the exact dependency identity. Before blocking,
+  dispatch and harvest any independent SAFE READY work first. For
+  GitHub Actions CI the preferred foreground primitive is the canonical
+  `gh run watch` form pinned in `references/overnight-supervisor.md`.
+- `MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES`: the supervisor
+  must not complete the model turn solely to report an unchanged
+  waiting state; the open tool call holds the turn while the wait
+  blocks.
+- `USER_VISIBLE_REPEAT_REPLY=FORBIDDEN` and
+  `AUTO_CONTINUATION_REPOLL=FORBIDDEN`: never emit a repeated
+  user-visible WAITING_EXTERNAL reply solely because a `/goal`
+  auto-continuation fired, and never repoll merely because the model
+  turn ended; a seconds-scale goal response loop is forbidden.
+- `UNCHANGED_WAIT_OUTPUT=SILENT`: suppress or redirect repetitive
+  unchanged watch output out of model context; only compact
+  transition/terminal/error/timeout evidence returns.
+- `WAIT_TOOL_TIMEOUT_RECHECK`: a bounded tool timeout is not progress,
+  not a stop gate, and not cleanup authority — fresh-read the
+  authoritative state, then re-enter the blocking wait while the
+  dependency remains recheckable and no independent SAFE READY work
+  exists.
+- The wait is never detached or unowned: no detached watcher, timer,
+  scheduler, task store, or new state store is created. When no native
+  blocking watcher exists, the generic fallback is ONE foreground
+  bounded silent loop inside a tool call that sleeps/polls internally
+  and returns output only on transition, terminal state, real error, or
+  bounded tool timeout.
+- On `state_changed=YES`: watcher return, then run
+  RECOVER -> RECONCILE -> HARVEST as needed, recompute the DAG, then
+  continue/refill. Unchanged polls are not progress and never append
+  repeated receipts to the `A_NIGHTSHIFT` receipt; record at most the
+  watcher start plus one transition/timeout summary.
+
 ## Fanout and refill
 
 Follow dispatch-first / harvest-later: fill every free safe READY slot up
