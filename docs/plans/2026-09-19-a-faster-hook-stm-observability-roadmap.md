@@ -974,3 +974,41 @@ The roadmap is successful when the system can truthfully answer, in real time:
 
 And when every consequential action still flows through A-Sunday Conductor
 authority rather than through the monitor, STM, hook adapters or UI.
+
+
+## 26. Mission Control / Agent Digital Twin follow-on — 2026-09-24
+
+Dedicated plan:
+`docs/plans/2026-09-24-mission-control-agent-digital-twin.md`
+
+The operator-facing monitor should evolve from the MON-1/UI-1 read-only projection
+into **A-Conductor Mission Control — Agent Digital Twin**: a 3D interactive view of
+integrators, NightShift supervisors, A-Faster lanes, GLM/review agents, repositories,
+devices, durable executions, PRs and CI.
+
+This is a visualization/projection milestone, not a new authority layer. It consumes
+the same normalized Monitor API/event stream as the 2D Web/Extension UI and must show
+`STALE` / `UNKNOWN` / `DEGRADED` truthfully when evidence is incomplete.
+
+Planned slices:
+- `MC-0` scene/data/visual-semantics contract;
+- `MC-1` read-only 2D operator console proving state semantics;
+- `MC-2` 3D topology / interactive Agent Digital Twin;
+- `MC-3` command audit trail + timeline replay;
+- `MC-4` mobile operator-away/NightShift view;
+- `MC-5` consequential controls only through accepted ACT-1 Command Gateway.
+
+The 3D scene should make autonomous work visible rather than mysterious: who sent a
+`/goal`, which model/effort is active, who owns each lane/hotspot, what external
+dependency is being watched, where Sol acceptance is required, and what exact next
+safe action follows. Model/quota/cost telemetry is read-only routing evidence.
+
+Preferred implementation direction is React + Three.js / React Three Fiber after
+MON-1 freezes the projection contract and after a lightweight benchmark confirms the
+stack does not compromise mobile/headless fallback, accessibility or event-driven
+low-overhead monitoring.
+
+Acceptance invariant:
+
+> 3D and 2D views must render the same normalized state; neither may become a second
+> task/claim/scheduler/merge/completion authority.
