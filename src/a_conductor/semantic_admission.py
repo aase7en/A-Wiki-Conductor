@@ -278,7 +278,30 @@ class SemanticProductionAdmission:
             )
 
         admitted_request = self._request_with_admission(request, admission)
-        evidence = self._provider.evaluate(admitted_request)
+        try:
+            evidence = self._provider.evaluate(admitted_request)
+        except Exception as exc:
+            fallback = (
+                SemanticFallbackReason.AMBIGUOUS_TRANSPORT
+                if isinstance(exc, TimeoutError)
+                else SemanticFallbackReason.PROVIDER_UNKNOWN
+            )
+            if fallback is SemanticFallbackReason.AMBIGUOUS_TRANSPORT:
+                self._blocked_families[request.family] = fallback
+            decision = SemanticDecision(
+                request_id=request.request_id,
+                family=request.family,
+                primitive=request.primitive,
+                mode=admission.mode,
+                risk=request.risk,
+                disposition=SemanticDisposition.ESCALATE,
+                reason=SemanticDecisionReason.PROVIDER_ERROR,
+                evidence=None,
+            )
+            return SemanticAdmissionResult(
+                decision,
+                self._telemetry(decision, admission, fallback),
+            )
         decision = evaluate_semantic_decision(
             admitted_request, evidence, admission.mode
         )

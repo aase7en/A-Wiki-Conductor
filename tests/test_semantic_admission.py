@@ -362,3 +362,32 @@ def test_evidence_reference_must_be_safe_for_telemetry():
             evidence_ref="private note with spaces",
             min_confidence=0.9,
         )
+
+
+class RaisingProvider:
+    def __init__(self, exc):
+        self.exc = exc
+        self.calls = 0
+
+    def evaluate(self, request):
+        self.calls += 1
+        raise self.exc
+
+
+def test_provider_exception_fails_closed_without_escape_or_retry():
+    provider = RaisingProvider(RuntimeError("provider bug with private detail"))
+    result = SemanticProductionAdmission(provider, admitted_choice()).evaluate(choice_request())
+    assert provider.calls == 1
+    assert result.decision.disposition is SemanticDisposition.ESCALATE
+    assert result.telemetry.fallback_reason is SemanticFallbackReason.PROVIDER_UNKNOWN
+    assert result.telemetry.provider is None
+
+
+def test_raw_timeout_exception_opens_ambiguous_transport_circuit():
+    provider = RaisingProvider(TimeoutError("after-send outcome unknown"))
+    router = SemanticProductionAdmission(provider, admitted_choice())
+    first = router.evaluate(choice_request())
+    second = router.evaluate(choice_request())
+    assert first.telemetry.fallback_reason is SemanticFallbackReason.AMBIGUOUS_TRANSPORT
+    assert second.telemetry.fallback_reason is SemanticFallbackReason.AMBIGUOUS_TRANSPORT
+    assert provider.calls == 1
