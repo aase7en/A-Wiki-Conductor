@@ -83,6 +83,12 @@ No secrets, no log dumps, no narration.
   `NEXT_SAFE_ACTION=bounded re-poll/reconcile`. mutable_ready=0 with a
   running, recheckable CI dependency is not terminal.
 
+## Background liveness projection (canonical)
+
+Every long-running delegated child retains a compact read-only `BACKGROUND_LIVENESS_PULSE` projection from existing durable evidence: execution/lane id, current state, elapsed time, last activity/progress when known, bounded output-byte count, typed wait/blocker, and exact next safe action/recheck. This is observability only — never a heartbeat authority, scheduler, task store, retry permission, or mutation lease.
+
+If the active transport can surface progress without starting a new model turn, expose state changes and infrequent long-running pulses there. Otherwise retain the projection in SundayMCP/Mission Control for immediate recovery/readback. Never fabricate a chat notification and never classify an unchanged pulse as progress. Parent Stop/Interrupt/closed UI does not cancel separately supervised durable children; the next parent recovers exact execution truth before replay.
+
 ## No-model-spin blocking wait (canonical)
 
 The canonical quiet-waiting rules are not a timer: a declared polling
@@ -227,10 +233,11 @@ configured CODEX_BIN or exact bundled Codex binary/capability probe may prove
 INTEGRATOR_ROUTE=AVAILABLE even when command-v-codex is absent. An
 AVAILABLE route remains WAITING_INTEGRATOR, never a human gate.
 
-Quota terminal semantics are explicit: only fresh approved
+Quota terminal semantics are explicit: provider-scoped GLM exhaustion blocks
+only the GLM route while an accepted Codex fallback exists. Only fresh approved
 QUOTA_EXHAUSTED evidence, after all children are reconciled and
-harvested/durably checkpointed, may classify
-GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED. QUOTA_AVAILABLE, QUOTA_UNKNOWN,
+harvested/durably checkpointed and AUTHORIZED_FALLBACK_AVAILABLE=NO, may
+classify GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED. QUOTA_AVAILABLE, QUOTA_UNKNOWN,
 one blocked lane, or an empty current mutable slot is never quota-terminal.
 Never manufacture work merely to consume quota.
 
@@ -249,7 +256,13 @@ Pinned incident vectors:
   waiting, harvest, review, monitoring, or exact next-safe action remaining
   => the genuine human gate may be terminal.
 - QUOTA_AVAILABLE => QUOTA_TERMINAL=FORBIDDEN.
+- GLM_QUOTA_EXHAUSTED_FRESH=YES CODEX_FALLBACK_AVAILABLE=YES
+  => GLM_ROUTE_BLOCKED, GOAL_TERMINAL=NO.
 - QUOTA_EXHAUSTED_FRESH=YES CHILDREN_RECONCILED=YES
+  AUTHORIZED_FALLBACK_AVAILABLE=NO
+  => GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.
+- CODEX_EXECUTION_CAPACITY_EXHAUSTED=YES CHILDREN_RECONCILED=YES
+  AUTHORIZED_FALLBACK_AVAILABLE=NO
   => GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.
 - PATH_CODEX=ABSENT CODEX_BIN_CAPABILITY=VERIFIED
   => INTEGRATOR_ROUTE=AVAILABLE, HUMAN_ACTION_REQUIRED=FALSE.
@@ -314,9 +327,13 @@ AUTO_REFILL_REQUIRED={{AUTO_REFILL_REQUIRED}}
 You are the low-cost Codex traffic controller for this overnight run:
 routing, waiting, harvesting, checkpointing. You are never the primary
 engineer. GLM-5.3 MAX lanes author, repair, and independently review R2/R3
-work. GLM-5.3-Flash lanes are bounded read-only assist. TypeSafe-JEV is
-advisory only — its output is evidence, never authority. Maximum normal
-nesting: Codex -> GLM -> JEV.
+work. GLM-5.3-Flash lanes are bounded read-only assist. When the accepted JEV
+mode permits it, TypeSafe-JEV is the System-One fast advisory for condition
+checks, evidence/relevance scoring, route suggestions, guardrail checks, and
+bounded confidence before stronger-model work. Its output is evidence, never
+authority; low confidence/error/mode or circuit blockers fall back normally.
+Implementation nesting stays Codex -> GLM -> JEV; a bounded direct supervisor
+JEV advisory is a flat decision seam, not another nesting level.
 
 ## Loop (strict order)
 RECOVER -> RECONCILE -> HARVEST before any new dispatch. Recover the census
@@ -333,6 +350,9 @@ come from accepted A-Faster semantics. Consume and preserve them verbatim;
 this contract never computes a second utilization authority or a parallel
 refill state machine. A marker the accepted base does not expose yet is
 written as UNKNOWN, never invented.
+
+## Background liveness
+Maintain `BACKGROUND_LIVENESS_PULSE` from durable child evidence: execution/lane id, state, elapsed time, last activity/progress when known, bounded output bytes, typed blocker, and exact next safe action. Surface transition/infrequent progress only when the host transport can do so without another model turn; otherwise keep it readable through SundayMCP/Mission Control. Parent Stop/Interrupt does not imply durable child cancellation. This projection grants no retry, mutation, heartbeat, scheduler, or task authority.
 
 ## Waiting
 Wait quietly and event-driven; when events are unavailable, use bounded
@@ -425,10 +445,12 @@ A verified configured CODEX_BIN or exact bundled Codex capability probe may
 prove INTEGRATOR_ROUTE=AVAILABLE even when PATH_CODEX=ABSENT. AVAILABLE =>
 WAITING_INTEGRATOR, HUMAN_ACTION_REQUIRED=FALSE.
 
-Only fresh QUOTA_EXHAUSTED after children are reconciled/harvested or durably
-checkpointed may set GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED. QUOTA_AVAILABLE,
-QUOTA_UNKNOWN, one blocked lane, or an empty mutable slot is never
-quota-terminal. Never manufacture work to burn quota.
+Provider-scoped GLM exhaustion blocks only the GLM route while an accepted
+Codex fallback exists. Only fresh QUOTA_EXHAUSTED after children are
+reconciled/harvested or durably checkpointed and
+AUTHORIZED_FALLBACK_AVAILABLE=NO may set GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.
+QUOTA_AVAILABLE, QUOTA_UNKNOWN, one blocked lane, or an empty mutable slot is
+never quota-terminal. Never manufacture work to burn quota.
 
 Pinned vectors:
 LOCAL_ONLY_COMPATIBILITY_ANCHOR=ACCEPTED REMOTE_CONFIGURED=NO
@@ -440,8 +462,12 @@ GOAL_TERMINAL=NO; AUTO_REFILL_REQUIRED=FROM_A_FASTER.
 NightShift preserves the accepted A-Faster marker verbatim and MUST NOT derive
 TRUE from SAFE_READY alone; quota/route/WIP gates may keep it FALSE or UNKNOWN.
 QUOTA_AVAILABLE => QUOTA_TERMINAL=FORBIDDEN.
-QUOTA_EXHAUSTED_FRESH=YES CHILDREN_RECONCILED=YES =>
-GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.
+GLM_QUOTA_EXHAUSTED_FRESH=YES CODEX_FALLBACK_AVAILABLE=YES =>
+GLM_ROUTE_BLOCKED, GOAL_TERMINAL=NO.
+QUOTA_EXHAUSTED_FRESH=YES CHILDREN_RECONCILED=YES
+AUTHORIZED_FALLBACK_AVAILABLE=NO => GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.
+CODEX_EXECUTION_CAPACITY_EXHAUSTED=YES CHILDREN_RECONCILED=YES
+AUTHORIZED_FALLBACK_AVAILABLE=NO => GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.
 PATH_CODEX=ABSENT CODEX_BIN_CAPABILITY=VERIFIED =>
 INTEGRATOR_ROUTE=AVAILABLE, HUMAN_ACTION_REQUIRED=FALSE.
 Turn-boundary semantics are separate from Goal terminal semantics. If the
