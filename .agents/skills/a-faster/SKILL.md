@@ -46,9 +46,12 @@ tolerance than the short form. After the normal A-FastTask binding and
 authority gates, the routed default profile is:
 
 - delegated-run recovery/harvest and the mandatory entry census first;
-- one global WIP reconstruction across every device/harness — at most
-  `3 mutable + 1 independent review` — then AUTO-FILL of every independent
-  safe READY slot up to that budget;
+- one global WIP reconstruction across every device/harness — normal active
+  compute remains `3 mutable + 1 independent review`; Issue #537 additionally
+  permits up to 2 borrowed mutable claims while qualifying base lanes are
+  truthfully waiting, without ever exceeding 3 simultaneous active mutations;
+- WAIT_AWARE_AUTO_BACKFILL: A-NightShift checkpoints typed waits and A-Faster
+  immediately AUTO-FILLs independently SAFE_READY capacity instead of idling;
 - GLM-first long-running labor with MAX/Flash task-class routing:
   GLM-5.3 MAX for eligible R2/R3 implementation/repair/required independent
   review; GLM-5.3-Flash only for bounded read-only
@@ -65,20 +68,28 @@ authority gates, the routed default profile is:
   through the collision gate and the PRE-DISPATCH DEDUPE GATE.
 
 The user need not restate multiagent/multilane/multitasking/device-routing/
-GLM/fallback/advisory-skill instructions each session. The clause routes only;
-the normal A-FastTask binding and authority gates still apply.
+GLM/fallback/advisory-skill instructions each session, and does not need to
+repeat a long "continue / fill another lane while this waits" instruction on
+every wait transition. An `A_FASTER_ACTIVE` tasking receipt includes the
+wait-aware backfill loop below until a real goal/stop gate, terminal completion,
+or explicit deactivation. The clause routes only; the normal A-FastTask binding
+and authority gates still apply.
 
 ## Global WIP and no-collision rule
 
 The default budget remains **one global budget across every device, harness,
 repository, and CROSS_REPO compatibility-set member**:
 
-- max 3 mutable implementation lanes;
+- max 3 **simultaneously active mutable implementation lanes**;
+- max 2 additional **borrowed mutable claims** under the accepted Issue #537
+  wait-aware capacity contract;
 - max 1 independent read-only review lane.
 
-Recovery/blocker work uses headroom inside this same `3 mutable + 1 review`
-budget; it is not an additional lane class unless an accepted Work Order
-explicitly changes capacity.
+Thus total mutable claims may reach 5 while active mutation compute remains
+`<= 3`. A borrowed claim is continuity capacity, not permission for a fourth
+or fifth simultaneous mutation. Recovery/blocker work still consumes actual
+active headroom; no label or session creates free compute. Issue #537 is the
+accepted capacity change for borrowed claims only.
 
 Never multiply WIP by device, harness, repository, or session.
 
@@ -90,8 +101,10 @@ a slot stays occupied until census evidence shows that lane terminal/absent
 per the disposition rules.
 
 AUTO-FILL: after recovery/census/harvest and the collision gate,
-automatically fill every free safe WIP slot from independent READY nodes up
-to the global `3 mutable + 1 review` budget — dispatch-first, harvest-later.
+automatically fill every free safe active slot from independent READY nodes up
+to the global active `3 mutable + 1 review` budget — dispatch-first,
+harvest-later. Issue #537 may retain up to 2 additional borrowed mutable claims
+in waiting/parked continuity state, but never increases active mutation above 3.
 Do not manufacture work to occupy slots and do not preempt active owned
 lanes. Do not serialize independent GLM jobs just to conserve quota: when
 refreshed quota evidence says `QUOTA_AVAILABLE`, treat the remaining amount
@@ -142,8 +155,9 @@ is a projection only: it creates no scheduler, task store, claim/lease,
 provider, dispatch, retry, review, merge, or completion authority,
 launches nothing, and never burns or probes quota itself — the
 refresh-quota-before-each-material-dispatch rule is unchanged. Verdicts
-never manufacture work and never relax the `3 mutable + 1 review` budget;
-only an accepted Work Order may change capacity.
+never manufacture work and never relax the active `3 mutable + 1 review`
+compute budget. Accepted Issue #537 changes claimed continuity capacity only
+(up to 2 borrowed mutable claims), not this active-compute ceiling.
 
 ### Activation receipt — tasking vs explanation
 
@@ -209,14 +223,16 @@ For every substantial A-Sunday Conductor engineering session:
    lane, and reconcile or harvest everything it finds before allocating new
    work;
 4. reconstruct the global WIP budget occupancy projection before dispatch:
-   at most 3 mutable lanes plus 1 independent read-only review lane across
-   every Worker, device, harness, repository and CROSS_REPO
-   compatibility-set member;
+   at most 3 simultaneously active mutable lanes plus 1 independent read-only
+   review lane across every Worker, device, harness, repository and CROSS_REPO
+   compatibility-set member; Issue #537 may additionally retain at most 2
+   borrowed mutable claims only while actual active mutation remains <=3;
 5. if Windows and macOS are both READY and independent work exists, prefer a
    non-overlapping cross-device split; if not, continue on the safe available
    device rather than manufacturing parallelism;
-6. keep Worker slots beyond the global WIP budget read-only/standby/recovery
-   helpers. Five discovered Workers never mean five mutable writers.
+6. keep Worker slots beyond admitted active/borrowed capacity read-only/standby/
+   recovery helpers. Five discovered Workers or five mutable claims never mean
+   five simultaneous mutable writers.
 
 Readiness discovery is routing evidence only. `WORKER/RDC ONLINE !=
 SAFE_TO_MUTATE`; exact task/claim/scope/worktree gates still apply.
@@ -794,8 +810,10 @@ claim/lease system, review authority, merge authority, or completion authority.
 
 The normal goal tree is bounded:
 PARENT_GOAL -> KILO_GLM_CHILD -> OPTIONAL_JEV_ADVISORY.
-Deeper recursive spawning is forbidden. Global WIP remains max 3 mutable plus
-1 independent read-only review and one mutable hotspot has exactly one owner.
+Deeper recursive spawning is forbidden. Global active compute remains max 3
+mutable plus 1 independent read-only review; Issue #537 may additionally retain
+up to 2 borrowed mutable claims without increasing active mutation above 3, and
+one mutable hotspot has exactly one owner.
 
 Every CHILD_GOAL binds the existing lane tuple: task/work order, claim/owner,
 repo, worktree, branch, exact HEAD, allowed/forbidden scope, expected result,
@@ -850,6 +868,55 @@ typed blocker/wait state. Never manufacture work merely to consume quota.
 Pinned transport vector:
 KILO_HEADLESS_PROBE=STALLED_NO_OUTPUT =>
 KILO_GOAL_CAPABILITY=UNVERIFIED_HEADLESS, CHILD_ENTRY=POINTER_FALLBACK.
+
+## Wait-aware auto-backfill (A-NightShift + A-Faster)
+
+`WAIT_AWARE_AUTO_BACKFILL` is part of every `A_FASTER_ACTIVE` run. The
+A-NightShift parent remains lifecycle owner; A-Faster is the router/binder that
+recomputes occupancy and fills independent `SAFE_READY` capacity whenever an
+owned lane enters a typed wait.
+
+Recognized wait reasons include:
+- `WAITING_APPROVAL` — human/acceptance gate is pending;
+- `WAITING_CI` — exact-head CI/check result is pending;
+- `WAITING_GLM` — parent orchestration is waiting on a delegated GLM child;
+- `WAITING_JEV` — parent orchestration is waiting on TypeSafe-Jev advisory work;
+- `WAITING_EXTERNAL` — another typed external dependency is pending;
+- `COOLDOWN` — a declared provider/rate-limit/reset window is active.
+
+A wait label alone never frees a mutable slot. Occupancy is reconstructed from
+actual active-mutation evidence. In particular, if `WAITING_GLM` has an active
+delegated mutation child that still owns the hotspot/claim, that child remains an
+active mutable lane and its slot stays occupied. Parent-orchestrator idleness is
+not extra mutation capacity. The invariant remains
+`1 MUTABLE HOTSPOT = 1 MUTATION OWNER` and simultaneous active mutation stays
+`<= 3`.
+
+When a typed wait releases real active headroom and independent READY work exists,
+A-Faster may admit borrowed continuity work under Issue #537: at most 2 borrowed
+mutable claims, still never more than 3 simultaneous active mutations, plus the
+separate independent review lane. Existing claim/lease/scope/collision/provider
+gates remain mandatory and no work is manufactured only to fill a slot.
+
+The steady-state loop is:
+`RECOVER -> RECONCILE -> HARVEST -> classify active/waiting/parked evidence ->
+REFILL SAFE_READY -> CHECKPOINT`. A-NightShift continues supervising the parent
+goal while delegated children and advisory work run; one slow child does not
+serialize unrelated safe work.
+
+When a dependency resolves, reconcile and HARVEST its exact evidence first. If a
+returning base lane would exceed the active mutation ceiling, enough borrowed work
+finishes only its current bounded micro-step, checkpoints through existing
+authority, and becomes `PARKED_CAPACITY` before the base lane resumes. Contraction
+must never kill an owned task, reset Git, stash unknown work, or create a duplicate
+claim/redispatch just to reduce occupancy.
+
+The user does not need to repeat the long "continue / open another lane while this
+waits" instruction after each transition. Once `A_FASTER_ACTIVE` is established,
+this wait-aware loop continues automatically until a real goal/stop gate, terminal
+completion, or explicit deactivation. A chat/session timeout is not deactivation
+and NEW SESSION remains continuation/recovery, not permission to forget running
+work.
 
 ## Autonomous continuation
 
