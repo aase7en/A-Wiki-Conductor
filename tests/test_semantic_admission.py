@@ -309,3 +309,41 @@ def test_typesafe_malformed_response_e2e_falls_back_once():
     assert transport.calls == 1
     assert result.decision.disposition is SemanticDisposition.ESCALATE
     assert result.telemetry.fallback_reason is SemanticFallbackReason.PROVIDER_SCHEMA
+
+
+def test_rate_limit_opens_family_circuit_until_explicit_reset():
+    transport = FaultTransport(status=429)
+    router = integrated_router(transport)
+    first = router.evaluate(choice_request())
+    second = router.evaluate(choice_request())
+    assert first.telemetry.fallback_reason is SemanticFallbackReason.PROVIDER_RATE_LIMIT
+    assert second.telemetry.fallback_reason is SemanticFallbackReason.PROVIDER_RATE_LIMIT
+    assert transport.calls == 1
+    router.reset_provider_fault(SemanticDecisionFamily.TASK_CLASSIFICATION)
+    router.evaluate(choice_request())
+    assert transport.calls == 2
+
+
+def test_telemetry_drops_unsafe_provider_identity():
+    evidence = SemanticEvidence(
+        provider="unsafe identity with spaces",
+        model="jev-1.13.0",
+        primitive=SemanticPrimitive.CHOICE,
+        answer="docs",
+        confidence=0.95,
+        probabilities={"bugfix": 0.0, "feature": 0.0, "docs": 0.95, "review": 0.05},
+    )
+    result = SemanticProductionAdmission(
+        CountingProvider(evidence), admitted_choice()
+    ).evaluate(choice_request())
+    assert result.telemetry.provider is None
+    assert result.telemetry.model == "jev-1.13.0"
+
+
+def test_evidence_reference_must_be_safe_for_telemetry():
+    with pytest.raises(SemanticAdmissionError, match="bounded safe"):
+        FamilyAdmission(
+            mode=SemanticDecisionMode.ADVISORY,
+            evidence_ref="private note with spaces",
+            min_confidence=0.9,
+        )

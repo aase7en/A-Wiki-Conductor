@@ -8,8 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
+import re
 from types import MappingProxyType
 from typing import Mapping
+
+_SAFE_REFERENCE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$")
+_SAFE_IDENTITY_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$")
 
 from .semantic_decision import (
     FRONTIER_ONLY_FAMILIES,
@@ -59,8 +63,8 @@ class FamilyAdmission:
             if self.min_confidence is not None or self.review_band is not None:
                 raise SemanticAdmissionError("OFF admission must not carry thresholds")
             return
-        if not isinstance(self.evidence_ref, str) or not self.evidence_ref.strip():
-            raise SemanticAdmissionError("enabled admission requires held-out evidence_ref")
+        if not isinstance(self.evidence_ref, str) or _SAFE_REFERENCE_RE.fullmatch(self.evidence_ref) is None:
+            raise SemanticAdmissionError("enabled admission requires a bounded safe held-out evidence_ref")
         if self.min_confidence is not None:
             value = float(self.min_confidence)
             if not 0.0 <= value <= 1.0:
@@ -103,6 +107,12 @@ class SemanticAdmissionPolicy:
     @classmethod
     def off(cls) -> "SemanticAdmissionPolicy":
         return cls({})
+
+
+def _safe_identity(value: str | None) -> str | None:
+    if not isinstance(value, str) or _SAFE_IDENTITY_RE.fullmatch(value) is None:
+        return None
+    return value
 
 
 @dataclass(frozen=True)
@@ -151,6 +161,7 @@ class SemanticProductionAdmission:
             raise SemanticAdmissionError("policy must be SemanticAdmissionPolicy")
         self._provider = provider
         self._policy = policy or SemanticAdmissionPolicy.off()
+        self._blocked_families: dict[SemanticDecisionFamily, SemanticFallbackReason] = {}
 
     @property
     def policy(self) -> SemanticAdmissionPolicy:
@@ -159,6 +170,10 @@ class SemanticProductionAdmission:
     def rollback_off(self) -> None:
         """Kill switch: local admission only; no task/claim state is migrated."""
         self._policy = SemanticAdmissionPolicy.off()
+
+    def reset_provider_fault(self, family: SemanticDecisionFamily) -> None:
+        """Explicitly clear one local circuit after external readiness proof."""
+        self._blocked_families.pop(SemanticDecisionFamily(family), None)
 
     @staticmethod
     def _request_with_admission(
@@ -210,8 +225,8 @@ class SemanticProductionAdmission:
             disposition=decision.disposition,
             decision_reason=decision.reason,
             fallback_reason=fallback_reason,
-            provider=None if evidence is None else evidence.provider,
-            model=None if evidence is None else evidence.model,
+            provider=None if evidence is None else _safe_identity(evidence.provider),
+            model=None if evidence is None else _safe_identity(evidence.model),
             confidence=None if evidence is None else evidence.confidence,
             latency_ms=None if evidence is None else evidence.latency_ms,
             input_usage=None if evidence is None else evidence.input_usage,
@@ -242,12 +257,36 @@ class SemanticProductionAdmission:
             )
             return SemanticAdmissionResult(decision, telemetry)
 
+        blocked_reason = self._blocked_families.get(request.family)
+        if blocked_reason is not None:
+            decision = SemanticDecision(
+                request_id=request.request_id,
+                family=request.family,
+                primitive=request.primitive,
+                mode=admission.mode,
+                risk=request.risk,
+                disposition=SemanticDisposition.ESCALATE,
+                reason=SemanticDecisionReason.PROVIDER_ERROR,
+                evidence=None,
+            )
+            return SemanticAdmissionResult(
+                decision,
+                self._telemetry(decision, admission, blocked_reason),
+            )
+
         admitted_request = self._request_with_admission(request, admission)
         evidence = self._provider.evaluate(admitted_request)
         decision = evaluate_semantic_decision(
             admitted_request, evidence, admission.mode
         )
         fallback = self._fallback_reason(decision)
+        if fallback in {
+            SemanticFallbackReason.PROVIDER_AUTH,
+            SemanticFallbackReason.PROVIDER_RATE_LIMIT,
+            SemanticFallbackReason.PROVIDER_OVERLOAD,
+            SemanticFallbackReason.AMBIGUOUS_TRANSPORT,
+        }:
+            self._blocked_families[request.family] = fallback
         return SemanticAdmissionResult(
             decision,
             self._telemetry(decision, admission, fallback),
