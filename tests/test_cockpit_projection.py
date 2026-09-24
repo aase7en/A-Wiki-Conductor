@@ -571,7 +571,9 @@ def test_lifecycle_vocabulary_mapping() -> None:
 
 
 def test_durable_wait_activity_distinguishes_ci_from_running_and_renders_countdown() -> None:
-    lane = project_cockpit_lane(_inputs(execution=_execution(), activity=_activity()))
+    lane = project_cockpit_lane(
+        _inputs(execution=_execution(), activity=_activity()), generated_at=GENERATED_AT
+    )
     assert lane.state is CockpitState.WAITING_CI
     assert lane.capacity_class == "BASE_MUTABLE"
     assert lane.countdown_seconds == 522
@@ -599,7 +601,8 @@ def test_cooldown_is_not_generic_running() -> None:
                 reason="UPSTREAM_PROVIDER_THROTTLED",
                 countdown_seconds=660,
             ),
-        )
+        ),
+        generated_at=GENERATED_AT,
     )
     assert lane.state is CockpitState.COOLDOWN
     assert lane.wait_reason == "UPSTREAM_PROVIDER_THROTTLED"
@@ -621,7 +624,8 @@ def test_explicit_wait_states_render_as_waits_not_running(
         _inputs(
             execution=_execution(),
             activity=_activity(state=state, reason=f"{state}_REASON"),
-        )
+        ),
+        generated_at=GENERATED_AT,
     )
     assert lane.state.value == state
     assert lane.state is not CockpitState.RUNNING
@@ -638,7 +642,8 @@ def test_borrowed_active_and_parked_capacity_are_distinct() -> None:
                 countdown_seconds=None,
                 next_recheck_at=None,
             ),
-        )
+        ),
+        generated_at=GENERATED_AT,
     )
     assert active.state is CockpitState.BORROWED_ACTIVE
 
@@ -651,18 +656,99 @@ def test_borrowed_active_and_parked_capacity_are_distinct() -> None:
                 countdown_seconds=None,
                 next_recheck_at=None,
             )
-        )
+        ),
+        generated_at=GENERATED_AT,
     )
     assert parked.state is CockpitState.PARKED_CAPACITY
     assert parked.replay_safety == "PARKED_CLAIM_NEVER_DUPLICATE"
 
 
-def test_activity_identity_mismatch_fails_closed() -> None:
+def test_activity_identity_mismatch_cannot_override_execution() -> None:
     lane = project_cockpit_lane(
-        _inputs(execution=_execution(), activity=_activity(work_order_ref="WO-FOREIGN"))
+        _inputs(execution=_execution(), activity=_activity(work_order_ref="WO-FOREIGN")),
+        generated_at=GENERATED_AT,
     )
-    assert lane.state is CockpitState.UNKNOWN
-    assert lane.blocker_code == "ACTIVITY_PROVENANCE_MISMATCH"
+    assert lane.state is CockpitState.RUNNING
+    assert lane.blocker_code is None
+    assert lane.wait_reason is None
+
+
+def test_activity_without_projection_time_fails_closed() -> None:
+    lane = project_cockpit_lane(
+        _inputs(execution=_execution(), activity=_activity())
+    )
+    assert lane.state is CockpitState.RUNNING
+    assert lane.wait_reason is None
+    assert lane.next_recheck_at is None
+    assert lane.countdown_seconds is None
+    assert lane.capacity_class is None
+
+
+@pytest.mark.parametrize(
+    "execution_state,transport_state,expected",
+    (
+        ("FAILED", "CONNECTED", CockpitState.FAILED_VERIFIED),
+        ("SUCCEEDED", "CONNECTED", CockpitState.TERMINAL_UNHARVESTED),
+        ("RECOVERY_REQUIRED", "CONNECTED", CockpitState.STALLED_RECONCILE),
+        ("PROCESS_EXITED_UNKNOWN_RESULT", "CONNECTED", CockpitState.OUTCOME_UNKNOWN),
+        ("RUNNING", "LOST", CockpitState.STALLED_RECONCILE),
+        ("RUNNING", "DEGRADED", CockpitState.RUNNING),
+    ),
+)
+def test_activity_never_overrides_exact_execution_lifecycle(
+    execution_state, transport_state, expected
+) -> None:
+    terminal = _execution(
+        execution_state=execution_state,
+        transport_state=transport_state,
+        exit_code=(1 if execution_state == "FAILED" else 0)
+        if execution_state in {"FAILED", "SUCCEEDED"}
+        else None,
+        finished_at="2026-09-20T09:59:00.000000Z"
+        if execution_state in {"FAILED", "SUCCEEDED"}
+        else None,
+    )
+    lane = project_cockpit_lane(
+        _inputs(
+            execution=terminal,
+            activity=_activity(
+                state="BORROWED_ACTIVE",
+                capacity_class="BORROWED_MUTABLE",
+                reason="DO_NOT_LEAK_THIS",
+            ),
+        ),
+        generated_at=GENERATED_AT,
+    )
+    assert lane.state is expected
+    assert lane.wait_reason is None
+    assert lane.next_recheck_at is None
+    assert lane.countdown_seconds is None
+    assert lane.capacity_class is None
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    (
+        {"execution_id": None},
+        {"execution_id": "stale-execution"},
+        {"observed_at": "2026-09-20T10:00:01Z"},
+        {"observed_at": "not-a-timestamp"},
+        {"observed_at": "2026-09-20T09:00:00Z"},
+    ),
+)
+def test_rejected_activity_cannot_leak_details_or_override_execution(overrides) -> None:
+    activity = _activity(
+        reason="DO_NOT_LEAK_THIS",
+        **overrides,
+    )
+    lane = project_cockpit_lane(
+        _inputs(execution=_execution(), activity=activity), generated_at=GENERATED_AT
+    )
+    assert lane.state is CockpitState.RUNNING
+    assert lane.wait_reason is None
+    assert lane.next_recheck_at is None
+    assert lane.countdown_seconds is None
+    assert lane.capacity_class is None
 
 
 @pytest.mark.parametrize(
@@ -733,6 +819,34 @@ def test_monitor_capacity_line_shows_base_borrowed_parked_review_and_waits() -> 
         "capacity observed: base-active=1/3 borrowed-active=1/2 "
         "parked=1 review=1/1 waits=1"
     ) in text
+
+
+def test_monitor_capacity_counts_waiting_glm_active_child_and_marks_ambiguity() -> None:
+    active_child = _inputs(
+        execution=_execution(),
+        activity=_activity(
+            state="WAITING_GLM",
+            active_mutation_child=True,
+            reason="GLM_CHILD_ACTIVE",
+        ),
+    )
+    unknown_child = _inputs(
+        identity=_identity(lane="unknown-child"),
+        execution=_execution(),
+        activity=_activity(
+            lane_ref="unknown-child",
+            state="WAITING_GLM",
+            active_mutation_child=None,
+            reason="GLM_CHILD_STATUS_UNKNOWN",
+        ),
+    )
+    snapshot = project_cockpit_snapshot(
+        CockpitObservations(
+            lanes=(active_child, unknown_child), generated_at=GENERATED_AT
+        )
+    )
+    text = "\n".join(cockpit_monitor_lines(snapshot))
+    assert "base-active=1/3 (+1 unknown-active)" in text
 
 
 # ---------------------------------------------------------------- Model 8
@@ -964,7 +1078,7 @@ def test_real_service_smoke_coherent_snapshot_without_durable_writes(
     after = _db_fingerprint()
 
     assert snapshot.stale is False
-    assert snapshot.degraded_observability == ()
+    assert snapshot.degraded_observability == ("ACTIVITY_READER_UNAVAILABLE",)
     assert snapshot.lanes == ()
     assert control.calls == 2  # bounded first pin + recheck pin
     assert before == after
@@ -1191,7 +1305,7 @@ def test_real_facade_projects_running_from_bound_durable_authority(
     snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
 
     assert snapshot.stale is False
-    assert snapshot.degraded_observability == ()
+    assert snapshot.degraded_observability == ("ACTIVITY_READER_UNAVAILABLE",)
     assert len(snapshot.lanes) == 1
     lane = snapshot.lanes[0]
     assert lane.state is CockpitState.RUNNING
@@ -1205,6 +1319,35 @@ def test_real_facade_projects_running_from_bound_durable_authority(
     assert lane.process_identity.provenance == "DURABLE_EXECUTION_RECORD"
     assert lane.identity.executor == "SunDay Worker 1"
     assert lane.state is not CockpitState.COMPLETED_VERIFIED
+
+
+def test_bound_facade_reads_activity_on_both_durable_pins(tmp_path: Path) -> None:
+    authority, execution_store, _lease_store = _prepare_authority(tmp_path)
+    _create_execution(execution_store, "exec-running", ExecutionProcessState.RUNNING, pid=4242)
+    service = _bound_service(tmp_path, [_authority_row(_WORKER_ID, _REPO_ROOT)], authority)
+    calls = []
+
+    def reader():
+        calls.append(len(calls) + 1)
+        return (
+            CockpitActivityObservation(
+                available=True,
+                provenance="DURABLE_MONITOR_RECORD",
+                work_order_ref="WO-P1-424",
+                task_ref="job-exec-running",
+                lane_ref="a-worker-01:exec-running",
+                execution_id="exec-running",
+                state="WAITING_CI",
+                capacity_class="BASE_MUTABLE",
+                observed_at="2026-09-20T09:50:00Z",
+                reason="CI_PENDING",
+            ),
+        )
+
+    service._cockpit_activity_reader = reader
+    snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
+    assert calls == [1, 2]
+    assert snapshot.lanes[0].state is CockpitState.WAITING_CI
 
 
 def test_real_facade_projects_terminal_unharvested_from_bound_authority(
@@ -1312,7 +1455,7 @@ def test_real_facade_without_bound_authority_stays_fail_closed_unknown(
     snapshot = service.cockpit_projection(generated_at=GENERATED_AT)
 
     assert snapshot.stale is False
-    assert snapshot.degraded_observability == ()
+    assert snapshot.degraded_observability == ("ACTIVITY_READER_UNAVAILABLE",)
     lane = snapshot.lanes[0]
     assert lane.state is CockpitState.UNKNOWN
     assert lane.blocker_code == "EXECUTION_EVIDENCE_UNAVAILABLE"

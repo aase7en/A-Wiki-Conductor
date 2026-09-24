@@ -201,6 +201,7 @@ class DesktopControlService:
         instance_orchestrator: LocalInstanceOrchestrator | None = None,
         connector_recovery: ConnectorRecoveryCoordinator | None = None,
         cockpit_authority_database: str | Path | None = None,
+        cockpit_activity_reader: Callable[[], tuple] | None = None,
         control_database: str | Path | None = None,
     ) -> None:
         if settings_store is not None and provider_store is not None:
@@ -222,6 +223,7 @@ class DesktopControlService:
             if cockpit_authority_database is not None
             else None
         )
+        self._cockpit_activity_reader = cockpit_activity_reader
         settings_database_path = (
             getattr(settings_store, "database_path", None)
             if settings_store is not None
@@ -366,13 +368,22 @@ class DesktopControlService:
                 degraded_observability=("CONTROL_CENTER_READ_FAILED",),
             )
         authority = self._cockpit_authority_database
+        first_activity, first_activity_ok = self._read_activity_observations()
+        recheck_activity, recheck_activity_ok = self._read_activity_observations()
         if authority is None:
-            first = build_control_center_lane_inputs(cc_first)
-            recheck = build_control_center_lane_inputs(cc_recheck)
-            return project_cockpit_snapshot(
+            first = build_control_center_lane_inputs(cc_first, first_activity)
+            recheck = build_control_center_lane_inputs(cc_recheck, recheck_activity)
+            snapshot = project_cockpit_snapshot(
                 CockpitObservations(lanes=first, generated_at=stamp),
                 recheck=CockpitObservations(lanes=recheck, generated_at=stamp),
             )
+            if not first_activity_ok or not recheck_activity_ok:
+                snapshot = replace(
+                    snapshot,
+                    degraded_observability=snapshot.degraded_observability
+                    + ("ACTIVITY_READER_UNAVAILABLE",),
+                )
+            return snapshot
         first_exec, first_exec_ok, first_lease, first_lease_ok = (
             self._read_durable_authority_observations()
         )
@@ -385,6 +396,7 @@ class DesktopControlService:
             first_lease,
             execution_authority_readable=first_exec_ok,
             lease_authority_readable=first_lease_ok,
+            activities=first_activity,
         )
         recheck = build_observed_lane_inputs(
             cc_recheck,
@@ -392,6 +404,7 @@ class DesktopControlService:
             recheck_lease,
             execution_authority_readable=recheck_exec_ok,
             lease_authority_readable=recheck_lease_ok,
+            activities=recheck_activity,
         )
         snapshot = project_cockpit_snapshot(
             CockpitObservations(lanes=first, generated_at=stamp),
@@ -402,9 +415,26 @@ class DesktopControlService:
             degraded.append("EXECUTION_AUTHORITY_READ_FAILED")
         if not first_lease_ok or not recheck_lease_ok:
             degraded.append("LEASE_AUTHORITY_READ_FAILED")
+        if not first_activity_ok or not recheck_activity_ok:
+            degraded.append("ACTIVITY_READER_UNAVAILABLE")
         if degraded:
             snapshot = replace(snapshot, degraded_observability=tuple(degraded))
         return snapshot
+
+    def _read_activity_observations(self) -> tuple:
+        """Read optional activity through an injected read-only seam only."""
+        reader = self._cockpit_activity_reader
+        if reader is None:
+            return (), False
+        try:
+            observations = tuple(reader())
+            from .cockpit_projection import CockpitActivityObservation
+
+            if any(not isinstance(item, CockpitActivityObservation) for item in observations):
+                return (), False
+            return observations, True
+        except Exception:
+            return (), False
 
     def _read_durable_authority_observations(self) -> tuple:
         """Pin one bounded read of the explicitly bound authority database.

@@ -182,3 +182,31 @@ classifier without creating a second WIP authority.
 - independent exact-SHA R3 review;
 - exact-head hosted CI;
 - expected-head merge and detached post-main verification.
+
+## Bounded R3 review repair checkpoint — 2026-09-24
+
+Repair authority: Issue #537 / PR #539 review at candidate
+`7845d838d535cb92815f0e5b0773d2f0c265b884`; local composed base is
+`ce1487ba6fb5e17b0eddabafc288f815a17997a8` and must be preserved. The
+independent review reported P0=0, P1=3, P2=2. Repair scope additionally permits
+`src/a_conductor/desktop_control.py` and `tests/test_desktop_control.py`.
+Issue #540/A-Faster-owned paths and all authority stores/schemas remain out of
+scope.
+
+The bounded repair closes elastic wait-capacity contraction, execution-lifecycle
+precedence over activity, injected read-only activity ingestion on both
+first/recheck pins, exact execution identity and bounded freshness rejection
+without detail leakage, and explicit active GLM-child capacity evidence. No
+activity producer, store/schema, timer, thread, poller, or command authority is
+added; MON-1 successor owns activity event production.
+
+Verification is limited to directly relevant policy, projection, and desktop
+control tests. The known unrelated Tk event-loop hang in the broad desktop UI
+suite remains explicitly out of this repair.
+
+## Independent review follow-up — 2026-09-24
+
+Static review identified that direct lane projection without `generated_at`
+could not prove activity freshness. Such activity now fails closed, with a
+focused regression; the identity-mismatch test name now describes the asserted
+behavior. This follow-up remains within the existing three-path repair scope.

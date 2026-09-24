@@ -161,7 +161,11 @@ def classify_elastic_wip(facts: ElasticWipFacts) -> ElasticWipVerdict:
         + facts.base_returning_ready
         + facts.borrowed_active
     )
-    borrowed_to_park = max(0, projected_with_returns - ACTIVE_MUTATION_LIMIT)
+    borrowed_to_park = max(
+        0,
+        projected_with_returns - ACTIVE_MUTATION_LIMIT,
+        facts.borrowed_active - facts.borrowable_waits,
+    )
     if borrowed_to_park > facts.borrowed_active:
         raise ValueError("WIP_CONTRACTION_IMPOSSIBLE: insufficient borrowed active lanes")
 

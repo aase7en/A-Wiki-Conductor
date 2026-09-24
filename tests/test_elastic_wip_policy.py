@@ -88,6 +88,23 @@ def test_returning_base_lane_forces_borrowed_checkpoint_and_park() -> None:
     assert verdict.active_mutation_after_contraction == 3
 
 
+def test_shrinking_borrowable_wait_capacity_parks_excess_borrowed_lanes() -> None:
+    verdict = classify_elastic_wip(
+        _facts(
+            base_active=1,
+            base_waiting_ci=0,
+            base_waiting_external=0,
+            base_blocked=2,
+            borrowed_active=2,
+            ready_independent_candidates=0,
+        )
+    )
+    assert verdict.borrowable_waits == 0
+    assert verdict.borrowed_to_park == 2
+    assert verdict.active_mutation_after_contraction == 1
+    assert verdict.active_mutation_after_refill <= ACTIVE_MUTATION_LIMIT
+
+
 def test_parked_borrowed_lane_is_claimed_but_not_active_and_resumes_first() -> None:
     verdict = classify_elastic_wip(
         _facts(

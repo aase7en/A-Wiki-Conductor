@@ -116,6 +116,57 @@ class _FakeControlCenter:
         )
 
 
+def test_cockpit_activity_reader_is_pinned_for_first_and_recheck(tmp_path) -> None:
+    from a_conductor.cockpit_projection import CockpitActivityObservation, CockpitState
+
+    calls = []
+
+    def reader():
+        calls.append(len(calls) + 1)
+        return (
+            CockpitActivityObservation(
+                available=True,
+                provenance="DURABLE_MONITOR_RECORD",
+                work_order_ref="NOT_DECLARED",
+                task_ref="NOT_DECLARED",
+                lane_ref="a-worker-01",
+                state="WAITING_CI",
+                capacity_class="BASE_MUTABLE",
+                observed_at="2026-09-20T09:50:00Z",
+                reason="CI_PENDING",
+            ),
+        )
+
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        cockpit_activity_reader=reader,
+        instances_root=tmp_path,
+    )
+    snapshot = service.cockpit_projection(generated_at="2026-09-20T10:00:00Z")
+    assert calls == [1, 2]
+    assert snapshot.lanes[0].state is CockpitState.WAITING_CI
+    assert snapshot.degraded_observability == ()
+
+
+def test_cockpit_activity_reader_failure_degrades_without_inventing_wait(tmp_path) -> None:
+    from a_conductor.cockpit_projection import CockpitState
+
+    def reader():
+        raise OSError("reader unavailable")
+
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        cockpit_activity_reader=reader,
+        instances_root=tmp_path,
+    )
+    snapshot = service.cockpit_projection(generated_at="2026-09-20T10:00:00Z")
+    assert snapshot.lanes[0].state is CockpitState.UNKNOWN
+    assert "ACTIVITY_READER_UNAVAILABLE" in snapshot.degraded_observability
+    assert snapshot.lanes[0].wait_reason is None
+
+
 class _FakeLifecycle:
     def __init__(self):
         self.calls = []
@@ -1322,7 +1373,7 @@ def test_wo429_ordinary_open_projects_existing_canonical_execution_truth(
             item for item in snapshot.lanes if item.execution_id == execution_id
         )
         assert lane.state.value == expected_state
-        assert snapshot.degraded_observability == ()
+        assert snapshot.degraded_observability == ("ACTIVITY_READER_UNAVAILABLE",)
 
 
 def test_wo429_ordinary_open_cockpit_never_constructs_owning_runtime_stores(
