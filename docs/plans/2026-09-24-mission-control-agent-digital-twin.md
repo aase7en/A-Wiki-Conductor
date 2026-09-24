@@ -145,6 +145,19 @@ For A-Faster:
 - `A_FASTER_UNDERUTILIZED`;
 - `AUTO_REFILL_REQUIRED`.
 
+### 5.1 Chat / MCP presentation contract
+
+ChatGPT native UI is an external presentation surface, not project authority.
+Compact operator receipts are presentation only and must preserve a deterministic
+pointer to the retained/re-readable raw evidence. Model-facing structured evidence
+must not be replaced by lossy summaries. Truncation, omission and digest mismatch
+are explicit and fail closed; claim/lease/HEAD/safety/conflict/error facts remain
+visible even when ordinary source text is compacted.
+
+CTS adoption must therefore prove both sides of the dual-channel contract: materially
+smaller user-visible payloads and no measured model-context/evidence regression.
+Legacy behavior remains the fallback until real connector compatibility is proven.
+
 ## 6. Command audit trail
 
 The UI must make autonomous delegation visible.
@@ -220,6 +233,28 @@ Freeze scene vocabulary, state-to-visual mapping, data contract and failure sema
 Consume MON-1 projection; prove exact state semantics before 3D. The first authorized
 slice is Issue #537: explicit wait/cooldown/countdown plus base/borrowed/parked
 capacity visibility. No new control authority is added.
+
+### CTS transport/presentation sequence
+
+- **CTS-0 — dual-channel MCP boundary canary:** boundary pattern proven; real
+  ChatGPT connector rendering/model-forwarding semantics remain gated.
+- **CTS-1 — additive compact single-file read:** preserve legacy `read_file`;
+  return a compact receipt plus bounded structured source and deterministic
+  range/digest identity.
+- **CTS-2 — real ChatGPT connector regression canary:** measure visible payload,
+  model evidence access, exact-source questions and deterministic re-read. No routing
+  adoption is authorized until this passes.
+- **CTS-3 — A-Faster/A-NightShift routing adoption:** only after CTS-2 proves no
+  model-context regression.
+- **CTS-4 — compact status/output/recover receipts:** keep on-demand full evidence
+  available and preserve explicit truncation/omission semantics.
+- **CTS-5 — Mission Control timeline/drill-down:** consume those same receipts and
+  evidence references; do not create a second evidence store.
+
+CTS acceptance requires materially smaller user-visible payloads for large reads,
+no measured model-context regression, exact-source and re-read canaries passing, and
+no new evidence/task/claim/scheduler authority. Legacy behavior remains fallback
+until connector compatibility is proven.
 
 ### MC-2 — 3D Agent Digital Twin
 Add topology scene, interactive nodes/edges, status animation and project clustering.
