@@ -21,7 +21,7 @@ from tkinter import filedialog, simpledialog, ttk
 import webbrowser
 
 from .branding import APP_NAME, APP_VERSION
-from .cockpit_projection import CockpitSnapshot
+from .cockpit_projection import CockpitSnapshot, CockpitState
 from .connector_recovery import ConnectorRecoveryRecord
 from .graph.domain import TaskNodeStatus
 from .graph.operator_view import GraphOperatorSnapshot
@@ -777,6 +777,14 @@ def graph_monitor_lines(snapshot: GraphOperatorSnapshot) -> tuple[str, ...]:
     return tuple(lines)
 
 
+def _cockpit_countdown_text(seconds: int) -> str:
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
 def cockpit_monitor_lines(snapshot: CockpitSnapshot) -> tuple[str, ...]:
     if not isinstance(snapshot, CockpitSnapshot):
         raise ValueError("snapshot must be CockpitSnapshot")
@@ -784,6 +792,73 @@ def cockpit_monitor_lines(snapshot: CockpitSnapshot) -> tuple[str, ...]:
     if snapshot.stale:
         header += f" · STALE ({snapshot.stale_reason or 'SOURCE_DRIFT_DETECTED'})"
     lines = [header, f"  generated: {snapshot.generated_at or '-'}"]
+    capacity_lanes = tuple(lane for lane in snapshot.lanes if lane.capacity_class)
+    unclassified_capacity = sum(not lane.capacity_class for lane in snapshot.lanes)
+    collision_lanes = sum(
+        "ACTIVITY_LANE_COLLISION" in lane.state_markers
+        for lane in snapshot.lanes
+    )
+    if capacity_lanes:
+        base_active = sum(
+            lane.capacity_class == "BASE_MUTABLE"
+            and (lane.state is CockpitState.RUNNING or lane.active_mutation_child is True)
+            for lane in capacity_lanes
+        )
+        base_active_unknown = sum(
+            lane.capacity_class == "BASE_MUTABLE"
+            and lane.state is CockpitState.WAITING_GLM
+            and lane.active_mutation_child is None
+            for lane in capacity_lanes
+        )
+        borrowed_active = sum(
+            lane.capacity_class == "BORROWED_MUTABLE"
+            and lane.state is CockpitState.BORROWED_ACTIVE
+            for lane in capacity_lanes
+        )
+        parked = sum(
+            lane.capacity_class == "BORROWED_MUTABLE"
+            and lane.state is CockpitState.PARKED_CAPACITY
+            for lane in capacity_lanes
+        )
+        review = sum(
+            lane.capacity_class == "INDEPENDENT_REVIEW"
+            and lane.state
+            not in {
+                CockpitState.COMPLETED_VERIFIED,
+                CockpitState.FAILED_VERIFIED,
+            }
+            for lane in capacity_lanes
+        )
+        waits = sum(
+            lane.state
+            in {
+                CockpitState.WAITING_APPROVAL,
+                CockpitState.WAITING_CI,
+                CockpitState.WAITING_GLM,
+                CockpitState.WAITING_JEV,
+                CockpitState.WAITING_EXTERNAL,
+                CockpitState.COOLDOWN,
+            }
+            for lane in capacity_lanes
+        )
+        capacity_line = (
+            "  capacity observed: "
+            + f"base-active={base_active}/3"
+            + (f" (+{base_active_unknown} unknown-active) " if base_active_unknown else " ")
+            + f"borrowed-active={borrowed_active}/2 "
+            + f"parked={parked} review={review}/1 waits={waits}"
+        )
+        if collision_lanes:
+            capacity_line += f" collisions={collision_lanes}"
+        if unclassified_capacity:
+            capacity_line += f" unclassified={unclassified_capacity}"
+        lines.append(capacity_line)
+    elif snapshot.lanes:
+        collision_note = f" collisions={collision_lanes}" if collision_lanes else ""
+        lines.append(
+            "  capacity evidence: no classified lanes; "
+            + f"unclassified={unclassified_capacity}{collision_note}"
+        )
     if snapshot.degraded_observability:
         lines.append("  observability: " + ", ".join(snapshot.degraded_observability))
     if not snapshot.lanes:
@@ -823,6 +898,15 @@ def cockpit_monitor_lines(snapshot: CockpitSnapshot) -> tuple[str, ...]:
             f"   last activity: {lane.last_activity or '-'}"
             f"   last progress: {lane.last_meaningful_progress or '-'}"
         )
+        if lane.wait_reason or lane.next_recheck_at or lane.countdown_seconds is not None:
+            wait_line = f"  wait: {lane.wait_reason or '-'}"
+            if lane.next_recheck_at:
+                wait_line += f"   recheck: {_monitor_safe_text(lane.next_recheck_at)}"
+            if lane.countdown_seconds is not None:
+                wait_line += (
+                    f"   countdown: {_cockpit_countdown_text(lane.countdown_seconds)}"
+                )
+            lines.append(wait_line)
         gates = lane.gates
         lines.append(
             "  gates: "
