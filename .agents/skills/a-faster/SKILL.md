@@ -116,6 +116,84 @@ Every A-Faster lane adds these fields to the normal A-FastTask binding:
 - latest cross-device lifecycle pulse + freshness timestamps when the lane is
   material/long-running.
 
+## Utilization enforcement (WO-P1-517)
+
+Underutilization must be machine-detectable (WO-P1-517) without creating
+a scheduler or second authority. The pure deterministic classifier
+`src/a_conductor/a_faster_utilization_guard.py` consumes structured
+utilization facts (lane occupancy, independent READY candidates, structured
+quota admission, GLM route readiness, Sol direct-labor state) and emits:
+
+- `FANOUT_TARGET` — admitted lanes AUTO-FILL may dispatch now (budget- and
+  candidate-bounded, quota/route admitted, activation-gated);
+- `UNUSED_SAFE_CAPACITY` — idle slots inside the global WIP budget that
+  independent READY work could occupy;
+- `A_FASTER_UNDERUTILIZED` — A-Faster is active and safe READY capacity is
+  idle;
+- `AUTO_REFILL_REQUIRED` — the refill obligation is due now;
+- typed blockers such as `QUOTA_EXHAUSTED`, `QUOTA_UNKNOWN`,
+  `SECRET_SOURCE_UNAVAILABLE`, `GLM_ROUTE_BLOCKED`, and
+  `NO_INDEPENDENT_READY_WORK`.
+
+Enforcement state is `POLICY_ONLY` until shared executable PRE_DISPATCH
+wiring exists as successor scope after WO-P1-498 releases; do not modify
+or import the #498-owned guard surface from this profile. The classifier
+is a projection only: it creates no scheduler, task store, claim/lease,
+provider, dispatch, retry, review, merge, or completion authority,
+launches nothing, and never burns or probes quota itself — the
+refresh-quota-before-each-material-dispatch rule is unchanged. Verdicts
+never manufacture work and never relax the `3 mutable + 1 review` budget;
+only an accepted Work Order may change capacity.
+
+### Activation receipt — tasking vs explanation
+
+`A_FASTER_ACTIVE` is a proven tasking receipt: a canonical invocation
+clause plus the normal A-FastTask binding/authority gates for that
+session. Describing, explaining, or quoting A-Faster anywhere — including
+the roadmap shorthand inside documentation, review prose, or another
+session's transcript — is explanation only (`A_FASTER_EXPLANATION_ONLY`):
+it is never an activation receipt, never triggers utilization enforcement,
+and never grants WIP, claim, quota, or mutation authority.
+
+### Sol direct long labor while GLM capacity is idle
+
+GLM-first routing is preserved: GPT-5.6 Sol directly executes eligible
+long labor only as the fallback when eligible GLM routes are blocked. When
+Sol is performing GLM-eligible direct long labor while eligible GLM
+capacity is idle (structured quota evidence `QUOTA_AVAILABLE` plus a ready
+route), the classifier must emit
+`SOL_DIRECT_LONG_LABOR_WHILE_GLM_CAPACITY_IDLE` as the typed blocker. The
+integrator then either transfers the labor to an eligible GLM lane or
+records why the fallback is legitimate. Idle capacity with fillable
+independent READY work and no typed blocker means `AUTO_REFILL_REQUIRED`.
+
+### No manufactured work, no quota burning
+
+The classifier and any consumer must never manufacture work to occupy
+slots: idle capacity with no independent READY work carries
+`NO_INDEPENDENT_READY_WORK`, never a dispatch. Never burn quota or spin
+probe/redispatch loops to make an underutilization verdict disappear;
+quota evidence comes only from the existing
+refresh-before-each-material-dispatch flow as structured admission
+evidence, and `SECRET_SOURCE_UNAVAILABLE` fails closed.
+
+## Delegated-run launch discipline (WO-P1-517 bootstrap lessons)
+
+Every delegated launch under this profile preserves the three bootstrap
+lessons from WO-P1-517 attempts 0001–0003, pinned as
+`DELEGATION_LAUNCH_PRECONDITIONS` in the classifier:
+
+1. consume structured admission evidence only — never infer quota
+   admission by matching serialized command text; a structured probe
+   result of `SECRET_SOURCE_UNAVAILABLE` means admission is unavailable
+   regardless of any command-text side channel;
+2. launch Kilo with an explicit `--dir` bound to the claimed worktree and
+   require in-session repo/worktree/branch/HEAD proof before any
+   mutation — never rely on the harness's ambient Active Project;
+3. run delegated Kilo with a per-run `share=disabled` override unless
+   sharing is separately authorized — ambient user-level share settings
+   are never delegation policy.
+
 ## Mandatory substantial-session bootstrap
 
 For every substantial A-Sunday Conductor engineering session:
