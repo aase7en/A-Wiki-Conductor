@@ -233,8 +233,9 @@ and exact allowed paths only:
 RED-first regressions reproduced all three findings. Focused verification
 passes: 155 passed, 1 deselected (known macOS-hosted Windows-path fixture).
 `py_compile`, `git diff --check`, strict UTF-8, exact modified-path scope, and
-added-line secret-pattern checks pass. The worktree is still dirty at the old
-`e64b669` HEAD; the repaired candidate is not committed or pushed yet. Do not
-accept or merge the prior `e64b669` review/CI evidence. Next: commit and push
-one repaired candidate, obtain a fresh independent exact-SHA R3 review and
-exact-head hosted CI, then repeat GPT acceptance against that SHA.
+added-line secret-pattern checks pass. Repair commit
+`76dded4e33d50c06b18974b2625b464e2b7ee0eb` is created on the existing feature
+branch; it has not yet been pushed. The prior `e64b669` review/CI evidence is
+not candidate acceptance evidence. Next: record this checkpoint, push the
+repaired branch, obtain a fresh independent exact-SHA R3 review and exact-head
+hosted CI, then repeat GPT acceptance against the pushed SHA.
