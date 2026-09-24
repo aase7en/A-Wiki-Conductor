@@ -225,6 +225,14 @@ def test_frontier_only_family_cannot_be_enabled():
         )
 
 
+def test_off_admission_rejects_evidence_reference_before_telemetry():
+    with pytest.raises(SemanticAdmissionError, match="OFF admission"):
+        FamilyAdmission(
+            mode=SemanticDecisionMode.OFF,
+            evidence_ref="PRIVATE secret note",
+        )
+
+
 def test_enabled_admission_requires_heldout_evidence_reference():
     with pytest.raises(SemanticAdmissionError, match="held-out"):
         FamilyAdmission(

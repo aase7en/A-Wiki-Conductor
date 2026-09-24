@@ -61,8 +61,15 @@ class FamilyAdmission:
         mode = SemanticDecisionMode(self.mode)
         object.__setattr__(self, "mode", mode)
         if mode is SemanticDecisionMode.OFF:
-            if self.heldout_candidate or self.min_confidence is not None or self.review_band is not None:
-                raise SemanticAdmissionError("OFF admission must not carry held-out admission or thresholds")
+            if (
+                self.evidence_ref
+                or self.heldout_candidate
+                or self.min_confidence is not None
+                or self.review_band is not None
+            ):
+                raise SemanticAdmissionError(
+                    "OFF admission must not carry evidence, held-out admission, or thresholds"
+                )
             return
         if self.heldout_candidate is not True:
             raise SemanticAdmissionError("enabled admission requires a deterministic held-out CANDIDATE verdict")
