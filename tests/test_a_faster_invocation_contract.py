@@ -420,6 +420,52 @@ def test_wo530_child_terminal_harvest_refills_without_chat_turn_dependency() -> 
     assert "Never manufacture work merely to consume quota" in section
 
 
+def test_wo530_wait_aware_backfill_is_part_of_a_faster_skill() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Wait-aware auto-backfill"))
+    assert "WAIT_AWARE_AUTO_BACKFILL" in section
+    for state in (
+        "WAITING_APPROVAL",
+        "WAITING_CI",
+        "WAITING_GLM",
+        "WAITING_JEV",
+        "WAITING_EXTERNAL",
+        "COOLDOWN",
+    ):
+        assert state in section
+    assert "A-NightShift" in section
+    assert "SAFE_READY" in section
+    assert "PARKED_CAPACITY" in section
+
+
+def test_wo530_wait_label_never_frees_active_mutation_child_slot() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Wait-aware auto-backfill"))
+    assert "wait label alone never frees a mutable slot" in section
+    assert "active delegated mutation child" in section
+    assert "actual active-mutation evidence" in section
+    assert "<= 3" in section
+    assert "1 MUTABLE HOTSPOT = 1 MUTATION OWNER" in _read_strict(SKILL)
+
+
+def test_wo530_canonical_activation_removes_repeated_long_prompt_requirement() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Wait-aware auto-backfill"))
+    assert "does not need to repeat" in section
+    assert "continue" in section
+    assert "A_FASTER_ACTIVE" in section
+    assert "real goal/stop gate" in section
+    assert "explicit deactivation" in section
+
+
+def test_wo530_wait_resolution_harvests_then_contracts_without_destructive_preemption() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Wait-aware auto-backfill"))
+    assert "RECOVER -> RECONCILE -> HARVEST" in section
+    assert "bounded micro-step" in section
+    assert "checkpoint" in section
+    assert "PARKED_CAPACITY" in section
+    for forbidden in ("kill", "reset", "stash"):
+        assert forbidden in section
+    assert "never" in section
+
+
 def test_wo530_model_roles_preserve_max_flash_and_jev_boundaries() -> None:
     section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
     assert "GLM-5.3 MAX" in section
