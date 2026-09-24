@@ -1,6 +1,6 @@
 # WO-P1-549 — A-Faster executable auto-refill bridge
 
-Status: ACTIVE / AUTHORING
+Status: CANDIDATE / VERIFICATION
 Issue: #549
 Risk: R3 — dispatch/control-plane enforcement
 Topology: CONTROL_PLANE_ONLY
@@ -24,11 +24,13 @@ Close the accepted A-Faster POLICY_ONLY utilization gap without creating a sched
 ## Frozen mutable scope
 Lane A — core bridge:
 - src/a_conductor/a_faster_auto_refill.py
+- src/a_conductor/a_faster_utilization_guard.py (boundary documentation only)
 - tests/test_a_faster_auto_refill.py
 
 Lane B — Codex/A-Faster integration:
 - .codex/hooks/a_sunday_lifecycle.py
 - tests/test_codex_a_sunday_hooks.py
+- tests/test_a_faster_invocation_contract.py
 - .agents/skills/a-faster/SKILL.md
 
 Integrator-only:
@@ -48,3 +50,12 @@ Lane C is install/runtime verification only on clean supervisor worktrees and us
 
 ## Acceptance
 RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF-8; added-line secret scan; exact-SHA Windows and macOS smoke; independent R3 review; exact-head CI; Sol acceptance and post-main verification. Canonical dirty worktrees are never reset/cleaned/stashed.
+
+## Candidate evidence
+- RED: missing bridge module failed collection before implementation.
+- Focused Lane A/B: 60 passed.
+- Related A-Faster/NightShift/hook suite: 188 passed.
+- Existing parallel-ready execution suite: 62 passed.
+- py_compile, hooks JSON parse, diff --check, strict UTF-8: PASS.
+- Added-line secret signature scan: no matches.
+- GLM material author route not used: approved CoinTH resolver returned SECRET_SOURCE_UNAVAILABLE; this is not quota exhaustion.
