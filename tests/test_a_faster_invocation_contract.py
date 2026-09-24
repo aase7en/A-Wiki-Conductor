@@ -361,6 +361,14 @@ def test_wo530_child_goal_keeps_global_wip_and_lane_binding() -> None:
         assert token in section
 
 
+def test_wo537_global_wip_pins_borrowed_claim_limits() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Global WIP and no-collision rule"))
+    assert "max 2 additional **borrowed mutable claims**" in section
+    assert "total mutable claims may reach 5" in section
+    assert "active mutation compute remains `<= 3`" in section
+    assert "never increases active mutation above 3" in section
+
+
 def test_wo530_kilo_goal_is_capability_gated_with_truthful_headless_fallback() -> None:
     section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
     for token in (
@@ -420,7 +428,7 @@ def test_wo530_child_terminal_harvest_refills_without_chat_turn_dependency() -> 
     assert "Never manufacture work merely to consume quota" in section
 
 
-def test_wo530_wait_aware_backfill_is_part_of_a_faster_skill() -> None:
+def test_wo537_wait_aware_backfill_is_part_of_a_faster_skill() -> None:
     section = _norm(_section(_read_strict(SKILL), "Wait-aware auto-backfill"))
     assert "WAIT_AWARE_AUTO_BACKFILL" in section
     for state in (
@@ -435,18 +443,20 @@ def test_wo530_wait_aware_backfill_is_part_of_a_faster_skill() -> None:
     assert "A-NightShift" in section
     assert "SAFE_READY" in section
     assert "PARKED_CAPACITY" in section
+    assert "at most 2 borrowed mutable claims" in section
+    assert "never more than 3 simultaneous active mutations" in section
 
 
-def test_wo530_wait_label_never_frees_active_mutation_child_slot() -> None:
+def test_wo537_wait_label_never_frees_active_mutation_child_slot() -> None:
     section = _norm(_section(_read_strict(SKILL), "Wait-aware auto-backfill"))
     assert "wait label alone never frees a mutable slot" in section
     assert "active delegated mutation child" in section
     assert "actual active-mutation evidence" in section
-    assert "<= 3" in section
+    assert "simultaneous active mutation stays `<= 3`" in section
     assert "1 MUTABLE HOTSPOT = 1 MUTATION OWNER" in _read_strict(SKILL)
 
 
-def test_wo530_canonical_activation_removes_repeated_long_prompt_requirement() -> None:
+def test_wo537_canonical_activation_removes_repeated_long_prompt_requirement() -> None:
     section = _norm(_section(_read_strict(SKILL), "Wait-aware auto-backfill"))
     assert "does not need to repeat" in section
     assert "continue" in section
@@ -455,15 +465,16 @@ def test_wo530_canonical_activation_removes_repeated_long_prompt_requirement() -
     assert "explicit deactivation" in section
 
 
-def test_wo530_wait_resolution_harvests_then_contracts_without_destructive_preemption() -> None:
+def test_wo537_wait_resolution_harvests_then_contracts_without_destructive_preemption() -> None:
     section = _norm(_section(_read_strict(SKILL), "Wait-aware auto-backfill"))
     assert "RECOVER -> RECONCILE -> HARVEST" in section
     assert "bounded micro-step" in section
     assert "checkpoint" in section
     assert "PARKED_CAPACITY" in section
-    for forbidden in ("kill", "reset", "stash"):
-        assert forbidden in section
-    assert "never" in section
+    assert (
+        "contraction must never kill an owned task, reset git, stash unknown work"
+        in section.lower()
+    )
 
 
 def test_wo530_model_roles_preserve_max_flash_and_jev_boundaries() -> None:
