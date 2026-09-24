@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import jsonschema
 
-from a_conductor.claude_code_harness import TaskPacketFile
+from a_conductor.claude_code_harness import MutationIntent, TaskPacketFile
 from a_conductor.native_execution import NativeExecutionError, NativeExecutionScope, NativeFileSystem
 from a_conductor.provider_execution_authority import ProviderExecutionRequirement
 from a_conductor.provider_configuration import ProviderEndpointConfig
@@ -347,6 +347,7 @@ def _route_task(materialized: MaterializedReviewTask, **dispatch_overrides):
         execution_id=key.job_id,
         task_contract_ref=materialized.refs.contract_ref,
         evidence_destination_ref=materialized.refs.result_ref,
+        mutation_intent=MutationIntent.READ_ONLY,
     )
     dispatch = dataclasses.replace(
         base.harness_dispatch, **{**defaults, **dispatch_overrides}
@@ -361,11 +362,15 @@ def _route_task(materialized: MaterializedReviewTask, **dispatch_overrides):
     # exact review contract as its task id (empty mutable scope by invariant).
     lease = dataclasses.replace(
         base.lease_request,
-        mutation_intent=LeaseMutationIntent.READ_ONLY,
-        allowed_scope=(),
-        mutable_scope=(),
         task_id=materialized.refs.contract_ref,
     )
+    if dispatch.mutation_intent is MutationIntent.READ_ONLY:
+        lease = dataclasses.replace(
+            lease,
+            mutation_intent=LeaseMutationIntent.READ_ONLY,
+            allowed_scope=(),
+            mutable_scope=(),
+        )
     return dataclasses.replace(
         base, dispatch_request=request, harness_dispatch=dispatch,
         task_packet=packet, lease_request=lease,
@@ -603,20 +608,15 @@ def _mutation_lease(task, *, task_id=None):
         task_id=task_id if task_id is not None else task.lease_request.task_id,
     )
 def test_wo225_red1_mutation_lease_with_readonly_harness_rejected():
-    """The exact §1 reproducer: MUTATION lease + runs/** scope + READ_ONLY
-    harness must NOT mint a READ_ONLY route."""
+    """The mutation-lease/read-only-harness mismatch fails at task creation."""
     real, fs = _materialized()
     task = _route_task(real)
-    task = dataclasses.replace(task, lease_request=_mutation_lease(task))
-    assert task.lease_request.mutation_intent is LeaseMutationIntent.MUTATION
-    assert task.lease_request.mutable_scope == ("runs/**",)
-    with pytest.raises(ZeroRelayReviewTaskError) as raised:
-        bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
-    assert raised.value.code == "REVIEW_LEASE_NOT_READ_ONLY"
+    with pytest.raises(ValueError, match="lease and harness mutation intent mismatch"):
+        dataclasses.replace(task, lease_request=_mutation_lease(task))
 def test_wo225_red2_mutation_scope_cannot_mint_readonly_route():
     real, fs = _materialized()
-    task = _route_task(real)
-    task = dataclasses.replace(task, lease_request=_mutation_lease(task))
+    from a_conductor.claude_code_harness import MutationIntent
+    task = _route_task(real, mutation_intent=MutationIntent.PROJECT_MUTATION)
     route = None
     with pytest.raises(ZeroRelayReviewTaskError):
         route = bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
@@ -647,11 +647,10 @@ def test_wo225_red5_same_everything_wrong_lease_task_rejected():
         bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
     assert raised.value.code == "REVIEW_LEASE_TASK_MISMATCH"
 def test_wo225_red6_mutation_lease_with_review_contract_task_still_rejected():
-    """Even when the lease task id matches the review contract, a MUTATION
-    lease cannot mint a READ_ONLY route."""
+    """The binder still checks lease intent if state drifts after construction."""
     real, fs = _materialized()
     task = _route_task(real)
-    task = dataclasses.replace(task, lease_request=_mutation_lease(
+    object.__setattr__(task, "lease_request", _mutation_lease(
         task, task_id=real.refs.contract_ref))
     assert task.lease_request.mutation_intent is LeaseMutationIntent.MUTATION
     assert task.lease_request.task_id == real.refs.contract_ref
@@ -662,7 +661,6 @@ def test_wo225_regression_harness_project_mutation_still_rejected():
     from a_conductor.claude_code_harness import MutationIntent
     real, fs = _materialized()
     task = _route_task(real, mutation_intent=MutationIntent.PROJECT_MUTATION)
-    task = dataclasses.replace(task, lease_request=_review_lease(task))
     with pytest.raises(ZeroRelayReviewTaskError) as raised:
         bind_direct_review_route(task, real, author=_identity(), filesystem=fs)
     assert raised.value.code == "REVIEW_ROUTE_NOT_READ_ONLY"
@@ -985,6 +983,7 @@ def _v2_route_task(root: Path, review: MaterializedReviewV2Task):
         expected_branch="feat/review-v2",
         expected_head=REVIEW_HEAD,
         evidence_destination_ref=review.refs.result_ref,
+        mutation_intent=MutationIntent.READ_ONLY,
     )
     lease = dataclasses.replace(
         base.lease_request,

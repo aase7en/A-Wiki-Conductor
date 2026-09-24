@@ -43,6 +43,22 @@ Integrator-only:
 
 Lane C is install/runtime verification only on clean supervisor worktrees and user Codex trust configuration; it owns no tracked repo mutation.
 
+## Bounded acceptance-repair scope extension — claim WO-P1-549-AUTO-REFILL-REPAIR-001
+
+The exact-head Windows CI run found four existing review-execution fixtures that
+fail during `ParallelReadyTask` construction after the lease/harness mutation
+intent invariant was added. This extension is test-only and limited to:
+
+- `tests/test_zero_relay_review_execution.py` — keep the mutation-lease
+  rejection fixture internally consistent so the planner rejection remains
+  the behavior under test.
+- `tests/test_zero_relay_review_task.py` — make the protocol-v2 read-only
+  review fixture's harness intent match its `READ_ONLY` lease.
+
+No production behavior changes are authorized by this extension. Do not alter
+other WO223/WO226 tests or source files. Record any newly discovered production
+defect in a separate bounded claim before changing it.
+
 ## Required executable behavior
 1. Accept only an A_FASTER_ACTIVE utilization verdict produced by the existing classifier.
 2. Require AUTO_REFILL_REQUIRED and positive FANOUT_TARGET; otherwise launch nothing.
@@ -71,3 +87,37 @@ RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF
 - Auto-refill results now project only typed node/kind/reason evidence; post-execute exceptions are RECONCILE_REQUIRED rather than replay/rejection permission.
 - Repair regression suites: A-Faster + parallel-ready 86 passed; A-Faster/WIP/Codex-hook contracts 100 passed; elastic/provider/runtime activation 86 passed.
 - py_compile, hooks JSON parse, diff --check, strict UTF-8, added-line secret scan: PASS after R3 repair.
+- Exact-head PR #550 CI run `36050340753`: Windows `test` failed in four
+  `tests/test_zero_relay_review_execution.py` cases at `ParallelReadyTask`
+  construction with `lease and harness mutation intent mismatch`; Ubuntu and
+  macOS smoke passed. The same four failures reproduce locally on candidate
+  `789876bfae4f3f4d94935eea7d4ea721fe79cde2`. Claim
+  `WO-P1-549-AUTO-REFILL-REPAIR-001` owns only the two fixture paths above;
+  the working-tree repair and evidence are recorded below.
+
+## Acceptance-repair checkpoint — 2026-09-25
+
+- Claim checkpoint: Issue #549 comment `5822135810`.
+- Starting candidate: `789876bfae4f3f4d94935eea7d4ea721fe79cde2` on
+  `feat/wo-p1-549-a-faster-autorefill`, based on
+  `main@c4d4cf4da830cb313a4569a386edcff0a77266c2`.
+- RED: the four CI failures reproduced locally. The first fixture constructed
+  a mutation lease with a read-only harness; the protocol-v2 read-only review
+  fixtures inherited a mutating harness with read-only leases. The new
+  `ParallelReadyTask` invariant correctly rejects both inconsistent shapes.
+- Repair: migrated only test fixtures in
+  `tests/test_zero_relay_review_execution.py` and
+  `tests/test_zero_relay_review_task.py`; preserved checks that mismatched
+  intent is rejected at construction and that review routes cannot be minted
+  from mutation-authorized tasks. No production behavior changed.
+- GREEN: review execution + review task suites, `154 passed`.
+- GREEN: WO-P1-549 Lane A/B, utilization, elastic capacity/fencing, parallel
+  execution, PRE_DISPATCH guard, provider/runtime assembly and activation,
+  WorkerLease/recovery, and both review suites: `508 passed`.
+- `py_compile`: 14 changed Python files PASS; hooks JSON parse PASS;
+  `git diff --check` PASS; strict UTF-8/mojibake scan PASS over 16 changed
+  paths; added-line high-confidence secret scan PASS.
+- Exact uncommitted repair diff is limited to this WO checkpoint and the two
+  claimed fixture files; no production source changed in the repair.
+- Next: freeze and push the exact candidate, run exact-head CI, obtain an
+  independent R3 review, then continue Sol acceptance and post-main gates.

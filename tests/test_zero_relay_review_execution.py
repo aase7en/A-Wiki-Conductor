@@ -627,6 +627,10 @@ def test_plan_rejects_mutation_lease_and_nonempty_scope(tmp_path):
             mutable_scope=("src/a_conductor/*",),
             allowed_scope=("src/a_conductor/*",),
         ),
+        harness_dispatch=replace(
+            base_task.harness_dispatch,
+            mutation_intent=MutationIntent.PROJECT_MUTATION,
+        ),
     )
     authorities = _Authorities(tmp_path)
     with pytest.raises(ZeroRelayReviewExecutionError):
