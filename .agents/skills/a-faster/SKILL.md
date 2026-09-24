@@ -783,6 +783,58 @@ A worktree/folder becomes cleanup-eligible only after all are proven:
 Use canonical non-force worktree removal. Never reset/clean/stash/force merely
 to make cleanup succeed. Branch deletion remains a separate decision.
 
+
+## Hierarchical child-goal routing (WO-P1-530)
+
+A-Faster may bind a bounded delegated task as a CHILD_GOAL, but this is an
+execution-packet shape only. The A-NightShift/Codex parent remains the one run
+lifecycle owner and the existing A-FastTask/claim authorities remain unchanged.
+A child goal never becomes a scheduler, roadmap owner, task database,
+claim/lease system, review authority, merge authority, or completion authority.
+
+The normal goal tree is bounded:
+PARENT_GOAL -> KILO_GLM_CHILD -> OPTIONAL_JEV_ADVISORY.
+Deeper recursive spawning is forbidden. Global WIP remains max 3 mutable plus
+1 independent read-only review and one mutable hotspot has exactly one owner.
+
+Every CHILD_GOAL binds the existing lane tuple: task/work order, claim/owner,
+repo, worktree, branch, exact HEAD, allowed/forbidden scope, expected result,
+evidence destination, verification, replay safety and stop conditions. The
+child returns evidence to the parent; the parent must HARVEST terminal durable
+children before REFILL or equivalent redispatch.
+
+Kilo child transport is capability-gated:
+- KILO_GOAL_CAPABILITY=VERIFIED for the exact Kilo harness/version permits a
+  bounded slash-goal pointer such as "/goal Read <task_packet_ref> and execute
+  only that child goal".
+- KILO_GOAL_CAPABILITY=UNVERIFIED_HEADLESS or UNAVAILABLE forbids inventing
+  slash-goal semantics. Use POINTER_FALLBACK: one bounded instruction such as
+  "Read <task_packet_ref> and execute only that child task". The task packet,
+  not slash syntax, carries authority and scope.
+- A stalled/ambiguous capability probe is UNVERIFIED_HEADLESS, never proof of
+  support and never a reason to block other safe work.
+
+All material Kilo/GLM children use Sunday durable dispatch, explicit --dir,
+process-local KILO_CONFIG_CONTENT={"share":"disabled"}, CLI --no-share, and a
+fresh CoinTH quota preflight immediately before dispatch. A direct non-durable
+Kilo call or any attempt that emits a share URL is INVALID_CHILD_EVIDENCE and
+cannot satisfy review/acceptance.
+
+GLM-5.3 MAX handles bounded heavy author/repair/review work. GLM-5.3 Flash is
+read-only census/recon/shaping only and never satisfies a required R3 MAX or
+qualified independent review. TypeSafe-Jev is optional nested advisory only
+with authoritative_for_action=false.
+
+After every child terminal transition:
+RECOVER -> RECONCILE -> HARVEST -> recompute accepted READY frontier -> REFILL.
+If quota is available and independent SAFE READY work exists, continuation does
+not wait for a ChatGPT user turn. If no READY work exists, report the truthful
+typed blocker/wait state. Never manufacture work merely to consume quota.
+
+Pinned transport vector:
+KILO_HEADLESS_PROBE=STALLED_NO_OUTPUT =>
+KILO_GOAL_CAPABILITY=UNVERIFIED_HEADLESS, CHILD_ENTRY=POINTER_FALLBACK.
+
 ## Autonomous continuation
 
 After routing, dispatch, harvest, or fan-in, continue with the next safe
