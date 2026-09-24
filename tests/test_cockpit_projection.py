@@ -576,7 +576,7 @@ def test_durable_wait_activity_distinguishes_ci_from_running_and_renders_countdo
     )
     assert lane.state is CockpitState.WAITING_CI
     assert lane.capacity_class == "BASE_MUTABLE"
-    assert lane.countdown_seconds == 522
+    assert lane.countdown_seconds == 0
     assert lane.next_recheck_at == "2026-09-20T09:48:42.000000Z"
     assert lane.last_activity == "2026-09-20T09:40:00.000000Z"
 
@@ -588,8 +588,37 @@ def test_durable_wait_activity_distinguishes_ci_from_running_and_renders_countdo
     )
     text = "\n".join(cockpit_monitor_lines(snapshot))
     assert "state: WAITING_CI" in text
-    assert "countdown: 08:42" in text
+    assert "countdown: 00:00" in text
     assert "recheck: 2026-09-20T09:48:42.000000Z" in text
+
+
+def test_activity_countdown_is_recomputed_at_snapshot_time() -> None:
+    lane = project_cockpit_lane(
+        _inputs(
+            execution=_execution(),
+            activity=_activity(
+                observed_at="2026-09-20T09:55:00.000000Z",
+                next_recheck_at="2026-09-20T10:10:00.000000Z",
+                countdown_seconds=900,
+            ),
+        ),
+        generated_at=GENERATED_AT,
+    )
+
+    assert lane.countdown_seconds == 600
+
+    without_absolute_time = project_cockpit_lane(
+        _inputs(
+            execution=_execution(),
+            activity=_activity(
+                observed_at="2026-09-20T09:55:00.000000Z",
+                next_recheck_at=None,
+                countdown_seconds=900,
+            ),
+        ),
+        generated_at=GENERATED_AT,
+    )
+    assert without_absolute_time.countdown_seconds == 600
 
 
 def test_cooldown_is_not_generic_running() -> None:
@@ -847,6 +876,31 @@ def test_monitor_capacity_counts_waiting_glm_active_child_and_marks_ambiguity() 
     )
     text = "\n".join(cockpit_monitor_lines(snapshot))
     assert "base-active=1/3 (+1 unknown-active)" in text
+
+
+def test_monitor_capacity_reports_lanes_without_capacity_evidence() -> None:
+    classified = _inputs(
+        execution=_execution(),
+        activity=_activity(
+            state="RUNNING",
+            capacity_class="BASE_MUTABLE",
+            countdown_seconds=None,
+            next_recheck_at=None,
+        ),
+    )
+    unclassified = _inputs(
+        identity=_identity(lane="unclassified"), execution=_execution()
+    )
+    snapshot = project_cockpit_snapshot(
+        CockpitObservations(
+            lanes=(classified, unclassified), generated_at=GENERATED_AT
+        )
+    )
+
+    text = "\n".join(cockpit_monitor_lines(snapshot))
+
+    assert "base-active=1/3" in text
+    assert "unclassified=1" in text
 
 
 # ---------------------------------------------------------------- Model 8
@@ -1592,6 +1646,53 @@ def test_build_observed_lane_inputs_truthful_absence_semantics() -> None:
     assert unreadable[0].identity.provenance == "CONTROL_CENTER_SNAPSHOT"
     assert unreadable[0].execution.reason == "PORT_UNAVAILABLE"
     assert unreadable[0].lease.reason == "PORT_UNAVAILABLE"
+
+
+@pytest.mark.parametrize("include_worker", (False, True))
+def test_parked_activity_composes_without_an_execution_record(include_worker) -> None:
+    from a_conductor.control_center import ControlCenterSnapshot
+
+    activity = _activity(
+        work_order_ref="WO-P1-537",
+        task_ref="PARKED-TASK",
+        lane_ref=_WORKER_ID,
+        execution_id=None,
+        state="PARKED_CAPACITY",
+        capacity_class="BORROWED_MUTABLE",
+        reason="BASE_LANE_RESUME_CAPACITY",
+        countdown_seconds=None,
+        next_recheck_at=None,
+    )
+    snapshot = ControlCenterSnapshot(
+        projects=(),
+        workers=(_authority_row(_WORKER_ID, _REPO_ROOT),) if include_worker else (),
+    )
+
+    lanes = build_observed_lane_inputs(
+        snapshot,
+        (),
+        (),
+        execution_authority_readable=True,
+        lease_authority_readable=True,
+        activities=(activity,),
+    )
+
+    assert len(lanes) == 1
+    assert lanes[0].identity.work_order_ref == "WO-P1-537"
+    assert lanes[0].identity.task_ref == "PARKED-TASK"
+    assert (
+        project_cockpit_lane(lanes[0], generated_at=GENERATED_AT).state
+        is CockpitState.PARKED_CAPACITY
+    )
+
+    control_center_lanes = build_control_center_lane_inputs(snapshot, (activity,))
+    assert len(control_center_lanes) == 1
+    assert (
+        project_cockpit_lane(
+            control_center_lanes[0], generated_at=GENERATED_AT
+        ).state
+        is CockpitState.PARKED_CAPACITY
+    )
 
 
 # ---------------------------------------------------------------- UI boundary

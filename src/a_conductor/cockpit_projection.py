@@ -542,9 +542,46 @@ def _activity_fresh(activity: CockpitActivityObservation, generated_at: str | No
         if generated_dt.tzinfo is None:
             return False
         generated_dt = generated_dt.astimezone(timezone.utc)
-        return observed_dt <= generated_dt and generated_dt - observed_dt <= timedelta(minutes=30)
+        return (
+            observed_dt <= generated_dt
+            and generated_dt - observed_dt <= timedelta(minutes=30)
+        )
     except (TypeError, ValueError):
         return False
+
+
+def _activity_countdown_seconds(
+    activity: CockpitActivityObservation, generated_at: str | None
+) -> int | None:
+    if not generated_at:
+        return None
+    try:
+        generated_dt = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+        if generated_dt.tzinfo is None:
+            return None
+        if isinstance(activity.next_recheck_at, str):
+            recheck_dt = datetime.fromisoformat(
+                activity.next_recheck_at.replace("Z", "+00:00")
+            )
+            if recheck_dt.tzinfo is None:
+                return None
+            seconds = (recheck_dt - generated_dt).total_seconds()
+        elif activity.countdown_seconds is not None and isinstance(
+            activity.observed_at, str
+        ):
+            observed_dt = datetime.fromisoformat(
+                activity.observed_at.replace("Z", "+00:00")
+            )
+            if observed_dt.tzinfo is None:
+                return None
+            seconds = activity.countdown_seconds - (
+                generated_dt - observed_dt
+            ).total_seconds()
+        else:
+            return None
+        return max(0, int(seconds))
+    except (TypeError, ValueError):
+        return None
 
 
 def _process_identity(
@@ -621,7 +658,11 @@ def project_cockpit_lane(
         capacity_class=activity.capacity_class if activity.available else None,
         wait_reason=activity.reason if activity.available else None,
         next_recheck_at=activity.next_recheck_at if activity.available else None,
-        countdown_seconds=activity.countdown_seconds if activity.available else None,
+        countdown_seconds=(
+            _activity_countdown_seconds(activity, generated_at)
+            if activity.available
+            else None
+        ),
         active_mutation_child=(
             activity.active_mutation_child if activity.available else None
         ),
@@ -966,10 +1007,40 @@ def _worker_worktree_anchor(row) -> str | None:
     return windows_worktree_key(path)
 
 
+def _unanchored_activity_lane_inputs(
+    activity: CockpitActivityObservation, *, execution_reason: str
+) -> CockpitLaneInputs:
+    """Retain durable parked-claim identity when no worker/execution row exists."""
+    return CockpitLaneInputs(
+        identity=CockpitLaneIdentity(
+            work_order_ref=activity.work_order_ref,
+            task_ref=activity.task_ref,
+            topology=None,
+            lane=activity.lane_ref,
+            executor=_NOT_DECLARED,
+            provider=None,
+            harness=None,
+            authority_repo=None,
+            execution_repo=None,
+            worktree=None,
+            branch=None,
+            expected_head=None,
+            execution_id=None,
+            lease_id=None,
+            provenance=_ACTIVITY_PROVENANCE,
+        ),
+        execution=CockpitExecutionObservation.unavailable(execution_reason),
+        lease=CockpitLeaseObservation.unavailable(_PORT_UNAVAILABLE),
+        git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
+        gates=CockpitGateEvidence(),
+        activity=activity,
+    )
+
+
 def build_control_center_lane_inputs(
     snapshot, activities: tuple[CockpitActivityObservation, ...] = ()
 ) -> tuple[CockpitLaneInputs, ...]:
-    """Wrap ControlCenterSnapshot workers as lane inputs with UNKNOWN truth.
+    """Wrap workers and unmatched parked activities as read-only lane inputs.
 
     The desktop control-center authority observes worker/assignment rows
     only; execution, lease, git, and gate evidence has no accepted desktop
@@ -977,33 +1048,67 @@ def build_control_center_lane_inputs(
     """
     workers = tuple(getattr(snapshot, "workers", None) or ())
     by_lane = {item.lane_ref: item for item in activities if item.available}
-    return tuple(
-        CockpitLaneInputs(
-            identity=CockpitLaneIdentity(
-                work_order_ref=_NOT_DECLARED,
-                task_ref=_NOT_DECLARED,
-                topology=None,
-                lane=row.worker_id,
-                executor=_worker_display(row) or row.worker_id,
-                provider=None,
-                harness=getattr(row, "runtime_id", None),
-                authority_repo=None,
-                execution_repo=None,
-                worktree=_worker_worktree_anchor(row),
-                branch=None,
-                expected_head=None,
-                execution_id=None,
-                lease_id=None,
-                provenance=_CONTROL_CENTER_PROVENANCE,
-            ),
-            execution=CockpitExecutionObservation.unavailable(_PORT_UNAVAILABLE),
-            lease=CockpitLeaseObservation.unavailable(_PORT_UNAVAILABLE),
-            git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
-            gates=CockpitGateEvidence(),
-            activity=by_lane.get(row.worker_id, CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)),
+    lanes: list[CockpitLaneInputs] = []
+    for row in workers:
+        activity = by_lane.get(
+            row.worker_id, CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)
         )
-        for row in workers
-    )
+        parked = activity.available and activity.state == "PARKED_CAPACITY"
+        lanes.append(
+            CockpitLaneInputs(
+                identity=CockpitLaneIdentity(
+                    work_order_ref=(
+                        activity.work_order_ref if parked else _NOT_DECLARED
+                    ),
+                    task_ref=activity.task_ref if parked else _NOT_DECLARED,
+                    topology=None,
+                    lane=activity.lane_ref if parked else row.worker_id,
+                    executor=_worker_display(row) or row.worker_id,
+                    provider=None,
+                    harness=getattr(row, "runtime_id", None),
+                    authority_repo=None,
+                    execution_repo=None,
+                    worktree=_worker_worktree_anchor(row),
+                    branch=None,
+                    expected_head=None,
+                    execution_id=None,
+                    lease_id=None,
+                    provenance=(
+                        _ACTIVITY_PROVENANCE
+                        if parked
+                        else _CONTROL_CENTER_PROVENANCE
+                    ),
+                ),
+                execution=CockpitExecutionObservation.unavailable(
+                    _PORT_UNAVAILABLE
+                ),
+                lease=CockpitLeaseObservation.unavailable(_PORT_UNAVAILABLE),
+                git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
+                gates=CockpitGateEvidence(),
+                activity=activity,
+            )
+        )
+    represented_lanes = {lane.identity.lane for lane in lanes}
+    for activity in sorted(
+        (
+            item for item in activities
+            if item.available
+            and item.state == "PARKED_CAPACITY"
+            and item.lane_ref not in represented_lanes
+        ),
+        key=lambda item: (
+            item.lane_ref or "",
+            item.work_order_ref or "",
+            item.task_ref or "",
+        ),
+    ):
+        lanes.append(
+            _unanchored_activity_lane_inputs(
+                activity, execution_reason=_PORT_UNAVAILABLE
+            )
+        )
+        represented_lanes.add(activity.lane_ref)
+    return tuple(lanes)
 
 
 def build_observed_lane_inputs(
@@ -1022,8 +1127,10 @@ def build_observed_lane_inputs(
     record itself; control-center workers without any durable record render
     NOT_DECLARED lanes whose execution truth is positively RECORD_NOT_FOUND
     when the execution authority read succeeded, and PORT_UNAVAILABLE
-    otherwise. Worker display names are attached where the control-center
-    snapshot permits; worker_id remains the stable lane identity.
+    otherwise. A durable PARKED_CAPACITY monitor record without an execution
+    record remains visible under its exact work-order/task/lane identity.
+    Worker display names are attached where the control-center snapshot
+    permits; worker_id remains the stable lane identity.
 
     Origin/session provenance (WO-P1-493) joins by execution_id as display
     context only, deterministically pinned to the earliest observed opaque
@@ -1115,13 +1222,19 @@ def build_observed_lane_inputs(
         if row.worker_id in observed_workers:
             continue
         lease = leases_by_worker.get(row.worker_id)
+        activity = activities_by_lane.get(
+            row.worker_id, CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)
+        )
+        parked = activity.available and activity.state == "PARKED_CAPACITY"
         lanes.append(
             CockpitLaneInputs(
                 identity=CockpitLaneIdentity(
-                    work_order_ref=_NOT_DECLARED,
-                    task_ref=_NOT_DECLARED,
+                    work_order_ref=(
+                        activity.work_order_ref if parked else _NOT_DECLARED
+                    ),
+                    task_ref=activity.task_ref if parked else _NOT_DECLARED,
                     topology=None,
-                    lane=row.worker_id,
+                    lane=activity.lane_ref if parked else row.worker_id,
                     executor=_worker_display(row) or row.worker_id,
                     provider=None,
                     harness=getattr(row, "runtime_id", None),
@@ -1132,7 +1245,11 @@ def build_observed_lane_inputs(
                     expected_head=None,
                     execution_id=None,
                     lease_id=lease.lease_id if lease else None,
-                    provenance=_CONTROL_CENTER_PROVENANCE,
+                    provenance=(
+                        _ACTIVITY_PROVENANCE
+                        if parked
+                        else _CONTROL_CENTER_PROVENANCE
+                    ),
                 ),
                 execution=CockpitExecutionObservation.unavailable(
                     _RECORD_NOT_FOUND if execution_authority_readable else _PORT_UNAVAILABLE
@@ -1141,12 +1258,34 @@ def build_observed_lane_inputs(
                 git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
                 gates=CockpitGateEvidence(),
                 origin=_unavailable_origin,
-                activity=activities_by_lane.get(
-                    row.worker_id,
-                    CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE),
+                activity=activity,
+            )
+        )
+    represented_lanes = {lane.identity.lane for lane in lanes}
+    for activity in sorted(
+        (
+            item for item in activities
+            if item.available
+            and item.state == "PARKED_CAPACITY"
+            and item.lane_ref not in represented_lanes
+        ),
+        key=lambda item: (
+            item.lane_ref or "",
+            item.work_order_ref or "",
+            item.task_ref or "",
+        ),
+    ):
+        lanes.append(
+            _unanchored_activity_lane_inputs(
+                activity,
+                execution_reason=(
+                    _RECORD_NOT_FOUND
+                    if execution_authority_readable
+                    else _PORT_UNAVAILABLE
                 ),
             )
         )
+        represented_lanes.add(activity.lane_ref)
     return tuple(lanes)
 
 

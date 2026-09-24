@@ -167,6 +167,39 @@ def test_cockpit_activity_reader_failure_degrades_without_inventing_wait(tmp_pat
     assert snapshot.lanes[0].wait_reason is None
 
 
+def test_parked_claim_without_worker_or_execution_row_is_visible(tmp_path) -> None:
+    from a_conductor.cockpit_projection import (
+        CockpitActivityObservation,
+        CockpitState,
+    )
+
+    activity = CockpitActivityObservation(
+        available=True,
+        provenance="DURABLE_MONITOR_RECORD",
+        work_order_ref="WO-P1-537",
+        task_ref="PARKED-TASK",
+        lane_ref="borrowed-claim",
+        state="PARKED_CAPACITY",
+        capacity_class="BORROWED_MUTABLE",
+        observed_at="2026-09-20T09:55:00Z",
+        reason="BASE_LANE_RESUME_CAPACITY",
+    )
+    service = DesktopControlService(
+        control_center=_FakeControlCenter(),
+        lifecycle=_FakeLifecycle(),
+        cockpit_activity_reader=lambda: (activity,),
+        instances_root=tmp_path,
+    )
+
+    snapshot = service.cockpit_projection(generated_at="2026-09-20T10:00:00Z")
+
+    parked = [lane for lane in snapshot.lanes if lane.identity.lane == "borrowed-claim"]
+    assert len(parked) == 1
+    assert parked[0].state is CockpitState.PARKED_CAPACITY
+    assert parked[0].identity.work_order_ref == "WO-P1-537"
+    assert parked[0].identity.task_ref == "PARKED-TASK"
+
+
 class _FakeLifecycle:
     def __init__(self):
         self.calls = []

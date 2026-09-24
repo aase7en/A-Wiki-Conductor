@@ -210,3 +210,31 @@ Static review identified that direct lane projection without `generated_at`
 could not prove activity freshness. Such activity now fails closed, with a
 focused regression; the identity-mismatch test name now describes the asserted
 behavior. This follow-up remains within the existing three-path repair scope.
+
+## Independent R3 review follow-up — 2026-09-24
+
+The independent MAX review of exact candidate
+`e64b6692d38bd13ed7ab85bbc33591a5f14d0fea` returned `NEEDS_FIX`, P0=0,
+P1=0, P2=3. Findings were: a stored countdown was rendered without adjusting
+for snapshot time; the capacity line silently omitted lanes with no accepted
+capacity class; and a parked borrowed claim without a matching execution or
+worker row was lost by the composition builders.
+
+Bounded repairs are implemented locally on this WO's existing feature branch
+and exact allowed paths only:
+
+- compute countdown seconds at `generated_at` from `next_recheck_at`, with an
+  observed-countdown fallback; malformed/missing time evidence is omitted;
+- include unclassified lanes in capacity coverage instead of implying a
+  complete count;
+- retain exact WO/task/lane identity from a durable parked-activity record and
+  compose unmatched parked claims even without an execution/worker row.
+
+RED-first regressions reproduced all three findings. Focused verification
+passes: 155 passed, 1 deselected (known macOS-hosted Windows-path fixture).
+`py_compile`, `git diff --check`, strict UTF-8, exact modified-path scope, and
+added-line secret-pattern checks pass. The worktree is still dirty at the old
+`e64b669` HEAD; the repaired candidate is not committed or pushed yet. Do not
+accept or merge the prior `e64b669` review/CI evidence. Next: commit and push
+one repaired candidate, obtain a fresh independent exact-SHA R3 review and
+exact-head hosted CI, then repeat GPT acceptance against that SHA.

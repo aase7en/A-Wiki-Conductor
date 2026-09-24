@@ -793,6 +793,7 @@ def cockpit_monitor_lines(snapshot: CockpitSnapshot) -> tuple[str, ...]:
         header += f" · STALE ({snapshot.stale_reason or 'SOURCE_DRIFT_DETECTED'})"
     lines = [header, f"  generated: {snapshot.generated_at or '-'}"]
     capacity_lanes = tuple(lane for lane in snapshot.lanes if lane.capacity_class)
+    unclassified_capacity = sum(not lane.capacity_class for lane in snapshot.lanes)
     if capacity_lanes:
         base_active = sum(
             lane.capacity_class == "BASE_MUTABLE"
@@ -836,12 +837,20 @@ def cockpit_monitor_lines(snapshot: CockpitSnapshot) -> tuple[str, ...]:
             }
             for lane in capacity_lanes
         )
-        lines.append(
+        capacity_line = (
             "  capacity observed: "
             + f"base-active={base_active}/3"
             + (f" (+{base_active_unknown} unknown-active) " if base_active_unknown else " ")
             + f"borrowed-active={borrowed_active}/2 "
             + f"parked={parked} review={review}/1 waits={waits}"
+        )
+        if unclassified_capacity:
+            capacity_line += f" unclassified={unclassified_capacity}"
+        lines.append(capacity_line)
+    elif snapshot.lanes:
+        lines.append(
+            "  capacity evidence: no classified lanes; "
+            + f"unclassified={unclassified_capacity}"
         )
     if snapshot.degraded_observability:
         lines.append("  observability: " + ", ".join(snapshot.degraded_observability))
