@@ -19,8 +19,8 @@ _MAX_RECEIPT_BYTES = 65_536
 _RECEIPT_MARKER = re.compile(r"(?m)^A_SUNDAY_TURN_RECEIPT_REF=(.+?)\s*$")
 _KILO_RUN = re.compile(
     r"""(?ix)(?:^|[\s;&|])(?:
-        "[^"\r\n]*[\\/]kilo(?:\.(?:exe|cmd|bat))?"
-        |'[^'\r\n]*[\\/]kilo(?:\.(?:exe|cmd|bat))?'
+        "(?:[^"\r\n]*[\\/])?kilo(?:\.(?:exe|cmd|bat))?"
+        |'(?:[^'\r\n]*[\\/])?kilo(?:\.(?:exe|cmd|bat))?'
         |(?:[A-Za-z]:)?(?:[^\s"';&|]+[\\/])+kilo(?:\.(?:exe|cmd|bat))?
         |kilo(?:\.(?:exe|cmd|bat))?
     )\s+run\b"""

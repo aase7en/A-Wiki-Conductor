@@ -206,6 +206,24 @@ values. Post-repair related verification is **337 passed** plus py_compile, hook
 parse, and `git diff --check` PASS. A fresh exact SHA still requires new independent
 review and hosted CI.
 
+## Final R4 review repair checkpoint
+
+Independent exact-SHA review of candidate
+`8a1da4eb1433cfabb3a7a960d3df739dc2c863cd` returned
+`CHANGES_REQUIRED` with P0=0, P1=1, P2=1, P3=0:
+
+- P1: quoted bare executables such as `"kilo.cmd" run ...` and
+  `'kilo.exe' run ...` were not matched by the direct-Kilo bypass guard.
+- P2: the loader already rejected a `receipt_ref` that resolves to a
+  different file, but no negative regression locked that fail-closed behavior.
+
+The bounded repair keeps the existing #545 authority boundary. Quoted Kilo
+patterns now allow either a quoted bare executable or a quoted path while
+still matching only `kilo[.exe|.cmd|.bat] run`. Regressions cover quoted bare
+`kilo`, `kilo.exe`, and `kilo.cmd` forms plus a canonical receipt whose
+`receipt_ref` points at a different file. No dispatch, scheduler, task, lease,
+quota, provider, review, merge, or completion authority is added.
+
 ## Remaining acceptance gates
 
 Before acceptance:

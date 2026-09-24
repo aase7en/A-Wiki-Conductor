@@ -145,6 +145,10 @@ def test_direct_kilo_heavy_bypass_is_denied_but_readiness_probe_is_not() -> None
         "kilo run --model cointh-glm/glm-5.3 --variant max task",
         r'"C:\Users\me\AppData\Roaming\npm\kilo.cmd" run task',
         r"'C:\Program Files\Kilo\kilo.exe' run task",
+        '"kilo.cmd" run task',
+        "'kilo.exe' run task",
+        '"kilo" run task',
+        "'kilo' run task",
         r"C:\tools\kilo.bat run task",
         "/opt/kilo/bin/kilo run task",
     )
@@ -404,4 +408,12 @@ def test_wo545_receipt_must_be_canonical_file_in_matching_run_directory() -> Non
         wrong_name.parent.mkdir()
         wrong_name.write_text(json.dumps(_receipt(wrong_name)), encoding="utf-8")
         payload["last_assistant_message"] = f"A_SUNDAY_TURN_RECEIPT_REF={wrong_name}"
+        assert _run(payload) == {}
+
+        canonical = Path(td) / "nightshift-hook-test" / "turn-receipt.json"
+        mismatched_ref = Path(td) / "nightshift-hook-test" / "different-receipt.json"
+        receipt = _receipt(canonical)
+        receipt["receipt_ref"] = str(mismatched_ref)
+        canonical.write_text(json.dumps(receipt), encoding="utf-8")
+        payload["last_assistant_message"] = f"A_SUNDAY_TURN_RECEIPT_REF={canonical}"
         assert _run(payload) == {}
