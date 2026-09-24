@@ -1,7 +1,7 @@
 # Elastic Multi-Agent Leverage Roadmap
 
 Date: 2026-09-07
-Status: SHAPING / P0 ZERO-RELAY PRIORITY FENCE / NO FLEET IMPLEMENTATION AUTHORITY
+Status: SHAPING / #537 PURE ELASTIC-WIP + READ-ONLY COCKPIT SLICE AUTHORIZED / NO GENERAL FLEET AUTHORITY
 Repository: `aase7en/A-Wiki-Conductor`
 Baseline at creation: `origin/main@df5a25f1f9949e6938ea4bbcf0150515e6e5fa85` (PR #221 / ZRA-1 merged)
 Final shaping fold re-pinned on 2026-09-12 to `origin/main@cfcb369fe5ab3a50569defa822289f10f2f38aac`. The dependency order at that fold was `ZRA-2 -> ZRA-3 -> ZRA-4` (relative order unchanged by the 2026-09-17 recomposition); Phase B was accepted/post-main and Phase C0 / WO216 was the ZRA-2 implementation frontier at that time.
@@ -13,6 +13,53 @@ Evolve A-Sunday Conductor from a fixed small set of parallel lanes into a provid
 
 This document does not authorize implementation or reorder the accepted Zero-Relay roadmap. It records the target architecture and acceptance principles so future sessions do not depend on chat memory.
 
+## 2026-09-24 elastic borrowed-lane override — Issue #537
+
+The user explicitly authorized an **elastic claimed-WIP layer** so long external,
+CI and provider-cooldown waits do not leave safe compute idle or make the system
+appear frozen.
+
+This is an override of older static wording only where “3 mutable” was interpreted
+as a hard cap on *all claimed mutable lanes*. It does **not** raise the normal
+simultaneous mutation-compute ceiling.
+
+```text
+BASE_ACTIVE_MUTATION_LIMIT = 3
+BORROWED_LANE_LIMIT        = 2
+MUTABLE_CLAIM_LIMIT        = 5
+INDEPENDENT_REVIEW_LIMIT   = 1
+```
+
+Admission semantics:
+
+1. Borrow capacity exists only for base claims truthfully in an eligible passive
+   wait: `WAITING_APPROVAL`, `WAITING_CI`, passive `WAITING_GLM`, `WAITING_JEV`,
+   `WAITING_EXTERNAL` or `COOLDOWN`. A `WAITING_GLM` lane with an active delegated
+   mutation child is not passive and does not free that mutation slot.
+2. A borrowed lane requires real independent `READY` work plus the normal exact
+   scope/hotspot, claim/lease, runtime and provider gates.
+3. `BLOCKED`, `HUMAN_REQUIRED`, unknown evidence and collisions do not create
+   borrowed capacity.
+4. Existing parked borrowed work resumes before a new borrowed claim is created.
+5. The classifier may report `borrow_target`, `resume_target` or
+   `borrowed_to_park`; it never dispatches, claims or mutates by itself.
+6. Total active mutation remains `<= 3`; total mutable claims remain `<= 5`;
+   review remains separately capped at `1`.
+
+Contraction is deterministic. When a base wait resolves, reserve its active slot
+first. If the projected active mutation count would exceed three, enough borrowed
+lanes must finish only their current bounded micro-step, checkpoint using existing
+authority and transition to `PARKED_CAPACITY` before the returning base lane resumes.
+No reset, stash, broad kill, claim duplication or silent redispatch is permitted.
+
+The companion Mission Control roadmap
+`docs/plans/2026-09-24-mission-control-agent-digital-twin.md` owns the operator UX:
+wait type, reason, last activity, next recheck/countdown, borrowed/parked state and
+observed capacity. It consumes durable evidence and creates no monitor state store.
+
+Issue #537 authorizes the pure policy classifier and read-only Cockpit projection
+slice. Executable A-Faster consumption remains a bounded successor after #530
+ownership releases, so the current implementation does not collide with #530.
 
 ## 2026-09-12 priority fence and deep-audit fold
 

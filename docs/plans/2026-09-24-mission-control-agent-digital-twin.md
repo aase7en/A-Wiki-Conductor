@@ -1,6 +1,6 @@
 # A-Conductor Mission Control — Agent Digital Twin
 
-Status: ROADMAP / NOT IMPLEMENTATION-AUTHORIZED
+Status: ROADMAP / MC-0 + MC-1 ELASTIC-WAIT SLICE IMPLEMENTATION-AUTHORIZED / MC-2+ SHAPING
 Date: 2026-09-24
 Topology: CONTROL_PLANE_ONLY UI/observability projection
 Parent roadmap: `docs/plans/2026-09-19-a-faster-hook-stm-observability-roadmap.md`
@@ -38,6 +38,41 @@ All UI state is derived from the accepted Monitor projection/API. If the project
 is stale, missing or contradictory, the UI must show `STALE`, `UNKNOWN` or
 `DEGRADED` rather than inventing a clean state.
 
+### 2.1 2026-09-24 operator decision — elastic borrowed lanes
+
+The fixed operator interpretation of “3 mutable lanes total” is superseded for
+**claimed WIP** by an elastic borrowed-lane policy:
+
+- normal active mutation compute budget = **3**;
+- borrowed mutable claim capacity = **up to 2**;
+- total mutable claims = **up to 5**;
+- independent read-only review = **up to 1**, accounted separately;
+- **5 claims never means 5 simultaneous active mutations**.
+
+A borrowed claim is admitted only when a base lane is truthfully in an eligible
+passive wait (`WAITING_APPROVAL`, `WAITING_CI`, passive `WAITING_GLM`,
+`WAITING_JEV`, `WAITING_EXTERNAL` or `COOLDOWN`), independent `READY` work
+exists, exact scope/hotspot checks are clean, and the existing claim/lease/runtime
+admission gates pass. `BLOCKED` and `HUMAN_REQUIRED` do not manufacture borrow
+capacity. A `WAITING_GLM` parent does not free a mutable slot while its delegated
+GLM child is still the active mutation owner; actual mutation evidence outranks the
+wait label.
+
+When a base lane becomes runnable again, it has priority over borrowed capacity.
+If resuming it would exceed three active mutations, the borrowed lane finishes only
+its current bounded micro-step, checkpoints through existing authority, and becomes
+`PARKED_CAPACITY`. It is later resumed from that same claim; it is never killed,
+reset, stashed, duplicated or silently redispatched merely to shrink WIP.
+
+Operational rule: **WAIT != IDLE**. A wait longer than roughly 30–60 seconds should
+become visible operator state and should permit safe independent auto-fill rather
+than making the system appear frozen.
+
+Issue #537 owns the first bounded implementation: a pure elastic-WIP classifier plus
+read-only Cockpit wait/capacity projection. Executable A-Faster consumption remains
+a successor integration after the current #530 ownership releases; #537 must not
+collide with #530-owned paths.
+
 ## 3. 3D scene model
 
 Preferred visualization direction: React + Three.js / React Three Fiber, subject to
@@ -64,13 +99,17 @@ Visual state must be deterministic, not cosmetic.
 Examples:
 - pulse / subtle motion = actively executing;
 - slow orbit / breathing = `WAITING_EXTERNAL`;
+- CI progress arc + countdown = `WAITING_CI`;
+- timed dim pulse + next-recheck label = `COOLDOWN`;
+- active borrowed badge = `BORROWED_ACTIVE`;
+- paused/checkpoint badge = `PARKED_CAPACITY`;
+- explicit red stop = `BLOCKED`; explicit operator badge = `HUMAN_REQUIRED`;
 - static ready ring = `READY`;
 - ownership ring = current claim/hotspot owner;
 - animated edge = handoff/tool/model call in progress;
 - warning halo = degraded/ambiguous evidence;
 - frozen/locked node = real stop gate;
 - broken/faded edge = unavailable route;
-- CI progress arc = exact GitHub Actions state;
 - queue marker = queued continuation/message;
 - collision marker = competing hotspot/request denied.
 
@@ -93,8 +132,14 @@ For an agent/execution:
 - evidence pointers.
 
 For A-Faster:
-- mutable lanes used / max 3;
+- base active mutation lanes / max 3;
+- borrowed mutable claims / max 2;
+- total mutable claims / max 5;
+- borrowed state: active vs `PARKED_CAPACITY`;
 - review lane used / max 1;
+- active waits by type (`WAITING_APPROVAL`, `WAITING_CI`, `WAITING_GLM`,
+  `WAITING_JEV`, `WAITING_EXTERNAL`, `COOLDOWN`);
+- wait reason + next recheck + countdown when authoritative evidence supplies them;
 - `FANOUT_TARGET`;
 - `UNUSED_SAFE_CAPACITY`;
 - `A_FASTER_UNDERUTILIZED`;
@@ -172,7 +217,9 @@ Unknown or unavailable pricing/quota data must display as unknown, never zero.
 Freeze scene vocabulary, state-to-visual mapping, data contract and failure semantics.
 
 ### MC-1 — read-only 2D operator console
-Consume MON-1 projection; prove exact state semantics before 3D.
+Consume MON-1 projection; prove exact state semantics before 3D. The first authorized
+slice is Issue #537: explicit wait/cooldown/countdown plus base/borrowed/parked
+capacity visibility. No new control authority is added.
 
 ### MC-2 — 3D Agent Digital Twin
 Add topology scene, interactive nodes/edges, status animation and project clustering.
@@ -231,6 +278,9 @@ Acceptance should include:
 - bounded memory for timeline replay;
 - 3D animation pauses/reduces when tab is hidden;
 - no stale animation that falsely suggests active progress;
+- waits longer than 30–60 seconds expose typed reason plus next-recheck/countdown
+  when durable evidence exists, rather than leaving the operator with generic
+  activity/spinner feedback;
 - keyboard and non-3D navigation remain available;
 - mobile view remains operational on modest hardware.
 
