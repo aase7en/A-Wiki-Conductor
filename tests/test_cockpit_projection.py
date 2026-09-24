@@ -1760,6 +1760,77 @@ def test_duplicate_activity_lane_refs_are_preserved_and_marked(builder) -> None:
     assert "ACTIVITY_LANE_COLLISION" in "\n".join(
         cockpit_monitor_lines(snapshot_projection)
     )
+    assert "collisions=2" in "\n".join(
+        cockpit_monitor_lines(snapshot_projection)
+    )
+
+
+@pytest.mark.parametrize("lane_ref_kind", ("compound", "bare_execution"))
+def test_parked_activity_already_joined_to_execution_is_not_double_counted(
+    lane_ref_kind,
+) -> None:
+    from a_conductor.control_center import ControlCenterSnapshot
+
+    if lane_ref_kind == "compound":
+        worker_id = _WORKER_ID
+        lane_ref = f"{worker_id}:exec-0001"
+        snapshot = ControlCenterSnapshot(
+            projects=(), workers=(_authority_row(worker_id, _REPO_ROOT),)
+        )
+        execution = _execution()
+    else:
+        worker_id = None
+        lane_ref = "exec-0001"
+        snapshot = ControlCenterSnapshot(projects=(), workers=())
+        execution = _execution(worker_id=None)
+    activity = _activity(
+        work_order_ref="WO-P1-537",
+        task_ref="PARKED-TASK",
+        lane_ref=lane_ref,
+        execution_id="exec-0001" if lane_ref_kind == "bare_execution" else None,
+        state="PARKED_CAPACITY",
+        capacity_class="BORROWED_MUTABLE",
+    )
+
+    lanes = build_observed_lane_inputs(
+        snapshot,
+        (execution,),
+        (),
+        execution_authority_readable=True,
+        lease_authority_readable=True,
+        activities=(activity,),
+    )
+
+    assert len(lanes) == 1
+    assert lanes[0].activity is activity
+    projected = project_cockpit_lane(lanes[0], generated_at=GENERATED_AT)
+    assert projected.state is CockpitState.RUNNING
+
+
+def test_unmatched_mixed_activity_collision_preserves_every_claim_identity() -> None:
+    from a_conductor.control_center import ControlCenterSnapshot
+
+    activities = (
+        _activity(work_order_ref="WO-A", task_ref="PARKED-TASK", lane_ref="shared-lane",
+                  execution_id=None, state="PARKED_CAPACITY",
+                  capacity_class="BORROWED_MUTABLE"),
+        _activity(work_order_ref="WO-B", task_ref="WAITING-TASK", lane_ref="shared-lane",
+                  execution_id=None, state="WAITING_CI", capacity_class="BASE_MUTABLE"),
+    )
+    lanes = build_observed_lane_inputs(
+        ControlCenterSnapshot(projects=(), workers=()),
+        (), (), execution_authority_readable=True,
+        lease_authority_readable=True, activities=activities,
+    )
+    assert len(lanes) == 2
+    assert {lane.identity.task_ref for lane in lanes} == {
+        "PARKED-TASK", "WAITING-TASK"
+    }
+    assert all(
+        project_cockpit_lane(lane, generated_at=GENERATED_AT).blocker_code
+        == "ACTIVITY_LANE_COLLISION"
+        for lane in lanes
+    )
 
 
 # ---------------------------------------------------------------- UI boundary

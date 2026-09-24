@@ -285,3 +285,52 @@ Changes remain uncommitted on the existing WO branch and within its allowed
 paths. Next: finish source/scope/secret review, record the exact checkpoint,
 then commit, push fast-forward, and obtain fresh independent review plus CI for
 the resulting SHA. Do not use earlier `a8c68427` review/CI as acceptance.
+
+## Independent R3 review follow-up 3 — 2026-09-24
+
+The independent exact-SHA review of pushed candidate
+`1dd9276c8a1bf51b63baa26e0f8be4712f39868c` returned `NEEDS_FIX`, P0=0,
+P1=0, P2=1, P3=4. The four prior P2s were verified fixed, including RED-first
+parent comparison (6 regressions failed on parent; 113 policy/projection tests
+passed on candidate). Desktop-control verification had 48 passed and the
+already documented macOS-only Windows-path fixture failure. Review and CI
+evidence is scoped to `1dd9276`; its hosted CI was still in progress.
+
+New P2: `build_observed_lane_inputs` no longer includes emitted execution-lane
+identities in `represented_lanes`, so an activity keyed by a supported
+compound worker/execution key or bare execution ID can be attached to an
+execution lane and emitted again as unmatched parked work. Reviewer probes
+reproduced one record becoming two lanes and `parked=2`; the compound case also
+produces an unmarked RUNNING/PARKED duplicate. Unmatched mixed-state collision
+groups also retain only PARKED records, hiding the other claim identity.
+Repair with RED-first regressions: suppress already represented execution
+keys and preserve/mark every record in a true collision group.
+
+Non-blocking review notes: collision lanes are absent from capacity-summary
+buckets; unknown GLM child status is not counted conservatively against active
+compute; one invalid activity can degrade the full activity pin; mixed-state
+collision identity is hidden. Address summary visibility and conservative
+active-compute accounting if bounded by this same projection/policy repair;
+do not widen into ingestion/store authority. Worktree was verified clean and
+remote branch at the reviewed SHA before this checkpoint. Next: add the new
+regressions, repair, rerun focused tests, checkpoint, then obtain fresh exact-
+SHA review and CI for the resulting pushed SHA.
+
+## Independent R3 review follow-up 3 repair checkpoint — 2026-09-24
+
+RED-first regressions reproduced the new P2 on `1dd9276` for both supported
+execution-lane key forms (compound `worker:execution` and bare execution ID),
+plus the mixed-state collision identity loss. The repair now counts emitted
+execution lane identities as represented before adding unmatched parked work;
+preserves every distinct record in an unmatched lane collision group; and
+surfaces collision lane count in the capacity summary. Unknown GLM child status
+is conservatively counted against active compute as well as removed from
+borrowable GLM waits, closing the reviewer’s 4/3 worst-case occupancy concern.
+
+RED run: four new regressions failed on `1dd9276`. Current focused verification
+passes: 165 passed, 1 deselected (the known host-specific fixture). This
+checkpoint is on dirty working tree parented by pushed `1dd9276`; rerun
+`py_compile`, diff/UTF-8/scope/secret checks, then commit and push fast-forward.
+The prior exact-SHA review was `NEEDS_FIX`; its CI run `36006955102` targeted
+`1dd9276` and cannot accept the changed candidate. Next gate: fresh independent
+exact-SHA review and exact-head hosted CI, then final GPT acceptance.

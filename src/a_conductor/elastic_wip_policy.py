@@ -115,7 +115,13 @@ class ElasticWipFacts:
 
     @property
     def active_base_mutations(self) -> int:
-        return self.base_active + self.glm_wait_active_mutation_children
+        # Unknown child state is conservatively active for compute occupancy;
+        # it cannot free a slot merely because the monitor lacks evidence.
+        return (
+            self.base_active
+            + self.glm_wait_active_mutation_children
+            + self.glm_wait_unknown_mutation_children
+        )
 
 
 @dataclass(frozen=True)

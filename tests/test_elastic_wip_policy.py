@@ -176,6 +176,21 @@ def test_unknown_glm_child_status_does_not_create_borrow_capacity() -> None:
     assert "WAITING_GLM_CHILD_STATUS_UNKNOWN" in verdict.blockers
 
 
+def test_unknown_glm_child_counts_against_active_compute_ceiling() -> None:
+    with pytest.raises(ValueError, match="WIP_OVERCOMMIT_ACTIVE"):
+        classify_elastic_wip(
+            _facts(
+                base_active=2,
+                base_waiting_ci=0,
+                base_waiting_glm=1,
+                glm_wait_unknown_mutation_children=1,
+                borrowed_active=1,
+                base_waiting_external=0,
+                ready_independent_candidates=0,
+            )
+        )
+
+
 def test_active_and_unknown_glm_child_counts_cannot_exceed_wait_lanes() -> None:
     with pytest.raises(ValueError):
         ElasticWipFacts(

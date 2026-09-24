@@ -1114,7 +1114,7 @@ def build_control_center_lane_inputs(
         for lane_ref, group in by_lane.items()
         if lane_ref not in represented_lanes
         for item in group
-        if item.state == "PARKED_CAPACITY"
+        if item.state == "PARKED_CAPACITY" or len(group) > 1
     ]
     for activity, collision in sorted(
         unmatched_parked,
@@ -1297,15 +1297,16 @@ def build_observed_lane_inputs(
                     activity_collision=len(matches) > 1,
                 )
             )
-    represented_lanes = {
+    represented_lanes = {lane.identity.lane for lane in lanes}
+    represented_lanes.update(
         row.worker_id for row in workers if row.worker_id not in observed_workers
-    }
+    )
     unmatched_parked = [
         (item, len(group) > 1)
         for lane_ref, group in activities_by_lane.items()
         if lane_ref not in represented_lanes
         for item in group
-        if item.state == "PARKED_CAPACITY"
+        if item.state == "PARKED_CAPACITY" or len(group) > 1
     ]
     for activity, collision in sorted(
         unmatched_parked,
