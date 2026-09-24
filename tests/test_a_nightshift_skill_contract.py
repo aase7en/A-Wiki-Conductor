@@ -1454,3 +1454,89 @@ def test_attempt0003_reviewer_escape_vectors_are_rejected_per_copy() -> None:
                 label, pre_only
             ),
         )
+
+
+# --- WO-P1-529 one-shot continuation regression pins ---
+
+def test_wo529_skill_pins_frontier_local_only_quota_and_integrator_semantics() -> None:
+    body = _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate"))
+    for token in (
+        "EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL",
+        "LOCAL_ONLY_ACCEPTED_ANCHOR=YES",
+        "REMOTE_CONFIGURED=NO",
+        "FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY",
+        "GOAL_TERMINAL=NO",
+        "AUTO_REFILL_REQUIRED=TRUE",
+        "QUOTA_TERMINAL=FORBIDDEN",
+        "QUOTA_EXHAUSTED_FRESH=YES",
+        "CHILDREN_RECONCILED=YES",
+        "GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED",
+        "PATH_CODEX=ABSENT",
+        "CODEX_BIN_CAPABILITY=VERIFIED",
+        "INTEGRATOR_ROUTE=AVAILABLE",
+        "HUMAN_ACTION_REQUIRED=FALSE",
+        "Issue #215",
+    ):
+        assert token in body
+
+
+def test_wo529_canonical_and_template_copy_terminal_gate_vectors() -> None:
+    canonical = _norm(_section(_reference_without_supervisor_template_body(), "One-shot continuation terminal gate"))
+    template = _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate"))
+    required = (
+        "EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL",
+        "REMOTE_CONFIGURED=NO",
+        "HUMAN_DECISION_REQUIRED=FALSE",
+        "FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY",
+        "GOAL_TERMINAL=NO",
+        "AUTO_REFILL_REQUIRED=TRUE",
+        "QUOTA_TERMINAL=FORBIDDEN",
+        "GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED",
+        "PATH_CODEX=ABSENT",
+        "CODEX_BIN_CAPABILITY=VERIFIED",
+        "INTEGRATOR_ROUTE=AVAILABLE",
+    )
+    for label, body in (("canonical", canonical), ("template", template)):
+        for token in required:
+            assert token in body, f"{label}: missing {token}"
+
+
+def test_wo529_blocked_candidate_is_not_parent_terminal_when_safe_ready_exists() -> None:
+    for body in (
+        _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate")),
+        _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate")),
+    ):
+        assert re.search(
+            r"FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY.{0,160}?GOAL_TERMINAL=NO.{0,120}?AUTO_REFILL_REQUIRED=TRUE",
+            body,
+        )
+
+
+def test_wo529_local_only_binding_does_not_grant_remote_authority() -> None:
+    for body in (
+        _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate")),
+        _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate")),
+    ):
+        assert "LOCAL_ONLY_CANONICAL" in body
+        assert "REMOTE_CONFIGURED=NO" in body
+        assert "publication" in body.lower()
+        assert "cross-device" in body.lower()
+
+
+def test_wo529_quota_terminal_requires_fresh_exhaustion_after_child_reconciliation() -> None:
+    body = _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate"))
+    assert "QUOTA_AVAILABLE => QUOTA_TERMINAL=FORBIDDEN" in body
+    assert re.search(r"QUOTA_EXHAUSTED_FRESH=YES CHILDREN_RECONCILED=YES.{0,100}?GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED", body)
+
+
+def test_wo529_turn_completion_is_not_goal_terminal_or_cleanup_authority() -> None:
+    for body in (
+        _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate")),
+        _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate")),
+    ):
+        assert "TURN_COMPLETED=YES DURABLE_GOAL_NONTERMINAL=YES" in body
+        assert "TURN_RECEIPT_STATUS=CONTINUE" in body
+        assert "GOAL_TERMINAL=NO" in body
+        assert "CLEANUP_ALLOWED=NO" in body
+        assert "SAME parent thread" in body
+        assert "TURN_COMPLETED alone is never cleanup authority" in body

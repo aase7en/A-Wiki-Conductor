@@ -202,6 +202,66 @@ before any classification:
   failure or missing post-confirmation stays fail-closed/recoverable and
   never fabricates success.
 
+
+## One-shot continuation terminal gate (canonical, WO-P1-529)
+
+A-NightShift is a long-lived parent Goal overlay, not a one-turn workflow.
+Before any terminal human/no-safe-action classification, run the full accepted
+frontier census after RECOVER -> RECONCILE -> HARVEST and classify every
+dependency-unblocked candidate. A blocker on one candidate never terminates
+the parent while another independent SAFE_READY candidate exists.
+
+Accepted local-only execution-repo evidence is sufficient for local-only
+work when the accepted authority already froze that compatibility anchor.
+Classify this as EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL; absence of a
+Git remote alone MUST NOT manufacture HUMAN_DECISION_REQUIRED. This binding
+never grants publication, remote push, remote merge, or cross-device authority.
+Those capabilities still require their own accepted identity/admission.
+
+Integrator discovery is capability-based, not PATH-name based. A verified
+configured CODEX_BIN or exact bundled Codex binary/capability probe may prove
+INTEGRATOR_ROUTE=AVAILABLE even when command-v-codex is absent. An
+AVAILABLE route remains WAITING_INTEGRATOR, never a human gate.
+
+Quota terminal semantics are explicit: only fresh approved
+QUOTA_EXHAUSTED evidence, after all children are reconciled and
+harvested/durably checkpointed, may classify
+GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED. QUOTA_AVAILABLE, QUOTA_UNKNOWN,
+one blocked lane, or an empty current mutable slot is never quota-terminal.
+Never manufacture work merely to consume quota.
+
+Pinned incident vectors:
+- LOCAL_ONLY_ACCEPTED_ANCHOR=YES REMOTE_CONFIGURED=NO ACTION=LOCAL_ONLY
+  => EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL,
+  HUMAN_DECISION_REQUIRED=FALSE.
+- FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY
+  => GOAL_TERMINAL=NO, AUTO_REFILL_REQUIRED=TRUE.
+- FRONTIER=A:HUMAN_DECISION_REQUIRED with no independent SAFE READY,
+  waiting, harvest, review, monitoring, or exact next-safe action remaining
+  => the genuine human gate may be terminal.
+- QUOTA_AVAILABLE => QUOTA_TERMINAL=FORBIDDEN.
+- QUOTA_EXHAUSTED_FRESH=YES CHILDREN_RECONCILED=YES
+  => GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.
+- PATH_CODEX=ABSENT CODEX_BIN_CAPABILITY=VERIFIED
+  => INTEGRATOR_ROUTE=AVAILABLE, HUMAN_ACTION_REQUIRED=FALSE.
+
+Turn-boundary semantics are separate from Goal terminal semantics. If the
+current Codex parent turn must end while the durable NightShift Goal remains
+nonterminal, classify TURN_RECEIPT_STATUS=CONTINUE, GOAL_TERMINAL=NO,
+CLEANUP_ALLOWED=NO and persist the bounded continuation receipt under the
+existing run authority. An accepted DEX-3b resume adapter may resume the SAME
+parent thread from that pointer after fresh recovery. TURN_COMPLETED alone is
+never cleanup authority. If no accepted resume adapter is available, preserve
+the nonterminal checkpoint truthfully; do not fabricate GOAL_COMPLETE.
+
+Pinned vector:
+TURN_COMPLETED=YES DURABLE_GOAL_NONTERMINAL=YES =>
+TURN_RECEIPT_STATUS=CONTINUE, GOAL_TERMINAL=NO, CLEANUP_ALLOWED=NO.
+
+Issue #215 remains automatic NEXT_READY continuation authority. This overlay
+does not create a second scheduler, roadmap owner, task store, claim/lease
+system, review authority, or completion authority.
+
 ## Compact /goal pointer
 
 The pointer is one self-contained instruction that carries only the exact
@@ -335,6 +395,53 @@ finished run, or emit a repeated user-visible reply. Cleanup intent alone
 (PRE_CLEANUP_FOLDED without POST_CLEANUP_CONFIRMED) or a missing
 post-confirmation is not cleanup proof => CONTRACT_ABSENT_UNKNOWN may
 fail closed as SAFETY_BLOCK; never fabricate success.
+
+
+## One-shot continuation terminal gate (WO-P1-529)
+Before any terminal human/no-safe-action classification, run the full accepted
+frontier census after RECOVER -> RECONCILE -> HARVEST. A blocker on one
+candidate never terminates the parent while another independent SAFE_READY
+candidate exists.
+
+Accepted local-only execution-repo evidence for local-only work classifies
+EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL. REMOTE_CONFIGURED=NO alone never
+manufactures HUMAN_DECISION_REQUIRED and grants no publication, remote push,
+remote merge, or cross-device authority.
+
+A verified configured CODEX_BIN or exact bundled Codex capability probe may
+prove INTEGRATOR_ROUTE=AVAILABLE even when PATH_CODEX=ABSENT. AVAILABLE =>
+WAITING_INTEGRATOR, HUMAN_ACTION_REQUIRED=FALSE.
+
+Only fresh QUOTA_EXHAUSTED after children are reconciled/harvested or durably
+checkpointed may set GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED. QUOTA_AVAILABLE,
+QUOTA_UNKNOWN, one blocked lane, or an empty mutable slot is never
+quota-terminal. Never manufacture work to burn quota.
+
+Pinned vectors:
+LOCAL_ONLY_ACCEPTED_ANCHOR=YES REMOTE_CONFIGURED=NO ACTION=LOCAL_ONLY =>
+EXECUTION_REPO_BINDING=LOCAL_ONLY_CANONICAL, HUMAN_DECISION_REQUIRED=FALSE.
+FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY =>
+GOAL_TERMINAL=NO, AUTO_REFILL_REQUIRED=TRUE.
+QUOTA_AVAILABLE => QUOTA_TERMINAL=FORBIDDEN.
+QUOTA_EXHAUSTED_FRESH=YES CHILDREN_RECONCILED=YES =>
+GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.
+PATH_CODEX=ABSENT CODEX_BIN_CAPABILITY=VERIFIED =>
+INTEGRATOR_ROUTE=AVAILABLE, HUMAN_ACTION_REQUIRED=FALSE.
+Turn-boundary semantics are separate from Goal terminal semantics. If the
+current Codex parent turn must end while the durable NightShift Goal remains
+nonterminal, classify TURN_RECEIPT_STATUS=CONTINUE, GOAL_TERMINAL=NO,
+CLEANUP_ALLOWED=NO and persist the bounded continuation receipt under the
+existing run authority. An accepted DEX-3b resume adapter may resume the SAME
+parent thread from that pointer after fresh recovery. TURN_COMPLETED alone is
+never cleanup authority. If no accepted resume adapter is available, preserve
+the nonterminal checkpoint truthfully; do not fabricate GOAL_COMPLETE.
+
+Pinned vector:
+TURN_COMPLETED=YES DURABLE_GOAL_NONTERMINAL=YES =>
+TURN_RECEIPT_STATUS=CONTINUE, GOAL_TERMINAL=NO, CLEANUP_ALLOWED=NO.
+
+Issue #215 remains NEXT_READY authority; this contract creates no second
+scheduler/task/claim/review/completion authority.
 
 ## Quota
 Refresh approved quota/readiness before every material GLM dispatch.
