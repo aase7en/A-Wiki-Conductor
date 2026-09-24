@@ -185,6 +185,27 @@ Confirmed defects and repairs:
 
 Targeted RED/GREEN regressions were added before the corresponding repairs. The prior SHA and its successful hosted CI are superseded and cannot be used as final acceptance evidence.
 
+## Final R3 review repair checkpoint
+
+Two independently harvested read-only reviews of candidate `3748b9ff146d8b1ccc03edb8806d209ce490cdbd`
+found one P1 and one P2 defect. The candidate and its green hosted CI are therefore
+superseded and are not acceptance evidence:
+
+- P1: Stop accepted any otherwise-valid receipt below the temp root instead of
+  requiring the canonical `turn-receipt.json` inside the directory whose name
+  matches the receipt `run_id`.
+- P2: malformed JSON enum values for `status`, `effort`, `reason`, or
+  `stop_gate` could reach Python set-membership before type validation and raise
+  `TypeError`.
+
+The repair remains within the existing #545 hook/test scope. The receipt loader now
+fails closed unless the resolved file is exactly `<temp>/<run_id>/turn-receipt.json`,
+and every enum field is proven to be a string before membership validation. Focused
+regressions cover wrong run directory, wrong receipt filename, and list/object enum
+values. Post-repair related verification is **337 passed** plus py_compile, hook JSON
+parse, and `git diff --check` PASS. A fresh exact SHA still requires new independent
+review and hosted CI.
+
 ## Remaining acceptance gates
 
 Before acceptance:

@@ -39,6 +39,12 @@ def _base(event: str) -> dict:
     }
 
 
+def _receipt_path(temp_root: str) -> Path:
+    path = Path(temp_root) / "nightshift-hook-test" / "turn-receipt.json"
+    path.parent.mkdir()
+    return path
+
+
 def _receipt(path: Path, *, reason: str = "NEXT_READY", status: str = "CONTINUE") -> dict:
     return {
         "schema_version": "1.0.0",
@@ -187,7 +193,7 @@ def test_post_sunday_execution_reinjects_harvest_and_refill_rules() -> None:
 
 def test_stop_continues_once_only_from_valid_actionable_turn_receipt() -> None:
     with tempfile.TemporaryDirectory() as td:
-        path = Path(td) / "turn-receipt.json"
+        path = _receipt_path(td)
         path.write_text(json.dumps(_receipt(path)), encoding="utf-8")
         payload = _base("Stop")
         payload["stop_hook_active"] = False
@@ -203,7 +209,7 @@ def test_stop_continues_once_only_from_valid_actionable_turn_receipt() -> None:
 
 def test_stop_never_spins_waiting_terminal_missing_or_malformed_receipts() -> None:
     with tempfile.TemporaryDirectory() as td:
-        path = Path(td) / "turn-receipt.json"
+        path = _receipt_path(td)
         payload = _base("Stop")
         payload["stop_hook_active"] = False
         payload["last_assistant_message"] = f"A_SUNDAY_TURN_RECEIPT_REF={path}"
@@ -229,7 +235,7 @@ def test_interrupt_preserves_durable_child_truth_without_restart() -> None:
 
 def test_stop_rejects_invalid_v1_receipt_semantics() -> None:
     with tempfile.TemporaryDirectory() as td:
-        path = Path(td) / "turn-receipt.json"
+        path = _receipt_path(td)
         payload = _base("Stop")
         payload["stop_hook_active"] = False
         payload["last_assistant_message"] = f"A_SUNDAY_TURN_RECEIPT_REF={path}"
@@ -292,7 +298,7 @@ def test_wo545_direct_kilo_bypass_catches_windows_and_quoted_paths() -> None:
 
 def test_wo545_stop_only_continues_actionable_nonterminal_reasons() -> None:
     with tempfile.TemporaryDirectory() as td:
-        path = Path(td) / "turn-receipt.json"
+        path = _receipt_path(td)
         payload = _base("Stop")
         payload["stop_hook_active"] = False
         payload["last_assistant_message"] = f"A_SUNDAY_TURN_RECEIPT_REF={path}"
@@ -315,7 +321,7 @@ def test_wo545_stop_only_continues_actionable_nonterminal_reasons() -> None:
 
 def test_wo545_receipt_validation_matches_closed_bounded_v1_shape() -> None:
     with tempfile.TemporaryDirectory() as td:
-        path = Path(td) / "turn-receipt.json"
+        path = _receipt_path(td)
         payload = _base("Stop")
         payload["stop_hook_active"] = False
         payload["last_assistant_message"] = f"A_SUNDAY_TURN_RECEIPT_REF={path}"
@@ -362,6 +368,40 @@ def test_wo545_receipt_validation_matches_closed_bounded_v1_shape() -> None:
         unhashable_exec_ref["outstanding_exec_refs"] = [{"bad": "object"}]
         variants.append(unhashable_exec_ref)
 
+        bad_status_type = _receipt(path)
+        bad_status_type["status"] = []
+        variants.append(bad_status_type)
+
+        bad_effort_type = _receipt(path)
+        bad_effort_type["effort"] = {}
+        variants.append(bad_effort_type)
+
+        bad_reason_type = _receipt(path)
+        bad_reason_type["reason"] = []
+        variants.append(bad_reason_type)
+
+        bad_gate_type = _receipt(path)
+        bad_gate_type["stop_gate"] = {}
+        variants.append(bad_gate_type)
+
         for receipt in variants:
             path.write_text(json.dumps(receipt), encoding="utf-8")
             assert _run(payload) == {}
+
+
+def test_wo545_receipt_must_be_canonical_file_in_matching_run_directory() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        payload = _base("Stop")
+        payload["stop_hook_active"] = False
+
+        wrong_dir = Path(td) / "nightshift-other-run" / "turn-receipt.json"
+        wrong_dir.parent.mkdir()
+        wrong_dir.write_text(json.dumps(_receipt(wrong_dir)), encoding="utf-8")
+        payload["last_assistant_message"] = f"A_SUNDAY_TURN_RECEIPT_REF={wrong_dir}"
+        assert _run(payload) == {}
+
+        wrong_name = Path(td) / "nightshift-hook-test" / "other-receipt.json"
+        wrong_name.parent.mkdir()
+        wrong_name.write_text(json.dumps(_receipt(wrong_name)), encoding="utf-8")
+        payload["last_assistant_message"] = f"A_SUNDAY_TURN_RECEIPT_REF={wrong_name}"
+        assert _run(payload) == {}

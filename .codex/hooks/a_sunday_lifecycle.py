@@ -206,13 +206,17 @@ def _load_receipt(path: Path) -> Optional[dict[str, Any]]:
         return None
     if value.get("receipt_type") != "NIGHTSHIFT_TURN_RECEIPT":
         return None
-    if value.get("status") not in {"CONTINUE", "TERMINAL"}:
+    status = value.get("status")
+    effort = value.get("effort")
+    reason = value.get("reason")
+    stop_gate = value.get("stop_gate")
+    if not isinstance(status, str) or status not in {"CONTINUE", "TERMINAL"}:
         return None
-    if value.get("effort") not in {"low", "medium", "high"}:
+    if not isinstance(effort, str) or effort not in {"low", "medium", "high"}:
         return None
-    if value.get("reason") not in _RECEIPT_REASONS:
+    if not isinstance(reason, str) or reason not in _RECEIPT_REASONS:
         return None
-    if value.get("stop_gate") not in _STOP_GATES:
+    if not isinstance(stop_gate, str) or stop_gate not in _STOP_GATES:
         return None
     run_id = value.get("run_id")
     thread_id = value.get("thread_id")
@@ -225,6 +229,8 @@ def _load_receipt(path: Path) -> Optional[dict[str, Any]]:
         or len(run_id) > 128
         or _RUN_ID.fullmatch(run_id) is None
     ):
+        return None
+    if resolved.name != "turn-receipt.json" or resolved.parent.name != run_id:
         return None
     if not isinstance(thread_id, str) or _THREAD_ID.fullmatch(thread_id) is None:
         return None
