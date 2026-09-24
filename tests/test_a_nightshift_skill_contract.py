@@ -1458,59 +1458,78 @@ def test_attempt0003_reviewer_escape_vectors_are_rejected_per_copy() -> None:
 
 # --- WO-P1-529 one-shot continuation regression pins ---
 
-_FALSE_HUMAN_GATE_RE = re.compile(
-    r"REMOTE_CONFIGURED=NO\s*(?:=>|(?:alone\s+)?(?:means|requires|sets|yields))"
-    r"\s*HUMAN_DECISION_REQUIRED(?:=TRUE)?",
+_REMOTE_NO_RE = re.compile(r"REMOTE_CONFIGURED\s*=\s*NO", re.IGNORECASE)
+_HUMAN_GATE_RE = re.compile(
+    r"HUMAN_DECISION_REQUIRED(?:\s*=\s*TRUE)?",
+    re.IGNORECASE,
+)
+_NEGATED_GATE_RELATION_RE = re.compile(
+    r"(?:does\s+not|must\s+not|never)\s+"
+    r"(?:manufacture|mean|require|set|yield|imply|force|cause|grant|trigger)",
     re.IGNORECASE,
 )
 
 
-def _wo529_terminal_gate_copies() -> dict[str, str]:
+def _wo529_contract_copies() -> dict[str, str]:
     return {
-        "skill": _section(
-            _read_strict(SKILL), "One-shot continuation terminal gate"
-        ),
-        "canonical": _section(
-            _reference_without_supervisor_template_body(),
-            "One-shot continuation terminal gate",
-        ),
-        "template": _section(
-            _supervisor_template_body(), "One-shot continuation terminal gate"
-        ),
+        "skill": _read_strict(SKILL),
+        "canonical": _reference_without_supervisor_template_body(),
+        "template": _supervisor_template_body(),
     }
 
 
 def _assert_wo529_no_false_human_gate(label: str, body: str) -> None:
     corpus = _norm(body)
+    terminal_gate = _norm(_section(body, "One-shot continuation terminal gate"))
     assert re.search(
-        r"REMOTE_CONFIGURED=NO.{0,200}?"
-        r"(?:does not manufacture|never manufactures|MUST NOT manufacture)"
+        r"REMOTE_CONFIGURED\s*=\s*NO.{0,220}?"
+        r"(?:does\s+not|must\s+not|never)\s+manufacture(?:s)?"
         r"\s+HUMAN_DECISION_REQUIRED",
-        corpus,
+        terminal_gate,
         re.IGNORECASE,
     ), f"{label}: remote-absence no-human-gate rule is not structurally bound"
-    assert not _FALSE_HUMAN_GATE_RE.search(
-        corpus
-    ), f"{label}: remote absence incorrectly grants a human gate"
 
-
-def _inject_wo529_false_human_gate(body: str) -> str:
-    return (
-        _norm(body)
-        + " REMOTE_CONFIGURED=NO => HUMAN_DECISION_REQUIRED=TRUE."
-    )
-
-
-def test_wo529_false_human_gate_mutation_is_rejected_per_copy() -> None:
-    for label, body in _wo529_terminal_gate_copies().items():
-        _assert_wo529_no_false_human_gate(label, body)
-        mutated = _inject_wo529_false_human_gate(body)
-        _expect_contract_validator_rejects(
-            f"{label}: false human gate from remote absence",
-            lambda label=label, mutated=mutated: _assert_wo529_no_false_human_gate(
-                label, mutated
-            ),
+    seen = 0
+    for remote_no in _REMOTE_NO_RE.finditer(corpus):
+        window = corpus[remote_no.start() : remote_no.start() + 240]
+        human_gate = _HUMAN_GATE_RE.search(window)
+        if human_gate is None:
+            continue
+        seen += 1
+        relation = window[: human_gate.end()]
+        assert _NEGATED_GATE_RELATION_RE.search(relation), (
+            f"{label}: remote absence incorrectly grants a human gate: {relation!r}"
         )
+    assert seen >= 1, f"{label}: no REMOTE_CONFIGURED=NO human-gate relation was checked"
+
+
+_FALSE_HUMAN_GATE_VARIANTS = (
+    "REMOTE_CONFIGURED=NO => HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED=NO => HUMAN_DECISION_REQUIRED=TRUE",
+    "remote_configured=no means human_decision_required",
+    "REMOTE_CONFIGURED=NO requires HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED=NO sets HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED=NO yields HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED=NO alone means HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED=NO therefore HUMAN_DECISION_REQUIRED",
+    "remote_configured=no\n  =>\n human_decision_required = TRUE",
+    "REMOTE_CONFIGURED = NO => HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED= NO => HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED=NO = > HUMAN_DECISION_REQUIRED",
+)
+
+
+def test_wo529_false_human_gate_mutations_are_rejected_across_full_copies() -> None:
+    for label, body in _wo529_contract_copies().items():
+        _assert_wo529_no_false_human_gate(label, body)
+        for variant in _FALSE_HUMAN_GATE_VARIANTS:
+            mutated = _norm(body) + "\n## Adversarial override\n" + variant
+            _expect_contract_validator_rejects(
+                f"{label}: false human gate variant {variant!r}",
+                lambda label=label, mutated=mutated: _assert_wo529_no_false_human_gate(
+                    label, mutated
+                ),
+            )
 
 
 def test_wo529_skill_pins_frontier_local_only_quota_and_integrator_semantics() -> None:

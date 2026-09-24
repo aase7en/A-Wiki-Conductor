@@ -119,3 +119,23 @@ every copy. No production/contract semantics change in this slice.
 
 A new exact SHA, deterministic verification, fresh exact-SHA independent R3
 review, and exact-head hosted CI remain required before merge.
+
+## Full-copy relational mutation-probe repair — 2026-09-24
+
+Independent rereview of 5a2d6fb27e1b3c4fadfb1c68b6c7ba6070f79434
+kept prior F1/F2 closed but found the mutation-probe assurance still section-local
+and exact-spelling-sensitive.
+
+The repair is tests-only for behavior plus this WO checkpoint:
+- validate the full SKILL, canonical reference, and embedded supervisor-template
+  copies rather than only the WO529 section;
+- treat whitespace around REMOTE_CONFIGURED = NO and HUMAN_DECISION_REQUIRED =
+  TRUE as semantically equivalent for the adversarial check;
+- require every nearby REMOTE_CONFIGURED=NO -> HUMAN_DECISION_REQUIRED relation
+  to carry an explicit negation (does not / must not / never);
+- run a bounded adversarial variant matrix across all three copies, including
+  direct arrow, spacing/newline, means/requires/sets/yields/therefore forms.
+
+Focused mutation-probe verification and the full adjacent suite both pass.
+No production contract semantics changed in this repair slice. A new exact SHA,
+fresh independent R3 review, and exact-head hosted CI remain required.
