@@ -1470,6 +1470,11 @@ _NEGATED_GATE_RELATION_RE = re.compile(
     r"HUMAN_DECISION_REQUIRED(?:\s*=\s*TRUE)?$",
     re.IGNORECASE,
 )
+_GATE_RELATION_VERB_RE = re.compile(
+    r"=\s*>|\btherefore\b|\b(?:manufacture(?:s)?|mean(?:s)?|require(?:s)?|set(?:s)?|yield(?:s)?|"
+    r"impl(?:y|ies)|force(?:s)?|cause(?:s)?|grant(?:s)?|trigger(?:s)?)\b",
+    re.IGNORECASE,
+)
 
 
 def _wo529_contract_copies() -> dict[str, str]:
@@ -1481,29 +1486,45 @@ def _wo529_contract_copies() -> dict[str, str]:
 
 
 def _assert_wo529_no_false_human_gate(label: str, body: str) -> None:
-    corpus = _norm(body)
-    terminal_gate = _norm(_section(body, "One-shot continuation terminal gate"))
+    # Resolve the structured section before normalization so a malformed or
+    # missing-section mutation cannot masquerade as a successful rejection.
+    terminal_gate = _section(body, "One-shot continuation terminal gate")
     assert re.search(
-        r"REMOTE_CONFIGURED\s*=\s*NO.{0,220}?"
+        r"REMOTE_CONFIGURED\s*=\s*NO(?s:.*?)"
         r"(?:does\s+not|must\s+not|never)\s+manufacture(?:s)?"
         r"\s+HUMAN_DECISION_REQUIRED",
-        terminal_gate,
+        _norm(terminal_gate),
         re.IGNORECASE,
     ), f"{label}: remote-absence no-human-gate rule is not structurally bound"
 
     seen = 0
-    for remote_no in _REMOTE_NO_RE.finditer(corpus):
-        window = corpus[remote_no.start() : remote_no.start() + 240]
-        human_gate = _HUMAN_GATE_RE.search(window)
-        if human_gate is None:
+    # Bullets/paragraphs are the logical relation windows. Their length is
+    # intentionally unbounded: filler cannot move a grant outside a fixed
+    # character window. Keep unrelated incident-vector bullets independent.
+    for paragraph in re.split(
+        r"\n\s*\n|(?=^\s*[-*+]\s)|(?=^\s*(?:FRONTIER=|QUOTA_|PATH_CODEX=|LOCAL_ONLY_))",
+        body,
+        flags=re.MULTILINE,
+    ):
+        remote_positions = [m.start() for m in _REMOTE_NO_RE.finditer(paragraph)]
+        if not remote_positions:
             continue
-        seen += 1
-        relation = window[: human_gate.end()]
-        # The negated predicate must govern this human gate, not a different
-        # object earlier in the same window (for example, quota exhaustion).
-        assert _NEGATED_GATE_RELATION_RE.search(relation), (
-            f"{label}: remote absence incorrectly grants a human gate: {relation!r}"
-        )
+        for human_gate in _HUMAN_GATE_RE.finditer(paragraph):
+            prior_remote = [p for p in remote_positions if p < human_gate.start()]
+            if not prior_remote:
+                continue
+            seen += 1
+            # Only adjudicate a human-gate token when a relation verb ties it
+            # to a preceding REMOTE_CONFIGURED=NO in this logical window.
+            relation = paragraph[max(prior_remote) : human_gate.end()]
+            gate_prefix = relation[: human_gate.start() - max(prior_remote)]
+            if not _GATE_RELATION_VERB_RE.search(gate_prefix):
+                continue
+            # Negation must govern the relation verb that reaches this exact
+            # token. A negation about quota (or an earlier gate) is decoy text.
+            assert _NEGATED_GATE_RELATION_RE.search(relation), (
+                f"{label}: remote absence incorrectly grants a human gate: {relation!r}"
+            )
     assert seen >= 1, f"{label}: no REMOTE_CONFIGURED=NO human-gate relation was checked"
 
 
@@ -1525,6 +1546,11 @@ _FALSE_HUMAN_GATE_VARIANTS = (
     "REMOTE_CONFIGURED = NO does not mean quota exhaustion. It does mean HUMAN_DECISION_REQUIRED=TRUE",
     "REMOTE_CONFIGURED = NO does not mean quota exhaustion;\n  it does mean HUMAN_DECISION_REQUIRED = TRUE",
     "REMOTE_CONFIGURED=NO does not mean quota exhaustion — it does mean HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED=NO does not mean quota exhaustion; it does mean HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED=NO does not mean quota exhaustion. It does mean HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED=NO " + ("filler " * 80) + "does mean HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED=NO does not mean quota exhaustion; HUMAN_DECISION_REQUIRED is not allowed. "
+    "REMOTE_CONFIGURED=NO means HUMAN_DECISION_REQUIRED",
 )
 
 
@@ -1532,7 +1558,11 @@ def test_wo529_false_human_gate_mutations_are_rejected_across_full_copies() -> N
     for label, body in _wo529_contract_copies().items():
         _assert_wo529_no_false_human_gate(label, body)
         for variant in _FALSE_HUMAN_GATE_VARIANTS:
-            mutated = _norm(body) + "\n## Adversarial override\n" + variant
+            mutated = body + "\n\n## Adversarial override\n\n" + variant
+            # Prove both the stage prerequisite and injected override resolve
+            # from raw structured Markdown before counting validator rejection.
+            assert _section(mutated, "One-shot continuation terminal gate").strip()
+            assert _section(mutated, "Adversarial override").strip() == variant
             _expect_contract_validator_rejects(
                 f"{label}: false human gate variant {variant!r}",
                 lambda label=label, mutated=mutated: _assert_wo529_no_false_human_gate(
@@ -1544,6 +1574,7 @@ def test_wo529_false_human_gate_mutations_are_rejected_across_full_copies() -> N
 def test_wo529_skill_pins_frontier_local_only_quota_and_integrator_semantics() -> None:
     body = _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate"))
     for token in (
+        "Before any terminal human/no-safe-action classification, run the full accepted frontier census after RECOVER -> RECONCILE -> HARVEST",
         "EXECUTION_REPO_COMPATIBILITY=LOCAL_ONLY_CANONICAL",
         "LOCAL_ONLY_COMPATIBILITY_ANCHOR=ACCEPTED",
         "MUTATION_ADMISSION=REQUIRED",
@@ -1552,7 +1583,9 @@ def test_wo529_skill_pins_frontier_local_only_quota_and_integrator_semantics() -
         "FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY",
         "GOAL_TERMINAL=NO",
         "AUTO_REFILL_REQUIRED=FROM_A_FASTER",
+        "MUST NOT derive TRUE from SAFE_READY alone",
         "QUOTA_TERMINAL=FORBIDDEN",
+        "QUOTA_AVAILABLE => QUOTA_TERMINAL=FORBIDDEN",
         "QUOTA_EXHAUSTED_FRESH=YES",
         "CHILDREN_RECONCILED=YES",
         "GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED",
@@ -1569,6 +1602,8 @@ def test_wo529_canonical_and_template_copy_terminal_gate_vectors() -> None:
     canonical = _norm(_section(_reference_without_supervisor_template_body(), "One-shot continuation terminal gate"))
     template = _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate"))
     required = (
+        "Before any terminal human/no-safe-action classification, run the full accepted",
+        "frontier census after RECOVER -> RECONCILE -> HARVEST",
         "EXECUTION_REPO_COMPATIBILITY=LOCAL_ONLY_CANONICAL",
         "MUTATION_ADMISSION=REQUIRED",
         "MUTATION_ALLOWED=NO",
@@ -1577,11 +1612,19 @@ def test_wo529_canonical_and_template_copy_terminal_gate_vectors() -> None:
         "FRONTIER=A:HUMAN_DECISION_REQUIRED,B:SAFE_READY",
         "GOAL_TERMINAL=NO",
         "AUTO_REFILL_REQUIRED=FROM_A_FASTER",
+        "MUST NOT derive TRUE from SAFE_READY alone",
         "QUOTA_TERMINAL=FORBIDDEN",
+        "QUOTA_AVAILABLE => QUOTA_TERMINAL=FORBIDDEN",
+        "QUOTA_EXHAUSTED_FRESH=YES CHILDREN_RECONCILED=YES",
         "GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED",
         "PATH_CODEX=ABSENT",
         "CODEX_BIN_CAPABILITY=VERIFIED",
         "INTEGRATOR_ROUTE=AVAILABLE",
+        "TURN_COMPLETED=YES DURABLE_GOAL_NONTERMINAL=YES",
+        "TURN_RECEIPT_STATUS=CONTINUE",
+        "CLEANUP_ALLOWED=NO",
+        "SAME parent thread",
+        "TURN_COMPLETED alone is never cleanup authority",
     )
     for label, body in (("canonical", canonical), ("template", template)):
         for token in required:

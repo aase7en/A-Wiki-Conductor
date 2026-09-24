@@ -153,3 +153,43 @@ HUMAN_DECISION_REQUIRED` clause remains accepted. Production SKILL and reference
 are unchanged. Focused and adjacent NightShift/A-Faster tests: 114/114 PASS.
 Status: READY_FOR_INTEGRATOR_VERIFICATION. Next: integrator verification, fresh exact-SHA independent R3 rereview, and
 exact-head CI; no commit, push, or merge was performed in this repair lane.
+
+## Independent R3 bounded assurance repair — 2026-09-24
+
+Independent review of exact head `b68f38c344dd11521365a03861f5bb18b4f7651d`
+returned `CHANGES_REQUIRED` (P2=1/P3=3). Production NightShift semantics
+were adjudicated sound; this repair is restricted to the contract tests and
+this work order.
+
+Assurance repairs:
+- mutation bodies are appended to the raw structured Markdown copies; each
+  probe first resolves both the terminal-gate section and injected override
+  section, so section/structure failures cannot count as a rejected grant;
+- relation windows follow Markdown paragraph/bullet boundaries and have no
+  fixed character cutoff; every HUMAN_DECISION_REQUIRED token with a
+  REMOTE_CONFIGURED=NO relation is checked, including an affirmative later
+  gate after an initially negated relation and long filler;
+- canonical reference parity pins the full accepted-frontier census
+  precondition, no derived `AUTO_REFILL_REQUIRED=TRUE`, quota-available and
+  fresh-quota-exhausted terminal vectors, and the turn-completed/durable-goal-
+  nonterminal continuation vector alongside the skill/template checks.
+
+Prior closures remain required and unchanged: local-only identity never grants
+mutation authority; remote absence alone never manufactures a human gate;
+NightShift passes through A-Faster refill truth; DEX-3b resumes the same thread
+and fails closed; verified `CODEX_BIN` capability establishes the integrator
+route; #520/#522 no-spin, stale-pointer and two-phase cleanup rules remain
+pinned; no second authority is introduced.
+
+Verification completed on exact starting HEAD
+`b68f38c344dd11521365a03861f5bb18b4f7651d`:
+- NightShift + adjacent A-Faster focused suites: 114/114 PASS
+  (NightShift 72, invocation 19, utilization 23);
+- full-copy mutation probe: 63/63 rejected variants across skill, canonical
+  reference, and template; section and override resolution sentinels passed;
+- strict UTF-8: PASS; `git diff --check`: PASS; exact two-path scope: PASS;
+- credential-pattern secret scan over the diff: PASS.
+
+Status: READY_FOR_INTEGRATOR_VERIFICATION. Fresh exact-SHA independent R3
+rereview and exact-head CI remain required. No commit, push, merge, reset,
+clean, or stash was performed.
