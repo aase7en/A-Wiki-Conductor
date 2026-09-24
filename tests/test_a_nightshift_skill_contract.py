@@ -1747,3 +1747,29 @@ def test_wo545_background_liveness_survives_parent_interrupt_without_model_spin(
         assert "SundayMCP/Mission Control" in body, label
         assert "Stop/Interrupt" in body or "Closing or interrupting" in body, label
         assert "does not imply" in body or "does not cancel" in body, label
+
+
+
+def test_wo545_nonterminal_turn_emits_exact_stop_hook_receipt_pointer() -> None:
+    bodies = (
+        ("skill", _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate"))),
+        (
+            "canonical",
+            _norm(
+                _section(
+                    _reference_without_supervisor_template_body(),
+                    "One-shot continuation terminal gate",
+                )
+            ),
+        ),
+        (
+            "template",
+            _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate")),
+        ),
+    )
+    for label, body in bodies:
+        assert "turn-receipt.json" in body, label
+        assert "A_SUNDAY_TURN_RECEIPT_REF=" in body, label
+        assert "NIGHTSHIFT_TURN_RECEIPT" in body, label
+        assert "exactly one" in body.lower(), label
+        assert "stop_hook_active" in body, label

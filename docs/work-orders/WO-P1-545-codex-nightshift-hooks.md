@@ -151,6 +151,28 @@ Issue #340 is the existing canonical PNX roadmap. A durable extension now record
 No #498/#537/#509 path is in scope. No scheduler/task/job/claim/lease/provider
 store or SunDayRemoteMCP source is modified.
 
+## R3 review repair checkpoint
+
+Independent structural review of candidate `4467b8acd05c6ab480e5bf2d096abc7908ea9616`
+returned CHANGES_REQUIRED with P0=0, P1=1, P2=3:
+
+- P1: no deterministic end-to-end `A_SUNDAY_TURN_RECEIPT_REF` emission contract;
+- P2: Stop continued non-actionable/terminal reasons;
+- P2: hook validation did not fully mirror the closed bounded #531 v1 receipt shape;
+- P2: direct-Kilo bypass missed quoted/absolute Windows paths.
+
+Repair is RED/GREEN within the existing #545 claim and scope. The supervisor
+contract now materializes exactly one `turn-receipt.json` under the existing
+ephemeral run authority for actionable CONTINUE turns and emits exactly one
+final `A_SUNDAY_TURN_RECEIPT_REF=<absolute path>` marker. The Stop hook
+continues only NEXT_READY / CHILD_RESULT_READY / TURN_BUDGET_BOUNDARY, mirrors
+the closed/bounded #531 v1 constraints in stdlib-only validation, and the Kilo
+guard covers quoted/unquoted Windows and POSIX paths.
+
+Post-repair related verification: **302 passed** plus py_compile, JSON parse and
+`git diff --check` PASS. The old candidate is superseded and must not be
+accepted; a new exact SHA requires fresh hosted CI and independent rereview.
+
 ## Remaining acceptance gates
 
 Before acceptance:

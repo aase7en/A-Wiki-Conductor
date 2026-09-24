@@ -17,7 +17,14 @@ from typing import Any, Optional
 _MAX_STDIN_BYTES = 262_144
 _MAX_RECEIPT_BYTES = 65_536
 _RECEIPT_MARKER = re.compile(r"(?m)^A_SUNDAY_TURN_RECEIPT_REF=(.+?)\s*$")
-_KILO_RUN = re.compile(r"(?i)(?<![\w.-])(?:[\w./-]+/)?kilo(?:\.exe)?\s+run\b")
+_KILO_RUN = re.compile(
+    r"""(?ix)(?:^|[\s;&|])(?:
+        "[^"\r\n]*[\\/]kilo(?:\.exe)?"
+        |'[^'\r\n]*[\\/]kilo(?:\.exe)?'
+        |(?:[A-Za-z]:)?(?:[^\s"';&|]+[\\/])+kilo(?:\.exe)?
+        |kilo(?:\.exe)?
+    )\s+run\b"""
+)
 
 _BASE_CONTEXT = """A-SUNDAY CODEX SUPERVISOR CONTRACT:
 Actual durable evidence wins over chat/session memory. Before material work run
@@ -46,7 +53,7 @@ terminal-unharvested evidence before refill. RUNNING/UNKNOWN executions
 never authorize duplicate replay. Consume accepted A-Faster FANOUT_TARGET and
 AUTO_REFILL_REQUIRED markers; do not recompute a second utilization authority."""
 
-_WAIT_REASONS = {"WAITING_EXTERNAL"}
+_ACTIONABLE_CONTINUE_REASONS = {"NEXT_READY", "CHILD_RESULT_READY", "TURN_BUDGET_BOUNDARY"}
 _RECEIPT_REASONS = {
     "NEXT_READY",
     "WAITING_EXTERNAL",
@@ -71,6 +78,11 @@ _STOP_GATES = {
 _RUN_ID = re.compile(r"^nightshift-[A-Za-z0-9._-]{1,120}$")
 _THREAD_ID = re.compile(r"^[0-9a-fA-F-]{36}$")
 _EXEC_REF = re.compile(r"^exec-[a-z0-9-]{6,64}$")
+_MODEL = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+_CAPABILITY = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
+_GENERATED_AT = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$")
+_URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
+_MAX_GENERATION = 2_147_483_647
 _REQUIRED_RECEIPT_FIELDS = {
     "schema_version",
     "receipt_type",
@@ -168,6 +180,16 @@ def _receipt_pointer(message: object) -> Optional[Path]:
     return path if path.is_absolute() else None
 
 
+def _valid_ref(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 1024
+        and "\r" not in value
+        and "\n" not in value
+        and _URL_SCHEME.match(value) is None
+    )
+
+
 def _load_receipt(path: Path) -> Optional[dict[str, Any]]:
     try:
         resolved = path.resolve(strict=True)
@@ -178,7 +200,7 @@ def _load_receipt(path: Path) -> Optional[dict[str, Any]]:
         value = json.loads(resolved.read_text(encoding="utf-8"))
     except (OSError, RuntimeError, ValueError, UnicodeError, json.JSONDecodeError):
         return None
-    if not isinstance(value, dict) or not _REQUIRED_RECEIPT_FIELDS.issubset(value):
+    if not isinstance(value, dict) or set(value) != _REQUIRED_RECEIPT_FIELDS:
         return None
     if value.get("schema_version") != "1.0.0":
         return None
@@ -195,23 +217,45 @@ def _load_receipt(path: Path) -> Optional[dict[str, Any]]:
     run_id = value.get("run_id")
     thread_id = value.get("thread_id")
     parent_exec_ref = value.get("parent_exec_ref")
+    model = value.get("model")
+    capability = value.get("capability_evidence_version")
+    generated_at = value.get("generated_at")
     if not isinstance(run_id, str) or _RUN_ID.fullmatch(run_id) is None:
         return None
     if not isinstance(thread_id, str) or _THREAD_ID.fullmatch(thread_id) is None:
         return None
     if not isinstance(parent_exec_ref, str) or _EXEC_REF.fullmatch(parent_exec_ref) is None:
         return None
+    if not isinstance(model, str) or _MODEL.fullmatch(model) is None:
+        return None
+    if not isinstance(capability, str) or _CAPABILITY.fullmatch(capability) is None:
+        return None
+    if not isinstance(generated_at, str) or _GENERATED_AT.fullmatch(generated_at) is None:
+        return None
     generation = value.get("generation")
-    if isinstance(generation, bool) or not isinstance(generation, int) or generation < 1:
+    if (
+        isinstance(generation, bool)
+        or not isinstance(generation, int)
+        or not 1 <= generation <= _MAX_GENERATION
+    ):
         return None
     outstanding = value.get("outstanding_exec_refs")
     if not isinstance(outstanding, list) or len(outstanding) > 16:
         return None
+    if len(set(outstanding)) != len(outstanding):
+        return None
     if any(not isinstance(ref, str) or _EXEC_REF.fullmatch(ref) is None for ref in outstanding):
         return None
-    receipt_ref = value.get("receipt_ref")
-    if not isinstance(receipt_ref, str):
-        return None
+    for field in (
+        "contract_ref",
+        "receipt_ref",
+        "authority_repo_ref",
+        "worktree_ref",
+        "next_safe_action_ref",
+    ):
+        if not _valid_ref(value.get(field)):
+            return None
+    receipt_ref = value["receipt_ref"]
     try:
         if Path(receipt_ref).expanduser().resolve(strict=False) != resolved:
             return None
@@ -232,7 +276,7 @@ def _stop(event: dict[str, Any]) -> dict[str, Any]:
     if receipt.get("stop_gate") != "NONE":
         return {}
     reason = receipt.get("reason")
-    if not isinstance(reason, str) or not reason.strip() or reason in _WAIT_REASONS:
+    if reason not in _ACTIONABLE_CONTINUE_REASONS:
         return {}
     contract_ref = receipt.get("contract_ref")
     next_ref = receipt.get("next_safe_action_ref")

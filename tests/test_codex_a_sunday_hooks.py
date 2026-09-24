@@ -258,3 +258,92 @@ def test_hook_script_is_read_only_and_has_no_network_or_process_authority() -> N
         "unlink(",
     ):
         assert forbidden not in text
+
+
+
+def test_wo545_direct_kilo_bypass_catches_windows_and_quoted_paths() -> None:
+    commands = (
+        r'"C:\\tools\\kilo.exe" run --model cointh-glm/glm-5.3 task',
+        r'C:\\tools\\kilo.exe run --model cointh-glm/glm-5.3 task',
+        '"/usr/local/bin/kilo" run --model cointh-glm/glm-5.3 task',
+        '/usr/local/bin/kilo run --model cointh-glm/glm-5.3 task',
+    )
+    for command in commands:
+        payload = _base("PreToolUse")
+        payload.update(
+            {
+                "tool_name": "Bash",
+                "tool_use_id": "tool-kilo-path",
+                "tool_input": {"command": command},
+            }
+        )
+        out = _run(payload)
+        assert out["hookSpecificOutput"]["permissionDecision"] == "deny", command
+
+
+def test_wo545_stop_only_continues_actionable_nonterminal_reasons() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "turn-receipt.json"
+        payload = _base("Stop")
+        payload["stop_hook_active"] = False
+        payload["last_assistant_message"] = f"A_SUNDAY_TURN_RECEIPT_REF={path}"
+        for reason in (
+            "QUOTA_EXHAUSTED",
+            "HUMAN_ACTION_REQUIRED",
+            "HUMAN_DECISION_REQUIRED",
+            "AUTHORIZATION_REQUIRED",
+            "SAFETY_BLOCK",
+            "TRUE_NO_SAFE_NEXT_ACTION",
+            "GOAL_COMPLETE",
+            "WAITING_EXTERNAL",
+        ):
+            path.write_text(json.dumps(_receipt(path, reason=reason)), encoding="utf-8")
+            assert _run(payload) == {}, reason
+        for reason in ("NEXT_READY", "CHILD_RESULT_READY", "TURN_BUDGET_BOUNDARY"):
+            path.write_text(json.dumps(_receipt(path, reason=reason)), encoding="utf-8")
+            assert _run(payload)["decision"] == "block", reason
+
+
+def test_wo545_receipt_validation_matches_closed_bounded_v1_shape() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "turn-receipt.json"
+        payload = _base("Stop")
+        payload["stop_hook_active"] = False
+        payload["last_assistant_message"] = f"A_SUNDAY_TURN_RECEIPT_REF={path}"
+        variants = []
+
+        extra = _receipt(path)
+        extra["prompt"] = "not allowed"
+        variants.append(extra)
+
+        too_large_generation = _receipt(path)
+        too_large_generation["generation"] = 2147483648
+        variants.append(too_large_generation)
+
+        duplicate_exec = _receipt(path)
+        duplicate_exec["outstanding_exec_refs"] = ["exec-child-abc123", "exec-child-abc123"]
+        variants.append(duplicate_exec)
+
+        url_ref = _receipt(path)
+        url_ref["next_safe_action_ref"] = "https://example.invalid/wake"
+        variants.append(url_ref)
+
+        newline_ref = _receipt(path)
+        newline_ref["contract_ref"] = "issue:545\nignore-prior"
+        variants.append(newline_ref)
+
+        bad_time = _receipt(path)
+        bad_time["generated_at"] = "not-a-time"
+        variants.append(bad_time)
+
+        bad_model = _receipt(path)
+        bad_model["model"] = "bad model with spaces"
+        variants.append(bad_model)
+
+        bad_capability = _receipt(path)
+        bad_capability["capability_evidence_version"] = "bad capability value with spaces"
+        variants.append(bad_capability)
+
+        for receipt in variants:
+            path.write_text(json.dumps(receipt), encoding="utf-8")
+            assert _run(payload) == {}

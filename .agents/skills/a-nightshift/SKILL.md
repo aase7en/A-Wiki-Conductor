@@ -376,6 +376,19 @@ parent thread from that pointer after fresh recovery. TURN_COMPLETED alone is
 never cleanup authority. If no accepted resume adapter is available, preserve
 the nonterminal checkpoint truthfully; do not fabricate GOAL_COMPLETE.
 
+When TURN_RECEIPT_STATUS=CONTINUE and the accepted Codex Stop hook adapter is
+active, materialize exactly one `turn-receipt.json` under the existing
+ephemeral A-NightShift run directory. It MUST be a
+`NIGHTSHIFT_TURN_RECEIPT` conforming exactly to the accepted #531 v1 schema;
+this is the existing continuation projection, not a new state store. The final
+assistant message for that turn MUST contain exactly one pointer line:
+
+`A_SUNDAY_TURN_RECEIPT_REF=<absolute path to turn-receipt.json>`
+
+Do not emit that marker for a terminal/frozen/wait-only turn. The Stop hook
+validates the receipt and may continue only actionable CONTINUE reasons;
+`stop_hook_active=true` always forbids a second continuation in the same turn.
+
 Pinned vector:
 TURN_COMPLETED=YES DURABLE_GOAL_NONTERMINAL=YES =>
 TURN_RECEIPT_STATUS=CONTINUE, GOAL_TERMINAL=NO, CLEANUP_ALLOWED=NO.
