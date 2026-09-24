@@ -332,3 +332,97 @@ def test_defect_lessons_record_w517_bootstrap_defects() -> None:
     assert "SECRET_SOURCE_UNAVAILABLE" in lessons
     assert "--dir" in lessons
     assert "share=disabled" in lessons
+
+
+# --- WO-P1-530 hierarchical child-goal routing pins ---
+
+def test_wo530_child_goal_is_bounded_execution_shape_not_authority() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
+    assert "CHILD_GOAL" in section
+    assert "PARENT_GOAL -> KILO_GLM_CHILD -> OPTIONAL_JEV_ADVISORY" in section
+    assert "Deeper recursive spawning is forbidden" in section
+    for forbidden_authority in (
+        "scheduler",
+        "roadmap owner",
+        "task database",
+        "claim/lease system",
+        "review authority",
+        "merge authority",
+        "completion authority",
+    ):
+        assert forbidden_authority in section
+
+
+def test_wo530_child_goal_keeps_global_wip_and_lane_binding() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
+    assert "max 3 mutable plus 1 independent read-only review" in section
+    assert "one mutable hotspot has exactly one owner" in section
+    for token in ("task/work order", "claim/owner", "worktree", "exact HEAD", "evidence destination"):
+        assert token in section
+
+
+def test_wo530_kilo_goal_is_capability_gated_with_truthful_headless_fallback() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
+    for token in (
+        "KILO_GOAL_CAPABILITY=VERIFIED",
+        "KILO_GOAL_CAPABILITY=UNVERIFIED_HEADLESS",
+        "POINTER_FALLBACK",
+        "KILO_HEADLESS_PROBE=STALLED_NO_OUTPUT",
+        "CHILD_ENTRY=POINTER_FALLBACK",
+    ):
+        assert token in section
+    assert "forbids inventing slash-goal semantics" in section
+
+
+def test_wo530_every_material_child_uses_durable_private_transport_and_fresh_quota() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
+    # P2 repair (R3 CHANGES_REQUIRED): the exact `sunday_dispatch` tool name
+    # is the only valid child transport; generic durable dispatch, alternate
+    # durable transports, and direct Kilo invocations are rejected.
+    assert "`sunday_dispatch`" in section
+    assert "Sunday durable dispatch" not in section
+    assert "alternate durable transport" in section
+    assert "direct Kilo invocation is not valid child transport" in section
+    assert "non-`sunday_dispatch` transport" in section
+    assert "explicit --dir" in section
+    assert 'KILO_CONFIG_CONTENT={"share":"disabled"}' in section
+    assert "CLI --no-share" in section
+    assert "fresh CoinTH quota preflight immediately before dispatch" in section
+    assert "INVALID_CHILD_EVIDENCE" in section
+
+
+def test_wo530_glm_child_admission_requires_quota_and_upstream_readiness() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
+    # P3 repair: fresh proxy quota alone is never upstream readiness; both
+    # structured facts plus the existing gates are required per dispatch.
+    assert "proxy quota alone is never upstream readiness" in section
+    assert (
+        "PROXY_QUOTA_STATE=AVAILABLE AND UPSTREAM_PROVIDER_READINESS=READY" in section
+    )
+    assert "neither fact alone admits a dispatch" in section
+    assert "never cached or hard-coded" in section
+    assert re.search(
+        r"UPSTREAM_PROVIDER_READINESS=THROTTLED.*wait until the declared reset/cooldown",
+        section,
+    )
+    assert "PROXY_QUOTA_STATE=THROTTLED" not in section
+    assert "do not repeated-probe" in section
+    assert re.search(
+        r"UPSTREAM_PROVIDER_READINESS=UNKNOWN.*fail closed for GLM", section
+    )
+    assert "GPT/Codex work may continue" in section
+
+
+def test_wo530_child_terminal_harvest_refills_without_chat_turn_dependency() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
+    assert "RECOVER -> RECONCILE -> HARVEST -> recompute accepted READY frontier -> REFILL" in section
+    assert "does not wait for a ChatGPT user turn" in section
+    assert "Never manufacture work merely to consume quota" in section
+
+
+def test_wo530_model_roles_preserve_max_flash_and_jev_boundaries() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
+    assert "GLM-5.3 MAX" in section
+    assert "GLM-5.3 Flash" in section
+    assert "TypeSafe-Jev" in section
+    assert "authoritative_for_action=false" in section
