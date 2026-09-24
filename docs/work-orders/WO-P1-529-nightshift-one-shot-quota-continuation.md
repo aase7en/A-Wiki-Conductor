@@ -139,3 +139,17 @@ The repair is tests-only for behavior plus this WO checkpoint:
 Focused mutation-probe verification and the full adjacent suite both pass.
 No production contract semantics changed in this repair slice. A new exact SHA,
 fresh independent R3 review, and exact-head hosted CI remain required.
+
+## Decoy-negation test repair — 2026-09-24
+
+Independent rereview of exact HEAD 8fc1b14bae8adaf05ab3199e5865e54f1490f984
+found one P2: a negation about quota exhaustion could precede an affirmative
+REMOTE_CONFIGURED=NO -> HUMAN_DECISION_REQUIRED relation and satisfy the test
+validator. The validator now requires the negated predicate to govern the
+HUMAN_DECISION_REQUIRED token itself. Mutation probes include the exact reported
+decoy and punctuation, spacing, and newline variants in all three full copies.
+The valid `REMOTE_CONFIGURED=NO alone never manufactures
+HUMAN_DECISION_REQUIRED` clause remains accepted. Production SKILL and reference
+are unchanged. Focused and adjacent NightShift/A-Faster tests: 114/114 PASS.
+Status: READY_FOR_INTEGRATOR_VERIFICATION. Next: integrator verification, fresh exact-SHA independent R3 rereview, and
+exact-head CI; no commit, push, or merge was performed in this repair lane.

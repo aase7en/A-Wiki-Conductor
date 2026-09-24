@@ -1465,7 +1465,9 @@ _HUMAN_GATE_RE = re.compile(
 )
 _NEGATED_GATE_RELATION_RE = re.compile(
     r"(?:does\s+not|must\s+not|never)\s+"
-    r"(?:manufacture|mean|require|set|yield|imply|force|cause|grant|trigger)",
+    r"(?:manufacture(?:s)?|mean(?:s)?|require(?:s)?|set(?:s)?|yield(?:s)?|"
+    r"impl(?:y|ies)|force(?:s)?|cause(?:s)?|grant(?:s)?|trigger(?:s)?)\s+"
+    r"HUMAN_DECISION_REQUIRED(?:\s*=\s*TRUE)?$",
     re.IGNORECASE,
 )
 
@@ -1497,6 +1499,8 @@ def _assert_wo529_no_false_human_gate(label: str, body: str) -> None:
             continue
         seen += 1
         relation = window[: human_gate.end()]
+        # The negated predicate must govern this human gate, not a different
+        # object earlier in the same window (for example, quota exhaustion).
         assert _NEGATED_GATE_RELATION_RE.search(relation), (
             f"{label}: remote absence incorrectly grants a human gate: {relation!r}"
         )
@@ -1516,6 +1520,11 @@ _FALSE_HUMAN_GATE_VARIANTS = (
     "REMOTE_CONFIGURED = NO => HUMAN_DECISION_REQUIRED",
     "REMOTE_CONFIGURED= NO => HUMAN_DECISION_REQUIRED",
     "REMOTE_CONFIGURED=NO = > HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED = NO does not mean quota exhaustion; it does mean HUMAN_DECISION_REQUIRED = TRUE.",
+    "REMOTE_CONFIGURED=NO does not mean quota exhaustion, but it does mean HUMAN_DECISION_REQUIRED",
+    "REMOTE_CONFIGURED = NO does not mean quota exhaustion. It does mean HUMAN_DECISION_REQUIRED=TRUE",
+    "REMOTE_CONFIGURED = NO does not mean quota exhaustion;\n  it does mean HUMAN_DECISION_REQUIRED = TRUE",
+    "REMOTE_CONFIGURED=NO does not mean quota exhaustion — it does mean HUMAN_DECISION_REQUIRED",
 )
 
 
