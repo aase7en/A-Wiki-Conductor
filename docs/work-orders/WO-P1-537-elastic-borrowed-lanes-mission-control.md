@@ -316,6 +316,30 @@ remote branch at the reviewed SHA before this checkpoint. Next: add the new
 regressions, repair, rerun focused tests, checkpoint, then obtain fresh exact-
 SHA review and CI for the resulting pushed SHA.
 
+## Independent R3 review follow-up 4 — 2026-09-24
+
+Exact-SHA review of `2cff06b12b82fb6f808d5ba5a419928033af4dbc` returned
+`NEEDS_FIX`, P0=0, P1=0, P2=1, P3=1. All four initial P2s, the mixed-state
+collision preservation, collision summary when capacity-classified, and
+unknown-child active-compute guard were verified. Focused candidate tests:
+117 passed; DesktopControl: 48 passed plus the known macOS-only fixture failure.
+
+Remaining P2 is the same double-emission defect class, in a third supported
+key combination: a bare `execution_id` activity is attached to a workered
+execution via the fallback lookup but its activity `lane_ref` is not marked
+represented, so it is emitted again as PARKED_CAPACITY. The previous
+follow-up-3 regressions covered compound+worker and bare+workerless only. Fix:
+include the actual lane_ref of every activity attached to an execution in the
+represented set and add a bare+worker RED regression. The review also notes the
+collision summary is omitted when all colliding lanes lack a capacity class;
+make the count visible in that no-class summary branch too.
+
+Candidate `2cff06b` was pushed and reviewed cleanly; its CI run
+`36008748573` was still in progress during this review. Next: add the missing
+regressions, repair both bounded display/composition issues, re-run focused
+verification, then checkpoint/commit/push and request fresh exact-SHA review
+and CI. Do not use `2cff06b` review or CI as acceptance evidence.
+
 ## Independent R3 review follow-up 3 repair checkpoint — 2026-09-24
 
 RED-first regressions reproduced the new P2 on `1dd9276` for both supported
@@ -334,3 +358,18 @@ checkpoint is on dirty working tree parented by pushed `1dd9276`; rerun
 The prior exact-SHA review was `NEEDS_FIX`; its CI run `36006955102` targeted
 `1dd9276` and cannot accept the changed candidate. Next gate: fresh independent
 exact-SHA review and exact-head hosted CI, then final GPT acceptance.
+
+## Independent R3 review follow-up 4 repair checkpoint — 2026-09-24
+
+Added the uncovered bare-execution-ID + workered-execution case and the
+no-capacity-class collision-summary case. Before implementation, the new
+focused tests failed: the third key combination emitted two lanes and the
+no-class summary omitted `collisions=2`. The repair now marks each actual
+`lane_ref` consumed by an execution attachment as represented, and shows the
+collision count in both classified and unclassified capacity summaries.
+
+The targeted regressions pass (4 passed). Remaining acceptance gates: run the
+full focused policy/projection/DesktopControl suite, compile and hygiene/scope/
+secret checks, then commit/push fast-forward. The exact-SHA review and CI must
+be rerun on the new commit; `2cff06b` was `NEEDS_FIX` and its CI cannot accept
+this change.

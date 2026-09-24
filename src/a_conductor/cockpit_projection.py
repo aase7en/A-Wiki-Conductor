@@ -1299,7 +1299,9 @@ def build_observed_lane_inputs(
             )
     represented_lanes = {lane.identity.lane for lane in lanes}
     represented_lanes.update(
-        row.worker_id for row in workers if row.worker_id not in observed_workers
+        lane.activity.lane_ref
+        for lane in lanes
+        if lane.activity.available and lane.activity.lane_ref
     )
     unmatched_parked = [
         (item, len(group) > 1)
