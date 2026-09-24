@@ -181,6 +181,30 @@ integrator then either transfers the labor to an eligible GLM lane or
 records why the fallback is legitimate. Idle capacity with fillable
 independent READY work and no typed blocker means `AUTO_REFILL_REQUIRED`.
 
+### Codex executor fallback while GLM blocked
+
+GLM-5.3 MAX remains the preferred heavy executor. A Codex fallback is eligible only when structured current evidence says `GLM_ROUTE_BLOCKED`; if `GLM_ROUTE_READY=TRUE`, fallback is forbidden.
+
+Provider-scoped throttling, including a proven five-hour GLM limit, blocks only that provider route. The bounded Codex child still uses the same claim, worktree, scope, WIP, review, and verification gates. It is distinct from the low-cost Codex supervisor, which remains traffic control and never the primary engineer.
+
+When currently exposed and admitted, GPT-6 Luna at effort max is the well-scoped high-volume implementation fallback. GPT-5.6 Sol remains the complex repair/integration/acceptance-bound route. GPT-6 Astra is reserved for exceptional architecture, adversarial review, or difficult debugging escalation.
+
+The binding rule is explicit: **model identity grants no authority** for task ownership, mutation, independent review, merge, acceptance, completion, or retry. An authoring Codex lane cannot satisfy its own independent-review requirement.
+
+If all accepted Codex execution routes are unavailable or usage-limited, emit `CODEX_EXECUTION_CAPACITY_EXHAUSTED`, checkpoint durable state, and defer to the existing NightShift stop rules; do not spin through model names or manufacture work.
+
+### JEV System-One advisory fast path
+
+When the currently accepted JEV mode admits the request, prefer TypeSafe-JEV as a low-cost System-One advisory before expensive model work for deterministic condition checks, evidence relevance scoring, route suggestions, guardrail checks, and bounded confidence estimates. Consume its mode and confidence from accepted JEV authority; never infer that production admission exists because the service responds.
+
+JEV output is advisory evidence only. It never creates or transfers task, claim, mutation, retry, independent-review, merge, acceptance, completion, quota, or NEXT_READY authority. Low confidence, malformed output, policy mismatch, circuit-open state, or provider failure falls back to the normal deterministic/qualified-model path without blind replay. Never manufacture JEV calls merely to consume capacity.
+
+### Device resource capacity projection
+
+Treat verified online execution surfaces as capacity evidence, not as extra authority. Discover the five logical Windows `SunDay-Worker 1..5` surfaces individually and the `SundayMCP Mac` surface when exposed; retain RDC only as a secondary device/process bridge. An ONLINE/READY surface may host an independently SAFE_READY lane after the normal claim/lease/collision/worktree gates, but it never multiplies the global WIP budget by device or plugin count.
+
+Current accepted policy remains at most 3 simultaneously active mutable lanes, up to 2 borrowed waiting/parked claims under Issue #537 semantics, and 1 independent review lane. Future evidence-based expansion belongs to the provider-neutral roadmap in Issue #340 and must compute safe parallelism from non-overlap, machine capacity, provider/quota capacity, and WIP policy rather than assuming that five Workers plus one Mac means six writers.
+
 ### No manufactured work, no quota burning
 
 The classifier and any consumer must never manufacture work to occupy
@@ -216,8 +240,9 @@ For every substantial A-Sunday Conductor engineering session:
    individually; record each as available, unavailable, or a typed surface
    blocker such as `PLUGIN_NOT_EXPOSED_TO_CHAT`; never claim a Worker ran when
    the current harness cannot invoke it;
-2. attempt RDC device discovery and runtime readiness for every connected
-   Windows/macOS device that can materially help the task;
+2. attempt runtime readiness for `SundayMCP Mac` plus RDC/device discovery for
+   every connected Windows/macOS device that can materially help the task; record
+   online surfaces separately from mutation admission;
 3. run the PROJECT/TASK DELEGATED-RUN CENSUS below, including the latest
    durable cross-device lifecycle pulse/freshness evidence for every material
    lane, and reconcile or harvest everything it finds before allocating new
@@ -247,12 +272,13 @@ These are routing preferences, not authority and not permanent Worker roles:
   when the required Worker surface is unavailable. For long-running bounded
   inference labor inside an admitted Windows lane, prefer Kilo/Claude CLI with
   the eligible GLM class below.
-- **macOS:** prefer RDC as the primary chat-visible device/repo/shell/CLI
-  execution surface. Local Serena or similar tooling may exist, but A-Faster
-  must not require, infer, or claim a Mac Worker/Serena surface unless the
-  current harness actually exposes and verifies it. For long-running bounded
-  inference labor, launch the admitted Kilo/Claude CLI route through the
-  RDC-bound Mac lane.
+- **macOS:** prefer an exposed and verified `SundayMCP Mac` plugin as the primary
+  chat-visible repo/shell/CLI execution surface; use RDC secondarily for device,
+  GUI, process, or recovery work that needs it. Local Serena or similar tooling
+  may exist, but A-Faster must not require, infer, or claim a Mac Worker/Serena
+  surface unless the current harness actually exposes and verifies it. For
+  long-running bounded inference labor, launch the admitted Kilo/Claude CLI
+  route through the exact Mac lane bound by the active claim.
 - **GitHub:** remains remote Issue/PR/SHA/CI/merge truth, not a substitute for
   either device's local dirty-state/ownership proof.
 

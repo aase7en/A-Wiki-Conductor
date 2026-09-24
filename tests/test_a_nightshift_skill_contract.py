@@ -1675,3 +1675,136 @@ def test_wo529_turn_completion_is_not_goal_terminal_or_cleanup_authority() -> No
         assert "CLEANUP_ALLOWED=NO" in body
         assert "SAME parent thread" in body
         assert "TURN_COMPLETED alone is never cleanup authority" in body
+
+
+# Issue #545 — provider-scoped GLM exhaustion must not terminate the parent
+# while an accepted Codex executor fallback exists.
+def test_wo545_glm_limit_routes_to_codex_fallback_without_parent_terminal() -> None:
+    skill = _norm(_section(_read_strict(SKILL), "Quota gates"))
+    for token in (
+        "GLM_QUOTA_EXHAUSTED_FRESH=YES CODEX_FALLBACK_AVAILABLE=YES",
+        "GLM_ROUTE_BLOCKED",
+        "GOAL_TERMINAL=NO",
+        "CODEX_EXECUTION_CAPACITY_EXHAUSTED=YES",
+        "CHILDREN_RECONCILED=YES",
+        "GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED",
+    ):
+        assert token in skill
+    assert "provider-scoped glm exhaustion is not parent quota exhaustion" in skill.lower()
+
+
+def test_wo545_quota_vectors_are_consistent_in_skill_canonical_and_template() -> None:
+    bodies = (
+        ("skill", _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate"))),
+        (
+            "canonical",
+            _norm(_section(_reference_without_supervisor_template_body(), "One-shot continuation terminal gate")),
+        ),
+        ("template", _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate"))),
+    )
+    required = (
+        "GLM_QUOTA_EXHAUSTED_FRESH=YES CODEX_FALLBACK_AVAILABLE=YES",
+        "GLM_ROUTE_BLOCKED",
+        "GOAL_TERMINAL=NO",
+        "AUTHORIZED_FALLBACK_AVAILABLE=NO",
+        "CODEX_EXECUTION_CAPACITY_EXHAUSTED=YES",
+    )
+    for label, body in bodies:
+        for token in required:
+            assert token in body, f"{label}: missing {token}"
+        assert "QUOTA_EXHAUSTED_FRESH=YES CHILDREN_RECONCILED=YES =>" not in body
+
+
+
+def test_wo545_jev_system_one_advisory_is_fast_but_never_authority() -> None:
+    skill = _norm(_section(_read_strict(SKILL), "Model roles"))
+    template = _norm(_section(_supervisor_template_body(), "Role"))
+    for label, body in (("skill", skill), ("template", template)):
+        for token in (
+            "System-One fast advisory",
+            "condition checks",
+            "evidence/relevance scoring",
+            "route suggestions",
+            "guardrail checks",
+            "confidence",
+            "evidence, never authority",
+        ):
+            assert token in body, f"{label}: missing {token}"
+    assert "flat decision seam" in skill
+    assert "flat decision seam" in template
+
+
+def test_wo545_background_liveness_survives_parent_interrupt_without_model_spin() -> None:
+    skill = _norm(_section(_read_strict(SKILL), "Background liveness projection"))
+    canonical = _norm(_section(_reference_without_supervisor_template_body(), "Background liveness projection"))
+    template = _norm(_section(_supervisor_template_body(), "Background liveness"))
+    for label, body in (("skill", skill), ("canonical", canonical), ("template", template)):
+        assert "BACKGROUND_LIVENESS_PULSE" in body, label
+        assert "elapsed" in body, label
+        assert "last activity" in body, label
+        assert "output" in body, label
+        assert "next safe action" in body, label
+        assert "SundayMCP/Mission Control" in body, label
+        assert "Stop/Interrupt" in body or "Closing or interrupting" in body, label
+        assert "does not imply" in body or "does not cancel" in body, label
+
+
+
+def test_wo545_nonterminal_turn_emits_exact_stop_hook_receipt_pointer() -> None:
+    bodies = (
+        ("skill", _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate"))),
+        (
+            "canonical",
+            _norm(
+                _section(
+                    _reference_without_supervisor_template_body(),
+                    "One-shot continuation terminal gate",
+                )
+            ),
+        ),
+        (
+            "template",
+            _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate")),
+        ),
+    )
+    for label, body in bodies:
+        assert "turn-receipt.json" in body, label
+        assert "A_SUNDAY_TURN_RECEIPT_REF=" in body, label
+        assert "NIGHTSHIFT_TURN_RECEIPT" in body, label
+        assert "exactly one" in body.lower(), label
+        assert "stop_hook_active" in body, label
+
+
+def test_wo545_resume_receipt_identity_is_bound_fail_closed_across_all_surfaces() -> None:
+    bodies = (
+        ("skill", _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate"))),
+        (
+            "canonical",
+            _norm(
+                _section(
+                    _reference_without_supervisor_template_body(),
+                    "One-shot continuation terminal gate",
+                )
+            ),
+        ),
+        ("template", _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate"))),
+    )
+    required = (
+        "thread_id",
+        "parent_exec_ref",
+        "capability_evidence_version",
+        "generation",
+        "outstanding_exec_refs",
+        "next_safe_action_ref",
+        "low|medium|high",
+        "previous accepted generation + 1",
+        "RESUME_RECEIPT_IDENTITY_UNAVAILABLE",
+        "synthetic parent execution id",
+        "do not emit",
+        "A_SUNDAY_TURN_RECEIPT_REF",
+    )
+    for label, body in bodies:
+        for token in required:
+            assert token in body, f"{label}: missing {token}"
+        assert "supervisor effort `max` under v1" in body
+        assert "preserve the nonterminal checkpoint" in body

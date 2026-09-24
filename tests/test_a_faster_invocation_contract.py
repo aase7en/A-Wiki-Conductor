@@ -483,3 +483,57 @@ def test_wo530_model_roles_preserve_max_flash_and_jev_boundaries() -> None:
     assert "GLM-5.3 Flash" in section
     assert "TypeSafe-Jev" in section
     assert "authoritative_for_action=false" in section
+
+
+# Issue #545 — Codex executor fallback while the GLM route is blocked.
+def test_codex_executor_fallback_is_bounded_and_never_bypasses_glm_first() -> None:
+    text = _read_strict(SKILL)
+    section = _norm(_section(text, "Codex executor fallback"))
+    for token in (
+        "GLM_ROUTE_BLOCKED",
+        "GPT-6 Luna",
+        "effort max",
+        "GPT-5.6 Sol",
+        "GPT-6 Astra",
+        "model identity grants no authority",
+        "Codex supervisor",
+        "never the primary engineer",
+        "CODEX_EXECUTION_CAPACITY_EXHAUSTED",
+    ):
+        assert token in section
+    assert "GLM-5.3 MAX remains the preferred heavy executor" in section
+    assert "GLM_ROUTE_READY=TRUE" in section
+    assert "fallback is forbidden" in section
+
+
+
+def test_wo545_jev_system_one_fast_path_is_advisory_only() -> None:
+    section = _norm(_section(_read_strict(SKILL), "JEV System-One advisory fast path"))
+    for token in (
+        "System-One advisory",
+        "condition checks",
+        "evidence relevance scoring",
+        "route suggestions",
+        "guardrail checks",
+        "confidence",
+        "accepted JEV authority",
+        "advisory evidence only",
+        "NEXT_READY authority",
+    ):
+        assert token in section
+    assert "Never manufacture JEV calls" in section
+
+
+def test_wo545_device_capacity_discovers_workers_and_mac_without_multiplying_wip() -> None:
+    text = _read_strict(SKILL)
+    section = _norm(_section(text, "Device resource capacity projection"))
+    assert "SunDay-Worker 1..5" in section
+    assert "SundayMCP Mac" in section
+    assert "ONLINE/READY" in section
+    assert "capacity evidence, not as extra authority" in section
+    assert "never multiplies the global WIP budget" in section
+    assert "3 simultaneously active mutable lanes" in section
+    assert "Issue #340" in section
+    routes = _norm(_section(text, "Default device execution routes"))
+    assert "SundayMCP Mac" in routes
+    assert "RDC secondarily" in routes

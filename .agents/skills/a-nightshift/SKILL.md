@@ -85,12 +85,25 @@ independent review lane of its own.
 - **GLM-5.3-Flash** is bounded read-only assistance only
   (reconnaissance, census, shaping, precheck, advisory); it never holds
   mutation authority and never satisfies a required independent review.
-- **TypeSafe-JEV** is advisory only: its output is evidence, never
-  task/claim/mutation/review/merge/completion authority. Provider failure,
-  malformed evidence, or low confidence fails closed to the normal path.
-- Maximum normal nesting is **Codex -> GLM -> JEV**; JEV results return to
-  the GLM lane that asked, never to another JEV call. No deeper nesting is
-  introduced.
+- **TypeSafe-JEV** is advisory only: its output is evidence, never authority;
+  it never grants task/claim/mutation/review/merge/completion authority. When the currently
+  accepted JEV mode permits it, use JEV as a System-One fast advisory for
+  condition checks, evidence/relevance scoring, route suggestions, guardrail
+  checks, and bounded confidence before spending a stronger-model turn.
+  Provider failure, malformed evidence, low confidence, or a mode/circuit gate
+  fails closed to the normal deterministic/qualified-model path. A direct
+  supervisor-side JEV advisory is allowed only for this bounded fast-path seam;
+  it creates no recursive child tree and grants no action authority.
+- **Codex heavy fallback** is consumed from A-Faster only after structured
+  `GLM_ROUTE_BLOCKED`: GPT-6 Luna effort max for well-scoped high-volume
+  implementation, GPT-5.6 Sol for complex repair/integration/acceptance-bound
+  work, and GPT-6 Astra only for exceptional architecture/adversarial/debug
+  escalation. This child/executor role is separate from the low-cost supervisor
+  below and inherits all claim/WIP/review/verification gates.
+- Maximum implementation nesting remains **Codex -> GLM -> JEV**; JEV results
+  requested by a GLM lane return to that lane, never to another JEV call. The
+  bounded supervisor-side System-One advisory above is a flat decision seam,
+  not an extra nesting level. No deeper nesting is introduced.
 
 ## Low-cost Codex supervisor
 
@@ -110,6 +123,12 @@ supervisor's model or effort cannot change mid-goal when escalation is
 required, fail closed and escalate to a human or to a stronger preselected
 profile rather than inventing capability or silently continuing under the
 wrong profile.
+
+## Background liveness projection
+
+A long-running delegated child must never be represented to the operator only by a stale `RUNNING` label. Preserve a compact read-only `BACKGROUND_LIVENESS_PULSE` projection from existing durable execution evidence: execution/lane id, current state, elapsed time, last activity/progress time when known, bounded output-byte count, typed wait/blocker, and exact next safe action/recheck. The pulse is observability only; it creates no heartbeat authority, task store, scheduler, retry permission, or mutation lease.
+
+If the active host/transport can surface progress events without starting another model turn, expose state changes and infrequent long-running liveness pulses there. If it cannot, retain the projection in SundayMCP/Mission Control so a later chat/session can read it immediately. Never fabricate a chat notification, and never turn an unchanged pulse into model progress. Closing or interrupting the Codex/Luna parent turn does not imply its separately supervised durable children were cancelled; the next parent must RECOVER their exact status before replay.
 
 ## Quiet waiting
 
@@ -269,6 +288,19 @@ never treated as unlimited; never collapse unlike failures, and obey actual
 `QUOTA_EXHAUSTED`/auth/transport/cost gates exactly as the bases define
 them.
 
+Provider-scoped GLM exhaustion is not parent quota exhaustion. With
+`GLM_QUOTA_EXHAUSTED_FRESH=YES CODEX_FALLBACK_AVAILABLE=YES`, classify the
+GLM lane `GLM_ROUTE_BLOCKED` while the parent remains `GOAL_TERMINAL=NO` and
+continue independent SAFE_READY work through the already-authorized Codex
+executor fallback from A-Faster. Do not repeatedly probe the known five-hour
+limit before its reset/cooldown.
+
+Only when accepted Codex execution capacity is also unavailable may quota
+become parent-terminal. `CODEX_EXECUTION_CAPACITY_EXHAUSTED=YES` plus
+`CHILDREN_RECONCILED=YES` and no other accepted execution/recheck route may
+produce `GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED`. Checkpoint exact provider
+blockers/reset evidence first; never spin through model names.
+
 ## No blind redispatch
 
 Never blindly redispatch a lane whose census-derived state is `RUNNING`,
@@ -324,7 +356,13 @@ Pinned incident vectors:
   waiting, harvest, review, monitoring, or exact next-safe action remaining
   => the genuine human gate may be terminal.
 - QUOTA_AVAILABLE => QUOTA_TERMINAL=FORBIDDEN.
+- GLM_QUOTA_EXHAUSTED_FRESH=YES CODEX_FALLBACK_AVAILABLE=YES
+  => GLM_ROUTE_BLOCKED, GOAL_TERMINAL=NO.
 - QUOTA_EXHAUSTED_FRESH=YES CHILDREN_RECONCILED=YES
+  AUTHORIZED_FALLBACK_AVAILABLE=NO
+  => GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.
+- CODEX_EXECUTION_CAPACITY_EXHAUSTED=YES CHILDREN_RECONCILED=YES
+  AUTHORIZED_FALLBACK_AVAILABLE=NO
   => GOAL_COMPLETE_REASON=QUOTA_EXHAUSTED.
 - PATH_CODEX=ABSENT CODEX_BIN_CAPABILITY=VERIFIED
   => INTEGRATOR_ROUTE=AVAILABLE, HUMAN_ACTION_REQUIRED=FALSE.
@@ -337,6 +375,34 @@ existing run authority. An accepted DEX-3b resume adapter may resume the SAME
 parent thread from that pointer after fresh recovery. TURN_COMPLETED alone is
 never cleanup authority. If no accepted resume adapter is available, preserve
 the nonterminal checkpoint truthfully; do not fabricate GOAL_COMPLETE.
+
+When TURN_RECEIPT_STATUS=CONTINUE and the accepted Codex Stop hook adapter is
+active, materialize exactly one `turn-receipt.json` under the existing
+ephemeral A-NightShift run directory. It MUST be a
+`NIGHTSHIFT_TURN_RECEIPT` conforming exactly to the accepted #531 v1 schema;
+this is the existing continuation projection, not a new state store. The final
+assistant message for that turn MUST contain exactly one pointer line:
+
+`A_SUNDAY_TURN_RECEIPT_REF=<absolute path to turn-receipt.json>`
+
+Do not emit that marker for a terminal/frozen/wait-only turn. The Stop hook
+validates the receipt and may continue only actionable CONTINUE reasons;
+`stop_hook_active=true` always forbids a second continuation in the same turn.
+
+Before materializing the receipt, bind every #531 v1 identity/transition field from
+current recovered evidence: `run_id`, `thread_id`, `parent_exec_ref`, active
+`model` and v1-compatible `effort` (`low|medium|high` only),
+`contract_ref`, `receipt_ref`, `authority_repo_ref`, `worktree_ref`,
+current VERIFIED `capability_evidence_version`, the fenced `generation`,
+current `outstanding_exec_refs`, and `next_safe_action_ref`. Generation is
+1 for the first completed parent turn and thereafter exactly previous accepted
+generation + 1. Never derive a synthetic parent execution id, thread id,
+capability version, generation, or action reference. If any required field is
+UNKNOWN, stale, incompatible (including supervisor effort `max` under v1), or
+cannot be bound to current run authority, classify
+`RESUME_RECEIPT_IDENTITY_UNAVAILABLE`, do not emit
+`A_SUNDAY_TURN_RECEIPT_REF`, and preserve the nonterminal checkpoint for the
+host/accepted successor adapter instead of fabricating resume eligibility.
 
 Pinned vector:
 TURN_COMPLETED=YES DURABLE_GOAL_NONTERMINAL=YES =>
