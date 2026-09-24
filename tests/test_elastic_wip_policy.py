@@ -160,6 +160,31 @@ def test_waiting_glm_with_active_mutation_child_does_not_free_slot() -> None:
     assert verdict.new_borrow_target == 0
 
 
+def test_unknown_glm_child_status_does_not_create_borrow_capacity() -> None:
+    verdict = classify_elastic_wip(
+        _facts(
+            base_active=1,
+            base_waiting_ci=1,
+            base_waiting_external=0,
+            base_waiting_glm=1,
+            glm_wait_unknown_mutation_children=1,
+            ready_independent_candidates=5,
+        )
+    )
+    assert verdict.borrowable_waits == 1
+    assert verdict.new_borrow_target == 1
+    assert "WAITING_GLM_CHILD_STATUS_UNKNOWN" in verdict.blockers
+
+
+def test_active_and_unknown_glm_child_counts_cannot_exceed_wait_lanes() -> None:
+    with pytest.raises(ValueError):
+        ElasticWipFacts(
+            base_waiting_glm=1,
+            glm_wait_active_mutation_children=1,
+            glm_wait_unknown_mutation_children=1,
+        )
+
+
 def test_glm_wait_child_count_cannot_exceed_glm_wait_lanes() -> None:
     with pytest.raises(ValueError):
         classify_elastic_wip(

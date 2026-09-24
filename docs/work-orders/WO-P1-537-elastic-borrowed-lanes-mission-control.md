@@ -239,3 +239,49 @@ branch; it has not yet been pushed. The prior `e64b669` review/CI evidence is
 not candidate acceptance evidence. Next: record this checkpoint, push the
 repaired branch, obtain a fresh independent exact-SHA R3 review and exact-head
 hosted CI, then repeat GPT acceptance against the pushed SHA.
+
+## Independent R3 review follow-up 2 — 2026-09-24
+
+The independent MAX review of exact candidate
+`a8c68427b632262399d53b1951c985acf95434c6` returned `NEEDS_FIX`, P0=0,
+P1=0, P2=4. Findings:
+
+- non-parked durable activity identities are not propagated to worker-row
+  composition, causing valid wait activity to project as UNKNOWN;
+- unknown WAITING_GLM child status cannot be represented and could be counted
+  as borrowable capacity;
+- `RUNNING + BORROWED_MUTABLE` is accepted but omitted from all displayed
+  activity totals;
+- duplicate distinct activity claims sharing a lane ref are collapsed
+  last-wins without a visible collision marker.
+
+Exact candidate and branch were verified clean at `a8c68427` before this
+checkpoint. Repair only within the existing WO allowlist and add RED-first
+regressions for all four findings. Do not alter #540/#530 paths, authority
+stores/schemas, or unrelated P3 observations. After repair, rerun focused
+verification, checkpoint, push fast-forward, then request a new independent
+exact-SHA review and exact-head CI; prior review/CI evidence does not accept
+the changed SHA. Reviewer slot is free. Next action: add failing tests and
+implement the four bounded repairs.
+
+## Independent R3 review follow-up 2 repair checkpoint — 2026-09-24
+
+RED-first tests reproduced the four P2s on `a8c68427`. Repairs now:
+
+- propagate exact durable activity identity for every accepted worker activity,
+  not only parked state;
+- represent unknown WAITING_GLM child counts explicitly, subtract them from
+  borrowable waits, validate combined known/unknown child counts, and surface
+  `WAITING_GLM_CHILD_STATUS_UNKNOWN`;
+- reject `RUNNING + BORROWED_MUTABLE` at activity-observation construction;
+- preserve distinct activity records sharing one lane ref, fail closed as
+  `ACTIVITY_LANE_COLLISION`, and render the marker in the cockpit output.
+
+Focused verification passes: 161 passed, 1 deselected (the previously recorded
+host-specific `test_apply_worker_settings_to_home_applied` fixture). Both
+modified Python modules pass `py_compile`; `git diff --check` passes. The
+initial regression run failed on all four issue classes before implementation.
+Changes remain uncommitted on the existing WO branch and within its allowed
+paths. Next: finish source/scope/secret review, record the exact checkpoint,
+then commit, push fast-forward, and obtain fresh independent review plus CI for
+the resulting SHA. Do not use earlier `a8c68427` review/CI as acceptance.

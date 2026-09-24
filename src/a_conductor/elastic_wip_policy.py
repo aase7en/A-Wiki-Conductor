@@ -34,6 +34,7 @@ class ElasticWipFacts:
     base_waiting_external: int = 0
     base_cooldown: int = 0
     glm_wait_active_mutation_children: int = 0
+    glm_wait_unknown_mutation_children: int = 0
     base_returning_ready: int = 0
     base_blocked: int = 0
     base_human_required: int = 0
@@ -55,6 +56,7 @@ class ElasticWipFacts:
             "base_waiting_external",
             "base_cooldown",
             "glm_wait_active_mutation_children",
+            "glm_wait_unknown_mutation_children",
             "base_returning_ready",
             "base_blocked",
             "base_human_required",
@@ -67,9 +69,13 @@ class ElasticWipFacts:
             value = getattr(self, name)
             if not isinstance(value, int) or isinstance(value, bool) or value < 0:
                 raise ValueError(f"ELASTIC_WIP_FACTS_INVALID: {name} must be >= 0")
-        if self.glm_wait_active_mutation_children > self.base_waiting_glm:
+        if (
+            self.glm_wait_active_mutation_children
+            + self.glm_wait_unknown_mutation_children
+            > self.base_waiting_glm
+        ):
             raise ValueError(
-                "ELASTIC_WIP_FACTS_INVALID: glm mutation children exceed WAITING_GLM lanes"
+                "ELASTIC_WIP_FACTS_INVALID: GLM child evidence exceeds WAITING_GLM lanes"
             )
 
     @property
@@ -93,7 +99,11 @@ class ElasticWipFacts:
 
     @property
     def borrowable_waits(self) -> int:
-        passive_glm_waits = self.base_waiting_glm - self.glm_wait_active_mutation_children
+        passive_glm_waits = (
+            self.base_waiting_glm
+            - self.glm_wait_active_mutation_children
+            - self.glm_wait_unknown_mutation_children
+        )
         return (
             self.base_waiting_ci
             + self.base_waiting_approval
@@ -187,6 +197,8 @@ def classify_elastic_wip(facts: ElasticWipFacts) -> ElasticWipVerdict:
     resume_target = 0
     new_target = 0
     blockers = list(gate_blockers)
+    if facts.glm_wait_unknown_mutation_children:
+        blockers.append("WAITING_GLM_CHILD_STATUS_UNKNOWN")
     if not gate_blockers and admitted_headroom > 0:
         # Existing parked claims resume before creating another claim.
         resume_target = min(facts.borrowed_parked, admitted_headroom)

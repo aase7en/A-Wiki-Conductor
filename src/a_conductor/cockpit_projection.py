@@ -26,7 +26,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 
@@ -396,6 +396,8 @@ class CockpitActivityObservation:
             self.capacity_class != "BORROWED_MUTABLE"
         ):
             raise CockpitProjectionError("ACTIVITY_BORROWED_STATE_REQUIRES_BORROWED_CLASS")
+        if self.state == "RUNNING" and self.capacity_class == "BORROWED_MUTABLE":
+            raise CockpitProjectionError("ACTIVITY_RUNNING_BORROWED_CLASS_INVALID")
         if self.state in {"RUNNING", "BORROWED_ACTIVE"} and not (
             isinstance(self.execution_id, str) and self.execution_id.strip()
         ):
@@ -438,6 +440,7 @@ class CockpitLaneInputs:
     activity: CockpitActivityObservation = field(
         default_factory=lambda: CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)
     )
+    activity_collision: bool = False
 
 
 @dataclass(frozen=True)
@@ -669,6 +672,15 @@ def project_cockpit_lane(
         gates=inputs.gates,
         origin_display=_origin_display(inputs.origin),
     )
+
+    if inputs.activity_collision:
+        return CockpitLaneProjection(
+            state=CockpitState.UNKNOWN,
+            state_markers=base_markers + ("UNKNOWN", "ACTIVITY_LANE_COLLISION"),
+            blocker_code="ACTIVITY_LANE_COLLISION",
+            next_safe_action="RECONCILE_ACTIVITY_LANE_COLLISION_THEN_REPROJECT",
+            **common,
+        )
 
     if execution.available and execution.provenance != _ACCEPTED_EXECUTION_PROVENANCE:
         return CockpitLaneProjection(
@@ -1047,59 +1059,69 @@ def build_control_center_lane_inputs(
     read-back yet and stays explicitly unavailable.
     """
     workers = tuple(getattr(snapshot, "workers", None) or ())
-    by_lane = {item.lane_ref: item for item in activities if item.available}
+    by_lane: dict[str, list[CockpitActivityObservation]] = {}
+    for item in activities:
+        if item.available:
+            group = by_lane.setdefault(item.lane_ref or "", [])
+            if item not in group:
+                group.append(item)
     lanes: list[CockpitLaneInputs] = []
     for row in workers:
-        activity = by_lane.get(
-            row.worker_id, CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)
-        )
-        parked = activity.available and activity.state == "PARKED_CAPACITY"
-        lanes.append(
-            CockpitLaneInputs(
-                identity=CockpitLaneIdentity(
-                    work_order_ref=(
-                        activity.work_order_ref if parked else _NOT_DECLARED
+        matches = by_lane.get(row.worker_id, [])
+        activities_for_worker = matches or [
+            CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)
+        ]
+        for activity in activities_for_worker:
+            has_activity = activity.available
+            lanes.append(
+                CockpitLaneInputs(
+                    identity=CockpitLaneIdentity(
+                        work_order_ref=(
+                            activity.work_order_ref if has_activity else _NOT_DECLARED
+                        ),
+                        task_ref=(activity.task_ref if has_activity else _NOT_DECLARED),
+                        topology=None,
+                        lane=activity.lane_ref if has_activity else row.worker_id,
+                        executor=_worker_display(row) or row.worker_id,
+                        provider=None,
+                        harness=getattr(row, "runtime_id", None),
+                        authority_repo=None,
+                        execution_repo=None,
+                        worktree=_worker_worktree_anchor(row),
+                        branch=None,
+                        expected_head=None,
+                        execution_id=None,
+                        lease_id=None,
+                        provenance=(
+                            _ACTIVITY_PROVENANCE
+                            if has_activity
+                            else _CONTROL_CENTER_PROVENANCE
+                        ),
                     ),
-                    task_ref=activity.task_ref if parked else _NOT_DECLARED,
-                    topology=None,
-                    lane=activity.lane_ref if parked else row.worker_id,
-                    executor=_worker_display(row) or row.worker_id,
-                    provider=None,
-                    harness=getattr(row, "runtime_id", None),
-                    authority_repo=None,
-                    execution_repo=None,
-                    worktree=_worker_worktree_anchor(row),
-                    branch=None,
-                    expected_head=None,
-                    execution_id=None,
-                    lease_id=None,
-                    provenance=(
-                        _ACTIVITY_PROVENANCE
-                        if parked
-                        else _CONTROL_CENTER_PROVENANCE
+                    execution=CockpitExecutionObservation.unavailable(
+                        _PORT_UNAVAILABLE
                     ),
-                ),
-                execution=CockpitExecutionObservation.unavailable(
-                    _PORT_UNAVAILABLE
-                ),
-                lease=CockpitLeaseObservation.unavailable(_PORT_UNAVAILABLE),
-                git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
-                gates=CockpitGateEvidence(),
-                activity=activity,
+                    lease=CockpitLeaseObservation.unavailable(_PORT_UNAVAILABLE),
+                    git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
+                    gates=CockpitGateEvidence(),
+                    activity=activity,
+                    activity_collision=len(matches) > 1,
+                )
             )
-        )
-    represented_lanes = {lane.identity.lane for lane in lanes}
-    for activity in sorted(
-        (
-            item for item in activities
-            if item.available
-            and item.state == "PARKED_CAPACITY"
-            and item.lane_ref not in represented_lanes
-        ),
-        key=lambda item: (
-            item.lane_ref or "",
-            item.work_order_ref or "",
-            item.task_ref or "",
+    represented_lanes = {row.worker_id for row in workers}
+    unmatched_parked = [
+        (item, len(group) > 1)
+        for lane_ref, group in by_lane.items()
+        if lane_ref not in represented_lanes
+        for item in group
+        if item.state == "PARKED_CAPACITY"
+    ]
+    for activity, collision in sorted(
+        unmatched_parked,
+        key=lambda pair: (
+            pair[0].lane_ref or "",
+            pair[0].work_order_ref or "",
+            pair[0].task_ref or "",
         ),
     ):
         lanes.append(
@@ -1107,7 +1129,8 @@ def build_control_center_lane_inputs(
                 activity, execution_reason=_PORT_UNAVAILABLE
             )
         )
-        represented_lanes.add(activity.lane_ref)
+        if collision:
+            lanes[-1] = replace(lanes[-1], activity_collision=True)
     return tuple(lanes)
 
 
@@ -1163,9 +1186,12 @@ def build_observed_lane_inputs(
         if origin.execution_id not in origins_by_execution:
             origins_by_execution[origin.execution_id] = origin
     _unavailable_origin = CockpitOriginObservation.unavailable(_PORT_UNAVAILABLE)
-    activities_by_lane = {
-        item.lane_ref: item for item in activities if item.available
-    }
+    activities_by_lane: dict[str, list[CockpitActivityObservation]] = {}
+    for item in activities:
+        if item.available:
+            group = activities_by_lane.setdefault(item.lane_ref or "", [])
+            if item not in group:
+                group.append(item)
 
     def _unavailable_lease() -> CockpitLeaseObservation:
         return CockpitLeaseObservation.unavailable(
@@ -1211,68 +1237,82 @@ def build_observed_lane_inputs(
                     origins_by_execution.get(execution.execution_id)
                     or _unavailable_origin
                 ),
-                activity=activities_by_lane.get(
-                    f"{worker_id}:{execution_id}",
-                    activities_by_lane.get(execution_id)
-                    or CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE),
+                activity=(
+                    (
+                        activities_by_lane.get(f"{worker_id}:{execution_id}")
+                        or activities_by_lane.get(execution_id)
+                        or [CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)]
+                    )[0]
                 ),
+                activity_collision=len(
+                    activities_by_lane.get(f"{worker_id}:{execution_id}")
+                    or activities_by_lane.get(execution_id)
+                    or ()
+                ) > 1,
             )
         )
     for row in workers:
         if row.worker_id in observed_workers:
             continue
         lease = leases_by_worker.get(row.worker_id)
-        activity = activities_by_lane.get(
-            row.worker_id, CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)
-        )
-        parked = activity.available and activity.state == "PARKED_CAPACITY"
-        lanes.append(
-            CockpitLaneInputs(
-                identity=CockpitLaneIdentity(
-                    work_order_ref=(
-                        activity.work_order_ref if parked else _NOT_DECLARED
+        matches = activities_by_lane.get(row.worker_id, [])
+        activities_for_worker = matches or [
+            CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)
+        ]
+        for activity in activities_for_worker:
+            has_activity = activity.available
+            lanes.append(
+                CockpitLaneInputs(
+                    identity=CockpitLaneIdentity(
+                        work_order_ref=(
+                            activity.work_order_ref if has_activity else _NOT_DECLARED
+                        ),
+                        task_ref=(activity.task_ref if has_activity else _NOT_DECLARED),
+                        topology=None,
+                        lane=activity.lane_ref if has_activity else row.worker_id,
+                        executor=_worker_display(row) or row.worker_id,
+                        provider=None,
+                        harness=getattr(row, "runtime_id", None),
+                        authority_repo=None,
+                        execution_repo=None,
+                        worktree=_worker_worktree_anchor(row),
+                        branch=None,
+                        expected_head=None,
+                        execution_id=None,
+                        lease_id=lease.lease_id if lease else None,
+                        provenance=(
+                            _ACTIVITY_PROVENANCE
+                            if has_activity
+                            else _CONTROL_CENTER_PROVENANCE
+                        ),
                     ),
-                    task_ref=activity.task_ref if parked else _NOT_DECLARED,
-                    topology=None,
-                    lane=activity.lane_ref if parked else row.worker_id,
-                    executor=_worker_display(row) or row.worker_id,
-                    provider=None,
-                    harness=getattr(row, "runtime_id", None),
-                    authority_repo=None,
-                    execution_repo=None,
-                    worktree=_worker_worktree_anchor(row),
-                    branch=None,
-                    expected_head=None,
-                    execution_id=None,
-                    lease_id=lease.lease_id if lease else None,
-                    provenance=(
-                        _ACTIVITY_PROVENANCE
-                        if parked
-                        else _CONTROL_CENTER_PROVENANCE
+                    execution=CockpitExecutionObservation.unavailable(
+                        _RECORD_NOT_FOUND if execution_authority_readable else _PORT_UNAVAILABLE
                     ),
-                ),
-                execution=CockpitExecutionObservation.unavailable(
-                    _RECORD_NOT_FOUND if execution_authority_readable else _PORT_UNAVAILABLE
-                ),
-                lease=lease or _unavailable_lease(),
-                git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
-                gates=CockpitGateEvidence(),
-                origin=_unavailable_origin,
-                activity=activity,
+                    lease=lease or _unavailable_lease(),
+                    git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
+                    gates=CockpitGateEvidence(),
+                    origin=_unavailable_origin,
+                    activity=activity,
+                    activity_collision=len(matches) > 1,
+                )
             )
-        )
-    represented_lanes = {lane.identity.lane for lane in lanes}
-    for activity in sorted(
-        (
-            item for item in activities
-            if item.available
-            and item.state == "PARKED_CAPACITY"
-            and item.lane_ref not in represented_lanes
-        ),
-        key=lambda item: (
-            item.lane_ref or "",
-            item.work_order_ref or "",
-            item.task_ref or "",
+    represented_lanes = {
+        row.worker_id for row in workers if row.worker_id not in observed_workers
+    }
+    unmatched_parked = [
+        (item, len(group) > 1)
+        for lane_ref, group in activities_by_lane.items()
+        if lane_ref not in represented_lanes
+        for item in group
+        if item.state == "PARKED_CAPACITY"
+    ]
+    for activity, collision in sorted(
+        unmatched_parked,
+        key=lambda pair: (
+            pair[0].lane_ref or "",
+            pair[0].work_order_ref or "",
+            pair[0].task_ref or "",
         ),
     ):
         lanes.append(
@@ -1285,7 +1325,8 @@ def build_observed_lane_inputs(
                 ),
             )
         )
-        represented_lanes.add(activity.lane_ref)
+        if collision:
+            lanes[-1] = replace(lanes[-1], activity_collision=True)
     return tuple(lanes)
 
 

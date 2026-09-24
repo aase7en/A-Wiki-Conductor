@@ -794,6 +794,11 @@ def test_activity_observation_rejects_untrusted_or_invalid_fields(kwargs) -> Non
         _activity(**kwargs)
 
 
+def test_running_activity_cannot_claim_borrowed_mutable_capacity() -> None:
+    with pytest.raises(CockpitProjectionError, match="ACTIVITY_RUNNING_BORROWED_CLASS_INVALID"):
+        _activity(state="RUNNING", capacity_class="BORROWED_MUTABLE")
+
+
 def test_monitor_capacity_line_shows_base_borrowed_parked_review_and_waits() -> None:
     base_run = _inputs(
         execution=_execution(),
@@ -1692,6 +1697,68 @@ def test_parked_activity_composes_without_an_execution_record(include_worker) ->
             control_center_lanes[0], generated_at=GENERATED_AT
         ).state
         is CockpitState.PARKED_CAPACITY
+    )
+
+
+def test_worker_wait_activity_keeps_exact_identity_when_composed() -> None:
+    from a_conductor.control_center import ControlCenterSnapshot
+
+    activity = _activity(
+        work_order_ref="WO-P1-537",
+        task_ref="WAITING-CI-TASK",
+        lane_ref=_WORKER_ID,
+        state="WAITING_CI",
+        capacity_class="BASE_MUTABLE",
+        execution_id=None,
+    )
+    snapshot = ControlCenterSnapshot(
+        projects=(), workers=(_authority_row(_WORKER_ID, _REPO_ROOT),)
+    )
+    for lane_inputs in (
+        build_control_center_lane_inputs(snapshot, (activity,))[0],
+        build_observed_lane_inputs(
+            snapshot, (), (), execution_authority_readable=True,
+            lease_authority_readable=True, activities=(activity,),
+        )[0],
+    ):
+        assert lane_inputs.identity.work_order_ref == "WO-P1-537"
+        assert lane_inputs.identity.task_ref == "WAITING-CI-TASK"
+        projected = project_cockpit_lane(lane_inputs, generated_at=GENERATED_AT)
+        assert projected.state is CockpitState.WAITING_CI
+
+
+@pytest.mark.parametrize("builder", ("control", "observed"))
+def test_duplicate_activity_lane_refs_are_preserved_and_marked(builder) -> None:
+    from a_conductor.control_center import ControlCenterSnapshot
+
+    snapshot = ControlCenterSnapshot(
+        projects=(), workers=(_authority_row(_WORKER_ID, _REPO_ROOT),)
+    )
+    activities = (
+        _activity(work_order_ref="WO-A", task_ref="TASK-A", lane_ref=_WORKER_ID,
+                  execution_id=None, state="PARKED_CAPACITY",
+                  capacity_class="BORROWED_MUTABLE"),
+        _activity(work_order_ref="WO-B", task_ref="TASK-B", lane_ref=_WORKER_ID,
+                  execution_id=None, state="PARKED_CAPACITY",
+                  capacity_class="BORROWED_MUTABLE"),
+    )
+    if builder == "control":
+        lanes = build_control_center_lane_inputs(snapshot, activities)
+    else:
+        lanes = build_observed_lane_inputs(
+            snapshot, (), (), execution_authority_readable=True,
+            lease_authority_readable=True, activities=activities,
+        )
+    assert len(lanes) == 2
+    assert {lane.identity.task_ref for lane in lanes} == {"TASK-A", "TASK-B"}
+    projected = [project_cockpit_lane(lane, generated_at=GENERATED_AT) for lane in lanes]
+    assert all(lane.blocker_code == "ACTIVITY_LANE_COLLISION" for lane in projected)
+    assert all("ACTIVITY_LANE_COLLISION" in lane.state_markers for lane in projected)
+    snapshot_projection = project_cockpit_snapshot(
+        CockpitObservations(lanes=tuple(lanes), generated_at=GENERATED_AT)
+    )
+    assert "ACTIVITY_LANE_COLLISION" in "\n".join(
+        cockpit_monitor_lines(snapshot_projection)
     )
 
 
