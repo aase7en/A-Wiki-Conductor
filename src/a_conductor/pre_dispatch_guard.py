@@ -170,6 +170,16 @@ class WorkerLeasePreDispatchGuard:
             return self._deny("LEASE_BRANCH_MISMATCH")
         if str(observed.expected_head).casefold() != str(baseline.expected_head).casefold():
             return self._deny("LEASE_HEAD_MISMATCH")
+        if observed.hotspot_key != baseline.hotspot_key:
+            return self._deny("LEASE_HOTSPOT_MISMATCH")
+        if frozenset(observed.required_capabilities or ()) != frozenset(
+            baseline.required_capabilities or ()
+        ):
+            return self._deny("LEASE_CAPABILITIES_MISMATCH")
+        if observed.runtime_id != baseline.runtime_id:
+            return self._deny("LEASE_RUNTIME_MISMATCH")
+        if observed.lease_ttl_seconds != baseline.lease_ttl_seconds:
+            return self._deny("LEASE_TTL_MISMATCH")
         if observed.mutation_intent is not baseline.mutation_intent:
             return self._deny("LEASE_INTENT_MISMATCH")
         if frozenset(observed.allowed_scope or ()) != frozenset(baseline.allowed_scope or ()):

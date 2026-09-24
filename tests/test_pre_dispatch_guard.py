@@ -160,6 +160,10 @@ def test_authority_identity_drift_denies():
         "LEASE_WORKTREE_MISMATCH": {"worktree_key": r"a:\repo\other-wt"},
         "LEASE_BRANCH_MISMATCH": {"branch": "other/branch"},
         "LEASE_HEAD_MISMATCH": {"expected_head": "f" * 40},
+        "LEASE_HOTSPOT_MISMATCH": {"hotspot_key": "hotspot-other"},
+        "LEASE_CAPABILITIES_MISMATCH": {"required_capabilities": ("code", "shell")},
+        "LEASE_RUNTIME_MISMATCH": {"runtime_id": "runtime-other"},
+        "LEASE_TTL_MISMATCH": {"lease_ttl_seconds": 1200},
     }
     for reason, overrides in drift.items():
         baseline = _lease()

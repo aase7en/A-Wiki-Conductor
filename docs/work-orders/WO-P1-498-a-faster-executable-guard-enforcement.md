@@ -382,10 +382,42 @@ fields and deny with bounded code `LEASE_ID_MISMATCH`. The focused RED then
 passed. This repair changes no lease store, atomic-admission, dedupe,
 scheduler, retry, claim, or Hook Bus authority.
 
-Review follow-up after the accepted MSP-2 fan-in: the independent MAX reviewer
-must explicitly challenge whether any MSP-2-added lease metadata (for example
-`hotspot_key`) belongs in 498A launch-time revalidation or remains solely
-admission-layer truth. Do not widen authority semantics without that review.
+### Independent R3 repair checkpoint — MSP-2 lease identity
+
+The independent exact-head R3 review on candidate
+`97fb20a944922f57bc7114e4dfa601d2c80fb420` confirmed the earlier
+`lease_id` repair and found four additional immutable launch-time identity
+fields that admission already treats as request/binding authority but the
+498A consumer boundary did not revalidate:
+
+- `hotspot_key` -> `LEASE_HOTSPOT_MISMATCH`;
+- `required_capabilities` -> `LEASE_CAPABILITIES_MISMATCH`;
+- `runtime_id` -> `LEASE_RUNTIME_MISMATCH`;
+- `lease_ttl_seconds` -> `LEASE_TTL_MISMATCH`.
+
+RED evidence extended `test_authority_identity_drift_denies` so each field
+is mutated independently under ACTIVE health. The pre-repair guard returned
+`ALLOW` for the first new case (`hotspot_key`), proving the consumer-boundary
+gap. GREEN adds exact observed-vs-baseline comparisons with bounded reason
+codes. `required_capabilities` is compared as a set-equivalent identity,
+matching existing scope/capability normalization semantics.
+
+Lifecycle fields remain intentionally excluded from immutable identity:
+`heartbeat_at` and `expires_at` may advance and the existing regression
+continues to require `ALLOW`. This repair does not change WorkerLease store,
+admission, dedupe, scheduler, retry, claim, or Hook Bus authority.
+
+Adjacent verification on macOS reported six failures in
+`tests/test_supervised_run_coordinator.py`, all caused by the pre-existing
+runtime executable allowlist rejecting the local `python3.12` name. The same
+six cases reproduce unchanged on clean parent
+`97fb20a944922f57bc7114e4dfa601d2c80fb420`; they are classified
+BASELINE/ENVIRONMENT and are not absorbed into this R3 repair.
+
+Repair scope is restricted to:
+- `src/a_conductor/pre_dispatch_guard.py`;
+- `tests/test_pre_dispatch_guard.py`;
+- this work-order checkpoint.
 
 ### Truthful enforcement label
 
