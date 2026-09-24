@@ -15,7 +15,11 @@ from a_conductor.a_faster_utilization_guard import (
     classify_utilization,
 )
 from a_conductor.claude_code_harness import MutationIntent
-from a_conductor.elastic_wip_policy import ElasticWipFacts, GateState
+from a_conductor.elastic_wip_policy import (
+    ElasticWipFacts,
+    GateState,
+    classify_elastic_wip,
+)
 from a_conductor.graph.domain import TaskGraph, TaskNode
 from a_conductor.graph.ready import compute_ready_set
 from a_conductor.graph.scheduler import (
@@ -187,7 +191,7 @@ def _plan(*node_ids: str) -> SchedulePlan:
     )
 
 
-def test_executes_only_mutable_fanout_target_from_scheduler_plan() -> None:
+def test_mutable_refill_fails_closed_without_canonical_claim_reader() -> None:
     executor = FakeExecutor()
     verdict = _verdict(occupied_mutable=1, ready_mutable=3)
     plan = _plan("a", "b", "c")
@@ -203,14 +207,10 @@ def test_executes_only_mutable_fanout_target_from_scheduler_plan() -> None:
         batch_id="batch-1",
     )
 
-    assert result.disposition is AutoRefillDisposition.EXECUTED
-    assert result.reason_code == "AUTO_REFILL_EXECUTED"
+    assert result.disposition is AutoRefillDisposition.FAIL_CLOSED
+    assert result.reason_code == "CANONICAL_MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE"
     assert result.selected_node_ids == ("a", "b")
-    assert len(executor.calls) == 1
-    call = executor.calls[0]
-    assert tuple(item.node_id for item in call["plan"].selected) == ("a", "b")
-    assert tuple(call["tasks"]) == ("a", "b")
-    assert call["batch_id"] == "batch-1"
+    assert executor.calls == []
 
 
 def test_inactive_or_explanation_only_verdict_never_dispatches() -> None:
@@ -300,7 +300,7 @@ def test_duplicate_schedule_identity_fails_before_execute() -> None:
     assert executor.calls == []
 
 
-def test_scheduler_may_select_less_than_target_without_manufactured_work() -> None:
+def test_mutable_partial_plan_stays_unexecuted_without_claim_binding() -> None:
     verdict = _verdict(occupied_mutable=0, ready_mutable=3)
     executor = FakeExecutor()
     result = execute_auto_refill(
@@ -311,9 +311,10 @@ def test_scheduler_may_select_less_than_target_without_manufactured_work() -> No
         provider_inflight={"cointh-glm": 0},
         executor=executor,
     )
-    assert result.disposition is AutoRefillDisposition.EXECUTED
+    assert result.disposition is AutoRefillDisposition.FAIL_CLOSED
+    assert result.reason_code == "CANONICAL_MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE"
     assert result.selected_node_ids == ("only-safe",)
-    assert len(executor.calls) == 1
+    assert executor.calls == []
 
 
 def test_review_refill_uses_independent_review_budget_only() -> None:
@@ -358,13 +359,18 @@ def test_preacquired_admission_outside_bounded_batch_fails_closed() -> None:
 
 
 def test_executor_exception_is_bounded_fail_closed_result() -> None:
-    verdict = _verdict(occupied_mutable=2, ready_mutable=1)
+    verdict = _verdict(
+        occupied_mutable=3,
+        ready_mutable=0,
+        occupied_review=0,
+        ready_review=1,
+    )
     executor = FakeExecutor(fail=True)
     result = execute_auto_refill(
         verdict=verdict,
-        lane_kind=RefillLaneKind.MUTABLE,
+        lane_kind=RefillLaneKind.REVIEW,
         plan=_plan("a"),
-        tasks_by_node={"a": _task()},
+        tasks_by_node={"a": _task(LeaseMutationIntent.READ_ONLY)},
         provider_inflight={"cointh-glm": 0},
         executor=executor,
     )
@@ -375,13 +381,18 @@ def test_executor_exception_is_bounded_fail_closed_result() -> None:
 
 
 def test_executor_result_identity_mismatch_requires_recovery() -> None:
-    verdict = _verdict(occupied_mutable=2, ready_mutable=1)
+    verdict = _verdict(
+        occupied_mutable=3,
+        ready_mutable=0,
+        occupied_review=0,
+        ready_review=1,
+    )
     executor = FakeExecutor(mismatch=True)
     result = execute_auto_refill(
         verdict=verdict,
-        lane_kind=RefillLaneKind.MUTABLE,
+        lane_kind=RefillLaneKind.REVIEW,
         plan=_plan("a"),
-        tasks_by_node={"a": _task()},
+        tasks_by_node={"a": _task(LeaseMutationIntent.READ_ONLY)},
         provider_inflight={"cointh-glm": 0},
         executor=executor,
     )
@@ -484,7 +495,9 @@ def _production_entrypoint_fixture(monkeypatch):
     return module, production, executor, graph, ready, contracts, eligibility
 
 
-def test_production_execute_once_uses_a_faster_refill_target(monkeypatch) -> None:
+def test_production_execute_once_fails_closed_without_canonical_claim_reader(
+    monkeypatch,
+) -> None:
     (
         module,
         production,
@@ -494,6 +507,28 @@ def test_production_execute_once_uses_a_faster_refill_target(monkeypatch) -> Non
         contracts,
         eligibility,
     ) = _production_entrypoint_fixture(monkeypatch)
+
+    provider_checks: list[str] = []
+    schedule_calls: list[object] = []
+
+    def record_provider_check(contract, current):
+        provider_checks.append("checked")
+        return current, None
+
+    def record_schedule_call(*args, **kwargs):
+        schedule_calls.append((args, kwargs))
+        return _plan("a", "b")
+
+    monkeypatch.setattr(
+        production,
+        "_provider_eligibility",
+        record_provider_check,
+    )
+    monkeypatch.setattr(
+        module,
+        "schedule_once",
+        record_schedule_call,
+    )
 
     verdict = _verdict(occupied_mutable=1, ready_mutable=3)
     facts, wip = _POLICY_EVIDENCE[id(verdict)]
@@ -517,13 +552,11 @@ def test_production_execute_once_uses_a_faster_refill_target(monkeypatch) -> Non
         a_faster_lane_kind=RefillLaneKind.MUTABLE,
     )
 
-    assert result.kind is module.ProductionElasticExecutionKind.FIXED_POOL_EXECUTED
-    assert len(executor.calls) == 1
-    assert tuple(
-        item.node_id for item in executor.calls[0]["plan"].selected
-    ) == ("a", "b")
-    assert result.batch_result is not None
-    assert tuple(item.node_id for item in result.batch_result.outcomes) == ("a", "b")
+    assert result.kind is module.ProductionElasticExecutionKind.RECOVERY_REQUIRED
+    assert result.reason_code == "CANONICAL_MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE"
+    assert executor.calls == []
+    assert provider_checks == []
+    assert schedule_calls == []
 
 
 def test_production_execute_once_legacy_path_remains_unbounded_by_a_faster(
@@ -656,6 +689,42 @@ def test_mutable_refill_requires_existing_wip_claim_gates_ready() -> None:
     assert result.reason_code == "REFILL_WIP_GATE_NOT_READY"
     assert executor.calls == []
 
+
+def test_projected_new_borrow_does_not_create_existing_claim_headroom() -> None:
+    verdict = _verdict(occupied_mutable=2, ready_mutable=1)
+    facts, _ = _POLICY_EVIDENCE[id(verdict)]
+    wip_facts = ElasticWipFacts(
+        base_active=2,
+        base_waiting_ci=1,
+        review_claimed=1,
+        ready_independent_candidates=1,
+        scope_gate=GateState.READY,
+        claim_gate=GateState.READY,
+        runtime_gate=GateState.READY,
+    )
+    wip = classify_elastic_wip(wip_facts)
+    assert wip.base_claimed == 3
+    assert wip.new_borrow_target == 1
+    plan = _plan("a")
+    executor = FakeExecutor()
+
+    result = _execute_auto_refill(
+        facts=facts,
+        verdict=verdict,
+        wip_facts=wip_facts,
+        lane_kind=RefillLaneKind.MUTABLE,
+        ready=_ready_for_plan(plan),
+        plan=plan,
+        tasks_by_node={"a": _task()},
+        provider_inflight={"cointh-glm": 0},
+        executor=executor,
+    )
+
+    assert result.disposition is AutoRefillDisposition.FAIL_CLOSED
+    assert result.reason_code == "FANOUT_TARGET_EXCEEDS_CLAIM_CAPACITY"
+    assert executor.calls == []
+
+
 def test_task_requires_matching_harness_intent_and_material_quota() -> None:
     verdict = _verdict(occupied_mutable=2, ready_mutable=1)
     plan = _plan("a")
@@ -707,12 +776,17 @@ def test_bridge_requires_provider_authority_and_pre_dispatch_guard() -> None:
 
 
 def test_bridge_projects_result_without_raw_runner_or_admission_objects() -> None:
-    verdict = _verdict(occupied_mutable=2, ready_mutable=1)
+    verdict = _verdict(
+        occupied_mutable=3,
+        ready_mutable=0,
+        occupied_review=0,
+        ready_review=1,
+    )
     result = execute_auto_refill(
         verdict=verdict,
-        lane_kind=RefillLaneKind.MUTABLE,
+        lane_kind=RefillLaneKind.REVIEW,
         plan=_plan("a"),
-        tasks_by_node={"a": _task()},
+        tasks_by_node={"a": _task(LeaseMutationIntent.READ_ONLY)},
         provider_inflight={"cointh-glm": 0},
         executor=FakeExecutor(),
     )

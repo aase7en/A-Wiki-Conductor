@@ -1,8 +1,9 @@
 """Executable A-Faster auto-refill bridge (WO-P1-549).
 
-Consumes existing utilization/WIP/readiness/scheduler evidence and delegates one
-bounded refill through the accepted ParallelReadyExecutor.  It creates no
-scheduler, task/claim/lease/provider/retry/review/completion authority.
+Consumes existing utilization/WIP/readiness/scheduler evidence and delegates a
+bounded refill through the accepted ParallelReadyExecutor. Mutable refill stays
+fail-closed until selected task IDs can be bound to canonical claims. This module
+creates no scheduler, task/claim/lease/provider/retry/review/completion authority.
 """
 
 from __future__ import annotations
@@ -40,6 +41,9 @@ from .worker_lease import LeaseMutationIntent
 
 
 _REASON_RE = re.compile(r"[A-Z0-9_]{3,64}")
+MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE_REASON = (
+    "CANONICAL_MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE"
+)
 
 
 class RefillLaneKind(str, Enum):
@@ -236,7 +240,6 @@ def execute_auto_refill(
         authorized_claim_refill = (
             base_claim_headroom
             + wip.borrowed_resume_target
-            + wip.new_borrow_target
         )
         if target > authorized_claim_refill:
             return _fail("FANOUT_TARGET_EXCEEDS_CLAIM_CAPACITY")
@@ -287,6 +290,15 @@ def execute_auto_refill(
             return _fail("PREACQUIRED_ADMISSION_MAPPING_INVALID")
         if not set(admissions).issubset(set(selected_node_ids)):
             return _fail("PREACQUIRED_ADMISSION_OUTSIDE_REFILL")
+
+    if lane_kind is RefillLaneKind.MUTABLE:
+        # WIP projections do not prove that selected task IDs hold current
+        # canonical repo/work-order claims. Keep this lane disabled until the
+        # approved claim-reader adapter can bind each assignment to a claim.
+        return _fail(
+            MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE_REASON,
+            selected_node_ids=selected_node_ids,
+        )
 
     bounded_tasks = {
         node_id: tasks_by_node[node_id] for node_id in selected_node_ids

@@ -1,6 +1,6 @@
 # WO-P1-549 — A-Faster executable auto-refill bridge
 
-Status: CHANGES_REQUIRED / R3 AUTHORITY BINDING BLOCKER
+Status: R3 MUTABLE FAIL-CLOSED PATCH IN PROGRESS / WO ACCEPTANCE BLOCKED
 Issue: #549
 Risk: R3 — dispatch/control-plane enforcement
 Topology: CONTROL_PLANE_ONLY
@@ -156,3 +156,42 @@ RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF
   only through existing authorities, and obtain fresh exact-SHA R3 review and
   CI. If no such reader exists, keep mutable auto-refill fail-closed and
   resolve the adapter contract before implementation.
+
+## User-confirmed claim-reader absence and fail-closed repair — 2026-09-25
+
+- User clarified that no runtime reader/API currently binds canonical A-Wiki
+  repo/work-order claims to Conductor task IDs. No A-Wiki files were changed;
+  do not add a duplicate claim store or reader in this WO.
+- Fresh source claim: Issue #549 comments `5822859238` and scope extension
+  `5822893729`. Scope is the bridge, production elastic caller, focused tests,
+  and this WO / `CURRENT-WORK.md` / `handoff.md` checkpoint.
+- Mutable A-Faster refill now returns the typed reason
+  `CANONICAL_MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE` before executor dispatch.
+  `ProductionElasticWorkerExecutor.execute_once()` refuses mutable A-Faster
+  context before provider eligibility/admission, scheduling, or capacity work.
+  The bridge also refuses direct mutable calls. The independent read-only
+  REVIEW lane remains unchanged.
+- Projected `new_borrow_target` is no longer counted as existing claim
+  headroom. Regression coverage proves a new projected claim cannot authorize
+  a mutable task and that the production path does not reach provider checks,
+  scheduling, or the executor.
+- RED before source repair: four focused fail-closed regressions failed because
+  mutable dispatch still executed. GREEN after repair: A-Faster refill,
+  elastic capacity/hardening/WIP/fencing, parallel-ready execution, utilization
+  guard, provider/runtime assembly, and runtime activation: `238 passed`.
+- Exact-head CI run `36062290255` passed Windows, Ubuntu, and macOS on
+  `f4b55b2d0934ac9b0de5c625b55728c56c8e6443` before this source repair; the
+  repaired candidate still requires fresh hygiene, exact-SHA independent R3
+  review, and hosted CI.
+- `GLM_ROUTE_BLOCKED`: this session exposed no structured GLM/Kilo execution
+  path plus fresh quota/upstream admission bound to this claim. Worker online
+  state is not authorization; no GLM dispatch occurred. Work continued in the
+  authorized Codex integrator lane.
+- The original #549 executable-mutable acceptance remains **NOT MET** while
+  this lane is disabled. Keep PR #550 open and do not merge this repair until a
+  separately scoped adapter contract can bind current canonical claims to
+  selected task IDs and re-enable mutable refill under that authority.
+- Next: run exact scope/hygiene checks, freeze and push the fail-closed
+  candidate, obtain focused independent exact-SHA R3 review and exact-head CI,
+  then checkpoint. Do not advance to post-main or the next roadmap node while
+  #549 acceptance is blocked on the claim-reader contract.

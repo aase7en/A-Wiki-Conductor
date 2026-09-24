@@ -18,6 +18,7 @@ from typing import Callable, Mapping, Protocol
 from .a_faster_auto_refill import (
     AutoRefillDisposition,
     AutoRefillResult,
+    MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE_REASON,
     RefillLaneKind,
     execute_auto_refill,
 )
@@ -1215,6 +1216,16 @@ class ProductionElasticWorkerExecutor:
                 ProductionElasticExecutionKind.RECOVERY_REQUIRED,
                 "A_FASTER_REFILL_LANE_KIND_INVALID",
                 SchedulePlan((), (), "a-faster-refill-lane-kind-invalid"),
+            )
+        if a_faster_lane_kind is RefillLaneKind.MUTABLE:
+            # Refuse before provider admission, scheduling, or elastic capacity
+            # work: the production path has no canonical task-to-claim reader.
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE_REASON,
+                SchedulePlan(
+                    (), (), "canonical-mutable-claim-authority-unavailable"
+                ),
             )
         if eligibility is None or not set(ready.ready_ids).issubset(eligibility):
             return ProductionElasticExecutionResult(

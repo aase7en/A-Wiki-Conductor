@@ -1,19 +1,22 @@
 # HANDOFF — A-Sunday Conductor
 
-## 2026-09-25 — WO-P1-549 R3 claim-binding blocker
+## 2026-09-25 — WO-P1-549 mutable fail-closed repair
 
 Resume from actual state in the WO before mutation.
 
 - Task: Issue #549 / WO-P1-549; PR #550 is OPEN and must not be merged.
 - Worktree: `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo549-autorefill`.
 - Branch: `feat/wo-p1-549-a-faster-autorefill`.
-- Last independently reviewed source candidate: `3f3a87ac23f2de1193f7d09ccc897e5fb5d4cad6`, based on `main@c4d4cf4da830cb313a4569a386edcff0a77266c2`.
-- Exact-head CI run `36059479359` passed Windows, Ubuntu, and macOS on that SHA. Independent exact-SHA R3 review found one P1 and returned CHANGES_REQUIRED: WIP claim counts are not bound to the selected task identities, and projected new borrowed claims are counted although the bridge does not acquire them.
+- Current branch starts from `f4b55b2d0934ac9b0de5c625b55728c56c8e6443`, based on `main@c4d4cf4da830cb313a4569a386edcff0a77266c2`. That docs-only checkpoint passed exact-head CI run `36062290255` on Windows, Ubuntu, and macOS before the source repair.
+- User confirmed there is no current runtime reader/API binding canonical A-Wiki repo/work-order claims to Conductor task IDs. New exact source claim: Issue #549 comment `5822859238`; production caller path extension: `5822893729`.
 - A-Wiki read-only reuse audit: `main == origin/main == 25102e44950ccd28c2d22eafc6e6f1d2119f18ad`. The accepted integration contract says A-Wiki owns durable repo/work-order claims and A-Conductor adapts them; A-Conductor WorkerLease is separate runtime authority. Issue #58 remains OPEN. No existing source adapter from current canonical claims to selected refill task IDs was found. No A-Wiki file was changed.
-- Docs checkpoint scope claim: Issue #549 comment `5822592246`; limited to the active WO, `CURRENT-WORK.md`, and this handoff. Existing fixture-repair claim does not authorize production changes.
-- Source gate: `SAFE_TO_MUTATE=NO` until the accepted claim reader/API and exact task-to-claim binding are established and a fresh source claim is posted.
+- Current patch scope: `src/a_conductor/a_faster_auto_refill.py`, `src/a_conductor/elastic_worker_capacity.py`, `tests/test_a_faster_auto_refill.py`, this WO, `CURRENT-WORK.md`, and this handoff. Mutable refill fails with `CANONICAL_MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE` before bridge dispatch; the production entrypoint stops before provider eligibility/admission, scheduling, or capacity work. Projected `new_borrow_target` is excluded from existing claim headroom. Read-only REVIEW lane remains available.
+- RED/GREEN: four new regressions failed before the repair; the related A-Faster/elastic/parallel/provider/runtime suite passed after it, `238 passed`. The current candidate remains uncommitted and requires final hygiene checks, exact-SHA R3 review, and fresh hosted CI.
+- WIP/recovery: one mutable #549 lane; reviewer lane free; no related open work-order or PR owner on the claimed source files; no live SundayMCP lane/session or known #549 terminal-unharvested pointer. `GLM_ROUTE_BLOCKED` is recorded in Issue #549; no GLM dispatch occurred.
+- The original executable-mutable acceptance remains NOT MET. Keep PR #550 open and do not merge until a separately scoped adapter contract binds current canonical claims to selected task IDs and mutable refill can be safely re-enabled. No A-Wiki files were changed.
+- Fresh supervisor-hook check: the active cwd was this repo's `codex-supervisor` worktree, its project trust is `trusted`, its `.codex/hooks.json` registers this worktree's `SessionStart` hook, and the injected supervisor context matched the hook source. The four additional governance filenames in the pasted startup text were absent from checked A-Wiki-Conductor/A-Wiki worktrees; the supplied repository `00-AGENT-ENTRY.md`, `PROJECT-GRAPH.yaml`, and `AGENTS.md` remained available.
 
-**Next safe action:** recover current issue/PR/head and any live claim work first; locate the approved claim-reader/API and identity contract. If absent, keep mutable auto-refill fail-closed and resolve the adapter contract under a separately scoped work order. Then implement with stale/foreign/missing/new-claim RED cases, run exact related suites, freeze, obtain independent exact-SHA R3 review and CI, and only then resume Sol acceptance/merge/post-main gates.
+**Exact next safe action:** run py_compile and scope/diff/UTF-8/secret checks; freeze and push the fail-closed candidate; obtain focused independent exact-SHA R3 review and exact-head CI. Keep PR #550 unmerged and do not start post-main or the next roadmap lane until the canonical claim-reader adapter contract restores executable-mutable acceptance.
 
 ## 2026-09-22 — WO473 DEPDIET-1 first package slice accepted and integrated
 

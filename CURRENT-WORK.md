@@ -1,17 +1,20 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-09-25 — WO-P1-549 A-Faster refill CHANGES_REQUIRED — CURRENT
+## 2026-09-25 — WO-P1-549 mutable fail-closed repair — CURRENT
 
 > This frontier supersedes older status entries when they conflict; verify actual Git/GitHub state before mutation.
 
 - Authority: Issue #549 / `docs/work-orders/WO-P1-549-a-faster-executable-auto-refill.md`; topology `CONTROL_PLANE_ONLY`; risk R3.
-- PR #550 remains OPEN. Candidate `3f3a87ac23f2de1193f7d09ccc897e5fb5d4cad6` passed exact-head CI run `36059479359` on Windows, Ubuntu, and macOS, but independent exact-SHA review returned `CHANGES_REQUIRED` (P0=0/P1=1/P2=0). Do not merge.
-- P1: selected refill task IDs are not bound to current canonical repo/work-order claim records; `new_borrow_target` is counted although the bridge does not acquire those claims.
+- PR #550 remains OPEN. The latest docs checkpoint `f4b55b2d0934ac9b0de5c625b55728c56c8e6443` passed exact-head CI run `36062290255` on Windows, Ubuntu, and macOS before the current source repair. The current repair is uncommitted and has no exact-head CI or independent review yet.
+- User confirmed no runtime reader/API binds current canonical A-Wiki repo/work-order claims to Conductor task IDs. Fresh repair claim and scope extension are Issue #549 comments `5822859238` and `5822893729`.
+- The mutable bridge now returns `CANONICAL_MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE` before `executor.execute()`. The production entrypoint refuses mutable A-Faster context before provider eligibility/admission, scheduling, or capacity work. `new_borrow_target` no longer counts as existing claim headroom. Read-only REVIEW refill remains unchanged.
+- RED: four new regressions failed before source edits because mutable dispatch still executed. GREEN: the related refill, elastic WIP/capacity/fencing, parallel execution, utilization guard, provider assembly, and runtime activation suites passed, `238 passed`.
+- The original #549 executable-mutable acceptance is still NOT MET. Keep PR #550 open and do not merge until a separately scoped adapter contract binds current claims to selected task IDs and mutable refill can be safely re-enabled. No A-Wiki files were modified.
 - A-Wiki reuse audit: `main == origin/main == 25102e44950ccd28c2d22eafc6e6f1d2119f18ad`; its contract makes A-Wiki the durable repo-claim OWNER and A-Conductor the ADAPTER. A-Wiki Issue #58 remains OPEN. A-Conductor WorkerLease is runtime authority, not repo-coordination claim authority; no existing adapter binding current claims to selected refill IDs was found. No A-Wiki files were modified.
-- Repair/checkpoint comments: Issue #549 `5822438093` (review) and `5822592246` (docs-only scope claim). The latter permits only the WO, `CURRENT-WORK.md`, and `handoff.md`; no production source is authorized by it.
-- `SAFE_TO_MUTATE=NO` for the P1 source repair until the existing claim-reader interface and task-to-claim binding are established under a fresh source claim.
+- `GLM_ROUTE_BLOCKED`: no structured GLM/Kilo execution plus fresh quota/upstream admission route was exposed for this task; no GLM dispatch occurred. Work continued in the authorized Codex integrator lane.
+- Recovery found no live SundayMCP lane/session, no known task-specific terminal-unharvested execution pointer, and no open work-order/PR overlap on the claimed source paths. One mutable lane is active; the independent review lane is free.
 
-**Exact next safe action:** identify the accepted current-claim reader/API and task identity contract. Then open a fresh bounded source claim and repair the P1 with adversarial tests, or keep mutable refill fail-closed and resolve the adapter contract first. Require fresh exact-SHA R3 review and CI; do not merge #550 before then.
+**Exact next safe action:** run py_compile, diff/scope/UTF-8/secret checks; freeze and push the fail-closed candidate; obtain focused independent exact-SHA R3 review and fresh exact-head CI. Keep PR #550 open and unmerged pending a separately scoped canonical claim-reader adapter contract. Do not advance to post-main or the next roadmap item until #549 acceptance is restored.
 
 ## 2026-09-22 — WO473 DEPDIET-1 first removal slice COMPLETE / POST_MAIN_VERIFIED — CURRENT
 
