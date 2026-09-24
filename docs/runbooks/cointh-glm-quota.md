@@ -2,7 +2,7 @@
 
 Status: OPERATIONAL GUIDANCE / PROXY QUOTA ONLY / UPSTREAM READINESS SEPARATE
 Source date: 2026-09-24
-Related: `WO-P1-243`, `WO-P1-249`, `docs/agent-collab/CAPABILITY_MATRIX.md`, WO-P1-113 quota tuple.
+Related: Issue #337 / PR #538, `WO-P1-243`, `docs/agent-collab/CAPABILITY_MATRIX.md`, WO-P1-113 quota tuple.
 
 ## Purpose and authority boundary
 
