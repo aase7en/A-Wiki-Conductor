@@ -136,6 +136,72 @@ supervisor waits without spinning the model:
   RECOVER -> RECONCILE -> HARVEST as needed, recomputes the DAG, and
   continues/refills.
 
+## Integrator handoff classification (canonical)
+
+`INTEGRATOR_ACTION_REQUIRED` is not itself a stop gate and never collapses
+directly into `HUMAN_ACTION_REQUIRED`; an integrator requirement with an
+available or unknown route is not automatically terminal. Classify the
+actual integrator route from durable evidence first:
+
+- `INTEGRATOR_ROUTE=AVAILABLE`: route/handoff through the existing
+  accepted authority. Classify `NIGHTSHIFT_STATE=WAITING_INTEGRATOR`,
+  `GOAL_TERMINAL=NO`, `CLEANUP_ALLOWED=NO`, `HUMAN_ACTION_REQUIRED=FALSE`;
+  the Goal stays alive exactly like `WAITING_EXTERNAL`.
+- `INTEGRATOR_ROUTE=UNKNOWN`: recover/probe the route from durable task
+  authority, configured channels, and actual runtime evidence; do not
+  invent `HUMAN_ACTION_REQUIRED` while the route is merely unproven.
+- `INTEGRATOR_ROUTE=PROVEN_UNAVAILABLE`: `HUMAN_ACTION_REQUIRED` is
+  allowed only when the route is proven unavailable and a human must
+  actually invoke the integrator.
+
+No model/provider name grants authority: GPT-5.6 Sol remains the accepted
+integrator/acceptance authority; the supervisor adds no second review,
+acceptance, or completion authority.
+
+## Stale terminal-pointer recovery (canonical)
+
+A `/goal` entry that finds the ephemeral contract missing
+(`CONTRACT_ABSENT`) must first recover durable closeout by exact run id
+before any classification:
+
+- Exact durable terminal+cleanup proof — `PRE_CLEANUP_FOLDED` plus
+  `POST_CLEANUP_CONFIRMED` folded into the same existing durable task
+  authority — classifies the entry as
+  `STALE_TERMINAL_POINTER` / `GOAL_ALREADY_TERMINAL`:
+  `SAFETY_BLOCK=FALSE`, `REMATERIALIZE=FORBIDDEN`, `REDISPATCH=FORBIDDEN`,
+  `USER_VISIBLE_REPEAT_REPLY=FORBIDDEN`, and no new authority. Never
+  rematerialize the deleted contract, redispatch the finished run, or emit
+  a repeated user-visible reply; expected post-cleanup absence is not a
+  safety incident.
+- No matching durable terminal proof: `CONTRACT_ABSENT_UNKNOWN` may fail
+  closed as `SAFETY_BLOCK`. Cleanup intent alone is insufficient —
+  `PRE_CLEANUP_FOLDED` without `POST_CLEANUP_CONFIRMED`, a failed
+  deletion, or a missing post-confirmation is not cleanup proof; never
+  fabricate success and keep the state fail-closed and recoverable.
+
+- Incident regression 2026-09-24 (post-cleanup integrator-boundary
+  collapse, issue #522): after NightShift recovered #517 and PR #519, an
+  integrator acceptance boundary was collapsed directly into
+  HUMAN_ACTION_REQUIRED, the run directory was cleaned up by exact path,
+  the same `/goal` auto-continuation re-entered using the deleted
+  contract, and CONTRACT_ABSENT was repeatedly reported as SAFETY_BLOCK.
+  Required semantics: classify `INTEGRATOR_ROUTE` first; fold the final
+  run record into an existing durable task authority before terminal
+  cleanup; a CONTRACT_ABSENT entry recovers durable closeout by exact run
+  id — exact terminal+cleanup proof => STALE_TERMINAL_POINTER /
+  GOAL_ALREADY_TERMINAL with SAFETY_BLOCK=FALSE, REMATERIALIZE=FORBIDDEN,
+  REDISPATCH=FORBIDDEN, USER_VISIBLE_REPEAT_REPLY=FORBIDDEN; no matching
+  proof => CONTRACT_ABSENT_UNKNOWN / SAFETY_BLOCK fail-closed.
+- Two-phase closeout pin (2026-09-24 Sol CHANGES_REQUIRED, attempt-0002):
+  PRE_CLEANUP_FOLDED precedes the exact-path deletion;
+  POST_CLEANUP_CONFIRMED follows successful deletion in the SAME existing
+  durable authority and records run id, exact deleted path, terminal
+  classification, and cleanup result — no secrets, no log dumps.
+  STALE_TERMINAL_POINTER / GOAL_ALREADY_TERMINAL requires
+  POST_CLEANUP_CONFIRMED; cleanup intent alone is insufficient. Delete
+  failure or missing post-confirmation stays fail-closed/recoverable and
+  never fabricates success.
+
 ## Compact /goal pointer
 
 The pointer is one self-contained instruction that carries only the exact
@@ -244,6 +310,32 @@ as needed, recompute the DAG, continue/refill. Record at most the
 watcher start plus one transition/timeout summary; never append
 repeated receipts for unchanged polls.
 
+## Integrator handoff (INTEGRATOR_ACTION_REQUIRED)
+INTEGRATOR_ACTION_REQUIRED is not itself a stop gate and never collapses
+directly into HUMAN_ACTION_REQUIRED; an available or unknown route is not
+automatically terminal. Classify INTEGRATOR_ROUTE first:
+INTEGRATOR_ROUTE=AVAILABLE => NIGHTSHIFT_STATE=WAITING_INTEGRATOR,
+GOAL_TERMINAL=NO, CLEANUP_ALLOWED=NO, HUMAN_ACTION_REQUIRED=FALSE — route
+through the existing accepted authority. INTEGRATOR_ROUTE=UNKNOWN =>
+recover/probe the route; do not invent HUMAN_ACTION_REQUIRED.
+INTEGRATOR_ROUTE=PROVEN_UNAVAILABLE => HUMAN_ACTION_REQUIRED only when a
+human must actually invoke the integrator. No model/provider name grants
+authority: GPT-5.6 Sol remains the accepted integrator/acceptance
+authority.
+
+## Stale terminal-pointer (CONTRACT_ABSENT)
+A /goal entry that finds this contract missing must first recover durable
+closeout by exact run id before any classification. Exact durable
+terminal+cleanup proof — PRE_CLEANUP_FOLDED plus POST_CLEANUP_CONFIRMED in
+the same existing durable authority — => STALE_TERMINAL_POINTER /
+GOAL_ALREADY_TERMINAL: SAFETY_BLOCK=FALSE, REMATERIALIZE=FORBIDDEN,
+REDISPATCH=FORBIDDEN, USER_VISIBLE_REPEAT_REPLY=FORBIDDEN, no new
+authority — never rematerialize the deleted contract, redispatch the
+finished run, or emit a repeated user-visible reply. Cleanup intent alone
+(PRE_CLEANUP_FOLDED without POST_CLEANUP_CONFIRMED) or a missing
+post-confirmation is not cleanup proof => CONTRACT_ABSENT_UNKNOWN may
+fail closed as SAFETY_BLOCK; never fabricate success.
+
 ## Quota
 Refresh approved quota/readiness before every material GLM dispatch.
 QUOTA_UNKNOWN is not RATE_LIMITED and is never treated as unlimited. Obey
@@ -269,7 +361,19 @@ not a stop.
 Cleanup only at terminal state — GOAL_COMPLETE, a TRUE terminal
 human/safety/authorization gate, or TRUE_NO_SAFE_NEXT_ACTION — and only
 after every child run is harvested or durably checkpointed (harvest
-instructions preserved outside this directory first). Never clean up
+instructions preserved outside this directory first). Before any terminal
+cleanup, fold a compact final run record — run id, terminal
+classification, evidence pointer(s), exact next safe action, cleanup
+intent — into an existing durable task authority (Issue / accepted WO
+checkpoint / existing durable checkpoint) as the PRE_CLEANUP_FOLDED
+phase; the ephemeral receipt alone is explicitly insufficient durable
+closeout, and this folding is not a new status store. After the
+exact-path deletion succeeds, append POST_CLEANUP_CONFIRMED to the SAME
+existing durable authority: run id, exact deleted path, terminal
+classification, and cleanup result — no secrets, no log dumps. Cleanup
+intent alone is not cleanup proof; if deletion fails or the
+post-confirmation cannot be recorded, keep closeout fail-closed and
+recoverable and never fabricate success. Never clean up
 while any lane or external dependency is RUNNING, WAITING,
 WAITING_EXTERNAL, STALLED, INTERRUPTED-recoverable, UNKNOWN-recoverable,
 or holds a valid recheck or exact next safe action; a "blocked" label
@@ -286,6 +390,22 @@ repository, worktree, issue, or PR.
 
 ## Cleanup rules (canonical)
 
+- Before any terminal cleanup, fold a compact final run record into an
+  existing durable task authority (Issue / accepted WO checkpoint /
+  existing durable checkpoint): run id, terminal classification, evidence
+  pointer(s), exact next safe action, and cleanup intent. This fold is
+  the PRE_CLEANUP_FOLDED phase. The ephemeral receipt alone is explicitly
+  insufficient durable closeout — it may be deleted with its run
+  directory. After the exact-path deletion succeeds, append
+  POST_CLEANUP_CONFIRMED to the SAME existing durable authority: run id,
+  exact deleted path, terminal classification, and cleanup result — no
+  secrets, no log dumps. Cleanup intent alone is not cleanup proof: only
+  PRE_CLEANUP_FOLDED plus POST_CLEANUP_CONFIRMED in the same authority
+  prove completed durable closeout. If deletion fails or the
+  post-confirmation cannot be recorded, closeout stays fail-closed and
+  recoverable with its typed blocker — never fabricate cleanup success.
+  This two-phase fold is continuity folding into existing authority, not
+  a new status store.
 - Cleanup is forbidden while any lane or external dependency is RUNNING,
   WAITING, WAITING_EXTERNAL, STALLED, INTERRUPTED-recoverable,
   UNKNOWN-recoverable, or otherwise holds a valid recheck or exact next

@@ -202,6 +202,49 @@ the model:
   repeated receipts to the `A_NIGHTSHIFT` receipt; record at most the
   watcher start plus one transition/timeout summary.
 
+## Integrator handoff classification (INTEGRATOR_ACTION_REQUIRED)
+
+`INTEGRATOR_ACTION_REQUIRED` is not itself a stop gate and never collapses
+directly into `HUMAN_ACTION_REQUIRED`. An integrator requirement with an
+available or unknown route is not automatically terminal. First classify
+the actual integrator route from durable evidence:
+
+- **AVAILABLE**: route/handoff through the existing accepted authority.
+  Classify `WAITING_INTEGRATOR`, `GOAL_TERMINAL=NO`, `CLEANUP_ALLOWED=NO`,
+  `HUMAN_ACTION_REQUIRED=FALSE`; the Goal stays alive exactly like
+  `WAITING_EXTERNAL`.
+- **UNKNOWN**: recover/probe the route from durable task authority,
+  configured channels, and actual runtime evidence; do not invent
+  `HUMAN_ACTION_REQUIRED` while the route is merely unproven.
+- **PROVEN_UNAVAILABLE**: `HUMAN_ACTION_REQUIRED` is allowed only when the
+  route is proven unavailable and a human must actually invoke the
+  integrator.
+
+No model/provider name grants authority: GPT-5.6 Sol remains the accepted
+integrator/acceptance authority, and this overlay adds no second review,
+acceptance, or completion authority.
+
+## Stale terminal-pointer recovery (CONTRACT_ABSENT)
+
+A later `/goal` entry that finds the ephemeral contract missing
+(`CONTRACT_ABSENT`) must first recover durable closeout by exact run id
+before any classification:
+
+- Exact durable terminal+cleanup proof — `PRE_CLEANUP_FOLDED` plus
+  `POST_CLEANUP_CONFIRMED` folded into the same existing durable task
+  authority — classifies the entry as
+  `STALE_TERMINAL_POINTER` / `GOAL_ALREADY_TERMINAL`:
+  `SAFETY_BLOCK=FALSE`, `REMATERIALIZE=FORBIDDEN`, `REDISPATCH=FORBIDDEN`,
+  `USER_VISIBLE_REPEAT_REPLY=FORBIDDEN`, and no new authority. Do not
+  rematerialize the deleted contract, redispatch the finished run, or emit
+  a repeated user-visible reply; expected post-cleanup absence is not a
+  safety incident.
+- No matching durable terminal proof: classify `CONTRACT_ABSENT_UNKNOWN`,
+  which may fail closed as `SAFETY_BLOCK`. Cleanup intent alone is
+  insufficient — `PRE_CLEANUP_FOLDED` without `POST_CLEANUP_CONFIRMED`, a
+  failed deletion, or a missing post-confirmation is not cleanup proof;
+  never fabricate success and keep the state fail-closed and recoverable.
+
 ## Fanout and refill
 
 Follow dispatch-first / harvest-later: fill every free safe READY slot up
@@ -255,6 +298,23 @@ Never commit the ephemeral copy; it is a runtime artifact outside Git.
 
 ## Cleanup of the ephemeral run
 
+Before any terminal cleanup, fold a compact final run record into an
+existing durable task authority (Issue / accepted WO checkpoint / existing
+durable checkpoint): run id, terminal classification, evidence pointer(s),
+exact next safe action, and cleanup intent. This fold is the
+`PRE_CLEANUP_FOLDED` phase. The ephemeral receipt alone is explicitly
+insufficient durable closeout — it may be deleted with its run directory.
+After the exact-path deletion of the one run directory succeeds, append a
+`POST_CLEANUP_CONFIRMED` record to the SAME existing durable authority:
+run id, exact deleted path, terminal classification, and cleanup result —
+no secrets, no log dumps. Cleanup intent alone is not cleanup proof: only
+`PRE_CLEANUP_FOLDED` plus `POST_CLEANUP_CONFIRMED` in the same authority
+prove completed durable closeout. If deletion fails or the
+post-confirmation cannot be recorded, closeout stays fail-closed and
+recoverable — record the typed blocker and keep the run recoverable; never
+fabricate cleanup success. This two-phase fold is continuity folding into
+existing authority, not a new status store.
+
 Cleanup happens only at terminal state, after every child run is harvested
 or durably checkpointed, and never while any lane or external dependency
 is `RUNNING`, `WAITING`, `WAITING_EXTERNAL`, `STALLED`,
@@ -274,7 +334,11 @@ Stop only on `HUMAN_ACTION_REQUIRED`, `HUMAN_DECISION_REQUIRED`,
 `AUTHORIZATION_REQUIRED`, `SAFETY_BLOCK`, or `NO_SAFE_NEXT_ACTION` — and
 that last gate only as `TRUE_NO_SAFE_NEXT_ACTION` proven by the exhaustive
 absence predicate under "External liveness and WAITING_EXTERNAL";
-`WAITING_EXTERNAL` and `STALLED` are waiting states, never stop gates. On
+`WAITING_EXTERNAL` and `STALLED` are waiting states, never stop gates.
+`INTEGRATOR_ACTION_REQUIRED` is not itself a stop gate: classify the
+integrator route first per "Integrator handoff classification" — an
+integrator requirement with an available or unknown route is not
+automatically terminal. On
 any stop, checkpoint durable state, publish a truthful lifecycle pulse,
 clean up per the cleanup rules when eligible, and record the stop gate in
 the `A_NIGHTSHIFT` receipt. Any other overnight pause is a WAITING state,
