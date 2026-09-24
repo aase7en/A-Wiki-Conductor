@@ -71,3 +71,40 @@ This is not evidence that Kilo UI lacks /goal; it proves only that the current
 headless Kilo run route cannot be trusted as a verified slash-goal transport.
 WO530 therefore standardizes POINTER_FALLBACK until an exact harness/version
 capability probe succeeds. No blind redispatch was performed.
+
+## Post-review bounded repair (R3 CHANGES_REQUIRED on 5bfef6908a79b6058ee7bb4abfbcb2ca16a089eb)
+
+Independent R3 review exec-mufcpisi-waxstdlv returned CHANGES_REQUIRED
+(P2=1, P3=1) on the frozen candidate above. Accepted findings and repair,
+inside the existing WO530 allowed scope only:
+
+- P2 (transport ambiguity): the child-routing wording now pins the exact
+  `sunday_dispatch` durable execution tool. A generic "durable dispatch"
+  category, alternate durable transports, other dispatch tools, and direct
+  Kilo invocations are rejected as INVALID_CHILD_EVIDENCE for this contract.
+  The invocation-contract test now pins the exact tool name and the
+  rejections.
+- P3 (admission hardening): the child-routing section now states that fresh
+  CoinTH proxy quota alone is never upstream readiness. Material GLM child
+  admission requires PROXY_QUOTA_STATE=AVAILABLE AND
+  UPSTREAM_PROVIDER_READINESS=READY plus the existing route/claim/scope
+  gates. UPSTREAM_PROVIDER_READINESS=THROTTLED waits for the declared reset/cooldown without repeated
+  probing; UNKNOWN or any non-READY upstream fails closed for GLM child
+  dispatch while independent GPT/Codex work may continue. Readiness values
+  are per-dispatch observed evidence and must never be hard-coded from any
+  transient probe (the READY evidence from exec-mufchq7d-8v9a099t is context
+  only, never a contract constant).
+
+No other WO530 invariant changed: parent NightShift lifecycle ownership,
+max 3 mutable + 1 review, one hotspot one owner, bounded nesting, no
+recursive spawning, KILO_GOAL_CAPABILITY fallback truth, share disabled +
+--no-share, MAX/Flash/Jev role boundaries, harvest-before-refill, and no
+quota burning are unchanged. New candidate SHA is frozen by the integrator
+for delta re-review.
+
+## Integrator semantic correction
+
+The GLM repair initially wrote PROXY_QUOTA_STATE=THROTTLED, which is outside
+the accepted proxy-quota enum. The integrator corrected this before freeze to
+UPSTREAM_PROVIDER_READINESS=THROTTLED and added a negative assertion that
+PROXY_QUOTA_STATE=THROTTLED must not appear in the child-routing contract.

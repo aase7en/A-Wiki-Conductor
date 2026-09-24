@@ -814,11 +814,27 @@ Kilo child transport is capability-gated:
 - A stalled/ambiguous capability probe is UNVERIFIED_HEADLESS, never proof of
   support and never a reason to block other safe work.
 
-All material Kilo/GLM children use Sunday durable dispatch, explicit --dir,
-process-local KILO_CONFIG_CONTENT={"share":"disabled"}, CLI --no-share, and a
-fresh CoinTH quota preflight immediately before dispatch. A direct non-durable
-Kilo call or any attempt that emits a share URL is INVALID_CHILD_EVIDENCE and
-cannot satisfy review/acceptance.
+All material Kilo/GLM children are transported through the exact
+`sunday_dispatch` durable execution tool. For this contract the tool name is
+exact: a generic "durable dispatch" category, an alternate durable transport,
+another dispatch tool, or a direct Kilo invocation is not valid child
+transport. Every child dispatch through `sunday_dispatch` uses explicit
+--dir, process-local KILO_CONFIG_CONTENT={"share":"disabled"}, CLI
+--no-share, and a fresh CoinTH quota preflight immediately before dispatch.
+Any non-`sunday_dispatch` transport, a direct non-durable Kilo call, or any
+attempt that emits a share URL is INVALID_CHILD_EVIDENCE and cannot satisfy
+review/acceptance.
+
+Fresh CoinTH proxy quota alone is never upstream readiness. Material GLM
+child admission requires both structured per-dispatch facts —
+PROXY_QUOTA_STATE=AVAILABLE AND UPSTREAM_PROVIDER_READINESS=READY — plus the
+existing route/claim/scope gates; neither fact alone admits a dispatch. These
+are observed evidence values refreshed per dispatch, never cached or
+hard-coded constants from a transient earlier probe. When
+UPSTREAM_PROVIDER_READINESS=THROTTLED, wait until the declared reset/cooldown
+elapses; do not repeated-probe while waiting. When
+UPSTREAM_PROVIDER_READINESS=UNKNOWN or any non-READY value, fail closed for
+GLM child dispatch; independent GPT/Codex work may continue on its own gates.
 
 GLM-5.3 MAX handles bounded heavy author/repair/review work. GLM-5.3 Flash is
 read-only census/recon/shaping only and never satisfies a required R3 MAX or

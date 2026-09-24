@@ -376,12 +376,41 @@ def test_wo530_kilo_goal_is_capability_gated_with_truthful_headless_fallback() -
 
 def test_wo530_every_material_child_uses_durable_private_transport_and_fresh_quota() -> None:
     section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
-    assert "Sunday durable dispatch" in section
+    # P2 repair (R3 CHANGES_REQUIRED): the exact `sunday_dispatch` tool name
+    # is the only valid child transport; generic durable dispatch, alternate
+    # durable transports, and direct Kilo invocations are rejected.
+    assert "`sunday_dispatch`" in section
+    assert "Sunday durable dispatch" not in section
+    assert "alternate durable transport" in section
+    assert "direct Kilo invocation is not valid child transport" in section
+    assert "non-`sunday_dispatch` transport" in section
     assert "explicit --dir" in section
     assert 'KILO_CONFIG_CONTENT={"share":"disabled"}' in section
     assert "CLI --no-share" in section
     assert "fresh CoinTH quota preflight immediately before dispatch" in section
     assert "INVALID_CHILD_EVIDENCE" in section
+
+
+def test_wo530_glm_child_admission_requires_quota_and_upstream_readiness() -> None:
+    section = _norm(_section(_read_strict(SKILL), "Hierarchical child-goal routing"))
+    # P3 repair: fresh proxy quota alone is never upstream readiness; both
+    # structured facts plus the existing gates are required per dispatch.
+    assert "proxy quota alone is never upstream readiness" in section
+    assert (
+        "PROXY_QUOTA_STATE=AVAILABLE AND UPSTREAM_PROVIDER_READINESS=READY" in section
+    )
+    assert "neither fact alone admits a dispatch" in section
+    assert "never cached or hard-coded" in section
+    assert re.search(
+        r"UPSTREAM_PROVIDER_READINESS=THROTTLED.*wait until the declared reset/cooldown",
+        section,
+    )
+    assert "PROXY_QUOTA_STATE=THROTTLED" not in section
+    assert "do not repeated-probe" in section
+    assert re.search(
+        r"UPSTREAM_PROVIDER_READINESS=UNKNOWN.*fail closed for GLM", section
+    )
+    assert "GPT/Codex work may continue" in section
 
 
 def test_wo530_child_terminal_harvest_refills_without_chat_turn_dependency() -> None:
