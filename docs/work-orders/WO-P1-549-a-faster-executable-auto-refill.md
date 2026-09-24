@@ -59,3 +59,6 @@ RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF
 - py_compile, hooks JSON parse, diff --check, strict UTF-8: PASS.
 - Added-line secret signature scan: no matches.
 - GLM material author route not used: approved CoinTH resolver returned SECRET_SOURCE_UNAVAILABLE; this is not quota exhaustion.
+
+- Self-review hardening: lane kind is now fenced to lease mutation intent (MUTABLE=MUTATION, REVIEW=READ_ONLY); non-ParallelReadyTask mappings fail closed before execute.
+- Updated related suite after hardening: 252 passed.

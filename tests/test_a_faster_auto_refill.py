@@ -13,7 +13,8 @@ from a_conductor.a_faster_utilization_guard import (
     classify_utilization,
 )
 from a_conductor.graph.scheduler import SchedulePlan, SelectedAssignment
-from a_conductor.parallel_ready_execution import ParallelReadyBatchResult
+from a_conductor.parallel_ready_execution import ParallelReadyBatchResult, ParallelReadyTask
+from a_conductor.worker_lease import LeaseMutationIntent
 
 
 class FakeExecutor:
@@ -74,6 +75,18 @@ def _verdict(
     )
 
 
+def _task(
+    intent: LeaseMutationIntent = LeaseMutationIntent.MUTATION,
+) -> ParallelReadyTask:
+    task = object.__new__(ParallelReadyTask)
+    object.__setattr__(
+        task,
+        "lease_request",
+        SimpleNamespace(mutation_intent=intent),
+    )
+    return task
+
+
 def _plan(*node_ids: str) -> SchedulePlan:
     return SchedulePlan(
         selected=tuple(
@@ -89,7 +102,7 @@ def test_executes_only_mutable_fanout_target_from_scheduler_plan() -> None:
     executor = FakeExecutor()
     verdict = _verdict(occupied_mutable=1, ready_mutable=3)
     plan = _plan("a", "b", "c")
-    tasks = {node: object() for node in ("a", "b", "c")}
+    tasks = {node: _task() for node in ("a", "b", "c")}
 
     result = execute_auto_refill(
         verdict=verdict,
@@ -127,7 +140,7 @@ def test_inactive_or_explanation_only_verdict_never_dispatches() -> None:
             verdict=verdict,
             lane_kind=RefillLaneKind.MUTABLE,
             plan=_plan("a"),
-            tasks_by_node={"a": object()},
+            tasks_by_node={"a": _task()},
             provider_inflight={"cointh-glm": 0},
             executor=executor,
         )
@@ -159,7 +172,7 @@ def test_no_refill_marker_is_a_noop() -> None:
 
 def test_missing_or_extra_task_mapping_fails_before_execute() -> None:
     verdict = _verdict(occupied_mutable=1, ready_mutable=2)
-    for tasks in ({"a": object()}, {"a": object(), "b": object(), "x": object()}):
+    for tasks in ({"a": _task()}, {"a": _task(), "b": _task(), "x": _task()}):
         executor = FakeExecutor()
         result = execute_auto_refill(
             verdict=verdict,
@@ -189,7 +202,7 @@ def test_duplicate_schedule_identity_fails_before_execute() -> None:
         verdict=verdict,
         lane_kind=RefillLaneKind.MUTABLE,
         plan=duplicate,
-        tasks_by_node={"a": object()},
+        tasks_by_node={"a": _task()},
         provider_inflight={"cointh-glm": 0},
         executor=executor,
     )
@@ -205,7 +218,7 @@ def test_scheduler_may_select_less_than_target_without_manufactured_work() -> No
         verdict=verdict,
         lane_kind=RefillLaneKind.MUTABLE,
         plan=_plan("only-safe"),
-        tasks_by_node={"only-safe": object()},
+        tasks_by_node={"only-safe": _task()},
         provider_inflight={"cointh-glm": 0},
         executor=executor,
     )
@@ -226,7 +239,10 @@ def test_review_refill_uses_independent_review_budget_only() -> None:
         verdict=verdict,
         lane_kind=RefillLaneKind.REVIEW,
         plan=_plan("review-a", "review-b"),
-        tasks_by_node={"review-a": object(), "review-b": object()},
+        tasks_by_node={
+            "review-a": _task(LeaseMutationIntent.READ_ONLY),
+            "review-b": _task(LeaseMutationIntent.READ_ONLY),
+        },
         provider_inflight={"cointh-glm": 0},
         executor=executor,
     )
@@ -242,7 +258,7 @@ def test_preacquired_admission_outside_bounded_batch_fails_closed() -> None:
         verdict=verdict,
         lane_kind=RefillLaneKind.MUTABLE,
         plan=_plan("a", "b"),
-        tasks_by_node={"a": object(), "b": object()},
+        tasks_by_node={"a": _task(), "b": _task()},
         provider_inflight={"cointh-glm": 0},
         executor=executor,
         pre_acquired_admissions={"b": object()},
@@ -259,12 +275,13 @@ def test_executor_exception_is_bounded_fail_closed_result() -> None:
         verdict=verdict,
         lane_kind=RefillLaneKind.MUTABLE,
         plan=_plan("a"),
-        tasks_by_node={"a": object()},
+        tasks_by_node={"a": _task()},
         provider_inflight={"cointh-glm": 0},
         executor=executor,
     )
     assert result.disposition is AutoRefillDisposition.FAIL_CLOSED
     assert result.reason_code == "REFILL_EXECUTOR_REJECTED"
+    assert result.selected_node_ids == ("a",)
     assert "provider detail" not in repr(result)
 
 
@@ -275,9 +292,61 @@ def test_executor_result_identity_mismatch_requires_recovery() -> None:
         verdict=verdict,
         lane_kind=RefillLaneKind.MUTABLE,
         plan=_plan("a"),
-        tasks_by_node={"a": object()},
+        tasks_by_node={"a": _task()},
         provider_inflight={"cointh-glm": 0},
         executor=executor,
     )
     assert result.disposition is AutoRefillDisposition.FAIL_CLOSED
     assert result.reason_code == "REFILL_RESULT_IDENTITY_MISMATCH"
+    assert result.selected_node_ids == ("a",)
+
+
+def test_task_mapping_values_must_be_parallel_ready_tasks() -> None:
+    verdict = _verdict(occupied_mutable=2, ready_mutable=1)
+    executor = FakeExecutor()
+    result = execute_auto_refill(
+        verdict=verdict,
+        lane_kind=RefillLaneKind.MUTABLE,
+        plan=_plan("a"),
+        tasks_by_node={"a": object()},
+        provider_inflight={"cointh-glm": 0},
+        executor=executor,
+    )
+    assert result.disposition is AutoRefillDisposition.FAIL_CLOSED
+    assert result.reason_code == "REFILL_TASK_INVALID"
+    assert executor.calls == []
+
+
+def test_lane_kind_must_match_task_mutation_intent() -> None:
+    mutable_verdict = _verdict(occupied_mutable=2, ready_mutable=1)
+    mutable_executor = FakeExecutor()
+    mutable_result = execute_auto_refill(
+        verdict=mutable_verdict,
+        lane_kind=RefillLaneKind.MUTABLE,
+        plan=_plan("a"),
+        tasks_by_node={"a": _task(LeaseMutationIntent.READ_ONLY)},
+        provider_inflight={"cointh-glm": 0},
+        executor=mutable_executor,
+    )
+    assert mutable_result.disposition is AutoRefillDisposition.FAIL_CLOSED
+    assert mutable_result.reason_code == "REFILL_LANE_INTENT_MISMATCH"
+    assert mutable_executor.calls == []
+
+    review_verdict = _verdict(
+        occupied_mutable=3,
+        ready_mutable=0,
+        occupied_review=0,
+        ready_review=1,
+    )
+    review_executor = FakeExecutor()
+    review_result = execute_auto_refill(
+        verdict=review_verdict,
+        lane_kind=RefillLaneKind.REVIEW,
+        plan=_plan("review-a"),
+        tasks_by_node={"review-a": _task(LeaseMutationIntent.MUTATION)},
+        provider_inflight={"cointh-glm": 0},
+        executor=review_executor,
+    )
+    assert review_result.disposition is AutoRefillDisposition.FAIL_CLOSED
+    assert review_result.reason_code == "REFILL_LANE_INTENT_MISMATCH"
+    assert review_executor.calls == []

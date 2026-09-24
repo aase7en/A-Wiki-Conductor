@@ -24,6 +24,7 @@ from .parallel_ready_execution import (
     ParallelReadyBatchResult,
     ParallelReadyTask,
 )
+from .worker_lease import LeaseMutationIntent
 
 
 class RefillLaneKind(str, Enum):
@@ -63,8 +64,14 @@ class AutoRefillExecutor(Protocol):
     ) -> ParallelReadyBatchResult: ...
 
 
-def _fail(reason: str) -> AutoRefillResult:
-    return AutoRefillResult(AutoRefillDisposition.FAIL_CLOSED, reason)
+def _fail(
+    reason: str, *, selected_node_ids: tuple[str, ...] = ()
+) -> AutoRefillResult:
+    return AutoRefillResult(
+        AutoRefillDisposition.FAIL_CLOSED,
+        reason,
+        selected_node_ids=selected_node_ids,
+    )
 
 
 def _noop(reason: str) -> AutoRefillResult:
@@ -156,6 +163,22 @@ def execute_auto_refill(
         return _fail("SCHEDULE_IDENTITY_INVALID")
     if set(tasks_by_node) != set(schedule_nodes):
         return _fail("SCHEDULE_TASK_MAPPING_DRIFT")
+    if any(
+        not isinstance(task, ParallelReadyTask)
+        for task in tasks_by_node.values()
+    ):
+        return _fail("REFILL_TASK_INVALID")
+
+    expected_intent = (
+        LeaseMutationIntent.MUTATION
+        if lane_kind is RefillLaneKind.MUTABLE
+        else LeaseMutationIntent.READ_ONLY
+    )
+    if any(
+        getattr(task.lease_request, "mutation_intent", None) is not expected_intent
+        for task in tasks_by_node.values()
+    ):
+        return _fail("REFILL_LANE_INTENT_MISMATCH")
 
     selected = tuple(plan.selected[: min(target, len(plan.selected))])
     selected_node_ids = tuple(item.node_id for item in selected)
@@ -187,15 +210,24 @@ def execute_auto_refill(
         # The existing executor owns detailed recovery evidence. This bridge
         # deliberately returns only a stable bounded code and never leaks raw
         # provider/secret/process exception text.
-        return _fail("REFILL_EXECUTOR_REJECTED")
+        return _fail(
+            "REFILL_EXECUTOR_REJECTED",
+            selected_node_ids=selected_node_ids,
+        )
 
     if not isinstance(batch_result, ParallelReadyBatchResult):
-        return _fail("REFILL_RESULT_INVALID")
+        return _fail(
+            "REFILL_RESULT_INVALID",
+            selected_node_ids=selected_node_ids,
+        )
     result_nodes = tuple(
         getattr(outcome, "node_id", None) for outcome in batch_result.outcomes
     )
     if result_nodes != selected_node_ids:
-        return _fail("REFILL_RESULT_IDENTITY_MISMATCH")
+        return _fail(
+            "REFILL_RESULT_IDENTITY_MISMATCH",
+            selected_node_ids=selected_node_ids,
+        )
 
     return AutoRefillResult(
         AutoRefillDisposition.EXECUTED,
