@@ -179,19 +179,36 @@ RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF
   mutable dispatch still executed. GREEN after repair: A-Faster refill,
   elastic capacity/hardening/WIP/fencing, parallel-ready execution, utilization
   guard, provider/runtime assembly, and runtime activation: `238 passed`.
-- Exact-head CI run `36062290255` passed Windows, Ubuntu, and macOS on
-  `f4b55b2d0934ac9b0de5c625b55728c56c8e6443` before this source repair; the
-  repaired candidate still requires fresh hygiene, exact-SHA independent R3
-  review, and hosted CI.
-- `GLM_ROUTE_BLOCKED`: this session exposed no structured GLM/Kilo execution
-  path plus fresh quota/upstream admission bound to this claim. Worker online
-  state is not authorization; no GLM dispatch occurred. Work continued in the
-  authorized Codex integrator lane.
+- At this checkpoint, exact-head CI run `36062290255` passed Windows, Ubuntu,
+  and macOS on pre-repair `f4b55b2d0934ac9b0de5c625b55728c56c8e6443`; the
+  repaired candidate still required its own review and hosted CI. The current
+  candidate's completed CI is recorded below.
+- The earlier `GLM_ROUTE_BLOCKED` routing statement was too broad: absence of a
+  structured MCP tool did not prove that no local Kilo route existed. Fresh
+  bounded checks found Kilo 7.7.9, catalog model `cointh-glm/glm-5.3`, and the
+  approved `COINTH_GLM_AUTH_TOKEN` environment binding (value not read or
+  printed). The prescribed quota GET returned `urllib.error.URLError` without
+  an HTTP response, so quota is `UNKNOWN`, not exhausted. Kilo credential
+  binding and exact upstream admission remain unverified. No roll-call or
+  model invocation occurred; no GLM usage should have been consumed. Corrected result:
+  `GLM_OFFLOAD=BLOCKED` for this candidate because quota/upstream admission are
+  unknown. See Issue #549 correction comment `5823122823`.
+- A-FastTask/A-Faster/A-NightShift recovery and routing guidance was applied,
+  but the early GLM route/readiness check was incomplete before Codex authored
+  the patch. The supervisor SessionStart hook was verified active and injected
+  its contract; it supplies instructions and does not itself dispatch GLM.
+- Roadmap check: WO-P1-549 is not a named node in the current P0 Zero-Relay
+  sequence. This work follows the existing #549 work order, not a direct P0
+  roadmap node. Do not start the next roadmap lane while #549 acceptance is
+  blocked.
 - The original #549 executable-mutable acceptance remains **NOT MET** while
   this lane is disabled. Keep PR #550 open and do not merge this repair until a
   separately scoped adapter contract can bind current canonical claims to
   selected task IDs and re-enable mutable refill under that authority.
-- Next: run exact scope/hygiene checks, freeze and push the fail-closed
-  candidate, obtain focused independent exact-SHA R3 review and exact-head CI,
-  then checkpoint. Do not advance to post-main or the next roadmap node while
-  #549 acceptance is blocked on the claim-reader contract.
+- Source candidate `3aab3dc2f2f0075643ed2a921ec92eecc735dedf` passed exact-head
+  CI run `36065183019` on Windows, Ubuntu, and macOS, including Windows
+  packaging and install/uninstall E2E. Next: finalize this documentation
+  checkpoint, push it, then obtain focused independent exact-SHA R3 review and
+  fresh exact-head CI for the resulting PR head. Do not advance to post-main or
+  the next roadmap node while #549 acceptance is blocked on the claim-reader
+  contract.
