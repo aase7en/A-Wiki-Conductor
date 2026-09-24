@@ -1,6 +1,6 @@
 # WO-P1-549 — A-Faster executable auto-refill bridge
 
-Status: CANDIDATE / VERIFICATION
+Status: CHANGES_REQUIRED / R3 AUTHORITY BINDING BLOCKER
 Issue: #549
 Risk: R3 — dispatch/control-plane enforcement
 Topology: CONTROL_PLANE_ONLY
@@ -121,3 +121,38 @@ RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF
   claimed fixture files; no production source changed in the repair.
 - Next: freeze and push the exact candidate, run exact-head CI, obtain an
   independent R3 review, then continue Sol acceptance and post-main gates.
+
+## Independent R3 review and claim-authority checkpoint — 2026-09-25
+
+- Reviewed candidate: `3f3a87ac23f2de1193f7d09ccc897e5fb5d4cad6`; PR #550,
+  base `main@c4d4cf4da830cb313a4569a386edcff0a77266c2`.
+- Exact-head CI run `36059479359`: SUCCESS on Windows, Ubuntu, and macOS.
+- Independent exact-SHA R3 verdict: `CHANGES_REQUIRED`, P0=0 / P1=1 / P2=0.
+- P1: `execute_auto_refill()` checks projected WIP counters/gates but does not
+  bind selected node/task IDs to current canonical repo/work-order claim
+  records. Mutable claim headroom includes `new_borrow_target`, although the
+  bridge does not acquire those claims. Caller-supplied stale or mismatched WIP
+  evidence can therefore pass a selected assignment without proving its
+  current claim and eligibility.
+- Finding and CI evidence are recorded in Issue #549 comments `5822438093` and
+  `5822592246`. Candidate `3f3a87a` is not accepted and must not be merged.
+- Read-only reuse audit pinned A-Wiki `main` and `origin/main` to
+  `25102e44950ccd28c2d22eafc6e6f1d2119f18ad`. The accepted integration
+  contract assigns durable `repo_coordination_claim` to A-Wiki as OWNER and
+  A-Conductor as ADAPTER; `runtime_lease` is a separate A-Conductor-owned
+  authority. A-Wiki Issue #58 is OPEN: durable COLLAB/Git claim identity is the
+  canonical repo claim, while the local TTL claim cache is same-machine only.
+  No A-Conductor source adapter was found that reads current durable claims and
+  binds them to selected auto-refill task IDs. No A-Wiki files were changed.
+- Reuse classification: EXTEND/WRAP the existing A-Wiki claim authority and
+  A-Conductor runtime admission; do not create a new claim store. The current
+  fixture-repair claim does not authorize production changes.
+- `SAFE_TO_MUTATE=NO` for the P1 production repair until the existing durable
+  claim-reader interface and exact task-to-claim binding are established and a
+  fresh source claim is recorded. No production source repair has been made.
+- Next safe action: identify the accepted current-claim reader/API and its
+  task identity contract. Then create a fresh bounded source claim, add RED
+  regressions for stale/foreign/missing claims and projected new claims, repair
+  only through existing authorities, and obtain fresh exact-SHA R3 review and
+  CI. If no such reader exists, keep mutable auto-refill fail-closed and
+  resolve the adapter contract before implementation.

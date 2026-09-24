@@ -1,5 +1,18 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-09-25 — WO-P1-549 A-Faster refill CHANGES_REQUIRED — CURRENT
+
+> This frontier supersedes older status entries when they conflict; verify actual Git/GitHub state before mutation.
+
+- Authority: Issue #549 / `docs/work-orders/WO-P1-549-a-faster-executable-auto-refill.md`; topology `CONTROL_PLANE_ONLY`; risk R3.
+- PR #550 remains OPEN. Candidate `3f3a87ac23f2de1193f7d09ccc897e5fb5d4cad6` passed exact-head CI run `36059479359` on Windows, Ubuntu, and macOS, but independent exact-SHA review returned `CHANGES_REQUIRED` (P0=0/P1=1/P2=0). Do not merge.
+- P1: selected refill task IDs are not bound to current canonical repo/work-order claim records; `new_borrow_target` is counted although the bridge does not acquire those claims.
+- A-Wiki reuse audit: `main == origin/main == 25102e44950ccd28c2d22eafc6e6f1d2119f18ad`; its contract makes A-Wiki the durable repo-claim OWNER and A-Conductor the ADAPTER. A-Wiki Issue #58 remains OPEN. A-Conductor WorkerLease is runtime authority, not repo-coordination claim authority; no existing adapter binding current claims to selected refill IDs was found. No A-Wiki files were modified.
+- Repair/checkpoint comments: Issue #549 `5822438093` (review) and `5822592246` (docs-only scope claim). The latter permits only the WO, `CURRENT-WORK.md`, and `handoff.md`; no production source is authorized by it.
+- `SAFE_TO_MUTATE=NO` for the P1 source repair until the existing claim-reader interface and task-to-claim binding are established under a fresh source claim.
+
+**Exact next safe action:** identify the accepted current-claim reader/API and task identity contract. Then open a fresh bounded source claim and repair the P1 with adversarial tests, or keep mutable refill fail-closed and resolve the adapter contract first. Require fresh exact-SHA R3 review and CI; do not merge #550 before then.
+
 ## 2026-09-22 — WO473 DEPDIET-1 first removal slice COMPLETE / POST_MAIN_VERIFIED — CURRENT
 
 > **Current cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts.

@@ -1,5 +1,20 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-09-25 — WO-P1-549 R3 claim-binding blocker
+
+Resume from actual state in the WO before mutation.
+
+- Task: Issue #549 / WO-P1-549; PR #550 is OPEN and must not be merged.
+- Worktree: `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo549-autorefill`.
+- Branch: `feat/wo-p1-549-a-faster-autorefill`.
+- Last independently reviewed source candidate: `3f3a87ac23f2de1193f7d09ccc897e5fb5d4cad6`, based on `main@c4d4cf4da830cb313a4569a386edcff0a77266c2`.
+- Exact-head CI run `36059479359` passed Windows, Ubuntu, and macOS on that SHA. Independent exact-SHA R3 review found one P1 and returned CHANGES_REQUIRED: WIP claim counts are not bound to the selected task identities, and projected new borrowed claims are counted although the bridge does not acquire them.
+- A-Wiki read-only reuse audit: `main == origin/main == 25102e44950ccd28c2d22eafc6e6f1d2119f18ad`. The accepted integration contract says A-Wiki owns durable repo/work-order claims and A-Conductor adapts them; A-Conductor WorkerLease is separate runtime authority. Issue #58 remains OPEN. No existing source adapter from current canonical claims to selected refill task IDs was found. No A-Wiki file was changed.
+- Docs checkpoint scope claim: Issue #549 comment `5822592246`; limited to the active WO, `CURRENT-WORK.md`, and this handoff. Existing fixture-repair claim does not authorize production changes.
+- Source gate: `SAFE_TO_MUTATE=NO` until the accepted claim reader/API and exact task-to-claim binding are established and a fresh source claim is posted.
+
+**Next safe action:** recover current issue/PR/head and any live claim work first; locate the approved claim-reader/API and identity contract. If absent, keep mutable auto-refill fail-closed and resolve the adapter contract under a separately scoped work order. Then implement with stale/foreign/missing/new-claim RED cases, run exact related suites, freeze, obtain independent exact-SHA R3 review and CI, and only then resume Sol acceptance/merge/post-main gates.
+
 ## 2026-09-22 — WO473 DEPDIET-1 first package slice accepted and integrated
 
 This section is sufficient to resume #473/#472 without prior chat context.
