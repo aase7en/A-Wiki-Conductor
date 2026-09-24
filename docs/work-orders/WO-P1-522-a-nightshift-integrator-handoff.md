@@ -127,3 +127,91 @@ Only a real HUMAN_DECISION_REQUIRED / HUMAN_ACTION_REQUIRED /
 AUTHORIZATION_REQUIRED / SAFETY_BLOCK / TRUE_NO_SAFE_NEXT_ACTION or material
 ownership ambiguity. An integrator requirement with an available or unknown
 route is not automatically terminal.
+
+## Checkpoint — attempt-0001 (author lane, 2026-09-24)
+
+- Executor: Kilo / GLM-5.3 under claim `WO-P1-522-NIGHTSHIFT-HANDOFF-MAC-001`,
+  in the exact pinned worktree/branch at base HEAD
+  `f6cf976cd2ad9f76f63b5fb00644bde569983d69`; pwd/branch/HEAD and initial
+  clean `git status --porcelain` proven before mutation.
+- RED proof: 11 new WO-P1-522 semantic regressions added to
+  `tests/test_a_nightshift_skill_contract.py` (F1 route-classification pins,
+  F2 durable-fold pins, F3 stale-pointer pins, incident-522 vector, and one
+  unchanged-wait-semantics control) failed on the unrepaired contract
+  (focused run: 11 failed / 44 passed) before any SKILL/reference edit.
+- Repair implemented: `INTEGRATOR_ACTION_REQUIRED` route classification
+  (AVAILABLE/UNKNOWN/PROVEN_UNAVAILABLE), durable final-run-record fold into
+  existing task authority before terminal cleanup with explicit
+  ephemeral-receipt insufficiency, and CONTRACT_ABSENT run-id durable
+  recovery with STALE_TERMINAL_POINTER / GOAL_ALREADY_TERMINAL outcome
+  vector — added to `.agents/skills/a-nightshift/SKILL.md` (new sections +
+  cleanup/stop-gate clarification) and
+  `.agents/skills/a-nightshift/references/overnight-supervisor.md`
+  (canonical sections + incident regression + in-template contract body).
+- Verification: focused NightShift contract tests 55/55 PASS;
+  A-Faster control `tests/test_a_faster_invocation_contract.py` 11/11 PASS;
+  `git diff --check` clean; strict UTF-8 decode of all four mutated files
+  PASS; added-content secret scan 0 hits; scope check = exactly the four
+  frozen paths, no forbidden path touched.
+- Stop state: `READY_FOR_INTEGRATOR_VERIFICATION`. No commit, no merge, no
+  push; GPT-5.6 Sol owns frozen-SHA review, acceptance, and merge. Compact
+  evidence: `runs/WO-P1-522/author/attempt-0001/result.md`.
+
+## Sol CHANGES_REQUIRED addition — attempt-0002 repair requirement
+
+Sol integrator finding (Issue #522, 2026-09-24): attempt-0001 requires a
+durable PRE-cleanup fold carrying cleanup intent, but no POST-delete
+durable confirmation; intent alone cannot prove that exact-path deletion
+actually completed, so a later CONTRACT_ABSENT cannot deterministically
+distinguish expected completed cleanup from unexpected loss. Required
+bounded repair, same frozen scope:
+
+1. Two-phase closeout: `PRE_CLEANUP_FOLDED` before deletion; exact-path
+   delete; `POST_CLEANUP_CONFIRMED` in the SAME existing durable authority
+   after successful deletion.
+2. `POST_CLEANUP_CONFIRMED` records at minimum run id + exact deleted
+   path + terminal classification + cleanup result; no secret/log dump.
+3. `STALE_TERMINAL_POINTER` / `GOAL_ALREADY_TERMINAL` requires
+   `POST_CLEANUP_CONFIRMED`; cleanup intent alone is insufficient.
+4. Delete failure / missing post-confirmation remains
+   fail-closed/recoverable, never fabricated success.
+5. No new store/authority; reuse Issue/WO/existing checkpoint.
+6. Preserve all attempt-0001 F1/F2/F3 + WAITING_EXTERNAL/no-model-spin
+   semantics.
+
+## Checkpoint — attempt-0002 (author lane, 2026-09-24)
+
+- Executor: Kilo / GLM-5.3 under claim `WO-P1-522-NIGHTSHIFT-HANDOFF-MAC-001`,
+  resumed in the exact pinned worktree/branch at unchanged HEAD
+  `f6cf976cd2ad9f76f63b5fb00644bde569983d69`; attempt-0001 dirty candidate
+  preserved (no reset/clean/stash/discard); initial dirty patch SHA256
+  `f5164889d5a0b5624413376ec24854ebc33937c0a2cbe19520789a87657d9c33` over
+  exactly the four frozen WO paths, proven before mutation.
+- RED proof: 6 new attempt-0002 semantic regressions (two-phase ordering,
+  POST field set, stale-pointer requires POST_CONFIRMED, delete-failure
+  fail-closed, same-authority reuse, incident vector) failed on the
+  unrepaired attempt-0001 contract (focused run: 6 failed / 56 passed,
+  the 56 including the new preservation control) before any
+  SKILL/reference edit.
+- Repair implemented: two-phase durable closeout
+  (`PRE_CLEANUP_FOLDED` -> exact-path deletion -> `POST_CLEANUP_CONFIRMED`
+  in the SAME existing durable authority), POST confirmation field set
+  (run id, exact deleted path, terminal classification, cleanup result;
+  no secrets, no log dumps), stale-pointer proof upgraded to require
+  `POST_CLEANUP_CONFIRMED` with cleanup-intent insufficiency explicit,
+  and delete-failure/missing-post-confirmation fail-closed/recoverable
+  semantics — added to `.agents/skills/a-nightshift/SKILL.md` (cleanup +
+  stale-pointer sections), `.agents/skills/a-nightshift/references/overnight-supervisor.md`
+  (canonical stale-pointer + cleanup rules, incident-regression two-phase
+  pin, in-template `## Cleanup` and `## Stale terminal-pointer` bodies),
+  and `tests/test_a_nightshift_skill_contract.py` (docstring + 7 new
+  tests: 6 RED regressions + 1 preservation control).
+- Verification: focused NightShift contract tests 62/62 PASS; A-Faster
+  control `tests/test_a_faster_invocation_contract.py` 11/11 PASS;
+  `git diff --check` clean; strict UTF-8 decode of all four mutated files
+  PASS; added-content secret scan 0 hits (single value-pattern match is
+  the documented public HEAD SHA, not a credential); scope check = exactly
+  the four frozen paths, no forbidden path touched.
+- Stop state: `READY_FOR_INTEGRATOR_VERIFICATION`. No commit, no merge, no
+  push; GPT-5.6 Sol owns frozen-SHA review, acceptance, and merge. Compact
+  evidence: `runs/WO-P1-522/author/attempt-0002/result.md`.

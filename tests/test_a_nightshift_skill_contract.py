@@ -56,13 +56,45 @@ overnight-supervisor template. These tests fail if a future edit removes:
   (gh run watch preferred, silent unchanged-wait output,
   WAIT_TOOL_TIMEOUT_RECHECK timeout fallback, no detached watcher or new
   scheduler/task store/state store); and the pinned 2026-09-23/24
-  reply-spin incident vector with its state_changed=YES transition.
+  reply-spin incident vector with its state_changed=YES transition;
+- the WO-P1-522 integrator-handoff / stale-terminal-pointer repair
+  (issue #522): INTEGRATOR_ACTION_REQUIRED is not itself a stop gate and
+  requires integrator-route classification (AVAILABLE / UNKNOWN /
+  PROVEN_UNAVAILABLE) first; AVAILABLE => WAITING_INTEGRATOR,
+  non-terminal, no cleanup, no human gate; UNKNOWN => recover/probe,
+  never an invented human gate; PROVEN_UNAVAILABLE may derive
+  HUMAN_ACTION_REQUIRED only when human invocation is actually
+  necessary; terminal cleanup requires folding a compact final run
+  record into an existing durable task authority first, and the
+  ephemeral receipt alone is explicitly insufficient durable closeout; a
+  CONTRACT_ABSENT entry recovers durable closeout by exact run id before
+  classification — exact terminal+cleanup proof => STALE_TERMINAL_POINTER
+  / GOAL_ALREADY_TERMINAL with SAFETY_BLOCK=FALSE,
+  REMATERIALIZE=FORBIDDEN, REDISPATCH=FORBIDDEN,
+  USER_VISIBLE_REPEAT_REPLY=FORBIDDEN; unproven absence stays
+  fail-closed CONTRACT_ABSENT_UNKNOWN / SAFETY_BLOCK; and the existing
+  WAITING_EXTERNAL / WAIT_TOOL_TIMEOUT_RECHECK / no-model-spin
+  semantics remain unchanged;
+- the WO-P1-522 attempt-0002 two-phase durable-closeout repair (Sol
+  CHANGES_REQUIRED on issue #522): PRE_CLEANUP_FOLDED precedes the
+  exact-path deletion and POST_CLEANUP_CONFIRMED follows successful
+  deletion in the SAME existing durable authority, recording run id,
+  exact deleted path, terminal classification, and cleanup result with
+  no secrets and no log dumps; STALE_TERMINAL_POINTER /
+  GOAL_ALREADY_TERMINAL requires POST_CLEANUP_CONFIRMED — cleanup
+  intent alone is insufficient; delete failure or missing
+  post-confirmation stays fail-closed/recoverable and never fabricates
+  success; and all attempt-0001 F1/F2/F3 + WAITING_EXTERNAL /
+  no-model-spin semantics remain unchanged.
 
 Deliberately not a full-file snapshot: wording may evolve as long as the
 semantic markers stay. WO-P1-520 attempt-0001; A-Faster utilization-marker
 pins added at attempt-0002; premature-terminal regression pins (issue
 #520 incident) added at attempt-0003; no-model-spin blocking-wait pins
-(issue #520 reply-spin incident) added at attempt-0004.
+(issue #520 reply-spin incident) added at attempt-0004; integrator-handoff
+and stale-terminal-pointer pins (issue #522) added at WO-P1-522
+attempt-0001; two-phase durable-closeout pins (issue #522 Sol finding)
+added at WO-P1-522 attempt-0002.
 """
 
 from __future__ import annotations
@@ -783,3 +815,402 @@ def test_reply_spin_incident_vector_pinned() -> None:
         "state_changed=YES",
     ):
         assert needle in ref, f"reply-spin regression marker lost: {needle}"
+
+
+# --- WO-P1-522 attempt-0001: integrator handoff + stale terminal pointer ---
+# Post-#520 production sequence (issue #522): NightShift recovered #517
+# and PR #519 correctly, then an integrator (Sol) acceptance boundary was
+# collapsed directly into HUMAN_ACTION_REQUIRED, the run directory was
+# cleaned up by exact path, the same /goal auto-continuation later
+# re-entered using the deleted contract, and CONTRACT_ABSENT was
+# repeatedly reported as SAFETY_BLOCK. These tests pin the corrected
+# F1/F2/F3 semantics before any SKILL.md/reference repair (RED-first).
+
+_INCIDENT_522_SCENARIO = {
+    "recovered": "#517 and PR #519",
+    "collapsed_boundary": "integrator acceptance -> HUMAN_ACTION_REQUIRED",
+    "cleanup": "exact-path run-directory deletion",
+    "reentry": "/goal auto-continuation using the deleted contract",
+    "misclassification": "CONTRACT_ABSENT reported as SAFETY_BLOCK",
+}
+
+_INCIDENT_522_AVAILABLE_VECTOR = {
+    "INTEGRATOR_ROUTE": "AVAILABLE",
+    "NIGHTSHIFT_STATE": "WAITING_INTEGRATOR",
+    "GOAL_TERMINAL": "NO",
+    "CLEANUP_ALLOWED": "NO",
+    "HUMAN_ACTION_REQUIRED": "FALSE",
+}
+
+_INCIDENT_522_STALE_POINTER_VECTOR = {
+    "CLASSIFICATION": "STALE_TERMINAL_POINTER",
+    "GOAL_STATE": "GOAL_ALREADY_TERMINAL",
+    "SAFETY_BLOCK": "FALSE",
+    "REMATERIALIZE": "FORBIDDEN",
+    "REDISPATCH": "FORBIDDEN",
+    "USER_VISIBLE_REPEAT_REPLY": "FORBIDDEN",
+}
+
+
+def _integrator_handoff_sections() -> str:
+    skill = _read_strict(SKILL)
+    ref = _read_strict(REFERENCE)
+    return _norm(_section(skill, "Integrator handoff")) + " " + _norm(
+        _section(ref, "Integrator handoff")
+    )
+
+
+def _stale_pointer_sections() -> str:
+    skill = _read_strict(SKILL)
+    ref = _read_strict(REFERENCE)
+    return _norm(_section(skill, "Stale terminal-pointer")) + " " + _norm(
+        _section(ref, "Stale terminal-pointer")
+    )
+
+
+def _cleanup_rules_corpus() -> str:
+    skill = _read_strict(SKILL)
+    ref = _read_strict(REFERENCE)
+    return _norm(_section(skill, "Cleanup of the ephemeral run")) + " " + _norm(
+        _section(ref, "Cleanup rules")
+    )
+
+
+def test_integrator_action_required_requires_route_classification_first() -> None:
+    # F1 pin 1: INTEGRATOR_ACTION_REQUIRED is not itself a stop gate; the
+    # integrator route must be classified before any stop classification,
+    # and an available-or-unknown route is not automatically terminal.
+    corpus = _integrator_handoff_sections()
+    assert "INTEGRATOR_ACTION_REQUIRED" in corpus
+    assert "not itself a stop gate" in corpus
+    for route in ("AVAILABLE", "UNKNOWN", "PROVEN_UNAVAILABLE"):
+        assert route in corpus, f"lost integrator route class: {route}"
+    assert "classify" in corpus
+    assert "not automatically terminal" in corpus
+
+
+def test_integrator_route_available_is_waiting_integrator_not_human_gate() -> None:
+    # F1 pin 2: AVAILABLE routes through the existing accepted authority
+    # as WAITING_INTEGRATOR — non-terminal, no cleanup, no human gate.
+    corpus = _integrator_handoff_sections()
+    assert "WAITING_INTEGRATOR" in corpus
+    assert "GOAL_TERMINAL=NO" in corpus
+    assert "CLEANUP_ALLOWED=NO" in corpus
+    assert "HUMAN_ACTION_REQUIRED=FALSE" in corpus
+
+
+def test_integrator_route_unknown_recovers_never_invents_human_gate() -> None:
+    # F1 pin 3: UNKNOWN recovers/probes the route; it never invents
+    # HUMAN_ACTION_REQUIRED while the route is merely unproven.
+    corpus = _integrator_handoff_sections()
+    assert "UNKNOWN" in corpus
+    assert "recover" in corpus and "probe" in corpus
+    assert "do not invent" in corpus or "never invent" in corpus
+    assert "HUMAN_ACTION_REQUIRED" in corpus
+
+
+def test_integrator_route_proven_unavailable_bounded_human_gate() -> None:
+    # F1 pin 4: PROVEN_UNAVAILABLE may derive HUMAN_ACTION_REQUIRED only
+    # when a human must actually invoke the integrator.
+    corpus = _integrator_handoff_sections()
+    assert "PROVEN_UNAVAILABLE" in corpus
+    assert "only when" in corpus or "only after" in corpus
+    assert "actually" in corpus
+
+
+def test_no_model_name_grants_integrator_authority() -> None:
+    # F1 pin 5: model/provider names are routing preferences only; the
+    # accepted integrator/acceptance authority is not replaced.
+    corpus = _combined_contract_text()
+    assert "No model/provider name grants authority" in corpus
+    assert "GPT-5.6 Sol" in corpus
+    assert "integrator/acceptance authority" in corpus
+
+
+def test_terminal_cleanup_requires_durable_fold_into_existing_authority() -> None:
+    # F2 pin 1: before any terminal cleanup, fold a compact final run
+    # record into an existing durable task authority — continuity
+    # folding, never a new status store.
+    corpus = _cleanup_rules_corpus()
+    assert "Before any terminal cleanup" in corpus
+    assert "existing durable task authority" in corpus
+    for authority in ("Issue", "accepted WO checkpoint", "existing durable checkpoint"):
+        assert authority in corpus, f"lost durable fold target: {authority}"
+    for field in (
+        "run id",
+        "terminal classification",
+        "evidence pointer",
+        "exact next safe action",
+        "cleanup intent",
+    ):
+        assert field in corpus, f"lost final-run-record field: {field}"
+    assert "not a new status store" in corpus or "never a new status store" in corpus
+
+
+def test_ephemeral_receipt_alone_is_insufficient_durable_closeout() -> None:
+    # F2 pin 2: the ephemeral receipt may be deleted with its run
+    # directory and is explicitly insufficient durable closeout on its
+    # own.
+    corpus = _cleanup_rules_corpus()
+    assert "ephemeral receipt" in corpus
+    assert "insufficient durable closeout" in corpus
+    assert "deleted with its run directory" in corpus
+
+
+def test_contract_absent_recovers_durable_closeout_by_run_id() -> None:
+    # F3 pin 1: a CONTRACT_ABSENT entry performs run-id durable recovery
+    # before any classification.
+    corpus = _stale_pointer_sections()
+    assert "CONTRACT_ABSENT" in corpus
+    assert "durable closeout" in corpus
+    assert "exact run id" in corpus
+    assert "before any classification" in corpus or "before classification" in corpus
+
+
+def test_proven_terminal_cleanup_is_stale_pointer_not_safety_block() -> None:
+    # F3 pin 2: exact durable terminal+cleanup proof classifies as
+    # STALE_TERMINAL_POINTER / GOAL_ALREADY_TERMINAL with the full
+    # no-incident, no-new-authority outcome vector.
+    corpus = _stale_pointer_sections()
+    assert "STALE_TERMINAL_POINTER" in corpus
+    assert "GOAL_ALREADY_TERMINAL" in corpus
+    assert "SAFETY_BLOCK=FALSE" in corpus
+    assert "REMATERIALIZE=FORBIDDEN" in corpus
+    assert "REDISPATCH=FORBIDDEN" in corpus
+    assert "USER_VISIBLE_REPEAT_REPLY=FORBIDDEN" in corpus
+    assert "no new authority" in corpus
+
+
+def test_unproven_contract_absent_fails_closed() -> None:
+    # F3 pin 3: without matching durable terminal proof, contract absence
+    # stays CONTRACT_ABSENT_UNKNOWN and may fail closed as SAFETY_BLOCK.
+    corpus = _stale_pointer_sections()
+    assert "CONTRACT_ABSENT_UNKNOWN" in corpus
+    assert "SAFETY_BLOCK" in corpus
+    assert "fail" in corpus and "closed" in corpus
+
+
+def test_incident_522_regression_vector_pinned() -> None:
+    # The post-#520 production sequence and its required outcome vectors
+    # are pinned as regression semantics, with machine-visible markers in
+    # the canonical template.
+    assert _INCIDENT_522_SCENARIO["recovered"] == "#517 and PR #519"
+    assert (
+        _INCIDENT_522_SCENARIO["collapsed_boundary"]
+        == "integrator acceptance -> HUMAN_ACTION_REQUIRED"
+    )
+    assert _INCIDENT_522_SCENARIO["cleanup"] == "exact-path run-directory deletion"
+    assert (
+        _INCIDENT_522_SCENARIO["reentry"]
+        == "/goal auto-continuation using the deleted contract"
+    )
+    assert (
+        _INCIDENT_522_SCENARIO["misclassification"]
+        == "CONTRACT_ABSENT reported as SAFETY_BLOCK"
+    )
+    assert _INCIDENT_522_AVAILABLE_VECTOR["INTEGRATOR_ROUTE"] == "AVAILABLE"
+    assert (
+        _INCIDENT_522_AVAILABLE_VECTOR["NIGHTSHIFT_STATE"] == "WAITING_INTEGRATOR"
+    )
+    assert _INCIDENT_522_AVAILABLE_VECTOR["GOAL_TERMINAL"] == "NO"
+    assert _INCIDENT_522_AVAILABLE_VECTOR["CLEANUP_ALLOWED"] == "NO"
+    assert _INCIDENT_522_AVAILABLE_VECTOR["HUMAN_ACTION_REQUIRED"] == "FALSE"
+    assert (
+        _INCIDENT_522_STALE_POINTER_VECTOR["CLASSIFICATION"] == "STALE_TERMINAL_POINTER"
+    )
+    assert _INCIDENT_522_STALE_POINTER_VECTOR["GOAL_STATE"] == "GOAL_ALREADY_TERMINAL"
+    assert _INCIDENT_522_STALE_POINTER_VECTOR["SAFETY_BLOCK"] == "FALSE"
+    assert _INCIDENT_522_STALE_POINTER_VECTOR["REMATERIALIZE"] == "FORBIDDEN"
+    assert _INCIDENT_522_STALE_POINTER_VECTOR["REDISPATCH"] == "FORBIDDEN"
+    assert (
+        _INCIDENT_522_STALE_POINTER_VECTOR["USER_VISIBLE_REPEAT_REPLY"] == "FORBIDDEN"
+    )
+    ref = _norm(_read_strict(REFERENCE))
+    for needle in (
+        "INTEGRATOR_ROUTE=AVAILABLE",
+        "NIGHTSHIFT_STATE=WAITING_INTEGRATOR",
+        "HUMAN_ACTION_REQUIRED=FALSE",
+        "STALE_TERMINAL_POINTER",
+        "GOAL_ALREADY_TERMINAL",
+        "SAFETY_BLOCK=FALSE",
+        "REMATERIALIZE=FORBIDDEN",
+        "REDISPATCH=FORBIDDEN",
+        "USER_VISIBLE_REPEAT_REPLY=FORBIDDEN",
+        "CONTRACT_ABSENT_UNKNOWN",
+    ):
+        assert needle in ref, f"incident-522 regression marker lost: {needle}"
+    skill = _norm(_read_strict(SKILL))
+    assert "STALE_TERMINAL_POINTER" in skill
+    assert "WAITING_INTEGRATOR" in skill
+
+
+def test_wait_semantics_unchanged_by_handoff_repair() -> None:
+    # Control pin (WO-P1-522 regression 10): the handoff/closeout repair
+    # leaves the WAITING_EXTERNAL / WAIT_TOOL_TIMEOUT_RECHECK /
+    # no-model-spin contract markers intact in both artifacts.
+    skill = _norm(_read_strict(SKILL))
+    ref = _norm(_read_strict(REFERENCE))
+    for marker in (
+        "WAITING_EXTERNAL",
+        "WAIT_TOOL_TIMEOUT_RECHECK",
+        "USE_BLOCKING_WAIT=YES",
+        "MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES",
+        "AUTO_CONTINUATION_REPOLL=FORBIDDEN",
+        "UNCHANGED_WAIT_OUTPUT=SILENT",
+    ):
+        assert marker in skill, f"wait marker lost from SKILL.md: {marker}"
+        assert marker in ref, f"wait marker lost from template: {marker}"
+
+
+# --- WO-P1-522 attempt-0002: two-phase durable closeout (Sol finding) ---
+# Sol integrator CHANGES_REQUIRED (issue #522, 2026-09-24): attempt-0001
+# required a durable PRE-cleanup fold carrying cleanup intent, but no
+# POST-delete durable confirmation. If exact-path deletion succeeds and
+# the ephemeral receipt disappears with the run directory, a durable
+# authority holding only the PRE fold proves intent, not completed
+# cleanup — a later CONTRACT_ABSENT cannot deterministically distinguish
+# expected completed cleanup from unexpected loss. These tests pin the
+# two-phase closeout repair before any further SKILL.md/reference edit
+# (RED-first).
+
+_TWO_PHASE_522_SCENARIO = {
+    "finding": "PRE fold proves cleanup intent, not completed cleanup",
+    "phase_1": "PRE_CLEANUP_FOLDED before exact-path deletion",
+    "phase_2": "exact-path deletion of the one run directory",
+    "phase_3": "POST_CLEANUP_CONFIRMED in the SAME existing durable authority",
+}
+
+_TWO_PHASE_522_EXPECTED = {
+    "POST_FIELDS": "run id, exact deleted path, terminal classification, cleanup result",
+    "STALE_POINTER_PROOF": "PRE_CLEANUP_FOLDED + POST_CLEANUP_CONFIRMED",
+    "INTENT_ALONE": "INSUFFICIENT",
+    "DELETE_FAILURE": "FAIL_CLOSED_RECOVERABLE",
+    "MISSING_POST_CONFIRM": "NEVER_FABRICATED_SUCCESS",
+}
+
+
+def test_two_phase_closeout_pre_delete_post_ordering() -> None:
+    # Repair pin 1: terminal closeout is two-phase in the same existing
+    # durable authority — PRE_CLEANUP_FOLDED precedes the exact-path
+    # deletion; POST_CLEANUP_CONFIRMED follows successful deletion.
+    corpora = (
+        _norm(_section(_read_strict(SKILL), "Cleanup of the ephemeral run")),
+        _norm(_section(_read_strict(REFERENCE), "Cleanup rules")),
+    )
+    for corpus in corpora:
+        assert "PRE_CLEANUP_FOLDED" in corpus
+        assert "POST_CLEANUP_CONFIRMED" in corpus
+        pre = corpus.find("PRE_CLEANUP_FOLDED")
+        post = corpus.find("POST_CLEANUP_CONFIRMED")
+        assert pre != -1 and post != -1 and pre < post
+        # The deletion step sits between the two durable phases.
+        assert re.search(r"delet", corpus[pre:post])
+
+
+def test_post_cleanup_confirmed_minimum_fields_no_secrets() -> None:
+    # Repair pin 2: POST_CLEANUP_CONFIRMED records at minimum run id,
+    # exact deleted path, terminal classification, and cleanup result —
+    # with no secrets and no log dumps.
+    corpora = (
+        _norm(_section(_read_strict(SKILL), "Cleanup of the ephemeral run")),
+        _norm(_section(_read_strict(REFERENCE), "Cleanup rules")),
+    )
+    for body in corpora:
+        post = body.find("POST_CLEANUP_CONFIRMED")
+        assert post != -1
+        window = body[post : post + 600]
+        for field in (
+            "run id",
+            "exact deleted path",
+            "terminal classification",
+            "cleanup result",
+        ):
+            assert field in window, f"POST_CLEANUP_CONFIRMED lost field: {field}"
+        assert "no secrets" in window
+        assert "no log dumps" in window
+
+
+def test_stale_pointer_requires_post_cleanup_confirmed() -> None:
+    # Repair pin 3: STALE_TERMINAL_POINTER / GOAL_ALREADY_TERMINAL
+    # requires POST_CLEANUP_CONFIRMED; cleanup intent alone is
+    # insufficient.
+    corpus = _stale_pointer_sections()
+    assert "STALE_TERMINAL_POINTER" in corpus
+    assert "GOAL_ALREADY_TERMINAL" in corpus
+    assert "POST_CLEANUP_CONFIRMED" in corpus
+    assert "PRE_CLEANUP_FOLDED" in corpus
+    assert re.search(r"intent alone", corpus)
+    assert "insufficient" in corpus
+
+
+def test_delete_failure_or_missing_post_confirmation_fails_closed() -> None:
+    # Repair pin 4: delete failure or a missing post-confirmation stays
+    # fail-closed and recoverable and never fabricates success.
+    corpus = _cleanup_rules_corpus() + " " + _stale_pointer_sections()
+    assert "deletion fails" in corpus or "failed deletion" in corpus
+    assert "cannot be recorded" in corpus or "missing post-confirmation" in corpus
+    assert "fail-closed" in corpus or "fail closed" in corpus
+    assert "recoverable" in corpus
+    assert "never fabricate" in corpus
+
+
+def test_two_phase_reuses_same_existing_durable_authority() -> None:
+    # Repair pin 5: both phases fold into the SAME existing durable
+    # authority — no new store, no new authority.
+    corpus = _cleanup_rules_corpus()
+    assert "SAME existing durable authority" in corpus
+    for authority in ("Issue", "accepted WO checkpoint", "existing durable checkpoint"):
+        assert authority in corpus, f"lost durable fold target: {authority}"
+    assert "not a new status store" in corpus or "never a new status store" in corpus
+
+
+def test_two_phase_incident_vector_pinned() -> None:
+    # The Sol-finding scenario and the required two-phase outcome are
+    # pinned as machine-visible markers in both artifacts.
+    assert (
+        _TWO_PHASE_522_SCENARIO["phase_1"]
+        == "PRE_CLEANUP_FOLDED before exact-path deletion"
+    )
+    assert _TWO_PHASE_522_SCENARIO["phase_3"].endswith("SAME existing durable authority")
+    assert _TWO_PHASE_522_EXPECTED["INTENT_ALONE"] == "INSUFFICIENT"
+    assert _TWO_PHASE_522_EXPECTED["DELETE_FAILURE"] == "FAIL_CLOSED_RECOVERABLE"
+    assert _TWO_PHASE_522_EXPECTED["MISSING_POST_CONFIRM"] == "NEVER_FABRICATED_SUCCESS"
+    skill = _norm(_read_strict(SKILL))
+    ref = _norm(_read_strict(REFERENCE))
+    for needle in (
+        "PRE_CLEANUP_FOLDED",
+        "POST_CLEANUP_CONFIRMED",
+        "SAME existing durable authority",
+        "exact deleted path",
+        "cleanup result",
+    ):
+        assert needle in skill, f"two-phase marker lost from SKILL.md: {needle}"
+        assert needle in ref, f"two-phase marker lost from template: {needle}"
+    assert "intent alone is insufficient" in ref
+
+
+def test_attempt0002_preserves_f1_f2_f3_and_wait_semantics() -> None:
+    # Repair pin 6 (control): the two-phase repair preserves the
+    # attempt-0001 F1/F2/F3 repair and the WAITING_EXTERNAL /
+    # no-model-spin semantics in both artifacts.
+    skill = _norm(_read_strict(SKILL))
+    ref = _norm(_read_strict(REFERENCE))
+    for marker in (
+        "WAITING_INTEGRATOR",
+        "PROVEN_UNAVAILABLE",
+        "HUMAN_ACTION_REQUIRED=FALSE",
+        "CONTRACT_ABSENT_UNKNOWN",
+        "STALE_TERMINAL_POINTER",
+        "GOAL_ALREADY_TERMINAL",
+        "WAITING_EXTERNAL",
+        "WAIT_TOOL_TIMEOUT_RECHECK",
+        "USE_BLOCKING_WAIT=YES",
+        "MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES",
+        "AUTO_CONTINUATION_REPOLL=FORBIDDEN",
+        "UNCHANGED_WAIT_OUTPUT=SILENT",
+    ):
+        assert marker in skill, f"preserved marker lost from SKILL.md: {marker}"
+        assert marker in ref, f"preserved marker lost from template: {marker}"
+    # Machine-visible route markers stay canonical in the template.
+    for marker in ("INTEGRATOR_ROUTE=AVAILABLE", "NIGHTSHIFT_STATE=WAITING_INTEGRATOR"):
+        assert marker in ref, f"canonical route marker lost: {marker}"
