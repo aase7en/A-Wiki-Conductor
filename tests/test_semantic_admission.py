@@ -100,6 +100,7 @@ def admitted_choice(mode=SemanticDecisionMode.ADVISORY):
         {
             SemanticDecisionFamily.TASK_CLASSIFICATION: FamilyAdmission(
                 mode=mode,
+                heldout_candidate=True,
                 evidence_ref="JEV4:heldout-v1:task",
                 min_confidence=0.9,
             )
@@ -162,6 +163,7 @@ def test_noul_review_band_is_bound_from_heldout_evidence():
         {
             SemanticDecisionFamily.EVIDENCE_RELEVANCE: FamilyAdmission(
                 mode=SemanticDecisionMode.ADVISORY,
+                heldout_candidate=True,
                 evidence_ref="JEV4:heldout-v1:evidence",
                 review_band=(0.1, 0.9),
             )
@@ -215,6 +217,7 @@ def test_frontier_only_family_cannot_be_enabled():
             {
                 SemanticDecisionFamily.REVIEW_SEVERITY: FamilyAdmission(
                     mode=SemanticDecisionMode.ADVISORY,
+                    heldout_candidate=True,
                     evidence_ref="not-admissible",
                     min_confidence=0.9,
                 )
@@ -226,6 +229,16 @@ def test_enabled_admission_requires_heldout_evidence_reference():
     with pytest.raises(SemanticAdmissionError, match="held-out"):
         FamilyAdmission(
             mode=SemanticDecisionMode.ADVISORY,
+            heldout_candidate=True,
+            min_confidence=0.9,
+        )
+
+
+def test_enabled_admission_requires_candidate_verdict():
+    with pytest.raises(SemanticAdmissionError, match="CANDIDATE"):
+        FamilyAdmission(
+            mode=SemanticDecisionMode.ADVISORY,
+            evidence_ref="JEV4:heldout-v1:task",
             min_confidence=0.9,
         )
 
@@ -235,6 +248,7 @@ def test_noul_without_review_band_fails_before_provider_call():
         {
             SemanticDecisionFamily.EVIDENCE_RELEVANCE: FamilyAdmission(
                 mode=SemanticDecisionMode.ADVISORY,
+                heldout_candidate=True,
                 evidence_ref="JEV4:bad-policy",
                 min_confidence=0.9,
             )
@@ -344,6 +358,7 @@ def test_evidence_reference_must_be_safe_for_telemetry():
     with pytest.raises(SemanticAdmissionError, match="bounded safe"):
         FamilyAdmission(
             mode=SemanticDecisionMode.ADVISORY,
+            heldout_candidate=True,
             evidence_ref="private note with spaces",
             min_confidence=0.9,
         )
