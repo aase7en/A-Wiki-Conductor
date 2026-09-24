@@ -577,6 +577,24 @@ The losing side of a same-hotspot race must receive a typed attach/conflict outc
 and launch no second writer. Legitimate recovery/takeover by a different chat after
 release remains allowed.
 
+### WO-P1-517 — A-Faster utilization enforcement (policy-only)
+
+The global WIP invariant above is machine-checkable through the pure
+deterministic classifier `src/a_conductor/a_faster_utilization_guard.py`
+(WO-P1-517). It computes `FANOUT_TARGET`, `UNUSED_SAFE_CAPACITY`,
+`A_FASTER_UNDERUTILIZED` and `AUTO_REFILL_REQUIRED` plus typed blockers —
+including `SOL_DIRECT_LONG_LABOR_WHILE_GLM_CAPACITY_IDLE` when Sol performs
+GLM-eligible direct long labor while eligible GLM capacity is idle — from
+structured utilization facts gated by an `A_FASTER_ACTIVE` tasking receipt;
+explanation-only mentions of A-Faster are never activation. The classifier
+is a projection only: no scheduler, task, claim/lease, provider,
+dispatch/retry, review, merge, or completion authority; no manufactured
+work; no quota burning (quota evidence stays the existing
+refresh-before-each-material-dispatch structured flow). Enforcement is
+`POLICY_ONLY`; shared executable PRE_DISPATCH guard wiring is successor
+scope after WO-P1-498 releases. The §13 Fleet-overview "WIP utilization"
+view consumes these labels without becoming authority.
+
 ## 17. Multi-device / cross-platform direction
 
 ### Windows

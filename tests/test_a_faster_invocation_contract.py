@@ -225,3 +225,110 @@ def test_wo_keeps_duplicate_dispatch_gate_and_equivalence() -> None:
     assert "Canonical invocation equivalence" in wo
     assert "Duplicate-dispatch acceptance gate" in wo
     assert ROADMAP_SHORTHAND in wo
+
+
+# --- WO-P1-517 — utilization enforcement contract ------------------------
+
+UTILIZATION_GUARD = ROOT / "src" / "a_conductor" / "a_faster_utilization_guard.py"
+ROADMAP = (
+    ROOT
+    / "docs"
+    / "plans"
+    / "2026-09-19-a-faster-hook-stm-observability-roadmap.md"
+)
+DEFECT_LESSONS = ROOT / "DEFECT_LESSONS.md"
+
+
+def test_utilization_enforcement_section_pins_classifier_contract() -> None:
+    text = _read_strict(SKILL)
+    section = _norm(_section(text, "Utilization enforcement"))
+    assert "WO-P1-517" in section
+    assert "a_faster_utilization_guard.py" in section
+    for output in (
+        "FANOUT_TARGET",
+        "UNUSED_SAFE_CAPACITY",
+        "A_FASTER_UNDERUTILIZED",
+        "AUTO_REFILL_REQUIRED",
+    ):
+        assert output in section, f"utilization enforcement lost: {output}"
+    # Projection only: no second authority, POLICY_ONLY until shared
+    # executable PRE_DISPATCH wiring succeeds #498.
+    assert "no scheduler" in section
+    assert "POLICY_ONLY" in section
+    assert "WO-P1-498" in section
+
+
+def test_activation_receipt_tasking_vs_explanation_boundary() -> None:
+    text = _read_strict(SKILL)
+    section = _norm(_section(text, "Activation receipt"))
+    assert "A_FASTER_ACTIVE" in section
+    assert "EXPLANATION_ONLY" in section or "explanation" in section.lower()
+    assert "never an activation receipt" in section
+    # An explanation never grants enforcement or authority either.
+    assert "never triggers utilization enforcement" in section
+    assert "authority" in section
+
+
+def test_sol_direct_labor_blocker_and_glm_first_roles_preserved() -> None:
+    text = _read_strict(SKILL)
+    section = _norm(_section(text, "Sol direct long labor"))
+    assert "SOL_DIRECT_LONG_LABOR_WHILE_GLM_CAPACITY_IDLE" in section
+    assert "fallback" in section
+    assert "GLM-first" in section or "GLM labor" in section
+    # Fleet-integrator role wording remains intact elsewhere in the skill.
+    assert "fleet integrator" in _norm(text)
+
+
+def test_no_manufactured_work_and_no_quota_burning() -> None:
+    text = _read_strict(SKILL)
+    section = _norm(_section(text, "No manufactured work"))
+    assert "NO_INDEPENDENT_READY_WORK" in section
+    assert "manufacture work" in section or "manufactured work" in section
+    assert "burn" in section and "quota" in section
+
+
+def test_delegated_launch_discipline_preserves_bootstrap_lessons() -> None:
+    text = _read_strict(SKILL)
+    section = _norm(_section(text, "Delegated-run launch discipline"))
+    # Lesson 1: structured admission evidence only; serialized command
+    # text and SECRET_SOURCE_UNAVAILABLE are never admission.
+    assert "structured" in section.lower()
+    assert "serialized command text" in section
+    assert "SECRET_SOURCE_UNAVAILABLE" in section
+    # Lesson 2: explicit --dir bound to the claimed worktree plus
+    # in-session identity proof before mutation.
+    assert "--dir" in section
+    assert "worktree" in section
+    assert "repo/worktree/branch/HEAD" in section
+    # Lesson 3: per-run share=disabled override unless separately
+    # authorized.
+    assert "share=disabled" in section
+    assert "separately authorized" in section
+
+
+def test_utilization_guard_module_exists_with_projection_boundary() -> None:
+    source = _read_strict(UTILIZATION_GUARD)
+    assert "FANOUT_TARGET" in source
+    assert "UNUSED_SAFE_CAPACITY" in source
+    assert "A_FASTER_UNDERUTILIZED" in source
+    assert "AUTO_REFILL_REQUIRED" in source
+    # No scheduler/dispatch/claim/lease/provider/merge authority.
+    assert "no scheduler" in source
+    assert "no dispatcher" in source or "launches nothing" in source
+
+
+def test_roadmap_pins_policy_only_utilization_seam() -> None:
+    roadmap = _norm(_read_strict(ROADMAP))
+    assert "WO-P1-517" in roadmap
+    assert "a_faster_utilization_guard.py" in roadmap
+    assert "SOL_DIRECT_LONG_LABOR_WHILE_GLM_CAPACITY_IDLE" in roadmap
+    assert "WO-P1-498" in roadmap
+
+
+def test_defect_lessons_record_w517_bootstrap_defects() -> None:
+    lessons = _norm(_read_strict(DEFECT_LESSONS))
+    assert "#55" in lessons
+    assert "WO-P1-517" in lessons
+    assert "SECRET_SOURCE_UNAVAILABLE" in lessons
+    assert "--dir" in lessons
+    assert "share=disabled" in lessons
