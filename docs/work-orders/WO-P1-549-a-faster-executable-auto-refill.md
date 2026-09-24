@@ -25,7 +25,12 @@ Close the accepted A-Faster POLICY_ONLY utilization gap without creating a sched
 Lane A — core bridge:
 - src/a_conductor/a_faster_auto_refill.py
 - src/a_conductor/a_faster_utilization_guard.py (boundary documentation only)
+- src/a_conductor/elastic_worker_capacity.py (accepted production caller only)
+- src/a_conductor/parallel_ready_execution.py (reuse #498 PRE_DISPATCH at the lease-to-run seam)
+- src/a_conductor/provider_runtime_assembly.py (production guard assembly)
+- src/a_conductor/runtime_activation.py (production guard assembly)
 - tests/test_a_faster_auto_refill.py
+- tests/test_parallel_ready_execution.py (guard + production-caller regressions)
 
 Lane B — Codex/A-Faster integration:
 - .codex/hooks/a_sunday_lifecycle.py
@@ -60,5 +65,9 @@ RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF
 - Added-line secret signature scan: no matches.
 - GLM material author route not used: approved CoinTH resolver returned SECRET_SOURCE_UNAVAILABLE; this is not quota exhaustion.
 
-- Self-review hardening: lane kind is now fenced to lease mutation intent (MUTABLE=MUTATION, REVIEW=READ_ONLY); non-ParallelReadyTask mappings fail closed before execute.
-- Updated related suite after hardening: 252 passed.
+- Independent R3 review of exact head a22c4503 returned NEEDS_FIX (P0=0, P1=5, P2=1): forged utilization provenance, scheduler/WIP claim provenance, lease/harness intent drift, optional quota/provider authority, missing PRE_DISPATCH enforcement, and raw/ambiguous execution evidence.
+- R3 repair re-derives UtilizationVerdict from exact UtilizationFacts, cross-checks ElasticWipFacts, requires exact ReadySet membership plus WIP claim/runtime/scope gates, bounds active/claim headroom through the existing #537 classifier, and requires quota-bound provider authority.
+- ParallelReadyTask now fences lease intent to HarnessDispatch intent. Production ParallelReadyExecutor requires the existing #498 WorkerLeasePreDispatchGuard at the lease-to-run launch seam; guard denial never reaches the runner.
+- Auto-refill results now project only typed node/kind/reason evidence; post-execute exceptions are RECONCILE_REQUIRED rather than replay/rejection permission.
+- Repair regression suites: A-Faster + parallel-ready 86 passed; A-Faster/WIP/Codex-hook contracts 100 passed; elastic/provider/runtime activation 86 passed.
+- py_compile, hooks JSON parse, diff --check, strict UTF-8, added-line secret scan: PASS after R3 repair.
