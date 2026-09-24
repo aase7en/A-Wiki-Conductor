@@ -855,3 +855,66 @@ def test_zra_comp_1_canonical_authorities_result_boundary_and_replay(tmp_path: P
         released_at=datetime.now(timezone.utc),
     )
     assert lease_release.released is True
+
+
+# ---------------- WO-P1-498 / 498A: guarded writer route e2e ----------------
+
+@NT_ONLY
+def test_wo498_guarded_fresh_launch_denied_after_lease_release(tmp_path: Path) -> None:
+    """End-to-end over the REAL specialized helper: the injected lease
+    health reader (same configured lease authority) allows the first FRESH
+    launch; after the lease is released, a NEW fresh dispatch (different
+    packet bytes => different fingerprint) is denied BEFORE any record or
+    child spawn — exactly one spawn total."""
+    from a_conductor.worker_lease import LeaseHealth, LeaseHealthKind
+
+    baseline = build_lease(tmp_path)
+    state: dict[str, LeaseHealth] = {
+        baseline.lease_id: LeaseHealth(LeaseHealthKind.ACTIVE, baseline)
+    }
+
+    class Reader:
+        def inspect_health(self, lease_id: str, *, now: object) -> LeaseHealth:
+            return state[lease_id]
+
+    runtime_python = getattr(sys, "_base_executable", sys.executable)
+    fake_script = _write_fake_app_server(tmp_path / "fake", tmp_path / "receipts", "ok")
+    authorities = replace(
+        build_real_service_authorities(tmp_path),
+        lease_health_reader=Reader(),
+    )
+
+    def _guarded_runner(text: str):
+        assert authorities.lease_health_reader is not None
+        return assemble_zcode_execution(
+            authorities=authorities,
+            packet=_packet(tmp_path, text=text),
+            model_id="glm-5.3",
+            expected_generation=1,
+            expected_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path),
+            executable=runtime_python,
+            bundle_js=str(fake_script),
+            deadline_seconds=20.0,
+        )
+
+    first = _guarded_runner(f"{PROMPT_MARKER} Return exactly {RESPONSE_TEXT}.")
+    assert first._pre_dispatch_guard is not None
+    assert first._pre_dispatch_guard_required is True
+    result = first.run(timeout_seconds=90)
+    assert result.exit_code == 0, result.stderr
+    spawns = (tmp_path / "receipts" / "spawn.pid").read_text(encoding="utf-8").split()
+    assert len(spawns) == 1
+
+    # the accepted lease is released between assembly and the next fresh launch
+    state[baseline.lease_id] = LeaseHealth(
+        LeaseHealthKind.RELEASED,
+        replace(baseline, released_at=datetime.now(timezone.utc).isoformat()),
+    )
+    second = _guarded_runner(f"{PROMPT_MARKER} Different bytes. Return exactly {RESPONSE_TEXT}.")
+    denied = second.run(timeout_seconds=90)
+    assert denied.exit_code is None
+    assert denied.stderr == "SUPERVISED_PRE_DISPATCH_GUARD_DENIED:LEASE_RELEASED"
+    spawns_after = (tmp_path / "receipts" / "spawn.pid").read_text(encoding="utf-8").split()
+    assert spawns_after == spawns  # zero new child spawns on the denied dispatch

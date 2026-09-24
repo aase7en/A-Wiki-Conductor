@@ -991,3 +991,180 @@ def test_phase_d_recovery_after_persistence_retains_exact_nonaccepted_id(tmp_pat
     assert outcome.execution_id is not None
     assert store.get(outcome.execution_id).execution_id == outcome.execution_id
     assert "SUPERVISOR_RECOVERY_REQUIRED:CHILD_DIED" in outcome.native.stderr
+
+
+# ---------------- WO-P1-498 / 498A: lease-bound PRE_DISPATCH GUARD ----------
+
+
+def test_wo498_guard_required_missing_fails_closed_before_effects(tmp_path):
+    """A FRESH route declared guard-required with no guard wired fails
+    closed BEFORE execution-id mint, record persistence, or launch."""
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        pre_dispatch_guard=None,
+        pre_dispatch_guard_required=True,
+        poll_interval_seconds=0.01,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert outcome.native.stderr == "SUPERVISED_PRE_DISPATCH_GUARD_REQUIRED"
+    assert supervised.launch_calls == 0
+    assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo498_guard_denies_fresh_before_persistence_or_launch(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+    from a_conductor.pre_dispatch_guard import (
+        PreDispatchGuardDecision,
+        PreDispatchGuardDecisionKind,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+
+    class DenyingGuard:
+        def check(self):
+            return PreDispatchGuardDecision(
+                PreDispatchGuardDecisionKind.DENY, "LEASE_STALE"
+            )
+
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        pre_dispatch_guard=DenyingGuard(),
+        pre_dispatch_guard_required=True,
+        poll_interval_seconds=0.01,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert outcome.native.stderr == "SUPERVISED_PRE_DISPATCH_GUARD_DENIED:LEASE_STALE"
+    assert supervised.launch_calls == 0
+    assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo498_reuse_completed_and_attach_skip_guard(tmp_path):
+    """ATTACH_RUNNING / REUSE_COMPLETED are dedupe-owned: the injected
+    fresh-launch guard is consulted exactly once (the original FRESH)."""
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    from a_conductor.execution_record import ExecutionProcessState
+    from a_conductor.pre_dispatch_guard import (
+        PreDispatchGuardDecision,
+        PreDispatchGuardDecisionKind,
+    )
+    from a_conductor.supervised_execution import (
+        SupervisedInspection,
+        SupervisedInspectionState,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class RunningThenResult(ScriptedSupervised):
+        def launch(self, plan):
+            outcome = super().launch(plan)
+            with self._lock:
+                record = self.records[outcome.record.execution_id]
+                stored = store.set_execution_state(
+                    record.execution_id,
+                    ExecutionProcessState.RUNNING,
+                    expected_version=record.version,
+                )
+                self.records[record.execution_id] = stored
+            return outcome
+
+        def inspect(self, execution_id):
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.RESULT_AVAILABLE,
+                supervisor_pid=None,
+                result_available=True,
+                recovery_required=False,
+            )
+
+    supervised = RunningThenResult(repo, store)
+    calls: list[str] = []
+
+    class CountingGuard:
+        def check(self):
+            calls.append("guard")
+            return PreDispatchGuardDecision(
+                PreDispatchGuardDecisionKind.ALLOW, "PRE_DISPATCH_ALLOWED"
+            )
+
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        pre_dispatch_guard=CountingGuard(),
+        pre_dispatch_guard_required=True,
+        poll_interval_seconds=0.01,
+    )
+    first = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert first.kind is SupervisedRunOutcomeKind.FRESH
+    launches = supervised.launch_calls
+    assert calls == ["guard"]
+
+    attach = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert attach.kind is SupervisedRunOutcomeKind.ATTACH_RUNNING
+    assert supervised.launch_calls == launches
+    assert calls == ["guard"]  # no second guard invocation on attach
+
+
+def test_wo498_guard_configuration_leaves_fingerprint_bytes_unchanged(tmp_path):
+    from a_conductor.pre_dispatch_guard import (
+        PreDispatchGuardDecision,
+        PreDispatchGuardDecisionKind,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class AllowGuard:
+        def check(self):
+            return PreDispatchGuardDecision(
+                PreDispatchGuardDecisionKind.ALLOW, "PRE_DISPATCH_ALLOWED"
+            )
+
+    plain = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=ScriptedSupervised(repo, store),
+        identity=_identity(repo),
+        poll_interval_seconds=0.01,
+    )
+    guarded = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=ScriptedSupervised(repo, store),
+        identity=_identity(repo),
+        pre_dispatch_guard=AllowGuard(),
+        pre_dispatch_guard_required=True,
+        poll_interval_seconds=0.01,
+    )
+    assert plain.fingerprint_for_argv(ARGV) == guarded.fingerprint_for_argv(ARGV)
+
+
+def test_wo498_no_new_durable_authority_in_coordinator():
+    """The guard seam adds no store/scheduler/lease registry surface."""
+    import inspect
+
+    from a_conductor import supervised_run_coordinator as module
+
+    source = inspect.getsource(module)
+    assert "SQLiteWorkerLeaseStore" not in source
+    assert "create_table" not in source
+    assert "CREATE INDEX" not in source

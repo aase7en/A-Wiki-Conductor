@@ -37,6 +37,11 @@ from .execution_record import (
 )
 from .execution_store import ExecutionStoreError
 from .native_execution import NativeCommandResult
+from .pre_dispatch_guard import (
+    PreDispatchGuardDecision,
+    PreDispatchGuardDecisionKind,
+    is_valid_guard_reason,
+)
 from .supervised_execution import (
     SupervisedCollectOutcome,
     SupervisedExecutionError,
@@ -66,6 +71,13 @@ class SupervisedExecutionFingerprintStore(Protocol):
     def create(self, record: DurableExecutionRecord) -> DurableExecutionRecord: ...
     def get(self, execution_id: str) -> DurableExecutionRecord: ...
     def find_by_fingerprint(self, fingerprint: str) -> tuple[DurableExecutionRecord, ...]: ...
+
+
+class PreDispatchGuardLike(Protocol):
+    """WO-P1-498: injected launch-time revalidation seam. Guard output is
+    untrusted authority output — see ``_assess_pre_dispatch_guard``."""
+
+    def check(self) -> PreDispatchGuardDecision: ...
 
 
 def _require_text(value: str, field_name: str) -> str:
@@ -225,6 +237,8 @@ class SupervisedRunCoordinator:
         sleep_fn: Callable[[float], None] = time.sleep,
         clock_fn: Callable[[], float] = time.monotonic,
         max_output_bytes: int = 64 * 1024,
+        pre_dispatch_guard: "PreDispatchGuardLike | None" = None,
+        pre_dispatch_guard_required: bool = False,
     ) -> None:
         for method_name in ("create", "get", "find_by_fingerprint"):
             if not callable(getattr(execution_store, method_name, None)):
@@ -234,6 +248,12 @@ class SupervisedRunCoordinator:
                 raise ValueError(f"supervised must provide {method_name}")
         if not isinstance(identity, SupervisedRunIdentity):
             raise ValueError("identity must be a SupervisedRunIdentity")
+        if pre_dispatch_guard is not None and not callable(
+            getattr(pre_dispatch_guard, "check", None)
+        ):
+            raise ValueError("pre_dispatch_guard must provide check")
+        if not isinstance(pre_dispatch_guard_required, bool):
+            raise ValueError("pre_dispatch_guard_required must be bool")
         if (
             not isinstance(poll_interval_seconds, (int, float))
             or isinstance(poll_interval_seconds, bool)
@@ -266,6 +286,8 @@ class SupervisedRunCoordinator:
         self._sleep_fn = sleep_fn
         self._clock_fn = clock_fn
         self._max_output_bytes = max_output_bytes
+        self._pre_dispatch_guard = pre_dispatch_guard
+        self._pre_dispatch_guard_required = pre_dispatch_guard_required
 
     @property
     def identity(self) -> SupervisedRunIdentity:
@@ -389,6 +411,39 @@ class SupervisedRunCoordinator:
             return None
         return execution_id if record.execution_id == execution_id else None
 
+    def _assess_pre_dispatch_guard(self) -> str | None:
+        """WO-P1-498 / 498A: revalidate the consequential FRESH launch.
+
+        Returns ``None`` when the fresh launch may proceed, or a stable
+        typed error code when it must fail closed. Guard output is untrusted
+        authority output: exceptions collapse to UNAVAILABLE, malformed
+        objects/results/reasons collapse to INVALID — never a raw exception
+        or unbounded data leak. An optional route with no guard preserves
+        historical behavior; a guard-required route with no guard fails
+        closed.
+        """
+        guard = self._pre_dispatch_guard
+        if guard is None:
+            if self._pre_dispatch_guard_required:
+                return "SUPERVISED_PRE_DISPATCH_GUARD_REQUIRED"
+            return None
+        try:
+            decision = guard.check()
+        except Exception:
+            return "SUPERVISED_PRE_DISPATCH_GUARD_UNAVAILABLE"
+        if not isinstance(decision, PreDispatchGuardDecision):
+            return "SUPERVISED_PRE_DISPATCH_GUARD_INVALID"
+        if decision.kind is PreDispatchGuardDecisionKind.ALLOW:
+            if not is_valid_guard_reason(decision.reason_code):
+                return "SUPERVISED_PRE_DISPATCH_GUARD_INVALID"
+            return None
+        if decision.kind is PreDispatchGuardDecisionKind.DENY:
+            reason = decision.reason_code if is_valid_guard_reason(decision.reason_code) else None
+            if reason is None:
+                return "SUPERVISED_PRE_DISPATCH_GUARD_INVALID"
+            return f"SUPERVISED_PRE_DISPATCH_GUARD_DENIED:{reason}"
+        return "SUPERVISED_PRE_DISPATCH_GUARD_INVALID"
+
     def run_with_outcome(
         self,
         argv: tuple[str, ...],
@@ -423,6 +478,18 @@ class SupervisedRunCoordinator:
                 else SupervisedRunOutcomeKind.REUSE_COMPLETED
             )
         else:
+            # WO-P1-498 / 498A: the lease-bound PRE_DISPATCH guard runs ONLY
+            # on the consequential FRESH branch — after the dedupe assessment
+            # above and BEFORE author-attempt mint, execution-id mint,
+            # durable record creation, or backend launch. ATTACH_RUNNING /
+            # REUSE_COMPLETED never reach this seam.
+            guard_error = self._assess_pre_dispatch_guard()
+            if guard_error is not None:
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    None,
+                    self._failure_result(argv, error_code=guard_error),
+                )
             success_kind = SupervisedRunOutcomeKind.FRESH
             execution_id = f"exec-{uuid.uuid4().hex[:16]}"
             run_rel = f"runs/{execution_id}"

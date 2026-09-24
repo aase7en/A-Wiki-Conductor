@@ -959,11 +959,15 @@ class SupervisedZCodeRunner:
         poll_interval_seconds: float = 0.05,
         sleep_fn: Callable[[float], None] = time.sleep,
         clock_fn: Callable[[], float] = time.monotonic,
+        pre_dispatch_guard: object | None = None,
+        pre_dispatch_guard_required: bool = False,
     ) -> None:
         if identity.backend_id != ZCODE_BACKEND_ID:
             raise ValueError(f"identity.backend_id must be {ZCODE_BACKEND_ID}")
         if not isinstance(task_packet, ZCodeTaskPacketIdentity):
             raise ValueError("task_packet must be a ZCodeTaskPacketIdentity")
+        if not isinstance(pre_dispatch_guard_required, bool):
+            raise ValueError("pre_dispatch_guard_required must be bool")
         self._executable = executable
         self._bundle_js = bundle_js
         self._adapter = adapter
@@ -978,6 +982,8 @@ class SupervisedZCodeRunner:
         self._poll = poll_interval_seconds
         self._sleep = sleep_fn
         self._clock = clock_fn
+        self._pre_dispatch_guard = pre_dispatch_guard
+        self._pre_dispatch_guard_required = pre_dispatch_guard_required
 
     def _coordinator(self) -> SupervisedRunCoordinator:
         """The canonical coordinator for this runner's next run(): the single
@@ -993,6 +999,8 @@ class SupervisedZCodeRunner:
             sleep_fn=self._sleep,
             clock_fn=self._clock,
             max_output_bytes=ZCODE_MAX_RESPONSE_BYTES,
+            pre_dispatch_guard=self._pre_dispatch_guard,
+            pre_dispatch_guard_required=self._pre_dispatch_guard_required,
         )
 
     def execution_fingerprint_spec(self) -> "ExecutionFingerprintSpec":
