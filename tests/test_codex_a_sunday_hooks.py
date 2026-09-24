@@ -135,10 +135,19 @@ def test_direct_kilo_heavy_bypass_is_denied_but_readiness_probe_is_not() -> None
         "tool_use_id": "tool-1",
         "tool_input": {"command": "kilo run --model cointh-glm/glm-5.3 --variant max task"},
     })
-    out = _run(payload)
-    specific = out["hookSpecificOutput"]
-    assert specific["permissionDecision"] == "deny"
-    assert "sunday_dispatch" in specific["permissionDecisionReason"]
+    commands = (
+        "kilo run --model cointh-glm/glm-5.3 --variant max task",
+        r'"C:\Users\me\AppData\Roaming\npm\kilo.cmd" run task',
+        r"'C:\Program Files\Kilo\kilo.exe' run task",
+        r"C:\tools\kilo.bat run task",
+        "/opt/kilo/bin/kilo run task",
+    )
+    for command in commands:
+        payload["tool_input"] = {"command": command}
+        out = _run(payload)
+        specific = out["hookSpecificOutput"]
+        assert specific["permissionDecision"] == "deny", command
+        assert "sunday_dispatch" in specific["permissionDecisionReason"]
 
     payload["tool_input"] = {"command": "kilo roll-call"}
     probe = _run(payload)
@@ -343,6 +352,15 @@ def test_wo545_receipt_validation_matches_closed_bounded_v1_shape() -> None:
         bad_capability = _receipt(path)
         bad_capability["capability_evidence_version"] = "bad capability value with spaces"
         variants.append(bad_capability)
+
+        overlong_run_id = _receipt(path)
+        overlong_run_id["run_id"] = "nightshift-" + ("x" * 118)
+        assert len(overlong_run_id["run_id"]) == 129
+        variants.append(overlong_run_id)
+
+        unhashable_exec_ref = _receipt(path)
+        unhashable_exec_ref["outstanding_exec_refs"] = [{"bad": "object"}]
+        variants.append(unhashable_exec_ref)
 
         for receipt in variants:
             path.write_text(json.dumps(receipt), encoding="utf-8")

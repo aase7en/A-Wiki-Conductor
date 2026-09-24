@@ -1773,3 +1773,38 @@ def test_wo545_nonterminal_turn_emits_exact_stop_hook_receipt_pointer() -> None:
         assert "NIGHTSHIFT_TURN_RECEIPT" in body, label
         assert "exactly one" in body.lower(), label
         assert "stop_hook_active" in body, label
+
+
+def test_wo545_resume_receipt_identity_is_bound_fail_closed_across_all_surfaces() -> None:
+    bodies = (
+        ("skill", _norm(_section(_read_strict(SKILL), "One-shot continuation terminal gate"))),
+        (
+            "canonical",
+            _norm(
+                _section(
+                    _reference_without_supervisor_template_body(),
+                    "One-shot continuation terminal gate",
+                )
+            ),
+        ),
+        ("template", _norm(_section(_supervisor_template_body(), "One-shot continuation terminal gate"))),
+    )
+    required = (
+        "thread_id",
+        "parent_exec_ref",
+        "capability_evidence_version",
+        "generation",
+        "outstanding_exec_refs",
+        "next_safe_action_ref",
+        "low|medium|high",
+        "previous accepted generation + 1",
+        "RESUME_RECEIPT_IDENTITY_UNAVAILABLE",
+        "synthetic parent execution id",
+        "do not emit",
+        "A_SUNDAY_TURN_RECEIPT_REF",
+    )
+    for label, body in bodies:
+        for token in required:
+            assert token in body, f"{label}: missing {token}"
+        assert "supervisor effort `max` under v1" in body
+        assert "preserve the nonterminal checkpoint" in body

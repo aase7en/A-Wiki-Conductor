@@ -173,6 +173,18 @@ Post-repair related verification: **302 passed** plus py_compile, JSON parse and
 `git diff --check` PASS. The old candidate is superseded and must not be
 accepted; a new exact SHA requires fresh hosted CI and independent rereview.
 
+## Second review hardening checkpoint
+
+The exact-SHA rereview of `1be73f08f5af8c7a7ca5e92f1b41550abdf5045d` was read-only and produced actionable deterministic evidence before its stalled process was cancelled by exact Sunday execution id and harvested. No final PASS verdict was claimed for that superseded SHA.
+
+Confirmed defects and repairs:
+- #531 `run_id` length: schema maxLength is 128; the hook now rejects values above 128 instead of relying only on the regex.
+- malformed `outstanding_exec_refs`: element type/pattern validation now occurs before uniqueness/set evaluation, so JSON objects/lists fail closed rather than raising TypeError.
+- Windows npm/shim Kilo routes: direct-run bypass detection now covers `kilo`, `kilo.exe`, `kilo.cmd`, and `kilo.bat` for quoted/unquoted Windows and POSIX paths.
+- receipt materialization is fail-closed on the complete recovered #531 identity tuple. Unknown/stale/incompatible identity, including a `max` supervisor effort that v1 cannot encode, yields `RESUME_RECEIPT_IDENTITY_UNAVAILABLE` and forbids the pointer marker instead of synthesizing resume state.
+
+Targeted RED/GREEN regressions were added before the corresponding repairs. The prior SHA and its successful hosted CI are superseded and cannot be used as final acceptance evidence.
+
 ## Remaining acceptance gates
 
 Before acceptance:

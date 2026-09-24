@@ -289,6 +289,21 @@ Do not emit that marker for a terminal/frozen/wait-only turn. The Stop hook
 validates the receipt and may continue only actionable CONTINUE reasons;
 `stop_hook_active=true` always forbids a second continuation in the same turn.
 
+Before materializing the receipt, bind every #531 v1 identity/transition field from
+current recovered evidence: `run_id`, `thread_id`, `parent_exec_ref`, active
+`model` and v1-compatible `effort` (`low|medium|high` only),
+`contract_ref`, `receipt_ref`, `authority_repo_ref`, `worktree_ref`,
+current VERIFIED `capability_evidence_version`, the fenced `generation`,
+current `outstanding_exec_refs`, and `next_safe_action_ref`. Generation is
+1 for the first completed parent turn and thereafter exactly previous accepted
+generation + 1. Never derive a synthetic parent execution id, thread id,
+capability version, generation, or action reference. If any required field is
+UNKNOWN, stale, incompatible (including supervisor effort `max` under v1), or
+cannot be bound to current run authority, classify
+`RESUME_RECEIPT_IDENTITY_UNAVAILABLE`, do not emit
+`A_SUNDAY_TURN_RECEIPT_REF`, and preserve the nonterminal checkpoint for the
+host/accepted successor adapter instead of fabricating resume eligibility.
+
 Pinned vector:
 TURN_COMPLETED=YES DURABLE_GOAL_NONTERMINAL=YES =>
 TURN_RECEIPT_STATUS=CONTINUE, GOAL_TERMINAL=NO, CLEANUP_ALLOWED=NO.
@@ -504,6 +519,21 @@ assistant message for that turn MUST contain exactly one pointer line:
 Do not emit that marker for a terminal/frozen/wait-only turn. The Stop hook
 validates the receipt and may continue only actionable CONTINUE reasons;
 `stop_hook_active=true` always forbids a second continuation in the same turn.
+
+Before materializing the receipt, bind every #531 v1 identity/transition field from
+current recovered evidence: `run_id`, `thread_id`, `parent_exec_ref`, active
+`model` and v1-compatible `effort` (`low|medium|high` only),
+`contract_ref`, `receipt_ref`, `authority_repo_ref`, `worktree_ref`,
+current VERIFIED `capability_evidence_version`, the fenced `generation`,
+current `outstanding_exec_refs`, and `next_safe_action_ref`. Generation is
+1 for the first completed parent turn and thereafter exactly previous accepted
+generation + 1. Never derive a synthetic parent execution id, thread id,
+capability version, generation, or action reference. If any required field is
+UNKNOWN, stale, incompatible (including supervisor effort `max` under v1), or
+cannot be bound to current run authority, classify
+`RESUME_RECEIPT_IDENTITY_UNAVAILABLE`, do not emit
+`A_SUNDAY_TURN_RECEIPT_REF`, and preserve the nonterminal checkpoint for the
+host/accepted successor adapter instead of fabricating resume eligibility.
 
 Pinned vector:
 TURN_COMPLETED=YES DURABLE_GOAL_NONTERMINAL=YES =>

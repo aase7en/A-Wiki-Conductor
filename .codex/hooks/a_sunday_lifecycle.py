@@ -19,10 +19,10 @@ _MAX_RECEIPT_BYTES = 65_536
 _RECEIPT_MARKER = re.compile(r"(?m)^A_SUNDAY_TURN_RECEIPT_REF=(.+?)\s*$")
 _KILO_RUN = re.compile(
     r"""(?ix)(?:^|[\s;&|])(?:
-        "[^"\r\n]*[\\/]kilo(?:\.exe)?"
-        |'[^'\r\n]*[\\/]kilo(?:\.exe)?'
-        |(?:[A-Za-z]:)?(?:[^\s"';&|]+[\\/])+kilo(?:\.exe)?
-        |kilo(?:\.exe)?
+        "[^"\r\n]*[\\/]kilo(?:\.(?:exe|cmd|bat))?"
+        |'[^'\r\n]*[\\/]kilo(?:\.(?:exe|cmd|bat))?'
+        |(?:[A-Za-z]:)?(?:[^\s"';&|]+[\\/])+kilo(?:\.(?:exe|cmd|bat))?
+        |kilo(?:\.(?:exe|cmd|bat))?
     )\s+run\b"""
 )
 
@@ -220,7 +220,11 @@ def _load_receipt(path: Path) -> Optional[dict[str, Any]]:
     model = value.get("model")
     capability = value.get("capability_evidence_version")
     generated_at = value.get("generated_at")
-    if not isinstance(run_id, str) or _RUN_ID.fullmatch(run_id) is None:
+    if (
+        not isinstance(run_id, str)
+        or len(run_id) > 128
+        or _RUN_ID.fullmatch(run_id) is None
+    ):
         return None
     if not isinstance(thread_id, str) or _THREAD_ID.fullmatch(thread_id) is None:
         return None
@@ -242,9 +246,9 @@ def _load_receipt(path: Path) -> Optional[dict[str, Any]]:
     outstanding = value.get("outstanding_exec_refs")
     if not isinstance(outstanding, list) or len(outstanding) > 16:
         return None
-    if len(set(outstanding)) != len(outstanding):
-        return None
     if any(not isinstance(ref, str) or _EXEC_REF.fullmatch(ref) is None for ref in outstanding):
+        return None
+    if len(set(outstanding)) != len(outstanding):
         return None
     for field in (
         "contract_ref",
