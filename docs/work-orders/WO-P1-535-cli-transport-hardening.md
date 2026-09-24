@@ -79,7 +79,7 @@ The execution-substrate repair adds only an additive `closeStdin?: boolean` poli
 
 ## Checkpoint — GLM/Jev provider diagnosis
 
-CoinTH/Kilo material route remains BLOCKED pending provider smoke:
+Historical checkpoint (superseded by the terminal recheck below): CoinTH/Kilo material route was BLOCKED pending provider smoke:
 - Kilo CLI 7.7.2 and VS Code-bundled Kilo 7.7.9 both time out on the same Flash smoke even with stdin EOF.
 - `KILO_CONFIG_CONTENT={"share":"disabled"}` still lists `cointh-glm/glm-5.3` and `cointh-glm/glm-5.3-flash`, so the privacy overlay does not remove those model names.
 - observed Kilo lifecycle reaches session bootstrap, turn.open, and model-cache before output stalls; no successful model receipt has been observed.
@@ -99,3 +99,31 @@ TypeSafe-Jev is independently proven:
 - result: `CODE_FAILURE`, confidence 0.52
 - probabilities: CODE_FAILURE 0.61, TRANSPORT_FAILURE 0.37, TEST_FAILURE 0.01, AUTH_FAILURE 0.01, RATE_LIMITED 0.
 - `authoritative_for_action=false`; actual runtime evidence remains authoritative.
+
+## Terminal provider recheck and post-main status
+
+The earlier blocked-route checkpoint above is superseded by exact durable evidence:
+
+- upstream recheck execution: `exec-mufchq7d-8v9a099t`;
+- terminal state: `COMPLETED / HARVESTED / COLLECTED`;
+- proxy quota before: `used_5h=0`, `remaining_5h=80000000`;
+- bounded GLM-5.3-Flash smoke returned `UPSTREAM_FLASH_OK` with exit 0;
+- model tokens: total 64218, input 64208, output 10;
+- proxy quota after: `used_5h=64218`, `remaining_5h=79935782`;
+- `UPSTREAM_PROVIDER_READINESS=READY`;
+- `GLM_ROUTE_READY=TRUE`.
+
+Therefore the prior zero-output observations made during the known upstream
+Z.AI throttle are not accepted evidence of a Kilo/SRM transport defect.
+Future material GLM dispatch still requires fresh per-dispatch proxy quota
+preflight plus current upstream readiness evidence.
+
+The accepted SunDayRemoteMCP stdin-EOF source repair is merged on execution-repo
+main at `e6460ebb3823f1b0c179f78b9f1944b05963531f`. Sequential post-main
+`npm run build` and the focused supervisor suite pass; the canonical execution
+repo root was clean at that verification.
+
+Runtime cutover of the already-running SundayMCP server to exercise the merged
+`closeStdin:true` path remains a separate operational verification step. It is
+not evidence against the accepted source repair and must not be manufactured by
+broad process termination.
