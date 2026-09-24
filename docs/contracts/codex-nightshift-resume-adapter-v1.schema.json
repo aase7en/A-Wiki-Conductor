@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a-conductor:schema:codex-nightshift-resume-adapter:1.0.0",
+  "title": "Codex NightShift Resume Adapter Turn Receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_type",
+    "run_id",
+    "thread_id",
+    "parent_exec_ref",
+    "model",
+    "effort",
+    "contract_ref",
+    "receipt_ref",
+    "authority_repo_ref",
+    "worktree_ref",
+    "capability_evidence_version",
+    "generation",
+    "generated_at",
+    "status",
+    "reason",
+    "stop_gate",
+    "outstanding_exec_refs",
+    "next_safe_action_ref"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "receipt_type": {
+      "const": "NIGHTSHIFT_TURN_RECEIPT"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^nightshift-[A-Za-z0-9._-]{1,120}$",
+      "maxLength": 128
+    },
+    "thread_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F-]{36}$",
+      "maxLength": 36
+    },
+    "parent_exec_ref": {
+      "type": "string",
+      "pattern": "^exec-[a-z0-9-]{6,64}$",
+      "maxLength": 80
+    },
+    "model": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$",
+      "maxLength": 64
+    },
+    "effort": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "contract_ref": {
+      "$ref": "#/$defs/ref"
+    },
+    "receipt_ref": {
+      "$ref": "#/$defs/ref"
+    },
+    "authority_repo_ref": {
+      "$ref": "#/$defs/ref"
+    },
+    "worktree_ref": {
+      "$ref": "#/$defs/ref"
+    },
+    "capability_evidence_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,64}$",
+      "maxLength": 64
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "generated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?Z$",
+      "maxLength": 32
+    },
+    "status": {
+      "enum": [
+        "CONTINUE",
+        "TERMINAL"
+      ]
+    },
+    "reason": {
+      "enum": [
+        "NEXT_READY",
+        "WAITING_EXTERNAL",
+        "CHILD_RESULT_READY",
+        "TURN_BUDGET_BOUNDARY",
+        "QUOTA_EXHAUSTED",
+        "HUMAN_ACTION_REQUIRED",
+        "HUMAN_DECISION_REQUIRED",
+        "AUTHORIZATION_REQUIRED",
+        "SAFETY_BLOCK",
+        "TRUE_NO_SAFE_NEXT_ACTION",
+        "GOAL_COMPLETE"
+      ]
+    },
+    "stop_gate": {
+      "enum": [
+        "NONE",
+        "HUMAN_ACTION_REQUIRED",
+        "HUMAN_DECISION_REQUIRED",
+        "AUTHORIZATION_REQUIRED",
+        "SAFETY_BLOCK",
+        "TRUE_NO_SAFE_NEXT_ACTION"
+      ]
+    },
+    "outstanding_exec_refs": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^exec-[a-z0-9-]{6,64}$",
+        "maxLength": 80
+      }
+    },
+    "next_safe_action_ref": {
+      "$ref": "#/$defs/ref"
+    }
+  },
+  "$defs": {
+    "ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*://)[^\\r\\n]{1,1024}$"
+    }
+  }
+}
