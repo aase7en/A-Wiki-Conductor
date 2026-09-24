@@ -215,3 +215,52 @@ bounded repair, same frozen scope:
 - Stop state: `READY_FOR_INTEGRATOR_VERIFICATION`. No commit, no merge, no
   push; GPT-5.6 Sol owns frozen-SHA review, acceptance, and merge. Compact
   evidence: `runs/WO-P1-522/author/attempt-0002/result.md`.
+
+
+## Sol CHANGES_REQUIRED addition — attempt-0003 assurance hardening
+
+Independent R3 review of composed candidate
+9f54e1214f81420a6f0c80c973b202202a78a0f2 found P0/P1/P2/P3=0/0/2/2.
+Sol adjudicated both P2 findings as blocking despite the review headline PASS:
+the attempt-0002 tests did not structurally bind POST_CLEANUP_CONFIRMED after
+successful deletion in every duplicated contract copy, and combined-corpus
+presence checks could be satisfied by decoy markers after weakening stale
+PRE+POST proof or delete-failure fail-closed semantics.
+
+Required repair is assurance-only. Production SKILL/reference text is already
+semantically correct and remains frozen. Harden tests independently across:
+1. SKILL cleanup/stale-pointer sections;
+2. reference canonical cleanup/stale-pointer sections with the fenced template
+   body removed from section matching;
+3. the fenced supervisor template body's Cleanup/Stale-terminal-pointer sections.
+
+Per-copy validators must reject POST-before-delete inversion, PRE-only stale
+proof, and removal of the delete-failure/missing-post fail-closed branch.
+
+
+## Checkpoint — attempt-0003 (2026-09-24)
+
+- GLM-5.3 MAX execution exec-mueyezuw-b31mj28o was dispatched test-only from
+  clean exact HEAD 9f54e1214f81420a6f0c80c973b202202a78a0f2 after fresh quota admission.
+  Runtime reconciliation showed it STALLED/NOT_STARTED: child alive but CPU
+  approximately zero, output mtime unchanged for more than five minutes,
+  tracked tree clean, and no result file. It was cooperatively cancelled by
+  exact execution id, then harvested/collected; no tracked side effect landed.
+- Sol performed the bounded deterministic test-only repair instead of blind
+  redispatch. Only tests/test_a_nightshift_skill_contract.py changed at this
+  stage; SKILL.md and references/overnight-supervisor.md remained byte-identical.
+- Pre-repair RED authority is the independent review's adversarial mutation
+  evidence: POST-before-delete, PRE-only stale proof, delete-failure removal,
+  and single-copy weakening escaped the 62-test suite.
+- New per-copy structure validators separately extract SKILL, canonical
+  reference prose, and the fenced supervisor template body. The tests require
+  PRE -> successful exact-path deletion -> POST ordering, PRE+POST structural
+  stale-pointer proof, and fail-closed/recoverable/never-fabricate-success
+  semantics in each relevant copy.
+- The new mutation-probe test programmatically applies all three reviewer escape
+  classes to every applicable copy and proves the validators reject them.
+- GREEN: NightShift 65/65; A-Faster invocation + utilization controls 42/42;
+  git diff --check clean. Contract production text remains unchanged.
+- Next: strict UTF-8/secret/scope verification, freeze exact SHA, independent
+  R3 rereview + exact-head hosted CI, then Sol expected-head acceptance/merge
+  and mandatory post-main verification.

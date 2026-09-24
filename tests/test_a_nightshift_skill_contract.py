@@ -1214,3 +1214,243 @@ def test_attempt0002_preserves_f1_f2_f3_and_wait_semantics() -> None:
     # Machine-visible route markers stay canonical in the template.
     for marker in ("INTEGRATOR_ROUTE=AVAILABLE", "NIGHTSHIFT_STATE=WAITING_INTEGRATOR"):
         assert marker in ref, f"canonical route marker lost: {marker}"
+
+
+# --- WO-P1-522 attempt-0003: R3 mutation-probe hardening ---
+# Independent review of 9f54e121 found that the attempt-0002 presence-based
+# checks could be decoy-satisfied across duplicated contract copies. These
+# validators bind the requirement structure independently in SKILL.md, the
+# reference canonical prose, and the fenced supervisor template body.
+
+
+def _reference_without_supervisor_template_body() -> str:
+    text = _read_strict(REFERENCE)
+    marker = "## Supervisor contract body (template)"
+    marker_at = text.find(marker)
+    assert marker_at != -1, "missing supervisor template heading"
+    fence = chr(96) * 3
+    fence_start = text.find(fence, marker_at + len(marker))
+    assert fence_start != -1, "missing supervisor template opening fence"
+    fence_end = text.find(fence, fence_start + len(fence))
+    assert fence_end != -1, "missing supervisor template closing fence"
+    return text[:fence_start] + text[fence_end + len(fence) :]
+
+
+def _supervisor_template_body() -> str:
+    text = _read_strict(REFERENCE)
+    marker = "## Supervisor contract body (template)"
+    marker_at = text.find(marker)
+    assert marker_at != -1, "missing supervisor template heading"
+    fence = chr(96) * 3
+    fence_start = text.find(fence, marker_at + len(marker))
+    assert fence_start != -1, "missing supervisor template opening fence"
+    fence_end = text.find(fence, fence_start + len(fence))
+    assert fence_end != -1, "missing supervisor template closing fence"
+    return text[fence_start + len(fence) : fence_end].lstrip("\n")
+
+
+def _attempt0003_cleanup_copies() -> dict[str, str]:
+    return {
+        "skill": _norm(_section(_read_strict(SKILL), "Cleanup of the ephemeral run")),
+        "reference-canonical": _norm(
+            _section(_reference_without_supervisor_template_body(), "Cleanup rules")
+        ),
+        "template-body": _norm(_section(_supervisor_template_body(), "Cleanup")),
+    }
+
+
+def _attempt0003_stale_pointer_copies() -> dict[str, str]:
+    return {
+        "skill": _norm(_section(_read_strict(SKILL), "Stale terminal-pointer")),
+        "reference-canonical": _norm(
+            _section(
+                _reference_without_supervisor_template_body(),
+                "Stale terminal-pointer",
+            )
+        ),
+        "template-body": _norm(
+            _section(_supervisor_template_body(), "Stale terminal-pointer")
+        ),
+    }
+
+
+_DELETE_SUCCESS_RE = re.compile(
+    r"(?:exact-path\s+)?deletion"
+    r"(?:\s+of\s+the\s+one\s+run\s+directory)?\s+succeeds"
+    r"|successful\s+deletion",
+    re.IGNORECASE,
+)
+
+
+def _assert_two_phase_cleanup_structure(label: str, body: str) -> None:
+    corpus = _norm(body)
+    pre = corpus.find("PRE_CLEANUP_FOLDED")
+    assert pre != -1, f"{label}: missing PRE_CLEANUP_FOLDED"
+    deletion = _DELETE_SUCCESS_RE.search(corpus, pre + len("PRE_CLEANUP_FOLDED"))
+    assert deletion is not None, f"{label}: missing successful exact-path deletion step"
+    early_post = corpus.find("POST_CLEANUP_CONFIRMED", pre, deletion.start())
+    assert early_post == -1, (
+        f"{label}: POST_CLEANUP_CONFIRMED appears before successful deletion"
+    )
+    post = corpus.find("POST_CLEANUP_CONFIRMED", deletion.end())
+    assert post != -1, f"{label}: POST_CLEANUP_CONFIRMED must follow successful deletion"
+    assert pre < deletion.start() < post
+    post_window = corpus[post : post + 650]
+    assert "SAME existing durable authority" in post_window, (
+        f"{label}: POST confirmation lost same-authority binding"
+    )
+    for field in (
+        "run id",
+        "exact deleted path",
+        "terminal classification",
+        "cleanup result",
+    ):
+        assert field in post_window, f"{label}: POST confirmation lost field {field!r}"
+
+    assert re.search(r"(?:deletion fails|failed deletion)", corpus, re.IGNORECASE), (
+        f"{label}: deletion-failure branch missing"
+    )
+    assert re.search(
+        r"(?:post-confirmation cannot be recorded|missing post-confirmation)",
+        corpus,
+        re.IGNORECASE,
+    ), f"{label}: missing-post-confirmation branch missing"
+    assert re.search(r"fail[- ]closed", corpus, re.IGNORECASE), (
+        f"{label}: fail-closed outcome missing"
+    )
+    assert "recoverable" in corpus.lower(), f"{label}: recoverable outcome missing"
+    assert re.search(
+        r"never\s+fabricate(?:\s+cleanup)?\s+success",
+        corpus,
+        re.IGNORECASE,
+    ), f"{label}: never-fabricate-success outcome missing"
+
+
+def _assert_stale_pointer_proof_structure(label: str, body: str) -> None:
+    corpus = _norm(body)
+    proof = re.search(
+        r"(?:terminal\+cleanup\s+proof|cleanup\s+proof)"
+        r".{0,220}?PRE_CLEANUP_FOLDED"
+        r".{0,140}?(?:plus|\+)"
+        r".{0,140}?POST_CLEANUP_CONFIRMED",
+        corpus,
+        re.IGNORECASE,
+    )
+
+    assert proof is not None, (
+        f"{label}: stale-pointer proof must structurally require PRE plus POST"
+    )
+    for marker in (
+        "STALE_TERMINAL_POINTER",
+        "GOAL_ALREADY_TERMINAL",
+        "SAFETY_BLOCK=FALSE",
+        "REMATERIALIZE=FORBIDDEN",
+        "REDISPATCH=FORBIDDEN",
+        "USER_VISIBLE_REPEAT_REPLY=FORBIDDEN",
+    ):
+        assert marker in corpus, f"{label}: stale-pointer outcome lost {marker}"
+    assert re.search(
+        r"cleanup\s+intent\s+alone.{0,260}?(?:insufficient|not\s+cleanup\s+proof)",
+        corpus,
+        re.IGNORECASE,
+    ), f"{label}: cleanup-intent insufficiency is not bound in this copy"
+
+
+def _expect_contract_validator_rejects(label: str, check) -> None:
+    try:
+        check()
+    except AssertionError:
+        return
+    raise AssertionError(f"mutation probe unexpectedly escaped: {label}")
+
+
+def _move_post_before_successful_delete(body: str) -> str:
+    corpus = _norm(body)
+    pre = corpus.find("PRE_CLEANUP_FOLDED")
+
+    assert pre != -1
+    deletion = _DELETE_SUCCESS_RE.search(corpus, pre + len("PRE_CLEANUP_FOLDED"))
+    assert deletion is not None
+    token = "POST_CLEANUP_CONFIRMED"
+    post = corpus.find(token, deletion.end())
+    assert post != -1
+    without_original = (
+        corpus[:post] + "POST_MOVED_FROM_SUCCESS_SEQUENCE" + corpus[post + len(token) :]
+    )
+    return (
+        without_original[: deletion.start()]
+        + token
+        + " "
+        + without_original[deletion.start() :]
+    )
+
+
+def _remove_post_from_stale_proof(body: str) -> str:
+    corpus = _norm(body)
+    proof_start_match = re.search(
+        r"(?:terminal\+cleanup\s+proof|cleanup\s+proof)",
+        corpus,
+        re.IGNORECASE,
+    )
+    assert proof_start_match is not None
+    pre = corpus.find("PRE_CLEANUP_FOLDED", proof_start_match.start())
+    assert pre != -1
+    post = corpus.find("POST_CLEANUP_CONFIRMED", pre)
+    assert post != -1
+
+    return (
+        corpus[:post]
+        + "POST_REMOVED_FROM_PROOF"
+        + corpus[post + len("POST_CLEANUP_CONFIRMED") :]
+    )
+
+
+def _remove_delete_failure_clause(body: str) -> str:
+    corpus = _norm(body)
+    mutated, count = re.subn(
+        r"If deletion fails or the post-confirmation cannot be recorded,"
+        r".*?never fabricate(?: cleanup)? success\.",
+        "DELETE_FAILURE_CLAUSE_REMOVED.",
+        corpus,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    assert count == 1, "probe could not isolate delete-failure clause"
+    return mutated
+
+
+def test_attempt0003_two_phase_cleanup_structure_is_pinned_per_copy() -> None:
+    for label, body in _attempt0003_cleanup_copies().items():
+        _assert_two_phase_cleanup_structure(label, body)
+
+
+def test_attempt0003_stale_pointer_proof_is_pinned_per_copy() -> None:
+    for label, body in _attempt0003_stale_pointer_copies().items():
+        _assert_stale_pointer_proof_structure(label, body)
+
+
+def test_attempt0003_reviewer_escape_vectors_are_rejected_per_copy() -> None:
+    for label, body in _attempt0003_cleanup_copies().items():
+        inverted = _move_post_before_successful_delete(body)
+        _expect_contract_validator_rejects(
+            f"{label}: POST before successful delete",
+            lambda label=label, inverted=inverted: _assert_two_phase_cleanup_structure(
+                label, inverted
+            ),
+        )
+        no_failure = _remove_delete_failure_clause(body)
+        _expect_contract_validator_rejects(
+            f"{label}: delete-failure clause removed",
+            lambda label=label, no_failure=no_failure: _assert_two_phase_cleanup_structure(
+                label, no_failure
+            ),
+        )
+
+    for label, body in _attempt0003_stale_pointer_copies().items():
+        pre_only = _remove_post_from_stale_proof(body)
+        _expect_contract_validator_rejects(
+            f"{label}: PRE-only stale-pointer proof",
+            lambda label=label, pre_only=pre_only: _assert_stale_pointer_proof_structure(
+                label, pre_only
+            ),
+        )
