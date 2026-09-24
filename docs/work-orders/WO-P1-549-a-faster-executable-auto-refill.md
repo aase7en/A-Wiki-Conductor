@@ -212,3 +212,47 @@ RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF
   fresh exact-head CI for the resulting PR head. Do not advance to post-main or
   the next roadmap node while #549 acceptance is blocked on the claim-reader
   contract.
+
+## Current route and stale-checkpoint correction — 2026-09-25
+
+- Before this docs-only correction, published PR #550 head was
+  `2dc2b1a5fc811e2d1f5958498bbfee1cd20a2b66` on base
+  `c4d4cf4da830cb313a4569a386edcff0a77266c2`. Exact-head CI run `36066955104`
+  passed Windows, Ubuntu, and macOS.
+- Independent read-only R3 review of that exact head returned P0=0 / P1=0 /
+  P2=1. The only finding was that CURRENT-WORK, handoff, and this WO said to
+  finalize/push an already-published checkpoint and named the older source
+  candidate as current. This documentation update addresses that finding; its
+  resulting exact SHA requires fresh CI and independent review.
+- Fresh CoinTH proxy quota observation at 2026-09-24 22:45 UTC returned HTTP
+  200 with a complete current five-hour tuple: `used_5h=0`,
+  `remaining_5h=80000000`, `limit_5h=80000000`. This GET made no GLM inference.
+  `PROXY_QUOTA_STATE=AVAILABLE`; `UPSTREAM_PROVIDER_READINESS=UNKNOWN`.
+- Kilo 7.7.9 has configured CoinTH model IDs `cointh-glm/glm-5.3` and
+  `cointh-glm/glm-5.3-flash`. Explicit GLM-5.3 MAX reasoning-effort support was
+  not proven by the resolved model catalog. No model call occurred because
+  material dispatch still lacks fresh structured Conductor admission/binding.
+  The session hook blocks direct Kilo dispatch and directs execution through
+  `sunday_dispatch`; the runtime admission/receipt issuer is gated behind
+  future WO-P1-259/260 implementation. User authorization and proxy quota do
+  not replace that binding. No GLM quota decrement is expected.
+- JEV remains advisory-only. The TypeSafe adapter and environment binding are
+  present, but current family mode/admission was not proven. WO-P1-509 remains
+  `CLAIMED / IMPLEMENTATION_READY` and specifies safe default `OFF` until
+  accepted `SHADOW`/`ADVISORY` evidence exists. No JEV request was made.
+- Both SundayMCP recovery surfaces reported 114 terminal executions (83
+  completed, 23 cancelled, 8 failed), zero unresolved, and empty lane lists.
+  No Windows Worker was reassigned because active context is not task/claim
+  authority. A-FastTask/A-Faster/A-NightShift were used; the prior authoring
+  turn missed the early GLM readiness check.
+- Roadmap remains unchanged: #549 is not a named node in the P0 Zero-Relay
+  sequence. The executable-mutable acceptance remains **NOT MET**. Keep PR
+  #550 open and do not merge until a separately scoped adapter contract binds
+  canonical current claims to selected Conductor task IDs and mutable refill
+  can be safely re-enabled.
+
+**Next:** re-pin the live branch and PR head from Git/GitHub. Publish this
+docs-only review repair only if it is not already on the remote; then await
+exact-head CI and obtain fresh independent exact-SHA R3 review. Checkpoint those
+results; do not merge or advance to post-main while executable-mutable
+acceptance remains blocked.
