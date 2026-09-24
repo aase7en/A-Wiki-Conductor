@@ -102,11 +102,23 @@ credential from an approved secret source: an existing environment binding, or
 an approved global secret file/resolver when the environment is empty. The
 current live-proven secret name is `COINTH_GLM_AUTH_TOKEN`; pass its value only
 as `x-api-key` to `GET https://cointh.com/glm/api/quota`. Never print, log, or
-persist the key. Provider guidance says this GET is non-consuming; a 2026-09-16
-back-to-back live check observed zero quota-counter delta, which is supporting
-operational evidence rather than a billing guarantee. HTTP 401/403 is
-auth/entitlement evidence, not quota exhaustion; missing/stale/malformed evidence
-remains `UNKNOWN`. Never silently substitute another or paid model/provider.
+persist the key. Treat that tuple as proxy/account evidence only:
+`PROXY_QUOTA_STATE = AVAILABLE | EXHAUSTED | UNKNOWN`. Establish
+`UPSTREAM_PROVIDER_READINESS = READY | THROTTLED | UNAVAILABLE | UNKNOWN`
+from separate bounded provider/admission evidence. Material GLM dispatch requires
+proxy `AVAILABLE` AND upstream `READY` plus every existing
+model/route/claim/scope/authorization gate; proxy availability alone is not Z.AI
+readiness. Upstream `THROTTLED` records source/time/reset/freshness and suppresses
+repeat GLM probes until reset unless material evidence changes, while independent
+safe GPT/Codex work may continue. Upstream `UNKNOWN` fails closed for material
+GLM dispatch. At/after reset, perform one bounded upstream admission/smoke recheck,
+refresh proxy quota separately, then refill only when both dimensions admit.
+This creates no new provider/quota authority. Provider guidance says this GET
+is non-consuming; a 2026-09-16 back-to-back live check observed zero
+quota-counter delta, which is supporting operational evidence rather than a
+billing guarantee. HTTP 401/403 is auth/entitlement evidence, not quota
+exhaustion; missing/stale/malformed evidence remains `UNKNOWN`. Never silently
+substitute another or paid model/provider.
 
 Record one compact disposition:
 `GLM_OFFLOAD = DISPATCHED | NOT_BENEFICIAL | BLOCKED`, with reason, safe

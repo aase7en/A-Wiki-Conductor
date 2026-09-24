@@ -1,58 +1,64 @@
 # CoinTH GLM quota preflight
 
-Status: OPERATIONAL GUIDANCE / USER-PROVIDED METHOD / LIVE_PROOF_BLOCKED_403
-Source date: 2026-09-15
-Related: `WO-P1-243`, `docs/agent-collab/CAPABILITY_MATRIX.md`, WO-P1-113 quota tuple.
+Status: OPERATIONAL GUIDANCE / PROXY QUOTA ONLY / UPSTREAM READINESS SEPARATE
+Source date: 2026-09-24
+Related: `WO-P1-243`, `WO-P1-249`, `docs/agent-collab/CAPABILITY_MATRIX.md`, WO-P1-113 quota tuple.
 
-## Purpose
-Use CoinTH's quota API to check the current GLM five-hour window before launching or retrying GLM work. This avoids treating a model-call failure as the only quota signal.
+## Purpose and authority boundary
 
-According to user-provided CoinTH guidance, this quota check itself does **not** consume GLM quota. Treat that statement as `USER_PROVIDED` until an authorized live preflight confirms the behavior.
+Use CoinTH's quota endpoint as proxy/account quota evidence before material GLM work. It is not upstream Z.AI admission or provider-health evidence. `PROXY_QUOTA_STATE=AVAILABLE` never establishes that the upstream provider is ready.
 
-## Live verification note ? 2026-09-15
-Authorized secret-safe attempts reached the endpoint but returned HTTP 403 using both the existing A-Wiki CoinTH auth-token credential and Kilo's configured `cointh-glm` API credential. No credential value was printed or persisted. Classify the current quota API path as `AUTH_REQUIRED / ENTITLEMENT_MISMATCH`; do not infer remaining quota from this endpoint until credential/entitlement is corrected. The user-provided non-consuming behavior remains unverified.
+Keep these independent states:
 
-## Endpoint
+- `PROXY_QUOTA_STATE = AVAILABLE | EXHAUSTED | UNKNOWN`
+- `UPSTREAM_PROVIDER_READINESS = READY | THROTTLED | UNAVAILABLE | UNKNOWN`
+
+Material GLM dispatch is admitted only when proxy quota is `AVAILABLE` and upstream readiness is `READY`, in addition to existing model, route, authorization, scope, and ownership gates. Either `UNKNOWN` fails closed. Process liveness is not readiness evidence.
+
+## Canonical secret resolution
+
+Canonical key name: `COINTH_GLM_AUTH_TOKEN`.
+
+Resolve only this named key through the approved private Project Protocol/environment binding or its existing approved resolver. Never recursively search disks, Drive, repository files, shell history, logs, environment dumps, or unrelated `.env` files. Never print, log, persist, screenshot, commit, or attach the secret value or its source file. If the approved binding/resolver is unavailable, stop with a typed secret-source blocker; do not guess another location or create another secret store.
+
+The historical accepted resolver contract reuses the existing A-Wiki environment resolver boundary (`resolve_awiki_drive_root` + `AWikiDriveEnvironmentSource`) and its private Project Protocol configuration. This runbook does not expose machine-specific locations.
+
+## Proxy quota request
 
 ```text
 GET https://cointh.com/glm/api/quota
-Header: x-api-key: <API KEY>
+Header: x-api-key: <resolved COINTH_GLM_AUTH_TOKEN>
 ```
 
-Expected quota fields:
+Expected five-hour fields:
+
 - `remaining_5h`
 - `used_5h`
 - `limit_5h`
 - `window_reset_at`
 - `window_reset_in_sec`
 
-These are the full five-hour tuple already required by the project's CoinTH/GLM provider preflight contract.
-## Secret-safe usage
-Do not put a real API key in repository files, task packets, logs, screenshots, or committed shell scripts. Prefer an already-authorized environment/secret resolver.
+Use the proven PowerShell `Invoke-RestMethod` client with the token held only in memory. An unproven client's HTTP 401/403 is `CLIENT_COMPATIBILITY_UNVERIFIED`; recheck once with the proven client before concluding auth/entitlement failure. HTTP 401/403 is auth/entitlement evidence, never quota exhaustion.
 
-PowerShell example:
+Provider guidance says the quota GET does not consume GLM quota. A 2026-09-16 back-to-back check observed no change in `used_5h` or `remaining_5h`; this is supporting operational evidence, not a billing guarantee.
 
-```powershell
-curl.exe -s https://cointh.com/glm/api/quota `
-  -H "x-api-key: $env:COINTH_GLM_API_KEY"
-```
+## Evidence classification
 
-Bash example:
+- Valid, current five-hour tuple with positive remaining amount: `PROXY_QUOTA_STATE=AVAILABLE`.
+- Valid, current five-hour tuple at exhaustion: `PROXY_QUOTA_STATE=EXHAUSTED`, with reset evidence.
+- HTTP 401/403: auth/entitlement evidence; proxy quota remains `UNKNOWN` unless independently established.
+- Missing, stale, malformed, or provenance-free tuple; transport error; or unavailable approved secret source: `PROXY_QUOTA_STATE=UNKNOWN`.
 
-```bash
-curl -s https://cointh.com/glm/api/quota \
-  -H "x-api-key: $COINTH_GLM_API_KEY"
-```
+Upstream readiness must come from bounded live admission/smoke evidence or operator/vendor evidence that records source, observation time, reset/cooldown, and its stated freshness window. Do not silently generalize beyond that window. If freshness is not specified, classify readiness as `UNKNOWN`. Actual Git/runtime evidence remains authoritative for repository, branch, claim, process, and transport facts; operator/vendor readiness reports are bounded runtime evidence only. Keep transport classification separate: while upstream throttling is the known blocker, do not label the route transport-broken.
 
-Never print the environment variable itself. Redact headers if command tracing/debug output is enabled.
+## Upstream throttle and reset handling
 
-## Routing rule
-When GLM quota state is unknown or a GLM call appears rate-limited, prefer this read-only quota preflight before repeated model probes.
+When `UPSTREAM_PROVIDER_READINESS=THROTTLED`, retain the source, observation time, provider reset/cooldown, and freshness evidence. Stop repeated GLM admission/smoke probes until reset unless material evidence changes. Continue independent safe GPT/Codex work meanwhile.
 
-- Remaining quota available: continue only if normal provider/auth/admission/ownership gates also pass.
-- `remaining_5h` exhausted: classify `RATE_LIMITED`; use `window_reset_at` / `window_reset_in_sec` for the next eligible retry time.
-- HTTP 401/403: classify `AUTH_REQUIRED`; do not retry model calls blindly.
-- Network/endpoint failure: classify `TRANSPORT_FAILURE`.
-- Missing/malformed five-hour tuple: classify quota evidence as unverified and fail closed for automatic dispatch.
+At/after the recorded reset, perform exactly one bounded live admission/smoke recheck before refilling GLM lanes. Refresh proxy quota as a separate evidence read. Refill only if proxy quota is `AVAILABLE`, upstream readiness is `READY`, and all existing route/model/authorization/scope/ownership gates pass. If the check remains throttled, retain the new reset evidence and stop further probes until its next reset or material evidence change.
 
-Quota evidence never transfers task ownership, bypasses claims/leases, or authorizes fallback to a different model/provider.
+## Incident example: 2026-09-24
+
+`PROXY_QUOTA=AVAILABLE` plus `UPSTREAM_PROVIDER_READINESS=THROTTLED` means `GLM_ROUTE_READY=FALSE / UPSTREAM_PROVIDER_THROTTLED`. It does not mean `KILO_TRANSPORT_BROKEN`. Proxy quota availability is not proof of upstream Z.AI admission.
+
+Quota and readiness evidence never transfer task ownership, bypass claims/leases, create provider authority, or authorize automatic paid-provider fallback. Do not create a scheduler, task store, claim/lease authority, or additional quota/provider authority as part of this runbook.
