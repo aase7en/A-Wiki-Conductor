@@ -108,3 +108,46 @@ The GLM repair initially wrote PROXY_QUOTA_STATE=THROTTLED, which is outside
 the accepted proxy-quota enum. The integrator corrected this before freeze to
 UPSTREAM_PROVIDER_READINESS=THROTTLED and added a negative assertion that
 PROXY_QUOTA_STATE=THROTTLED must not appear in the child-routing contract.
+
+
+## 2026-09-24 user override — wait-aware A-NightShift/A-Faster flow
+
+The operator explicitly requires the parent run to keep useful work moving while
+another lane is waiting on approval, CI, GLM, TypeSafe-Jev, another external
+dependency, or a provider cooldown. This behavior is now part of A-Faster rather
+than a long prompt the operator must repeat.
+
+`WAIT_AWARE_AUTO_BACKFILL` recognizes:
+- `WAITING_APPROVAL`
+- `WAITING_CI`
+- `WAITING_GLM`
+- `WAITING_JEV`
+- `WAITING_EXTERNAL`
+- `COOLDOWN`
+
+A-NightShift remains the parent lifecycle owner. On a typed wait it checkpoints
+truthfully; A-Faster reconstructs actual occupancy and fills independent
+`SAFE_READY` capacity using the existing A-FastTask binding, claim, lease,
+scope, collision, provider and review gates.
+
+
+Wait state is not itself capacity evidence. A parent marked `WAITING_GLM`
+does not release its mutable slot when an active delegated GLM mutation child
+still owns the same hotspot. Active mutation occupancy is reconstructed from
+durable process/execution/claim evidence, not from a label.
+
+The accepted Issue #537 elastic policy permits up to two borrowed mutable claims
+while qualifying base lanes are truthfully waiting, but simultaneous active
+mutation remains at most three and one mutable hotspot still has exactly one
+owner. The independent read-only review lane remains separate.
+
+When a dependency resolves:
+`RECOVER -> RECONCILE -> HARVEST -> recompute occupancy -> contract/refill`.
+If a returning base lane needs capacity, borrowed work finishes only its current
+bounded micro-step, checkpoints, and becomes `PARKED_CAPACITY` before base
+resume. Contraction never kills an owned task, resets Git, stashes unknown work,
+or duplicates a claim/redispatch merely to lower occupancy.
+
+Once `A_FASTER_ACTIVE` is established, this flow continues automatically until
+a real goal/stop gate, terminal completion, or explicit deactivation. Chat/session
+loss is recovery/continuation, not a reason to forget or duplicate existing work.
