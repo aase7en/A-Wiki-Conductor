@@ -112,6 +112,7 @@ Changing a maximum requires a separate Work Order with soak/load evidence.
 | Bus resource | Default | Hard maximum / rule |
 |---|---:|---|
 | observed stream records | 128 | 128 per bus instance |
+| UTF-8 bytes in retained stream identity keys | 64 KiB | each source <=64 bytes, device_id <=128 bytes, observed session_id <=256 bytes, combined key <=512 bytes; aggregate <=64 KiB |
 | queued events per stream | 128 | 128 |
 | queued UTF-8 bytes per stream | 2 MiB | 2 MiB |
 | queued events across all streams | 4096 | 4096 |
@@ -125,13 +126,24 @@ plus a documented fixed record allowance; both the byte and entry caps apply.
 The stream table, queue metadata, and per-stream degradation fields are all
 bounded by the stream cap. Fixed-size aggregate counters may record saturation;
 they MUST NOT retain arbitrary identities for streams that could not be
-admitted.
+admitted. Consumer-observed source/device/session identifiers are measured in
+UTF-8 bytes and checked against the table limits before stream lookup or
+allocation. An oversized identifier is rejected as HOOK_CONTEXT_OVERSIZED and
+cannot create a stream row. The combined encoded stream key bytes are included
+in the 64 KiB aggregate stream-identity budget and in retained stream metadata
+accounting.
 
 No accepted queued event is evicted to make room. If any stream, per-stream,
 aggregate queue, byte, or dedupe cap would be exceeded, reject that input as
 HOOK_BACKPRESSURE, report HOOK_STREAM_DEGRADED through the bounded local
 degradation state, and leave existing queues and unexpired dedupe identities
-unchanged. A stream-cap rejection MUST NOT allocate a stream entry. Do not
+unchanged. Queue admission and dedupe recording are one atomic operation under
+the bus's admission critical section: first validate duplicate status and all
+queue/byte/dedupe limits without retaining new state; then reserve and append
+the queue record and record its identity together. If either commit step fails,
+rollback both reservations. A rejected event never leaves a dedupe identity
+behind, so after backpressure clears its retry can be accepted exactly once. A
+stream-cap rejection MUST NOT allocate a stream entry. Do not
 depend on re-enqueueing a degradation event onto the full/degraded queue.
 Stream records are retained while their consumer-observed sessions remain
 active so sequence high-water state is not silently discarded. The bus may
@@ -156,6 +168,12 @@ The partition identity is explicit consumer context:
 A-Sunday lane/project binding, not from a new Hook envelope field; task_ref uses
 task_id then work_order then UNBOUND_TASK; lane_ref uses lane_id then UNBOUND_LANE.
 Missing optional identity therefore remains visibly unbound rather than inferred.
+Before lookup or retention, UTF-8 byte limits are enforced: project_ref <=256,
+task_ref <=256, device_id <=128, lane_ref <=256, and the combined encoded
+partition key <=1024 bytes. Oversized values are rejected with
+STM_PARTITION_ID_OVERSIZED and are never truncated, normalized into a different
+identity, or retained. Partition-key bytes count toward the STM aggregate
+accounted-byte limit, including while the partition is empty or rebuilding.
 
 TTL/freshness uses an injected monotonic clock at bus acceptance or authoritative
 rebuild/reconciliation time. Envelope occurred_at is presentation/interleave
@@ -172,13 +190,19 @@ STM-1A uses these conservative defaults and hard maxima:
 | projection records across all partitions | 2048 | 4096 |
 | accounted projected bytes per partition | 512 KiB | 1 MiB |
 | accounted projected bytes across STM | 4 MiB | 8 MiB |
+| partition-key UTF-8 bytes | included in byte totals | <=1024 bytes per partition; included in the aggregate STM byte total |
+| partition TTL | 1800 s | constructor setting clamped to 300–86400 s |
 | records in one authoritative rebuild input | 2048 | 4096 |
 | exact bytes in one rebuild input | 4 MiB | 8 MiB |
 
 Accounted projected bytes are measured with one deterministic compact UTF-8
 encoding of the bounded, already-sanitized projection plus a fixed per-record
-allowance. This internal accounting is not evidence of the original Hook wire
-size. Rebuild input includes accepted recent Hook records and authority/result
+allowance and the UTF-8 bytes of its partition key. This internal accounting is
+not evidence of the original Hook wire size. The default partition TTL is 1800
+seconds; a configured value below 300 seconds is clamped to 300 and a value
+above 86400 seconds is clamped to 86400 before use. Expiry occurs when monotonic
+age is greater than or equal to the effective TTL. Rebuild input includes
+accepted recent Hook records and authority/result
 references; each reference is capped at 1024 UTF-8 bytes. Configuration may be
 lowered, never raised above these maxima. Reads do not silently extend TTL.
 
@@ -248,6 +272,17 @@ Before implementation prove RED for:
 19. capacity eviction/rejection is deterministic and every subsequent missing
     or evicted-partition read is UNKNOWN/REBUILD_REQUIRED until authority-bound
     rebuild succeeds.
+20. queue admission and dedupe recording are atomic: fill a stream to its
+    128-event cap, reject event 129, drain one slot, then retry the same event
+    identity and prove it is accepted exactly once; also prove a failed commit
+    rolls back both queue and dedupe reservations.
+21. stream and STM consumer-context identifiers accept their exact UTF-8 byte
+    limits and reject one byte over with HOOK_CONTEXT_OVERSIZED or
+    STM_PARTITION_ID_OVERSIZED before retaining/allocating identity state; prove
+    key bytes count against the corresponding aggregate budgets.
+22. STM TTL defaults to 1800 seconds, clamps a configured value below 300 to
+    300 and above 86400 to 86400, and expires at the exact effective boundary
+    (age >= TTL) using the injected monotonic clock.
 
 ## Independent R3 shaping review checkpoint
 
