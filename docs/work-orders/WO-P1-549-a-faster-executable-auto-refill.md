@@ -198,20 +198,20 @@ RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF
   the patch. The supervisor SessionStart hook was verified active and injected
   its contract; it supplies instructions and does not itself dispatch GLM.
 - Roadmap check: WO-P1-549 is not a named node in the current P0 Zero-Relay
-  sequence. This work follows the existing #549 work order, not a direct P0
-  roadmap node. Do not start the next roadmap lane while #549 acceptance is
-  blocked.
+  sequence. This #549 lane is lane-locally `WAITING_EXTERNAL` on the
+  A-Wiki-owned claim-reader/task-binding contract; it does not suspend the
+  supervisor goal or independent roadmap lanes. Each other lane must satisfy
+  its own priority, ownership, and source gates.
 - The original #549 executable-mutable acceptance remains **NOT MET** while
   this lane is disabled. Keep PR #550 open and do not merge this repair until a
   separately scoped adapter contract can bind current canonical claims to
   selected task IDs and re-enable mutable refill under that authority.
 - Source candidate `3aab3dc2f2f0075643ed2a921ec92eecc735dedf` passed exact-head
   CI run `36065183019` on Windows, Ubuntu, and macOS, including Windows
-  packaging and install/uninstall E2E. Next: finalize this documentation
-  checkpoint, push it, then obtain focused independent exact-SHA R3 review and
-  fresh exact-head CI for the resulting PR head. Do not advance to post-main or
-  the next roadmap node while #549 acceptance is blocked on the claim-reader
-  contract.
+  packaging and install/uninstall E2E. The source repair and exact-head review
+  are complete; only #549 executable-mutable acceptance remains parked pending
+  the claim-reader contract. This lane-local wait does not block independent
+  roadmap work.
 
 ## Current route and stale-checkpoint correction — 2026-09-25
 
@@ -222,12 +222,15 @@ RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF
 - Independent read-only R3 review of that exact head returned P0=0 / P1=0 /
   P2=1. The only finding was that CURRENT-WORK, handoff, and this WO said to
   finalize/push an already-published checkpoint and named the older source
-  candidate as current. This documentation update addresses that finding; its
-  resulting exact SHA requires fresh CI and independent review.
-- Fresh CoinTH proxy quota observation at 2026-09-24 22:45 UTC returned HTTP
-  200 with a complete current five-hour tuple: `used_5h=0`,
-  `remaining_5h=80000000`, `limit_5h=80000000`. This GET made no GLM inference.
-  `PROXY_QUOTA_STATE=AVAILABLE`; `UPSTREAM_PROVIDER_READINESS=UNKNOWN`.
+  candidate as current. The documentation correction at exact SHA
+  `e8d965542bd129625d9a7343da05d10686e0b321` addresses that finding; exact-head
+  CI run `36070294465` passed all Windows, Ubuntu, and macOS jobs, and fresh
+  independent exact-SHA review passed P0=0 / P1=0 / P2=0.
+- Fresh CoinTH proxy quota observation at 2026-09-25 09:52 UTC returned HTTP
+  200 and `used_5h=0`, `remaining_5h=80000000`, `limit_5h=80000000`, but also
+  `window_source=stale`. Per `docs/runbooks/cointh-glm-quota.md`, current
+  `PROXY_QUOTA_STATE=UNKNOWN`; this GET made no GLM inference.
+  `UPSTREAM_PROVIDER_READINESS=UNKNOWN`.
 - Kilo 7.7.9 has configured CoinTH model IDs `cointh-glm/glm-5.3` and
   `cointh-glm/glm-5.3-flash`. Explicit GLM-5.3 MAX reasoning-effort support was
   not proven by the resolved model catalog. No model call occurred because
@@ -246,13 +249,19 @@ RED first; focused/related GREEN; py_compile; JSON/hook smoke; diff --check; UTF
   authority. A-FastTask/A-Faster/A-NightShift were used; the prior authoring
   turn missed the early GLM readiness check.
 - Roadmap remains unchanged: #549 is not a named node in the P0 Zero-Relay
-  sequence. The executable-mutable acceptance remains **NOT MET**. Keep PR
-  #550 open and do not merge until a separately scoped adapter contract binds
-  canonical current claims to selected Conductor task IDs and mutable refill
-  can be safely re-enabled.
+  sequence. This lane is `WAITING_EXTERNAL`; its missing A-Wiki claim-reader
+  contract does not suspend the supervisor goal or independent roadmap lanes.
+  The executable-mutable acceptance remains **NOT MET**. Keep PR #550 open and
+  do not merge until a separately scoped adapter contract binds canonical
+  current claims to selected Conductor task IDs and mutable refill can be
+  safely re-enabled.
 
-**Next:** re-pin the live branch and PR head from Git/GitHub. Publish this
-docs-only review repair only if it is not already on the remote; then await
-exact-head CI and obtain fresh independent exact-SHA R3 review. Checkpoint those
-results; do not merge or advance to post-main while executable-mutable
-acceptance remains blocked.
+**Next:** keep PR #550 open and unmerged; park only this #549 mutable-refill
+lane as `WAITING_EXTERNAL`. Executable-mutable acceptance remains NOT MET until
+a separately scoped canonical claim-reader/admission adapter contract binds
+current A-Wiki claims to selected Conductor task IDs. This #549 claim
+authorizes no further mutable or provider dispatch within its scope; independent
+lanes may continue when their own priority, ownership, and admission gates
+pass. Issue #551 tracks docs-only contract discovery and depends on A-Wiki Issue
+#58. Do not start adapter source or re-enable mutable refill until the upstream
+contract is accepted.
