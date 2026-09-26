@@ -1011,6 +1011,8 @@ def activate_production_runtime(
         clock=clock,
         provider_admission_store=provider_store,
         require_provider_authority=True,
+        lease_health_reader=lease_store,
+        require_pre_dispatch_guard=True,
     )
     executor = ProductionElasticWorkerExecutor(
         candidate_assembler=candidate_assembler,

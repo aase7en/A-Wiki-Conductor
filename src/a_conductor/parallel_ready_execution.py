@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Mapping, Protocol
 
-from .claude_code_harness import HarnessDispatch, TaskPacketFile
+from .claude_code_harness import HarnessDispatch, MutationIntent, TaskPacketFile
 from .graph.dispatch import (
     DispatchGateDecision,
     GraphDispatchAction,
@@ -44,8 +44,13 @@ from .provider_policy import (
     ProviderPolicyTaskSecurity,
     evaluate_provider_policy,
 )
+from .pre_dispatch_guard import (
+    PreDispatchGuardDecisionKind,
+    WorkerLeasePreDispatchGuard,
+)
 from .registry import windows_worktree_key
 from .worker_lease import (
+    LeaseMutationIntent,
     LeaseOutcomeKind,
     WorkerLease,
     WorkerLeaseBroker,
@@ -240,6 +245,13 @@ class ParallelReadyTask:
             raise ValueError("branch identity mismatch")
         if request.expected_head.casefold() != dispatch.expected_head.casefold():
             raise ValueError("head identity mismatch")
+        expected_harness_intent = (
+            MutationIntent.PROJECT_MUTATION
+            if request.mutation_intent is LeaseMutationIntent.MUTATION
+            else MutationIntent.READ_ONLY
+        )
+        if dispatch.mutation_intent is not expected_harness_intent:
+            raise ValueError("lease and harness mutation intent mismatch")
         if self.task_packet.task_contract_ref != dispatch.task_contract_ref:
             raise ValueError("task packet contract mismatch")
         if self.provider_requirement is not None:
@@ -458,6 +470,11 @@ class ProviderAdmissionReservation:
     recovery_required: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class _PreDispatchBlocked:
+    reason_code: str
+
+
 class ParallelReadyExecutor:
     def __init__(
         self,
@@ -467,6 +484,8 @@ class ParallelReadyExecutor:
         clock: Callable[[], object],
         provider_admission_store: ProviderAdmissionPort | None = None,
         require_provider_authority: bool = False,
+        lease_health_reader: object | None = None,
+        require_pre_dispatch_guard: bool = False,
     ) -> None:
         if not callable(getattr(broker, "acquire", None)):
             raise ValueError("broker must provide acquire")
@@ -476,6 +495,16 @@ class ParallelReadyExecutor:
             raise ValueError("clock must be callable")
         if not isinstance(require_provider_authority, bool):
             raise ValueError("require_provider_authority must be bool")
+        if not isinstance(require_pre_dispatch_guard, bool):
+            raise ValueError("require_pre_dispatch_guard must be bool")
+        if lease_health_reader is not None and not callable(
+            getattr(lease_health_reader, "inspect_health", None)
+        ):
+            raise ValueError("lease_health_reader must provide inspect_health")
+        if require_pre_dispatch_guard and lease_health_reader is None:
+            raise ValueError(
+                "PRE_DISPATCH_GUARD_REQUIRED: lease health reader missing"
+            )
         if provider_admission_store is not None:
             if not callable(getattr(provider_admission_store, "acquire_admission", None)) or not callable(getattr(provider_admission_store, "release_admission", None)):
                 raise ValueError("provider_admission_store must provide acquire_admission and release_admission")
@@ -486,6 +515,8 @@ class ParallelReadyExecutor:
         self._clock = clock
         self._provider_admission_store = provider_admission_store
         self._require_provider_authority = require_provider_authority
+        self._lease_health_reader = lease_health_reader
+        self._require_pre_dispatch_guard = require_pre_dispatch_guard
         self._provider_authority = None
         if provider_admission_store is not None and callable(getattr(provider_admission_store, "load_provider_snapshot", None)):
             try:
@@ -502,6 +533,23 @@ class ParallelReadyExecutor:
     @property
     def provider_authority_database_path(self):
         return None if self._provider_authority is None else self._provider_authority.database_path
+
+    @property
+    def pre_dispatch_guard_enforced(self) -> bool:
+        return self._require_pre_dispatch_guard
+
+    def _run_guarded(self, task: ParallelReadyTask, lease: WorkerLease) -> object:
+        if self._require_pre_dispatch_guard:
+            guard = WorkerLeasePreDispatchGuard(
+                health_reader=self._lease_health_reader,
+                baseline_lease=lease,
+                requested_mutable_scope=task.lease_request.mutable_scope,
+                clock=self._clock,
+            )
+            decision = guard.check()
+            if decision.kind is not PreDispatchGuardDecisionKind.ALLOW:
+                return _PreDispatchBlocked(decision.reason_code)
+        return self._runner.run(task, lease)
 
     def check_provider_authority(
         self,
@@ -1016,7 +1064,7 @@ class ParallelReadyExecutor:
             ) as pool:
                 futures = {
                     task.assignment.node_id: pool.submit(
-                        self._runner.run,
+                        self._run_guarded,
                         task,
                         lease_outcome.lease,
                     )
@@ -1035,6 +1083,26 @@ class ParallelReadyExecutor:
                             lease_outcome=lease_outcome,
                             provider_admission=admission,
                         )
+                        continue
+                    if isinstance(runner_result, _PreDispatchBlocked):
+                        release_reason = self._release_provider_admission(
+                            task, batch_id or "", admission, self._clock()
+                        )
+                        if release_reason is not None:
+                            outcomes[node_id] = ParallelReadyOutcome(
+                                node_id,
+                                ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED,
+                                release_reason,
+                                lease_outcome=lease_outcome,
+                                provider_admission=admission,
+                            )
+                        else:
+                            outcomes[node_id] = ParallelReadyOutcome(
+                                node_id,
+                                ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED,
+                                runner_result.reason_code,
+                                lease_outcome=lease_outcome,
+                            )
                         continue
                     if admission is None and not isinstance(runner_result, GraphDispatchResult):
                         outcomes[node_id] = ParallelReadyOutcome(

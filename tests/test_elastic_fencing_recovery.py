@@ -447,7 +447,7 @@ def _contract(
         provider_id="cointh-glm",
         model_id="glm-5.3",
         harness_strategy=HarnessStrategy.CLAUDE_CODE_CLI,
-        mutation_intent=MutationIntent.READ_ONLY,
+        mutation_intent=MutationIntent.PROJECT_MUTATION,
         timeout_seconds=300,
         max_output_bytes=100_000,
         effort_level="MAX",

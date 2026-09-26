@@ -51,7 +51,9 @@ This hook is not the #498 mutation guard and grants no mutation authority."""
 _POST_EXEC_CONTEXT = """After delegated execution activity: RECOVER -> RECONCILE -> HARVEST
 terminal-unharvested evidence before refill. RUNNING/UNKNOWN executions
 never authorize duplicate replay. Consume accepted A-Faster FANOUT_TARGET and
-AUTO_REFILL_REQUIRED markers; do not recompute a second utilization authority."""
+AUTO_REFILL_REQUIRED markers; do not recompute a second utilization authority.
+When refill is due, route the scheduler-owned READY plan through the executable auto-refill bridge;
+it delegates only to existing ParallelReadyExecutor authority."""
 
 _ACTIONABLE_CONTINUE_REASONS = {"NEXT_READY", "CHILD_RESULT_READY", "TURN_BUDGET_BOUNDARY"}
 _RECEIPT_REASONS = {
