@@ -190,8 +190,9 @@ One bounded bus-instance health latch and fixed-size counters by event class and
 loss cause record local degradation. Counter dimensions use only the four
 Hook Contract classes (OBSERVE, ADVISORY, GUARD, COMMAND) and the finite causes
 listed here: incoming rejection, queued shedding, dedupe-cap exhaustion,
-stream-cap exhaustion, and oversized context. The latch and counters exist
-independently of the stream table, retain no event/stream identities, and are
+stream-cap exhaustion, oversized context, and consumer exception. The latch
+and counters exist independently of the stream table, retain no event/stream
+identities, and are
 updated in the same atomic commit as queue and dedupe state. Every pressure
 rejection returns HOOK_BACKPRESSURE and sets HOOK_STREAM_DEGRADED in that local
 health state. This
@@ -225,8 +226,16 @@ retire a stream only after the existing session observer reports that exact
 session ended and its queue is drained; a retired session identity must not be
 reintroduced by that observer. Active-stream count then falls and new observed
 sessions may be admitted. If the observer cannot prove session end, retain the
-record and fail closed at the stream cap. Consumer failure is isolated and
-cannot block or mutate authoritative producer/task/execution truth.
+record and fail closed at the stream cap. A consumer callback exception is a
+terminal loss for that consumer's in-memory delivery attempt: STM-1A does not
+retry or re-enqueue it. Before continuing dispatch to other consumers, record
+the bounded consumer-exception counter and set local HOOK_STREAM_DEGRADED; do
+not report HOOK_BACKPRESSURE unless capacity pressure also occurred. The
+exception is visibility loss, not producer/task/execution failure, and cannot
+block another consumer or mutate authoritative truth. This in-memory bus does
+not itself provide durable delivery; where at-least-once delivery is required,
+the existing durable delivery owner remains responsible for retaining and
+retrying the event.
 
 ## STM semantics
 
@@ -278,8 +287,19 @@ partition TTL is 1800 seconds; a configured value below 300 seconds is clamped
 to 300 and a value above 86400 seconds is clamped to 86400 before use. Expiry
 occurs when monotonic age is greater than or equal to the effective TTL.
 Rebuild input includes accepted recent Hook records and authority/result
-references; each reference is capped at 1024 UTF-8 bytes. Configuration may be
-lowered, never raised above these maxima. Reads do not silently extend TTL.
+references; each reference is a UTF-8 string capped at 1024 bytes.
+`rebuild_item_count` is the number of accepted Hook records plus the number of
+references. `rebuild_input_bytes` is the sum of the original exact UTF-8 wire
+byte lengths captured at Hook admission plus the exact UTF-8 byte lengths of
+the reference strings. Keep only each Hook record's measured wire-byte length
+with the bounded projection; that integer is included in the normal STM
+projection-byte accounting. Do not retain raw Hook bytes solely for rebuild.
+Do not reserialize Hook objects, include JSON/container/framing overhead, or
+add the 128-byte STM projection-record allowance to this rebuild-input total.
+Compute both totals before rebuilding; if either exceeds its cap, return
+STM_REBUILD_INPUT_LIMIT without truncation or partial rebuild. At-cap input is
+accepted when otherwise valid. Configuration may be lowered, never raised
+above these maxima. Reads do not silently extend TTL.
 
 At capacity, deterministic eviction removes expired/stale partitions first, then
 the partition with the oldest monotonic refresh time; exact partition identity
@@ -331,7 +351,11 @@ Before implementation prove RED for:
    low-tier records, the incoming event still returns accepted while bounded
    pressure/loss counters and the degraded latch record the shed visibility;
    none of these paths depends on a stream row or health-event re-enqueue;
-9. one consumer exception does not corrupt another consumer or authoritative truth;
+9. a consumer callback exception is terminal for that consumer's in-memory
+   delivery attempt (no automatic retry/re-enqueue), records the bounded
+   consumer-exception counter and local HOOK_STREAM_DEGRADED before dispatch
+   continues to other consumers, does not return HOOK_BACKPRESSURE absent
+   pressure, and cannot change authoritative truth;
 10. injected monotonic TTL expiry returns STM_STALE while occurred_at changes do not;
 11. deterministic stale-first/oldest-refresh eviction obeys configured capacity;
 12. in-memory loss starts STM_REBUILD_REQUIRED and pre-rebuild reads stay
@@ -350,8 +374,14 @@ Before implementation prove RED for:
 17. repeated drains do not retain an unbounded history, and a late inversion
     appends to caller-observed output without modifying an earlier drain result;
 18. STM partition, per-partition, aggregate, and rebuild record/byte caps are
-    exercised at, below, and above their bounds; over-limit rebuilds are never
-    truncated into a FRESH result;
+    exercised at, below, and above their bounds; rebuild item count is Hook
+    records plus reference strings, and rebuild bytes are the sum of captured
+    original Hook wire-byte lengths plus exact reference UTF-8 bytes, with no
+    object/container framing or STM record allowance. Exercise item counts
+    4095/4096/4097 and, for both the 4 MiB default and 8 MiB hard byte caps,
+    exercise cap-1/cap/cap+1 totals. At-cap rebuilds complete when otherwise
+    valid; over-limit rebuilds are never truncated into a FRESH result and
+    return STM_REBUILD_INPUT_LIMIT;
 19. capacity eviction/rejection is deterministic and every subsequent missing
     or evicted-partition read is UNKNOWN/REBUILD_REQUIRED until authority-bound
     rebuild succeeds.
