@@ -192,8 +192,11 @@ Hook Contract classes (OBSERVE, ADVISORY, GUARD, COMMAND) and the finite causes
 listed here: incoming rejection, queued shedding, dedupe-cap exhaustion,
 stream-cap exhaustion, oversized context, and consumer exception. The latch
 and counters exist independently of the stream table, retain no event/stream
-identities, and are
-updated in the same atomic commit as queue and dedupe state. Every pressure
+identities. Admission/pressure outcomes update their counters and latch
+atomically with the corresponding admission transaction, including rejected
+transactions that change no queue or dedupe entries. A consumer exception is
+discovered after delivery; update its counter and latch atomically with that
+dispatch outcome, before continuing to another consumer. Every pressure
 rejection returns HOOK_BACKPRESSURE and sets HOOK_STREAM_DEGRADED in that local
 health state. This
 rule applies to incoming OBSERVE/ADVISORY rejection, GUARD/COMMAND rejection
