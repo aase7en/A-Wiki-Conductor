@@ -159,8 +159,12 @@ Changing a maximum requires a separate Work Order with soak/load evidence.
 | retained emitted history | 0 | no internal event-history list; drain output is bounded by the queue caps |
 
 Queued-byte accounting uses the original accepted wire-byte length, never a
-reserialized object. Dedupe identity byte accounting uses UTF-8 identity bytes
-plus a documented fixed record allowance; both the byte and entry caps apply.
+reserialized object. For each live dedupe identity, accounted bytes are exactly
+the UTF-8 byte length of the selected identity (explicit dedupe_key, otherwise
+event_id) plus a fixed 64-byte record allowance. The allowance represents the
+bounded expiry/ordinal/state metadata in the accounting model; it is not a
+runtime heap-size estimate. Both the accounted-byte and entry caps apply, and
+an identity is admitted only when the resulting total is at or below both caps.
 The stream table, queue metadata, and per-stream degradation fields are all
 bounded by the stream cap. Fixed-size aggregate counters may record saturation;
 they MUST NOT retain arbitrary identities for streams that could not be
@@ -182,26 +186,38 @@ key as a stable tie-break; do not infer priority from timestamps. Retain the
 shed record's existing dedupe identity until its normal expiry so redelivery
 cannot silently reinsert an event whose visibility was already degraded.
 
-An incoming OBSERVE/ADVISORY event that cannot fit is rejected with
-HOOK_BACKPRESSURE and is not recorded in dedupe state. If a GUARD/COMMAND event
-still cannot fit after eligible lower-tier shedding, reject it with
-HOOK_BACKPRESSURE and surface HOOK_STREAM_DEGRADED. Fixed-size counters by class
-and the local degraded state record loss without retaining arbitrary rejected
-event identities or depending on re-enqueueing a health event into a full
-queue. The bus never enforces, reverses, or re-decides GUARD or COMMAND
-semantics; degradation remains observability-only.
+One bounded bus-instance health latch and fixed-size counters by event class and
+loss cause record local degradation. Counter dimensions use only the four
+Hook Contract classes (OBSERVE, ADVISORY, GUARD, COMMAND) and the finite causes
+listed here: incoming rejection, queued shedding, dedupe-cap exhaustion,
+stream-cap exhaustion, and oversized context. The latch and counters exist
+independently of the stream table, retain no event/stream identities, and are
+updated in the same atomic commit as queue and dedupe state. Every pressure
+rejection returns HOOK_BACKPRESSURE and sets HOOK_STREAM_DEGRADED in that local
+health state. This
+rule applies to incoming OBSERVE/ADVISORY rejection, GUARD/COMMAND rejection
+after eligible shedding, dedupe-budget exhaustion, and stream-table capacity
+exhaustion. An oversized consumer context remains a typed
+HOOK_CONTEXT_OVERSIZED rejection (not HOOK_BACKPRESSURE) and also sets the
+local HOOK_STREAM_DEGRADED state because the event was not admitted. No failure
+path requires allocating a stream row or re-enqueueing a health event.
 
-Dedupe-budget and stream-table exhaustion never evict an unexpired identity or
-active stream to make room. Reject with the corresponding typed backpressure or
-context-capacity outcome and leave those protected records unchanged. Queue
-admission, eligible shedding, and dedupe recording form one atomic operation:
-plan all victims and capacity effects first, then commit the removals, bounded
-class counters, incoming queue record, and incoming dedupe identity together.
-On commit failure, restore victims and roll back incoming reservations. A
+When a GUARD/COMMAND event is admitted by shedding queued OBSERVE/ADVISORY
+records, the incoming event's admission result remains accepted and reports
+that local state is degraded; it is not returned as a rejected
+HOOK_BACKPRESSURE result. The bus records the shed count in bounded class/cause
+counters, records the corresponding HOOK_BACKPRESSURE pressure outcome, and
+sets HOOK_STREAM_DEGRADED for the shed visibility loss. Dedupe-budget and
+stream-table exhaustion never evict an unexpired identity or active stream to
+make room. Queue admission, eligible shedding, dedupe recording, and bounded
+health-state updates form one atomic operation: plan all victims and capacity
+effects first, then commit the removals, counters, incoming queue record,
+incoming dedupe identity, and degradation latch together. On commit failure,
+restore victims and roll back incoming reservations and health updates. A
 rejected event never leaves an incoming dedupe identity behind, so it can be
 retried after pressure clears. A stream-cap rejection MUST NOT allocate a
-stream entry. Do not depend on re-enqueueing a degradation event onto a
-full/degraded queue.
+stream entry. The bus never enforces, reverses, or re-decides GUARD or COMMAND
+semantics; degradation remains observability-only.
 
 Stream records are retained while their consumer-observed sessions remain
 active so sequence high-water state is not silently discarded. The bus may
@@ -247,14 +263,21 @@ STM-1A uses these conservative defaults and hard maxima:
 | records in one authoritative rebuild input | 2048 | 4096 |
 | exact bytes in one rebuild input | 4 MiB | 8 MiB |
 
-Accounted projected bytes are measured with one deterministic compact UTF-8
-encoding of the bounded, already-sanitized projection plus a fixed per-record
-allowance and the UTF-8 bytes of its partition key. This internal accounting is
-not evidence of the original Hook wire size. The default partition TTL is 1800
-seconds; a configured value below 300 seconds is clamped to 300 and a value
-above 86400 seconds is clamped to 86400 before use. Expiry occurs when monotonic
-age is greater than or equal to the effective TTL. Rebuild input includes
-accepted recent Hook records and authority/result
+Accounted projected bytes use the UTF-8 bytes produced by Python's JSON
+serializer with sorted object keys, compact separators (`,` and `:`),
+ensure_ascii=False, and allow_nan=False, plus a fixed 128-byte allowance for
+each retained projection record. Count the UTF-8 bytes of each partition key
+once per retained partition, including an empty or rebuilding partition; do
+not multiply key bytes by its record count. Thus a partition total is its key
+bytes plus the sum of each record's serialized bytes and 128-byte allowance,
+and the aggregate total is the sum of partition totals. The allowance is a
+fixed accounting unit, not a runtime heap-size estimate. This internal
+accounting is not evidence of the original Hook wire size. Admit a record only
+when both resulting totals are at or below their configured caps. The default
+partition TTL is 1800 seconds; a configured value below 300 seconds is clamped
+to 300 and a value above 86400 seconds is clamped to 86400 before use. Expiry
+occurs when monotonic age is greater than or equal to the effective TTL.
+Rebuild input includes accepted recent Hook records and authority/result
 references; each reference is capped at 1024 UTF-8 bytes. Configuration may be
 lowered, never raised above these maxima. Reads do not silently extend TTL.
 
@@ -301,11 +324,13 @@ Before implementation prove RED for:
 7. different-major version rejects HOOK_VERSION_UNSUPPORTED and newer-minor
    input is security-scanned, projected, strictly validated, and semantically
    checked by the normative §7.4 consumer algorithm before acceptance;
-8. saturation follows Hook Contract §16: incoming OBSERVE/ADVISORY is rejected
-   first, queued low-tier records may be deterministically shed to admit
-   GUARD/COMMAND, every loss returns/records typed HOOK_BACKPRESSURE and
-   HOOK_STREAM_DEGRADED without re-enqueue dependency, and no class is silently
-   shed or made an authority;
+8. saturation follows Hook Contract §16: incoming OBSERVE/ADVISORY rejection,
+   GUARD/COMMAND rejection, dedupe exhaustion, and stream-table exhaustion each
+   return HOOK_BACKPRESSURE and set the bounded bus-instance
+   HOOK_STREAM_DEGRADED latch; when GUARD/COMMAND admission sheds accepted
+   low-tier records, the incoming event still returns accepted while bounded
+   pressure/loss counters and the degraded latch record the shed visibility;
+   none of these paths depends on a stream row or health-event re-enqueue;
 9. one consumer exception does not corrupt another consumer or authoritative truth;
 10. injected monotonic TTL expiry returns STM_STALE while occurred_at changes do not;
 11. deterministic stale-first/oldest-refresh eviction obeys configured capacity;
@@ -315,10 +340,13 @@ Before implementation prove RED for:
 14. no network/process/Git/SQLite/task/claim/lease mutation primitive exists in STM-1A.
 15. every stream/per-stream/global queue and byte cap is enforced at the exact
     boundary; class-aware shedding follows §16 with deterministic oldest
-    OBSERVE/ADVISORY victims only, typed loss counters/degradation, and no new
-    stream row when context/stream capacity is exhausted;
+    OBSERVE/ADVISORY victims only; stream-cap rejection returns
+    HOOK_BACKPRESSURE plus bus-instance HOOK_STREAM_DEGRADED without allocating
+    a stream row; oversized context returns HOOK_CONTEXT_OVERSIZED plus the
+    same local degraded state, with no high-cardinality health record;
 16. dedupe saturation purges expired identities only, never evicts an unexpired
-    identity, and rejects the incoming event with HOOK_BACKPRESSURE;
+    identity, and rejects the incoming event with HOOK_BACKPRESSURE plus local
+    HOOK_STREAM_DEGRADED; pressure may not silently alter an existing identity;
 17. repeated drains do not retain an unbounded history, and a late inversion
     appends to caller-observed output without modifying an earlier drain result;
 18. STM partition, per-partition, aggregate, and rebuild record/byte caps are
@@ -340,11 +368,30 @@ Before implementation prove RED for:
     (age >= TTL) using the injected monotonic clock;
 23. at per-stream and aggregate pressure, OBSERVE/ADVISORY shedding is
     deterministic, bounded, counted, and reflected as HOOK_STREAM_DEGRADED;
-    a GUARD/COMMAND event displaces the oldest eligible lower-tier records
-    when possible, and otherwise receives explicit backpressure/degradation;
+    a GUARD/COMMAND event that displaces the oldest eligible lower-tier records
+    is admitted successfully while the bus records the loss; if no eligible
+    victim makes it fit, that incoming event is rejected with
+    HOOK_BACKPRESSURE and local HOOK_STREAM_DEGRADED;
 24. a shed accepted event cannot be reinserted by replay during its unexpired
     dedupe window, while a rejected incoming event leaves no dedupe identity;
     admission plus all eligible shedding rolls back atomically on failure.
+25. dedupe accounting is exactly UTF-8 identity bytes plus 64 bytes per live
+    identity; using schema-valid identities, exercise totals 1,048,575,
+    1,048,576, and 1,048,577 bytes against the 1 MiB hard cap. At-cap
+    admission succeeds; the one-byte-over admission returns
+    HOOK_BACKPRESSURE, sets local HOOK_STREAM_DEGRADED, and stores no incoming
+    identity. Independently, 8192 distinct 35-byte event_id identities fit
+    below the byte cap; the 8192th is accepted and the 8193rd is rejected by
+    the entry cap with HOOK_BACKPRESSURE and no incoming identity.
+26. STM accounting is exactly canonical compact projection UTF-8 bytes plus
+    128 bytes per record plus partition-key UTF-8 bytes counted once per
+    retained partition, including empty/rebuilding partitions. Exercise
+    per-partition totals at cap-1, cap, and cap+1 against 1 MiB, and aggregate
+    totals at cap-1, cap, and cap+1 against 8 MiB while every individual
+    partition remains within 1 MiB; also exercise exact record-count limits.
+    At-cap admission succeeds; the one-byte-over update returns
+    STM_CAPACITY_EXCEEDED and keeps affected reads
+    STALE/UNKNOWN/REBUILD_REQUIRED until authority-bound rebuild.
 
 ## Independent R3 shaping review checkpoint
 
