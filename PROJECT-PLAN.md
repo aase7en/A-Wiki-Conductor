@@ -258,6 +258,8 @@ Conductor should surface only the operational state needed for multi-worker orch
 
 Conductor UI owns worker/project/runtime orchestration, not duplication of Serena internals.
 
+Long-term Sunday Family policy: Serena Dashboard is **manual diagnostics only** and must not auto-open during normal operation. The Sunday Family Web/PWA surface defined in §27 becomes the primary cross-platform operator experience after its acceptance gates; selected Serena diagnostics may be projected through A-Conductor without cloning Serena's UI.
+
 ## 7. Phase 1 — Multi-Serena Control Center
 
 Phase 1 should convert the proven manual infrastructure into a managed desktop control center.
@@ -821,7 +823,7 @@ Implementation must EXTEND existing Tk layout/i18n/PanedWindow seams rather than
 The user approved a new visual target for the native desktop app: a lightweight professional terminal/CMD/CLI command-center layout. `DESIGN.md` is the authoritative visual/interaction SSoT for this redesign.
 
 Key constraints:
-- keep Tk/Ttk as the desktop UI framework; no browser/web rewrite;
+- Tk/Ttk remains the current LOCAL-USABLE-1 desktop shell; the long-term operator-surface framework is superseded by the Sunday Family Web/PWA roadmap in §27, with no big-bang rewrite;
 - use the detailed `assets/sunday-family-particle.png` portrait as the brand master;
 - keep particle rendering bounded to the logo and use very fine white/gray points;
 - allow only gentle pointer-follow eye motion plus subtler face/head parallax;
@@ -1078,3 +1080,42 @@ Legacy PROJECT-PLAN draft PRs #243 (WO-P1-170) and #244 (WO-P1-171) are closed
 historical proposals — preserved in branch/commit history, not deleted — and no
 longer own PROJECT-PLAN roadmap authority. Dispositions are recorded in
 `docs/work-orders/WO-P1-406-product-fast-lane-pointer.md` / Issue #406.
+
+## 27. Sunday Family Web/PWA Cross-Platform Control Surface (2026-09-26)
+
+**Planning authority:** `docs/plans/2026-09-26-sunday-family-web-pwa-roadmap.md`
+**Runtime/UI boundary:** `docs/contracts/sunday-family-web-runtime-boundary-v1.md`
+**Roadmap-capture WO:** `docs/work-orders/WO-P1-555-sunday-family-web-pwa.md` / Issue #555
+
+Sunday Family is the long-term product/package/operator experience over the existing A-Sunday Conductor authority and SunDayRemoteMCP execution substrate.
+
+The framework direction is:
+
+`A-CONDUCTOR HEADLESS AUTHORITY/API + SRM HEADLESS EXECUTION + REACT/TYPESCRIPT/VITE PWA`
+
+The preferred future A-Conductor HTTP/event-service baseline is FastAPI/Starlette + Uvicorn, subject to a child-WO dependency/provenance review; this planning decision adds no runtime dependency by itself. REST/JSON is used for bounded snapshots/commands and SSE is the default live Monitor stream. WebSocket is not required unless a later accepted requirement proves SSE plus request/response insufficient.
+
+This supersedes the **long-term** Tk/Ttk-only UI framework direction without interrupting the active `#433 -> #429 -> LOCAL-USABLE-1` path. Tk/Ttk remains the accepted current shell until Web/PWA parity and rollback gates pass.
+
+Authority remains unchanged:
+- A-Sunday Conductor owns task/claim/routing/retry/review/acceptance truth, Monitor API and Command Gateway;
+- SunDayRemoteMCP remains execution/capability substrate only;
+- Sunday Family Web/PWA is presentation + bounded operator intent, never SSoT;
+- browser code may never call SRM mutation surfaces directly;
+- consequential controls go through A-Conductor Command Gateway;
+- Serena Dashboard is `AUTO_OPEN = FALSE` and manual diagnostic fallback only.
+
+Dependency order:
+
+1. finish current LOCAL-USABLE-1 truth/runtime binding;
+2. stabilize the normalized Monitor Projection/API seam;
+3. `SF-WEB-0` contract/dependency gate;
+4. `SF-WEB-1` read-only Monitor API;
+5. `SF-WEB-2` React/TypeScript/Vite read-only Sunday Family shell;
+6. `SF-WEB-3` PWA/installable local experience;
+7. `SF-WEB-4` Command Gateway controls;
+8. `SF-WEB-5` Windows/macOS/Linux/Pi/Umbrel service packaging;
+9. `SF-WEB-6` parity + optional Tk/Ttk retirement;
+10. `SF-WEB-7` authenticated remote operator mode.
+
+Normal operation must not require a native dashboard UI executable. Optional platform launchers may start/attach to the local service and open the browser or installed PWA, but they must not create a second UI/state authority.
