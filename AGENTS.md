@@ -82,3 +82,7 @@ A local worktree alone is never sufficient evidence that equivalent work does no
 - **Worker** is runtime-neutral; Serena is the first runtime implementation, not the definition of Worker.
 - **A-Wiki** — brain, policies, reusable protocols, memory/knowledge.
 - **Serena** — semantic coding/tooling engine and execution hand, not the whole orchestrator.
+
+## Shared prompt placement protocol
+
+When handing a prompt/instruction to the user for another AI agent, session, Goal, CLI, or UI surface, follow the canonical A-Wiki protocol at `aase7en/A-Wiki:docs/protocols/prompt-placement-protocol.md`. Before the prompt, state exact `PLACEMENT`, `MODE`, `PURPOSE`, whether it replaces/appends/interrupts/queues, and `WHEN TO SEND`. This placement contract changes no A-Sunday Conductor task/claim/routing/review/acceptance authority.
