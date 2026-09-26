@@ -143,6 +143,7 @@ WO-P1-174-delivery-workflow.md
 WO-P1-178-zra-comp-1.md
 WO-P1-181-zcode-windows-child-env.md
 WO-P1-183-zcode-runtime-json-duplicate-keys.md
+WO-P1-191-zra3-next-ready.md
 WO-P1-193-zcode-byte-integrity.md
 WO-P1-195-zra2-phase-b-materializer.md
 WO-P1-196-physical-workspace-identity.md
