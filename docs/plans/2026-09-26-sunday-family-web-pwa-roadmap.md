@@ -46,11 +46,17 @@ Do not stop current critical-path work for a rewrite.
 ### SunDayRemoteMCP owns
 - filesystem/search/edit capabilities;
 - Git inspection;
-- process/terminal execution;
-- durable execution supervision;
-- output/status/cancel/harvest/recover;
+- physical process/terminal execution and supervision for processes it hosts;
+- execution-local output collection, lifecycle observation, cancel/quiesce, and recovery;
+- immutable execution evidence for A-Sunday Conductor to reconcile and receipt;
 - execution-local safety;
 - semantic/LSP capability seams.
+
+SRM process status and collected results are advisory execution evidence, not
+accepted task or attempt state. A-Sunday Conductor owns admission, task/attempt
+identity and state, reconciliation, evidence receipts, retry authorization,
+completion, review, and acceptance. A browser-originated control request must
+pass through the A-Conductor Command Gateway before any SRM operation.
 
 ### Sunday Family Web/PWA owns
 - presentation;
@@ -129,7 +135,14 @@ Never expose raw shell, arbitrary argv/SQL, provider tokens, unrestricted file p
 
 ## 8. Security and privacy
 
-Required: loopback default, explicit port, strict origin policy, secret redaction, bounded payloads, anti-CSRF/session protection for mutations, safe log projection, fail-closed unknown command authority, and PWA caches that exclude secrets and authoritative mutable state.
+Required: loopback default, explicit port, strict origin allowlist, a local
+authentication/session token before serving any browser-consumed Monitor API
+or SSE data (even on loopback), secret redaction, bounded payloads,
+anti-CSRF/session protection for mutations, safe log projection, fail-closed
+unknown command authority, and PWA caches that exclude secrets and authoritative
+mutable state. Before any browser/extension client connects, deterministic API
+tests must prove origin and token enforcement and resistance to webpage-originated
+CSRF and DNS-rebinding attempts.
 
 Remote mode gets a separate threat model and acceptance gate.
 
@@ -141,7 +154,15 @@ Cover Windows, macOS, Linux, Chromium-family browser, a second standards-compati
 
 A-Wiki-Conductor owns contracts, Monitor/Command service, Sunday Family frontend unless a later ADR proves a separate repo is better, packaging integration, UI/API tests, and authority/security policy.
 
-SunDayRemoteMCP remains headless. A future CROSS_REPO WO may add execution-local events/capabilities, but never browser authority, Command Gateway, project scheduler, or UI state store.
+SunDayRemoteMCP remains headless. Create a future CROSS_REPO child WO only when
+an accepted Web/PWA requirement genuinely needs a new SRM execution seam that
+the existing A-Conductor Monitor/Command contracts and SRM capabilities cannot
+satisfy. Bind the task to exact repo/worktree/branch/HEAD, task/claim/scope, and
+an exact compatibility set `{A-Wiki-Conductor@SHA_AUTH,
+SunDayRemoteMCP@SHA_EXEC}`; any member-head drift requires re-pin and focused
+review. Count WIP once across both repos. Never mutate SRM solely to mirror
+documentation. Such a task may add execution-local evidence/capabilities, but
+never browser authority, the Command Gateway, project scheduler, or UI state.
 
 ## 11. Worktree/branch lifecycle for marathon automation
 

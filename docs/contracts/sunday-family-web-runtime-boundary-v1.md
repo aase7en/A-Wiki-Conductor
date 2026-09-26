@@ -58,14 +58,39 @@ Forbidden:
 - `BROWSER -> SRM MUTATION`
 - `BROWSER STATE -> PROJECT TRUTH`
 
+## Execution evidence and task truth
+
+SunDayRemoteMCP owns physical supervision of the processes it hosts and may
+return execution-local output, status, cancellation/quiescence results, and
+immutable process evidence. These remain advisory evidence until
+A-Sunday Conductor reconciles them and creates the authoritative receipt.
+A-Sunday Conductor alone owns task/attempt identity and state, admission,
+reconciliation, receipts, retry authorization, completion, review, and
+acceptance. Browser requests for any SRM operation must first pass through the
+A-Conductor Command Gateway and its current authority/claim/replay checks.
+
+If a future Web/PWA child work order genuinely requires a new SRM execution
+seam that the existing contracts/capabilities cannot satisfy, classify it as
+`CROSS_REPO` and bind exact repo/worktree/branch/HEAD, task/claim/scope, and the
+compatibility set `{A-Wiki-Conductor@SHA_AUTH,
+SunDayRemoteMCP@SHA_EXEC}`. Re-pin and review after either head changes; count
+global WIP once across both repositories. Do not mutate SRM only to mirror
+documentation.
+
 ## Local-first network defaults
 
 - loopback only;
 - no LAN/public listener by default;
 - no anonymous remote control;
 - no secrets returned to frontend payloads;
-- explicit CORS/origin policy;
-- state-changing requests require anti-CSRF/session protection appropriate to the chosen transport;
+- explicit origin allowlist and a local authentication/session token before
+  serving any browser-consumed Monitor API or SSE data, even when bound only
+  to loopback;
+- before any browser/extension client connects, deterministic API tests prove
+  origin and token enforcement and resistance to webpage-originated CSRF and
+  DNS-rebinding attempts;
+- state-changing requests additionally require anti-CSRF/session protection
+  appropriate to the chosen transport;
 - remote access requires a separately accepted authenticated transport/tunnel profile.
 
 ## PWA behavior

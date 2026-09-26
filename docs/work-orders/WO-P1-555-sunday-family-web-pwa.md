@@ -59,11 +59,24 @@ Freeze the long-term Sunday Family operator-surface framework and dependency-ord
 8. Migration is incremental: Monitor Projection/API -> read-only Web/PWA -> Command Gateway -> packaging -> parity -> optional Tk/Ttk retirement.
 9. Windows/macOS/Linux/Pi/Umbrel targets and security defaults are explicit.
 10. No current #433/#429 source scope is widened or preempted.
+11. Browser-consumed Monitor API/SSE data requires an origin allowlist and local auth/session token even on loopback; deterministic origin/token, CSRF, and DNS-rebinding tests gate browser connection.
+12. SRM lifecycle/output/results are execution-local advisory evidence until A-Conductor reconciliation/receipt; Conductor retains task, attempt, completion, retry, review, and acceptance authority.
+13. A genuinely required future SRM seam uses a bound CROSS_REPO child WO and exact-SHA compatibility set; no SRM mirror-only mutation.
 
 ## Replay safety
 
 Docs-only. Re-read Issue #555, current main, active critical-path ownership, and PROJECT-PLAN overlap before replay. Never treat this plan as permission to mutate active product-source lanes.
 
+## Independent exact-SHA review and repair checkpoint
+
+The independent read-only review of candidate `58c5b1a97984c237970f97ef7352cf53e8d4a875` found:
+
+- P1: local Monitor API/SSE reads did not require the existing Hook/STM local auth/session-token plus origin-validation contract, and lacked an explicit pre-browser CSRF/DNS-rebinding acceptance gate.
+- P2: SRM output/status/cancel/harvest/recover wording could be read as authoritative task lifecycle rather than execution-local evidence awaiting A-Conductor reconciliation and receipt.
+- Follow-up: state the exact-SHA CROSS_REPO child-WO binding only when an actual required SRM seam cannot be met by existing contracts/capabilities.
+
+These findings are being repaired within the existing docs-only scope. The candidate remains unaccepted until the repaired exact SHA passes deterministic scope/docs checks, hosted CI, and a fresh independent exact-SHA review.
+
 ## Next safe action
 
-Freeze this roadmap candidate, run deterministic docs/scope checks, open a draft PR, then let the Mac A-Sunday Conductor session recover the PR and integrate it through normal review/CI/expected-head merge without interrupting the active LOCAL-USABLE-1 critical path.
+Freeze the repaired roadmap candidate, run deterministic docs/scope checks, push the new exact SHA, then finish fresh hosted CI and independent review. Merge only with expected-head binding after acceptance; run post-main verification and release/close #555 without interrupting the active LOCAL-USABLE-1 critical path.
