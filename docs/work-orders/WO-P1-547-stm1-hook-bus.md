@@ -1,13 +1,13 @@
 # WO-P1-547 — STM-1 bounded Hook Bus + derived in-memory STM
 
-Status: SHAPING / SOURCE BLOCKED
+Status: SHAPING / SOURCE BLOCKED — contract freeze checkpoint only
 Issue: #547
 Topology: CONTROL_PLANE_ONLY
 Risk: R3
-Claim: WO-P1-547-STM1-HOOK-BUS-MAC-001
-Base: c4d4cf4da830cb313a4569a386edcff0a77266c2
-Worktree: /Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo547-stm1
-Branch: docs/wo-p1-547-stm1-hook-bus
+Current claim: WO-P1-547-STM1-CONTRACT-FREEZE-MAC-002 (docs-only)
+Current base: main@8cf8524e3ad96479013a76a0545c6faa2425487c
+Current worktree: /Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo547-stm1-contract-freeze
+Current branch: codex/wo-p1-547-stm1-contract-freeze
 
 ## Objective
 
@@ -16,9 +16,27 @@ normalized Hook Contract events -> bounded in-process bus -> derived rebuildable
 short-term working set. Bus/STM loss must never change task, claim, lease,
 execution, review, merge, release, or completion truth.
 
-This WO is the authority boundary for P5 shaping. The bootstrap claim permits
-only this file. Product/source mutation requires a second mutation gate after
-the source scope below is independently challenged and frozen.
+This WO is the authority boundary for P5 shaping. The completed bootstrap claim
+`WO-P1-547-STM1-HOOK-BUS-MAC-001` permitted only this file and is released after
+PR #548. The current claim permits only this file. Product/source mutation
+requires a separate source claim after the source scope below is independently
+challenged, contract gaps are resolved, and the scope is frozen on current main.
+
+## Current-main re-pin and scope challenge (2026-09-26)
+
+Exact authority main is `8cf8524e3ad96479013a76a0545c6faa2425487c`. An independent
+read-only scope challenge against that commit confirmed that the four proposed
+STM-1A source/test paths are absent and do not overlap the current #498
+Generation-2, accepted #433, or accepted #429 implementation paths. The smallest
+technical slice remains the two new core modules, their two focused test files,
+and this Work Order. It must stay disconnected: session and authority context
+are injected observations; no producer wiring, lifecycle reader, cockpit or
+Monitor integration, A-Wiki change, or SunDayRemoteMCP change belongs in STM-1A.
+
+That review also found two acceptance gaps. The decisions below close them for
+this shaping checkpoint; they do not open the source mutation gate. Any later
+main change to the Hook Contract or the #498/#433/#429 path set requires a fresh
+collision and compatibility check.
 
 ## Predecessors / authority
 
@@ -83,6 +101,26 @@ return HOOK_EVENT_INVALID; unsupported major versions return
 HOOK_VERSION_UNSUPPORTED. Raw security scanning always precedes dropping
 unknown optional fields.
 
+## Runtime validation strategy
+
+`docs/contracts/hook-contract-v1.md` and its closed JSON Schema remain the sole
+normative authority. STM-1A production ingress accepts only the exact serialized
+UTF-8 bytes plus explicit observed context and implements the §7.4 consumer
+algorithm with the Python standard library; it does not reserialize parsed
+objects to establish the byte limit and exposes no production object-only
+conformance path. Keep `jsonschema` test-only: focused tests load the normative
+schema as an oracle and compare accepted/rejected fixtures and forward-minor
+projection behavior against the production consumer. Do not add a runtime
+dependency or edit the normative contract/schema in this slice. A future
+contract-schema change requires its own review and compatibility proof.
+
+The bus receives session identity, session-end observations, and bounded
+authority/result references only through explicit injection. No source in
+STM-1A may infer these from Hook payloads, issue prose, WorkerLease IDs, origin
+chat references, or a new reader/store. Missing observations remain explicit
+UNKNOWN/STALE/REBUILD_REQUIRED; this core makes no producer-integration or
+Monitor-readiness claim.
+
 Dedupe identity is explicit dedupe_key when present, otherwise global event_id.
 Distinct event_id values are never collapsed because source/sequence match.
 The consumer-owned replay window defaults to 1800 s and is clamped to
@@ -133,32 +171,46 @@ cannot create a stream row. The combined encoded stream key bytes are included
 in the 64 KiB aggregate stream-identity budget and in retained stream metadata
 accounting.
 
-No accepted queued event is evicted to make room. If any stream, per-stream,
-aggregate queue, byte, or dedupe cap would be exceeded, reject that input as
-HOOK_BACKPRESSURE, report HOOK_STREAM_DEGRADED through the bounded local
-degradation state, and leave existing queues and unexpired dedupe identities
-unchanged. Queue admission and dedupe recording are one atomic operation under
-the bus's admission critical section: first validate duplicate status and all
-queue/byte/dedupe limits without retaining new state; then reserve and append
-the queue record and record its identity together. If either commit step fails,
-rollback both reservations. A rejected event never leaves a dedupe identity
-behind, so after backpressure clears its retry can be accepted exactly once. A
-stream-cap rejection MUST NOT allocate a stream entry. Do not
-depend on re-enqueueing a degradation event onto the full/degraded queue.
+Overflow behavior follows Hook Contract v1 §16 and never silently sheds an
+event. For per-stream limits, only records in that stream are eligible victims;
+for aggregate limits, records across streams are eligible. OBSERVE and ADVISORY
+are the first shedding tier. If an incoming GUARD or COMMAND event would exceed
+a queue-count or queued-byte cap, deterministically shed the oldest queued
+OBSERVE/ADVISORY records that relieve the violated cap until the event fits or
+no eligible victim remains. Use bus admission ordinal, then the encoded stream
+key as a stable tie-break; do not infer priority from timestamps. Retain the
+shed record's existing dedupe identity until its normal expiry so redelivery
+cannot silently reinsert an event whose visibility was already degraded.
+
+An incoming OBSERVE/ADVISORY event that cannot fit is rejected with
+HOOK_BACKPRESSURE and is not recorded in dedupe state. If a GUARD/COMMAND event
+still cannot fit after eligible lower-tier shedding, reject it with
+HOOK_BACKPRESSURE and surface HOOK_STREAM_DEGRADED. Fixed-size counters by class
+and the local degraded state record loss without retaining arbitrary rejected
+event identities or depending on re-enqueueing a health event into a full
+queue. The bus never enforces, reverses, or re-decides GUARD or COMMAND
+semantics; degradation remains observability-only.
+
+Dedupe-budget and stream-table exhaustion never evict an unexpired identity or
+active stream to make room. Reject with the corresponding typed backpressure or
+context-capacity outcome and leave those protected records unchanged. Queue
+admission, eligible shedding, and dedupe recording form one atomic operation:
+plan all victims and capacity effects first, then commit the removals, bounded
+class counters, incoming queue record, and incoming dedupe identity together.
+On commit failure, restore victims and roll back incoming reservations. A
+rejected event never leaves an incoming dedupe identity behind, so it can be
+retried after pressure clears. A stream-cap rejection MUST NOT allocate a
+stream entry. Do not depend on re-enqueueing a degradation event onto a
+full/degraded queue.
+
 Stream records are retained while their consumer-observed sessions remain
 active so sequence high-water state is not silently discarded. The bus may
 retire a stream only after the existing session observer reports that exact
 session ended and its queue is drained; a retired session identity must not be
 reintroduced by that observer. Active-stream count then falls and new observed
 sessions may be admitted. If the observer cannot prove session end, retain the
-record and fail closed at the stream cap.
-There is no silent shedding in STM-1A. OBSERVE/ADVISORY may be prioritized for
-future shedding only in a separately reviewed scope; GUARD-rejection/COMMAND
-visibility is never silently lost or re-decided by the bus. Consumer failure
-is isolated and cannot block or mutate authoritative producer/task/execution
-truth. Initial fail-closed saturation behavior may reduce observability until
-bounded state drains or the in-memory bus is rebuilt; it never changes task
-authority.
+record and fail closed at the stream cap. Consumer failure is isolated and
+cannot block or mutate authoritative producer/task/execution truth.
 
 ## STM semantics
 
@@ -249,9 +301,11 @@ Before implementation prove RED for:
 7. different-major version rejects HOOK_VERSION_UNSUPPORTED and newer-minor
    input is security-scanned, projected, strictly validated, and semantically
    checked by the normative §7.4 consumer algorithm before acceptance;
-8. saturation emits HOOK_BACKPRESSURE and local HOOK_STREAM_DEGRADED without
-   re-enqueue dependency; STM-1A sheds no class silently and never becomes
-   execution authority;
+8. saturation follows Hook Contract §16: incoming OBSERVE/ADVISORY is rejected
+   first, queued low-tier records may be deterministically shed to admit
+   GUARD/COMMAND, every loss returns/records typed HOOK_BACKPRESSURE and
+   HOOK_STREAM_DEGRADED without re-enqueue dependency, and no class is silently
+   shed or made an authority;
 9. one consumer exception does not corrupt another consumer or authoritative truth;
 10. injected monotonic TTL expiry returns STM_STALE while occurred_at changes do not;
 11. deterministic stale-first/oldest-refresh eviction obeys configured capacity;
@@ -260,8 +314,9 @@ Before implementation prove RED for:
 13. authoritative contradiction is reconciled before a partition can return FRESH;
 14. no network/process/Git/SQLite/task/claim/lease mutation primitive exists in STM-1A.
 15. every stream/per-stream/global queue and byte cap is enforced at the exact
-    boundary; overflow returns HOOK_BACKPRESSURE without accepting or evicting
-    an existing queued event, and a new over-cap stream allocates no stream row;
+    boundary; class-aware shedding follows §16 with deterministic oldest
+    OBSERVE/ADVISORY victims only, typed loss counters/degradation, and no new
+    stream row when context/stream capacity is exhausted;
 16. dedupe saturation purges expired identities only, never evicts an unexpired
     identity, and rejects the incoming event with HOOK_BACKPRESSURE;
 17. repeated drains do not retain an unbounded history, and a late inversion
@@ -282,7 +337,14 @@ Before implementation prove RED for:
     key bytes count against the corresponding aggregate budgets.
 22. STM TTL defaults to 1800 seconds, clamps a configured value below 300 to
     300 and above 86400 to 86400, and expires at the exact effective boundary
-    (age >= TTL) using the injected monotonic clock.
+    (age >= TTL) using the injected monotonic clock;
+23. at per-stream and aggregate pressure, OBSERVE/ADVISORY shedding is
+    deterministic, bounded, counted, and reflected as HOOK_STREAM_DEGRADED;
+    a GUARD/COMMAND event displaces the oldest eligible lower-tier records
+    when possible, and otherwise receives explicit backpressure/degradation;
+24. a shed accepted event cannot be reinserted by replay during its unexpired
+    dedupe window, while a rejected incoming event leaves no dedupe identity;
+    admission plus all eligible shedding rolls back atomically on failure.
 
 ## Independent R3 shaping review checkpoint
 
@@ -310,6 +372,27 @@ A fresh exact-SHA rereview is required; the first review is not acceptance.
 - freeze exact candidate SHA;
 - independent R3 exact-SHA review plus hosted CI;
 - Sol exact-SHA acceptance, expected-head merge and post-main verification.
+
+## Separate source mutation gate
+
+The current contract-freeze claim is docs-only. It authorizes no `src/` or test
+mutation. Before STM-1A implementation, first merge and post-main verify this
+checkpoint, then open a new source claim bound to an isolated worktree based on
+then-current main and exactly these paths:
+
+- NEW `src/a_conductor/hook_bus.py`
+- NEW `src/a_conductor/hook_stm.py`
+- NEW `tests/test_hook_bus.py`
+- NEW `tests/test_hook_stm.py`
+- this Work Order checkpoint, if the accepted claim assigns it to the source
+  owner; otherwise it remains integrator-owned
+
+That source claim must repeat the live no-overlap audit, WIP/classifier check,
+`DEFECT_LESSONS.md` read, exact current Hook Contract/control-hook/cockpit
+symbol inspection, and RED-first deterministic fault proof. The independent
+scope challenge and this contract checkpoint are prerequisites, not source
+authorization. Set SOURCE_GATE=OPEN only in the separate exact source claim; do
+not infer it from PR #548, docs CI, or this claim.
 
 ## Successor boundary
 
