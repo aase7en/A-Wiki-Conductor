@@ -169,14 +169,14 @@ report that as blocked and retain the fallback without calling JEV.
 - Review-route preflight at 2026-09-27 15:19:24 UTC used the user-specified
   CoinTH quota endpoint with the approved environment binding held in memory;
   the first urllib transport attempt failed before receiving an HTTP response,
-  then the documented cURL client returned HTTP 200. Observed
-  `remaining_5h=80000000`, `used_5h=0`, `limit_5h=80000000`,
-  `window_reset_in_sec=9754`, and `window_source=stale`. Per
-  `docs/runbooks/cointh-glm-quota.md`, positive counters are not exhaustion,
-  but stale provenance makes `PROXY_QUOTA_STATE=UNKNOWN`. No upstream admission,
-  model request, GLM, or JEV call was made; the user-visible available balance
-  does not become a fresh GLM admission signal. Other eligible routes remain
-  independent.
+  then the documented cURL client returned HTTP 200. The response contained
+  non-exhausted counters and `window_source=stale`; exact live counters are
+  deliberately not retained in this public repository. Per
+  `docs/runbooks/cointh-glm-quota.md`, the observed counters do not prove
+  exhaustion, but stale provenance makes `PROXY_QUOTA_STATE=UNKNOWN`. No
+  upstream admission, model request, GLM, or JEV call was made; the user-visible
+  available balance does not become a fresh GLM admission signal. Other
+  eligible routes remain independent.
 - Routing order: executor/model preference and `GLM_OFFLOAD_ASSESSMENT` are
   explicitly after A-Audit; deterministic eligibility, route evidence, WIP and
   provider guards stay authoritative. A-Audit reports sensitivity,
