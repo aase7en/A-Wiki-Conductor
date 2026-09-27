@@ -1,6 +1,7 @@
 # WO-P1-562 — A-Audit task suitability skill
 
 Status: ACTIVE / R3 / CLAIMED / IMPLEMENTED_PENDING_VERIFICATION
+Issue: #562
 Authority: GitHub Issue #562
 Repository: `aase7en/A-Wiki-Conductor` (`CONTROL_PLANE_ONLY`)
 Base: `origin/main@0f0a5f17b33e82516e39ff00f482887728810e87`
@@ -189,3 +190,10 @@ report that as blocked and retain the fallback without calling JEV.
 - Next safe action: commit the exact three-file candidate, post its SHA to
   Issue #562, and obtain the required independent exact-SHA review and
   exact-head CI before acceptance or merge.
+
+### Hosted CI repair checkpoint — 2026-09-27
+
+- Exact candidate `9888b3797ef1db4e0ce13ffa0df49895924eadbc` passed Ubuntu and macOS smoke but its hosted `test` job failed in `test_work_order_identity.py`: GitHub-backed WOs at this ID require exactly one literal `Issue: #562` line.
+- Added that required identity line to this work order within the original three-file claim. The failed candidate is not accepted; the next pushed head requires fresh exact-head CI and independent review.
+- No local automated tests were run. The reviewer attempts produced no findings because both Codex review agents terminated at the account usage limit.
+- Current quota API read returned a non-exhausted tuple but `window_source=stale`; per the accepted runbook proxy quota remains UNKNOWN. Kilo is installed on Mac, but no model request is authorized until quota-source and current exact GLM-5.3 MAX readiness evidence pass.
