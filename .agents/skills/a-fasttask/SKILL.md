@@ -104,38 +104,38 @@ task, claim, provider, review, merge, completion, or memory authority.
    repository). For every substantial multi-step task, perform
    `GLM_OFFLOAD_ASSESSMENT` after A-Audit as part of final eligible-route
    selection. Before each material GLM
-   dispatch, refresh the approved quota/readiness evidence. Resolve the CoinTH
+   dispatch, refresh the approved quota evidence. Resolve the CoinTH
    credential through an approved secret source: environment binding first,
    then an approved global secret file/resolver when available. The current
    proven CoinTH secret name is `COINTH_GLM_AUTH_TOKEN`; send its value only as
    `x-api-key` to `GET https://cointh.com/glm/api/quota`, never print/persist it.
    Treat that five-hour tuple as proxy/account evidence only:
-   `PROXY_QUOTA_STATE = AVAILABLE | EXHAUSTED | UNKNOWN`. Resolve upstream
-   admission independently as
-   `UPSTREAM_PROVIDER_READINESS = READY | THROTTLED | UNAVAILABLE | UNKNOWN`.
-   A material GLM dispatch is admitted only when proxy quota is `AVAILABLE`
-   AND upstream readiness is `READY`, in addition to all existing
-   model/route/claim/scope/authorization gates. Proxy availability alone never
-   proves Z.AI/upstream readiness. `THROTTLED` preserves provider source,
-   observation time, reset/cooldown and freshness evidence and suppresses
-   repeated GLM probes until reset unless material evidence changes; independent
-   safe GPT/Codex work may continue. Upstream `UNKNOWN` fails closed for
-   material GLM dispatch. At/after reset, perform one bounded upstream
-   admission/smoke recheck, refresh proxy quota separately, then refill only
-   when both dimensions admit. HTTP 401/403 remains auth/entitlement evidence,
-   not quota exhaustion, and no provider/quota authority is created here.
+   `PROXY_QUOTA_STATE = AVAILABLE | EXHAUSTED | UNKNOWN`. Do not require a
+   separate upstream admission/smoke probe before useful authorized work. A
+   successful fresh HTTP 200 with a complete, valid tuple, `remaining_5h > 0`,
+   and no positive expiry flag is `AVAILABLE`, even when
+   `window_source=stale`; preserve that field as metadata. A complete valid
+   tuple with `remaining_5h == 0` is `EXHAUSTED`; missing credentials,
+   transport/TLS/non-200 errors, malformed or inconsistent fields, and an
+   expired tuple are `UNKNOWN`. Refresh the GET immediately before each
+   material GLM dispatch. The real request then establishes or blocks that
+   exact route: only explicit provider throttle/reset evidence suppresses that
+   provider/model route until reset; diagnose other concrete errors only after
+   they occur, without looping probes. HTTP 401/403 remains
+   auth/entitlement evidence, not quota exhaustion. This rule does not bypass
+   model/route/claim/scope/authorization/WIP/cost gates or create provider
+   authority.
    Provider guidance says this quota GET does not consume GLM quota; a 2026-09-16
    back-to-back live check observed zero change in `used_5h` and `remaining_5h`.
    Treat that as operational supporting evidence, not a billing guarantee.
    `QUOTA_UNKNOWN` is not `RATE_LIMITED` and is never treated as unlimited.
    Legacy `QUOTA_AVAILABLE` here means proxy/account capacity only. When
-   `PROXY_QUOTA_STATE=AVAILABLE` AND `UPSTREAM_PROVIDER_READINESS=READY`,
-   the remaining amount is capacity evidence, not a reason to self-throttle:
-   refresh proxy quota before EACH material GLM dispatch, keep filling eligible
-   independent GLM lanes up to WIP, do not serialize them merely to conserve
-   quota, and obey the existing auth/route/scope/cost gates. Proxy
-   `QUOTA_EXHAUSTED` or any non-READY upstream state blocks material GLM
-   dispatch without blocking independently eligible GPT/Codex lanes. Keep the
+   `PROXY_QUOTA_STATE=AVAILABLE`, refresh proxy quota before EACH material GLM
+   dispatch and keep filling eligible independent GLM lanes up to WIP; do not
+   serialize them merely to conserve quota. A separate upstream READY
+   assertion is not a precondition: the useful real request tests that route.
+   Proxy `QUOTA_EXHAUSTED` or `QUOTA_UNKNOWN` blocks only GLM dispatch without
+   blocking independently eligible GPT/Codex lanes. Keep the
    A-Faster benchmark guidance as candidate-fit evidence for the post-A-Audit
    selection (GLM-5.3 MAX for R2/R3 implementation and required independent
    review; GLM-5.3-Flash for bounded read-only assist). Do not rank or select
@@ -172,13 +172,14 @@ task, claim, provider, review, merge, completion, or memory authority.
    admitted provider-neutral seam; A-Audit never makes a direct TypeSafe or
    other provider call and never dispatches work.
    Keep quota provenance separate from device liveness:
-   `window_source=stale` means the CoinTH proxy tuple fails freshness and is
-   `PROXY_QUOTA_STATE=UNKNOWN`; it does not prove exhaustion, upstream
-   throttling, or that Windows is offline. Reconcile a stale device pulse
+   `window_source=stale` is retained as CoinTH response metadata and does not
+   change a complete valid positive fresh GET from `PROXY_QUOTA_STATE=AVAILABLE`;
+   it does not prove exhaustion, upstream throttling, or that Windows is
+   offline. Reconcile a stale device pulse
    against that exact lane's runtime/session/Git/claim evidence. A missing or
    offline Windows surface blocks only work that requires it; independently
    eligible Mac-local Kilo/Claude/Codex routes may proceed after their own
-   exact harness/model/readiness/authorization/quota checks. Device availability
+   exact harness/model/authorization/quota checks. Device availability
    never multiplies the project-wide WIP budget.
 4. PIPELINE FILL — decompose independent READY work, then use the existing
    claim/lease + execution authorities to dispatch every eligible bounded GLM

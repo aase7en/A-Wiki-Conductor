@@ -33,13 +33,16 @@ the existing deterministic owners.
   provider-neutral seam and admitted route. The current A-Faster reference
   says its effective executable mode is OFF until those prerequisites are
   accepted. A-Audit must not improvise a direct TypeSafe call.
-- `PROXY_QUOTA_STATE=AVAILABLE` from the documented CoinTH API does not prove
-  upstream GLM readiness. Existing pre-dispatch policy separately requires a
-  fresh quota tuple from `GET https://cointh.com/glm/api/quota` using
-  `x-api-key`, plus `UPSTREAM_PROVIDER_READINESS=READY`, exact route, cost,
-  authorization, claim, scope, WIP, and other existing gates. Never log the
-  credential. Unknown/stale evidence remains UNKNOWN, not exhaustion or
-  availability.
+- Before each material GLM dispatch, use one fresh GET to
+  `https://cointh.com/glm/api/quota` with the approved token as `x-api-key`;
+  never log the credential. A complete valid positive tuple is
+  `PROXY_QUOTA_STATE=AVAILABLE`, even when `window_source=stale`; a complete
+  valid zero-balance tuple is `EXHAUSTED`; malformed, inconsistent, expired,
+  non-200, credential, or transport/TLS failures are `UNKNOWN`. Do not require
+  a separate upstream smoke/readiness call before useful authorized work: the
+  actual request tests that route, and an explicit provider throttle/reset
+  blocks only that provider/model route. Existing route, cost, authorization,
+  claim, scope, WIP, and other gates remain binding.
 - Device/harness availability affects only routes that require that surface.
   An offline Windows surface is zero current capacity and must not block an
   independent authorized Mac route. Device count never multiplies the current
@@ -166,21 +169,25 @@ report that as blocked and retain the fallback without calling JEV.
   secret-safe quota boundaries, and independent device liveness/capacity rules.
   `.agents/skills/a-fasttask/SKILL.md` now calls A-Audit only after
   deterministic eligibility and before executor/workflow selection; it
-  explicitly says `window_source=stale` is proxy quota UNKNOWN rather than
-  exhaustion or Windows liveness and permits eligible independent Mac routes
-  under the unchanged project-wide WIP cap.
+  treats `window_source=stale` as response metadata when a fresh positive quota
+  tuple is otherwise valid, and permits eligible independent Mac routes under
+  the unchanged project-wide WIP cap.
 - No hook/A-Faster/A-NightShift/runtime/A-Wiki/SRM files or tests were changed.
+- Historical policy checkpoint (superseded 2026-09-28): the first
+  implementation treated `window_source=stale` as UNKNOWN and required
+  upstream READY before dispatch. This contradicted the user's explicit
+  instruction to use a fresh positive proxy quota and diagnose upstream from
+  the real request. WO-P1-564 now records the corrected policy; these three
+  #562 files are being reconciled within their existing claim.
 - Review-route preflight at 2026-09-27 15:19:24 UTC used the user-specified
   CoinTH quota endpoint with the approved environment binding held in memory;
   the first urllib transport attempt failed before receiving an HTTP response,
   then the documented cURL client returned HTTP 200. The response contained
   non-exhausted counters and `window_source=stale`; exact live counters are
-  deliberately not retained in this public repository. Per
-  `docs/runbooks/cointh-glm-quota.md`, the observed counters do not prove
-  exhaustion, but stale provenance makes `PROXY_QUOTA_STATE=UNKNOWN`. No
-  upstream admission, model request, GLM, or JEV call was made; the user-visible
-  available balance does not become a fresh GLM admission signal. Other
-  eligible routes remain independent.
+  deliberately not retained in this public repository. The prior conclusion
+  that stale provenance made quota UNKNOWN is superseded by the corrected
+  policy above. No GLM/JEV call was made during that historical preflight.
+  Other eligible routes remain independent.
 - Routing order: executor/model preference and `GLM_OFFLOAD_ASSESSMENT` are
   explicitly after A-Audit; deterministic eligibility, route evidence, WIP and
   provider guards stay authoritative. A-Audit reports sensitivity,
@@ -199,7 +206,11 @@ report that as blocked and retain the fallback without calling JEV.
 - Exact candidate `9888b3797ef1db4e0ce13ffa0df49895924eadbc` passed Ubuntu and macOS smoke but its hosted `test` job failed in `test_work_order_identity.py`: GitHub-backed WOs at this ID require exactly one literal `Issue: #562` line.
 - Added that required identity line to this work order within the original three-file claim. The failed candidate is not accepted; the next pushed head requires fresh exact-head CI and independent review.
 - No local automated tests were run. The reviewer attempts produced no findings because both Codex review agents terminated at the account usage limit.
-- Current quota API read returned a non-exhausted tuple but `window_source=stale`; per the accepted runbook proxy quota remains UNKNOWN. Kilo is installed on Mac, but no model request is authorized until quota-source and current exact GLM-5.3 MAX readiness evidence pass.
+- The historical candidate's stale-window/upstream-READY gate has been removed
+  per the explicit operator correction and the corrected semantics in WO-P1-564.
+  Before the next actual GLM review dispatch, make one fresh quota GET and
+  satisfy the existing claim, WIP, exact-SHA binding, and harness gates; no
+  separate upstream probe is required.
 
 ### Independent exact-SHA review and bounded repair — 2026-09-27
 
@@ -208,3 +219,19 @@ report that as blocked and retain the fallback without calling JEV.
 - No runtime, hook, provider, task-store, A-Wiki, or SunDayRemoteMCP change is introduced. No tests were added or run.
 - Static validation at 2026-09-27 16:21 UTC: strict UTF-8 and trailing-whitespace checks passed for all three claimed files; the work-order identity has exactly one `Issue: #562` line; per-task routing boundaries passed; the candidate remains exactly the original three-path scope; `git diff --check` passed. No tests were added or run.
 - Next: publish the repaired exact candidate without force, then obtain exact-head CI and a fresh independent R3 review before acceptance.
+
+### CoinTH policy reconciliation — 2026-09-28
+
+- Recovered Mac and Windows SundayMCP execution ledgers: each reported 160
+  executions (106 completed, 14 failed, 40 cancelled), no open execution, and
+  no active lane. The completed Kilo review remains for prior candidate
+  `b89f0275...`; it does not review current candidate `3c27bfe...`.
+- Reconciled the three claimed paths with WO-P1-564's user-directed live quota
+  semantics: a fresh complete positive tuple is AVAILABLE regardless of
+  `window_source`; no separate upstream smoke/READY gate; a real explicit
+  provider throttle blocks only that route. Deterministic claim/scope/WIP,
+  route, cost, authorization, and review gates remain.
+- PR #563 remains draft/open. Current exact-head checks on `3c27bfe...` are
+  green, but it has no review request/review for that SHA. These policy edits
+  create a replacement candidate requiring fresh exact-SHA review and hosted
+  checks. No acceptance or merge is claimed.

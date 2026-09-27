@@ -68,22 +68,28 @@ recommendation as a route admission.
 
 | Evidence | Meaning | What it does not mean |
 |---|---|---|
-| CoinTH quota tuple has `window_source=stale` or otherwise fails the accepted freshness/provenance rules | `PROXY_QUOTA_STATE=UNKNOWN`; retain the observed counters and reset as evidence | It does not prove quota exhaustion, upstream throttling, Windows shutdown, or device unavailability |
-| Current accepted CoinTH tuple is valid and positive | `PROXY_QUOTA_STATE=AVAILABLE` | It does not prove upstream GLM readiness or admit a model request by itself |
-| Upstream admission is `UNKNOWN`, `THROTTLED`, or `UNAVAILABLE` | The GLM route is not eligible for this dispatch | It does not block independently eligible Codex/native/other-device work |
+| Fresh CoinTH GET has a complete valid tuple, `remaining_5h > 0`, and no positive expiry flag (including `window_source=stale`) | `PROXY_QUOTA_STATE=AVAILABLE`; retain source metadata with the counters/reset evidence | It does not prove upstream success, but the useful real request may test that route |
+| Fresh CoinTH GET has a complete valid tuple and `remaining_5h == 0` | `PROXY_QUOTA_STATE=EXHAUSTED` | It does not prove upstream throttling or device unavailability |
+| CoinTH GET is missing, malformed, inconsistent, expired, non-200, or has transport/TLS/credential failure | `PROXY_QUOTA_STATE=UNKNOWN` | It does not prove exhaustion or upstream throttling |
+| Positive proxy quota without an actual request result | It establishes proxy capacity only; deterministic route/model/claim/scope/WIP/authorization gates still apply | It does not prove that the upstream model request will succeed |
+| A useful GLM request returns explicit provider throttle/reset evidence | Block only that provider/model route until the stated reset unless material evidence changes | It does not block independently eligible Codex/native/other-device work |
 | A device pulse is stale or its session/process state is unknown | Reconcile that exact lane's process/session, result, Git state, claim and replay safety | It does not mark every device or every project lane unavailable |
 | A device is actually offline/unreachable | That device contributes zero current capacity | It does not block work on another ready device or create extra WIP there |
 
-For material GLM work, the existing pre-dispatch guard owns quota/readiness.
-Its proxy check uses `GET https://cointh.com/glm/api/quota` with the approved
-`COINTH_GLM_AUTH_TOKEN` sent only as `x-api-key`; never expose or store the
-credential. Follow `docs/runbooks/cointh-glm-quota.md`: a current positive
-five-hour tuple is proxy `AVAILABLE`; a current exhausted tuple is
-`EXHAUSTED`; stale, missing, malformed, provenance-free or failed evidence is
-`UNKNOWN`. Independently require `UPSTREAM_PROVIDER_READINESS=READY` and every
-existing route/model/cost/authorization/claim/scope/WIP gate. A-Audit does not
-perform the request or replace that guard. An UNKNOWN GLM route blocks only
-GLM; continue safe work through other already eligible routes.
+For material GLM work, the existing deterministic pre-dispatch guard owns the
+quota check. Its proxy check uses `GET https://cointh.com/glm/api/quota` with
+the approved `COINTH_GLM_AUTH_TOKEN` sent only as `x-api-key`; never expose or
+store the credential. Follow `docs/runbooks/cointh-glm-quota.md`: make one fresh GET
+immediately before each material GLM dispatch; a complete valid positive
+five-hour tuple is proxy `AVAILABLE`, including when `window_source=stale`; a
+complete valid zero-balance tuple is `EXHAUSTED`; missing, malformed,
+inconsistent, expired, transport/TLS, or non-200 evidence is `UNKNOWN`. Do not
+make an upstream smoke/readiness call before useful work. The real GLM request
+tests its route; if it returns explicit provider throttle/reset evidence, block
+only that provider/model route until reset. Existing route/model/cost/
+authorization/claim/scope/WIP gates still apply. A-Audit does not perform the
+request or replace the deterministic guard. An `UNKNOWN` or `EXHAUSTED` quota
+blocks only GLM; continue safe work through other already eligible routes.
 
 ## Recommendation classes
 
