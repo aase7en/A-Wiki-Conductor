@@ -77,19 +77,24 @@ recommendation as a route admission.
 | A device is actually offline/unreachable | That device contributes zero current capacity | It does not block work on another ready device or create extra WIP there |
 
 For material GLM work, the existing deterministic pre-dispatch guard owns the
-quota check. Its proxy check uses `GET https://cointh.com/glm/api/quota` with
-the approved `COINTH_GLM_AUTH_TOKEN` sent only as `x-api-key`; never expose or
-store the credential. Follow `docs/runbooks/cointh-glm-quota.md`: make one fresh GET
-immediately before each material GLM dispatch; a complete valid positive
-five-hour tuple is proxy `AVAILABLE`, including when `window_source=stale`; a
-complete valid zero-balance tuple is `EXHAUSTED`; missing, malformed,
-inconsistent, expired, transport/TLS, or non-200 evidence is `UNKNOWN`. Do not
-make an upstream smoke/readiness call before useful work. The real GLM request
-tests its route; if it returns explicit provider throttle/reset evidence, block
-only that provider/model route until reset. Existing route/model/cost/
-authorization/claim/scope/WIP gates still apply. A-Audit does not perform the
-request or replace the deterministic guard. An `UNKNOWN` or `EXHAUSTED` quota
-blocks only GLM; continue safe work through other already eligible routes.
+quota check. It uses `GET https://cointh.com/glm/api/quota` with the approved
+`COINTH_GLM_AUTH_TOKEN` sent only as `x-api-key`; never expose or store the
+credential. Make one fresh GET immediately before each material GLM dispatch.
+The user-directed current interpretation is recorded in Issue #564: a complete
+valid positive five-hour tuple is proxy
+`AVAILABLE`, including when `window_source=stale`; a complete valid
+zero-balance tuple is `EXHAUSTED`; missing, malformed, inconsistent, expired,
+transport/TLS, or non-200 evidence is `UNKNOWN`. That policy correction
+supersedes the legacy stale-window and upstream-READY clauses in
+`docs/runbooks/cointh-glm-quota.md` until its owner reconciles the runbook.
+Use the runbook for request mechanics and secret handling during that bounded
+reconciliation. Do not make an upstream smoke/readiness call before useful
+work. The real GLM request tests its route; if it returns explicit provider
+throttle/reset evidence, block only that provider/model route until reset.
+Existing route/model/cost/authorization/claim/scope/WIP gates still apply.
+A-Audit does not perform the request or replace the deterministic guard. An
+`UNKNOWN` or `EXHAUSTED` quota blocks only GLM; continue safe work through
+other already eligible routes.
 
 ## Recommendation classes
 
@@ -113,8 +118,9 @@ JEV is a System-One structured-decision adviser, not an engineering executor.
 Use only the accepted provider-neutral seam, admitted route, supported JEV
 mode and allowlisted decision family described by
 `.agents/skills/a-faster/references/jev-semantic-fast-path.md`. That reference
-currently defines effective executable mode as `OFF` until its admission
-prerequisites are accepted. Therefore:
+is the source of truth for the current effective mode and must be checked for
+each relevant task because accepted mode can change. When it reports `OFF` or
+the route/admission prerequisites are not accepted:
 
 - A-Audit may identify `JEV_SHADOW` or `JEV_ADVISORY` as the best *semantic
   fit*, but must report `route_status=BLOCKED` when the corresponding mode or
@@ -156,7 +162,7 @@ ambiguity_risk: "material ambiguity/risk and the evidence behind it"
 data_sensitivity: INTERNAL # PUBLIC_SAFE | INTERNAL | SENSITIVE_RESTRICTED
 semantic_brittleness: LOW # LOW | MEDIUM | HIGH, with a short basis
 latency_cost_value: "expected benefit or NOT_BENEFICIAL, with reason"
-route_status: ELIGIBLE # ELIGIBLE | BLOCKED | UNKNOWN | NOT_REQUIRED
+route_status: NOT_REQUIRED # ELIGIBLE | BLOCKED | UNKNOWN | NOT_REQUIRED
 route_evidence:
   - "exact current route/readiness evidence, or typed blocker"
 fallback: "deterministic or frontier path that is already authorized"
@@ -177,7 +183,10 @@ explicitly. There must be exactly one `recommendation` and one safe
 - Executor capability: `docs/agent-collab/CAPABILITY_MATRIX.md`
 - Device and route projection: `.agents/skills/a-faster/references/multidevice.md`
 - JEV eligibility/modes: `.agents/skills/a-faster/references/jev-semantic-fast-path.md`
-- CoinTH proxy quota evidence: `docs/runbooks/cointh-glm-quota.md`
+- CoinTH request mechanics and secret handling: `docs/runbooks/cointh-glm-quota.md`
+- Current quota classification correction during runbook reconciliation:
+  Issue #564; it supersedes only the legacy stale-window and
+  upstream-READY clauses until the runbook owner aligns that file.
 
 Do not fork their task, claim, WIP, quota/provider, execution, review or
 completion authority into this skill.

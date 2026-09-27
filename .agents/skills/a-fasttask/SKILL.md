@@ -122,7 +122,10 @@ task, claim, provider, review, merge, completion, or memory authority.
    exact route: only explicit provider throttle/reset evidence suppresses that
    provider/model route until reset; diagnose other concrete errors only after
    they occur, without looping probes. HTTP 401/403 remains
-   auth/entitlement evidence, not quota exhaustion. This rule does not bypass
+   auth/entitlement evidence, not quota exhaustion. The current user-directed
+   interpretation is recorded in Issue #564; until its owner
+   reconciles the runbook, that correction supersedes only the legacy
+   stale-window and upstream-READY clauses. This rule does not bypass
    model/route/claim/scope/authorization/WIP/cost gates or create provider
    authority.
    Provider guidance says this quota GET does not consume GLM quota; a 2026-09-16
@@ -151,8 +154,9 @@ task, claim, provider, review, merge, completion, or memory authority.
    implementation/analysis work within the verified claim/scope so throughput
    continues. Independent-review requirements do not transfer to the authoring
    Sol lane: a separate qualified reviewer is still required where policy says
-   independent review. At/after reset, refresh quota plus exact live admission
-   once, then refill eligible GLM lanes up to WIP.
+   independent review. At/after reset, refresh quota once immediately before
+   the next useful authorized GLM task; let that real request establish whether
+   the exact route has recovered, then refill other eligible GLM lanes up to WIP.
    After deterministic task eligibility, dependency, authorization, claim,
    scope, hotspot, WIP and route-evidence checks, read
    `.agents/skills/a-audit/SKILL.md` and produce exactly one advisory handling

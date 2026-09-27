@@ -51,8 +51,10 @@ the existing deterministic owners.
 ## Exact claimed file scope
 
 - NEW `.agents/skills/a-audit/SKILL.md`
-- MODIFY `.agents/skills/a-fasttask/SKILL.md` only to invoke A-Audit after
-  deterministic eligibility and before eligible route selection.
+- MODIFY `.agents/skills/a-fasttask/SKILL.md` to add the bounded
+  Conductor-local A-Audit routing pointer and the user-directed current CoinTH
+  policy projection needed to keep this router consistent with WO-P1-564.
+  This adds no quota/provider authority; the deterministic guard remains SSoT.
 - NEW `docs/work-orders/WO-P1-562-a-audit-task-suitability-skill.md`
 
 No hooks, runtime/source code, tests, A-Wiki files, or other skill paths are in
@@ -236,6 +238,38 @@ report that as blocked and retain the fallback without calling JEV.
   create a replacement candidate requiring fresh exact-SHA review and hosted
   checks. No acceptance or merge is claimed.
 
+
+### Kilo/GLM review findings and bounded repair — 2026-09-28
+
+- Recovered terminal execution `exec-muk4245v-p4jjk5mg`: Kilo CLI 7.7.9 via
+  Mac SundayMCP, GLM-5.3 MAX, exit 0; harvested and collected before any
+  follow-up. It reviewed the provided candidate `c14521f807e89f5679ebc46f69fa1c16ac85b208`
+  and returned `CHANGES_REQUIRED`.
+- Blocking finding P2-1: A-Audit attributed the current positive/stale quota
+  interpretation and no-upstream-smoke rule to a runbook version that still
+  contained legacy stale-window UNKNOWN and upstream-READY requirements.
+  Repair: cite WO-P1-564 as the user-directed current interpretation while its
+  owner reconciles the runbook; use the runbook meanwhile for request mechanics
+  and secret handling. Apply this bounded clarification in both A-Audit and
+  the Conductor A-FastTask policy projection.
+- Non-blocking P3-1: clarify that the A-FastTask file's claimed content includes
+  the user-directed quota-policy projection, not only the A-Audit pointer. The
+  exact path scope remains the original three files.
+- Non-blocking P3-2: bind the report, CI, and candidate checkpoint to the exact
+  SHA above. The reviewer runtime reported this exact repo/branch/HEAD, but
+  `identityVerified=false`, `bindingDigest=null`, and `claimPresent=false`;
+  the reviewer did not independently inspect repository bytes or CI. Therefore
+  its findings are useful advisory evidence, not formal verified exact-SHA
+  acceptance.
+- Non-blocking P3-3: the #564-owned routing paragraph should state that a fresh
+  positive proxy tuple permits a useful real request and that no upstream
+  READY/smoke precondition exists. Reconciled in the active #564 worktree; no
+  out-of-scope path was edited here.
+- Candidate `c14521f807e89f5679ebc46f69fa1c16ac85b208` is no longer frozen
+  after these requested repairs. Its replacement requires fresh static
+  validation, exact-head hosted CI, and an independent review bound to the new
+  SHA. No acceptance or merge is claimed.
+
 ### GLM review launch lesson — 2026-09-28
 
 - Read-only Kilo/GLM review launch `exec-muk3ylm8-lp5q6o0z` failed with exit 1
@@ -252,3 +286,64 @@ report that as blocked and retain the fallback without calling JEV.
   positional argument before flags. Treat any launch/path error as a harness
   failure, harvest/collect it, and recheck quota only before a real new model
   attempt. Do not claim review or upstream failure from a pre-inference exit.
+
+## Current checkpoint — 2026-09-28
+
+- Worktree remains `codex/wo-p1-562-a-audit-suitability` at base-derived
+  HEAD `c14521f807e89f5679ebc46f69fa1c16ac85b208`; the prior frozen candidate
+  was released after its Kilo review. Exactly the three claimed files are now
+  modified in the working tree; no commit, push, acceptance, or merge is
+  claimed.
+- The A-Audit authority citation now separates quota request/secret mechanics
+  from the user-directed quota interpretation in Issue #564, until that owner
+  reconciles the runbook. The A-FastTask projection now avoids a separate
+  upstream admission call at reset and says the next useful real request
+  observes recovery. Work-order scope wording and all review findings above
+  are recorded.
+- Local static verification passed on the three exact paths: strict UTF-8,
+  no trailing whitespace/CRLF, frontmatter marker/name, one required-result
+  section, exactly one standalone `Issue: #562` identity line, explicit
+  quota-source/reset semantics, exact-scope equality, and `git diff --check`.
+  No automated tests were added or run.
+- The reviewer result is retained as advisory only: it pinned the candidate
+  SHA at runtime but had no verified identity/binding or claim, and did not
+  independently verify repository bytes or CI.
+- Exact next action: review the three-file diff, commit/push a replacement
+  candidate on the existing branch, then require new exact-head CI and a
+  formally bound independent R3 review before acceptance. Do not touch the
+  #498-owned `CURRENT-WORK.md` or `handoff.md` continuity files.
+
+### Exact-reference and candidate reconciliation — 2026-09-28
+
+- Read-only inspection confirmed the #562 candidate branch does not contain
+  `docs/work-orders/WO-P1-564-cointh-global-quota-hook.md`; citing that path
+  from this branch would be an unresolvable reference. The user-directed
+  interpretation is durably recorded in open Issue #564, so the three claimed
+  files now cite that exact issue without implying the other lane's unmerged WO
+  exists here.
+- The PR remains draft/open at `c14521f807e89f5679ebc46f69fa1c16ac85b208`,
+  while the exact three-path worktree is dirty. The old exact-head CI is green
+  but no longer applies. SundayMCP recovery found 162 terminal executions
+  (107 completed, 15 failed, 40 cancelled), zero outstanding; Mac RDC is
+  online and Windows RDC is offline. No unrelated device wait is required.
+- Next: rerun only the WO's static validation and scope checks, review the
+  replacement diff, then publish a new exact candidate for fresh CI/review.
+
+### Reviewability and JEV-mode freshness — 2026-09-28
+
+- Repaired two non-blocking review ambiguities within the original scope:
+  the deterministic-only YAML example now uses `route_status=NOT_REQUIRED`,
+  and A-Audit reads the current JEV mode from its referenced routing contract
+  per task instead of treating today's `OFF` state as permanent. JEV remains
+  advisory-only; this authoring lane still makes no provider call or mode
+  change. A-Audit reports a JEV route as blocked whenever the live contract
+  does not admit it.
+- Repeated static validation passed on exactly the three claimed files:
+  strict UTF-8, no CRLF/trailing whitespace, skill frontmatter/name, one
+  required-result section, exact issue identity, live quota semantics,
+  dynamic JEV mode handling, YAML example status, exact-scope equality, and
+  `git diff --check`. No automated tests were added or run.
+- The remote PR still points to `c14521f807e89f5679ebc46f69fa1c16ac85b208`
+  while these changes are uncommitted. Exact next action: commit and push this
+  three-file replacement without force, then recover exact-head CI and run a
+  separately bound independent R3 review before acceptance.
