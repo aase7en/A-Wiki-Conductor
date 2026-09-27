@@ -95,13 +95,15 @@ task, claim, provider, review, merge, completion, or memory authority.
    PowerShell only when unavoidable; background children launched with
    `CREATE_NO_WINDOW`/`windowsHide`; exact-PID-only termination with
    verified command identity; never change global shell settings.
-3. CLASSIFY — R0/R1/R2/R3 per `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`;
-   select the executor per `docs/agent-collab/CAPABILITY_MATRIX.md` and
+3. CLASSIFY — classify R0/R1/R2/R3 per
+   `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`; inventory candidate
+   executors per `docs/agent-collab/CAPABILITY_MATRIX.md` and
    `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; check WIP capacity per
    `PROJECT-GRAPH.yaml` `rules.default_wip`, counted once across all
    compatibility-set members (`CROSS_REPO` never multiplies WIP per
-   repository). For every substantial multi-step
-   task, also perform `GLM_OFFLOAD_ASSESSMENT`. Before each material GLM
+   repository). For every substantial multi-step task, perform
+   `GLM_OFFLOAD_ASSESSMENT` after A-Audit as part of final eligible-route
+   selection. Before each material GLM
    dispatch, refresh the approved quota/readiness evidence. Resolve the CoinTH
    credential through an approved secret source: environment binding first,
    then an approved global secret file/resolver when available. The current
@@ -133,12 +135,14 @@ task, claim, provider, review, merge, completion, or memory authority.
    independent GLM lanes up to WIP, do not serialize them merely to conserve
    quota, and obey the existing auth/route/scope/cost gates. Proxy
    `QUOTA_EXHAUSTED` or any non-READY upstream state blocks material GLM
-   dispatch without blocking independently eligible GPT/Codex lanes. Route the
-   GLM model by the benchmark guidance projected in the A-Faster overlay
-   (GLM-5.3 MAX for R2/R3 implementation and required independent review;
-   GLM-5.3-Flash for bounded read-only assist); a cheaper or faster model
-   never silently satisfies a required independent R3/qualified review, and
-   no model identity grants authority.
+   dispatch without blocking independently eligible GPT/Codex lanes. Keep the
+   A-Faster benchmark guidance as candidate-fit evidence for the post-A-Audit
+   selection (GLM-5.3 MAX for R2/R3 implementation and required independent
+   review; GLM-5.3-Flash for bounded read-only assist). Do not rank or select
+   a model before A-Audit; the deterministic selector chooses only from
+   currently eligible routes. A cheaper or faster model never silently
+   satisfies a required independent R3/qualified review, and no model identity
+   grants authority.
    If the exact upstream GLM admission is observed `RATE_LIMITED`, record the
    provider-reported reset evidence, set GLM offload blocked for that window,
    and do not repeat quota/credential root-cause work or live admission probes
@@ -149,6 +153,24 @@ task, claim, provider, review, merge, completion, or memory authority.
    Sol lane: a separate qualified reviewer is still required where policy says
    independent review. At/after reset, refresh quota plus exact live admission
    once, then refill eligible GLM lanes up to WIP.
+   After deterministic task eligibility, dependency, authorization, claim,
+   scope, hotspot, WIP and route-evidence checks, read
+   `.agents/skills/a-audit/SKILL.md` and produce exactly one advisory handling
+   class with cited evidence and a safe fallback. A-Audit runs before final
+   executor/workflow selection; select only among routes that remain eligible
+   under the existing capability, quota, provider, cost, claim, scope and WIP
+   authorities. JEV is considered only in its accepted mode through its
+   admitted provider-neutral seam; A-Audit never makes a direct TypeSafe or
+   other provider call and never dispatches work.
+   Keep quota provenance separate from device liveness:
+   `window_source=stale` means the CoinTH proxy tuple fails freshness and is
+   `PROXY_QUOTA_STATE=UNKNOWN`; it does not prove exhaustion, upstream
+   throttling, or that Windows is offline. Reconcile a stale device pulse
+   against that exact lane's runtime/session/Git/claim evidence. A missing or
+   offline Windows surface blocks only work that requires it; independently
+   eligible Mac-local Kilo/Claude/Codex routes may proceed after their own
+   exact harness/model/readiness/authorization/quota checks. Device availability
+   never multiplies the project-wide WIP budget.
 4. PIPELINE FILL — decompose independent READY work, then use the existing
    claim/lease + execution authorities to dispatch every eligible bounded GLM
    lane up to the current WIP/provider-capacity limits. Sol also assigns
