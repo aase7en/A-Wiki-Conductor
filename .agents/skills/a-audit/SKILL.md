@@ -68,7 +68,7 @@ recommendation as a route admission.
 
 | Evidence | Meaning | What it does not mean |
 |---|---|---|
-| Fresh CoinTH GET has a complete valid tuple, `remaining_5h > 0`, and no positive expiry flag (including `window_source=stale`) | `PROXY_QUOTA_STATE=AVAILABLE`; retain source metadata with the counters/reset evidence | It does not prove upstream success, but the useful real request may test that route |
+| Fresh CoinTH GET has a complete valid tuple, `remaining_5h > 0`, and `is_expired` is absent or false | `PROXY_QUOTA_STATE=AVAILABLE`; `window_source=stale` is metadata and does not change this result | It does not prove upstream success, but the useful real request may test that route |
 | Fresh CoinTH GET has a complete valid tuple and `remaining_5h == 0` | `PROXY_QUOTA_STATE=EXHAUSTED` | It does not prove upstream throttling or device unavailability |
 | CoinTH GET is missing, malformed, inconsistent, expired, non-200, or has transport/TLS/credential failure | `PROXY_QUOTA_STATE=UNKNOWN` | It does not prove exhaustion or upstream throttling |
 | Positive proxy quota without an actual request result | It establishes proxy capacity only; deterministic route/model/claim/scope/WIP/authorization gates still apply | It does not prove that the upstream model request will succeed |

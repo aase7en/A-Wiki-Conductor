@@ -347,3 +347,32 @@ report that as blocked and retain the fallback without calling JEV.
   while these changes are uncommitted. Exact next action: commit and push this
   three-file replacement without force, then recover exact-head CI and run a
   separately bound independent R3 review before acceptance.
+
+### Exact-SHA GLM review and bounded wording repair — 2026-09-28
+
+- Recovered and reconciled `exec-wo562f02-20260928`: the Mac SundayMCP Kilo
+  CLI request to CoinTH GLM-5.3 MAX completed with verified exit 0, was
+  harvested and collected without drift, and reviewed exact HEAD
+  `f02df51bbbfa9f379ed7af478fabed53d45d296a`. The advisory verdict is
+  `CHANGES_REQUIRED`, with one P2 and two P3 notes.
+- P2-1 identified that the table's parenthetical could imply
+  `window_source=stale` is an expiry flag. Reworded the in-scope A-Audit row:
+  `is_expired` must be absent or false, and `window_source=stale` is explicitly
+  metadata that does not change a complete positive tuple's AVAILABLE state.
+- P3-1 records legacy upstream-READY wording in A-Faster and routing/runbook
+  files outside this three-path claim; their owning quota/routing lane must
+  reconcile those files. P3-2 notes harmless duplicate refresh guidance in
+  A-FastTask. Neither changes this WO's exact scope.
+- Although the dispatch was labeled `mode=read` and the prompt prohibited
+  writes, Kilo created `.kilo/plans/1790535338846-wo562-r3-review-verdict.md`
+  in the worktree. The report and its adjacent `.gitignore` were preserved
+  outside the checkout at
+  `/Users/aase7en/.codex/evidence/wo-p1-562/2026-09-28-kilo-readonly-review/`;
+  the checkout is clean of those generated files. SundayMCP `mode=read` is
+  task metadata, not a process sandbox. Official Kilo docs describe the Ask
+  agent as read-only; use `--agent ask` for a replacement review and verify
+  the result did not write into the candidate checkout.
+- The hosted `test` check for `f02df51...` was still IN_PROGRESS at recovery.
+  This wording repair creates a new candidate, so rerun static validation,
+  publish without force, then require exact-head CI and a new bound
+  independent review. No acceptance or merge is claimed.
