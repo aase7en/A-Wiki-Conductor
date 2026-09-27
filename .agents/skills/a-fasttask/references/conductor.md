@@ -80,8 +80,10 @@ explicit active-WO WIP override. All normal WIP and `1 MUTABLE HOTSPOT =
 Every substantial multi-step task records whether useful bounded independent
 labor exists. Preferred current routing order:
 
-1. Kilo CLI + CoinTH GLM-5.3 when exact executable/provider/model, liveness,
-   authorization, permission profile and quota/readiness evidence are eligible.
+1. Kilo CLI + CoinTH GLM-5.3 when the exact executable/provider/model,
+   authorization, permission profile, and fresh positive proxy quota plus all
+   deterministic task gates are eligible. Do not require a separate upstream
+   smoke request before useful GLM work.
 2. Claude Code CLI + GLM-5.3 only after the exact route/model/auth/liveness is
    proven on the current runtime.
 3. SunDay lane executors / transitional lane-local Serena for lightweight
@@ -92,33 +94,30 @@ labor exists. Preferred current routing order:
 6. GPT-6 Astra only for material unresolved architecture/trust ambiguity,
    contradictory high-impact findings, or difficult repeated failures.
 
-For Kilo, prefer the exact installed executable and `kilo roll-call` as a
-practical liveness probe. Local dispatch follows the durable Windows
+For Kilo, prefer the exact installed executable and explicit claimed `--dir`.
+Put the task prompt immediately after `kilo run`, before model/file flags. Do
+not require `kilo roll-call` or a separate upstream smoke before useful work.
+Local dispatch follows the durable Windows
 no-console rule: launch the exact installed executable directly; use hidden
 PowerShell with no new console only when unavoidable; start background
 children with `CREATE_NO_WINDOW`/`windowsHide`; never change global shell
-settings; terminate by exact PID with verified command identity only. Before material dispatch, resolve the CoinTH quota
-credential from an approved secret source: an existing environment binding, or
-an approved global secret file/resolver when the environment is empty. The
-current live-proven secret name is `COINTH_GLM_AUTH_TOKEN`; pass its value only
-as `x-api-key` to `GET https://cointh.com/glm/api/quota`. Never print, log, or
-persist the key. Treat that tuple as proxy/account evidence only:
-`PROXY_QUOTA_STATE = AVAILABLE | EXHAUSTED | UNKNOWN`. Establish
-`UPSTREAM_PROVIDER_READINESS = READY | THROTTLED | UNAVAILABLE | UNKNOWN`
-from separate bounded provider/admission evidence. Material GLM dispatch requires
-proxy `AVAILABLE` AND upstream `READY` plus every existing
-model/route/claim/scope/authorization gate; proxy availability alone is not Z.AI
-readiness. Upstream `THROTTLED` records source/time/reset/freshness and suppresses
-repeat GLM probes until reset unless material evidence changes, while independent
-safe GPT/Codex work may continue. Upstream `UNKNOWN` fails closed for material
-GLM dispatch. At/after reset, perform one bounded upstream admission/smoke recheck,
-refresh proxy quota separately, then refill only when both dimensions admit.
-This creates no new provider/quota authority. Provider guidance says this GET
-is non-consuming; a 2026-09-16 back-to-back live check observed zero
-quota-counter delta, which is supporting operational evidence rather than a
-billing guarantee. HTTP 401/403 is auth/entitlement evidence, not quota
-exhaustion; missing/stale/malformed evidence remains `UNKNOWN`. Never silently
-substitute another or paid model/provider.
+settings; terminate by exact PID with verified command identity only. Before
+each material GLM dispatch, make one fresh no-cache GET to
+`https://cointh.com/glm/api/quota` with `x-api-key` from the already-bound
+`COINTH_GLM_AUTH_TOKEN` environment variable. Never print, log, persist, or
+pass the key in process argv. Treat the tuple as proxy/account evidence:
+`PROXY_QUOTA_STATE = AVAILABLE | EXHAUSTED | UNKNOWN`. A complete,
+internally consistent HTTP 200 tuple with `remaining_5h > 0` and no positive
+expiry flag is `AVAILABLE`, including when `window_source=stale`; retain that
+metadata, but do not use it as a veto. A valid zero balance is `EXHAUSTED`;
+missing credentials, transport/non-200 errors, or malformed, inconsistent, or
+expired evidence are `UNKNOWN`. Do not infer upstream readiness or throttling
+from proxy counters. Let the actual authorized GLM request establish route
+success for that attempt. Only an explicit upstream rate-limit/reset response
+from that real request blocks that provider/model route until reset. Diagnose
+other route errors after they occur without probe loops. HTTP 401/403 is
+auth/entitlement evidence, not quota exhaustion. Never silently substitute
+another or paid model/provider. See `docs/runbooks/cointh-glm-quota.md`.
 
 Record one compact disposition:
 `GLM_OFFLOAD = DISPATCHED | NOT_BENEFICIAL | BLOCKED`, with reason, safe
@@ -140,18 +139,20 @@ This is aggressive pipeline filling, not unbounded spawning. Never exceed WIP,
 quota/capacity, cost approval, or ownership gates; never create overlapping
 writers. Do not optimize for token minimization when current authorized quota is
 available, but avoid redundant prompts/rereads that do not increase accepted
-throughput. Before every material GLM dispatch, refresh approved quota evidence.
-If the five-hour tuple is unavailable, record `QUOTA_UNKNOWN`; do not report
-`RATE_LIMITED` unless exhaustion is actually observed. When exact upstream
-admission itself reports `RATE_LIMITED`, that live admission evidence outranks
-proxy/reseller quota counters. Record the upstream reset evidence, suppress
-repeat GLM admission probes and repeated credential/quota root-cause work until
-the reset unless material evidence changes, and keep the pipeline moving with
-GPT-5.6 Sol on eligible READY implementation/analysis work after terminal GLM
-executions are harvested and ownership is safe to transfer. This fallback does
-not waive independent-review requirements: Sol may not satisfy an independent
-review gate for its own authored mutation. At/after reset, perform one fresh
-quota + exact-admission preflight and refill GLM lanes only if admitted.
+throughput. Before every material GLM dispatch, refresh proxy quota once. A
+valid positive tuple permits the useful request regardless of
+`window_source`; a zero balance is `EXHAUSTED`, while an unusable tuple is
+`UNKNOWN`. Do not pre-probe upstream. If the real GLM request reports
+`RATE_LIMITED` with reset evidence, suppress repeat calls to that exact
+provider/model route until reset unless material evidence changes. Keep the
+pipeline moving under existing ownership/WIP gates and harvest terminal
+executions before any retry. Independent-review requirements remain unchanged.
+
+JEV may only be an advisory at the task-routing seam when the family and route
+are explicitly admitted. It may suggest/rank models only after deterministic
+capability, quota, task-authority, and WIP checks have produced an eligible
+candidate set. The quota PreToolUse hook never calls JEV; current default mode
+is `OFF`, and no dedicated model/executor-selection family is admitted here.
 
 Kilo/Claude Code/ZCode-native slash or goal commands (for example `/goal`,
 `/plan`, `/init`) may be used when the exact installed harness supports them.
