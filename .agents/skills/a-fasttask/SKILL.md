@@ -156,8 +156,17 @@ task, claim, provider, review, merge, completion, or memory authority.
    After deterministic task eligibility, dependency, authorization, claim,
    scope, hotspot, WIP and route-evidence checks, read
    `.agents/skills/a-audit/SKILL.md` and produce exactly one advisory handling
-   class with cited evidence and a safe fallback. A-Audit runs before final
-   executor/workflow selection; select only among routes that remain eligible
+   class with cited evidence and a safe fallback. Scope each recommendation to
+   the exact task/work-order/claim/scope tuple. When one pipeline handles
+   multiple independent eligible tasks, invoke A-Audit separately for each
+   task after that task passes its deterministic eligibility, dependency,
+   authorization, claim, scope, hotspot, WIP and route-evidence checks, and
+   before selecting that task's executor/workflow. Never reuse a parent,
+   aggregate, or sibling recommendation for another task. Any child work item
+   must first be created/authorized/bound by the existing task and claim
+   authorities; if it is not independently READY and bound, retain the existing
+   blocked/unknown fallback and do not select or dispatch it. A-Audit does not
+   create, split, or claim work. Select only among routes that remain eligible
    under the existing capability, quota, provider, cost, claim, scope and WIP
    authorities. JEV is considered only in its accepted mode through its
    admitted provider-neutral seam; A-Audit never makes a direct TypeSafe or

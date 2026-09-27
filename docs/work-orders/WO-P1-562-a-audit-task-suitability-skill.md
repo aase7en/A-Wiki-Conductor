@@ -99,8 +99,11 @@ report that as blocked and retain the fallback without calling JEV.
    uncertainty/failure fallback, and explicit deterministic authority owner.
 3. JEV modes remain advisory and fail closed while OFF/unadmitted; no direct
    TypeSafe/provider calls are authorized.
-4. The A-FastTask call site runs only after task eligibility/claim/scope/WIP
-   gates and before route choice; A-FastTask/A-Faster remain route owners.
+4. A-FastTask invokes A-Audit separately for each already-authorized task after
+   that task's eligibility/claim/scope/WIP gates and before its route choice;
+   parent/aggregate/sibling recommendations are never reused. Any child item
+   must first be bound and made READY by existing authorities. A-FastTask and
+   A-Faster remain route owners.
 5. Offline devices block only routes that depend on them; device availability
    never changes canonical WIP or the set of eligible READY tasks.
 6. Exact diff contains only the three claimed files. Skill frontmatter and
@@ -197,3 +200,11 @@ report that as blocked and retain the fallback without calling JEV.
 - Added that required identity line to this work order within the original three-file claim. The failed candidate is not accepted; the next pushed head requires fresh exact-head CI and independent review.
 - No local automated tests were run. The reviewer attempts produced no findings because both Codex review agents terminated at the account usage limit.
 - Current quota API read returned a non-exhausted tuple but `window_source=stale`; per the accepted runbook proxy quota remains UNKNOWN. Kilo is installed on Mac, but no model request is authorized until quota-source and current exact GLM-5.3 MAX readiness evidence pass.
+
+### Independent exact-SHA review and bounded repair — 2026-09-27
+
+- Read-only R3 review of candidate `b89f0275a9954afba8d493e7bd90197ccc6bf559` found one P2 ambiguity: A-FastTask could appear to apply one audit recommendation across multiple pipeline tasks or decomposed children.
+- The candidate remains unaccepted despite green exact-head CI. The repair stays within the original three-file claim and clarifies that every task is audited independently only after its own existing authorization, READY, claim, scope, hotspot, WIP, and route-evidence gates pass. Parent, aggregate, and sibling recommendations cannot be reused; unbound children are not selected or dispatched.
+- No runtime, hook, provider, task-store, A-Wiki, or SunDayRemoteMCP change is introduced. No tests were added or run.
+- Static validation at 2026-09-27 16:21 UTC: strict UTF-8 and trailing-whitespace checks passed for all three claimed files; the work-order identity has exactly one `Issue: #562` line; per-task routing boundaries passed; the candidate remains exactly the original three-path scope; `git diff --check` passed. No tests were added or run.
+- Next: publish the repaired exact candidate without force, then obtain exact-head CI and a fresh independent R3 review before acceptance.
