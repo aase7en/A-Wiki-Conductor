@@ -235,3 +235,20 @@ report that as blocked and retain the fallback without calling JEV.
   green, but it has no review request/review for that SHA. These policy edits
   create a replacement candidate requiring fresh exact-SHA review and hosted
   checks. No acceptance or merge is claimed.
+
+### GLM review launch lesson — 2026-09-28
+
+- Read-only Kilo/GLM review launch `exec-muk3ylm8-lp5q6o0z` failed with exit 1
+  before inference because its `--file` list included
+  `docs/runbooks/codex-global-cointh-quota-hook.md`, which is owned by WO-P1-564
+  and is not present in this #562 branch. This was a task-packet path error,
+  not a quota or provider failure; no model response or GLM review was produced.
+- The execution was harvested and collected before any retry. The returned
+  runtime repo binding recorded this worktree, branch, and exact candidate
+  `0aabef892031150931b6f63b5e55ceddfce289e5`; however `identityVerified=false`
+  and `bindingDigest=null`, so this failed attempt is not review evidence.
+- For a retry, list only files that exist in the frozen candidate and its
+  read-only repository references; keep `kilo run` prompt as the first
+  positional argument before flags. Treat any launch/path error as a harness
+  failure, harvest/collect it, and recheck quota only before a real new model
+  attempt. Do not claim review or upstream failure from a pre-inference exit.
