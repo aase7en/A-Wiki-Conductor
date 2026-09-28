@@ -25,7 +25,8 @@ whether any recommended route is actually eligible.
 Use facts already established by repository/runtime tools and the active task
 packet:
 
-- exact repo, worktree, branch, HEAD and dirty-state ownership;
+- exact repository, worktree, branch, full HEAD, task, work order, claim, and
+  allowed scope tuple, plus dirty-state ownership;
 - task/work-order, owner/claim, allowed/forbidden paths and dependency state;
 - risk tier, acceptance criteria and deterministic verification available;
 - active global WIP and mutable-hotspot ownership;
@@ -153,6 +154,16 @@ the route/admission prerequisites are not accepted:
 ## Required result
 
 ```yaml
+binding:
+  repository: "owner/repository"
+  worktree: "/absolute/path/to/exact-worktree"
+  branch: "exact-branch-name"
+  head: "full-40-character-commit-sha"
+  task: "exact-existing-task-reference"
+  work_order: "exact-work-order-id"
+  claim: "exact-existing-claim-id-or-reference"
+  scope:
+    - "repo-relative/allowed/path"
 recommendation: KEEP_DETERMINISTIC
 basis: "one sentence tying the class to task evidence"
 evidence:
@@ -170,11 +181,19 @@ deterministic_authority: "existing owner of task, route, mutation, review, and a
 ```
 
 The example value is illustrative; choose the actual class and values from
-evidence. `confidence` is qualitative (`HIGH|MEDIUM|LOW`) with a short basis,
-not a made-up probability. Use the listed sensitivity categories and state the
-basis for sensitivity and semantic brittleness. State material ambiguity/risk
-explicitly. There must be exactly one `recommendation` and one safe
-`fallback`.
+evidence. `binding` is mandatory and must reproduce the exact tuple from the
+authoritative task/claim and repository state; `head` must be the full SHA and
+`scope` must enumerate the task's exact allowed paths. Do not infer or
+normalize missing tuple values. If any value is missing, malformed, stale, or
+different from the task currently being routed, return
+`recommendation: HUMAN_REQUIRED`, name the binding mismatch in
+`ambiguity_risk`/`route_evidence`, and provide a safe fallback; the caller must
+discard the mismatched recommendation and must not use it to select or
+dispatch a route. `confidence` is qualitative (`HIGH|MEDIUM|LOW`) with a short
+basis, not a made-up probability. Use the listed sensitivity categories and
+state the basis for sensitivity and semantic brittleness. State material
+ambiguity/risk explicitly. There must be exactly one `binding`, one
+`recommendation`, and one safe `fallback`.
 
 ## Existing authorities to reuse
 

@@ -108,7 +108,10 @@ report that as blocked and retain the fallback without calling JEV.
    that task's eligibility/claim/scope/WIP gates and before its route choice;
    parent/aggregate/sibling recommendations are never reused. Any child item
    must first be bound and made READY by existing authorities. A-FastTask and
-   A-Faster remain route owners.
+   A-Faster remain route owners. Every result carries the complete
+   repository/worktree/branch/full-HEAD/task/work-order/claim/exact-scope
+   binding tuple from deterministic authorities; a missing or mismatched tuple
+   is `HUMAN_REQUIRED`, is discarded by the caller, and cannot select a route.
 5. Offline devices block only routes that depend on them; device availability
    never changes canonical WIP or the set of eligible READY tasks.
 6. Exact diff contains only the three claimed files. Skill frontmatter and
@@ -376,3 +379,21 @@ report that as blocked and retain the fallback without calling JEV.
   This wording repair creates a new candidate, so rerun static validation,
   publish without force, then require exact-head CI and a new bound
   independent review. No acceptance or merge is claimed.
+
+### Exact-task binding repair — 2026-09-28
+
+- GPT review identified that A-Audit's structured result lacked the exact
+  task-binding tuple even though the routing procedure requires one
+  recommendation per bound task. Added mandatory repository, worktree, branch,
+  full HEAD, task, work-order, claim, and exact-scope fields to the result
+  schema and to A-FastTask's caller contract.
+- Missing, malformed, stale, or mismatched binding now maps to
+  `HUMAN_REQUIRED`; A-FastTask must discard the result and cannot use it to
+  select or dispatch a route. This is within the original three-path claim.
+- The current starting candidate was `0e16b894b5e1ed9d9a1f7b659897322b8701be80`
+  in the claimed clean worktree. This repair creates a new candidate; prior
+  CI/review evidence does not transfer. Exact next action: run the existing
+  static/scope checks, inspect the three-file diff, then publish a replacement
+  candidate and obtain exact-head CI plus a separately bound review when the
+  accepted WIP/review lane permits it. No `CURRENT-WORK.md` or `handoff.md`
+  edit is authorized in this claim.

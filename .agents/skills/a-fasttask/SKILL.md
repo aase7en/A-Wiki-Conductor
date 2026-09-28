@@ -160,8 +160,13 @@ task, claim, provider, review, merge, completion, or memory authority.
    After deterministic task eligibility, dependency, authorization, claim,
    scope, hotspot, WIP and route-evidence checks, read
    `.agents/skills/a-audit/SKILL.md` and produce exactly one advisory handling
-   class with cited evidence and a safe fallback. Scope each recommendation to
-   the exact task/work-order/claim/scope tuple. When one pipeline handles
+   class with cited evidence and a safe fallback. Require its result to carry
+   the complete `repository -> worktree -> branch -> full HEAD -> task ->
+   work order -> claim -> exact scope` binding tuple from deterministic task,
+   claim, and Git authorities. Reject a missing, malformed, stale, or
+   mismatched tuple as `HUMAN_REQUIRED`; discard that recommendation and do
+   not use it to select or dispatch a route. Scope each recommendation to the
+   exact task/work-order/claim/scope tuple. When one pipeline handles
    multiple independent eligible tasks, invoke A-Audit separately for each
    task after that task passes its deterministic eligibility, dependency,
    authorization, claim, scope, hotspot, WIP and route-evidence checks, and
