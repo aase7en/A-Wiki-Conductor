@@ -133,8 +133,8 @@ WIP, permissions, or mutation/review authority.
   inherited `COINTH_GLM_AUTH_TOKEN` binding is present. A fresh secret-safe
   quota GET returned HTTP 200, `remaining_5h=80000000`, `used_5h=0`,
   `is_expired=false`, `window_source=stale`; classification is AVAILABLE.
-  Codex `/hooks` review/trust has not yet occurred, so activation is not
-  claimed.
+  At this checkpoint approval was pending; see the later operator-approved
+  activation record below for the current status.
 - Issue #498's exact worktree still has dirty `CURRENT-WORK.md`, its work order,
   and `handoff.md`; #498 owns the first and last files. This #564 lane must not
   delegate or stop without the repository-required continuity checkpoint. The
@@ -250,9 +250,9 @@ handling.
   explicit GLM selector positive case, prompt-only non-dispatch negative case,
   repository/installed handler byte equality, and `git diff --check`. No
   automated tests were added or run. No provider/model request was made here.
-- The Mac Codex hook configuration is registered but activation is not claimed:
-  the human must inspect and accept it through Codex `/hooks`. The
-  `hooks.state` trust file was not changed.
+- At this checkpoint, user approval/trust had not yet been reported; that
+  historical status was superseded by the operator confirmation below. The
+  hooks.state trust file was not changed by the integrator.
 - Exact next action: review the seven-path diff, commit/push this replacement
   candidate on the existing branch, then obtain exact-head CI and an
   independent R3 review. If a GLM review is selected, make a fresh quota GET
@@ -319,3 +319,19 @@ existing owner after this lane is accepted.
   committed or pushed. Exact-SHA CI, independent R3 review, GPT adjudication,
   and post-main proof remain open; no formal review or acceptance is claimed
   for this pass.
+
+
+## Operator-approved global quota hook — 2026-09-28
+
+- The operator confirmed approval through Codex /hooks and provided a
+  screenshot with both A-Sunday PreToolUse entries enabled. The current
+  user-global /Users/aase7en/.codex/hooks.json also contains the quota guard
+  matcher for Bash, local Sunday dispatch, and SundayMCP Mac dispatch; the
+  installed helper is present. No hook configuration, hooks.state, or trust
+  hash was changed in this checkpoint.
+- A fresh synthetic GLM dispatch event was sent to the installed quota helper
+  before the material dispatch; it returned no deny and exit 0. The helper
+  performs only a fresh quota GET and leaves Codex permission handling intact.
+- This approval means the quota hook is enabled; it does not turn the hook into
+  a model selector, task creator, or scheduler. The GLM-first task-routing
+  policy is recorded separately above.
