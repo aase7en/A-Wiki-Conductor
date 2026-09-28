@@ -23,8 +23,8 @@ Apply it through the [current delivery sequence](../runbooks/cost-first-delivery
 
 | Responsibility | Default route | Boundary |
 |---|---|---|
-| Daily planning, task packets, authority/failure framing, integration, adjudication, continuity, acceptance and authorized merge/release | GPT-5.6 Sol | current claim and risk-tier evidence govern; Sol can implement a bounded hard integration when justified |
-| Bounded implementation, fixtures, targeted tests, mechanical edits, root-cause reproduction and repair batches | GLM-5.3 through an accepted Kilo CLI or Claude Code CLI route | exact scope/result destination; no autonomous merge, policy changes or claim transfer |
+| Daily planning, task packets, authority/failure framing, integration, adjudication, continuity, acceptance and authorized merge/release | GPT-5.6 Sol | supervisor owns these decisions; bounded implementation stays with GLM unless an explicit policy-reserved integrator task or recorded GLM blocker justifies fallback |
+| Bounded implementation, fixtures, targeted tests, mechanical edits, root-cause reproduction and repair batches | GLM-5.3 MAX through an accepted Kilo CLI or Claude Code CLI route (default first executor to try; Flash stays bounded read-only) | exact scope/result destination; no autonomous merge, policy changes or claim transfer |
 | Local semantic navigation and bounded repository tools | SundayWorker / Serena | first-class lightweight route under existing capability/permission rules |
 | Search, Git identity, hashes, validation, tests, builds, CI observation | deterministic/native tools | use no model inference when unnecessary |
 | R2/R3 independent review | qualified independent reviewer, normally a separate Sol or GLM lane when task-fit evidence supports it | never the author's self-review; exact frozen SHA and unchanged assurance requirements |
@@ -55,6 +55,27 @@ and [Issue #317](https://github.com/aase7en/A-Wiki-Conductor/issues/317), includ
 its predecessor, conformance and live-provider gates. This preference does not
 release that adapter for source mutation or live execution. Existing accepted
 ZCode routes remain usable under the same evidence gates; do not duplicate them.
+
+### User routing clarification — 2026-09-28 / WO-P1-564 (Issue #564 comment 5861405985)
+
+Every individual `SAFE_READY` task receives one `GLM_OFFLOAD` assessment after
+the normal task/dependency/claim/exact-scope/WIP/permission gates pass; task
+size or GPT/Luna supervision alone never skips it. GLM-5.3 MAX is the default
+first executor to try for useful bounded reasoning, implementation, repair,
+tests, and eligible independent review whenever task fit and the exact route
+are admitted, while GLM-5.3 Flash stays bounded read-only. GPT/Luna remains
+supervisor for decomposition, trust/authority/architecture, integration, and
+final adjudication/acceptance, and takes implementation back only with a
+recorded GLM blocker. Record `DISPATCHED`, `NOT_BENEFICIAL` with a concrete
+deterministic/no-inference reason, or `BLOCKED` with a typed
+route/claim/WIP/permission reason. No empty prompts, manufactured tasks,
+redundant calls, or quota burning for token consumption alone; use available
+quota productively for real READY work. The Codex PreToolUse registration is a
+quota guard only — it never selects models, creates tasks, or dispatches, and
+is not a second scheduler/model authority; accepted A-Faster
+`FANOUT_TARGET`/`AUTO_REFILL_REQUIRED` markers and the global WIP budget
+remain the capacity authorities. Exact claim, mutation-owner, GLM task scope,
+independent R3 review identity, and GPT acceptance gates are unchanged.
 
 ### Astra escalation and return
 

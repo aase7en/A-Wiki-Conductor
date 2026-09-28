@@ -14,7 +14,7 @@ A-Sunday Conductor repo-specific binding/projection, not a global policy fork.
 | Role | Default route | Boundary |
 |---|---|---|
 | GPT-5.6 Sol (integrator) | planning, task packets, authority/failure framing, integration, adjudication, continuity, acceptance, authorized merge/release | current claim and risk-tier evidence govern; Sol keeps useful non-overlapping work while delegated lanes run |
-| GLM-5.3 via accepted Kilo CLI / Claude Code CLI | bounded implementation, fixtures, targeted tests, mechanical edits, root-cause reproduction, repair batches | exact scope/result destination; no autonomous merge, policy change, or claim transfer |
+| GLM-5.3 MAX via accepted Kilo CLI / Claude Code CLI (default first executor to try; Flash stays bounded read-only) | bounded reasoning, implementation, fixtures, targeted tests, mechanical edits, root-cause reproduction, repair batches, eligible independent review | exact scope/result destination; no autonomous merge, policy change, or claim transfer |
 | SunDay lane executor / transitional Serena (lane-local, optional) | local semantic navigation, bounded repository tools | lane-private execution context only; output is a claim until reconciled with Git/durable evidence |
 | GPT-6 Astra / Codex (exceptional specialist) | narrow decision/review after one recorded Sol escalation | return implementation to Sol/GLM; not a routine worker or mandatory gate |
 | RDC / GitHub / deterministic native tools | filesystem/shell/process evidence, remote truth, exact SHAs, CI, hashes, tests, builds | no mutation or acceptance authority by themselves |
@@ -77,20 +77,28 @@ explicit active-WO WIP override. All normal WIP and `1 MUTABLE HOTSPOT =
 
 ## GLM labor-offload assessment
 
-Every substantial multi-step task records whether useful bounded independent
-labor exists. Preferred current routing order:
+Every individual `SAFE_READY` task records exactly one `GLM_OFFLOAD` assessment
+once the normal task/dependency/claim/exact-scope/WIP/permission gates pass; do
+not skip it merely because the task is small or because GPT/Luna (GPT-5.6 Sol)
+is the supervisor. GPT/Luna remains supervisor for decomposition,
+trust/authority/architecture, integration, and final adjudication/acceptance.
+Preferred current routing order:
 
-1. Kilo CLI + CoinTH GLM-5.3 when the exact executable/provider/model,
-   authorization, permission profile, and fresh positive proxy quota plus all
-   deterministic task gates are eligible. Do not require a separate upstream
+1. Kilo CLI + CoinTH GLM-5.3 MAX is the default first executor to try for
+   useful bounded reasoning, implementation, repair, tests, and eligible
+   independent review whenever task fit and the exact route are admitted
+   (exact executable/provider/model, authorization, permission profile, fresh
+   positive proxy quota, and all deterministic task gates eligible).
+   GLM-5.3 Flash stays bounded read-only. Do not require a separate upstream
    smoke request before useful GLM work.
 2. Claude Code CLI + GLM-5.3 only after the exact route/model/auth/liveness is
    proven on the current runtime.
 3. SunDay lane executors / transitional lane-local Serena for lightweight
    semantic/local repository operations.
 4. deterministic/native tools when model inference is unnecessary.
-5. GPT-5.6 Sol directly when it is the best eligible executor or external
-   routes are blocked.
+5. GPT/Luna (GPT-5.6 Sol) directly only with a recorded GLM blocker, or for
+   work that policy keeps with the supervisor: decomposition,
+   trust/authority/architecture, integration, final adjudication/acceptance.
 6. GPT-6 Astra only for material unresolved architecture/trust ambiguity,
    contradictory high-impact findings, or difficult repeated failures.
 
@@ -122,8 +130,14 @@ another or paid model/provider. See `docs/runbooks/cointh-glm-quota.md`.
 Record one compact disposition:
 `GLM_OFFLOAD = DISPATCHED | NOT_BENEFICIAL | BLOCKED`, with reason, safe
 harness/provider/model/quota-readiness facts, task/claim/scope and result
-destination when material. This record routes work; it does not create a new
-provider/job/task authority.
+destination when material. `NOT_BENEFICIAL` must carry a concrete
+deterministic/no-inference reason and `BLOCKED` a typed
+route/claim/WIP/permission reason; no empty prompts, manufactured tasks,
+redundant calls, or quota burning for token consumption alone — use available
+quota productively for real READY work. This record routes work; it does not
+create a new provider/job/task authority, and it never relaxes exact claim,
+mutation-owner, GLM task scope, independent R3 review identity, or GPT
+acceptance gates.
 
 ### Dispatch-first / harvest-later discipline
 
@@ -153,6 +167,11 @@ are explicitly admitted. It may suggest/rank models only after deterministic
 capability, quota, task-authority, and WIP checks have produced an eligible
 candidate set. The quota PreToolUse hook never calls JEV; current default mode
 is `OFF`, and no dedicated model/executor-selection family is admitted here.
+The Codex PreToolUse quota guard only performs the fresh secret-safe CoinTH GET
+and passes/denies the single matching GLM call; it never selects models,
+creates tasks, or dispatches work, and it is not a second scheduler/model
+authority. Accepted A-Faster `FANOUT_TARGET`/`AUTO_REFILL_REQUIRED` markers
+and the global WIP budget remain the capacity authorities.
 
 Kilo/Claude Code/ZCode-native slash or goal commands (for example `/goal`,
 `/plan`, `/init`) may be used when the exact installed harness supports them.

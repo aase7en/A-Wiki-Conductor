@@ -268,3 +268,54 @@ model call was attempted and the blocked shell command did not execute. This
 reveals a false positive in the #545-owned lifecycle guard. Its files are
 outside this claim and were left unchanged; route that guard repair through its
 existing owner after this lane is accepted.
+
+## Bounded GLM-5.3 MAX policy alignment — 2026-09-28
+
+- Dispatched by the GPT integrator as the bounded GLM-5.3 MAX implementation
+  executor under this existing claim (quota-preflight evidence belongs to the
+  dispatch record). Runtime status/collection for exec-mukj7wjw-emq1qe8f
+  reported claimPresent=false, identityVerified=false, and
+  bindingDigest=null; the model report is therefore not a claim or review
+  receipt. GPT independently rechecked the exact Git worktree/branch/HEAD and
+  changed-file scope; deterministic diff checks govern acceptance. Only the
+  four already-claimed documentation paths
+  changed: `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`,
+  `docs/agent-collab/CAPABILITY_MATRIX.md`,
+  `.agents/skills/a-fasttask/references/conductor.md`, and this work order.
+- Aligned all three policy files with the user-directed acceptance
+  clarification in Issue #564 comment 5861405985: every individual
+  `SAFE_READY` task receives one `GLM_OFFLOAD` assessment after the normal
+  task/dependency/claim/exact-scope/WIP/permission gates — size or GPT/Luna
+  supervision alone never skips it; GLM-5.3 MAX is the default first executor
+  to try for useful bounded reasoning, implementation, repair, tests, and
+  eligible independent review whenever task fit and the exact route are
+  admitted, while GLM-5.3 Flash stays bounded read-only; GPT/Luna remains
+  supervisor for decomposition, trust/authority/architecture, integration,
+  and final adjudication/acceptance, and takes implementation back only with
+  a recorded GLM blocker; dispositions are `DISPATCHED`, `NOT_BENEFICIAL`
+  with a concrete deterministic/no-inference reason, or `BLOCKED` with a
+  typed route/claim/WIP/permission reason, with no empty prompts,
+  manufactured tasks, redundant calls, or quota burning for token consumption
+  alone — available quota is used productively for real READY work.
+- Stated explicitly in all three policy files that the Codex PreToolUse
+  registration is a quota guard only: it never selects models, creates tasks,
+  or dispatches work and is not a second scheduler/model authority; accepted
+  A-Faster `FANOUT_TARGET`/`AUTO_REFILL_REQUIRED` markers and the global WIP
+  budget remain the capacity authorities.
+- Quota semantics are unchanged and remain exactly as accepted in this WO:
+  one fresh secret-safe CoinTH GET immediately before each material GLM
+  request; a complete positive tuple is `AVAILABLE` even when
+  `window_source=stale`; no upstream pre-probe; the real useful request tests
+  the route; only an explicit upstream throttle/reset blocks that exact
+  provider/model route until reset; no secrets printed, persisted, or passed
+  in argv. Exact claim, mutation-owner, GLM task scope, independent R3 review
+  identity, and GPT acceptance gates are not relaxed.
+- Verification for this pass: `git status` shows only the four claimed paths
+  modified; strict UTF-8 decode PASS; no trailing whitespace; `git diff
+  --check` PASS. No hooks, `/Users/aase7en/.codex` files, protected skill
+  files (`.agents/skills/a-fasttask/SKILL.md`,
+  `.agents/skills/a-faster/SKILL.md`), `.codex/hooks`, runtime/source/tests,
+  A-Wiki, SunDayRemoteMCP, or GitHub state were touched; nothing was
+  committed or pushed. Exact-SHA CI, independent R3 review, GPT adjudication,
+  and post-main proof remain open; no formal review or acceptance is claimed
+  for this pass.
