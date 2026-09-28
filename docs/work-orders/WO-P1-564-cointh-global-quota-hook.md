@@ -544,3 +544,19 @@ existing owner after this lane is accepted.
 - Accepted capacity markers remain unchanged:
   `FANOUT_TARGET=0`, `UNUSED_SAFE_CAPACITY=1`,
   `AUTO_REFILL_REQUIRED=false`.
+
+## Candidate publication checkpoint — 2026-09-28
+
+- After the scope addendum's focused suite and static checks passed, the three
+  authorized paths were committed as `b0306635aa21566f2f17658c2096f2df37fe8768`
+  (`fix: detect multiline GLM shell selectors`) and pushed to the existing
+  branch. The push advanced the branch from `b4d71a5` without force; PR #565
+  remains the only target.
+- The PR is still draft and must remain so. The earlier green hosted checks and
+  R3 review are for `b4d71a5` only; both must be refreshed for the final exact
+  candidate after this continuity update. No review acceptance or merge is
+  implied by publishing the repair.
+- Next: finish this checkpoint inside the existing claim, freeze the resulting
+  candidate SHA, then obtain exact-head CI and the separately bound independent
+  R3 review. Preserve the existing WIP markers and keep the installed global
+  hook/config/trust state untouched.
