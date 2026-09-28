@@ -1,7 +1,9 @@
 # Agent Capability / Routing Evidence
 
 This file records routing evidence, not permanent model rankings.
-Re-check current upstream evidence before delegating material work to a named model.
+Before material GLM work, refresh capability/authorization and CoinTH proxy
+quota. Let the real authorized request establish upstream behavior; do not
+require a standalone upstream smoke call.
 
 Apply these routing facts through the compact same-WO record in the
 [Cost-First Delivery Runbook](../runbooks/cost-first-delivery.md); unknown cost or usage
@@ -21,8 +23,8 @@ Apply it through the [current delivery sequence](../runbooks/cost-first-delivery
 
 | Responsibility | Default route | Boundary |
 |---|---|---|
-| Daily planning, task packets, authority/failure framing, integration, adjudication, continuity, acceptance and authorized merge/release | GPT-5.6 Sol | current claim and risk-tier evidence govern; Sol can implement a bounded hard integration when justified |
-| Bounded implementation, fixtures, targeted tests, mechanical edits, root-cause reproduction and repair batches | GLM-5.3 through an accepted Kilo CLI or Claude Code CLI route | exact scope/result destination; no autonomous merge, policy changes or claim transfer |
+| Daily planning, task packets, authority/failure framing, integration, adjudication, continuity, acceptance and authorized merge/release | GPT-5.6 Sol | supervisor owns these decisions; bounded implementation stays with GLM unless an explicit policy-reserved integrator task or recorded GLM blocker justifies fallback |
+| Bounded implementation, fixtures, targeted tests, mechanical edits, root-cause reproduction and repair batches | GLM-5.3 MAX through an accepted Kilo CLI or Claude Code CLI route (default first executor to try; Flash stays bounded read-only) | exact scope/result destination; no autonomous merge, policy changes or claim transfer |
 | Local semantic navigation and bounded repository tools | SundayWorker / Serena | first-class lightweight route under existing capability/permission rules |
 | Search, Git identity, hashes, validation, tests, builds, CI observation | deterministic/native tools | use no model inference when unnecessary |
 | R2/R3 independent review | qualified independent reviewer, normally a separate Sol or GLM lane when task-fit evidence supports it | never the author's self-review; exact frozen SHA and unchanged assurance requirements |
@@ -36,12 +38,44 @@ environment variable alone does not prove GLM-5.3 execution. If unproven, report
 `ROUTE_UNVERIFIED`; use only an explicitly eligible fallback. Do not silently
 substitute a different model or infer free usage.
 
+For the user-authorized CoinTH GLM route, apply the current
+[quota preflight runbook](../runbooks/cointh-glm-quota.md): make one fresh
+no-cache quota GET immediately before each material GLM call. A valid complete
+HTTP 200 tuple with positive `remaining_5h` and no positive expiry flag is
+`AVAILABLE` even when `window_source=stale`; that field is preserved as
+metadata. Do not require a separate upstream smoke before useful work. The
+actual authorized model request establishes route success for that attempt;
+diagnose a specific provider error after it occurs. This manual Kilo/Claude
+route is separate from A-Conductor's automatic provider-dispatch authority and
+does not bypass its task, claim, WIP, or permission gates.
+
 Reuse `JobExecutionBackend` and the existing supervised Claude path. The Kilo
 adapter remains governed by [GE-0008](../adr/GE-0008-conductor-pivot-executor-neutral-control-plane.md)
 and [Issue #317](https://github.com/aase7en/A-Wiki-Conductor/issues/317), including
 its predecessor, conformance and live-provider gates. This preference does not
 release that adapter for source mutation or live execution. Existing accepted
 ZCode routes remain usable under the same evidence gates; do not duplicate them.
+
+### User routing clarification — 2026-09-28 / WO-P1-564 (Issue #564 comment 5861405985)
+
+Every individual `SAFE_READY` task receives one `GLM_OFFLOAD` assessment after
+the normal task/dependency/claim/exact-scope/WIP/permission gates pass; task
+size or GPT/Luna supervision alone never skips it. GLM-5.3 MAX is the default
+first executor to try for useful bounded reasoning, implementation, repair,
+tests, and eligible independent review whenever task fit and the exact route
+are admitted, while GLM-5.3 Flash stays bounded read-only. GPT/Luna remains
+supervisor for decomposition, trust/authority/architecture, integration, and
+final adjudication/acceptance, and takes implementation back only with a
+recorded GLM blocker. Record `DISPATCHED`, `NOT_BENEFICIAL` with a concrete
+deterministic/no-inference reason, or `BLOCKED` with a typed
+route/claim/WIP/permission reason. No empty prompts, manufactured tasks,
+redundant calls, or quota burning for token consumption alone; use available
+quota productively for real READY work. The Codex PreToolUse registration is a
+quota guard only — it never selects models, creates tasks, or dispatches, and
+is not a second scheduler/model authority; accepted A-Faster
+`FANOUT_TARGET`/`AUTO_REFILL_REQUIRED` markers and the global WIP budget
+remain the capacity authorities. Exact claim, mutation-owner, GLM task scope,
+independent R3 review identity, and GPT acceptance gates are unchanged.
 
 ### Astra escalation and return
 
@@ -68,7 +102,7 @@ searches, CI polling, documentation mechanics or every repair back to Astra.
 
 ### Unchanged execution and acceptance gates
 
-For bounded READY repository implementation, the preferred GLM route may run only when current capability, readiness, authorization, admission, policy, ownership and result-destination gates all pass.
+For bounded authorized repository implementation, the preferred GLM route may run only when current model/harness capability, fresh proxy-quota admission, authorization, permission, policy, ownership and result-destination gates pass. A separate upstream READY/smoke assertion is not a precondition for the manual Kilo/CoinTH path; the useful real request supplies the route observation, and an explicit throttle blocks only that exact route until reset.
 
 This is a throughput routing default, not a permanent model ranking and not mutation authority.
 
@@ -130,9 +164,22 @@ Model/provider names remain routing choices, never task semantics. Do not hard-c
 - Installed ZCode 0.16.5 previously reported `builtin:zai-coding-plan` unavailable with `coding_plan_not_entitled`; Start Plan exposed GLM-5.3-Flash rather than full GLM-5.3.
 - WO-P1-115 / PR #155 is merged as `a758f9e882db03e988d67a3f04f69862dd9195c2`; exact-head CI `33312763072` and post-main CI `33313201851` passed. It safely bootstraps provider tables and adds atomic provider-global admission in the existing SQLite provider authority; independent GLM review and repair re-review both found zero P0/P1/P2 defects. Installed-DB-copy E2E preserved all 12 existing tables and did not mutate the live DB.
 - Cross-process admission E2E proves `max_concurrency=1` yields exactly `ADMITTED,CAPACITY_WAIT`; batch-local snapshots are no longer the production-global capacity authority when the SQLite admission store is injected.
+- A separate Mac SundayMCP/KiloCLI review completed against GLM-5.3 MAX on 2026-09-27. This proves that manual route worked for that exact request; it does not establish A-Conductor automatic/headless route readiness.
 - Current Claude CLI configuration still points to an unavailable loopback route, and current router configuration exposes no proven live GLM/CoinTH profile. Earlier GLM-proxy readiness is historical, not current readiness.
 - Official Z.ai quota tooling still exposes `/api/monitor/usage/quota/limit`, but current upstream issue evidence says that endpoint lacks reset time. Because Conductor requires the full five-hour tuple, automatic dispatch remains fail-closed; the one-direction file bridge is the current safe fallback.
 - Model suitability, provider route/readiness, quota evidence, credential resolution and atomic provider admission remain independent authorities.
+
+## TypeSafe-JEV advisory boundary
+
+The JEV-5 admission/rollback implementation is merged, but production JEV still
+defaults to `OFF`; no dedicated model/executor-selection family is currently
+admitted. When a future accepted `ADVISORY` mode covers route suggestions, JEV
+may rank or abstain only within a deterministic shortlist that already passes
+task suitability, exact route/model availability, proxy quota, permission,
+claim, WIP, and scope checks. Deterministic routing selects the final executor.
+JEV never decides quota/readiness, ownership, mutation, review, merge, or
+completion. Keep JEV out of the low-level Codex quota hook; the hook performs
+only the fresh proxy GET and deterministic gate.
 
 ## Current execution-surface evidence — 2026-09-04
 

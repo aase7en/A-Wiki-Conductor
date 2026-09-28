@@ -1,64 +1,70 @@
 # CoinTH GLM quota preflight
 
-Status: OPERATIONAL GUIDANCE / PROXY QUOTA ONLY / UPSTREAM READINESS SEPARATE
-Source date: 2026-09-24
-Related: Issue #337 / PR #538, `WO-P1-243`, `docs/agent-collab/CAPABILITY_MATRIX.md`, WO-P1-113 quota tuple.
+Status: BINDING PROXY-QUOTA PRE-DISPATCH POLICY / UPSTREAM ERRORS ARE POST-REQUEST EVIDENCE
+Related: Issue #564, Issue #337 / PR #538, `WO-P1-243`, `docs/agent-collab/CAPABILITY_MATRIX.md`
 
 ## Purpose and authority boundary
 
-Use CoinTH's quota endpoint as proxy/account quota evidence before material GLM work. It is not upstream Z.AI admission or provider-health evidence. `PROXY_QUOTA_STATE=AVAILABLE` never establishes that the upstream provider is ready.
+Perform one fresh CoinTH quota GET immediately before each material GLM dispatch. A valid positive proxy balance allows the authorized real task to be attempted; it does not prove upstream health or override model capability, user authorization, work-order, claim, WIP, permission, or scope gates. Do not make a separate upstream smoke/readiness call before useful work. Let the actual GLM task establish whether that exact route works, then diagnose a concrete provider failure if one occurs.
 
-Keep these independent states:
+Keep these distinct states:
 
 - `PROXY_QUOTA_STATE = AVAILABLE | EXHAUSTED | UNKNOWN`
 - `UPSTREAM_PROVIDER_READINESS = READY | THROTTLED | UNAVAILABLE | UNKNOWN`
 
-Material GLM dispatch is admitted only when proxy quota is `AVAILABLE` and upstream readiness is `READY`, in addition to existing model, route, authorization, scope, and ownership gates. Either `UNKNOWN` fails closed. Process liveness is not readiness evidence.
+The proxy state is computed from the fresh GET response fields below. `window_source` is retained as response metadata and never vetoes a positive remaining balance. An actual successful GLM request is evidence that the route worked for that request. An explicit provider throttle in the actual response can block only that provider/model route until its stated reset. A proxy response never proves an upstream throttle.
 
-## Canonical secret resolution
+## Credential and request
 
-Canonical key name: `COINTH_GLM_AUTH_TOKEN`.
+Use only the already-bound `COINTH_GLM_AUTH_TOKEN` environment variable. Never search Drive, repository files, `.env`, shell history, logs, keychain, or other disks for credentials. Never print, persist, log, screenshot, commit, or attach the key.
 
-Resolve only this named key through the approved private Project Protocol/environment binding or its existing approved resolver. Never recursively search disks, Drive, repository files, shell history, logs, environment dumps, or unrelated `.env` files. Never print, log, persist, screenshot, commit, or attach the secret value or its source file. If the approved binding/resolver is unavailable, stop with a typed secret-source blocker; do not guess another location or create another secret store.
-
-The historical accepted resolver contract reuses the existing A-Wiki environment resolver boundary (`resolve_awiki_drive_root` + `AWikiDriveEnvironmentSource`) and its private Project Protocol configuration. This runbook does not expose machine-specific locations.
-
-## Proxy quota request
+Request:
 
 ```text
 GET https://cointh.com/glm/api/quota
-Header: x-api-key: <resolved COINTH_GLM_AUTH_TOKEN>
+x-api-key: <COINTH_GLM_AUTH_TOKEN>
+Cache-Control: no-cache
+Pragma: no-cache
 ```
 
-Expected five-hour fields:
+Use verified HTTPS and make exactly one bounded GET immediately before each matching GLM tool call. The global Codex hook sends the secret to system `curl` through `--config -` on stdin; the secret must not appear in curl's argv or hook output. Do not cache a previous result. Missing credential, TLS/transport error, non-200 response, or malformed response is `UNKNOWN`, never `EXHAUSTED`.
 
-- `remaining_5h`
-- `used_5h`
-- `limit_5h`
-- `window_reset_at`
-- `window_reset_in_sec`
+The expected five-hour fields are `remaining_5h`, `used_5h`, `limit_5h`, `window_reset_at`, and `window_reset_in_sec`. The response may also include `is_expired` and `window_source`.
 
-Use the proven PowerShell `Invoke-RestMethod` client with the token held only in memory. An unproven client's HTTP 401/403 is `CLIENT_COMPATIBILITY_UNVERIFIED`; recheck once with the proven client before concluding auth/entitlement failure. HTTP 401/403 is auth/entitlement evidence, never quota exhaustion.
+## Classification
 
-Provider guidance says the quota GET does not consume GLM quota. A 2026-09-16 back-to-back check observed no change in `used_5h` or `remaining_5h`; this is supporting operational evidence, not a billing guarantee.
+| State | Required evidence |
+|---|---|
+| `AVAILABLE` | HTTP 200; complete numeric five-hour tuple; nonnegative, internally consistent counters; `remaining_5h > 0`; and `is_expired` is not true. |
+| `EXHAUSTED` | HTTP 200; complete valid tuple; `remaining_5h == 0`; and no contradictory expiry/counter fields. |
+| `UNKNOWN` | Missing credential; TLS/transport or non-200 error; absent, malformed, incomplete or inconsistent fields; or an expired/contradictory tuple. |
 
-## Evidence classification
+When a successful fresh GET has positive `remaining_5h` and `window_source=stale`, classify the proxy as `AVAILABLE` and preserve `window_source=stale` in the audit evidence. That field describes the source's window metadata; under this policy it is not an exhaustion signal or dispatch veto. Do not report `QUOTA_UNKNOWN`, `EXHAUSTED`, `GLM_ROUTE_BLOCKED`, or upstream throttling from that field alone.
 
-- Valid, current five-hour tuple with positive remaining amount: `PROXY_QUOTA_STATE=AVAILABLE`.
-- Valid, current five-hour tuple at exhaustion: `PROXY_QUOTA_STATE=EXHAUSTED`, with reset evidence.
-- HTTP 401/403: auth/entitlement evidence; proxy quota remains `UNKNOWN` unless independently established.
-- Missing, stale, malformed, or provenance-free tuple; transport error; or unavailable approved secret source: `PROXY_QUOTA_STATE=UNKNOWN`.
+HTTP 401/403 is authentication/entitlement evidence and leaves proxy quota `UNKNOWN`; it is not quota exhaustion. An invalid counter relationship or positive expiry flag also yields `UNKNOWN` rather than guessed capacity.
 
-Upstream readiness must come from bounded live admission/smoke evidence or operator/vendor evidence that records source, observation time, reset/cooldown, and its stated freshness window. Do not silently generalize beyond that window. If freshness is not specified, classify readiness as `UNKNOWN`. Actual Git/runtime evidence remains authoritative for repository, branch, claim, process, and transport facts; operator/vendor readiness reports are bounded runtime evidence only. Keep transport classification separate: while upstream throttling is the known blocker, do not label the route transport-broken.
+## After the real GLM request
 
-## Upstream throttle and reset handling
+Do not issue a separate upstream admission/smoke request before a useful task. Record the real request's outcome:
 
-When `UPSTREAM_PROVIDER_READINESS=THROTTLED`, retain the source, observation time, provider reset/cooldown, and freshness evidence. Stop repeated GLM admission/smoke probes until reset unless material evidence changes. Continue independent safe GPT/Codex work meanwhile.
+- success: the exact route worked for that attempt;
+- explicit upstream 429/rate-limit plus reset evidence: mark only that provider/model route throttled until the stated reset, and do not repeat GLM probes before then unless material evidence changes;
+- auth, transport, model-not-found, or other concrete error: diagnose that observed failure only; do not infer quota exhaustion or loop probes.
 
-At/after the recorded reset, perform exactly one bounded live admission/smoke recheck before refilling GLM lanes. Refresh proxy quota as a separate evidence read. Refill only if proxy quota is `AVAILABLE`, upstream readiness is `READY`, and all existing route/model/authorization/scope/ownership gates pass. If the check remains throttled, retain the new reset evidence and stop further probes until its next reset or material evidence change.
+Harvest and reconcile every terminal delegated result before any retry or replacement. Never replay `RUNNING`, `UNKNOWN`, or terminal-unharvested work. Continue independent eligible work only under the existing claim, WIP, and collision rules.
 
-## Incident example: 2026-09-24
+## Global Codex hook
 
-`PROXY_QUOTA=AVAILABLE` plus `UPSTREAM_PROVIDER_READINESS=THROTTLED` means `GLM_ROUTE_READY=FALSE / UPSTREAM_PROVIDER_THROTTLED`. It does not mean `KILO_TRANSPORT_BROKEN`. Proxy quota availability is not proof of upstream Z.AI admission.
+`docs/runbooks/codex-global-cointh-quota-hook.md` defines the Mac user's Codex-global `PreToolUse` guard. It examines only explicit GLM model requests on its documented tool paths, performs the one GET above, and silently allows an available request to continue through ordinary Codex permissions. `EXHAUSTED` or `UNKNOWN` denies only that matching GLM request. The hook makes no model call, stores no quota state, and grants no task/claim/WIP/mutation/review/merge authority. It only runs for Codex tool calls on this Mac; a command started outside Codex is outside this hook.
 
-Quota and readiness evidence never transfer task ownership, bypass claims/leases, create provider authority, or authorize automatic paid-provider fallback. Do not create a scheduler, task store, claim/lease authority, or additional quota/provider authority as part of this runbook.
+## JEV boundary
+
+The quota hook is deterministic and must not call JEV. Current JEV execution defaults to `OFF`; no dedicated model/executor-selection family is admitted by this runbook. If an accepted `ADVISORY` mode later permits a sanitized route suggestion, JEV may rank only among models already made eligible by deterministic capability, quota, task-authority, and WIP checks. The deterministic router remains authoritative and falls back without JEV.
+
+## Incident lessons — 2026-09-27
+
+- An HTTP 200 with `remaining_5h=80,000,000`, `used_5h=0`, `is_expired=false`, and `window_source=stale` was mistakenly treated as a dispatch veto. Under this corrected rule it is `AVAILABLE`; record the source metadata and attempt useful authorized GLM work.
+- A Kilo CLI attempt placed the prompt after repeated `--file` flags. Kilo interpreted the prompt as a path and exited before inference. Put the prompt immediately after `kilo run`, before `--model`, `--variant`, `--dir`, and `--file` flags; harvest the failed launch and do not call it a provider failure.
+- Windows worker availability is optional capacity for Mac tasks. Never wait for Windows when the Mac Kilo/SundayMCP route and the task's own gates are ready.
+
+No secret, credential path, quota response body, or raw provider payload belongs in this public-safe repository.
