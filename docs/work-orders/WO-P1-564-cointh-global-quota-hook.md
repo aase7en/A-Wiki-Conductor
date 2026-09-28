@@ -335,3 +335,12 @@ existing owner after this lane is accepted.
 - This approval means the quota hook is enabled; it does not turn the hook into
   a model selector, task creator, or scheduler. The GLM-first task-routing
   policy is recorded separately above.
+
+
+## Current PR checkpoint — 2026-09-28
+
+- The operator confirmed Codex `/hooks` approval and supplied screenshots with both A-Sunday PreToolUse entries enabled. The matching quota helper was exercised with a synthetic GLM dispatch event and returned allow/exit 0. The hook is a quota guard only; it does not choose GLM, create work, or schedule calls. The integrator did not change user-global hook configuration, `hooks.state`, or trust hashes.
+- The GLM-first policy alignment was independently diff-checked and is committed/pushed on this existing branch at `4959e1683dbf590bc484665245c75290f6077ec1`. The tracked repository changes remain within the seven-path #564 scope; the latest change only records operator approval and current evidence in this work order.
+- PR #565 is open and draft at that exact SHA. Exact-head CI run `36364631542` is queued; no independent PR review is recorded yet. Merge, GPT acceptance, and post-main proof remain pending. Do not treat the GLM implementation execution as a review receipt: its runtime attestation had `claimPresent=false`, `identity.verified=false`, and no binding digest; the integrator checked the GitHub claim and diff directly.
+- A post-dispatch quota read remained `AVAILABLE`; the samples span other activity and do not attribute the observed counter change to this one execution. No credential or raw response was recorded.
+- Next action: recheck the exact-SHA CI and the available independent R3 review lane, then reconcile findings. Keep the branch frozen for review and do not merge until all acceptance evidence is present.
