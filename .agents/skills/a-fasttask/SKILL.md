@@ -98,98 +98,73 @@ task, claim, provider, review, merge, completion, or memory authority.
 3. CLASSIFY — classify R0/R1/R2/R3 per
    `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`; inventory candidate
    executors per `docs/agent-collab/CAPABILITY_MATRIX.md` and
-   `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; check WIP capacity per
-   `PROJECT-GRAPH.yaml` `rules.default_wip`, counted once across all
-   compatibility-set members (`CROSS_REPO` never multiplies WIP per
-   repository). For every substantial multi-step task, perform
-   `GLM_OFFLOAD_ASSESSMENT` after A-Audit as part of final eligible-route
-   selection. Before each material GLM
-   dispatch, refresh the approved quota evidence. Resolve the CoinTH
-   credential through an approved secret source: environment binding first,
-   then an approved global secret file/resolver when available. The current
-   proven CoinTH secret name is `COINTH_GLM_AUTH_TOKEN`; send its value only as
-   `x-api-key` to `GET https://cointh.com/glm/api/quota`, never print/persist it.
-   Treat that five-hour tuple as proxy/account evidence only:
-   `PROXY_QUOTA_STATE = AVAILABLE | EXHAUSTED | UNKNOWN`. Do not require a
-   separate upstream admission/smoke probe before useful authorized work. A
-   successful fresh HTTP 200 with a complete, valid tuple, `remaining_5h > 0`,
-   and no positive expiry flag is `AVAILABLE`, even when
-   `window_source=stale`; preserve that field as metadata. A complete valid
-   tuple with `remaining_5h == 0` is `EXHAUSTED`; missing credentials,
-   transport/TLS/non-200 errors, malformed or inconsistent fields, and an
-   expired tuple are `UNKNOWN`. Refresh the GET immediately before each
-   material GLM dispatch. The real request then establishes or blocks that
-   exact route: only explicit provider throttle/reset evidence suppresses that
-   provider/model route until reset; diagnose other concrete errors only after
-   they occur, without looping probes. HTTP 401/403 remains
-   auth/entitlement evidence, not quota exhaustion. The current user-directed
-   interpretation is recorded in Issue #564; until its owner
-   reconciles the runbook, that correction supersedes only the legacy
-   stale-window and upstream-READY clauses. This rule does not bypass
-   model/route/claim/scope/authorization/WIP/cost gates or create provider
-   authority.
-   Provider guidance says this quota GET does not consume GLM quota; a 2026-09-16
-   back-to-back live check observed zero change in `used_5h` and `remaining_5h`.
-   Treat that as operational supporting evidence, not a billing guarantee.
-   `QUOTA_UNKNOWN` is not `RATE_LIMITED` and is never treated as unlimited.
-   Legacy `QUOTA_AVAILABLE` here means proxy/account capacity only. When
-   `PROXY_QUOTA_STATE=AVAILABLE`, refresh proxy quota before EACH material GLM
-   dispatch and keep filling eligible independent GLM lanes up to WIP; do not
-   serialize them merely to conserve quota. A separate upstream READY
-   assertion is not a precondition: the useful real request tests that route.
-   Proxy `QUOTA_EXHAUSTED` or `QUOTA_UNKNOWN` blocks only GLM dispatch without
-   blocking independently eligible GPT/Codex lanes. Keep the
-   A-Faster benchmark guidance as candidate-fit evidence for the post-A-Audit
-   selection (GLM-5.3 MAX for R2/R3 implementation and required independent
-   review; GLM-5.3-Flash for bounded read-only assist). Do not rank or select
-   a model before A-Audit; the deterministic selector chooses only from
-   currently eligible routes. A cheaper or faster model never silently
-   satisfies a required independent R3/qualified review, and no model identity
-   grants authority.
-   If the exact upstream GLM admission is observed `RATE_LIMITED`, record the
-   provider-reported reset evidence, set GLM offload blocked for that window,
-   and do not repeat quota/credential root-cause work or live admission probes
-   before the reset unless material evidence changes. Harvest any terminal GLM
-   execution first, then let GPT-5.6 Sol take over eligible READY
-   implementation/analysis work within the verified claim/scope so throughput
-   continues. Independent-review requirements do not transfer to the authoring
-   Sol lane: a separate qualified reviewer is still required where policy says
-   independent review. At/after reset, refresh quota once immediately before
-   the next useful authorized GLM task; let that real request establish whether
-   the exact route has recovered, then refill other eligible GLM lanes up to WIP.
-   After deterministic task eligibility, dependency, authorization, claim,
-   scope, hotspot, WIP and route-evidence checks, read
-   `.agents/skills/a-audit/SKILL.md` and produce exactly one advisory handling
-   class with cited evidence and a safe fallback. Require its result to carry
-   the complete `repository -> worktree -> branch -> full HEAD -> task ->
-   work order -> claim -> exact scope` binding tuple from deterministic task,
-   claim, and Git authorities. Reject a missing, malformed, stale, or
-   mismatched tuple as `HUMAN_REQUIRED`; discard that recommendation and do
-   not use it to select or dispatch a route. Scope each recommendation to the
-   exact task/work-order/claim/scope tuple. When one pipeline handles
-   multiple independent eligible tasks, invoke A-Audit separately for each
-   task after that task passes its deterministic eligibility, dependency,
-   authorization, claim, scope, hotspot, WIP and route-evidence checks, and
-   before selecting that task's executor/workflow. Never reuse a parent,
-   aggregate, or sibling recommendation for another task. Any child work item
-   must first be created/authorized/bound by the existing task and claim
-   authorities; if it is not independently READY and bound, retain the existing
-   blocked/unknown fallback and do not select or dispatch it. A-Audit does not
-   create, split, or claim work. Select only among routes that remain eligible
-   under the existing capability, quota, provider, cost, claim, scope and WIP
-   authorities. JEV is considered only in its accepted mode through its
-   admitted provider-neutral seam; A-Audit never makes a direct TypeSafe or
-   other provider call and never dispatches work.
-   Keep quota provenance separate from device liveness:
-   `window_source=stale` is retained as CoinTH response metadata and does not
-   change a complete valid positive fresh GET from `PROXY_QUOTA_STATE=AVAILABLE`;
-   it does not prove exhaustion, upstream throttling, or that Windows is
-   offline. Reconcile a stale device pulse
-   against that exact lane's runtime/session/Git/claim evidence. A missing or
-   offline Windows surface blocks only work that requires it; independently
-   eligible Mac-local Kilo/Claude/Codex routes may proceed after their own
-   exact harness/model/authorization/quota checks. Device availability
-   never multiplies the project-wide WIP budget.
+   `docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`; check global WIP once
+   across all repositories in a compatibility set. Device count never
+   multiplies that budget.
+
+   For each individual `SAFE_READY` R2/R3 task, only after its task, dependency,
+   authorization, claim, exact-scope, hotspot, WIP, permission and provider
+   eligibility gates pass, read `.agents/skills/a-audit/SKILL.md` and produce
+   exactly one task-bound recommendation. Then perform exactly one
+   `GLM_OFFLOAD_ASSESSMENT` for that task before route selection. Record
+   `DISPATCHED`, `NOT_BENEFICIAL` with a concrete reason, or `BLOCKED` with a
+   typed reason. Never reuse a result across parent, sibling or child tasks;
+   each child must first be independently authorized, bound and `SAFE_READY`.
+   A-Audit does not create, split, claim, dispatch or accept work.
+
+   Select only among routes that remain eligible under existing capability,
+   quota, provider, cost, claim, scope, permission and WIP authorities. Try
+   GLM-5.3 MAX first for useful bounded R2/R3 implementation, repair and
+   qualified independent review; GLM-5.3-Flash is bounded read-only assist.
+   Keep the benchmark guidance as candidate-fit evidence, not authority. Do
+   not rank or select a model before A-Audit. GPT/Luna retains supervision,
+   architecture/trust decisions, integration, final adjudication and merge;
+   no model identity grants authority. A separate qualified reviewer is still
+   required wherever policy requires independent review.
+
+   The existing deterministic pre-dispatch guard owns CoinTH request
+   mechanics and classification; use
+   `docs/runbooks/cointh-glm-quota.md` for request/secret mechanics and the
+   current operator interpretation in Issue #564 for quota-state semantics.
+   Until the runbook owner reconciles it, Issue #564's correction supersedes
+   only the runbook's legacy stale-window and upstream-READY clauses. Resolve
+   credentials only through the approved secret source,
+   send them only as `x-api-key`, and never print or persist them. Make one
+   fresh quota GET immediately before each actual material GLM invocation.
+   The guard result is proxy/account evidence, not model selection or route
+   authorization. A complete valid positive tuple is `AVAILABLE` even when
+   `window_source=stale`; a valid zero balance is `EXHAUSTED`; malformed,
+   inconsistent, expired, transport/TLS, credential or non-200 results are
+   `UNKNOWN`. Do not add a separate upstream smoke probe before useful work;
+   the useful real request tests the exact route. Only explicit provider
+   throttle/reset evidence blocks that provider/model route until reset; do
+   not repeat quota/root-cause probes before reset absent material evidence.
+   HTTP 401/403 is auth/entitlement evidence, not quota exhaustion. Unknown or
+   exhausted GLM blocks only that route; continue independently eligible work.
+   A quota GET's observed token-counter behavior is not a billing guarantee.
+
+   A-Audit results must reproduce the exact topology and repository bindings
+   from deterministic task/claim/Git authorities. For `CONTROL_PLANE_ONLY`,
+   require only `AUTHORITY_REPO`; for `EXECUTION_SUBSTRATE_ONLY`, only
+   `EXECUTION_REPO`; for `CROSS_REPO`, require exactly both roles and the
+   exact `{AUTHORITY_REPO@SHA_AUTH, EXECUTION_REPO@SHA_EXEC}` compatibility
+   set. Each repository entry binds its exact worktree, branch, full HEAD and
+   scope; a missing, extra, stale or mismatched member makes the result
+   `HUMAN_REQUIRED`. The task, work order and claim must also match exactly.
+   The recommendation must be exactly one non-empty class from A-Audit's
+   nine-value enum; missing, empty, multiple or out-of-enum values are
+   malformed. Discard malformed or mismatched results as `HUMAN_REQUIRED`;
+   never use them to select or dispatch a route. A-FastTask/A-Faster remain
+   the route owners. JEV is considered only in its currently accepted mode
+   through the admitted provider-neutral seam; A-Audit never makes a direct
+   TypeSafe or other provider call.
+
+   Keep quota provenance separate from device liveness. A stale
+   `window_source` does not prove exhaustion, provider throttling or Windows
+   unavailability. Reconcile a stale device pulse against that lane's runtime,
+   session, Git, claim and replay evidence. An offline Windows surface blocks
+   only work that requires it; independently eligible routes on another
+   verified surface remain available subject to their own gates.
 4. PIPELINE FILL — decompose independent READY work, then use the existing
    claim/lease + execution authorities to dispatch every eligible bounded GLM
    lane up to the current WIP/provider-capacity limits. Sol also assigns

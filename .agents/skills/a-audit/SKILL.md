@@ -25,8 +25,9 @@ whether any recommended route is actually eligible.
 Use facts already established by repository/runtime tools and the active task
 packet:
 
-- exact repository, worktree, branch, full HEAD, task, work order, claim, and
-  allowed scope tuple, plus dirty-state ownership;
+- exact task topology and repository binding(s), including each repo's
+  worktree, branch, full HEAD and allowed scope, plus the task, work order,
+  claim and dirty-state ownership;
 - task/work-order, owner/claim, allowed/forbidden paths and dependency state;
 - risk tier, acceptance criteria and deterministic verification available;
 - active global WIP and mutable-hotspot ownership;
@@ -69,33 +70,20 @@ recommendation as a route admission.
 
 | Evidence | Meaning | What it does not mean |
 |---|---|---|
-| Fresh CoinTH GET has a complete valid tuple, `remaining_5h > 0`, and `is_expired` is absent or false | `PROXY_QUOTA_STATE=AVAILABLE`; `window_source=stale` is metadata and does not change this result | It does not prove upstream success, but the useful real request may test that route |
-| Fresh CoinTH GET has a complete valid tuple and `remaining_5h == 0` | `PROXY_QUOTA_STATE=EXHAUSTED` | It does not prove upstream throttling or device unavailability |
-| CoinTH GET is missing, malformed, inconsistent, expired, non-200, or has transport/TLS/credential failure | `PROXY_QUOTA_STATE=UNKNOWN` | It does not prove exhaustion or upstream throttling |
-| Positive proxy quota without an actual request result | It establishes proxy capacity only; deterministic route/model/claim/scope/WIP/authorization gates still apply | It does not prove that the upstream model request will succeed |
-| A useful GLM request returns explicit provider throttle/reset evidence | Block only that provider/model route until the stated reset unless material evidence changes | It does not block independently eligible Codex/native/other-device work |
+| Existing pre-dispatch guard supplies a structured quota result | Preserve its typed proxy state as one input to the recommendation | It does not select a model, establish a task claim, or authorize dispatch |
+| An actual GLM request returns explicit provider throttle/reset evidence | Mark only that provider/model route blocked until the reported reset under A-FastTask | It does not block independently eligible routes |
 | A device pulse is stale or its session/process state is unknown | Reconcile that exact lane's process/session, result, Git state, claim and replay safety | It does not mark every device or every project lane unavailable |
 | A device is actually offline/unreachable | That device contributes zero current capacity | It does not block work on another ready device or create extra WIP there |
 
-For material GLM work, the existing deterministic pre-dispatch guard owns the
-quota check. It uses `GET https://cointh.com/glm/api/quota` with the approved
-`COINTH_GLM_AUTH_TOKEN` sent only as `x-api-key`; never expose or store the
-credential. Make one fresh GET immediately before each material GLM dispatch.
-The user-directed current interpretation is recorded in Issue #564: a complete
-valid positive five-hour tuple is proxy
-`AVAILABLE`, including when `window_source=stale`; a complete valid
-zero-balance tuple is `EXHAUSTED`; missing, malformed, inconsistent, expired,
-transport/TLS, or non-200 evidence is `UNKNOWN`. That policy correction
-supersedes the legacy stale-window and upstream-READY clauses in
-`docs/runbooks/cointh-glm-quota.md` until its owner reconciles the runbook.
-Use the runbook for request mechanics and secret handling during that bounded
-reconciliation. Do not make an upstream smoke/readiness call before useful
-work. The real GLM request tests its route; if it returns explicit provider
-throttle/reset evidence, block only that provider/model route until reset.
-Existing route/model/cost/authorization/claim/scope/WIP gates still apply.
-A-Audit does not perform the request or replace the deterministic guard. An
-`UNKNOWN` or `EXHAUSTED` quota blocks only GLM; continue safe work through
-other already eligible routes.
+The deterministic A-FastTask pre-dispatch guard owns CoinTH quota request
+mechanics and classification; see its policy projection, the quota runbook,
+and the current operator interpretation in Issue #564. A-Audit may consume an
+already-observed structured guard result, but it never performs or repeats a
+quota GET, an upstream probe, or a provider request. Missing current route
+evidence remains `UNKNOWN`; `route_status` is advisory and never authorizes a
+dispatch. The existing guard runs at the actual GLM invocation. An explicit
+provider throttle/reset result affects only that provider/model route; other
+eligible routes remain available.
 
 ## Recommendation classes
 
@@ -135,6 +123,18 @@ the route/admission prerequisites are not accepted:
   freshness evidence escalates to the recorded deterministic/frontier fallback;
   do not retry unless a later accepted adapter contract explicitly permits it.
 
+### Route-status semantics
+
+`route_status` describes only a semantic/provider route explicitly considered
+by the recommendation; it is not task readiness or dispatch authorization.
+Use `ELIGIBLE` only when current deterministic evidence says that named route is
+available for consideration, `BLOCKED` for a known route/mode blocker,
+`UNKNOWN` when evidence required to classify a considered route is missing, and
+`NOT_REQUIRED` when the recommendation does not name a semantic/provider
+route. Non-JEV classes use `NOT_REQUIRED` unless they explicitly consider such
+a route. A-FastTask still performs all final route, quota, permission, claim,
+scope and WIP checks.
+
 ## Selection procedure
 
 1. Summarize the task in one sentence from its authorized packet.
@@ -155,15 +155,18 @@ the route/admission prerequisites are not accepted:
 
 ```yaml
 binding:
-  repository: "owner/repository"
-  worktree: "/absolute/path/to/exact-worktree"
-  branch: "exact-branch-name"
-  head: "full-40-character-commit-sha"
+  topology: CONTROL_PLANE_ONLY # CONTROL_PLANE_ONLY | EXECUTION_SUBSTRATE_ONLY | CROSS_REPO
+  repositories:
+    AUTHORITY_REPO:
+      repository: "owner/authority-repository"
+      worktree: "/absolute/path/to/exact-authority-worktree"
+      branch: "exact-authority-branch"
+      head: "full-40-character-authority-sha"
+      scope:
+        - "authority-repo/relative/allowed/path"
   task: "exact-existing-task-reference"
   work_order: "exact-work-order-id"
   claim: "exact-existing-claim-id-or-reference"
-  scope:
-    - "repo-relative/allowed/path"
 recommendation: KEEP_DETERMINISTIC
 basis: "one sentence tying the class to task evidence"
 evidence:
@@ -180,16 +183,25 @@ fallback: "deterministic or frontier path that is already authorized"
 deterministic_authority: "existing owner of task, route, mutation, review, and acceptance"
 ```
 
-The example value is illustrative; choose the actual class and values from
-evidence. `binding` is mandatory and must reproduce the exact tuple from the
-authoritative task/claim and repository state; `head` must be the full SHA and
-`scope` must enumerate the task's exact allowed paths. Do not infer or
-normalize missing tuple values. If any value is missing, malformed, stale, or
-different from the task currently being routed, return
+The example is a single-repository binding. `binding` is mandatory and must
+reproduce the topology and repository member set from the authoritative task,
+claim and repository state. For `CONTROL_PLANE_ONLY`, `repositories` has only
+`AUTHORITY_REPO`; for `EXECUTION_SUBSTRATE_ONLY`, it has only
+`EXECUTION_REPO`; for `CROSS_REPO`, it has exactly both role keys. Each member
+must carry its exact repository, worktree, branch, full HEAD and declared
+scope. For `CROSS_REPO`, those two exact SHAs must match the frozen
+`{AUTHORITY_REPO@SHA_AUTH, EXECUTION_REPO@SHA_EXEC}` compatibility set; drift
+in either member invalidates the whole binding. No role may be missing,
+duplicated, substituted or added. `task`, `work_order` and `claim` must also
+match exactly. Do not infer, flatten or normalize missing tuple values. If any
+value is missing, malformed, stale, or different from the task currently being routed, return
 `recommendation: HUMAN_REQUIRED`, name the binding mismatch in
 `ambiguity_risk`/`route_evidence`, and provide a safe fallback; the caller must
 discard the mismatched recommendation and must not use it to select or
-dispatch a route. `confidence` is qualitative (`HIGH|MEDIUM|LOW`) with a short
+dispatch a route. The recommendation must be exactly one non-empty value from
+the nine-class enum above; any missing, empty, multiple or out-of-enum value is
+malformed and the caller must discard it as `HUMAN_REQUIRED`. `confidence` is
+qualitative (`HIGH|MEDIUM|LOW`) with a short
 basis, not a made-up probability. Use the listed sensitivity categories and
 state the basis for sensitivity and semantic brittleness. State material
 ambiguity/risk explicitly. There must be exactly one `binding`, one

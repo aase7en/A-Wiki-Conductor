@@ -33,16 +33,22 @@ the existing deterministic owners.
   provider-neutral seam and admitted route. The current A-Faster reference
   says its effective executable mode is OFF until those prerequisites are
   accepted. A-Audit must not improvise a direct TypeSafe call.
-- Before each material GLM dispatch, use one fresh GET to
-  `https://cointh.com/glm/api/quota` with the approved token as `x-api-key`;
-  never log the credential. A complete valid positive tuple is
-  `PROXY_QUOTA_STATE=AVAILABLE`, even when `window_source=stale`; a complete
-  valid zero-balance tuple is `EXHAUSTED`; malformed, inconsistent, expired,
-  non-200, credential, or transport/TLS failures are `UNKNOWN`. Do not require
-  a separate upstream smoke/readiness call before useful authorized work: the
-  actual request tests that route, and an explicit provider throttle/reset
-  blocks only that provider/model route. Existing route, cost, authorization,
-  claim, scope, WIP, and other gates remain binding.
+- The deterministic A-FastTask pre-dispatch guard owns CoinTH quota request
+  mechanics and classification; follow its policy projection, the quota
+  runbook for request/secret mechanics, and the current operator interpretation
+  in Issue #564 for quota-state semantics. Until the runbook owner reconciles
+  it, Issue #564's correction supersedes only the runbook's legacy stale-window
+  and upstream-READY clauses. A-Audit may consume an already-observed
+  structured quota result, but it never performs or
+  repeats a quota GET, upstream probe, or provider request. Make one fresh
+  quota GET immediately before an actual material GLM invocation. A complete
+  valid positive tuple is `PROXY_QUOTA_STATE=AVAILABLE` even when
+  `window_source=stale`; a valid zero-balance tuple is `EXHAUSTED`; malformed,
+  inconsistent, expired, non-200, credential, or transport/TLS failures are
+  `UNKNOWN`. Do not add a separate upstream smoke/readiness call before useful
+  work; the real request tests its route, and an explicit provider throttle/
+  reset blocks only that provider/model route. Existing route, cost,
+  authorization, claim, scope, WIP, and other gates remain binding.
 - Device/harness availability affects only routes that require that surface.
   An offline Windows surface is zero current capacity and must not block an
   independent authorized Mac route. Device count never multiplies the current
@@ -100,8 +106,9 @@ report that as blocked and retain the fallback without calling JEV.
 
 1. The skill returns exactly one class from the list above and cites concrete
    evidence for it.
-2. Every class has inclusion/exclusion guidance, required evidence, a typed
-   uncertainty/failure fallback, and explicit deterministic authority owner.
+2. Each class has inclusion/exclusion guidance. Every returned result carries
+   the required evidence, typed uncertainty/failure fallback, and explicit
+   deterministic authority owner.
 3. JEV modes remain advisory and fail closed while OFF/unadmitted; no direct
    TypeSafe/provider calls are authorized.
 4. A-FastTask invokes A-Audit separately for each already-authorized task after
@@ -109,15 +116,28 @@ report that as blocked and retain the fallback without calling JEV.
    parent/aggregate/sibling recommendations are never reused. Any child item
    must first be bound and made READY by existing authorities. A-FastTask and
    A-Faster remain route owners. Every result carries the complete
-   repository/worktree/branch/full-HEAD/task/work-order/claim/exact-scope
-   binding tuple from deterministic authorities; a missing or mismatched tuple
-   is `HUMAN_REQUIRED`, is discarded by the caller, and cannot select a route.
+   topology and repository/worktree/branch/full-HEAD/scope member set from
+   deterministic authorities. `CONTROL_PLANE_ONLY` binds exactly
+   `AUTHORITY_REPO`; `EXECUTION_SUBSTRATE_ONLY` binds exactly
+   `EXECUTION_REPO`; `CROSS_REPO` binds exactly both roles and the frozen
+   `{AUTHORITY_REPO@SHA_AUTH, EXECUTION_REPO@SHA_EXEC}` compatibility set.
+   Any missing, extra, partial, stale, or mismatched member, or a missing or
+   mismatched task/work-order/claim, is `HUMAN_REQUIRED`; the caller discards
+   the result and cannot select a route. Empty, multiple, or out-of-enum
+   recommendations are also discarded as `HUMAN_REQUIRED`.
 5. Offline devices block only routes that depend on them; device availability
    never changes canonical WIP or the set of eligible READY tasks.
 6. Exact diff contains only the three claimed files. Skill frontmatter and
    structure pass the repository's skill validator; UTF-8, `git diff --check`,
    recommendation coverage, authority boundaries, and exact-scope checks pass.
-7. Freeze one exact candidate SHA. Obtain the required independent exact-SHA
+7. Reconcile the quota projections in both `.agents/skills/a-audit/SKILL.md`
+   and `.agents/skills/a-fasttask/SKILL.md` against the operator interpretation
+   in Issue #564 and `docs/runbooks/cointh-glm-quota.md`. Keep one normative
+   A-FastTask guard rule: it owns the fresh GET immediately before each actual
+   material GLM request; A-Audit may consume the structured result but never
+   makes a GET, upstream probe, or provider request. Do not edit Issue #564's
+   or the runbook owner's paths in this claim.
+8. Freeze one exact candidate SHA. Obtain the required independent exact-SHA
    review and exact-head hosted CI before acceptance/merge.
 
 ## Execution and evidence
@@ -397,3 +417,42 @@ report that as blocked and retain the fallback without calling JEV.
   candidate and obtain exact-head CI plus a separately bound review when the
   accepted WIP/review lane permits it. No `CURRENT-WORK.md` or `handoff.md`
   edit is authorized in this claim.
+
+### Independent GLM-5.3 MAX review and bounded repair — 2026-09-28
+
+- RECOVER found 171 durable executions: 114 `COMPLETED`, 16 `FAILED`, and 41
+  `CANCELLED`, with no `RUNNING` or `UNKNOWN` execution. Review execution
+  `exec-wo562r3-a483619c6dcb` / attempt `attempt-0002-a483619c6dcb` is terminal
+  `COMPLETED`, verified exit 0, and harvested. Its verified reviewer identity
+  is bound to exact candidate `0caed0d3b4416c8dce6780cc06a7736f446b6500`
+  with `identityVerified=true` and binding digest
+  `7268806a37dd90585ae66b3c1ca5fbaa1d9919d922a69a1585551ee8618632e7`.
+- The existing R3 review slot was reserved by Issue #562 comment `5857173556`
+  and rebound to that exact candidate in comment `5864188398`. Exact-head CI
+  run `36360762350` was recorded `SUCCESS`; the candidate remains unaccepted.
+  The advisory GLM verdict, checkpointed in comment `5864375817`, is
+  `CHANGES_REQUIRED`: one blocking P2 for `CROSS_REPO` role/SHA binding and
+  six P3 notes covering guard ownership of quota GET, repeated quota wording,
+  acceptance wording, invalid enum handling, non-JEV `route_status`, and the
+  explicit Issue #564/runbook reconciliation checklist.
+- Repaired only the original three claimed paths. A-Audit and its caller now
+  bind topology-specific repository roles; `CROSS_REPO` requires the exact
+  authority/execution SHA pair and fails closed on any missing, extra,
+  partial, stale, or mismatched member. Invalid recommendations fail closed;
+  non-JEV route status is defined. Quota request mechanics are assigned to the
+  existing deterministic pre-dispatch guard, with A-Audit consuming only an
+  already-observed structured result. Acceptance criteria now distinguish
+  class guidance from per-result evidence and name the Issue #564/runbook
+  reconciliation check without touching their owned files.
+- Recovery/collision check confirms the author worktree is still on branch
+  `codex/wo-p1-562-a-audit-suitability` at starting candidate
+  `0caed0d3b4416c8dce6780cc06a7736f446b6500`, with only the two skill files
+  modified before this work-order checkpoint; the third path remains within
+  the existing claim. Issue #562 remains open and the original three-path
+  author claim remains active. The accepted utilization markers remain
+  `FANOUT_TARGET=0`, `UNUSED_SAFE_CAPACITY=1`,
+  `AUTO_REFILL_REQUIRED=false`; no WIP slot or auto-refill was added.
+- New candidate verification, commit/push, exact-head CI, and a fresh
+  independently bound review are still required. No acceptance or merge is
+  claimed; do not modify `CURRENT-WORK.md`, `handoff.md`, A-Wiki, or other
+  lanes' owned paths.
