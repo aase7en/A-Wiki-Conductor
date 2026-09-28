@@ -344,3 +344,203 @@ existing owner after this lane is accepted.
 - At that checkpoint, PR #565 was open/draft at SHA `4959e1683dbf590bc484665245c75290f6077ec1`, and exact-head CI run `36364631542` was queued. This is a historical snapshot: the subsequent WO-only follow-up advances the PR head. Re-fetch the live PR and CI before acting. No independent PR review had been recorded at that checkpoint. Merge, GPT acceptance, and post-main proof remained pending. Do not treat the GLM implementation execution as a review receipt: its runtime attestation had `claimPresent=false`, `identity.verified=false`, and no binding digest; the integrator checked the GitHub claim and diff directly.
 - A post-dispatch quota read remained `AVAILABLE`; the samples span other activity and do not attribute the observed counter change to this one execution. No credential or raw response was recorded.
 - Next action: recheck the exact-SHA CI and the available independent R3 review lane, then reconcile findings. Keep the branch frozen for review and do not merge until all acceptance evidence is present.
+
+
+## Exact-SHA GLM review and bounded matcher repair — 2026-09-28
+
+- Recovery/reconciliation found only terminal WO-P1-564 reviews before the
+  retry. The reserved retry `exec-wo564r3-c4e918a2d703` / attempt
+  `attempt-0002-c4e918a2d703` completed, was harvested, and was collected at
+  `b4d71a55957809c72fd577f7198262d5091fcb5f`, with verified reviewer identity
+  and binding digest
+  `52b17d5162e816cbc08e5cc708e64263cceaca0d0e185600f959d776ea9a7a0a`. Output
+  digest: `4fcaf9ef2dc11200bb379364e6c670c06eb43546dd9b449424f556f613c6f33c`.
+  It returned `PASS WITH FINDINGS` (0 P0/P1, 1 P2, 6 P3). Kilo output showed
+  `ask · glm-5.3` and a 23,126-byte review. The evidence bundle does not contain
+  pre/post quota counters, so no exact quota delta is claimed.
+- The executor used read-only `wc`, `git`, and `grep` commands despite the
+  no-shell prompt; its initial hash command was denied. It made no edits, ran
+  no tests, and made no GitHub or provider calls. Preserve that deviation in
+  the review record; it does not invalidate the inspected code findings, but
+  this is not final acceptance or review of a future candidate.
+- GPT independently adjudicates P2-1 as blocking current acceptance:
+  newline-separated shell commands containing an explicit GLM selector can be
+  parsed as one segment and miss the required fresh quota GET. This contradicts
+  the binding one-GET-before-each-eligible-GLM contract even though the helper
+  is documented as an incomplete backstop. The issue review reservation is
+  closed and its read-only slot released; the same #564 author claim is
+  unblocked for a bounded repair.
+- Next task under the existing claim: GLM-5.3 MAX first executor, change only
+  `scripts/codex_hooks/cointh_quota_pretool.py` so explicit GLM selectors in
+  separate newline-delimited shell commands are detected, while quoted prompt
+  text and non-dispatch mentions remain non-matches. Preserve the exact
+  one-GET quota semantics, provider classification, secret handling, normal
+  permission flow, and all claim/authority boundaries. Do not edit protected
+  #562/#549/#545 paths, local installed hooks/config, tests, or any other file.
+  No commit, push, final review, or merge is authorized by this checkpoint.
+- After the bounded result, GPT inspects every diff and a non-test syntax/diff
+  check. Any changed candidate needs a new exact-SHA R3 review and fresh CI
+  evidence before acceptance; do not reuse the review of the old SHA. Keep the
+  accepted WIP markers unchanged: `FANOUT_TARGET=0`,
+  `UNUSED_SAFE_CAPACITY=1`, `AUTO_REFILL_REQUIRED=false`.
+- Planned durable author execution for this one-file continuation:
+  `exec-wo564fix-67a9d11c951b` / `attempt-0001-67a9d11c951b`, same #564
+  worktree/branch at dispatch HEAD `b4d71a55957809c72fd577f7198262d5091fcb5f`,
+  scope `scripts/codex_hooks/cointh_quota_pretool.py`, model
+  `cointh-glm/glm-5.3` MAX, binding digest
+  `949a85635259b0f4221b0d24793a296b54403be709be2f13439252862261c028`.
+  Dispatch only after a fresh quota-hook admission and another recovery check;
+  if it denies or the ID already exists, stop and reconcile rather than retry.
+
+## Harvested repair result — 2026-09-28
+
+- The reserved execution above completed with verified exit code 0 and was
+  harvested/collected: `exec-wo564fix-67a9d11c951b`, attempt
+  `attempt-0001-67a9d11c951b`. Collection reports
+  `identityVerified=true`, binding digest
+  `949a85635259b0f4221b0d24793a296b54403be709be2f13439252862261c028`,
+  execution HEAD `b4d71a55957809c72fd577f7198262d5091fcb5f`, and output digest
+  `6b55e3b4a497f35c691ce3b21286bed6bfe2aad78d86f6d48595f3fd3dc2823f`.
+  Kilo output identified `code · glm-5.3`; quota counters were not included,
+  so this records model use, not an attributed token/quota delta.
+- The source change remains within the one-file execution scope. It splits
+  unquoted command separators and newlines while retaining quoted multiline
+  text, and skips recognized here-document bodies so command-like examples in
+  documentation are not treated as executable GLM calls. The existing model
+  selector and quota-state paths remain unchanged.
+- The author worktree is still on branch
+  `codex/wo-p1-564-cointh-quota-hook`, HEAD
+  `b4d71a55957809c72fd577f7198262d5091fcb5f`. Current tracked changes are the
+  claimed hook and this work-order checkpoint only; no untracked paths were
+  reported. `git diff --check` and in-memory Python syntax compilation pass.
+  No tests were run because the current claim explicitly excludes tests.
+- Re-fetching `gh pr diff 565` produced the same frozen old-review artifact:
+  81,682 bytes, SHA-256
+  `732d6d18f6b116dd07a9b1e491f634fdc2589e1dd0a1ac2c977d8c4f8a6d50b2`.
+  Kilo's collected repair transcript says `code · glm-5.3`; the durable task
+  binding requested MAX, but the transcript does not independently echo an
+  effort/variant value, so that exact setting is not claimed as observed.
+- The earlier exact-SHA review applies only to the frozen old candidate; its
+  frozen diff hash was independently reproduced from current GitHub PR #565.
+  This repaired working diff has no new PR head, CI, or independent R3 review.
+  Do not treat the repair or static checks as acceptance. The prior checkpoint's
+  publication/review/merge restrictions remain in force pending an authorized
+  continuation and any needed test-scope addendum.
+
+### GPT recovery and static review — 2026-09-28
+
+- Recovered the latest execution through the durable SundayMCP endpoint after
+  the Mac alias returned `Session terminated`. The generic endpoint confirms
+  `exec-wo564fix-67a9d11c951b` is `COMPLETED`, harvested, and already
+  collected; `identityVerified=true`, exit code 0, binding digest
+  `949a85635259b0f4221b0d24793a296b54403be709be2f13439252862261c028`, and
+  output digest `6b55e3b4a497f35c691ce3b21286bed6bfe2aad78d86f6d48595f3fd3dc2823f`.
+  Its Kilo banner is `code · glm-5.3`. The Mac lane list is empty. No exact
+  pre/post CoinTH counters were collected, so no token delta is attributed.
+- GPT rechecked the candidate: only the already-claimed hook source and this
+  work order are modified; HEAD remains
+  `b4d71a55957809c72fd577f7198262d5091fcb5f`; Python AST parsing and
+  `git diff --check` pass. No tests, commit, push, CI, or global-hook write was
+  performed. The repository hook and installed user-global copy are currently
+  not byte-identical because this working repair has not been installed.
+- The candidate parser covers direct supported CLI selectors, unquoted
+  separators/newlines, quoted multi-line prompts, and recognized heredocs. Its
+  output explicitly leaves nested shell substitutions/backticks, some
+  delimiter forms, and CRLF heredoc termination approximate; the hook is not a
+  complete shell interpreter. These limitations need disposition in the new
+  exact-SHA R3 review. The previous review does not cover this working diff.
+- Clarification for future routing: even when enabled, this PreToolUse hook
+  only makes one fresh quota admission decision for an already-selected GLM
+  request. It does not select GLM, create a task, or dispatch one. GLM-first
+  task selection remains a supervisor/router responsibility; do not describe
+  quota-hook success as automatic GLM use. This run is evidence of an actual
+  GLM-5.3 execution, while quota consumption remains unquantified.
+- Next safe action: obtain a new independent exact-candidate R3 review and
+  reconcile its findings under the existing claim. Keep the installed helper,
+  hook registration, hooks.state, and trust hashes unchanged until that review
+  and the required activation gates are satisfied. No acceptance or merge is
+  claimed.
+
+## Continuation scope addendum and focused test task — 2026-09-28
+
+- Issue #564 scope addendum `5865895184` extends the same author claim by the
+  single path `tests/test_cointh_quota_pretool.py`. It authorizes offline
+  focused tests for newline-separated selectors, quoted multiline prompts,
+  recognized heredocs, and preserved separator/env-wrapped selector behavior.
+  It also authorizes a same-branch candidate commit/push after tests pass,
+  exact-head CI, a new independent exact-SHA R3 review, GPT integrator
+  adjudication, expected-head merge after all gates, post-main verification,
+  and normal issue close/release. It creates no task/owner/worktree/WIP lane.
+- Collision evidence: no candidate file or dirty path in all 70 registered
+  worktrees; GitHub code search returned zero file matches, and open Issue/PR
+  searches found no candidate. Keep accepted markers unchanged:
+  `FANOUT_TARGET=0`, `UNUSED_SAFE_CAPACITY=1`,
+  `AUTO_REFILL_REQUIRED=false`.
+- The hook repair execution and harvest are terminal; no writer is active in
+  this worktree. Current binding remains repo `aase7en/A-Wiki-Conductor`,
+  worktree `/Users/aase7en/.codex/worktrees/cointh-quota-preflight/A-Wiki-Conductor-codex-supervisor`,
+  branch `codex/wo-p1-564-cointh-quota-hook`, HEAD
+  `b4d71a55957809c72fd577f7198262d5091fcb5f`. The test lane may mutate only
+  the newly authorized test file and may read the existing hook source.
+- GLM_OFFLOAD assessment for this focused R3 task: `ELIGIBLE` — bounded tests
+  directly guard provider-admission behavior; exact issue addendum, path
+  collision, same-lane WIP, and branch identity are confirmed. The immediately
+  preceding real GLM-5.3 repair returned a patch at 2026-09-28 07:53:12 UTC,
+  providing fresh exact-route success evidence; the approved Codex PreToolUse
+  hook remains responsible for its single fresh CoinTH quota check before the
+  next request. No separate quota smoke request or credential read is needed.
+- Required next action: dispatch one durable Kilo child for GLM-5.3 MAX to
+  implement only `tests/test_cointh_quota_pretool.py`, then harvest it and run
+  that focused file plus the non-test scope/static/secret checks. No direct
+  Kilo call, network request, user-global hook/config/trust edit, or other
+  mutable path is authorized.
+
+## Integrator shell-comment finding and bound repair — 2026-09-28
+
+- Recovered and harvested test execution exec-mukyr4ps-tbb020dy / attempt-mukyr4z0-5vqayujm, exit 0, then collected it. Its runtime receipt has identityVerified=false, claimPresent=false, and no binding digest; treat its GLM narrative as advisory, not formal task evidence. The authorized test file exists in the exact #564 author worktree and was independently verified below.
+- Integrator reran PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests/test_cointh_quota_pretool.py -p no:cacheprovider -q: 22 passed, 0 failed. Python AST parsing and git diff --check also pass; scope remains the existing hook, WO checkpoint, and the single newly claimed test file.
+- A bounded reproduction found another false positive: kilo run "task" # example: --model glm-5.3 currently returns true, even though the selector is only shell-comment text. This violates #564's explicit parsed-request boundary and could trigger the guard for a non-GLM invocation.
+- Follow-up remains under the existing Issue #564 claim comment 5857716760, with exact mutation scope limited to scripts/codex_hooks/cointh_quota_pretool.py and tests/test_cointh_quota_pretool.py; no additional issue, owner, worktree, or WIP lane. The test must ensure a shell comment after a command is ignored while a real later newline-separated GLM command remains detected.
+- GLM_OFFLOAD assessment for this bounded parser repair: ELIGIBLE for GLM-5.3 MAX. The approved PreToolUse hook supplies one fresh proxy-quota check immediately before the useful request; the real task request is the upstream observation, with no separate smoke probe. JEV is JEV_MODE_OFF; no advisory request is necessary for this deterministic parser case.
+- Bound child identity: task WO-P1-564; claim reference Issue #564 comment 5857716760; repository aase7en/A-Wiki-Conductor; worktree /Users/aase7en/.codex/worktrees/cointh-quota-preflight/A-Wiki-Conductor-codex-supervisor; branch codex/wo-p1-564-cointh-quota-hook; dispatch HEAD b4d71a55957809c72fd577f7198262d5091fcb5f; model cointh-glm/glm-5.3 MAX; harness kilo-code-cli; device Aase7ens-MacBook-Pro.local; host darwin.
+- Reserved execution/attempt: exec-wo564fix-eab4bdbd3abe / attempt-0002-eab4bdbd3abe. Binding digest: 8a83d8a01bc2b82284fa2027015ea0aeaca8f2422324d8bb40b37c9352fb12cd; canonical worktree digest: 1a760c7e52db4d6031f8a80fac022adf5540897d04748c46e72769c703418b82. Its writable scope excludes this work-order file.
+- Accepted A-Faster markers stay unchanged: FANOUT_TARGET=0, UNUSED_SAFE_CAPACITY=1, AUTO_REFILL_REQUIRED=false. After child completion, harvest/collect, inspect only its two-path scope, independently rerun the focused suite and static checks, then continue the already-authorized candidate/CI/R3 review pipeline.
+
+## Comment-aware matcher repair verified — 2026-09-28
+
+- Recovered durable execution history before continuing: 178 executions total;
+  no RUNNING/UNKNOWN work. All five current WO-P1-564 executions are terminal
+  and harvested; the two bounded repair runs completed and the one obsolete
+  review attempt is cancelled. No duplicate work was started.
+- The latest exact candidate remains PR #565 at
+  `b4d71a55957809c72fd577f7198262d5091fcb5f` on base
+  `0f0a5f17b33e82516e39ff00f482887728810e87`; its hosted test and Ubuntu/macOS
+  smoke checks pass. It remains open/draft with no GitHub review decision.
+  The author branch remote still equals the local HEAD.
+- The exact #564 addendum `5865895184` authorizes the offline test path
+  `tests/test_cointh_quota_pretool.py`, focused verification, and same-branch
+  commit/push after checks pass. Only the claimed hook, this work-order file,
+  and that single added test file are changed; ignored pre-existing
+  `scripts/codex_hooks/__pycache__/` is preserved.
+- The second bound GLM repair `exec-wo564fix-eab4bdbd3abe` / attempt
+  `attempt-0002-eab4bdbd3abe` completed, was harvested and collected with
+  `identityVerified=true`, binding digest
+  `8a83d8a01bc2b82284fa2027015ea0aeaca8f2422324d8bb40b37c9352fb12cd`,
+  and output digest
+  `fc03275103c4f5b15250f91732e24fe4fc451917eef0e7569d7145559f1926ae`.
+  It added shell-comment-aware segment handling and four targeted cases; the
+  output does not establish an exact quota delta. JEV remains OFF for this
+  deterministic parser repair.
+- Integrator verification on the current author worktree:
+  `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tests/test_cointh_quota_pretool.py -p no:cacheprovider -q`
+  reports 26 passed; `git diff --check` and AST parsing of the hook and test
+  file pass. The changed-path allowlist matches the claim plus addendum.
+- The earlier review P2 about newline-separated commands and the reproduced
+  shell-comment false positive are both covered by the current matcher/tests.
+  Do not reuse review evidence for SHA `b4d71a5`; the new candidate still needs
+  exact-head hosted CI and an independent exact-SHA R3 review before GPT
+  acceptance/merge. The user-authorized same-branch commit/push gate is now
+  satisfied; retain draft status pending those gates.
+- Accepted capacity markers remain unchanged:
+  `FANOUT_TARGET=0`, `UNUSED_SAFE_CAPACITY=1`,
+  `AUTO_REFILL_REQUIRED=false`.

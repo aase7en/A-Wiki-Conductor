@@ -136,24 +136,136 @@ def _argv_tokens_have_cli_model_selector(tokens: list[str]) -> bool:
     return _argv_has_cli_model_selector(tokens, [])
 
 
-def _shell_command_has_cli_model_selector(command: str) -> bool:
-    """Parse simple shell command segments without treating prompt text as a CLI."""
-    try:
-        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
-        lexer.whitespace_split = True
-        lexer.commenters = ""
-        tokens = list(lexer)
-    except ValueError:
-        return False
+def _read_heredoc_delimiter(command: str, index: int) -> tuple[str | None, int]:
+    """Read one heredoc delimiter word, honoring a single quoting level."""
+    length = len(command)
+    if index >= length:
+        return None, index
+    quote = command[index]
+    if quote in {"'", '"'}:
+        end = command.find(quote, index + 1)
+        if end == -1:
+            return None, index
+        return command[index + 1 : end], end + 1
+    end = index
+    while end < length and command[end] not in " \t\r\n;&|":
+        end += 1
+    if end == index:
+        return None, index
+    return command[index:end], end
 
-    segment: list[str] = []
-    for token in [*tokens, ";"]:
-        if token and all(char in ";&|" for char in token):
-            if _argv_has_cli_model_selector(segment, []):
-                return True
-            segment = []
-        else:
-            segment.append(token)
+
+def _skip_heredoc_body(command: str, index: int, delimiter: str, strip_tabs: bool) -> int:
+    """Skip raw heredoc body lines through the terminating delimiter line."""
+    length = len(command)
+    while index < length:
+        line_end = command.find("\n", index)
+        if line_end == -1:
+            return length
+        line = command[index:line_end]
+        if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+            return line_end + 1
+        index = line_end + 1
+    return index
+
+
+def _split_shell_command_segments(command: str) -> list[str]:
+    """Split on unquoted separators and newlines; quoted text stays whole."""
+    segments: list[str] = []
+    current: list[str] = []
+    pending: list[tuple[str, bool]] = []
+    index = 0
+    length = len(command)
+
+    def flush() -> None:
+        segments.append("".join(current))
+        current.clear()
+
+    while index < length:
+        char = command[index]
+        if char in ";&|\n":
+            flush()
+            index += 1
+            if char == "\n" and pending:
+                for delimiter, strip_tabs in pending:
+                    index = _skip_heredoc_body(command, index, delimiter, strip_tabs)
+                pending.clear()
+            continue
+        if char == "\\":
+            current.append(char)
+            if index + 1 < length:
+                current.append(command[index + 1])
+                index += 2
+            else:
+                index += 1
+            continue
+        if char == "'":
+            end = command.find("'", index + 1)
+            if end == -1:
+                current.append(command[index:])
+                index = length
+            else:
+                current.append(command[index : end + 1])
+                index = end + 1
+            continue
+        if char == '"':
+            end = index + 1
+            while end < length and command[end] != '"':
+                if command[end] == "\\" and end + 1 < length:
+                    end += 2
+                else:
+                    end += 1
+            if end < length:
+                current.append(command[index : end + 1])
+                index = end + 1
+            else:
+                current.append(command[index:])
+                index = length
+            continue
+        if char == "<" and command.startswith("<<", index):
+            if index + 2 < length and command[index + 2] == "<":
+                current.append(command[index : index + 3])
+                index += 3
+                continue
+            index += 2
+            strip_tabs = index < length and command[index] == "-"
+            if strip_tabs:
+                index += 1
+            while index < length and command[index] in " \t":
+                index += 1
+            delimiter, index = _read_heredoc_delimiter(command, index)
+            if delimiter is None:
+                current.append("<<")
+                continue
+            pending.append((delimiter, strip_tabs))
+            current.append("<<")
+            current.append(delimiter)
+            continue
+        if char == "#" and (not current or current[-1] in " \t"):
+            # Unquoted word-start '#' opens a shell comment through end of
+            # line; quoted or mid-word '#' stays literal text.
+            newline = command.find("\n", index)
+            index = length if newline == -1 else newline
+            continue
+        current.append(char)
+        index += 1
+
+    segments.append("".join(current))
+    return segments
+
+
+def _shell_command_has_cli_model_selector(command: str) -> bool:
+    """Parse command segments without treating quoted prompt text as a CLI."""
+    for segment in _split_shell_command_segments(command):
+        try:
+            lexer = shlex.shlex(segment, posix=True, punctuation_chars=";&|")
+            lexer.whitespace_split = True
+            lexer.commenters = ""
+            tokens = list(lexer)
+        except ValueError:
+            continue
+        if _argv_has_cli_model_selector(tokens, []):
+            return True
     return False
 
 
