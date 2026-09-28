@@ -4,6 +4,8 @@ A-Wiki Conductor is the project/repository name. **A-Sunday Conductor** is the p
 
 **Important/secret files live in the private Drive layer** `L:\My Drive\A-Wiki-Data` (junction `drive/` from A-Wiki): Tunnel IDs → `secrets/a-conductor-tunnels.md`, connector-deletion zip backups → `backups/a-conductor-instances/` (the app writes there automatically when the folder exists). Read that layer's `AGENTS.md` + `LAYOUT.md` before touching it; never copy secrets into this repo.
 
+**macOS SundayMCP recovery:** if the ChatGPT `SundayMCP Mac` connector is unavailable after a Mac restart, read `docs/runbooks/sundaymcp-mac-restart.md` before trying alternate transports. `npm run device:start` is the separate Desktop Commander remote-device path, not the OpenAI Secure MCP Tunnel runtime used by that connector.
+
 Before any non-trivial work, every ChatGPT session, GPT Work/Codex task, A-Worker, Serena/SunDay Worker session, ZCode/GLM goal, local model, or external coding agent must use the same startup path:
 
 1. `00-AGENT-ENTRY.md` - universal front door and role split.
