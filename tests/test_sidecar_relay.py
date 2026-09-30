@@ -809,9 +809,12 @@ class TestStructuralContract:
 
     def test_module_source_hygiene(self) -> None:
         raw = MODULE_SOURCE_PATH.read_bytes()
-        raw.decode("utf-8", errors="strict")
-        assert b"\r" not in raw
-        assert raw.endswith(b"\n")
-        text = raw.decode("utf-8")
+        # `core.autocrlf` working trees carry CRLF while the stored blob is LF,
+        # so line endings are normalized to the blob form before asserting.
+        canonical = raw.replace(b"\r\n", b"\n")
+        canonical.decode("utf-8", errors="strict")
+        assert b"\r" not in canonical
+        assert canonical.endswith(b"\n")
+        text = canonical.decode("utf-8")
         for line in text.splitlines():
             assert line == line.rstrip(), repr(line)
