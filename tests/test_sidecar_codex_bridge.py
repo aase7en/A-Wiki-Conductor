@@ -43,6 +43,17 @@ Repair round (independent review exec-muo0bmr3-cic312cp) adds:
 25. ``DELIVERY_UNKNOWN`` preserves the already-observed thread id;
 26. expanded structural forbidden-call set (eval/exec/compile/
     ``__import__``/popen and other command/network/storage forms).
+
+P2 repair round (integrator CHANGES_REQUIRED exec-muo0bmr3 follow-up)
+adds:
+
+27. untrusted returned-VALUE taxonomy — user-defined mapping/``str``
+    subclass code in transport-returned objects (overridden ``get`` /
+    ``__eq__`` / ``__iter__``, hostile keys included) never executes
+    after the trusted transport-call wrapper and never mints bridge
+    codes: hostile observe returns are ``BRIDGE_SURFACE_OFFLINE``
+    (unsafe plain identity text stays ``BRIDGE_AMBIGUOUS_TARGET``),
+    hostile submit returns are ``DELIVERY_UNKNOWN``.
 """
 
 from __future__ import annotations
@@ -178,6 +189,45 @@ class FakeTransport:
     @property
     def submit_calls(self) -> int:
         return sum(1 for kind, _ in self.calls if kind == "submit")
+
+
+class _RawReturnTransport:
+    """Transport seam that returns caller-supplied objects unmodified.
+
+    Unlike :class:`FakeTransport` this performs no ``dict()`` copy, so
+    a test can hand the bridge the exact hostile object shape the
+    untrusted transport is alleged to return.
+    """
+
+    def __init__(self, observe: object = None, submit: object = None) -> None:
+        self._observe = observe if observe is not None else dict(_HEALTHY_OBSERVATION)
+        self._submit = submit
+        self.calls: list[tuple[str, dict]] = []
+
+    def __call__(self, kind: str, payload: dict) -> object:
+        self.calls.append((kind, dict(payload)))
+        if kind == "observe":
+            return self._observe
+        if kind == "submit":
+            return self._submit
+        raise AssertionError("unexpected transport kind")
+
+    @property
+    def observe_calls(self) -> int:
+        return sum(1 for kind, _ in self.calls if kind == "observe")
+
+    @property
+    def submit_calls(self) -> int:
+        return sum(1 for kind, _ in self.calls if kind == "submit")
+
+
+_HEALTHY_OBSERVATION = {
+    "reachable": True,
+    "target_resolved": True,
+    "active_writer": False,
+    "steerable": True,
+    "thread_id": "codex-thread-7",
+}
 
 
 def _facts(**overrides: object) -> object:
@@ -697,6 +747,145 @@ class TestUntrustedTransportTaxonomy:
             _project([_envelope()], transport=transport)
         assert _code(excinfo) == "BRIDGE_ACTIVE_WRITER"
         assert transport.submit_calls == 0
+
+
+class TestUntrustedReturnValueTaxonomy:
+    """Transport-RETURNED values cannot execute code or mint taxonomy.
+
+    The seam wrapper normalizes errors raised DURING the transport
+    call, but classification used to invoke methods on the returned
+    objects themselves (``get`` on mapping subclasses, ``__eq__`` /
+    ``__iter__`` on ``str`` subclasses, key ``__eq__`` during lookups),
+    letting untrusted code forge bridge-owned failure codes after the
+    trusted wrapper. Every test here asserts both the bridge-owned
+    normalized code and that the hostile override never executed.
+    """
+
+    def test_mapping_subclass_get_cannot_forge_observe_taxonomy(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        class ForgedGetObservation(dict):
+            def get(self, key, default=None):
+                self.touched = True
+                raise scb.BridgeFailureError("BRIDGE_ACTIVE_WRITER")
+
+        hostile = ForgedGetObservation()
+        hostile.touched = False
+        transport = _RawReturnTransport(observe=hostile)
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([_envelope()], transport=transport)
+        assert _code(excinfo) == "BRIDGE_SURFACE_OFFLINE"
+        assert hostile.touched is False
+        assert transport.submit_calls == 0
+
+    def test_mapping_subclass_get_cannot_forge_submit_taxonomy(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        class ForgedGetResponse(dict):
+            def get(self, key, default=None):
+                if key == "delivery":
+                    self.touched = True
+                    raise scb.BridgeFailureError("BRIDGE_ACTIVE_WRITER")
+                return dict.get(self, key, default)
+
+        hostile = ForgedGetResponse()
+        hostile.touched = False
+        transport = _RawReturnTransport(submit=hostile)
+        outcome = _project([_envelope()], transport=transport)
+        assert outcome is not None
+        assert outcome.delivery == "DELIVERY_UNKNOWN"
+        assert outcome.observed_thread_id == "codex-thread-7"
+        assert transport.submit_calls == 1
+        assert hostile.touched is False
+
+    def test_hostile_thread_text_cannot_forge_observe_taxonomy(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        class EvilIterStr(str):
+            executed = False
+
+            def __iter__(self):
+                type(self).executed = True
+                raise scb.BridgeFailureError("BRIDGE_NOT_STEERABLE")
+
+        observation = {
+            "reachable": True,
+            "target_resolved": True,
+            "active_writer": False,
+            "steerable": True,
+            "thread_id": EvilIterStr("codex-thread-7"),
+        }
+        transport = _RawReturnTransport(observe=observation)
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([_envelope()], transport=transport)
+        assert _code(excinfo) == "BRIDGE_AMBIGUOUS_TARGET"
+        assert EvilIterStr.executed is False
+        assert transport.submit_calls == 0
+
+    def test_hostile_delivery_text_cannot_forge_submit_taxonomy(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        class EvilEqStr(str):
+            executed = False
+
+            def __eq__(self, other):
+                type(self).executed = True
+                raise scb.BridgeFailureError("BRIDGE_ACTIVE_WRITER")
+
+            __hash__ = str.__hash__
+
+        response = {
+            "delivery": EvilEqStr("DELIVERED"),
+            "thread_id": "codex-thread-7",
+            "queue_ref": "queue-0001",
+        }
+        transport = _RawReturnTransport(submit=response)
+        outcome = _project([_envelope()], transport=transport)
+        assert outcome is not None
+        assert outcome.delivery == "DELIVERY_UNKNOWN"
+        assert EvilEqStr.executed is False
+        assert transport.submit_calls == 1
+
+    def test_hostile_mapping_key_cannot_forge_observe_taxonomy(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        class EvilEqKey(str):
+            executed = False
+
+            def __eq__(self, other):
+                type(self).executed = True
+                raise scb.BridgeFailureError("BRIDGE_NOT_STEERABLE")
+
+            __hash__ = str.__hash__
+
+        observation = {
+            EvilEqKey("reachable"): True,
+            "target_resolved": True,
+            "active_writer": False,
+            "steerable": True,
+            "thread_id": "codex-thread-7",
+        }
+        transport = _RawReturnTransport(observe=observation)
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([_envelope()], transport=transport)
+        assert _code(excinfo) == "BRIDGE_SURFACE_OFFLINE"
+        assert EvilEqKey.executed is False
+        assert transport.submit_calls == 0
+
+    def test_plain_non_text_thread_id_stays_ambiguous(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        observation = {
+            "reachable": True,
+            "target_resolved": True,
+            "active_writer": False,
+            "steerable": True,
+            "thread_id": 7,
+        }
+        transport = _RawReturnTransport(observe=observation)
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([_envelope()], transport=transport)
+        assert _code(excinfo) == "BRIDGE_AMBIGUOUS_TARGET"
 
 
 class TestDuplicateProjection:

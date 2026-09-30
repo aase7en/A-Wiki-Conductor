@@ -82,25 +82,36 @@ values) and default to fail-closed: no projection, no receipt.
 
 Transport seam contract (caller-injected, treated as untrusted I/O):
 
+- returned values are untrusted I/O as well: no user-defined mapping
+  or text subclass code (overridden ``get`` / ``__eq__`` /
+  ``__iter__``, hostile keys included) may execute after the trusted
+  transport-call wrapper. Returned objects are normalized to plain
+  data before classification — only an exact plain ``dict`` carrying
+  exact plain-``str`` keys classifies, and only exact plain-``str``
+  values are treated as text — so untrusted shapes can never choose
+  bridge taxonomy; every bridge code below is minted by the bridge
+  over validated plain data only;
 - ``transport("observe", {"target_hint": ..., "original_event_id":
   ...})`` must return a mapping with boolean ``reachable``,
   ``target_resolved``, ``active_writer``, ``steerable`` and optional
   safe-text ``thread_id``. Runtime state classifies before identity
-  text: unreachable/garbage observations (and every error raised by
-  the transport call itself, forged :class:`BridgeFailureError`
-  included — the transport is untrusted and cannot pick bridge
-  taxonomy) map to ``BRIDGE_SURFACE_OFFLINE``; an unresolved target
-  maps to ``BRIDGE_AMBIGUOUS_TARGET``; an active writer refuses
-  projection; a non-steerable target blocks it; only then is the
-  observed thread-id text validated (unsafe text is
-  ``BRIDGE_AMBIGUOUS_TARGET``). Classification failures raised by the
-  bridge outside the transport call keep their own codes;
+  text: unreachable/garbage/hostile observations (and every error
+  raised by the transport call itself, forged
+  :class:`BridgeFailureError` included — the transport is untrusted
+  and cannot pick bridge taxonomy) map to ``BRIDGE_SURFACE_OFFLINE``;
+  an unresolved target maps to ``BRIDGE_AMBIGUOUS_TARGET``; an active
+  writer refuses projection; a non-steerable target blocks it; only
+  then is the observed thread-id text validated (unsafe or non-plain
+  text is ``BRIDGE_AMBIGUOUS_TARGET``). Classification failures
+  raised by the bridge outside the transport call keep their own
+  codes;
 - ``transport("submit", <pointer-only payload mapping>)`` must return
   a mapping with ``delivery`` in {"DELIVERED", "REJECTED"} plus
   optional safe-text ``thread_id`` / ``queue_ref``. Anything else —
-  exceptions included, forged errors included — classifies as
-  ``DELIVERY_UNKNOWN`` (preserving the thread id already observed
-  read-only) and the module performs no further submission.
+  exceptions included, forged errors included, hostile shapes
+  included — classifies as ``DELIVERY_UNKNOWN`` (preserving the
+  thread id already observed read-only) and the module performs no
+  further submission.
 
 Cross-device rules: WORKTREE/path values are opaque device-tagged
 evidence. They are compared as exact text only, never resolved,
@@ -224,7 +235,7 @@ class ProjectionOutcome:
 
 
 def _is_safe_text(value: object) -> bool:
-    if not isinstance(value, str) or not value:
+    if type(value) is not str or not value:
         return False
     for character in value:
         if unicodedata.category(character) in _UNSAFE_CATEGORIES:
@@ -479,6 +490,44 @@ def build_steer_projection(candidate: sr.RelayEnvelope) -> SteerProjection:
     )
 
 
+class _UntrustedShapeError(Exception):
+    """Internal: a transport-returned value is not plain validated data.
+
+    Raised only by the returned-value normalization boundary and never
+    part of the public failure taxonomy: callers normalize it to the
+    seam's bridge-owned fail-closed code (``BRIDGE_SURFACE_OFFLINE``
+    on observe, ``DELIVERY_UNKNOWN`` on submit).
+    """
+
+
+_OBSERVATION_FIELDS = frozenset(
+    {"reachable", "target_resolved", "active_writer", "steerable", "thread_id"}
+)
+_SUBMIT_FIELDS = frozenset({"delivery", "thread_id", "queue_ref"})
+
+
+def _untrusted_fields(mapping: object, names: frozenset) -> dict:
+    """Extract whitelisted fields from one untrusted transport return.
+
+    Executes no user-defined mapping/text subclass code: only an exact
+    plain ``dict`` is accepted (a mapping subclass can override any
+    lookup), the underlying table is walked once via C-level iteration
+    (no keyed lookups, so hostile keys never run ``__eq__``), and only
+    exact plain-``str`` keys are recognized. Values are returned as
+    plain references for caller-side exact-type validation.
+    """
+    if type(mapping) is not dict:
+        raise _UntrustedShapeError
+    fields: dict[str, object] = {}
+    try:
+        for key, value in mapping.items():
+            if type(key) is str and key in names:
+                fields[key] = value
+    except Exception:
+        raise _UntrustedShapeError from None
+    return fields
+
+
 def _identity_text(mapping: dict, key: str) -> str | None:
     value = mapping.get(key)
     if value is None:
@@ -491,44 +540,57 @@ def _identity_text(mapping: dict, key: str) -> str | None:
 def _classify_observation(observation: object) -> str | None:
     """Classify one read-only connector observation.
 
-    Unreachable or malformed observations are ``BRIDGE_SURFACE_OFFLINE``;
-    an unresolved target is ``BRIDGE_AMBIGUOUS_TARGET``; an active
-    writer refuses projection; a non-steerable target blocks it; only
-    after runtime state classifies cleanly is the observed identity
-    text validated, so unsafe thread-id text cannot mask the writer
-    or steerable blocker the observation actually reported (unsafe
-    identity text is ``BRIDGE_AMBIGUOUS_TARGET``). Returns the
-    observed thread id when projection may proceed.
+    The returned object is untrusted I/O and is normalized to plain
+    data first: any hostile or malformed mapping shape (a mapping
+    subclass whose overridden lookups must never execute, a non-dict,
+    or a table that cannot be walked safely) is
+    ``BRIDGE_SURFACE_OFFLINE``. Over the validated plain snapshot, an
+    unresolved target is ``BRIDGE_AMBIGUOUS_TARGET``; an active writer
+    refuses projection; a non-steerable target blocks it; only after
+    runtime state classifies cleanly is the observed identity text
+    validated (exact plain safe text only; unsafe or non-plain text is
+    ``BRIDGE_AMBIGUOUS_TARGET``), so unsafe thread-id text cannot mask
+    the writer or steerable blocker the observation actually reported.
+    Returns the observed thread id when projection may proceed.
     """
-    if not isinstance(observation, dict):
+    try:
+        fields = _untrusted_fields(observation, _OBSERVATION_FIELDS)
+    except _UntrustedShapeError:
+        raise BridgeFailureError("BRIDGE_SURFACE_OFFLINE") from None
+    if fields.get("reachable") is not True:
         raise BridgeFailureError("BRIDGE_SURFACE_OFFLINE")
-    if observation.get("reachable") is not True:
-        raise BridgeFailureError("BRIDGE_SURFACE_OFFLINE")
-    if observation.get("target_resolved") is not True:
+    if fields.get("target_resolved") is not True:
         raise BridgeFailureError("BRIDGE_AMBIGUOUS_TARGET")
-    if observation.get("active_writer") is True:
+    if fields.get("active_writer") is True:
         raise BridgeFailureError("BRIDGE_ACTIVE_WRITER")
-    if observation.get("steerable") is not True:
+    if fields.get("steerable") is not True:
         raise BridgeFailureError("BRIDGE_NOT_STEERABLE")
-    return _identity_text(observation, "thread_id")
+    return _identity_text(fields, "thread_id")
 
 
 def _submit_delivery(response: object) -> tuple[str, str | None, str | None]:
     """Classify one submission response, preserving uncertainty.
 
-    Only ``DELIVERED`` / ``REJECTED`` with safe-text evidence are
-    trusted; every other shape (including exceptions caught by the
-    caller of the transport) classifies as ``DELIVERY_UNKNOWN`` so the
-    ambiguity is preserved instead of retried.
+    Only ``DELIVERED`` / ``REJECTED`` carried as exact plain text by
+    an exact plain ``dict`` (with optional exact plain safe-text
+    evidence) is trusted; every other shape — exceptions caught by the
+    caller of the transport, hostile mapping/text subclass code that
+    must never execute here included — classifies as
+    ``DELIVERY_UNKNOWN`` so the ambiguity is preserved instead of
+    retried.
     """
-    if not isinstance(response, dict):
+    try:
+        fields = _untrusted_fields(response, _SUBMIT_FIELDS)
+    except _UntrustedShapeError:
         return (DELIVERY_UNKNOWN, None, None)
     try:
-        thread_id = _identity_text(response, "thread_id")
-        queue_ref = _identity_text(response, "queue_ref")
+        thread_id = _identity_text(fields, "thread_id")
+        queue_ref = _identity_text(fields, "queue_ref")
     except BridgeFailureError:
         return (DELIVERY_UNKNOWN, None, None)
-    delivery = response.get("delivery")
+    delivery = fields.get("delivery")
+    if type(delivery) is not str:
+        return (DELIVERY_UNKNOWN, None, None)
     if delivery == DELIVERY_DELIVERED:
         return (DELIVERY_DELIVERED, thread_id, queue_ref)
     if delivery == DELIVERY_REJECTED:
