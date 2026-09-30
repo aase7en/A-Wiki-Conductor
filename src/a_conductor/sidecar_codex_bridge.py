@@ -85,15 +85,22 @@ Transport seam contract (caller-injected, treated as untrusted I/O):
 - ``transport("observe", {"target_hint": ..., "original_event_id":
   ...})`` must return a mapping with boolean ``reachable``,
   ``target_resolved``, ``active_writer``, ``steerable`` and optional
-  safe-text ``thread_id``. Unreachable/garbage maps to
-  ``BRIDGE_SURFACE_OFFLINE``; unresolved or unsafe identity maps to
-  ``BRIDGE_AMBIGUOUS_TARGET``; ``active_writer`` refuses projection;
-  a non-steerable target blocks it;
+  safe-text ``thread_id``. Runtime state classifies before identity
+  text: unreachable/garbage observations (and every error raised by
+  the transport call itself, forged :class:`BridgeFailureError`
+  included — the transport is untrusted and cannot pick bridge
+  taxonomy) map to ``BRIDGE_SURFACE_OFFLINE``; an unresolved target
+  maps to ``BRIDGE_AMBIGUOUS_TARGET``; an active writer refuses
+  projection; a non-steerable target blocks it; only then is the
+  observed thread-id text validated (unsafe text is
+  ``BRIDGE_AMBIGUOUS_TARGET``). Classification failures raised by the
+  bridge outside the transport call keep their own codes;
 - ``transport("submit", <pointer-only payload mapping>)`` must return
   a mapping with ``delivery`` in {"DELIVERED", "REJECTED"} plus
   optional safe-text ``thread_id`` / ``queue_ref``. Anything else —
-  exceptions included — classifies as ``DELIVERY_UNKNOWN`` and the
-  module performs no further submission.
+  exceptions included, forged errors included — classifies as
+  ``DELIVERY_UNKNOWN`` (preserving the thread id already observed
+  read-only) and the module performs no further submission.
 
 Cross-device rules: WORKTREE/path values are opaque device-tagged
 evidence. They are compared as exact text only, never resolved,
@@ -145,6 +152,7 @@ DELIVERY_UNKNOWN = "DELIVERY_UNKNOWN"
 _UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co"})
 _VERSION_RE = re.compile(r"[0-9A-Za-z][0-9A-Za-z._+-]{0,63}")
 _MAX_IDENTITY_TEXT = 256
+_MAX_EVIDENCE_REF_LEN = 4096
 
 
 class BridgeFailureError(RuntimeError):
@@ -174,8 +182,10 @@ class LiveBindingFacts:
 
     Facts the caller cannot prove live are ``None`` and are skipped;
     every supplied fact must match the candidate event exactly
-    (opaque text comparison, no path normalization). The bridge is
-    not the source of these facts and never becomes their authority.
+    (opaque text comparison, no path normalization). An all-``None``
+    instance proves nothing live at all and fails closed: the bridge
+    is not the source of these facts and never becomes their
+    authority.
     """
 
     repo: str | None = None
@@ -252,17 +262,39 @@ def dedupe_events(
 
 def recover_checkpoint(
     events: Iterable[sr.RelayEnvelope],
+    *,
+    task_id: str | None = None,
+    claim_id: str | None = None,
+    source_thread_id: str | None = None,
 ) -> sr.RelayEnvelope | None:
     """Recover the latest ``SIDECAR_CHECKPOINT`` lane binding.
 
     Deterministic: newest by CREATED_AT instant with EVENT_ID as the
     tie-break, independent of arrival order. Returns ``None`` when
-    the log carries no checkpoint.
+    the log carries no checkpoint. A multi-producer relay log is not
+    one lane: an optional exact-text lane scope (any combination of
+    ``task_id`` / ``claim_id`` / ``source_thread_id``) restricts
+    recovery to checkpoints whose corresponding envelope fields match
+    every supplied scope value, so a requested lane can never recover
+    another lane's checkpoint. A scoped recovery with no matching
+    checkpoint fails closed as ``None``; scope fields are opaque
+    envelope fields only — this adds no second store or lane
+    authority.
     """
+    scopes = (
+        ("task_id", task_id),
+        ("claim_id", claim_id),
+        ("source_thread_id", source_thread_id),
+    )
     checkpoints = [
         envelope
         for envelope in dedupe_events(events)
         if envelope.event_type == CHECKPOINT_FAMILY
+        and all(
+            getattr(envelope, field) == value
+            for field, value in scopes
+            if value is not None
+        )
     ]
     if not checkpoints:
         return None
@@ -325,7 +357,9 @@ def revalidate_candidate(
     """Rebind one steer candidate against caller-supplied live facts.
 
     Missing facts fail closed as ``CONTEXT_DRIFT`` (the caller context
-    could not be bound); an unbound candidate fails closed as
+    could not be bound); an all-``None`` facts object supplies zero
+    live facts and fails closed the same way instead of silently
+    passing every field. An unbound candidate fails closed as
     ``BRIDGE_POINTER_INVALID``. Each supplied fact must equal the
     event's binding value exactly (opaque text, no normalization);
     repo/worktree/HEAD/task mismatches are ``CONTEXT_DRIFT`` (stale
@@ -333,6 +367,11 @@ def revalidate_candidate(
     was never a command, so every mismatch simply refuses projection.
     """
     if not isinstance(facts, LiveBindingFacts):
+        raise BridgeFailureError("CONTEXT_DRIFT")
+    if all(
+        getattr(facts, field) is None
+        for field in ("repo", "worktree", "head_sha", "task_id", "claim_id")
+    ):
         raise BridgeFailureError("CONTEXT_DRIFT")
     if any(
         getattr(candidate, field) is None
@@ -395,26 +434,48 @@ def validate_surface_version(
     raise BridgeFailureError("BRIDGE_SURFACE_VERSION_UNVERIFIED")
 
 
+def _invalid_evidence_ref(ref: object) -> bool:
+    """Carrier-equivalent strict bridge-side evidence-ref check.
+
+    Mirrors the carrier's per-ref rules (bounded, non-empty, unpadded,
+    non-URL safe text) plus its duplicate and count rules so that
+    synthetic envelopes constructed outside the carrier cannot bypass
+    carrier-grade ref safety. The bound matches the carrier constant;
+    no ref is ever silently truncated.
+    """
+    return (
+        not isinstance(ref, str)
+        or not ref
+        or ref != ref.strip()
+        or "://" in ref
+        or len(ref) > _MAX_EVIDENCE_REF_LEN
+    )
+
+
 def build_steer_projection(candidate: sr.RelayEnvelope) -> SteerProjection:
     """Build the bounded pointer-only steer payload for one candidate.
 
     The payload carries only the original event id, task/claim ids,
     and the candidate's durable evidence refs. A candidate without
-    durable evidence pointers, or one whose refs are not durable
-    pointers, fails closed as ``BRIDGE_POINTER_INVALID``. No free-form
-    or executable body is ever composed.
+    durable evidence pointers, one whose refs are not durable
+    pointers (padded, overlong, URL, duplicated, or unsafe), or one
+    carrying more refs than the carrier bound fails closed as
+    ``BRIDGE_POINTER_INVALID`` — refs are never silently truncated.
+    No free-form or executable body is ever composed.
     """
     refs = tuple(candidate.evidence_refs)
     if not refs or candidate.task_id is None or candidate.claim_id is None:
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
+    if len(refs) > sr.MAX_EVIDENCE_REFS or len(set(refs)) != len(refs):
+        raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     for ref in refs:
-        if not isinstance(ref, str) or "://" in ref or not ref.strip():
+        if _invalid_evidence_ref(ref):
             raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     return SteerProjection(
         original_event_id=candidate.event_id,
         task_id=candidate.task_id,
         claim_id=candidate.claim_id,
-        evidence_refs=refs[: sr.MAX_EVIDENCE_REFS],
+        evidence_refs=refs,
     )
 
 
@@ -431,10 +492,13 @@ def _classify_observation(observation: object) -> str | None:
     """Classify one read-only connector observation.
 
     Unreachable or malformed observations are ``BRIDGE_SURFACE_OFFLINE``;
-    an unresolved or text-unsafe target identity is
-    ``BRIDGE_AMBIGUOUS_TARGET``; an active writer refuses projection;
-    a non-steerable target blocks it. Returns the observed thread id
-    when projection may proceed.
+    an unresolved target is ``BRIDGE_AMBIGUOUS_TARGET``; an active
+    writer refuses projection; a non-steerable target blocks it; only
+    after runtime state classifies cleanly is the observed identity
+    text validated, so unsafe thread-id text cannot mask the writer
+    or steerable blocker the observation actually reported (unsafe
+    identity text is ``BRIDGE_AMBIGUOUS_TARGET``). Returns the
+    observed thread id when projection may proceed.
     """
     if not isinstance(observation, dict):
         raise BridgeFailureError("BRIDGE_SURFACE_OFFLINE")
@@ -442,12 +506,11 @@ def _classify_observation(observation: object) -> str | None:
         raise BridgeFailureError("BRIDGE_SURFACE_OFFLINE")
     if observation.get("target_resolved") is not True:
         raise BridgeFailureError("BRIDGE_AMBIGUOUS_TARGET")
-    observed_thread = _identity_text(observation, "thread_id")
     if observation.get("active_writer") is True:
         raise BridgeFailureError("BRIDGE_ACTIVE_WRITER")
     if observation.get("steerable") is not True:
         raise BridgeFailureError("BRIDGE_NOT_STEERABLE")
-    return observed_thread
+    return _identity_text(observation, "thread_id")
 
 
 def _submit_delivery(response: object) -> tuple[str, str | None, str | None]:
@@ -526,17 +589,16 @@ def project_steer_candidate(
                 "original_event_id": candidate.event_id,
             },
         )
-        observed_thread = _classify_observation(observation)
-    except BridgeFailureError:
-        raise
     except Exception:
         raise BridgeFailureError("BRIDGE_SURFACE_OFFLINE") from None
+    observed_thread = _classify_observation(observation)
     try:
         response = transport("submit", projection.to_pointer_mapping())
     except Exception:
         return ProjectionOutcome(
             original_event_id=candidate.event_id,
             delivery=DELIVERY_UNKNOWN,
+            observed_thread_id=observed_thread,
         )
     delivery, thread_id, queue_ref = _submit_delivery(response)
     return ProjectionOutcome(
@@ -578,9 +640,11 @@ def build_ack_receipt(
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     refs = [f"{RELAY_EVENT_REF_PREFIX}{original_event.event_id}"]
     for ref in result_refs:
-        if not isinstance(ref, str) or "://" in ref or not ref.strip():
+        if _invalid_evidence_ref(ref):
             raise BridgeFailureError("BRIDGE_POINTER_INVALID")
         refs.append(ref)
+    if len(refs) > sr.MAX_EVIDENCE_REFS or len(set(refs)) != len(refs):
+        raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     payload = {
         "EVENT_ID": event_id
         if event_id is not None

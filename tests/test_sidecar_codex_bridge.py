@@ -27,6 +27,22 @@ module over the Phase 1 carrier ``src/a_conductor/sidecar_relay.py``):
 18. strict UTF-8/LF artifacts and opaque cross-device path handling;
 19. related suites (``test_sidecar_relay.py`` etc.) stay green — run
     separately by the work order.
+
+Repair round (independent review exec-muo0bmr3-cic312cp) adds:
+
+20. all-``None`` :class:`LiveBindingFacts` fails closed
+    (``CONTEXT_DRIFT``) — zero live facts never bypass revalidation;
+21. lane-scoped checkpoint recovery — a requested lane cannot recover
+    another lane's checkpoint and a scope without a match fails closed;
+22. untrusted-transport error taxonomy normalization — errors raised
+    by the transport seam (forged ``BridgeFailureError`` included) are
+    bridge-owned seam failures, never caller-selected taxonomy;
+23. writer/steerable blocker precedence over unsafe thread-id text;
+24. no silent evidence-ref truncation; padded/overlong/duplicate refs
+    fail closed bridge-side (carrier-equivalent strictness);
+25. ``DELIVERY_UNKNOWN`` preserves the already-observed thread id;
+26. expanded structural forbidden-call set (eval/exec/compile/
+    ``__import__``/popen and other command/network/storage forms).
 """
 
 from __future__ import annotations
@@ -96,12 +112,15 @@ def _envelope(**overrides: object) -> sr.RelayEnvelope:
     return sr.envelope_from_mapping(_payload(**overrides))
 
 
-def _checkpoint(event_id: str, created_at: str) -> sr.RelayEnvelope:
+def _checkpoint(
+    event_id: str, created_at: str, **overrides: object
+) -> sr.RelayEnvelope:
     return sr.envelope_from_mapping(
         _payload(
             EVENT_TYPE="SIDECAR_CHECKPOINT",
             EVENT_ID=event_id,
             CREATED_AT=created_at,
+            **overrides,
         )
     )
 
@@ -250,6 +269,84 @@ class TestCheckpointRecoveryAndDedupe:
         assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
 
 
+class TestLaneScopedCheckpointRecovery:
+    def test_scoped_recovery_cannot_return_foreign_lane_checkpoint(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        other_claim = "WO-P1-573-SIDECAR-BRIDGE-WIN-002"
+        lane_a = _checkpoint(
+            "evt-chatgpt-sidecar-ck200000000001",
+            "2026-09-30T11:00:00+00:00",
+        )
+        lane_b = _checkpoint(
+            "evt-chatgpt-sidecar-ck200000000002",
+            "2026-09-30T10:00:00+00:00",
+            CLAIM_ID=other_claim,
+        )
+        events = [lane_a, lane_b]
+        assert scb.recover_checkpoint(events).event_id == lane_a.event_id
+        recovered = scb.recover_checkpoint(events, claim_id=other_claim)
+        assert recovered is not None
+        assert recovered.event_id == lane_b.event_id
+
+    def test_scope_without_match_fails_closed_none(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        events = [
+            _checkpoint("evt-chatgpt-sidecar-ck200000000003", "2026-09-30T10:00:00+00:00")
+        ]
+        assert scb.recover_checkpoint(events, claim_id="WO-P1-999-NO-SUCH-CLAIM") is None
+        assert scb.recover_checkpoint(events, task_id="WO-P1-999") is None
+        assert scb.recover_checkpoint(events, source_thread_id="no-such-thread") is None
+
+    def test_multi_producer_thread_scope_selects_requested_lane_only(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        mac = _checkpoint(
+            "evt-chatgpt-sidecar-ck200000000004",
+            "2026-09-30T12:00:00+00:00",
+            SOURCE_THREAD_ID="sidecar-thread-mac",
+        )
+        win = sr.envelope_from_mapping(
+            _payload(
+                EVENT_TYPE="SIDECAR_CHECKPOINT",
+                EVENT_ID="evt-codex-ck200000000005",
+                SOURCE_SURFACE="codex",
+                SOURCE_THREAD_ID="codex-lane-win",
+                CLAIM_ID="WO-P1-573-SIDECAR-BRIDGE-WIN-002",
+                CREATED_AT="2026-09-30T09:00:00+00:00",
+            )
+        )
+        events = [mac, win]
+        recovered = scb.recover_checkpoint(events, source_thread_id="codex-lane-win")
+        assert recovered is not None
+        assert recovered.event_id == "evt-codex-ck200000000005"
+        combined = scb.recover_checkpoint(
+            events,
+            task_id=TASK_ID,
+            claim_id=CLAIM_ID,
+            source_thread_id="sidecar-thread-mac",
+        )
+        assert combined is not None
+        assert combined.event_id == "evt-chatgpt-sidecar-ck200000000004"
+        assert (
+            scb.recover_checkpoint(
+                events, claim_id=CLAIM_ID, source_thread_id="codex-lane-win"
+            )
+            is None
+        )
+
+    def test_scoped_recovery_keeps_deterministic_newest_within_lane(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        older = _checkpoint("evt-chatgpt-sidecar-ck200000000006", "2026-09-30T10:00:00+00:00")
+        newer = _checkpoint("evt-chatgpt-sidecar-ck200000000007", "2026-09-30T11:00:00+00:00")
+        for shuffle in itertools.permutations([newer, older]):
+            recovered = scb.recover_checkpoint(shuffle, claim_id=CLAIM_ID)
+            assert recovered is not None
+            assert recovered.event_id == "evt-chatgpt-sidecar-ck200000000007"
+
+
 class TestCandidateSelection:
     def test_selects_single_earliest_candidate_deterministically(self):
         from a_conductor import sidecar_codex_bridge as scb
@@ -340,6 +437,14 @@ class TestRevalidationFailsClosed:
         from a_conductor import sidecar_codex_bridge as scb
 
         scb.revalidate_candidate(_envelope(), _facts(repo=None, worktree=None, head_sha=None, claim_id=None))
+
+    def test_all_none_facts_fail_closed_context_drift(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.revalidate_candidate(_envelope(), scb.LiveBindingFacts())
+        assert _code(excinfo) == "CONTEXT_DRIFT"
+        assert _code(excinfo) not in scb.BRIDGE_FAILURE_CODES
 
     def test_unbound_candidate_fails_closed(self):
         from a_conductor import sidecar_codex_bridge as scb
@@ -543,6 +648,56 @@ class TestConnectorObservation:
         assert _code(excinfo) == "BRIDGE_NOT_STEERABLE"
         assert transport.submit_calls == 0
 
+    def test_writer_blocker_precedence_over_unsafe_thread_text(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        transport = FakeTransport(observe={"reachable": True, "target_resolved": True, "active_writer": True, "steerable": True, "thread_id": "thread\x1b[31m"})
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([_envelope()], transport=transport)
+        assert _code(excinfo) == "BRIDGE_ACTIVE_WRITER"
+        assert transport.submit_calls == 0
+
+    def test_not_steerable_precedence_over_unsafe_thread_text(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        transport = FakeTransport(observe={"reachable": True, "target_resolved": True, "active_writer": False, "steerable": False, "thread_id": "thread\x1b[31m"})
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([_envelope()], transport=transport)
+        assert _code(excinfo) == "BRIDGE_NOT_STEERABLE"
+        assert transport.submit_calls == 0
+
+
+class TestUntrustedTransportTaxonomy:
+    def test_forged_bridge_error_on_observe_is_normalized_offline(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        transport = FakeTransport(
+            observe_error=scb.BridgeFailureError("BRIDGE_NOT_STEERABLE")
+        )
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([_envelope()], transport=transport)
+        assert _code(excinfo) == "BRIDGE_SURFACE_OFFLINE"
+
+    def test_forged_bridge_error_on_submit_is_delivery_unknown(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        transport = FakeTransport(
+            submit_error=scb.BridgeFailureError("BRIDGE_NOT_STEERABLE")
+        )
+        outcome = _project([_envelope()], transport=transport)
+        assert outcome is not None
+        assert outcome.delivery == "DELIVERY_UNKNOWN"
+        assert transport.submit_calls == 1
+
+    def test_bridge_owned_classification_codes_are_not_masked(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        transport = FakeTransport(observe={"reachable": True, "target_resolved": True, "active_writer": True, "steerable": True, "thread_id": "codex-thread-7"})
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([_envelope()], transport=transport)
+        assert _code(excinfo) == "BRIDGE_ACTIVE_WRITER"
+        assert transport.submit_calls == 0
+
 
 class TestDuplicateProjection:
     def _acked_events(self, tmp_path):
@@ -646,6 +801,45 @@ class TestPointerProjection:
             scb.build_steer_projection(candidate)
         assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
 
+    def test_over_limit_evidence_refs_fail_instead_of_silent_truncation(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        refs = tuple(
+            f"docs/work-orders/WO-P1-573/ref-{index}"
+            for index in range(sr.MAX_EVIDENCE_REFS + 1)
+        )
+        candidate = dataclasses.replace(_envelope(), evidence_refs=refs)
+        assert len(candidate.evidence_refs) > sr.MAX_EVIDENCE_REFS
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(candidate)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_padded_evidence_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(
+            _envelope(), evidence_refs=(" docs/work-orders/WO-P1-573/padded ",)
+        )
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(candidate)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_overlong_evidence_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(_envelope(), evidence_refs=("x" * 4097,))
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(candidate)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_duplicate_evidence_refs_are_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(_envelope(), evidence_refs=(WO_REF, WO_REF))
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(candidate)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
     def test_pointer_invalid_surfaces_in_full_projection(self):
         from a_conductor import sidecar_codex_bridge as scb
 
@@ -730,7 +924,14 @@ class TestDeliveryOutcomes:
         outcome = _project([_envelope()], transport=transport)
         assert outcome is not None
         assert outcome.delivery == "DELIVERY_UNKNOWN"
-        assert outcome.observed_thread_id is None
+        assert transport.submit_calls == 1
+
+    def test_delivery_unknown_preserves_observed_thread_id(self):
+        transport = FakeTransport(submit_error=RuntimeError("connection dropped"))
+        outcome = _project([_envelope()], transport=transport)
+        assert outcome is not None
+        assert outcome.delivery == "DELIVERY_UNKNOWN"
+        assert outcome.observed_thread_id == "codex-thread-7"
         assert transport.submit_calls == 1
 
     def test_garbage_submit_response_is_delivery_unknown(self):
@@ -842,6 +1043,48 @@ class TestAckReceipt:
             )
         assert _code(excinfo) in {"BRIDGE_POINTER_INVALID", "RELAY_ENVELOPE_INVALID"}
 
+    def test_receipt_padded_result_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                _envelope(),
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+                result_refs=(" runs/WO-P1-573/padded ",),
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_receipt_overlong_result_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                _envelope(),
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+                result_refs=("x" * 4097,),
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_receipt_over_limit_result_refs_fail_closed(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        result_refs = tuple(
+            f"runs/WO-P1-573/r-{index}" for index in range(sr.MAX_EVIDENCE_REFS)
+        )
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                _envelope(),
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+                result_refs=result_refs,
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
 
 def srb_or_bridge_error():
     from a_conductor import sidecar_codex_bridge as scb
@@ -890,27 +1133,60 @@ class TestStructuralContract:
                     if isinstance(node.func, ast.Attribute)
                     else ""
                 )
+                is_regex_compile = (
+                    isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "compile"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "re"
+                )
+                if is_regex_compile:
+                    continue
                 assert name not in {
+                    "eval",
+                    "exec",
+                    "compile",
+                    "__import__",
+                    "import_module",
                     "Popen",
+                    "popen",
                     "system",
+                    "check_call",
+                    "check_output",
+                    "spawn",
+                    "fork",
+                    "execv",
+                    "kill",
+                    "terminate",
                     "urlopen",
                     "requests",
                     "socket",
                     "connect",
+                    "create_connection",
+                    "getaddrinfo",
                     "send",
                     "recv",
                     "run",
                     "open",
+                    "read_text",
+                    "read_bytes",
                     "write",
                     "write_text",
                     "write_bytes",
                     "mkdir",
+                    "makedirs",
+                    "rmdir",
                     "unlink",
                     "remove",
+                    "touch",
                     "chmod",
+                    "chown",
                     "rename",
+                    "symlink",
+                    "truncate",
                     "Cursor",
                     "execute",
+                    "executemany",
+                    "executescript",
                 }
 
     def test_no_authority_api_names(self):
