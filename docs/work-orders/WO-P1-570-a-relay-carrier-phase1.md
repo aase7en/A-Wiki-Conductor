@@ -164,3 +164,39 @@ RED-first focused tests must cover:
 
 Reason: bounded R3 implementation/test work is highly suitable for GLM-5.3 MAX.
 GPT/ChatGPT remains authority/fan-in/acceptance only.
+
+## Implementation evidence (Phase 1 carrier)
+
+- Author lane: Kilo / CoinTH GLM-5.3 MAX, dispatched per this WO; base
+  `df97f7cd917d28bada9957f79bf4f9d11986744d`, branch
+  `feat/wo-p1-570-a-relay-carrier`, clean isolated worktree.
+- RED-first: `tests/test_sidecar_relay.py` written before the module;
+  collection failed on missing `sidecar_relay` before implementation.
+- Delta: NEW `src/a_conductor/sidecar_relay.py` (stdlib-only), NEW
+  `tests/test_sidecar_relay.py`, this evidence appendix only.
+- Carrier surface: frozen `RelayEnvelope`; closed 11-family allowlist;
+  closed source-surface set; mutation-relevant families (all except
+  `GPT_WORK_LIMITED` / `CONTEXT_PRESSURE_HIGH`) require the exact
+  TASK_ID+CLAIM_ID+REPO+WORKTREE+HEAD_SHA binding; result receipts
+  require >=1 durable evidence ref (`RELAY_EVIDENCE_MISSING`);
+  append-only strict UTF-8 LF JSONL, sorted-key compact encoding;
+  65536-byte cap including the trailing LF; <=16 unique non-URL refs;
+  dedupe-on-read by EVENT_ID (first wins); idempotent byte-identical
+  re-append; conflicting EVENT_ID re-use -> `RELAY_EVENT_DUPLICATE`;
+  per-producer ordering key (surface, thread, created_at, event_id);
+  torn final line skipped+flagged on read and typed refusal to append
+  after a torn tail; CRLF/invalid-UTF-8/mid-file-corruption fail
+  closed; sensitive-content rejection (PEM, credential-token markers,
+  Cc/Cf/Cs/Co characters); opaque Windows/POSIX WORKTREE values; typed
+  CLI `validate`/`emit`/`tail` with exits 0/64/2/3/4/5/6.
+- Tests: `tests/test_sidecar_relay.py` 110 passed; related
+  `tests/test_control_events.py` + `tests/test_lifecycle_journal.py`
+  30 passed; `tests/test_work_order_identity.py` 33 passed;
+  `git diff --check` clean; py_compile + strict UTF-8/LF/no-trailing-
+  whitespace hygiene verified on both new files.
+- Structural checks green: stdlib-only imports (AST-tested), no
+  network/subprocess calls, no authority-named API, contract and all
+  other paths untouched.
+- Stop state: READY_FOR_INDEPENDENT_EXACT_SHA_REVIEW (independent
+  GLM-5.3 MAX read-only review + exact-head CI + integrator
+  acceptance still required; author does not merge).
