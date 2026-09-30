@@ -68,11 +68,12 @@ Allowed:
 - docs/work-orders/WO-P1-575-a-sidecar-phase2-hardening.md
 - docs/work-orders/WO-P1-573-a-sidecar-phase2-codex-bridge.md
   (docs-only final checkpoint/accepted-main evidence; no source semantics)
+- .agents/skills/a-sidecar/SKILL.md
+  (user-directed Desktop-binding recovery lesson only; no authority expansion)
 
 Forbidden:
 - src/a_conductor/sidecar_relay.py
 - docs/contracts/a-sidecar-relay-v1.md
-- .agents/skills/a-sidecar/SKILL.md
 - CURRENT-WORK.md
 - handoff.md
 - COLLAB.md
@@ -114,6 +115,28 @@ No behavior change in this WO. Do not add a new v1 marker, receipt field, or
 completion semantic. Record the limitation; a future semantic change requires
 an explicit versioned contract decision.
 
+### D. Codex Desktop successor-thread binding
+
+A thread created or read through a separately spawned Codex App Server may be
+durable without being loaded into the Codex Desktop conversation runtime. The
+observed operational signature is an `ACTIVE` Schedule targeting the correct
+thread while Desktop reports
+`Conversation state not found conversationId=<thread-id>` and the target
+rollout does not progress.
+
+The durable recovery lesson in `.agents/skills/a-sidecar/SKILL.md` must require:
+- supported Desktop deep-link load/resume via `codex://threads/<thread-id>`;
+- no raw SQLite/session/lock edits, lock stealing, or broad process restarts;
+- verification that the actual Desktop-managed App Server owns the writer lock;
+- verification that rollout activity and intended model/reasoning settings
+  survive Desktop resume;
+- Goal + Schedule target/cadence revalidation; and
+- one real post-idle scheduled heartbeat/continuation before declaring the
+  migrated Schedule end-to-end proven.
+
+The invariant is:
+`THREAD_DURABLE != DESKTOP_LOADED != SCHEDULE_PROVEN`.
+
 ## 6. RED / adversarial matrix
 
 Before implementation, add or confirm focused RED cases covering:
@@ -136,6 +159,9 @@ During implementation:
 - python3 -m py_compile src/a_conductor/sidecar_codex_bridge.py tests/test_sidecar_codex_bridge.py
 - git diff --check
 - strict UTF-8 / LF / no U+FFFD / no trailing whitespace
+- A-Sidecar skill text contains the Desktop-binding failure signature, supported
+  deep-link recovery, writer/runtime verification, and
+  `THREAD_DURABLE != DESKTOP_LOADED != SCHEDULE_PROVEN`
 
 Before acceptance:
 - exact candidate SHA frozen;

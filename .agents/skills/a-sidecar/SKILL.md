@@ -94,6 +94,50 @@ rotation:
 - Workspace-context visibility into a Codex thread never grants authority over
   that thread's task, claim, scope, or schedule.
 
+## Desktop binding and successor-thread migration
+
+A durable Codex thread existing on disk, or being readable from a separately
+spawned App Server, is **not** proof that Codex Desktop has loaded that thread
+into its conversation runtime. Treat Desktop binding as a separate recovery
+gate whenever a Goal/Schedule is migrated to a successor thread.
+
+Recognized failure signature:
+
+- Goal/thread records exist and a standalone App Server can read them;
+- Schedule configuration is `ACTIVE` and points at the intended thread id;
+- the target rollout does not advance as expected; and
+- Codex Desktop logs report
+  `Conversation state not found conversationId=<thread-id>`.
+
+Supported recovery:
+
+1. Do not edit Codex SQLite/session/thread-writer-lock files and do not steal or
+   delete locks.
+2. Do not broad-kill or restart ChatGPT/Codex merely to force ownership.
+3. Open the durable target through the Codex Desktop user-facing deep link
+   `codex://threads/<thread-id>` so the Desktop-managed backend can resume/load
+   the thread.
+4. Verify the writer lock is held by the actual Desktop-managed App Server
+   process, not by a temporary standalone App Server.
+5. Verify the rollout advances and the intended model/reasoning settings remain
+   applied after Desktop resume.
+6. Verify the Goal state and Schedule target/cadence from their durable owners.
+
+A migration is not end-to-end accepted from config state alone. After the
+current turn reaches a safe idle boundary, observe one real scheduled
+heartbeat/continuation on the new Desktop-loaded thread before declaring the
+Schedule proven. Never trigger a duplicate wake while a mutation is
+`RUNNING`, `UNKNOWN`, `AMBIGUOUS`, or `TERMINAL_UNHARVESTED`.
+
+Keep these distinctions explicit:
+
+`THREAD_DURABLE != DESKTOP_LOADED != SCHEDULE_PROVEN`
+
+A separately spawned App Server is a supported protocol surface for compatible
+operations, but its existence never proves Desktop UI/runtime ownership. Native
+queue cross-writer behavior is likewise valid only for a thread whose current
+writer/runtime identity has been recovered and verified.
+
 ## Permitted companion work
 
 Without any new claim, A-Sidecar may do **non-conflicting read-only** work:
