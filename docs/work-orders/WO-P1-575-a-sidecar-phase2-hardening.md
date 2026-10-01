@@ -206,3 +206,13 @@ Complete only when:
 - Current A-Audit: `HUMAN_REQUIRED`. The source task is a bounded R3 repair, but current global WIP admission is not proven from a current accepted A-Faster marker, and the mandatory continuity checkpoint paths are owned by another dirty lane. The older `FANOUT_TARGET=0` / `AUTO_REFILL_REQUIRED=false` markers do not authorize a new refill.
 - The #498 worktree currently has tracked edits to both `CURRENT-WORK.md` and `handoff.md`; this WO forbids modifying those paths. Repo policy requires checkpointing them before delegating. Do not dispatch or start source mutation until the owner releases those paths or an explicit ownership/scope reconciliation establishes a safe checkpoint path.
 - Next safe action: recheck the exact #498 ownership/continuity release and canonical WIP evidence, then rerun the #575 identity/scope gate and task-bound A-Audit. Proceed to a new GLM-5.3 MAX author request only if the continuity and pre-dispatch gates admit it; keep the existing claim, scope, and `.kilo/` material intact.
+
+## 11. Synthetic-boundary reproduction — 2026-10-01
+
+- Binding recheck: repo `aase7en/A-Wiki-Conductor`; worktree `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo575-sidecar-hardening`; branch `feat/wo-p1-575-sidecar-hardening`; HEAD and remote branch both `91d57dcd3df39093b1d41b9556f706763d045b33`; claim remains `WO-P1-575-SIDECAR-HARDENING-MAC-001`.
+- A bounded in-memory Python reproducer ran with `PYTHONDONTWRITEBYTECODE=1`; it imported the existing bridge/tests, created synthetic envelopes via `dataclasses.replace`, and wrote no files.
+- `_invalid_evidence_ref` currently accepts all three probe classes: unsafe Unicode (`Cf`), PEM-marker text, and secret-shaped token text.
+- `recover_checkpoint` lets raw `TypeError` escape for a non-string `CREATED_AT` and for mixed naive/aware timestamps; neither is a typed `RelayCarrierError`.
+- `select_steer_candidate` lets raw `ValueError` escape for malformed synthetic `CREATED_AT`; it is not a typed `RelayCarrierError`.
+- This is direct behavior evidence for WO §5/§6 gaps, not acceptance. No source/test files or A-Wiki state changed; no full pytest suite, provider, or dispatch was run. Worktree remains clean for tracked files; preserve `.kilo/`.
+- The R3 source gate remains `HUMAN_REQUIRED` pending current accepted WIP admission and release/reconciliation of the #498-owned continuity paths. Do not treat this reproducer or the prior plan-only GLM execution as mutation authority.
