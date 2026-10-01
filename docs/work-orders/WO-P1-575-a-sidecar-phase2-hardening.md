@@ -216,3 +216,38 @@ Complete only when:
 - `select_steer_candidate` lets raw `ValueError` escape for malformed synthetic `CREATED_AT`; it is not a typed `RelayCarrierError`.
 - This is direct behavior evidence for WO §5/§6 gaps, not acceptance. No source/test files or A-Wiki state changed; no full pytest suite, provider, or dispatch was run. Worktree remains clean for tracked files; preserve `.kilo/`.
 - The R3 source gate remains `HUMAN_REQUIRED` pending current accepted WIP admission and release/reconciliation of the #498-owned continuity paths. Do not treat this reproducer or the prior plan-only GLM execution as mutation authority.
+
+## 12. Post-merge dependency and binding recheck — 2026-10-01 04:13 UTC
+
+- PR #574 / WO-P1-573 is now merged and post-main verified. `origin/main` is
+  `6c4bcdfebfde29990f92b7b76670830009ba6753`; exact-head and post-main CI
+  succeeded, and Issue #573 records `ACCEPTED / POST_MAIN_VERIFIED / COMPLETE`.
+  The #575 predecessor dependency is satisfied.
+- Live #575 binding: repository `aase7en/A-Wiki-Conductor`; worktree
+  `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo575-sidecar-hardening`;
+  branch `feat/wo-p1-575-sidecar-hardening`; local HEAD and remote branch both
+  `855d2f2da74a497bf7f3aac4b688d538cc160309`. Tracked files are clean. Preserve
+  the existing untracked `.kilo/` directory.
+- SundayMCP recovery reports 215 executions, all terminal and replay-safe
+  (153 completed, 20 failed, 42 cancelled); lane list is empty. The previous
+  #575 GLM run remains terminal `PLAN_ONLY`; do not replay it.
+- The #498 owner worktree remains dirty at
+  `8d2aae705a6d2180fd36abaf7f1ed545355d554c` across 12 tracked paths,
+  including `CURRENT-WORK.md`, `handoff.md`, and its claimed source/test
+  paths. No release/reconciliation evidence was found. Preserve that state;
+  #575 must not edit the two continuity paths.
+- The latest accepted A-Faster markers remain the carried values from #547
+  comment `5847879995` / #498 comment `5855053210`:
+  `FANOUT_TARGET=0`, `UNUSED_SAFE_CAPACITY=1`,
+  `AUTO_REFILL_REQUIRED=false`. These do not prove fresh global WIP admission;
+  do not recompute utilization or infer permission to start source mutation.
+- A-Wiki Issue #58 remains open and PR #67 has two unresolved R3 review
+  threads. #551/#549 refill therefore remains fail-closed; this is separate
+  from the now-satisfied #574 dependency and does not grant #575 WIP authority.
+
+`SAFE_TO_MUTATE=NO` for the #575 source/test slice until the #498 continuity
+ownership is reconciled and current canonical WIP plus the exact-head R3 gate
+are re-established. The reproduced defects remain actionable evidence, not
+mutation authority. Next safe action: recheck the #498 owner release and
+accepted WIP marker, then rerun the #575 identity/scope/A-Audit gates at the
+current exact HEAD before any provider request.
