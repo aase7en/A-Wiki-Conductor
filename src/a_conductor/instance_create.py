@@ -82,20 +82,35 @@ def _harden_start_script_runtime_forensics(text: str) -> str:
     """Upgrade validated legacy start.ps1 text without replacing its credential/preflight logic."""
     if "runtime-archive" in text and "$RuntimeProcess.ExitCode" in text:
         return text
+
+    stdout_pattern = re.compile(r"(?m)^(?P<indent>[ \t]*)\$RuntimeStdout\s*=.*$")
+    stderr_pattern = re.compile(r"(?m)^(?P<indent>[ \t]*)\$RuntimeStderr\s*=.*$")
+    start_pattern = re.compile(r'(?m)^(?P<indent>[ \t]*)Write-Log "STARTING:')
+    wait_process_pattern = re.compile(
+        r"(?m)^(?P<indent>[ \t]*)Wait-Process -Id \$RuntimeProcess\.Id[ \t]*$"
+    )
+    method_wait_pattern = re.compile(
+        r"(?m)^(?P<indent>[ \t]*)\$RuntimeProcess\.WaitForExit\(\)[ \t]*\r?\n"
+        r"(?P=indent)if \(\$RuntimeProcess\.ExitCode -ne 0\) \{[ \t]*\r?\n"
+        r"(?P=indent)[ \t]+Fail 'TUNNEL_START_FAILED' \"Tunnel client exited with code "
+        r"\$\(\$RuntimeProcess\.ExitCode\)\.\"[ \t]*\r?\n"
+        r"(?P=indent)\}[ \t]*$"
+    )
+
+    stdout_matches = tuple(stdout_pattern.finditer(text))
+    stderr_matches = tuple(stderr_pattern.finditer(text))
+    start_matches = tuple(start_pattern.finditer(text))
+    wait_process_matches = tuple(wait_process_pattern.finditer(text))
+    method_wait_matches = tuple(method_wait_pattern.finditer(text))
     if (
-        "$RuntimeStdout" not in text
-        or "$RuntimeStderr" not in text
-        or "Wait-Process -Id $RuntimeProcess.Id" not in text
+        len(stdout_matches) != 1
+        or len(stderr_matches) != 1
+        or len(start_matches) != 1
+        or len(wait_process_matches) + len(method_wait_matches) != 1
+        or stderr_matches[0].start() >= start_matches[0].start()
     ):
         return text
-    text, count = re.subn(
-        r"(?m)^(\$RuntimeStderr\s*=.*)$",
-        r"\1\n$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'",
-        text,
-        count=1,
-    )
-    if count != 1:
-        return text
+
     archive = """New-Item -ItemType Directory -Force -Path $RuntimeArchiveDir | Out-Null
 $ArchiveStamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
 foreach ($RuntimeLog in @($RuntimeStdout, $RuntimeStderr)) {
@@ -105,12 +120,7 @@ foreach ($RuntimeLog in @($RuntimeStdout, $RuntimeStderr)) {
         Move-Item -LiteralPath $RuntimeLog -Destination $Archived -Force
     }
 }
-
 """
-    start_marker = 'Write-Log "STARTING:'
-    if start_marker not in text:
-        return text
-    text = text.replace(start_marker, archive + start_marker, 1)
     exit_block = """$RuntimeProcess.WaitForExit()
 $RuntimeProcess.Refresh()
 $RuntimeExitCode = $RuntimeProcess.ExitCode
@@ -120,7 +130,39 @@ if ($RuntimeExitCode -eq 0) {
     Write-Log ("TUNNEL_START_FAILED: Tunnel client exited with code {0}; exit_code={0}" -f $RuntimeExitCode)
 }
 exit $RuntimeExitCode"""
-    return text.replace("Wait-Process -Id $RuntimeProcess.Id", exit_block, 1)
+
+    def _indent_block(block: str, indent: str) -> str:
+        return "\n".join(indent + line if line else "" for line in block.splitlines())
+
+    stderr_match = stderr_matches[0]
+    stderr_indent = stderr_match.group("indent")
+    hardened = (
+        text[: stderr_match.end()]
+        + "\n"
+        + stderr_indent
+        + "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'"
+        + text[stderr_match.end() :]
+    )
+
+    start_match = start_pattern.search(hardened)
+    if start_match is None:
+        return text
+    start_indent = start_match.group("indent")
+    archive_block = _indent_block(archive.rstrip("\n"), start_indent) + "\n\n"
+    hardened = hardened[: start_match.start()] + archive_block + hardened[start_match.start() :]
+
+    if wait_process_matches:
+        wait_match = wait_process_pattern.search(hardened)
+        if wait_match is None:
+            return text
+        replacement = _indent_block(exit_block, wait_match.group("indent"))
+        return hardened[: wait_match.start()] + replacement + hardened[wait_match.end() :]
+
+    method_match = method_wait_pattern.search(hardened)
+    if method_match is None:
+        return text
+    replacement = _indent_block(exit_block, method_match.group("indent"))
+    return hardened[: method_match.start()] + replacement + hardened[method_match.end() :]
 
 
 def create_instance(
