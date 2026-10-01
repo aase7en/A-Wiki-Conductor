@@ -196,3 +196,13 @@ Complete only when:
 - #573 historical checkpoint is reconciled;
 - claim is released and #575 is durably closed with exact evidence.
 
+## 10. Supervisor revalidation checkpoint — 2026-10-01
+
+- Live `origin/main` remains `6c4bcdfebfde29990f92b7b76670830009ba6753`; PR #574 is merged and post-main verified.
+- Bound lane: `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo575-sidecar-hardening`, branch `feat/wo-p1-575-sidecar-hardening`, HEAD `62cd57b860805c3e8cb4aac40cab1720c575e911`.
+- Tracked source/test files are unchanged. A local documentation-only correction removed the extra blank line at EOF; `git diff --check <base>` passes for the current worktree. Preserve the pre-existing untracked `.kilo/` directory.
+- Sunday recovery found 215 executions, all terminal and harvested (153 COMPLETED, 42 CANCELLED, 20 FAILED); no live or unharvested lane remains. The prior #575 GLM execution is terminal `PLAN_ONLY`, has no identity-verified binding, and produced no source diff. Do not replay it; any later useful request needs a new exact binding and must pass the current pre-dispatch guard.
+- The source defects remain visible at `_invalid_evidence_ref`, `recover_checkpoint`, and `select_steer_candidate`; this checkpoint did not modify production source or tests.
+- Current A-Audit: `HUMAN_REQUIRED`. The source task is a bounded R3 repair, but current global WIP admission is not proven from a current accepted A-Faster marker, and the mandatory continuity checkpoint paths are owned by another dirty lane. The older `FANOUT_TARGET=0` / `AUTO_REFILL_REQUIRED=false` markers do not authorize a new refill.
+- The #498 worktree currently has tracked edits to both `CURRENT-WORK.md` and `handoff.md`; this WO forbids modifying those paths. Repo policy requires checkpointing them before delegating. Do not dispatch or start source mutation until the owner releases those paths or an explicit ownership/scope reconciliation establishes a safe checkpoint path.
+- Next safe action: recheck the exact #498 ownership/continuity release and canonical WIP evidence, then rerun the #575 identity/scope gate and task-bound A-Audit. Proceed to a new GLM-5.3 MAX author request only if the continuity and pre-dispatch gates admit it; keep the existing claim, scope, and `.kilo/` material intact.
