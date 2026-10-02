@@ -256,6 +256,14 @@ mutation authority. Next safe action: recheck the #498 owner release and
 accepted WIP marker, then rerun the #575 identity/scope/A-Audit gates at the
 current exact HEAD before any provider request.
 
+This stop was lifted for generation 2 by the gate clearance recorded in §13:
+Issue #575 comment `5950579896` (#498 closed/completed/post-main verified,
+empty durable lane census, A-Audit `STRONG_IMPLEMENTATION`, and
+`SAFE_TO_MUTATE=YES` conditional on a proven clean generation-2 lane) and
+comment `5950598814` (exact clean generation-2 worktree/branch/start-HEAD
+binding with current main merged, tracked tree clean, and no collision).
+§12 remains the historical generation-1 stop; this citation adds no authority.
+
 ## 13. Generation-2 implementation checkpoint — 2026-10-02
 
 - Binding: repository `aase7en/A-Wiki-Conductor`; worktree
@@ -345,7 +353,8 @@ Incident/evidence:
   `eb63c9773aa14c1f58279cf1848e6a97efb575f45d571ad81b83756305d8850a`
   was identical: stale skill visibility, not hook logic. The clean read-only
   snapshot `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-codex-supervisor-g2`
-  at `100c94b` exposed A-FastTask/A-Faster/A-NightShift/A-Audit/A-Sidecar.
+  at `100c94b0308ba33101e00929d7016443f3f7331f` exposed
+  A-FastTask/A-Faster/A-NightShift/A-Audit/A-Sidecar.
 - Successor Parent `01a0fd2f-a479-75a0-bafb-46423c0c0a39` was started
   through the supported API as Luna LOW; recovery-only first turn returned
   `SUCCESSOR_RECOVERY_READY`. The catalog emitted "Exceeded skills context
@@ -408,3 +417,19 @@ Corrections and standing gates:
   the whole-candidate review requirement for the bridge source/tests. The new
   candidate requires fresh hosted CI and an independent exact-SHA R3 review
   over the full five-file PR diff; no acceptance is claimed.
+
+## 16. Residual review-finding repair and disposition — 2026-10-03
+
+- Review comment `5959278288` (P2 + 5 P3) was partially repaired at
+  `a272125ac4066019fce9dee2951d5c66089e29f6`; the lane-identity,
+  verification-pointer, #573-checkpoint-location, fence, and model-tier
+  findings were closed there and re-verified read-only at this worktree.
+- This amendment closes the remainder: §12 now cites the §13 generation-2
+  gate clearance (Issue #575 comments `5950579896` / `5950598814` and the
+  #498 release evidence they record), and the §14 snapshot reference uses
+  the exact full SHA `100c94b0308ba33101e00929d7016443f3f7331f` resolved
+  from live Git. `.agents/skills/a-sidecar/SKILL.md` needs no change; its
+  model-tier naming is already canonical there.
+- No authority is created and no acceptance is claimed; the §15 hosted-CI
+  and independent exact-SHA R3 review requirements apply unchanged to the
+  resulting candidate.
