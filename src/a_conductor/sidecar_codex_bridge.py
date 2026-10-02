@@ -765,11 +765,13 @@ def build_ack_receipt(
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     refs = [f"{RELAY_EVENT_REF_PREFIX}{original_event.event_id}"]
     refs.extend(result_refs)
-    if len(refs) > sr.MAX_EVIDENCE_REFS or len(set(refs)) != len(refs):
+    if len(refs) > sr.MAX_EVIDENCE_REFS:
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     for ref in refs:
         if _invalid_evidence_ref(ref):
             raise BridgeFailureError("BRIDGE_POINTER_INVALID")
+    if len(set(refs)) != len(refs):
+        raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     payload = {
         "EVENT_ID": event_id
         if event_id is not None

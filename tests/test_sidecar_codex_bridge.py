@@ -1272,6 +1272,19 @@ class TestAckReceipt:
             )
         assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
 
+    def test_receipt_unhashable_result_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                _envelope(),
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+                result_refs=(["unhashable"],),
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
     def test_receipt_over_limit_result_refs_fail_closed(self):
         from a_conductor import sidecar_codex_bridge as scb
 
