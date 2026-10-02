@@ -251,3 +251,53 @@ are re-established. The reproduced defects remain actionable evidence, not
 mutation authority. Next safe action: recheck the #498 owner release and
 accepted WIP marker, then rerun the #575 identity/scope/A-Audit gates at the
 current exact HEAD before any provider request.
+
+## 13. Generation-2 implementation checkpoint — 2026-10-02
+
+- Binding: repository `aase7en/A-Wiki-Conductor`; worktree
+  `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo575-sidecar-hardening-g2`;
+  branch `feat/wo-p1-575-sidecar-hardening-g2`; start HEAD
+  `42e82cc7217126d9726661bb467bdf6cb536ca12` with current main
+  (`100c94b0308ba33101e00929d7016443f3f7331f`) merged into the lane; claim
+  `WO-P1-575-SIDECAR-HARDENING-MAC-001` unchanged.
+- RED first: focused failing tests (42 RED across the §6 matrix) were added
+  for secret-token-shaped refs (ghp_/gho_/ghs_/github_pat_/sk-/xoxb-/AKIA/
+  AIza shapes), PEM-marker refs, Cc/Cf/Co/Cs unsafe-Unicode refs, non-string
+  (int/None/datetime), invalid-ISO, naive, padded, unsafe, and overlong
+  CREATED_AT in both checkpoint chronology and steer ordering, mixed
+  aware/naive chronology, zero transport calls on preflight validation
+  failure, and aware offset-instant ordering determinism.
+- Implementation (§5.A): `_invalid_evidence_ref` now delegates the
+  sensitive-text verdict to the accepted carrier's own validator via
+  `_carrier_text_is_unsafe`, adding unsafe-Unicode, PEM/private-key, and
+  credential/secret-token rejection on top of the existing
+  URL/padding/length/duplicate rules; the composed `relay-event:` receipt
+  ref in `build_ack_receipt` passes the same bridge-side gate before any
+  carrier append. The carrier file itself is untouched.
+- Implementation (§5.B): `_require_carrier_created_at` gates every CREATED_AT
+  consumed by `recover_checkpoint` chronology and `select_steer_candidate`
+  ordering through the carrier's typed timestamp validator before any
+  comparison or transport call, so non-string, invalid-ISO, naive, padded,
+  unsafe, and overlong values — and mixed naive/aware chronology — fail
+  closed with the stable `RELAY_ENVELOPE_INVALID` code and no raw
+  TypeError/ValueError escapes. Aware offset-instant ordering stays
+  deterministic.
+- §5.C: no behavior change; no new v1 marker, receipt field, or
+  completion/approval semantic was added. The ACK-vs-projected limitation
+  stands as recorded.
+- §5.D: the Desktop-binding lesson in `.agents/skills/a-sidecar/SKILL.md`
+  was verified present with the required deep-link recovery, writer/runtime
+  verification, and `THREAD_DURABLE != DESKTOP_LOADED != SCHEDULE_PROVEN`
+  invariant; preserved unchanged.
+- Verification on this worktree: `python3 -m pytest -q
+  tests/test_sidecar_codex_bridge.py` 141 passed;
+  `python3 -m pytest -q tests/test_sidecar_relay.py tests/test_control_events.py
+  tests/test_lifecycle_journal.py tests/test_work_order_identity.py` 173
+  passed; `python3 -m py_compile` clean for both changed Python files;
+  `git diff --check` clean; strict UTF-8/LF, no U+FFFD, no trailing
+  whitespace; changed paths are exactly the §4.2 source-slice allowlist
+  entries `src/a_conductor/sidecar_codex_bridge.py`,
+  `tests/test_sidecar_codex_bridge.py`, and this work order (plus the #573
+  docs-only checkpoint below). No commit, push, merge, or GitHub mutation
+  performed; independent exact-SHA R3 review and integrator acceptance
+  pending.

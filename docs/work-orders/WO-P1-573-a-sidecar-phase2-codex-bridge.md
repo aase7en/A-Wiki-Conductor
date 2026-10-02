@@ -310,3 +310,12 @@ Do not modify (any hit stops the lane):
   from Issue #573 + shaping evidence exec-munygh9a-f1j5jfmc; single-file
   docs commit on base e6eea89fc363c9eaff9e53d8c9a01659997ae25a; source
   slice NOT started; full gate rerun required before any source mutation.
+- [2026-10-02] WO-P1-575 generation-2 hardening (worktree
+  `A-Wiki-Conductor-wo575-sidecar-hardening-g2`, claim
+  `WO-P1-575-SIDECAR-HARDENING-MAC-001`) reconciled this historical
+  checkpoint as documentation only: the #573 bridge module/tests received
+  the #575 §5/§6 synthetic-boundary repairs (carrier-parity evidence-ref
+  rejection, typed fail-closed synthetic CREATED_AT validation) inside the
+  #575 lane under its own claim. No #573 semantic expansion, no reopen of
+  the accepted #573 review, and no further #573 source work is authorized
+  here; #573 remains ACCEPTED / POST_MAIN_VERIFIED / COMPLETE.
