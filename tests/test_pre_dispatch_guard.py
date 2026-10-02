@@ -14,8 +14,9 @@ semantics are untouched. No new store/scheduler/lease authority exists.
 from __future__ import annotations
 
 import re
+import sys
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
@@ -698,13 +699,68 @@ def test_live_observation_error_requires_bounded_reason():
 
 def test_git_live_observer_reads_real_worktree(tmp_path):
     from a_conductor.pre_dispatch_guard import GitLiveWorktreeObserver
+    from a_conductor.project_identity import _same_path
 
     root, _git = _git_worktree(tmp_path)
     head = _git("rev-parse", "HEAD")
     observed = GitLiveWorktreeObserver().observe(str(root))
-    assert observed.repo_root == str(root)
+    # git may spell the toplevel with forward slashes (Windows) while
+    # pathlib str() uses native separators: root identity is the accepted
+    # path-equivalence contract, not raw text.
+    assert _same_path(observed.repo_root, str(root))
     assert observed.branch == "docs/wo-p1-498-guard-shaping"
     assert observed.head == head
+
+
+def test_live_root_equivalence_tolerates_git_separator_spelling():
+    """Windows hosted RED pin: git's forward-slash toplevel spelling and the
+    native backslash spelling denote the same root and must not read as
+    drift, while unrelated roots must keep failing closed."""
+    from a_conductor.pre_dispatch_guard import (
+        LiveWorktreeIdentity,
+        live_worktree_drift_reason,
+    )
+    from a_conductor.project_identity import _same_path
+
+    git_root = "C:/Users/dev/live-repo"
+    native_root = "C:\\Users\\dev\\live-repo"
+    unrelated_root = "C:\\Users\\dev\\other-repo"
+    # Host-neutral Windows-grammar probe: on Windows hosts Path comparison
+    # is PureWindowsPath-flavored, so these alias spellings compare equal.
+    assert PureWindowsPath(git_root) == PureWindowsPath(native_root)
+    assert PureWindowsPath(git_root) != PureWindowsPath(unrelated_root)
+    if sys.platform == "win32":
+        assert _same_path(git_root, native_root)
+        assert not _same_path(git_root, unrelated_root)
+
+    # Host-native alias probe (meaningful on every host incl. macOS):
+    # redundant-segment spellings of the same root stay equivalent and
+    # unrelated roots stay distinct through the same _same_path contract.
+    assert _same_path("/repo/./wt", "/repo/wt")
+    assert _same_path("/repo/wt/../wt", "/repo/wt")
+    assert not _same_path("/repo/./wt", "/repo/other")
+
+    observed = LiveWorktreeIdentity(
+        repo_root="/repo/wt", branch="docs/x", head="A" * 40
+    )
+    assert (
+        live_worktree_drift_reason(
+            observed,
+            expected_repo_root="/repo/./wt",
+            expected_branch="docs/x",
+            expected_head="a" * 40,
+        )
+        is None
+    )
+    assert (
+        live_worktree_drift_reason(
+            observed,
+            expected_repo_root="/repo/other",
+            expected_branch="docs/x",
+            expected_head="a" * 40,
+        )
+        == "WORKTREE_ROOT_MISMATCH"
+    )
 
 
 def test_git_live_observer_fails_typed_on_missing_root_and_git_failures(tmp_path):
