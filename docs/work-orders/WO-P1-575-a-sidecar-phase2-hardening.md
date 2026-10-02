@@ -4,11 +4,11 @@ Issue: #575
 Predecessor: #573 / PR #574
 Topology: CONTROL_PLANE_ONLY
 Risk: R3
-Status: BOOTSTRAP_BOUND / SOURCE_MUTATION_PENDING_FULL_GATE
+Status: GENERATION-2 IMPLEMENTED / EXACT-HEAD REVIEW AND CI PENDING
 Claim: WO-P1-575-SIDECAR-HARDENING-MAC-001
-Worktree: /Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo575-sidecar-hardening
-Branch: feat/wo-p1-575-sidecar-hardening
-Base HEAD: 6c4bcdfebfde29990f92b7b76670830009ba6753
+Worktree: /Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo575-sidecar-hardening-g2
+Branch: feat/wo-p1-575-sidecar-hardening-g2
+Base HEAD: 100c94b0308ba33101e00929d7016443f3f7331f
 
 ## 1. Goal
 
@@ -40,7 +40,7 @@ forward from #573:
 - No secret-bearing relay payloads.
 - Foreign-device paths remain opaque strings; do not normalize them.
 
-## 3. Exact lane identity
+## 3. Historical generation-1 lane identity (superseded by §13)
 
 - repository: aase7en/A-Wiki-Conductor
 - worktree: /Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo575-sidecar-hardening
@@ -48,7 +48,10 @@ forward from #573:
 - base: 6c4bcdfebfde29990f92b7b76670830009ba6753
 - claim: WO-P1-575-SIDECAR-HARDENING-MAC-001
 
-Any repo/worktree/branch/HEAD/claim mismatch fails closed before mutation.
+This is the original generation-1 tuple and is historical only. The generation-2
+replacement binding is authoritative before mutation and is recorded in §13 and
+Issue #575 comments `5950579896` and `5950598814`. Any active
+repo/worktree/branch/HEAD/claim mismatch fails closed before mutation.
 
 ## 4. Scope
 
@@ -261,6 +264,14 @@ current exact HEAD before any provider request.
   `42e82cc7217126d9726661bb467bdf6cb536ca12` with current main
   (`100c94b0308ba33101e00929d7016443f3f7331f`) merged into the lane; claim
   `WO-P1-575-SIDECAR-HARDENING-MAC-001` unchanged.
+- Gate clearance from the §12 generation-1 stop: Issue #575 comment
+  `5950579896` records #498 closed/completed/post-main verified, an empty
+  durable lane census, A-Audit `STRONG_IMPLEMENTATION`, and `SAFE_TO_MUTATE=YES`
+  conditional on proving the clean generation-2 lane. Comment `5950598814`
+  proves that lane at the exact worktree/branch/start HEAD, with current main
+  included, tracked tree clean, and no collision. Together these comments are
+  the durable clearance for generation 2; §12 remains the historical stop for
+  generation 1. No generation-2 source mutation began before this clearance.
 - RED first: focused failing tests (42 RED across the §6 matrix) were added
   for secret-token-shaped refs (ghp_/gho_/ghs_/github_pat_/sk-/xoxb-/AKIA/
   AIza shapes), PEM-marker refs, Cc/Cf/Co/Cs unsafe-Unicode refs, non-string
@@ -298,19 +309,21 @@ current exact HEAD before any provider request.
   `git diff --check` clean; strict UTF-8/LF, no U+FFFD, no trailing
   whitespace; changed paths are exactly the §4.2 source-slice allowlist
   entries `src/a_conductor/sidecar_codex_bridge.py`,
-  `tests/test_sidecar_codex_bridge.py`, and this work order (plus the #573
-  docs-only checkpoint below). No commit, push, merge, or GitHub mutation
-  performed; independent exact-SHA R3 review and integrator acceptance
-  pending.
+  `tests/test_sidecar_codex_bridge.py`, and this work order, plus the
+  documentation-only reconciliation in
+  `docs/work-orders/WO-P1-573-a-sidecar-phase2-codex-bridge.md`. No commit,
+  push, merge, or GitHub mutation performed; independent exact-SHA R3 review
+  and integrator acceptance pending.
 
 ## 14. Orchestration-contract projection and incident/evidence appendix — 2026-10-03
 
 Source of record: Issue #575 comments `5955806357` and `5956054416`.
 The GLM-authored patch was generated read-only against generation-2 HEAD
 `08618b5d9d59efdc07828e69aafd9591798119e2` (base
-`100c94b0308ba33101e00929d7016443f3f7331f), then mechanically applied by
-the Luna integrator; deterministic verification is recorded after this section.
-It grants no claim/review/merge/completion authority.
+`100c94b0308ba33101e00929d7016443f3f7331f`), then mechanically applied by
+the Luna integrator. Precommit verification for that head is recorded in Issue
+#575 comment `5959102149`; the repair and current-head verification are recorded
+in §15. It grants no claim/review/merge/completion authority.
 
 `.agents/skills/a-sidecar/SKILL.md` projects the orchestration activation
 ("use A-Sidecar"; in-project typo "A-Sidebar") and supervision contract:
@@ -325,7 +338,8 @@ Incident/evidence:
   supported resume after interrupted turns: queued steer could yield an
   interrupted/empty turn while queue start required resume and resume was
   refused. No raw DB/session/lock repair or broad restart occurred.
-- Old checkout `c4d4cf4` lacked current A-Sidecar/A-Audit skills;
+- Old checkout `c4d4cf4da830cb313a4569a386edcff0a77266c2` lacked current
+  A-Sidecar/A-Audit skills;
   `origin/main@100c94b0308ba33101e00929d7016443f3f7331f` had them.
   Lifecycle hook SHA256
   `eb63c9773aa14c1f58279cf1848e6a97efb575f45d571ad81b83756305d8850a`
@@ -374,3 +388,23 @@ Corrections and standing gates:
 - A prior Kilo invocation requested permission for `.kilo/plans` and failed
   before accepted mutation. Use the autonomous, sharing-disabled Kilo shape;
   do not write plans or expose credentials.
+
+
+## 15. Exact-head review findings and repair disposition — 2026-10-03
+
+- Read-only GLM-5.3 MAX review execution `exec-murbg90k-l9sc037t` completed at
+  candidate `15ca95ae997b5ecc2d6c3c413dcb0119b49af779` with exit 0. Its review
+  worktree was detached, clean, and bound to that exact SHA. Sunday reports
+  `identity.verified=false`, `claimPresent=false`, and empty structured scopes;
+  the output is therefore recorded as advisory findings, not acceptance.
+- The review found a P2 audit-trail gap from §12 to §13. Exact Issue #575
+  comments `5950579896` and `5950598814` have now been verified live and are
+  cited in §13 as the #498 release/A-Audit/WIP clearance and clean g2 binding.
+  This closes the documentation traceability gap without creating authority.
+- The review's precise lane-identity, cross-reference, verification-pointer,
+  full-SHA/fence, and model-tier naming findings were mechanically corrected
+  within the existing two-file amendment scope.
+- This review covered the two-file documentation amendment but does not satisfy
+  the whole-candidate review requirement for the bridge source/tests. The new
+  candidate requires fresh hosted CI and an independent exact-SHA R3 review
+  over the full five-file PR diff; no acceptance is claimed.

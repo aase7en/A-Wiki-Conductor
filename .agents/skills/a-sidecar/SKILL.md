@@ -232,8 +232,8 @@ accepted supervision stack, and creates no parallel or shadow authority.
 - Deterministic facts first: tools, Git, tests, and schemas answer before any
   model is asked.
 - Semantic triage only through the admitted A-Audit/JEV advisory seams.
-- GLM-5.3 Flash: bounded read-only reconnaissance only; never mutation, never
-  a required independent review.
+- GLM-5.3-Flash MAX: bounded read-only reconnaissance only; never mutation,
+  never a required independent review.
 - GLM-5.3 MAX: default eligible heavy author/repair/review labor.
 - GPT/Luna: minimal supervisor/integrator/acceptance roles only.
 - Each eligible R2/R3 task receives exactly one `GLM_OFFLOAD_ASSESSMENT`:
