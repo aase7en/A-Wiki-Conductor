@@ -251,11 +251,15 @@ def test_utilization_enforcement_section_pins_classifier_contract() -> None:
         "AUTO_REFILL_REQUIRED",
     ):
         assert output in section, f"utilization enforcement lost: {output}"
-    # Projection only: no second authority, POLICY_ONLY until shared
-    # executable PRE_DISPATCH wiring succeeds #498.
+    # Classifier stays projection-only; the executable refill bridge reuses
+    # the accepted parallel-ready/PRE_DISPATCH path without a second authority.
     assert "no scheduler" in section
     assert "POLICY_ONLY" in section
     assert "WO-P1-498" in section
+    assert "a_faster_auto_refill.py" in section
+    assert "ParallelReadyExecutor" in section
+    assert "scheduler-owned" in section
+    assert "second authority" in section
 
 
 def test_activation_receipt_tasking_vs_explanation_boundary() -> None:

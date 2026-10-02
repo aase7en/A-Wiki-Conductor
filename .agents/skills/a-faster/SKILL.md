@@ -148,16 +148,24 @@ quota admission, GLM route readiness, Sol direct-labor state) and emits:
   `SECRET_SOURCE_UNAVAILABLE`, `GLM_ROUTE_BLOCKED`, and
   `NO_INDEPENDENT_READY_WORK`.
 
-Enforcement state is `POLICY_ONLY` until shared executable PRE_DISPATCH
-wiring exists as successor scope after WO-P1-498 releases; do not modify
-or import the #498-owned guard surface from this profile. The classifier
-is a projection only: it creates no scheduler, task store, claim/lease,
-provider, dispatch, retry, review, merge, or completion authority,
-launches nothing, and never burns or probes quota itself — the
-refresh-quota-before-each-material-dispatch rule is unchanged. Verdicts
-never manufacture work and never relax the active `3 mutable + 1 review`
-compute budget. Accepted Issue #537 changes claimed continuity capacity only
-(up to 2 borrowed mutable claims), not this active-compute ceiling.
+The classifier remains a projection only: it creates no scheduler, task store,
+claim/lease, provider, dispatch, retry, review, merge, or completion authority,
+launches nothing, and never burns or probes quota itself. WO-P1-549 adds
+`src/a_conductor/a_faster_auto_refill.py` as the executable auto-refill bridge:
+an accepted `A_FASTER_ACTIVE` verdict with `AUTO_REFILL_REQUIRED` and a positive
+`FANOUT_TARGET` may consume only an existing scheduler-owned `SchedulePlan` plus
+its exact `ParallelReadyTask` mapping, bound the batch to the global lane budget,
+and delegate exactly once through the existing `ParallelReadyExecutor`. The
+bridge creates no scheduler or second authority and never discovers READY work.
+
+Executable refill does not upgrade every action path automatically. The exact
+underlying route remains `POLICY_ONLY` unless the accepted WO-P1-498
+`PRE_DISPATCH` guard is proven on that material action path; only that proven
+path may be reported `GUARD_ENFORCED`. The refresh-quota-before-each-material-
+dispatch rule is unchanged. Verdicts never manufacture work and never relax the
+active `3 mutable + 1 review` compute budget. Accepted Issue #537 changes claimed
+continuity capacity only (up to 2 borrowed mutable claims), not this
+active-compute ceiling.
 
 ### Activation receipt — tasking vs explanation
 

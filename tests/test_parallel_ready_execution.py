@@ -189,6 +189,7 @@ def _task(
     require_quota: bool = True,
     gate: DispatchGateDecision | None = None,
     provider_database_path: Path | None = None,
+    harness_intent: MutationIntent = MutationIntent.PROJECT_MUTATION,
 ) -> ParallelReadyTask:
     requirement = (
         None if provider_database_path is None
@@ -231,7 +232,7 @@ def _task(
         provider_id="cointh-glm",
         model_id="glm-5.3",
         harness_strategy=HarnessStrategy.CLAUDE_CODE_CLI,
-        mutation_intent=MutationIntent.READ_ONLY,
+        mutation_intent=harness_intent,
         timeout_seconds=300,
         max_output_bytes=100_000,
         effort_level="MAX",
@@ -807,14 +808,22 @@ def test_provider_global_admission_blocks_concurrent_independent_batch(tmp_path:
     provider_store.save_endpoint(ProviderEndpointConfig(profile.endpoint_ref, "https://provider.example/v1"))
     provider_store.save_provider(profile)
     provider_store.save_observation(replace(_observation(with_quota=True), configuration_generation=1))
-    left_broker, _ = _broker(tmp_path / "left")
-    right_broker, _ = _broker(tmp_path / "right")
+    left_broker, left_lease_store = _broker(tmp_path / "left")
+    right_broker, right_lease_store = _broker(tmp_path / "right")
     runner = BlockingAdmissionRunner()
     left_executor = build_sqlite_parallel_ready_executor(
-        database_path=database, broker=left_broker, runner=runner, clock=lambda: NOW,
+        database_path=database,
+        broker=left_broker,
+        runner=runner,
+        clock=lambda: NOW,
+        lease_health_reader=left_lease_store,
     )
     right_executor = build_sqlite_parallel_ready_executor(
-        database_path=database, broker=right_broker, runner=runner, clock=lambda: NOW,
+        database_path=database,
+        broker=right_broker,
+        runner=runner,
+        clock=lambda: NOW,
+        lease_health_reader=right_lease_store,
     )
     left = _task(
         node_id="global-left",
@@ -2401,3 +2410,71 @@ def test_wo118b_release_requires_exact_released_record(tmp_path: Path) -> None:
     assert result.outcomes[0].kind is ParallelReadyOutcomeKind.PROVIDER_ADMISSION_RECOVERY_REQUIRED
     assert result.outcomes[0].reason_code == "PROVIDER_ADMISSION_RELEASE_INVALID"
     assert _admission_statuses(delegate.database_path) == [("ACTIVE",)]
+
+def test_parallel_task_rejects_lease_harness_mutation_intent_drift() -> None:
+    with pytest.raises(ValueError, match="lease and harness mutation intent mismatch"):
+        _task(
+            node_id="intent-drift",
+            worker_id="a-worker-01",
+            worktree=r"A:\Work\intent-drift",
+            branch="feat/intent-drift",
+            mutable_scope=("src/intent_drift.py",),
+            harness_intent=MutationIntent.READ_ONLY,
+        )
+
+
+def test_pre_dispatch_guard_required_fails_without_health_reader(tmp_path: Path) -> None:
+    broker, _ = _broker(tmp_path)
+    runner = ExplodingRunner()
+    with pytest.raises(ValueError, match="PRE_DISPATCH_GUARD_REQUIRED"):
+        ParallelReadyExecutor(
+            broker=broker,
+            runner=runner,
+            clock=lambda: NOW,
+            require_pre_dispatch_guard=True,
+        )
+
+def test_pre_dispatch_guard_denial_blocks_runner_at_launch_seam(tmp_path: Path) -> None:
+    broker, _ = _broker(tmp_path)
+
+    class UnavailableHealth:
+        def inspect_health(self, lease_id: str, *, now: object):
+            raise RuntimeError("must be bounded")
+
+    class RecordingRunner:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def run(self, task: ParallelReadyTask, lease):
+            self.calls.append(task.assignment.node_id)
+            return object()
+
+    runner = RecordingRunner()
+    executor = ParallelReadyExecutor(
+        broker=broker,
+        runner=runner,
+        clock=lambda: NOW,
+        lease_health_reader=UnavailableHealth(),
+        require_pre_dispatch_guard=True,
+    )
+    task = _task(
+        node_id="guard-deny",
+        worker_id="a-worker-01",
+        worktree=r"A:\Work\guard-deny",
+        branch="feat/guard-deny",
+        mutable_scope=("src/guard_deny.py",),
+        require_quota=False,
+    )
+    plan = SchedulePlan((task.assignment,), (), "guard-launch-seam")
+
+    result = executor.execute(
+        plan,
+        {"guard-deny": task},
+        provider_inflight={"cointh-glm": 0},
+        batch_id="batch-guard-deny",
+    )
+
+    assert runner.calls == []
+    assert len(result.outcomes) == 1
+    assert result.outcomes[0].kind is ParallelReadyOutcomeKind.RUNNER_RECOVERY_REQUIRED
+    assert result.outcomes[0].reason_code == "LEASE_HEALTH_UNAVAILABLE"
