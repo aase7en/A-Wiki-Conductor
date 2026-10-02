@@ -866,6 +866,7 @@ def test_wo498_guarded_fresh_launch_denied_after_lease_release(tmp_path: Path) -
     launch; after the lease is released, a NEW fresh dispatch (different
     packet bytes => different fingerprint) is denied BEFORE any record or
     child spawn — exactly one spawn total."""
+    from a_conductor.pre_dispatch_guard import LiveWorktreeIdentity
     from a_conductor.worker_lease import LeaseHealth, LeaseHealthKind
 
     baseline = build_lease(tmp_path)
@@ -877,11 +878,25 @@ def test_wo498_guarded_fresh_launch_denied_after_lease_release(tmp_path: Path) -
         def inspect_health(self, lease_id: str, *, now: object) -> LeaseHealth:
             return state[lease_id]
 
+    class MatchingLiveObserver:
+        """Live-identity authority bound to the accepted run binding: echoes
+        the coordinator-supplied repo root with the exact accepted
+        branch/HEAD so the fresh-launch seam observes no drift."""
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def observe(self, repo_root: str) -> LiveWorktreeIdentity:
+            self.calls.append(repo_root)
+            return LiveWorktreeIdentity(repo_root=repo_root, branch=BRANCH, head=HEAD)
+
     runtime_python = getattr(sys, "_base_executable", sys.executable)
     fake_script = _write_fake_app_server(tmp_path / "fake", tmp_path / "receipts", "ok")
     authorities = replace(
         build_real_service_authorities(tmp_path),
         lease_health_reader=Reader(),
+        # the guarded writer route requires the live observer as well
+        live_worktree_observer=MatchingLiveObserver(),
     )
 
     def _guarded_runner(text: str):
@@ -902,6 +917,7 @@ def test_wo498_guarded_fresh_launch_denied_after_lease_release(tmp_path: Path) -
     first = _guarded_runner(f"{PROMPT_MARKER} Return exactly {RESPONSE_TEXT}.")
     assert first._pre_dispatch_guard is not None
     assert first._pre_dispatch_guard_required is True
+    assert first._live_worktree_observer is not None
     result = first.run(timeout_seconds=90)
     assert result.exit_code == 0, result.stderr
     spawns = (tmp_path / "receipts" / "spawn.pid").read_text(encoding="utf-8").split()
@@ -916,5 +932,110 @@ def test_wo498_guarded_fresh_launch_denied_after_lease_release(tmp_path: Path) -
     denied = second.run(timeout_seconds=90)
     assert denied.exit_code is None
     assert denied.stderr == "SUPERVISED_PRE_DISPATCH_GUARD_DENIED:LEASE_RELEASED"
+    spawns_after = (tmp_path / "receipts" / "spawn.pid").read_text(encoding="utf-8").split()
+    assert spawns_after == spawns  # zero new child spawns on the denied dispatch
+
+
+# ------- WO-P1-498 generation-3: live Git identity over the REAL helper -------
+
+
+def _git_read(root: Path, *args) -> str:
+    import subprocess
+
+    completed = subprocess.run(
+        (
+            "git",
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "user.name=t",
+            "-C",
+            str(root),
+            *args,
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return completed.stdout.strip()
+
+
+@NT_ONLY
+def test_wo498_live_identity_denies_head_drift_over_real_helper(tmp_path: Path) -> None:
+    """End-to-end over the REAL specialized helper with the production
+    read-only ``GitLiveWorktreeObserver`` wired by the assembly: a matching
+    live root/branch/HEAD permits exactly one fresh spawn; after the
+    worktree HEAD moves, the next fresh dispatch is denied BEFORE any
+    record or child spawn — still exactly one spawn total."""
+    import subprocess
+
+    from a_conductor.pre_dispatch_guard import GitLiveWorktreeObserver
+
+    init = subprocess.run(
+        (
+            "git",
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "user.name=t",
+            "-C",
+            str(tmp_path),
+            "init",
+            "-b",
+            BRANCH,
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert init.returncode == 0, init.stderr
+    (tmp_path / "README.md").write_text("gen3-live\n", encoding="utf-8")
+    _git_read(tmp_path, "add", "README.md")
+    _git_read(tmp_path, "commit", "-m", "init")
+    head = _git_read(tmp_path, "rev-parse", "HEAD")
+
+    bound_lease = replace(build_lease(tmp_path), expected_head=head)
+    runtime_python = getattr(sys, "_base_executable", sys.executable)
+    fake_script = _write_fake_app_server(tmp_path / "fake", tmp_path / "receipts", "ok")
+    authorities = replace(
+        build_real_service_authorities(tmp_path),
+        lease_evidence=bound_lease,
+        head=head,
+        live_worktree_observer=GitLiveWorktreeObserver(),
+    )
+
+    def _live_runner(text: str):
+        return assemble_zcode_execution(
+            authorities=authorities,
+            packet=_packet(tmp_path, text=text),
+            model_id="glm-5.3",
+            expected_generation=1,
+            expected_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path),
+            executable=runtime_python,
+            bundle_js=str(fake_script),
+            deadline_seconds=20.0,
+        )
+
+    first = _live_runner(f"{PROMPT_MARKER} Return exactly {RESPONSE_TEXT}.")
+    assert first._live_worktree_observer is not None
+    result = first.run(timeout_seconds=90)
+    assert result.exit_code == 0, result.stderr
+    spawns = (tmp_path / "receipts" / "spawn.pid").read_text(encoding="utf-8").split()
+    assert len(spawns) == 1
+
+    # the worktree HEAD drifts between assembly and the next fresh launch
+    (tmp_path / "drift.md").write_text("drift\n", encoding="utf-8")
+    _git_read(tmp_path, "add", "drift.md")
+    _git_read(tmp_path, "commit", "-m", "drift")
+
+    second = _live_runner(f"{PROMPT_MARKER} Different bytes. Return exactly {RESPONSE_TEXT}.")
+    denied = second.run(timeout_seconds=90)
+    assert denied.exit_code is None
+    assert denied.stderr == "SUPERVISED_LIVE_WORKTREE_DENIED:WORKTREE_HEAD_MISMATCH"
     spawns_after = (tmp_path / "receipts" / "spawn.pid").read_text(encoding="utf-8").split()
     assert spawns_after == spawns  # zero new child spawns on the denied dispatch
