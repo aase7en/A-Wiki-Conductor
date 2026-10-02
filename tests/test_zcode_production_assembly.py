@@ -801,6 +801,7 @@ def test_wo498_real_service_assembly_binds_required_lease_guard(tmp_path):
     PRE_DISPATCH guard onto the mutation-capable supervised ZCode runner."""
     from a_conductor.worker_lease import LeaseHealth, LeaseHealthKind
 
+    from tests.test_zcode_authority_bound_assembly import _LiveObserver
     from tests.test_zcode_real_helper_e2e import build_lease, build_real_service_authorities
 
     class _Reader:
@@ -817,8 +818,178 @@ def test_wo498_real_service_assembly_binds_required_lease_guard(tmp_path):
     authorities = replace(
         build_real_service_authorities(tmp_path),
         lease_health_reader=reader,
+        # the guarded writer route requires the live observer as well
+        live_worktree_observer=_LiveObserver(),
     )
     runner = _service_assemble(tmp_path, authorities=authorities)
     assert runner._pre_dispatch_guard is not None
     assert runner._pre_dispatch_guard_required is True
+    assert runner._live_worktree_observer is not None
     assert reader.calls == []  # no launch-time read before any run()
+
+
+# ------- WO-P1-498 generation-3: production live Git identity wiring -------
+
+
+def _live_git(root, *args):
+    import subprocess
+
+    completed = subprocess.run(
+        (
+            "git",
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "user.name=t",
+            "-C",
+            str(root),
+            *args,
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return completed.stdout.strip()
+
+
+_LIVE_BRANCH = "feat/wo-p1-158-zcode-zero-relay"
+
+
+def _live_repo(tmp_path):
+    root = tmp_path / "live-repo"
+    root.mkdir(parents=True, exist_ok=True)
+    _live_git(root, "init", "-b", _LIVE_BRANCH)
+    (root / "README.md").write_text("gen3\n", encoding="utf-8")
+    _live_git(root, "add", "README.md")
+    _live_git(root, "commit", "-m", "init")
+    return root, _live_git(root, "rev-parse", "HEAD")
+
+
+def _live_bound_authorities(tmp_path, root, branch, head):
+    """Mutation authorities bound to a REAL git worktree + the production
+    read-only live-identity observer (fake supervised authorities assert no
+    launch happens in gate tests; the service start boundary converts the
+    assertion into a typed recovery outcome for the allow case)."""
+    from a_conductor.registry import windows_worktree_key
+
+    from tests.test_zcode_authority_bound_assembly import _Controller, _Obs
+    from tests.test_zcode_real_helper_e2e import Snapshot as _E2ESnapshot
+    from tests.test_zcode_real_helper_e2e import _profile as _e2e_profile
+    from tests.test_zcode_real_helper_e2e import build_admission, build_lease
+
+    from a_conductor.pre_dispatch_guard import GitLiveWorktreeObserver
+
+    lease = replace(
+        build_lease(tmp_path),
+        branch=branch,
+        expected_head=head,
+        worktree_key=windows_worktree_key(str(root)),
+    )
+    return ZCodeExecutionAuthorities(
+        provider_snapshot=_E2ESnapshot(1, _e2e_profile()),
+        secret_resolver=Secrets(),
+        execution_store=SQLiteExecutionStore(tmp_path / "live-control.sqlite"),
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        lease_evidence=lease,
+        admission_evidence=build_admission(),
+        dispatch_batch_id="batch-e2e-0001",
+        dispatch_execution_id="exec-e2e-bound-0001",
+        project_id="zcode",
+        requested_mutable_scope=("src/a_conductor/zcode_runner.py",),
+        worker_id="a-worker-01",
+        repo_root=str(root),
+        branch=branch,
+        head=head,
+        dirty=False,
+        live_worktree_observer=GitLiveWorktreeObserver(),
+    )
+
+
+def _live_assemble(tmp_path, root, branch, head, *, packet=None):
+    # the confined packet must live INSIDE the trusted repo root and carry
+    # the lease-bound task contract ref
+    from tests.test_zcode_real_helper_e2e import TASK_REF
+
+    if packet is None:
+        path = root / "task-packet.md"
+        path.write_text("gen3 live identity probe", encoding="utf-8")
+        packet = TaskPacketFile(
+            task_contract_ref=TASK_REF,
+            path=str(path),
+            sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
+    return assemble_zcode_execution(
+        authorities=_live_bound_authorities(tmp_path, root, branch, head),
+        packet=packet,
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path),
+        executable=EXEC,
+        bundle_js=BUNDLE,
+    )
+
+
+def test_wo498_production_fresh_route_denies_live_head_drift_before_launch(tmp_path):
+    """A production-assembled FRESH route carries the read-only live Git
+    observer: HEAD moving after assembly denies BEFORE durable persistence
+    or backend launch."""
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+    from a_conductor.zcode_runner import SupervisedZCodeRunner
+
+    root, head = _live_repo(tmp_path)
+    runner = _live_assemble(tmp_path, root, _LIVE_BRANCH, head)
+    assert isinstance(runner, SupervisedZCodeRunner)
+    assert runner._live_worktree_observer is not None
+
+    # the worktree HEAD moves between assembly and the fresh launch
+    (root / "drift.md").write_text("drift\n", encoding="utf-8")
+    _live_git(root, "add", "drift.md")
+    _live_git(root, "commit", "-m", "drift")
+
+    outcome = runner.run_with_outcome(timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert outcome.native.stderr == (
+        "SUPERVISED_LIVE_WORKTREE_DENIED:WORKTREE_HEAD_MISMATCH"
+    )
+    # denial happened before persistence and before any launch attempt
+    assert runner._store.find_by_fingerprint(runner.execution_fingerprint()) == ()
+
+
+def test_wo498_production_fresh_route_denies_live_branch_drift_before_launch(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    root, head = _live_repo(tmp_path)
+    runner = _live_assemble(tmp_path, root, _LIVE_BRANCH, head)
+    _live_git(root, "checkout", "-b", "docs/other-branch")
+
+    outcome = runner.run_with_outcome(timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert outcome.native.stderr == (
+        "SUPERVISED_LIVE_WORKTREE_DENIED:WORKTREE_BRANCH_MISMATCH"
+    )
+    assert runner._store.find_by_fingerprint(runner.execution_fingerprint()) == ()
+
+
+def test_wo498_production_fresh_route_matching_identity_reaches_backend_launch(tmp_path):
+    """A matching live identity permits exactly one fresh launch: the run
+    proceeds PAST the live-identity seam to the backend launch boundary
+    (the asserting fake controller converts any start attempt into a typed
+    recovery failure)."""
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    root, head = _live_repo(tmp_path)
+    runner = _live_assemble(tmp_path, root, _LIVE_BRANCH, head)
+    outcome = runner.run_with_outcome(timeout_seconds=30)
+    # the live identity ALLOWED: the run reached the backend launch seam
+    # where the asserting fake controller surfaces the typed start failure
+    assert outcome.kind is SupervisedRunOutcomeKind.RECOVERY_REQUIRED
+    assert outcome.native.stderr.startswith("SUPERVISED_LAUNCH_FAILED:")
+    assert "SUPERVISED_LIVE_WORKTREE" not in outcome.native.stderr

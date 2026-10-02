@@ -455,7 +455,7 @@ class _HealthReader:
 
 def _authorities_with_reader(tmp_path, *, lease=None, reader=None,
                              requested_mutable_scope=("src/a_conductor/zcode_runner.py",),
-                             review=False):
+                             review=False, observer=_DEFAULT):
     accepted = lease if lease is not None else _lease(tmp_path)
     if review:
         accepted = _lease(
@@ -487,6 +487,9 @@ def _authorities_with_reader(tmp_path, *, lease=None, reader=None,
         lease_health_reader=reader if reader is not None else _HealthReader(
             LeaseHealth(LeaseHealthKind.ACTIVE, accepted)
         ),
+        live_worktree_observer=(
+            _LiveObserver() if observer is _DEFAULT else observer
+        ),
     )
 
 
@@ -499,6 +502,32 @@ def test_wo498_mutation_assembly_with_reader_binds_required_guard(tmp_path):
     assert runner._pre_dispatch_guard is not None
     assert runner._pre_dispatch_guard_required is True
     assert reader.calls == []  # no health read happens at assembly time
+    # the guarded writer route also carries the live observer into the runner
+    assert runner._live_worktree_observer is not None
+
+
+def test_wo498_guarded_writer_route_requires_live_observer(tmp_path):
+    """The accepted #498A guarded production writer route (review_only ==
+    False AND a lease-health reader authority present) REQUIRES the live
+    Git-identity observer: a writer-route caller that supplies the reader
+    but omits the observer fails closed at assembly with a stable typed
+    code BEFORE any runnable writer exists — the live identity protection
+    can never be left dormant on that route."""
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble(
+            tmp_path,
+            authorities=_authorities_with_reader(tmp_path, observer=None),
+        )
+    assert e.value.code == "ZCODE_LIVE_IDENTITY_OBSERVER_MISSING"
+
+
+def test_wo498_guarded_writer_route_invalid_observer_fails_closed(tmp_path):
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble(
+            tmp_path,
+            authorities=_authorities_with_reader(tmp_path, observer=object()),
+        )
+    assert e.value.code == "ZCODE_LIVE_IDENTITY_OBSERVER_INVALID"
 
 
 def test_wo498_invalid_health_reader_fails_closed(tmp_path):
@@ -532,6 +561,9 @@ def test_wo498_review_route_stays_policy_only_even_with_reader(tmp_path):
     )
     assert runner._pre_dispatch_guard is None
     assert runner._pre_dispatch_guard_required is False
+    # the review-only route never wires the live observer even when the
+    # injection supplies one, and never requires it
+    assert runner._live_worktree_observer is None
 
 
 def test_wo498_historical_lease_gate_order_precedes_guard_construction(tmp_path):
@@ -543,6 +575,120 @@ def test_wo498_historical_lease_gate_order_precedes_guard_construction(tmp_path)
             tmp_path,
             authorities=_authorities_with_reader(
                 tmp_path, lease=_lease(tmp_path, expires_at=expired)
+            ),
+        )
+    assert e.value.code == "ZCODE_LEASE_EXPIRED"
+
+
+# ------- WO-P1-498 generation-3: live Git identity observer wiring -------
+
+
+class _LiveObserver:
+    """Injected read-only live-identity observation authority (records
+    calls; observation must happen only at the launch seam)."""
+
+    def __init__(self, identity=None):
+        self.identity = identity
+        self.calls = []
+
+    def observe(self, repo_root):
+        self.calls.append(repo_root)
+        return self.identity
+
+
+def _authorities_with_observer(tmp_path, *, observer=None, review=False, lease=None):
+    if lease is not None:
+        accepted = lease
+    elif review:
+        accepted = _lease(
+            tmp_path,
+            mutation_intent=LeaseMutationIntent.READ_ONLY,
+            allowed_scope=(),
+            forbidden_scope=(),
+            mutable_scope=(),
+        )
+    else:
+        accepted = _lease(tmp_path)
+    return ZCodeExecutionAuthorities(
+        provider_snapshot=Snapshot(1, _profile()),
+        secret_resolver=_Secrets(),
+        execution_store=_Store(),
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        lease_evidence=accepted,
+        admission_evidence=_admission(execution_id="exec-bound-0001"),
+        dispatch_batch_id="batch-0001",
+        dispatch_execution_id="exec-bound-0001",
+        project_id="zcode",
+        requested_mutable_scope=() if review else ("src/a_conductor/zcode_runner.py",),
+        worker_id="a-worker-01",
+        repo_root=str(tmp_path),
+        branch="feat/wo-p1-158-zcode-zero-relay",
+        head="h" * 40,
+        dirty=False,
+        live_worktree_observer=observer,
+    )
+
+
+def test_wo498_mutation_assembly_carries_live_observer(tmp_path):
+    observer = _LiveObserver()
+    runner = _assemble(tmp_path, authorities=_authorities_with_observer(tmp_path, observer=observer))
+    assert runner._live_worktree_observer is observer
+    assert observer.calls == []  # observation happens at launch, not assembly
+
+
+def test_wo498_invalid_live_observer_fails_closed(tmp_path):
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble(
+            tmp_path,
+            authorities=_authorities_with_observer(tmp_path, observer=object()),
+        )
+    assert e.value.code == "ZCODE_LIVE_IDENTITY_OBSERVER_INVALID"
+
+
+def test_wo498_legacy_mutation_route_neither_authority_stays_policy_only(tmp_path):
+    """Explicit legacy distinction: a mutation assembly carrying NEITHER
+    guard authority (no lease-health reader AND no live observer) remains
+    the historical POLICY_ONLY writer and is NOT silently upgraded by this
+    bounded repair — only the guarded route (reader present) requires the
+    observer (see test_wo498_guarded_writer_route_requires_live_observer)."""
+    runner = _assemble(tmp_path)  # default authorities carry neither authority
+    assert runner._pre_dispatch_guard is None
+    assert runner._pre_dispatch_guard_required is False
+    assert runner._live_worktree_observer is None
+
+
+def test_wo498_review_route_never_wires_live_observer(tmp_path):
+    from a_conductor.zcode_production_assembly import assemble_zcode_review_execution
+
+    observer = _LiveObserver()
+    runner = assemble_zcode_review_execution(
+        authorities=_authorities_with_observer(tmp_path, observer=observer, review=True),
+        packet=_packet(tmp_path),
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url="http://127.0.0.1:1",
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path),
+        executable=EXEC,
+        bundle_js=BUNDLE,
+    )
+    assert runner._live_worktree_observer is None
+    assert observer.calls == []
+
+
+def test_wo498_live_observer_gate_order_after_historical_lease_gates(tmp_path):
+    """Existing negative lease gates keep firing with their historical codes
+    even when a live observer is present (observer wiring is LAST)."""
+    expired = (_now() - timedelta(seconds=1)).isoformat()
+    with pytest.raises(ZCodeAssemblyError) as e:
+        _assemble(
+            tmp_path,
+            authorities=_authorities_with_observer(
+                tmp_path,
+                observer=_LiveObserver(),
+                lease=_lease(tmp_path, expires_at=expired),
             ),
         )
     assert e.value.code == "ZCODE_LEASE_EXPIRED"
