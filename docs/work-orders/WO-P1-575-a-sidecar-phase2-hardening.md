@@ -69,7 +69,8 @@ Allowed:
 - docs/work-orders/WO-P1-573-a-sidecar-phase2-codex-bridge.md
   (docs-only final checkpoint/accepted-main evidence; no source semantics)
 - .agents/skills/a-sidecar/SKILL.md
-  (user-directed Desktop-binding recovery lesson only; no authority expansion)
+  (user-directed Desktop-binding recovery lesson and orchestration-mode
+  supervision-contract projection; documentation only, no authority expansion)
 
 Forbidden:
 - src/a_conductor/sidecar_relay.py
@@ -301,3 +302,75 @@ current exact HEAD before any provider request.
   docs-only checkpoint below). No commit, push, merge, or GitHub mutation
   performed; independent exact-SHA R3 review and integrator acceptance
   pending.
+
+## 14. Orchestration-contract projection and incident/evidence appendix — 2026-10-03
+
+Source of record: Issue #575 comments `5955806357` and `5956054416`.
+The GLM-authored patch was generated read-only against generation-2 HEAD
+`08618b5d9d59efdc07828e69aafd9591798119e2` (base
+`100c94b0308ba33101e00929d7016443f3f7331f), then mechanically applied by
+the Luna integrator; deterministic verification is recorded after this section.
+It grants no claim/review/merge/completion authority.
+
+`.agents/skills/a-sidecar/SKILL.md` projects the orchestration activation
+("use A-Sidecar"; in-project typo "A-Sidebar") and supervision contract:
+Sol/Luna role split, A-FastTask-first composition, parent loop, watchdog,
+routing, writer continuity, skill freshness, and binding corrections.
+The A-Sidecar authority floor remains unchanged.
+
+Incident/evidence:
+
+- Old Parent `01a0f2dd-eccd-7e61-ae55-8dbc37734662` and watchdog
+  `01a0f451-6d13-7f70-a8c2-53b77c897a1e` hit active-writer conflicts on
+  supported resume after interrupted turns: queued steer could yield an
+  interrupted/empty turn while queue start required resume and resume was
+  refused. No raw DB/session/lock repair or broad restart occurred.
+- Old checkout `c4d4cf4` lacked current A-Sidecar/A-Audit skills;
+  `origin/main@100c94b0308ba33101e00929d7016443f3f7331f` had them.
+  Lifecycle hook SHA256
+  `eb63c9773aa14c1f58279cf1848e6a97efb575f45d571ad81b83756305d8850a`
+  was identical: stale skill visibility, not hook logic. The clean read-only
+  snapshot `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-codex-supervisor-g2`
+  at `100c94b` exposed A-FastTask/A-Faster/A-NightShift/A-Audit/A-Sidecar.
+- Successor Parent `01a0fd2f-a479-75a0-bafb-46423c0c0a39` was started
+  through the supported API as Luna LOW; recovery-only first turn returned
+  `SUCCESSOR_RECOVERY_READY`. The catalog emitted "Exceeded skills context
+  budget"; explicitly attaching required skills is the robustness pattern.
+- The first successor pass falsely classified CoinTH preflight unavailable
+  because it sought a separate visible tool. `~/.codex/hooks.json` and
+  `cointh_quota_pretool.py` provide fail-closed PreToolUse admission for
+  explicit GLM requests. Credentials were not exposed.
+- An earlier #575 bounded GLM repair got explicit upstream HTTP 429 before
+  mutation: a typed lane-local provider blocker, never duplicate-writer
+  permission.
+- Obsolete review `exec-mur476az-cd6bsrps` was CANCELLED/harvested/collected,
+  had `claimPresent=false` and `identity.verified=false`, and used an
+  incorrectly reconstructed SHA. It is not acceptance evidence.
+- Failed `exec-mur4mla1-1mgnulul` was FAILED/harvested/collected with
+  `bindingDigest=null` and `identityVerified=false`; no canonical binding
+  or accepted mutation resulted. It is not acceptance evidence and must not
+  be replayed as success.
+- The first read-only GLM authoring dispatch attempt was rejected by connector
+  schema validation before execution because `sunday_dispatch args[3]`
+  exceeded `maxLength=8000`. No execution or model call was created. Standing
+  fix: compact handoff prompts, prefer durable references plus progressive
+  disclosure, and keep each material prompt within the connector limit.
+
+Corrections and standing gates:
+
+- SRM `claimPresent=false` means the SRM completion done-claim artifact is
+  missing, not that the A-Conductor project claim or WorkerLease is absent.
+  Project/WO claim, WorkerLease/mutation admission, and SRM collection
+  semantics are separate evidence planes.
+- Never fabricate DEX `bindingDigest` or identity fields. If canonical
+  `mode=mutate` admission is unavailable on a direct route, do not send
+  unbound mutate; read-only patch output remains non-authoritative until
+  separately applied and verified.
+- Exact full SHAs come from live Git, never reconstructed from a prefix.
+  Actual #579 head at authoring was
+  `08618b5d9d59efdc07828e69aafd9591798119e2`. Candidate changes invalidate
+  earlier exact-head evidence: fresh hosted CI and independent exact-SHA
+  review are required before merge.
+- A prior Kilo invocation requested permission for `.kilo/plans` and failed
+  before accepted mutation. Use the autonomous, sharing-disabled Kilo shape;
+  do not write plans or expose credentials.

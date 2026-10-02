@@ -34,6 +34,15 @@ Asking what A-Sidecar is, discussing it, quoting it, or documenting it
 grants no mutation authority: the normal `00-AGENT-ENTRY.md` entry sequence
 still runs before any mutable work in this chat.
 
+### Orchestration-mode activation
+
+Activation clauses are case-insensitive, and the obvious in-project typo
+"A-Sidebar" resolves to this same skill. Activation also engages the
+orchestration-mode projection in this skill: the chat becomes a typed
+orchestration and cross-surface handoff surface for the already-running
+execution stack. Orchestration mode grants no new authority; the authority
+floor at the end of this skill still applies in full.
+
 ## Identity axioms (always true in this lane)
 
 - **NEW CHAT != NEW TASK.** A fresh ordinary chat never creates, resets, or
@@ -138,6 +147,18 @@ operations, but its existence never proves Desktop UI/runtime ownership. Native
 queue cross-writer behavior is likewise valid only for a thread whose current
 writer/runtime identity has been recovered and verified.
 
+Writer continuity (successor-parent migration):
+
+- Never raw-edit Codex SQLite/session/lock files, never steal or delete
+  writer locks, never broad-kill or restart ChatGPT/Codex to force ownership,
+  and never run a duplicate writer against a lane another runtime owns.
+- Supported successor migration happens only at a proven safe idle with no
+  active mutation: create exactly one Luna LOW successor, bind the same
+  durable Goal and current skills, prove a recovery-only first turn
+  (`SUCCESSOR_RECOVERY_READY`) before activation, and pause/tombstone the
+  old Goal. The watchdog stays a separate goal.
+- Never reset, clean, or stash unknown work.
+
 ## Permitted companion work
 
 Without any new claim, A-Sidecar may do **non-conflicting read-only** work:
@@ -168,6 +189,44 @@ Report the typed wait reason, keep watching declared dependencies, and do not
 manufacture work to look busy. IDLE/WATCH ends when durable evidence shows a
 new SAFE_READY candidate or a watched dependency changes state.
 
+## Orchestration-mode supervision contract (projection)
+
+When orchestration mode is active, this lane projects — never replaces — the
+accepted supervision stack, and creates no parallel or shadow authority.
+
+- **GPT-5.6 Sol in A-Conductor_Chat** is Architect / Conductor / Researcher /
+  Prompt Designer / Integrator / Incident Recorder — not the default heavy
+  implementation or review worker while a valid delegation route exists.
+- **The persistent Codex Desktop/App-Server Parent Goal (GPT-6 Luna LOW)** is
+  the low-traffic controller:
+  `RECOVER -> RECONCILE -> HARVEST -> SAFE_READY -> delegate -> verify ->
+  continue`.
+- **Composition order:** compose A-FastTask first, then A-Audit. A-Faster
+  owns existing-WIP/fanout/collision/auto-refill projection; A-NightShift
+  owns unattended continuation and waits; A-Sidecar owns typed cross-surface
+  handoff and continuity. Never create parallel or shadow authorities.
+- **Parent loop until roadmap completion:** `RECOVER -> RECONCILE -> HARVEST
+  -> NEXT_READY -> A-Audit -> DELEGATE -> VERIFY -> REVIEW/CI -> bounded
+  REPAIR -> exact-authority MERGE/POST-MAIN -> refresh WIP -> NEXT_READY`.
+  One blocked lane never blocks the parent.
+- **Automation floor:** AI-safe decisions inside owned authority are
+  automatic; humans are engaged only for genuine `HUMAN_DECISION_REQUIRED`,
+  `HUMAN_ACTION_REQUIRED`, `AUTHORIZATION_REQUIRED`, `SAFETY_BLOCK`, or the
+  terminal `TRUE_NO_SAFE_NEXT_ACTION`.
+- **Watchdog:** a separate `WATCHDOG_ONLY` Luna LOW wake notifies the Parent
+  only on a material durable delta, at a 30-minute cadence; an unchanged
+  idle state is `DONT_NOTIFY`.
+
+## Skill freshness and progressive disclosure
+
+- A stale supervisor checkout must never hide current repo-local skills:
+  resolve skills against live accepted `origin/main` (or a clean read-only
+  snapshot at that commit) before declaring a skill missing.
+- When the catalog reports "Exceeded skills context budget", explicitly
+  attach the required skills instead of relying on auto-discovery.
+- Progressive disclosure: load A-FastTask first and only the needed overlays;
+  load A-NightShift only when wait/continuation semantics apply.
+
 ## GLM-first quota policy (projection)
 
 - Deterministic facts first: tools, Git, tests, and schemas answer before any
@@ -184,6 +243,21 @@ new SAFE_READY candidate or a watched dependency changes state.
 - One fresh accepted CoinTH quota preflight immediately before each material
   dispatch. No readiness smoke probes and no manufactured work; the useful real
   request tests its own route.
+- Offload eligibility is substantial R2/R3 only, after deterministic checks;
+  GLM-5.3 MAX via KiloCLI/CoinTH is the preferred heavy executor for
+  implementation/repair/review labor.
+- GLM-5.3-Flash MAX is bounded to read-only reconnaissance, evidence shaping,
+  and prechecks; JEV output is accepted advisory evidence only, never
+  authority.
+- The CoinTH preflight is fail-closed: no fresh pass means no GLM request,
+  and no synthetic smoke may substitute for the real request.
+- When `GLM_ROUTE_READY=true`, equivalent long Luna/Sol implementation is
+  forbidden; a typed GLM block may fall back to an accepted alternate route;
+  never blind-spin a blocked route.
+- Never force GLM onto trivial deterministic work and never burn quota to
+  fill lanes.
+- Terminal FAILED/CANCELLED executions with no canonical binding or verified
+  identity are non-acceptance evidence and are never replayed as success.
 
 ## A-Relay usage
 
@@ -203,6 +277,20 @@ branch/HEAD/claim), the pinned Codex thread and its derived state, companion
 work done with evidence destinations, A-Relay events emitted, current
 IDLE/WATCH or active classification with typed reason, blocker (or `NONE`),
 and the exact next safe action.
+
+## Recorded corrections (binding semantics)
+
+- SRM status `claimPresent=false` means the SRM completion done-claim
+  artifact is missing — NOT that the A-Conductor project claim or WorkerLease
+  is absent. Project/WO claim, WorkerLease/mutation admission, and SRM
+  collection semantics are separate facts.
+- Never fabricate a DEX `bindingDigest`/identity. When canonical
+  `mode=mutate` admission is unavailable on a direct route, do not issue an
+  unbound mutate; use read-only patch authoring and keep the output
+  non-authoritative pending separate apply/verification.
+- Exact full SHAs come from live Git only, never reconstructed from a prefix.
+  Any new candidate SHA requires fresh hosted CI and an independent
+  exact-SHA review before merge.
 
 ## Authority floor
 
