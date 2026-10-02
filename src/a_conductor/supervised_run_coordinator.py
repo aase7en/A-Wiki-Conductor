@@ -38,9 +38,13 @@ from .execution_record import (
 from .execution_store import ExecutionStoreError
 from .native_execution import NativeCommandResult
 from .pre_dispatch_guard import (
+    LiveWorktreeIdentity,
+    LiveWorktreeObservationError,
+    LiveWorktreeObserver,
     PreDispatchGuardDecision,
     PreDispatchGuardDecisionKind,
     is_valid_guard_reason,
+    live_worktree_drift_reason,
 )
 from .supervised_execution import (
     SupervisedCollectOutcome,
@@ -239,6 +243,7 @@ class SupervisedRunCoordinator:
         max_output_bytes: int = 64 * 1024,
         pre_dispatch_guard: "PreDispatchGuardLike | None" = None,
         pre_dispatch_guard_required: bool = False,
+        live_worktree_observer: LiveWorktreeObserver | None = None,
     ) -> None:
         for method_name in ("create", "get", "find_by_fingerprint"):
             if not callable(getattr(execution_store, method_name, None)):
@@ -254,6 +259,10 @@ class SupervisedRunCoordinator:
             raise ValueError("pre_dispatch_guard must provide check")
         if not isinstance(pre_dispatch_guard_required, bool):
             raise ValueError("pre_dispatch_guard_required must be bool")
+        if live_worktree_observer is not None and not callable(
+            getattr(live_worktree_observer, "observe", None)
+        ):
+            raise ValueError("live_worktree_observer must provide observe")
         if (
             not isinstance(poll_interval_seconds, (int, float))
             or isinstance(poll_interval_seconds, bool)
@@ -288,6 +297,7 @@ class SupervisedRunCoordinator:
         self._max_output_bytes = max_output_bytes
         self._pre_dispatch_guard = pre_dispatch_guard
         self._pre_dispatch_guard_required = pre_dispatch_guard_required
+        self._live_worktree_observer = live_worktree_observer
 
     @property
     def identity(self) -> SupervisedRunIdentity:
@@ -444,6 +454,44 @@ class SupervisedRunCoordinator:
             return f"SUPERVISED_PRE_DISPATCH_GUARD_DENIED:{reason}"
         return "SUPERVISED_PRE_DISPATCH_GUARD_INVALID"
 
+    def _assess_live_worktree_identity(self) -> str | None:
+        """WO-P1-498 / 498A: bind a fresh launch to the LIVE repo
+        root/branch/HEAD at the consequential launch seam.
+
+        An unbound route preserves its prior behavior and stays POLICY_ONLY
+        for this identity check. An injected observer is untrusted
+        authority output: observation failures, malformed facts and drift
+        all fail closed to stable bounded codes without exposing raw
+        runner output or underlying errors.
+        """
+        observer = self._live_worktree_observer
+        if observer is None:
+            return None
+        try:
+            observed = observer.observe(str(self._repo_root))
+        except LiveWorktreeObservationError as exc:
+            if not is_valid_guard_reason(exc.reason_code):
+                return "SUPERVISED_LIVE_WORKTREE_INVALID"
+            return f"SUPERVISED_LIVE_WORKTREE_UNAVAILABLE:{exc.reason_code}"
+        except Exception:
+            return "SUPERVISED_LIVE_WORKTREE_UNAVAILABLE"
+        if not isinstance(observed, LiveWorktreeIdentity):
+            return "SUPERVISED_LIVE_WORKTREE_INVALID"
+        try:
+            reason = live_worktree_drift_reason(
+                observed,
+                expected_repo_root=str(self._repo_root),
+                expected_branch=self._identity.branch,
+                expected_head=self._identity.head_before,
+            )
+        except Exception:
+            return "SUPERVISED_LIVE_WORKTREE_INVALID"
+        if reason is None:
+            return None
+        if not is_valid_guard_reason(reason):
+            return "SUPERVISED_LIVE_WORKTREE_INVALID"
+        return f"SUPERVISED_LIVE_WORKTREE_DENIED:{reason}"
+
     def run_with_outcome(
         self,
         argv: tuple[str, ...],
@@ -489,6 +537,18 @@ class SupervisedRunCoordinator:
                     SupervisedRunOutcomeKind.FAILED,
                     None,
                     self._failure_result(argv, error_code=guard_error),
+                )
+            # WO-P1-498 / 498A: the read-only live Git identity check runs
+            # ONLY on the consequential FRESH branch — after the dedupe
+            # assessment and the lease-bound guard, BEFORE author-attempt
+            # mint, execution-id mint, durable record creation, or backend
+            # launch. ATTACH_RUNNING / REUSE_COMPLETED never reach it.
+            worktree_error = self._assess_live_worktree_identity()
+            if worktree_error is not None:
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    None,
+                    self._failure_result(argv, error_code=worktree_error),
                 )
             success_kind = SupervisedRunOutcomeKind.FRESH
             execution_id = f"exec-{uuid.uuid4().hex[:16]}"
@@ -550,6 +610,19 @@ class SupervisedRunCoordinator:
                 target_executable_name=PureWindowsPath(argv[0]).name,
                 environment_overrides=environment_overrides,
             )
+            # Recheck at the effect boundary: the live Git identity may
+            # drift while the record/launch plan was assembled after the
+            # pre-mint check. Durable record persistence and the backend
+            # launch both happen inside launch(), so this denial still
+            # precedes both. This is the observation point AS CLOSE AS
+            # POSSIBLE to the consequential FRESH launch.
+            worktree_error = self._assess_live_worktree_identity()
+            if worktree_error is not None:
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    None,
+                    self._failure_result(argv, error_code=worktree_error),
+                )
             try:
                 launch_outcome = self._supervised.launch(plan)
             except SupervisedExecutionError as exc:

@@ -1168,3 +1168,351 @@ def test_wo498_no_new_durable_authority_in_coordinator():
     assert "SQLiteWorkerLeaseStore" not in source
     assert "create_table" not in source
     assert "CREATE INDEX" not in source
+
+
+# ------- WO-P1-498 generation-3: live Git identity at the fresh-launch seam -------
+
+
+class _ScriptedObserver:
+    """Deterministic live-identity observer double (records invocations)."""
+
+    def __init__(self, results):
+        self._results = list(results)
+        self.calls: list[str] = []
+
+    def observe(self, repo_root):
+        self.calls.append(repo_root)
+        result = self._results.pop(0) if self._results else None
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+def _live_identity(repo: Path, *, branch=None, head=None, root=None):
+    from a_conductor.pre_dispatch_guard import LiveWorktreeIdentity
+
+    return LiveWorktreeIdentity(
+        repo_root=str(root if root is not None else repo),
+        branch=branch if branch is not None else IDENTITY["branch"],
+        head=head if head is not None else IDENTITY["head_before"],
+    )
+
+
+def test_wo498_live_observer_allow_permits_exactly_one_fresh_launch(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    observer = _ScriptedObserver([_live_identity(repo), _live_identity(repo)])
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        live_worktree_observer=observer,
+        poll_interval_seconds=0.01,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FRESH
+    assert outcome.native.exit_code == 0
+    assert supervised.launch_calls == 1
+    assert len(store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV))) == 1
+    # observed at the pre-mint check AND immediately before backend launch
+    assert observer.calls == [str(repo), str(repo)]
+
+
+def test_wo498_live_observer_root_branch_head_drift_deny_before_effects(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    for kw, expected in (
+        (dict(root=tmp_path / "other"), "WORKTREE_ROOT_MISMATCH"),
+        (dict(branch="docs/other"), "WORKTREE_BRANCH_MISMATCH"),
+        (dict(head="c" * 40), "WORKTREE_HEAD_MISMATCH"),
+    ):
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True, exist_ok=True)
+        store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+        supervised = ScriptedSupervised(repo, store)
+        observer = _ScriptedObserver([_live_identity(repo, **kw)])
+        coordinator = SupervisedRunCoordinator(
+            execution_store=store,
+            supervised=supervised,
+            identity=_identity(repo),
+            live_worktree_observer=observer,
+            poll_interval_seconds=0.01,
+        )
+        outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+        assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+        assert outcome.execution_id is None
+        assert outcome.native.stderr == f"SUPERVISED_LIVE_WORKTREE_DENIED:{expected}"
+        assert supervised.launch_calls == 0
+        assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo498_live_observer_unavailable_and_invalid_fail_closed(tmp_path):
+    from a_conductor.pre_dispatch_guard import LiveWorktreeObservationError
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    cases = [
+        (RuntimeError("git missing"), "SUPERVISED_LIVE_WORKTREE_UNAVAILABLE"),
+        (
+            LiveWorktreeObservationError("GIT_IDENTITY_UNAVAILABLE"),
+            "SUPERVISED_LIVE_WORKTREE_UNAVAILABLE:GIT_IDENTITY_UNAVAILABLE",
+        ),
+        ("not-an-identity", "SUPERVISED_LIVE_WORKTREE_INVALID"),
+        (None, "SUPERVISED_LIVE_WORKTREE_INVALID"),
+    ]
+    for observed, expected in cases:
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True, exist_ok=True)
+        store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+        supervised = ScriptedSupervised(repo, store)
+        coordinator = SupervisedRunCoordinator(
+            execution_store=store,
+            supervised=supervised,
+            identity=_identity(repo),
+            live_worktree_observer=_ScriptedObserver([observed]),
+            poll_interval_seconds=0.01,
+        )
+        outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+        assert outcome.kind is SupervisedRunOutcomeKind.FAILED, expected
+        assert outcome.execution_id is None
+        assert outcome.native.stderr == expected
+        assert supervised.launch_calls == 0
+        assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo498_live_observer_effect_boundary_recheck_denies_before_launch(tmp_path):
+    """Identity may drift between the pre-mint check and the launch seam:
+    the SECOND observation happens immediately before backend launch and
+    denies before durable persistence/spawn."""
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    observer = _ScriptedObserver(
+        [_live_identity(repo), _live_identity(repo, head="d" * 40)]
+    )
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        live_worktree_observer=observer,
+        poll_interval_seconds=0.01,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert outcome.native.stderr == (
+        "SUPERVISED_LIVE_WORKTREE_DENIED:WORKTREE_HEAD_MISMATCH"
+    )
+    assert observer.calls == [str(repo), str(repo)]
+    assert supervised.launch_calls == 0
+    assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo498_live_observer_ordering_after_dedupe_and_guard_before_launch(
+    tmp_path, monkeypatch
+):
+    """Exact fresh-branch ordering: dedupe assess -> lease guard -> live
+    identity (pre-mint) -> author-attempt mint -> live identity recheck at
+    the effect boundary -> backend launch (record persistence happens inside
+    the backend launch seam)."""
+    import a_conductor.supervised_run_coordinator as coord_module
+    from a_conductor.supervised_run_coordinator import SupervisedRunIdentity
+    from a_conductor.zero_relay_author_provenance import classify_author_provenance
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    events: list[str] = []
+
+    real_assess = coord_module.DuplicateExecutionGuard.assess
+
+    class LoggingDedup(coord_module.DuplicateExecutionGuard):
+        def assess(self, spec):
+            events.append("assess")
+            return real_assess(self, spec)
+
+    class LoggingLaunch(ScriptedSupervised):
+        def launch(self, plan):
+            events.append("launch")
+            return super().launch(plan)
+
+    class LoggingGuard:
+        def check(self):
+            events.append("guard")
+            from a_conductor.pre_dispatch_guard import (
+                PreDispatchGuardDecision,
+                PreDispatchGuardDecisionKind,
+            )
+
+            return PreDispatchGuardDecision(
+                PreDispatchGuardDecisionKind.ALLOW, "PRE_DISPATCH_ALLOWED"
+            )
+
+    class LoggingObserver:
+        def __init__(self):
+            self.calls = 0
+
+        def observe(self, repo_root):
+            self.calls += 1
+            events.append(f"live{self.calls}")
+            return _live_identity(Path(repo_root))
+
+    supervised = LoggingLaunch(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=SupervisedRunIdentity(
+            repo_root=str(repo),
+            author_provenance=classify_author_provenance(
+                task_contract_ref="docs/work-orders/WO-P1-158-zero-relay-zcode.md",
+                packet_sha256="c" * 64,
+            ),
+            job_id="job-001",
+            work_order_ref="docs/work-orders/WO-P1-158-zero-relay-zcode.md",
+            project_id="project-1",
+            worker_id="a-worker-01",
+            backend_id="supervised-native",
+            branch=IDENTITY["branch"],
+            head_before=IDENTITY["head_before"],
+            runtime_profile_ref="runtime:test",
+        ),
+        pre_dispatch_guard=LoggingGuard(),
+        pre_dispatch_guard_required=True,
+        live_worktree_observer=LoggingObserver(),
+        poll_interval_seconds=0.01,
+    )
+    coordinator._guard = LoggingDedup(store=store)
+
+    real_mint = coord_module.mint_author_attempt_id
+
+    def logging_mint():
+        events.append("mint")
+        return real_mint()
+
+    monkeypatch.setattr(coord_module, "mint_author_attempt_id", logging_mint)
+
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.native.exit_code == 0
+    assert events == ["assess", "guard", "live1", "mint", "live2", "launch"]
+
+
+def test_wo498_live_observer_skipped_on_attach_and_reuse(tmp_path):
+    from a_conductor.execution_record import ExecutionProcessState
+    from a_conductor.supervised_execution import (
+        SupervisedInspection,
+        SupervisedInspectionState,
+    )
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class RunningThenResult(ScriptedSupervised):
+        def launch(self, plan):
+            outcome = super().launch(plan)
+            with self._lock:
+                record = self.records[outcome.record.execution_id]
+                stored = store.set_execution_state(
+                    record.execution_id,
+                    ExecutionProcessState.RUNNING,
+                    expected_version=record.version,
+                )
+                self.records[record.execution_id] = stored
+            return outcome
+
+        def inspect(self, execution_id):
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.RESULT_AVAILABLE,
+                supervisor_pid=None,
+                result_available=True,
+                recovery_required=False,
+            )
+
+    supervised = RunningThenResult(repo, store)
+    observer = _ScriptedObserver(
+        [_live_identity(repo), _live_identity(repo), _live_identity(repo)]
+    )
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        live_worktree_observer=observer,
+        poll_interval_seconds=0.01,
+    )
+    first = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert first.kind is SupervisedRunOutcomeKind.FRESH
+    attach = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert attach.kind is SupervisedRunOutcomeKind.ATTACH_RUNNING
+    # transition the durable record to a completed evidence state, then the
+    # same fingerprint maps to REUSE_COMPLETED — still dedupe-owned
+    current = store.get(first.execution_id)
+    store.set_execution_state(
+        first.execution_id,
+        ExecutionProcessState.SUCCEEDED,
+        expected_version=current.version,
+    )
+    reuse = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert reuse.kind is SupervisedRunOutcomeKind.REUSE_COMPLETED
+    # ATTACH/REUSE stay dedupe-owned: no observation beyond the FRESH pair
+    assert observer.calls == [str(repo), str(repo)]
+    assert supervised.launch_calls == 1
+
+
+def test_wo498_live_observer_leaves_fingerprint_bytes_unchanged(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    plain = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=ScriptedSupervised(repo, store),
+        identity=_identity(repo),
+        poll_interval_seconds=0.01,
+    )
+    observed = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=ScriptedSupervised(repo, store),
+        identity=_identity(repo),
+        live_worktree_observer=_ScriptedObserver([_live_identity(repo)]),
+        poll_interval_seconds=0.01,
+    )
+    assert plain.fingerprint_for_argv(ARGV) == observed.fingerprint_for_argv(ARGV)
+    assert plain.fingerprint_spec(ARGV) == observed.fingerprint_spec(ARGV)
+
+
+def test_wo498_coordinator_rejects_non_observing_live_observer(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    with pytest.raises(ValueError):
+        SupervisedRunCoordinator(
+            execution_store=store,
+            supervised=ScriptedSupervised(repo, store),
+            identity=_identity(repo),
+            live_worktree_observer=object(),
+        )
+
+
+def test_wo498_route_without_live_observer_preserves_historical_behavior(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        poll_interval_seconds=0.01,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FRESH
+    assert outcome.native.exit_code == 0

@@ -116,7 +116,8 @@ class ZCodeExecutionAuthorities:
     python_executable: str = ""                    # REQUIRED for the real helper
     lease_evidence: object | None = None   # accepted canonical WorkerLease (REQUIRED)
     admission_evidence: object | None = None  # accepted canonical ProviderAdmissionRecord (REQUIRED)
-    lease_health_reader: object | None = None  # accepted read-only lease-health authority (REQUIRED on the 498A mutation writer route)
+    lease_health_reader: object | None = None  # accepted read-only lease-health authority (defines the guarded 498A writer route when present)
+    live_worktree_observer: object | None = None  # accepted read-only live Git-identity observation authority (REQUIRED on the guarded 498A writer route)
     dispatch_batch_id: str = ""                    # independently-derived dispatch batch identity (REQUIRED)
     dispatch_execution_id: str | None = None       # REQUIRED execution binding from the dispatch context
     project_id: str = ""                           # REQUIRED dispatch-context project identity (vs lease)
@@ -544,6 +545,27 @@ def _assemble_zcode_execution_impl(
             )
         except (ValueError, TypeError):
             raise ZCodeAssemblyError("ZCODE_PRE_DISPATCH_GUARD_INVALID") from None
+
+    # 11. 498A generation-3 LIVE GIT IDENTITY — the guarded production
+    #     writer route is exactly: review_only == False AND a lease-health
+    #     reader authority is present. On THAT route the live observer is
+    #     REQUIRED: an omitted observer fails closed here with a stable
+    #     typed code BEFORE any runnable writer exists, so a writer-route
+    #     caller that injects the reader can never leave the live identity
+    #     protection dormant. A supplied observer must expose a callable
+    #     observe. A legacy mutation assembly with NO reader remains the
+    #     historical POLICY_ONLY route (observer stays optional/additive,
+    #     never silently upgraded); the review-only route never receives
+    #     and never wires the live observer.
+    live_worktree_observer = None
+    if not review_only:
+        if authorities.live_worktree_observer is None:
+            if authorities.lease_health_reader is not None:
+                raise ZCodeAssemblyError("ZCODE_LIVE_IDENTITY_OBSERVER_MISSING")
+        elif not callable(getattr(authorities.live_worktree_observer, "observe", None)):
+            raise ZCodeAssemblyError("ZCODE_LIVE_IDENTITY_OBSERVER_INVALID")
+        else:
+            live_worktree_observer = authorities.live_worktree_observer
     return SupervisedZCodeRunner(
         execution_store=authorities.execution_store,
         identity=identity,
@@ -553,6 +575,7 @@ def _assemble_zcode_execution_impl(
         task_packet=packet_identity,
         pre_dispatch_guard=pre_dispatch_guard,
         pre_dispatch_guard_required=pre_dispatch_guard is not None,
+        live_worktree_observer=live_worktree_observer,
     )
 
 

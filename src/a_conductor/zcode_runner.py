@@ -961,6 +961,7 @@ class SupervisedZCodeRunner:
         clock_fn: Callable[[], float] = time.monotonic,
         pre_dispatch_guard: object | None = None,
         pre_dispatch_guard_required: bool = False,
+        live_worktree_observer: object | None = None,
     ) -> None:
         if identity.backend_id != ZCODE_BACKEND_ID:
             raise ValueError(f"identity.backend_id must be {ZCODE_BACKEND_ID}")
@@ -968,6 +969,10 @@ class SupervisedZCodeRunner:
             raise ValueError("task_packet must be a ZCodeTaskPacketIdentity")
         if not isinstance(pre_dispatch_guard_required, bool):
             raise ValueError("pre_dispatch_guard_required must be bool")
+        if live_worktree_observer is not None and not callable(
+            getattr(live_worktree_observer, "observe", None)
+        ):
+            raise ValueError("live_worktree_observer must provide observe")
         self._executable = executable
         self._bundle_js = bundle_js
         self._adapter = adapter
@@ -984,6 +989,7 @@ class SupervisedZCodeRunner:
         self._clock = clock_fn
         self._pre_dispatch_guard = pre_dispatch_guard
         self._pre_dispatch_guard_required = pre_dispatch_guard_required
+        self._live_worktree_observer = live_worktree_observer
 
     def _coordinator(self) -> SupervisedRunCoordinator:
         """The canonical coordinator for this runner's next run(): the single
@@ -1001,6 +1007,7 @@ class SupervisedZCodeRunner:
             max_output_bytes=ZCODE_MAX_RESPONSE_BYTES,
             pre_dispatch_guard=self._pre_dispatch_guard,
             pre_dispatch_guard_required=self._pre_dispatch_guard_required,
+            live_worktree_observer=self._live_worktree_observer,
         )
 
     def execution_fingerprint_spec(self) -> "ExecutionFingerprintSpec":

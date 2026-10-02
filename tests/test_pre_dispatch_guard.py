@@ -632,3 +632,271 @@ def test_worker_lease_backed_guard_satisfies_coordinator_contract(tmp_path):
     assert outcome2.native.stderr == "SUPERVISED_PRE_DISPATCH_GUARD_DENIED:LEASE_RELEASED"
     assert supervised2.launch_calls == 0
     assert store2.find_by_fingerprint(coordinator2.fingerprint_for_argv(ARGV)) == ()
+
+
+# ------- WO-P1-498 generation-3: read-only live Git identity observer -------
+
+
+def _git_worktree(tmp_path, *, branch="docs/wo-p1-498-guard-shaping"):
+    """Deterministic REAL read-only git worktree fixture (no network)."""
+    import subprocess
+
+    root = tmp_path / "live-repo"
+    root.mkdir(parents=True, exist_ok=True)
+
+    def _git(*args):
+        completed = subprocess.run(
+            (
+                "git",
+                "-c",
+                "user.email=t@example.com",
+                "-c",
+                "user.name=t",
+                "-C",
+                str(root),
+                *args,
+            ),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        return completed.stdout.strip()
+
+    _git("init", "-b", branch)
+    (root / "README.md").write_text("wo498 gen3\n", encoding="utf-8")
+    _git("add", "README.md")
+    _git("commit", "-m", "init")
+    return root, _git
+
+
+def test_live_identity_record_rejects_blank_and_control_text():
+    from a_conductor.pre_dispatch_guard import LiveWorktreeIdentity
+
+    for bad in ("", "   ", "a\x00b", "a\nb", "a\rb", None, 7):
+        with pytest.raises((ValueError, TypeError)):
+            LiveWorktreeIdentity(repo_root=bad, branch="b", head="h")  # type: ignore[arg-type]
+    for bad in ("", None, object()):
+        with pytest.raises((ValueError, TypeError)):
+            LiveWorktreeIdentity(repo_root="/r", branch=bad, head="h")  # type: ignore[arg-type]
+        with pytest.raises((ValueError, TypeError)):
+            LiveWorktreeIdentity(repo_root="/r", branch="b", head=bad)  # type: ignore[arg-type]
+    ok = LiveWorktreeIdentity(repo_root="/r", branch="b", head="H" * 40)
+    assert ok.repo_root == "/r" and ok.branch == "b" and ok.head == "H" * 40
+
+
+def test_live_observation_error_requires_bounded_reason():
+    from a_conductor.pre_dispatch_guard import LiveWorktreeObservationError
+
+    exc = LiveWorktreeObservationError("WORKTREE_ROOT_UNAVAILABLE")
+    assert exc.reason_code == "WORKTREE_ROOT_UNAVAILABLE"
+    for bad in ("", "lower case", "X" * 65, None, 3):
+        with pytest.raises((ValueError, TypeError)):
+            LiveWorktreeObservationError(bad)  # type: ignore[arg-type]
+
+
+def test_git_live_observer_reads_real_worktree(tmp_path):
+    from a_conductor.pre_dispatch_guard import GitLiveWorktreeObserver
+
+    root, _git = _git_worktree(tmp_path)
+    head = _git("rev-parse", "HEAD")
+    observed = GitLiveWorktreeObserver().observe(str(root))
+    assert observed.repo_root == str(root)
+    assert observed.branch == "docs/wo-p1-498-guard-shaping"
+    assert observed.head == head
+
+
+def test_git_live_observer_fails_typed_on_missing_root_and_git_failures(tmp_path):
+    from a_conductor.project_identity import GitReadResult
+    from a_conductor.pre_dispatch_guard import (
+        GitLiveWorktreeObserver,
+        LiveWorktreeObservationError,
+    )
+
+    observer = GitLiveWorktreeObserver()
+    missing = tmp_path / "absent"
+    with pytest.raises(LiveWorktreeObservationError) as e:
+        observer.observe(str(missing))
+    assert e.value.reason_code == "WORKTREE_ROOT_UNAVAILABLE"
+    with pytest.raises(LiveWorktreeObservationError) as e:
+        observer.observe("not a path \x00")
+    assert e.value.reason_code == "WORKTREE_ROOT_UNAVAILABLE"
+
+    class _TopLevelFails:
+        def show_toplevel(self, worktree):
+            return GitReadResult(False)
+
+        def branch(self, worktree):
+            raise AssertionError("unreachable")
+
+        def head(self, worktree):
+            raise AssertionError("unreachable")
+
+    failing = GitLiveWorktreeObserver(runner=_TopLevelFails())
+    with pytest.raises(LiveWorktreeObservationError) as e:
+        failing.observe(str(tmp_path))
+    assert e.value.reason_code == "WORKTREE_ROOT_UNAVAILABLE"
+
+    class _MalformedTop:
+        def show_toplevel(self, worktree):
+            return GitReadResult(True, stdout="   ")
+
+        def branch(self, worktree):
+            return GitReadResult(True, stdout="docs/x")
+
+        def head(self, worktree):
+            return GitReadResult(True, stdout="a" * 40)
+
+    malformed = GitLiveWorktreeObserver(runner=_MalformedTop())
+    with pytest.raises(LiveWorktreeObservationError) as e:
+        malformed.observe(str(tmp_path))
+    assert e.value.reason_code == "GIT_IDENTITY_MALFORMED"
+
+    class _BranchFails:
+        def show_toplevel(self, worktree):
+            return GitReadResult(True, stdout=str(worktree))
+
+        def branch(self, worktree):
+            return GitReadResult(False)
+
+        def head(self, worktree):
+            raise AssertionError("unreachable")
+
+    branch_fails = GitLiveWorktreeObserver(runner=_BranchFails())
+    with pytest.raises(LiveWorktreeObservationError) as e:
+        branch_fails.observe(str(tmp_path))
+    assert e.value.reason_code == "GIT_IDENTITY_UNAVAILABLE"
+
+
+def test_git_live_observer_rejects_incomplete_runner():
+    from a_conductor.pre_dispatch_guard import GitLiveWorktreeObserver
+
+    class _Incomplete:
+        def show_toplevel(self, worktree):
+            return None
+
+    with pytest.raises(ValueError):
+        GitLiveWorktreeObserver(runner=_Incomplete())
+
+
+def test_live_worktree_drift_reason_matrix():
+    from a_conductor.pre_dispatch_guard import (
+        LiveWorktreeIdentity,
+        live_worktree_drift_reason,
+    )
+
+    observed = LiveWorktreeIdentity(
+        repo_root="/repo/wt", branch="docs/x", head="A" * 40
+    )
+    # exact match (HEAD compared case-insensitively) => no drift
+    assert (
+        live_worktree_drift_reason(
+            observed,
+            expected_repo_root="/repo/wt",
+            expected_branch="docs/x",
+            expected_head="a" * 40,
+        )
+        is None
+    )
+    assert (
+        live_worktree_drift_reason(
+            observed,
+            expected_repo_root="/repo/WT",  # path equality is case-insensitive
+            expected_branch="docs/x",
+            expected_head="A" * 40,
+        )
+        is None
+    )
+    assert (
+        live_worktree_drift_reason(
+            observed,
+            expected_repo_root="/repo/different",
+            expected_branch="docs/x",
+            expected_head="A" * 40,
+        )
+        == "WORKTREE_ROOT_MISMATCH"
+    )
+    assert (
+        live_worktree_drift_reason(
+            observed,
+            expected_repo_root="/repo/wt",
+            expected_branch="docs/other",
+            expected_head="A" * 40,
+        )
+        == "WORKTREE_BRANCH_MISMATCH"
+    )
+    assert (
+        live_worktree_drift_reason(
+            observed,
+            expected_repo_root="/repo/wt",
+            expected_branch="docs/x",
+            expected_head="B" * 40,
+        )
+        == "WORKTREE_HEAD_MISMATCH"
+    )
+    for bad_expected in (("", "docs/x", "A" * 40), ("/r", "", "A" * 40), ("/r", "b", "")):
+        assert (
+            live_worktree_drift_reason(
+                observed,
+                expected_repo_root=bad_expected[0],
+                expected_branch=bad_expected[1],
+                expected_head=bad_expected[2],
+            )
+            == "WORKTREE_IDENTITY_INVALID"
+        )
+    assert (
+        live_worktree_drift_reason(
+            object(),  # type: ignore[arg-type]
+            expected_repo_root="/repo/wt",
+            expected_branch="docs/x",
+            expected_head="A" * 40,
+        )
+        == "WORKTREE_IDENTITY_INVALID"
+    )
+
+
+def test_git_live_observer_detects_real_head_and_branch_drift(tmp_path):
+    from a_conductor.pre_dispatch_guard import (
+        GitLiveWorktreeObserver,
+        LiveWorktreeObservationError,
+        live_worktree_drift_reason,
+    )
+
+    root, _git = _git_worktree(tmp_path)
+    head_before = _git("rev-parse", "HEAD")
+    observer = GitLiveWorktreeObserver()
+    assert observer.observe(str(root)).head == head_before
+
+    # HEAD moves after the accepted baseline was frozen: launch-time drift
+    (root / "second.md").write_text("drift\n", encoding="utf-8")
+    _git("add", "second.md")
+    _git("commit", "-m", "drift")
+    drifted = observer.observe(str(root))
+    assert drifted.head != head_before
+    assert (
+        live_worktree_drift_reason(
+            drifted,
+            expected_repo_root=str(root),
+            expected_branch="docs/wo-p1-498-guard-shaping",
+            expected_head=head_before,
+        )
+        == "WORKTREE_HEAD_MISMATCH"
+    )
+    # a branch switch is observable drift too
+    _git("checkout", "-b", "docs/other-branch")
+    switched = observer.observe(str(root))
+    assert (
+        live_worktree_drift_reason(
+            switched,
+            expected_repo_root=str(root),
+            expected_branch="docs/wo-p1-498-guard-shaping",
+            expected_head=head_before,
+        )
+        in ("WORKTREE_BRANCH_MISMATCH", "WORKTREE_HEAD_MISMATCH")
+    )
+    # a non-git directory is an observation failure, never identity evidence
+    nongit = tmp_path / "nongit"
+    nongit.mkdir()
+    with pytest.raises(LiveWorktreeObservationError):
+        observer.observe(str(nongit))

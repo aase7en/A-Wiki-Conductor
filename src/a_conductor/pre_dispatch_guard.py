@@ -28,8 +28,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from fnmatch import fnmatchcase
+from pathlib import Path
 from typing import Callable, Protocol
 
+from .project_identity import GitReadOnlyRunner, StrictReadOnlyGitRunner, _same_path
 from .worker_lease import (
     LeaseHealth,
     LeaseHealthKind,
@@ -59,6 +61,141 @@ def is_valid_guard_reason(reason: object) -> bool:
     """Shared bounded reason grammar: untrusted guard output is acceptable
     only as a stable ``[A-Z0-9_]{3,64}`` code with no separators."""
     return _valid_reason(reason) is not None
+
+
+# ------------- WO-P1-498 / 498A: read-only live Git identity -------------
+#
+# A lease revalidation and the assembly-time Git context check do not prove
+# the repository identity is still current at the consequential launch seam.
+# The types below expose a bounded read-only observation of the LIVE repo
+# root/branch/HEAD through the SAME accepted fixed-command read-only Git
+# runner already used by project identity verification. They add no store,
+# lease, claim, scheduler, retry, merge, completion, or atomicity authority,
+# and claim no cross-session/cross-process linearization: this is a
+# same-process launch-boundary recheck.
+
+
+def _valid_identity_text(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and not any(char in value for char in ("\x00", "\r", "\n"))
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class LiveWorktreeIdentity:
+    """Bounded live Git identity observed at the launch seam."""
+
+    repo_root: str
+    branch: str
+    head: str
+
+    def __post_init__(self) -> None:
+        for field_name in ("repo_root", "branch", "head"):
+            if not _valid_identity_text(getattr(self, field_name)):
+                raise ValueError(
+                    f"{field_name} must be non-blank text without control characters"
+                )
+
+
+class LiveWorktreeObservationError(Exception):
+    """Typed observer failure; carries a bounded reason code only and never
+    retains raw runner output or underlying exceptions."""
+
+    def __init__(self, reason_code: str) -> None:
+        reason = _valid_reason(reason_code)
+        if reason is None:
+            raise ValueError("reason_code is invalid")
+        self.reason_code = reason
+        super().__init__(reason)
+
+
+class LiveWorktreeObserver(Protocol):
+    """Read-only source of the live repo root, branch and HEAD facts."""
+
+    def observe(self, repo_root: str) -> LiveWorktreeIdentity: ...
+
+
+class GitLiveWorktreeObserver:
+    """Reuse the existing fixed-command read-only Git runner for the live
+    identity observation. Only ``show_toplevel`` / ``branch`` / ``head``
+    are consumed; no arbitrary subcommand, mutation, or network access."""
+
+    def __init__(self, *, runner: GitReadOnlyRunner | None = None) -> None:
+        active_runner = runner or StrictReadOnlyGitRunner()
+        for method_name in ("show_toplevel", "branch", "head"):
+            if not callable(getattr(active_runner, method_name, None)):
+                raise ValueError(f"runner must provide {method_name}")
+        self._runner = active_runner
+
+    @staticmethod
+    def _read(
+        method: Callable[[Path], object], worktree: Path, *, unavailable: str
+    ) -> str:
+        try:
+            result = method(worktree)
+        except Exception:
+            raise LiveWorktreeObservationError(unavailable) from None
+        if getattr(result, "success", None) is not True:
+            raise LiveWorktreeObservationError(unavailable)
+        stdout = getattr(result, "stdout", None)
+        if not _valid_identity_text(stdout):
+            raise LiveWorktreeObservationError("GIT_IDENTITY_MALFORMED")
+        return stdout.strip()
+
+    def observe(self, repo_root: str) -> LiveWorktreeIdentity:
+        if not _valid_identity_text(repo_root):
+            raise LiveWorktreeObservationError("WORKTREE_ROOT_UNAVAILABLE")
+        try:
+            worktree = Path(repo_root).expanduser().resolve(strict=False)
+            if not worktree.is_dir():
+                raise LiveWorktreeObservationError("WORKTREE_ROOT_UNAVAILABLE")
+        except LiveWorktreeObservationError:
+            raise
+        except Exception:
+            raise LiveWorktreeObservationError("WORKTREE_ROOT_UNAVAILABLE") from None
+
+        root = self._read(
+            self._runner.show_toplevel, worktree, unavailable="WORKTREE_ROOT_UNAVAILABLE"
+        )
+        if not Path(root).is_absolute():
+            raise LiveWorktreeObservationError("GIT_IDENTITY_MALFORMED")
+        branch = self._read(
+            self._runner.branch, worktree, unavailable="GIT_IDENTITY_UNAVAILABLE"
+        )
+        head = self._read(
+            self._runner.head, worktree, unavailable="GIT_IDENTITY_UNAVAILABLE"
+        )
+        try:
+            return LiveWorktreeIdentity(repo_root=root, branch=branch, head=head)
+        except ValueError:
+            raise LiveWorktreeObservationError("GIT_IDENTITY_MALFORMED") from None
+
+
+def live_worktree_drift_reason(
+    observed: LiveWorktreeIdentity,
+    *,
+    expected_repo_root: str,
+    expected_branch: str,
+    expected_head: str,
+) -> str | None:
+    """Return a stable drift code when the observed live identity differs
+    from the accepted run binding, or ``None`` when they agree. Expected
+    values come from the ACCEPTED assembly identity — never from the
+    observation itself."""
+    if not isinstance(observed, LiveWorktreeIdentity) or not all(
+        _valid_identity_text(value)
+        for value in (expected_repo_root, expected_branch, expected_head)
+    ):
+        return "WORKTREE_IDENTITY_INVALID"
+    if not _same_path(observed.repo_root, expected_repo_root):
+        return "WORKTREE_ROOT_MISMATCH"
+    if observed.branch != expected_branch:
+        return "WORKTREE_BRANCH_MISMATCH"
+    if observed.head.casefold() != expected_head.casefold():
+        return "WORKTREE_HEAD_MISMATCH"
+    return None
 
 
 class PreDispatchGuardDecisionKind(str, Enum):
