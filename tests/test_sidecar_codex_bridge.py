@@ -54,6 +54,30 @@ adds:
     codes: hostile observe returns are ``BRIDGE_SURFACE_OFFLINE``
     (unsafe plain identity text stays ``BRIDGE_AMBIGUOUS_TARGET``),
     hostile submit returns are ``DELIVERY_UNKNOWN``.
+
+WO-P1-575 generation-2 hardening round adds:
+
+28. carrier-parity synthetic evidence-ref rejection — secret-token-
+    shaped, PEM-marker, and Cc/Cf/Co/Cs unsafe-Unicode refs fail closed
+    ``BRIDGE_POINTER_INVALID`` before any observe/submit/append, and
+    the composed ``relay-event:`` receipt ref gets the same bridge-side
+    gate before any carrier append;
+29. typed fail-closed synthetic CREATED_AT validation — non-string,
+    invalid-ISO, naive, padded, unsafe, and overlong values fail with
+    the stable carrier code in checkpoint chronology, steer selection,
+    and the full projection path (transport call count stays zero),
+    while aware offset-instant ordering stays deterministic.
+
+Generation-3 P2 repair round (independent review
+exec-mutzpvrr-y23vtebn) adds:
+
+30. typed fail-closed handling of synthetic type-garbage at the four
+    remaining consumer seams — unhashable/non-string EVENT_ID
+    (``dedupe_events``), non-tuple/non-string evidence refs
+    (``projected_event_ids``), None/non-tuple EVIDENCE_REFS and
+    unhashable refs (``build_steer_projection``), and non-iterable or
+    bare-text result_refs (``build_ack_receipt``) fail with the
+    existing typed codes instead of raw TypeError/AttributeError.
 """
 
 from __future__ import annotations
@@ -61,6 +85,7 @@ from __future__ import annotations
 import ast
 import dataclasses
 import itertools
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -1258,6 +1283,19 @@ class TestAckReceipt:
             )
         assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
 
+    def test_receipt_unhashable_result_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                _envelope(),
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+                result_refs=(["unhashable"],),
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
     def test_receipt_over_limit_result_refs_fail_closed(self):
         from a_conductor import sidecar_codex_bridge as scb
 
@@ -1455,3 +1493,362 @@ class TestOpaqueCrossDevicePaths:
                 candidate, _facts(worktree="/Users/dev/GitHub/_worktrees/wo573-mac")
             )
         assert _code(excinfo) == "CONTEXT_DRIFT"
+
+
+_SECRET_SHAPED_REFS = (
+    "runs/WO-P1-575/ghp_ABCDEFGHIJKLMNOPQRST",
+    "runs/WO-P1-575/gho_ABCDEFGHIJKLMNOPQRST",
+    "runs/WO-P1-575/ghs_ABCDEFGHIJKLMNOPQRST",
+    "runs/WO-P1-575/github_pat_ABCDEFGHIJKLMNOPQRST",
+    "runs/WO-P1-575/sk-ABCDEFGHIJKLMNOPQRST",
+    "runs/WO-P1-575/xoxb-1234567890abcdef123456",
+    "runs/WO-P1-575/AKIAABCDEFGHIJKLMNOP",
+    "runs/WO-P1-575/AIzaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+)
+
+_PEM_MARKER_REFS = (
+    "-----BEGIN RSA PRIVATE KEY-----",
+    "-----BEGIN PRIVATE KEY-----",
+    "-----BEGIN OPENSSH PRIVATE KEY-----",
+    "keys/-----begin ec private key-----",
+)
+
+_UNSAFE_UNICODE_REFS = (
+    "docs/WO-P1-575/ref\x1b[31m",
+    "docs/WO-P1-575/ref\u200b",
+    "docs/WO-P1-575/ref\ue000",
+    "docs/WO-P1-575/ref\U000e0001",
+    "docs/WO-P1-575/ref\ud800",
+)
+
+_MALFORMED_CREATED_AT_VALUES = (
+    1759236000,
+    None,
+    datetime(2026, 9, 30, 10, 0, tzinfo=timezone.utc),
+    "not-a-timestamp",
+    "2026-09-30T10:00:00",
+    "2026-09-30T10:00:00Zulu",
+    " 2026-09-30T10:00:00+00:00",
+    "2026-09-30T10:00:00+00:00 ",
+    "2026-09-30T10:00:00+00:00\u200b",
+    "2026-09-30T10:00:00+00:00" + "0" * 64,
+    "2026-09-30 10:00:00+00:00",
+)
+
+
+class TestSyntheticEvidenceRefCarrierParity:
+    """WO-P1-575 §5.A — carrier-parity rejection for synthetic refs.
+
+    Synthetic envelopes constructed outside the carrier (e.g. via
+    ``dataclasses.replace``) must not bypass the carrier's
+    sensitive-text rules: secret-token-shaped, PEM-marker, and
+    unsafe-Unicode refs fail closed bridge-side before observe,
+    submit, or append, without echoing the ref text.
+    """
+
+    @pytest.mark.parametrize("ref", _SECRET_SHAPED_REFS)
+    def test_secret_token_shaped_ref_is_pointer_invalid(self, ref):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(_envelope(), evidence_refs=(ref,))
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(candidate)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    @pytest.mark.parametrize("ref", _PEM_MARKER_REFS)
+    def test_pem_marker_ref_is_pointer_invalid(self, ref):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(_envelope(), evidence_refs=(ref,))
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(candidate)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    @pytest.mark.parametrize("ref", _UNSAFE_UNICODE_REFS)
+    def test_unsafe_unicode_ref_is_pointer_invalid(self, ref):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(_envelope(), evidence_refs=(ref,))
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(candidate)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_unsafe_ref_fails_before_any_transport_call(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(
+            _envelope(), evidence_refs=("docs/WO-P1-575/ref\u200b",)
+        )
+        transport = FakeTransport()
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([candidate], transport=transport)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+        assert transport.calls == []
+        assert transport.observe_calls == 0
+        assert transport.submit_calls == 0
+
+    @pytest.mark.parametrize("ref", _SECRET_SHAPED_REFS[:3] + _PEM_MARKER_REFS[:2])
+    def test_receipt_rejects_sensitive_result_refs(self, ref):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                _envelope(),
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+                result_refs=(ref,),
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_receipt_rejects_unsafe_original_event_id_ref(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        original = dataclasses.replace(
+            _envelope(), event_id="evt-chatgpt-sidecar-bad\u200bref0001"
+        )
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                original,
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+
+class TestSyntheticCreatedAtValidation:
+    """WO-P1-575 §5.B — typed fail-closed synthetic CREATED_AT gates.
+
+    Manually constructed envelopes with malformed CREATED_AT must fail
+    with the stable carrier code before ordering or transport; no raw
+    TypeError/ValueError may escape checkpoint chronology, steer
+    selection, or the full projection path. Valid aware ISO-8601
+    timestamps with different offsets stay deterministic.
+    """
+
+    @pytest.mark.parametrize("created_at", _MALFORMED_CREATED_AT_VALUES)
+    def test_checkpoint_malformed_created_at_fails_typed(self, created_at):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        checkpoint = dataclasses.replace(
+            _checkpoint(
+                "evt-chatgpt-sidecar-ck5750000000001",
+                "2026-09-30T10:00:00+00:00",
+            ),
+            created_at=created_at,
+        )
+        with pytest.raises(sr.RelayCarrierError) as excinfo:
+            scb.recover_checkpoint([checkpoint])
+        assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
+
+    def test_checkpoint_mixed_aware_naive_chronology_fails_typed(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        aware = _checkpoint(
+            "evt-chatgpt-sidecar-ck5750000000002", "2026-09-30T10:00:00+00:00"
+        )
+        naive = dataclasses.replace(
+            _checkpoint(
+                "evt-chatgpt-sidecar-ck5750000000003", "2026-09-30T09:00:00+00:00"
+            ),
+            created_at="2026-09-30T11:00:00",
+        )
+        with pytest.raises(sr.RelayCarrierError) as excinfo:
+            scb.recover_checkpoint([aware, naive])
+        assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
+
+    @pytest.mark.parametrize("created_at", _MALFORMED_CREATED_AT_VALUES)
+    def test_steer_malformed_created_at_fails_typed_before_ordering(
+        self, created_at
+    ):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(
+            _steer(
+                "evt-chatgpt-sidecar-st5750000000001", "2026-09-30T10:00:00+00:00"
+            ),
+            created_at=created_at,
+        )
+        with pytest.raises(sr.RelayCarrierError) as excinfo:
+            scb.select_steer_candidate([candidate])
+        assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
+
+    def test_full_projection_malformed_created_at_never_calls_transport(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(
+            _steer(
+                "evt-chatgpt-sidecar-st5750000000002", "2026-09-30T10:00:00+00:00"
+            ),
+            created_at="2026-09-30T10:00:00",
+        )
+        transport = FakeTransport()
+        with pytest.raises(sr.RelayCarrierError) as excinfo:
+            _project([candidate], transport=transport)
+        assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
+        assert transport.calls == []
+
+    def test_aware_offset_instants_order_deterministically_in_selection(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        later = _steer(
+            "evt-chatgpt-sidecar-st5750000000003", "2026-09-30T12:00:00+02:00"
+        )
+        earlier = _steer(
+            "evt-chatgpt-sidecar-st5750000000004", "2026-09-30T09:30:00+00:00"
+        )
+        for shuffle in itertools.permutations([later, earlier]):
+            assert scb.select_steer_candidate(shuffle) == earlier
+
+    def test_aware_offset_instants_order_deterministically_in_recovery(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        same_instant_a = _checkpoint(
+            "evt-chatgpt-sidecar-ck5750000000004", "2026-09-30T12:00:00+02:00"
+        )
+        same_instant_b = _checkpoint(
+            "evt-chatgpt-sidecar-ck5750000000005", "2026-09-30T10:00:00+00:00"
+        )
+        newest = _checkpoint(
+            "evt-chatgpt-sidecar-ck5750000000006", "2026-09-30T10:30:00+00:00"
+        )
+        for shuffle in itertools.permutations(
+            [same_instant_a, same_instant_b, newest]
+        ):
+            recovered = scb.recover_checkpoint(shuffle)
+            assert recovered is not None
+            assert recovered.event_id == newest.event_id
+
+
+class _UnhashableStr(str):
+    """Synthetic carrier-bypass ref shape: a str subclass that cannot hash.
+
+    Passes ``isinstance``-based ref gates and every plain-text rule,
+    but ``set()`` dedupe hashing raises a raw TypeError unless the
+    consuming seam requires the exact plain-``str`` type first.
+    """
+
+    __hash__ = None
+
+
+class TestSyntheticTypeGarbageBoundaries:
+    """WO-P1-575 generation-3 P2 repair — synthetic type-garbage seams.
+
+    Independent review exec-mutzpvrr-y23vtebn found four consumer
+    seams where type-garbage synthetic envelopes or arguments escaped
+    as raw TypeError/AttributeError (or were silently mis-folded)
+    before typed fail-closed handling: unhashable/non-string EVENT_ID
+    in ``dedupe_events``, non-tuple/non-string evidence refs in
+    ``projected_event_ids``, None/non-tuple/unhashable-ref
+    EVIDENCE_REFS in ``build_steer_projection``, and non-iterable or
+    bare-text ``result_refs`` in ``build_ack_receipt``. Every test
+    fails on the unrepaired module and passes with existing codes.
+    """
+
+    def test_dedupe_unhashable_event_id_fails_carrier_typed(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(_envelope(), event_id=["evt"])
+        with pytest.raises(sr.RelayCarrierError) as excinfo:
+            scb.dedupe_events([hostile])
+        assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
+
+    def test_dedupe_non_string_event_id_fails_carrier_typed(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(_envelope(), event_id=7)
+        with pytest.raises(sr.RelayCarrierError) as excinfo:
+            scb.dedupe_events([hostile])
+        assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
+
+    @pytest.mark.parametrize("refs", [(7,), (None,), None, 7])
+    def test_projected_ids_type_garbage_fails_carrier_typed(self, refs):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(
+            _envelope(),
+            event_type="SIDECAR_RESULT_RECEIPT",
+            evidence_refs=refs,
+        )
+        with pytest.raises(sr.RelayCarrierError) as excinfo:
+            scb.projected_event_ids([hostile])
+        assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
+
+    @pytest.mark.parametrize("refs", [None, 7])
+    def test_steer_projection_non_tuple_refs_is_pointer_invalid(self, refs):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(_envelope(), evidence_refs=refs)
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(hostile)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_steer_projection_unhashable_str_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(
+            _envelope(), evidence_refs=(_UnhashableStr(WO_REF),)
+        )
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(hostile)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_receipt_unhashable_str_result_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                _envelope(),
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+                result_refs=(_UnhashableStr("runs/WO-P1-575/steer-1/result.md"),),
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_full_projection_unhashable_str_ref_fails_typed_zero_transport(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(
+            _envelope(), evidence_refs=(_UnhashableStr(WO_REF),)
+        )
+        transport = FakeTransport()
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([candidate], transport=transport)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+        assert transport.calls == []
+
+    def test_steer_projection_unhashable_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(_envelope(), evidence_refs=(["ref"],))
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(hostile)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_full_projection_non_tuple_refs_fail_before_transport(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(_envelope(), evidence_refs=None)
+        transport = FakeTransport()
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([candidate], transport=transport)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+        assert transport.calls == []
+
+    @pytest.mark.parametrize("result_refs", [None, 7, "runs"])
+    def test_receipt_type_garbage_result_refs_is_pointer_invalid(
+        self, result_refs
+    ):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                _envelope(),
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+                result_refs=result_refs,
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"

@@ -117,6 +117,29 @@ Cross-device rules: WORKTREE/path values are opaque device-tagged
 evidence. They are compared as exact text only, never resolved,
 normalized, case-folded, or checked against the local device, and a
 mismatch fails closed as ``CONTEXT_DRIFT``.
+
+Synthetic-boundary hardening (WO-P1-575): envelopes constructed
+outside the carrier (e.g. via ``dataclasses.replace``) never passed
+carrier validation, so the bridge re-applies the accepted carrier's own
+validation semantics at the boundaries where those values are consumed:
+evidence refs (including the composed ``relay-event:`` receipt ref) are
+checked against the carrier's sensitive-text rules — unsafe Unicode
+categories, PEM/private-key markers, credential/secret-token markers —
+and every CREATED_AT consumed by checkpoint chronology or steer
+ordering is gated through the carrier's typed timestamp validator
+before any comparison, projection, or transport call. No raw
+TypeError/ValueError escapes these paths, no sensitive text is echoed,
+and the carrier remains the single parity source.
+
+Generation-2 P2 repair (review exec-mutzpvrr-y23vtebn) closes the
+same fail-closed gap for synthetic type-garbage at the remaining
+consumer seams: a non-plain-string EVENT_ID (dedupe hash), a non-tuple
+ref container or non-string ref (projected-id scan), a non-tuple
+EVIDENCE_REFS (steer projection), and non-iterable or bare-text
+result refs (receipt build) are rejected with the existing
+carrier/bridge codes before any hash, ``startswith``, ``tuple``,
+set-dedupe, or ``extend`` operation; no raw TypeError/AttributeError
+escapes the bridge.
 """
 
 from __future__ import annotations
@@ -251,6 +274,35 @@ def _safe_version(value: object) -> str | None:
     return value
 
 
+def _carrier_text_is_unsafe(value: str) -> bool:
+    """Carrier-parity safety verdict for one bounded text value.
+
+    Delegates to the accepted carrier's own sensitive-text rules —
+    unsafe Unicode categories, PEM/private-key markers, and
+    credential/secret-token markers — so bridge-side ref validation can
+    never drift weaker or stronger than the carrier: the carrier stays
+    the single parity source and no text is ever echoed on rejection.
+    """
+    try:
+        sr._check_safe_text(value)
+    except sr.RelayCarrierError:
+        return True
+    return False
+
+
+def _require_carrier_created_at(envelope: sr.RelayEnvelope) -> None:
+    """Typed fail-closed CREATED_AT gate for synthetic envelopes.
+
+    Carrier-read envelopes already passed the carrier's timestamp
+    validation; synthetic envelopes constructed outside the carrier did
+    not. Any non-string, empty, padded, unsafe, overlong, non-ISO, or
+    timezone-naive value fails here with the carrier's stable typed
+    code before ordering, projection, or transport, so no raw
+    TypeError/ValueError can escape bridge chronology or selection.
+    """
+    sr._validate_created_at(envelope.created_at)
+
+
 def dedupe_events(
     events: Iterable[sr.RelayEnvelope],
 ) -> tuple[sr.RelayEnvelope, ...]:
@@ -258,12 +310,15 @@ def dedupe_events(
 
     The carrier already deduplicates on read; this is the defensive
     consumer boundary required by the contract's at-least-once
-    delivery. Non-envelope input fails closed with the carrier code.
+    delivery. Non-envelope input and any EVENT_ID that is not a plain
+    string fail closed with the carrier code.
     """
     deduped: list[sr.RelayEnvelope] = []
     seen: set[str] = set()
     for envelope in events:
         if not isinstance(envelope, sr.RelayEnvelope):
+            raise sr.RelayCarrierError("RELAY_ENVELOPE_INVALID")
+        if type(envelope.event_id) is not str:
             raise sr.RelayCarrierError("RELAY_ENVELOPE_INVALID")
         if envelope.event_id not in seen:
             seen.add(envelope.event_id)
@@ -281,12 +336,18 @@ def recover_checkpoint(
     """Recover the latest ``SIDECAR_CHECKPOINT`` lane binding.
 
     Deterministic: newest by CREATED_AT instant with EVENT_ID as the
-    tie-break, independent of arrival order. Returns ``None`` when
-    the log carries no checkpoint. A multi-producer relay log is not
-    one lane: an optional exact-text lane scope (any combination of
-    ``task_id`` / ``claim_id`` / ``source_thread_id``) restricts
-    recovery to checkpoints whose corresponding envelope fields match
-    every supplied scope value, so a requested lane can never recover
+    tie-break, independent of arrival order. Every consumed CREATED_AT
+    is gated through the carrier's typed validator first, so a
+    synthetic envelope with a malformed (non-string, invalid-ISO,
+    naive, padded, unsafe, or overlong) timestamp — or a mixed
+    naive/aware chronology — fails closed with the carrier's
+    ``RELAY_ENVELOPE_INVALID`` code instead of letting a raw
+    TypeError/ValueError escape. Returns ``None`` when the log carries
+    no checkpoint. A multi-producer relay log is not one lane: an
+    optional exact-text lane scope (any combination of ``task_id`` /
+    ``claim_id`` / ``source_thread_id``) restricts recovery to
+    checkpoints whose corresponding envelope fields match every
+    supplied scope value, so a requested lane can never recover
     another lane's checkpoint. A scoped recovery with no matching
     checkpoint fails closed as ``None``; scope fields are opaque
     envelope fields only — this adds no second store or lane
@@ -309,6 +370,8 @@ def recover_checkpoint(
     ]
     if not checkpoints:
         return None
+    for envelope in checkpoints:
+        _require_carrier_created_at(envelope)
 
     def chronology(envelope: sr.RelayEnvelope) -> tuple[datetime, str]:
         try:
@@ -326,8 +389,13 @@ def select_steer_candidate(
     """Select at most one eligible ``CODEX_STEER_REQUEST`` candidate.
 
     Deterministic per-producer carrier order (contract §5); the first
-    event in that order wins regardless of arrival order. Selection
-    is transport choice, not prioritization authority.
+    event in that order wins regardless of arrival order. Every
+    candidate's CREATED_AT is gated through the carrier's typed
+    validator before ordering, so a synthetic envelope with a
+    malformed timestamp fails closed with the carrier's
+    ``RELAY_ENVELOPE_INVALID`` code instead of letting a raw
+    TypeError/ValueError escape the sort. Selection is transport
+    choice, not prioritization authority.
     """
     candidates = [
         envelope
@@ -336,6 +404,8 @@ def select_steer_candidate(
     ]
     if not candidates:
         return None
+    for envelope in candidates:
+        _require_carrier_created_at(envelope)
     return sr.order_events(candidates)[0]
 
 
@@ -347,13 +417,20 @@ def projected_event_ids(
     A ``SIDECAR_RESULT_RECEIPT`` whose ``EVIDENCE_REFS`` carry
     ``relay-event:<EVENT_ID>`` is the durable marker that the original
     event was observed, folded, and already projected; replaying it
-    must fail typed instead of double-submitting.
+    must fail typed instead of double-submitting. A ref container that
+    is not a plain tuple, or a ref that is not a plain string, fails
+    closed with the carrier code before any scan.
     """
     projected: set[str] = set()
     for envelope in dedupe_events(events):
         if envelope.event_type != RESULT_RECEIPT_FAMILY:
             continue
-        for ref in envelope.evidence_refs:
+        refs = envelope.evidence_refs
+        if type(refs) is not tuple:
+            raise sr.RelayCarrierError("RELAY_ENVELOPE_INVALID")
+        for ref in refs:
+            if type(ref) is not str:
+                raise sr.RelayCarrierError("RELAY_ENVELOPE_INVALID")
             if ref.startswith(RELAY_EVENT_REF_PREFIX):
                 origin = ref[len(RELAY_EVENT_REF_PREFIX) :]
                 if origin:
@@ -449,17 +526,23 @@ def _invalid_evidence_ref(ref: object) -> bool:
     """Carrier-equivalent strict bridge-side evidence-ref check.
 
     Mirrors the carrier's per-ref rules (bounded, non-empty, unpadded,
-    non-URL safe text) plus its duplicate and count rules so that
-    synthetic envelopes constructed outside the carrier cannot bypass
+    non-URL safe text with no PEM/private-key or credential/secret-
+    token markers, decided by the carrier's own sensitive-text
+    validator) plus its duplicate and count rules so that synthetic
+    envelopes constructed outside the carrier cannot bypass
     carrier-grade ref safety. The bound matches the carrier constant;
-    no ref is ever silently truncated.
+    no ref is ever silently truncated and no ref text is ever echoed.
+    Only an exact plain ``str`` is a ref: a ``str`` subclass can override
+    hashing (including setting ``__hash__ = None``) and must fail before
+    the later set-dedupe operation.
     """
     return (
-        not isinstance(ref, str)
+        type(ref) is not str
         or not ref
         or ref != ref.strip()
         or "://" in ref
         or len(ref) > _MAX_EVIDENCE_REF_LEN
+        or _carrier_text_is_unsafe(ref)
     )
 
 
@@ -472,16 +555,23 @@ def build_steer_projection(candidate: sr.RelayEnvelope) -> SteerProjection:
     pointers (padded, overlong, URL, duplicated, or unsafe), or one
     carrying more refs than the carrier bound fails closed as
     ``BRIDGE_POINTER_INVALID`` — refs are never silently truncated.
+    A candidate whose EVIDENCE_REFS is not a plain tuple (``None`` or
+    any other type-garbage shape) fails closed the same way, with the
+    per-ref gate ordered before the dedupe hash so unhashable refs
+    also fail typed.
     No free-form or executable body is ever composed.
     """
-    refs = tuple(candidate.evidence_refs)
-    if not refs or candidate.task_id is None or candidate.claim_id is None:
+    raw_refs = candidate.evidence_refs
+    if type(raw_refs) is not tuple:
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
-    if len(refs) > sr.MAX_EVIDENCE_REFS or len(set(refs)) != len(refs):
+    refs = tuple(raw_refs)
+    if not refs or candidate.task_id is None or candidate.claim_id is None:
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     for ref in refs:
         if _invalid_evidence_ref(ref):
             raise BridgeFailureError("BRIDGE_POINTER_INVALID")
+    if len(refs) > sr.MAX_EVIDENCE_REFS or len(set(refs)) != len(refs):
+        raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     return SteerProjection(
         original_event_id=candidate.event_id,
         task_id=candidate.task_id,
@@ -685,9 +775,14 @@ def build_ack_receipt(
     One normal ``SIDECAR_RESULT_RECEIPT`` envelope whose
     ``EVIDENCE_REFS`` start with ``relay-event:<original EVENT_ID>``
     followed by the durable destinations of any harvested result. The
+    composed relay-event ref and every result ref pass the same
+    carrier-parity bridge-side gate before the carrier ever appends,
+    so unsafe or sensitive-shaped text can never reach the log. The
     receipt inherits the original event's lane binding, is built and
     validated through the carrier, and means observed and folded —
-    never approved, never completed.
+    never approved, never completed. ``result_refs`` that is not an
+    iterable of refs (non-iterable or bare text) fails closed the same
+    way before any extension.
     """
     if not isinstance(original_event, sr.RelayEnvelope):
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
@@ -700,12 +795,18 @@ def build_ack_receipt(
     }
     if any(value is None for value in binding.values()):
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
+    if isinstance(result_refs, (str, bytes)) or not isinstance(
+        result_refs, Iterable
+    ):
+        raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     refs = [f"{RELAY_EVENT_REF_PREFIX}{original_event.event_id}"]
-    for ref in result_refs:
+    refs.extend(result_refs)
+    if len(refs) > sr.MAX_EVIDENCE_REFS:
+        raise BridgeFailureError("BRIDGE_POINTER_INVALID")
+    for ref in refs:
         if _invalid_evidence_ref(ref):
             raise BridgeFailureError("BRIDGE_POINTER_INVALID")
-        refs.append(ref)
-    if len(refs) > sr.MAX_EVIDENCE_REFS or len(set(refs)) != len(refs):
+    if len(set(refs)) != len(refs):
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     payload = {
         "EVENT_ID": event_id
