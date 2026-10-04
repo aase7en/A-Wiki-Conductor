@@ -67,6 +67,17 @@ WO-P1-575 generation-2 hardening round adds:
     the stable carrier code in checkpoint chronology, steer selection,
     and the full projection path (transport call count stays zero),
     while aware offset-instant ordering stays deterministic.
+
+Generation-3 P2 repair round (independent review
+exec-mutzpvrr-y23vtebn) adds:
+
+30. typed fail-closed handling of synthetic type-garbage at the four
+    remaining consumer seams — unhashable/non-string EVENT_ID
+    (``dedupe_events``), non-tuple/non-string evidence refs
+    (``projected_event_ids``), None/non-tuple EVIDENCE_REFS and
+    unhashable refs (``build_steer_projection``), and non-iterable or
+    bare-text result_refs (``build_ack_receipt``) fail with the
+    existing typed codes instead of raw TypeError/AttributeError.
 """
 
 from __future__ import annotations
@@ -1708,3 +1719,90 @@ class TestSyntheticCreatedAtValidation:
             recovered = scb.recover_checkpoint(shuffle)
             assert recovered is not None
             assert recovered.event_id == newest.event_id
+
+
+class TestSyntheticTypeGarbageBoundaries:
+    """WO-P1-575 generation-3 P2 repair — synthetic type-garbage seams.
+
+    Independent review exec-mutzpvrr-y23vtebn found four consumer
+    seams where type-garbage synthetic envelopes or arguments escaped
+    as raw TypeError/AttributeError (or were silently mis-folded)
+    before typed fail-closed handling: unhashable/non-string EVENT_ID
+    in ``dedupe_events``, non-tuple/non-string evidence refs in
+    ``projected_event_ids``, None/non-tuple/unhashable-ref
+    EVIDENCE_REFS in ``build_steer_projection``, and non-iterable or
+    bare-text ``result_refs`` in ``build_ack_receipt``. Every test
+    fails on the unrepaired module and passes with existing codes.
+    """
+
+    def test_dedupe_unhashable_event_id_fails_carrier_typed(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(_envelope(), event_id=["evt"])
+        with pytest.raises(sr.RelayCarrierError) as excinfo:
+            scb.dedupe_events([hostile])
+        assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
+
+    def test_dedupe_non_string_event_id_fails_carrier_typed(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(_envelope(), event_id=7)
+        with pytest.raises(sr.RelayCarrierError) as excinfo:
+            scb.dedupe_events([hostile])
+        assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
+
+    @pytest.mark.parametrize("refs", [(7,), (None,), None, 7])
+    def test_projected_ids_type_garbage_fails_carrier_typed(self, refs):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(
+            _envelope(),
+            event_type="SIDECAR_RESULT_RECEIPT",
+            evidence_refs=refs,
+        )
+        with pytest.raises(sr.RelayCarrierError) as excinfo:
+            scb.projected_event_ids([hostile])
+        assert _code(excinfo) == "RELAY_ENVELOPE_INVALID"
+
+    @pytest.mark.parametrize("refs", [None, 7])
+    def test_steer_projection_non_tuple_refs_is_pointer_invalid(self, refs):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(_envelope(), evidence_refs=refs)
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(hostile)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_steer_projection_unhashable_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(_envelope(), evidence_refs=(["ref"],))
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(hostile)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_full_projection_non_tuple_refs_fail_before_transport(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(_envelope(), evidence_refs=None)
+        transport = FakeTransport()
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([candidate], transport=transport)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+        assert transport.calls == []
+
+    @pytest.mark.parametrize("result_refs", [None, 7, "runs"])
+    def test_receipt_type_garbage_result_refs_is_pointer_invalid(
+        self, result_refs
+    ):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                _envelope(),
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+                result_refs=result_refs,
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"

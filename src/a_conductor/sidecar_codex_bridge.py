@@ -130,6 +130,16 @@ ordering is gated through the carrier's typed timestamp validator
 before any comparison, projection, or transport call. No raw
 TypeError/ValueError escapes these paths, no sensitive text is echoed,
 and the carrier remains the single parity source.
+
+Generation-2 P2 repair (review exec-mutzpvrr-y23vtebn) closes the
+same fail-closed gap for synthetic type-garbage at the remaining
+consumer seams: a non-plain-string EVENT_ID (dedupe hash), a non-tuple
+ref container or non-string ref (projected-id scan), a non-tuple
+EVIDENCE_REFS (steer projection), and non-iterable or bare-text
+result refs (receipt build) are rejected with the existing
+carrier/bridge codes before any hash, ``startswith``, ``tuple``,
+set-dedupe, or ``extend`` operation; no raw TypeError/AttributeError
+escapes the bridge.
 """
 
 from __future__ import annotations
@@ -300,12 +310,15 @@ def dedupe_events(
 
     The carrier already deduplicates on read; this is the defensive
     consumer boundary required by the contract's at-least-once
-    delivery. Non-envelope input fails closed with the carrier code.
+    delivery. Non-envelope input and any EVENT_ID that is not a plain
+    string fail closed with the carrier code.
     """
     deduped: list[sr.RelayEnvelope] = []
     seen: set[str] = set()
     for envelope in events:
         if not isinstance(envelope, sr.RelayEnvelope):
+            raise sr.RelayCarrierError("RELAY_ENVELOPE_INVALID")
+        if type(envelope.event_id) is not str:
             raise sr.RelayCarrierError("RELAY_ENVELOPE_INVALID")
         if envelope.event_id not in seen:
             seen.add(envelope.event_id)
@@ -404,13 +417,20 @@ def projected_event_ids(
     A ``SIDECAR_RESULT_RECEIPT`` whose ``EVIDENCE_REFS`` carry
     ``relay-event:<EVENT_ID>`` is the durable marker that the original
     event was observed, folded, and already projected; replaying it
-    must fail typed instead of double-submitting.
+    must fail typed instead of double-submitting. A ref container that
+    is not a plain tuple, or a ref that is not a plain string, fails
+    closed with the carrier code before any scan.
     """
     projected: set[str] = set()
     for envelope in dedupe_events(events):
         if envelope.event_type != RESULT_RECEIPT_FAMILY:
             continue
-        for ref in envelope.evidence_refs:
+        refs = envelope.evidence_refs
+        if type(refs) is not tuple:
+            raise sr.RelayCarrierError("RELAY_ENVELOPE_INVALID")
+        for ref in refs:
+            if type(ref) is not str:
+                raise sr.RelayCarrierError("RELAY_ENVELOPE_INVALID")
             if ref.startswith(RELAY_EVENT_REF_PREFIX):
                 origin = ref[len(RELAY_EVENT_REF_PREFIX) :]
                 if origin:
@@ -532,16 +552,23 @@ def build_steer_projection(candidate: sr.RelayEnvelope) -> SteerProjection:
     pointers (padded, overlong, URL, duplicated, or unsafe), or one
     carrying more refs than the carrier bound fails closed as
     ``BRIDGE_POINTER_INVALID`` — refs are never silently truncated.
+    A candidate whose EVIDENCE_REFS is not a plain tuple (``None`` or
+    any other type-garbage shape) fails closed the same way, with the
+    per-ref gate ordered before the dedupe hash so unhashable refs
+    also fail typed.
     No free-form or executable body is ever composed.
     """
-    refs = tuple(candidate.evidence_refs)
-    if not refs or candidate.task_id is None or candidate.claim_id is None:
+    raw_refs = candidate.evidence_refs
+    if type(raw_refs) is not tuple:
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
-    if len(refs) > sr.MAX_EVIDENCE_REFS or len(set(refs)) != len(refs):
+    refs = tuple(raw_refs)
+    if not refs or candidate.task_id is None or candidate.claim_id is None:
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     for ref in refs:
         if _invalid_evidence_ref(ref):
             raise BridgeFailureError("BRIDGE_POINTER_INVALID")
+    if len(refs) > sr.MAX_EVIDENCE_REFS or len(set(refs)) != len(refs):
+        raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     return SteerProjection(
         original_event_id=candidate.event_id,
         task_id=candidate.task_id,
@@ -750,7 +777,9 @@ def build_ack_receipt(
     so unsafe or sensitive-shaped text can never reach the log. The
     receipt inherits the original event's lane binding, is built and
     validated through the carrier, and means observed and folded —
-    never approved, never completed.
+    never approved, never completed. ``result_refs`` that is not an
+    iterable of refs (non-iterable or bare text) fails closed the same
+    way before any extension.
     """
     if not isinstance(original_event, sr.RelayEnvelope):
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
@@ -762,6 +791,10 @@ def build_ack_receipt(
         "HEAD_SHA": original_event.head_sha,
     }
     if any(value is None for value in binding.values()):
+        raise BridgeFailureError("BRIDGE_POINTER_INVALID")
+    if isinstance(result_refs, (str, bytes)) or not isinstance(
+        result_refs, Iterable
+    ):
         raise BridgeFailureError("BRIDGE_POINTER_INVALID")
     refs = [f"{RELAY_EVENT_REF_PREFIX}{original_event.event_id}"]
     refs.extend(result_refs)
