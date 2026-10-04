@@ -1721,6 +1721,17 @@ class TestSyntheticCreatedAtValidation:
             assert recovered.event_id == newest.event_id
 
 
+class _UnhashableStr(str):
+    """Synthetic carrier-bypass ref shape: a str subclass that cannot hash.
+
+    Passes ``isinstance``-based ref gates and every plain-text rule,
+    but ``set()`` dedupe hashing raises a raw TypeError unless the
+    consuming seam requires the exact plain-``str`` type first.
+    """
+
+    __hash__ = None
+
+
 class TestSyntheticTypeGarbageBoundaries:
     """WO-P1-575 generation-3 P2 repair — synthetic type-garbage seams.
 
@@ -1772,6 +1783,41 @@ class TestSyntheticTypeGarbageBoundaries:
         with pytest.raises(scb.BridgeFailureError) as excinfo:
             scb.build_steer_projection(hostile)
         assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_steer_projection_unhashable_str_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        hostile = dataclasses.replace(
+            _envelope(), evidence_refs=(_UnhashableStr(WO_REF),)
+        )
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_steer_projection(hostile)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_receipt_unhashable_str_result_ref_is_pointer_invalid(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            scb.build_ack_receipt(
+                _envelope(),
+                source_thread_id="sidecar-thread-1",
+                source_turn_id="turn-0002",
+                created_at="2026-09-30T10:05:00+00:00",
+                result_refs=(_UnhashableStr("runs/WO-P1-575/steer-1/result.md"),),
+            )
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+
+    def test_full_projection_unhashable_str_ref_fails_typed_zero_transport(self):
+        from a_conductor import sidecar_codex_bridge as scb
+
+        candidate = dataclasses.replace(
+            _envelope(), evidence_refs=(_UnhashableStr(WO_REF),)
+        )
+        transport = FakeTransport()
+        with pytest.raises(scb.BridgeFailureError) as excinfo:
+            _project([candidate], transport=transport)
+        assert _code(excinfo) == "BRIDGE_POINTER_INVALID"
+        assert transport.calls == []
 
     def test_steer_projection_unhashable_ref_is_pointer_invalid(self):
         from a_conductor import sidecar_codex_bridge as scb

@@ -532,9 +532,12 @@ def _invalid_evidence_ref(ref: object) -> bool:
     envelopes constructed outside the carrier cannot bypass
     carrier-grade ref safety. The bound matches the carrier constant;
     no ref is ever silently truncated and no ref text is ever echoed.
+    Only an exact plain ``str`` is a ref: a ``str`` subclass can override
+    hashing (including setting ``__hash__ = None``) and must fail before
+    the later set-dedupe operation.
     """
     return (
-        not isinstance(ref, str)
+        type(ref) is not str
         or not ref
         or ref != ref.strip()
         or "://" in ref
