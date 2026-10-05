@@ -165,6 +165,21 @@ def test_observed_duplicate_outranks_incomplete_pagination():
     assert decision.duplicate_submission_ids == ("q-dup",)
 
 
+def test_incomplete_outranks_interrupted_and_preserves_ids():
+    decision = evaluate(turns=[turn("t-1", "interrupted")], queue_next_cursor="page-2")
+    assert decision.action is GuardAction.RECONCILIATION_REQUIRED
+    assert decision.reason_code == "QUEUE_GUARD_EVIDENCE_INCOMPLETE"
+    assert decision.interrupted_turn_ids == ("t-1",)
+
+
+def test_duplicate_outranks_false_attestation():
+    key = queue_submission_task_key("issue:581")
+    decision = evaluate(queue_entries=[entry("q-dup", key)],
+                        queue_evidence_complete=False, turn_evidence_complete=False)
+    assert decision.action is GuardAction.DUPLICATE_TASK_SUBMISSION_PENDING
+    assert decision.duplicate_submission_ids == ("q-dup",)
+
+
 @pytest.mark.parametrize("cursor", ["", " pad", "con\ntrol", StringSubclass("page-2")])
 def test_invalid_cursor_rejected(cursor):
     with pytest.raises(QueueSubmissionGuardError, match="QUEUE_GUARD_EVIDENCE_INVALID"):
