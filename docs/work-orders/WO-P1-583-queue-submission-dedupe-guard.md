@@ -44,16 +44,20 @@ Root cause is already source-proven (Issue #583 comment `5982737256`): App Serve
    - `task_ref` is the canonical task reference string (e.g. `"WO-P1-583"` / `"issue:581"`); non-empty, ≤128 chars, no control/whitespace-trimmed-edge characters.
    - Returns `"awc-tsk-v1:" + sha256(task_ref.encode("utf-8")).hexdigest()[:16]` — deterministic, collision-resistant, stable across attempts/sessions.
    - Invalid `task_ref` raises `QueueSubmissionGuardError("QUEUE_GUARD_TASK_REF_INVALID")` (code-only preflight; nothing invoked).
-2. `evaluate_bootstrap_guard(task_ref, *, queue_entries, turns, queue_evidence_known, turn_evidence_known) -> GuardDecision`
-   - Inputs are OBSERVED decoded evidence only. `queue_evidence_known=False` or `turn_evidence_known=False` (transport UNKNOWN/unobserved) ⇒ fail closed: `RECONCILIATION_REQUIRED` / reason `QUEUE_GUARD_EVIDENCE_UNKNOWN`. The guard never fabricates observations.
+2. `evaluate_bootstrap_guard(task_ref, *, queue_entries, turns, queue_evidence_complete, turn_evidence_complete, queue_next_cursor=None, turn_next_cursor=None) -> GuardDecision`
+   - Inputs are OBSERVED decoded evidence only. PROCEED requires **complete** evidence, not merely OBSERVED evidence: an OBSERVED page is only one bounded page (`next_cursor` may exist — `codex_goal_api_adapter.py` QUEUE_LIST/TURNS_LIST decode). Evidence is complete only when the caller attests `*_evidence_complete=True` from fully paginated OBSERVED outcomes AND the last observed page carried no `next_cursor`. A non-None `queue_next_cursor`/`turn_next_cursor`, or either attestation False (transport UNKNOWN/unobserved, stopped early) ⇒ fail closed: `RECONCILIATION_REQUIRED` / reason `QUEUE_GUARD_EVIDENCE_INCOMPLETE`. The guard never fabricates observations and never treats a partial scan as an absence proof.
    - Any queue entry whose `client_user_message_id` equals `queue_submission_task_key(task_ref)` is a **pending same-intent submission**. Count ≥ 1 ⇒ `DUPLICATE_TASK_SUBMISSION_PENDING` / `QUEUE_GUARD_DUPLICATE_PENDING`, listing the offending `submission_id`s (bounded, order-preserving) for caller-owned disposition (e.g. supported `thread/queue/delete`); the guard itself never deletes.
    - Any `TurnEvidence.status == "interrupted"` (unharvested/ambiguous side effects per #583) ⇒ `RECONCILIATION_REQUIRED` / `QUEUE_GUARD_TURN_INTERRUPTED` even when no duplicate is pending.
    - Otherwise ⇒ `PROCEED` / `QUEUE_GUARD_CLEAR`.
    - Foreign entries (other/unparseable `client_user_message_id` values) never match and never block.
-   - Invalid/oversized evidence (wrong types, empty IDs, duplicate submission IDs) ⇒ `QueueSubmissionGuardError("QUEUE_GUARD_EVIDENCE_INVALID")` — typed rejection, never a silent PROCEED.
+   - Invalid/oversized evidence (wrong types, empty IDs, duplicate submission IDs, non-identifier cursor values, or more than `MAX_EVIDENCE_ITEMS = 512` entries/turns in one call) ⇒ `QueueSubmissionGuardError("QUEUE_GUARD_EVIDENCE_INVALID")` — typed rejection before scanning, never a silent PROCEED and never unbounded decision output.
 3. `GuardDecision` is a frozen dataclass: `action: GuardAction` (`PROCEED` | `DUPLICATE_TASK_SUBMISSION_PENDING` | `RECONCILIATION_REQUIRED`), `reason_code: str`, `duplicate_submission_ids: tuple[str, ...] = ()`, `interrupted_turn_ids: tuple[str, ...] = ()`.
-4. Priority order when multiple blockers apply: `DUPLICATE_TASK_SUBMISSION_PENDING` outranks `RECONCILIATION_REQUIRED` (a duplicate pending submission is the direct one-owner violation; interrupted turns are surfaced alongside in `interrupted_turn_ids` whenever present).
-5. The module performs no I/O, holds no state, defines no retries, and confers no authority: a `PROCEED` is a policy observation over supplied evidence, not admission, ownership, completion, or permission to mutate.
+4. Priority order when multiple blockers apply: a positively observed `DUPLICATE_TASK_SUBMISSION_PENDING` outranks evidence-incompleteness and `RECONCILIATION_REQUIRED` (a visible duplicate is direct one-owner violation evidence and gives the caller actionable IDs); evidence-incompleteness outranks interrupted-turn reconciliation; interrupted turns are surfaced alongside in `interrupted_turn_ids` whenever present.
+5. The module performs no I/O, holds no state, defines no retries, and confers no authority: a `PROCEED` is a policy observation over supplied complete evidence, not admission, ownership, completion, or permission to mutate.
+
+### Contract repair note (independent R3 review round 1)
+
+Codex GPT-6.1 Sol exact-SHA review of candidate `9020fb1` returned CHANGES_REQUIRED: P1 partial-pagination could silently PROCEED (absence proof over one bounded page), P2 evidence collections and duplicate output were unbounded. This v2 freezes the complete-evidence contract (attestation + objective last-page `next_cursor` inputs) and `MAX_EVIDENCE_ITEMS = 512` typed rejection before scanning, with duplicate-over-incompleteness priority. Repair cycles: 1 of 2 used.
 
 ## Failure model (RED matrix before implementation)
 
@@ -61,7 +65,10 @@ Root cause is already source-proven (Issue #583 comment `5982737256`): App Serve
 - no duplicate, evidence known, no interrupted turns ⇒ PROCEED
 - interrupted turn, no duplicate ⇒ RECONCILIATION_REQUIRED + interrupted IDs
 - duplicate + interrupted turn ⇒ DUPLICATE_TASK_SUBMISSION_PENDING wins, interrupted IDs still surfaced
-- unknown queue evidence / unknown turn evidence ⇒ fail-closed RECONCILIATION_REQUIRED
+- unknown/incomplete queue or turn evidence (attestation False OR last-page next_cursor non-None) ⇒ fail-closed RECONCILIATION_REQUIRED / QUEUE_GUARD_EVIDENCE_INCOMPLETE, even when a duplicate is visible only as dup IDs must still not PROCEED; positively observed duplicate still outranks incompleteness
+- duplicate present on a later page while first page is clear (pagination stopped early) ⇒ never PROCEED
+- >512 entries or >512 turns in one call ⇒ typed QUEUE_GUARD_EVIDENCE_INVALID before scanning; exactly 512 accepted
+- non-identifier or subclass cursor values ⇒ typed QUEUE_GUARD_EVIDENCE_INVALID
 - foreign client_user_message_id values (random UUIDs, other prefixes) never match
 - task key determinism: same ref ⇒ same key across calls; different refs ⇒ different keys
 - invalid task_ref (empty/whitespace/control chars/>128) ⇒ QUEUE_GUARD_TASK_REF_INVALID
