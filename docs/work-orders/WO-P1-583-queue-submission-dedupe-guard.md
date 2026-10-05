@@ -1,6 +1,7 @@
 # WO-P1-583 — Codex queue-submission dedupe / duplicate-bootstrap guard
 
-Issue: #583 (defect record; observed during #581 recovery)
+Issue: #583
+(defect record; observed during #581 recovery)
 Parent context: #580 lifecycle vNext consumes this guard later; #576 owns native Goal idle/pause mechanics (untouched here).
 Class: CONTROL_PLANE_ONLY
 Risk: R3 (deduplication/idempotency semantics adjacent to one-owner orchestration authority; no transport/persistence/authority mutation)
