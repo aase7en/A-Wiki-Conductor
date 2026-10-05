@@ -193,6 +193,8 @@ def test_post_sunday_execution_reinjects_harvest_and_refill_rules() -> None:
     assert "RECOVER -> RECONCILE -> HARVEST" in context
     assert "RUNNING/UNKNOWN" in context
     assert "AUTO_REFILL_REQUIRED" in context
+    assert "executable auto-refill bridge" in context
+    assert "scheduler-owned READY plan" in context
 
 
 def test_stop_continues_once_only_from_valid_actionable_turn_receipt() -> None:

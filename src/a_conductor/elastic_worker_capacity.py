@@ -15,6 +15,15 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Mapping, Protocol
 
+from .a_faster_auto_refill import (
+    AutoRefillDisposition,
+    AutoRefillResult,
+    MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE_REASON,
+    RefillLaneKind,
+    execute_auto_refill,
+)
+from .a_faster_utilization_guard import UtilizationFacts, UtilizationVerdict
+from .elastic_wip_policy import ElasticWipFacts
 from .graph.domain import TaskGraph
 from .graph.ready import ReadySetResult
 from .graph.scheduler import (
@@ -27,6 +36,7 @@ from .graph.scheduler import (
 from .parallel_ready_execution import (
     ParallelReadyBatchResult,
     ParallelReadyExecutor,
+    ParallelReadyOutcome,
     ParallelReadyOutcomeKind,
 )
 from .worker_candidate_assembly import (
@@ -1088,6 +1098,49 @@ class ProductionElasticWorkerExecutor:
             pre_acquired_admissions=pre_acquired_admissions,
         )
 
+    def _execute_a_faster_plan(
+        self,
+        plan: SchedulePlan,
+        contracts_by_node: Mapping[str, ParallelReadyNodeContract],
+        supply: WorkerSupplySnapshot,
+        *,
+        facts: UtilizationFacts,
+        verdict: UtilizationVerdict,
+        wip_facts: ElasticWipFacts,
+        lane_kind: RefillLaneKind,
+        ready: ReadySetResult,
+        provider_inflight: Mapping[str, int],
+        batch_id: str | None,
+        pre_acquired_admissions: Mapping[str, object] | None = None,
+    ) -> AutoRefillResult:
+        selected_contracts = {
+            item.node_id: contracts_by_node[item.node_id]
+            for item in plan.selected
+        }
+        tasks = assemble_parallel_ready_tasks(plan, selected_contracts, supply)
+        return execute_auto_refill(
+            facts=facts,
+            verdict=verdict,
+            wip_facts=wip_facts,
+            lane_kind=lane_kind,
+            ready=ready,
+            plan=plan,
+            tasks_by_node=tasks,
+            provider_inflight=provider_inflight,
+            executor=self._executor,
+            batch_id=batch_id,
+            pre_acquired_admissions=pre_acquired_admissions,
+        )
+
+    @staticmethod
+    def _batch_from_refill(refill: AutoRefillResult) -> ParallelReadyBatchResult:
+        return ParallelReadyBatchResult(
+            tuple(
+                ParallelReadyOutcome(item.node_id, item.kind, item.reason_code)
+                for item in refill.outcomes
+            )
+        )
+
     def execute_once(
         self,
         graph: TaskGraph,
@@ -1101,6 +1154,10 @@ class ProductionElasticWorkerExecutor:
         running_write_sets: dict[str, tuple[str, ...]] | None = None,
         eligibility: dict[str, NodeEligibility] | None = None,
         batch_id: str | None = None,
+        a_faster_facts: UtilizationFacts | None = None,
+        a_faster_verdict: UtilizationVerdict | None = None,
+        a_faster_wip_facts: ElasticWipFacts | None = None,
+        a_faster_lane_kind: RefillLaneKind | None = None,
     ) -> ProductionElasticExecutionResult:
         if not isinstance(graph, TaskGraph):
             raise ValueError("graph must be TaskGraph")
@@ -1114,6 +1171,62 @@ class ProductionElasticWorkerExecutor:
             raise ValueError("schedule_policy must be SchedulePolicy")
         if not isinstance(elastic_policy, ElasticCapacityPolicy):
             raise ValueError("elastic_policy must be ElasticCapacityPolicy")
+        a_faster_context = (
+            a_faster_facts,
+            a_faster_verdict,
+            a_faster_wip_facts,
+            a_faster_lane_kind,
+        )
+        if any(item is not None for item in a_faster_context) and not all(
+            item is not None for item in a_faster_context
+        ):
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "A_FASTER_REFILL_CONTEXT_INCOMPLETE",
+                SchedulePlan((), (), "a-faster-refill-context-incomplete"),
+            )
+        if a_faster_facts is not None and not isinstance(
+            a_faster_facts, UtilizationFacts
+        ):
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "A_FASTER_UTILIZATION_FACTS_INVALID",
+                SchedulePlan((), (), "a-faster-utilization-facts-invalid"),
+            )
+        if a_faster_verdict is not None and not isinstance(
+            a_faster_verdict, UtilizationVerdict
+        ):
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "A_FASTER_UTILIZATION_VERDICT_INVALID",
+                SchedulePlan((), (), "a-faster-utilization-verdict-invalid"),
+            )
+        if a_faster_wip_facts is not None and not isinstance(
+            a_faster_wip_facts, ElasticWipFacts
+        ):
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "A_FASTER_WIP_FACTS_INVALID",
+                SchedulePlan((), (), "a-faster-wip-facts-invalid"),
+            )
+        if a_faster_lane_kind is not None and not isinstance(
+            a_faster_lane_kind, RefillLaneKind
+        ):
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                "A_FASTER_REFILL_LANE_KIND_INVALID",
+                SchedulePlan((), (), "a-faster-refill-lane-kind-invalid"),
+            )
+        if a_faster_lane_kind is RefillLaneKind.MUTABLE:
+            # Refuse before provider admission, scheduling, or elastic capacity
+            # work: the production path has no canonical task-to-claim reader.
+            return ProductionElasticExecutionResult(
+                ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                MUTABLE_CLAIM_AUTHORITY_UNAVAILABLE_REASON,
+                SchedulePlan(
+                    (), (), "canonical-mutable-claim-authority-unavailable"
+                ),
+            )
         if eligibility is None or not set(ready.ready_ids).issubset(eligibility):
             return ProductionElasticExecutionResult(
                 ProductionElasticExecutionKind.RECOVERY_REQUIRED,
@@ -1171,17 +1284,53 @@ class ProductionElasticWorkerExecutor:
         )
         if initial_plan.selected:
             try:
-                batch = self._execute_plan(
-                    initial_plan,
-                    contracts_by_node,
-                    initial_supply,
-                    provider_inflight=provider_inflight,
-                    batch_id=batch_id,
-                )
+                if a_faster_verdict is not None:
+                    assert a_faster_facts is not None
+                    assert a_faster_wip_facts is not None
+                    assert a_faster_lane_kind is not None
+                    refill = self._execute_a_faster_plan(
+                        initial_plan,
+                        contracts_by_node,
+                        initial_supply,
+                        facts=a_faster_facts,
+                        verdict=a_faster_verdict,
+                        wip_facts=a_faster_wip_facts,
+                        lane_kind=a_faster_lane_kind,
+                        ready=ready,
+                        provider_inflight=provider_inflight,
+                        batch_id=batch_id,
+                    )
+                    if refill.disposition is AutoRefillDisposition.NO_REFILL_REQUIRED:
+                        return ProductionElasticExecutionResult(
+                            ProductionElasticExecutionKind.WAIT,
+                            refill.reason_code,
+                            initial_plan,
+                            final_plan=initial_plan,
+                        )
+                    if refill.disposition is not AutoRefillDisposition.EXECUTED:
+                        return ProductionElasticExecutionResult(
+                            ProductionElasticExecutionKind.RECOVERY_REQUIRED,
+                            refill.reason_code,
+                            initial_plan,
+                            final_plan=initial_plan,
+                        )
+                    batch = self._batch_from_refill(refill)
+                else:
+                    batch = self._execute_plan(
+                        initial_plan,
+                        contracts_by_node,
+                        initial_supply,
+                        provider_inflight=provider_inflight,
+                        batch_id=batch_id,
+                    )
             except Exception:
                 return ProductionElasticExecutionResult(
                     ProductionElasticExecutionKind.RECOVERY_REQUIRED,
-                    "PARALLEL_READY_EXECUTION_EXCEPTION",
+                    (
+                        "A_FASTER_REFILL_EXECUTION_EXCEPTION"
+                        if a_faster_verdict is not None
+                        else "PARALLEL_READY_EXECUTION_EXCEPTION"
+                    ),
                     initial_plan,
                 )
             kind, reason = self._batch_kind(
@@ -1190,6 +1339,20 @@ class ProductionElasticWorkerExecutor:
             return ProductionElasticExecutionResult(
                 kind, reason, initial_plan, final_plan=initial_plan, batch_result=batch
             )
+        if a_faster_verdict is not None:
+            assert a_faster_lane_kind is not None
+            lane_target = (
+                a_faster_verdict.fanout_target_mutable
+                if a_faster_lane_kind is RefillLaneKind.MUTABLE
+                else a_faster_verdict.fanout_target_review
+            )
+            if not a_faster_verdict.auto_refill_required or lane_target <= 0:
+                return ProductionElasticExecutionResult(
+                    ProductionElasticExecutionKind.WAIT,
+                    "AUTO_REFILL_NOT_REQUIRED",
+                    initial_plan,
+                )
+
         elastic_blocked = [
             item for item in initial_plan.blocked
             if item.kind in {BlockedReasonKind.CAPACITY, BlockedReasonKind.NO_WORKERS}
@@ -1329,21 +1492,62 @@ class ProductionElasticWorkerExecutor:
                 elastic_outcome=elastic,
             )
         try:
-            batch = self._execute_plan(
-                final_plan,
-                contracts_by_node,
-                final_supply,
-                provider_inflight=provider_inflight,
-                batch_id=batch_id,
-                pre_acquired_admissions={blocked_node: provider_fence.admission},
-            )
+            if a_faster_verdict is not None:
+                assert a_faster_facts is not None
+                assert a_faster_wip_facts is not None
+                assert a_faster_lane_kind is not None
+                refill = self._execute_a_faster_plan(
+                    final_plan,
+                    contracts_by_node,
+                    final_supply,
+                    facts=a_faster_facts,
+                    verdict=a_faster_verdict,
+                    wip_facts=a_faster_wip_facts,
+                    lane_kind=a_faster_lane_kind,
+                    ready=ready,
+                    provider_inflight=provider_inflight,
+                    batch_id=batch_id,
+                    pre_acquired_admissions={blocked_node: provider_fence.admission},
+                )
+                if refill.disposition is not AutoRefillDisposition.EXECUTED:
+                    self._capacity.abandon_provisioned_handoff(
+                        elastic.reservation_id,
+                        contract.lease_request,
+                        worker_id=elastic.worker_id,
+                    )
+                    return ProductionElasticExecutionResult(
+                        (
+                            ProductionElasticExecutionKind.WAIT
+                            if refill.disposition
+                            is AutoRefillDisposition.NO_REFILL_REQUIRED
+                            else ProductionElasticExecutionKind.RECOVERY_REQUIRED
+                        ),
+                        refill.reason_code,
+                        initial_plan,
+                        final_plan=final_plan,
+                        elastic_outcome=elastic,
+                    )
+                batch = self._batch_from_refill(refill)
+            else:
+                batch = self._execute_plan(
+                    final_plan,
+                    contracts_by_node,
+                    final_supply,
+                    provider_inflight=provider_inflight,
+                    batch_id=batch_id,
+                    pre_acquired_admissions={blocked_node: provider_fence.admission},
+                )
         except Exception:
             self._capacity.abandon_provisioned_handoff(
                 elastic.reservation_id, contract.lease_request, worker_id=elastic.worker_id
             )
             return ProductionElasticExecutionResult(
                 ProductionElasticExecutionKind.RECOVERY_REQUIRED,
-                "PARALLEL_READY_EXECUTION_EXCEPTION",
+                (
+                    "A_FASTER_REFILL_EXECUTION_EXCEPTION"
+                    if a_faster_verdict is not None
+                    else "PARALLEL_READY_EXECUTION_EXCEPTION"
+                ),
                 initial_plan,
                 final_plan=final_plan,
                 elastic_outcome=elastic,

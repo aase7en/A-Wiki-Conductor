@@ -14,10 +14,13 @@ Authority boundary (binding):
 - It launches nothing and never burns or probes quota itself; quota
   evidence arrives through the existing refresh-before-each-material-
   dispatch flow as structured admission evidence only.
-- Enforcement state is ``POLICY_ONLY`` until shared executable
-  ``PRE_DISPATCH`` guard wiring exists as successor scope after
-  WO-P1-498 releases. This module must not import, call, or modify the
-  #498-owned ``pre_dispatch_guard.py`` surface.
+- This classifier remains projection-only and launches nothing. WO-P1-549's
+  separate executable auto-refill bridge may consume its accepted verdict and
+  delegate a bounded scheduler-owned batch through the existing
+  ``ParallelReadyExecutor``. The exact material route remains
+  ``POLICY_ONLY`` unless the accepted WO-P1-498 ``PRE_DISPATCH`` guard is
+  proven on that action path; only such a route may claim ``GUARD_ENFORCED``.
+  This module does not import, call, or modify the #498 guard surface.
 
 WO-P1-517 bootstrap lessons preserved here:
 

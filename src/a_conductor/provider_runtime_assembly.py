@@ -211,6 +211,7 @@ def build_sqlite_parallel_ready_executor(
     broker: WorkerLeaseBroker,
     runner: ParallelReadyRunner,
     clock: Callable[[], object],
+    lease_health_reader: object,
 ) -> ParallelReadyExecutor:
     """Build AHA-6 execution with the shared SQLite provider admission authority."""
     store = SQLiteProviderConfigStore(database_path)
@@ -221,4 +222,6 @@ def build_sqlite_parallel_ready_executor(
         clock=clock,
         provider_admission_store=store,
         require_provider_authority=True,
+        lease_health_reader=lease_health_reader,
+        require_pre_dispatch_guard=True,
     )
