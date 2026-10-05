@@ -45,14 +45,14 @@ def intent(operation=GoalApiOperation.GOAL_GET, **kwargs):
     return GoalApiIntent(operation=operation, thread_id=THREAD, **kwargs)
 
 
-def run(reply, request_intent=None):
+def run(reply, request_intent=None, *, app_server_version=APP_SERVER_VERSION):
     calls = []
 
     def request(method, params):
         calls.append((method, params))
         return reply
 
-    result = CodexGoalApiAdapter(request, app_server_version=APP_SERVER_VERSION).execute(
+    result = CodexGoalApiAdapter(request, app_server_version=app_server_version).execute(
         request_intent or intent()
     )
     return result, calls
@@ -63,6 +63,7 @@ def queued(submission_id="queue-1", correlation="correlation-1"):
             "input": [{"type": "text", "text": "hostile payload stays data"}]}
 
 
+@pytest.mark.parametrize("version", ["0.159.0", "0.160.0"])
 @pytest.mark.parametrize("operation,kwargs,params", [
     (GoalApiOperation.GOAL_GET, {}, {"threadId": THREAD}),
     (GoalApiOperation.GOAL_ACTIVATE, {"observed_goal_status": "blocked"},
@@ -77,9 +78,9 @@ def queued(submission_id="queue-1", correlation="correlation-1"):
      {"threadId": THREAD, "limit": 2, "cursor": "page-2"}),
     (GoalApiOperation.RESUME, {}, {"threadId": THREAD, "excludeTurns": True}),
 ])
-def test_exact_source_proven_request_subset(operation, kwargs, params):
+def test_exact_source_proven_request_subset(version, operation, kwargs, params):
     method, actual = build_goal_api_request(intent(operation, **kwargs),
-                                            app_server_version=APP_SERVER_VERSION)
+                                            app_server_version=version)
     assert method == operation.value
     assert actual == params
 
@@ -94,12 +95,42 @@ def test_invalid_explicit_binding_never_calls_transport(thread_id):
     assert calls == []
 
 
-@pytest.mark.parametrize("version", [None, "0.158.0", "0.159.1", StringSubclass(APP_SERVER_VERSION)])
+@pytest.mark.parametrize("version", [
+    None, True, 160, 0.160, [], {}, HostileValue(),
+    "", "0.158.0", "0.159.1", "0.160.1", "0.161.0", "1.160.0",
+    "0.160", "v0.160.0", "rust-v0.160.0", "0.160.0+build", "0.160.0-dev",
+    " 0.160.0", "0.160.0 ", "0.160.0\n", "0.160.0\x00", "０.１６０.０",
+    StringSubclass("0.159.0"), StringSubclass("0.160.0"), "x" * 16_385,
+])
 def test_version_gate_has_no_probe_or_fallback(version):
     calls = []
     with pytest.raises(GoalApiAdapterError, match="GOAL_API_VERSION_UNPROVEN"):
         CodexGoalApiAdapter(lambda *a: calls.append(a), app_server_version=version)
+    with pytest.raises(GoalApiAdapterError, match="GOAL_API_VERSION_UNPROVEN"):
+        build_goal_api_request(intent(), app_server_version=version)
     assert calls == []
+
+
+@pytest.mark.parametrize("operation,kwargs,reply", [
+    (GoalApiOperation.GOAL_GET, {}, {"goal": {"threadId": THREAD, "status": "blocked"}}),
+    (GoalApiOperation.GOAL_ACTIVATE, {"observed_goal_status": "blocked"},
+     {"goal": {"threadId": THREAD, "status": "active"}}),
+    (GoalApiOperation.QUEUE_ADD, {"text": "steer", "client_user_message_id": "c1"},
+     {"queuedSubmission": queued("q1", "c1")}),
+    (GoalApiOperation.QUEUE_LIST, {}, {"data": [queued()], "nextCursor": "page-2"}),
+    (GoalApiOperation.QUEUE_DELETE, {"queued_submission_id": "q1"}, {"deleted": False}),
+    (GoalApiOperation.TURNS_LIST, {"limit": 1},
+     {"data": [{"id": "t1", "status": "inProgress"}], "nextCursor": None}),
+    (GoalApiOperation.RESUME, {}, {"thread": {"id": THREAD, "turns": []}}),
+])
+def test_0160_uses_identical_request_and_response_projection(operation, kwargs, reply):
+    request_intent = intent(operation, **kwargs)
+    baseline, baseline_calls = run(reply, request_intent, app_server_version="0.159.0")
+    compatible, compatible_calls = run(reply, request_intent, app_server_version="0.160.0")
+    assert baseline.state is OutcomeState.OBSERVED
+    assert compatible == baseline
+    assert compatible_calls == baseline_calls
+    assert len(compatible_calls) == 1
 
 
 @pytest.mark.parametrize("bad_intent", [
@@ -204,6 +235,7 @@ def test_resume_only_explicit_binding_and_excluded_history():
     assert calls == [("thread/resume", {"threadId": THREAD, "excludeTurns": True})]
 
 
+@pytest.mark.parametrize("version", ["0.159.0", "0.160.0"])
 @pytest.mark.parametrize("reply", [
     None, [], "payload", HostileValue(), HostileDict(goal=None),
     {"goal": HostileDict(threadId=THREAD, status="active")},
@@ -218,8 +250,8 @@ def test_resume_only_explicit_binding_and_excluded_history():
     {"goal": None, 1: "invalid key"},
     {"goal": None, "extra": 1 << 70},
 ])
-def test_malformed_hostile_or_unbound_result_is_code_only_unknown(reply):
-    result, calls = run(reply)
+def test_malformed_hostile_or_unbound_result_is_code_only_unknown(version, reply):
+    result, calls = run(reply, app_server_version=version)
     assert result.state is OutcomeState.UNKNOWN
     assert result.reason_code == "GOAL_API_RESPONSE_UNKNOWN"
     assert len(calls) == 1
@@ -231,6 +263,7 @@ def test_unknown_retains_shallow_valid_id_without_echoing_bad_payload():
     assert result.observed_ids == (THREAD,)
 
 
+@pytest.mark.parametrize("version", ["0.159.0", "0.160.0"])
 @pytest.mark.parametrize("operation,kwargs,reply", [
     (GoalApiOperation.QUEUE_ADD, {"text": "x", "client_user_message_id": "c1"},
      {"queuedSubmission": {"id": "server-id", "clientUserMessageId": HostileValue()}}),
@@ -242,12 +275,13 @@ def test_unknown_retains_shallow_valid_id_without_echoing_bad_payload():
     (GoalApiOperation.RESUME, {}, {"thread": {"id": "different-thread", "turns": []}}),
     (GoalApiOperation.RESUME, {}, {"thread": {"id": THREAD, "turns": [{"id": "t1"}]}}),
 ])
-def test_operation_specific_unknown_never_recovers_or_retargets(operation, kwargs, reply):
-    result, calls = run(reply, intent(operation, **kwargs))
+def test_operation_specific_unknown_never_recovers_or_retargets(version, operation, kwargs, reply):
+    result, calls = run(reply, intent(operation, **kwargs), app_server_version=version)
     assert result.state is OutcomeState.UNKNOWN
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize("version", ["0.159.0", "0.160.0"])
 @pytest.mark.parametrize("operation,kwargs", [
     (GoalApiOperation.GOAL_ACTIVATE, {"observed_goal_status": "blocked"}),
     (GoalApiOperation.QUEUE_ADD, {"text": "x", "client_user_message_id": "c1"}),
@@ -255,14 +289,14 @@ def test_operation_specific_unknown_never_recovers_or_retargets(operation, kwarg
     (GoalApiOperation.RESUME, {}),
     (GoalApiOperation.GOAL_GET, {}),
 ])
-def test_ambiguous_side_effect_then_transport_exception_is_unknown_no_retry(operation, kwargs):
+def test_ambiguous_side_effect_then_transport_exception_is_unknown_no_retry(version, operation, kwargs):
     effects = []
 
     def request(method, params):
         effects.append((method, params))
         raise RuntimeError("secret payload must not escape")
 
-    result = CodexGoalApiAdapter(request, app_server_version=APP_SERVER_VERSION).execute(intent(operation, **kwargs))
+    result = CodexGoalApiAdapter(request, app_server_version=version).execute(intent(operation, **kwargs))
     assert result.state is OutcomeState.UNKNOWN
     assert result.reason_code == "GOAL_API_TRANSPORT_UNKNOWN"
     assert "secret" not in repr(result)
