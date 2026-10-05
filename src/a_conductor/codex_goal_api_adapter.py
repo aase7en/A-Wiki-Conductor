@@ -1,4 +1,4 @@
-"""WO-P1-576B: a pure, injected App Server 0.159.0 translator.
+"""WO-P1-576B/C: a pure, injected App Server 0.159.0/0.160.0 translator.
 
 Field provenance: openai/codex tag rust-v0.159.0 resolves to commit
 687a119f0fcaace47e1f1abcc77cec6c813fd6da. Under that commit, read
@@ -7,6 +7,10 @@ and schema/typescript/v2/ThreadGoalStatus.ts (in app-server-protocol).
 Canonical evidence: A-Wiki-Conductor #576 comments 5981598729, 5981760977;
 queue append semantics: #583 comment 5982737256. The source/schema proves
 wire fields; the evidence authorizes only caller-attested blocked -> active.
+Compatibility: rust-v0.160.0 resolves to
+a956835d020762cb2b570053af06f643a11c0ecc. The bounded tagged-source
+comparison in #576 comment 5986704078 preserves this method/schema subset.
+Version admission here does not prove deployed binary identity or admit runtime calls.
 
 The injected callable owns transport and its admission. This module has no
 client, discovery, credentials, scheduler, persistence, retries, or followups.
@@ -29,6 +33,7 @@ from typing import Callable
 from unicodedata import category
 
 APP_SERVER_VERSION = "0.159.0"
+APP_SERVER_VERSIONS = (APP_SERVER_VERSION, "0.160.0")
 MAX_PAGE_ITEMS = 32
 MAX_ID_CHARS = 256
 MAX_TEXT_CHARS = 16_384
@@ -119,7 +124,7 @@ def _text(value: object) -> bool:
 
 
 def _version(version: object) -> None:
-    if type(version) is not str or version != APP_SERVER_VERSION:
+    if type(version) is not str or version not in APP_SERVER_VERSIONS:
         raise GoalApiAdapterError("GOAL_API_VERSION_UNPROVEN")
 
 
