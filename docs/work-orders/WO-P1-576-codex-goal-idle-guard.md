@@ -175,7 +175,7 @@ This child packet is grounded in the Windows version-drift checkpoint `598588836
 
 - Claim: `WO-P1-576C-APP-SERVER-0160-COMPAT-MAC-001`.
 - Risk/topology: `R3 / CONTROL_PLANE_ONLY`; A-Wiki-Conductor is both authority and execution repo.
-- Governance-only bootstrap base: main `75ce0f8ff236d6db934d1597a8077a17c06edb4`.
+- Governance-only bootstrap base: main `75ce0f8ff236d6db934d1597a8077a17c06edb4e`.
 - Bootstrap lane: `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo576c-appserver-0160-bootstrap`, branch `docs/wo-p1-576c-appserver-0160-compat`.
 - The bootstrap claim permits this work-order file only. All implementation and runtime actions remain blocked until post-bootstrap re-pin and a fresh exact claim/gate.
 - Official source refs: `rust-v0.159.0` commit `687a119f0fcaace47e1f1abcc77cec6c813fd6da`; `rust-v0.160.0` commit `a956835d020762cb2b570053af06f643a11c0ecc`.
