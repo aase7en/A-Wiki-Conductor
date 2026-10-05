@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from .control_hook_adapter import ControlHookContext
-from .hook_bus import HookBus, HookIngressContext
+from .hook_bus import HookBus, HookBusError, HookIngressContext
 
 __all__ = [
     "ProducerWiringError",
@@ -79,8 +79,10 @@ class _ControlEventProducerSink:
         return tuple(self._admissions)
 
     def _record(self, status: str, detail: str) -> None:
+        # Detail is bounded and never carries envelope-derived payload text.
         self._sequence += 1
-        self._admissions.append(ProducerAdmission(self._sequence, status, detail))
+        self._admissions.append(
+            ProducerAdmission(self._sequence, status, detail[:64]))
         if len(self._admissions) > _MAX_ADMISSIONS:
             del self._admissions[:-_MAX_ADMISSIONS]
 
@@ -94,12 +96,11 @@ class _ControlEventProducerSink:
                 return
             admission = self._bus.accept(wire, self._context)
         except Exception as exc:  # noqa: BLE001 - control path must not see this
-            name = type(exc).__name__
-            if name == "HookBusError":
+            if isinstance(exc, HookBusError):
                 detail = str(exc) or "HOOK_BUS_ERROR"
                 status = "BACKPRESSURE" if "HOOK_BACKPRESSURE" in detail else "REJECTED"
             else:
-                detail, status = name, "ERROR"
+                detail, status = type(exc).__name__, "ERROR"
             self._record(status, detail)
             return
         status = getattr(admission, "status", "")
@@ -123,7 +124,11 @@ def _validated_explicit(
         raise ProducerWiringError("PRODUCER_SOURCE_VERSION_INVALID")
     if not isinstance(host_os, str) or host_os not in _HOST_OS_VALUES:
         raise ProducerWiringError("PRODUCER_HOST_OS_INVALID")
-    if (not isinstance(session_id, str) or not 1 <= len(session_id) <= _MAX_SESSION_CHARS
+    # The bus enforces UTF-8 byte budgets per context component; validate the
+    # same domain here so a binding cannot be dead-on-arrival at the bus for
+    # multibyte identifiers.
+    if (not isinstance(session_id, str) or not session_id
+            or len(session_id.encode("utf-8")) > _MAX_SESSION_CHARS
             or any(ord(ch) < 32 or ord(ch) == 0x7F for ch in session_id)):
         raise ProducerWiringError("PRODUCER_SESSION_ID_INVALID")
 

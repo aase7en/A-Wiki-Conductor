@@ -171,11 +171,65 @@ def test_wiring_failure_never_changes_control_truth(tmp_path):
     )
     first = service.emit("w1", "p1")
     assert first.success is True and first.evidence_ref
-    second = service.emit("w1", "p1")  # bus already pressured
+    second = service.emit("w1", "p1")  # every accept pressures on this bus
     assert second.success is True and second.evidence_ref
-    assert second.error_code != "OBSERVABILITY_DEGRADED" or True
+    assert second.error_code is None
+    assert sink.last_admission.status == "BACKPRESSURE"
     # Control truth: both events durably logged regardless of bus state.
-    assert log.list_events() if hasattr(log, "list_events") else True
+    assert len(log.list_recent()) == 2
+
+
+def test_out_of_order_sequence_is_marked_not_raised():
+    bus = HookBus()
+    _, sink = bind(bus)
+    higher = dict(make_envelope(1))
+    higher["sequence"] = 5
+    lower = dict(make_envelope(2))
+    lower["sequence"] = 3
+    sink(higher)
+    bus.drain()  # drain advances high_water so the inversion is observable
+    sink(lower)
+    assert sink.last_admission.status == "ACCEPTED"
+    (record,) = bus.drain()
+    assert "SEQUENCE_INVERSION" in record.markers
+
+
+def test_oversized_envelope_is_recorded_not_raised():
+    bus = HookBus()
+    _, sink = bind(bus)
+    envelope = dict(make_envelope(1))
+    envelope["pad"] = "x" * 70_000  # wire > 65536 -> HOOK_EVENT_OVERSIZED
+    sink(envelope)
+    assert sink.last_admission.status == "REJECTED"
+    assert "HOOK_EVENT_OVERSIZED" in sink.last_admission.detail
+
+
+def test_stm_read_after_wiring_is_unknown_then_stale():
+    """Composition preserves HookStm's own STALE/UNKNOWN contract."""
+    bus = HookBus()
+    factory, sink = bind(bus)
+    clock = {"now": 100.0}
+    stm = HookStm(clock=lambda: clock["now"])
+    partition = StmPartition(project_ref="p1", device_id="device-1")
+    unknown = stm.read(partition)
+    assert unknown.state == "UNKNOWN" and unknown.rebuild_required
+
+    sink(make_envelope(1))
+    (record,) = bus.drain()
+    stm.update(partition, record.envelope, 128)
+    fresh = stm.read(partition)
+    assert fresh.state == "FRESH"
+    clock["now"] += 10_000  # beyond any TTL clamp
+    stale = stm.read(partition)
+    assert stale.state == "STALE" and stale.rebuild_required
+
+
+def test_non_bytes_serializer_result_is_recorded_not_raised():
+    bus = HookBus()
+    _, sink = bind(bus, serializer=lambda envelope: json.dumps(envelope))
+    sink(make_envelope(1))
+    assert sink.last_admission.status == "REJECTED"
+    assert sink.last_admission.detail == "PRODUCER_WIRE_NOT_BYTES"
 
 
 def test_factory_failure_degrades_observability_not_control(tmp_path):
@@ -206,7 +260,12 @@ def test_restart_rebuild_from_authoritative_replay(tmp_path):
     service.emit("w1", "p1")
     service.emit("w1", "p1")
     drained = bus.drain()
-    assert len(drained) == 2
+    authoritative = log.list_recent()
+    assert len(drained) == len(authoritative) == 2
+    assert {event.event_id for event in authoritative} == {
+        "event-" + record.envelope["event_id"][len("hk-"):]
+        for record in drained
+    }
 
     replay = [
         (record.envelope, len(repr(dict(record.envelope)).encode("utf-8")))
