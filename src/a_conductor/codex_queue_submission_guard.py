@@ -32,6 +32,9 @@ from .codex_goal_api_adapter import MAX_ID_CHARS, QueueEntry, TurnEvidence
 
 TASK_KEY_PREFIX = "awc-tsk-v1:"
 MAX_TASK_REF_CHARS = 128
+# One call accepts at most this many entries/turns; larger evidence sets are
+# rejected typed before scanning so decisions stay bounded (WO contract v2).
+MAX_EVIDENCE_ITEMS = 512
 _TURN_STATUSES = frozenset({"completed", "interrupted", "failed", "inProgress"})
 
 
@@ -86,7 +89,7 @@ def queue_submission_task_key(task_ref: str) -> str:
 
 
 def _validated_entries(queue_entries: object) -> tuple[QueueEntry, ...]:
-    if type(queue_entries) is not tuple:
+    if type(queue_entries) is not tuple or len(queue_entries) > MAX_EVIDENCE_ITEMS:
         raise QueueSubmissionGuardError("QUEUE_GUARD_EVIDENCE_INVALID")
     seen: set[str] = set()
     for item in queue_entries:
@@ -104,7 +107,7 @@ def _validated_entries(queue_entries: object) -> tuple[QueueEntry, ...]:
 
 
 def _validated_turns(turns: object) -> tuple[TurnEvidence, ...]:
-    if type(turns) is not tuple:
+    if type(turns) is not tuple or len(turns) > MAX_EVIDENCE_ITEMS:
         raise QueueSubmissionGuardError("QUEUE_GUARD_EVIDENCE_INVALID")
     seen: set[str] = set()
     for item in turns:
@@ -123,37 +126,48 @@ def _validated_turns(turns: object) -> tuple[TurnEvidence, ...]:
     return turns
 
 
+def _validated_cursor(value: object) -> None:
+    # None means the last observed page had no next_cursor; any non-None
+    # value must be an exact plain identifier or the evidence is invalid.
+    if value is not None and not _plain_identifier(value):
+        raise QueueSubmissionGuardError("QUEUE_GUARD_EVIDENCE_INVALID")
+
+
 def evaluate_bootstrap_guard(
     task_ref: str,
     *,
     queue_entries: tuple[QueueEntry, ...],
     turns: tuple[TurnEvidence, ...],
-    queue_evidence_known: bool,
-    turn_evidence_known: bool,
+    queue_evidence_complete: bool,
+    turn_evidence_complete: bool,
+    queue_next_cursor: str | None = None,
+    turn_next_cursor: str | None = None,
 ) -> GuardDecision:
     """Typed one-owner decision before any governance bootstrap side effect.
 
-    Priority: duplicate pending submission outranks interrupted-turn
-    reconciliation (the direct ONE_TASK_ONE_OWNER violation), with
-    interrupted turn IDs still surfaced. Unknown evidence fails closed to
-    RECONCILIATION_REQUIRED — the guard never fabricates observations.
+    PROCEED requires COMPLETE evidence, not merely OBSERVED evidence: an
+    OBSERVED queue/turn listing is one bounded page that may have a
+    ``next_cursor``. Evidence counts as complete only when the caller
+    attests full pagination AND supplies the last observed page's cursor as
+    None. A pending cursor or a False attestation fails closed to
+    RECONCILIATION_REQUIRED — a partial scan is never an absence proof.
+    Priority: a positively observed duplicate submission outranks
+    evidence-incompleteness, which outranks interrupted-turn reconciliation;
+    interrupted turn IDs are surfaced alongside whenever present.
     """
     _validated_task_ref(task_ref)
     entries = _validated_entries(queue_entries)
     observed_turns = _validated_turns(turns)
-    if type(queue_evidence_known) is not bool or type(turn_evidence_known) is not bool:
+    _validated_cursor(queue_next_cursor)
+    _validated_cursor(turn_next_cursor)
+    if (type(queue_evidence_complete) is not bool
+            or type(turn_evidence_complete) is not bool):
         raise QueueSubmissionGuardError("QUEUE_GUARD_EVIDENCE_INVALID")
 
     interrupted = tuple(
         evidence.turn_id for evidence in observed_turns
         if evidence.status == "interrupted"
     )
-    if not queue_evidence_known or not turn_evidence_known:
-        return GuardDecision(
-            GuardAction.RECONCILIATION_REQUIRED, "QUEUE_GUARD_EVIDENCE_UNKNOWN",
-            interrupted_turn_ids=interrupted,
-        )
-
     task_key = queue_submission_task_key(task_ref)
     duplicates = tuple(
         evidence.submission_id for evidence in entries
@@ -164,6 +178,12 @@ def evaluate_bootstrap_guard(
             GuardAction.DUPLICATE_TASK_SUBMISSION_PENDING,
             "QUEUE_GUARD_DUPLICATE_PENDING",
             duplicate_submission_ids=duplicates,
+            interrupted_turn_ids=interrupted,
+        )
+    if (queue_next_cursor is not None or turn_next_cursor is not None
+            or not queue_evidence_complete or not turn_evidence_complete):
+        return GuardDecision(
+            GuardAction.RECONCILIATION_REQUIRED, "QUEUE_GUARD_EVIDENCE_INCOMPLETE",
             interrupted_turn_ids=interrupted,
         )
     if interrupted:

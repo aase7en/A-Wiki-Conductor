@@ -33,15 +33,19 @@ def evaluate(
     task_ref="issue:581",
     queue_entries=(),
     turns=(),
-    queue_evidence_known=True,
-    turn_evidence_known=True,
+    queue_evidence_complete=True,
+    turn_evidence_complete=True,
+    queue_next_cursor=None,
+    turn_next_cursor=None,
 ):
     return evaluate_bootstrap_guard(
         task_ref,
         queue_entries=tuple(queue_entries),
         turns=tuple(turns),
-        queue_evidence_known=queue_evidence_known,
-        turn_evidence_known=turn_evidence_known,
+        queue_evidence_complete=queue_evidence_complete,
+        turn_evidence_complete=turn_evidence_complete,
+        queue_next_cursor=queue_next_cursor,
+        turn_next_cursor=turn_next_cursor,
     )
 
 
@@ -122,24 +126,63 @@ def test_duplicate_outranks_reconciliation_and_surfaces_interrupted_turns():
     assert decision.interrupted_turn_ids == ("t-1",)
 
 
-# --- unknown evidence fails closed ----------------------------------------------
+# --- incomplete/unknown evidence fails closed ------------------------------------
 
-def test_unknown_queue_evidence_fails_closed():
-    decision = evaluate(queue_evidence_known=False)
+def test_unattested_queue_evidence_fails_closed():
+    decision = evaluate(queue_evidence_complete=False)
     assert decision.action is GuardAction.RECONCILIATION_REQUIRED
-    assert decision.reason_code == "QUEUE_GUARD_EVIDENCE_UNKNOWN"
+    assert decision.reason_code == "QUEUE_GUARD_EVIDENCE_INCOMPLETE"
 
 
-def test_unknown_turn_evidence_fails_closed():
-    decision = evaluate(turn_evidence_known=False)
+def test_unattested_turn_evidence_fails_closed():
+    decision = evaluate(turn_evidence_complete=False)
     assert decision.action is GuardAction.RECONCILIATION_REQUIRED
-    assert decision.reason_code == "QUEUE_GUARD_EVIDENCE_UNKNOWN"
+    assert decision.reason_code == "QUEUE_GUARD_EVIDENCE_INCOMPLETE"
 
 
-def test_unknown_evidence_fails_closed_even_with_duplicate_present():
+def test_partial_queue_pagination_never_proceeds():
+    decision = evaluate(queue_next_cursor="page-2")
+    assert decision.action is GuardAction.RECONCILIATION_REQUIRED
+    assert decision.reason_code == "QUEUE_GUARD_EVIDENCE_INCOMPLETE"
+
+
+def test_partial_turn_pagination_never_proceeds():
+    decision = evaluate(turn_next_cursor="page-2")
+    assert decision.action is GuardAction.RECONCILIATION_REQUIRED
+    assert decision.reason_code == "QUEUE_GUARD_EVIDENCE_INCOMPLETE"
+
+
+def test_incomplete_evidence_fails_closed_even_with_clear_page():
+    decision = evaluate(queue_entries=[entry("q-foreign", "correlation-1")],
+                        queue_next_cursor="page-2")
+    assert decision.action is GuardAction.RECONCILIATION_REQUIRED
+
+
+def test_observed_duplicate_outranks_incomplete_pagination():
     key = queue_submission_task_key("issue:581")
-    decision = evaluate(queue_entries=[entry("q-dup", key)], queue_evidence_known=False)
-    assert decision.action is GuardAction.RECONCILIATION_REQUIRED
+    decision = evaluate(queue_entries=[entry("q-dup", key)], queue_next_cursor="page-2")
+    assert decision.action is GuardAction.DUPLICATE_TASK_SUBMISSION_PENDING
+    assert decision.duplicate_submission_ids == ("q-dup",)
+
+
+@pytest.mark.parametrize("cursor", ["", " pad", "con\ntrol", StringSubclass("page-2")])
+def test_invalid_cursor_rejected(cursor):
+    with pytest.raises(QueueSubmissionGuardError, match="QUEUE_GUARD_EVIDENCE_INVALID"):
+        evaluate(queue_next_cursor=cursor)
+
+
+def test_evidence_overflow_rejected_before_scanning():
+    key = queue_submission_task_key("issue:581")
+    with pytest.raises(QueueSubmissionGuardError, match="QUEUE_GUARD_EVIDENCE_INVALID"):
+        evaluate(queue_entries=[entry(f"q-{i}", key) for i in range(513)])
+    with pytest.raises(QueueSubmissionGuardError, match="QUEUE_GUARD_EVIDENCE_INVALID"):
+        evaluate(turns=[turn(f"t-{i}", "completed") for i in range(513)])
+
+
+def test_evidence_boundary_512_accepted():
+    decision = evaluate(queue_entries=[entry(f"q-{i}", "correlation-1") for i in range(512)],
+                        turns=[turn(f"t-{i}", "completed") for i in range(512)])
+    assert decision.action is GuardAction.PROCEED
 
 
 # --- invalid evidence shapes fail typed -------------------------------------------
@@ -176,8 +219,8 @@ def test_evaluate_rejects_invalid_task_ref():
 
 
 @pytest.mark.parametrize("kwargs", [
-    {"queue_evidence_known": 1},
-    {"turn_evidence_known": "yes"},
+    {"queue_evidence_complete": 1},
+    {"turn_evidence_complete": "yes"},
 ])
 def test_evidence_flags_must_be_exact_bools(kwargs):
     with pytest.raises(QueueSubmissionGuardError, match="QUEUE_GUARD_EVIDENCE_INVALID"):
