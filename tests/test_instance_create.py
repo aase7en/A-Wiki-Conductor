@@ -8,6 +8,7 @@ import pytest
 
 from a_conductor.instance_create import (
     InstanceCreateError,
+    _harden_start_script_runtime_forensics,
     create_instance,
     next_health_port,
 )
@@ -305,3 +306,133 @@ def test_create_instance_hardens_legacy_reference_runtime_forensics(sandbox) -> 
     assert "$RuntimeProcess.ExitCode" in start
     assert "TUNNEL_START_FAILED" in start
     assert "exit_code=" in start
+
+
+def _legacy_method_wait_launcher() -> str:
+    return (
+        "$RuntimeStdout = Join-Path $LogsDir 'runtime.stdout.log'\n"
+        "$RuntimeStderr = Join-Path $LogsDir 'runtime.stderr.log'\n"
+        "$DpapiSentinel = 'DPAPI_SENTINEL'\n"
+        "$TunnelValidationSentinel = 'TUNNEL_SENTINEL'\n"
+        "$ProjectValidationSentinel = 'PROJECT_SENTINEL'\n"
+        "$DoctorSentinel = 'DOCTOR_SENTINEL'\n"
+        "$EnvironmentSentinel = 'ENV_SENTINEL'\n"
+        "Write-Log \"STARTING: health=$HealthListenAddress project=$ProjectPath\"\n"
+        "try {\n"
+        "    $RuntimeProcess = Start-Process -FilePath $TunnelClientPath -PassThru\n"
+        "    $RuntimeProcess.WaitForExit()\n"
+        "    if ($RuntimeProcess.ExitCode -ne 0) {\n"
+        "        Fail 'TUNNEL_START_FAILED' \"Tunnel client exited with code $($RuntimeProcess.ExitCode).\"\n"
+        "    }\n"
+        "}\n"
+        "finally {\n"
+        "    $env:CONTROL_PLANE_API_KEY = $null\n"
+        "    $env:SERENA_HOME = $null\n"
+        "    $ControlPlaneApiKey = $null\n"
+        "}\n"
+    )
+
+
+def _legacy_wait_process_launcher() -> str:
+    return (
+        "$RuntimeStdout = Join-Path $LogsDir 'runtime.stdout.log'\n"
+        "$RuntimeStderr = Join-Path $LogsDir 'runtime.stderr.log'\n"
+        "Write-Log \"STARTING: health=$HealthListenAddress project=$ProjectPath\"\n"
+        "$RuntimeProcess = Start-Process -FilePath $TunnelClientPath -PassThru\n"
+        "Wait-Process -Id $RuntimeProcess.Id\n"
+    )
+
+
+def test_create_instance_hardens_live_method_wait_reference(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(_legacy_method_wait_launcher(), encoding="utf-8")
+    created = create_instance(
+        instances_root, "Research", project, health_port=48114, reference_root=ref
+    )
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert "runtime-archive" in start
+    assert "$RuntimeProcess.Refresh()" in start
+    assert "$RuntimeExitCode = $RuntimeProcess.ExitCode" in start
+    assert "if ($RuntimeProcess.ExitCode -ne 0)" not in start[start.rfind("$RuntimeProcess.WaitForExit()") :]
+    assert "finally {" in start
+    assert "$env:CONTROL_PLANE_API_KEY = $null" in start
+
+
+def test_hardener_supports_live_method_wait_variant() -> None:
+    hardened = _harden_start_script_runtime_forensics(_legacy_method_wait_launcher())
+    assert "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'" in hardened
+    assert "Move-Item -LiteralPath $RuntimeLog -Destination $Archived -Force" in hardened
+    assert "    $RuntimeProcess.WaitForExit()\n    $RuntimeProcess.Refresh()\n    $RuntimeExitCode = $RuntimeProcess.ExitCode" in hardened
+    assert 'Write-Log "STOPPED: tunnel-client exit_code=0"' in hardened
+    assert "exit_code={0}" in hardened
+    assert "    exit $RuntimeExitCode\n}\nfinally {" in hardened
+    assert "    $env:CONTROL_PLANE_API_KEY = $null" in hardened
+
+
+def test_hardener_keeps_existing_wait_process_variant_supported() -> None:
+    hardened = _harden_start_script_runtime_forensics(_legacy_wait_process_launcher())
+    assert "runtime-archive" in hardened
+    assert "$RuntimeProcess.WaitForExit()" in hardened
+    assert "$RuntimeProcess.Refresh()" in hardened
+    assert "$RuntimeExitCode = $RuntimeProcess.ExitCode" in hardened
+
+
+@pytest.mark.parametrize(
+    "launcher",
+    (_legacy_method_wait_launcher(), _legacy_wait_process_launcher()),
+)
+def test_runtime_forensics_hardening_is_idempotent(launcher: str) -> None:
+    once = _harden_start_script_runtime_forensics(launcher)
+    twice = _harden_start_script_runtime_forensics(once)
+    assert twice == once
+    assert once.count("$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'") == 1
+    assert once.count("$RuntimeProcess.Refresh()") == 1
+    assert once.count("$RuntimeExitCode = $RuntimeProcess.ExitCode") == 1
+
+
+def test_already_hardened_launcher_stays_byte_identical() -> None:
+    hardened = _harden_start_script_runtime_forensics(_legacy_wait_process_launcher())
+    assert _harden_start_script_runtime_forensics(hardened) == hardened
+
+
+def test_method_wait_hardening_preserves_preflight_and_credential_sentinels() -> None:
+    source = _legacy_method_wait_launcher()
+    hardened = _harden_start_script_runtime_forensics(source)
+    sentinels = (
+        "$DpapiSentinel = 'DPAPI_SENTINEL'",
+        "$TunnelValidationSentinel = 'TUNNEL_SENTINEL'",
+        "$ProjectValidationSentinel = 'PROJECT_SENTINEL'",
+        "$DoctorSentinel = 'DOCTOR_SENTINEL'",
+        "$EnvironmentSentinel = 'ENV_SENTINEL'",
+    )
+    positions = [hardened.index(item) for item in sentinels]
+    assert positions == sorted(positions)
+    for item in sentinels:
+        assert hardened.count(item) == 1
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    (
+        "$RuntimeStdout = 'out'\n$RuntimeStderr = 'err'\n$RuntimeProcess.WaitForExit()\n",
+        "$RuntimeStdout = 'out'\nWrite-Log \"STARTING: x\"\n$RuntimeProcess.WaitForExit()\n",
+        "$RuntimeStderr = 'err'\nWrite-Log \"STARTING: x\"\n$RuntimeProcess.WaitForExit()\n",
+        "$RuntimeStdout = 'out'\n$RuntimeStderr = 'err'\nWrite-Log \"STARTING: x\"\nWait-SomethingElse\n",
+    ),
+)
+def test_unknown_or_incomplete_launcher_is_returned_unchanged(malformed: str) -> None:
+    assert _harden_start_script_runtime_forensics(malformed) == malformed
+
+
+def test_ambiguous_multiple_terminal_waits_are_returned_unchanged() -> None:
+    source = _legacy_wait_process_launcher() + "Wait-Process -Id $RuntimeProcess.Id\n"
+    assert _harden_start_script_runtime_forensics(source) == source
+
+
+def test_method_wait_hardening_removes_stale_direct_exit_branch() -> None:
+    hardened = _harden_start_script_runtime_forensics(_legacy_method_wait_launcher())
+    terminal = hardened[hardened.index("$RuntimeProcess.WaitForExit()") :]
+    assert "if ($RuntimeProcess.ExitCode -ne 0)" not in terminal
+    assert terminal.count("$RuntimeProcess.WaitForExit()") == 1
+    assert terminal.count("$RuntimeProcess.Refresh()") == 1
+    assert terminal.count("$RuntimeExitCode = $RuntimeProcess.ExitCode") == 1
