@@ -266,8 +266,8 @@ STM-1A uses these conservative defaults and hard maxima:
 | STM resource | Default | Hard maximum / rule |
 |---|---:|---|
 | retained partitions | 128 | 256 |
-| projection records per partition | 128 | 256 |
-| projection records across all partitions | 2048 | 4096 |
+| retained projection units per partition (Hook pairs + references) | 128 | 256 |
+| retained projection units across all partitions | 2048 | 4096 |
 | accounted projected bytes per partition | 512 KiB | 1 MiB |
 | accounted projected bytes across STM | 4 MiB | 8 MiB |
 | partition-key UTF-8 bytes | included in byte totals | <=1024 bytes per partition; included in the aggregate STM byte total |
@@ -275,14 +275,23 @@ STM-1A uses these conservative defaults and hard maxima:
 | records in one authoritative rebuild input | 2048 | 4096 |
 | exact bytes in one rebuild input | 4 MiB | 8 MiB |
 
+The capacity interpretation below is the R3 integrator decision recorded in
+[Issue #547 comment 5984850009](https://github.com/aase7en/A-Wiki-Conductor/issues/547#issuecomment-5984850009).
+
+Each retained Hook `(projection, measured_wire_bytes)` pair and each retained
+authority/result reference is one retained projection unit for both the
+per-partition and aggregate record-count caps. Hook units serialize as JSON
+`[projection, wire_bytes]`; reference units serialize as JSON strings.
 Accounted projected bytes use the UTF-8 bytes produced by Python's JSON
 serializer with sorted object keys, compact separators (`,` and `:`),
 ensure_ascii=False, and allow_nan=False, plus a fixed 128-byte allowance for
-each retained projection record. Count the UTF-8 bytes of each partition key
-once per retained partition, including an empty or rebuilding partition; do
-not multiply key bytes by its record count. Thus a partition total is its key
-bytes plus the sum of each record's serialized bytes and 128-byte allowance,
-and the aggregate total is the sum of partition totals. The allowance is a
+each retained projection unit, including each reference. Count the UTF-8 bytes
+of each partition key once per retained partition, including an empty or
+rebuilding partition; do not multiply key bytes by its record count. Thus a
+partition total is its key
+bytes plus the sum of each retained unit's serialized bytes and 128-byte
+allowance, and the aggregate total is the sum of partition totals. The allowance
+is a
 fixed accounting unit, not a runtime heap-size estimate. This internal
 accounting is not evidence of the original Hook wire size. Admit a record only
 when both resulting totals are at or below their configured caps. The default
@@ -300,19 +309,27 @@ projection-byte accounting. Do not retain raw Hook bytes solely for rebuild.
 Do not reserialize Hook objects, include JSON/container/framing overhead, or
 add the 128-byte STM projection-record allowance to this rebuild-input total.
 Compute both totals before rebuilding; if either exceeds its cap, return
-STM_REBUILD_INPUT_LIMIT without truncation or partial rebuild. At-cap input is
-accepted when otherwise valid. Configuration may be lowered, never raised
-above these maxima. Reads do not silently extend TTL.
+STM_REBUILD_INPUT_LIMIT without truncation or partial rebuild. Input admission
+precedes retention admission: at-cap input passes the input gate when otherwise
+valid, but does not override the lower retained-state count/byte caps. The
+retention stage may then return STM_CAPACITY_EXCEEDED, preserving any prior
+target records as STALE/REBUILD_REQUIRED. Configuration may be lowered, never
+raised above these maxima. Reads do not silently extend TTL.
 
-At capacity, deterministic eviction removes expired/stale partitions first, then
+Deterministic eviction applies only when admitting a new partition. First
+reject an incoming partition that exceeds its own per-partition count/byte
+caps, without evicting anything. Otherwise, for retained-partition or aggregate
+count/byte pressure, eviction removes expired/stale partitions first, then
 the partition with the oldest monotonic refresh time; exact partition identity
 is the stable tie-break. Every eviction removes only derived STM state and makes
 a subsequent cache miss UNKNOWN/REBUILD_REQUIRED until rebuilt; it must never
-look like a fresh empty partition. If the incoming record still cannot fit its
-per-partition or aggregate count/byte budget, reject it with
-STM_CAPACITY_EXCEEDED and mark an already-retained affected partition
-STALE/REBUILD_REQUIRED. A new partition that cannot be admitted remains absent,
-and a read for it is UNKNOWN. If a rebuild exceeds either input cap, return
+look like a fresh empty partition. If the new partition still cannot fit,
+reject it with STM_CAPACITY_EXCEEDED and leave it absent; a read for it is UNKNOWN.
+An update or rebuild of an already-retained partition never evicts another
+partition to make room. If its candidate replacement exceeds per-partition or
+aggregate count/byte caps, reject atomically with STM_CAPACITY_EXCEEDED, preserve
+its prior records, and mark only that affected partition STALE/REBUILD_REQUIRED.
+If a rebuild exceeds either input cap, return
 STM_REBUILD_INPUT_LIMIT without truncating input and keep reads
 STALE/UNKNOWN/REBUILD_REQUIRED. Purge, compaction, eviction, and rejected updates
 never change durable task/claim/execution truth.
@@ -382,9 +399,12 @@ Before implementation prove RED for:
     original Hook wire-byte lengths plus exact reference UTF-8 bytes, with no
     object/container framing or STM record allowance. Exercise item counts
     4095/4096/4097 and, for both the 4 MiB default and 8 MiB hard byte caps,
-    exercise cap-1/cap/cap+1 totals. At-cap rebuilds complete when otherwise
-    valid; over-limit rebuilds are never truncated into a FRESH result and
-    return STM_REBUILD_INPUT_LIMIT;
+    exercise cap-1/cap/cap+1 totals. At-cap input passes the input gate when
+    otherwise valid; rebuild completion also requires the lower retained-state
+    limits to pass. Over-limit input is never truncated into a FRESH result and
+    returns STM_REBUILD_INPUT_LIMIT; input within its caps that exceeds retained
+    state caps returns STM_CAPACITY_EXCEEDED and preserves any prior target
+    records as STALE/REBUILD_REQUIRED;
 19. capacity eviction/rejection is deterministic and every subsequent missing
     or evicted-partition read is UNKNOWN/REBUILD_REQUIRED until authority-bound
     rebuild succeeds.
@@ -416,15 +436,20 @@ Before implementation prove RED for:
     identity. Independently, 8192 distinct 35-byte event_id identities fit
     below the byte cap; the 8192th is accepted and the 8193rd is rejected by
     the entry cap with HOOK_BACKPRESSURE and no incoming identity.
-26. STM accounting is exactly canonical compact projection UTF-8 bytes plus
-    128 bytes per record plus partition-key UTF-8 bytes counted once per
-    retained partition, including empty/rebuilding partitions. Exercise
+26. STM accounting is exactly canonical compact retained-unit UTF-8 bytes plus
+    128 bytes per Hook pair or reference plus partition-key UTF-8 bytes counted
+    once per retained partition, including empty/rebuilding partitions. Exercise
     per-partition totals at cap-1, cap, and cap+1 against 1 MiB, and aggregate
     totals at cap-1, cap, and cap+1 against 8 MiB while every individual
     partition remains within 1 MiB; also exercise exact record-count limits.
-    At-cap admission succeeds; the one-byte-over update returns
+    At-cap admission succeeds; the one-byte-over update of an already-retained
+    partition returns
     STM_CAPACITY_EXCEEDED and keeps affected reads
-    STALE/UNKNOWN/REBUILD_REQUIRED until authority-bound rebuild.
+    STALE/UNKNOWN/REBUILD_REQUIRED until authority-bound rebuild. It preserves
+    prior target records and never evicts another partition. Separately prove
+    that new-partition admission evicts stale/expired then oldest-refresh
+    partitions with exact identity as the tie-break, and that a new partition
+    exceeding its own per-partition caps rejects without eviction or retention.
 
 ## Independent R3 shaping review checkpoint
 
