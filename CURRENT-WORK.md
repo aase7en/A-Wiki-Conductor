@@ -1,5 +1,21 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-05 — Windows ZCode primary topology / WO-P1-583 COMPLETE — CURRENT
+
+> **Current cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts. Written by the Windows ZCode GLM-5.3 MAX primary marathon session (user topology recorded in Issue #580 comment, 2026-10-05).
+
+- Current `origin/main`: `ece314530a05f12bd1f7bc4517dd6e287197fb4d`. Supervisor workspace `A:\GitHub\_worktrees\A-Wiki-Conductor-zcode-supervisor` was clean at `6ad9fdd` at session start.
+- **WO-P1-583 queue-submission dedupe guard: COMPLETE / POST_MAIN_VERIFIED / claim `WO-P1-583-QUEUE-DEDUPE-GUARD-WIN-001` released** (Issue #583 closeout comment `5993506599`). Bootstrap PR #589 (WO contract v2) + source PR #590 (exact head `a08844f`, two new files: `codex_queue_submission_guard.py` + focused tests). Independent Codex GPT-6.1 Sol review round 1 CHANGES_REQUIRED (P1 partial-pagination PROCEED, P2 unbounded evidence) → contract v2 repair → round 2 PASS 0/0/0 → expected-head merge → post-main runs `37298845083`/`37300729945` both SUCCESS. Assurance: `runs/WO-P1-583/assurance/` in worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo583-queue-guard` (ignored).
+- **#576 Phase C harvested**: post-main CI `37260168794` SUCCESS; claim `WO-P1-576C-APP-SERVER-0160-SOURCE-MAC-001` released (Issue #576 comment `5992112857`).
+- **JEV production rollout (goal Phase 0) = BLOCKED_UPSTREAM, not forgotten**: JEV-2/3/4/5 core all merged/post-main; production OFF. Remaining live-SHADOW lane WO-P1-561 (Issue #508) is blocked by claim-reader #551/PR #552 ← A-Wiki PR #67 (two open review findings: P1 fail-closed COLLAB.md parse, P2 comma-glob mismatch) ← **A-Wiki mutation requires explicit user authority** (repo AGENTS.md; AUTHORIZATION_REQUIRED surfaced in marathon receipts). Mac-side WO-P1-561 claim stale since 2026-09-27; Windows may recover/transfer it only after the claim-reader prerequisite lands.
+- **DEFECT_LESSONS fold queue**: #581 and #583 folds both `BLOCKED:DEFECT_LESSONS_PATH_COLLISION` by stale draft PR #293 (WO-215 launcher lane, unmerged, base not main; sibling stale draft #285). One user/integrator reconciliation decision unblocks both folds + the path.
+- **Next SAFE_READY mutable lane candidates** (no active mutable lanes at this checkpoint): #547 STM-1B producer wiring on the merged Hook Bus (separate claim per WO-547 successor boundary); #580 lifecycle vNext hook implementation (candidate scope `.codex/hooks/a_sunday_lifecycle.py`); #541 SRM compact receipts (EXECUTION_SUBSTRATE); #555 PWA. GLM/ZCode preferred executor per capability matrix + 2026-10-05 topology.
+- Codex escalation route proven this session: Desktop binary `...\OpenAI\Codexin\8aaf1547b825b104\codex.exe` 0.160.0; `codex exec -s read-only --ephemeral -o <file> -` works for bounded read-only reviews; default model = `gpt-6.1-sol`; `codex review --base` cannot combine with a custom prompt; review round-trip ≈ minutes and is quota-cheap for bounded diffs.
+
+**Exact next safe action:** pick the next SAFE_READY lane from the candidates above through the normal entry/claim gate (STM-1B recommended if no newer live evidence changes it), or resolve the A-Wiki PR #67 authority gate to unblock the JEV chain.
+
+
+
 ## 2026-09-22 — WO473 DEPDIET-1 first removal slice COMPLETE / POST_MAIN_VERIFIED — CURRENT
 
 > **Current cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts.
