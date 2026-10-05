@@ -166,3 +166,40 @@ Required regression cases:
 - Structural guard forbids database/session/lock access, credentials, schedules, and mutation of Phase-A or #575-owned paths.
 
 This child claim and the current PR authorize docs-only governance repair. They grant no Phase-B source/test edit, runtime API call, quota probe, provider dispatch, claim transfer, or merge. After bootstrap acceptance, rerun the complete mutation/WIP/collision/dirty gate immediately; preserve a typed blocker if any identity, semantics, or ownership input is UNKNOWN.
+
+## Phase C0 — App Server 0.160.0 compatibility bootstrap (claim `WO-P1-576C-APP-SERVER-0160-COMPAT-MAC-001`)
+
+This child packet is grounded in the Windows version-drift checkpoint `5985888366` and the read-only tagged-source comparison `5986704078`. It is a new version-compatibility task after Phase B post-main acceptance, not an amendment to the frozen 0.159.0 evidence.
+
+### C0 bootstrap binding and source evidence
+
+- Claim: `WO-P1-576C-APP-SERVER-0160-COMPAT-MAC-001`.
+- Risk/topology: `R3 / CONTROL_PLANE_ONLY`; A-Wiki-Conductor is both authority and execution repo.
+- Governance-only bootstrap base: main `75ce0f8ff236d6db934d1597a8077a17c06edb4e`.
+- Bootstrap lane: `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo576c-appserver-0160-bootstrap`, branch `docs/wo-p1-576c-appserver-0160-compat`.
+- The bootstrap claim permits this work-order file only. All implementation and runtime actions remain blocked until post-bootstrap re-pin and a fresh exact claim/gate.
+- Official source refs: `rust-v0.159.0` commit `687a119f0fcaace47e1f1abcc77cec6c813fd6da`; `rust-v0.160.0` commit `a956835d020762cb2b570053af06f643a11c0ecc`.
+- At those exact commits, the Goal and queue processors, queue service, queued-row storage, Goal-set/status schema, and resume request/response schema have identical blobs; see Issue #576 comments `5985888366` and `5986704078` for hashes and comparison bounds.
+- `app-server/src/thread_status.rs` differs between tags in internal running-turn count maintenance and related tests. This is not evidence for any new Goal, queue, pause, authorization, schedule, or idempotency semantics.
+
+### Future Phase C implementation scope — NOT YET MUTABLE
+
+The future source claim may cover only these existing files, after this bootstrap is accepted and the complete fresh mutation/WIP/collision/dirty gate passes:
+
+- `src/a_conductor/codex_goal_api_adapter.py`
+- `tests/test_codex_goal_api_adapter.py`
+
+The intended bounded change is version admission for exactly `0.159.0` and `0.160.0`, with deterministic tests proving both version labels use the same already-reviewed method/request/response subset. Preserve strict rejection for every other or malformed version. Do not alter Goal/queue semantics, add fallbacks/retries, probe for versions, or call a live runtime during this implementation claim. Do not edit Phase-A idle-guard or #575-owned paths.
+
+The reported Windows managed version is `0.160.0`, but the version string alone does not prove that its deployed binary is byte-identical to the official tag. Keep Windows runtime calls disabled until a later exact-runtime canary is separately authorized against the merged adapter and the current managed-version evidence is refreshed.
+
+### Ordered Phase C gates
+
+1. Complete and accept this docs-only bootstrap with exact-base/source-scope/diff/identity checks. Re-pin current main and recompute global claims, WIP, collision, and dirty state immediately afterward.
+2. Bind a new Phase-C source claim generation to the exact current main, clean worktree/branch, both paths above, and the unchanged protocol-diff evidence. Re-read `DEFECT_LESSONS.md` before source edits.
+3. Run one task-bound A-Audit and one `GLM_OFFLOAD_ASSESSMENT` after deterministic eligibility. GLM-5.3 MAX is preferred only if its current route is admitted; take one fresh CoinTH preflight immediately before a real GLM request. A typed GLM route block may use the authorized GPT-6.1 Sol fallback; Luna remains the router/integrator.
+4. Implement RED-first version-compatibility tests and the minimal exact-version allowlist change. Run focused and directly related adapter suites, hostile-version cases, compile/hygiene/scope/secret checks, then freeze one SHA.
+5. Obtain independent exact-SHA R3 review, exact-head hosted CI, integrator adjudication, expected-head merge, and post-main CI.
+6. Keep live Windows Goal/queue calls out of this claim. Any runtime canary requires a distinct exact claim after the code is merged, renewed `0.160.0` managed-runtime identity evidence, and a read-only operation explicitly proven by the tagged source.
+
+Unproven pause transitions, authentication/authorization behavior, schedules, queue idempotency/dedupe, retry semantics, `thread/queue/start`, ambient thread discovery, raw database/session/lock access, and provider behavior remain forbidden and unknown.
