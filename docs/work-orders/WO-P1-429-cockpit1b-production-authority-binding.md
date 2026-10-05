@@ -1,0 +1,226 @@
+# WO-P1-429 — COCKPIT-1B Production Authority Binding
+
+Status: SHAPING / DOCS_ONLY_BOOTSTRAP
+Issue: #429
+Parent: #424 / PR #428 / roadmap #397
+Topology: CONTROL_PLANE_ONLY
+Risk: R2 shaping; implementation escalates if durable-state/trust authority changes.
+Claim: WO-P1-429-COCKPIT1B-SHAPING-001
+Owner: GPT-5.6 Sol integrator.
+
+## Exact binding
+
+- authority/execution repo: `A:\\GitHub\\A-Wiki-Conductor`
+- shaping worktree: `A:\\GitHub\\_worktrees\\A-Wiki-Conductor-wo429-cockpit1b-shaping`
+- branch: `docs/wo-p1-429-cockpit1b-shaping`
+- base/current HEAD: `946cf036a57c813852060ab65264fe4e155e37e0`
+- evidence destination: `runs/WO-P1-429/`
+- current mutable scope: this Work Order only
+- source mutation: FORBIDDEN until shaping is accepted and the mutation gate is rerun
+- predecessor candidate: `e624728d420d187f0b4ef9be604e9dd0948c50fb`
+
+## Trigger
+
+PR #428 is a useful projection/provenance foundation but does not satisfy the
+LOCAL-USABLE-1 production path. Normal desktop startup does not bind its
+optional cockpit durable authority. Read-only inspection of the installed
+default `control-center.sqlite` shows no `execution_records` or
+`worker_leases` tables, so treating that file as execution authority would
+be an unsupported identity guess.
+## Goal
+
+Identify and bind one accepted production execution/lease observation source
+to ordinary desktop startup so Runtime Cockpit can truthfully reach RUNNING,
+TERMINAL_UNHARVESTED, OUTCOME_UNKNOWN, and PENDING_SCOPE when evidence exists.
+
+The binding must be a read-only consumer of existing authority. It must not
+create, migrate, initialize, mirror, or infer a second state store.
+
+## Reuse-before-build gate
+
+Audit and classify REUSE / WRAP / EXTEND only:
+- DurableJobControlService / SQLiteJobStore;
+- SQLiteExecutionStore durable execution records;
+- SQLiteWorkerLeaseStore canonical lease authority;
+- accepted GOT / ProductionGoalCloseoutFacade / continuity projection;
+- operator.v1 bounded status vocabulary;
+- Hook/STM shared Monitor Projection when accepted;
+- existing DesktopControlService + desktop bootstrap composition.
+
+Reject NEW/REPLACE authority unless a separate architecture decision proves
+all accepted seams insufficient.
+
+## Shaping questions
+
+1. What exact production component owns the execution/lease authority path?
+2. How can normal desktop startup obtain that identity explicitly?
+3. Is one shared control database an accepted invariant or only a test/composition option?
+4. Can the existing service factory bind the source without touching desktop_app.py?
+5. If a new startup/config seam is required, what is the smallest tracked scope?
+6. How does this temporary adapter converge into the shared Monitor Projection?
+## Hard boundaries
+
+Forbidden during shaping and implementation unless a later accepted contract says otherwise:
+- guessing a DB from filename, branch, PID, age, prose, or table presence;
+- initializing/migrating execution or lease schemas from a cockpit read path;
+- a new DB/store/task/job/claim/lease/review/completion state machine;
+- subprocess/network work on the Tk main thread;
+- a second timer or scheduler;
+- retry/reassign/cleanup/merge/accept/restart cockpit commands;
+- parsing human prose as execution authority;
+- weakening explicit UNKNOWN / EVIDENCE_INCOMPLETE behavior;
+- mutating PR #428 while its exact-SHA reviewer is live.
+
+## Required shaping evidence
+
+- production call graph for desktop startup;
+- production call graph for durable job/execution/lease composition;
+- actual installed default DB schema inspected read-only;
+- exact accepted ADR/WO/contract statements about database identity;
+- current #424 independent rereview result when terminal;
+- no-live-authority conclusion stated explicitly if no accepted locator exists.
+
+## Implementation entry gate
+
+No source mutation until this WO records:
+- accepted authority source/locator;
+- exact implementation worktree/branch/HEAD;
+- exact claim + non-overlapping scope;
+- allowed/forbidden files;
+- RED-first production-startup test;
+- targeted + related verification;
+- independent exact-SHA R2 review and exact-head CI requirements.
+
+If no accepted production locator exists, implementation state is
+`DEPENDENCY_REQUIRED`, not permission to invent one.
+## Acceptance target
+
+A normal existing desktop launch must be capable of reading accepted durable
+execution truth when that authority exists, through a deterministic production
+composition path.
+
+Required proof:
+- production-startup test reaches RUNNING from accepted durable evidence;
+- equivalent tests reach TERMINAL_UNHARVESTED and OUTCOME_UNKNOWN;
+- absent/unreadable authority remains explicit UNKNOWN;
+- cockpit reads create no table/file and perform no durable write;
+- exact authority identity/provenance is inspectable;
+- no new lifecycle/store/command authority;
+- existing monitor background cadence remains the only refresh path.
+
+## Current evidence checkpoint
+
+- #424 exact candidate `e624728d...`: focused 44 PASS; large related battery green.
+- CI #1083 / run `35518020142`: SUCCESS.
+- PR #428 remains DO NOT MERGE for LOCAL-USABLE-1.
+- live default DB has Control Center/provider/config tables only; execution/lease tables absent.
+- production symbol search finds no alternative default execution/lease DB locator.
+- WO401 proves SQLiteExecutionStore callers may share one control database, but does not
+  establish the installed desktop DB as execution authority by itself.
+- GOT closeout projection is production-wired for closeout facts, but is explicitly not
+  an authority database and is not a live execution-status source.
+
+## Next safe action
+
+Harvest canonical #424 exact-SHA R2 rereview when terminal, fold any new evidence
+into this shaping decision, then freeze the smallest production-binding design.
+Do not start implementation merely because a free mutable slot exists.
+
+## Shaping disposition — dependency required
+
+Classification: `DEPENDENCY_REQUIRED`.
+
+Read-only archaeology found no accepted production locator that ordinary desktop
+startup can use today:
+- supervised execution persistence is explicitly opt-in (WO-P1-047/049);
+- `DurableJobControlService.open(database_path, ...)` requires an explicit path
+  and has no top-level desktop production caller;
+- elastic worker lease composition likewise requires an explicit path and has no
+  top-level desktop production caller;
+- `operator.v1` is a protocol/dispatcher over an injected job-control service,
+  not a bound production status backend;
+- graph operator view reads job/runtime facts only from a caller-supplied DB;
+- A-Faster `execution-pointer.json` files have no accepted production reader;
+- GOT continuity projection is a closeout projection, explicitly not an authority
+  database or general live-execution store;
+- the installed default Control Center DB contains none of `job_records`,
+  `execution_records`, or `worker_leases`.
+
+Therefore COCKPIT-1B must not invent a locator, scan `runs/` as a new UI
+authority, or initialize execution/lease tables merely to make the screen look
+complete.
+
+Required predecessor: an R3 production-runtime authority composition/locator
+slice that binds existing job/execution/lease authorities to one explicit,
+inspectable product composition boundary. COCKPIT-1B resumes only after that
+predecessor is accepted and can consume its read-only identity without mutation.
+
+
+## 2026-09-21 current-main re-pin and dependency refresh
+
+Re-pinned shaping branch to accepted `main@d2ad5bdcac521d4803a84edabe56fb57eda9a2e8`
+after the following predecessor truth became durable:
+
+- **COCKPIT-1A / #424** is accepted/post-main. Its projection/read adapter is a
+  foundation only and intentionally does not claim LOCAL-USABLE-1.
+- **RUNTIME-AUTH-1 / #431** is accepted/post-main. The desktop composition now
+  exposes the canonical control-database identity as a locator/comparator and
+  rejects runtime-writer DB identity mismatch before downstream writer
+  construction. This closes the bootstrap-locator design gap for Cockpit
+  consumers without making a pathname a second authority.
+- **RUNTIME-ACT-1 / #433** shaping is accepted, but source activation remains
+  fenced against Zero-Relay producer ownership. The accepted shaping contract
+  says the existing runtime stack must be consumed/reused rather than rebuilt:
+  `ProductionElasticWorkerExecutor -> ParallelReadyExecutor -> WorkerLease /
+  provider admission -> GraphDispatchParallelRunner -> GraphDispatchCoordinator
+  -> DurableJobControlService -> supervised execution`.
+- The production producer/trigger path is therefore **not yet accepted runtime
+  truth merely because #431 exposes the canonical DB identity**. Empty or absent
+  runtime tables still mean UNKNOWN/EVIDENCE_INCOMPLETE to Cockpit.
+- Zero-Relay author provenance / Phase-D remains on the current critical path:
+  WO246 / Issue #330 must be accepted and post-main, then WO205 Phase-D may
+  resume its thin durable-author-result -> trusted review -> ACCEPTED-only ->
+  current job/SHA re-observation -> existing GoalCloseout flow. #215 / WO227
+  remains the producer-ownership frontier after that sequence.
+
+### Updated implementation entry gate
+
+COCKPIT-1B source mutation remains **FORBIDDEN** until all of the following are
+durably true on current main:
+
+1. #431 runtime-authority identity/composition remains accepted (already true);
+2. an accepted production runtime-owner/trigger path writes the existing durable
+   job/execution/lease truth in the canonical control DB under the existing
+   authority model;
+3. that producer path is post-main verified and its ownership/scope no longer
+   conflicts with #215 / WO227 / WO205 critical-path work;
+4. a fresh read-only desktop call-graph re-pin proves the smallest binding scope;
+5. a RED production-startup test proves that the ordinary desktop composition
+   can consume that accepted runtime truth without initializing/migrating from
+   the Cockpit read path.
+
+### Expected smallest Cockpit change after producer acceptance
+
+The preferred shape is still **consume, do not own**:
+
+- reuse the #431 canonical DB identity already retained by
+  `DesktopControlService`;
+- bind the existing Cockpit read adapter to that exact accepted authority
+  identity only after the runtime producer is activated;
+- preserve read-only SQLite access, UNKNOWN/EVIDENCE_INCOMPLETE on absent or
+  unsupported runtime schema, and the existing background monitor cadence;
+- do not create a Cockpit database, scheduler, retry/reassign command, runtime
+  initializer, runs-directory scanner, or new task/job/lease/review/completion
+  state plane.
+
+Whether `desktop_app.py` must change remains **TBD until the fresh post-producer
+call-graph gate**. Do not pre-authorize it from old archaeology.
+
+### Current state
+
+`WO429_STATUS=DEPENDENCY_REQUIRED`
+
+`SAFE_TO_MUTATE_WO429_SOURCE=NO`
+
+`NEXT_SAFE_ACTION=wait for accepted production runtime producer/trigger path,
+then rerun the exact desktop binding archaeology and RED-first scope gate`.
