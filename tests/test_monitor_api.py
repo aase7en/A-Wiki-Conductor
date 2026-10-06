@@ -343,8 +343,13 @@ def test_duplicate_security_headers_are_rejected(running_server):
         "Connection: close",
     ])
     assert "403" in raw.splitlines()[0] and "TOKEN_DUPLICATE" in raw
-    # Duplicate Host: CPython's parser drops the second value, so the security
-    # property is that evil.example can never win the identity check.
+    # Duplicate Host pin, both orders, with the documented runtime exception:
+    # this CPython parser keeps only the FIRST Host and drops later ones
+    # before the handler sees them. Therefore: evil-first must fail HOST
+    # (evil wins the check), while local-first must serve 200 because the
+    # dropped evil value can never take effect. The duplicate check in
+    # _authorize remains as defense-in-depth for runtimes that preserve
+    # duplicates.
     raw = raw_request(server, [
         "GET /snapshot HTTP/1.1",
         f"Host: evil.example:{server.port}",
@@ -352,10 +357,15 @@ def test_duplicate_security_headers_are_rejected(running_server):
         f"Authorization: Bearer {server.token}",
         "Connection: close",
     ])
-    assert ("403" in raw.splitlines()[0]) or ("200" in raw.splitlines()[0])
-    assert "MONITOR_PROJECTION_UNAVAILABLE" not in raw or True
-    if "200" in raw.splitlines()[0]:
-        pass  # legit first-Host path; evil value was dropped by the parser
+    assert "403" in raw.splitlines()[0] and '"HOST"' in raw
+    raw = raw_request(server, [
+        "GET /snapshot HTTP/1.1",
+        f"Host: 127.0.0.1:{server.port}",
+        f"Host: evil.example:{server.port}",
+        f"Authorization: Bearer {server.token}",
+        "Connection: close",
+    ])
+    assert "200" in raw.splitlines()[0]  # legit identity; evil value dropped
 
 
 def test_stop_terminates_stalled_request_connection():
@@ -455,3 +465,79 @@ def test_stream_backpressure_bounds_slow_consumer_queue():
     finally:
         server._unsubscribe(slow)
         server._unsubscribe(fast)
+
+
+# --- round-2 Sol review findings -------------------------------------------------
+
+def test_snapshot_with_non_dict_provider_is_typed_503():
+    server = MonitorApiServer(lambda: None, MonitorApiConfig(port=0))
+    server.start()
+    try:
+        status, body = http_get(server, "/snapshot", token=server.token)
+        assert status == 503
+        assert body["error"] == "MONITOR_PROJECTION_UNAVAILABLE"
+    finally:
+        server.stop()
+
+
+def test_connection_tracking_does_not_grow_with_churn(running_server):
+    server, _ = running_server
+    for _ in range(10):
+        status, _ = http_get(server, "/healthz", token=server.token)
+        assert status == 200
+    conns = len(server._httpd._conns)
+    assert conns <= 2, f"tracked connections leak: {conns}"
+
+
+def test_projection_rejects_oversized_and_nonstr_correlation_keys():
+    big_entry = {f"key{i}": "v" for i in range(200)}
+    with pytest.raises(MonitorProjectionError):
+        build_monitor_views(
+            bus_health={"degraded": False, "counters": {}, "conditions": []},
+            timeline_records=[], stm_states=[],
+            correlation={"state": "OBSERVED", "entries": [big_entry]})
+    with pytest.raises(MonitorProjectionError):
+        build_monitor_views(
+            bus_health={"degraded": False, "counters": {}, "conditions": []},
+            timeline_records=[], stm_states=[],
+            correlation={"state": "OBSERVED", "entries": [{5: "v"}]})
+
+
+def test_blocked_provider_poller_lifecycle_is_generation_fenced():
+    import threading
+    release = threading.Event()
+    poll_calls = []
+
+    def blocking_provider():
+        poll_calls.append(1)
+        release.wait(10)  # blocked past any stop() join budget
+        return {"health": {"degraded": False, "counters": {}, "conditions": []}}
+
+    server = MonitorApiServer(blocking_provider,
+                              MonitorApiConfig(port=0, poll_seconds=0.02))
+    server.start()
+    old_poller = server._poller
+    time.sleep(0.2)  # old poller is inside the blocked provider call
+    # stop() must truthfully report incomplete termination when the poller
+    # is wedged inside a blocked provider call.
+    with pytest.raises(MonitorApiError, match="MONITOR_STOP_INCOMPLETE"):
+        server.stop()
+    assert old_poller.is_alive()  # reference retained, not silently discarded
+    # Restart while the old poller is still wedged must be refused.
+    with pytest.raises(MonitorApiError, match="MONITOR_POLLER_TERMINATING"):
+        server.start()
+    calls_before_release = len(poll_calls)
+    release.set()
+    old_poller.join(10)
+    assert not old_poller.is_alive()  # stale generation exits, never revives
+    # The wedged in-flight call completes but must not produce again.
+    assert len(poll_calls) == calls_before_release  # no revival, no re-poll
+    server.stop()  # now reaps the dead poller cleanly
+    assert server._poller is None
+    # After the stale poller is dead, a fresh generation may start.
+    server.start()
+    try:
+        status, _ = http_get(server, "/snapshot", token=server.token)
+        assert status == 200
+    finally:
+        server.stop()

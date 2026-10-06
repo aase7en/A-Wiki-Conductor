@@ -90,6 +90,16 @@ class _MonitorHTTPServer(ThreadingHTTPServer):
             self._conns.add(conn)
         return conn, addr
 
+    def shutdown_request(self, request):
+        # Every request end (success or exception) releases its connection
+        # from the tracked set; tracking must not grow with churn (Sol
+        # round-2 P2).
+        try:
+            super().shutdown_request(request)
+        finally:
+            with self._conn_lock:
+                self._conns.discard(request)
+
     def close_all_connections(self) -> None:
         with self._conn_lock:
             conns = list(self._conns)
@@ -180,7 +190,10 @@ class _Handler(BaseHTTPRequestHandler):
             # boundary; a non-JSON-serializable view is 503, never a
             # traceback (Sol round-1 P2).
             try:
-                payload = json.dumps(monitor.provider())
+                views = monitor.provider()
+                if not isinstance(views, dict):
+                    raise TypeError("snapshot must be a dict")
+                payload = json.dumps(views)
             except Exception:
                 self._send_json(503, {"error": "MONITOR_PROJECTION_UNAVAILABLE"})
                 return
@@ -264,7 +277,10 @@ class MonitorApiServer:
         self._httpd: _MonitorHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._poller: threading.Thread | None = None
+        # One lifecycle event per generation: a restart never clears the old
+        # poller's stop signal (Sol round-2 P1 root cause).
         self._stop = threading.Event()
+        self._generation = 0
         self._subscribers: list[_Subscriber] = []
         self._subscriber_lock = threading.Lock()
 
@@ -293,6 +309,8 @@ class MonitorApiServer:
 
     def _offer(self, views: dict) -> None:
         """Feed every subscriber; overflow drops oldest + marks degraded."""
+        if not isinstance(views, dict):
+            views = {"error": "MONITOR_PROJECTION_UNAVAILABLE"}
         with self._subscriber_lock:
             subscribers = list(self._subscribers)
         for subscriber in subscribers:
@@ -300,19 +318,27 @@ class MonitorApiServer:
                 subscriber.degraded = True
             subscriber.queue.append(views)
 
-    def _poll_loop(self) -> None:
-        while not self._stop.is_set():
+    def _poll_loop(self, stop_event: threading.Event, generation: int) -> None:
+        while not stop_event.is_set():
             try:
                 views = self.provider()
             except Exception:
                 views = {"error": "MONITOR_PROJECTION_UNAVAILABLE"}
+            if stop_event.is_set() or self._generation != generation:
+                return  # stale generation: never produce after its stop
             self._offer(views)
-            self._stop.wait(self.config.poll_seconds)
+            stop_event.wait(self.config.poll_seconds)
 
     def start(self) -> None:
         if self._httpd is not None:
             raise MonitorApiError("MONITOR_ALREADY_RUNNING")
-        self._stop.clear()
+        # A previous generation's poller must be fully dead before a new
+        # generation may exist (Sol round-2 P1).
+        if self._poller is not None and self._poller.is_alive():
+            raise MonitorApiError("MONITOR_POLLER_TERMINATING")
+        self._generation += 1
+        generation = self._generation
+        self._stop = threading.Event()  # fresh event per generation
         httpd = _MonitorHTTPServer((self.config.host, self.config.port), _Handler)
         httpd.daemon_threads = True
         httpd.monitor = self  # type: ignore[attr-defined]
@@ -321,14 +347,15 @@ class MonitorApiServer:
             target=httpd.serve_forever, kwargs={"poll_interval": 0.05},
             daemon=True)
         self._thread.start()
-        self._poller = threading.Thread(target=self._poll_loop, daemon=True)
+        self._poller = threading.Thread(
+            target=self._poll_loop, args=(self._stop, generation), daemon=True)
         self._poller.start()
 
     def stop(self) -> None:
+        self._generation += 1  # invalidate this generation for any straggler
         self._stop.set()
         httpd, self._httpd = self._httpd, None
         thread, self._thread = self._thread, None
-        poller, self._poller = self._poller, None
         if httpd is not None:
             httpd.shutdown()
             # Force-close tracked connections (including stalled/partial
@@ -337,5 +364,11 @@ class MonitorApiServer:
             httpd.server_close()
         if thread is not None:
             thread.join(timeout=5)
-        if poller is not None:
-            poller.join(timeout=5)
+        # Lifecycle ownership: keep the poller reference until it is truly
+        # dead. A wedged poller stays visible so restart is refused (Sol
+        # round-2 P1) instead of being silently discarded and revived.
+        if self._poller is not None:
+            self._poller.join(timeout=5)
+            if self._poller.is_alive():
+                raise MonitorApiError("MONITOR_STOP_INCOMPLETE")
+            self._poller = None

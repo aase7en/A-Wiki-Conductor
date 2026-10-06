@@ -143,9 +143,16 @@ def _correlation_view(correlation: object) -> dict[str, Any]:
         if not isinstance(entry, Mapping):
             raise MonitorProjectionError("MONITOR_PROJECTION_INVALID_INPUT")
         projected: dict[str, str] = {}
+        visited = 0
         for key, value in entry.items():
-            # Explicit allowlist: private-shaped keys are silently omitted;
-            # malformed keys/values are typed-rejected (Sol round-1 P1/P2).
+            # Bound per-entry key scanning and reject malformed keys even
+            # outside the allowlist (Sol round-2 P2): private-shaped string
+            # keys are omitted, but non-str/oversized keys are invalid input.
+            visited += 1
+            if visited > 32:
+                raise MonitorProjectionError("MONITOR_PROJECTION_INVALID_INPUT")
+            if not isinstance(key, str) or not 1 <= len(key) <= _KEY_LIMIT:
+                raise MonitorProjectionError("MONITOR_PROJECTION_INVALID_INPUT")
             if key not in _CORRELATION_FIELDS:
                 continue
             projected[key] = _plain_str(value, _NOTE_LIMIT)
