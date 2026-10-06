@@ -357,7 +357,10 @@ def test_duplicate_security_headers_are_rejected(running_server):
         f"Authorization: Bearer {server.token}",
         "Connection: close",
     ])
-    assert "403" in raw.splitlines()[0] and '"HOST"' in raw
+    # Runtime-dependent gate: parsers that keep duplicates hit our explicit
+    # HOST_DUPLICATE rejection; CPython builds that drop later Host values
+    # reach the single-value HOST identity check. Both fail closed.
+    assert "403" in raw.splitlines()[0] and '"HOST' in raw
     raw = raw_request(server, [
         "GET /snapshot HTTP/1.1",
         f"Host: 127.0.0.1:{server.port}",
