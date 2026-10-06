@@ -1,5 +1,19 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-06 — authorized 3-lane cycle complete — CURRENT
+
+> **Cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts. Windows ZCode GLM-5.3 MAX primary session; user authorizations: A-Wiki PR #67 comment 5997302206, #547 comment 5997303506, PR #293 comment 5997304803.
+
+- Current A-Wiki-Conductor `origin/main`: `2e770f3f00670a7bd3ea1135bfec932aa445c15d`. A-Wiki `origin/main`: `16897b2d34f3ff0de0938f7f651cf19bbce106b43` (PR #67 unmerged).
+- **LANE A — A-Wiki PR #67 bounded repair: REVIEW_AND_CI_COMPLETE_MERGE_AUTHORITY_REQUIRED (halted at authorized gate; NOT merged).** Candidate `c1bf7ea41648fcd16e2b753e75847c86a7d86648` on `fix/issue-58-claim-convergence` (worktree `A:\GitHub\_worktrees\A-Wiki-pr67-claim-repair`): P1 fail-closed durable COLLAB parse (`DurableClaimsUnavailable` → `DURABLE_CLAIMS_UNREADABLE` exit 2; absent-COLLAB isolation preserved) + P2 comma-scope writer rejection with writer/reader/hook parity. Targeted 97×2 + related 183 green; `conductor verify` + pre-commit AWiki gates pass. Independent review (separate GLM read-only lane; Codex quota-blocked → fallback): **PASS P0/P1/P2=0** with two recorded P3 hardening notes (override-missing semantics; tolerant-reader rows). Hosted CI on `c1bf7ea4`: Core verification + loop-contract + py38-smoke ALL PASS. Evidence: PR #67 comments 6000295930 / 6000436550. Windows TTL claim `79c57dbe9ffc` (zcode-glm-pr67) expires naturally ≤2h; durable COLLAB row (chatgpt-sol) governs. **Merge decision = user/integrator.**
+- **LANE B — #285/#293 supersession audit: COMPLETE (READ_ONLY).** `PR285_DISPOSITION = PR293_DISPOSITION = HUMAN_DECISION_REQUIRED` with 9-question evidence: marker/classification logic NEVER on main (main still has the broad-substring guard at `instance_create.py:83-84` — defect family live); the stack sits on the UNMERGED WO194 base `8339e4c` (main@46f90b3 Sep-11 → WO194 → #285 → #293); DEFECT_LESSONS numbering collision (#15). DEFECT_LESSONS.md path lock therefore cannot be released by closing the drafts — #581/#583 folds stay queued behind the stack decision. Evidence: PR #293 comment 6000531474, PR #285 comment 6000531941.
+- **LANE C — STM-1B: COMPLETE / POST_MAIN_VERIFIED / claim released.** WO-P1-592 / Issue #592 (closed) / bootstrap PR #593 / source PR #594 (exact reviewed head `7853755`, merge `2e770f3`, post-main run `37363409584` SUCCESS after one documented infra-flake rerun with zero failed steps). New `hook_producer_wiring.py` + 26-row focused suite; review round 1 CHANGES_REQUIRED → repair cycle 1 → round 2 **PASS 0/0/0** (separate GLM lanes). Deferred P3: unpaired-surrogate session_id typed-rejection wrap. Composition-root hookup = separate future scope.
+- Codex 0.160 quota exhausted during this cycle (reset ~2:54 AM local); both independent reviews used the accepted separate-GLM-read-only-lane fallback. Working Codex review recipe: `codex exec -s read-only --ephemeral -o <file> -` (default model gpt-6.1-sol).
+- Next SAFE_READY candidates: user/integrator merge decision on A-Wiki PR #67 (unblocks #551/PR #552 → WO-P1-561 → JEV chain); WO194→207→215 stack disposition; #580 lifecycle vNext hook implementation; #541 SRM compact receipts.
+
+**Exact next safe action:** obtain the A-Wiki PR #67 merge decision (or merge it under integrator authority), then harvest #551/PR #552 claim-reader acceptance and resume the WO-P1-561 JEV SHADOW chain.
+
+
 ## 2026-10-05 — Windows ZCode primary topology / WO-P1-583 COMPLETE — CURRENT
 
 > **Current cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts. Written by the Windows ZCode GLM-5.3 MAX primary marathon session (user topology recorded in Issue #580 comment, 2026-10-05).
