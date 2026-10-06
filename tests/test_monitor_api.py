@@ -368,7 +368,13 @@ def test_duplicate_security_headers_are_rejected(running_server):
         f"Authorization: Bearer {server.token}",
         "Connection: close",
     ])
-    assert "200" in raw.splitlines()[0]  # legit identity; evil value dropped
+    # Both runtime behaviors fail closed: parsers that preserve duplicates
+    # hit our explicit HOST_DUPLICATE rejection (403); parsers that drop
+    # later Host values serve 200 under the legit identity only.
+    if "403" in raw.splitlines()[0]:
+        assert '"HOST' in raw
+    else:
+        assert "200" in raw.splitlines()[0]
 
 
 def test_stop_terminates_stalled_request_connection():
