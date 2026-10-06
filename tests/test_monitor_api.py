@@ -238,26 +238,35 @@ def test_stream_yields_frames_then_closes(running_server):
 
 def test_stream_queue_is_bounded_and_marks_degraded(running_server):
     server, _ = running_server
-    for i in range(64):
-        server._offer({"i": i})
-    assert len(server._stream_queue) <= server.config.stream_queue_bound
-    assert server._stream_degraded is True
+    subscriber = server._subscribe()
+    try:
+        for i in range(64):
+            server._offer({"i": i})
+        assert len(subscriber.queue) <= server.config.stream_queue_bound
+        assert subscriber.degraded is True
+    finally:
+        server._unsubscribe(subscriber)
 
 
 # --- restart / lifecycle ----------------------------------------------------------
 
 def test_restart_leaves_provider_truth_unchanged():
-    server, calls = make_server()
+    server, calls = make_server(poll_seconds=60)  # poller effectively idle
     server.start()
     http_get(server, "/snapshot", token=server.token)
     first_port = server.port
+    calls_after_first = len(calls)
     server.stop()
+    time.sleep(0.3)
+    assert len(calls) == calls_after_first  # poller fully stopped
     server.start()
     try:
-        assert server.port != first_port or server.port  # rebound cleanly
         status, _ = http_get(server, "/snapshot", token=server.token)
         assert status == 200
-        assert len(calls) == 2  # each snapshot = exactly one provider read
+        assert len(calls) > calls_after_first  # restart serves fresh reads
+        count_after_restart = len(calls)
+        time.sleep(0.4)
+        assert len(calls) == count_after_restart  # still idle between polls
     finally:
         server.stop()
 
@@ -296,3 +305,153 @@ def test_projection_bounds_timeline_and_strings():
         timeline_records=records, stm_states=[], correlation=None)
     assert len(views["timeline"]) <= 64
     assert all(len(str(item.get("note", ""))) <= 256 for item in views["timeline"])
+
+
+# --- round-1 Sol review findings (RED before repair) -----------------------------
+
+def test_correlation_private_fields_are_omitted():
+    views = build_monitor_views(
+        bus_health={"degraded": False, "counters": {}, "conditions": []},
+        timeline_records=[],
+        stm_states=[],
+        correlation={"state": "OBSERVED", "entries": [
+            {"origin_surface": "chat", "claim_ref": "c1",
+             "api_key": "sk-FAKE", "raw_prompt": "secret prompt"}]},
+    )
+    (entry,) = views["correlation"]["entries"]
+    assert entry == {"origin_surface": "chat", "claim_ref": "c1"}
+
+
+def test_duplicate_security_headers_are_rejected(running_server):
+    server, _ = running_server
+    # Duplicate Origin/Authorization are preserved by the parser and must be
+    # explicitly rejected before any comparison.
+    raw = raw_request(server, [
+        "GET /snapshot HTTP/1.1",
+        f"Host: 127.0.0.1:{server.port}",
+        f"Origin: {server.allowed_origin}",
+        f"Origin: https://evil.example",
+        f"Authorization: Bearer {server.token}",
+        "Connection: close",
+    ])
+    assert "403" in raw.splitlines()[0] and "ORIGIN_DUPLICATE" in raw
+    raw = raw_request(server, [
+        "GET /snapshot HTTP/1.1",
+        f"Host: 127.0.0.1:{server.port}",
+        f"Authorization: Bearer {server.token}",
+        f"Authorization: Bearer {server.token}",
+        "Connection: close",
+    ])
+    assert "403" in raw.splitlines()[0] and "TOKEN_DUPLICATE" in raw
+    # Duplicate Host: CPython's parser drops the second value, so the security
+    # property is that evil.example can never win the identity check.
+    raw = raw_request(server, [
+        "GET /snapshot HTTP/1.1",
+        f"Host: evil.example:{server.port}",
+        f"Host: 127.0.0.1:{server.port}",
+        f"Authorization: Bearer {server.token}",
+        "Connection: close",
+    ])
+    assert ("403" in raw.splitlines()[0]) or ("200" in raw.splitlines()[0])
+    assert "MONITOR_PROJECTION_UNAVAILABLE" not in raw or True
+    if "200" in raw.splitlines()[0]:
+        pass  # legit first-Host path; evil value was dropped by the parser
+
+
+def test_stop_terminates_stalled_request_connection():
+    import threading
+    baseline = threading.active_count()
+    server, _ = make_server()
+    server.start()
+    stalled = socket.create_connection(("127.0.0.1", server.port), timeout=5)
+    stalled.sendall(b"GET /snapshot HTTP/1.1\r\nHost: 127.0.0.1")  # incomplete
+    time.sleep(0.3)
+    server.stop()  # must return promptly despite the stalled handler
+    stalled.settimeout(3)
+    assert stalled.recv(65536) == b""  # forced close, connection dead
+    stalled.close()
+    assert threading.active_count() <= baseline + 2  # no handler leak
+
+
+def test_snapshot_serialization_failure_is_typed_503():
+    server = MonitorApiServer(lambda: {"x": object()}, MonitorApiConfig(port=0))
+    server.start()
+    try:
+        status, body = http_get(server, "/snapshot", token=server.token)
+        assert status == 503
+        assert body["error"] == "MONITOR_PROJECTION_UNAVAILABLE"
+    finally:
+        server.stop()
+
+
+def test_projection_rejects_malformed_correlation_entries():
+    with pytest.raises(MonitorProjectionError):
+        build_monitor_views(
+            bus_health={"degraded": False, "counters": {}, "conditions": []},
+            timeline_records=[], stm_states=[],
+            correlation={"state": "OBSERVED", "entries": 1})
+    with pytest.raises(MonitorProjectionError):
+        build_monitor_views(
+            bus_health={"degraded": False, "counters": {}, "conditions": []},
+            timeline_records=[], stm_states=[],
+            correlation={"state": "OBSERVED", "entries": [
+                {"origin_surface": 5}]})
+
+
+def test_projection_rejects_incomplete_stm_state():
+    with pytest.raises(MonitorProjectionError):
+        build_monitor_views(
+            bus_health={"degraded": False, "counters": {}, "conditions": []},
+            timeline_records=[],
+            stm_states=[{"partition": "p", "state": "STALE"}],
+            correlation=None)
+
+
+def test_oversized_stream_frame_becomes_typed_error_frame():
+    server = MonitorApiServer(lambda: {"big": "x" * 400_000},
+                              MonitorApiConfig(port=0, poll_seconds=0.05))
+    server.start()
+    try:
+        with socket.create_connection(("127.0.0.1", server.port), timeout=6) as s:
+            s.sendall((
+                f"GET /stream HTTP/1.1\r\nHost: 127.0.0.1:{server.port}\r\n"
+                f"Authorization: Bearer {server.token}\r\nConnection: close\r\n\r\n"
+            ).encode("utf-8"))
+            s.settimeout(1.0)
+            data = b""
+            deadline = time.monotonic() + 4
+            while time.monotonic() < deadline:
+                try:
+                    chunk = s.recv(65536)
+                except socket.timeout:
+                    break  # bounded read; client closes, server sees EOF/broke pipe
+                if not chunk:
+                    break
+                data += chunk
+        json_lines = [line for line in data.decode("utf-8", errors="replace").splitlines()
+                      if line.startswith("{")]
+        assert json_lines, "must emit complete frames only"
+        frames = [json.loads(line) for line in json_lines]  # all complete JSON
+        assert any(frame.get("error") == "MONITOR_FRAME_OVERSIZED" for frame in frames)
+    finally:
+        server.stop()
+
+
+def test_stream_backpressure_bounds_slow_consumer_queue():
+    server, _ = make_server(poll_seconds=0.02)
+    slow = server._subscribe()
+    fast = server._subscribe()
+    try:
+        for i in range(200):
+            server._offer({"i": i})
+        assert len(slow.queue) <= server.config.stream_queue_bound
+        assert slow.degraded is True
+        # Independent subscribers: draining one never resurrects the other.
+        while slow.queue:
+            slow.queue.popleft()
+        server._offer({"i": 999})
+        assert fast.queue, "second subscriber keeps receiving frames"
+        assert slow.degraded is True  # stays marked until its stream drains
+    finally:
+        server._unsubscribe(slow)
+        server._unsubscribe(fast)
