@@ -523,6 +523,7 @@ def test_blocked_provider_poller_lifecycle_is_generation_fenced():
     with pytest.raises(MonitorApiError, match="MONITOR_STOP_INCOMPLETE"):
         server.stop()
     assert old_poller.is_alive()  # reference retained, not silently discarded
+    subscriber = server._subscribe()  # present when the stale call returns
     # Restart while the old poller is still wedged must be refused.
     with pytest.raises(MonitorApiError, match="MONITOR_POLLER_TERMINATING"):
         server.start()
@@ -532,6 +533,7 @@ def test_blocked_provider_poller_lifecycle_is_generation_fenced():
     assert not old_poller.is_alive()  # stale generation exits, never revives
     # The wedged in-flight call completes but must not produce again.
     assert len(poll_calls) == calls_before_release  # no revival, no re-poll
+    assert len(subscriber.queue) == 0  # stale call emitted no frame (fence)
     server.stop()  # now reaps the dead poller cleanly
     assert server._poller is None
     # After the stale poller is dead, a fresh generation may start.
