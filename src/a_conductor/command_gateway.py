@@ -181,6 +181,13 @@ def _validate_shape(request: GatewayCommandRequest) -> None:
         value = getattr(inner, nested, None)
         if value is not None and not _plain_ref(value):
             raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
+    # Nominal-integer digest fields get the same treatment: subclasses can
+    # smuggle strings past protocol validation (Sol round-5 P2). Exact int
+    # type only — bool/str/float never pass.
+    for numeric in ("expected_version", "max_attempts"):
+        value = getattr(inner, numeric, None)
+        if value is not None and (type(value) is not int or value < 1):
+            raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
     if request.mutation_intent not in MutationIntent:
         raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
     for field in _IDENTITY_FIELDS:

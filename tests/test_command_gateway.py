@@ -555,3 +555,24 @@ def test_nested_operator_clean_fields_still_admit():
     object.__setattr__(hostile.request, 'worker_id', 'w-1')
     admission = admit_command(hostile, authorities=Recorder().bundle())
     assert admission.decision is GatewayDecision.ADMIT
+
+
+# --- Sol round-5 finding (nominal-integer digest fields) ------------------------
+
+def test_numeric_digest_fields_reject_strings_and_bad_values():
+    lone = chr(0xD83D) + chr(0xDE00)
+    for field, bad in (('expected_version', lone), ('max_attempts', lone),
+                       ('expected_version', True), ('max_attempts', 0),
+                       ('expected_version', 1.5)):
+        hostile = make_request()
+        object.__setattr__(hostile.request, field, bad)
+        admission = admit_command(hostile, authorities=Recorder().bundle())
+        assert admission.reason_code == 'GATEWAY_REQUEST_MALFORMED', (field, bad)
+
+
+def test_numeric_digest_fields_valid_ints_still_admit():
+    hostile = make_request()
+    object.__setattr__(hostile.request, 'expected_version', 3)
+    object.__setattr__(hostile.request, 'max_attempts', 2)
+    admission = admit_command(hostile, authorities=Recorder().bundle())
+    assert admission.decision is GatewayDecision.ADMIT
