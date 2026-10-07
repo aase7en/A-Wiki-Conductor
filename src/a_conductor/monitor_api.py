@@ -30,6 +30,8 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable
 
+from .monitor_page import MONITOR_PAGE_BYTES
+
 __all__ = ["MonitorApiConfig", "MonitorApiServer", "MonitorApiError"]
 
 _MAX_PATH_CHARS = 256
@@ -201,6 +203,17 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if path == "/stream":
             self._stream()
+            return
+        if path == "/monitor":
+            # UI-1: the constant read-only page under the same authn gates;
+            # bytes carry no token, no state, no server-side templating.
+            body = MONITOR_PAGE_BYTES
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
             return
         self._send_json(404, {"error": "MONITOR_NOT_FOUND"})
 
