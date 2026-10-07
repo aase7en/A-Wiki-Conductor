@@ -376,20 +376,18 @@ def test_digest_binds_operator_request_fields():
 
 
 def test_digest_binds_readonly_task_claim_antiseparators():
+    # Control-character refs cannot reach the digest at all now: they are
+    # malformed at validation, so no separator-injection surface exists.
     sep = chr(0x1F)
-    a = admit_command(
-        make_request(action=OperatorAction.STATUS,
-                     mutation_intent=MutationIntent.READ_ONLY,
-                     task_ref="a" + sep + "b", claim_ref="c", fence_ref="",
-                     requested_scope=()),
-        authorities=Recorder().bundle())
-    b = admit_command(
-        make_request(action=OperatorAction.STATUS,
-                     mutation_intent=MutationIntent.READ_ONLY,
-                     task_ref="a", claim_ref="b" + sep + "c", fence_ref="",
-                     requested_scope=()),
-        authorities=Recorder().bundle())
-    assert a.evidence_digest != b.evidence_digest
+    for field, value in (("task_ref", "a" + sep + "b"),
+                         ("claim_ref", "b" + sep + "c")):
+        hostile = make_request(
+            action=OperatorAction.STATUS,
+            mutation_intent=MutationIntent.READ_ONLY,
+            task_ref="", claim_ref="", fence_ref="", requested_scope=())
+        object.__setattr__(hostile, field, value)
+        admission = admit_command(hostile, authorities=Recorder().bundle())
+        assert admission.reason_code == "GATEWAY_REQUEST_MALFORMED", field
 
 
 def test_non_bool_lease_active_denies_stale():
@@ -514,3 +512,25 @@ def test_hostile_lease_eq_denies_authority_error():
     admission = admit_command(make_request(), authorities=recorder.bundle())
     assert admission.decision is GatewayDecision.DENY
     assert admission.reason_code == "GATEWAY_AUTHORITY_ERROR"
+
+
+# --- Sol round-3 finding (surrogate refs on the read-only path) ------------------
+
+def test_readonly_surrogate_refs_denied_not_collided():
+    real = chr(0x1F600)
+    lone = chr(0xD83D) + chr(0xDE00)
+    for field in ('task_ref', 'claim_ref', 'fence_ref'):
+        hostile = make_request(
+            action=OperatorAction.STATUS,
+            mutation_intent=MutationIntent.READ_ONLY,
+            task_ref='', claim_ref='', fence_ref='', requested_scope=())
+        object.__setattr__(hostile, field, lone)
+        admission = admit_command(hostile, authorities=Recorder().bundle())
+        assert admission.reason_code == 'GATEWAY_REQUEST_MALFORMED', field
+        legit = make_request(
+            action=OperatorAction.STATUS,
+            mutation_intent=MutationIntent.READ_ONLY,
+            task_ref='', claim_ref='', fence_ref='', requested_scope=())
+        object.__setattr__(legit, field, real)
+        other = admit_command(legit, authorities=Recorder().bundle())
+        assert other.decision is GatewayDecision.ADMIT, field

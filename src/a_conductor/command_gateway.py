@@ -189,9 +189,13 @@ def _validate_shape(request: GatewayCommandRequest) -> None:
     if labeled_mutate:
         if not _plain_ref(request.task_ref) or not _plain_ref(request.claim_ref):
             raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
-    elif not isinstance(request.task_ref, str) or not isinstance(request.claim_ref, str):
-        # READ_ONLY still requires string fields (may be empty).
-        raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
+    else:
+        # READ_ONLY refs may be empty but must still be clean strings:
+        # every digest-bound field rejects surrogate code points.
+        for field in ("task_ref", "claim_ref", "fence_ref"):
+            value = getattr(request, field, None)
+            if type(value) is not str or not (value == "" or _plain_ref(value)):
+                raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
 
 
 def _deny(request: GatewayCommandRequest, reason_code: str) -> GatewayAdmission:
