@@ -1,5 +1,18 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-07 (later) — P8 ACT-1 slice A COMPLETE — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary; watchdog automation active (30-min, WATCHDOG_ONLY).
+
+- Current main: `64e2f0552a659d6d8e39f1f26965f8d742fb1954` (post-main CI 37604652509 SUCCESS). A-Wiki main 16897b2d (PR #67 human gate unchanged).
+- **P8 ACT-1 slice A COMPLETE/POST_MAIN_VERIFIED** (Issue #603 closed): bootstrap PR #604 (WO-P1-603) + source PR #605 (head `965f5a6` -> merge `64e2f05`): pure admission authority `command_gateway.py` — action-derived intent (no label escalation), universal scope coverage with component-boundary/traversal rejection, observed 4-field identity truth, exact-bool lease, UNKNOWN-dedupe never relaunch, fence-held-here for MUTATE, fully-validated collision-free evidence digest (22 enumerated inputs), contained authority errors (AUTHORITY_ERROR vs typed absent-evidence codes), zero side effects. **Codex Sol 6-round review to PASS 0/0/0/0** (each round found real gaps; final closure reviewer-enumerated); 51 focused + 117 related green.
+- **Roadmap next**: ACT-1 slice B = dispatch wiring consuming admissions (separate claim; existing adapters); then #498B PRE_MUTATION / #498D PRE_MUTATION guard wiring against the admission digest; P9+ per live roadmap. P7 remainder (extension/desktop) optional.
+- Human gates unchanged: (1) A-Wiki PR #67 merge (c1bf7ea4; unblocks #551/PR #552 -> WO-P1-561 -> JEV); (2) WO194->#285->#293 stack disposition (folds #581/#583).
+- Codex binary: `C:\\Users\\aase7en\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe` (0.160.1).
+
+**Exact next safe action:** fresh session -> recover live roadmap -> claim ACT-1 slice B (dispatch wiring) or #498B/D guard wiring per dependency truth; fold PR #67 merge instantly when decided.
+
+
 ## 2026-10-07 — overnight marathon: P6 MON-1 + P7 UI-1 COMPLETE — CURRENT
 
 > **Cross-repo projection.** Actual Git/GitHub evidence overrides this section. Windows ZCode GLM-5.3 MAX primary; overnight goal 2026-10-06.
