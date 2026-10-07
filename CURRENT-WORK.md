@@ -1,5 +1,19 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-08 — roadmap reorder active; INSTALL-1 slice A shipped — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary; 15-min wake automation active.
+
+- Current mains: A-Wiki-Conductor `0c2ff17fb7ca586fbdbdeb1e6596f1e6efb96255` (push CI 37640116990 SUCCESS); SunDayRemoteMCP `dc5e311d2cf6542d68d4d440aa5f8f5774ceba75`. A-Wiki main `16897b2d` (PR #67 human gate unchanged @ c1bf7ea4).
+- **Roadmap priority**: operator reorder #495/6035553079 — G0 (truth+drain, no removals) || TRACK A INSTALL-1 (highest) || TRACK B #526+#495+ACT-1 -> CUTOVER-RO -> CUTOVER-MUTATE || TRACK C #341 parity -> retirements || TRACK D UX only after core.
+- **Shipped this lineage**: P8 ACT-1 slice A (admission authority, #603 closed, main 64e2f05 era; Sol 6-round review to PASS) — Track B consumable. **INSTALL-1 slice A** (#607; AWC bootstrap PR #608; SRM PR #6 @ dc5e311): pure doctor (UNKNOWN-never-HEALTHY) + read-smoke (deny-by-default component-boundary allowlist, dot-reject policy) — GLM 2-round review, claim released; P3 ledger on #607 (doctor dot-entry alignment, target-corrupt reason label, probes-object hardening).
+- **NEXT_READY**: INSTALL-1 slice B = pairing/enrollment wiring (consume existing `DeviceAuthenticator`/remote-device surfaces) + autostart/restart skeleton + installer entry in SRM; re-pin compat set {AWC@0c2ff17-or-later, SRM@dc5e311-or-later}; WO-P1-607 governs; fresh claim per slice.
+- Human gates unchanged: (1) A-Wiki PR #67 merge (unblocks #551 -> WO-P1-561 -> JEV chain); (2) WO194->#285->#293 stack disposition (folds #581/#583).
+- Codex binary: 5ea220ae823df3d7/codex.exe (0.160.1). Known env note: SRM supervisor fault-suite has an intermittent `kill ESRCH` child-race flake in the long-lived reference worktree (same-SHA differential proved timing, not code).
+
+**Exact next safe action:** fresh session/wake -> claim INSTALL-1 slice B per WO-P1-607 (SRM-side worktree, cross-repo pin) -> RED-first pairing-state + autostart modules.
+
+
 ## 2026-10-07 (later) — P8 ACT-1 slice A COMPLETE — CURRENT
 
 > Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary; watchdog automation active (30-min, WATCHDOG_ONLY).
