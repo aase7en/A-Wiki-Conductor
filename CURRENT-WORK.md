@@ -1,5 +1,19 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-07 — overnight marathon: P6 MON-1 + P7 UI-1 COMPLETE — CURRENT
+
+> **Cross-repo projection.** Actual Git/GitHub evidence overrides this section. Windows ZCode GLM-5.3 MAX primary; overnight goal 2026-10-06.
+
+- Current A-Wiki-Conductor `origin/main`: `a4614b404052ac7f678566a5652573b531d7c53f` (post-main CI 37554312927 SUCCESS). A-Wiki main `16897b2d` (PR #67 human merge gate unchanged; packet PR #67 comment 6008933648).
+- **P6 MON-1 COMPLETE/POST_MAIN_VERIFIED** (Issue #596 closed): contract WO-P1-596 (PR #597) + source PR #598 (head `d0d65e7` -> merge `08f4fa6`): loopback stdlib read-only monitor API (`monitor_api.py` + `monitor_projection.py`, 30 rows) — fail-closed token/Origin/Host authn (duplicate-header rejection, DNS-rebinding guard), per-subscriber bounded stream backpressure, generation-fenced poller lifecycle (STOP_INCOMPLETE/POLLER_TERMINATING), typed 503 boundaries. Codex Sol 3-round review (final PASS 0/0/0 after 2 repair cycles); two runtime-dependent duplicate-Host CI flakes root-caused + fixed.
+- **P7 UI-1 slice A COMPLETE/POST_MAIN_VERIFIED** (Issue #599 closed): bootstrap PR #600 (WO-P1-599) + source PR #601 (head `d1aaa5a` -> merge `a4614b4`): constant self-contained read-only monitor page (`monitor_page.py`) + one authn-gated `GET /monitor` route — CSP, memory-only fragment token, UNKNOWN/STALE/DEGRADED truthful badges, fatal-403 halt + 503 backoff. GLM 3-round review (final PASS "acceptable to integrate"); 40 focused + 715 reviewer-side green.
+- **Next roadmap node: P8 ACT-1 Command Gateway** — AUTHORITY SEAM, higher scrutiny (goal section 5): needs fresh dependency/readiness recovery + reuse audit + governance bootstrap before any implementation; R3 RED-first mandatory. P7 remainder (extension UI/desktop adapter) = optional later slices.
+- Human gates unchanged: (1) A-Wiki PR #67 merge (c1bf7ea4, review PASS + CI PASS; unblocks #551/PR #552 -> WO-P1-561 -> JEV chain); (2) WO194->#285->#293 stack disposition (blocks #581/#583 DEFECT_LESSONS folds).
+- Codex binary moved: use `C:\\Users\\aase7en\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe` (0.160.1). Reviews this cycle used separate GLM read-only lanes per quota policy.
+
+**Exact next safe action:** fresh session -> recover P8 ACT-1 roadmap/WO state (does an accepted ACT-1 contract exist? roadmap P8 + #498B/C/D dependencies) -> bootstrap/claim under normal gates; fold PR #67 merge instantly if the human decision arrives.
+
+
 ## 2026-10-06 — authorized 3-lane cycle complete — CURRENT
 
 > **Cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts. Windows ZCode GLM-5.3 MAX primary session; user authorizations: A-Wiki PR #67 comment 5997302206, #547 comment 5997303506, PR #293 comment 5997304803.
