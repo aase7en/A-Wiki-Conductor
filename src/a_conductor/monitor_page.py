@@ -45,11 +45,11 @@ function readToken() {
   history.replaceState(null, "", location.pathname);
 }
 function badge(label, cls) {
-  return '<span class="badge ' + cls + '">' + label + '</span>';
+  return '<span class="badge ' + cls + '">' + esc(label) + '</span>';
 }
 function esc(s) {
-  return String(s).replace(/[&<>"]/g, function (c) {
-    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
   });
 }
 function setState(text, cls) {
@@ -116,7 +116,10 @@ function renderCorrelation(c) {
       badge("UNKNOWN", "unknown") + " no correlation evidence";
     return;
   }
-  var out = [badge(c.state, "ok")];
+  // Only an explicitly known-good state renders green; anything the
+  // projection did not enum-clamp stays visibly neutral, never success.
+  var cls = c.state === "OBSERVED" ? "ok" : "unknown";
+  var out = [badge(c.state, cls)];
   var entries = c.entries || [];
   if (entries.length) {
     out.push("<table><tr><th>field</th><th>value</th></tr>");
@@ -135,29 +138,41 @@ function render(views) {
   renderStm(views.stm);
   renderCorrelation(views.correlation);
 }
+function haltOnForbidden(message) {
+  if (pollTimer !== null) { clearTimeout(pollTimer); pollTimer = null; }
+  setState(message, "err");
+}
 function poll() {
   if (!token) {
-    setState("FORBIDDEN — token missing. Append #token=<monitor token> to the address and reload.", "err");
+    haltOnForbidden("FORBIDDEN — token missing. Append #token=<monitor token> to the address and reload.");
     return;
   }
   fetch("/snapshot", {headers: {"Authorization": "Bearer " + token}})
     .then(function (r) {
-      if (r.status === 403) { throw new Error("FORBIDDEN — token rejected"); }
+      if (r.status === 403) { throw {fatal: true, message: "FORBIDDEN — token rejected; polling halted. Reload with a valid #token=."}; }
       if (r.status === 503) { throw new Error("PROJECTION UNAVAILABLE — monitor degraded"); }
       if (!r.ok) { throw new Error("HTTP " + r.status); }
       return r.json();
     })
     .then(function (views) {
       setState("live (snapshot polling)", "quiet");
+      backoffDelay = 2000;  // healthy again: reset the poll interval
       render(views);
     })
     .catch(function (e) {
+      if (e && e.fatal) { haltOnForbidden(e.message); return; }
+      backoffDelay = Math.min(backoffDelay * 2, 30000);  // grow on 503/error
       setState(String(e.message || e), "err");
+    })
+    .then(function () {
+      if (pollTimer !== null) { clearTimeout(pollTimer); }
+      pollTimer = setTimeout(poll, backoffDelay);
     });
 }
+var pollTimer = null;
+var backoffDelay = 2000;  // doubles on 503/error up to 30s; resets on success
 readToken();
 poll();
-setInterval(poll, 2000);
 </script>
 </body>
 </html>

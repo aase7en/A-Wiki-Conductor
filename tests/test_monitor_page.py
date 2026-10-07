@@ -92,6 +92,19 @@ def test_page_polls_snapshot_with_backoff():
     page = MONITOR_PAGE_BYTES.decode("utf-8")
     assert "/snapshot" in page
     assert "403" in page and "503" in page  # explicit forbidden/error states
+    # Backoff contract: no fixed-rate interval; self-scheduling with growth.
+    assert "setInterval" not in page
+    assert "backoff" in page and "setTimeout" in page
+    # A rejected token must halt the fetch loop entirely.
+    assert "haltOnForbidden" in page
+
+
+def test_page_escapes_badge_labels_and_clamps_correlation_state():
+    page = MONITOR_PAGE_BYTES.decode("utf-8")
+    # badge() must escape its label like every other dynamic sink.
+    assert "esc(label)" in page
+    # Only enum-known good correlation states render green.
+    assert '"OBSERVED"' in page  # explicit allowlist for the ok class
 
 
 # --- /monitor route ----------------------------------------------------------
