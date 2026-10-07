@@ -1,5 +1,18 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-08 (later) — INSTALL-1 slices A+B shipped — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary; 15-min wake active. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079).
+
+- Mains: A-Wiki-Conductor `9dd3e4c729a965d6fcaa7e216946b0e6f29a55d4` (+ push CI green); **SunDayRemoteMCP `c9b161a71f7ed6cdc5ceb67b726424c6c2791717`** (advanced by slice B). A-Wiki main `16897b2d`; PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice A** (#607): doctor + read-smoke — merged @ SRM `dc5e311`.
+- **INSTALL-1 slice B** (#607; PR #7 head `17e28c9` -> `c9b161a`; post-main all suites green): `pairing-state.ts` (consent-gated UNPAIRED->PENDING->PAIRED; token REQUIRED — no fallback credential; digest-committed code; typed UNKNOWN never PAIRED) + `autostart.ts` (exactly-once planner; double-boot yields; UNKNOWN->recovery; pairing fail-closed). GLM 2-round review r2 PASS (4 info-P3 ledger on #607). Claim released.
+- **NEXT_READY — slice C (wiring)**: integrate doctor probes + pairing store + autostart planner into the Device Agent entry/install path (`npm-scripts/setup.ts` / remote-device surfaces); pin {AWC@`9dd3e4c`+, SRM@`c9b161a`+}; fresh claim `WO-P1-607-INSTALL1-SOURCE-C-WIN-001` under WO-P1-607. Then installer-entry UX, mutation smoke, Mac parity.
+- Human gates unchanged: (1) A-Wiki PR #67 merge; (2) WO194->#285->#293 stack disposition.
+- Env notes: SRM supervisor fault-suite has intermittent `kill ESRCH` timing flake in the long-lived reference worktree (same-SHA differential = flake); Codex binary 5ea220ae823df3d7/codex.exe 0.160.1.
+
+**Exact next safe action:** claim INSTALL-1 slice C per WO-P1-607 -> wire doctor/pairing/autostart into the setup/device-agent entry (RED-first against the frozen modules) -> review/CI/merge/post-main.
+
 ## 2026-10-08 — roadmap reorder active; INSTALL-1 slice A shipped — CURRENT
 
 > Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary; 15-min wake automation active.
