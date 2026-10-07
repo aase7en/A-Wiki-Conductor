@@ -95,8 +95,12 @@ def test_page_polls_snapshot_with_backoff():
     # Backoff contract: no fixed-rate interval; self-scheduling with growth.
     assert "setInterval" not in page
     assert "backoff" in page and "setTimeout" in page
-    # A rejected token must halt the fetch loop entirely.
-    assert "haltOnForbidden" in page
+    # A rejected token must halt the fetch loop entirely: the fatal branch
+    # RETHROWS so the reschedule .then is skipped (structural marker of the
+    # actual halt mechanism — presence of the function name alone proved
+    # vacuous in round 2).
+    assert "throw e; }  // fatal: skip reschedule" in page
+    assert ".catch(function () {});  // swallow the expected fatal rejection" in page
 
 
 def test_page_escapes_badge_labels_and_clamps_correlation_state():

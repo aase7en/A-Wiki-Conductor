@@ -160,14 +160,15 @@ function poll() {
       render(views);
     })
     .catch(function (e) {
-      if (e && e.fatal) { haltOnForbidden(e.message); return; }
+      if (e && e.fatal) { haltOnForbidden(e.message); throw e; }  // fatal: skip reschedule
       backoffDelay = Math.min(backoffDelay * 2, 30000);  // grow on 503/error
       setState(String(e.message || e), "err");
     })
     .then(function () {
       if (pollTimer !== null) { clearTimeout(pollTimer); }
       pollTimer = setTimeout(poll, backoffDelay);
-    });
+    })
+    .catch(function () {});  // swallow the expected fatal rejection
 }
 var pollTimer = null;
 var backoffDelay = 2000;  // doubles on 503/error up to 30s; resets on success
