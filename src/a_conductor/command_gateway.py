@@ -142,9 +142,13 @@ class GatewayAdmission:
 
 
 def _plain_ref(value: object) -> bool:
+    # Surrogate code points are rejected everywhere: ensure_ascii JSON
+    # serializes lone surrogates and their escape sequences identically,
+    # which would break evidence-digest binding (Sol round-2 P2).
     return (type(value) is str and 0 < len(value) <= _MAX_REF_CHARS
             and value == value.strip()
-            and not any(ord(ch) < 32 or ord(ch) == 0x7F for ch in value))
+            and not any(ord(ch) < 32 or ord(ch) == 0x7F for ch in value)
+            and not any(0xD800 <= ord(ch) <= 0xDFFF for ch in value))
 
 
 def _scope_item_safe(item: object) -> bool:
@@ -191,16 +195,26 @@ def _validate_shape(request: GatewayCommandRequest) -> None:
 
 
 def _deny(request: GatewayCommandRequest, reason_code: str) -> GatewayAdmission:
-    # Defensive against a malformed/None outer request: never raise here.
-    action = getattr(getattr(request, "request", None), "action", None)
+    # Reading ANY untrusted attribute can raise (hostile property objects),
+    # so every projection here is individually bounded; _deny never raises.
+    try:
+        action = getattr(getattr(request, "request", None), "action", None)
+    except Exception:
+        action = None
+    try:
+        task_ref = getattr(request, "task_ref", "")
+    except Exception:
+        task_ref = ""
+    try:
+        claim_ref = getattr(request, "claim_ref", "")
+    except Exception:
+        claim_ref = ""
     return GatewayAdmission(
         decision=GatewayDecision.DENY,
         reason_code=reason_code,
         action=action.value if isinstance(action, OperatorAction) else "",
-        task_ref=getattr(request, "task_ref", "") if isinstance(
-            getattr(request, "task_ref", None), str) else "",
-        claim_ref=getattr(request, "claim_ref", "") if isinstance(
-            getattr(request, "claim_ref", None), str) else "",
+        task_ref=task_ref if isinstance(task_ref, str) else "",
+        claim_ref=claim_ref if isinstance(claim_ref, str) else "",
         evidence_digest="",
     )
 
@@ -216,6 +230,7 @@ def _evidence_parts(request: GatewayCommandRequest, *, fence_ok: bool,
         request.task_ref, request.claim_ref, request.fence_ref,
         inner.job_id, inner.operation_ref, inner.evidence_ref,
         inner.checkpoint_ref, inner.work_order_ref, inner.project_id,
+        inner.worker_id, inner.expected_version, inner.max_attempts,
         sorted(request.requested_scope),
         sorted(lease_scope),
         "fence" if fence_ok else "nofence",
@@ -288,15 +303,20 @@ def _admit_inner(
         return _deny(request, "GATEWAY_AUTHORITY_ERROR")
     if not isinstance(lease, LeaseEvidence):
         return _deny(request, "GATEWAY_CLAIM_MISSING")
-    if type(lease.active) is not bool:  # exact bool: "False"/1 never pass
-        return _deny(request, "GATEWAY_CLAIM_STALE")
-    if not lease.active:
-        return _deny(request, "GATEWAY_CLAIM_STALE")
-    if (lease.task_ref != request.task_ref or lease.claim_ref != request.claim_ref):
-        return _deny(request, "GATEWAY_TASK_MISSING")
-    lease_scope = lease.scope
-    if (not isinstance(lease_scope, (tuple, list, frozenset))
-            or any(not _scope_item_safe(item) for item in lease_scope)):
+    try:
+        if type(lease.active) is not bool:  # exact bool: "False"/1 never pass
+            return _deny(request, "GATEWAY_CLAIM_STALE")
+        if not lease.active:
+            return _deny(request, "GATEWAY_CLAIM_STALE")
+        if (lease.task_ref != request.task_ref
+                or lease.claim_ref != request.claim_ref):
+            return _deny(request, "GATEWAY_TASK_MISSING")
+        lease_scope = tuple(lease.scope)
+    except Exception:
+        # Hostile evidence objects (raising __eq__/iterators) are authority
+        # failures, not shape problems (Sol round-2 P2).
+        return _deny(request, "GATEWAY_AUTHORITY_ERROR")
+    if any(not _scope_item_safe(item) for item in lease_scope):
         return _deny(request, "GATEWAY_SCOPE_DRIFT")
     # UNIVERSAL coverage: every requested item must be inside the lease.
     if not all(any(_scope_covers(pattern, item) for pattern in lease_scope)

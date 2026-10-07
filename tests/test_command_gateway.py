@@ -442,3 +442,75 @@ def test_raising_identity_mapping_denies_contained():
     # Hostile evidence that raises during processing is an authority
     # failure, not an observed drift.
     assert admission.reason_code == "GATEWAY_AUTHORITY_ERROR"
+
+
+# --- Sol round-2 findings (RED before repair) -----------------------------------
+
+def test_digest_binds_worker_version_and_attempts():
+    base = admit_command(make_request(), authorities=Recorder().bundle())
+    for field, value in (("worker_id", "w-9"), ("expected_version", 7),
+                         ("max_attempts", 4)):
+        variant = make_request()
+        object.__setattr__(variant.request, field, value)
+        other = admit_command(variant, authorities=Recorder().bundle())
+        assert other.decision is GatewayDecision.ADMIT, field
+        assert base.evidence_digest != other.evidence_digest, field
+
+
+def test_surrogate_scope_items_rejected_not_collided():
+    surrogate_pair = "\U0001f600"          # real emoji (astral plane)
+    lone_surrogate = chr(0xD83D) + chr(0xDE00)  # surrogate pair spelling
+    a = admit_command(
+        make_request(requested_scope=("src/a_conductor/" + surrogate_pair,)),
+        authorities=Recorder().bundle())
+    b = admit_command(
+        make_request(requested_scope=("src/a_conductor/" + lone_surrogate,)),
+        authorities=Recorder().bundle())
+    # The lone-surrogate spelling must be rejected outright (malformed),
+    # never admitted and never allowed to collide with the real character.
+    assert b.decision is GatewayDecision.DENY
+    assert b.reason_code == "GATEWAY_REQUEST_MALFORMED"
+    assert a.decision is GatewayDecision.ADMIT
+
+
+def test_raising_request_property_denies_contained():
+    class HostileRequest:
+        @property
+        def request(self):
+            raise RuntimeError("hostile property")
+
+    admission = admit_command(HostileRequest(), authorities=Recorder().bundle())
+    assert admission.decision is GatewayDecision.DENY
+    assert admission.reason_code == "GATEWAY_REQUEST_MALFORMED"
+
+
+def test_raising_task_ref_property_denies_contained():
+    class HostileRequest:
+        request = OperatorRequest(
+            protocol_version=OPERATOR_PROTOCOL_VERSION,
+            action=OperatorAction.JOB_EXECUTE)
+
+        @property
+        def task_ref(self):
+            raise RuntimeError("hostile property")
+
+    admission = admit_command(HostileRequest(), authorities=Recorder().bundle())
+    assert admission.decision is GatewayDecision.DENY
+    assert admission.reason_code in ("GATEWAY_REQUEST_MALFORMED",
+                                     "GATEWAY_AUTHORITY_ERROR")
+
+
+def test_hostile_lease_eq_denies_authority_error():
+    class PoisonRef(str):
+        def __eq__(self, other):
+            raise RuntimeError("poison eq")
+
+        def __ne__(self, other):
+            raise RuntimeError("poison ne")
+
+    recorder = Recorder(lease=LeaseEvidence(
+        task_ref=PoisonRef("WO-P1-603"), claim_ref="claim-1",
+        scope=("src/a_conductor/**",), active=True))
+    admission = admit_command(make_request(), authorities=recorder.bundle())
+    assert admission.decision is GatewayDecision.DENY
+    assert admission.reason_code == "GATEWAY_AUTHORITY_ERROR"
