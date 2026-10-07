@@ -534,3 +534,24 @@ def test_readonly_surrogate_refs_denied_not_collided():
         object.__setattr__(legit, field, real)
         other = admit_command(legit, authorities=Recorder().bundle())
         assert other.decision is GatewayDecision.ADMIT, field
+
+
+# --- Sol round-4 finding (nested operator fields) -------------------------------
+
+def test_nested_operator_surrogate_fields_denied_for_every_digest_field():
+    lone = chr(0xD83D) + chr(0xDE00)
+    for field in ('job_id', 'operation_ref', 'evidence_ref',
+                  'checkpoint_ref', 'work_order_ref', 'project_id',
+                  'worker_id'):
+        hostile = make_request()
+        object.__setattr__(hostile.request, field, lone)
+        admission = admit_command(hostile, authorities=Recorder().bundle())
+        assert admission.reason_code == 'GATEWAY_REQUEST_MALFORMED', field
+
+
+def test_nested_operator_clean_fields_still_admit():
+    hostile = make_request()
+    object.__setattr__(hostile.request, 'job_id', 'job-1')
+    object.__setattr__(hostile.request, 'worker_id', 'w-1')
+    admission = admit_command(hostile, authorities=Recorder().bundle())
+    assert admission.decision is GatewayDecision.ADMIT

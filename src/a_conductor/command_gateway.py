@@ -171,6 +171,16 @@ def _validate_shape(request: GatewayCommandRequest) -> None:
     action = getattr(inner, "action", None)
     if not isinstance(action, OperatorAction):
         raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
+    # Nested operator fields enter the evidence digest, so every one of
+    # them is revalidated here: subclasses overriding __post_init__ could
+    # otherwise smuggle surrogate code points past protocol validation
+    # (Sol round-4 P2). None stays allowed; non-empty must be a clean ref.
+    for nested in ("job_id", "operation_ref", "evidence_ref",
+                   "checkpoint_ref", "work_order_ref", "project_id",
+                   "worker_id"):
+        value = getattr(inner, nested, None)
+        if value is not None and not _plain_ref(value):
+            raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
     if request.mutation_intent not in MutationIntent:
         raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
     for field in _IDENTITY_FIELDS:
