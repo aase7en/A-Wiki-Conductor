@@ -5,23 +5,35 @@ the exact existing-authority evidence set, or a typed DENY. Zero side
 effects: no I/O, no subprocess, no sockets, no persistence, no retries, no
 caches. Existing authorities arrive as an injected frozen bundle
 (``GatewayAuthorities``); this module never looks them up, never invokes
-them outside ``admit_command``, and never lets an authority exception escape.
+them outside ``admit_command``, and never lets ANY exception escape.
 
-Truth rules (WO-P1-603 frozen contract): observed worktree identity is the
-only truth (request claims never override observation); scope must be inside
-the lease; UNKNOWN dedupe never relaunches; MUTATE requires a fence held by
-this claim; read-only actions can never acquire mutation authority; a
-malformed request triggers zero authority reads. The evidence digest binds
-the admitted tuple so downstream consumers (#498B/D, slice-B dispatch) can
-prove they consumed this exact admission — bypassing the gateway implies
-nothing and cannot claim guard enforcement.
+Truth rules (WO-P1-603 frozen contract, hardened after independent R3
+review round 1):
+- effective intent is DERIVED from the operator action class, never from
+  the caller's label — a mutate-class action labeled READ_ONLY (or the
+  reverse) is an INTENT_ESCALATION deny;
+- observed worktree identity (repo_root/worktree/branch/head_sha) is the
+  only truth; request claims never override observation;
+- requested scope must be UNIVERSALLY covered by the lease scope, with
+  component-boundary matching and traversal/absolute rejection;
+- authority results are revalidated (exact bool lease.active, plain
+  fence_ref) — hostile or malformed evidence fails closed;
+- an authority callback that RAISES yields GATEWAY_AUTHORITY_ERROR; one
+  that returns absent/stale evidence yields the specific typed deny;
+- the evidence digest hashes a canonical length-safe serialization of every
+  bound field (request identity fields included), so distinct evidence sets
+  cannot collide;
+- UNKNOWN dedupe never relaunches; MUTATE requires a fence held here;
+- bypassing the gateway implies nothing: only consuming an ADMIT's exact
+  digest can claim gateway admission downstream.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from .operator_protocol import (
     OPERATOR_PROTOCOL_VERSION, OperatorAction, OperatorRequest,
@@ -61,7 +73,9 @@ class GatewayDecision(Enum):
     DENY = "DENY"
 
 
-# operator.v1 actions partitioned by the authority class they carry.
+# operator.v1 actions partitioned by the authority class they carry. The
+# effective intent is derived from THIS table — a caller's label can never
+# upgrade or downgrade an action across the authority boundary.
 _MUTATE_ACTIONS = frozenset({
     OperatorAction.JOB_CREATE, OperatorAction.JOB_READY,
     OperatorAction.JOB_CLAIM, OperatorAction.JOB_GATE,
@@ -71,6 +85,7 @@ _READ_ONLY_ACTIONS = frozenset({
     OperatorAction.STATUS, OperatorAction.JOB_GET, OperatorAction.JOB_EVENTS,
 })
 
+_IDENTITY_FIELDS = ("repo_root", "worktree", "branch", "head_sha")
 _MAX_REF_CHARS = 256
 
 
@@ -127,9 +142,20 @@ class GatewayAdmission:
 
 
 def _plain_ref(value: object) -> bool:
-    return (isinstance(value, str) and 0 < len(value) <= _MAX_REF_CHARS
+    return (type(value) is str and 0 < len(value) <= _MAX_REF_CHARS
             and value == value.strip()
             and not any(ord(ch) < 32 or ord(ch) == 0x7F for ch in value))
+
+
+def _scope_item_safe(item: object) -> bool:
+    """Relative, traversal-free, component-clean path-shaped scope item."""
+    if not _plain_ref(item):
+        return False
+    text: str = item  # type: ignore[assignment]
+    if text.startswith("/") or text.startswith("\\") or ":" in text:
+        return False
+    parts = text.replace("\\", "/").split("/")
+    return all(part not in ("", ".", "..") for part in parts)
 
 
 def _validate_shape(request: GatewayCommandRequest) -> None:
@@ -143,46 +169,80 @@ def _validate_shape(request: GatewayCommandRequest) -> None:
         raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
     if request.mutation_intent not in MutationIntent:
         raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
-    for field in ("repo_root", "branch", "head_sha"):
+    for field in _IDENTITY_FIELDS:
         if not _plain_ref(getattr(request, field, None)):
             raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
     scope = request.requested_scope
     if (not isinstance(scope, (tuple, list, frozenset))
-            or any(not _plain_ref(item) for item in scope)):
+            or any(not _scope_item_safe(item) for item in scope)):
         raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
-    if request.mutation_intent is MutationIntent.MUTATE:
-        # Read-only actions can never carry mutation authority.
-        if action in _READ_ONLY_ACTIONS:
-            raise _GatewayRuleError("GATEWAY_INTENT_ESCALATION")
+    effective_mutate = action in _MUTATE_ACTIONS
+    labeled_mutate = request.mutation_intent is MutationIntent.MUTATE
+    if effective_mutate != labeled_mutate:
+        # The caller's label contradicts the action's authority class:
+        # neither direction of relabeling may cross the boundary.
+        raise _GatewayRuleError("GATEWAY_INTENT_ESCALATION")
+    if labeled_mutate:
         if not _plain_ref(request.task_ref) or not _plain_ref(request.claim_ref):
             raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
-
-
-def _evidence_digest(request: GatewayCommandRequest, *, fence_ok: bool,
-                     lease_scope: Sequence[str]) -> str:
-    parts = [
-        OPERATOR_PROTOCOL_VERSION,
-        request.request.action.value,
-        request.mutation_intent.value,
-        request.repo_root, request.branch, request.head_sha,
-        request.task_ref, request.claim_ref,
-        ";".join(sorted(request.requested_scope)),
-        ";".join(sorted(lease_scope)),
-        "fence" if fence_ok else "nofence",
-    ]
-    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+    elif not isinstance(request.task_ref, str) or not isinstance(request.claim_ref, str):
+        # READ_ONLY still requires string fields (may be empty).
+        raise _GatewayRuleError("GATEWAY_REQUEST_MALFORMED")
 
 
 def _deny(request: GatewayCommandRequest, reason_code: str) -> GatewayAdmission:
+    # Defensive against a malformed/None outer request: never raise here.
     action = getattr(getattr(request, "request", None), "action", None)
     return GatewayAdmission(
         decision=GatewayDecision.DENY,
         reason_code=reason_code,
         action=action.value if isinstance(action, OperatorAction) else "",
-        task_ref=request.task_ref,
-        claim_ref=request.claim_ref,
+        task_ref=getattr(request, "task_ref", "") if isinstance(
+            getattr(request, "task_ref", None), str) else "",
+        claim_ref=getattr(request, "claim_ref", "") if isinstance(
+            getattr(request, "claim_ref", None), str) else "",
         evidence_digest="",
     )
+
+
+def _evidence_parts(request: GatewayCommandRequest, *, fence_ok: bool,
+                    lease_scope: Sequence[str]) -> list[Any]:
+    inner = request.request
+    return [
+        OPERATOR_PROTOCOL_VERSION,
+        inner.action.value,
+        request.mutation_intent.value,
+        request.repo_root, request.worktree, request.branch, request.head_sha,
+        request.task_ref, request.claim_ref, request.fence_ref,
+        inner.job_id, inner.operation_ref, inner.evidence_ref,
+        inner.checkpoint_ref, inner.work_order_ref, inner.project_id,
+        sorted(request.requested_scope),
+        sorted(lease_scope),
+        "fence" if fence_ok else "nofence",
+    ]
+
+
+def _evidence_digest(request: GatewayCommandRequest, *, fence_ok: bool,
+                     lease_scope: Sequence[str]) -> str:
+    # Canonical JSON serialization: every field present, string escaping
+    # prevents separator-injection collisions, sorted lists are stable.
+    payload = json.dumps(
+        _evidence_parts(request, fence_ok=fence_ok, lease_scope=lease_scope),
+        sort_keys=False, ensure_ascii=True, separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _scope_covers(pattern: object, item: str) -> bool:
+    """Component-boundary coverage; traversal was rejected at validation."""
+    if type(pattern) is not str or not _scope_item_safe(pattern):
+        return False  # hostile lease scope item never covers anything
+    if pattern == item:
+        return True
+    if pattern.endswith("/**"):
+        prefix = pattern[:-2]  # keep the trailing slash: "src/x/" boundary
+        return item.startswith(prefix)
+    return False
 
 
 def admit_command(
@@ -190,66 +250,91 @@ def admit_command(
 ) -> GatewayAdmission:
     """Admit or deny one command. Pure; never raises; zero side effects."""
     try:
-        _validate_shape(request)
+        return _admit_inner(request, authorities=authorities)
     except _GatewayRuleError as stop:
         return _deny(request, stop.reason_code)
     except Exception:
+        # Unknown malformed shape (including None/foreign objects): the
+        # outer boundary is fail-closed, never an escape.
         return _deny(request, "GATEWAY_REQUEST_MALFORMED")
 
-    intent = request.mutation_intent
+
+def _admit_inner(
+    request: GatewayCommandRequest, *, authorities: GatewayAuthorities,
+) -> GatewayAdmission:
+    _validate_shape(request)
     action: OperatorAction = request.request.action
 
-    if intent is MutationIntent.READ_ONLY:
-        # Read-only admission still binds identity so results correlate to an
-        # observed world, but touches no lease/fence/dedupe authority.
+    if action in _READ_ONLY_ACTIONS:
         digest = _evidence_digest(request, fence_ok=False, lease_scope=())
         return GatewayAdmission(
-            decision=GatewayDecision.ADMIT, reason_code="GATEWAY_ADMIT_READ_ONLY",
+            decision=GatewayDecision.ADMIT,
+            reason_code="GATEWAY_ADMIT_READ_ONLY",
             action=action.value, task_ref=request.task_ref,
             claim_ref=request.claim_ref, evidence_digest=digest)
 
-    # MUTATE path: every authority failure is a typed deny, never an escape.
+    # ---- MUTATE path: a callback that RAISES, or returns evidence whose
+    # processing itself raises, is GATEWAY_AUTHORITY_ERROR (WO row h);
+    # absent/stale-but-well-formed evidence gets its specific typed deny.
     try:
         lease = authorities.validate_lease(
             request.claim_ref, request.task_ref, request.requested_scope)
+        if isinstance(lease, LeaseEvidence):
+            # Touch every consumed field here so hostile evidence objects
+            # fail inside this boundary, not during later digest work.
+            _ = bool(lease.active), str(lease.task_ref), str(lease.claim_ref)
+            _ = tuple(lease.scope)
     except Exception:
-        lease = None
-    if lease is None:
+        return _deny(request, "GATEWAY_AUTHORITY_ERROR")
+    if not isinstance(lease, LeaseEvidence):
         return _deny(request, "GATEWAY_CLAIM_MISSING")
-    if not getattr(lease, "active", False):
+    if type(lease.active) is not bool:  # exact bool: "False"/1 never pass
         return _deny(request, "GATEWAY_CLAIM_STALE")
-    if (getattr(lease, "task_ref", None) != request.task_ref
-            or getattr(lease, "claim_ref", None) != request.claim_ref):
+    if not lease.active:
+        return _deny(request, "GATEWAY_CLAIM_STALE")
+    if (lease.task_ref != request.task_ref or lease.claim_ref != request.claim_ref):
         return _deny(request, "GATEWAY_TASK_MISSING")
-    lease_scope = tuple(getattr(lease, "scope", ()) or ())
-    if not any(_scope_covers(pattern, item)
-               for item in request.requested_scope
-               for pattern in lease_scope):
+    lease_scope = lease.scope
+    if (not isinstance(lease_scope, (tuple, list, frozenset))
+            or any(not _scope_item_safe(item) for item in lease_scope)):
+        return _deny(request, "GATEWAY_SCOPE_DRIFT")
+    # UNIVERSAL coverage: every requested item must be inside the lease.
+    if not all(any(_scope_covers(pattern, item) for pattern in lease_scope)
+               for item in request.requested_scope):
         return _deny(request, "GATEWAY_SCOPE_DRIFT")
 
     try:
         identity = authorities.observe_worktree(request.repo_root)
+        observed = {}
+        if isinstance(identity, Mapping):
+            for field in _IDENTITY_FIELDS:
+                observed[field] = identity.get(field)
     except Exception:
-        identity = None
+        # Hostile evidence (e.g. a mapping whose .get raises) is an
+        # authority-produced failure, not a drift observation.
+        return _deny(request, "GATEWAY_AUTHORITY_ERROR")
     if not isinstance(identity, Mapping):
         return _deny(request, "GATEWAY_IDENTITY_DRIFT")
-    if (identity.get("repo_root") != request.repo_root
-            or identity.get("branch") != request.branch
-            or identity.get("head_sha") != request.head_sha):
+    if any(not _plain_ref(observed[field]) for field in _IDENTITY_FIELDS):
+        return _deny(request, "GATEWAY_IDENTITY_DRIFT")
+    if any(observed[field] != getattr(request, field)
+           for field in _IDENTITY_FIELDS):
         return _deny(request, "GATEWAY_IDENTITY_DRIFT")
 
     try:
         dedupe = authorities.dedupe_decision(request.task_ref)
     except Exception:
-        dedupe = DuplicateDecision.BLOCKED_UNKNOWN
+        return _deny(request, "GATEWAY_AUTHORITY_ERROR")
     if dedupe is not DuplicateDecision.SAFE_TO_LAUNCH:
         # UNKNOWN / already-running / already-completed: never relaunch.
         return _deny(request, "GATEWAY_DUPLICATE_UNKNOWN")
 
+    if not _plain_ref(request.fence_ref):
+        return _deny(request, "GATEWAY_FENCE_MISSING")
     try:
         fence = authorities.fence_status(request.fence_ref)
     except Exception:
-        fence = None
+        return _deny(request, "GATEWAY_AUTHORITY_ERROR")
     if fence is None:
         return _deny(request, "GATEWAY_FENCE_MISSING")
     if fence is not FenceStatus.FENCE_HELD_HERE:
@@ -260,13 +345,3 @@ def admit_command(
         decision=GatewayDecision.ADMIT, reason_code="GATEWAY_ADMIT_MUTATE",
         action=action.value, task_ref=request.task_ref,
         claim_ref=request.claim_ref, evidence_digest=digest)
-
-
-def _scope_covers(pattern: str, item: str) -> bool:
-    """Bounded glob-free prefix match over path-shaped scope patterns."""
-    if pattern == item:
-        return True
-    if pattern.endswith("/**"):
-        prefix = pattern[:-3]
-        return item.startswith(prefix) and "/" in item[len(prefix):]
-    return False

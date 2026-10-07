@@ -232,17 +232,16 @@ def test_readonly_action_admits_without_lease_or_fence():
 
 # --- 4h: authority errors contained ----------------------------------------------
 
-@pytest.mark.parametrize("exc,expected", [
-    ("lease_exc", "GATEWAY_CLAIM_MISSING"),
-    ("identity_exc", "GATEWAY_IDENTITY_DRIFT"),
-    ("dedupe_exc", "GATEWAY_DUPLICATE_UNKNOWN"),
-    ("fence_exc", "GATEWAY_FENCE_MISSING"),
+@pytest.mark.parametrize("exc", [
+    "lease_exc", "identity_exc", "dedupe_exc", "fence_exc",
 ])
-def test_authority_exception_denies_without_escaping(exc, expected):
+def test_authority_exception_denies_without_escaping(exc):
     recorder = Recorder(**{exc: RuntimeError("authority exploded")})
     admission = admit_command(make_request(), authorities=recorder.bundle())
     assert admission.decision is GatewayDecision.DENY
-    assert admission.reason_code == expected
+    # Row h: a RAISING authority is AUTHORITY_ERROR, distinct from absent
+    # evidence (CLAIM_MISSING etc.).
+    assert admission.reason_code == "GATEWAY_AUTHORITY_ERROR"
 
 
 # --- 4k/5: purity + evidence binding ----------------------------------------------
@@ -262,12 +261,27 @@ def test_admission_is_pure_and_binds_exact_evidence():
 
 
 def test_admission_digest_changes_with_identity():
+    # Compare two ADMITs (a DENY digest is empty and proves nothing).
     recorder = Recorder()
     base = admit_command(make_request(), authorities=recorder.bundle())
-    other = admit_command(
-        make_request(head_sha="c" * 40, fence_ref="fence-2"),
-        authorities=Recorder(fence=FenceStatus.FENCE_HELD_HERE).bundle())
-    assert base.evidence_digest != other.evidence_digest
+    assert base.decision is GatewayDecision.ADMIT
+    identity_keys = ("head_sha", "worktree", "branch", "repo_root")
+    for overrides in ({"head_sha": "c" * 40}, {"fence_ref": "fence-2"},
+                      {"task_ref": "WO-P1-604"}, {"worktree": "A:/other"},
+                      {"requested_scope": ("src/a_conductor/a.py",
+                                           "src/a_conductor/b.py")}):
+        observed = dict(IDENTITY)
+        for key in identity_keys:
+            if key in overrides:
+                observed[key] = overrides[key]
+        lease = LeaseEvidence(
+            task_ref=overrides.get("task_ref", "WO-P1-603"),
+            claim_ref="claim-1", scope=("src/a_conductor/**",), active=True)
+        other_recorder = Recorder(identity=observed, lease=lease)
+        other = admit_command(make_request(**overrides),
+                              authorities=other_recorder.bundle())
+        assert other.decision is GatewayDecision.ADMIT, overrides
+        assert base.evidence_digest != other.evidence_digest, overrides
 
 
 def test_no_secret_fields_anywhere():
@@ -287,3 +301,144 @@ def test_imports_are_pure():
     for name, value in vars(module).items():
         if isinstance(value, type(sys)):  # a module object
             assert value.__name__ not in banned
+
+# --- Sol round-1 findings (RED before repair) ----------------------------------
+
+def test_mutate_action_labeled_readonly_denies_escalation():
+    """The authority class is derived from the action, never the label."""
+    recorder = Recorder(lease=None, fence=None)
+    admission = admit_command(
+        make_request(action=OperatorAction.JOB_EXECUTE,
+                     mutation_intent=MutationIntent.READ_ONLY,
+                     claim_ref="", fence_ref="", requested_scope=()),
+        authorities=recorder.bundle())
+    assert admission.reason_code == "GATEWAY_INTENT_ESCALATION"
+    assert recorder.calls == []
+
+
+def test_scope_coverage_is_universal_not_existential():
+    recorder = Recorder()
+    admission = admit_command(
+        make_request(requested_scope=("src/a_conductor/foo.py",
+                                      "secrets/key")),
+        authorities=recorder.bundle())
+    assert admission.reason_code == "GATEWAY_SCOPE_DRIFT"
+
+
+@pytest.mark.parametrize("evil_item", [
+    "src/a_conductor_evil/key",                     # sibling prefix
+    "src/a_conductor/../../secrets/key",            # traversal
+    "/absolute/path.py",                            # absolute
+    "src/a_conductor",                              # bare prefix
+])
+def test_component_boundary_and_traversal_rejected(evil_item):
+    recorder = Recorder()
+    admission = admit_command(
+        make_request(requested_scope=(evil_item,)),
+        authorities=recorder.bundle())
+    assert admission.reason_code in ("GATEWAY_REQUEST_MALFORMED",
+                                     "GATEWAY_SCOPE_DRIFT")
+
+
+def test_worktree_identity_drift_denies():
+    recorder = Recorder(identity=dict(IDENTITY, worktree="A:/other"))
+    admission = admit_command(make_request(), authorities=recorder.bundle())
+    assert admission.reason_code == "GATEWAY_IDENTITY_DRIFT"
+
+
+def test_identity_without_worktree_key_denies():
+    partial = {k: v for k, v in IDENTITY.items() if k != "worktree"}
+    recorder = Recorder(identity=partial)
+    admission = admit_command(make_request(), authorities=recorder.bundle())
+    assert admission.reason_code == "GATEWAY_IDENTITY_DRIFT"
+
+
+def test_digest_has_no_separator_collision():
+    a = admit_command(
+        make_request(requested_scope=("src/a_conductor/a;src/a_conductor/b",)),
+        authorities=Recorder().bundle())
+    b = admit_command(
+        make_request(requested_scope=("src/a_conductor/a",
+                                      "src/a_conductor/b")),
+        authorities=Recorder().bundle())
+    for admission in (a, b):
+        assert admission.decision is GatewayDecision.ADMIT
+    assert a.evidence_digest != b.evidence_digest
+
+
+def test_digest_binds_operator_request_fields():
+    base = admit_command(make_request(), authorities=Recorder().bundle())
+    with_job = make_request()
+    object.__setattr__(with_job.request, "job_id", "job-77")
+    other = admit_command(with_job, authorities=Recorder().bundle())
+    assert other.decision is GatewayDecision.ADMIT
+    assert base.evidence_digest != other.evidence_digest
+
+
+def test_digest_binds_readonly_task_claim_antiseparators():
+    sep = chr(0x1F)
+    a = admit_command(
+        make_request(action=OperatorAction.STATUS,
+                     mutation_intent=MutationIntent.READ_ONLY,
+                     task_ref="a" + sep + "b", claim_ref="c", fence_ref="",
+                     requested_scope=()),
+        authorities=Recorder().bundle())
+    b = admit_command(
+        make_request(action=OperatorAction.STATUS,
+                     mutation_intent=MutationIntent.READ_ONLY,
+                     task_ref="a", claim_ref="b" + sep + "c", fence_ref="",
+                     requested_scope=()),
+        authorities=Recorder().bundle())
+    assert a.evidence_digest != b.evidence_digest
+
+
+def test_non_bool_lease_active_denies_stale():
+    recorder = Recorder(lease=LeaseEvidence(
+        task_ref="WO-P1-603", claim_ref="claim-1",
+        scope=("src/a_conductor/**",), active="False"))
+    admission = admit_command(make_request(), authorities=recorder.bundle())
+    assert admission.reason_code == "GATEWAY_CLAIM_STALE"
+
+
+def test_blank_fence_ref_denies_missing():
+    recorder = Recorder()
+    admission = admit_command(make_request(fence_ref=" "),
+                              authorities=recorder.bundle())
+    assert admission.reason_code == "GATEWAY_FENCE_MISSING"
+
+
+def test_hostile_lease_scope_item_covers_nothing():
+    recorder = Recorder(lease=LeaseEvidence(
+        task_ref="WO-P1-603", claim_ref="claim-1",
+        scope=("",), active=True))
+    admission = admit_command(make_request(), authorities=recorder.bundle())
+    assert admission.reason_code == "GATEWAY_SCOPE_DRIFT"
+
+
+def test_none_outer_request_denies_malformed_without_escaping():
+    admission = admit_command(None, authorities=Recorder().bundle())
+    assert admission.decision is GatewayDecision.DENY
+    assert admission.reason_code == "GATEWAY_REQUEST_MALFORMED"
+
+
+def test_readonly_none_task_ref_denies_malformed():
+    admission = admit_command(
+        make_request(action=OperatorAction.STATUS,
+                     mutation_intent=MutationIntent.READ_ONLY,
+                     task_ref=None, claim_ref="", fence_ref="",
+                     requested_scope=()),
+        authorities=Recorder().bundle())
+    assert admission.reason_code == "GATEWAY_REQUEST_MALFORMED"
+
+
+def test_raising_identity_mapping_denies_contained():
+    class RaisingMapping(dict):
+        def get(self, *args):
+            raise RuntimeError("hostile mapping")
+
+    recorder = Recorder(identity=RaisingMapping(IDENTITY))
+    admission = admit_command(make_request(), authorities=recorder.bundle())
+    assert admission.decision is GatewayDecision.DENY
+    # Hostile evidence that raises during processing is an authority
+    # failure, not an observed drift.
+    assert admission.reason_code == "GATEWAY_AUTHORITY_ERROR"
