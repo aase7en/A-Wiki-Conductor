@@ -1,5 +1,17 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-08 (evening) — INSTALL-1 slice E shipped (installer entry) — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` verified PAUSED (enabled=false; SELF_UPDATE_UNSUPPORTED — this session's tool surface exposes only CronList; HUMAN_ACTION_REQUIRED stated once: re-enable the SAME task at 30-min in ZCode Automations UI; adaptive inheritance contract text lives in the 2026-10-08 slice-C section below and in this file's policy record).
+
+- Mains: A-Wiki-Conductor `970aac58507d1ee3b9e26219d81dfd53615f98bd` (this checkpoint advances it); **SunDayRemoteMCP `9923635a114dada619177d8a0cc81f193cc9aa16`** (advanced by INSTALL-1 slice E). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice E** (#607 claim `WO-P1-607-INSTALL1-SOURCE-E-WIN-001`, comment 6063608081; released 6064384366): SRM PR #10 merged expected-head `b86c79e` → main `9923635`. New `src/sunday/installer.ts` (`runSundayInstaller`: idempotent validated writes → doctor/pairing over read-back policy-validated post-callback persisted evidence; typed outcomes; READY only on policy-valid config + valid install marker + upstream true + PAIRED; consent-first pairing next-actions) + `src/npm-scripts/sunday-install.ts` + `device:sunday:install` script; additive inert validators `persistedInstallValid`/`persistedInstallMarkerValid` in agent-lifecycle (pre-existing exports unchanged).
+- **Review record (Codex gpt-6.1-sol exact-SHA, 5 rounds):** r1–r4 FAIL→real fixes (inert options incl. revoked proxies + accessor fields; evidence captured AFTER the caller's upstream callback; persisted config validated against the same install policy; inert exported validators; install.json recheck — deleted/corrupt marker → INSTALL_MARKER_INVALID matching the startup gate); r5 `b86c79e` **PASS** (no remaining deterministic bypass). Residual (reviewer-noted, documented): multi-file evidence reads are snapshot-limited (concurrent replacement not transactional; OS-lock class, tracked with the slice-D residual). Full table: SRM PR #10 comment 6064365457.
+- **INSTALL-1 cumulative: A+B+C+D+E all merged.** The Windows-first path is now: `npm run device:sunday:install` (typed install/pairing/doctor) → pairing flow → `SUNDAY_AGENT=1 npm run device:start` (gate: doctor+pairing+autostart, pid-claim admission). SRM local baseline 81/88 (7 pre-existing + flake), zero new.
+- Human gates pending (do not re-ask; packets posted): ① A-Wiki PR #67 merge decision @ `c1bf7ea4`; ② WO194→#285→#293 disposition. Wake re-enable (Automations UI) also human — stated once above.
+- **NEXT_READY:** read-smoke integration + deterministic smoke wiring (slice F) toward CUTOVER-RO canary prerequisites; pairing-code transport UX; then Track B convergence (#526 + #495 + ACT-1 integration).
+
+
 ## 2026-10-08 (latest) — INSTALL-1 slice D shipped (agent write lifecycle) — CURRENT
 
 > Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` active (15-min); STEER self-maintenance upgrade BLOCKED_AT_TOOL_SURFACE (see prior section + this file's policy record).
