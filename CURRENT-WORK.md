@@ -1,5 +1,18 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-08 (latest) — INSTALL-1 slice D shipped (agent write lifecycle) — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` active (15-min); STEER self-maintenance upgrade BLOCKED_AT_TOOL_SURFACE (see prior section + this file's policy record).
+
+- Mains: A-Wiki-Conductor `fc9af9e6802c68b91e07abc2bcf46766b064ba5e` (this checkpoint advances it); **SunDayRemoteMCP `aa47bb2a5d7cc1d472cc5ca63e9b66b3b650e5f9`** (advanced by INSTALL-1 slice D). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice D** (#607 claim `WO-P1-607-INSTALL1-SOURCE-D-WIN-001`, comment 6055042606; released 6058553015): SRM PR #9 merged expected-head `680765c` → main `aa47bb2`. New `src/sunday/agent-lifecycle.ts`: `initializeSundayInstall` (validated atomic config.json+install.json writes; allowlist clean-by-construction), `acquireAgentPid`/`releaseAgentPid`(+Sync) single-ownership pid claim (wx-exclusive create for MISSING; EEXIST loser typed-refused; verify-after-publish; own-only release), `createSundayAgentGateFactory` (admission ⇔ pid claim verifiably held) wired into `--sunday-agent`/`SUNDAY_AGENT=1` with `releaseSync` on exit. `MCPDevice` class unchanged.
+- **Review record (Codex gpt-6.1-sol exact-SHA, 4 rounds):** r1–r3 FAIL→real fixes (inert-input discipline incl. revoked proxies; wx-exclusive acquisition; tmp self-cleanup; header accuracy); r4 `680765c` **PASS** within the stated cooperating-process threat model; 3 residuals ACCEPTED-AND-DOCUMENTED in the module header (simultaneous stale-dead-owner reclaim window; interrupted-create junk→typed manual recovery; rogue in-process writers out of model). Caveat: reviewer ran as static GitHub-source review (alpha Codex local sandbox/file tools broken); local suites at exact head are the execution evidence. Full table: SRM PR #9 comment 6058542211.
+- **Codex binary moved again:** current `C:\Users\aase7en\AppData\Local\OpenAI\Codex\bin\9691020b546a15b2\codex.exe` (0.162.0-alpha.2; the previous 5ea220ae823df3d7 dir no longer exists). When its local tools fail, GitHub-source static review mode works.
+- **INSTALL-1 cumulative:** slices A (doctor/read-smoke) + B (pairing/autostart) + C (startup gate) + D (write lifecycle) all merged. SRM local full-suite baseline 79/87 (7 pre-existing local failures reproduce on clean main + 1 known ESRCH flake); zero new failures introduced.
+- Human gates pending (do not re-ask; packets posted): ① A-Wiki PR #67 merge decision @ `c1bf7ea4`; ② WO194→#285→#293 disposition.
+- **NEXT_READY:** INSTALL-1 slice E — installer-entry UX surface (npm script/CLI wrapping `initializeSundayInstall` + pairing flow + first-run doctor), then read-smoke wiring toward CUTOVER-RO canary prerequisites; follow-up: OS-lock-based stale-reclaim exclusivity decision. Track B (#526 + #495 + ACT-1 integration) when a lane frees.
+
+
 ## 2026-10-08 (latest) — INSTALL-1 slice C shipped (agent-startup gate wired) — CURRENT
 
 > Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` active (15-min); STEER self-maintenance upgrade recorded below.
