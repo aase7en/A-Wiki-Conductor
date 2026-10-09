@@ -1,5 +1,16 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-09 — INSTALL-1 slice F shipped (deterministic read canary); wake repaired (Supervisor v2 active) — CURRENT
+
+> Cross-req projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` REPAIRED via human UI action and verified live: **enabled/active, 30-minute cadence, Adaptive Roadmap Supervisor v2 prompt persisted (incl. self-update inheritance contract), no duplicate**. Session tool surface still exposes only CronList ⇒ SELF_UPDATE_UNSUPPORTED for agent-side edits (unchanged, documented).
+
+- Mains: A-Wiki-Conductor `75365ad7fc88b06c5223a5f5063851e676adaa03` (this checkpoint advances it); **SunDayRemoteMCP `bb48822cc67506b9330fbd94b11774cde68955cd`** (advanced by INSTALL-1 slice F). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice F** (#607 claim `WO-P1-607-INSTALL1-SOURCE-F-WIN-001`, comment 6073618425; released 6074110782): SRM PR #11 merged expected-head `c59157d` → main `bb48822`. New `src/sunday/read-canary.ts` + `device:sunday:smoke` CLI — the CUTOVER-RO deterministic read canary: persisted policy-validated allowlist authority, strictly-inside target gating, both probe paths gated before real probe selection (zero real probes on every denial path), payload never in results, exit 0 only on PASS. Review 3 rounds (r1 inert gate-only ping; r2 platform-independent listDir derivation + supplied-ping validation + runner-safe CLI rows) → r3 PASS; residual: lexical-not-physical containment (frozen slice-A policy, tracked).
+- **INSTALL-1 cumulative: A+B+C+D+E+F merged.** Windows-first path: `device:sunday:install` → pairing → `SUNDAY_AGENT=1 device:start` (gate + pid claim) → `device:sunday:smoke` (read canary). SRM baseline 82/89 (7 pre-existing; supervisor passed last run).
+- Human gates pending (do not re-ask; packets posted): ① A-Wiki PR #67 merge @ `c1bf7ea4`; ② WO194→#285→#293 disposition.
+- **NEXT_READY:** CUTOVER-RO prerequisites — canary procedure evidence on a real paired machine + exact routing review; then Track B convergence (#526 + #495 + ACT-1 integration → CUTOVER-MUTATE); Track C #341 after. Follow-ups tracked: physical/symlink confinement; OS-lock stale-reclaim + multi-file snapshot transactionality; drive-case/lastSlash canary rows.
+
+
 ## 2026-10-08 (evening) — INSTALL-1 slice E shipped (installer entry) — CURRENT
 
 > Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` verified PAUSED (enabled=false; SELF_UPDATE_UNSUPPORTED — this session's tool surface exposes only CronList; HUMAN_ACTION_REQUIRED stated once: re-enable the SAME task at 30-min in ZCode Automations UI; adaptive inheritance contract text lives in the 2026-10-08 slice-C section below and in this file's policy record).
