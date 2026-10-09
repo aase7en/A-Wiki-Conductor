@@ -1,5 +1,17 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-09 (later) — INSTALL-1 slice G shipped (CUTOVER-RO procedure + real-machine evidence) — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake `automation-c872bd35` active @ 30-min, Supervisor v2 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits; prompt hints STALE_MINOR — recover live truth per §3).
+
+- Mains: A-Wiki-Conductor `388975bf0f64d795d0c56758f8ce3ac73c1dc67a` (this checkpoint advances it); **SunDayRemoteMCP `4bbd682ee5faa528f1b1a7cf5486354ddcbf677a`** (advanced by INSTALL-1 slice G). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice G** (#607 claim `WO-P1-607-INSTALL1-SOURCE-G-WIN-001` 6074850454 + scope amendment 6074861771; released 6075812988): SRM PR #12 merged expected-head `21a3533` → main `4bbd682`. New `docs/cutover-ro-canary-procedure.md` (typed PASS criteria per step; enrollment HUMAN by design; evidence template; remaining gates + residuals stated precisely). Real-machine evidence (Windows 11, temp root): install `INSTALLED_PAIRING_REQUIRED` w/ upstream OK (exit 1 correct), `--no-upstream` → `DOCTOR_UNKNOWN` fail-closed, canary `READ_CANARY_PASS` exit 0 / `OUTSIDE_ALLOWLIST` exit 1. **Genuine defect found & fixed:** Windows libuv assertion crash when the CLI's undici fetch + AbortSignal.timeout raced hard `process.exit()` → `process.exitCode` + drain (both CLIs; contract re-verified). QA 2 rounds → PASS.
+- **INSTALL-1 cumulative: A–G merged.** Full Windows-first path with procedure + machine-verified evidence: install → enroll(HUMAN) → verify → gated start → read canary.
+- **CUTOVER-RO remaining:** ① steps 2–4 evidence on a real enrolled machine (**HUMAN action: enrollment browser consent + real token** — stated once, not re-asked); ② exact routing review (Track B); ③ #495 multi-device prerequisites.
+- Human gates pending (do not re-ask): ① A-Wiki PR #67 merge @ `c1bf7ea4`; ② WO194→#285→#293 disposition.
+- **NEXT_READY:** with INSTALL-1's automatable surface complete and CUTOVER-RO gated on human enrollment, open **Track B** convergence: #526 canonical mutation admission + exact worktree binding (recover accepted ACT-1 boundary on AWC main), then #495 generation/idempotency. Follow-ups tracked: physical/symlink confinement; OS-lock stale-reclaim + snapshot transactionality; drive-case/lastSlash canary rows.
+
+
 ## 2026-10-09 — INSTALL-1 slice F shipped (deterministic read canary); wake repaired (Supervisor v2 active) — CURRENT
 
 > Cross-req projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` REPAIRED via human UI action and verified live: **enabled/active, 30-minute cadence, Adaptive Roadmap Supervisor v2 prompt persisted (incl. self-update inheritance contract), no duplicate**. Session tool surface still exposes only CronList ⇒ SELF_UPDATE_UNSUPPORTED for agent-side edits (unchanged, documented).
