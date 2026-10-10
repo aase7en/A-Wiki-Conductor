@@ -1,5 +1,16 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-12 — SEM-4d keyed session reuse shipped after 2-round review; SEM-4 COMPLETE; wake upgraded to Supervisor v4 — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer. Wake prompt upgraded in place to **Supervisor v4** (single-flight policy; recommended 4-hour cadence; agent-side enforcement remains SCHEDULER_SINGLE_FLIGHT_UNSUPPORTED / SELF_UPDATE_UNSUPPORTED — CronList-only surface).
+
+- Mains: A-Wiki-Conductor `307159c08fb345d16d48a35748c6443181d0d6ae` (this checkpoint advances it); **SunDayRemoteMCP `f4bdd57465e79874eb3c371b4b0602729a241467`** (advanced by #341 SEM-4d). Post-main codespell green on both.
+- **#341 SEM-4d** (claim on AWC #341 comment 6099674592; released 6100476814): SRM PR #20 merged expected-head `dab8dfb` → main `f4bdd57`. Keyed session reuse in the semantic MCP layer: LRU (max 8) + TTL (10 min, memory bound only), content-addressed validity — reuse ONLY while every file's current disk byte-hash equals the captured hash; deleted primaries sweep by absolute path; raced installs dispose losers; no mid-flight resurrection; no editor seam (authorized-transition path unreachable). Measured: cold symbols ~1597ms → cache-hit ~761ms (~2.1x; captured output in docs/semantic-efficiency-evidence.md). semanticSessionStats() + counter-resetting disposeAllSemanticSessions() exported. CON-DIAG-1 diagnostics conformance row. Review 2 exact-SHA rounds (r1 FAIL deleted-primary retention/raced-install leak/resurrection/weak counters; r2 PASS @ `dab8dfb`; record: SRM PR #20 comment 6100476107). 17/17 + 10/10 + full regression; tsc + codespell clean.
+- **Track C: SEM-4 COMPLETE as planned (0/1a/1b/2/3a/3b/4a/4b/4c/4d)** — provider-neutral engine + real TypeScript provider + seven read-only MCP tools + conformance + efficiency evidence + reuse amortization. Folded follow-ups (await a genuine dependency/risk boundary per the steer): merged-declaration edge completeness, cross-file merged identity, overflow-eviction counter coverage.
+- **PILOT-FIRST status:** unchanged — Pilot acceptance (2)(3)(5) sit behind human gates ③ enrollment + ④ WO-259/260 ratification; ① PR #67 @ c1bf7ea4 + ② #285/#293 upstream; (1)(4)(6) code paths exist, real-machine proof pending; (7) pending real-machine results.
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+
+
 ## 2026-10-11 (night) — SEM-4c diagnostics surfacing shipped after 2-round review; PILOT-FIRST steer re-verified — CURRENT
 
 > Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer (re-delivered 2026-10-11 at a verified idle boundary and re-absorbed; Track C runs as the independent autonomous lane while the Pilot critical path stays human-gated). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
