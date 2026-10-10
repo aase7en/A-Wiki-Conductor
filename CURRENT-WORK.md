@@ -1,5 +1,16 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-10 (later) — SEM-2 guarded mutation ops shipped after 7-round review — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
+
+- Mains: A-Wiki-Conductor `6495567afe3b943b2f33f028993e4a267868e30e` (this checkpoint advances it); **SunDayRemoteMCP `60c8ebf184c892b20301f66dd1ada5e4d093e3c7`** (advanced by #341 SEM-2). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **#341 SEM-2** (claim `WO-341-SEM-2-GUARDED-MUTATION-WIN-001` 6090613860; released 6093376437): SRM PR #14 merged expected-head `df22bc5` → main `60c8ebf`. Guarded mutation ops at the pure layer: `SemanticFileEditor` injected seam (absent → SEMANTIC_CAPABILITY_MISSING) + `replaceSymbol`/`insertBeforeSymbol`/`insertAfterSymbol`/`renameSymbol` sharing one guard chain — validated+owned caller identity → PRE probe → re-resolve with EXACTLY-ONE identity match (ambiguous → drift, zero edits) → owned planned range/text → MID probe → ONE edit via a once-captured capability receiving a DETACHED owned target → POST probe against an untouched baseline. Zero edits on any pre-edit drift; typed failure always; rename = whole-identifier occurrences only. Review 7 exact-SHA rounds → r7 PASS (record: PR #14 comment 6093376272); residual documented: post-edit malformed/drift reports typed failure after an applied edit — rollback is the editor adapter's contract (SEM-3). 36+58+SEM-1a+types+6 INSTALL suites green.
+- **Track C progress:** SEM-0 ✅ SEM-1a ✅ SEM-1b ✅ **SEM-2 ✅** → **NEXT_READY: SEM-3 real LSP provider** (TypeScript first; independent standard-LSP only — GPL guard: no Serena code, SolidLSP only after provenance review; injectable keeps pure layers provider-neutral). Then SEM-4 diagnostics + MCP wiring + conformance/efficiency evidence.
+- Track A: INSTALL-1 A–G merged; CUTOVER-RO gated on HUMAN enrollment (+ exact routing review → Track B). Track B: Phase-0 done (#526 c6076837022); mutation gated on WO-P1-259/260 integrator ratification (requested once).
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+
+
 ## 2026-10-10 — SEM-1b call hierarchy shipped after 14-round review — CURRENT
 
 > Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
