@@ -1,5 +1,16 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-11 (night) — SEM-4c diagnostics surfacing shipped after 2-round review; PILOT-FIRST steer re-verified — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer (re-delivered 2026-10-11 at a verified idle boundary and re-absorbed; Track C runs as the independent autonomous lane while the Pilot critical path stays human-gated). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
+
+- Mains: A-Wiki-Conductor `d0a7a2728bc4676a04a9ee882042efe0084d2c96` (this checkpoint advances it); **SunDayRemoteMCP `8291fa03ef3df8c0b4ce769a0ff83c206d97d178`** (advanced by #341 SEM-4c). Post-main codespell green on both.
+- **#341 SEM-4c** (claim on AWC #341 comment 6098850352; released 6099041658): SRM PR #19 merged expected-head `5989e6d` → main `8291fa0`. TypeScript diagnostics on the semantic surface: additive SEM-0 `SemanticDiagnostic` contract (range, severity error/warning/suggestion, bounded code + message, fail-closed validator, count bound 1000 typed); `TypeScriptSemanticAdapter.diagnostics` (syntactic + semantic merged, whole-body typed containment, breadth-forward message-chain flattening); `sunday_semantic_diagnostics` read-only MCP tool through the routed adapter (payload cap 200 + truncated + engineCode; per-call session; engine surface untouched by design). Review 2 exact-SHA rounds (r1 FAIL chain-flattening/containment/bound-assertions; r2 PASS @ `5989e6d`; record: SRM PR #19 comment 6099040895). 16/16 + full regression; tsc + codespell clean. Provenance: public typescript API + SEM contracts only.
+- **Track C progress:** SEM-0 ✅ 1a ✅ 1b ✅ 2 ✅ 3a ✅ 3b ✅ 4a ✅ 4b ✅ **4c ✅** → NEXT_READY: **SEM-4d** — keyed session reuse (under the recorded constraints: byte-hash identity, authorized-transition snapshot contract, program/disk consistency) and/or diagnostics conformance coverage; folded: merged-declaration completeness, cross-file merged identity.
+- **PILOT-FIRST status:** steer re-delivered at the SEM-4b→4c boundary and re-verified live: PR #67 OPEN @ c1bf7ea4; #285/#293 OPEN; #526 latest comment still Phase-0 (no ratification); no enrollment evidence. Pilot acceptance (2)(3)(5) sit behind human gates ③+④; (1)(4)(6) code paths exist, real-machine proof pending; (7) pending real-machine results.
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+
+
 ## 2026-10-11 (later) — SEM-4b conformance harness + efficiency evidence shipped after 4-round review — CURRENT
 
 > Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer (Track C runs as the independent autonomous lane while the Pilot critical path stays human-gated). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
