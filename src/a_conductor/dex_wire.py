@@ -7,25 +7,34 @@ Orchestrates the ACCEPTED foundations over an injectable transport port:
     decode_collected_evidence (+generation agreement) → idempotent receipt
     (SQLiteExecutionStore).
 
-Fail-closed posture: admission denial happens BEFORE any dispatch; an
-ambiguous or throwing dispatch FENCES the identity (later calls return
-AMBIGUOUS without re-dispatch — reconciliation is an explicit typed
-state, never a silent retry); receipt-state lookups never fail open; a
-receipt-store conflict propagates typed instead of masking as duplicate
-success.
+Fail-closed posture: admission denial happens BEFORE any dispatch; each
+identity is serialized by a per-identity lock held from the fence check
+through receipt persistence, so concurrent run_attempt calls cannot
+double-dispatch (the loser observes the receipt, or the ambiguity fence);
+an ambiguous/throwing dispatch FENCES the identity permanently (typed
+AMBIGUOUS, never a silent retry); a collect failure after a dispatched
+attempt also fences the identity (re-dispatch would duplicate substrate
+effects — reconciliation is an explicit typed state); receipt-state
+lookups never fail open; a receipt-store conflict on ANY immutable field
+propagates typed instead of masking as duplicate success.
 
-Honest limitations (successor slice DEX-2d, per WO-612): the dispatch
-fence and admission decisions are in-process; a crash between dispatch
-and receipt leaves reconciliation to the durable store + substrate truth
-(there is NO cross-restart at-most-once fence in this slice — the
-substrate scope-conflict behavior narrows but does not eliminate double
-dispatch; a durable dispatch journal requires its own authority decision).
+Honest limitations — DEFERRED to successor slice DEX-2d (WO-612 §Limitations):
+  1. Durable admission journal (decisions/fences are in-process only).
+  2. Cross-restart at-most-once dispatch fence (crash between dispatch
+     and receipt relies on substrate scope-conflict truth + manual
+     reconciliation; this wire adds no durable fence).
+  3. Contract §6 same-execution retry model (new attempts require new
+     execution identities in this slice).
+  4. Contract §2 simultaneous-dispatch fencing beyond one process.
+  5. Contract §5 TERMINAL_UNHARVESTED blocking on admission.
+
 No new authority is created here: admission validity comes from
 AdmissionIssuer + the caller-owned ClaimView; transport is a caller
 port; receipts are stamped only through the accepted durable store.
 """
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -72,11 +81,12 @@ class WireOutcome:
 
 
 class AdmissionReceiptWire:
-    """One orchestrator instance over one store. Per-identity state:
+    """One orchestrator instance over one store.
 
-    - decided-admitted + receipt stored  -> DUPLICATE_ALREADY_COMPLETED
-    - dispatch returned/raised ambiguous -> AMBIGUOUS forever (fence)
-    - dispatch in flight for the identity -> AMBIGUOUS (concurrency fence)
+    Per-identity serialization: a per-identity lock is taken BEFORE the
+    fence check and held through receipt persistence, so two concurrent
+    run_attempt calls for the same identity cannot both dispatch — the
+    second observes the receipt (DUPLICATE) or the ambiguity fence.
     """
 
     def __init__(
@@ -90,7 +100,16 @@ class AdmissionReceiptWire:
         self._store = store
         self._transport = transport
         self._fenced: set[tuple[str, str]] = set()
-        self._inflight: set[tuple[str, str]] = set()
+        self._locks_guard = threading.Lock()
+        self._locks: dict[tuple[str, str], threading.Lock] = {}
+
+    def _identity_lock(self, identity: tuple[str, str]) -> threading.Lock:
+        with self._locks_guard:
+            lock = self._locks.get(identity)
+            if lock is None:
+                lock = threading.Lock()
+                self._locks[identity] = lock
+            return lock
 
     def run_attempt(
         self,
@@ -107,29 +126,27 @@ class AdmissionReceiptWire:
         except AdmissionDenied as denial:
             return self._denied(binding, denial)
 
-        # 2. Ambiguity fence: an identity whose dispatch was ambiguous (or
-        # is in flight right now) NEVER dispatches again from this wire.
-        if identity in self._fenced or identity in self._inflight:
+        # 2. Serialize the identity from fence-check through receipt.
+        with self._identity_lock(identity):
+            return self._attempt_locked(binding, admission, identity)
+
+    def _attempt_locked(
+        self,
+        binding: DexBindingIdentity,
+        admission,
+        identity: tuple[str, str],
+    ) -> WireOutcome:
+        # 3. Ambiguity fence: an identity whose dispatch was ambiguous can
+        # NEVER dispatch again from this wire.
+        if identity in self._fenced:
             return self._ambiguous(binding, "identity is fenced as ambiguous pending reconciliation")
 
-        # 3. Durable precondition: receipt persistence requires an existing
-        # execution record. Fail closed BEFORE dispatch when absent —
-        # otherwise the attempt would dispatch and then lose its receipt.
-        try:
-            self._store.list_events(binding.execution_id)
-        except ExecutionStoreError as err:
-            if "EXECUTION_NOT_FOUND" in str(err) or "not found" in str(err).lower():
-                raise WireError(
-                    WIRE_EXECUTION_RECORD_MISSING,
-                    f"execution record missing for {binding.execution_id}; create it via the authority path first",
-                ) from err
-            raise WireError(WIRE_STATE_UNAVAILABLE, f"execution state unreadable: {err}") from err
-        except Exception as err:  # noqa: BLE001 - typed containment, never fail-open
-            raise WireError(WIRE_STATE_UNAVAILABLE, f"execution state unreadable: {err}") from err
+        # 4. Durable precondition: receipt persistence requires an existing
+        # execution record. Fail closed BEFORE dispatch when absent.
+        self._probe_execution_record(binding)
 
-        # 4. Durable duplicate check (fail-closed: state errors raise, they
-        # never masquerade as "no receipt yet").
-        existing = self._find_receipt(binding)
+        # 5. Durable duplicate check (typed containment — never fail open).
+        existing = self._find_receipt_contained(binding)
         if existing is not None:
             return WireOutcome(
                 execution_id=binding.execution_id,
@@ -139,8 +156,8 @@ class AdmissionReceiptWire:
                 detail="receipt already recorded for this identity",
             )
 
-        # 5. ONE dispatch, fenced against exceptions and malformed status.
-        self._inflight.add(identity)
+        # 6. ONE dispatch; exceptions and non-DISPATCHED statuses both
+        # permanently fence the identity (typed AMBIGUOUS, no retry).
         try:
             try:
                 dispatch_result = self._transport.dispatch(binding)
@@ -151,17 +168,24 @@ class AdmissionReceiptWire:
             if status != "DISPATCHED":
                 self._fenced.add(identity)
                 return self._ambiguous(binding, f"dispatch status was not DISPATCHED: {status!r}")
-        finally:
-            self._inflight.discard(identity)
+        except WireError:
+            raise
+        except Exception as err:  # noqa: BLE001 - belt/braces containment
+            self._fenced.add(identity)
+            return self._ambiguous(binding, f"dispatch failed unexpectedly: {err}")
 
-        # 6. Collect raw evidence bytes from the substrate.
+        # 7. Collect. A failure AFTER a dispatched attempt fences the
+        # identity too: re-dispatching would duplicate substrate effects.
         try:
             raw = self._transport.collect(binding.execution_id, binding.attempt_id)
         except Exception as err:  # noqa: BLE001 - typed containment
-            raise WireError(WIRE_COLLECT_UNAVAILABLE, f"collect failed: {err}") from err
+            self._fenced.add(identity)
+            raise WireError(
+                WIRE_COLLECT_UNAVAILABLE,
+                f"collect failed after dispatch; identity fenced pending reconciliation: {err}",
+            ) from err
 
-        # 7. Strict decode against the binding's expected identities, plus
-        # generation agreement with the frozen admission decision.
+        # 8. Strict decode + generation agreement with the frozen decision.
         try:
             evidence = decode_collected_evidence(
                 raw,
@@ -172,14 +196,18 @@ class AdmissionReceiptWire:
                 expected_execution_sha=binding.execution_sha,
             )
         except DexEvidenceError as err:
+            # Evidence about a dispatched attempt failed ingest: fence so a
+            # re-run cannot dispatch again and produce another effect.
+            self._fenced.add(identity)
             return WireOutcome(
                 execution_id=binding.execution_id,
                 attempt_id=binding.attempt_id,
                 receipt_id=None,
                 status="EVIDENCE_REJECTED",
-                detail=f"{WIRE_EVIDENCE_REJECTED}: {err}",
+                detail=f"{WIRE_EVIDENCE_REJECTED}: {err} (identity fenced)",
             )
         if evidence.claim_generation != admission.claim_generation:
+            self._fenced.add(identity)
             return WireOutcome(
                 execution_id=binding.execution_id,
                 attempt_id=binding.attempt_id,
@@ -187,11 +215,11 @@ class AdmissionReceiptWire:
                 status="EVIDENCE_REJECTED",
                 detail=(
                     f"{WIRE_GENERATION_MISMATCH}: evidence generation {evidence.claim_generation} "
-                    f"!= admitted generation {admission.claim_generation}"
+                    f"!= admitted generation {admission.claim_generation} (identity fenced)"
                 ),
             )
 
-        # 8. Idempotent durable receipt. Drift is surfaced through the
+        # 9. Idempotent durable receipt. Drift is surfaced through the
         # QUARANTINED disposition — never silently ACCEPTED.
         disposition = (
             ReceiptDisposition.QUARANTINED
@@ -212,12 +240,7 @@ class AdmissionReceiptWire:
         try:
             stored = self._store.record_receipt(receipt)
         except ExecutionStoreError as err:
-            replay = self._find_receipt_for_identity(
-                binding.execution_id,
-                binding.attempt_id,
-                receipt.result_digest,
-                receipt.binding_digest,
-            )
+            replay = self._find_identical_receipt(receipt)
             if replay is not None:
                 return WireOutcome(
                     execution_id=binding.execution_id,
@@ -230,6 +253,8 @@ class AdmissionReceiptWire:
             # store is genuinely broken — both propagate typed, never
             # masked as duplicate success.
             raise WireError(WIRE_RECEIPT_CONFLICT, f"receipt store rejected the receipt: {err}") from err
+        except Exception as err:  # noqa: BLE001 - typed containment
+            raise WireError(WIRE_STATE_UNAVAILABLE, f"receipt persistence failed: {err}") from err
         return WireOutcome(
             execution_id=stored.execution_id,
             attempt_id=stored.attempt_id,
@@ -237,6 +262,19 @@ class AdmissionReceiptWire:
             status="COMPLETED",
             detail="receipt recorded",
         )
+
+    def _probe_execution_record(self, binding: DexBindingIdentity) -> None:
+        try:
+            self._store.list_events(binding.execution_id)
+        except ExecutionStoreError as err:
+            if "EXECUTION_NOT_FOUND" in str(err):
+                raise WireError(
+                    WIRE_EXECUTION_RECORD_MISSING,
+                    f"execution record missing for {binding.execution_id}; create it via the authority path first",
+                ) from err
+            raise WireError(WIRE_STATE_UNAVAILABLE, f"execution state unreadable: {err}") from err
+        except Exception as err:  # noqa: BLE001 - typed containment
+            raise WireError(WIRE_STATE_UNAVAILABLE, f"execution state unreadable: {err}") from err
 
     def _denied(self, binding: DexBindingIdentity, denial: AdmissionDenied) -> WireOutcome:
         return WireOutcome(
@@ -256,14 +294,20 @@ class AdmissionReceiptWire:
             detail=f"{WIRE_LAUNCH_AMBIGUOUS}: {detail} (no auto-retry; explicit reconciliation required)",
         )
 
-    def _find_receipt(self, binding: DexBindingIdentity) -> str | None:
-        """Durable duplicate signal: any RECEIPT_RECORDED event on the
-        execution means an attempt already completed. Conservative by
-        design (multi-attempt sequencing is the caller's authority — new
-        attempts require new execution identities in this slice; the
-        contract's same-execution retry model is deferred to DEX-2d).
-        Store errors propagate typed — never fail open."""
-        events = self._store.list_events(binding.execution_id)
+    def _find_receipt_contained(self, binding: DexBindingIdentity) -> str | None:
+        """Durable duplicate signal (contract §5 ingest idempotency): any
+        RECEIPT_RECORDED event on the execution means an attempt already
+        completed. Conservative by design (multi-attempt sequencing is the
+        caller's authority — new attempts require new execution identities
+        in this slice; the contract's same-execution retry model is
+        deferred to DEX-2d). Store errors propagate typed — never fail
+        open."""
+        try:
+            events = self._store.list_events(binding.execution_id)
+        except ExecutionStoreError as err:
+            raise WireError(WIRE_STATE_UNAVAILABLE, f"receipt state unreadable: {err}") from err
+        except Exception as err:  # noqa: BLE001 - typed containment
+            raise WireError(WIRE_STATE_UNAVAILABLE, f"receipt state unreadable: {err}") from err
         for event in events or ():
             if str(getattr(event.event_type, "value", event.event_type)) == "RECEIPT_RECORDED":
                 evidence_ref = getattr(event, "evidence_ref", None)
@@ -271,33 +315,32 @@ class AdmissionReceiptWire:
                     return evidence_ref
         return None
 
-    def _find_receipt_for_identity(
-        self,
-        execution_id: str,
-        attempt_id: str,
-        result_digest: str,
-        binding_digest_value: str,
-    ) -> str | None:
-        """Compute the deterministic receipt id for OUR identity tuple and
-        confirm it actually exists — only an exact-tuple match counts as a
-        raced duplicate; anything else is a conflict."""
+    def _find_identical_receipt(self, receipt) -> str | None:
+        """A raced duplicate requires agreement on EVERY immutable field
+        the store enforces (identity tuple AND claim_generation, SHA set,
+        disposition, evidence_ref) — anything less is a conflict."""
         from .execution_record import compute_receipt_id
 
         receipt_id = compute_receipt_id(
-            execution_id=execution_id,
-            attempt_id=attempt_id,
-            result_digest=result_digest,
-            binding_digest=binding_digest_value,
+            execution_id=receipt.execution_id,
+            attempt_id=receipt.attempt_id,
+            result_digest=receipt.result_digest,
+            binding_digest=receipt.binding_digest,
         )
         try:
             stored = self._store.get_receipt(receipt_id)
         except Exception:  # noqa: BLE001 - unreadable => not provably identical
             return None
         if (
-            stored.execution_id == execution_id
-            and stored.attempt_id == attempt_id
-            and stored.result_digest == result_digest
-            and stored.binding_digest == binding_digest_value
+            stored.execution_id == receipt.execution_id
+            and stored.attempt_id == receipt.attempt_id
+            and stored.result_digest == receipt.result_digest
+            and stored.binding_digest == receipt.binding_digest
+            and stored.claim_generation == receipt.claim_generation
+            and stored.authority_sha == receipt.authority_sha
+            and stored.execution_sha == receipt.execution_sha
+            and stored.disposition == receipt.disposition
+            and stored.evidence_ref == receipt.evidence_ref
         ):
             return stored.receipt_id
         return None

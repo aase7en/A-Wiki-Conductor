@@ -374,6 +374,106 @@ class Dex2cIntegrationTests(unittest.TestCase):
         second = issuer.decide(binding=binding, claim_view=view)
         self.assertEqual(first, second)
 
+    def test_admission_replay_generation_conflict_typed(self) -> None:
+        # Restored R3 r1/r2 coverage: a replay presenting a DIFFERENT claim
+        # generation for a decided identity is a typed conflict.
+        binding = make_binding()
+        issuer = AdmissionIssuer()
+        issuer.decide(
+            binding=binding,
+            claim_view=ClaimView(claim_ref=binding.claim_ref, claim_generation=binding.claim_generation, live=True),
+        )
+        with self.assertRaises(AdmissionDenied):
+            issuer.decide(
+                binding=binding,
+                claim_view=ClaimView(claim_ref=binding.claim_ref, claim_generation=binding.claim_generation + 1, live=True),
+            )
+
+    def test_collect_failure_after_dispatch_fences_identity(self) -> None:
+        # R3 r2: a collect failure AFTER a dispatched attempt must fence —
+        # re-run cannot dispatch again (would duplicate substrate effects).
+        from a_conductor.dex_wire import WIRE_COLLECT_UNAVAILABLE
+
+        binding = make_binding()
+        self.harness.ensure_record(binding.execution_id)
+        digest = binding_digest(binding)
+
+        class CollectFailsTransport(ScriptedTransport):
+            def __init__(self) -> None:
+                super().__init__(build_evidence(binding, binding_digest_value=digest))
+                self.fail_collect = True
+
+            def collect(self, execution_id: str, attempt_id: str) -> bytes:
+                if self.fail_collect:
+                    raise RuntimeError("collect exploded")
+                return super().collect(execution_id, attempt_id)
+
+        transport = CollectFailsTransport()
+        wire = self.harness.make_wire(transport)
+        view = ClaimView(claim_ref=binding.claim_ref, claim_generation=binding.claim_generation, live=True)
+        with self.assertRaises(WireError) as ctx:
+            wire.run_attempt(binding=binding, claim_view=view)
+        self.assertEqual(ctx.exception.code, WIRE_COLLECT_UNAVAILABLE)
+        self.assertEqual(transport.dispatch_calls, 1)
+        transport.fail_collect = False
+        retry = wire.run_attempt(binding=binding, claim_view=view)
+        self.assertEqual(retry.status, "AMBIGUOUS")
+        self.assertEqual(transport.dispatch_calls, 1)  # fenced — no second dispatch
+
+    def test_concurrent_duplicate_attempt_cannot_double_dispatch(self) -> None:
+        # R3 r2: per-identity lock held through receipt persistence.
+        import concurrent.futures
+
+        binding = make_binding()
+        self.harness.ensure_record(binding.execution_id)
+        digest = binding_digest(binding)
+        transport = ScriptedTransport(build_evidence(binding, binding_digest_value=digest))
+        wire = self.harness.make_wire(transport)
+        view = ClaimView(claim_ref=binding.claim_ref, claim_generation=binding.claim_generation, live=True)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            outcomes = list(pool.map(lambda _: wire.run_attempt(binding=binding, claim_view=view), range(4)))
+        self.assertEqual(transport.dispatch_calls, 1)
+        completed = [o for o in outcomes if o.status == "COMPLETED"]
+        duplicates = [o for o in outcomes if o.status == "DUPLICATE_ALREADY_COMPLETED"]
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(len(duplicates), 3)
+        self.assertEqual(duplicates[0].receipt_id, completed[0].receipt_id)
+
+    def test_receipt_conflicting_immutable_field_raises_typed(self) -> None:
+        # R3 r2: only FULL immutable-field agreement counts as a raced
+        # duplicate; a same-id receipt differing in disposition is a typed
+        # conflict, never duplicate success.
+        from a_conductor.dex_wire import WIRE_RECEIPT_CONFLICT
+        from a_conductor.execution_store import ExecutionStoreError
+
+        binding = make_binding()
+        self.harness.ensure_record(binding.execution_id)
+        digest = binding_digest(binding)
+        evidence = build_evidence(binding, binding_digest_value=digest)
+
+        # Intercept the pre-dispatch duplicate check so the flow reaches
+        # record_receipt, then raise the store's conflict verdict (the store
+        # raises this when ANY immutable field disagrees with a stored
+        # receipt for the same identity tuple).
+        # Intercept the pre-dispatch duplicate check so the flow reaches
+        # record_receipt, then raise the store's conflict verdict.
+        original_list = self.harness.store.list_events
+        self.harness.store.list_events = lambda execution_id: ()  # type: ignore[method-assign]
+        original_record = self.harness.store.record_receipt
+        self.harness.store.record_receipt = lambda r: (_ for _ in ()).throw(
+            ExecutionStoreError("RECEIPT_CONFLICT")
+        )  # type: ignore[method-assign]
+        try:
+            transport = ScriptedTransport(evidence)
+            wire = self.harness.make_wire(transport)
+            view = ClaimView(claim_ref=binding.claim_ref, claim_generation=binding.claim_generation, live=True)
+            with self.assertRaises(WireError) as ctx:
+                wire.run_attempt(binding=binding, claim_view=view)
+            self.assertEqual(ctx.exception.code, WIRE_RECEIPT_CONFLICT)
+        finally:
+            self.harness.store.list_events = original_list  # type: ignore[method-assign]
+            self.harness.store.record_receipt = original_record  # type: ignore[method-assign]
+
 
 class RealSubstrateTests(unittest.TestCase):
     """Tier 2: REAL SRM ExecutionSupervisor evidence through the FULL wire."""
@@ -383,6 +483,11 @@ class RealSubstrateTests(unittest.TestCase):
     def test_real_substrate_evidence_through_full_wire(self) -> None:
         if not self.SRM_ROOT:
             self.skipTest("SRM_REPO_ROOT not set; real-substrate tier not exercised (contract tier covers wire logic)")
+        import shutil
+
+        node_path = shutil.which("node")
+        assert node_path is not None
+        node_sha = _sha256(Path(node_path).read_bytes())  # hash the REAL dispatched executable (R3 r2 F5)
         binding = DexBindingIdentity(
             execution_id="exec-dex2creal-0001",
             attempt_id="attempt-real-0001",
@@ -406,9 +511,10 @@ class RealSubstrateTests(unittest.TestCase):
             ).stdout.strip(),
             host_id="host-test-01",
             boot_id="boot-test-01",
-            # Binding facts match the ACTUALLY dispatched command (R3 r1 F6).
-            executable_path="node",
-            executable_sha256=_sha256(b"node -e process.exit(0)"),
+            # Binding facts match the ACTUALLY dispatched command and the
+            # real resolved node executable (R3 r1/r2 F6).
+            executable_path=node_path,
+            executable_sha256=node_sha,
             argv_shape=("-e", "process.exit(0)"),
         )
         digest = binding_digest(binding)
@@ -428,6 +534,17 @@ class RealSubstrateTests(unittest.TestCase):
             check=True,
         ).stdout.splitlines()
         canonical_path, canonical_digest = canonical[0], canonical[1]
+
+        # R3 r2 F5: admission happens BEFORE the real substrate dispatch —
+        # the Node driver below (the REAL dispatch) runs only after this
+        # issuer admits the identity, and the SAME issuer/store are reused
+        # by the wire after collection (replayed decision, not a fresh one).
+        harness = WireHarness()
+        self.addCleanup(harness.close)
+        harness.ensure_record(binding.execution_id, head=binding.execution_sha)
+        view = ClaimView(claim_ref=binding.claim_ref, claim_generation=1, live=True)
+        admission = harness.issuer.decide(binding=binding, claim_view=view)
+        self.assertTrue(admission.admitted, admission.detail)
 
         driver = Path(__file__).parent / "fixtures" / "dex2c_srm_driver.mjs"
         request = {
@@ -471,14 +588,11 @@ class RealSubstrateTests(unittest.TestCase):
         )
         self.assertEqual(decoded.exit_code, 0)
 
-        # Full wire: admission → dispatch(DSPATCHED) → collect(real bytes) →
-        # decode → durable receipt (R3 r1 F6: tier 2 must use the wire).
-        harness = WireHarness()
-        self.addCleanup(harness.close)
-        harness.ensure_record(binding.execution_id, head=binding.execution_sha)
+        # Full wire over the SAME issuer/store created before dispatch:
+        # replayed admission → one dispatch fed the real evidence bytes →
+        # strict decode → durable receipt (R3 r1 F6 + r2 F5 ordering).
         transport = ScriptedTransport(evidence_bytes)
         wire = harness.make_wire(transport)
-        view = ClaimView(claim_ref=binding.claim_ref, claim_generation=1, live=True)
         outcome = wire.run_attempt(binding=binding, claim_view=view)
         self.assertEqual(outcome.status, "COMPLETED", outcome.detail)
         receipt = harness.store.get_receipt(outcome.receipt_id)

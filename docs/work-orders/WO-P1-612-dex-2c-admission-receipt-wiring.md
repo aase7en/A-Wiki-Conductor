@@ -25,18 +25,30 @@ authority-gated admission issuer → correctly bound dispatch/collect through a 
 
 ## New deliverable (bounded)
 
-1. `src/a_conductor/dex_admission.py` — typed, durable, idempotent admission decisions:
+1. `src/a_conductor/dex_admission.py` — typed, frozen (in-process), idempotent admission decisions:
    - `AdmissionRequest` validation; claim-generation freshness gate (stale → typed denial);
-   - duplicate admission (same execution/attempt identity) → same decision, at most one live attempt;
+   - replay of a decided identity returns the same decision; denials are frozen and re-raised; a replay presenting a mutated binding digest / claim reference / claim generation is a typed identity conflict — decisions are in-memory only (see §Limitations, deferred to DEX-2d);
    - authority-gated: callers present the claim view; no new claim authority is created here.
 2. `src/a_conductor/dex_wire.py` — end-to-end orchestrator over an injectable transport port:
-   - admit → receipt-existence idempotency check → dispatch → collect → strict decode (expected digests from the binding) → idempotent receipt;
-   - typed outcomes for: unauthorized/stale admission denial (before any dispatch), duplicate run (skip dispatch, return existing receipt), lost/ambiguous dispatch response (LAUNCH_AMBIGUOUS pending, never auto-retry), evidence digest mismatch/forgery (quarantined disposition or typed rejection, no ACCEPTED receipt), crash-before-receipt (re-run returns to at-most-once semantics via receipt idempotency).
+   - admit → execution-record precondition → receipt-idempotency check → ONE dispatch → collect → strict decode (expected digests from the binding, generation agreement with the admission) → idempotent receipt;
+   - per-identity lock held from the fence check through receipt persistence, so concurrent in-process `run_attempt` calls cannot double-dispatch (loser observes the receipt or the fence);
+   - typed outcomes for: unauthorized/stale admission denial (before any dispatch), duplicate run (skip dispatch, return existing receipt), lost/ambiguous dispatch response (identity permanently fenced, typed AMBIGUOUS, never auto-retry), collect failure after dispatch (fenced — re-dispatch would duplicate substrate effects), evidence digest mismatch/forgery (typed rejection or QUARANTINED disposition, never a silent ACCEPTED), receipt-store conflict on any immutable field (typed WIRE_RECEIPT_CONFLICT, never masked as duplicate success);
+   - crash-before-receipt recovery relies on substrate scope-conflict truth plus explicit reconciliation — this wire adds NO durable cross-restart fence (see §Limitations).
 3. `tests/test_dex_integration.py` — deterministic RED-first integration suite:
    - successful admission → dispatch → collect → receipt; duplicate admission/dispatch at most one effect;
    - stale claim generation denied before dispatch; wrong execution/attempt/binding digest rejected by decode;
    - tampered evidence rejected; repeated receipt idempotent; LAUNCH_AMBIGUOUS path produces no duplicate effects;
    - real-substrate exercise: when env `SRM_REPO_ROOT` points at a synced SRM checkout, a Node driver invokes the REAL `ExecutionSupervisor` (dist build) to produce genuine collection evidence consumed by the same wire (recorded as local evidence; auto-skip with explicit marker when unset — hosted CI stays deterministic on the contract tier).
+
+## Limitations — explicitly deferred to successor slice DEX-2d
+
+This slice's guarantees are IN-PROCESS only. The following are NOT delivered here and need their own bounded work order (and, where they cross the trust boundary, their own operator decision):
+
+1. **Durable admission journal** — admission decisions and fences live in process memory; restart loses them (a fresh issuer/ wire re-evaluates from scratch).
+2. **Cross-restart at-most-once dispatch fence** — a crash between dispatch and receipt persistence is NOT prevented from re-dispatching by this wire; recovery relies on the substrate's scope-conflict truth plus explicit manual reconciliation.
+3. **Contract §6 same-execution retry model** — new attempts require new execution identities in this slice; any recorded receipt conservatively blocks further dispatch under the same execution id.
+4. **Contract §2 simultaneous-dispatch fencing beyond one process** — the per-identity lock serializes calls within one wire instance only; multi-process/multi-host admission is out of scope.
+5. **Contract §5 TERMINAL_UNHARVESTED blocking on admission** — the wire does not yet consult unharvested-terminal substrate state as an admission precondition.
 
 ## Forbidden
 

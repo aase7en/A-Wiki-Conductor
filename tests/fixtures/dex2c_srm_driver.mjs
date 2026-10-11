@@ -91,38 +91,42 @@ async function main() {
   };
   // Canonical form mirrors the decoder: json.dumps(sort_keys=True,
   // separators=(",",":"), ensure_ascii=True) — deep-sort EVERY level and
-  // escape non-ASCII like Python ensure_ascii (JS JSON.stringify leaves
-  // non-ASCII raw, which would diverge the digest).
-  const asciiEscape = (s) => s.replace(/[\u0080-\uffff]/g, (ch) => {
-    const cp = ch.codePointAt(0);
-    return cp > 0xffff
-      ? `\\u${((cp - 0x10000) >> 10) + 0xd800}\\u${((cp & 0x3ff) + 0xdc00)}`
-      : `\\u${cp.toString(16).padStart(4, '0')}`;
-  });
-  const canonicalString = (s) => asciiEscape(s);
-  const deepSort = (value) => {
-    if (Array.isArray(value)) return value.map(deepSort);
-    if (value !== null && typeof value === 'object') {
-      const out = {};
-      for (const key of Object.keys(value).sort()) out[key] = deepSort(value[key]);
-      return out;
+  // fully JSON-escape strings (quotes, backslashes, control chars) plus
+  // non-ASCII \uXXXX like Python ensure_ascii.
+  const jsonEscape = (s) => {
+    let out = '';
+    for (const ch of s) {
+      const cp = ch.codePointAt(0);
+      if (ch === '"') out += '\\"';
+      else if (ch === '\\') out += '\\\\';
+      else if (ch === '\n') out += '\\n';
+      else if (ch === '\r') out += '\\r';
+      else if (ch === '\t') out += '\\t';
+      else if (ch === '\b') out += '\\b';
+      else if (ch === '\f') out += '\\f';
+      else if (cp < 0x20) out += `\\u${cp.toString(16).padStart(4, '0')}`;
+      else if (cp > 0xffff) {
+        const hi = ((cp - 0x10000) >> 10) + 0xd800;
+        const lo = (cp & 0x3ff) + 0xdc00;
+        out += `\\u${hi.toString(16).padStart(4, '0')}\\u${lo.toString(16).padStart(4, '0')}`;
+      } else if (cp > 0x7e) out += `\\u${cp.toString(16).padStart(4, '0')}`;
+      else out += ch;
     }
-    return value;
+    return out;
   };
-  // Re-serialize with escapes by walking the sorted tree (JSON.stringify
-  // then escape its string bodies is equivalent for ASCII-safe output).
   const canonicalize = (v) => {
-    if (typeof v === 'string') return `"${asciiEscape(v)}"`;
+    if (typeof v === 'string') return `"${jsonEscape(v)}"`;
     if (Array.isArray(v)) return `[${v.map(canonicalize).join(',')}]`;
     if (v !== null && typeof v === 'object') {
-      const body = Object.keys(v).sort().map((k) => `"${asciiEscape(k)}":${canonicalize(v[k])}`);
+      const body = Object.keys(v).sort().map((k) => `"${jsonEscape(k)}":${canonicalize(v[k])}`);
       return `{${body.join(',')}}`;
     }
     return JSON.stringify(v);
   };
   const canonical = Buffer.from(canonicalize(payload), 'utf8');
-  const withDigest = { ...deepSort(payload), evidence_sha256: createHash('sha256').update(canonical).digest('hex') };
-  process.stdout.write(JSON.stringify(withDigest));
+  const digest = createHash('sha256').update(canonical).digest('hex');
+  const withDigest = { ...payload, evidence_sha256: digest };
+  process.stdout.write(canonicalize(withDigest));
 }
 
 main().catch((err) => {
