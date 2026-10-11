@@ -27,6 +27,45 @@ from .execution_record import (
 EXECUTION_STORE_SCHEMA_VERSION = "2"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
+# DEX-2dA (WO-P1-627) dispatch-fence state machine. RESERVED and DISPATCHED
+# are live dispatch-window states (the write-ahead reservation is committed
+# BEFORE physical dispatch); FENCED is terminal ambiguity pending explicit
+# reconciliation; RETIRED is terminal completion (a receipt exists).
+_FENCE_STATES = frozenset({"RESERVED", "DISPATCHED", "FENCED", "RETIRED"})
+_FENCE_TRANSITIONS = {
+    "RESERVED": frozenset({"DISPATCHED", "FENCED", "RETIRED"}),
+    "DISPATCHED": frozenset({"FENCED", "RETIRED"}),
+    "FENCED": frozenset(),
+    "RETIRED": frozenset(),
+}
+
+
+@dataclass(frozen=True, slots=True)
+class AdmissionDecisionRow:
+    """Durable admission-journal row (DEX-2dA). Policy mapping to/from the
+    admission issuer's record lives in dex_admission; the store persists
+    and validates shape only."""
+
+    execution_id: str
+    attempt_id: str
+    binding_digest: str
+    claim_ref: str
+    claim_generation: int
+    admitted: bool
+    code: str | None = None
+    detail: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DispatchFenceRow:
+    """Durable dispatch-fence row (DEX-2dA)."""
+
+    execution_id: str
+    attempt_id: str
+    binding_digest: str
+    state: str
+    reason: str | None = None
+
 # WO-P1-246: every recognized execution_records shape (v1 legacy, partial-v2,
 # full v2) must carry these core columns; anything else fails closed.
 _CORE_RECORD_COLUMNS = frozenset(
@@ -294,6 +333,38 @@ class SQLiteExecutionStore:
 
                     CREATE INDEX IF NOT EXISTS idx_execution_receipts_execution_recorded
                     ON execution_receipts(execution_id, recorded_at DESC, receipt_id DESC);
+
+                    CREATE TABLE IF NOT EXISTS admission_decisions (
+                        execution_id TEXT NOT NULL CHECK (trim(execution_id) <> ''),
+                        attempt_id TEXT NOT NULL CHECK (trim(attempt_id) <> ''),
+                        binding_digest TEXT NOT NULL CHECK (length(binding_digest) = 64),
+                        claim_ref TEXT NOT NULL CHECK (trim(claim_ref) <> ''),
+                        claim_generation INTEGER NOT NULL CHECK (claim_generation >= 0),
+                        admitted INTEGER NOT NULL CHECK (admitted IN (0, 1)),
+                        code TEXT,
+                        detail TEXT,
+                        recorded_at TEXT NOT NULL DEFAULT (
+                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                        ),
+                        PRIMARY KEY (execution_id, attempt_id)
+                    );
+
+                    CREATE TABLE IF NOT EXISTS dispatch_fences (
+                        execution_id TEXT NOT NULL CHECK (trim(execution_id) <> ''),
+                        attempt_id TEXT NOT NULL CHECK (trim(attempt_id) <> ''),
+                        binding_digest TEXT NOT NULL CHECK (length(binding_digest) = 64),
+                        state TEXT NOT NULL CHECK (
+                            state IN ('RESERVED', 'DISPATCHED', 'FENCED', 'RETIRED')
+                        ),
+                        reason TEXT,
+                        created_at TEXT NOT NULL DEFAULT (
+                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                        ),
+                        updated_at TEXT NOT NULL DEFAULT (
+                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                        ),
+                        PRIMARY KEY (execution_id, attempt_id)
+                    );
                     """
                 )
                 # WO-P1-246 fan-in: the reconciler owns schema-version
@@ -976,3 +1047,211 @@ class SQLiteExecutionStore:
                 raise
             except sqlite3.Error as exc:
                 raise ExecutionStoreError("EXECUTION_STORE_READ_FAILED") from exc
+
+    # ------------------------------------------------------------------
+    # DEX-2dA (WO-P1-627): durable admission journal + dispatch fence.
+    # Additive tables only — no migration of accepted tables, no schema
+    # provenance change. Deliberately NOT foreign-keyed to
+    # execution_records: decisions and fences must be journalable before
+    # any execution record exists (durably denying/fencing an identity
+    # that was never admitted to dispatch is the fail-closed posture).
+    # ------------------------------------------------------------------
+
+    def load_admission_decision(
+        self, execution_id: str, attempt_id: str
+    ) -> AdmissionDecisionRow | None:
+        _require_text(execution_id, "execution_id")
+        _require_text(attempt_id, "attempt_id")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                row = connection.execute(
+                    "SELECT execution_id, attempt_id, binding_digest, claim_ref, "
+                    "claim_generation, admitted, code, detail "
+                    "FROM admission_decisions WHERE execution_id = ? AND attempt_id = ?",
+                    (execution_id, attempt_id),
+                ).fetchone()
+                return None if row is None else self._row_to_admission_decision(row)
+            except ExecutionStoreError:
+                raise
+            except sqlite3.Error as exc:
+                raise ExecutionStoreError("EXECUTION_STORE_READ_FAILED") from exc
+
+    @staticmethod
+    def _row_to_admission_decision(row: Mapping) -> AdmissionDecisionRow:
+        try:
+            decision = AdmissionDecisionRow(
+                execution_id=str(row["execution_id"]),
+                attempt_id=str(row["attempt_id"]),
+                binding_digest=str(row["binding_digest"]),
+                claim_ref=str(row["claim_ref"]),
+                claim_generation=int(row["claim_generation"]),
+                admitted=bool(row["admitted"]),
+                code=None if row["code"] is None else str(row["code"]),
+                detail=None if row["detail"] is None else str(row["detail"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT") from exc
+        if (
+            not _SHA256_RE.fullmatch(decision.binding_digest)
+            or decision.claim_generation < 0
+            or (decision.admitted and decision.code is not None)
+            or (not decision.admitted and not decision.code)
+        ):
+            raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT")
+        return decision
+
+    def record_admission_decision(self, decision: AdmissionDecisionRow) -> None:
+        if not isinstance(decision, AdmissionDecisionRow):
+            raise ValueError("decision must be an AdmissionDecisionRow")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = connection.execute(
+                    "SELECT execution_id, attempt_id, binding_digest, claim_ref, "
+                    "claim_generation, admitted, code, detail "
+                    "FROM admission_decisions WHERE execution_id = ? AND attempt_id = ?",
+                    (decision.execution_id, decision.attempt_id),
+                ).fetchone()
+                if existing is not None:
+                    current = self._row_to_admission_decision(existing)
+                    if current == decision:
+                        connection.rollback()
+                        return  # idempotent identical replay
+                    raise ExecutionStoreError("ADMISSION_DECISION_CONFLICT")
+                connection.execute(
+                    "INSERT INTO admission_decisions("
+                    "execution_id, attempt_id, binding_digest, claim_ref, "
+                    "claim_generation, admitted, code, detail"
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        decision.execution_id,
+                        decision.attempt_id,
+                        decision.binding_digest,
+                        decision.claim_ref,
+                        decision.claim_generation,
+                        1 if decision.admitted else 0,
+                        decision.code,
+                        decision.detail,
+                    ),
+                )
+                connection.commit()
+            except ExecutionStoreError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise ExecutionStoreError("EXECUTION_STORE_WRITE_FAILED") from exc
+
+    def reserve_dispatch_fence(
+        self, execution_id: str, attempt_id: str, binding_digest: str
+    ) -> tuple[str, bool]:
+        """Write-ahead dispatch-window reservation. Returns
+        ``(state, created)``: ``created=True`` means this call committed a
+        fresh RESERVED row and owns the dispatch window; ``created=False``
+        means a fence already holds the identity (its current state and
+        binding digest are returned/verified — a binding disagreement is a
+        typed conflict, never a takeover)."""
+        _require_text(execution_id, "execution_id")
+        _require_text(attempt_id, "attempt_id")
+        if not isinstance(binding_digest, str) or not _SHA256_RE.fullmatch(binding_digest):
+            raise ValueError("binding_digest must be lowercase SHA-256 hex")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = connection.execute(
+                    "SELECT state, binding_digest FROM dispatch_fences "
+                    "WHERE execution_id = ? AND attempt_id = ?",
+                    (execution_id, attempt_id),
+                ).fetchone()
+                if existing is not None:
+                    if str(existing["binding_digest"]) != binding_digest:
+                        raise ExecutionStoreError("FENCE_BINDING_CONFLICT")
+                    state = str(existing["state"])
+                    if state not in _FENCE_STATES:
+                        raise ExecutionStoreError("DISPATCH_FENCE_CORRUPT")
+                    connection.rollback()
+                    return state, False
+                connection.execute(
+                    "INSERT INTO dispatch_fences("
+                    "execution_id, attempt_id, binding_digest, state"
+                    ") VALUES (?, ?, ?, 'RESERVED')",
+                    (execution_id, attempt_id, binding_digest),
+                )
+                connection.commit()
+                return "RESERVED", True
+            except ExecutionStoreError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise ExecutionStoreError("EXECUTION_STORE_WRITE_FAILED") from exc
+
+    def transition_dispatch_fence(
+        self,
+        execution_id: str,
+        attempt_id: str,
+        new_state: str,
+        reason: str | None = None,
+    ) -> None:
+        _require_text(execution_id, "execution_id")
+        _require_text(attempt_id, "attempt_id")
+        if new_state not in _FENCE_STATES:
+            raise ExecutionStoreError("FENCE_STATE_CONFLICT")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = connection.execute(
+                    "SELECT state FROM dispatch_fences "
+                    "WHERE execution_id = ? AND attempt_id = ?",
+                    (execution_id, attempt_id),
+                ).fetchone()
+                if existing is None:
+                    raise ExecutionStoreError("DISPATCH_FENCE_NOT_FOUND")
+                current = str(existing["state"])
+                if current not in _FENCE_STATES:
+                    raise ExecutionStoreError("DISPATCH_FENCE_CORRUPT")
+                if new_state not in _FENCE_TRANSITIONS[current]:
+                    raise ExecutionStoreError("FENCE_STATE_CONFLICT")
+                connection.execute(
+                    "UPDATE dispatch_fences SET state = ?, reason = ?, "
+                    "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+                    "WHERE execution_id = ? AND attempt_id = ?",
+                    (new_state, reason, execution_id, attempt_id),
+                )
+                connection.commit()
+            except ExecutionStoreError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise ExecutionStoreError("EXECUTION_STORE_WRITE_FAILED") from exc
+
+    def load_dispatch_fence(self, execution_id: str, attempt_id: str) -> DispatchFenceRow | None:
+        _require_text(execution_id, "execution_id")
+        _require_text(attempt_id, "attempt_id")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                row = connection.execute(
+                    "SELECT execution_id, attempt_id, binding_digest, state, reason "
+                    "FROM dispatch_fences WHERE execution_id = ? AND attempt_id = ?",
+                    (execution_id, attempt_id),
+                ).fetchone()
+            except sqlite3.Error as exc:
+                raise ExecutionStoreError("EXECUTION_STORE_READ_FAILED") from exc
+        if row is None:
+            return None
+        state = str(row["state"])
+        if state not in _FENCE_STATES or not _SHA256_RE.fullmatch(str(row["binding_digest"])):
+            raise ExecutionStoreError("DISPATCH_FENCE_CORRUPT")
+        return DispatchFenceRow(
+            execution_id=str(row["execution_id"]),
+            attempt_id=str(row["attempt_id"]),
+            binding_digest=str(row["binding_digest"]),
+            state=state,
+            reason=None if row["reason"] is None else str(row["reason"]),
+        )
