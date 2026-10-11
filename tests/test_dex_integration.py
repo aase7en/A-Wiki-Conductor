@@ -440,9 +440,12 @@ class Dex2cIntegrationTests(unittest.TestCase):
         self.assertEqual(duplicates[0].receipt_id, completed[0].receipt_id)
 
     def test_receipt_conflicting_immutable_field_raises_typed(self) -> None:
-        # R3 r2: only FULL immutable-field agreement counts as a raced
-        # duplicate; a same-id receipt differing in disposition is a typed
-        # conflict, never duplicate success.
+        # R3 r2/r3: only FULL immutable-field agreement counts as a raced
+        # duplicate; a READABLE receipt with the same identity tuple but a
+        # different immutable field is a typed conflict, never duplicate
+        # success. The pre-stored receipt is real, so _find_identical_
+        # receipt's field comparisons are exercised — removing them must
+        # fail this row with duplicate success.
         from a_conductor.dex_wire import WIRE_RECEIPT_CONFLICT
         from a_conductor.execution_store import ExecutionStoreError
 
@@ -451,12 +454,25 @@ class Dex2cIntegrationTests(unittest.TestCase):
         digest = binding_digest(binding)
         evidence = build_evidence(binding, binding_digest_value=digest)
 
-        # Intercept the pre-dispatch duplicate check so the flow reaches
-        # record_receipt, then raise the store's conflict verdict (the store
-        # raises this when ANY immutable field disagrees with a stored
-        # receipt for the same identity tuple).
-        # Intercept the pre-dispatch duplicate check so the flow reaches
-        # record_receipt, then raise the store's conflict verdict.
+        # Same identity tuple (same deterministic receipt_id) but QUARANTINED
+        # + a different evidence_ref — the wire computes ACCEPTED + this
+        # evidence's digest, so the stored receipt is readable AND provably
+        # not identical.
+        pre = new_execution_receipt(
+            execution_id=binding.execution_id,
+            attempt_id=binding.attempt_id,
+            result_digest=_sha256(b"dex2c-result"),  # == the wire's evidence result digest
+            binding_digest=digest,
+            claim_generation=binding.claim_generation,
+            authority_sha=binding.authority_sha,
+            execution_sha=binding.execution_sha,
+            disposition=ReceiptDisposition.QUARANTINED,
+            evidence_ref=_sha256(b"other-evidence"),
+        )
+        self.harness.store.record_receipt(pre)
+
+        # Hide the pre-stored receipt from the pre-dispatch duplicate check
+        # and raise the store's conflict verdict at persistence time.
         original_list = self.harness.store.list_events
         self.harness.store.list_events = lambda execution_id: ()  # type: ignore[method-assign]
         original_record = self.harness.store.record_receipt
@@ -470,9 +486,44 @@ class Dex2cIntegrationTests(unittest.TestCase):
             with self.assertRaises(WireError) as ctx:
                 wire.run_attempt(binding=binding, claim_view=view)
             self.assertEqual(ctx.exception.code, WIRE_RECEIPT_CONFLICT)
+            # The dispatch already happened, so the identity is fenced — a
+            # re-run is AMBIGUOUS, never a second dispatch (R3 r3 F1).
+            retry = wire.run_attempt(binding=binding, claim_view=view)
+            self.assertEqual(retry.status, "AMBIGUOUS")
+            self.assertEqual(transport.dispatch_calls, 1)
         finally:
             self.harness.store.list_events = original_list  # type: ignore[method-assign]
             self.harness.store.record_receipt = original_record  # type: ignore[method-assign]
+
+    def test_receipt_persistence_failure_fences_identity(self) -> None:
+        # R3 r3 F1: a receipt-write failure AFTER a dispatched attempt must
+        # fence — the substrate effect happened; a re-run (even after the
+        # store recovers) can never dispatch again within this wire.
+        from a_conductor.dex_wire import WIRE_STATE_UNAVAILABLE
+
+        binding = make_binding()
+        self.harness.ensure_record(binding.execution_id)
+        digest = binding_digest(binding)
+        transport = ScriptedTransport(build_evidence(binding, binding_digest_value=digest))
+        wire = self.harness.make_wire(transport)
+        view = ClaimView(claim_ref=binding.claim_ref, claim_generation=binding.claim_generation, live=True)
+
+        original_record = self.harness.store.record_receipt
+        self.harness.store.record_receipt = lambda r: (_ for _ in ()).throw(  # type: ignore[method-assign]
+            RuntimeError("receipt store exploded")
+        )
+        try:
+            with self.assertRaises(WireError) as ctx:
+                wire.run_attempt(binding=binding, claim_view=view)
+            self.assertEqual(ctx.exception.code, WIRE_STATE_UNAVAILABLE)
+        finally:
+            self.harness.store.record_receipt = original_record  # type: ignore[method-assign]
+        self.assertEqual(transport.dispatch_calls, 1)
+        # Persistence has "recovered" — but the effect already happened, so
+        # the re-run observes the fence, not a fresh dispatch.
+        retry = wire.run_attempt(binding=binding, claim_view=view)
+        self.assertEqual(retry.status, "AMBIGUOUS")
+        self.assertEqual(transport.dispatch_calls, 1)
 
 
 class RealSubstrateTests(unittest.TestCase):

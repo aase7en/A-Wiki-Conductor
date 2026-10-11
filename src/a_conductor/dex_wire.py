@@ -12,9 +12,10 @@ identity is serialized by a per-identity lock held from the fence check
 through receipt persistence, so concurrent run_attempt calls cannot
 double-dispatch (the loser observes the receipt, or the ambiguity fence);
 an ambiguous/throwing dispatch FENCES the identity permanently (typed
-AMBIGUOUS, never a silent retry); a collect failure after a dispatched
-attempt also fences the identity (re-dispatch would duplicate substrate
-effects — reconciliation is an explicit typed state); receipt-state
+AMBIGUOUS, never a silent retry); a collect failure, evidence rejection,
+or receipt-persistence failure AFTER a dispatched attempt also fences the
+identity (re-dispatch would duplicate substrate effects — reconciliation
+is an explicit typed state); receipt-state
 lookups never fail open; a receipt-store conflict on ANY immutable field
 propagates typed instead of masking as duplicate success.
 
@@ -250,11 +251,22 @@ class AdmissionReceiptWire:
                     detail=f"receipt raced an identical stored receipt: {err}",
                 )
             # A DIFFERENT immutable receipt exists for this identity, or the
-            # store is genuinely broken — both propagate typed, never
-            # masked as duplicate success.
-            raise WireError(WIRE_RECEIPT_CONFLICT, f"receipt store rejected the receipt: {err}") from err
+            # store is genuinely broken. The substrate effect ALREADY
+            # happened, so fence before propagating typed — a re-run must
+            # never dispatch again, and never mask this as duplicate success.
+            self._fenced.add(identity)
+            raise WireError(
+                WIRE_RECEIPT_CONFLICT,
+                f"receipt store rejected the receipt; identity fenced pending reconciliation: {err}",
+            ) from err
         except Exception as err:  # noqa: BLE001 - typed containment
-            raise WireError(WIRE_STATE_UNAVAILABLE, f"receipt persistence failed: {err}") from err
+            # Same reasoning: the effect happened, only the durable record
+            # failed — fence so no re-run can duplicate it.
+            self._fenced.add(identity)
+            raise WireError(
+                WIRE_STATE_UNAVAILABLE,
+                f"receipt persistence failed; identity fenced pending reconciliation: {err}",
+            ) from err
         return WireOutcome(
             execution_id=stored.execution_id,
             attempt_id=stored.attempt_id,
