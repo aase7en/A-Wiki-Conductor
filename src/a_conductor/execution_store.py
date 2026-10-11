@@ -1079,31 +1079,85 @@ class SQLiteExecutionStore:
 
     @staticmethod
     def _row_to_admission_decision(row: Mapping) -> AdmissionDecisionRow:
+        # Raw values are validated BEFORE any coercion: a tampered row
+        # (e.g. REAL claim_generation) must surface as CORRUPT, never be
+        # int()/bool()-normalized into a valid decision.
         try:
-            decision = AdmissionDecisionRow(
-                execution_id=str(row["execution_id"]),
-                attempt_id=str(row["attempt_id"]),
-                binding_digest=str(row["binding_digest"]),
-                claim_ref=str(row["claim_ref"]),
-                claim_generation=int(row["claim_generation"]),
-                admitted=bool(row["admitted"]),
-                code=None if row["code"] is None else str(row["code"]),
-                detail=None if row["detail"] is None else str(row["detail"]),
-            )
-        except (KeyError, TypeError, ValueError) as exc:
+            execution_id = row["execution_id"]
+            attempt_id = row["attempt_id"]
+            raw_digest = row["binding_digest"]
+            claim_ref = row["claim_ref"]
+            raw_generation = row["claim_generation"]
+            raw_admitted = row["admitted"]
+            raw_code = row["code"]
+            raw_detail = row["detail"]
+        except (KeyError, TypeError) as exc:
             raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT") from exc
+        if not isinstance(execution_id, str) or not execution_id.strip():
+            raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT")
+        if not isinstance(attempt_id, str) or not attempt_id.strip():
+            raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT")
+        if not isinstance(claim_ref, str) or not claim_ref.strip():
+            raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT")
+        if not isinstance(raw_digest, str) or not _SHA256_RE.fullmatch(raw_digest):
+            raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT")
         if (
-            not _SHA256_RE.fullmatch(decision.binding_digest)
-            or decision.claim_generation < 0
-            or (decision.admitted and decision.code is not None)
-            or (not decision.admitted and not decision.code)
+            isinstance(raw_generation, bool)
+            or not isinstance(raw_generation, int)
+            or raw_generation < 0
         ):
             raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT")
-        return decision
+        if isinstance(raw_admitted, bool) or not isinstance(raw_admitted, int) or raw_admitted not in (0, 1):
+            raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT")
+        if raw_code is not None and not isinstance(raw_code, str):
+            raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT")
+        if raw_detail is not None and not isinstance(raw_detail, str):
+            raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT")
+        if (raw_admitted == 1 and raw_code is not None) or (raw_admitted == 0 and not raw_code):
+            raise ExecutionStoreError("ADMISSION_JOURNAL_CORRUPT")
+        return AdmissionDecisionRow(
+            execution_id=execution_id,
+            attempt_id=attempt_id,
+            binding_digest=raw_digest,
+            claim_ref=claim_ref,
+            claim_generation=raw_generation,
+            admitted=raw_admitted == 1,
+            code=raw_code,
+            detail=raw_detail,
+        )
+
+    @staticmethod
+    def _validate_admission_decision(decision: AdmissionDecisionRow) -> None:
+        """Input validation for recording: exact types only, no coercion
+        (mirrors the load-side corruption boundary)."""
+        _require_text(decision.execution_id, "execution_id")
+        _require_text(decision.attempt_id, "attempt_id")
+        _require_text(decision.claim_ref, "claim_ref")
+        if not isinstance(decision.binding_digest, str) or not _SHA256_RE.fullmatch(
+            decision.binding_digest
+        ):
+            raise ValueError("binding_digest must be lowercase SHA-256 hex")
+        if (
+            isinstance(decision.claim_generation, bool)
+            or not isinstance(decision.claim_generation, int)
+            or decision.claim_generation < 0
+        ):
+            raise ValueError("claim_generation must be a non-negative int")
+        if not isinstance(decision.admitted, bool):
+            raise ValueError("admitted must be a bool")
+        if decision.code is not None and (not isinstance(decision.code, str) or not decision.code.strip()):
+            raise ValueError("code must be a non-empty string or None")
+        if decision.detail is not None and not isinstance(decision.detail, str):
+            raise ValueError("detail must be a string or None")
+        if (decision.admitted and decision.code is not None) or (
+            not decision.admitted and not decision.code
+        ):
+            raise ValueError("admitted rows carry no code; denied rows require one")
 
     def record_admission_decision(self, decision: AdmissionDecisionRow) -> None:
         if not isinstance(decision, AdmissionDecisionRow):
             raise ValueError("decision must be an AdmissionDecisionRow")
+        self._validate_admission_decision(decision)
         self.initialize()
         with self._connect() as connection:
             try:

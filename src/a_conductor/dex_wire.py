@@ -363,12 +363,25 @@ class AdmissionReceiptWire:
         """Persist a durable fence transition. Fail-closed: when a
         verdict cannot be recorded durably the typed error propagates,
         rather than returning a verdict this process cannot prove will
-        survive a restart."""
+        survive a restart. Fence-level disagreements (state/binding
+        conflicts, a fence that vanished underneath us) keep their
+        conflict class instead of collapsing to STATE_UNAVAILABLE."""
         try:
             self._store.transition_dispatch_fence(
                 binding.execution_id, binding.attempt_id, state, reason
             )
         except ExecutionStoreError as err:
+            text = str(err)
+            if (
+                "FENCE_STATE_CONFLICT" in text
+                or "FENCE_BINDING_CONFLICT" in text
+                or "DISPATCH_FENCE_NOT_FOUND" in text
+                or "DISPATCH_FENCE_CORRUPT" in text
+            ):
+                raise WireError(
+                    WIRE_FENCE_CONFLICT,
+                    f"durable fence rejected the transition to {state}: {err}",
+                ) from err
             raise WireError(
                 WIRE_STATE_UNAVAILABLE,
                 f"durable fence transition to {state} failed: {err}",
