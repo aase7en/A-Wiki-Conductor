@@ -111,14 +111,21 @@ class ScriptedTransport:
     dispatch_status: str = "DISPATCHED"
     dispatch_calls: int = 0
     dispatch_throws: bool = False
-    fail_collect: bool = False
     collect_throws: bool = False
-    dispatch_gate: threading.Event | None = None  # blocks inside dispatch() until set
+    # Test orchestration: dispatch_entered is set the moment dispatch() is
+    # entered; dispatch_gate blocks INSIDE dispatch until opened. The gate
+    # NEVER silently releases on timeout — a harness failure raises instead,
+    # so a gated race cannot degrade into a time-dependent outcome.
+    dispatch_gate: threading.Event | None = None
+    dispatch_entered: threading.Event | None = None
 
     def dispatch(self, binding: DexBindingIdentity) -> dict:
         self.dispatch_calls += 1
+        if self.dispatch_entered is not None:
+            self.dispatch_entered.set()
         if self.dispatch_gate is not None:
-            self.dispatch_gate.wait(timeout=30)
+            if not self.dispatch_gate.wait(timeout=60):
+                raise AssertionError("dispatch gate never opened (test harness failure)")
         if self.dispatch_throws:
             raise RuntimeError("transport exploded")
         return {"status": self.dispatch_status}
@@ -232,8 +239,8 @@ class AdmissionJournalTests(unittest.TestCase):
             code=None,
             detail=None,
         )
-        self.harness.store.record_admission_decision(row)  # identical replay: no-op
-        self.harness.store.record_admission_decision(row)  # identical re-record: still no-op
+        self.harness.store.record_admission_decision(row)  # initial record
+        self.harness.store.record_admission_decision(row)  # identical re-record: no-op
         conflicting = AdmissionDecisionRow(
             execution_id=binding.execution_id,
             attempt_id=binding.attempt_id,
@@ -494,14 +501,19 @@ class CrossRestartFenceTests(unittest.TestCase):
         created_flags = [created for _state, created in results]
         self.assertEqual(sorted(created_flags), [False, True])  # exactly one winner
 
-        # Part 2: gated dispatch race on a fresh identity.
+        # Part 2: gated dispatch race on a fresh identity. B runs strictly
+        # while A is provably INSIDE dispatch (entered-event wait, bounded;
+        # the gate cannot silently release; cleanup is finally-guaranteed).
         binding_c = make_binding(execution_id="exec-dex2da-race-c", attempt_id="attempt-race-c")
         self.harness.ensure_record(binding_c.execution_id)
         digest_c = binding_digest(binding_c)
         view_c = ClaimView(claim_ref=binding_c.claim_ref, claim_generation=binding_c.claim_generation, live=True)
         gate = threading.Event()
+        entered = threading.Event()
         transport_a = ScriptedTransport(
-            build_evidence(binding_c, binding_digest_value=digest_c), dispatch_gate=gate
+            build_evidence(binding_c, binding_digest_value=digest_c),
+            dispatch_gate=gate,
+            dispatch_entered=entered,
         )
         transport_b = ScriptedTransport(build_evidence(binding_c, binding_digest_value=digest_c))
         wire_a = AdmissionReceiptWire(
@@ -519,18 +531,22 @@ class CrossRestartFenceTests(unittest.TestCase):
 
         worker = threading.Thread(target=run_a)
         worker.start()
-        # Wait until A is provably inside dispatch (its reservation is
-        # committed and it holds the dispatch window), then run B.
-        deadline = threading.Event()
-        while transport_a.dispatch_calls == 0 and not deadline.is_set():
-            deadline.wait(0.01)
-            if transport_a.dispatch_calls:
-                break
-        outcome_b = wire_b.run_attempt(binding=binding_c, claim_view=view_c)
-        gate.set()
-        worker.join(timeout=60)
-        # While A is blocked inside dispatch, no receipt can exist, so B's
-        # only lawful outcome is the durable-fence AMBIGUOUS — strictly.
+        try:
+            # Bounded wait until A is provably inside dispatch (its
+            # reservation is committed and it holds the window). A
+            # pre-dispatch failure in A surfaces here as a loud assert,
+            # never an infinite poll.
+            self.assertTrue(entered.wait(timeout=30), "wire A never entered dispatch")
+            # B runs while A is blocked inside dispatch — no receipt can
+            # exist, so B's only lawful outcome is the durable-fence
+            # AMBIGUOUS. The gate only opens in the finally below, after
+            # B's outcome is captured, so this is event-ordered, not
+            # time-dependent.
+            outcome_b = wire_b.run_attempt(binding=binding_c, claim_view=view_c)
+        finally:
+            gate.set()
+            worker.join(timeout=60)
+        self.assertFalse(worker.is_alive())
         self.assertEqual(outcome_b.status, "AMBIGUOUS")
         self.assertEqual(transport_a.dispatch_calls, 1)
         self.assertEqual(transport_b.dispatch_calls, 0)
