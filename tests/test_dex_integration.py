@@ -440,60 +440,76 @@ class Dex2cIntegrationTests(unittest.TestCase):
         self.assertEqual(duplicates[0].receipt_id, completed[0].receipt_id)
 
     def test_receipt_conflicting_immutable_field_raises_typed(self) -> None:
-        # R3 r2/r3: only FULL immutable-field agreement counts as a raced
-        # duplicate; a READABLE receipt with the same identity tuple but a
-        # different immutable field is a typed conflict, never duplicate
-        # success. The pre-stored receipt is real, so _find_identical_
-        # receipt's field comparisons are exercised — removing them must
-        # fail this row with duplicate success.
+        # R3 r2/r3/r4: only FULL immutable-field agreement counts as a raced
+        # duplicate. Each sub-row pre-stores a REAL readable receipt with
+        # the same identity tuple (same deterministic receipt_id) but
+        # exactly ONE mismatching immutable field — so removing any single
+        # comparison from _find_identical_receipt flips that sub-row to
+        # duplicate success and fails.
         from a_conductor.dex_wire import WIRE_RECEIPT_CONFLICT
         from a_conductor.execution_store import ExecutionStoreError
 
-        binding = make_binding()
-        self.harness.ensure_record(binding.execution_id)
-        digest = binding_digest(binding)
-        evidence = build_evidence(binding, binding_digest_value=digest)
+        mismatches = {
+            "disposition": {"disposition": ReceiptDisposition.QUARANTINED},
+            "evidence_ref": {"evidence_ref": "f" * 64},
+            "claim_generation": {"claim_generation": 8},
+            "authority_sha": {"authority_sha": "a" * 40},
+            "execution_sha": {"execution_sha": "b" * 40},
+        }
+        for field, override in mismatches.items():
+            with self.subTest(field=field):
+                harness = WireHarness()
+                self.addCleanup(harness.close)
+                tag = field[:4]
+                binding = make_binding(
+                    execution_id=f"exec-dex2c-{tag}-01",
+                    attempt_id=f"attempt-{tag}-01",
+                )
+                harness.ensure_record(binding.execution_id)
+                digest = binding_digest(binding)
+                evidence = build_evidence(binding, binding_digest_value=digest)
 
-        # Same identity tuple (same deterministic receipt_id) but QUARANTINED
-        # + a different evidence_ref — the wire computes ACCEPTED + this
-        # evidence's digest, so the stored receipt is readable AND provably
-        # not identical.
-        pre = new_execution_receipt(
-            execution_id=binding.execution_id,
-            attempt_id=binding.attempt_id,
-            result_digest=_sha256(b"dex2c-result"),  # == the wire's evidence result digest
-            binding_digest=digest,
-            claim_generation=binding.claim_generation,
-            authority_sha=binding.authority_sha,
-            execution_sha=binding.execution_sha,
-            disposition=ReceiptDisposition.QUARANTINED,
-            evidence_ref=_sha256(b"other-evidence"),
-        )
-        self.harness.store.record_receipt(pre)
+                # The exact receipt the wire will build from this evidence,
+                # then overridden in exactly ONE immutable field.
+                pre = {
+                    "execution_id": binding.execution_id,
+                    "attempt_id": binding.attempt_id,
+                    "result_digest": _sha256(b"dex2c-result"),
+                    "binding_digest": digest,
+                    "claim_generation": binding.claim_generation,
+                    "authority_sha": binding.authority_sha,
+                    "execution_sha": binding.execution_sha,
+                    "disposition": ReceiptDisposition.ACCEPTED,
+                    "evidence_ref": json.loads(evidence)["evidence_sha256"],
+                }
+                pre.update(override)
+                harness.store.record_receipt(new_execution_receipt(**pre))
 
-        # Hide the pre-stored receipt from the pre-dispatch duplicate check
-        # and raise the store's conflict verdict at persistence time.
-        original_list = self.harness.store.list_events
-        self.harness.store.list_events = lambda execution_id: ()  # type: ignore[method-assign]
-        original_record = self.harness.store.record_receipt
-        self.harness.store.record_receipt = lambda r: (_ for _ in ()).throw(
-            ExecutionStoreError("RECEIPT_CONFLICT")
-        )  # type: ignore[method-assign]
-        try:
-            transport = ScriptedTransport(evidence)
-            wire = self.harness.make_wire(transport)
-            view = ClaimView(claim_ref=binding.claim_ref, claim_generation=binding.claim_generation, live=True)
-            with self.assertRaises(WireError) as ctx:
-                wire.run_attempt(binding=binding, claim_view=view)
-            self.assertEqual(ctx.exception.code, WIRE_RECEIPT_CONFLICT)
-            # The dispatch already happened, so the identity is fenced — a
-            # re-run is AMBIGUOUS, never a second dispatch (R3 r3 F1).
-            retry = wire.run_attempt(binding=binding, claim_view=view)
-            self.assertEqual(retry.status, "AMBIGUOUS")
-            self.assertEqual(transport.dispatch_calls, 1)
-        finally:
-            self.harness.store.list_events = original_list  # type: ignore[method-assign]
-            self.harness.store.record_receipt = original_record  # type: ignore[method-assign]
+                # Hide the pre-stored receipt from the pre-dispatch duplicate
+                # check and raise the store's conflict verdict at persistence
+                # time, so the outcome is decided by the field comparisons.
+                original_list = harness.store.list_events
+                harness.store.list_events = lambda execution_id: ()  # type: ignore[method-assign]
+                original_record = harness.store.record_receipt
+                harness.store.record_receipt = lambda r: (_ for _ in ()).throw(
+                    ExecutionStoreError("RECEIPT_CONFLICT")
+                )  # type: ignore[method-assign]
+                try:
+                    transport = ScriptedTransport(evidence)
+                    wire = harness.make_wire(transport)
+                    view = ClaimView(claim_ref=binding.claim_ref, claim_generation=binding.claim_generation, live=True)
+                    with self.assertRaises(WireError) as ctx:
+                        wire.run_attempt(binding=binding, claim_view=view)
+                    self.assertEqual(ctx.exception.code, WIRE_RECEIPT_CONFLICT)
+                    # The dispatch already happened, so the identity is
+                    # fenced — a re-run is AMBIGUOUS, never a second
+                    # dispatch (R3 r3 F1).
+                    retry = wire.run_attempt(binding=binding, claim_view=view)
+                    self.assertEqual(retry.status, "AMBIGUOUS")
+                    self.assertEqual(transport.dispatch_calls, 1)
+                finally:
+                    harness.store.list_events = original_list  # type: ignore[method-assign]
+                    harness.store.record_receipt = original_record  # type: ignore[method-assign]
 
     def test_receipt_persistence_failure_fences_identity(self) -> None:
         # R3 r3 F1: a receipt-write failure AFTER a dispatched attempt must
