@@ -1,6 +1,6 @@
 # WO-P1-625 — DEX-2c: A-Conductor admission/receipt end-to-end wiring
 
-Status: IN_PROGRESS (claimed 2026-10-12 by the GLM-5.3 MAX wake lane)
+Status: DONE — PR #624 merged 2026-10-12 at `03731dc` (pinned-head `d175429`); review record PR #624 comment 6113046526; claim released #526 comment 6113048496
 Issue: #625
 Parent: #526 (operator authorization comment 6109535861); dependency framing: #495. Lane issue #625 was created retroactively at merge-prep: the original numeric id 612 collides with merged PR #612 and cannot satisfy the GitHub-backed identity contract.
 Risk: R3 STRICT — cross-repo architectural boundary with authority implications; single-repo (AWC) implementation
@@ -71,3 +71,4 @@ Implementation base: AWC `1303961070103131441aa3ca508e79f52327baae` + SRM `f4bdd
 
 - [2026-10-12] WO created per operator authorization 6109535861; gap evidence 6107371470/6108837892; worktree `A:\GitHub\_worktrees\AWC-dex2c-integration`, branch `feat/dex2c-integration-wiring`, base `1303961`. No source mutation yet.
 - [2026-10-12] Renamed from the original numeric id 612 (which collides with merged PR #612 and cannot satisfy the GitHub-backed identity contract, caught by `tests/test_work_order_identity.py` on hosted CI) to WO-P1-625, with retroactive lane issue #625. No code behavior changed; all references updated.
+- [2026-10-12] COMPLETE — PR #624 merged at `03731dc` (pinned-head `d175429`). R3 review PASS after 7 exact-SHA rounds (r5 code PASS @ `6fd30b5`; r6/r7 identity-repair PASS; chain recorded on PR #624 comment 6113046526). Hosted CI @ `d175429`: windows `test` + ubuntu/macos `cross-platform-smoke` all SUCCESS. Post-main verify on the merged tree: identity + DEX suites 94 passed, 5 subtests; real-substrate tier-2 proven locally at the merged tree content (REAL SRM `ExecutionSupervisor` @ live HEADs AWC + SRM `f4bdd57`, admission before real dispatch, full wire, durable receipt). Delivered: `dex_admission.py` (frozen typed admission), `dex_wire.py` (per-identity locked wire; permanent fencing on ambiguous dispatch, collect failure, evidence rejection, and receipt-persistence failure), 20 deterministic rows + 5 per-field conflict subtests (mutation-probed), real-substrate Node driver. DEX-2d deferrals recorded in §Limitations — successor slice requires its own operator decision.
