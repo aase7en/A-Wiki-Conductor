@@ -1,4 +1,4 @@
-"""DEX-2c integration tests — admission → dispatch → collect → receipt (WO-P1-612).
+"""DEX-2c integration tests — admission → dispatch → collect → receipt (WO-P1-625).
 
 Tier 1 (always runs, deterministic): exercises the wire end-to-end with a
 contract-accurate in-test transport whose evidence payloads are accepted by
@@ -143,7 +143,7 @@ class WireHarness:
             new_execution_record(
                 execution_id=execution_id,
                 job_id="job-001",
-                work_order_ref="WO-P1-612",
+                work_order_ref="WO-P1-625",
                 project_id="proj-001",
                 worker_id="worker-glmlane",
                 backend_id="backend-node",

@@ -1,7 +1,8 @@
-# WO-P1-612 — DEX-2c: A-Conductor admission/receipt end-to-end wiring
+# WO-P1-625 — DEX-2c: A-Conductor admission/receipt end-to-end wiring
 
 Status: IN_PROGRESS (claimed 2026-10-12 by the GLM-5.3 MAX wake lane)
-Issue: #526 (parent), #495 (dependency framing)
+Issue: #625
+Parent: #526 (operator authorization comment 6109535861); dependency framing: #495. Lane issue #625 was created retroactively at merge-prep: the original numeric id 612 collides with merged PR #612 and cannot satisfy the GitHub-backed identity contract.
 Risk: R3 STRICT — cross-repo architectural boundary with authority implications; single-repo (AWC) implementation
 Owner: GLM-5.3 MAX lane (session sess_b82dd681-c3b1-49c6-990e-b1918b764209); independent exact-SHA review via Codex CLI gpt-6.1-sol
 Topology: CONTROL_PLANE_ONLY implementation — SRM main already satisfies the substrate contract (DEX-2a supervisor, `sunday_dispatch`/`sunday_collect` MCP tools with strict canonical-binding schema); the missing seams are entirely AWC-side, so no SRM edits (operator authorization §4: "Do not manufacture a cross-repo code mutation when one repo needs no edits").
@@ -69,3 +70,4 @@ Implementation base: AWC `1303961070103131441aa3ca508e79f52327baae` + SRM `f4bdd
 ## Checkpoint log (append-only)
 
 - [2026-10-12] WO created per operator authorization 6109535861; gap evidence 6107371470/6108837892; worktree `A:\GitHub\_worktrees\AWC-dex2c-integration`, branch `feat/dex2c-integration-wiring`, base `1303961`. No source mutation yet.
+- [2026-10-12] Renamed WO-P1-612 → WO-P1-625 with lane issue #625 (retroactive; original id 612 collides with merged PR #612, caught by `tests/test_work_order_identity.py` on hosted CI after the docstring/reference-only miss locally). No code behavior changed; all references updated.

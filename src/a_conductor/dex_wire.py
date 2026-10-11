@@ -1,4 +1,4 @@
-"""DEX-2c end-to-end admission → dispatch → collect → receipt wiring (WO-P1-612).
+"""DEX-2c end-to-end admission → dispatch → collect → receipt wiring (WO-P1-625).
 
 Orchestrates the ACCEPTED foundations over an injectable transport port:
 

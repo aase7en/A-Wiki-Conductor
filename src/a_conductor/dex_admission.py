@@ -1,4 +1,4 @@
-"""DEX-2c authority-gated admission issuer (WO-P1-612 / #526 / #495).
+"""DEX-2c authority-gated admission issuer (WO-P1-625 / #526 / #495).
 
 Typed, durable-within-process, idempotent admission decisions over the
 accepted DEX-2b identity foundation. This module creates NO new claim

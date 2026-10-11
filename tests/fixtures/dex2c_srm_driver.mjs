@@ -1,5 +1,5 @@
 /**
- * DEX-2c real-substrate driver (WO-P1-612 test fixture).
+ * DEX-2c real-substrate driver (WO-P1-625 test fixture).
  *
  * Reads one JSON request from stdin, runs the REAL SunDayRemoteMCP
  * ExecutionSupervisor from the checkout at `srmRoot` (dist build):
