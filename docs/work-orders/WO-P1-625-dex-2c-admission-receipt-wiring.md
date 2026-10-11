@@ -70,4 +70,4 @@ Implementation base: AWC `1303961070103131441aa3ca508e79f52327baae` + SRM `f4bdd
 ## Checkpoint log (append-only)
 
 - [2026-10-12] WO created per operator authorization 6109535861; gap evidence 6107371470/6108837892; worktree `A:\GitHub\_worktrees\AWC-dex2c-integration`, branch `feat/dex2c-integration-wiring`, base `1303961`. No source mutation yet.
-- [2026-10-12] Renamed WO-P1-612 → WO-P1-625 with lane issue #625 (retroactive; original id 612 collides with merged PR #612, caught by `tests/test_work_order_identity.py` on hosted CI after the docstring/reference-only miss locally). No code behavior changed; all references updated.
+- [2026-10-12] Renamed from the original numeric id 612 (which collides with merged PR #612 and cannot satisfy the GitHub-backed identity contract, caught by `tests/test_work_order_identity.py` on hosted CI) to WO-P1-625, with retroactive lane issue #625. No code behavior changed; all references updated.
