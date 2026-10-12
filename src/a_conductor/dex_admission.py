@@ -1,23 +1,27 @@
-"""DEX-2c authority-gated admission issuer (WO-P1-625 / #526 / #495).
+"""DEX-2c/DEX-2dA authority-gated admission issuer (WO-P1-625 / WO-P1-627).
 
-Typed, durable-within-process, idempotent admission decisions over the
-accepted DEX-2b identity foundation. This module creates NO new claim
-authority: callers present the authoritative claim view; the issuer only
-validates freshness and binding consistency and records the decision —
-including DENIALS, which are frozen exactly like admissions (a denied
-identity can never be re-decided, even if the claim view later looks
-valid). Decisions bind the full binding digest; a replay presenting a
-mutated binding under the same identity is a typed conflict.
+Typed, idempotent admission decisions over the accepted DEX-2b identity
+foundation. This module creates NO new claim authority: callers present the
+authoritative claim view; the issuer only validates freshness and binding
+consistency and records the decision — including DENIALS, which are frozen
+exactly like admissions (a denied identity can never be re-decided, even if
+the claim view later looks valid). Decisions bind the full binding digest;
+a replay presenting a mutated binding under the same identity is a typed
+conflict.
 
-Durability scope (honest limitation, successor slice DEX-2d): decisions
-live in process memory. Cross-restart durable admission journaling is
-explicitly deferred and requires its own authority decision (a durable
-journal is a new store). Within this slice, every decision is final for
-the lifetime of the issuer.
+Durability (DEX-2dA, WO-P1-627): an issuer constructed with a journal
+(``AdmissionIssuer(journal=DurableAdmissionJournal(store))``) persists every
+decision — acceptances AND denials — through the existing durable execution
+store, and a restarted issuer replays the frozen decision with exactly the
+in-process semantics. The default journal-less issuer keeps the historical
+in-memory behavior for deterministic contract tests; production composition
+is journal-backed. Journal failures propagate fail-closed: an unreadable or
+conflicting journal never becomes a fresh admission.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 from .dex_identity import DexBindingIdentity, binding_digest
 
@@ -93,6 +97,64 @@ class AdmissionRecord:
             raise ValueError("detail must be a string or None")
 
 
+class AdmissionJournal(Protocol):
+    """Durable decision-journal port (DEX-2dA). Implementations must be
+    idempotent for identical rows and fail closed on unreadable/conflicting
+    state — they never invent or flip decisions."""
+
+    def load(self, execution_id: str, attempt_id: str) -> "AdmissionRecord | None": ...
+
+    def record(self, record: "AdmissionRecord") -> None: ...
+
+
+class DurableAdmissionJournal:
+    """Journal adapter over the existing SQLiteExecutionStore (DEX-2dA).
+
+    No new store: rows live in the store's ``admission_decisions`` table.
+    Corrupt rows surface as typed store errors; conflicting re-records are
+    typed conflicts. ``AdmissionRecord`` <-> row mapping lives here so the
+    store stays policy-free.
+    """
+
+    def __init__(self, store) -> None:  # store: SQLiteExecutionStore (avoid import cycle)
+        from .execution_store import SQLiteExecutionStore  # noqa: F401 - runtime type check
+
+        if not isinstance(store, SQLiteExecutionStore):
+            raise ValueError("store must be a SQLiteExecutionStore")
+        self._store = store
+
+    def load(self, execution_id: str, attempt_id: str) -> AdmissionRecord | None:
+        row = self._store.load_admission_decision(execution_id, attempt_id)
+        if row is None:
+            return None
+        return AdmissionRecord(
+            execution_id=row.execution_id,
+            attempt_id=row.attempt_id,
+            binding_digest=row.binding_digest,
+            claim_ref=row.claim_ref,
+            claim_generation=row.claim_generation,
+            admitted=row.admitted,
+            code=row.code,
+            detail=row.detail,
+        )
+
+    def record(self, record: AdmissionRecord) -> None:
+        from .execution_store import AdmissionDecisionRow
+
+        self._store.record_admission_decision(
+            AdmissionDecisionRow(
+                execution_id=record.execution_id,
+                attempt_id=record.attempt_id,
+                binding_digest=record.binding_digest,
+                claim_ref=record.claim_ref,
+                claim_generation=record.claim_generation,
+                admitted=record.admitted,
+                code=record.code,
+                detail=record.detail,
+            )
+        )
+
+
 class AdmissionIssuer:
     """Idempotent admission decisions keyed by (execution_id, attempt_id).
 
@@ -101,10 +163,15 @@ class AdmissionIssuer:
     the SAME outcome. A replay whose binding digest or claim reference
     differs from the recorded decision is a typed identity conflict, never
     a re-decision. The issuer never generates attempt identities.
+
+    With a journal, "permanently" spans process restarts: the decision is
+    checked memory -> journal -> fresh-decide, and every fresh decision is
+    journaled before being cached/returned.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, journal: AdmissionJournal | None = None) -> None:
         self._records: dict[tuple[str, str], AdmissionRecord] = {}
+        self._journal = journal
 
     def decide(
         self,
@@ -122,6 +189,13 @@ class AdmissionIssuer:
         digest = binding_digest(binding)
         key = (binding.execution_id, binding.attempt_id)
         existing = self._records.get(key)
+        if existing is None and self._journal is not None:
+            # Fail-closed durable replay: an unreadable journal propagates
+            # (never becomes a fresh decision); a journaled decision is
+            # cached and replayed with the in-process semantics.
+            existing = self._journal.load(*key)
+            if existing is not None:
+                self._records[key] = existing
         if existing is not None:
             # Replay: the identity is already decided. The presented
             # binding/claim must match the frozen decision exactly.
@@ -143,6 +217,12 @@ class AdmissionIssuer:
             return existing
 
         record = self._decide_fresh(binding=binding, claim_view=claim_view, digest=digest)
+        if self._journal is not None:
+            # Journaled BEFORE being cached/returned: a crash between
+            # journal-write and return still leaves the decision durable.
+            # A journal conflict (concurrent deciding process with a
+            # different outcome) propagates typed — fail closed.
+            self._journal.record(record)
         self._records[key] = record
         if not record.admitted:
             raise AdmissionDenied(record.code or DENIED_IDENTITY_MISMATCH, record.detail or "")

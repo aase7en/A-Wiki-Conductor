@@ -1,33 +1,41 @@
-"""DEX-2c end-to-end admission → dispatch → collect → receipt wiring (WO-P1-625).
+"""DEX-2c/DEX-2dA end-to-end admission → dispatch → collect → receipt wiring (WO-P1-625 / WO-P1-627).
 
 Orchestrates the ACCEPTED foundations over an injectable transport port:
 
     admit (dex_admission) → execution-record precondition → receipt-
-    idempotency check → ONE dispatch → collect → strict
-    decode_collected_evidence (+generation agreement) → idempotent receipt
-    (SQLiteExecutionStore).
+    idempotency check → durable write-ahead fence reservation (DEX-2dA)
+    → ONE dispatch → collect → strict decode_collected_evidence
+    (+generation agreement) → idempotent receipt (SQLiteExecutionStore)
+    → fence retirement.
 
 Fail-closed posture: admission denial happens BEFORE any dispatch; each
 identity is serialized by a per-identity lock held from the fence check
 through receipt persistence, so concurrent run_attempt calls cannot
 double-dispatch (the loser observes the receipt, or the ambiguity fence);
-an ambiguous/throwing dispatch FENCES the identity permanently (typed
-AMBIGUOUS, never a silent retry); a collect failure, evidence rejection,
-or receipt-persistence failure AFTER a dispatched attempt also fences the
-identity (re-dispatch would duplicate substrate effects — reconciliation
-is an explicit typed state); receipt-state
-lookups never fail open; a receipt-store conflict on ANY immutable field
-propagates typed instead of masking as duplicate success.
+a DURABLE write-ahead fence reservation is committed BEFORE physical
+dispatch — after any process restart, an identity whose fence is
+RESERVED/DISPATCHED/FENCED without a receipt is a typed AMBIGUOUS outcome
+pending explicit reconciliation, never an automatic re-dispatch (crash
+windows: reserve→dispatch, dispatch→receipt, and every ambiguity path are
+all at-most-once); an ambiguous/throwing dispatch FENCES the identity
+permanently (typed AMBIGUOUS, never a silent retry); a collect failure,
+evidence rejection, or receipt-persistence failure AFTER a dispatched
+attempt also fences the identity durably (re-dispatch would duplicate
+substrate effects — reconciliation is an explicit typed state);
+receipt-state lookups never fail open; a receipt-store conflict on ANY
+immutable field propagates typed instead of masking as duplicate success.
 
-Honest limitations — DEFERRED to successor slice DEX-2d (WO-612 §Limitations):
-  1. Durable admission journal (decisions/fences are in-process only).
-  2. Cross-restart at-most-once dispatch fence (crash between dispatch
-     and receipt relies on substrate scope-conflict truth + manual
-     reconciliation; this wire adds no durable fence).
-  3. Contract §6 same-execution retry model (new attempts require new
+DEX-2dA (WO-P1-627) delivers durable admission journaling and the
+cross-restart at-most-once dispatch fence over the store's
+admission_decisions / dispatch_fences tables. Remaining deferrals:
+  1. Contract §6 same-execution retry model (new attempts require new
      execution identities in this slice).
-  4. Contract §2 simultaneous-dispatch fencing beyond one process.
-  5. Contract §5 TERMINAL_UNHARVESTED blocking on admission.
+  2. Contract §2 simultaneous-dispatch fencing beyond ONE SQLite database
+     file (cluster-grade multi-host admission/fencing is a separate gate;
+     the two-connection single-database race is serialized by the store).
+  3. Contract §5 TERMINAL_UNHARVESTED blocking on admission.
+  4. Automatic reconciliation of fenced identities (explicit operator
+     reconciliation remains the model).
 
 No new authority is created here: admission validity comes from
 AdmissionIssuer + the caller-owned ClaimView; transport is a caller
@@ -53,6 +61,7 @@ WIRE_EXECUTION_RECORD_MISSING = "WIRE_EXECUTION_RECORD_MISSING"
 WIRE_STATE_UNAVAILABLE = "WIRE_STATE_UNAVAILABLE"
 WIRE_RECEIPT_CONFLICT = "WIRE_RECEIPT_CONFLICT"
 WIRE_GENERATION_MISMATCH = "WIRE_GENERATION_MISMATCH"
+WIRE_FENCE_CONFLICT = "WIRE_FENCE_CONFLICT"
 
 
 class WireError(RuntimeError):
@@ -121,11 +130,17 @@ class AdmissionReceiptWire:
         identity = (binding.execution_id, binding.attempt_id)
 
         # 1. Admission (fail-closed BEFORE any dispatch). A frozen denial
-        # re-raises here on every call; the identity can never flip.
+        # re-raises here on every call; the identity can never flip. A
+        # journal-backed issuer's durable-state failures surface typed —
+        # an unreadable journal is never a fresh admission.
         try:
             admission = self._issuer.decide(binding=binding, claim_view=claim_view)
         except AdmissionDenied as denial:
             return self._denied(binding, denial)
+        except ExecutionStoreError as err:
+            raise WireError(WIRE_STATE_UNAVAILABLE, f"admission journal unreadable: {err}") from err
+        except Exception as err:  # noqa: BLE001 - typed containment
+            raise WireError(WIRE_STATE_UNAVAILABLE, f"admission decision failed: {err}") from err
 
         # 2. Serialize the identity from fence-check through receipt.
         with self._identity_lock(identity):
@@ -157,36 +172,61 @@ class AdmissionReceiptWire:
                 detail="receipt already recorded for this identity",
             )
 
-        # 6. ONE dispatch; exceptions and non-DISPATCHED statuses both
-        # permanently fence the identity (typed AMBIGUOUS, no retry).
+        # 6. DEX-2dA durable fence: commit the write-ahead reservation
+        # BEFORE physical dispatch. A pre-existing fence (any state) means
+        # another process/instance — or a pre-crash life of this one —
+        # owns the dispatch window: never re-dispatch, fail closed typed.
+        if not self._reserve_durable_fence(binding, admission):
+            self._fenced.add(identity)
+            return self._ambiguous(
+                binding,
+                "durable dispatch fence already holds this identity (observed on reserve)",
+            )
+
+        # 7. ONE dispatch; exceptions and non-DISPATCHED statuses both
+        # permanently fence the identity (typed AMBIGUOUS, no retry). The
+        # durable fence is marked FENCED/DISPATCHED alongside the
+        # in-process fence so restarts inherit the same verdict.
         try:
             try:
                 dispatch_result = self._transport.dispatch(binding)
             except Exception as err:  # noqa: BLE001 - typed containment
                 self._fenced.add(identity)
+                self._fence_mark(binding, "FENCED", f"dispatch threw: {err}")
                 return self._ambiguous(binding, f"dispatch threw: {err}")
             status = dispatch_result.get("status") if isinstance(dispatch_result, dict) else None
             if status != "DISPATCHED":
                 self._fenced.add(identity)
+                self._fence_mark(binding, "FENCED", f"dispatch status was not DISPATCHED: {status!r}")
                 return self._ambiguous(binding, f"dispatch status was not DISPATCHED: {status!r}")
+            # The substrate accepted the dispatch — persist DISPATCHED
+            # before collecting. If this mark cannot be recorded after a
+            # real dispatch, durable state is unknown: fail closed typed.
+            try:
+                self._fence_mark(binding, "DISPATCHED", "substrate accepted dispatch")
+            except WireError:
+                self._fenced.add(identity)
+                raise
         except WireError:
             raise
         except Exception as err:  # noqa: BLE001 - belt/braces containment
             self._fenced.add(identity)
+            self._fence_mark(binding, "FENCED", f"dispatch failed unexpectedly: {err}")
             return self._ambiguous(binding, f"dispatch failed unexpectedly: {err}")
 
-        # 7. Collect. A failure AFTER a dispatched attempt fences the
+        # 8. Collect. A failure AFTER a dispatched attempt fences the
         # identity too: re-dispatching would duplicate substrate effects.
         try:
             raw = self._transport.collect(binding.execution_id, binding.attempt_id)
         except Exception as err:  # noqa: BLE001 - typed containment
             self._fenced.add(identity)
+            self._fence_mark(binding, "FENCED", f"collect failed after dispatch: {err}")
             raise WireError(
                 WIRE_COLLECT_UNAVAILABLE,
                 f"collect failed after dispatch; identity fenced pending reconciliation: {err}",
             ) from err
 
-        # 8. Strict decode + generation agreement with the frozen decision.
+        # 9. Strict decode + generation agreement with the frozen decision.
         try:
             evidence = decode_collected_evidence(
                 raw,
@@ -200,6 +240,7 @@ class AdmissionReceiptWire:
             # Evidence about a dispatched attempt failed ingest: fence so a
             # re-run cannot dispatch again and produce another effect.
             self._fenced.add(identity)
+            self._fence_mark(binding, "FENCED", f"evidence rejected: {err}")
             return WireOutcome(
                 execution_id=binding.execution_id,
                 attempt_id=binding.attempt_id,
@@ -209,6 +250,9 @@ class AdmissionReceiptWire:
             )
         if evidence.claim_generation != admission.claim_generation:
             self._fenced.add(identity)
+            self._fence_mark(
+                binding, "FENCED", f"generation mismatch: {evidence.claim_generation}"
+            )
             return WireOutcome(
                 execution_id=binding.execution_id,
                 attempt_id=binding.attempt_id,
@@ -220,7 +264,7 @@ class AdmissionReceiptWire:
                 ),
             )
 
-        # 9. Idempotent durable receipt. Drift is surfaced through the
+        # 10. Idempotent durable receipt. Drift is surfaced through the
         # QUARANTINED disposition — never silently ACCEPTED.
         disposition = (
             ReceiptDisposition.QUARANTINED
@@ -243,6 +287,7 @@ class AdmissionReceiptWire:
         except ExecutionStoreError as err:
             replay = self._find_identical_receipt(receipt)
             if replay is not None:
+                self._fence_retire_best_effort(binding, "receipt verifiably stored by a racing writer")
                 return WireOutcome(
                     execution_id=binding.execution_id,
                     attempt_id=binding.attempt_id,
@@ -252,9 +297,11 @@ class AdmissionReceiptWire:
                 )
             # A DIFFERENT immutable receipt exists for this identity, or the
             # store is genuinely broken. The substrate effect ALREADY
-            # happened, so fence before propagating typed — a re-run must
-            # never dispatch again, and never mask this as duplicate success.
+            # happened, so fence (in-process AND durable) before propagating
+            # typed — a re-run must never dispatch again, and never mask
+            # this as duplicate success.
             self._fenced.add(identity)
+            self._fence_mark(binding, "FENCED", f"receipt rejected: {err}")
             raise WireError(
                 WIRE_RECEIPT_CONFLICT,
                 f"receipt store rejected the receipt; identity fenced pending reconciliation: {err}",
@@ -263,10 +310,12 @@ class AdmissionReceiptWire:
             # Same reasoning: the effect happened, only the durable record
             # failed — fence so no re-run can duplicate it.
             self._fenced.add(identity)
+            self._fence_mark(binding, "FENCED", f"receipt persistence failed: {err}")
             raise WireError(
                 WIRE_STATE_UNAVAILABLE,
                 f"receipt persistence failed; identity fenced pending reconciliation: {err}",
             ) from err
+        self._fence_retire_best_effort(binding, "receipt recorded")
         return WireOutcome(
             execution_id=stored.execution_id,
             attempt_id=stored.attempt_id,
@@ -287,6 +336,71 @@ class AdmissionReceiptWire:
             raise WireError(WIRE_STATE_UNAVAILABLE, f"execution state unreadable: {err}") from err
         except Exception as err:  # noqa: BLE001 - typed containment
             raise WireError(WIRE_STATE_UNAVAILABLE, f"execution state unreadable: {err}") from err
+
+    def _reserve_durable_fence(self, binding: DexBindingIdentity, admission) -> bool:
+        """DEX-2dA write-ahead reservation. Returns True only when THIS
+        call committed a fresh RESERVED row and therefore owns the
+        dispatch window; False means a durable fence already holds the
+        identity (its state was observed — never a takeover)."""
+        try:
+            _state, created = self._store.reserve_dispatch_fence(
+                binding.execution_id,
+                binding.attempt_id,
+                admission.binding_digest,
+            )
+        except ExecutionStoreError as err:
+            if "FENCE_BINDING_CONFLICT" in str(err) or "FENCE_STATE_CONFLICT" in str(err):
+                raise WireError(
+                    WIRE_FENCE_CONFLICT,
+                    f"durable fence rejected the identity: {err}",
+                ) from err
+            raise WireError(WIRE_STATE_UNAVAILABLE, f"durable fence state unreadable: {err}") from err
+        except Exception as err:  # noqa: BLE001 - typed containment
+            raise WireError(WIRE_STATE_UNAVAILABLE, f"durable fence state unreadable: {err}") from err
+        return created
+
+    def _fence_mark(self, binding: DexBindingIdentity, state: str, reason: str) -> None:
+        """Persist a durable fence transition. Fail-closed: when a
+        verdict cannot be recorded durably the typed error propagates,
+        rather than returning a verdict this process cannot prove will
+        survive a restart. Fence-level disagreements (state/binding
+        conflicts, a fence that vanished underneath us) keep their
+        conflict class instead of collapsing to STATE_UNAVAILABLE."""
+        try:
+            self._store.transition_dispatch_fence(
+                binding.execution_id, binding.attempt_id, state, reason
+            )
+        except ExecutionStoreError as err:
+            text = str(err)
+            if (
+                "FENCE_STATE_CONFLICT" in text
+                or "FENCE_BINDING_CONFLICT" in text
+                or "DISPATCH_FENCE_NOT_FOUND" in text
+                or "DISPATCH_FENCE_CORRUPT" in text
+            ):
+                raise WireError(
+                    WIRE_FENCE_CONFLICT,
+                    f"durable fence rejected the transition to {state}: {err}",
+                ) from err
+            raise WireError(
+                WIRE_STATE_UNAVAILABLE,
+                f"durable fence transition to {state} failed: {err}",
+            ) from err
+        except Exception as err:  # noqa: BLE001 - typed containment
+            raise WireError(
+                WIRE_STATE_UNAVAILABLE,
+                f"durable fence transition to {state} failed: {err}",
+            ) from err
+
+    def _fence_retire_best_effort(self, binding: DexBindingIdentity, reason: str) -> None:
+        """Retire the fence after a verified receipt. Best-effort by
+        design: the receipt is the durable completion truth and the
+        duplicate check runs BEFORE the fence on every later run, so a
+        failed retirement never re-opens the dispatch window."""
+        try:
+            self._fence_mark(binding, "RETIRED", reason)
+        except WireError:
+            pass
 
     def _denied(self, binding: DexBindingIdentity, denial: AdmissionDenied) -> WireOutcome:
         return WireOutcome(
