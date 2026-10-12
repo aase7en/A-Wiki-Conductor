@@ -1,6 +1,6 @@
 # WO-P1-630 — INSTALL-ENROLL slice A: offline enrollment contract + RDC separation
 
-Status: IN_PROGRESS (claimed 2026-10-12 by the GLM-5.3 MAX wake lane; implementation pending)
+Status: DONE — SRM PR #21 merged 2026-10-12 at `cdb669e` (pinned-head `da1d727`); review chain SRM PR #21 comment 6126638338; claim released #630 comment 6126647821
 Issue: #630
 Parent: #607 (INSTALL-1 / CUTOVER-RO); operator steer 2026-10-12 "Native Windows Enrollment Unblock"; audit evidence #607 comment 6122338729.
 Risk: R3 — authentication, enrollment, trust and remote access.
@@ -32,3 +32,5 @@ Identity-provider invention; credential minting; RDC token reuse as PAIRED; secu
 ## Checkpoint log (append-only)
 
 - [2026-10-12] WO created after the R3 source audit (#607 c6122338729); lane issue #630 verified as a real issue BEFORE naming. Audit-only so far; no source mutation. SRM worktree for implementation TBD next iteration (wo607 worktree's `.serena/`/`.tmp/` preserved untouched).
+- [2026-10-12] Operator decided OPTION 1 (Sunday-owned issuer; #630 c6122489537) — Option 2 transitional DC trust explicitly NOT approved; slice A scope unchanged (offline).
+- [2026-10-12] COMPLETE — SRM PR #21 merged at `cdb669e` (pinned-head `da1d727`; worktree `A:\GitHub\_worktrees\SRM-install-enroll-a` off SRM `f4bdd57`). Delivered: `enroll-contract.ts` (pure token-verification contract; 3-arg signature seam, hasOwn key pinning, strict nbf, full typed fail-closed matrix), `sunday-config-root.ts` (`~/.sunday-device` isolation, both-direction containment refusal, foreign RDC state never touched), `upstream-health.ts` (allowlisted fail-closed probe; single-upstream posture documented), `sunday:enroll` (refuses until the Option-1 issuer exists; no PAIRED path) + `sunday:doctor` (read-only) CLIs, 3 adversarial suites. Review: 2 exact-SHA rounds on the repo-accepted separate-session GLM read-only lane (Codex Sol unavailable — typed blocker CODEX_MODEL_UNAVAILABLE_ON_ACCOUNT; r1 CHANGES_REQUIRED P1 signature-seam/P2 inherited-key-pinning + P3s → repaired → r2 PASS with behavioral evidence; chain: SRM PR #21 c6126638338). CI: codespell SUCCESS, CLEAN. Post-main verify on merged main: 3/3 new suites + agent-gate + pairing-state green; full-suite local baseline 89/97 with 8 failures reproduced identically on clean f4bdd57 (environment only). NO PAIRED state ever created; no issuer invented; no credentials minted. Slice-B follow-ups recorded by review: drive-root trailing-separator CONTAINS edge; multi-origin failover; lexical-alias isolation note. NEXT: Milestone 2 — the bounded read-only Option-1 issuer architecture/threat-model proposal (authorized by c6122489537 item 2).
