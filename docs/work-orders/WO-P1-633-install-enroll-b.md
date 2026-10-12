@@ -1,6 +1,6 @@
 # WO-P1-633 — INSTALL-ENROLL-B: contract extension + test-only issuer twin + enroll wiring
 
-Status: IN_PROGRESS (claimed 2026-10-13 by the GLM-5.3 MAX wake lane)
+Status: DONE — SRM PR #22 merged 2026-10-13 at `46f5a54` (pinned-head `ee975ab`); review chain SRM PR #22 comment 6132007917; claim released #633 comment 6132008724
 Issue: #633
 Parent: #630 (Option 1 c6122489537; M2 approval c6131329187; proposal v2 c6127288782); audit #607 c6122338729.
 Risk: R3 — authentication and trust contract.
@@ -26,3 +26,4 @@ Live network issuance; deployment/hosting/keys; new listeners; production creden
 ## Checkpoint log (append-only)
 
 - [2026-10-13] WO created per the approved M2 contract (c6131329187); lane issue #633 verified as a real issue BEFORE naming. Audit + slice-A seams grounded. No source mutation yet; SRM worktree off cdb669e next.
+- [2026-10-13] COMPLETE — SRM PR #22 merged at `46f5a54` (pinned-head `ee975ab`; worktree SRM-enroll-b off `cdb669e`). R3 review: 2 exact-SHA rounds on the separate-session GLM read-only lane (r1 PASS with P2 hardening: unconditional cnf, strict nbf + finite guards, seenRtis caller-contract, dead code; r2 PASS verifying closures; chain: SRM PR #22 c6132007917). CI codespell SUCCESS; post-main verify 5 enroll suites + agent-gate green. Recorded follow-ups for the wiring slice: thread seenRtis on every refresh call; JWKS revision sequence/rollback; Infinity test row via raw 1e999; slow_down docstring; guard breadth. M3 offline contract COMPLETE; the issuer/verifier implementation + authenticated workflow remainder sits behind the deployment/hosting/keys human gates.
