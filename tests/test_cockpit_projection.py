@@ -1545,6 +1545,8 @@ def test_bound_authority_reads_never_write_the_authority_db(
     finally:
         connection.close()
     assert [row[0] for row in tables] == [
+        "admission_decisions",
+        "dispatch_fences",
         "execution_events",
         "execution_receipts",
         "execution_records",
