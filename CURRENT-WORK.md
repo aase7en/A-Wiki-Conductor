@@ -1,5 +1,14 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-13 — M2 APPROVED + INSTALL-ENROLL-B SHIPPED: enrollment contract complete through refresh/PoP/JWKS — CURRENT
+
+> Continuous Pilot-first Goal active. Mains: **AWC `8808b19`** (WO-631/#632/#634 records), **SRM `46f5a54`** (PR #22 INSTALL-ENROLL-B). Codex CLI still blocked (CODEX_MODEL_UNAVAILABLE_ON_ACCOUNT); reviews on the accepted separate-session GLM read-only lane.
+
+- **M2 DECIDED**: operator "ต่อไปต่อไป" recorded durably (#630 c6131329187) — Option-1 architecture v2 APPROVED including the INSTALL-ENROLL-B scope (interpretation note included; supersedable by a correction comment).
+- **WO-P1-633 INSTALL-ENROLL-B COMPLETE** (issue #633; claim c6131358758; released c6132008724): SRM PR #22 merged pinned-head `ee975ab` → `46f5a54`. Delivered: `enroll-credential-lifecycle.ts` (signed-JWKS continuity — the SOLE key-addition mechanism, origin-controlled JWKS can never bootstrap trust; refresh with rotation-on-use, revocation, idle/absolute bounds, MANDATORY PoP over `derivePoPChallenge`; strict nbf + finite guards), structurally-firewalled TEST-ONLY issuer twin (static import-guard enforced across src+dist), pure `enroll-flow.ts` (PAIRED only via offline-verified + cnf-bound credentials; typed failures; UNPAIRED default). Review: 2 exact-SHA rounds (r1 PASS + hardening: unconditional cnf — cnf-less credentials never pair; r2 PASS; chain SRM PR #22 c6132007917). CI codespell SUCCESS; post-main 5 suites + agent-gate green. NO live issuance; no production keys.
+- **Pilot milestones:** M1 ✅ M2 ✅ **M3-offline ✅**. NEXT: the M3 remainder (real issuer/verifier implementation + authenticated enrollment workflow) and M4 (native transport + exact Windows routing) sit behind the deployment/hosting/domain/keys human gates — each an explicit operator decision per the Goal §4/§8. Recorded wiring-slice follow-ups: thread seenRtis on every refresh call; JWKS revision sequence/rollback; minor test/doc nits (see WO-633 checkpoint).
+- Human gates (stated once): deployment/public exposure + hosting/domain/DNS selection (proposal §2 models A–D); production key generation + custody ceremony; live credential issuance; real Windows enrollment consent (operator at DESKTOP-7IB57R4); Codex entitlement restoration (optional accelerator).
+
 ## 2026-10-13 (early) — Enrollment unblocked: audit + Option 1 decision + INSTALL-ENROLL slice A SHIPPED — CURRENT
 
 > Continuous Pilot-first Goal active (operator set as session Goal). Mains: **AWC `00dfe89`** (WO-631 records PR #631 merged), **SRM `cdb669ec5294e814100e7cf8e58330b328752825`** (advanced by PR #21 slice A). Wake = Supervisor v4.
