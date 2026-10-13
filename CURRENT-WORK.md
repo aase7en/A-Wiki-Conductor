@@ -1,6 +1,16 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-13 (later) — M4 offline COMPLETE: transport design v2 + simulation SHIPPED; LOCAL-FIRST direction folded — CURRENT
+## 2026-10-13 (latest) — REPLACE-ALL Goal accepted; MILESTONE A (product feasibility) COMPLETE — CURRENT
+
+> New operator Goal (pasted 2026-10-13) replaces all priors: ONE installable, secure, LOCAL-FIRST SundayMCP product (Milestones A–I; PILOT_VERIFIED only with real end-to-end evidence + stated tested account tier). Mains: **AWC `c448d0f`**, **SRM `cb5950c`**. No open WOs/claims. Codex still blocked (CODEX_MODEL_UNAVAILABLE_ON_ACCOUNT); GLM review lane.
+
+- **MILESTONE A SHIPPED** — feasibility record posted to **#495 c6139800305** (full source set archived at supervisor `.tmp/milestone-a/`): all facts fetched live from official OpenAI pages on 2026-10-13 (chatgpt.com/pricing table; help 12584461 devmode / 20001256 plugins / 9275245 free-tier / 12515353 Apps SDK; developers.openai.com custom-mcp-server + secure-mcp-tunnels + plugins export; learn.chatgpt.com/docs/extend/mcp). Old help article 10169521 is DELETED — do not cite.
+- **Verified:** custom MCP connectors need developer mode — **Free/Go No, Plus/Pro Yes** (pricing table); full-MCP write = Business/Enterprise/Edu beta, help FAQ says Pro dev-mode MCP read/fetch only, dev guide says read+write — **personal-plan custom-MCP WRITE is UNVERIFIED (source conflict): must be tested empirically with the account tier recorded**. Secure MCP Tunnel = outbound-only, works from a user-owned Windows machine, needs Platform org + runtime API key + tunnel_id, no public endpoint, no documented control-plane charge; ChatGPT web cannot reach local MCP directly. **ChatGPT desktop app + Codex CLI + IDE extension support LOCAL stdio MCP servers** via shared `~/.codex/config.toml` (Route D backbone; web never reads local config).
+- **Verdicts:** OPENAI_FREE_PLAN_VERDICT=**BLOCKED** (exact blocker = developer-mode entitlement, not tunnel/billing); PRIVATE_TUNNEL_VERDICT=**VIABLE zero-hosting** (Route A; needs Plus+; write seam unverified); LOCAL_FIRST_COST_VERDICT=**0 THB incremental hosting** on Routes A and D. Smallest route = D (desktop local stdio MCP); smallest keeping ordinary ChatGPT web = A. Route B rejected (§8 public-endpoint ban); Route C deferred Phase-2+.
+- **Parked operator decisions (true blockers):** pilot account tier (Free confirmation vs Plus dev-mode → decides Route A); Codex entitlement restoration (Route D depends); standing Phase-1 gates (keys/custody, live issuance, real Windows enrollment consent — package #630 c6135839685 + c6137500281).
+- **NEXT_SAFE_ACTION:** fresh WO for Milestone B (local agent integration, test-only credentials) at the next wake. Do not redispatch M1–M4 or re-run Milestone A.
+
+## 2026-10-13 (later) — M4 offline COMPLETE: transport design v2 + simulation SHIPPED; LOCAL-FIRST direction folded
 
 > Continuous Pilot-first Goal active. Mains: **AWC `4e55ce6`** (WO-636 docs #637), **SRM `cb5950c`** (PR #23 INSTALL-M4-SIM). Codex still blocked (CODEX_MODEL_UNAVAILABLE_ON_ACCOUNT); reviews on the accepted separate-session GLM read-only lane.
 
