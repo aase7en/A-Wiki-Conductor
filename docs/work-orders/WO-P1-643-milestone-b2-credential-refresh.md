@@ -1,6 +1,6 @@
 # WO-P1-643 — MILESTONE-B2: credential refresh integration (offline, test-only)
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #25 merged 2026-10-13 at `3be057a` (pinned-head `08ec3c2`); review chain: independent GLM exact-SHA PASS at `08ec3c2` (0 P0-P2, 5 P3 notes, no repairs); claim released #643 comment 6146249340
 Issue: #643
 Parent: #495 (fabric; steer c6143365204 item 7 — continue READY offline tasks), #640 (Milestone B predecessor, DONE at SRM `f5f3fdd`).
 Risk: R3 — composes shipped trust contracts (offline token verification, cnf binding, at-most-once anchor) with a credential-rotation path; offline/test-only throughout.

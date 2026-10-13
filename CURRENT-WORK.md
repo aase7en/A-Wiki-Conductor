@@ -1,6 +1,13 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-13 (Milestone B) — MILESTONE B SHIPPED: offline local-agent integration + Desktop/MCP discovery — CURRENT
+## 2026-10-13 (Milestone B-2) — credential refresh loop SHIPPED — CURRENT
+
+> Continues the Milestone-B lineage (steer item 7: continue READY offline tasks). Mains: **AWC `a08527e`**, **SRM `3be057a`** (PR #25 pinned-head `08ec3c2`). No open WOs/claims (WO-P1-643 released c6146249340).
+
+- **WO-P1-643 MILESTONE-B2 COMPLETE** (lane #643; claim c6145874740 → released c6146249340): credential-lifetime loop closed in the LocalAgent runtime. Enrollment WRAP retains the refresh token via the issuer port (zero shipped-file changes); `LocalAgent.refresh` calls the rotation port → OFFLINE re-verifies the new access token (issuer/audience/device/scope/expiry/signature, expectedDeviceId = this agent) → requires cnf == enrolled PoP thumbprint → replaces `credentialExp` from VERIFIED `claims.exp` → persists the rotated token. Typed failures (`REFRESH_NO_TOKEN`/`REFRESH_ISSUER_REJECTED`/`REFRESH_CREDENTIAL_REJECTED`) leave prior state untouched. RED→GREEN; review PASS at `08ec3c2` (0 P0-P2; adversarial probes: wrong-cnff, cross-device, past-exp, same-token-both-roles, 8 malformed grants — all fail-closed); 5 P3 notes in the WO; post-main 4/4 green.
+- **NEXT_READY (offline):** agent-side revocation introspection; real MCP-facing stdio surface behind test-only config; durable credentialExp (P3 flag). Live gates unchanged (Phase-1 keys/issuance/consent #630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP in-product verification).
+
+## 2026-10-13 (Milestone B) — MILESTONE B SHIPPED: offline local-agent integration + Desktop/MCP discovery
 
 > REPLACE-ALL Goal Milestone B COMPLETE. Mains: **AWC `b86dd4a`**, **SRM `f5f3fdd`** (PR #24 pinned-head `9d59b7d`). No open WOs/claims (WO-P1-640 released c6144238748). Codex Sol still blocked; GLM review lane.
 
