@@ -1,6 +1,6 @@
 # WO-P1-647 — durable credentialExp across LocalAgent restart
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #27 merged 2026-10-13 at `96f0c8b` (pinned-head `ed2e76a`; review PASS at `dbd0c22` with P2 test-gap + 2 P3 nits all repaired pre-merge); claim released #647 comment 6150922552
 Issue: #647
 Parent: #495 (overnight goal Priority 3); predecessor WO-P1-643 (B-2 review P3-3 flag).
 Risk: R2 — single-runtime persistence semantics, offline/test-only; composes already-shipped verified writers only.

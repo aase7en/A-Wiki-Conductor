@@ -1,6 +1,15 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-13 (Milestone B-2) — credential refresh loop SHIPPED — CURRENT
+## 2026-10-13 (overnight) — WO #646 MCP-STDIO (Milestone C offline) + WO #647 durable credentialExp SHIPPED — CURRENT
+
+> Overnight autonomous goal active (GLM implements / Codex specialist / JEV advisory). Mains: **AWC `5b465f3`**, **SRM `96f0c8b`**. No open WO claims; no open SRM PRs.
+
+- **WO-P1-646 MILESTONE-C offline COMPLETE (Codex-authored lane)** — recovered TERMINAL-COMPLETE (session `01a135f3` dead, PID gone, result file terminal; sandbox had blocked `git index.lock`); supervisor verified 3/3 SHA-256 file hashes against Codex's checkpoint, re-harvested build + stdio matrix + 4 regressions, froze `2aec42c` (Codex credited), SRM PR #26 → **main `3d5a5bd`**. Independent exact-SHA review: **PASS** (7 invariant groups adversarially verified — 9-case gate matrix, 8 prototype-member command IDs → EBADARGS, path escapes, real-SDK subprocess protocol incl. EOF at 3 stages, trust boundary via shipped verifyEnrollmentToken/pairing/revocation veto, the author's 3 RED fixes, at-most-once; 3 P3 nits). Delivered: offline MCP STDIO LocalAgent integration (real MCP SDK Server + shipped FilteredStdioServerTransport; double test-only gate; synthetic fixture list/read only). Claim c6149167007 released c6150491868.
+- **WO-P1-647 durable credentialExp COMPLETE** — SRM PR #27 → **main `96f0c8b`** (pinned `ed2e76a`): `credentialExp` persisted (writers: enroll + VERIFIED refresh only); `restart()` is a TRUE cold start (baseline injected bound; persisted bound adopted only when finite ≥ baseline); review PASS at `dbd0c22` (18/18 probes) + P2 test-gap repaired pre-merge as matrix row 11d (anti-object-sharing discriminator). Claim c6150282509 released c6150922552. Resolves B-2 P3-3.
+- **Model routes verified this session:** Codex CLI **works** with `gpt-6-sol` (the #646 lane used it; CODEX_MODEL_UNAVAILABLE applied to other model ids) — supersede the old blocker note for this route. GLM-5.3 lanes + separate-session read-only review lane all healthy. JEV not consulted (no material decision needed it; per goal §4 not a blocking dependency).
+- **NEXT_READY (offline):** P2 agent-side revocation introspection (fresh lane; local-agent.ts hotspot now free); then P4 installer/doctor direction. Live gates unchanged (Phase-1 keys/issuance/consent #630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP in-product verification).
+
+## 2026-10-13 (Milestone B-2) — credential refresh loop SHIPPED
 
 > Continues the Milestone-B lineage (steer item 7: continue READY offline tasks). Mains: **AWC `a08527e`**, **SRM `3be057a`** (PR #25 pinned-head `08ec3c2`). No open WOs/claims (WO-P1-643 released c6146249340).
 
