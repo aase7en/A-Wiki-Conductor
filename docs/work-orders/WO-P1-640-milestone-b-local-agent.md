@@ -1,6 +1,6 @@
 # WO-P1-640 — MILESTONE-B: offline local-agent integration (test-only credentials)
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #24 merged 2026-10-13 at `f5f3fdd` (pinned-head `9d59b7d`); review chain: independent GLM exact-SHA PASS at `c9cdd1c` (0 P0/P1/P2; P3 repairs pre-merge); claim released #640 comment 6144238748
 Issue: #640
 Parent: #495 (fabric; authorization c6143365204 — MILESTONE_B=OFFLINE_READY_SUBJECT_TO_WO_AND_CLAIM), #630 (Option 1 lineage), REPLACE-ALL Goal Milestone B (2026-10-13 steer).
 Risk: R3 — composes shipped trust contracts (enrollment verification, credential lifecycle semantics, at-most-once anchor) into one runtime; offline/test-only throughout.
