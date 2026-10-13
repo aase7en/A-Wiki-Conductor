@@ -1,5 +1,15 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-13 (later) — M4 offline COMPLETE: transport design v2 + simulation SHIPPED; LOCAL-FIRST direction folded — CURRENT
+
+> Continuous Pilot-first Goal active. Mains: **AWC `4e55ce6`** (WO-636 docs #637), **SRM `cb5950c`** (PR #23 INSTALL-M4-SIM). Codex still blocked (CODEX_MODEL_UNAVAILABLE_ON_ACCOUNT); reviews on the accepted separate-session GLM read-only lane.
+
+- **OPERATOR DIRECTION — LOCAL_FIRST_NOW / CLOUD_OPTIONAL_LATER** (#495 c6137445352; reconciled #630 c6137500281, design addendum v2.1 #636 c6137500621): Phase 1 = user-owned local compute, zero mandatory incremental cost (hosting recommendation demoted to a Phase-2 option; phase-1 gates reduce to keys + issuance + enrollment consent); architecture must stay portable across local tunnel / user gateway / hosted tier; CHATGPT_FREE_CAPABILITIES=VERIFY_NOT_ASSUME recorded.
+- **M4 transport design v2** (#636 body): independently challenged (REVISION_REQUIRED 6×P1 → all closures verified → SOUND_FOR_SUCCESSOR_WO) — PoP-signed registration (±120s freshness, single-use nonces, GENERATION_TAKEN), durable single-unit router state, atomic insert-before-execute command machine with agent-side authoritative at-most-once anchor, revocation ≤60s TTL bound, no-co-execution invariant, by-specification reuse of draft PR #335 with a merge-order condition.
+- **WO-P1-636 INSTALL-M4-SIM COMPLETE** (claim c6137476769, released c6138014267): SRM PR #23 merged pinned-head `009ed01` → `cb5950c`. Pure offline simulation + full design §4 fault matrix; review 2 rounds (r1 3×P2 → repairs → r2 PASS; chain SRM PR #23 c6138013687); codespell SUCCESS; post-main green.
+- **Pilot milestones:** M1 ✅ M2 ✅ M3-offline ✅ **M4-offline ✅**. Remaining: M3-live + M4-live behind the consolidated approval package (#630 c6135839685 + c6137500281 — Phase 1 local needs only keys/issuance/enrollment-consent), then M5 read-only Pilot, M6 mutation, M7 Mac, M8 acceptance.
+- Human gates (stated once): production keys + custody ceremony; live credential issuance; real Windows enrollment consent (operator at DESKTOP-7IB57R4); any later hosting/domain decision (Phase 2+); Codex entitlement restoration (optional accelerator).
+
 ## 2026-10-13 — M2 APPROVED + INSTALL-ENROLL-B SHIPPED: enrollment contract complete through refresh/PoP/JWKS — CURRENT
 
 > Continuous Pilot-first Goal active. Mains: **AWC `8808b19`** (WO-631/#632/#634 records), **SRM `46f5a54`** (PR #22 INSTALL-ENROLL-B). Codex CLI still blocked (CODEX_MODEL_UNAVAILABLE_ON_ACCOUNT); reviews on the accepted separate-session GLM read-only lane.
