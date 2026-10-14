@@ -1,6 +1,13 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-14 (executor) — WO-P1-662 allowlist read executor SHIPPED — CURRENT
+## 2026-10-15 — WO-P1-665 first-run planner + bounded rollback SHIPPED — CURRENT
+
+> Mains: **AWC (this fold)**, **SRM `2f02170`** (PR #33 pinned-head `dbff99d`). No open claims; no open SRM PRs. P4 first-run integration COMPLETE.
+
+- **WO-P1-665 COMPLETE** — `planFirstRun` (pure five-gate composition: install marker / install config / ≥1 strict-granted + installable allowlist / agent-state health / pairing PAIRED; strict signal typing) + `rollbackSundayInstall` (bounded: removes EXACTLY config.json + install.json; unreadable/corrupt refusals remove nothing; INVALID_ROOT over device prefixes, bare roots, traversal AND symlink/junction aliases via realpath equality; typed partial-failure) — library-only, no CLI wiring — + doctor `First run` row proven to a genuine READY through the real pairing API. **Sol four-round arc**: r1 six real defects (EACCES-as-missing the sharpest), r2 two root-guard gaps, r3 zero source findings, r4 reviewer-executed real suites in a writable throwaway clone ALL PASS. Claim released c6176658029.
+- **NEXT_READY (offline):** wire the first-run verdict into the install CLI flow (sunday:install → doctor → first-run) behind test gates; fs-backed DirectoryReader library module (unwired); config-root unification remains DECISION_REQUIRED. Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-14 (executor) — WO-P1-662 allowlist read executor SHIPPED
 
 > Mains: **AWC (this fold)**, **SRM `5d337d5`** (PR #32 pinned-head `8dffa57`). No open claims; no open SRM PRs.
 
