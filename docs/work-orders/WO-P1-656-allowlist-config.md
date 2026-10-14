@@ -1,6 +1,6 @@
 # WO-P1-656 — allowlist directory configuration + doctor row
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #30 merged 2026-10-14 at `660ad00` (pinned-head `eb91eba`); review chain: GPT-6 Sol 3 rounds (r1 CHANGES_REQUIRED P1 path-forms + P2 control-char spoofing → `525c0b3`; r2 CHANGES_REQUIRED 2xP1 normalized-prefix + mid-segment → `eb91eba`; r3 PASS zero findings); claim released #656 comment 6164346276
 Issue: #656
 Parent: #495 (overnight Priority 4 continuation); predecessor WO-P1-653 (fs state store + doctor rows, `86ab83c`).
 Risk: R3 — path-validation seam (future executor consent surface); offline/test-only.

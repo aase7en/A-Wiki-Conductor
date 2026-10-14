@@ -1,6 +1,14 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-14 (later) — WO-P1-653 fs agent-state store + doctor diagnostics SHIPPED — CURRENT
+## 2026-10-14 (latest) — WO-P1-656 allowlist directory configuration SHIPPED — CURRENT
+
+> Mains: **AWC (this fold)**, **SRM `660ad00`** (PR #30 pinned-head `eb91eba`). No open claims; no open SRM PRs. Overnight P4 second slice COMPLETE.
+
+- **WO-P1-656 COMPLETE** — explicit allowlist directory configuration (user-owned consent surface for future real read operations): `src/sunday/allowlist-config.ts` (validated absolute Windows/UNC directories; fail-closed load — missing = not-configured, corrupt/null-file = typed ALLOWLIST_CORRUPT never silently empty; atomic validated saves; case-insensitive post-normalization dedupe, cap 64 after dedupe; pure value-safe inspector) + `sunday doctor` row (ABSENT / N + preview / CORRUPT). **GPT-6 Sol three-round review** — r1 caught real P1 path-form holes + a P2 control-char doctor-spoofing vector; r2 caught two MORE real P1s (`//?/UNC/...` normalized-prefix bypass; mid-segment trailing dot); r3 PASS zero findings at `eb91eba`. Claim released c6164346276.
+- **Model lanes:** GPT-6 Sol = proven adversarial reviewer (five lanes reviewed; every CHANGES_REQUIRED round surfaced genuine defects). JEV = SPENDING_GATED (unchanged).
+- **NEXT_READY (offline):** P4 continuation — installer packaging/install experience (npm packaging, first-run flow over doctor + allowlist + fs state, bounded rollback); real-executor wiring consuming the allowlist. Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-14 (later) — WO-P1-653 fs agent-state store + doctor diagnostics SHIPPED
 
 > Mains: **AWC (this fold)**, **SRM `86ab83c`** (PR #29 pinned-head `091e681`). No open claims; no open SRM PRs. Overnight P4 first slice COMPLETE.
 
