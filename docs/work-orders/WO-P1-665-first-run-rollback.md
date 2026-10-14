@@ -1,6 +1,6 @@
 # WO-P1-665 — first-run readiness planner + bounded install rollback
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #33 merged 2026-10-15 at `2f02170` (pinned-head `dbff99d`); 4-round Sol review arc (r1 six real defects; r2 two root-guard gaps; r3 zero source findings; r4 writable-clone real-suite execution ALL PASS); claim released #665 comment 6176658029
 Issue: #665
 Parent: #495 (operator steer 2026-10-15 — P4 first-run integration); predecessors: installer slice E, WO-653/656/659/662 components.
 Risk: R3 — rollback touches (test-root) filesystem semantics; pure planner adjacent to the install trust surface.
