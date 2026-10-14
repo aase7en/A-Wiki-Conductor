@@ -1,6 +1,6 @@
 # WO-P1-659 — allowlist surface reconciliation (strict writes + doctor truth)
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #31 merged 2026-10-14 at `d1da117` (pinned-head `c3dc14b`); design challenged pre-implementation (Sol SOUND_WITH_AMENDMENTS) + 3-round review (r1 P1 forged-version row-injection + P2 over-cap display + P3 non-merge gap → r2 P2 raw-count dimension → r3 PASS zero findings); claim released #659 comment 6168010170
 Issue: #659
 Parent: #495 (overnight P4); predecessors: slice-E installer (`agent-lifecycle.ts`), WO-P1-656 (`allowlist-config.ts`).
 Risk: R3 — installer write-path semantics + displayed authorization truth.
