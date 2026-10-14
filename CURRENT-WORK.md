@@ -1,6 +1,13 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-14 (recon) — WO-P1-659 allowlist surface reconciliation SHIPPED — CURRENT
+## 2026-10-14 (executor) — WO-P1-662 allowlist read executor SHIPPED — CURRENT
+
+> Mains: **AWC (this fold)**, **SRM `5d337d5`** (PR #32 pinned-head `8dffa57`). No open claims; no open SRM PRs.
+
+- **WO-P1-662 COMPLETE** — the WO-659 invariant as a real seam: `createAllowlistReadExecutor` — STRICT re-validation of every entry at USE time from a construction-time snapshot (legacy forms confer nothing; zero usable → typed ALLOWLIST_UNUSABLE); case-insensitive separator-bounded containment (UNC + drive forms; sibling-prefix and traversal denied); injected `DirectoryReader` ({read, list, isFile} — no fs import, no live wiring; stdio adapter untouched). Sol 2-round review (r1: TS2322 type closure + mutation widening + UNC + verdict masking — all real; lesson banked: **tsc emits despite type errors — always exit-check builds**); r2 PASS zero findings. Claim released c6172951759.
+- **NEXT_READY (offline):** first-run/install flow packaging over doctor + allowlist + fs state + executor seam (bounded rollback); optionally an fs-backed DirectoryReader as a library module still unwired. **DECISION_REQUIRED (standing):** config-root unification (installer `.desktop-commander-device` vs Sunday `.sunday-device`). Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-14 (recon) — WO-P1-659 allowlist surface reconciliation SHIPPED
 
 > Mains: **AWC (this fold)**, **SRM `d1da117`** (PR #31 pinned-head `c3dc14b`). No open claims; no open SRM PRs.
 
