@@ -1,6 +1,6 @@
 # WO-P1-662 — allowlist-consuming read executor (strict at USE time)
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #32 merged 2026-10-14 at `5d337d5` (pinned-head `8dffa57`); review chain: GPT-6 Sol r1 CHANGES_REQUIRED (TS2322 type closure + mutation widening + UNC rejection + verdict masking + reader doc) → repaired → r2 PASS zero findings; claim released #662 comment 6172951759
 Issue: #662
 Parent: #495 (overnight P4); predecessors: WO-P1-656 (strict validator), WO-P1-659 (canonical surface + the USE-time invariant).
 Risk: R3 — the future real read-execution trust seam; offline/injected only.
