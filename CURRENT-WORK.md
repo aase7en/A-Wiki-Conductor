@@ -1,6 +1,14 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-14 — WO-P1-650 agent-side revocation introspection SHIPPED (GPT-6 Sol reviewer) — CURRENT
+## 2026-10-14 (later) — WO-P1-653 fs agent-state store + doctor diagnostics SHIPPED — CURRENT
+
+> Mains: **AWC (this fold)**, **SRM `86ab83c`** (PR #29 pinned-head `091e681`). No open claims; no open SRM PRs. Overnight P4 first slice COMPLETE.
+
+- **WO-P1-653 COMPLETE** — `createFsAgentStateStore` (fail-closed: missing file = fresh install; corrupt/wrong-shape/null-file = typed AGENT_STATE_CORRUPT, never silently empty; atomic tmp+rename saves; deep-copy isolation; NULL-PROTOTYPE executed maps) + pure `inspectAgentState` (record/malformed counts, refresh-token PRESENCE boolean only, credentialExpiry VALID/EXPIRED/ABSENT) + `sunday doctor` runtime rows (ABSENT/HEALTHY/CORRUPT + offline stdio gate posture). Review by **GPT-6 Sol**: r1 CHANGES_REQUIRED with REAL defects — notably the **dedup-ghost** (prototype-inherited keys let `toString`-style command ids "dedup" without executing) — all repaired at `091e681`; r2 PASS zero findings. Claim released c6162978407. Defect lesson banked: adversarial-keyed maps need null prototypes at EVERY creation site (JSON round-trips restore prototypes).
+- **Model lanes:** GPT-6 Sol reviewer now the proven default for independent R3 (2 rounds, real catches); JEV = SPENDING_GATED (route exists via #499 binding; new live calls need their own admission — no pay-as-you-go authorized).
+- **NEXT_READY (offline):** P4 continuation — installer packaging/install experience over the fs state + doctor; allowlist-directory configuration surface. Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-14 — WO-P1-650 agent-side revocation introspection SHIPPED (GPT-6 Sol reviewer)
 
 > Overnight goal continuing. Mains: **AWC (this fold)**, **SRM `4debd1b`** (PR #28 pinned-head `aae3246`). No open claims; no open SRM PRs. Overnight Priority 2 COMPLETE.
 

@@ -1,6 +1,6 @@
 # WO-P1-653 — fs-backed agent state store + doctor runtime diagnostics
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #29 merged 2026-10-14 at `86ab83c` (pinned-head `091e681`); review chain: GPT-6 Sol r1 CHANGES_REQUIRED (3xP1 + P2 + P3, ALL real) at `c533b5c` → repairs → r2 PASS zero findings at `091e681`; claim released #653 comment 6162978407
 Issue: #653
 Parent: #495 (overnight Priority 4); lineage: LocalAgent runtime (B/B-2/647/650) + slice-A doctor + #646 stdio adapter.
 Risk: R3 — persistence validity seam (a corrupt state must never be silently treated as fresh) + diagnostics adjacent to secrets (token presence only).
