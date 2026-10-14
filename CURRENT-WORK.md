@@ -1,6 +1,14 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-14 (latest) — WO-P1-656 allowlist directory configuration SHIPPED — CURRENT
+## 2026-10-14 (recon) — WO-P1-659 allowlist surface reconciliation SHIPPED — CURRENT
+
+> Mains: **AWC (this fold)**, **SRM `d1da117`** (PR #31 pinned-head `c3dc14b`). No open claims; no open SRM PRs.
+
+- **WO-P1-659 COMPLETE** — canonical allowlist = installer `config.json`; STRICT writes (inert-copy validation, normalize+dedupe, raw-128/unique-64 bounds; accepted-test fixture amendment adjudicated PASS); lenient legacy reads byte-identical; strict-for-display doctor truth (granted / INVALID-FOR-USE / LIST NOT INSTALLABLE incl. RAW_COUNT; agentVersion JSON-escaped after Sol caught a real row-injection; standalone NON-CANONICAL, grants never merged). Sol design-challenge (SOUND_WITH_AMENDMENTS) + 3-round review (every CHANGES_REQUIRED round found real defects).
+- **DECISION_REQUIRED (operator/architecture follow-up): config-root unification** — installer default `~/.desktop-commander-device` vs Sunday `~/.sunday-device`; now surfaced by the doctor, deliberately not changed in-lane.
+- **NEXT_READY (offline):** real-executor wiring consuming the canonical allowlist (strict at USE time per the Sol invariant); first-run/install flow packaging. Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-14 (latest) — WO-P1-656 allowlist directory configuration SHIPPED
 
 > Mains: **AWC (this fold)**, **SRM `660ad00`** (PR #30 pinned-head `eb91eba`). No open claims; no open SRM PRs. Overnight P4 second slice COMPLETE.
 
