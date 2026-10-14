@@ -1,6 +1,14 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-13 (overnight) — WO #646 MCP-STDIO (Milestone C offline) + WO #647 durable credentialExp SHIPPED — CURRENT
+## 2026-10-14 — WO-P1-650 agent-side revocation introspection SHIPPED (GPT-6 Sol reviewer) — CURRENT
+
+> Overnight goal continuing. Mains: **AWC (this fold)**, **SRM `4debd1b`** (PR #28 pinned-head `aae3246`). No open claims; no open SRM PRs. Overnight Priority 2 COMPLETE.
+
+- **WO-P1-650 COMPLETE** — `LocalAgentRuntime.introspect` (agent-side revocation for NEW executions; dedup-first — recorded outcomes authoritative across revocation; fail-closed false/throw/non-literal-true → typed `AGENT_REVOKED`, unrecorded, retryable; absent → unchanged). Review by **GPT-6 Sol** (`gpt-6-sol` Codex exec read-only HIGH; route preflighted): r1 CHANGES_REQUIRED (procedural only — harness files had dirtied the tree; sandbox couldn't run build/temp suites) + 1 P3 → repaired (row 12d) → r2 **PASS zero findings** at `aae3246`. Claim c6159284998 released c6159520063. Completes agent-side defense-in-depth beside router-side revocation (transport-sim) and the #646 adapter veto.
+- **Model lanes verified:** gpt-6-sol Codex exec WORKS (preflight + two full reviews); JEV route not discoverable this session (recorded unavailable; advisory-only). Reviewer-harness lesson: keep review prompt/output files OUTSIDE the candidate worktree.
+- **NEXT_READY (offline):** P4 direction — Windows install/doctor experience (installer packaging, allowlisted directories, diagnostics, bounded rollback; test-only integration validation). Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-13 (overnight) — WO #646 MCP-STDIO (Milestone C offline) + WO #647 durable credentialExp SHIPPED
 
 > Overnight autonomous goal active (GLM implements / Codex specialist / JEV advisory). Mains: **AWC `5b465f3`**, **SRM `96f0c8b`**. No open WO claims; no open SRM PRs.
 

@@ -1,6 +1,6 @@
 # WO-P1-650 — agent-side revocation introspection (offline)
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #28 merged 2026-10-14 at `4debd1b` (pinned-head `aae3246`); review chain: GPT-6 Sol r1 CHANGES_REQUIRED (procedural) at `f7132c6` → P3 repair (row 12d) → r2 PASS zero findings at `aae3246`; claim released #650 comment 6159520063
 Issue: #650
 Parent: #495 (overnight Priority 2); lineage B/B-2/647 runtime + #646 adapter (router-side veto shipped there).
 Risk: R3 — revocation semantics adjacent to the at-most-once anchor; offline/test-only.
