@@ -1,0 +1,55 @@
+# AI-context filters; NOT security or Git policy. Scoped exceptions require an authorized task.
+# Preserve README, source, tests, AGENTS, CURRENT-WORK, Work Orders, handoff, evidence receipts.
+.git/
+**/node_modules/
+**/dist/
+**/build/
+**/.cache/
+**/coverage/
+**/.next/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.venv/
+**/.build-venv/
+**/.serena/
+**/.zcode/
+**/.ripgrep-downloads/
+**/logs/
+**/*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.db-wal
+**/*.db-shm
+**/*.glb
+**/*.gltf
+**/*.obj
+**/*.fbx
+**/*.hdr
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.webp
+**/*.gif
+**/*.mp4
+**/*.mov
+**/*.zip
+**/*.7z
+**/*.mcpb
+**/*.pdf
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*credentials*.json
+**/*secrets*.json
+# A-Wiki's linked private Drive layer; never silently inspect secrets or personal data.
+drive/
+**/A-Wiki-Data/
+# NOT excluded: runs/**/result.json, checkpoints, task/claim evidence, lockfiles.
+# For legitimate image/3D/PDF work: obtain scoped access through tool permissions,
+# never globally weaken project policy or confuse ignore with a security boundary.
