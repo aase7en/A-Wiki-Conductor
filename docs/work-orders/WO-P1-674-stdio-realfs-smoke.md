@@ -1,6 +1,6 @@
 # WO-P1-674 — real-chain stdio smoke (fs reader + allowlist executor)
 
-Status: OPEN — implementation lane (SRM test-only; AWC docs only)
+Status: DONE — SRM PR #36 merged 2026-10-15 at `a105986` (pinned-head `a84dd86`; four-round Sol review all-real-all-repaired, r4 PASS); claim released #674 comment 6193563725
 Issue: #674
 Parent: #495 (operator steer 2026-10-15); predecessors: #646 adapter (injected-agent seam), #662 executor, #671 fs reader.
 Risk: R2 — test-only composition over shipped, reviewed components; zero production files.

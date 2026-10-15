@@ -1,6 +1,15 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-15 (fs-reader) — WO-P1-671 fs DirectoryReader library SHIPPED — CURRENT
+## 2026-10-15 (realfs-smoke) — WO-P1-674 real-chain stdio smoke SHIPPED — CURRENT
+
+> Mains: **AWC (this fold)**, **SRM `a105986`** (PR #36 pinned-head `a84dd86`). No open claims; no open SRM PRs. The offline story is COMPLETE end-to-end with real-subprocess evidence.
+
+- **WO-P1-674 COMPLETE** (zero production changes) — the **real-chain stdio smoke**: a real MCP stdio subprocess over a temp tree through fs reader → allowlist executor (strict at USE) → LocalAgent (durable fs agent store) → the #646 adapter behind the same double gates; cross-process durable dedup proven by file MUTATION between sessions; strict env allowlist validated fail-closed before anything starts. Four-round Sol review (all real; final PASS) + a codespell catch.
+- **Offline capability summary (12 lanes, #646→#674):** enrollment (offline-verified, cnf-bound) → MCP-STDIO surface → durable at-most-once → refresh/durable-expiry/revocation → strict validator → allowlist executor → fs reader → install/doctor/first-run verdicts + bounded rollback + operator docs + REAL-CHAIN SMOKE. Everything a live wiring decision would need, verified offline.
+- **NEXT_SAFE_ACTION:** the offline surface is now genuinely exhausted — the remaining work is LIVE-phase (real ChatGPT/Desktop in-product verification, real enrollment, client compatibility) behind the standing human gates, plus the standing DECISION_REQUIRED (config-root unification). PARK with HUMAN_DECISION_REQUIRED per the goal §9.
+- Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-15 (fs-reader) — WO-P1-671 fs DirectoryReader library SHIPPED
 
 > Mains: **AWC (this fold)**, **SRM `a03bd4a`** (PR #35 pinned-head `f38387c`). No open claims; no open SRM PRs. The executor chain (strict validator → allowlist executor → fs reader) is COMPLETE offline and production-ready.
 
