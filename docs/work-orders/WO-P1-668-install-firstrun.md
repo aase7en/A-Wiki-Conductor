@@ -1,6 +1,6 @@
 # WO-P1-668 — install CLI first-run posture wiring
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #34 merged 2026-10-15 at `998a028` (pinned-head `4d05443`); six-round Sol review arc (all findings real, all repaired; r6 PASS); claim released #668 comment 6183938348
 Issue: #668
 Parent: #495 (operator steer 2026-10-15); predecessor WO-P1-665 (planner + rollback + doctor row).
 Risk: R2 — read-only report composition in the install CLI; no trust-surface change.

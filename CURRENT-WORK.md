@@ -1,6 +1,13 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-15 — WO-P1-665 first-run planner + bounded rollback SHIPPED — CURRENT
+## 2026-10-15 (install-CLI) — WO-P1-668 install CLI first-run wiring SHIPPED — CURRENT
+
+> Mains: **AWC (this fold)**, **SRM `998a028`** (PR #34 pinned-head `4d05443`). No open claims; no open SRM PRs.
+
+- **WO-P1-668 COMPLETE** — the install CLI reports a post-install \`first-run:\` verdict (read-only composition; UNKNOWN vs precise gate reasons properly split incl. corrupt-pairing); **\`SUNDAY_UPSTREAM_URL\`** LOCAL_FIRST operator knob (doctor's env-config pattern); **\`docs/sunday-local-first.md\`** — the Sunday operator surface documented in one place (env knobs, the two install roots + the DECISION_REQUIRED unification note, first-run semantics). Six-round Sol review (all findings real; exit-0 contract pinned via async-spawn loopback after root-causing the spawnSync parent-freeze). Claim released c6183938348.
+- **NEXT_READY (offline):** fs-backed DirectoryReader library module (unwired); wired stdio-surface first-run smoke behind the existing test gates. **DECISION_REQUIRED (standing): config-root unification.** Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-15 — WO-P1-665 first-run planner + bounded rollback SHIPPED
 
 > Mains: **AWC (this fold)**, **SRM `2f02170`** (PR #33 pinned-head `dbff99d`). No open claims; no open SRM PRs. P4 first-run integration COMPLETE.
 
