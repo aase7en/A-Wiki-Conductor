@@ -1,6 +1,14 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-15 (install-CLI) — WO-P1-668 install CLI first-run wiring SHIPPED — CURRENT
+## 2026-10-15 (fs-reader) — WO-P1-671 fs DirectoryReader library SHIPPED — CURRENT
+
+> Mains: **AWC (this fold)**, **SRM `a03bd4a`** (PR #35 pinned-head `f38387c`). No open claims; no open SRM PRs. The executor chain (strict validator → allowlist executor → fs reader) is COMPLETE offline and production-ready.
+
+- **WO-P1-671 COMPLETE** — `createFsDirectoryReader()` (unwired library): fail-closed {read, list, isFile} over node:fs — never throws; sorted listings (dangling symlinks listed by name, isFile/read stay null/false); stat-based isFile follows symlinks (documented; lexical containment stays the executor's contract; realpath hardening = live phase). Sol PASS first round at `a853271`; P3 coverage closed at `f38387c`. Claim released c6187504379.
+- **NEXT_READY (offline):** remaining offline surface is thinning — candidates: stdio-surface first-run smoke behind the existing test gates; AWC-side governance/docs polish. The substantive next steps are LIVE-phase (real ChatGPT/Desktop verification, real enrollment) behind the standing human gates. **DECISION_REQUIRED (standing): config-root unification.**
+- Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-15 (install-CLI) — WO-P1-668 install CLI first-run wiring SHIPPED
 
 > Mains: **AWC (this fold)**, **SRM `998a028`** (PR #34 pinned-head `4d05443`). No open claims; no open SRM PRs.
 

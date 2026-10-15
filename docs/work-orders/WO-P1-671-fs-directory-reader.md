@@ -1,6 +1,6 @@
 # WO-P1-671 — fs-backed DirectoryReader library module (unwired)
 
-Status: OPEN — implementation lane (SRM source; AWC docs only)
+Status: DONE — SRM PR #35 merged 2026-10-15 at `a03bd4a` (pinned-head `f38387c`; Sol PASS first round at `a853271`, P3 coverage closed pre-merge); claim released #671 comment 6187504379
 Issue: #671
 Parent: #495 (operator steer 2026-10-15); predecessor WO-P1-662 (the DirectoryReader seam).
 Risk: R2 — library-only fs reads; no trust-surface change (unwired).
