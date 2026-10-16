@@ -651,3 +651,274 @@ def test_method_wait_hardening_removes_stale_direct_exit_branch() -> None:
     assert terminal.count("$RuntimeProcess.WaitForExit()") == 1
     assert terminal.count("$RuntimeProcess.Refresh()") == 1
     assert terminal.count("$RuntimeExitCode = $RuntimeProcess.ExitCode") == 1
+
+
+# --- WO-P1-215 repair-2: enclosing brace-ancestry fail-closed proof -------
+
+
+def _hardened_wait_process_launcher() -> str:
+    return _harden_start_script_runtime_forensics(_legacy_wait_process_launcher())
+
+
+def _hardened_method_wait_launcher() -> str:
+    return _harden_start_script_runtime_forensics(_legacy_method_wait_launcher())
+
+
+def _false_guard_wrap(source: str) -> str:
+    body = "\n".join(
+        ("    " + line if line.strip() else line) for line in source.splitlines()
+    )
+    return "if ($false) {\n" + body + "\n}\n"
+
+
+def _false_guard_wrap_exit(source: str) -> str:
+    return source.replace(
+        "exit $RuntimeExitCode",
+        "if ($false) {\n    exit $RuntimeExitCode\n}",
+    )
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_full_false_guard_wrap(hardened: str) -> None:
+    wrapped = _false_guard_wrap(hardened)
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_partial_false_guard_wrap(hardened: str) -> None:
+    wrapped = _false_guard_wrap_exit(hardened)
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_accepts_canonical_hardened_ancestry(hardened: str) -> None:
+    classified, state = _classify_start_script_runtime_forensics(hardened)
+
+    assert classified == hardened
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+
+
+def test_create_instance_refuses_false_guard_wrap_before_materializing(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(
+        _false_guard_wrap(_hardened_wait_process_launcher()), encoding="utf-8"
+    )
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "Research").exists()
+
+
+def test_classifier_rejects_legacy_seam_inside_false_guard() -> None:
+    wrapped = _false_guard_wrap(_legacy_wait_process_launcher())
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_classifier_rejects_noncanonical_truthy_guard_around_exit() -> None:
+    wrapped = _hardened_wait_process_launcher().replace(
+        "exit $RuntimeExitCode",
+        "if ($true) {\n    exit $RuntimeExitCode\n}",
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_classifier_fails_closed_on_unbalanced_brace_prefix() -> None:
+    wrapped = "}\n" + _hardened_wait_process_launcher()
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+# --- WO-P1-215 repair-2 rev-2: terminal control flow + block-shape bounds -
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    ("exit 0\n", "throw 'unreachable'\n", "return\n"),
+)
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_terminal_flow_before_forensic_body(
+    terminal: str, hardened: str
+) -> None:
+    wrapped = terminal + hardened
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_terminal_flow_after_first_marker(hardened: str) -> None:
+    first_marker = "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'"
+    wrapped = hardened.replace(first_marker, first_marker + "\nexit 0", 1)
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_create_instance_refuses_terminal_flow_before_forensic_body(
+    sandbox, hardened: str
+) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text("exit 0\n" + hardened, encoding="utf-8")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "Research").exists()
+
+
+def test_classifier_rejects_catch_weakened_try_shape() -> None:
+    wrapped = _hardened_method_wait_launcher().replace("finally {", "catch {")
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_classifier_rejects_noncanonical_replaced_finally_header() -> None:
+    wrapped = _hardened_method_wait_launcher().replace("finally {", "if ($never) {")
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_unmatched_brace_after_forensic_body(hardened: str) -> None:
+    wrapped = hardened + "}\n"
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_unclosed_block_after_forensic_body(hardened: str) -> None:
+    wrapped = hardened + "if ($never) {\n"
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+# --- WO-P1-215 repair-2 rev-3: loop-control terminal tokens ---------------
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    ("break\n", "BREAK\n", "continue\n"),
+)
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_loop_terminator_before_forensic_body(
+    terminal: str, hardened: str
+) -> None:
+    wrapped = terminal + hardened
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    ("break", "continue"),
+)
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_loop_terminator_between_markers(
+    terminal: str, hardened: str
+) -> None:
+    first_marker = "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'"
+    wrapped = hardened.replace(first_marker, first_marker + "\n" + terminal, 1)
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    ("break", "continue"),
+)
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_create_instance_refuses_loop_terminator_before_forensic_body(
+    sandbox, terminal: str, hardened: str
+) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(terminal + "\n" + hardened, encoding="utf-8")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "Research").exists()

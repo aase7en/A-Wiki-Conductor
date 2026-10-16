@@ -158,6 +158,7 @@ def _powershell_executable_view(text: str) -> str:
             if char == "@" and index + 1 < content_length and line[index + 1] in ("'", '"'):
                 remainder = line[index + 2 : content_length]
                 if not remainder.strip():
+                    chars[absolute] = chars[absolute + 1] = " "
                     here_terminator = line[index + 1] + "@"
                     index += 2
                     continue
@@ -167,8 +168,113 @@ def _powershell_executable_view(text: str) -> str:
 
     return "".join(chars)
 
+_ARCHIVE_TEST_PATH_HEADER = "if (Test-Path -LiteralPath $RuntimeLog -PathType Leaf) {"
+_FOREACH_LOG_HEADER = "foreach ($RuntimeLog in @($RuntimeStdout, $RuntimeStderr)) {"
+_RUNTIME_EXIT_IF_HEADER = "if ($RuntimeExitCode -eq 0) {"
+_RUNTIME_EXIT_ELSE_HEADER = "} else {"
+_TRY_HEADER = "try {"
+_FINALLY_HEADER = "finally {"
+
+_CANONICAL_BLOCK_HEADERS = frozenset(
+    {
+        _ARCHIVE_TEST_PATH_HEADER,
+        _FOREACH_LOG_HEADER,
+        _RUNTIME_EXIT_IF_HEADER,
+        _RUNTIME_EXIT_ELSE_HEADER,
+        _TRY_HEADER,
+        _FINALLY_HEADER,
+    }
+)
+
+_TOP_LEVEL_ANCESTRY: tuple[tuple[str, ...], ...] = ((),)
+_RUNTIME_EXIT_ANCESTRY: tuple[tuple[str, ...], ...] = ((), (_TRY_HEADER,))
+_ARCHIVE_MOVE_ANCESTRY: tuple[tuple[str, ...], ...] = (
+    (_ARCHIVE_TEST_PATH_HEADER, _FOREACH_LOG_HEADER),
+)
+_EXIT_LOG_IF_ANCESTRY: tuple[tuple[str, ...], ...] = (
+    (_RUNTIME_EXIT_IF_HEADER,),
+    (_RUNTIME_EXIT_IF_HEADER, _TRY_HEADER),
+)
+_EXIT_LOG_ELSE_ANCESTRY: tuple[tuple[str, ...], ...] = (
+    (_RUNTIME_EXIT_ELSE_HEADER,),
+    (_RUNTIME_EXIT_ELSE_HEADER, _TRY_HEADER),
+)
+
+
+def _scan_block_headers(
+    executable: str, position: int
+) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    """Enclosing header stack at `position` (innermost first) plus every opened header; None when unprovable."""
+    headers: list[str] = []
+    opened: list[str] = []
+    depth = 0
+    quote: str | None = None
+    for line in executable[:position].splitlines(keepends=True):
+        length = len(line.rstrip("\r\n"))
+        index = 0
+        while index < length:
+            char = line[index]
+            if quote is not None:
+                if (
+                    quote == "'"
+                    and char == "'"
+                    and index + 1 < length
+                    and line[index + 1] == "'"
+                ):
+                    index += 2
+                    continue
+                if char == "`" and quote == '"' and index + 1 < length:
+                    index += 2
+                    continue
+                if char == quote:
+                    quote = None
+                index += 1
+                continue
+            if char in ("'", '"'):
+                quote = char
+            elif char == "{":
+                depth += 1
+                header = line.strip()
+                headers.append(header)
+                opened.append(header)
+            elif char == "}":
+                depth -= 1
+                if depth < 0:
+                    return None
+                if headers:
+                    headers.pop()
+            index += 1
+    if quote is not None:
+        return None
+    return tuple(reversed(headers)), tuple(opened)
+
+
+def _enclosing_block_headers(executable: str, position: int) -> tuple[str, ...] | None:
+    """Opening headers of blocks enclosing `position`, innermost first; None when unprovable."""
+    scan = _scan_block_headers(executable, position)
+    return None if scan is None else scan[0]
+
+
+_TERMINAL_FLOW_PATTERN = re.compile(r"\b(?:exit|throw|return)\b", re.IGNORECASE)
+_LOOP_CONTROL_PATTERN = re.compile(r"\b(?:break|continue)\b", re.IGNORECASE)
+_CATCH_PATTERN = re.compile(r"\bcatch\b", re.IGNORECASE)
+
+
+def _terminal_control_flow_is_canonical(executable: str, exit_marker) -> bool:
+    """Prove the view's only terminal statement is the canonical exit marker and no loop-control token is present."""
+    if _LOOP_CONTROL_PATTERN.search(executable) is not None:
+        return False
+    tokens = tuple(_TERMINAL_FLOW_PATTERN.finditer(executable))
+    if len(tokens) != 1:
+        return False
+    token = tokens[0]
+    return (
+        exit_marker.start() <= token.start() and token.end() <= exit_marker.end()
+    )
+
+
 def _is_runtime_forensics_hardened(text: str) -> bool:
-    """Recognize the complete generated forensics shape from executable lines only."""
+    """Recognize the complete generated forensics shape from executable lines with proven canonical brace ancestry, canonical blocks, and terminal control flow."""
     executable = _powershell_executable_view(text)
     patterns = (
         re.compile(r"(?m)^[ \t]*\$RuntimeArchiveDir\s*=\s*Join-Path \$LogsDir 'runtime-archive'[ \t]*$"),
@@ -184,6 +290,17 @@ def _is_runtime_forensics_hardened(text: str) -> bool:
         ),
         re.compile(r"(?m)^[ \t]*exit \$RuntimeExitCode[ \t]*$"),
     )
+    allowed_ancestries = (
+        _TOP_LEVEL_ANCESTRY,
+        _ARCHIVE_MOVE_ANCESTRY,
+        _TOP_LEVEL_ANCESTRY,
+        _RUNTIME_EXIT_ANCESTRY,
+        _RUNTIME_EXIT_ANCESTRY,
+        _RUNTIME_EXIT_ANCESTRY,
+        _EXIT_LOG_IF_ANCESTRY,
+        _EXIT_LOG_ELSE_ANCESTRY,
+        _RUNTIME_EXIT_ANCESTRY,
+    )
     matches = tuple(tuple(pattern.finditer(executable)) for pattern in patterns)
     if any(len(found) != 1 for found in matches):
         return False
@@ -195,8 +312,24 @@ def _is_runtime_forensics_hardened(text: str) -> bool:
     if any(pattern.search(executable) is not None for pattern in legacy_patterns):
         return False
 
-    positions = tuple(found[0].start() for found in matches)
-    return list(positions) == sorted(positions)
+    if not _terminal_control_flow_is_canonical(executable, matches[-1][0]):
+        return False
+    if _CATCH_PATTERN.search(executable) is not None:
+        return False
+    full_scan = _scan_block_headers(executable, len(executable))
+    if full_scan is None or full_scan[0]:
+        return False
+    if any(header not in _CANONICAL_BLOCK_HEADERS for header in full_scan[1]):
+        return False
+
+    positions = []
+    for found, allowed in zip(matches, allowed_ancestries):
+        start = found[0].start()
+        ancestry = _enclosing_block_headers(executable, start)
+        if ancestry is None or ancestry not in allowed:
+            return False
+        positions.append(start)
+    return positions == sorted(positions)
 
 
 def _has_runtime_forensics_structural_signal(text: str) -> bool:
@@ -475,7 +608,7 @@ def create_instance(
             instance_name=instance_name,
             project=str(project),
             serena_home=str(target / "serena-home"),
-            health_port=health_port,
+            port=health_port,
             profile=profile,
             slug=slug,
             tunnel_client=tunnel_client,
