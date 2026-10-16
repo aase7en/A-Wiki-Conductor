@@ -1,5 +1,6 @@
 # WO-P1-677 — Cross-project Agent Context Economy, First Slice
 Authority: https://github.com/aase7en/A-Wiki-Conductor/issues/677
+Issue: #677
 Claim: issue comment 6197697952; scope refinement 6197739514.
 User goal: reduce repeated reads, tool-output inflation and token use across projects without changing SSoT/ownership safety.
 
