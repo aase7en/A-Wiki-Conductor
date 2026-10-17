@@ -39,6 +39,7 @@ from .local_instances import (
 )
 from .persistence import SQLiteRegistryStore
 from .provider_config_store import ProviderConfigStoreError, SQLiteProviderConfigStore
+from .provider_operator_view import build_provider_operator_rows
 from .provider_configuration import (
     EgressBoundary,
     HarnessStrategy,
@@ -742,8 +743,6 @@ class DesktopControlService:
         return self._provider_store
 
     def provider_operator_rows(self, *, max_age_seconds: int = 300):
-        from .provider_operator_view import build_provider_operator_rows
-
         snapshots = self._require_provider_store().list_provider_snapshots()
         return build_provider_operator_rows(
             snapshots,
