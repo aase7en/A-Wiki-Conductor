@@ -358,3 +358,41 @@ Exact next gate: fresh independent re-review at the round-5 hashes (smart-quote
 seven-codepoint closure + docstring accuracy spot-check), then GPT integrator adjudication
 of documented residuals; exact-head hosted CI once a commit SHA is separately authorized.
 No commit/push/merge/comments/close/cleanup authorized in this checkpoint.
+
+### Checkpoint 2026-10-17 — round 6: bounded scope extension for Windows-CI GC crash repair
+
+Round-5 candidate was frozen as commit `5e6dfc2` / PR #680. Hosted Windows `test` job
+failed twice IDENTICALLY (deterministic): `Windows fatal exception: code 0x80000003` with
+faulthandler showing the crashing thread `Garbage-collecting` inside importlib
+`source_to_code`/`exec_module` reached from desktop_control.py:745
+`provider_operator_rows` on a ThreadPoolExecutor worker, while the main pytest thread ran
+`ttk.Combobox.set` at tests/test_i18n.py:159 (GUI suite runs all 16 files in one process).
+Full read-only diagnosis: `runs/WO-P1-679/100-ci-crash-diagnosis.md`.
+
+Root cause accepted (HIGH confidence): pre-existing worker-thread lazy FIRST import of
+`a_conductor.provider_operator_view` (desktop_control.py:745) racing with live Tcl/Tk on
+the main thread; a CPython 3.11.9 GC cycle firing mid-compile in the worker kills the
+process (0x80000003 breakpoint class). Main CI passed the identical GUI suite on the same
+windows-latest + Python 3.11.9 (run 38749754333, job 116472734607: 280 passed / 1 skipped,
+zero fatal exceptions; 8/8 recent main runs green; PR #680 smokes green). The candidate's
+material import/allocation growth (~20-25x module import cost measured via -X importtime;
+39→190-test collection heap) shifted GC timing and made the latent race deterministic.
+No candidate logic defect; all involved files predate the lane.
+
+BOUNDED SCOPE EXTENSION AUTHORITY (this addendum; user-approved): EXACTLY one production
+change outside the original two-file scope — hoist
+`from .provider_operator_view import build_provider_operator_rows` from the
+desktop_control.py:745 function body to the module-top import block (adjacent to the
+existing provider imports at :41-42), removing the lazy import line. No other
+desktop_control changes; no workflow changes; no test changes. Cycle-safety verified
+read-only: provider_operator_view/provider_config_store/provider_configuration never
+import desktop_control. Rationale: moves the first import/compile to the main thread at
+collection time, eliminating the worker-thread import class for CI AND production.
+Rejected alternatives recorded in the diagnosis (test-only ImmediateExecutor injection,
+executor shutdown discipline, import-cost reduction, gc freezing).
+
+Verification plan: local claimables (import cycle check, focused 190P, desktop_control +
+doctor subsets on macOS, compileall, UTF-8, git diff --check, tracked-scope check), then
+rerun the EXACT PR #680 windows `test` job via normal push of this one commit
+(deterministic failure → expected deterministic pass); smokes unaffected. No
+merge/close/retarget/old-PR edits; short followup comment on Issue #679 with the new SHA.
