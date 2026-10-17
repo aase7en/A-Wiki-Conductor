@@ -355,6 +355,10 @@ Round-5 artifacts (uncommitted):
 - Evidence `runs/WO-P1-679/` logs 80-86 + 90-result-round5.md.
 
 Exact next gate: fresh independent re-review at the round-5 hashes (smart-quote
+[CORRECTED round 7: the round-1..6 evidence chain represented bounded independent review
+passes; the root GPT integrator's residual adjudication (2026-10-17, below) is now
+CHANGES_REQUIRED on two completeness gaps — prior PASSes were prior independent BOUNDED
+review passes, not final acceptance]
 seven-codepoint closure + docstring accuracy spot-check), then GPT integrator adjudication
 of documented residuals; exact-head hosted CI once a commit SHA is separately authorized.
 No commit/push/merge/comments/close/cleanup authorized in this checkpoint.
@@ -396,3 +400,176 @@ doctor subsets on macOS, compileall, UTF-8, git diff --check, tracked-scope chec
 rerun the EXACT PR #680 windows `test` job via normal push of this one commit
 (deterministic failure → expected deterministic pass); smokes unaffected. No
 merge/close/retarget/old-PR edits; short followup comment on Issue #679 with the new SHA.
+
+### Checkpoint 2026-10-17 — round 7: residual adjudication + bounded completeness repair authority
+
+Root GPT integrator personally read source/WO and ADJUDICATED the residuals (user relay,
+2026-10-17): no general PowerShell sanitizer and no arbitrary command-resolution proof are
+required; unknown-script passthrough remains a compatibility behavior, not safety
+authority. TWO accepted P2 completeness gaps under the explicit WO §4 fail-closed
+early-termination/completeness model CANNOT be waived, plus one documentation requirement
+and one oracle requirement. Correction of prior wording: rounds 1-6 recorded PASSes were
+prior independent BOUNDED review passes; residual adjudication is now CHANGES_REQUIRED.
+This checkpoint grants the bounded repair authority below BEFORE any edit (source/test
+edits this round stay in the original two reserved files; no DEFECT_LESSONS changes; no
+commit/push/PR-comment/claim transfer this round — local candidate only).
+
+A. Launch-sequence completeness: the certified hardened shape must contain exactly one
+executable runtime launch of the expected form — the exact generated wizard template
+(setup_wizard lines 558-562, backtick-continued, -ArgumentList/-NoNewWindow/-PassThru/
+-RedirectStandardOutput/-RedirectStandardError) or the exact legacy single-line template
+(`$RuntimeProcess = Start-Process -FilePath $TunnelClientPath -PassThru`) — ordered after
+the archive block/STARTING marker and before Wait/Refresh/exit-code capture, at top level.
+Removed, commented, string-hidden, duplicated, or guard-wrapped launches must refuse. Both
+legacy transform outputs must remain byte-identical (sha256 compatibility) and the wizard
+output must remain ALREADY_HARDENED. Only these enumerated templates are supported — no
+toy launch shapes, no generator rewrite, no broadening to arbitrary scripts.
+
+B. Generated Fail-helper call placement + preflight guard body contracts: the generated
+preflight guards' exact bodies (single exact Fail call each) become required contracts;
+guard headers are allowed only with the exact generated body (unique, top-level). Any
+executable `Fail ` statement-start OUTSIDE the validated guard bodies must refuse
+(top-level or mid-body Fail prefix, injected guard-body calls, reforged preflight).
+Helpers absent in legacy standalone fixtures remain compatible; no global helper-presence
+requirement. Archive-block completeness joins the forensic shape: New-Item/ArchiveStamp/
+foreach/Test-Path/Leaf/Archived markers each exactly once in canonical position/ancestry
+alongside the existing Move-Item requirement — matching Move alone is no longer sufficient.
+Actual canonical generator and both legacy transforms plus credential/finally behavior
+must remain accepted. If bounded repair would force substantial grammar expansion, STOP
+for framing instead of whack-a-mole (no such expansion anticipated).
+
+C. Parse-only oracle tests in tests/test_instance_create.py (no workflow edit): fixed
+static probe invoking [System.Management.Automation.Language.Parser]::ParseInput on a
+UTF-8 artifact via every available engine (pwsh, powershell), -NoProfile -NonInteractive,
+structured JSON validation (error_count int, first_error), process exit/timeout enforced,
+no shell=True, no success-on-empty; fixtures = actual wizard output + both legacy
+transformed outputs + a final-substituted clone representative; syntax negatives
+(unbalanced brace, try-without-finally/clone of malformed grammar) prove the oracle is not
+inert; semantic policy refusals (smart quotes, case variants) are NOT syntax negatives;
+hosts without any engine take an explicit skip (never a silent pass, never a claimed
+parser proof); no package installs, no candidate execution, no runtime start.
+
+Verification plan: RED reproductions first (classifier + operation-level no-target),
+bounded repair, GREEN, focused/related/floor/identity/extended differentials, compileall/
+UTF-8/diff-check/scope, frozen-transform sha256 re-check, evidence in runs/WO-P1-679
+(120-series). New tests recorded as PENDING hosted-CI until a push is separately
+authorized.
+
+### Checkpoint 2026-10-17 — round 8: Fail-token case/midline/invocation repair (P1)
+
+Round-7 independent review returned CHANGES_REQUIRED P1: `_FAIL_CALL_PATTERN` was
+case-sensitive and line-start-anchored, so real-wizard insertions after STARTING of
+`FAIL 'EVIL' ...`, `fAiL ...`, or `Write-Log 'note'; Fail ...` classified ALREADY_HARDENED
+and cloned before the runtime launch. Repaired at the root (not another line regex):
+Fail authority is now proven with a case-insensitive `\bfail\b` token scan on the
+CONTROL-TOKEN view (string/comment/here-string literals masked — profile filenames and
+other literal data can never become control), exempting ONLY the validated Fail helper
+definition line and the validated guard-body call spans. Direct invocation variants
+assessed: `& Fail ...` is caught by the token scan (refused); escaped command spelling
+``F`ail`` and any other code-level backtick outside the matched launch template now refuse
+the positive verdict (generated shapes use code backticks ONLY inside the wizard launch
+template); dynamic resolution (aliases/Get-Command/variables) remains OUTSIDE the
+certified boundary per the standing adjudication — compatibility passthrough is not
+safety authority. Reviewer P3 note recorded: do not propagate historic truncated fixture
+hashes as canonical — canonical hashes are the full sha256 values in
+runs/WO-P1-679/hashes-round*.sha256; the in-repo fixture bytes are unchanged old-vs-new.
+
+RED-first: 7 failed (5 wizard variants incl. call-operator and backtick-escaped, hardened
+legacy, operation-level no-target via mock seam) / 1 standing guard (literal `fail` slug
+stays legal). GREEN: full focused 216 passed + 2 parse-oracle explicit skips (no engine on
+this host; oracle runs on Windows CI when pushed). Differentials byte-identical (related
+2F/89P, floor 34, identity 33, probes 8/8); compileall/UTF-8/diff-check clean; both legacy
+transforms remain sha256-identical to frozen 2d151da (in-suite). NO commit/push/PR-comment
+this round — local candidate only. Round-8 artifacts: source blob
+`675fa94265064bd5c309324ef1f4e4c54cec1dab` sha256
+`bdb1400a8c408b3408e7f43c11f44641dcae7c648d546926d884ee12c93c45cc`; tests blob
+`aa458a0f291652c1793cddb161f86e065e8cc82c` sha256
+`1fb641083d3cc7e1b6289b83bd1a7d9eb42e30913634d95608fe3672c26b2cca`; evidence
+runs/WO-P1-679/150-155 + 160-result-round8.md. Next gate: independent re-review at these
+hashes, then separately authorized push for hosted CI (incl. the parse oracle on Windows).
+
+### Checkpoint 2026-10-17 — round 9: launch-template backtick exactness + Windows-mandatory oracle engines
+
+Root integrator inspected round-8 source and parse harness: two narrow final verification
+gaps, repaired RED-first before any publication (same scope: source/tests + docs +
+evidence; no commit/push).
+
+1. `_RUNTIME_LAUNCH_WIZARD_PATTERN` used `` `+ `` for its four continuations, accepting
+   double/triple backticks the canonical generator never emits (a doubled backtick is an
+   escaped literal, not a continuation — the launch statement would be malformed, yet the
+   classifier accepted it as ALREADY_HARDENED and cloned). RED: each of the four
+   continuation lines mutated to 2 and 3 backticks on REAL wizard output — 8/8 were
+   positive before the fix. Repair: exactly ONE backtick per continuation in the pattern;
+   no broader PowerShell interpretation. Single-backtick canonical wizard stays
+   ALREADY_HARDENED (guard test); operation-level no-target RED test for the
+   double-backtick representative.
+2. review-round8's claim "presence-gated skips are structurally MANDATORY on Windows
+   hosts" did not match the code — `_available_powershell_engines` returned empty and both
+   oracle tests SKIPPED on every platform, Windows included (annotated in the reviewer
+   result, history preserved). Repair: `_resolve_parse_oracle_engines` fails the test on
+   Windows when NO engine is discovered (pwsh/powershell via shutil.which only — no
+   install, no shell probing), returns [] elsewhere so non-Windows engine-less hosts keep
+   the explicit skip. Unit tests monkeypatch shutil.which + sys.platform exactly:
+   Windows-absent → pytest.fail.Exception raised; Windows-available → proceeds;
+   non-Windows-absent → []. A green Windows CI run therefore genuinely closes the parse
+   gate.
+
+Verification: RED 11 failed / 1 standing guard (170 log; the operation-level
+double-backtick test was additionally RED via the full run). GREEN: full focused
+**229 passed + 2 parse-oracle explicit skips** (216 prior + 13 new; zero regressions)
+(171/172 logs); related 2F/89P, floor 34, identity 33, probes 8/8 — byte-identical
+differentials (173-176); compileall, UTF-8, git diff --check clean. Source boundary
+unchanged: supported templates only, no expanded parser. Prior reviewer evidence reused
+as prior scope, not new acceptance. No scripts run; nothing published.
+
+Round-9 artifacts (LOCAL, UNCOMMITTED): source blob
+`ea2205bbc4605acbae777ae2d25f3f90dd1e0cce` sha256
+`f9b9058f8af8811fb522d5254f6801f16f5d7bb5177c61319073e364acf085f6`; tests blob
+`32c4ec97e6ea7dadedb08f18b9574f0d967c7b61` sha256
+`c27ce2fef194c1ee5f9fe02b9708bfa27413cd3dac3c9d7bb15fc75b703964ba`; reserved-file diff
+vs HEAD ab38b393 cumulative 716 insertions(+), 54 deletions(-); evidence
+runs/WO-P1-679/170-176 + 180-result-round9.md. Next gate: independent re-review at these
+hashes, then separately authorized commit + push (Windows CI then executes the parse
+oracle with mandatory engine presence).
+
+### Checkpoint 2026-10-17 — round-9 publish: authorized commit/push (merge still gated)
+
+User permission recorded verbatim: "Commit/push แล้ว merge ตาม gate" — commit/push
+authorized NOW; merge of PR #680 only AFTER all gates. The publish delegate is NOT merge
+authority. Preflight re-verified immediately before staging: worktree HEAD ab38b393 on
+chore/wo679-launcher-replacement, remote branch tip ab38b393 (fast-forward push),
+remote main 46faaeb unchanged, dirty set exactly the five expected files (source, tests,
+WO, CURRENT-WORK, handoff), no opponent writers (PR #680 carries zero comments; no other
+active claim on this surface).
+
+Independent round-9 review (separate GLM session, series rounds 3-9) at the EXACT local
+candidate identity returned PASS (P0=0, P1=0, P2=0, P3=0). Artifacts, verified by sha256
+before publication: runs/WO-P1-679/review-round9/result.md =
+cec841a70f23024981fe03961bc5a1c60972be0ad49ce2cc7b361a90aa3f23bc; manifest.md =
+81c48ac7c7070de91a000cf04890202d60fd12aa194a5401affd3170c94860bd. Reproduced VERBATIM
+on Issue #679 with explicit coordinator-exported-reviewer-evidence provenance. The author
+session did not edit reviewer artifacts; the round-8 provenance incident was resolved by
+the reviewer itself (original recovered byte-exact 6ae660f1..., annotated copy +
+PROVENANCE-INCIDENT.md preserved — history intact).
+
+The publish commit carries exactly the reviewed bytes: source blob
+ea2205bbc4605acbae777ae2d25f3f90dd1e0cce (sha256
+f9b9058f8af8811fb522d5254f6801f16f5d7bb5177c61319073e364acf085f6); tests blob
+32c4ec97e6ea7dadedb08f18b9574f0d967c7b61 (sha256
+c27ce2fef194c1ee5f9fe02b9708bfa27413cd3dac3c9d7bb15fc75b703964ba); staged as one
+five-file atomic commit together with these three governance-doc checkpoints only;
+normal fast-forward push to the existing PR #680 branch (no force/rebase/merge). Exact
+commit SHA + post-commit blob re-verification are recorded in the Issue #679 checkpoint
+comment.
+
+Gate status at publish — explicitly NOT accepted: Windows parse-oracle gate PENDING
+(oracle not executed locally: darwin host has no pwsh/powershell, the 2 skips are the
+explicit off-Windows skips, and the mandatory-engine failure only bites on win32);
+new-exact-head hosted CI PENDING. Root-integrator bounded residual assessment stands:
+NO general script-sanitizer certificate; generic passthrough treated as compatibility,
+not safety; external command resolution, aliases, and dot-sourcing are explicitly
+OUTSIDE the structural proof boundary; the prior concrete missing-launch, archive-block,
+and Fail-token bypasses are fixed (rounds 7-9). No acceptance claim until the Windows
+oracle executes green at the new head, new-head CI is green, and GPT-integrator final
+acceptance is recorded. No merge/close/retarget of PR #680 or old-stack PRs; no
+runtime/migration/enrollment actions by this publish.

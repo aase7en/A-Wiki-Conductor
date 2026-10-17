@@ -1806,3 +1806,514 @@ def test_create_instance_refuses_low_smart_quote_reference_before_materializatio
     assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
     assert not (instances_root / "lowsq").exists()
     assert not [c for c in calls if "lowsq" in c]
+
+
+# --- WO-P1-679 round 7 A: runtime launch-sequence completeness -------------
+
+_LAUNCH_LINE = "$RuntimeProcess = Start-Process -FilePath $TunnelClientPath -PassThru"
+
+
+def test_removed_runtime_launch_refuses() -> None:
+    source = _hardened_wait().replace(_LAUNCH_LINE + "\n", "")
+    assert _LAUNCH_LINE not in source
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_commented_runtime_launch_refuses() -> None:
+    source = _hardened_wait().replace(_LAUNCH_LINE, "# " + _LAUNCH_LINE)
+    assert ("# " + _LAUNCH_LINE) in source
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_string_hidden_runtime_launch_refuses() -> None:
+    hardened = _hardened_wait().replace(_LAUNCH_LINE + "\n", "")
+    source = (
+        hardened
+        + '$note = "ordinary multiline data\n'
+        + _LAUNCH_LINE
+        + '\nmore"\n'
+    )
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_duplicate_runtime_launch_refuses() -> None:
+    source = _hardened_wait() + _LAUNCH_LINE + "\n"
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_guard_wrapped_runtime_launch_refuses() -> None:
+    source = _hardened_wait().replace(
+        _LAUNCH_LINE, "if ($false) {\n    " + _LAUNCH_LINE + "\n}"
+    )
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_create_instance_refuses_launchless_reference_before_materialization(
+    sandbox, monkeypatch
+) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(
+        _launcher_reference_with("").replace(_LAUNCH_LINE + "\n", ""),
+        encoding="utf-8",
+    )
+    calls = _count_target_writes(monkeypatch, "nolaunch")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root, "nolaunch", project, health_port=48114, reference_root=ref
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "nolaunch").exists()
+    assert not [c for c in calls if "nolaunch" in c]
+
+
+def test_wizard_multi_line_launch_template_stays_already_hardened(
+    tmp_path: Path,
+) -> None:
+    source = _wizard_start_script(tmp_path)
+    assert "Start-Process -FilePath $TunnelClientPath `" in source
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+
+
+# --- WO-P1-679 round 7 B: Fail-call placement + guard body contracts --------
+
+
+def test_toplevel_fail_call_prefix_refuses(tmp_path: Path) -> None:
+    source = _wizard_start_script(tmp_path) + "Fail 'STOP' 'early termination'\n"
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_mid_body_fail_call_refuses() -> None:
+    hardened = _hardened_method_wait_launcher()
+    source = hardened.replace(
+        "$RuntimeProcess.WaitForExit()",
+        "Fail 'STOP' 'mid body'\n$RuntimeProcess.WaitForExit()",
+        1,
+    )
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_injected_guard_body_call_refuses(tmp_path: Path) -> None:
+    source = _wizard_start_script(tmp_path)
+    marker = "    Fail 'CONFIG_NOT_FOUND' \"tunnel-client not found: $TunnelClientPath\""
+    assert marker in source
+    mutated = source.replace(
+        marker, marker + "\n    Get-Date", 1
+    )
+
+    _, state = _classify_start_script_runtime_forensics(mutated)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_reforged_preflight_guard_refuses(tmp_path: Path) -> None:
+    source = _wizard_start_script(tmp_path)
+    original = "if (-not (Test-Path -LiteralPath $TunnelIdPath -PathType Leaf)) {"
+    assert original in source
+    mutated = source.replace(
+        original,
+        "if (-not (Test-Path -LiteralPath $ProjectPath -PathType Leaf)) {",
+        1,
+    )
+
+    _, state = _classify_start_script_runtime_forensics(mutated)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_create_instance_refuses_toplevel_fail_attack_before_materialization(
+    tmp_path: Path, monkeypatch
+) -> None:
+    instances_root = tmp_path / "instances"
+    instances_root.mkdir()
+    wizard_target = _wizard_reference(instances_root)
+    source = (wizard_target / "start.ps1").read_text(encoding="utf-8-sig")
+    mutated = source + "Fail 'STOP' 'early termination'\n"
+    (wizard_target / "start.ps1").write_text(mutated, encoding="utf-8-sig")
+    project = tmp_path / "proj"
+    project.mkdir()
+    calls = _count_target_writes(monkeypatch, "failattack")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root,
+            "failattack",
+            project,
+            health_port=18016,
+            reference_root=wizard_target,
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "failattack").exists()
+    assert not [c for c in calls if "failattack" in c]
+
+
+# --- WO-P1-679 round 7 B: archive-block completeness ------------------------
+
+
+@pytest.mark.parametrize(
+    "archive_line",
+    (
+        "New-Item -ItemType Directory -Force -Path $RuntimeArchiveDir | Out-Null",
+        "$ArchiveStamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'",
+        "foreach ($RuntimeLog in @($RuntimeStdout, $RuntimeStderr)) {",
+        "if (Test-Path -LiteralPath $RuntimeLog -PathType Leaf) {",
+        "$Leaf = [System.IO.Path]::GetFileName($RuntimeLog)",
+        "$Archived = Join-Path $RuntimeArchiveDir ($ArchiveStamp + '-' + $Leaf)",
+    ),
+    ids=["new-item", "archive-stamp", "foreach", "test-path", "leaf", "archived"],
+)
+def test_missing_archive_operation_refuses(archive_line: str) -> None:
+    source = _hardened_wait().replace(archive_line + "\n", "")
+    assert archive_line not in source
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+# --- WO-P1-679 round 7 C: parse-only PowerShell oracle ----------------------
+
+_PARSE_ORACLE_PROBE = r"""
+param([string]$ArtifactPath)
+$ErrorActionPreference = 'Stop'
+$text = [System.IO.File]::ReadAllText($ArtifactPath, [System.Text.Encoding]::UTF8)
+$tokens = $null
+$errors = $null
+[System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors) | Out-Null
+$result = [ordered]@{
+    engine      = $PSVersionTable.PSVersion.ToString()
+    error_count = @($errors).Count
+    first_error = if (@($errors).Count -gt 0) { @($errors)[0].Message } else { $null }
+}
+[Console]::Out.Write(($result | ConvertTo-Json -Compress))
+"""
+
+
+def _resolve_parse_oracle_engines() -> list[str]:
+    """Engine discovery for the parse oracle with Windows-mandatory presence.
+
+    On Windows a green parse gate requires at least one real engine, so missing
+    all engines FAILS there; on other platforms an engine-less host takes an
+    explicit skip at the call site. No installation or shell probing beyond
+    shutil.which.
+    """
+    import shutil
+    import sys
+
+    engines = []
+    for name in ("pwsh", "powershell"):
+        path = shutil.which(name)
+        if path:
+            engines.append(path)
+    if not engines and sys.platform == "win32":
+        pytest.fail(
+            "parse oracle engines are mandatory on Windows: neither pwsh nor powershell was found"
+        )
+    return engines
+
+
+def _available_powershell_engines() -> list[str]:
+    return _resolve_parse_oracle_engines()
+
+
+def _run_parse_oracle(engine: str, artifact: Path, tmp_path: Path) -> dict:
+    import json
+    import subprocess
+
+    probe = tmp_path / "parse_probe.ps1"
+    probe.write_text(_PARSE_ORACLE_PROBE, encoding="utf-8-sig", newline="\r\n")
+    try:
+        completed = subprocess.run(
+            [
+                engine,
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(probe),
+                str(artifact),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    finally:
+        probe.unlink(missing_ok=True)
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip(), "parse oracle produced empty output"
+    payload = json.loads(completed.stdout)
+    assert isinstance(payload.get("error_count"), int), payload
+    return payload
+
+
+def _write_parse_artifact(tmp_path: Path, name: str, text: str) -> Path:
+    artifact = tmp_path / name
+    artifact.write_bytes(text.encode("utf-8"))
+    return artifact
+
+
+_ORACLE_NEGATIVES = {
+    "unbalanced-brace": "if ($true) {\n$X = 1\n",
+    "try-without-finally": "try {\n$X = 1\n}\n$Y = 2\n",
+    "unclosed-function": "function Broken() {\n",
+}
+
+
+def test_parse_oracle_valid_generated_scripts(tmp_path: Path) -> None:
+    engines = _available_powershell_engines()
+    if not engines:
+        pytest.skip("no PowerShell engine available for parse oracle (pwsh/powershell)")
+
+    instances_root = tmp_path / "instances"
+    instances_root.mkdir()
+    wizard_target = _wizard_reference(instances_root)
+    wizard_text = (wizard_target / "start.ps1").read_text(encoding="utf-8-sig")
+    project = tmp_path / "proj"
+    project.mkdir()
+    created = create_instance(
+        instances_root,
+        "oracle",
+        project,
+        health_port=18017,
+        reference_root=wizard_target,
+    )
+    clone_text = (created / "start.ps1").read_text(encoding="utf-8")
+    fixtures = {
+        "wizard": wizard_text,
+        "legacy-wait-transformed": _harden_start_script_runtime_forensics(
+            _legacy_wait_process_launcher()
+        ),
+        "legacy-method-transformed": _harden_start_script_runtime_forensics(
+            _legacy_method_wait_launcher()
+        ),
+        "final-substituted-clone": clone_text,
+    }
+    for engine in engines:
+        for name, text in fixtures.items():
+            artifact = _write_parse_artifact(tmp_path, f"{name}.ps1", text)
+            payload = _run_parse_oracle(engine, artifact, tmp_path)
+            assert payload["error_count"] == 0, (engine, name, payload)
+
+
+def test_parse_oracle_negatives_prove_not_inert(tmp_path: Path) -> None:
+    engines = _available_powershell_engines()
+    if not engines:
+        pytest.skip("no PowerShell engine available for parse oracle (pwsh/powershell)")
+
+    for engine in engines:
+        for name, text in _ORACLE_NEGATIVES.items():
+            artifact = _write_parse_artifact(tmp_path, f"neg-{name}.ps1", text)
+            payload = _run_parse_oracle(engine, artifact, tmp_path)
+            assert payload["error_count"] >= 1, (engine, name, payload)
+
+
+# --- WO-P1-679 round 8: case/midline/invocation Fail-token authority ---------
+
+_FAIL_ATTACKS = (
+    "FAIL 'EVIL' 'terminating before launch'",
+    "fAiL 'EVIL' 'terminating before launch'",
+    "Write-Log 'note'; Fail 'EVIL' 'terminating before launch'",
+    "& Fail 'EVIL' 'terminating before launch'",
+    "F`ail 'EVIL' 'terminating before launch'",
+)
+
+
+def _wizard_with_fail_attack(tmp_path: Path, attack: str) -> str:
+    source = _wizard_start_script(tmp_path)
+    marker = 'Write-Log "STARTING: health=$HealthListenAddress project=$ProjectPath"'
+    assert marker in source
+    mutated = source.replace(marker, marker + "\n" + attack, 1)
+    assert attack in mutated
+    return mutated
+
+
+@pytest.mark.parametrize(
+    "attack",
+    _FAIL_ATTACKS,
+    ids=["upper", "mixed-case", "midline-semicolon", "call-operator", "backtick-escaped"],
+)
+def test_wizard_fail_token_attacks_refuse(tmp_path: Path, attack: str) -> None:
+    source = _wizard_with_fail_attack(tmp_path, attack)
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_hardened_legacy_fail_token_attack_refuses() -> None:
+    source = _hardened_wait() + "FAIL 'EVIL' 'terminating before launch'\n"
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_create_instance_refuses_fail_token_attack_before_materialization(
+    tmp_path: Path, monkeypatch
+) -> None:
+    instances_root = tmp_path / "instances"
+    instances_root.mkdir()
+    wizard_target = _wizard_reference(instances_root)
+    source = (wizard_target / "start.ps1").read_text(encoding="utf-8-sig")
+    marker = 'Write-Log "STARTING: health=$HealthListenAddress project=$ProjectPath"'
+    assert marker in source
+    mutated = source.replace(
+        marker,
+        marker + "\nFAIL 'EVIL' 'terminating before launch'",
+        1,
+    )
+    (wizard_target / "start.ps1").write_text(mutated, encoding="utf-8-sig")
+    project = tmp_path / "proj"
+    project.mkdir()
+    calls = _count_target_writes(monkeypatch, "failtoken")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root,
+            "failtoken",
+            project,
+            health_port=18018,
+            reference_root=wizard_target,
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "failtoken").exists()
+    assert not [c for c in calls if "failtoken" in c]
+
+
+def test_literal_fail_slug_stays_legal(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(
+        "$ProfileTemplate = Join-Path $ProfilesDir 'serena-wastewater.yaml.template'\n"
+        "$RuntimeProfile = Join-Path $RunDir 'serena-wastewater.yaml'\n"
+        "$LogFile = Join-Path $LogsDir ('wastewater-' + $day)\n"
+        + _legacy_wait_process_launcher(),
+        encoding="utf-8",
+    )
+
+    created = create_instance(
+        instances_root, "fail", project, health_port=48114, reference_root=ref
+    )
+
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert "serena-fail.yaml.template" in start
+    _, state = _classify_start_script_runtime_forensics(start)
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+
+
+# --- WO-P1-679 round 9: launch-template exact single-backtick continuations ---
+
+_WIZARD_CONTINUATION_LINES = (
+    "$RuntimeProcess = Start-Process -FilePath $TunnelClientPath `",
+    "    -ArgumentList @('run', '--profile-file', $RuntimeProfile, '--pid.file', $PidFile) `",
+    "    -NoNewWindow -PassThru `",
+    "    -RedirectStandardOutput $RuntimeStdout `",
+)
+
+
+def _wizard_with_continuation_backticks(
+    tmp_path: Path, line_index: int, count: int
+) -> str:
+    source = _wizard_start_script(tmp_path)
+    original = _WIZARD_CONTINUATION_LINES[line_index]
+    assert original in source
+    mutated_line = original[:-1] + ("`" * count)
+    mutated = source.replace(original, mutated_line, 1)
+    assert mutated_line in mutated
+    return mutated
+
+
+@pytest.mark.parametrize("line_index", range(4), ids=["file", "args", "flags", "stdout"])
+@pytest.mark.parametrize("count", (2, 3), ids=["double-backtick", "triple-backtick"])
+def test_noncanonical_continuation_backticks_refuse(
+    tmp_path: Path, line_index: int, count: int
+) -> None:
+    source = _wizard_with_continuation_backticks(tmp_path, line_index, count)
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_create_instance_refuses_double_backtick_launch_before_materialization(
+    tmp_path: Path, monkeypatch
+) -> None:
+    instances_root = tmp_path / "instances"
+    instances_root.mkdir()
+    wizard_target = _wizard_reference(instances_root)
+    source = (wizard_target / "start.ps1").read_text(encoding="utf-8-sig")
+    original = _WIZARD_CONTINUATION_LINES[0]
+    mutated = source.replace(original, original[:-1] + "``", 1)
+    (wizard_target / "start.ps1").write_text(mutated, encoding="utf-8-sig")
+    project = tmp_path / "proj"
+    project.mkdir()
+    calls = _count_target_writes(monkeypatch, "dbtick")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root,
+            "dbtick",
+            project,
+            health_port=18019,
+            reference_root=wizard_target,
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "dbtick").exists()
+    assert not [c for c in calls if "dbtick" in c]
+
+
+def test_single_backtick_canonical_launch_stays_accepted(tmp_path: Path) -> None:
+    source = _wizard_start_script(tmp_path)
+    for line in _WIZARD_CONTINUATION_LINES:
+        assert line in source
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+
+
+# --- WO-P1-679 round 9: engine-presence gating mandatory on Windows ----------
+
+
+def test_windows_missing_all_engines_fails_not_skips(monkeypatch) -> None:
+    import sys
+
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    with pytest.raises(pytest.fail.Exception):
+        _resolve_parse_oracle_engines()
+
+
+def test_windows_available_engine_proceeds(monkeypatch) -> None:
+    import sys
+
+    monkeypatch.setattr(
+        "shutil.which", lambda name: r"C:\pwsh\pwsh.exe" if name == "pwsh" else None
+    )
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    engines = _resolve_parse_oracle_engines()
+    assert engines == [r"C:\pwsh\pwsh.exe"]
+
+
+def test_non_windows_missing_engines_returns_empty(monkeypatch) -> None:
+    import sys
+
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.setattr(sys, "platform", "darwin")
+
+    assert _resolve_parse_oracle_engines() == []

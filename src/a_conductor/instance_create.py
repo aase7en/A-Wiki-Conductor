@@ -329,7 +329,23 @@ _WIZARD_PREFLIGHT_GUARD_HEADERS = frozenset(
         "if ($TunnelId -cnotmatch '^tunnel_[0-9a-f]{32}$') {",
     }
 )
-_ALLOWED_BLOCK_HEADERS = _CANONICAL_BLOCK_HEADERS | _WIZARD_PREFLIGHT_GUARD_HEADERS
+# Exact generated preflight guard bodies (single exact Fail call each; raw text
+# compared under line-ending + per-line indentation normalization only). A Fail
+# call is executable termination authority: it is permitted ONLY inside these
+# validated bodies.
+_WIZARD_PREFLIGHT_GUARD_BODIES: dict[str, str] = {
+    "if (-not (Test-Path -LiteralPath $TunnelClientPath -PathType Leaf)) {":
+        'Fail \'CONFIG_NOT_FOUND\' "tunnel-client not found: $TunnelClientPath"\n',
+    "if (-not (Test-Path -LiteralPath $LegacySecretPath -PathType Leaf)) {":
+        'Fail \'CONFIG_NOT_FOUND\' "credential not found: $LegacySecretPath"\n',
+    "if (-not (Test-Path -LiteralPath $ProjectPath -PathType Container)) {":
+        "Fail 'PROJECT_PATH_NOT_FOUND' $ProjectPath\n",
+    "if (-not (Test-Path -LiteralPath $TunnelIdPath -PathType Leaf)) {":
+        'Fail \'CONNECTOR_CONFIGURATION_REQUIRED\' "Create $TunnelIdPath"\n',
+    "if ($TunnelId -cnotmatch '^tunnel_[0-9a-f]{32}$') {":
+        "Fail 'TUNNEL_ID_MISSING' 'Tunnel ID is missing or invalid.'\n",
+}
+_ALLOWED_BLOCK_HEADERS = _CANONICAL_BLOCK_HEADERS
 
 # Exact generated helper bodies (raw text, compared under line-ending +
 # per-line indentation normalization only). The Fail body's ``exit 1`` is the
@@ -356,22 +372,25 @@ def _normalize_helper_body(body: str) -> str:
 
 def _validated_helper_exemptions(
     text: str, spans: list[tuple[str, int, int]]
-) -> tuple[list[str], list[tuple[int, int]]] | None:
-    """Validate supported helper functions by full-body contract.
+) -> tuple[list[str], list[tuple[int, int]], list[tuple[int, int]]] | None:
+    """Validate supported helper functions and preflight guards by full-body contract.
 
-    Each recognized helper-function span must be unique, top-level, and its
-    raw body must equal the exact generated body modulo line endings and
-    per-line indentation (comments or any addition/deletion/reorder/alteration
-    fail). Returns ``(allowed_headers, exempt_exit_intervals)`` — the allowed
-    header names plus the exact ``exit 1`` line interval inside the validated
-    Fail body — or None when a helper-looking block fails the contract.
+    Each recognized helper-function or preflight-guard span must be unique,
+    top-level, and its raw body must equal the exact generated body modulo line
+    endings and per-line indentation (comments or any addition/deletion/
+    reorder/alteration fail). Returns ``(allowed_headers, exempt_exit_intervals,
+    validated_fail_intervals)`` — allowed header names, the exact ``exit 1``
+    line interval inside the validated Fail helper body, and the validated
+    preflight guard body intervals where generated ``Fail`` calls may live — or
+    None when a recognized-shape block fails the contract.
     """
+    recognized = _WIZARD_HELPER_FUNCTION_HEADERS | set(_WIZARD_PREFLIGHT_GUARD_BODIES)
     counts = {
-        header: sum(1 for h, _s, _e in spans if h == header)
-        for header in _WIZARD_HELPER_FUNCTION_HEADERS
+        header: sum(1 for h, _s, _e in spans if h == header) for header in recognized
     }
     allowed: list[str] = []
     exempt: list[tuple[int, int]] = []
+    fail_intervals: list[tuple[int, int]] = []
     for header, start, end in spans:
         if header not in counts:
             continue
@@ -380,9 +399,11 @@ def _validated_helper_exemptions(
         if any(s < start and end < e for _h, s, e in spans):
             return None
         body = text[start + 1 : end]
-        if _normalize_helper_body(body) != _normalize_helper_body(
-            _WIZARD_HELPER_BODIES[header]
-        ):
+        if header in _WIZARD_HELPER_FUNCTION_HEADERS:
+            expected = _WIZARD_HELPER_BODIES[header]
+        else:
+            expected = _WIZARD_PREFLIGHT_GUARD_BODIES[header]
+        if _normalize_helper_body(body) != _normalize_helper_body(expected):
             return None
         allowed.append(header)
         if header == "function Fail([string]$Code, [string]$Message) {":
@@ -392,7 +413,9 @@ def _validated_helper_exemptions(
                     line_start = body_offset
                     exempt.append((line_start, line_start + len(line.rstrip("\r\n"))))
                 body_offset += len(line)
-    return allowed, exempt
+        else:
+            fail_intervals.append((start + 1, end))
+    return allowed, exempt, fail_intervals
 
 _TOP_LEVEL_ANCESTRY: tuple[tuple[str, ...], ...] = ((),)
 _RUNTIME_EXIT_ANCESTRY: tuple[tuple[str, ...], ...] = ((), (_TRY_HEADER,))
@@ -546,15 +569,31 @@ def _contains_smart_quotes(text: str) -> bool:
     return any(codepoint in text for codepoint in _SMART_QUOTE_CODEPOINTS)
 
 
+_RUNTIME_LAUNCH_LEGACY_PATTERN = re.compile(
+    r"(?m)^[ \t]*\$RuntimeProcess = Start-Process -FilePath \$TunnelClientPath -PassThru[ \t]*$"
+)
+_RUNTIME_LAUNCH_WIZARD_PATTERN = re.compile(
+    r"(?m)^[ \t]*\$RuntimeProcess = Start-Process -FilePath \$TunnelClientPath `[ \t]*\n"
+    r"[ \t]*-ArgumentList @\('run', '--profile-file', \$RuntimeProfile, '--pid\.file', \$PidFile\) `[ \t]*\n"
+    r"[ \t]*-NoNewWindow -PassThru `[ \t]*\n"
+    r"[ \t]*-RedirectStandardOutput \$RuntimeStdout `[ \t]*\n"
+    r"[ \t]*-RedirectStandardError \$RuntimeStderr[ \t]*$"
+)
+_FAIL_TOKEN_PATTERN = re.compile(r"(?i)\bfail\b")
+
+
 def _is_runtime_forensics_hardened(text: str) -> bool:
     """Recognize the complete generated forensics shape under lexical provenance.
 
     Requires EOF lexical validity, no active ``$(`` interpolation in expandable
     content, no smart-quote codepoints, provenance-filtered canonical markers
-    and legacy-seam absence, canonical brace ancestry with bounded try/finally
-    adjacency pairing, exact helper-body contracts (only the generated Fail
-    ``exit 1`` is exempt from the terminal-flow proof), and canonical terminal
-    control flow.
+    and legacy-seam absence, complete archive-block operations, exactly one
+    executable runtime launch of an enumerated generated template ordered after
+    the archive/STARTING markers and before wait/refresh/capture, generated
+    Fail calls only inside validated preflight guard bodies, canonical brace
+    ancestry with bounded try/finally adjacency pairing, exact helper-body
+    contracts (only the generated Fail ``exit 1`` is exempt from the
+    terminal-flow proof), and canonical terminal control flow.
     """
     regions, lex_valid = _lex_powershell(text)
     if not lex_valid:
@@ -565,36 +604,114 @@ def _is_runtime_forensics_hardened(text: str) -> bool:
         return False
     executable = _powershell_executable_view(text, regions)
     control = _powershell_control_token_view(text, regions)
-    patterns = (
-        re.compile(r"(?m)^[ \t]*\$RuntimeArchiveDir\s*=\s*Join-Path \$LogsDir 'runtime-archive'[ \t]*$"),
-        re.compile(r"(?m)^[ \t]*Move-Item -LiteralPath \$RuntimeLog -Destination \$Archived -Force[ \t]*$"),
-        re.compile(r'(?m)^[ \t]*Write-Log "STARTING:'),
-        re.compile(r"(?m)^[ \t]*\$RuntimeProcess\.WaitForExit\(\)[ \t]*$"),
-        re.compile(r"(?m)^[ \t]*\$RuntimeProcess\.Refresh\(\)[ \t]*$"),
-        re.compile(r"(?m)^[ \t]*\$RuntimeExitCode\s*=\s*\$RuntimeProcess\.ExitCode[ \t]*$"),
-        re.compile(r'(?m)^[ \t]*Write-Log "STOPPED: tunnel-client exit_code=0"[ \t]*$'),
-        re.compile(
-            r'(?m)^[ \t]*Write-Log \("TUNNEL_START_FAILED: Tunnel client exited with code \{0\}; '
-            r'exit_code=\{0\}" -f \$RuntimeExitCode\)[ \t]*$'
+    archive_ancestry = (_ARCHIVE_TEST_PATH_HEADER, _FOREACH_LOG_HEADER)
+    pattern_ancestry_pairs = (
+        (
+            re.compile(
+                r"(?m)^[ \t]*\$RuntimeArchiveDir\s*=\s*Join-Path \$LogsDir 'runtime-archive'[ \t]*$"
+            ),
+            _TOP_LEVEL_ANCESTRY,
         ),
-        re.compile(r"(?m)^[ \t]*exit \$RuntimeExitCode[ \t]*$"),
+        (
+            (
+                re.compile(
+                    r"(?m)^[ \t]*New-Item -ItemType Directory -Force -Path \$RuntimeArchiveDir \| Out-Null[ \t]*$"
+                ),
+                re.compile(
+                    r"(?m)^[ \t]*New-Item -ItemType Directory -Force -Path \$RunDir, \$LogsDir, \$SerenaHome, \$RuntimeArchiveDir \| Out-Null[ \t]*$"
+                ),
+            ),
+            _TOP_LEVEL_ANCESTRY,
+        ),
+        (
+            re.compile(
+                r"(?m)^[ \t]*\$ArchiveStamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'[ \t]*$"
+            ),
+            _TOP_LEVEL_ANCESTRY,
+        ),
+        (
+            re.compile(
+                r"(?m)^[ \t]*foreach \(\$RuntimeLog in @\(\$RuntimeStdout, \$RuntimeStderr\)\) \{[ \t]*$"
+            ),
+            _TOP_LEVEL_ANCESTRY,
+        ),
+        (
+            re.compile(
+                r"(?m)^[ \t]*if \(Test-Path -LiteralPath \$RuntimeLog -PathType Leaf\) \{[ \t]*$"
+            ),
+            ((_FOREACH_LOG_HEADER,),),
+        ),
+        (
+            re.compile(
+                r"(?m)^[ \t]*\$Leaf = \[System\.IO\.Path\]::GetFileName\(\$RuntimeLog\)[ \t]*$"
+            ),
+            (archive_ancestry,),
+        ),
+        (
+            re.compile(
+                r"(?m)^[ \t]*\$Archived = Join-Path \$RuntimeArchiveDir \(\$ArchiveStamp \+ '-' \+ \$Leaf\)[ \t]*$"
+            ),
+            (archive_ancestry,),
+        ),
+        (
+            re.compile(
+                r"(?m)^[ \t]*Move-Item -LiteralPath \$RuntimeLog -Destination \$Archived -Force[ \t]*$"
+            ),
+            (archive_ancestry,),
+        ),
+        (
+            re.compile(r'(?m)^[ \t]*Write-Log "STARTING:'),
+            _TOP_LEVEL_ANCESTRY,
+        ),
+        (
+            (_RUNTIME_LAUNCH_LEGACY_PATTERN, _RUNTIME_LAUNCH_WIZARD_PATTERN),
+            _RUNTIME_EXIT_ANCESTRY,
+        ),
+        (
+            re.compile(r"(?m)^[ \t]*\$RuntimeProcess\.WaitForExit\(\)[ \t]*$"),
+            _RUNTIME_EXIT_ANCESTRY,
+        ),
+        (
+            re.compile(r"(?m)^[ \t]*\$RuntimeProcess\.Refresh\(\)[ \t]*$"),
+            _RUNTIME_EXIT_ANCESTRY,
+        ),
+        (
+            re.compile(
+                r"(?m)^[ \t]*\$RuntimeExitCode\s*=\s*\$RuntimeProcess\.ExitCode[ \t]*$"
+            ),
+            _RUNTIME_EXIT_ANCESTRY,
+        ),
+        (
+            re.compile(r'(?m)^[ \t]*Write-Log "STOPPED: tunnel-client exit_code=0"[ \t]*$'),
+            _EXIT_LOG_IF_ANCESTRY,
+        ),
+        (
+            re.compile(
+                r'(?m)^[ \t]*Write-Log \("TUNNEL_START_FAILED: Tunnel client exited with code \{0\}; '
+                r'exit_code=\{0\}" -f \$RuntimeExitCode\)[ \t]*$'
+            ),
+            _EXIT_LOG_ELSE_ANCESTRY,
+        ),
+        (
+            re.compile(r"(?m)^[ \t]*exit \$RuntimeExitCode[ \t]*$"),
+            _RUNTIME_EXIT_ANCESTRY,
+        ),
     )
-    allowed_ancestries = (
-        _TOP_LEVEL_ANCESTRY,
-        _ARCHIVE_MOVE_ANCESTRY,
-        _TOP_LEVEL_ANCESTRY,
-        _RUNTIME_EXIT_ANCESTRY,
-        _RUNTIME_EXIT_ANCESTRY,
-        _RUNTIME_EXIT_ANCESTRY,
-        _EXIT_LOG_IF_ANCESTRY,
-        _EXIT_LOG_ELSE_ANCESTRY,
-        _RUNTIME_EXIT_ANCESTRY,
-    )
-    matches = tuple(
-        _filtered_matches(pattern, executable, regions) for pattern in patterns
-    )
-    if any(len(found) != 1 for found in matches):
-        return False
+    resolved_matches = []
+    for pattern, allowed_ancestry in pattern_ancestry_pairs:
+        if isinstance(pattern, tuple):
+            combined = []
+            for member in pattern:
+                combined.extend(_filtered_matches(member, executable, regions))
+            if len(combined) != 1:
+                return False
+            resolved_matches.append((combined[0], allowed_ancestry))
+            continue
+        found = _filtered_matches(pattern, executable, regions)
+        if len(found) != 1:
+            return False
+        resolved_matches.append((found[0], allowed_ancestry))
+    exit_marker = resolved_matches[-1][0]
 
     legacy_patterns = (
         re.compile(r"(?m)^[ \t]*Wait-Process -Id \$RuntimeProcess\.Id[ \t]*$"),
@@ -611,22 +728,56 @@ def _is_runtime_forensics_hardened(text: str) -> bool:
     if not pairing_valid:
         return False
 
-    helper_validation = _validated_helper_exemptions(text, spans)
-    if helper_validation is None:
+    validation = _validated_helper_exemptions(text, spans)
+    if validation is None:
         return False
-    helper_headers, exempt_intervals = helper_validation
+    helper_headers, exempt_intervals, fail_intervals = validation
     allowed_headers = _ALLOWED_BLOCK_HEADERS | frozenset(helper_headers)
     if any(header not in allowed_headers for header, _s, _e in spans):
         return False
 
-    if not _terminal_control_flow_is_canonical(control, matches[-1][0], exempt_intervals):
+    # Fail is termination authority wherever it resolves to the generated
+    # helper: PowerShell command invocation is case-insensitive and legal at
+    # any statement position (new line, after ';', after '&'), so authority is
+    # proven with a case-insensitive token scan on the control-token view
+    # (string/comment/here-string literals masked: profile filenames and other
+    # data can never become control). Exempt ONLY the validated Fail helper
+    # definition line and the validated guard-body call spans.
+    for header, start, _end in spans:
+        if header == "function Fail([string]$Code, [string]$Message) {":
+            line_start = text.rfind("\n", 0, start) + 1
+            fail_intervals.append((line_start, start))
+    for token in _FAIL_TOKEN_PATTERN.finditer(control):
+        if not any(start <= token.start() < end for start, end in fail_intervals):
+            return False
+
+    # Backticks in executable code are line-continuation/escape syntax the
+    # bounded lexer does not model; the generated shapes use them ONLY inside
+    # the matched launch template. Any other code backtick (e.g. an escaped
+    # ``F`ail`` command spelling) refuses the positive verdict.
+    launch_match = resolved_matches[9][0]
+    for position, char in enumerate(text):
+        if char != "`":
+            continue
+        if _position_in_regions(position, regions, _STRING_REGION_KINDS | _COMMENT_REGION_KINDS):
+            continue
+        if launch_match.start() <= position < launch_match.end():
+            continue
+        if any(
+            kind in ("literal_here", "expandable_here") and start <= position < end
+            for kind, start, end in regions
+        ):
+            continue
+        return False
+
+    if not _terminal_control_flow_is_canonical(control, exit_marker, exempt_intervals):
         return False
     if _CATCH_PATTERN.search(control) is not None:
         return False
 
     positions = []
-    for found, allowed in zip(matches, allowed_ancestries):
-        start = found[0].start()
+    for match, allowed in resolved_matches:
+        start = match.start()
         ancestry = _enclosing_from_spans(spans, start)
         if ancestry not in allowed:
             return False
