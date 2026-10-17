@@ -587,10 +587,18 @@ Acceptance and merge: root GPT-integrator acceptance recorded on Issue #679 comm
 6230717866 (bounds: NO general script-sanitizer certificate; generic passthrough =
 compatibility, not safety; external command resolution, aliases, dot-sourcing OUTSIDE
 the structural proof boundary) under user permission verbatim "Commit/push แล้ว merge
-ตาม gate". Independent exact-SHA review PASS (P0=0/P1=0/P2=0/P3=0) at the exact
-published identity — source blob ea2205bb… / tests blob 32c4ec97… (full sha256 in
-runs/WO-P1-679/hashes-round9.sha256); reviewer artifacts hash-verified and exported
-VERBATIM with coordinator provenance (result.md sha256 cec841a7…, manifest 81c48ac7…).
+ตาม gate". Two independent reviews, labeled exactly: (1) PRIOR working-tree round-9
+review PASS (P0=0/P1=0/P2=0/P3=0) at the pre-commit working-tree identity —
+runs/WO-P1-679/review-round9/ result.md sha256
+cec841a70f23024981fe03961bc5a1c60972be0ad49ce2cc7b361a90aa3f23bc, manifest
+81c48ac7c7070de91a000cf04890202d60fd12aa194d5401affd3170c94860bd — exported
+VERBATIM with coordinator provenance on Issue #679 comment 6230466220; and (2) the
+FINAL BINDING exact-SHA review at the exact committed head 4bb30be —
+runs/WO-P1-679/review-4bb30be/ result.md sha256
+5e19e3b9e15f9e913de58eac6ccb136aab1f90ad3df789c0a4fe7a3881317092, manifest.md
+sha256 c3dfdc63f349a2648e8bf8704f1a19ea6697b4f2ecc063e9c3e8f7193d48b506 — exported
+at acceptance comment 6230717866. Both reviewer artifact sets were re-hashed
+byte-exact and verified untouched at closeout.
 PR #680 merged normal squash with --match-head-commit 4bb30be → main faa34cd; branch
 preserved at 4bb30be; PR680 pointer comment 6230719264.
 
@@ -605,8 +613,12 @@ discovered engine. QUALIFICATION: engine identity/version NOT logged (pytest -q)
 proof is Parser::ParseInput parse-only, never launch.
 
 Actual post-main equality: tree(faa34cd) == tree(4bb30be) == a9656647…; six changed
-blobs identical (ea2205bb source, 32c4ec97 tests, 873b8c15/226fa028/94037adf/02a64a1c
-governance docs). Local verification at the exact merge SHA (post679 worktree): focused
+blobs identical, mapped by git diff-tree 46faaeb..faa34cd — ea2205bb
+src/a_conductor/instance_create.py (source), 32c4ec97 tests/test_instance_create.py,
+873b8c15 src/a_conductor/desktop_control.py (round-6 import hoist), 226fa028
+CURRENT-WORK.md, 94037adf handoff.md, 02a64a1c this WO document; i.e. source +
+tests + the desktop_control.py import hoist + three governance docs. Local
+verification at the exact merge SHA (post679 worktree): focused
 229 passed + 2 honest darwin oracle skips, floor 34 passed, identity 33 passed,
 related 2F/89P = documented pre-existing macOS env baseline, root-adjudicated and
 recorded, never silently ignored. Evidence: runs/WO-P1-679/ci-4bb30be/ and
@@ -638,4 +650,10 @@ This docs-only closeout lane (Issue #679 comment 6230971945; branch
 docs/wo679-closeout from faa34cd; isolated worktree; exactly this WO + CURRENT-WORK +
 handoff) records the completion state. Its draft docs PR is NOT merged by the lane:
 the new-head CI run ID returns to the root watcher for the separately held WO679-lineage
-merge decision. Remaining final gate: docs PR CI green + root merge.
+merge decision. CONDITIONAL projection once the docs PR merges: WO679 is DONE — no
+further WO679 source work exists or is authorized; the Issue #679 final closeout is
+the record to consult. All remaining follow-ups are SEPARATE explicitly authorized
+tasks, none automatic and none re-opening WO679: config `~/.sunday-device`
+compatibility / LIVE preparation (Issue #630 comment 6230245217 — no automatic
+migration/enrollment), retained branch/worktree cleanup, and the serialized
+#581/#583-then-#15/#56 lesson folds.
