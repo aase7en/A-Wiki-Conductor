@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 import pytest
 
 from a_conductor.instance_create import (
     InstanceCreateError,
+    _RuntimeForensicsHardeningState,
+    _classify_start_script_runtime_forensics,
+    _harden_start_script_runtime_forensics,
     create_instance,
     next_health_port,
 )
@@ -305,3 +309,1500 @@ def test_create_instance_hardens_legacy_reference_runtime_forensics(sandbox) -> 
     assert "$RuntimeProcess.ExitCode" in start
     assert "TUNNEL_START_FAILED" in start
     assert "exit_code=" in start
+
+
+def _legacy_method_wait_launcher() -> str:
+    return (
+        "$RuntimeStdout = Join-Path $LogsDir 'runtime.stdout.log'\n"
+        "$RuntimeStderr = Join-Path $LogsDir 'runtime.stderr.log'\n"
+        "$DpapiSentinel = 'DPAPI_SENTINEL'\n"
+        "$TunnelValidationSentinel = 'TUNNEL_SENTINEL'\n"
+        "$ProjectValidationSentinel = 'PROJECT_SENTINEL'\n"
+        "$DoctorSentinel = 'DOCTOR_SENTINEL'\n"
+        "$EnvironmentSentinel = 'ENV_SENTINEL'\n"
+        "Write-Log \"STARTING: health=$HealthListenAddress project=$ProjectPath\"\n"
+        "try {\n"
+        "    $RuntimeProcess = Start-Process -FilePath $TunnelClientPath -PassThru\n"
+        "    $RuntimeProcess.WaitForExit()\n"
+        "    if ($RuntimeProcess.ExitCode -ne 0) {\n"
+        "        Fail 'TUNNEL_START_FAILED' \"Tunnel client exited with code $($RuntimeProcess.ExitCode).\"\n"
+        "    }\n"
+        "}\n"
+        "finally {\n"
+        "    $env:CONTROL_PLANE_API_KEY = $null\n"
+        "    $env:SERENA_HOME = $null\n"
+        "    $ControlPlaneApiKey = $null\n"
+        "}\n"
+    )
+
+
+def _legacy_wait_process_launcher() -> str:
+    return (
+        "$RuntimeStdout = Join-Path $LogsDir 'runtime.stdout.log'\n"
+        "$RuntimeStderr = Join-Path $LogsDir 'runtime.stderr.log'\n"
+        "Write-Log \"STARTING: health=$HealthListenAddress project=$ProjectPath\"\n"
+        "$RuntimeProcess = Start-Process -FilePath $TunnelClientPath -PassThru\n"
+        "Wait-Process -Id $RuntimeProcess.Id\n"
+    )
+
+
+def test_create_instance_hardens_live_method_wait_reference(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(_legacy_method_wait_launcher(), encoding="utf-8")
+    created = create_instance(
+        instances_root, "Research", project, health_port=48114, reference_root=ref
+    )
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert "runtime-archive" in start
+    assert "$RuntimeProcess.Refresh()" in start
+    assert "$RuntimeExitCode = $RuntimeProcess.ExitCode" in start
+    assert "if ($RuntimeProcess.ExitCode -ne 0)" not in start[start.rfind("$RuntimeProcess.WaitForExit()") :]
+    assert "finally {" in start
+    assert "$env:CONTROL_PLANE_API_KEY = $null" in start
+
+
+def test_hardener_supports_live_method_wait_variant() -> None:
+    hardened = _harden_start_script_runtime_forensics(_legacy_method_wait_launcher())
+    assert "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'" in hardened
+    assert "Move-Item -LiteralPath $RuntimeLog -Destination $Archived -Force" in hardened
+    assert "    $RuntimeProcess.WaitForExit()\n    $RuntimeProcess.Refresh()\n    $RuntimeExitCode = $RuntimeProcess.ExitCode" in hardened
+    assert 'Write-Log "STOPPED: tunnel-client exit_code=0"' in hardened
+    assert "exit_code={0}" in hardened
+    assert "    exit $RuntimeExitCode\n}\nfinally {" in hardened
+    assert "    $env:CONTROL_PLANE_API_KEY = $null" in hardened
+
+
+def test_hardener_keeps_existing_wait_process_variant_supported() -> None:
+    hardened = _harden_start_script_runtime_forensics(_legacy_wait_process_launcher())
+    assert "runtime-archive" in hardened
+    assert "$RuntimeProcess.WaitForExit()" in hardened
+    assert "$RuntimeProcess.Refresh()" in hardened
+    assert "$RuntimeExitCode = $RuntimeProcess.ExitCode" in hardened
+
+
+@pytest.mark.parametrize(
+    "launcher",
+    (_legacy_method_wait_launcher(), _legacy_wait_process_launcher()),
+)
+def test_runtime_forensics_hardening_is_idempotent(launcher: str) -> None:
+    once = _harden_start_script_runtime_forensics(launcher)
+    twice = _harden_start_script_runtime_forensics(once)
+    assert twice == once
+    assert once.count("$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'") == 1
+    assert once.count("$RuntimeProcess.Refresh()") == 1
+    assert once.count("$RuntimeExitCode = $RuntimeProcess.ExitCode") == 1
+
+
+def test_already_hardened_launcher_stays_byte_identical() -> None:
+    hardened = _harden_start_script_runtime_forensics(_legacy_wait_process_launcher())
+    assert _harden_start_script_runtime_forensics(hardened) == hardened
+
+
+def test_runtime_archive_word_in_comment_does_not_fake_hardened_state() -> None:
+    source = "# operator note: preserve runtime-archive evidence\n" + _legacy_method_wait_launcher()
+
+    hardened = _harden_start_script_runtime_forensics(source)
+
+    assert hardened != source
+    assert hardened.count("$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'") == 1
+    assert hardened.count("$RuntimeProcess.Refresh()") == 1
+    assert hardened.count("$RuntimeExitCode = $RuntimeProcess.ExitCode") == 1
+    terminal = hardened[hardened.index("$RuntimeProcess.WaitForExit()") :]
+    assert "if ($RuntimeProcess.ExitCode -ne 0)" not in terminal
+
+
+@pytest.mark.parametrize(
+    "marker",
+    (
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n",
+        "$RuntimeExitCode = $RuntimeProcess.ExitCode\n",
+    ),
+)
+def test_partial_structural_hardening_marker_fails_unchanged(marker: str) -> None:
+    source = marker + _legacy_method_wait_launcher()
+
+    assert _harden_start_script_runtime_forensics(source) == source
+
+
+def test_classifier_ignores_marker_text_inside_comments() -> None:
+    source = (
+        "# $RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        "# Move-Item -LiteralPath $RuntimeLog -Destination $Archived -Force\n"
+        "# Write-Log \"STARTING: comment only\"\n"
+        "# $RuntimeProcess.WaitForExit()\n"
+        "# $RuntimeProcess.Refresh()\n"
+        "# $RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+        "# Write-Log \"STOPPED: tunnel-client exit_code=0\"\n"
+        "# Write-Log \"exit_code={0}\"\n"
+        "# exit $RuntimeExitCode\n"
+        "$ProfileTemplate = 'unchanged-generic-reference'\n"
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
+def test_create_instance_allows_comment_only_forensics_markers(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    source = (ref / "start.ps1").read_text(encoding="utf-8") + (
+        "# $RuntimeProcess.WaitForExit()\n"
+        "# $RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+    )
+    (ref / "start.ps1").write_text(source, encoding="utf-8")
+
+    created = create_instance(
+        instances_root, "Research", project, health_port=48114, reference_root=ref
+    )
+
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert "# $RuntimeProcess.WaitForExit()" in start
+    assert "# $RuntimeExitCode = $RuntimeProcess.ExitCode" in start
+
+
+def test_classifier_ignores_marker_text_inside_quoted_strings() -> None:
+    source = (
+        "$Note = '$RuntimeProcess.WaitForExit()'\n"
+        "$Note2 = \"$RuntimeExitCode = $RuntimeProcess.ExitCode\"\n"
+        "$ProfileTemplate = 'unchanged-generic-reference'\n"
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
+@pytest.mark.parametrize(
+    "wrapper",
+    (
+        (
+            "<#\n"
+            "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+            "$RuntimeProcess.WaitForExit()\n"
+            "$RuntimeProcess.Refresh()\n"
+            "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+            "exit $RuntimeExitCode\n"
+            "#>\n"
+        ),
+        (
+            "$Help = @\"\n"
+            "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+            "$RuntimeProcess.WaitForExit()\n"
+            "$RuntimeProcess.Refresh()\n"
+            "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+            "exit $RuntimeExitCode\n"
+            "\"@\n"
+        ),
+    ),
+)
+def test_classifier_ignores_nonexecuting_multiline_marker_regions(wrapper: str) -> None:
+    source = wrapper + "$ProfileTemplate = 'unchanged-generic-reference'\n"
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
+def test_nested_block_comment_opener_ends_at_first_closer() -> None:
+    # Round-4 correction of the previous nesting misconception: PowerShell block
+    # comments do NOT nest, so the first #> closes and later marker lines are
+    # live code that must fail closed.
+    source = (
+        "<#\n"
+        "outer comment\n"
+        "<#\n"
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        "$RuntimeProcess.WaitForExit()\n"
+        "#>\n"
+        "$RuntimeProcess.Refresh()\n"
+        "#>\n"
+        "$ProfileTemplate = 'unchanged-generic-reference'\n"
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_indented_here_string_terminator_does_not_release_marker_authority() -> None:
+    source = (
+        "$Help = @\"\n"
+        "    \"@\n"
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        "$RuntimeProcess.WaitForExit()\n"
+        "$RuntimeProcess.Refresh()\n"
+        "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+        "exit $RuntimeExitCode\n"
+        "\"@\n"
+        "$ProfileTemplate = 'unchanged-generic-reference'\n"
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+
+
+@pytest.mark.parametrize(
+    "wrapper",
+    (
+        "<#\n$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n#>\n",
+        "$Help = @\"\n$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n\"@\n",
+    ),
+)
+def test_nonexecuting_marker_cannot_suppress_real_legacy_hardening(wrapper: str) -> None:
+    source = wrapper + _legacy_method_wait_launcher()
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.TRANSFORMED
+    assert classified != source
+    terminal = classified[classified.rfind("$RuntimeProcess.WaitForExit()") :]
+    assert "$RuntimeProcess.Refresh()" in terminal
+    assert "$RuntimeExitCode = $RuntimeProcess.ExitCode" in terminal
+    assert "if ($RuntimeProcess.ExitCode -ne 0)" not in terminal
+
+
+@pytest.mark.parametrize(
+    "legacy_launcher",
+    (_legacy_wait_process_launcher, _legacy_method_wait_launcher),
+)
+def test_create_instance_rejects_complete_markers_with_legacy_seam_before_materializing(
+    sandbox, legacy_launcher
+) -> None:
+    instances_root, ref, project = sandbox
+    source = (
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        "$RuntimeProcess.Refresh()\n"
+        "$RuntimeExitCode = $RuntimeProcess.ExitCode\n"
+        "exit $RuntimeExitCode\n"
+        + legacy_launcher()
+    )
+    (ref / "start.ps1").write_text(source, encoding="utf-8")
+
+    with pytest.raises(InstanceCreateError) as exc_info:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert exc_info.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "research").exists()
+
+
+def test_create_instance_rejects_partial_structural_marker_before_materializing(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    source = (
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        + _legacy_method_wait_launcher()
+    )
+    (ref / "start.ps1").write_text(source, encoding="utf-8")
+
+    with pytest.raises(InstanceCreateError) as exc_info:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert exc_info.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "research").exists()
+
+
+def test_create_instance_accepts_already_hardened_reference(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    hardened = _harden_start_script_runtime_forensics(_legacy_wait_process_launcher())
+    (ref / "start.ps1").write_text(hardened, encoding="utf-8")
+
+    created = create_instance(
+        instances_root, "Research", project, health_port=48114, reference_root=ref
+    )
+
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert start == hardened
+
+
+def test_method_wait_hardening_preserves_preflight_and_credential_sentinels() -> None:
+    source = _legacy_method_wait_launcher()
+    hardened = _harden_start_script_runtime_forensics(source)
+    sentinels = (
+        "$DpapiSentinel = 'DPAPI_SENTINEL'",
+        "$TunnelValidationSentinel = 'TUNNEL_SENTINEL'",
+        "$ProjectValidationSentinel = 'PROJECT_SENTINEL'",
+        "$DoctorSentinel = 'DOCTOR_SENTINEL'",
+        "$EnvironmentSentinel = 'ENV_SENTINEL'",
+    )
+    positions = [hardened.index(item) for item in sentinels]
+    assert positions == sorted(positions)
+    for item in sentinels:
+        assert hardened.count(item) == 1
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    (
+        "$RuntimeStdout = 'out'\n$RuntimeStderr = 'err'\n$RuntimeProcess.WaitForExit()\n",
+        "$RuntimeStdout = 'out'\nWrite-Log \"STARTING: x\"\n$RuntimeProcess.WaitForExit()\n",
+        "$RuntimeStderr = 'err'\nWrite-Log \"STARTING: x\"\n$RuntimeProcess.WaitForExit()\n",
+        "$RuntimeStdout = 'out'\n$RuntimeStderr = 'err'\nWrite-Log \"STARTING: x\"\nWait-SomethingElse\n",
+    ),
+)
+def test_unknown_or_incomplete_launcher_is_returned_unchanged(malformed: str) -> None:
+    assert _harden_start_script_runtime_forensics(malformed) == malformed
+
+
+def test_ambiguous_multiple_terminal_waits_are_returned_unchanged() -> None:
+    source = _legacy_wait_process_launcher() + "Wait-Process -Id $RuntimeProcess.Id\n"
+    assert _harden_start_script_runtime_forensics(source) == source
+
+
+def test_method_wait_hardening_removes_stale_direct_exit_branch() -> None:
+    hardened = _harden_start_script_runtime_forensics(_legacy_method_wait_launcher())
+    terminal = hardened[hardened.index("$RuntimeProcess.WaitForExit()") :]
+    assert "if ($RuntimeProcess.ExitCode -ne 0)" not in terminal
+    assert terminal.count("$RuntimeProcess.WaitForExit()") == 1
+    assert terminal.count("$RuntimeProcess.Refresh()") == 1
+    assert terminal.count("$RuntimeExitCode = $RuntimeProcess.ExitCode") == 1
+
+
+# --- WO-P1-215 repair-2: enclosing brace-ancestry fail-closed proof -------
+
+
+def _hardened_wait_process_launcher() -> str:
+    return _harden_start_script_runtime_forensics(_legacy_wait_process_launcher())
+
+
+def _hardened_method_wait_launcher() -> str:
+    return _harden_start_script_runtime_forensics(_legacy_method_wait_launcher())
+
+
+def _false_guard_wrap(source: str) -> str:
+    body = "\n".join(
+        ("    " + line if line.strip() else line) for line in source.splitlines()
+    )
+    return "if ($false) {\n" + body + "\n}\n"
+
+
+def _false_guard_wrap_exit(source: str) -> str:
+    return source.replace(
+        "exit $RuntimeExitCode",
+        "if ($false) {\n    exit $RuntimeExitCode\n}",
+    )
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_full_false_guard_wrap(hardened: str) -> None:
+    wrapped = _false_guard_wrap(hardened)
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_partial_false_guard_wrap(hardened: str) -> None:
+    wrapped = _false_guard_wrap_exit(hardened)
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_accepts_canonical_hardened_ancestry(hardened: str) -> None:
+    classified, state = _classify_start_script_runtime_forensics(hardened)
+
+    assert classified == hardened
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+
+
+def test_create_instance_refuses_false_guard_wrap_before_materializing(sandbox) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(
+        _false_guard_wrap(_hardened_wait_process_launcher()), encoding="utf-8"
+    )
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "Research").exists()
+
+
+def test_classifier_rejects_legacy_seam_inside_false_guard() -> None:
+    wrapped = _false_guard_wrap(_legacy_wait_process_launcher())
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_classifier_rejects_noncanonical_truthy_guard_around_exit() -> None:
+    wrapped = _hardened_wait_process_launcher().replace(
+        "exit $RuntimeExitCode",
+        "if ($true) {\n    exit $RuntimeExitCode\n}",
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_classifier_fails_closed_on_unbalanced_brace_prefix() -> None:
+    wrapped = "}\n" + _hardened_wait_process_launcher()
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+# --- WO-P1-215 repair-2 rev-2: terminal control flow + block-shape bounds -
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    ("exit 0\n", "throw 'unreachable'\n", "return\n"),
+)
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_terminal_flow_before_forensic_body(
+    terminal: str, hardened: str
+) -> None:
+    wrapped = terminal + hardened
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_terminal_flow_after_first_marker(hardened: str) -> None:
+    first_marker = "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'"
+    wrapped = hardened.replace(first_marker, first_marker + "\nexit 0", 1)
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_create_instance_refuses_terminal_flow_before_forensic_body(
+    sandbox, hardened: str
+) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text("exit 0\n" + hardened, encoding="utf-8")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "Research").exists()
+
+
+def test_classifier_rejects_catch_weakened_try_shape() -> None:
+    wrapped = _hardened_method_wait_launcher().replace("finally {", "catch {")
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_classifier_rejects_noncanonical_replaced_finally_header() -> None:
+    wrapped = _hardened_method_wait_launcher().replace("finally {", "if ($never) {")
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_unmatched_brace_after_forensic_body(hardened: str) -> None:
+    wrapped = hardened + "}\n"
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_unclosed_block_after_forensic_body(hardened: str) -> None:
+    wrapped = hardened + "if ($never) {\n"
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+# --- WO-P1-215 repair-2 rev-3: loop-control terminal tokens ---------------
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    ("break\n", "BREAK\n", "continue\n"),
+)
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_loop_terminator_before_forensic_body(
+    terminal: str, hardened: str
+) -> None:
+    wrapped = terminal + hardened
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    ("break", "continue"),
+)
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_classifier_rejects_loop_terminator_between_markers(
+    terminal: str, hardened: str
+) -> None:
+    first_marker = "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'"
+    wrapped = hardened.replace(first_marker, first_marker + "\n" + terminal, 1)
+
+    classified, state = _classify_start_script_runtime_forensics(wrapped)
+
+    assert classified == wrapped
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    ("break", "continue"),
+)
+@pytest.mark.parametrize(
+    "hardened",
+    (_hardened_wait_process_launcher(), _hardened_method_wait_launcher()),
+)
+def test_create_instance_refuses_loop_terminator_before_forensic_body(
+    sandbox, terminal: str, hardened: str
+) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(terminal + "\n" + hardened, encoding="utf-8")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root, "Research", project, health_port=48114, reference_root=ref
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "Research").exists()
+
+
+# --- WO-P1-679 review repair P1: real FirstInstanceCreator generator --------
+
+
+def _wizard_reference(root: Path, name: str = "sunday-worker-1") -> Path:
+    from a_conductor.setup_wizard import FirstInstanceCreator
+
+    project = root.parent / "wizard-project"
+    project.mkdir(exist_ok=True)
+    creator = FirstInstanceCreator(instances_root=root)
+    return creator.create(
+        name=name,
+        project_path=project,
+        health_port=18011,
+        tunnel_client_path=root.parent / "tunnel-client.exe",
+        api_key_file=root.parent / "secret.dpapi",
+    )
+
+
+def test_wizard_generated_start_script_is_already_hardened(tmp_path: Path) -> None:
+    instances_root = tmp_path / "instances"
+    instances_root.mkdir()
+    wizard_target = _wizard_reference(instances_root)
+    wizard_start = (wizard_target / "start.ps1").read_text(encoding="utf-8-sig")
+
+    classified, state = _classify_start_script_runtime_forensics(wizard_start)
+
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert classified == wizard_start
+
+
+def test_create_instance_clones_from_wizard_generated_reference(tmp_path: Path) -> None:
+    instances_root = tmp_path / "instances"
+    instances_root.mkdir()
+    wizard_target = _wizard_reference(instances_root)
+    project = tmp_path / "proj"
+    project.mkdir()
+
+    created = create_instance(
+        instances_root,
+        "Research",
+        project,
+        health_port=18012,
+        reference_root=wizard_target,
+    )
+
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert "serena-research.yaml.template" in start
+    assert "serena-research.yaml" in start
+    assert "'research-'" in start
+    _, state = _classify_start_script_runtime_forensics(start)
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+
+
+# --- WO-P1-679 review repair P2: try/finally pairing fail-closed ------------
+
+
+@pytest.mark.parametrize(
+    "malformed_builder",
+    (
+        lambda hard, method: hard + "finally {\n}\n",
+        lambda hard, method: method.split("finally {")[0],
+        lambda hard, method: method.replace("finally {", "try {"),
+    ),
+    ids=["dangling-finally", "truncated-no-finally", "finally-replaced-by-try"],
+)
+def test_malformed_try_finally_grammar_fails_closed(malformed_builder) -> None:
+    hard = _hardened_wait_process_launcher()
+    method = _hardened_method_wait_launcher()
+    malformed = malformed_builder(hard, method)
+
+    classified, state = _classify_start_script_runtime_forensics(malformed)
+
+    assert classified == malformed
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+# --- WO-P1-679 review repair P2: literal data has no control authority ------
+
+
+@pytest.mark.parametrize("slug", ("return", "break", "exit", "throw", "continue"))
+def test_control_word_slugs_stay_legal(sandbox, slug: str) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(
+        "$ProfileTemplate = Join-Path $ProfilesDir 'serena-wastewater.yaml.template'\n"
+        "$RuntimeProfile = Join-Path $RunDir 'serena-wastewater.yaml'\n"
+        "$LogFile = Join-Path $LogsDir ('wastewater-' + $day)\n"
+        + _legacy_wait_process_launcher(),
+        encoding="utf-8",
+    )
+
+    created = create_instance(
+        instances_root, slug, project, health_port=48114, reference_root=ref
+    )
+
+    start = (created / "start.ps1").read_text(encoding="utf-8")
+    assert f"serena-{slug}.yaml.template" in start
+    assert f"'{slug}-'" in start
+    _, state = _classify_start_script_runtime_forensics(start)
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+
+
+def test_preflight_validates_final_substituted_script_before_materialization(
+    sandbox, monkeypatch
+) -> None:
+    instances_root, ref, project = sandbox
+    real = _classify_start_script_runtime_forensics
+    calls: list[str] = []
+
+    def spy(text: str):
+        calls.append(text)
+        if "serena-preflight" in text:
+            return text, _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+        return real(text)
+
+    monkeypatch.setattr(
+        "a_conductor.instance_create._classify_start_script_runtime_forensics", spy
+    )
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root, "preflight", project, health_port=48115, reference_root=ref
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "preflight").exists()
+    assert any("serena-preflight" in text for text in calls)
+
+
+# --- WO-P1-679 review repair P2: case-insensitive signal fail-closed --------
+
+
+def test_lowercase_legacy_launcher_fails_closed() -> None:
+    source = _legacy_wait_process_launcher().lower()
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_lowercase_hardened_launcher_fails_closed() -> None:
+    source = _hardened_wait_process_launcher().lower()
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "marker_line",
+    (
+        'Write-Log ("TUNNEL_START_FAILED: Tunnel client exited with code {0}; exit_code={0}" -f $RuntimeExitCode)',
+        "New-Item -ItemType Directory -Force -Path $RuntimeArchiveDir | Out-Null",
+        "$ArchiveStamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'",
+        "foreach ($RuntimeLog in @($RuntimeStdout, $RuntimeStderr)) {",
+        "if (Test-Path -LiteralPath $RuntimeLog -PathType Leaf) {",
+        "$Leaf = [System.IO.Path]::GetFileName($RuntimeLog)",
+        "$Archived = Join-Path $RuntimeArchiveDir ($ArchiveStamp + '-' + $Leaf)",
+    ),
+    ids=[
+        "tunnel-start-failed",
+        "new-item-archive",
+        "archive-stamp",
+        "foreach-header",
+        "test-path-header",
+        "leaf",
+        "archived",
+    ],
+)
+def test_standalone_distinctive_marker_fails_closed(marker_line: str) -> None:
+    source = marker_line + "\n$ProfileTemplate = 'unchanged-generic-reference'\n"
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert classified == source
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+# --- WO-P1-679 round 3: expandable interpolation bound (lexical provenance) -
+
+
+def _hardened_wait() -> str:
+    return _hardened_wait_process_launcher()
+
+
+def _hardened_method() -> str:
+    return _hardened_method_wait_launcher()
+
+
+_STARTING_LINE = 'Write-Log "STARTING: health=$HealthListenAddress project=$ProjectPath"'
+_ARCHIVE_LINE = "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'"
+
+
+def _insert_between_markers(payload_line: str) -> str:
+    hardened = _hardened_wait()
+    assert _ARCHIVE_LINE in hardened and _STARTING_LINE in hardened
+    return hardened.replace(
+        _ARCHIVE_LINE, _ARCHIVE_LINE + "\n" + payload_line, 1
+    )
+
+
+def _with_starting_payload(payload: str) -> str:
+    hardened = _hardened_wait()
+    assert _STARTING_LINE in hardened
+    return hardened.replace(
+        _STARTING_LINE, 'Write-Log "STARTING: ' + payload + '"', 1
+    )
+
+
+_SUBEXPRESSION_PAYLOADS = (
+    "$(exit 0)",
+    "$(throw 'stop')",
+    "$(return)",
+    "$(break)",
+    "$(continue)",
+    "$(Write-Output x)",
+    '$("$nested")',
+    "$(Get-Date `\n        -Format x)",
+)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    _SUBEXPRESSION_PAYLOADS,
+    ids=["exit", "throw", "return", "break", "continue", "write-output", "nested", "multiline"],
+)
+@pytest.mark.parametrize(
+    "builder",
+    (
+        lambda payload: '$Probe = "' + payload + '"\n' + _hardened_wait(),
+        lambda payload: _insert_between_markers('$Probe = "' + payload + '"'),
+        lambda payload: _with_starting_payload(payload),
+    ),
+    ids=["prefix", "between-markers", "starting-payload"],
+)
+def test_active_subexpression_in_expandable_string_refuses(payload: str, builder) -> None:
+    source = builder(payload)
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+    assert classified == source
+
+
+@pytest.mark.parametrize(
+    "here_literal",
+    (
+        "$Probe = @\"\n$(exit 0)\n\"@\n",
+        '$Probe = @"' + "\n" + "$(Get-Date `\n        -Format x)" + "\n" + '"@' + "\n",
+        '$Probe = "$(exit 0)"\n$Other = @"\n$(throw \'stop\')\n"@\n',
+    ),
+    ids=["herestring-exit", "herestring-multiline", "string-plus-herestring"],
+)
+def test_active_subexpression_in_expandable_herestring_refuses(here_literal: str) -> None:
+    source = _hardened_wait() + here_literal
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+    assert classified == source
+
+
+def test_subexpression_in_literal_herestring_stays_inert() -> None:
+    source = _hardened_wait() + "$Probe = @'\n$(exit 0)\n'@\n"
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert classified == source
+
+
+def test_backtick_escaped_subexpression_stays_inert() -> None:
+    source = _hardened_wait() + '$Probe = "`$(exit 0)"\n'
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert classified == source
+
+
+def test_double_backtick_keeps_subexpression_active() -> None:
+    source = _hardened_wait() + '$Probe = "``$(exit 0)"\n'
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+    assert classified == source
+
+
+def test_generated_variable_interpolation_stays_already_hardened() -> None:
+    source = _hardened_wait()
+    assert "$HealthListenAddress" in source and "$(" not in source
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert classified == source
+
+
+def test_exact_legacy_subexpression_still_transforms() -> None:
+    source = _legacy_method_wait_launcher()
+    assert "$($RuntimeProcess.ExitCode)" in source
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.TRANSFORMED
+    assert "$($RuntimeProcess.ExitCode)" not in classified
+    again, again_state = _classify_start_script_runtime_forensics(classified)
+    assert again_state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert again == classified
+
+
+def test_marker_lines_inside_multiline_string_are_not_structural() -> None:
+    decoy = (
+        "$Note = 'plan:\n"
+        "exit $RuntimeExitCode\n"
+        "Write-Log \"STOPPED: tunnel-client exit_code=0\"\n"
+        "'\n"
+    )
+    source = _hardened_wait() + decoy
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert classified == source
+
+
+def test_pure_decoy_multiline_string_is_generic_passthrough() -> None:
+    source = (
+        "$Note = 'plan:\n"
+        "$RuntimeArchiveDir = Join-Path $LogsDir 'runtime-archive'\n"
+        "$RuntimeProcess.WaitForExit()\n"
+        "exit $RuntimeExitCode\n"
+        "'\n"
+        "$ProfileTemplate = 'unchanged-generic-reference'\n"
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.PASSTHROUGH_UNRECOGNIZED
+    assert classified == source
+
+
+# --- WO-P1-679 round 3: helper body contract -------------------------------
+
+
+def _wizard_start_script(tmp_path: Path) -> str:
+    instances_root = tmp_path / "instances"
+    instances_root.mkdir()
+    wizard_target = _wizard_reference(instances_root)
+    return (wizard_target / "start.ps1").read_text(encoding="utf-8-sig")
+
+
+_WIZARD_WRITE_LOG_HEADER = "function Write-Log([string]$Message) {"
+_WIZARD_FAIL_HEADER = "function Fail([string]$Code, [string]$Message) {"
+_WIZARD_WRITE_LOG_BODY = (
+    "$line = ('{0} [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $InstanceName, $Message)\n"
+    "Write-Host $line\n"
+    "Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8\n"
+)
+_WIZARD_FAIL_BODY = (
+    'Write-Log ("{0}: {1}" -f $Code, $Message)\n'
+    "exit 1\n"
+)
+
+
+def _mutate_wizard_body(source: str, header: str, mutation) -> str:
+    """Apply `mutation(body_text) -> body_text` to the helper after `header`, proving location."""
+    start = source.index(header)
+    open_brace = source.index("{", start)
+    close_brace = source.index("\n}", open_brace) + 1
+    body = source[open_brace + 1 : close_brace]
+    mutated = mutation(body)
+    assert mutated != body
+    return source[: open_brace + 1] + mutated + source[close_brace:]
+
+
+@pytest.mark.parametrize(
+    "header, mutation",
+    (
+        (_WIZARD_WRITE_LOG_HEADER, lambda b: b + "    exit 0\n"),
+        (_WIZARD_WRITE_LOG_HEADER, lambda b: b + "    throw 'stop'\n"),
+        (_WIZARD_WRITE_LOG_HEADER, lambda b: b + "    return\n"),
+        (_WIZARD_WRITE_LOG_HEADER, lambda b: b + "    # injected comment\n"),
+        (_WIZARD_WRITE_LOG_HEADER, lambda b: b.replace("    Write-Host $line\n", "")),
+        (
+            _WIZARD_WRITE_LOG_HEADER,
+            lambda b: b.replace(
+                "Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8",
+                "Add-Content -LiteralPath $LogFile -Value $line -Encoding ASCII",
+            ),
+        ),
+        (_WIZARD_FAIL_HEADER, lambda b: b + "    return\n"),
+        (_WIZARD_FAIL_HEADER, lambda b: b.replace("exit 1", "exit 2")),
+        (_WIZARD_FAIL_HEADER, lambda b: b.replace("    exit 1\n", "")),
+        (_WIZARD_FAIL_HEADER, lambda b: b.replace("    exit 1\n", "    exit 1 ; exit 1\n")),
+        (
+            _WIZARD_FAIL_HEADER,
+            lambda b: b.replace(
+                'Write-Log ("{0}: {1}" -f $Code, $Message)',
+                'Write-Log ("{0}-{1}" -f $Code, $Message)',
+            ),
+        ),
+    ),
+    ids=[
+        "writelog-exit",
+        "writelog-throw",
+        "writelog-return",
+        "writelog-comment",
+        "writelog-op-removed",
+        "writelog-op-altered",
+        "fail-return-added",
+        "fail-exit-changed",
+        "fail-exit-deleted",
+        "fail-exit-duplicated",
+        "fail-args-altered",
+    ],
+)
+def test_mutated_helper_body_refuses(tmp_path: Path, header: str, mutation) -> None:
+    source = _wizard_start_script(tmp_path)
+
+    mutated = _mutate_wizard_body(source, header, mutation)
+
+    _, state = _classify_start_script_runtime_forensics(mutated)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_duplicate_helper_function_refuses(tmp_path: Path) -> None:
+    source = _wizard_start_script(tmp_path)
+    start = source.index(_WIZARD_WRITE_LOG_HEADER)
+    close = source.index("\n}", start) + 2
+    duplicated = source + "\n" + source[start:close] + "\n"
+    assert duplicated.count(_WIZARD_WRITE_LOG_HEADER) == 2
+
+    _, state = _classify_start_script_runtime_forensics(duplicated)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_nested_helper_function_refuses(tmp_path: Path) -> None:
+    source = _wizard_start_script(tmp_path)
+    start = source.index(_WIZARD_WRITE_LOG_HEADER)
+    close = source.index("\n}", start) + 2
+    block = source[start:close]
+    indented = "\n".join(
+        ("    " + line if line.strip() else line) for line in block.splitlines()
+    )
+    nested = source[:start] + "if ($true) {\n" + indented + "\n}\n" + source[close:]
+    assert _WIZARD_WRITE_LOG_HEADER in nested
+
+    _, state = _classify_start_script_runtime_forensics(nested)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_statement_after_helper_close_refuses(tmp_path: Path) -> None:
+    source = _wizard_start_script(tmp_path)
+    start = source.index(_WIZARD_FAIL_HEADER)
+    close = source.index("\n}", start) + 2
+    mutated = source[:close] + " exit 0" + source[close:]
+    assert "} exit 0" in mutated
+
+    _, state = _classify_start_script_runtime_forensics(mutated)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def _helper_bodies_crlf(source: str) -> str:
+    for header in (_WIZARD_WRITE_LOG_HEADER, _WIZARD_FAIL_HEADER):
+        start = source.index(header)
+        close = source.index("\n}", start) + 2
+        source = source[:start] + source[start:close].replace("\n", "\r\n") + source[close:]
+    return source
+
+
+@pytest.mark.parametrize(
+    "formatting",
+    (
+        lambda s: s,
+        _helper_bodies_crlf,
+        lambda s: "\n".join(
+            ("        " + line if line.strip() and line.startswith("    ") else line)
+            for line in s.split("\n")
+        ),
+    ),
+    ids=["exact", "helper-bodies-crlf", "deeper-indent"],
+)
+def test_supported_helper_formatting_variants_accept(tmp_path: Path, formatting) -> None:
+    source = formatting(_wizard_start_script(tmp_path))
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+
+
+# --- WO-P1-679 round 3: try/finally adjacency ------------------------------
+
+
+def _with_finally_gap(filler: str) -> str:
+    method = _hardened_method()
+    head, separator, tail = method.partition("finally {")
+    assert separator == "finally {"
+    return head + filler + "finally {" + tail
+
+
+@pytest.mark.parametrize(
+    "filler",
+    (
+        "$x = 1\n",
+        "Get-Date\n",
+        '"lit"\n',
+        "'lit'\n",
+        '@"live"\n"@\n',
+        "@'literal'\n'@\n",
+        ";\n",
+        "Get-Date `\n",
+        "$null | Out-Null\n",
+    ),
+    ids=[
+        "assignment",
+        "command",
+        "double-quoted",
+        "single-quoted",
+        "expandable-herestring",
+        "literal-herestring",
+        "semicolon",
+        "backtick-continuation",
+        "pipeline",
+    ],
+)
+def test_statement_between_try_and_finally_refuses(filler: str) -> None:
+    source = _with_finally_gap(filler)
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+    assert classified == source
+
+
+@pytest.mark.parametrize(
+    "trivia",
+    ("\n\n", "# comment\n", "<# note #>\n", "   \n\t\n"),
+    ids=["blank-lines", "line-comment", "block-comment", "whitespace"],
+)
+def test_trivia_between_try_and_finally_accepts(trivia: str) -> None:
+    source = _with_finally_gap(trivia)
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert classified == source
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    (
+        lambda: _hardened_wait() + "finally {\n}\n",
+        lambda: _hardened_method().split("finally {")[0],
+        lambda: _hardened_method().replace("finally {", "try {"),
+        lambda: _hardened_wait() + "try {\n}\ntry {\n}\nfinally {\n}\n",
+        lambda: _hardened_method().replace("finally {", "finally {\n}\nfinally {\n"),
+    ),
+    ids=["dangling", "missing", "replaced", "crossed", "double-finally"],
+)
+def test_try_finally_pairing_malformed_refuses(malformed) -> None:
+    source = malformed()
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize(
+    "trailing",
+    ('$Probe = "unterminated\n', "<#\n", '$Probe = @"\n', "'\n"),
+    ids=["unterminated-string", "unterminated-block-comment", "unterminated-herestring", "unterminated-single"],
+)
+def test_trailing_unterminated_lexis_blocks_positive_verdict(trailing: str) -> None:
+    source = _hardened_wait() + trailing
+
+    _, state = _classify_start_script_runtime_forensics(source)
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+# --- WO-P1-679 round 3: operation-level attacks, zero materialization -------
+
+
+def _launcher_reference_with(extra_line: str) -> str:
+    return (
+        "$ProfileTemplate = Join-Path $ProfilesDir 'serena-wastewater.yaml.template'\n"
+        "$RuntimeProfile = Join-Path $RunDir 'serena-wastewater.yaml'\n"
+        "$LogFile = Join-Path $LogsDir ('wastewater-' + $day)\n"
+        + _legacy_wait_process_launcher()
+        + extra_line
+    )
+
+
+def _count_target_writes(monkeypatch, target_name: str) -> list[str]:
+    calls: list[str] = []
+    real_mkdir = __import__("pathlib").Path.mkdir
+    real_write = __import__("pathlib").Path.write_text
+
+    def spy_mkdir(self, *args, **kwargs):
+        calls.append("mkdir:" + self.name)
+        return real_mkdir(self, *args, **kwargs)
+
+    def spy_write(self, *args, **kwargs):
+        calls.append("write:" + self.name)
+        return real_write(self, *args, **kwargs)
+
+    monkeypatch.setattr(__import__("pathlib").Path, "mkdir", spy_mkdir)
+    monkeypatch.setattr(__import__("pathlib").Path, "write_text", spy_write)
+    return calls
+
+
+@pytest.mark.parametrize(
+    "extra_line",
+    (
+        '$Probe = "$(exit 0)"\n',
+        '$Probe = "``$(throw \'stop\')"\n',
+        '$Probe = @"\n$(return)\n"@\n',
+    ),
+    ids=["interpolation-string", "double-backtick", "interpolation-herestring"],
+)
+def test_create_instance_refuses_interpolation_attack_before_materialization(
+    sandbox, monkeypatch, extra_line: str
+) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(_launcher_reference_with(extra_line), encoding="utf-8")
+    calls = _count_target_writes(monkeypatch, "interpolated")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root,
+            "interpolated",
+            project,
+            health_port=48114,
+            reference_root=ref,
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "interpolated").exists()
+    assert not [c for c in calls if "interpolated" in c]
+
+
+def test_create_instance_refuses_helper_body_attack_before_materialization(
+    tmp_path: Path, monkeypatch
+) -> None:
+    instances_root = tmp_path / "instances"
+    instances_root.mkdir()
+    wizard_target = _wizard_reference(instances_root)
+    source = (wizard_target / "start.ps1").read_text(encoding="utf-8-sig")
+    mutated = _mutate_wizard_body(
+        source, _WIZARD_WRITE_LOG_HEADER, lambda b: b + "    exit 0\n"
+    )
+    (wizard_target / "start.ps1").write_text(mutated, encoding="utf-8-sig")
+    project = tmp_path / "proj"
+    project.mkdir()
+    calls = _count_target_writes(monkeypatch, "helperattacked")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root,
+            "helperattacked",
+            project,
+            health_port=18015,
+            reference_root=wizard_target,
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "helperattacked").exists()
+    assert not [c for c in calls if "helperattacked" in c]
+
+
+def test_create_instance_refuses_finally_gap_attack_before_materialization(
+    sandbox, monkeypatch
+) -> None:
+    instances_root, ref, project = sandbox
+    gapped = _with_finally_gap("$x = 1\n")
+    profiled = (
+        "$ProfileTemplate = Join-Path $ProfilesDir 'serena-wastewater.yaml.template'\n"
+        "$RuntimeProfile = Join-Path $RunDir 'serena-wastewater.yaml'\n"
+        "$LogFile = Join-Path $LogsDir ('wastewater-' + $day)\n" + gapped
+    )
+    (ref / "start.ps1").write_text(profiled, encoding="utf-8")
+    calls = _count_target_writes(monkeypatch, "gapattack")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root, "gapattack", project, health_port=48114, reference_root=ref
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "gapattack").exists()
+    assert not [c for c in calls if "gapattack" in c]
+
+
+def test_written_start_script_is_exactly_the_validated_snapshot(sandbox) -> None:
+    from a_conductor.instance_create import _substitute_reference_literals
+
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(_launcher_reference_with(""), encoding="utf-8")
+
+    created = create_instance(
+        instances_root, "snapshot", project, health_port=48114, reference_root=ref
+    )
+
+    written = (created / "start.ps1").read_text(encoding="utf-8")
+    reference_text = (ref / "start.ps1").read_text(encoding="utf-8")
+    substituted = _substitute_reference_literals(
+        reference_text, "wastewater", "serena-snapshot", "snapshot"
+    )
+    classified, state = _classify_start_script_runtime_forensics(substituted)
+    assert state is _RuntimeForensicsHardeningState.TRANSFORMED
+    assert written == classified
+
+
+# --- WO-P1-679 round 4: PowerShell comment/herestring/smart-quote semantics -
+
+
+def test_block_comment_does_not_nest_first_closer_wins(tmp_path: Path) -> None:
+    source = _wizard_start_script(tmp_path) + "<#\n<#\n#>\nexit 5\n#>\n"
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+    assert classified == source
+
+
+def test_herestring_closer_with_trailing_tokens_is_live_code(tmp_path: Path) -> None:
+    source = (
+        _wizard_start_script(tmp_path)
+        + '$hidden = @"\ndata\n"@ | Out-Null\nexit 5\n"@\nx\n# "\n'
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+    assert classified == source
+
+
+def test_legacy_hidden_behind_trailing_token_closer_never_passes_through() -> None:
+    source = (
+        "$RuntimeStdout = Join-Path $LogsDir 'runtime.stdout.log'\n"
+        "$RuntimeStderr = Join-Path $LogsDir 'runtime.stderr.log'\n"
+        'Write-Log "STARTING: health=$HealthListenAddress project=$ProjectPath"\n'
+        '$hidden = @"\ndata\n"@ | Out-Null\n'
+        "$RuntimeProcess = Start-Process -FilePath $TunnelClientPath -PassThru\n"
+        "Wait-Process -Id $RuntimeProcess.Id\n"
+    )
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.TRANSFORMED
+    assert "Wait-Process -Id $RuntimeProcess.Id" not in classified
+
+
+def test_smart_quote_wrapped_wizard_text_earns_no_positive_verdict(tmp_path: Path) -> None:
+    wizard = _wizard_start_script(tmp_path)
+    source = "$Note = @\u201c\n" + wizard + "\u201d@\n"
+
+    _, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is not _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_smart_quoted_inline_string_earns_no_positive_verdict() -> None:
+    source = _hardened_wait() + "$Note = \u201cplain data\u201d\n"
+
+    _, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is not _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+def test_crlf_hardened_text_direct_api_classifies_already_hardened() -> None:
+    source = _hardened_wait().replace("\n", "\r\n")
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert classified == source
+
+
+def test_crlf_legacy_wait_direct_api_transforms() -> None:
+    source = _legacy_wait_process_launcher().replace("\n", "\r\n")
+
+    classified, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is _RuntimeForensicsHardeningState.TRANSFORMED
+    assert classified != source
+    again, again_state = _classify_start_script_runtime_forensics(classified)
+    assert again_state is _RuntimeForensicsHardeningState.ALREADY_HARDENED
+
+
+def test_transform_outputs_byte_identical_to_frozen_candidate() -> None:
+    import hashlib
+    import json
+    import subprocess
+    import sys
+
+    old_src = "/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo293-repair/src"
+    if not Path(old_src, "a_conductor", "instance_create.py").is_file():
+        pytest.skip("frozen old worktree not present on this host")
+    launcher = (
+        "import json, sys\n"
+        f"sys.path.insert(0, {old_src!r})\n"
+        "from test_instance_create_launchers import payload\n"
+        "from a_conductor.instance_create import _harden_start_script_runtime_forensics\n"
+        "print(json.dumps(_harden_start_script_runtime_forensics(payload)))\n"
+    )
+    for legacy in (
+        _legacy_wait_process_launcher(),
+        _legacy_method_wait_launcher(),
+    ):
+        probe = Path(tempfile.gettempdir()) / "test_instance_create_launchers.py"
+        probe.write_text("payload = " + repr(legacy), encoding="utf-8")
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", launcher],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=str(probe.parent),
+            )
+        finally:
+            probe.unlink(missing_ok=True)
+        assert result.returncode == 0, result.stderr
+        frozen_output = json.loads(result.stdout)
+        ours = _harden_start_script_runtime_forensics(legacy)
+        assert (
+            hashlib.sha256(ours.encode("utf-8")).hexdigest()
+            == hashlib.sha256(frozen_output.encode("utf-8")).hexdigest()
+        )
+        assert ours == frozen_output
+
+
+# --- WO-P1-679 round 5: spec single-quote-character smart codepoints --------
+
+
+@pytest.mark.parametrize("codepoint", ("\u201a", "\u201b"))
+def test_low_smart_quote_wrapped_wizard_text_earns_no_positive_verdict(
+    tmp_path: Path, codepoint: str
+) -> None:
+    wizard = _wizard_start_script(tmp_path)
+    source = "$Note = @" + codepoint + "\n" + wizard + codepoint + "@\n"
+
+    _, state = _classify_start_script_runtime_forensics(source)
+
+    assert state is not _RuntimeForensicsHardeningState.ALREADY_HARDENED
+    assert state is _RuntimeForensicsHardeningState.REFUSED_AMBIGUOUS
+
+
+@pytest.mark.parametrize("codepoint", ("\u201a", "\u201b"))
+def test_create_instance_refuses_low_smart_quote_reference_before_materialization(
+    sandbox, monkeypatch, codepoint: str
+) -> None:
+    instances_root, ref, project = sandbox
+    (ref / "start.ps1").write_text(
+        _hardened_wait() + "$Note = @" + codepoint + "\ndata\n" + codepoint + "@\n",
+        encoding="utf-8",
+    )
+    calls = _count_target_writes(monkeypatch, "lowsq")
+
+    with pytest.raises(InstanceCreateError) as raised:
+        create_instance(
+            instances_root, "lowsq", project, health_port=48114, reference_root=ref
+        )
+
+    assert raised.value.code == "REFERENCE_START_SCRIPT_UNSAFE"
+    assert not (instances_root / "lowsq").exists()
+    assert not [c for c in calls if "lowsq" in c]
