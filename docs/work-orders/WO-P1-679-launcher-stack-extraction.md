@@ -5,7 +5,8 @@ Issue: #679
 
 ## 1. Authority And State
 
-Status: READY_FOR_GLM_IMPLEMENTATION / GOVERNANCE_GATE_PASS. No source mutation in bootstrap.
+Status: COMPLETE / POST_MAIN_VERIFIED (2026-10-17 integrator closeout; see §7 final checkpoint).
+Historical bootstrap status: READY_FOR_GLM_IMPLEMENTATION / GOVERNANCE_GATE_PASS. No source mutation in bootstrap.
 Risk: R0 bounded governance bootstrap; subsequent launcher implementation R3.
 Topology: CONTROL_PLANE_ONLY. Classification: REUSE existing implementation and coordination.
 Owner/integrator: original claim owner session `ses_ebab810f2ffe7BmnQwkFK9jePy`.
@@ -573,3 +574,68 @@ and Fail-token bypasses are fixed (rounds 7-9). No acceptance claim until the Wi
 oracle executes green at the new head, new-head CI is green, and GPT-integrator final
 acceptance is recorded. No merge/close/retarget of PR #680 or old-stack PRs; no
 runtime/migration/enrollment actions by this publish.
+
+### Checkpoint 2026-10-17 — integrator closeout: acceptance, merge, post-main verification, old-stack supersession (COMPLETE / POST_MAIN_VERIFIED)
+
+Head tuple (exact, preserved): old PR heads `8339e4c9e15c8eefd94693245ef9ef4b627c00de`
+(PR266) / `f7d23c96690f7cdb94d2ebe62cac6d4669ad6f00` (PR285) /
+`2d151da2aca14ca2213b21d6c68b8df08de759c1` (PR293) → candidate
+`4bb30be6f340936b374054833cbd27f92ab0b94e` (PR680 branch, preserved) → accepted main
+`faa34cd6c25567c08804dfd4337bce19949cbe83` (squash of PR680, single parent `46faaeb`).
+
+Acceptance and merge: root GPT-integrator acceptance recorded on Issue #679 comment
+6230717866 (bounds: NO general script-sanitizer certificate; generic passthrough =
+compatibility, not safety; external command resolution, aliases, dot-sourcing OUTSIDE
+the structural proof boundary) under user permission verbatim "Commit/push แล้ว merge
+ตาม gate". Independent exact-SHA review PASS (P0=0/P1=0/P2=0/P3=0) at the exact
+published identity — source blob ea2205bb… / tests blob 32c4ec97… (full sha256 in
+runs/WO-P1-679/hashes-round9.sha256); reviewer artifacts hash-verified and exported
+VERBATIM with coordinator provenance (result.md sha256 cec841a7…, manifest 81c48ac7…).
+PR #680 merged normal squash with --match-head-commit 4bb30be → main faa34cd; branch
+preserved at 4bb30be; PR680 pointer comment 6230719264.
+
+CI (API-verified actual, not board assertion): candidate run 39008397179 SUCCESS at
+exactly 4bb30be; post-main run 39010300897 SUCCESS at exactly faa34cd (push event on
+main, completed 2026-10-17T06:54:25Z; windows test 21m42s all 15 steps, ubuntu, macos
+green). Windows GUI suite incl. tests/test_instance_create.py: 501 passed / 1 skipped
+on BOTH runs; the single skip is the pre-existing frozen-old-worktree skip, not
+engine-related; skip count 1→1 + zero "no PowerShell engine" lines + win32
+engine-absence-FAILs ⇒ both parse-oracle tests executed and PASSED with at least one
+discovered engine. QUALIFICATION: engine identity/version NOT logged (pytest -q);
+proof is Parser::ParseInput parse-only, never launch.
+
+Actual post-main equality: tree(faa34cd) == tree(4bb30be) == a9656647…; six changed
+blobs identical (ea2205bb source, 32c4ec97 tests, 873b8c15/226fa028/94037adf/02a64a1c
+governance docs). Local verification at the exact merge SHA (post679 worktree): focused
+229 passed + 2 honest darwin oracle skips, floor 34 passed, identity 33 passed,
+related 2F/89P = documented pre-existing macOS env baseline, root-adjudicated and
+recorded, never silently ignored. Evidence: runs/WO-P1-679/ci-4bb30be/ and
+runs/WO-P1-679/post-main/faa34cd6…/.
+
+Old-stack supersession closures (root disposition; superseded/unmerged, NEVER claimed
+merged): PR266 closed with comment 6230982133; PR285 closed with comment 6230986237
+(replies to the 2026-10-05 unprovable assessment 6000531941 — supersession now proven
+by replacement content); PR293 closed with comment 6230991297 including release of the
+root-owned old launcher claim 6218811712 residual mutable scope ONLY (other owners'
+claims untouched). All three heads re-verified unchanged immediately before each
+close; branches, worktrees (wo293-repair, wo285-review-f7d23c9, wo293-review-525f5ff),
+old WO documents, review artifacts, runs/WO-P1-215/ evidence and old CI history remain
+intentionally preserved — NO deletes, NO old historical record erasure. Issue #267
+closed as resolved-by-replacement (comment 6230994686); Issue #215 (ZRA-3 lane) never
+touched. PR #295 stale review is OUTSIDE this closeout: flagged only, left untouched.
+
+DEFECT_LESSONS.md NOT edited by WO679 or this closeout: old-branch lessons #15
+(executable-lines) and #56 (brace-ancestry) are NOT in main (main tops at #55); they
+are preserved on the old branch and queued as serialized append-only fold proposals
+BEHIND the pending #581/#583 folds; no lesson is claimed included/merged/lost.
+
+Separate decisions remain separate: config `~/.sunday-device` compatibility and LIVE
+readiness captured on Issue #630 comment 6230245217; WO679 made NO runtime, config,
+migration or credential changes. The protected-root HUMAN_DECISION_REQUIRED marker
+stays.
+
+This docs-only closeout lane (Issue #679 comment 6230971945; branch
+docs/wo679-closeout from faa34cd; isolated worktree; exactly this WO + CURRENT-WORK +
+handoff) records the completion state. Its draft docs PR is NOT merged by the lane:
+the new-head CI run ID returns to the root watcher for the separately held WO679-lineage
+merge decision. Remaining final gate: docs PR CI green + root merge.

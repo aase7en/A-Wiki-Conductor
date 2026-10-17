@@ -1,6 +1,13 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-10-17 - WO-P1-679 Launcher Replacement Bootstrap - CURRENT
+## 2026-10-17 - WO-P1-679 integrator closeout COMPLETE / POST_MAIN_VERIFIED - CURRENT
+
+- WO679 launcher replacement is code-integration COMPLETE: PR #680 merged (squash, `--match-head-commit 4bb30be`) → main `faa34cd6c25567c08804dfd4337bce19949cbe83`; tuple preserved `8339e4c`/`f7d23c9`/`2d151da` → `4bb30be` → `faa34cd`. Candidate CI 39008397179 and post-main CI 39010300897 both SUCCESS (API-verified exact heads); Windows GUI 501P/1S incl. both parse-oracle tests green (engine/version not logged; parse-only); post-main tree/blob equality proven (tree `a9656647…`; six changed blobs identical); local 229P+2 darwin skips + related 2F/89P = root-adjudicated pre-existing mac baseline. Root acceptance Issue #679 c6230717866 under user permission "Commit/push แล้ว merge ตาม gate"; final export + closeout claim c6230971945.
+- Old stack closed superseded/unmerged (never claimed merged): PR266 c6230982133, PR285 c6230986237, PR293 c6230991297 (+ release of root-owned old launcher claim 6218811712 residual mutable scope only); Issue267 closed resolved-by-replacement c6230994686. All heads re-verified before each close; branches/worktrees/evidence intentionally preserved, NO deletes, no old historical record erasure. Issue215 (ZRA) untouched; PR295 stale review flagged only, outside scope. DEFECT_LESSONS not edited — old-branch #15/#56 not in main, queued behind #581/#583 serialized folds.
+- Docs-only closeout lane: branch `docs/wo679-closeout` from `faa34cd`, worktree `_worktrees/A-Wiki-Conductor-wo679-closeout`, exactly 3 docs (WO679, CURRENT-WORK, handoff). Config/LIVE readiness separate (Issue #630 c6230245217); no runtime changes.
+- NEXT_SAFE_ACTION: root watcher takes the docs PR new-head CI run ID; after green CI, root decides the conditional WO679-lineage merge of the docs PR (lane does NOT self-merge). Any later cleanup of retained branches/worktrees is a separate explicitly authorized task — none deleted here.
+
+## 2026-10-17 - WO-P1-679 Launcher Replacement Bootstrap
 
 - Issue #679 / `docs/work-orders/WO-P1-679-launcher-stack-extraction.md` is the current replacement packet; earlier parked snapshots below are historical, not current claim census.
 - Fresh lane: `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo679-launcher-replacement`, branch `chore/wo679-launcher-replacement`, base/HEAD `46faaebce16d9d86b7a14c70fa05e52906b61d9d`. R0 docs bootstrap only; future R3 CONTROL_PLANE_ONLY.
