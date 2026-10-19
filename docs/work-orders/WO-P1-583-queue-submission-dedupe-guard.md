@@ -95,3 +95,9 @@ Codex GPT-6.1 Sol exact-SHA review of candidate `9020fb1` returned CHANGES_REQUI
 
 Claim ID: `WO-P1-583-QUEUE-DEDUPE-GUARD-WIN-001`
 Posted to Issue #583 at bootstrap; released only after post-main verification or explicit supersession.
+
+## Fold closeout checkpoint (2026-10-19)
+
+- Engineering was closed earlier at A-Wiki-Conductor main `ece314530a05f12bd1f7bc4517dd6e287197fb4d` (PR #590, reviewed head `a08844f0a2fd3d1353bca6b3540a4e8dba50dfff`, pre-merge CI `37298948386` + post-main CI `37300729945` SUCCESS, independent round-2 review PASS P0/P1/P2=0; upstream Codex `rust-v0.159.0` queue-semantics audit in Issue #583 comment `5982737256`).
+- The mandatory `DEFECT_LESSONS.md` fold landed as lesson **#57** on branch `docs/wo581-583-defect-lessons-fold` (base `eb07583`, serialized second after #581's lesson #56, kept distinct per Issue #581 comment `5985831048`). Mirrored claim record: Issue #583 comment `6266409292`.
+- Scope of the fold lane was exactly `DEFECT_LESSONS.md` (new lesson only) plus this checkpoint. Consumer wiring into lifecycle call sites remains separately claimed scope under the #580 family. This WO is COMPLETE once the fold PR passes standard exact-head CI, independent review by risk, and integrator merge with post-main verification.

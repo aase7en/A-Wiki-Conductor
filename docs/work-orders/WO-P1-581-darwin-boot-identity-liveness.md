@@ -116,3 +116,9 @@ means `SAFE_TO_MUTATE = NO` for product/source work.
   worktree binding are mandatory after this bootstrap is accepted.
 - Initial compatibility values were re-pinned by the user for this bootstrap;
   verify live remote main heads again before the post-bootstrap execution gate.
+
+## 8. Fold closeout checkpoint (2026-10-19)
+
+- Engineering was closed earlier at SunDayRemoteMCP main `8546cce4e9eaf1dd5738e68f64a08b6734527656` (PR #5, reviewed head `4d80a6c979679ddb3955b7cfa0c01367276dc17d`, post-main Codespell run `37245599505` SUCCESS; root cause and repair evidence in Issue #581 comments `5982120850`/`5985831048`).
+- The mandatory `DEFECT_LESSONS.md` fold landed as lesson **#56** on A-Wiki-Conductor branch `docs/wo581-583-defect-lessons-fold` (base `eb07583`, serialized first ahead of #583's lesson #57 per the PR #293 closeout re-queue). Claim record: Issue #581 comment `6266408548`.
+- Scope of the fold lane was exactly `DEFECT_LESSONS.md` (new lesson only) plus this checkpoint; no SRM source/runtime was touched. This WO is COMPLETE once the fold PR passes standard exact-head CI, independent review by risk, and integrator merge with post-main verification.
