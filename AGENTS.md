@@ -22,6 +22,8 @@ If a new task has no work order yet, product/source mutation remains blocked. A 
 
 `PROJECT-PLAN.md` and `DESIGN.md` are no longer mandatory large reads for every task. They remain authoritative and become mandatory when the project graph selects architecture/roadmap or UI/UX nodes. This reduces repeated startup cost without weakening continuity or safety.
 
+For bounded agent reads and reusable cross-project context reduction, apply `docs/runbooks/agent-context-economy.md` as a **soft evidence-preserving heuristic**; never skip mandatory Work Order, safety, full-source or verification evidence solely to save tokens.
+
 Default delivery model:
 
 `GPT GOVERNANCE -> CAPABILITY-SELECTED EXECUTION -> DETERMINISTIC VERIFY -> INDEPENDENT REVIEW AS REQUIRED -> GPT ACCEPT/MERGE`
