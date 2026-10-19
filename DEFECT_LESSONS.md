@@ -836,3 +836,36 @@ A later W4 control failure captured the same mechanism more precisely: MCP conne
 **Lesson:** a delegated launch inherits nothing from ambient configuration. Admission truth, worktree binding, and privacy must be explicit per-run evidence; resemblance and ambient settings are never authority, and describing a profile in chat is never tasking it.
 
 **Verify:** `tests/test_a_faster_utilization_guard.py` pins the structured-evidence parser, launch preconditions, fail-closed quota states, and the activation/tasking boundary; `tests/test_a_faster_invocation_contract.py` pins the corresponding skill/roadmap contract markers.
+
+
+## #56: boot identity must be a stable per-boot primitive, and terminal evidence must reconcile with live process truth (2026-10-19)
+
+Issue #581 — folded 2026-10-19 from the merged+verified SRM repair; engineering was closed earlier at SunDayRemoteMCP `8546cce4`.
+
+**Symptom:** Incident execution `exec-murep77o-pa10qmf9` (2026-10-03; childPid 28727, shimPid 28712, `childCreatedAt` Sat Oct 3 03:19:17 2026) was terminalized as `TERMINAL_UNHARVESTED` by the SRM supervisor while its exact process tree was still alive. A microsecond-level divergence in the recorded Darwin boot identity made `status()` declare the execution stale before any process-liveness/creation reconciliation, and `cancel()` then honored the terminal evidence as already-terminal, so it could not stop the still-live process (`REAL PROCESS ALIVE != DURABLE STATE TERMINAL`).
+
+**Root cause:** Raw `sysctl kern.boottime` is not an immutable boot identifier. Apple's public `apple/darwin-xnu` source (`osfmk/kern/clock.c::clock_set_calendar_microtime()`) adjusts boottime whenever calendar time is corrected, so a wall-clock-derived boot timestamp can legally change within one actual boot. At SRM `41a566c8`, `supervisor-io-probe.ts::readBootIdentity()` stored the raw line as kind `darwin-kern.boottime`; `supervisor.ts::bootStale()/bootStaleAwaited()` exact-compared `kind + value`; any mismatch wrote `interrupt-observed.json` and returned terminal. The monitor path already held observer terminal evidence when the child was alive/unknown — the supervisor path lacked that reconciliation.
+
+**Missing invariant:** Boot-staleness must consume a stable per-boot identity primitive, and a terminal transition must reconcile durable terminal evidence against live-process/creation evidence instead of trusting the observer's stale verdict first.
+
+**Fix (merged, SRM):** New Darwin captures prefer `kern.bootsessionuuid` (stable across the affected Mac, 5/5 bounded samples; unknown boot identity fails closed rather than minting kill/attach authority); legacy `darwin-kern.boottime` records are reconciled fail-closed without mass false-stale; ambiguous-cancel outcomes are held nonterminal. Merged as SunDayRemoteMCP PR #5 at reviewed head `4d80a6c979679ddb3955b7cfa0c01367276dc17d` → main `8546cce4e9eaf1dd5738e68f64a08b6734527656`; post-main Codespell run `37245599505` SUCCESS. A round-1 P1 review finding (ambiguous-cancel dropping the writer fence) was repaired RED-first before merge.
+
+**Lesson:** Never derive boot identity from wall-clock-derived timestamps, and never "fix" divergence by merely ignoring microseconds. Unknown boot identity is `UNKNOWN`, not weak kill/attach authority. Durable terminal evidence and live-process truth must be reconciled before terminalization on every path, not only the monitor path.
+
+**Verify:** Merged SunDayRemoteMCP supervisor regression coverage at `8546cce4` (five-file aggregate scope, PR #5, post-main CI run `37245599505`) remains the executable guard. This fold made no SRM source/runtime change. Evidence trail: #581 comments `5982120850`, `5985831048`, `5986998473`.
+
+## #57: external-agent queues are append-oriented correlation, not idempotent task admission — bootstrap must dedupe before claim (2026-10-19)
+
+Issue #583 — folded 2026-10-19 from the merged+verified AWC guard; engineering was closed earlier at A-Wiki-Conductor `ece31453`.
+
+**Symptom:** Two docs-only governance bootstrap claims were created for a single task (#581's fold) after interrupted Codex turns and queued-submission recovery replayed the submission, producing duplicate bootstrap work that had to be reconciled by hand.
+
+**Root cause:** Upstream OpenAI Codex `rust-v0.159.0` `thread/queue/add` inserts a fresh UUIDv7 queued row on every enqueue; `client_user_message_id` is correlation data with no uniqueness/dedupe constraint, and interrupted active turns leave their queued submissions present so a later `thread/queue/start` can execute one when the thread goes idle (source audit: `request_processors/thread_queue_processor.rs`, `ext/queue/src/service.rs`, `state/src/runtime/queued_items.rs`). The AWC bootstrap path lacked a task-level dedupe guard, so a filesystem-only "no worktree yet" observation could authorize a second bootstrap while an equivalent queued/in-flight task could still execute.
+
+**Missing invariant:** Task-level admission/replay dedupe is the client's invariant. An append-oriented external queue must never be treated as an idempotent task store, and transport/queue state must not grant bootstrap authority without reconciling equivalent queued/in-flight submissions.
+
+**Fix (merged, AWC):** `src/a_conductor/codex_queue_submission_guard.py` + focused tests (WO-P1-583) with fail-closed `DUPLICATE_TASK_SUBMISSION_PENDING` / `RECONCILIATION_REQUIRED` semantics: duplicate/in-flight task evidence blocks a new governance bootstrap until reconciled. Merged as PR #590 from reviewed head `a08844f0a2fd3d1353bca6b3540a4e8dba50dfff` → main `ece314530a05f12bd1f7bc4517dd6e287197fb4d`; pre-merge CI `37298948386` and post-main CI `37300729945` SUCCESS; independent round-2 review PASS (P0/P1/P2=0). Guard module verified byte-present on current main during this fold's triage.
+
+**Lesson:** A delegated agent's queue carries correlation data, not idempotency. Before any bootstrap/claim that could overlap prior intent, reconcile queued and in-flight submissions for the same task and fail closed on ambiguity. Consumer-side wiring of the guard into lifecycle call sites remains separately claimed scope under the #580 family.
+
+**Verify:** `tests/test_codex_queue_submission_guard.py` pins the fail-closed semantics; evidence trail: #583 comments `5982737256`, `5993506599`.
