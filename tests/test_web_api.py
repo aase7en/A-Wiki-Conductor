@@ -1,5 +1,6 @@
 """SF-WEB-1 transport tests; no installed database or browser access."""
-from dataclasses import replace
+from dataclasses import dataclass, replace
+from contextlib import contextmanager
 import asyncio
 import json
 import socket
@@ -350,3 +351,172 @@ def test_real_uvicorn_sse_disconnect():
             thread.join(5)
         assert not thread.is_alive()
         assert app.state.feed._poller is None
+
+
+@contextmanager
+def running_web_cli(monkeypatch, config):
+    import uvicorn
+    from a_conductor import web_api
+
+    servers = []
+    server_class = uvicorn.Server
+
+    @dataclass(frozen=True)
+    class CliConfig(WebApiConfig):
+        max_connections: int = config.max_connections
+        header_seconds: float = config.header_seconds
+
+    def capture(uvicorn_config):
+        server = server_class(uvicorn_config)
+        servers.append(server)
+        return server
+
+    with monkeypatch.context() as patch:
+        patch.setattr(web_api, "WebApiConfig", CliConfig)
+        patch.setattr(web_api, "database_provider", lambda path: projection)
+        patch.setattr(uvicorn, "Server", capture)
+        thread = threading.Thread(target=web_api.main,
+            args=(["web", "--database", "unused.sqlite", "--port", "0"],), daemon=True)
+        thread.start()
+        try:
+            deadline = time.monotonic() + 5
+            while (not servers or not servers[0].started) and thread.is_alive() and time.monotonic() < deadline:
+                time.sleep(.01)
+            assert servers and servers[0].started
+            yield servers[0]
+        finally:
+            if servers:
+                servers[0].should_exit = True
+            thread.join(5)
+        assert not thread.is_alive()
+        assert not servers[0].server_state.connections
+        assert servers[0].config.app.state.feed._poller is None
+
+
+@pytest.mark.parametrize("prefix", [b"", b"GET /api/v1/health HTTP/1.1\r\nHost:"])
+def test_initial_headers_bounded_and_expire(monkeypatch, prefix):
+    config = WebApiConfig(port=0)
+    with running_web_cli(monkeypatch, config) as server:
+        port = server.config.port
+        sockets = []
+        try:
+            for _ in range(40):
+                peer = socket.create_connection(("127.0.0.1", port), timeout=2)
+                sockets.append(peer)
+                if prefix:
+                    peer.sendall(prefix)
+            time.sleep(.1)
+            admitted = len(server.server_state.connections)
+            deadline = time.monotonic() + 5.5
+            while server.server_state.connections and time.monotonic() < deadline:
+                time.sleep(.01)
+            remaining = len(server.server_state.connections)
+            with httpx.Client(trust_env=False, timeout=2) as client:
+                response = client.get(f"http://127.0.0.1:{port}/api/v1/health",
+                    headers={"Authorization": f"Bearer {server.config.app.state.feed.token}"})
+            assert response.status_code == 200, (response.status_code, admitted, remaining)
+            assert admitted <= config.max_connections
+            assert remaining == 0
+            for peer in sockets:
+                try:
+                    assert peer.recv(1) == b""
+                except (ConnectionResetError, ConnectionAbortedError):
+                    pass
+        finally:
+            for peer in sockets:
+                peer.close()
+
+
+def test_header_deadline_not_extended_by_trickle_or_keepalive(monkeypatch):
+    config = WebApiConfig(port=0, header_seconds=.3)
+    with running_web_cli(monkeypatch, config) as server:
+        port = server.config.port
+        for reused in (False, True):
+            with socket.create_connection(("127.0.0.1", port), timeout=2) as peer:
+                if reused:
+                    peer.sendall((f"GET /api/v1/health HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
+                        f"Authorization: Bearer {server.config.app.state.feed.token}\r\n\r\n").encode())
+                    response = b""
+                    while b"\r\n\r\n" not in response:
+                        response += peer.recv(4096)
+                    assert response.startswith(b"HTTP/1.1 200")
+                    headers, body = response.split(b"\r\n\r\n", 1)
+                    length = int(next(line.split(b":", 1)[1] for line in headers.split(b"\r\n")
+                        if line.lower().startswith(b"content-length:")))
+                    while len(body) < length:
+                        body += peer.recv(4096)
+                peer.sendall(b"GET /api/v1/health HTTP/1.1\r\nHost:")
+                started = time.monotonic()
+                while time.monotonic() - started < .6:
+                    try:
+                        peer.sendall(b" ")
+                    except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                        break
+                    time.sleep(.04)
+                try:
+                    assert peer.recv(1) == b""
+                except (ConnectionResetError, ConnectionAbortedError):
+                    pass
+                assert time.monotonic() - started < 1
+
+
+def test_transport_capacity_boundary_and_restart_cleanup(monkeypatch):
+    config = WebApiConfig(port=0, max_connections=2, header_seconds=.5)
+    for _ in range(2):
+        with running_web_cli(monkeypatch, config) as server:
+            port = server.config.port
+            assert server.config.limit_concurrency == 2
+            with socket.create_connection(("127.0.0.1", port), timeout=2) as idle:
+                with httpx.Client(trust_env=False, timeout=2) as client:
+                    response = client.get(f"http://127.0.0.1:{port}/api/v1/health",
+                        headers={"Authorization": f"Bearer {server.config.app.state.feed.token}"})
+                    assert response.status_code == 200
+                    time.sleep(.02)
+                    assert len(server.server_state.connections) == 2
+                    with socket.create_connection(("127.0.0.1", port), timeout=2) as excess:
+                        try:
+                            assert excess.recv(1) == b""
+                        except (ConnectionResetError, ConnectionAbortedError):
+                            pass
+                    assert len(server.server_state.connections) <= 2
+                # Leave an incomplete connection open until server shutdown.
+            deadline = time.monotonic() + 1
+            while server.server_state.connections and time.monotonic() < deadline:
+                time.sleep(.01)
+            assert not server.server_state.connections
+            pending = socket.create_connection(("127.0.0.1", port), timeout=2)
+            try:
+                time.sleep(.02)
+                protocols = tuple(server.server_state.connections)
+                assert protocols
+                assert any(protocol._header_timer is not None for protocol in protocols)
+            finally:
+                server.should_exit = True
+        try:
+            assert all(protocol._header_timer is None for protocol in protocols)
+            assert pending.recv(1) == b""
+        finally:
+            pending.close()
+
+
+def test_complete_headers_cancel_deadline_for_live_stream(monkeypatch):
+    config = WebApiConfig(port=0, header_seconds=.1)
+    with running_web_cli(monkeypatch, config) as server:
+        with httpx.Client(trust_env=False, timeout=2) as client:
+            with client.stream("GET", f"http://127.0.0.1:{server.config.port}/api/v1/stream",
+                    headers={"Authorization": f"Bearer {server.config.app.state.feed.token}"}) as response:
+                assert response.status_code == 200
+                lines = response.iter_lines()
+                assert next(lines) == "event: snapshot"
+                assert next(lines).startswith("data: ")
+                time.sleep(.25)
+                protocols = tuple(server.server_state.connections)
+                assert len(protocols) == 1
+                assert protocols[0]._header_timer is None
+                assert not protocols[0].transport.is_closing()
+
+
+@pytest.mark.parametrize("seconds", [0, -1, 5.1, float("inf"), float("nan"), True])
+def test_invalid_header_deadline(seconds):
+    with pytest.raises(MonitorApiError, match="MONITOR_CONFIG_INVALID"):
+        WebApiConfig(header_seconds=seconds)

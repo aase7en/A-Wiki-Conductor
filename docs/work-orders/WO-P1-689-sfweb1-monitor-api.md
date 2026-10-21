@@ -141,3 +141,40 @@ This matches the documented failure family in DEFECT_LESSONS.md #11, but is not
 a full-suite pass or proof that every remaining test was exercised. No source
 change or hidden skip was made to suppress the crash. Minimum requested identity,
 monitor, cockpit and affected desktop regression gates pass in final-focused.xml.
+
+## 2026-10-21 Author Repair: Pre-Header Transport Bounds
+
+Explicit AUTHOR repair assignment for PR #691 continues this same bounded claim
+and branch from clean `f7a4d044494c7643dd7ab45cadb7768befcdba9c`.
+Independent report `runs/WO-P1-689/review-20261021-/result.md` SHA256
+`cc2ea48b9b85e1f6bcb675d51b7f7fdbc232ff8e7ee34ed792b2307c772357e0`
+has one confirmed P1. Shared continuity remains integrator-owned and unchanged.
+
+RED: real CLI fixture, both 40 idle sockets and 40 incomplete-header sockets
+remained registered after 5.5s; valid bearer health returned503 in both cases
+(`repair-red.xml`,2 failed). ASGI cannot observe those connections. Uvicorn's
+existing concurrency setting is post-header; timeout_notify is a worker callback,
+not a request-header deadline. No new provider or coordination primitive needed.
+
+Repair: explicit h11 transport protocol rejects excess accepted sockets before
+registration/parsing; retains limit_concurrency=config.max_connections and adjusts
+the upstream inclusive-boundary check inside the protocol. Header deadline5s
+(configurable >0..5) starts at admission, never renews on trickle, covers reused
+partial headers, cancels on complete headers/disconnect/shutdown. Keep-alive5s
+and graceful shutdown10s retained; WebSocket protocol disabled explicitly.
+This protection is wired through the CLI's Uvicorn configuration; create_app by
+itself is ASGI-only and cannot secure another embedding's HTTP transport.
+
+GREEN: `repair-api-final.xml`:58 passed (original47 plus11 new cases); both
+40-socket attacks bounded to <=32 retained connections, then0, all peer sockets
+closed and authenticated health200. Configured-cap boundary, immediate excess
+refusal, fixed trickle/reused-header deadlines, live SSE timer cancellation and
+two start/stop cycles with pending-header cleanup pass. Earlier repair-green.xml
+and repair-api.xml retain intermediate Windows socket-error/fixture-race failures;
+they are investigation history, not final GREEN evidence.
+`repair-regressions.xml`:155 passed = identity33 + monitor30 + cockpit92.
+pip check and git diff --check PASS. Full repository suite not rerun for this
+bounded repair; prior full-suite crash limitation above remains unchanged.
+
+Next gate: focused independent exact-new-SHA review and exact-head CI by integrator.
+Author may commit/push this branch only; no PR/merge/GitHub posts/acceptance.

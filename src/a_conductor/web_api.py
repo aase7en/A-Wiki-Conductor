@@ -20,8 +20,10 @@ import threading
 import time
 
 from fastapi import FastAPI
+import h11
 from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse, Response, StreamingResponse
+from uvicorn.protocols.http.h11_impl import H11Protocol
 
 from .branding import APP_VERSION
 from .cockpit_projection import CockpitSnapshot
@@ -42,6 +44,7 @@ class WebApiConfig(MonitorApiConfig):
     stream_seconds: float = 300
     request_seconds: float = 10
     send_seconds: float = 10
+    header_seconds: float = 5
 
     def __post_init__(self):
         super().__post_init__()
@@ -51,7 +54,7 @@ class WebApiConfig(MonitorApiConfig):
             if type(value) is not int or not 1 <= value <= maximum:
                 raise MonitorApiError("MONITOR_CONFIG_INVALID")
         for value, maximum in ((self.stream_seconds, 300), (self.request_seconds, 30),
-                               (self.send_seconds, 30)):
+                               (self.send_seconds, 30), (self.header_seconds, 5)):
             if type(value) not in (int, float) or not 0 < value <= maximum:
                 raise MonitorApiError("MONITOR_CONFIG_INVALID")
 
@@ -353,6 +356,61 @@ def bind_socket(config: WebApiConfig):
         raise
 
 
+class _BoundedH11Protocol(H11Protocol):
+    """Bound sockets and header parsing before an ASGI scope can exist."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._bounds = self.config.app.state.feed.config
+        self._header_timer = None
+        self._admitted = False
+        # Upstream uses >= and counts this socket too; admission below already
+        # enforces the inclusive socket cap. Retain its task-limit fallback.
+        self.limit_concurrency = self._bounds.max_connections + 1
+
+    def connection_made(self, transport):
+        if len(self.connections) >= self._bounds.max_connections:
+            self.transport = transport
+            transport.abort()
+            return
+        super().connection_made(transport)
+        self._admitted = True
+        self._arm_header_deadline()
+
+    def _cancel_header_deadline(self):
+        if self._header_timer is not None:
+            self._header_timer.cancel()
+            self._header_timer = None
+
+    def _arm_header_deadline(self):
+        self._cancel_header_deadline()
+        self._header_timer = self.loop.call_later(
+            self._bounds.header_seconds, self.transport.abort)
+
+    def data_received(self, data):
+        if self._admitted and not self.transport.is_closing():
+            super().data_received(data)
+
+    def handle_events(self):
+        super().handle_events()
+        if self.conn.their_state is not h11.IDLE:
+            self._cancel_header_deadline()
+
+    def on_response_complete(self):
+        # Also cover partial headers on reused connections: upstream cancels its
+        # keep-alive timer on the first byte, not when headers finish parsing.
+        self._arm_header_deadline()
+        super().on_response_complete()
+
+    def connection_lost(self, exc):
+        self._cancel_header_deadline()
+        super().connection_lost(exc)
+
+    def shutdown(self):
+        self._cancel_header_deadline()
+        super().shutdown()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Read-only loopback Monitor API")
     parser.add_argument("command", choices=("web",))
@@ -367,6 +425,7 @@ def main(argv=None):
         app = create_app(database_provider(args.database), config)
         # Token retrieval is deliberately in-process only; no stdout, URL or file handoff.
         server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=config.port,
+            http=_BoundedH11Protocol, ws="none",
             workers=1, reload=False, access_log=False, log_level="critical",
             proxy_headers=False, server_header=False, limit_concurrency=config.max_connections,
             timeout_keep_alive=5, timeout_graceful_shutdown=10))
