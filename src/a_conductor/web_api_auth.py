@@ -51,11 +51,14 @@ class WebApiAuth:
             await JSONResponse({"error": "MONITOR_CAPACITY_EXCEEDED"},
                                status_code=503, headers=headers)(scope, receive, send)
             return
-        if scope["method"] not in ("GET", "POST"):
+        if scope["method"] not in ("GET", "POST", "DELETE"):
             await JSONResponse({"error": "MONITOR_READ_ONLY"}, status_code=405,
                                headers=headers)(scope, receive, send)
             return
-        if scope["method"] == "POST" and not scope["path"].startswith("/api/v1/workers/"):
+        if scope["method"] in ("POST", "DELETE") and not (
+            scope["path"].startswith("/api/v1/workers")
+            or scope["path"].startswith("/api/v1/connectors")
+        ):
             await JSONResponse({"error": "MONITOR_READ_ONLY"}, status_code=405,
                                headers=headers)(scope, receive, send)
             return
