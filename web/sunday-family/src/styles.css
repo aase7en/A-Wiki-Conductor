@@ -53,6 +53,10 @@ form { display: grid; gap: 12px; margin: 28px 0; }
 input { width: 100%; min-width: 0; padding: 12px; border: 1px solid #465267; background: #0c0f13; color: #eef2f8; border-radius: 3px; }
 .skip-link { position: absolute; left: 12px; top: -100px; background: #202b39; padding: 12px; z-index: 1; }
 .skip-link:focus { top: 12px; }
+.install-prompt { display: flex; justify-content: flex-end; padding: 0 24px; font-size: 11px; }
+.install-prompt:has(> *) { padding-block: 12px; border-top: 1px solid #29313e; }
+.install-prompt button { background: transparent; }
+.install-prompt p { margin: 0; }
 @media (max-width: 899px) {
   .app-shell { grid-template-columns: 1fr; }
   .sidebar { border-right: 0; border-bottom: 1px solid #29313e; padding: 20px; gap: 20px; }
