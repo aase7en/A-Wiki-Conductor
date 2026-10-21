@@ -19,7 +19,8 @@ import socket
 import threading
 import time
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
+from pydantic import BaseModel
 import h11
 from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse, Response, StreamingResponse
@@ -310,6 +311,44 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
             finally:
                 feed._unsubscribe(subscriber)
         return _SubscriberResponse(events(), feed=feed, subscriber=subscriber)
+
+    # --- SF-WEB-4: Command Gateway mutation endpoints (R3) ---
+    import collections
+    _mutation_times: dict = collections.defaultdict(collections.deque)
+    _audit_log: collections.deque = collections.deque(maxlen=100)
+    _MUTATION_MIN_INTERVAL = 1.0
+
+    def _check_rate_limit(endpoint: str) -> bool:
+        now = time.monotonic()
+        times = _mutation_times[endpoint]
+        while times and now - times[0] > _MUTATION_MIN_INTERVAL:
+            times.popleft()
+        return len(times) >= 1
+
+    class WorkerCommandBody(BaseModel):
+        action: str
+        project: str | None = None
+
+    @app.post("/api/v1/workers/{worker_id}/command")
+    async def worker_command(worker_id: str, body: WorkerCommandBody,
+                             x_confirm: str = Header("", alias="X-Confirm")):
+        _no_store = {"Cache-Control": "no-store"}
+        if not x_confirm or len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=_no_store)
+        if _check_rate_limit(f"worker:{worker_id}"):
+            return JSONResponse({"error": "RATE_LIMITED"}, status_code=503, headers=_no_store)
+        if body.action not in ("start", "stop", "assign"):
+            return JSONResponse({"error": "INVALID_ACTION"}, status_code=400, headers=_no_store)
+        if body.action == "assign" and (not body.project or len(body.project) > 512):
+            return JSONResponse({"error": "INVALID_PROJECT_PATH"}, status_code=400, headers=_no_store)
+        _mutation_times[f"worker:{worker_id}"].append(time.monotonic())
+        _audit_log.append({"worker": worker_id, "action": body.action, "at": _stamp({})})
+        return JSONResponse({"status": "accepted", "worker": worker_id, "action": body.action}, headers=_no_store)
+
+    @app.get("/api/v1/mutations")
+    async def mutation_log():
+        return JSONResponse({"mutations": list(_audit_log)},
+                            headers={"Cache-Control": "no-store"})
 
     return app
 
