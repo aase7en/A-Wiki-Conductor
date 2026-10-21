@@ -10,6 +10,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
+    "fastapi>=0.156.4,<0.157",
+    "uvicorn>=0.54.0,<0.55",
     "Pillow>=10",
     "Markdown>=3.10.3,<4",
     "tkinterweb>=4.25.3,<5",
@@ -20,10 +22,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7", "jsonschema>=4.23"]
+test = ["pytest>=7", "jsonschema>=4.23", "httpx>=0.28.1,<0.29"]
 
 [project.scripts]
 a-conductor = "a_conductor.desktop_app:main"
+a-conductor-web = "a_conductor.web_api:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
