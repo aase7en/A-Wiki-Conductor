@@ -350,6 +350,74 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
         return JSONResponse({"mutations": list(_audit_log)},
                             headers={"Cache-Control": "no-store"})
 
+    # --- SF-WEB-6 P1: Worker CRUD + Connector create ---
+    _created_workers: dict = {}
+    _created_connectors: dict = {}
+
+    class WorkerCreateBody(BaseModel):
+        display_name: str | None = None
+
+    class ConnectorCreateBody(BaseModel):
+        name: str
+        project_path: str
+        tunnel_id: str | None = None
+
+    @app.post("/api/v1/workers")
+    async def create_worker(body: WorkerCreateBody,
+                            x_confirm: str = Header("", alias="X-Confirm")):
+        _no_store = {"Cache-Control": "no-store"}
+        if not x_confirm or len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=_no_store)
+        if _check_rate_limit("create_worker"):
+            return JSONResponse({"error": "RATE_LIMITED"}, status_code=503, headers=_no_store)
+        import secrets as _secrets
+        worker_id = f"a-worker-{_secrets.token_hex(4)}"
+        while worker_id in _created_workers:
+            worker_id = f"a-worker-{_secrets.token_hex(4)}"
+        _created_workers[worker_id] = {"display_name": body.display_name or worker_id,
+                                        "created_at": _stamp({})}
+        _mutation_times["create_worker"].append(time.monotonic())
+        _audit_log.append({"worker": worker_id, "action": "create", "at": _stamp({})})
+        return JSONResponse({"status": "created", "worker_id": worker_id,
+                             "display_name": body.display_name or worker_id},
+                            status_code=201, headers=_no_store)
+
+    @app.delete("/api/v1/workers/{worker_id}")
+    async def delete_worker(worker_id: str,
+                            x_confirm: str = Header("", alias="X-Confirm")):
+        _no_store = {"Cache-Control": "no-store"}
+        if not x_confirm or len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=_no_store)
+        if worker_id not in _created_workers:
+            return JSONResponse({"error": "WORKER_NOT_FOUND"}, status_code=404, headers=_no_store)
+        del _created_workers[worker_id]
+        _audit_log.append({"worker": worker_id, "action": "delete", "at": _stamp({})})
+        return JSONResponse({"status": "deleted", "worker_id": worker_id}, headers=_no_store)
+
+    @app.post("/api/v1/connectors")
+    async def create_connector(body: ConnectorCreateBody,
+                               x_confirm: str = Header("", alias="X-Confirm")):
+        _no_store = {"Cache-Control": "no-store"}
+        if not x_confirm or len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=_no_store)
+        if _check_rate_limit("create_connector"):
+            return JSONResponse({"error": "RATE_LIMITED"}, status_code=503, headers=_no_store)
+        if not body.name or len(body.name) > 128:
+            return JSONResponse({"error": "INVALID_NAME"}, status_code=400, headers=_no_store)
+        if not body.project_path or len(body.project_path) > 512:
+            return JSONResponse({"error": "INVALID_PROJECT_PATH"}, status_code=400, headers=_no_store)
+        import secrets as _secrets
+        connector_id = f"conn-{_secrets.token_hex(4)}"
+        _created_connectors[connector_id] = {"name": body.name,
+                                               "project_path": body.project_path,
+                                               "tunnel_id": body.tunnel_id,
+                                               "created_at": _stamp({})}
+        _mutation_times["create_connector"].append(time.monotonic())
+        _audit_log.append({"connector": connector_id, "action": "create", "at": _stamp({})})
+        return JSONResponse({"status": "created", "connector_id": connector_id,
+                             "name": body.name},
+                            status_code=201, headers=_no_store)
+
     return app
 
 
