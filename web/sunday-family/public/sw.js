@@ -29,11 +29,12 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (request.method !== 'GET') return;
   if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(request, { cache: 'no-store' }));
     return;
   }
-  if (request.method !== 'GET' || request.headers.has('authorization')) return;
+  if (request.headers.has('authorization')) return;
   if (request.mode === 'navigate') {
     event.respondWith(fetch(request).catch(async () => {
       const cache = await caches.open(CACHE_NAME);
