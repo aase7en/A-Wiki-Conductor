@@ -2,6 +2,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 import type { IncomingMessage } from 'node:http';
 import type { Plugin } from 'vite';
+import { pwaAssets } from './pwa-build';
 
 const hosts = new Set(['127.0.0.1:5173', 'localhost:5173']);
 const upstream = 'http://127.0.0.1:8756';
@@ -43,7 +44,7 @@ function loopbackGuard(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [loopbackGuard(), react()],
+  plugins: [loopbackGuard(), react(), pwaAssets()],
   server: {
     host: '127.0.0.1',
     port: 5173,
