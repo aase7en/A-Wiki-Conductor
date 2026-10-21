@@ -113,15 +113,32 @@ def _cockpit_lease_health(row: sqlite3.Row, now: datetime) -> str | None:
     return "ACTIVE"
 
 
+def _cockpit_rows(connection, sql: str, row_limit: int | None):
+    if row_limit is None:
+        return connection.execute(sql).fetchall()
+    if type(row_limit) is not int or not 1 <= row_limit <= 256:
+        raise ValueError("MONITOR_CONFIG_INVALID")
+    # The browser adapter opts into bounds; existing desktop reads are unchanged.
+    connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 262_144)
+    deadline = time.monotonic() + 2
+    connection.set_progress_handler(lambda: time.monotonic() >= deadline, 1000)
+    connection.execute("PRAGMA busy_timeout=1000")
+    rows = connection.execute(sql + " LIMIT ?", (row_limit + 1,)).fetchall()
+    if len(rows) > row_limit:
+        raise ValueError("MONITOR_FRAME_OVERSIZED")
+    return rows
+
+
 def _read_cockpit_execution_observations(
     database: Path,
+    *, row_limit: int | None = None,
 ) -> tuple:
     from .cockpit_projection import CockpitExecutionObservation
     from .registry import windows_worktree_key
 
     connection = _cockpit_authority_connection(database)
     try:
-        rows = connection.execute(_COCKPIT_EXECUTION_SQL).fetchall()
+        rows = _cockpit_rows(connection, _COCKPIT_EXECUTION_SQL, row_limit)
     finally:
         connection.close()
     observations = []
@@ -151,12 +168,14 @@ def _read_cockpit_execution_observations(
     return tuple(observations)
 
 
-def _read_cockpit_lease_observations(database: Path, now: datetime) -> tuple:
+def _read_cockpit_lease_observations(
+    database: Path, now: datetime, *, row_limit: int | None = None,
+) -> tuple:
     from .cockpit_projection import CockpitLeaseObservation
 
     connection = _cockpit_authority_connection(database)
     try:
-        rows = connection.execute(_COCKPIT_LEASE_SQL).fetchall()
+        rows = _cockpit_rows(connection, _COCKPIT_LEASE_SQL, row_limit)
     finally:
         connection.close()
     observations = []
