@@ -9,11 +9,6 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import pytest
 
-# FastAPI closure/middleware interaction prevents TestClient body parsing for POST
-# endpoints inside create_app(). Endpoints work in production. Tests need architectural
-# fix: move mutation routes outside the create_app closure. See Issues #694/#698.
-pytestmark = pytest.mark.skip(reason="FastAPI closure/middleware issue - endpoints work in production")
-
 from a_conductor.web_api import create_app, WebApiConfig
 from a_conductor.cockpit_projection import (
     CockpitLaneIdentity, CockpitLaneInputs, CockpitObservations, project_cockpit_snapshot,
@@ -85,7 +80,7 @@ class TestConnectorCreate:
 
     def test_create_missing_path_rejected(self, client):
         r = client.post("/api/v1/connectors", json={"name": "bad"})
-        assert r.status_code == 400
+        assert r.status_code == 422
 
     def test_create_no_confirm_rejected(self, client):
         client.headers.pop("X-Confirm")

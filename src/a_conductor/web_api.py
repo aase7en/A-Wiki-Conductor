@@ -10,7 +10,7 @@ import argparse
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
@@ -20,7 +20,7 @@ import threading
 import time
 
 from fastapi import FastAPI, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import h11
 from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse, Response, StreamingResponse
@@ -30,11 +30,32 @@ from .branding import APP_VERSION
 from .cockpit_projection import CockpitSnapshot
 from .monitor_api import MonitorApiConfig, MonitorApiError, MonitorApiServer
 from .web_api_auth import WebApiAuth
+from .system_metrics import SystemMetricsSampler
 
 API_VERSION = "sunday-family.monitor.v1"
 MAX_FRAME_BYTES = 262_144
 _CODE = re.compile(r"[A-Z][A-Z0-9_:\-]{0,127}\Z")
 _REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:#\-]{0,127}\Z")
+
+
+class WorkerCommandBody(BaseModel):
+    action: str
+    project: str | None = None
+
+
+class WorkerCreateBody(BaseModel):
+    display_name: str | None = None
+
+
+class ConnectorCreateBody(BaseModel):
+    name: str
+    project_path: str
+    tunnel_id: str | None = None
+
+
+class ConnectorRenameBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str
 
 
 @dataclass(frozen=True)
@@ -254,6 +275,7 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.feed = feed
+    app.state.metrics_sampler = SystemMetricsSampler()
     app.add_middleware(WebApiAuth, feed=feed, config=config)
 
     @app.exception_handler(MonitorApiError)
@@ -281,6 +303,15 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
     async def snapshot():
         return Response(encode_frame(feed.current()), media_type="application/json",
                         headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/v1/metrics")
+    async def metrics():
+        sample = app.state.metrics_sampler.sample()
+        return JSONResponse({"cpu_percent": sample.cpu_percent,
+                             "memory_used_bytes": sample.memory_used_bytes,
+                             "memory_total_bytes": sample.memory_total_bytes,
+                             "uptime_seconds": sample.uptime_seconds},
+                            headers={"Cache-Control": "no-store"})
 
     @app.get("/api/v1/stream")
     @app.get("/api/v1/events")
@@ -331,10 +362,6 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
             times.popleft()
         return len(times) >= 1
 
-    class WorkerCommandBody(BaseModel):
-        action: str
-        project: str | None = None
-
     @app.post("/api/v1/workers/{worker_id}/command")
     async def worker_command(worker_id: str, body: WorkerCommandBody,
                              x_confirm: str = Header("", alias="X-Confirm")):
@@ -348,7 +375,7 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
         if body.action == "assign" and (not body.project or len(body.project) > 512):
             return JSONResponse({"error": "INVALID_PROJECT_PATH"}, status_code=400, headers=_no_store)
         _mutation_times[f"worker:{worker_id}"].append(time.monotonic())
-        _audit_log.append({"worker": worker_id, "action": body.action, "at": _stamp({})})
+        _audit_log.append({"worker": worker_id, "action": body.action, "at": datetime.now(timezone.utc).isoformat()})
         return JSONResponse({"status": "accepted", "worker": worker_id, "action": body.action}, headers=_no_store)
 
     @app.get("/api/v1/mutations")
@@ -359,14 +386,7 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
     # --- SF-WEB-6 P1: Worker CRUD + Connector create ---
     _created_workers: dict = {}
     _created_connectors: dict = {}
-
-    class WorkerCreateBody(BaseModel):
-        display_name: str | None = None
-
-    class ConnectorCreateBody(BaseModel):
-        name: str
-        project_path: str
-        tunnel_id: str | None = None
+    app.state.connectors = _created_connectors
 
     @app.post("/api/v1/workers")
     async def create_worker(body: WorkerCreateBody,
@@ -381,9 +401,9 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
         while worker_id in _created_workers:
             worker_id = f"a-worker-{_secrets.token_hex(4)}"
         _created_workers[worker_id] = {"display_name": body.display_name or worker_id,
-                                        "created_at": _stamp({})}
+                                        "created_at": datetime.now(timezone.utc).isoformat()}
         _mutation_times["create_worker"].append(time.monotonic())
-        _audit_log.append({"worker": worker_id, "action": "create", "at": _stamp({})})
+        _audit_log.append({"worker": worker_id, "action": "create", "at": datetime.now(timezone.utc).isoformat()})
         return JSONResponse({"status": "created", "worker_id": worker_id,
                              "display_name": body.display_name or worker_id},
                             status_code=201, headers=_no_store)
@@ -397,7 +417,7 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
         if worker_id not in _created_workers:
             return JSONResponse({"error": "WORKER_NOT_FOUND"}, status_code=404, headers=_no_store)
         del _created_workers[worker_id]
-        _audit_log.append({"worker": worker_id, "action": "delete", "at": _stamp({})})
+        _audit_log.append({"worker": worker_id, "action": "delete", "at": datetime.now(timezone.utc).isoformat()})
         return JSONResponse({"status": "deleted", "worker_id": worker_id}, headers=_no_store)
 
     @app.post("/api/v1/connectors")
@@ -415,14 +435,63 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
         import secrets as _secrets
         connector_id = f"conn-{_secrets.token_hex(4)}"
         _created_connectors[connector_id] = {"name": body.name,
-                                               "project_path": body.project_path,
-                                               "tunnel_id": body.tunnel_id,
-                                               "created_at": _stamp({})}
+                                             "project_path": body.project_path,
+                                             "tunnel_id": body.tunnel_id,
+                                             "state": "STOPPED",
+                                             "created_at": datetime.now(timezone.utc).isoformat()}
         _mutation_times["create_connector"].append(time.monotonic())
-        _audit_log.append({"connector": connector_id, "action": "create", "at": _stamp({})})
+        _audit_log.append({"connector": connector_id, "action": "create", "at": datetime.now(timezone.utc).isoformat()})
         return JSONResponse({"status": "created", "connector_id": connector_id,
                              "name": body.name},
-                            status_code=201, headers=_no_store)
+                             status_code=201, headers=_no_store)
+
+    # These records are session metadata, not the persisted Tk/runtime connectors.
+    @app.get("/api/v1/connectors")
+    async def list_connectors():
+        return JSONResponse({"scope": "app-session", "connectors": [
+            {"connector_id": connector_id, "name": record["name"],
+             "state": record.get("state") or "UNKNOWN"}
+            for connector_id, record in _created_connectors.items()]},
+            headers={"Cache-Control": "no-store"})
+
+    @app.patch("/api/v1/connectors/{connector_id}")
+    async def rename_connector(connector_id: str, body: ConnectorRenameBody,
+                               x_confirm: str = Header("", alias="X-Confirm")):
+        headers = {"Cache-Control": "no-store"}
+        if len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=headers)
+        if connector_id not in _created_connectors:
+            return JSONResponse({"error": "CONNECTOR_NOT_FOUND"}, status_code=404, headers=headers)
+        if _check_rate_limit(f"connector:{connector_id}"):
+            return JSONResponse({"error": "RATE_LIMITED"}, status_code=503, headers=headers)
+        name = body.name.strip()
+        if not name or len(name) > 128 or any(ord(char) < 32 or ord(char) == 127 for char in name):
+            return JSONResponse({"error": "INVALID_NAME"}, status_code=400, headers=headers)
+        _created_connectors[connector_id]["name"] = name
+        _mutation_times[f"connector:{connector_id}"].append(time.monotonic())
+        _audit_log.append({"connector": connector_id, "action": "rename",
+                           "at": datetime.now(timezone.utc).isoformat()})
+        return JSONResponse({"status": "renamed", "connector_id": connector_id,
+                             "name": name}, headers=headers)
+
+    @app.delete("/api/v1/connectors/{connector_id}")
+    async def delete_connector(connector_id: str,
+                               x_confirm: str = Header("", alias="X-Confirm")):
+        headers = {"Cache-Control": "no-store"}
+        if len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=headers)
+        record = _created_connectors.get(connector_id)
+        if record is None:
+            return JSONResponse({"error": "CONNECTOR_NOT_FOUND"}, status_code=404, headers=headers)
+        if _check_rate_limit(f"connector:{connector_id}"):
+            return JSONResponse({"error": "RATE_LIMITED"}, status_code=503, headers=headers)
+        if record.get("state") != "STOPPED":
+            return JSONResponse({"error": "CONNECTOR_NOT_STOPPED"}, status_code=409, headers=headers)
+        del _created_connectors[connector_id]
+        _mutation_times[f"connector:{connector_id}"].append(time.monotonic())
+        _audit_log.append({"connector": connector_id, "action": "delete",
+                           "at": datetime.now(timezone.utc).isoformat()})
+        return JSONResponse({"status": "deleted", "connector_id": connector_id}, headers=headers)
 
     return app
 

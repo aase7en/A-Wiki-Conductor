@@ -1,6 +1,7 @@
 import type { Snapshot } from './api';
+import { ConnectorsPanel } from './ConnectorsPanel';
 
-export function SnapshotView({ snapshot }: { snapshot: Snapshot }) {
+export function SnapshotView({ snapshot, token }: { snapshot: Snapshot; token?: string }) {
   return <>
     <section className="panel" id="snapshot" aria-labelledby="snapshot-title">
       <div className="panel-heading"><h2 id="snapshot-title">Execution lanes</h2><span>{snapshot.cockpit.lanes.length} observed</span></div>
@@ -23,11 +24,11 @@ export function SnapshotView({ snapshot }: { snapshot: Snapshot }) {
         </table></div>}
     </section>
     <div className="secondary-grid">
-      <section id="connectors" className="panel" aria-labelledby="connectors-title">
+      {token ? <ConnectorsPanel token={token} /> : <section id="connectors" className="panel" aria-labelledby="connectors-title">
         <div className="panel-heading"><h2 id="connectors-title">Connectors</h2><span className="status warning">Unavailable</span></div>
         <p>No connector health projection is provided by this API.</p>
         <p className="muted">{snapshot.monitor.gate} / {snapshot.monitor.error}</p>
-      </section>
+      </section>}
       <section id="activity" className="panel" aria-labelledby="activity-title">
         <div className="panel-heading"><h2 id="activity-title">Activity</h2><span className="status warning">Unavailable</span></div>
         <p>No activity feed is provided by this API. Stream snapshots are not an activity log.</p>
