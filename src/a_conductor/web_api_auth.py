@@ -31,10 +31,13 @@ class WebApiAuth:
                 break
             values[name] = items[0] if items else None
         if gate is None:
-            host = f"127.0.0.1:{self.config.port}".encode("ascii")
-            if values[b"host"] != host:
+            expected_hosts = [f"127.0.0.1:{self.config.port}"]
+            if self.config.host != "127.0.0.1":
+                expected_hosts.append(f"{self.config.host}:{self.config.port}")
+            expected_origins = [None] + [b"http://" + h.encode("ascii") for h in expected_hosts]
+            if values[b"host"] not in [h.encode("ascii") for h in expected_hosts]:
                 gate = "HOST"
-            elif values[b"origin"] not in (None, b"http://" + host):
+            elif values[b"origin"] not in expected_origins:
                 gate = "ORIGIN"
             elif not hmac.compare_digest(values[b"authorization"] or b"",
                                           b"Bearer " + self.feed._token_bytes):
