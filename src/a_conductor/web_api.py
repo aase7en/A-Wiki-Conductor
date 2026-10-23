@@ -49,8 +49,14 @@ class WebApiConfig(MonitorApiConfig):
 
     def __post_init__(self):
         super().__post_init__()
+        import ipaddress
         if self.host != "127.0.0.1":
-            raise MonitorApiError("MONITOR_HOST_MUST_BE_LOOPBACK")
+            try:
+                addr = ipaddress.ip_address(self.host)
+                if not (addr.is_loopback or addr in ipaddress.ip_network("100.64.0.0/10")):
+                    raise MonitorApiError("MONITOR_HOST_MUST_BE_LOOPBACK")
+            except ValueError:
+                raise MonitorApiError("MONITOR_HOST_MUST_BE_LOOPBACK")
         for value, maximum in ((self.max_subscribers, 64), (self.max_connections, 128)):
             if type(value) is not int or not 1 <= value <= maximum:
                 raise MonitorApiError("MONITOR_CONFIG_INVALID")
@@ -523,6 +529,8 @@ def main(argv=None):
     parser.add_argument("command", choices=("web",))
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--port", type=int, default=8756)
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="Bind address (127.0.0.1 loopback or Tailscale 100.x.x.x)")
     args = parser.parse_args(argv)
     import uvicorn
 
