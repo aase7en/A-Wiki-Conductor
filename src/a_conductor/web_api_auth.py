@@ -54,7 +54,11 @@ class WebApiAuth:
             await JSONResponse({"error": "MONITOR_CAPACITY_EXCEEDED"},
                                status_code=503, headers=headers)(scope, receive, send)
             return
-        if scope["method"] not in ("GET", "POST", "DELETE"):
+        if scope["method"] not in ("GET", "POST", "DELETE", "PATCH"):
+            await JSONResponse({"error": "MONITOR_READ_ONLY"}, status_code=405,
+                               headers=headers)(scope, receive, send)
+            return
+        if scope["method"] == "PATCH" and not scope["path"].startswith("/api/v1/connectors/"):
             await JSONResponse({"error": "MONITOR_READ_ONLY"}, status_code=405,
                                headers=headers)(scope, receive, send)
             return

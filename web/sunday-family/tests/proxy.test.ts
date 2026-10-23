@@ -59,6 +59,17 @@ describe('proxy authority guard', () => {
       expect(await probe({ Host: '127.0.0.1:5173', Origin: 'http://127.0.0.1:5173', Authorization: 'Bearer test-only-token' })).toBe(200);
       expect(forwarded).toHaveLength(1);
       expect(forwarded[0]).toMatchObject({ host: `127.0.0.1:${backendPort}`, origin: 'http://127.0.0.1:8756', authorization: 'Bearer test-only-token' });
+      for (const path of ['/api/v1/metrics', '/api/v1/connectors']) {
+        expect(await probe({ Host: '127.0.0.1:5173' }, 'GET', path)).toBe(200);
+      }
+      for (const method of ['PATCH', 'DELETE']) {
+        expect(await probe({ Host: '127.0.0.1:5173', Origin: 'https://evil.example' }, method, '/api/v1/connectors/conn-1234abcd')).toBe(403);
+        expect(await probe({ Host: '127.0.0.1:5173', Authorization: 'Bearer test-only-token', 'X-Confirm': 'test-confirmation' }, method, '/api/v1/connectors/conn-1234abcd')).toBe(200);
+        expect(await probe({ Host: '127.0.0.1:5173' }, method, '/api/v1/connectors/conn-1234abcd?token=forbidden')).toBe(405);
+        expect(await probe({ Host: '127.0.0.1:5173' }, method, '/api/v1/workers/a-worker-test')).toBe(405);
+      }
+      expect(forwarded).toHaveLength(5);
+      expect(forwarded[4]).toMatchObject({ authorization: 'Bearer test-only-token', 'x-confirm': 'test-confirmation' });
     } finally {
       await server.close();
       await new Promise<void>((resolve, reject) => backend.close(error => error ? reject(error) : resolve()));

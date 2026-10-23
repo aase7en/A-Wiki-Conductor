@@ -38,6 +38,19 @@ export interface Health {
   degraded: boolean;
 }
 
+export interface Connector {
+  connector_id: string;
+  name: string;
+  state: string;
+}
+
+export interface SystemMetrics {
+  cpu_percent: number | null;
+  memory_used_bytes: number | null;
+  memory_total_bytes: number | null;
+  uptime_seconds: number;
+}
+
 export class ApiError extends Error {
   constructor(public readonly status: number) {
     super(status === 401 ? 'Token rejected. Disconnect and enter a valid token.'
@@ -100,6 +113,35 @@ export async function getHealth(token: string, signal: AbortSignal): Promise<Hea
     throw new Error('Unsupported or invalid monitor health.');
   }
   return data;
+}
+
+export async function getMetrics(token: string, signal: AbortSignal): Promise<SystemMetrics> {
+  const data: SystemMetrics = await (await request('metrics', token, signal)).json();
+  const numeric = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  if (!data || !(data.cpu_percent === null || (numeric(data.cpu_percent) && data.cpu_percent <= 100))
+    || !(data.memory_used_bytes === null || numeric(data.memory_used_bytes))
+    || !(data.memory_total_bytes === null || numeric(data.memory_total_bytes))
+    || !numeric(data.uptime_seconds)) throw new Error('Invalid system metrics.');
+  return data;
+}
+
+export async function getConnectors(token: string, signal: AbortSignal): Promise<Connector[]> {
+  const data = await (await request('connectors', token, signal)).json();
+  if (data?.scope !== 'app-session' || !Array.isArray(data.connectors)
+    || !data.connectors.every((item: Connector) => item && typeof item.connector_id === 'string'
+      && typeof item.name === 'string' && typeof item.state === 'string')) throw new Error('Invalid connector list.');
+  return data.connectors;
+}
+
+export async function mutateConnector(token: string, signal: AbortSignal, id: string, name?: string): Promise<void> {
+  const response = await fetch(`/api/v1/connectors/${encodeURIComponent(id)}`, {
+    method: name === undefined ? 'DELETE' : 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json',
+      'X-Confirm': crypto.randomUUID() },
+    body: name === undefined ? undefined : JSON.stringify({ name }),
+    signal, cache: 'no-store', credentials: 'omit', redirect: 'error',
+  });
+  if (!response.ok) throw new ApiError(response.status);
 }
 
 export async function streamSnapshots(token: string, signal: AbortSignal, onSnapshot: (view: Snapshot) => void) {

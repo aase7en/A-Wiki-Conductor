@@ -9,11 +9,6 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import pytest
 
-# FastAPI closure/middleware interaction prevents TestClient body parsing for POST
-# endpoints inside create_app(). Endpoints work in production. Tests need architectural
-# fix: move mutation routes outside the create_app closure. See Issues #694/#698.
-pytestmark = pytest.mark.skip(reason="FastAPI closure/middleware issue - endpoints work in production")
-
 from a_conductor.web_api import create_app, WebApiConfig
 from a_conductor.cockpit_projection import (
     CockpitLaneIdentity, CockpitLaneInputs, CockpitObservations, project_cockpit_snapshot,
