@@ -164,6 +164,7 @@ See the in-app Guide button for the full walkthrough (Thai or English).
 | [Cross-Platform Plan](docs/plans/cross-platform-plan.md) | macOS/Linux/RPi/Umbrel roadmap |
 | [Agent Harness Accelerator](docs/plans/2026-08-28-sunday-family-agent-harness-accelerator.md) | Multi-model routing/dispatch roadmap |
 | [Worker Auto-Fallback + GLM-5.3 Benchmark](docs/plans/2026-08-28-worker-auto-fallback-and-glm-benchmark.md) | Lease broker, fallback policy, delegation benchmark |
+| [Loop Engineering Adoption](docs/plans/2026-09-06-loop-engineering-adoption-roadmap.md) | Circuit breakers, autonomy levels, loop recipes, readiness, and budget roadmap |
 | [Privacy Policy](PRIVACY.md) | Data handling (local-only) |
 | [Security Policy](SECURITY.md) | Vulnerability reporting |
 | [License](LICENSE) | MIT |
@@ -188,7 +189,11 @@ python scripts/build_installer.py
 
 ## Credits
 
-A-Sunday Conductor uses [Serena](https://github.com/oraios/serena) (MIT License) as its internal semantic code engine. The management interface, installer, and control plane are A-Sunday Conductor's own.
+A-Sunday Conductor uses [Serena](https://github.com/oraios/serena) (MIT License) as its internal semantic code engine.
+
+The autonomous-loop roadmap and selected design primitives are informed by [Cobus Greyling's loop-engineering](https://github.com/cobusgreyling/loop-engineering) (MIT License). A-Sunday Conductor adapts ideas such as deterministic circuit breakers, loop recipes/pattern registries, readiness levels, and cost-aware loop controls to its Python-native control-plane architecture rather than embedding the upstream Node/TypeScript runtime. See `THIRD-PARTY-NOTICES.md` and the [adoption assessment](docs/research/2026-09-06-loop-engineering-assessment.md).
+
+The management interface, installer, orchestration control plane, worker/runtime lifecycle, repository-safety model, and A-Wiki integration are A-Sunday Conductor's own.
 
 ## Support This Project
 
