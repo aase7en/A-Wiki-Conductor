@@ -1159,3 +1159,68 @@ class RuntimeActivationService:
             eligibility={request.node_id: NodeEligibility()},
             batch_id=derive_runtime_activation_batch_id(request),
         )
+
+
+def activate_worker_batch_runtime(
+    *, database_path, job_store, provider_store, lease_store, backend,
+    authority, live_worktree_observer, trusted_source, clock, publisher=None,
+    review_worker_id, review_provider_id,
+):
+    """Explicit ORCH-1/4 root over already-initialized owning stores.
+
+    No startup/refresh caller, schema initialization or live provider operation.
+    The returned handle admits one existing read-only review job per invocation.
+    Authority readers and the backend are application dependencies, not payloads.
+    """
+    from .orchestration_dispatcher import Dispatcher, _UseGateRunner
+    from .domain import TaskState
+
+    canonical = Path(database_path).expanduser().resolve(strict=False)
+    for store, expected in ((job_store, SQLiteJobStore),
+                            (lease_store, SQLiteWorkerLeaseStore)):
+        if not isinstance(store, expected):
+            raise ValueError("ORCH_EXECUTOR_REQUIRED")
+    from .provider_config_store import SQLiteProviderConfigStore
+    if not isinstance(provider_store, SQLiteProviderConfigStore):
+        raise ValueError("ORCH_WORKER_SERIALIZATION_UNPROVEN")
+    for store in (job_store, provider_store, lease_store):
+        if Path(store.database_path).expanduser().resolve(strict=False) != canonical:
+            raise ValueError("AUTHORITY_DATABASE_IDENTITY_MISMATCH")
+    if not callable(clock) or not callable(getattr(live_worktree_observer, "observe", None)):
+        raise ValueError("ORCH_EXECUTOR_REQUIRED")
+    jobs = DurableJobControlService(store=job_store,
+        coordinator=DurableJobExecutionCoordinator(store=job_store, backend=backend))
+
+    def executor_factory(signal, intent, batch, expected_job):
+        broker = WorkerLeaseBroker(store=lease_store,
+            lease_id_factory=lambda: "orch-lease-" + uuid.uuid4().hex, clock=clock)
+        guarded = _UseGateRunner(runner=None, authority=authority, signal=signal,
+            intent=intent, batch=batch, jobs=jobs, expected_job=expected_job,
+            providers=provider_store, leases=lease_store,
+            observer=live_worktree_observer, clock=clock)
+        class GuardedBackend:
+            def execute(self, operation_ref, context):
+                guarded.check_backend(context)
+                return backend.execute(operation_ref, context)
+
+        class ExecutionStore:
+            def __getattr__(self, name):
+                return getattr(job_store, name)
+
+            def transition(self, job_id, target_state, **kwargs):
+                result = job_store.transition(job_id, target_state, **kwargs)
+                if target_state is TaskState.EXECUTING:
+                    guarded.executing_job = result
+                return result
+
+        guarded_jobs = DurableJobControlService(store=job_store,
+            coordinator=DurableJobExecutionCoordinator(store=ExecutionStore(), backend=GuardedBackend()))
+        guarded.runner = GraphDispatchParallelRunner(GraphDispatchCoordinator(service=guarded_jobs,
+            mode_resolver=StaticWorkerDispatchModeResolver({
+                batch.tasks[0].assignment.worker_id: GraphDispatchMode.PROGRAMMATIC_PUSH})))
+        return ParallelReadyExecutor(broker=broker, runner=guarded, clock=clock,
+            provider_admission_store=provider_store, require_provider_authority=True)
+
+    return Dispatcher(authority=authority, jobs=jobs, executor_factory=executor_factory,
+        trusted_source=trusted_source, publisher=publisher,
+        review_worker_id=review_worker_id, review_provider_id=review_provider_id)
