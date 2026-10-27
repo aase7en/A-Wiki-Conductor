@@ -1,5 +1,49 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-10-27 — ORCH-1 core closeout
+
+Resume from actual Git/GitHub plus this entry and CURRENT-WORK, not the older
+WO679 frontier below. Evidence/closeout base:
+`955822715917d5489c1bc193e6dc0cf278bc5e28` on `origin/main`.
+State: /1-/3 MERGED / POST_MAIN_VERIFIED / REVIEW_DEVIATION_REMEDIATION_PENDING.
+Umbrella #709 remains OPEN; implementation children #712/#713 are CLOSED.
+
+| Delivery | PR | Merge SHA | Exact-merge post-main CI (SUCCESS) |
+|---|---|---|---|
+| Foundation design | #710 | `8edb3c51dc0799507670f36f7c8c003c67f7c2a6` | [40009037251](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40009037251) |
+| /1 codec | #711 | `12eddb2241659166f0ba72ec7a63444dca3503a6` | [40010896041](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40010896041) |
+| /2 receiver | #714 | `aabff438f6368f1ba8bd9333c6707ff35b185633` | [40012379043](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40012379043) |
+| /3 guards | #715 | `955822715917d5489c1bc193e6dc0cf278bc5e28` | [40012880195](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40012880195) |
+
+Candidate heads: codec `2975af8b2538f63b62a736d9d4134505a7dc9f75`, receiver
+`ad4876930a22a20a5832c9fb81e27fdf82e259b7`, guards
+`7434da78434ff784447cbfc7341d8fa2394d427f` (candidate parent `12eddb2`,
+merge-time PR base `aabff43`).
+
+Merged with exact-head post-main CI green; independent exact-SHA review evidence
+was NOT recorded on PRs #711/#714/#715 (process deviation: no PR comments or
+submitted reviews). Post-merge independent review of the three merged orchestration
+modules at `main@955822715917d5489c1bc193e6dc0cf278bc5e28` is commissioned by the
+orchestrator as remediation and must complete before ORCH-1 core is treated as
+fully accepted. No review PASS or live-runtime certificate is claimed.
+
+- Closeouts: [guard #712](https://github.com/aase7en/A-Wiki-Conductor/issues/712#issuecomment-6436101703), [receiver #713](https://github.com/aase7en/A-Wiki-Conductor/issues/713#issuecomment-6436106444); author claims `ORCH-1-3-GUARDS-001` and `ORCH-1-2-RECEIVER-001` released. Correct guard freeze is #709 comment `6373185217`, not author-claim `6372970861`.
+- Active docs fold-back: [#709 checkpoint / ORCH-1-CORE-CLOSEOUT-001](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6436114447), worktree `A:\GitHub\_worktrees\AWC-orch1-core-closeout`, branch `docs/orch1-core-closeout`, base above. Exact scope: WO709/712/713 status/final checkpoints + CURRENT-WORK + this handoff. Final docs PR/merge/post-main CI tuple goes on #709; cleanup only after exact-head inclusion and post-main SUCCESS. No other worktree is disposable by this task.
+- Interim merges since WO679 are fully listed in CURRENT-WORK: #681 WO679 closeout; #678 context economy; #682/#685 serialized lesson folds; #688 SF-WEB contract; #691 monitor; #692 React shell; #695/#696 PWA/SW correction; #700 controls; #701 packaging; #702 parity audit; #703 (`c8d51f8`) WO698 P1; #704 (`c3189cc`) WO699 remote security analysis; #705 (`6d7e778`) CI test skips (not a claimed production repair); #706 (`8134966`) WO580 consumer design only; #707 (`de5e231`) Tailscale bind; #708 (`157fbe1`) WO698 P2 connector controls/metrics. Merge facts are not live effect or Tk-retirement acceptance.
+- /4 next READY/in-flight per orchestrator: preserve separately owned `A:\GitHub\_worktrees\AWC-orch1-dispatcher` / `feat/orch1-worker-dispatcher` (registered at `9558227` when checked). Read-only review task class first; recover actual claim/head/result/liveness and prove real runtime/job-root plus production provider/lease/claim authority. Do not infer execution from branch existence.
+- /5 BLOCKED: integrator must name external Parent caller and queue-producer serialization owner first; canonical aliases, interrupted-turn recovery and Parent audit mapping also required.
+- /6 offline-testable now; target-specific production outcome acceptance awaits /4 or /5 wiring.
+- /7 depends on /4+/6; mutable refill additionally BLOCKED by #551 accepted/post-main. No new native watchdog or mutable-refill acceptance.
+
+**Exact next safe action:** recover the /4 lane in flight (read-only review task
+class first) and complete commissioned post-merge independent-review remediation
+at the pinned base before treating core as fully accepted. Read
+`docs/work-orders/ORCH-1-foundation-design.md` section 7 and WO709/712/713 final
+checkpoints; re-fetch current main and recheck claims before new work. This lane
+does not perform source repair, review dispatch or runtime/provider operations.
+Protected root `A:\GitHub\A-Wiki-Conductor` and its untracked items remain
+untouched; COLLAB/DEFECT_LESSONS and original ORCH author worktrees are preserved.
+
 ## 2026-10-17 - WO679 integrator closeout (COMPLETE / POST_MAIN_VERIFIED)
 
 - WO679 code integration COMPLETE: PR #680 merged → main `faa34cd6c25567c08804dfd4337bce19949cbe83`. Tuple preserved: old heads `8339e4c` (PR266) / `f7d23c9` (PR285) / `2d151da` (PR293) → candidate `4bb30be` (PR680 branch, preserved) → accepted main `faa34cd`. Reviews labeled exactly: prior working-tree round-9 review (runs/WO-P1-679/review-round9/ result.md cec841a7…, manifest 81c48ac7…, exported Issue #679 c6230466220) AND the FINAL BINDING exact-SHA review at committed head 4bb30be (runs/WO-P1-679/review-4bb30be/ result.md sha256 5e19e3b9e15f9e913de58eac6ccb136aab1f90ad3df789c0a4fe7a3881317092, manifest c3dfdc63f349a2648e8bf8704f1a19ea6697b4f2ecc063e9c3e8f7193d48b506, exported at acceptance c6230717866); both artifact sets re-hashed byte-exact and untouched at closeout. Candidate CI 39008397179 + post-main CI 39010300897 SUCCESS at exact heads; Windows GUI 501P/1S incl. both parse-oracle tests (engine/version not logged); post-main tree/blob equality (tree `a9656647…`; six blobs identical = source + tests + desktop_control.py import hoist + 3 governance docs, per git diff-tree 46faaeb..faa34cd); local 229P+2 darwin oracle skips, related 2F/89P root-adjudicated baseline. Root acceptance c6230717866 (bounds: no sanitizer certificate, passthrough=compatibility, external command/alias/dot-source outside proof); user permission "Commit/push แล้ว merge ตาม gate"; final export + closeout claim c6230971945.

@@ -2,7 +2,8 @@
 
 Issue: #709
 
-Status: AUTHOR_VERIFIED / READY_FOR_INDEPENDENT_REVIEW; not runtime acceptance.
+Status: MERGED / POST_MAIN_VERIFIED / REVIEW_DEVIATION_REMEDIATION_PENDING; not full core/runtime acceptance.
+Previous status (author checkpoint): AUTHOR_VERIFIED / READY_FOR_INDEPENDENT_REVIEW.
 Risk: R3 / CONTROL_PLANE_ONLY (closed internal serialized contract).
 Owner: `ses_e95d401a4ffetSwLcX7fm5kOR2`, AUTHOR only.
 Claim: ORCH-1-1-CODEC-001 / issuecomment-6372749346.
@@ -111,3 +112,27 @@ gates. AUTHOR delivery stops after commit/push and issue checkpoint, no PR/merge
 Next safe action: integrator reads pushed exact HEAD, independently reviews the
 slice-local outcome/metadata closure and failure matrix before accepting /1.
 Keep branch/worktree for review; no cleanup is authorized.
+
+## Final Checkpoint - 2026-10-27
+
+This status checkpoint supersedes historical pre-merge statements above; the
+scope and codec contract are unchanged. Slice /1 merged via PR #711 from exact
+candidate `2975af8b2538f63b62a736d9d4134505a7dc9f75` as
+`12eddb2241659166f0ba72ec7a63444dca3503a6`.
+Post-main CI [40010896041](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40010896041)
+completed SUCCESS on `main` at that exact merge SHA.
+
+Merged with exact-head post-main CI green; independent exact-SHA review evidence
+was NOT recorded on the PR (process deviation: no PR comments or submitted
+reviews). Post-merge independent review of the three merged orchestration modules
+at `main@955822715917d5489c1bc193e6dc0cf278bc5e28` is commissioned by the
+orchestrator as remediation and must complete before ORCH-1 core is treated as
+fully accepted. This records merge/CI facts, not retrospective independent
+acceptance, application registration or live activation.
+
+Parent Issue #709 remains OPEN for review remediation and slices /4-/7;
+[core checkpoint and docs-only claim](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6436114447).
+The codec author scope stays frozen; no source changes or cleanup of its original
+worktree/branch are authorized by this fold-back. Guard child #712 and receiver
+child #713 are closed as completed implementation deliveries, with the shared
+review-remediation gate explicitly retained on the umbrella.

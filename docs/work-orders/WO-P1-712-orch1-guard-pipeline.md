@@ -5,7 +5,8 @@ Issue: #712
 
 Parent: #709 (ORCH-1 foundation).
 
-Status: AUTHOR_VERIFIED / FREEZE_FOR_INDEPENDENT_REVIEW / R3 / CONTROL_PLANE_ONLY.
+Status: MERGED / POST_MAIN_VERIFIED / REVIEW_DEVIATION_REMEDIATION_PENDING / R3 / CONTROL_PLANE_ONLY.
+Previous status (author checkpoint): AUTHOR_VERIFIED / FREEZE_FOR_INDEPENDENT_REVIEW.
 Owner: ses_e95c855c4ffe7Dd5kgKeTnRQg6 (AUTHOR, not acceptance authority).
 Claim: ORCH-1-3-GUARDS-001 / issue comment 6372970861.
 Base: origin/main 12eddb2 (merged signal codec PR711).
@@ -101,3 +102,33 @@ are NOT_RUN, not implied by author tests. Shared continuity fold-back remains
 integrator-owned. Keep worktree/branch for review (CLEANUP=PENDING).
 Next safe action: freeze/push candidate and have integrator independently review
 the exact SHA; runtime dispatcher wiring is outside this slice.
+
+## Final Checkpoint - 2026-10-27
+
+This checkpoint supersedes historical delivery-status statements above, not the
+frozen scope or failure model. PR #715 merged candidate
+`7434da78434ff784447cbfc7341d8fa2394d427f`, whose parent/base is
+`12eddb2241659166f0ba72ec7a63444dca3503a6`. The merge-time PR base was
+`aabff438f6368f1ba8bd9333c6707ff35b185633`. Exactly three new files were delivered:
+`orchestration_guards.py` (191 lines), `test_orchestration_guards.py` (90 cases
+reported in the preserved author checkpoint), and this WO.
+
+Merge: `955822715917d5489c1bc193e6dc0cf278bc5e28`.
+Post-main CI [40012880195](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40012880195)
+completed SUCCESS on `main` at that exact merge SHA.
+
+Merged with exact-head post-main CI green; independent exact-SHA review evidence
+was NOT recorded on the PR (process deviation: no PR comments or submitted
+reviews). Post-merge independent review of the three merged orchestration modules
+at `main@955822715917d5489c1bc193e6dc0cf278bc5e28` is commissioned by the
+orchestrator as remediation and must complete before ORCH-1 core is treated as
+fully accepted. No retrospective review PASS, runtime activation or effect proof
+is claimed by this documentation closeout.
+
+Claim `ORCH-1-3-GUARDS-001` is released for the completed author scope; Issue #712
+is CLOSED / completed. [Closeout record](https://github.com/aase7en/A-Wiki-Conductor/issues/712#issuecomment-6436101703).
+Correct [AUTHOR RESULT / CLAIM FREEZE](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6373185217)
+is comment `6373185217`; `6372970861` is the AUTHOR CLAIM. Parent #709 remains
+OPEN for review remediation and slices /4-/7. Original author worktree/branch
+remain preserved; only the separately authorized docs-closeout worktree is
+eligible for cleanup after its own merge inclusion and post-main CI proof.

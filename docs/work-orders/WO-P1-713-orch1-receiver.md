@@ -2,7 +2,8 @@
 
 Issue: #713
 
-Status: AUTHOR_VERIFIED / freeze for independent R3 acceptance.
+Status: MERGED / POST_MAIN_VERIFIED / REVIEW_DEVIATION_REMEDIATION_PENDING.
+Previous status (author checkpoint): AUTHOR_VERIFIED / freeze for independent R3 acceptance.
 Risk: R3 / CONTROL_PLANE_ONLY.
 Authority: explicit AUTHOR receiver task under parent #709; design ORCH-1-foundation-design.md
 receiver and section 5, codec accepted on main through PR #711.
@@ -88,3 +89,27 @@ dispatcher-owned; evidence snapshots do not eliminate concurrent-producer races.
 Next: commit/push exact candidate, independent R3 review and integrator acceptance.
 Shared CURRENT-WORK/handoff/COLLAB folding remains integrator-owned. Author claim
 will freeze on #709 with exact commit and remote verification; retain worktree.
+
+## Final Checkpoint - 2026-10-27
+
+Historical author-status statements above are retained as history. PR #714
+merged exact candidate `ad4876930a22a20a5832c9fb81e27fdf82e259b7` as
+`aabff438f6368f1ba8bd9333c6707ff35b185633`.
+Post-main CI [40012379043](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40012379043)
+completed SUCCESS on `main` at that exact merge SHA.
+
+Merged with exact-head post-main CI green; independent exact-SHA review evidence
+was NOT recorded on the PR (process deviation: no PR comments or submitted
+reviews). Post-merge independent review of the three merged orchestration modules
+at `main@955822715917d5489c1bc193e6dc0cf278bc5e28` is commissioned by the
+orchestrator as remediation and must complete before ORCH-1 core is treated as
+fully accepted. This is not a review PASS, real adapter registration, queue
+serialization proof or live-runtime certificate.
+
+Claim `ORCH-1-2-RECEIVER-001` is released for the completed author scope,
+consistent with [author result 6373118308](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6373118308).
+Issue #713 is CLOSED / completed; [closeout record](https://github.com/aase7en/A-Wiki-Conductor/issues/713#issuecomment-6436106444).
+Parent #709 remains OPEN. Shared continuity is folded by the separate five-file
+docs lane; the original receiver worktree/branch are preserved. Next integration
+work is /4 (read-only review task class first), alongside the commissioned core
+review remediation; neither is performed by this docs-only lane.
