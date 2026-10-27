@@ -338,6 +338,32 @@ def test_signal_kind_rejects_outcome():
     rejects(wire(value), "SIGNAL_TYPE_UNKNOWN")
 
 
+def test_optional_numeric_or_null_token_is_invalid_not_absent():
+    # A numeric/None token in an optional field must be rejected as an invalid
+    # value, never silently treated as an absent field.
+    value = envelope("UTILIZATION", effects=False)
+    value["binding_ref"] = 5
+    rejects(wire(value), "SIGNAL_VALUE_INVALID")
+    value["binding_ref"] = None
+    rejects(wire(value), "SIGNAL_VALUE_INVALID")
+    # Same rule for effect-required fields: present-but-invalid is not "missing".
+    raw = wire(envelope()).replace(b'"task:709"', b"NaN")
+    rejects(raw, "SIGNAL_VALUE_INVALID")
+    raw = wire(envelope()).replace(b'"task:709"', b"null")
+    rejects(raw, "SIGNAL_VALUE_INVALID")
+
+
+def test_outcome_evidence_refs_custom_iterable_is_never_coerced():
+    outcome = OrchestrationOutcome(**{**outcome_envelope(),
+                                      "evidence_refs": {"evidence:1"}})
+    with pytest.raises(OrchestrationError, match="^SIGNAL_VALUE_INVALID$"):
+        encode_outcome(outcome)
+    generator = (ref for ref in ["evidence:1"])
+    outcome = OrchestrationOutcome(**{**outcome_envelope(), "evidence_refs": generator})
+    with pytest.raises(OrchestrationError, match="^SIGNAL_VALUE_INVALID$"):
+        encode_outcome(outcome)
+
+
 def test_import_has_no_writes_network_or_process_effects(tmp_path):
     script = '''
 import sys, os

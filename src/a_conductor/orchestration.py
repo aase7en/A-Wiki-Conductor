@@ -148,11 +148,11 @@ def _validate(value, expected_source=None):
     for name, limit in (("task_ref", IDENTIFIER_LIMIT),
                         ("work_order_ref", IDENTIFIER_LIMIT),
                         ("binding_ref", REF_LIMIT)):
-        if value.get(name) is not None:
+        if name in value:
             _ref(value[name], limit)
     if kind in EFFECT_KINDS:
         for name in ("task_ref", "work_order_ref"):
-            if value.get(name) is None:
+            if name not in value:
                 raise OrchestrationError("SIGNAL_MISSING_KEY")
     _payload_contract(kind, value["payload"])
 
@@ -221,10 +221,14 @@ def encode_outcome(outcome: OrchestrationOutcome) -> bytes:
     """Validate and encode the bounded outcome envelope deterministically."""
     if type(outcome) is not OrchestrationOutcome:
         raise OrchestrationError("SIGNAL_VALUE_INVALID")
-    refs = list(outcome.evidence_refs)
+    if type(outcome.evidence_refs) not in (list, tuple):
+        # Custom iterables are never coerced: iteration itself is unbounded
+        # caller-controlled behavior and happens before any bound check.
+        raise OrchestrationError("SIGNAL_VALUE_INVALID")
     value = {"signal_id": outcome.signal_id, "kind": outcome.kind,
              "decision": outcome.decision, "reason_code": outcome.reason_code,
-             "evidence_refs": refs, "observability_degraded": outcome.observability_degraded}
+             "evidence_refs": list(outcome.evidence_refs),
+             "observability_degraded": outcome.observability_degraded}
     if outcome.submission_ref is not None:
         value["submission_ref"] = outcome.submission_ref
     if outcome.execution_ref is not None:
