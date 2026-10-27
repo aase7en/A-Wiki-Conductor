@@ -76,11 +76,32 @@ def test_duplicate_reconciliation(changes):
     assert result.reason == "RECONCILIATION_REQUIRED"
 
 
-def test_duplicate_missing_and_worker_do_not_fake_absence():
+def test_duplicate_missing_and_worker_delegates_to_executor_admission():
     assert not DuplicateGuard().evaluate(signal()).admitted
     result = DuplicateGuard().evaluate(signal(target="WORKER_BATCH"), evidence=evidence())
     assert not result.admitted
-    assert result.reason == "RECONCILIATION_REQUIRED"
+    assert result.reason == "NOT_APPLICABLE"
+    assert result.metadata == {"worker_dedup": "DELEGATED_TO_EXECUTOR_ADMISSION"}
+
+
+@pytest.mark.parametrize("authorized", [True, False, None])
+def test_worker_pipeline_requires_authority_after_delegated_duplicate(authorized):
+    from a_conductor.orchestration_receiver import AdmittedContext, SignalReceiver
+    item = signal(target="WORKER_BATCH", trigger="REFILL")
+    receiver = SignalReceiver(queue_reader=None, turn_reader=None,
+        binding_reader=lambda *_: pytest.fail("Parent reader must not run"),
+        clock=lambda: pytest.fail("Parent clock must not run"))
+    received = receiver.handle(item, admitted=AdmittedContext("source:1", "project:1", "task:1"))
+    assert received.reason == "NOT_APPLICABLE"
+    calls = []
+    def checker(task, scope):
+        calls.append((task, scope))
+        return authorized
+    result = GuardPipeline(checker).evaluate(item, utilization_facts=facts(),
+        lane_class="review", scope=("src",))
+    assert result.admitted is (authorized is True)
+    assert calls == [("task:1", ("src",))]
+    assert result.metadata["duplicate"] == {"worker_dedup": "DELEGATED_TO_EXECUTOR_ADMISSION"}
 
 
 def test_receiver_page_diagnostics_are_not_passed_to_existing_guard():

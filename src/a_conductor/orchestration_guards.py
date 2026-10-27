@@ -44,8 +44,8 @@ class DuplicateGuard:
         if signal.kind not in ("ENQUEUE", "REPLAY"):
             return GuardResult(False, "NOT_APPLICABLE")
         if signal.payload["target"] != "PARENT_QUEUE":
-            return GuardResult(False, "RECONCILIATION_REQUIRED",
-                               {"reason_code": "WORKER_DEDUP_AUTHORITY_REQUIRED"})
+            return GuardResult(False, "NOT_APPLICABLE",
+                               {"worker_dedup": "DELEGATED_TO_EXECUTOR_ADMISSION"})
         required = {"queue_entries", "turns", "queue_evidence_complete", "turn_evidence_complete"}
         diagnostic = {"queue_pages", "turn_pages", "turn_binding"}
         optional = {"queue_next_cursor", "turn_next_cursor"} | diagnostic
