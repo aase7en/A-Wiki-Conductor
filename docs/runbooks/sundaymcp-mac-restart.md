@@ -16,15 +16,27 @@ ChatGPT
   -> Mac filesystem / Git / bounded process tools
 ```
 
-The local MCP child is:
+The local MCP child is (canonical repo path since the 2026-10-27 deploy, see "Path history" below):
 
 ```text
-$HOME/.hermes/node/bin/node $HOME/GitHub/SunDayRemoteMCP/dist/index.js --no-onboarding
+$HOME/.hermes/node/bin/node /Volumes/MAC_WORK/DevWorkspace/Github/SunDayRemoteMCP/dist/index.js --no-onboarding
 ```
+
+## Path history (2026-10-27 correction)
+
+This runbook originally documented `$HOME/GitHub/SunDayRemoteMCP`. That
+directory no longer exists — the Mac repo moved to
+`/Volumes/MAC_WORK/DevWorkspace/Github/SunDayRemoteMCP`. The stale path let an
+old node process (started 2026-10-04) keep serving pre-CTS-1 in-memory code
+from a deleted directory while every health check stayed green (issue #541
+deploy evidence, 2026-10-27). Always verify the child's ACTUAL command line
+(`ps aux | grep "SunDayRemoteMCP/dist"`) and compare it with the profile's
+`mcp.commands[].command` before trusting "healthy"; a healthy tunnel can wrap
+a stale child.
 
 ## Important non-equivalence
 
-`cd $HOME/GitHub/SunDayRemoteMCP && npm run device:start` is **not** this path.
+`cd /Volumes/MAC_WORK/DevWorkspace/Github/SunDayRemoteMCP && npm run device:start` is **not** this path.
 
 That command starts the separate Desktop Commander remote-device bridge and may connect to `mcp.desktopcommander.app`. It is useful only for that transport. It is not the OpenAI Secure MCP Tunnel runtime used by the ChatGPT `SundayMCP Mac` connector.
 
@@ -76,7 +88,7 @@ If the approved environment file was written with CRLF line endings, strip only 
 
 ```bash
 test -x "$HOME/.hermes/node/bin/node" && echo "NODE: OK" || echo "NODE: MISSING"
-test -f "$HOME/GitHub/SunDayRemoteMCP/dist/index.js" && echo "SRM DIST: OK" || echo "SRM DIST: MISSING"
+test -f /Volumes/MAC_WORK/DevWorkspace/Github/SunDayRemoteMCP/dist/index.js && echo "SRM DIST: OK" || echo "SRM DIST: MISSING"
 ```
 
 If either is missing, stop and recover the exact SunDayRemoteMCP repo/runtime state before attempting alternate paths.
@@ -92,7 +104,7 @@ tunnel-client runtimes connect \
   --runtime-api-key env:CONTROL_PLANE_API_KEY \
   --profile sundaymcp-mac \
   --profile-dir "$HOME/.config/tunnel-client" \
-  --mcp-command "$HOME/.hermes/node/bin/node $HOME/GitHub/SunDayRemoteMCP/dist/index.js --no-onboarding"
+  --mcp-command "$HOME/.hermes/node/bin/node /Volumes/MAC_WORK/DevWorkspace/Github/SunDayRemoteMCP/dist/index.js --no-onboarding"
 ```
 
 Why the long form matters: with tunnel-client 0.0.14, `runtimes connect --alias sundaymcp-mac` alone is incomplete and can fail with:
