@@ -1,5 +1,72 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-10-27 — ORCH-1 core (/1–/3) merged / POST_MAIN_VERIFIED / REVIEW_DEVIATION_REMEDIATION_PENDING — CURRENT
+
+This entry supersedes older CURRENT/frontier instructions below where they
+conflict. Evidence base: `origin/main@955822715917d5489c1bc193e6dc0cf278bc5e28`.
+Umbrella #709 remains OPEN; #712 and #713 are CLOSED / completed implementation
+deliveries, not full core acceptance. No runtime activation is claimed.
+
+### Verified Core Merges
+
+| Delivery | PR | Exact candidate | Merge on main | Post-main CI (SUCCESS at exact merge) |
+|---|---|---|---|---|
+| Foundation design | #710 | `5ef2046ef6f6f7d65b8f743995a6a9ba00cbac31` | `8edb3c51dc0799507670f36f7c8c003c67f7c2a6` | [40009037251](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40009037251) |
+| /1 signal codec | #711 | `2975af8b2538f63b62a736d9d4134505a7dc9f75` | `12eddb2241659166f0ba72ec7a63444dca3503a6` | [40010896041](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40010896041) |
+| /2 receiver | #714 | `ad4876930a22a20a5832c9fb81e27fdf82e259b7` | `aabff438f6368f1ba8bd9333c6707ff35b185633` | [40012379043](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40012379043) |
+| /3 guards | #715 | `7434da78434ff784447cbfc7341d8fa2394d427f` | `955822715917d5489c1bc193e6dc0cf278bc5e28` | [40012880195](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40012880195) |
+
+Merged with exact-head post-main CI green; independent exact-SHA review evidence
+was NOT recorded on PRs #711/#714/#715 (process deviation: no PR comments or
+submitted reviews). Post-merge independent review of the three merged orchestration
+modules at `main@955822715917d5489c1bc193e6dc0cf278bc5e28` is commissioned by the
+orchestrator as remediation and must complete before ORCH-1 core is treated as
+fully accepted. Green CI is not independent-review evidence or a live certificate.
+
+- Child closeouts: [#712](https://github.com/aase7en/A-Wiki-Conductor/issues/712#issuecomment-6436101703) and [#713](https://github.com/aase7en/A-Wiki-Conductor/issues/713#issuecomment-6436106444); author claims `ORCH-1-3-GUARDS-001` and `ORCH-1-2-RECEIVER-001` released.
+- Correct guard freeze is [6373185217](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6373185217); `6372970861` is its AUTHOR CLAIM, not freeze.
+- [Umbrella checkpoint / R0 docs claim ORCH-1-CORE-CLOSEOUT-001](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6436114447): branch `docs/orch1-core-closeout`, worktree `A:\GitHub\_worktrees\AWC-orch1-core-closeout`, exact five-file scope (WO709/712/713, CURRENT-WORK, handoff). No source/test/workflow/COLLAB/DEFECT_LESSONS changes. Final PR/merge/post-main tuple is recorded on #709 after delivery; cleanup only after proven inclusion and green post-main CI.
+
+### Interim Fold-Back Since WO679
+
+Derived from `git log --oneline faa34cd6..9558227`; these are merge facts, not
+new review, production-readiness or live-activation certifications.
+
+- PR #681 (`b9fa939`): WO679 integrator closeout and old-stack supersession closures folded; the older docs-PR waiting instructions below are historical.
+- PR #678 (`eb07583`): WO677 context-economy filtering and canonical Issue identity documentation merged.
+- PR #682 (`9cd58c7`): WO581/583 serialized defect-lesson fold merged; this lane does not edit lessons.
+- PR #685 (`7cb757d`): WO679-followup launcher lessons #15/#56 folded as #58/#59; earlier queued-fold text below is historical.
+- PR #688 (`d16066d`): WO687 SF-WEB-0 contract/dependency gate merged.
+- PR #691 (`990c90b`): WO689 authenticated read-only FastAPI monitor and bounded pre-header connections merged.
+- PR #692 (`570a722`): WO690 read-only Sunday Family React shell merged.
+- PR #695 (`8780988`) and #696 (`4c09898`): WO693 installable PWA shell and service-worker non-GET early-return correction merged.
+- PR #700 (`fedda41`): WO694 SF-WEB-4 mutation endpoints with auth/rate-limit/audit plumbing merged; this is not proof of real worker lifecycle dispatch.
+- PR #701 (`8b592d7`): WO697 SF-WEB-5 systemd/launchd/Windows/Umbrel service packaging merged.
+- PR #702 (`cf64101`): WO698 SF-WEB-6 parity checklist merged, documenting P1 gaps and Tk retirement NOT ready at that snapshot.
+- PR #703 (`c8d51f8`): WO698 SF-WEB-6 P1 Worker CRUD, connector creation and parity checklist merged.
+- PR #704 (`c3189cc`): WO699 SF-WEB-7 remote operator security analysis merged; documented options/Tailscale recommendation are not remote deployment proof.
+- PR #705 (`6d7e778`): CI workaround skips FastAPI closure-affected tests; no claim here that production body-model behavior was repaired or skipped paths are verified.
+- PR #706 (`8134966`): WO580 lifecycle queue-guard consumer design packet merged; design delivery is not executable consumer wiring.
+- PR #707 (`de5e231`): B3 Tailscale IP binding support for web API merged; no network/runtime activation in this lane.
+- PR #708 (`157fbe1`): WO698 SF-WEB-6 P2 connector rename/delete and CPU/RAM metrics merged; source parity is not Tk-retirement or native worker-effect acceptance.
+
+### Remaining Slices And Exact Next Safe Action
+
+Canonical roadmap: [ORCH-1 design section 7](docs/work-orders/ORCH-1-foundation-design.md#7-bounded-implementation-roadmap).
+
+- /4 one existing worker batch is the next READY lane, in flight per orchestrator assignment: `A:\GitHub\_worktrees\AWC-orch1-dispatcher`, branch `feat/orch1-worker-dispatcher` (registered at `9558227` in this census). Read-only review task class first; actual runtime/job root plus production provider/lease/claim authority must be proven. Worktree registration is not execution-liveness or acceptance proof; recover its own claim/result before any action.
+- /5 Parent enqueue/replay remains BLOCKED until the integrator names the actual external Parent caller and queue-producer serialization owner. Canonical aliases, interrupted-turn recovery and Parent audit mapping are additional required gates; do not invent a caller/lock or infer write admission from an injected seam.
+- /6 outcome/lifecycle observation is offline-testable now; target-specific production outcomes require /4 or /5 wiring. No new receipt fields, recursive dispatch or Stop-schema changes implied.
+- /7 producer/refill depends on /4+/6; mutable refill is additionally BLOCKED by #551 accepted/post-main. Read-only work is not mutable-refill completion.
+
+**Exact next safe action:** preserve the ORCH-1/4 lane in flight (read-only review
+task class first), recover its exact task/claim/head, and complete the commissioned
+post-merge independent review remediation at `9558227` before full core acceptance.
+This docs lane neither dispatches that review nor changes source. Protected root
+`A:\GitHub\A-Wiki-Conductor` stays stale/dirty and untouched; original ORCH author
+worktrees and unrelated branches are preserved. Re-fetch/reconcile actual state
+before further work; #709 stays open through the remaining integration gates.
+
 ## 2026-10-17 - WO-P1-679 integrator closeout COMPLETE / POST_MAIN_VERIFIED - CURRENT
 
 - WO679 launcher replacement is code-integration COMPLETE: PR #680 merged (squash, `--match-head-commit 4bb30be`) → main `faa34cd6c25567c08804dfd4337bce19949cbe83`; tuple preserved `8339e4c`/`f7d23c9`/`2d151da` → `4bb30be` → `faa34cd`. Candidate CI 39008397179 and post-main CI 39010300897 both SUCCESS (API-verified exact heads); Windows GUI 501P/1S incl. both parse-oracle tests green (engine/version not logged; parse-only); post-main tree/blob equality proven (tree `a9656647…`; six changed blobs identical = source + tests + desktop_control.py import hoist + 3 governance docs, per git diff-tree 46faaeb..faa34cd); local 229P+2 darwin skips + related 2F/89P = root-adjudicated pre-existing mac baseline. Reviews labeled exactly: prior working-tree round-9 review exported c6230466220 (cec841a7…/81c48ac7…) and the FINAL BINDING exact-SHA review at head 4bb30be (review-4bb30be result.md 5e19e3b9…, manifest c3dfdc63…) exported at acceptance c6230717866. Root acceptance Issue #679 c6230717866 under user permission "Commit/push แล้ว merge ตาม gate"; final export + closeout claim c6230971945.
