@@ -41,13 +41,13 @@ class DuplicateGuard:
         invalid = _invalid_signal(signal)
         if invalid is not None:
             return invalid
-        if signal.signal_type not in ("enqueue", "replay"):
+        if signal.kind not in ("ENQUEUE", "REPLAY"):
             return GuardResult(False, "NOT_APPLICABLE")
         if signal.payload["target"] != "PARENT_QUEUE":
             return GuardResult(False, "RECONCILIATION_REQUIRED",
                                {"reason_code": "WORKER_DEDUP_AUTHORITY_REQUIRED"})
         required = {"queue_entries", "turns", "queue_evidence_complete", "turn_evidence_complete"}
-        diagnostic = {"queue_pages", "turn_binding"}
+        diagnostic = {"queue_pages", "turn_pages", "turn_binding"}
         optional = {"queue_next_cursor", "turn_next_cursor"} | diagnostic
         if (type(evidence) is not dict or required - evidence.keys()
                 or evidence.keys() - (required | optional)):
@@ -75,7 +75,7 @@ class UtilizationGuard:
         invalid = _invalid_signal(signal)
         if invalid is not None:
             return invalid
-        if (signal.signal_type not in ("enqueue", "replay")
+        if (signal.kind not in ("ENQUEUE", "REPLAY")
                 or signal.payload["trigger"] != "REFILL"):
             return GuardResult(False, "NOT_APPLICABLE")
         facts = utilization_facts
@@ -134,7 +134,7 @@ class AuthorityGuard:
         invalid = _invalid_signal(signal)
         if invalid is not None:
             return invalid
-        if signal.signal_type not in ("enqueue", "replay"):
+        if signal.kind not in ("ENQUEUE", "REPLAY"):
             return GuardResult(False, "NOT_APPLICABLE")
         if (type(scope) is not tuple or not 1 <= len(scope) <= 64
                 or any(type(item) is not str or not 1 <= len(item) <= 256
@@ -181,11 +181,11 @@ class GuardPipeline:
                 return GuardResult(False, "RECONCILIATION_REQUIRED", {"stage": name})
             metadata[name] = result.metadata
             if result.reason == "NOT_APPLICABLE":
-                if name == "authority" and signal.signal_type in ("enqueue", "replay"):
+                if name == "authority" and signal.kind in ("ENQUEUE", "REPLAY"):
                     return GuardResult(False, "AUTHORITY_DENIED", metadata)
                 continue
             if not result.admitted:
                 return GuardResult(False, result.reason, metadata)
-        if signal.signal_type not in ("enqueue", "replay"):
+        if signal.kind not in ("ENQUEUE", "REPLAY"):
             return GuardResult(False, "OBSERVED_ONLY", metadata)
         return GuardResult(True, "PASS", metadata)

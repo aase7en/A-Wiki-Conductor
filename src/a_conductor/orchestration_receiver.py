@@ -1,8 +1,9 @@
 """Bounded read-only evidence collection; admission is not effect authority.
 
-Ports are supplied by an authenticated composition root. A turn reader must
-attest the exact complete list it just returned via evidence_binding, including
-empty lists. These are local ports, not new App Server wire fields or adapters.
+Ports are supplied by an authenticated composition root. Queue and turn
+readers return one cursor-bound page at a time; the receiver follows cursors
+until an explicit terminal None with per-page identity checks. Incomplete or
+ambiguous pagination is never represented as complete evidence.
 """
 
 from dataclasses import dataclass
@@ -11,6 +12,20 @@ from typing import Callable, Protocol
 
 from .codex_goal_api_adapter import QueueEntry, TurnEvidence
 from .orchestration import OrchestrationError, OrchestrationSignal, encode_signal
+
+
+@dataclass(frozen=True, slots=True)
+class AdmittedContext:
+    """Separately authenticated ingress identity from the composition root.
+
+    A claimed source in signal data is not authentication; this value comes
+    from the trusted operator/launcher/runtime boundary and is compared
+    against the signal before any authority read.
+    """
+
+    source_ref: str
+    project_id: str
+    task_ref: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,12 +46,8 @@ class QueueReader(Protocol):
 
 
 class TurnReader(Protocol):
-    def list_turns(self, thread_id: str) -> list[TurnEvidence]:
-        """Return the complete listing, not a single truncated adapter page."""
-        ...
-
-    def evidence_binding(self, thread_id: str) -> EvidenceBinding:
-        """Attest identity and observation time of the exact returned listing."""
+    def list_turns(self, thread_id: str, cursor: str | None) -> dict:
+        """Return one page: items: list[TurnEvidence], explicit nextCursor, binding."""
         ...
 
 
@@ -84,10 +95,28 @@ class SignalReceiver:
         self._max_pages = max_pages
         self._max_age = max_age
 
-    def handle(self, signal: OrchestrationSignal) -> ReceiverResult:
-        evidence = {"queue_pages": (), "queue_entries": (), "turns": (),
-                    "queue_evidence_complete": False, "turn_evidence_complete": False,
-                    "queue_next_cursor": None, "turn_next_cursor": None}
+    def _admitted(self, signal: OrchestrationSignal, admitted: AdmittedContext) -> str | None:
+        if (type(admitted) is not AdmittedContext
+                or not _identifier(admitted.source_ref)
+                or not _identifier(admitted.project_id)
+                or (admitted.task_ref is not None and not _identifier(admitted.task_ref))):
+            return "ADMITTED_CONTEXT_INVALID"
+        if (signal.source_ref != admitted.source_ref
+                or signal.project_id != admitted.project_id):
+            return "ADMITTED_CONTEXT_MISMATCH"
+        if signal.kind in ("ENQUEUE", "REPLAY"):
+            if admitted.task_ref is None or signal.task_ref != admitted.task_ref:
+                return "ADMITTED_CONTEXT_MISMATCH"
+        elif admitted.task_ref is not None and signal.task_ref != admitted.task_ref:
+            return "ADMITTED_CONTEXT_MISMATCH"
+        return None
+
+    def handle(self, signal: OrchestrationSignal, *,
+               admitted: AdmittedContext) -> ReceiverResult:
+        evidence = {"queue_pages": (), "queue_entries": (), "turn_pages": (),
+                    "turns": (), "queue_evidence_complete": False,
+                    "turn_evidence_complete": False, "queue_next_cursor": None,
+                    "turn_next_cursor": None}
         bound = None
 
         def result(reason):
@@ -99,7 +128,11 @@ class SignalReceiver:
             encode_signal(signal)
         except OrchestrationError as exc:
             return result(exc.code)
-        if (signal.signal_type not in ("enqueue", "replay")
+        # Trusted ingress binding precedes every authority read.
+        reason = self._admitted(signal, admitted)
+        if reason:
+            return result(reason)
+        if (signal.kind not in ("ENQUEUE", "REPLAY")
                 or signal.payload["target"] != "PARENT_QUEUE"):
             return result("NOT_APPLICABLE")
         # Freeze the locator before injected readers can mutate caller dictionaries.
@@ -137,80 +170,90 @@ class SignalReceiver:
             return result(reason)
         bound = candidate
         bindings = [bound]
-        cursor = None
-        cursors = set()
-        ids = set()
-        for _ in range(self._max_pages):
-            try:
-                page = self._queue_reader.list_queue_items(bound.thread_id, cursor)
-            except Exception:
-                return result("EVIDENCE_MISSING")
-            if page is None:
-                return result("EVIDENCE_MISSING")
-            if (type(page) is not dict or len(page) != 3
-                    or any(type(key) is not str for key in page)
-                    or set(page) != {"items", "nextCursor", "binding"}):
-                return result("RECONCILIATION_REQUIRED")
-            items, next_cursor, page_binding = page["items"], page["nextCursor"], page["binding"]
-            # Later pages may be newer than collection start. Check identity
-            # now and freshness against the completion clock, never start time.
-            reason = check_binding(page_binding, now, freshness=False)
-            if reason:
-                return result(reason)
-            if type(items) is not list:
-                return result("RECONCILIATION_REQUIRED")
-            if len(items) + len(evidence["queue_entries"]) > 512:
-                return result("EVIDENCE_OVERFLOW")
-            if next_cursor is not None and (not _identifier(next_cursor) or next_cursor in cursors):
-                return result("RECONCILIATION_REQUIRED")
-            page_ids = set()
-            for entry in items:
-                if (type(entry) is not QueueEntry or not _identifier(entry.submission_id)
-                        or not _identifier(entry.client_user_message_id)
-                        or entry.submission_id in ids or entry.submission_id in page_ids):
-                    return result("RECONCILIATION_REQUIRED")
-                page_ids.add(entry.submission_id)
-            ids.update(page_ids)
-            bindings.append(page_binding)
-            # Own the retained containers, not the reader's mutable page/list.
-            evidence["queue_pages"] += ({"items": tuple(items), "nextCursor": next_cursor,
-                                         "binding": page_binding},)
-            evidence["queue_entries"] += tuple(items)
-            evidence["queue_next_cursor"] = next_cursor
-            if next_cursor is None:
-                break
-            cursors.add(next_cursor)
-            cursor = next_cursor
-        else:
-            return result("EVIDENCE_OVERFLOW")
+
+        def listing(reader, page_key, entry_key, cursor_key, validate_entry,
+                    record_limit):
+            """Follow cursors until an explicit terminal None, bounded by pages."""
+            cursor = None
+            cursors = set()
+            ids = set()
+            total = 0
+            for _ in range(self._max_pages):
+                try:
+                    page = reader(bound.thread_id, cursor)
+                except Exception:
+                    return "EVIDENCE_MISSING", None
+                if page is None:
+                    return "EVIDENCE_MISSING", None
+                if (type(page) is not dict or len(page) != 3
+                        or any(type(key) is not str for key in page)
+                        or set(page) != {"items", "nextCursor", "binding"}):
+                    return "RECONCILIATION_REQUIRED", None
+                items, next_cursor, page_binding = page["items"], page["nextCursor"], page["binding"]
+                # Later pages may be newer than collection start. Check identity
+                # now and freshness against the completion clock, never start time.
+                reason = check_binding(page_binding, now, freshness=False)
+                if reason:
+                    return reason, None
+                if type(items) is not list:
+                    return "RECONCILIATION_REQUIRED", None
+                total += len(items)
+                if total > record_limit:
+                    return "EVIDENCE_OVERFLOW", None
+                if next_cursor is not None and (not _identifier(next_cursor) or next_cursor in cursors):
+                    return "RECONCILIATION_REQUIRED", None
+                page_ids = set()
+                for entry in items:
+                    identity = validate_entry(entry)
+                    if identity is None or identity in ids or identity in page_ids:
+                        return "RECONCILIATION_REQUIRED", None
+                    page_ids.add(identity)
+                ids.update(page_ids)
+                bindings.append(page_binding)
+                # Own the retained containers, not the reader's mutable page/list.
+                evidence[page_key] += ({"items": tuple(items), "nextCursor": next_cursor,
+                                        "binding": page_binding},)
+                evidence[entry_key] += tuple(items)
+                evidence[cursor_key] = next_cursor
+                if next_cursor is None:
+                    return None, None
+                cursors.add(next_cursor)
+                cursor = next_cursor
+            return "EVIDENCE_OVERFLOW", None
+
+        def queue_entry(entry):
+            if (type(entry) is not QueueEntry or not _identifier(entry.submission_id)
+                    or not _identifier(entry.client_user_message_id)):
+                return None
+            return entry.submission_id
+
+        def turn_entry(turn):
+            if (type(turn) is not TurnEvidence or not _identifier(turn.turn_id)
+                    or type(turn.status) is not str
+                    or turn.status not in ("completed", "interrupted", "failed", "inProgress")):
+                return None
+            return turn.turn_id
+
+        reason, _ = listing(self._queue_reader.list_queue_items,
+                            "queue_pages", "queue_entries", "queue_next_cursor",
+                            queue_entry, 512)
+        if reason:
+            return result(reason)
+        reason, _ = listing(self._turn_reader.list_turns,
+                            "turn_pages", "turns", "turn_next_cursor",
+                            turn_entry, 512)
+        if reason:
+            return result(reason)
         try:
-            turns = self._turn_reader.list_turns(bound.thread_id)
-            turn_binding = self._turn_reader.evidence_binding(bound.thread_id)
             finished_at = self._clock()
         except Exception:
             return result("EVIDENCE_MISSING")
-        if turns is None:
-            return result("EVIDENCE_MISSING")
-        if type(turns) is not list:
-            return result("RECONCILIATION_REQUIRED")
-        if len(turns) > 512:
-            return result("EVIDENCE_OVERFLOW")
-        ids = set()
-        for turn in turns:
-            if (type(turn) is not TurnEvidence or not _identifier(turn.turn_id)
-                    or type(turn.status) is not str
-                    or turn.status not in ("completed", "interrupted", "failed", "inProgress")
-                    or turn.turn_id in ids):
-                return result("RECONCILIATION_REQUIRED")
-            ids.add(turn.turn_id)
-        for observed in (*bindings, turn_binding):
+        for observed in bindings:
             reason = check_binding(observed, finished_at)
             if reason:
                 return result(reason)
         if finished_at < now:
             return result("RECONCILIATION_REQUIRED")
-        evidence["turns"] = tuple(turns)
-        evidence["turn_binding"] = turn_binding
         evidence["queue_evidence_complete"] = True
         evidence["turn_evidence_complete"] = True
         return result("EVIDENCE_COLLECTED")
