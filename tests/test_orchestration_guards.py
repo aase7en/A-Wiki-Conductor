@@ -14,24 +14,24 @@ from a_conductor.orchestration_guards import (
 )
 
 
-def signal(kind="enqueue", trigger="EXPLICIT", target="PARENT_QUEUE"):
+def signal(kind="ENQUEUE", trigger="EXPLICIT", target="PARENT_QUEUE"):
     payload = {"target": target, "trigger": trigger, "intent_ref": "intent:1"}
     if target == "PARENT_QUEUE":
         payload["parent_binding_ref"] = "parent:1"
     else:
         payload.update(ready_plan_ref="plan:1", task_map_ref="map:1")
-    if kind == "replay":
+    if kind == "REPLAY":
         payload["recovery_evidence_ref"] = "recovery:1"
         payload["prior_submission_ref" if target == "PARENT_QUEUE"
                 else "prior_execution_ref"] = "prior:1"
-    if kind == "lifecycle":
+    if kind == "LIFECYCLE":
         payload = dict(hook_event_ref="hook:1", subject_ref="job:1", observation_ref="obs:1")
-    if kind == "utilization":
+    if kind == "UTILIZATION":
         payload = dict(census_ref="census:1", ready_set_ref="ready:1",
                        activation_ref="activation:1", provider_observation_ref="quota:1")
-    if kind == "outcome":
-        payload = dict(decision="NO_ACTION", reason_code="NONE", evidence_refs=[])
-    return OrchestrationSignal(kind, "task:1", "source:1", "2026-10-23T19:00:00Z", payload, {})
+    return OrchestrationSignal("orch-signal.v1", "signal:1", kind,
+                               "2026-10-23T19:00:00Z", "source:1", "project:1",
+                               payload, "task:1", "wo:1", None)
 
 
 def evidence(**changes):
@@ -46,7 +46,7 @@ def facts(**changes):
         glm_route_ready=True), **changes)
 
 
-@pytest.mark.parametrize("kind", ["enqueue", "replay"])
+@pytest.mark.parametrize("kind", ["ENQUEUE", "REPLAY"])
 def test_duplicate_clear(kind):
     result = DuplicateGuard().evaluate(signal(kind), evidence=evidence())
     assert result.admitted is True
@@ -85,10 +85,10 @@ def test_duplicate_missing_and_worker_do_not_fake_absence():
 
 def test_receiver_page_diagnostics_are_not_passed_to_existing_guard():
     assert DuplicateGuard().evaluate(
-        signal(), evidence=evidence(queue_pages=(), turn_binding=object())).admitted
+        signal(), evidence=evidence(queue_pages=(), turn_pages=(), turn_binding=object())).admitted
 
 
-@pytest.mark.parametrize("kind", ["lifecycle", "utilization", "outcome"])
+@pytest.mark.parametrize("kind", ["LIFECYCLE", "UTILIZATION"])
 def test_observation_guards_not_applicable(kind):
     item = signal(kind)
     for guard in (DuplicateGuard(), UtilizationGuard(), AuthorityGuard()):
@@ -242,7 +242,7 @@ def test_forged_pass_does_not_bypass_authority(monkeypatch):
     assert GuardPipeline(lambda *a: False).evaluate(signal(), scope=("src",)).reason == "AUTHORITY_DENIED"
 
 
-@pytest.mark.parametrize("kind", ["lifecycle", "utilization", "outcome"])
+@pytest.mark.parametrize("kind", ["LIFECYCLE", "UTILIZATION"])
 def test_observation_never_admits_effect(kind):
     assert GuardPipeline(lambda *a: True).evaluate(signal(kind)).admitted is False
 
@@ -259,7 +259,7 @@ def test_pipeline_happy_and_no_signal_or_evidence_rewrites():
 
 def test_signal_forgery_rejected_before_guards(monkeypatch):
     item = signal()
-    item.metadata["authority"] = "PASS"
+    item.payload["authority"] = "PASS"
     def forbidden(*args, **kwargs):
         pytest.fail("invalid DTO must not reach guards")
     monkeypatch.setattr(DuplicateGuard, "evaluate", forbidden)
