@@ -1,0 +1,285 @@
+# Incident — Windows host unavailable; Zero-Relay continuation moved to macOS
+
+Date: 2026-09-10 (Asia/Bangkok)
+Status: HOST MIGRATION MITIGATED / WINDOWS PRIMARY HOST RESUMED / CLAUDE COMPATIBILITY R4 FROZEN / LIVE ZERO-RELAY NOT YET PROVEN
+Related: Issue #233, WO-P1-168, WO-P1-169
+
+## Summary
+
+The primary Windows workstation that normally runs A-Sunday Conductor became offline and
+unreachable. Development therefore moved to the user's home Apple Silicon Mac.
+
+The migration does not block repository development or the highest-priority Zero-Relay
+MVP, but two independent macOS readiness gates remain:
+1. the original unsupported Claude CLI flag was repaired, then later security evidence
+   reopened the invocation/settings boundary; current frozen successor is WO168 R4 / PR #242;
+2. the canonical production supervised native adapter assembly is still Windows-specific.
+
+These are compatibility/portability gates, not evidence that the Zero-Relay architecture is
+invalid.
+
+## Recovered continuity
+
+The prior shared ChatGPT conversation was decoded and reconciled against current Git/GitHub
+state. Durable checkpoints were added to Issue #233 rather than relying on chat memory.
+
+Recovered intended route:
+
+```text
+GPT integrator
+  -> A-Sunday Conductor durable task/provider authority
+  -> existing Claude Code supervised harness
+  -> Cointh Anthropic-compatible endpoint
+  -> GLM-5.3
+  -> canonical result/evidence
+  -> GPT review
+```
+
+ZCode is not on this critical path.
+
+## Host facts — Mac
+
+Fresh verified facts:
+- repo: /Users/aase7en/Desktop/A-Wiki-Conductor
+- base main at migration checkpoint: 77e7b0f8e9460f78fa2ef4a1ddaad62131c2c7f2
+- Claude Code: 2.1.152
+- Serena: not installed
+- Sunday Worker fleet: not installed
+- A-Conductor desktop/runtime: not installed
+- ZCode: not required for the chosen Claude/Cointh path
+- private A-Wiki-Data layer is present on Google Drive
+- secrets/global.env exists with mode 0600
+- required secret key name COINTH_GLM_AUTH_TOKEN is present; its value was not read/logged
+
+The physical private Drive path is host-specific and must never be hard-coded into public
+product code. Product code must continue resolving the private layer through the accepted
+A-Wiki drive/environment contract.
+
+## Problems already solved or mitigated
+
+### 1. Chat-only continuity risk — MITIGATED
+
+Problem:
+important Zero-Relay/Claude/Cointh facts existed only in an old ChatGPT transcript.
+
+Mitigation:
+- recovered transcript as discovery evidence;
+- reconciled against actual Git/GitHub;
+- Issue #233 comments 5606720902 and 5606878598 now preserve the non-secret contract;
+- private host-specific facts were checkpointed in A-Wiki-Data session memory.
+
+### 2. Mac repository continuity — SOLVED
+
+The Mac clone was fetched and verified clean/equal to origin/main before new lanes were
+created. Work now uses isolated worktrees instead of mutating root main.
+
+### 3. Cointh network reachability — PROVEN AT UNAUTHENTICATED BOUNDARY
+
+From the Mac:
+`https://cointh.com/glm/anthropic` returned HTTP 401 with
+`x-cointh-reason: missing_key`.
+
+This proves DNS/TLS/service reachability only. It does not prove authenticated model use.
+
+### 4. Historical credential exposure — MITIGATED
+
+A Cointh credential was exposed in the old chat. That historical value is treated as
+compromised. The system must use only a rotated private secret through
+`secret-ref:awiki-env/COINTH_GLM_AUTH_TOKEN` mapped at execution time to
+`ANTHROPIC_AUTH_TOKEN`.
+
+Never store the value in Git, Issues, PRs, argv, prompts, task packets, result files, or logs.
+
+### 5. Unsafe probe cleanup — SOLVED
+
+Temporary Claude probes created during Mac diagnosis were stopped only after exact PID and
+command-identity verification. No broad process kill was used.
+
+## Active problem A — Claude CLI compatibility and settings confinement
+
+The original Mac defect was reproduced on Claude Code 2.1.152:
+
+```text
+claude --print ... --safe-mode ...
+-> error: unknown option '--safe-mode'
+-> exit 1
+```
+
+WO-P1-168 / GPT-6 Astra implemented the bounded repair. Accepted candidate
+`654e36d497a875f06adba83e4ca2c14f1a647dbc` was independently reviewed
+(P0=0 / P1=0 / P2=0), passed exact-head CI `34391873577`, and merged as
+`577d9483720c857a89a5d2c9ea9359f9c0aa50b5`.
+
+Post-main push CI `34393512623` completed SUCCESS across Windows/full, Ubuntu and macOS.
+The repair uses the reviewed explicit confinement profile (`--bare`, disabled slash
+commands, strict empty MCP configuration and empty setting sources) while preserving
+plan/read-only tools, task binding, provider/supervised authority and secret confinement.
+
+The R0 source claim was released after that merge, but later real-host review reopened
+the same compatibility boundary: project/local permission denies were lost when ambient
+settings were excluded. R1 restored the settings sources but regressed provider endpoint/auth
+authority; R2 projected only sanitized permission denies but an interrupted Astra review
+found hostile JSON parser escapes and an unbounded pre-size-check read.
+
+Current frozen successor is WO168 R4 / PR #242, candidate
+`7d0fd83bb5608a4ab025d5000203cbad2a31831f`. R4 closes the inherited filesystem boundary
+plus duplicate-key and Windows command-line quoting defects. Exact-head CI `34440601328`
+completed SUCCESS across Windows/full, Ubuntu and macOS; independent deterministic reruns
+also pass. The remaining release blocker is a truly independent exact-SHA R3 review: Astra
+and a fresh Codex reviewer both hit the shared usage limit, so acceptance is REVIEW_BLOCKED
+rather than waived. Issue #233 comments 5613527320 and 5613616802 are the current handoff
+anchors.
+
+## Open problem B — macOS production supervised-process assembly
+
+Fresh current-main source audit shows:
+- `SupervisedClaudeCodeRunner` itself accepts an injected `NativeCommandRunner`;
+- generic `NativeSubprocessRunner` exists and has cross-platform tests;
+- however `build_supervised_claude_code_runner()` uses `SupervisedCommandRunner`;
+- the canonical `build_supervised_native_adapter_resolver()` imports and constructs
+  `WindowsOwnedProcessController`, `WindowsRuntimeObserver`, and
+  `StrictPowerShellInspectionRunner`;
+- real supervised Claude integration tests are currently marked Windows-only.
+
+Therefore:
+`CLAUDE_INVOCATION_COMPATIBILITY` and
+`PRODUCTION_SUPERVISED_PROCESS_PORTABILITY` are separate gates.
+
+Fixing WO168 alone must not be interpreted as proving the full A-Conductor supervised
+Zero-Relay path on macOS.
+
+## Open problem C — authenticated GLM turn
+
+No real authenticated GLM-5.3 model turn through the accepted A-Conductor supervised path
+has yet been proven on this Mac.
+
+A raw 401, parser success, loopback fake provider, or direct unsupervised Claude response
+must not be labeled Zero-Relay success.
+
+## Tooling constraint observed in this ChatGPT/RDC lane
+
+The ChatGPT tool safety layer blocked attempts that would read a private token and directly
+send it to an external endpoint. Do not bypass that control.
+
+Authenticated proof must use an authorized local execution path that keeps the secret
+inside the execution boundary and exposes only sanitized evidence.
+
+This is an operator/tool boundary, not a product runtime defect.
+
+## Correct milestone labels
+
+Current:
+- MAC_REPO_CONTINUITY = READY
+- COINTH_NETWORK_REACHABILITY = PROVEN_UNAUTHENTICATED
+- ROTATED_SECRET_REFERENCE = PRESENT
+- CLAUDE_MAC_INVOCATION = R4_FROZEN / EXACT_HEAD_CI_SUCCESS / INDEPENDENT_REVIEW_BLOCKED
+- MAC_PRODUCTION_SUPERVISION = NOT_YET_READY
+- AUTHENTICATED_GLM_TURN = NOT_PROVEN
+- GPT_GLM_ZERO_RELAY_ONE_SHOT = NOT_PROVEN
+
+Do not collapse these states into a single READY flag.
+
+## Next dependency order
+
+```text
+WO168 R4 Claude invocation/settings compatibility
+  -> independent exact-SHA review (CI already exact-head SUCCESS)
+  -> fenced merge + post-main verification
+  -> resume primarily on Windows 11 with Sunday-Worker 1-5
+  -> keep POSIX/macOS supervised-process portability as a separate later gate
+  -> isolated authenticated Cointh -> GLM-5.3 one-shot
+  -> canonical result ingestion
+  -> GPT exact-result verification
+  -> only then declare Zero-Relay one-shot proven
+```
+
+
+## 2026-09-10 independent WO168 review checkpoint
+
+WO-P1-168 froze and pushed candidate:
+`654e36d497a875f06adba83e4ca2c14f1a647dbc` on PR #237.
+
+GPT-5.6 Sol independently reconstructed the RED from commit `16dc834` in a clean
+archive using the installed Mac Claude 2.1.152:
+- 4 failed / 15 passed;
+- three failures were the real CLI `unknown option '--safe-mode'` boundary;
+- one failure was the deterministic invocation-contract RED.
+
+Independent exact-candidate archive verification:
+- real Mac loopback host proof: 3/3 PASS;
+- focused Claude harness/supervised/backend/assembly: 44 PASS, 6 expected skips;
+- related supervised/native/provider frontier: 142 PASS, 3 Windows-only skips;
+- compileall PASS;
+- extra adversarial fake-provider calls to unavailable `Task` and
+  `mcp__evil__write`: 2/2 rejected without execution.
+
+Official current Claude CLI documentation was also checked independently:
+- bare mode skips auto-discovery of hooks, skills, plugins, MCP, auto-memory and CLAUDE.md;
+- `--tools` restricts built-in tools;
+- `--strict-mcp-config` ignores other MCP configurations.
+
+At this checkpoint hosted CI run `34391873577` has macOS and Ubuntu smoke SUCCESS,
+while Windows/full remains IN_PROGRESS.
+
+Classification:
+`WO168_SOURCE = SOURCE_PASS / CI_PENDING`.
+This is not yet merge/release authority and is not Zero-Relay operational proof.
+
+
+## 2026-09-10 planned return to Windows 11
+
+The user will resume primary development on the Windows 11 workstation and use
+Sunday-Worker 1-5 after re-pinning each worker's actual availability and ownership.
+The Mac recovery branch is not discarded; it remains evidence until the corrective lane
+is accepted and closeout permits cleanup.
+
+Current GitHub handoff: WO168 R4 / PR #242 is frozen at
+`7d0fd83bb5608a4ab025d5000203cbad2a31831f`; exact-head CI `34440601328` is SUCCESS.
+`main` intentionally remains at `577d9483720c857a89a5d2c9ea9359f9c0aa50b5` because the
+R3 independent-review gate is still blocked by shared Codex/Astra quota. Do not merge merely
+to simplify host synchronization. The Windows session should fetch first, select one truly
+free Worker for a read-only exact-SHA review, and only then allow expected-head merge plus
+post-main verification.
+
+## Windows return — actual continuation evidence
+
+Windows 11 is now the primary development host. The protected root was fetched but not
+mutated because its local `main@f4ecf9a8e5a3aa9f92e3cd4ee4c16125f45e43e2` is behind
+`origin/main@577d9483720c857a89a5d2c9ea9359f9c0aa50b5` by 585 and still reports preserved
+working state. The QR modification is already byte-identical to the accepted upstream QR;
+an untracked `$null` file contains only a shell diagnostic message. Neither was removed or
+used as justification for reset/clean/stash/restore/pull.
+
+PR #242 remains the active release gate at exact R4 head
+`7d0fd83bb5608a4ab025d5000203cbad2a31831f`. In addition to hosted CI, a disposable exact-SHA
+Windows archive passed 63 focused tests with 7 expected skips and 127 broader provider/harness
+regressions; compileall/diff checks pass and a Windows junction escape is rejected fail-closed.
+This is integrator evidence only, not independent acceptance.
+
+The separate GLM/ZCode diagnostic resolved the earlier headless `401 invalid_key` discrepancy:
+the Desktop GUI and direct headless CLI load different provider config files, and direct
+headless execution fell through to an unrelated ambient `ANTHROPIC_API_KEY` when its own
+custom-provider apiKey was absent. A harmless positive probe with the legitimate Cointh
+credential returned `AUTH_ROUTE_OK`. This is a configuration/runtime-path divergence, not an
+authentication bypass.
+
+Accepted WO158 production code already uses the correct containment pattern for the future
+Zero-Relay proof: resolve the approved secret reference, deliver it ephemerally under
+`ANTHROPIC_API_KEY`, and construct the ZCode child environment without inheriting ambient
+parent credentials. Therefore the direct-headless diagnostic does not justify duplicating a
+secret into another ZCode config file.
+
+A second deployment fact was also established: the running installed Windows application is
+exactly the released v0.6.0 binary (SHA-256
+`9432D96E867C486D012AA797C3D764103AABEAA97D8F2C068FAD9D84BAD3AC87`), while repository
+source is v0.7.0 and WO96 is still an active P0 release blocker. Its live DB is healthy but has
+no provider tables. The installed v0.6.0 app/live DB must not be force-migrated or upgraded to
+manufacture a Zero-Relay proof; use a current-source isolated proof runtime and sacrificial or
+copied DB state after WO168 acceptance.
+
+Finally, Issue #213 already contains GPT1-authorized `PROOF_C` evidence from 2026-09-09 that
+the real ZCode app-server exits naturally after stdin EOF. That lifecycle question is closed.
+The remaining milestone is one real authorized no-human-relay model task through canonical
+provider snapshot + admission + WorkerLease + task packet, followed by durable result
+verification. ZRA-2/3/4 read-only composition shaping is preserved in Issues #214/#215/#216
+without changing their dependency gates.
