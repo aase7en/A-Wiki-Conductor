@@ -190,7 +190,11 @@ class Dispatcher:
                 decision, _reason(reason), ids, refs, ids, (), degraded)
             if self._publisher is not None:
                 try:
-                    self._publisher(outcome)
+                    published = self._publisher(outcome)
+                    from .orchestration import OrchestrationOutcome
+                    if (type(published) is OrchestrationOutcome
+                            and published.observability_degraded):
+                        outcome = replace(outcome, observability_degraded=True)
                 except Exception:
                     outcome = replace(outcome, observability_degraded=True)
             return outcome

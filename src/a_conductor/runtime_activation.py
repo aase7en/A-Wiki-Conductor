@@ -1164,7 +1164,7 @@ class RuntimeActivationService:
 def activate_worker_batch_runtime(
     *, database_path, job_store, provider_store, lease_store, backend,
     authority, live_worktree_observer, trusted_source, clock, publisher=None,
-    review_worker_id, review_provider_id,
+    review_worker_id, review_provider_id, outcome_publisher=None,
 ):
     """Explicit ORCH-1/4 root over already-initialized owning stores.
 
@@ -1174,6 +1174,14 @@ def activate_worker_batch_runtime(
     """
     from .orchestration_dispatcher import Dispatcher, _UseGateRunner
     from .domain import TaskState
+
+    if outcome_publisher is not None:
+        from .orchestration_outcome import OutcomePublisher
+        if publisher is not None:
+            raise ValueError("ORCH_PUBLISHER_AMBIGUOUS")
+        if not isinstance(outcome_publisher, OutcomePublisher):
+            raise ValueError("ORCH_OBSERVER_BINDING_INVALID")
+        publisher = outcome_publisher
 
     canonical = Path(database_path).expanduser().resolve(strict=False)
     for store, expected in ((job_store, SQLiteJobStore),
