@@ -1,6 +1,7 @@
 # WO-P1-551 Claim Consumption Candidate
 
-Issue: #551. Status: IMPLEMENTATION_CANDIDATE / NOT_RUNTIME_ACCEPTED.
+Issue: #551
+Status: IMPLEMENTATION_CANDIDATE / NOT_RUNTIME_ACCEPTED.
 Claim: WO-P1-551-CONSUMPTION-001, issue comment 6687970206.
 Risk: R3. Topology: CONTROL_PLANE_ONLY. Reuse: WRAP -> EXTEND.
 Base: 746a380. Branch: feat/551-claim-consumption.
@@ -84,6 +85,11 @@ Actual accepted upstream reader probe against this AWC worktree correctly raises
 `ClaimBindingError: CLAIM_NOT_FOUND` for WO-P1-551; no canonical AWC claim was
 invented from issue metadata. The initial shell-quoted probe had a SyntaxError;
 the corrected probe executed and produced the expected typed refusal.
-Compileall and diff-check pass. Full local regression is still running.
+Compileall and diff-check pass. Initial full regression: 7098 passed, 21 skipped,
+4 failed (696.96s). The WO identity check requires the exact standalone
+`Issue: #551` line; corrected here. The other failures were missing optional
+GPU dependencies (2) and an orchestration child-import bytecode error (1).
+No unrelated source fix or test exclusion is authorized; rerun with isolated
+test dependencies/bytecode and the CI GPU fallback setting before final freeze.
 Upstream release decision and independent review remain unresolved. No live
 claim for AWC #551 is fabricated from the unrelated A-Wiki #58 row.
