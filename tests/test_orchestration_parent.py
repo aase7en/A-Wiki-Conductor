@@ -1,3 +1,4 @@
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -225,7 +226,7 @@ def test_pre_job_unknown_or_stale_audit_owner_does_not_create_a_job(tmp_path, ch
 def test_foreign_terminal_or_worker_job_cannot_be_audit_owner(tmp_path, changes):
     f = fixture(tmp_path)
     job = replace(f.jobs.get_job("job:1"), **changes)
-    f.jobs.get_job = lambda _: job
+    f.jobs.get_job = lambda _, **kwargs: job
     assert f.handle().reason_code == "ORCH_PARENT_AUDIT_OWNER_REQUIRED"
 
 
@@ -299,9 +300,78 @@ def test_replay_attaches_owner_proven_result_without_any_write(tmp_path, state):
     before = f.jobs.list_events("job:1")
     result = f.handle(replay_request())
     assert result.decision == "NO_ACTION"
+    assert result.reason_code == "ORCH_PARENT_RESULT_ATTACHED"
     assert result.submission_ids == ("submission:1",)
     assert result.evidence_refs == ("evidence:recovery:1",)
     assert f.jobs.list_events("job:1") == before
+
+
+@pytest.mark.parametrize("state, tasks", [
+    ("TERMINAL", ("task:two",)),
+    ("TERMINAL", ("task:one",)),
+    ("PENDING", ("task:two",)),
+    ("PENDING", ("task:one", "task:two")),
+    ("PENDING", ()),
+])
+def test_replay_cross_checks_submission_against_entire_queue(tmp_path, state, tasks):
+    f = fixture(tmp_path)
+    f.state.recovered = recovery(state=state)
+    f.state.queue_pages = [([], "1"), ([
+        QueueEntry("submission:1", queue_submission_task_key(task)) for task in tasks
+    ], None)]
+    before = f.jobs.list_events("job:1")
+    result = f.handle(replay_request())
+    assert result.decision == "RECONCILIATION_REQUIRED"
+    assert result.reason_code == ("RECONCILIATION_REQUIRED" if len(tasks) > 1
+        else "ORCH_PARENT_RECOVERY_UNRESOLVED")
+    assert result.evidence_refs == ()
+    assert f.jobs.list_events("job:1") == before
+
+
+@pytest.mark.parametrize("storage", ["absent", "absent-parent", "empty", "missing-events"])
+def test_replay_missing_audit_storage_never_initializes(tmp_path, storage):
+    f = fixture(tmp_path)
+    path = tmp_path / "audit.sqlite"
+    if storage == "absent-parent":
+        path = tmp_path / "missing" / "audit.sqlite"
+    elif storage == "empty":
+        with sqlite3.connect(path):
+            pass
+    elif storage == "missing-events":
+        store = SQLiteJobStore(path)
+        store.create_job(job_id="job:1", project_id="project:1", work_order_ref="wo:733")
+        with sqlite3.connect(path) as connection:
+            connection.execute("DROP TABLE job_events")
+    before = path.read_bytes() if path.exists() else None
+    f.admission._audit = ParentAudit(DurableJobControlService(
+        store=SQLiteJobStore(path), coordinator=None))
+    f.state.recovered = recovery(state="TERMINAL")
+    result = f.handle(replay_request())
+    assert (result.decision, result.reason_code) == (
+        ("RECONCILIATION_REQUIRED", "ORCH_AUDIT_UNAVAILABLE") if storage == "missing-events"
+        else ("DENIED", "ORCH_PARENT_AUDIT_OWNER_REQUIRED"))
+    if before is None:
+        assert not path.exists()
+    else:
+        assert path.read_bytes() == before
+    assert not path.with_name(path.name + "-wal").exists()
+    assert not path.with_name(path.name + "-shm").exists()
+    if storage == "absent-parent":
+        assert not path.parent.exists()
+
+
+def test_replay_existing_audit_never_calls_initialize(tmp_path, monkeypatch):
+    f = fixture(tmp_path)
+    f.state.recovered = recovery(state="TERMINAL")
+    before = f.store.database_path.read_bytes()
+
+    def fail():
+        pytest.fail("inspection must not initialize storage")
+
+    monkeypatch.setattr(f.store, "initialize", fail)
+    result = f.handle(replay_request())
+    assert (result.decision, result.reason_code) == ("NO_ACTION", "ORCH_PARENT_RESULT_ATTACHED")
+    assert f.store.database_path.read_bytes() == before
 
 
 @pytest.mark.parametrize("value", [None, True, {}, recovery(task_ref="foreign"),

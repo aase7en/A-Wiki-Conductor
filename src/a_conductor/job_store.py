@@ -107,16 +107,30 @@ class SQLiteJobStore:
         )
 
     @contextmanager
-    def _connect(self) -> Iterator[sqlite3.Connection]:
+    def _connect(self, *, read_only: bool = False) -> Iterator[sqlite3.Connection]:
         try:
-            self.database_path.parent.mkdir(parents=True, exist_ok=True)
-            connection = sqlite3.connect(self.database_path)
+            if read_only:
+                connection = sqlite3.connect(
+                    self.database_path.resolve().as_uri() + "?mode=ro", uri=True
+                )
+            else:
+                self.database_path.parent.mkdir(parents=True, exist_ok=True)
+                connection = sqlite3.connect(self.database_path)
         except (OSError, sqlite3.Error) as exc:
             raise JobStoreError("JOB_STORE_OPEN_FAILED") from exc
         try:
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute("PRAGMA busy_timeout = 5000")
+            if read_only:
+                try:
+                    row = connection.execute(
+                        "SELECT value FROM job_store_meta WHERE key = 'schema_version'"
+                    ).fetchone()
+                except sqlite3.Error as exc:
+                    raise JobStoreError("JOB_STORE_READ_FAILED") from exc
+                if row is None or row["value"] != JOB_STORE_SCHEMA_VERSION:
+                    raise JobStoreError("JOB_STORE_SCHEMA_UNSUPPORTED")
             yield connection
         finally:
             connection.close()
@@ -344,10 +358,12 @@ class SQLiteJobStore:
                 connection.rollback()
                 raise JobStoreError("JOB_STORE_WRITE_FAILED") from exc
 
-    def get_job(self, job_id: str) -> JobRuntimeState:
+    def get_job(self, job_id: str, *, read_only: bool = False) -> JobRuntimeState:
+        """Read a job; read_only never creates storage or initializes its schema."""
         _require_text(job_id, "job_id")
-        self.initialize()
-        with self._connect() as connection:
+        if not read_only:
+            self.initialize()
+        with self._connect(read_only=read_only) as connection:
             try:
                 return self._state_from_row(self._load_job_row(connection, job_id))
             except JobStoreError:
@@ -505,10 +521,12 @@ class SQLiteJobStore:
                 connection.rollback()
                 raise JobStoreError("JOB_STORE_WRITE_FAILED") from exc
 
-    def list_events(self, job_id: str) -> tuple[JobEvent, ...]:
+    def list_events(self, job_id: str, *, read_only: bool = False) -> tuple[JobEvent, ...]:
+        """Read events with optional non-initializing, read-only storage access."""
         _require_text(job_id, "job_id")
-        self.initialize()
-        with self._connect() as connection:
+        if not read_only:
+            self.initialize()
+        with self._connect(read_only=read_only) as connection:
             try:
                 exists = connection.execute(
                     "SELECT 1 FROM job_records WHERE job_id = ?", (job_id,)

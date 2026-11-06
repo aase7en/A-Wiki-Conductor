@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .a_faster_utilization_guard import UtilizationFacts
-from .codex_queue_submission_guard import TASK_KEY_PREFIX
+from .codex_queue_submission_guard import TASK_KEY_PREFIX, queue_submission_task_key
 from .domain import TaskState
 from .job_state import JobRuntimeState
 from .job_store import JobEvent, JobEventType
@@ -112,11 +112,12 @@ class ParentAudit:
     def __init__(self, jobs):
         self._jobs = jobs
 
-    def _job(self, intent, expected_version):
+    def _job(self, intent, expected_version, *, read_only=False):
         if not _intent_valid(intent) or intent.job_id is None:
             raise OrchestrationError("ORCH_PARENT_AUDIT_OWNER_REQUIRED")
         try:
-            job = self._jobs.get_job(intent.job_id)
+            job = (self._jobs.get_job(intent.job_id, read_only=True) if read_only
+                else self._jobs.get_job(intent.job_id))
         except Exception:
             raise OrchestrationError("ORCH_PARENT_AUDIT_OWNER_REQUIRED") from None
         if (type(job) is not JobRuntimeState or job.job_id != intent.job_id
@@ -130,9 +131,10 @@ class ParentAudit:
             raise OrchestrationError("JOB_VERSION_CONFLICT")
         return job
 
-    def _events(self, intent):
+    def _events(self, intent, *, read_only=False):
         try:
-            events = self._jobs.list_events(intent.job_id)
+            events = (self._jobs.list_events(intent.job_id, read_only=True) if read_only
+                else self._jobs.list_events(intent.job_id))
             if (type(events) is not tuple or not events
                     or any(type(e) is not JobEvent or e.job_id != intent.job_id
                         or type(e.sequence_no) is not int or e.sequence_no != i
@@ -145,13 +147,13 @@ class ParentAudit:
             raise OrchestrationError("ORCH_AUDIT_UNAVAILABLE") from None
 
     def inspect(self, intent, *, reconciliation_only=False):
-        job = self._job(intent, intent.job_version)
-        events = self._events(intent)
+        job = self._job(intent, intent.job_version, read_only=True)
+        events = self._events(intent, read_only=True)
         # Even a matched post is a prior submission, never fresh-intent permission.
         if not reconciliation_only and any(e.checkpoint_ref is not None and e.checkpoint_ref.startswith(
                 ("orch-parent-pre:", "orch-parent-post:")) for e in events):
             raise OrchestrationError("ORCH_PARENT_PRIOR_SUBMISSION_UNRESOLVED")
-        if self._job(intent, job.version) != job:
+        if self._job(intent, job.version, read_only=True) != job:
             raise OrchestrationError("JOB_VERSION_CONFLICT")
         return job
 
@@ -328,7 +330,11 @@ class ParentAdmission:
                             request.prior_submission_ref, request.recovery_evidence_ref)
                         or type(proof.state) is not str or proof.state not in ("PENDING", "TERMINAL")
                         or (proof.state == "PENDING" and ids != (proof.submission_id,))
-                        or (proof.state == "TERMINAL" and ids)):
+                        or (proof.state == "TERMINAL" and ids)
+                        or any(q.submission_id == proof.submission_id and (
+                            q.client_user_message_id != queue_submission_task_key(task_ref)
+                            or proof.state == "TERMINAL")
+                            for q in received.evidence["queue_entries"])):
                     return finish("ORCH_PARENT_RECOVERY_UNRESOLVED")
             except Exception:
                 return finish("ORCH_PARENT_RECOVERY_UNRESOLVED")
