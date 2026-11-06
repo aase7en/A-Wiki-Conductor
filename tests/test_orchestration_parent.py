@@ -10,7 +10,7 @@ from a_conductor.codex_goal_api_adapter import QueueEntry, TurnEvidence
 from a_conductor.codex_queue_submission_guard import queue_submission_task_key
 from a_conductor.domain import TaskState
 from a_conductor.job_control import DurableJobControlService
-from a_conductor.job_store import SQLiteJobStore
+from a_conductor.job_store import JobStoreError, SQLiteJobStore
 from a_conductor.orchestration import OrchestrationError
 from a_conductor.orchestration_parent import (
     ParentAdmission, ParentAudit, ParentCredential, ParentIntent,
@@ -328,7 +328,47 @@ def test_replay_cross_checks_submission_against_entire_queue(tmp_path, state, ta
     assert f.jobs.list_events("job:1") == before
 
 
-@pytest.mark.parametrize("storage", ["absent", "absent-parent", "empty", "missing-events"])
+@pytest.mark.parametrize("accessor", ["get_job", "list_events"])
+@pytest.mark.parametrize("journal_mode", ["WAL", "DELETE"])
+def test_read_only_audit_journal_mode_never_creates_sidecars(tmp_path, accessor, journal_mode):
+    f = fixture(tmp_path)
+    path = f.store.database_path
+    connection = sqlite3.connect(path)
+    try:
+        assert connection.execute(f"PRAGMA journal_mode={journal_mode}").fetchone()[0] == journal_mode.lower()
+    finally:
+        connection.close()
+    before = path.read_bytes()
+    assert before[18:20] == (b"\x02\x02" if journal_mode == "WAL" else b"\x01\x01")
+    assert not path.with_name(path.name + "-wal").exists()
+    assert not path.with_name(path.name + "-shm").exists()
+    read = getattr(f.store, accessor)
+    try:
+        if journal_mode == "WAL":
+            with pytest.raises(JobStoreError, match="^JOB_STORE_OPEN_FAILED$"):
+                read("job:1", read_only=True)
+        else:
+            assert read("job:1", read_only=True)
+    finally:
+        assert path.read_bytes() == before
+        assert not path.with_name(path.name + "-wal").exists()
+        assert not path.with_name(path.name + "-shm").exists()
+
+
+@pytest.mark.parametrize("accessor", ["get_job", "list_events"])
+@pytest.mark.parametrize("header", [b"", b"not-sqlite", b"x" * 100])
+def test_read_only_audit_invalid_header_is_typed_refusal(tmp_path, accessor, header):
+    path = tmp_path / "audit.sqlite"
+    path.write_bytes(header)
+    store = SQLiteJobStore(path)
+    with pytest.raises(JobStoreError, match="^JOB_STORE_OPEN_FAILED$"):
+        getattr(store, accessor)("job:1", read_only=True)
+    assert path.read_bytes() == header
+    assert not path.with_name(path.name + "-wal").exists()
+    assert not path.with_name(path.name + "-shm").exists()
+
+
+@pytest.mark.parametrize("storage", ["absent", "absent-parent", "empty", "missing-events", "wal", "truncated"])
 def test_replay_missing_audit_storage_never_initializes(tmp_path, storage):
     f = fixture(tmp_path)
     path = tmp_path / "audit.sqlite"
@@ -342,6 +382,18 @@ def test_replay_missing_audit_storage_never_initializes(tmp_path, storage):
         store.create_job(job_id="job:1", project_id="project:1", work_order_ref="wo:733")
         with sqlite3.connect(path) as connection:
             connection.execute("DROP TABLE job_events")
+    elif storage == "wal":
+        store = SQLiteJobStore(path)
+        store.create_job(job_id="job:1", project_id="project:1", work_order_ref="wo:733")
+        connection = sqlite3.connect(path)
+        try:
+            assert connection.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+        finally:
+            connection.close()
+        assert not path.with_name(path.name + "-wal").exists()
+        assert not path.with_name(path.name + "-shm").exists()
+    elif storage == "truncated":
+        path.write_bytes(b"not-sqlite")
     before = path.read_bytes() if path.exists() else None
     f.admission._audit = ParentAudit(DurableJobControlService(
         store=SQLiteJobStore(path), coordinator=None))

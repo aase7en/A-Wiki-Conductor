@@ -110,6 +110,12 @@ class SQLiteJobStore:
     def _connect(self, *, read_only: bool = False) -> Iterator[sqlite3.Connection]:
         try:
             if read_only:
+                # mode=ro can create WAL sidecars; inspect without SQLite first.
+                with self.database_path.open("rb") as database:
+                    header = database.read(100)
+                if (len(header) != 100 or header[:16] != b"SQLite format 3\x00"
+                        or header[18:20] != b"\x01\x01"):
+                    raise JobStoreError("JOB_STORE_OPEN_FAILED")
                 connection = sqlite3.connect(
                     self.database_path.resolve().as_uri() + "?mode=ro", uri=True
                 )
