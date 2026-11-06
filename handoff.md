@@ -11,7 +11,7 @@ not the older ORCH frontier below. Authority-repo docs base:
 - Read [WO727](docs/work-orders/WO-P1-727-srm-policy-hardening.md): execution-time exposure parity, uniform dispatch wrapper and ALS remote attribution. FMG guards only four file tools today, not general process authorization. Explicit narrow `track_ui_event` exemption decision required. node:local/history exposure/write_pdf guardability are adjacent findings only.
 - Read [WO728](docs/work-orders/WO-P1-728-srm-python-semantic.md) and its linked issue refinement before the original rename checklist: v1 READ-ONLY Python defs/refs/documentSymbol, PythonSemanticAdapter + minimal pyright stdio client + extension/provider registry. Lazy optional provider, typed SEMANTIC_PROVIDER_UNAVAILABLE, session-cache reuse and owned-child lifecycle; no editor seam, no MCP mutation. Track B / CUTOVER-MUTATE holds; project-wide rename needs a separate future slice/gate decision.
 - Implementation repo is `aase7en/SunDayRemoteMCP`, NOT this docs worktree. Both seam maps are historical at `e44c48f`; implementer re-verifies at exact head. Bind each later lane separately and prove hotspot non-overlap. Delivery: exact reviewed head -> CI ID on that head -> expected-head-only merge -> exact post-main CI ID -> #727/#728 checkpoint. Fresh independent reviewer PASS before merge, not author self-review.
-- ORCH-1 /4 merged PR #722 (`93908af`), /6 merged PR #726 (`adf997e`), superseding older in-flight instructions. These are merge facts, not newly verified review/CI/live acceptance. /5 BLOCKED on integrator naming external Parent caller + queue-producer serialization owner. /7 BLOCKED on upstream A-Wiki #58 and downstream acceptance/reconciliation; fresh #58 state is CLOSED, not proof that the Conductor dependency is integrated/accepted. Keep #551 mutable-refill gate; no automatic unblocking.
+- ORCH-1 /4 merged PR #722 (`93908af`), /6 merged PR #726 (`adf997e`), /5 merged PR #735 (`09f683a`; amendment 6689258402 on #733, final head `65cca2c`, exact-head CI 42276408725, Jev concurrence, checkpoint 6694663460 with a disclosed final-delta re-review deviation — orchestrator line-trace + adversarial test audit because subagent quota was exhausted; post-main CI to be recorded on #733). WO-551 read-only strict claim consumption merged PR #734 (`c70c64c`, post-main 42268485266 SUCCESS) pinning A-Wiki PR #75 (`79f7937`, post-main 42263722887) and A-Wiki PR #73 GrillMe B (`6987467`); WO-551 closed on #551 (6692005967). /7 mutable refill still gated on integrator reconciliation of upstream A-Wiki #58 (closed, not accepted); no automatic unblocking.
 
 ### Lane Binding And Next Action
 
@@ -23,14 +23,16 @@ contract, real Python defs/refs on a_conductor, compact-mode hidden-tool
 refusal). Serena retired (#725 evidence). Evidence lives on issues #725/#727/
 #728 and PRs #41/#42 (SunDayRemoteMCP) — resume from those, not from chat.
 
-**Exact next safe action:** Mac-side deploy of SRM `2632fb2` (same flow as
-Windows: pull, npm install, build, exact-PID runtime recycle; Mac tunnel
-`tunnel_6a89476cecb881919151fc12a71d8e6b`); then optionally retire stale
-SRM gap lanes' worktrees (`SRM-727-hardening`, `SRM-728-python`,
-`SRM-pristine-base`) after their evidence is mirrored to the issues. Open
-decisions: ORCH-1 /5 naming reply (#709), /7 reconciliation (upstream A-Wiki
-#58 closed but not accepted), rename Track B gate. Preserve read-only v1 and
-the rename gate. No prior chat reconstruction is needed.
+**Exact next safe action:** (1) record post-main CI for #735 merge `09f683a`
+on #733 when the run completes; (2) Mac-side SRM `2632fb2` deploy was executed
+earlier this session on both Macs (Mac tunnel `tunnel_6a89476cecb881919151fc12a71d8e6b`)
+— reverify only on suspected drift; (3) stale SRM gap-lane worktrees
+(`SRM-727-hardening`, `SRM-728-python`, `SRM-pristine-base`) may be retired
+after evidence mirroring was confirmed on the issues (already done for the
+2026-11-06 merged lanes: grillme-b, claim-strict, AWC-551-claim, AWC-orch1-5
+removed). Open decisions: /7 reconciliation (upstream A-Wiki #58 closed but
+not accepted), rename Track B gate. Preserve read-only v1 and the rename
+gate. No prior chat reconstruction is needed.
 
 ## 2026-10-27 — ORCH-1 core closeout
 

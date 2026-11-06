@@ -23,9 +23,8 @@ issues carry the full evidence. This entry records status; issues own proof.
 
 ### ORCH-1 Fold-Back And Blockers
 
-- /4 dispatcher merged via PR #722 (`93908af`); /6 outcome observation merged via PR #726 (`adf997e`). These Git merge facts supersede older /4 in-flight and /6 offline-ready text below; no new live-runtime, review or post-main certification is asserted by this fold.
-- /5 remains BLOCKED on integrator naming decision: actual external Parent caller and queue-producer serialization owner, with existing alias/recovery/audit gates retained.
-- /7 remains BLOCKED on upstream [A-Wiki #58](https://github.com/aase7en/A-Wiki/issues/58) claim-authority dependency and downstream reconciliation. Fresh GitHub state says #58 CLOSED; closure alone is not accepted Conductor integration/post-main proof and does not unblock mutable refill. Preserve #551 acceptance requirements; integrator must reconcile the upstream resolution first.
+- /4 dispatcher merged via PR #722 (`93908af`); /6 outcome observation merged via PR #726 (`adf997e`); /5 external Parent admission merged via PR #735 (`09f683a`) after amendment approval on #733 (6689258402), three review/repair rounds (final head `65cca2c`: cross-queue submission check, read-only header+sidecar gates, post-read fence), exact-head CI 42276408725 green, Jev concurrence merge_now p=0.86; checkpoint [6694663460](https://github.com/aase7en/A-Wiki-Conductor/issues/733#issuecomment-6694663460) records the full chain incl. the disclosed deviation that the final delta re-review was an orchestrator line-trace + adversarial test audit (subagent quota exhausted 18:05/19:11/20:21). Post-main CI on `09f683a` recorded on #733 when complete.
+- /7 claim-authority: WO-551 delivered read-only strict claim consumption via PR #734 (merged `c70c64c`, post-main CI 42268485266 SUCCESS) pinning the A-Wiki strict claim contract (A-Wiki PR #75 merged `79f7937`, post-main CI 42263722887 SUCCESS; A-Wiki PR #73 GrillMe B merged `6987467`, post-main 42255377249 SUCCESS). WO-551 closed on #551 (6692005967). Mutable refill / durable release writer remains NOT accepted; /7 unblocking still requires integrator reconciliation of the upstream [A-Wiki #58](https://github.com/aase7en/A-Wiki/issues/58) resolution.
 
 ### Lane Checkpoint And Exact Next Safe Action
 
@@ -38,14 +37,15 @@ language-aware semantic descriptions, real Python defs/refs on a_conductor
 source, and compact-mode hidden-tool direct calls refused (`Unknown tool`).
 Serena workers 1-5 retired with supervisor app closed (see #725 evidence).
 
-**Exact next safe action (ordered):** (1) Mac-side deploy of SRM `2632fb2`
-(Mac clone `/Volumes/MAC_WORK/DevWorkspace/Github/SunDayRemoteMCP`, same
-pull/install/build/restart flow); (2) ORCH-1 /5 awaits the integrator naming
-reply on #709 (operator.v1 + dispatcher proposal posted); (3) /7 awaits upstream
-A-Wiki #58 closure reconciliation (closure alone is not acceptance); (4)
-project-wide rename needs its own Track B / CUTOVER-MUTATE gate decision before
-any mutation-surface work order. Do not infer any of these from this file;
-issues, WOs and actual repo/runtime state own truth.
+**Exact next safe action (ordered):** (1) record post-main CI for the #735
+merge `09f683a` on #733 when the run completes; (2) Mac-side SRM deploy of
+`2632fb2` was executed earlier this session on both Macs — reverify only if
+runtime drift is suspected; (3) /7 awaits integrator reconciliation of upstream
+A-Wiki #58 resolution (closure alone is not acceptance; WO-551 read-only
+consumption merged, mutable refill still gated); (4) project-wide rename needs
+its own Track B / CUTOVER-MUTATE gate decision before any mutation-surface
+work order. Do not infer any of these from this file; issues, WOs and actual
+repo/runtime state own truth.
 
 ## 2026-10-27 — ORCH-1 core (/1–/3) merged / POST_MAIN_VERIFIED / REVIEW_DEVIATION_REMEDIATION_PENDING — CURRENT
 
