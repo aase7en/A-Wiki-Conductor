@@ -110,10 +110,14 @@ class DurableJobControlService:
             max_attempts=max_attempts,
         )
 
-    def get_job(self, job_id: str) -> JobRuntimeState:
+    def get_job(self, job_id: str, *, read_only: bool = False) -> JobRuntimeState:
+        if read_only:
+            return self._store.get_job(job_id, read_only=True)
         return self._store.get_job(job_id)
 
-    def list_events(self, job_id: str) -> tuple[JobEvent, ...]:
+    def list_events(self, job_id: str, *, read_only: bool = False) -> tuple[JobEvent, ...]:
+        if read_only:
+            return self._store.list_events(job_id, read_only=True)
         return self._store.list_events(job_id)
 
     def mark_ready(self, job_id: str, *, expected_version: int) -> JobRuntimeState:

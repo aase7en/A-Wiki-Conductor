@@ -106,18 +106,91 @@ class SQLiteJobStore:
             lambda: f"job-event-{uuid.uuid4().hex}"
         )
 
-    @contextmanager
-    def _connect(self) -> Iterator[sqlite3.Connection]:
+    def _sidecar_path(self, suffix: str) -> Path:
+        return self.database_path.with_name(self.database_path.name + suffix)
+
+    def _refuse_unsafe_journal_state(self) -> None:
+        """Fail closed when WAL/shared-memory sidecars or a hot journal exist.
+
+        A read-only connection can still create ``-wal``/``-shm`` sidecars on
+        WAL databases (including a stale WAL file beside a rollback-journal
+        header), and a hot rollback journal requires recovery writes. Neither
+        state is safe for side-effect-free inspection, so refuse before
+        SQLite opens the file. An empty ``-journal`` leftover is inert.
+        """
+        for suffix in ("-wal", "-shm"):
+            if self._sidecar_path(suffix).exists():
+                raise JobStoreError("JOB_STORE_OPEN_FAILED")
+        journal = self._sidecar_path("-journal")
         try:
-            self.database_path.parent.mkdir(parents=True, exist_ok=True)
-            connection = sqlite3.connect(self.database_path)
+            hot = journal.stat().st_size > 0
+        except FileNotFoundError:
+            hot = False
+        except OSError as exc:
+            raise JobStoreError("JOB_STORE_OPEN_FAILED") from exc
+        if hot:
+            raise JobStoreError("JOB_STORE_OPEN_FAILED")
+
+    def _read_only_fence_snapshot(self) -> tuple[int, int]:
+        try:
+            stat = self.database_path.stat()
+        except OSError as exc:
+            raise JobStoreError("JOB_STORE_OPEN_FAILED") from exc
+        return (stat.st_size, stat.st_mtime_ns)
+
+    def _enforce_read_only_fence(self, snapshot: tuple[int, int]) -> None:
+        """Discard reads observed across a storage transition.
+
+        The pre-connect gate cannot make the header/sidecar inspection and
+        SQLite's open atomic; after the caller finishes reading, re-check the
+        journal state and database identity (size, mtime_ns). Any transition
+        turns the observation into a typed refusal instead of evidence.
+        """
+        self._refuse_unsafe_journal_state()
+        if self._read_only_fence_snapshot() != snapshot:
+            raise JobStoreError("JOB_STORE_OPEN_FAILED")
+
+    @contextmanager
+    def _connect(self, *, read_only: bool = False) -> Iterator[sqlite3.Connection]:
+        try:
+            fence: tuple[int, int] | None = None
+            if read_only:
+                # mode=ro can create WAL sidecars; inspect without SQLite first.
+                with self.database_path.open("rb") as database:
+                    header = database.read(100)
+                if (len(header) != 100 or header[:16] != b"SQLite format 3\x00"
+                        or header[18:20] != b"\x01\x01"):
+                    raise JobStoreError("JOB_STORE_OPEN_FAILED")
+                self._refuse_unsafe_journal_state()
+                fence = self._read_only_fence_snapshot()
+                connection = sqlite3.connect(
+                    self.database_path.resolve().as_uri() + "?mode=ro", uri=True
+                )
+            else:
+                self.database_path.parent.mkdir(parents=True, exist_ok=True)
+                connection = sqlite3.connect(self.database_path)
         except (OSError, sqlite3.Error) as exc:
             raise JobStoreError("JOB_STORE_OPEN_FAILED") from exc
         try:
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute("PRAGMA busy_timeout = 5000")
+            if read_only:
+                try:
+                    row = connection.execute(
+                        "SELECT value FROM job_store_meta WHERE key = 'schema_version'"
+                    ).fetchone()
+                except sqlite3.Error as exc:
+                    # A journal-state transition (e.g. hot -journal appearing
+                    # around the open) surfaces as a read error; classify the
+                    # unsafe state first so it stays an OPEN refusal.
+                    self._refuse_unsafe_journal_state()
+                    raise JobStoreError("JOB_STORE_READ_FAILED") from exc
+                if row is None or row["value"] != JOB_STORE_SCHEMA_VERSION:
+                    raise JobStoreError("JOB_STORE_SCHEMA_UNSUPPORTED")
             yield connection
+            if fence is not None:
+                self._enforce_read_only_fence(fence)
         finally:
             connection.close()
 
@@ -344,15 +417,20 @@ class SQLiteJobStore:
                 connection.rollback()
                 raise JobStoreError("JOB_STORE_WRITE_FAILED") from exc
 
-    def get_job(self, job_id: str) -> JobRuntimeState:
+    def get_job(self, job_id: str, *, read_only: bool = False) -> JobRuntimeState:
+        """Read a job; read_only never creates storage or initializes its schema."""
         _require_text(job_id, "job_id")
-        self.initialize()
-        with self._connect() as connection:
+        if not read_only:
+            self.initialize()
+        with self._connect(read_only=read_only) as connection:
             try:
                 return self._state_from_row(self._load_job_row(connection, job_id))
             except JobStoreError:
                 raise
             except sqlite3.Error as exc:
+                if read_only:
+                    # Classify unsafe journal transitions before generic failure.
+                    self._refuse_unsafe_journal_state()
                 raise JobStoreError("JOB_STORE_READ_FAILED") from exc
 
     @staticmethod
@@ -505,10 +583,12 @@ class SQLiteJobStore:
                 connection.rollback()
                 raise JobStoreError("JOB_STORE_WRITE_FAILED") from exc
 
-    def list_events(self, job_id: str) -> tuple[JobEvent, ...]:
+    def list_events(self, job_id: str, *, read_only: bool = False) -> tuple[JobEvent, ...]:
+        """Read events with optional non-initializing, read-only storage access."""
         _require_text(job_id, "job_id")
-        self.initialize()
-        with self._connect() as connection:
+        if not read_only:
+            self.initialize()
+        with self._connect(read_only=read_only) as connection:
             try:
                 exists = connection.execute(
                     "SELECT 1 FROM job_records WHERE job_id = ?", (job_id,)
@@ -525,6 +605,9 @@ class SQLiteJobStore:
             except JobStoreError:
                 raise
             except sqlite3.Error as exc:
+                if read_only:
+                    # Classify unsafe journal transitions before generic failure.
+                    self._refuse_unsafe_journal_state()
                 raise JobStoreError("JOB_STORE_READ_FAILED") from exc
 
         events: list[JobEvent] = []
