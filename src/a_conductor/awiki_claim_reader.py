@@ -48,9 +48,9 @@ _READ = """
 import json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path.cwd()))
-from conductor.state import ClaimLookupError, read_canonical_claim
+from conductor.state import ClaimLookupError, read_canonical_claim_strict
 try:
-    result = read_canonical_claim(Path(sys.argv[1]), sys.argv[2])
+    result = read_canonical_claim_strict(Path(sys.argv[1]), sys.argv[2])
 except ClaimLookupError as error:
     print(json.dumps({"ok": False, "error": str(error)}))
     sys.exit(1)
@@ -62,6 +62,7 @@ _UPSTREAM_ERRORS = frozenset({
     "CLAIM_NOT_FOUND", "CLAIM_AMBIGUOUS", "GIT_HISTORY_SHALLOW",
     "BRANCH_HEAD_UNRESOLVED", "BRANCH_UNBOUND", "BRANCH_INVALID",
     "OWNER_UNBOUND", "SCOPE_UNSAFE", "GIT_UNAVAILABLE", "TASK_ID_REQUIRED",
+    "CLAIM_TABLE_MALFORMED", "CLAIM_TABLE_UNAVAILABLE",
 })
 
 

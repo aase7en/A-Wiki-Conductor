@@ -17,16 +17,15 @@ User directly assigned this executor; no extra provider dispatch is needed.
 This candidate cannot activate mutable refill or replace WorkerLease, #498,
 DEX receipts, provider admission, scheduling, or the runtime mutation gate.
 
-Pin the upstream interface to A-Wiki PR #67 merge
-`4c817f2d5a8663501c0158fd49e054877c4cdad7`, `conductor.state.read_canonical_claim`
-and `awiki-claim-reader/v1` (state.py blob
-`abd95923ef6d34a64287dba55d148de01c4daa11`, unchanged at observed live main
-`66f0c16c334338ca891bb95ada06e61df377639a`). Do not parse COLLAB in Conductor.
-Live bridge.py and cli.py blobs also match the inspected merge:
-`b1d55cb48fe117c943b3dacd05443765015a252a` and
-`0c1270e2ebd7314bb9d7b227cbbb5c5dc0346e18`. Upstream Core CI run
-42216899259 is SUCCESS at 66f0c16 (the earlier merge run 42173289894 failed).
-This fresh CI evidence does not resolve the stale durable release decision.
+Pin the upstream interface to A-Wiki PR #75 merge
+`79f793788bc807e66d8e31f2e390c7d6475c8784`,
+`conductor.state.read_canonical_claim_strict` and `awiki-claim-reader/v1`
+(state.py blob `8bd3c75a6ded0c0ca7c8adbfd2cf78df6483919e`). This supersedes
+the original PR #67 lenient-reader pin `4c817f2d5a8663501c0158fd49e054877c4cdad7`
+/ blob `abd95923ef6d34a64287dba55d148de01c4daa11`. Do not parse COLLAB in
+Conductor. The strict reader delegates generation to `claim_generation_strict`;
+never add a lenient fallback. This repin does not resolve the stale durable
+release decision or certify upstream/downstream CI acceptance.
 The reader takes a repository root; that root determines `repository`, task,
 branch, generation and scope. A claim in A-Wiki is NOT a claim for AWC.
 The upstream CLI has no external-target flag for `claims`; wrap the published
@@ -93,3 +92,53 @@ No unrelated source fix or test exclusion is authorized; rerun with isolated
 test dependencies/bytecode and the CI GPU fallback setting before final freeze.
 Upstream release decision and independent review remain unresolved. No live
 claim for AWC #551 is fabricated from the unrelated A-Wiki #58 row.
+
+### PR #734 P1 Repair Evidence (2026-11-06)
+
+Continued the same R3 claim from clean tracked head
+`504b322ebf9f042dc6c74e16c5eafea903d39011`. Pre-existing untracked `.test-deps/`
+contains optional GPU packages, not an upstream snapshot; left untouched.
+Only the two claimed source/test files and this packet changed. Shared
+CURRENT-WORK/handoff fold-back remains integrator-owned per this packet.
+
+Pin mechanism: production accepts an operator-approved exact `authority_head`
+and checks the authority checkout's HEAD and clean status before/after reading.
+There was no built-in SHA/blob constant or vendored upstream snapshot. The
+approved revision above is now executable contract-test evidence through
+`UPSTREAM_REVISION` / `UPSTREAM_STATE_BLOB` in the reader tests. Tests fetch the
+real `conductor/state.py` at that exact public GitHub revision once per module,
+verify its Git blob hash before execution, and commit those unchanged bytes in
+a disposable authority repository. Fixture Git HEAD is local; the verified blob
+is the upstream code pin. Network failure fails the suite, never skips proof.
+No upstream source/parser is vendored or reimplemented in Conductor.
+GitHub API verified PR #75 MERGED at the exact SHA above and state.py blob match.
+
+Production now calls only `read_canonical_claim_strict`. New upstream table
+errors retain code-only `ClaimBindingError` refusals; `GIT_UNAVAILABLE` and
+`GIT_HISTORY_SHALLOW` remain typed. Unknown errors still refuse as
+`CLAIM_READER_FAILED`, never an empty-claim allowance. Existing response,
+transport, ambiguity, local binding and source/consumer drift checks remain.
+
+- RED: real-upstream subset on the lenient binding: 4 failed, 1 passed,
+  56 deselected. Both malformed-row cases and injected log/diff failures were
+  accepted (DID NOT RAISE). Malformed tests independently match the lenient
+  generation 2/claim ID so mismatched expected fields cannot mask the bypass.
+- GREEN: `python -m pytest tests/test_awiki_claim_reader.py -q`: 61 passed.
+  Includes five real-upstream cases and all upstream typed refusal codes.
+- Valid WO-P1-551 + short foreign-owner row: `CLAIM_TABLE_MALFORMED` refusal.
+- Valid claim + short Lane row + conflicting row: `CLAIM_TABLE_MALFORMED` refusal.
+- Git log and Git diff failure injected separately inside the actual upstream
+  subprocess: `GIT_UNAVAILABLE` refusal for each, no generation-1 acceptance.
+- Well-formed COLLAB: exact independently computed binding returned.
+- Related identity/native/WO/guards/dispatcher matrix: 219 passed via
+  `python -m pytest tests/test_project_identity.py tests/test_native_adapters.py tests/test_native_execution.py tests/test_work_order_identity.py tests/test_orchestration_guards.py tests/test_orchestration_dispatcher.py -q`.
+- Cheap CI platform-neutral command: 16 passed via
+  `python -m pytest tests/test_platform_support.py tests/test_branding.py tests/test_sh_templates.py -q`.
+
+G02: no real COLLAB or A-Wiki content mutations; all upstream and COLLAB fixture
+writes stay under pytest temporary directories. Contract cases assert unchanged
+COLLAB bytes across adapter calls and unchanged/clean authority source afterward.
+No runtime/process management, secrets, refill activation or merge performed.
+Full regression was not repeated for this bounded delta; historical full-suite
+results above are not a new-head certificate. Next gate: independent focused
+R3 re-review and exact-new-head hosted CI, then integrator-only merge/acceptance.
