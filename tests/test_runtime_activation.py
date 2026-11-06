@@ -1258,7 +1258,9 @@ def test_runtime_authority_initialization_serializes_same_process_schema_pressur
     real_connect = sqlite3.connect
 
     @contextmanager
-    def _short_busy_connect(self):
+    def _short_busy_connect(self, *, read_only: bool = False):
+        # Accept the read_only forwarding kwarg so the stub keeps matching the
+        # SQLiteJobStore._connect contract; contention testing ignores it.
         connection = real_connect(self.database_path, timeout=0.001)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")

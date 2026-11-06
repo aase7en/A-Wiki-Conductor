@@ -356,6 +356,101 @@ def test_read_only_audit_journal_mode_never_creates_sidecars(tmp_path, accessor,
 
 
 @pytest.mark.parametrize("accessor", ["get_job", "list_events"])
+def test_read_only_audit_stale_wal_refuses_without_creating_shm(tmp_path, accessor):
+    f = fixture(tmp_path)
+    path = f.store.database_path
+    wal = path.with_name(path.name + "-wal")
+    shm = path.with_name(path.name + "-shm")
+    connection = sqlite3.connect(path)
+    try:
+        assert connection.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+        connection.execute("UPDATE job_records SET project_id = 'stale-wal'")
+        connection.commit()
+        stale_wal = wal.read_bytes()
+    finally:
+        connection.close()
+    connection = sqlite3.connect(path)
+    try:
+        assert connection.execute("PRAGMA journal_mode=DELETE").fetchone()[0] == "delete"
+        connection.execute("UPDATE job_records SET project_id = 'current-main'")
+        connection.commit()
+    finally:
+        connection.close()
+    assert f.store.get_job("job:1", read_only=True).project_id == "current-main"
+    before = path.read_bytes()
+    assert before[18:20] == b"\x01\x01"
+    wal.write_bytes(stale_wal)
+    assert not shm.exists()
+    with pytest.raises(JobStoreError, match="^JOB_STORE_OPEN_FAILED$"):
+        getattr(f.store, accessor)("job:1", read_only=True)
+    assert path.read_bytes() == before
+    assert wal.read_bytes() == stale_wal
+    assert not shm.exists()
+
+
+@pytest.mark.parametrize("accessor", ["get_job", "list_events"])
+@pytest.mark.parametrize("suffix", ["-wal", "-shm", "-journal"])
+def test_read_only_audit_existing_sidecar_refuses_without_effects(tmp_path, accessor, suffix):
+    f = fixture(tmp_path)
+    path = f.store.database_path
+    sidecar = path.with_name(path.name + suffix)
+    sidecar.write_bytes(b"hot-journal" if suffix == "-journal" else b"")
+    before = {item.name: item.read_bytes() for item in tmp_path.iterdir()}
+    with pytest.raises(JobStoreError, match="^JOB_STORE_OPEN_FAILED$"):
+        getattr(f.store, accessor)("job:1", read_only=True)
+    assert {item.name: item.read_bytes() for item in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("accessor", ["get_job", "list_events"])
+def test_read_only_audit_empty_journal_is_inert(tmp_path, accessor):
+    f = fixture(tmp_path)
+    path = f.store.database_path
+    path.with_name(path.name + "-journal").touch()
+    before = {item.name: item.read_bytes() for item in tmp_path.iterdir()}
+    assert getattr(f.store, accessor)("job:1", read_only=True)
+    assert {item.name: item.read_bytes() for item in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("accessor", ["get_job", "list_events"])
+@pytest.mark.parametrize("change", ["-wal", "-shm", "-journal", "size", "mtime"])
+def test_read_only_audit_post_read_fence_discards_result(tmp_path, monkeypatch, accessor, change):
+    f = fixture(tmp_path)
+    path = f.store.database_path
+    original_connect = sqlite3.connect
+    reads = []
+
+    class ObservedConnection(sqlite3.Connection):
+        def execute(self, sql, *args, **kwargs):
+            result = super().execute(sql, *args, **kwargs)
+            if "FROM job_records" in sql or "FROM job_events" in sql:
+                reads.append(sql)
+            return result
+
+    def connect(*args, **kwargs):
+        connection = original_connect(*args, **kwargs, factory=ObservedConnection)
+        if change.startswith("-"):
+            path.with_name(path.name + change).write_bytes(b"transition")
+        elif change == "size":
+            with path.open("ab") as database:
+                database.write(b"\x00" * 4096)
+        else:
+            import os
+            stat = path.stat()
+            os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+        return connection
+
+    monkeypatch.setattr("a_conductor.job_store.sqlite3.connect", connect)
+    with pytest.raises(JobStoreError, match="^JOB_STORE_OPEN_FAILED$"):
+        getattr(f.store, accessor)("job:1", read_only=True)
+    if change != "-journal":
+        assert reads, "the fence must discard an otherwise successful accessor read"
+    # A non-empty -journal makes SQLite refuse reads on a read-only connection
+    # outright ("attempt to write a readonly database"), so the typed refusal
+    # fires at the journal-state boundary before any data observation — an
+    # earlier, strictly safer refusal than the post-read fence (SQLite 3.53).
+
+
+@pytest.mark.parametrize("accessor", ["get_job", "list_events"])
 @pytest.mark.parametrize("header", [b"", b"not-sqlite", b"x" * 100])
 def test_read_only_audit_invalid_header_is_typed_refusal(tmp_path, accessor, header):
     path = tmp_path / "audit.sqlite"
