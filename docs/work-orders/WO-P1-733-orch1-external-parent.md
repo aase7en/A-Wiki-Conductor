@@ -5,7 +5,7 @@ Issue: #733
 
 Parent: #709 (ORCH-1 foundation).
 
-Status: RESUMED / APPROVED_OFFLINE_SUBSET / IMPLEMENTATION_IN_PROGRESS.
+Status: AUTHOR_VERIFIED_OFFLINE_SUBSET / REVIEW_PENDING / NO_OPERATIONAL_ACCEPTANCE.
 Classification: R3 / CONTROL_PLANE_ONLY.
 Owner: Windows implementation executor, not architecture acceptance authority.
 Claim: ORCH-1-5-EXTERNAL-PARENT-001 / #733 comment 6687958728.
@@ -37,7 +37,8 @@ approves M2 v2 offline design, separating credential authentication from task
 admission. No Desktop Commander token or issuer may substitute for Sunday trust.
 No new trust anchor, production issuance, key ceremony or secret inspection here.
 
-Current mutable allowlist: this new work order and the explicitly requested
+Original bootstrap mutable allowlist (superseded by approved resumption below):
+this new work order and the explicitly requested
 local `.status-orch1-5.md` checkpoint only. Product/source/tests remain read-only
 until the unresolved frozen authority gates below are reconciled. Proposed later
 source scope is an additive operator admission seam plus tests, the existing
@@ -190,6 +191,51 @@ before their respective repairs. Final targeted + direct dependency selection:
 per-process verification in progress under ignored runs/WO-P1-733/verify_ci.py;
 GUI group **500 passed / 2 skipped**. No independent review/hosted CI/full-suite
 PASS claimed yet. Shared continuity remains integrator-owned.
+
+### Final Author Verification And Handoff
+
+Source/test freeze: `c982d69f442239c40ccbb42ed0358913c74a9fcf`, normally pushed
+to `origin/feat/orch1-external-parent`; PR
+https://github.com/aase7en/A-Wiki-Conductor/pull/735 . Follow-up documentation
+commit records final verification without changing those source/test blobs.
+
+Full local workflow-equivalent test coverage completed all **218 process groups**
+in **1234.94s** with **7139 passed / 24 skipped / 2 failed**. The sole failing
+suite was `test_gpu_particle_logo.py`: absent optional OpenGL dependencies caused
+the grouped GPU import to clear Image and a direct OpenGL import to fail.
+Installed only into ignored lane-local `runs/WO-P1-733/test-deps` (moderngl 5.13.0,
+pyopengltk 0.0.4, PyOpenGL 3.1.10, glcontext 3.1.0). No global environment or
+production files changed. With that directory plus this lane's src in PYTHONPATH
+and `A_CONDUCTOR_GPU_PARTICLES=0`, the identical GPU suite passes **17 / 2 skipped**
+(replaces 13 passed / 4 skipped / 2 failed). Cumulative verification therefore
+is **7143 passed / 22 skipped / 0 unresolved failures**, not a claim of one
+uninterrupted green run. Original failure logs remain intact. All 82 new Parent
+tests also passed in the full run; GUI group was **500 passed / 2 skipped**.
+
+Application smoke with explicit lane source binding and lane-local DB returned
+`A-CONDUCTOR_SMOKE_OK projects=0 workers=3`; bare `python -m a_conductor` initially
+failed because this checkout was not installed in the ambient interpreter.
+No package/global-config workaround or source repair was made. Packaging/frozen,
+real credential verification, real queue effects and live activation are NOT
+claimed. Four-file scope/diff checks passed; worker dispatcher, operator action
+set, runtime registration and shared coordination artifacts are byte-unchanged.
+
+New composition reason catalog: ORCH_PARENT_CONFIGURATION_INVALID,
+ORCH_PARENT_CALLER_DENIED, ORCH_PARENT_CREDENTIAL_DENIED,
+ORCH_PARENT_AUDIT_OWNER_REQUIRED, ORCH_PARENT_IDENTITY_UNRESOLVED,
+ORCH_PARENT_BINDING_DRIFT, ORCH_PARENT_TURN_ACTIVE,
+ORCH_PARENT_PRIOR_SUBMISSION_UNRESOLVED, ORCH_PARENT_RECOVERY_UNRESOLVED,
+ORCH_PARENT_RESULT_ATTACHED and ORCH_SUBMISSION_OBSERVED. Existing codec,
+guard, audit/reconciliation/version and serialization reasons are preserved.
+
+Remaining gates: independent exact-SHA R3 review, exact-head hosted CI and GPT
+integrator acceptance. Production operator/verifier action mapping and proven
+ALL-producer serialization are deliberately deferred by approval, not invented
+or certified here. No source outside the exact allowlist; no provider/secret
+operation, process kill, other-worktree mutation, force push, merge or issue
+closure. No outstanding local execution; source claim frozen for review.
+Integrator owns shared CURRENT-WORK/handoff/COLLAB fold-back from this WO and
+the final #733 checkpoint. Cleanup NOT_NEEDED; retain lane/evidence for review.
 
 2026-11-06: created requested isolated worktree FIRST after fetch. Live origin/main
 was 746a380d979a0d9d112f15371505b307f7c3b271, matching new clean branch HEAD.
