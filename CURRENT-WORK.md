@@ -1,5 +1,44 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-06 - SRM gap-closeout #727/#728 / Serena retirement #725 - CURRENT
+
+This entry supersedes older frontier instructions below where they conflict.
+Verified docs base: `origin/main@adf997e5d2eaa3411a6d348b110daa8e11fd56b1`.
+Active program: [#727](https://github.com/aase7en/A-Wiki-Conductor/issues/727)
+policy hardening + [#728](https://github.com/aase7en/A-Wiki-Conductor/issues/728)
+read-only Python semantics, with [#725](https://github.com/aase7en/A-Wiki-Conductor/issues/725)
+Serena retirement IN_PROGRESS. This is governing docs, not implementation proof.
+
+### Decisions And Active Scope
+
+- BUILD: Python semantic support and tool-policy hardening. Multi-language means working-set-only (Python now, existing TS/JS retained), not Serena's 40+ languages.
+- SKIP: Serena memstore, REPL-UX, SSH-bridge and in-memory-exec as duplicate/no demonstrated need; these decisions do not certify unrelated exec surfaces as safe.
+- [#725 decision checkpoint](https://github.com/aase7en/A-Wiki-Conductor/issues/725#issuecomment-6678658891): full retirement of all five Serena workers approved; all-worker stop is EXECUTING per program handoff, not verified complete here. Own stop scripts/exact PID identity only; preserve SundayMCP-Windows, other MCP services and rollback tunnels. This docs lane performs no stops, restarts, archives or connector cleanup.
+- [WO727](docs/work-orders/WO-P1-727-srm-policy-hardening.md): CallTool exposure parity, one policy -> guard -> handler seam for every case, ALS per-request attribution. `track_ui_event` narrow exemption decision must be explicit. Adjacent node:local/history/PDF-guard findings remain out of scope.
+- [WO728](docs/work-orders/WO-P1-728-srm-python-semantic.md): posted refinement makes v1 READ-ONLY defs/refs/documentSymbol via PythonSemanticAdapter + minimal pyright LSP stdio client + extension/provider registry. NO editor seam or MCP mutation; Track B / CUTOVER-MUTATE holds. Project-wide rename is a separate future slice/gate, not accepted by v1.
+- Implementations belong in separate claimed `aase7en/SunDayRemoteMCP` lanes. Both maps were researched at `e44c48f`; re-verify anchors at actual implementation head. Exact reviewed head -> CI run ID on that head -> expected-head-only merge -> exact post-main CI ID -> checkpoint on driving #727/#728. Fresh independent reviewer PASS required, never self-review acceptance.
+
+### ORCH-1 Fold-Back And Blockers
+
+- /4 dispatcher merged via PR #722 (`93908af`); /6 outcome observation merged via PR #726 (`adf997e`). These Git merge facts supersede older /4 in-flight and /6 offline-ready text below; no new live-runtime, review or post-main certification is asserted by this fold.
+- /5 remains BLOCKED on integrator naming decision: actual external Parent caller and queue-producer serialization owner, with existing alias/recovery/audit gates retained.
+- /7 remains BLOCKED on upstream [A-Wiki #58](https://github.com/aase7en/A-Wiki/issues/58) claim-authority dependency and downstream reconciliation. Fresh GitHub state says #58 CLOSED; closure alone is not accepted Conductor integration/post-main proof and does not unblock mutable refill. Preserve #551 acceptance requirements; integrator must reconcile the upstream resolution first.
+
+### Lane Checkpoint And Exact Next Safe Action
+
+Docs claim `GAP-CLOSEOUT-727-728-DOCS-001`, owner Windows docs-lane executor,
+worktree `A:\GitHub\AWC-gapclose-gov`, branch `docs/gap-closeout-727-728`.
+Exactly four files: WO727, WO728, CURRENT-WORK.md and handoff.md. Clean base and
+remote verified before edits; prior history preserved. Commit/push/docs PR only;
+NO merge, source/test/config/runtime changes or protected stale root edits.
+Docs PR records candidate SHA/verification; implementation gates remain NOT_RUN.
+
+**Exact next safe action:** orchestrator independently reviews this docs candidate
+and handles review/merge; separately reconcile #725 stop evidence and upstream
+#58, then bind non-overlapping SRM implementation lanes from these WOs. Do not
+infer worker-stop completion, rename permission or retirement acceptance from
+docs publication. Resume from actual Git/GitHub and this entry plus handoff.
+
 ## 2026-10-27 — ORCH-1 core (/1–/3) merged / POST_MAIN_VERIFIED / REVIEW_DEVIATION_REMEDIATION_PENDING — CURRENT
 
 This entry supersedes older CURRENT/frontier instructions below where they

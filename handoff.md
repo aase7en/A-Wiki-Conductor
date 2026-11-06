@@ -1,5 +1,34 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-06 - SRM gap-closeout / Serena retirement governing docs
+
+Resume from universal entry, actual Git/GitHub and this entry/CURRENT-WORK,
+not the older ORCH frontier below. Authority-repo docs base:
+`adf997e5d2eaa3411a6d348b110daa8e11fd56b1` (`origin/main` verified).
+
+- Active work: #727 SRM policy hardening, #728 read-only Python semantics, #725 Serena retirement IN_PROGRESS. [#725 decision](https://github.com/aase7en/A-Wiki-Conductor/issues/725#issuecomment-6678658891) collapses prior staged retirement; all-worker stop is EXECUTING per program handoff, not verified complete by this lane. Exact owned stop paths only; keep SundayMCP-Windows/other MCP services and rollback tunnels untouched. No operational action performed here.
+- BUILD = Python semantic + hardening. SKIP = memstore / REPL-UX / SSH-bridge / in-memory-exec. Multi-language = working-set-only: Python now, existing TS/JS; no breadth replication.
+- Read [WO727](docs/work-orders/WO-P1-727-srm-policy-hardening.md): execution-time exposure parity, uniform dispatch wrapper and ALS remote attribution. FMG guards only four file tools today, not general process authorization. Explicit narrow `track_ui_event` exemption decision required. node:local/history exposure/write_pdf guardability are adjacent findings only.
+- Read [WO728](docs/work-orders/WO-P1-728-srm-python-semantic.md) and its linked issue refinement before the original rename checklist: v1 READ-ONLY Python defs/refs/documentSymbol, PythonSemanticAdapter + minimal pyright stdio client + extension/provider registry. Lazy optional provider, typed SEMANTIC_PROVIDER_UNAVAILABLE, session-cache reuse and owned-child lifecycle; no editor seam, no MCP mutation. Track B / CUTOVER-MUTATE holds; project-wide rename needs a separate future slice/gate decision.
+- Implementation repo is `aase7en/SunDayRemoteMCP`, NOT this docs worktree. Both seam maps are historical at `e44c48f`; implementer re-verifies at exact head. Bind each later lane separately and prove hotspot non-overlap. Delivery: exact reviewed head -> CI ID on that head -> expected-head-only merge -> exact post-main CI ID -> #727/#728 checkpoint. Fresh independent reviewer PASS before merge, not author self-review.
+- ORCH-1 /4 merged PR #722 (`93908af`), /6 merged PR #726 (`adf997e`), superseding older in-flight instructions. These are merge facts, not newly verified review/CI/live acceptance. /5 BLOCKED on integrator naming external Parent caller + queue-producer serialization owner. /7 BLOCKED on upstream A-Wiki #58 and downstream acceptance/reconciliation; fresh #58 state is CLOSED, not proof that the Conductor dependency is integrated/accepted. Keep #551 mutable-refill gate; no automatic unblocking.
+
+### Lane Binding And Next Action
+
+Claim `GAP-CLOSEOUT-727-728-DOCS-001`, explicitly assigned Windows docs executor;
+worktree `A:\GitHub\AWC-gapclose-gov`, branch `docs/gap-closeout-727-728`,
+base above. Sole mutable allowlist is WO727, WO728, CURRENT-WORK.md and this
+handoff. Initial tree clean; no src/tests/config/runtime or other worktree edits.
+Protected stale root `A:\GitHub\A-Wiki-Conductor` remains untouched. Docs PR
+contains exact candidate/verification; no SRM implementation, process-stop
+completion, independent review PASS, CI or post-main evidence is fabricated.
+
+**Exact next safe action:** orchestrator reviews the docs PR and owns any merge;
+reconcile #725 actual stop evidence and #58 upstream resolution, then assign
+separate SRM implementation claims from these WOs. Preserve read-only v1 and
+rename gate. This executor must NOT merge or operate workers. No prior chat
+reconstruction is needed; issues, WOs and actual repo/runtime state own truth.
+
 ## 2026-10-27 — ORCH-1 core closeout
 
 Resume from actual Git/GitHub plus this entry and CURRENT-WORK, not the older
