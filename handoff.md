@@ -15,19 +15,22 @@ not the older ORCH frontier below. Authority-repo docs base:
 
 ### Lane Binding And Next Action
 
-Claim `GAP-CLOSEOUT-727-728-DOCS-001`, explicitly assigned Windows docs executor;
-worktree `A:\GitHub\AWC-gapclose-gov`, branch `docs/gap-closeout-727-728`,
-base above. Sole mutable allowlist is WO727, WO728, CURRENT-WORK.md and this
-handoff. Initial tree clean; no src/tests/config/runtime or other worktree edits.
-Protected stale root `A:\GitHub\A-Wiki-Conductor` remains untouched. Docs PR
-contains exact candidate/verification; no SRM implementation, process-stop
-completion, independent review PASS, CI or post-main evidence is fabricated.
+Gap-closeout executed (2026-11-06): WO docs PR #729 merged (`3c3c3ef`); SRM
+PR #42 policy hardening merged (`173f9a2`); SRM PR #41 Python semantic
+read-only v1 merged (`2632fb2`) after P2 repair + independent re-review;
+SundayMCP-Windows runtime redeployed and verified on deployed code (tool
+contract, real Python defs/refs on a_conductor, compact-mode hidden-tool
+refusal). Serena retired (#725 evidence). Evidence lives on issues #725/#727/
+#728 and PRs #41/#42 (SunDayRemoteMCP) — resume from those, not from chat.
 
-**Exact next safe action:** orchestrator reviews the docs PR and owns any merge;
-reconcile #725 actual stop evidence and #58 upstream resolution, then assign
-separate SRM implementation claims from these WOs. Preserve read-only v1 and
-rename gate. This executor must NOT merge or operate workers. No prior chat
-reconstruction is needed; issues, WOs and actual repo/runtime state own truth.
+**Exact next safe action:** Mac-side deploy of SRM `2632fb2` (same flow as
+Windows: pull, npm install, build, exact-PID runtime recycle; Mac tunnel
+`tunnel_6a89476cecb881919151fc12a71d8e6b`); then optionally retire stale
+SRM gap lanes' worktrees (`SRM-727-hardening`, `SRM-728-python`,
+`SRM-pristine-base`) after their evidence is mirrored to the issues. Open
+decisions: ORCH-1 /5 naming reply (#709), /7 reconciliation (upstream A-Wiki
+#58 closed but not accepted), rename Track B gate. Preserve read-only v1 and
+the rename gate. No prior chat reconstruction is needed.
 
 ## 2026-10-27 — ORCH-1 core closeout
 

@@ -7,7 +7,10 @@ Verified docs base: `origin/main@adf997e5d2eaa3411a6d348b110daa8e11fd56b1`.
 Active program: [#727](https://github.com/aase7en/A-Wiki-Conductor/issues/727)
 policy hardening + [#728](https://github.com/aase7en/A-Wiki-Conductor/issues/728)
 read-only Python semantics, with [#725](https://github.com/aase7en/A-Wiki-Conductor/issues/725)
-Serena retirement IN_PROGRESS. This is governing docs, not implementation proof.
+Serena retirement EXECUTED. Status 2026-11-06 (late): #727 and #728 merged to
+SRM main (`173f9a2`, `2632fb2`), deployed to the SundayMCP-Windows runtime
+(tunnel 21484 / node 16300) and verified on deployed code — checkpoints on the
+issues carry the full evidence. This entry records status; issues own proof.
 
 ### Decisions And Active Scope
 
@@ -26,18 +29,23 @@ Serena retirement IN_PROGRESS. This is governing docs, not implementation proof.
 
 ### Lane Checkpoint And Exact Next Safe Action
 
-Docs claim `GAP-CLOSEOUT-727-728-DOCS-001`, owner Windows docs-lane executor,
-worktree `A:\GitHub\AWC-gapclose-gov`, branch `docs/gap-closeout-727-728`.
-Exactly four files: WO727, WO728, CURRENT-WORK.md and handoff.md. Clean base and
-remote verified before edits; prior history preserved. Commit/push/docs PR only;
-NO merge, source/test/config/runtime changes or protected stale root edits.
-Docs PR records candidate SHA/verification; implementation gates remain NOT_RUN.
+Gap-closeout program state (2026-11-06): WO docs merged (PR #729, main `3c3c3ef`);
+SRM PR #42 (policy hardening) merged `173f9a2` after review PASS + Codespell +
+pristine-base attribution; SRM PR #41 (Python semantic read-only v1) merged
+`2632fb2` after full review, 2×P2 repair (`3e3577d`) and independent re-review
+PASS. Windows runtime deployed and verified: 42-tool contract with
+language-aware semantic descriptions, real Python defs/refs on a_conductor
+source, and compact-mode hidden-tool direct calls refused (`Unknown tool`).
+Serena workers 1-5 retired with supervisor app closed (see #725 evidence).
 
-**Exact next safe action:** orchestrator independently reviews this docs candidate
-and handles review/merge; separately reconcile #725 stop evidence and upstream
-#58, then bind non-overlapping SRM implementation lanes from these WOs. Do not
-infer worker-stop completion, rename permission or retirement acceptance from
-docs publication. Resume from actual Git/GitHub and this entry plus handoff.
+**Exact next safe action (ordered):** (1) Mac-side deploy of SRM `2632fb2`
+(Mac clone `/Volumes/MAC_WORK/DevWorkspace/Github/SunDayRemoteMCP`, same
+pull/install/build/restart flow); (2) ORCH-1 /5 awaits the integrator naming
+reply on #709 (operator.v1 + dispatcher proposal posted); (3) /7 awaits upstream
+A-Wiki #58 closure reconciliation (closure alone is not acceptance); (4)
+project-wide rename needs its own Track B / CUTOVER-MUTATE gate decision before
+any mutation-surface work order. Do not infer any of these from this file;
+issues, WOs and actual repo/runtime state own truth.
 
 ## 2026-10-27 — ORCH-1 core (/1–/3) merged / POST_MAIN_VERIFIED / REVIEW_DEVIATION_REMEDIATION_PENDING — CURRENT
 
