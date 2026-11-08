@@ -123,8 +123,14 @@ unchanged; no second vocabulary):
   more than once (facts projection + graph-state projection); a
   boundary-level read monitor proves that the parent identity seen by the
   verdict check equals the identity of the final projected observation.
-  Conflicting reads fail closed here BEFORE the verdict cross-check and
-  can never select.
+  Every monitored read's identity tuple is normalized AT CAPTURE with the
+  same exact-type rules as the ingress (version: exact plain int;
+  job_id: exact plain non-empty str; state: exact TaskState) and the
+  consistency proof compares only normalized plain tuples, so a hostile
+  capture (e.g. an int subclass with lying/detonating comparators) is
+  recorded as inconsistent — its ``__eq__``/``__hash__`` are never
+  invoked. Conflicting or non-plain reads fail closed here BEFORE the
+  verdict cross-check and can never select.
 
 Planner containment (existing planner vocabulary passed through unchanged):
 - ``PARENT_NODE_UNKNOWN`` / ``GRAPH_CYCLE`` /
@@ -297,18 +303,44 @@ class ContinuationJobReader(Protocol):
     def get_job(self, job_id: str): ...
 
 
+def _normalize_parent_read_identity(
+    identity: tuple[object, object, object],
+) -> tuple[object, object, object]:
+    """Normalize one monitored parent-read identity AT CAPTURE with the
+    same exact-type rules as the module ingress (version: exact plain
+    ``int`` — bool and int subclasses rejected without invoking any
+    comparator; job_id: exact plain non-empty ``str``; state: exact
+    ``TaskState``). A non-plain field cannot be represented in the
+    plain-only comparison domain and is recorded as ``None``, which
+    marks the read inconsistent (driving the same
+    ``OBSERVATION_INCONSISTENT`` blocker) — the hostile value itself is
+    dropped so its comparators/hash can never be invoked downstream.
+    """
+    job_id, state, version = identity
+    if type(version) is not int:
+        version = None
+    if type(job_id) is not str or not job_id.strip():
+        job_id = None
+    if type(state) is not TaskState:
+        state = None
+    return (job_id, state, version)
+
+
 class _ParentReadMonitor:
     """Read-recording delegation port for one observation boundary.
 
     Wraps the injected jobs reader passed to ``observe_next_ready_facts``
     and records the durable identity (job_id/state/version) of every read
-    of the parent job made inside that boundary. The reused seam reads the
-    parent job more than once (facts projection + graph-state projection);
-    the recorded identities let the consumer prove that the parent identity
-    seen by the verdict cross-check equals the identity of the final
-    projected observation. Delegation is verbatim: no read is added,
-    dropped, retried, or reordered, and exceptions propagate unchanged into
-    the existing observation containment.
+    of the parent job made inside that boundary, NORMALIZED AT CAPTURE
+    (:func:`_normalize_parent_read_identity` — exact-type rules identical
+    to the module ingress; a non-plain capture is recorded as
+    inconsistent). The reused seam reads the parent job more than once
+    (facts projection + graph-state projection); the recorded identities
+    let the consumer prove that the parent identity seen by the verdict
+    cross-check equals the identity of the final projected observation.
+    Delegation is verbatim: no read is added, dropped, retried, or
+    reordered, and exceptions propagate unchanged into the existing
+    observation containment.
     """
 
     def __init__(self, reader: ContinuationJobReader, parent_job_id: str) -> None:
@@ -321,10 +353,12 @@ class _ParentReadMonitor:
         if job_id == self._parent_job_id:
             try:
                 self.parent_reads.append(
-                    (
-                        getattr(job, "job_id", None),
-                        getattr(job, "state", None),
-                        getattr(job, "version", None),
+                    _normalize_parent_read_identity(
+                        (
+                            getattr(job, "job_id", None),
+                            getattr(job, "state", None),
+                            getattr(job, "version", None),
+                        )
                     )
                 )
             except Exception:
@@ -337,10 +371,16 @@ def _parent_observation_consistent(
     reads: list[tuple[object, object, object]],
     parent: ParentCompletion,
 ) -> bool:
-    """True iff repeated parent observations agree with each other AND with
-    the parent identity used for the verdict cross-check (fail closed on
-    any doubt, including unhashable or missing identity evidence)."""
+    """True iff repeated parent observations agree with each other AND
+    with the parent identity used for the verdict cross-check (fail
+    closed on any doubt). Operates ONLY on capture-normalized plain
+    tuples: any read containing a non-plain (inconsistent) capture fails
+    closed here, and the agreement proof (set membership / equality)
+    therefore never invokes a hostile comparator or hash."""
     try:
+        for read in reads:
+            if read[0] is None or read[1] is None or read[2] is None:
+                return False
         if len(reads) > 1 and len(set(reads)) != 1:
             return False
         identity = (parent.job_id, parent.state, parent.version)

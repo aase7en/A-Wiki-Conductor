@@ -1585,3 +1585,84 @@ class TestObservedSideIngressNormalization:
         assert "PARENT_JOB_IDENTITY_NOT_PLAIN" in outcome.detail
         assert outcome.selected_node_id is None
         assert outcome.planner_decision is None
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Read-monitor capture normalization (R5 adjudicated lane, Terra (a) 0.82)
+# ══════════════════════════════════════════════════════════════════════
+
+
+class _LyingEqHostileVersion(int):
+    """Read-2 version: int subclass representing 8 whose ``__eq__``
+    always claims EQUAL (even against plain 7) and whose ``__hash__``
+    equals ``hash(7)``, so a RAW captured-identity set() dedups the
+    conflicting read and launders the flip into a selection."""
+
+    eq_invocations = 0
+    hash_invocations = 0
+
+    def __eq__(self, other: object) -> bool:
+        type(self).eq_invocations += 1
+        return True
+
+    def __ne__(self, other: object) -> bool:
+        type(self).eq_invocations += 1
+        return False
+
+    def __hash__(self) -> int:
+        type(self).hash_invocations += 1
+        return hash(7)
+
+
+class PlainThenHostileParentJobs:
+    """Parent identity flips between repeated reads inside one boundary:
+    read 1 (facts projection) = plain COMPLETE v7; read 2 (graph-state
+    projection) = COMPLETE v8 as a lying int subclass. Each read is
+    individually valid (JobRuntimeState, plain job_id/state), so only
+    capture-time identity normalization can detect the flip without ever
+    invoking the hostile comparators."""
+
+    def __init__(self, parent_job_id: str) -> None:
+        self._parent_job_id = parent_job_id
+        self.parent_read_count = 0
+
+    def get_job(self, job_id: str):
+        if job_id == self._parent_job_id:
+            self.parent_read_count += 1
+            if self.parent_read_count == 1:
+                return _job(TaskState.COMPLETE, PARENT, version=PARENT_VERSION)
+            return _forged_parent_job(version=_LyingEqHostileVersion(8))
+        raise JobStoreError("JOB_NOT_FOUND")
+
+
+def test_read_monitor_hostile_version_capture_blocked_not_selected() -> None:
+    # R5 reproduction (Terra verdict (a) 0.82): the parent read monitor
+    # captures RAW identity tuples, so a read-2 version that is an int
+    # subclass with __eq__ always claiming EQUAL and __hash__ == hash(7)
+    # dedups inside the raw set() consistency proof: read 1 (plain 7,
+    # projected into facts.parent) and read 2 (hostile 8) present as ONE
+    # identity, the flip launders through the boundary, and the seam
+    # SELECTS on a conflicting observation. Capture-time exact-type
+    # normalization must record the non-plain read as inconsistent and
+    # fail closed as OBSERVATION_INCONSISTENT:PARENT_JOB_READS_CONFLICT
+    # — with the hostile __eq__/__hash__ never invoked anywhere.
+    parent_job_id = GraphDispatchKey(GRAPH, RUN, PARENT).job_id
+    jobs = PlainThenHostileParentJobs(parent_job_id)
+    outcome = select_verified_next_ready(
+        jobs=jobs,
+        completion_verifier=FakeVerifier(_verdict()),  # verdict binds v7
+        graph=_chain_graph(),
+        graph_id=GRAPH,
+        graph_run_id=RUN,
+        parent_node_id=PARENT,
+        guards=_guards(),
+    )
+    assert jobs.parent_read_count == 2  # double-read boundary proven
+    assert outcome.kind is VerifiedNextReadyOutcomeKind.BLOCKED
+    assert outcome.blocker_code == "OBSERVATION_INCONSISTENT"
+    assert outcome.detail == "OBSERVATION_INCONSISTENT:PARENT_JOB_READS_CONFLICT"
+    assert outcome.selected_node_id is None
+    assert outcome.planner_decision is None
+    # no hostile comparator or hash was ever invoked inside the seam
+    assert _LyingEqHostileVersion.eq_invocations == 0
+    assert _LyingEqHostileVersion.hash_invocations == 0
