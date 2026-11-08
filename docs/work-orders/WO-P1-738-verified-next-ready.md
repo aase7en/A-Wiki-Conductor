@@ -1,11 +1,11 @@
 # WO-P1-738 Verified NEXT READY Selection (verify-then-select)
 
 Issue: #738
-Status: PARKED_ROUND_3 / REVIEW_R6_PARK / NOT_PUBLISHED_TO_MAIN
+Status: PARKED_ROUND_4 / REVIEW_R7_PARK / NOT_PUBLISHED_TO_MAIN
 Classification: R3 read-only durable-state boundary (offline fixture-provable)
 Base: `a0eccf289f69dbf61b13cb2a9b8c0b581a3ca217`
 Worktree: `/Volumes/MAC_WORK/DevWorkspace/Github/A-Wiki-Conductor-wo738-bootstrap`
-Branch: `fix/wo738-monitor-capture-normalization` (park-round-1 branch `docs/wo738-verified-next-ready` and round-2 park branch `fix/wo738-observed-normalization` @ `5c377d4` preserved in history; see §Park notes)
+Branch: `fix/wo738-sanitized-job-snapshot` @ `9af835b` (park-round-1 branch `docs/wo738-verified-next-ready`, round-2 park branch `fix/wo738-observed-normalization` @ `5c377d4`, and round-3 park branch `fix/wo738-monitor-capture-normalization` @ `7c1b524` preserved in history; see §Park notes)
 Mutable bootstrap scope: this document + `CURRENT-WORK.md` + `handoff.md` only.
 Implementation reservation (future, gated): NEW `src/a_conductor/verified_next_ready.py` + `tests/test_verified_next_ready.py` ONLY; no existing source file edits. This reservation is not a claim or authorization.
 Parent frontier: #736 (OPEN ZRA-3G/ZRA-4 tracker). WO-736 delivered via PR #737 (merge `226aa10`, post-main green on `a0eccf2`).
@@ -23,6 +23,17 @@ Candidate re-PARKED at R5; preserved unmerged on this branch (`fix/wo738-observe
 ## §Park-round-3 note (2026-11-08)
 
 Candidate re-PARKED at R6; preserved unmerged on this branch (`fix/wo738-monitor-capture-normalization` @ `7c1b524`; src `acbacdc2…`, tests `9c461f10…`; 121 tests green). R6 single review verdict = PARK per lane contract (P1×1 + P2×1): P1 — monitor `get_job` returns the RAW job (`verified_next_ready.py:367`) and the reused seam compares the raw `job_id` (`next_ready_continuation.py:432`); a hostile `__ne__` is invoked once before the eventual blocker — violates comparators-never-invoked. P2 — hostile-read-1 classification asymmetry (`COMPLETION_VERSION_MISMATCH` vs `PARENT_JOB_READS_CONFLICT`). Everything else PASSED: R5 reproduction blocked with 0 invocations (closed), 121 tests green, hashes verified. Park-round-3 checkpoint posted on #738. RECORDED NEXT-LANE CONTRACT (one remaining idea, likely closes the class IN the same two-file scope): `_ParentReadMonitor` returns a SANITIZED plain-typed job snapshot from `get_job` instead of the raw store object — an exact-type dataclass copy (`job_id`/`state`/`version`/node fields plain) so the reused seam never touches a foreign object; keep capture-time normalization + all pins; RED test = R6's read-2 str-subclass `job_id` case asserting ZERO hostile comparator invocations anywhere (monkeypatch-count at the subclass); 121+ tests green; one fresh review; park on any P1. Alternative if that fails: scope-expanded WO on the reused seam's own typing (`next_ready_continuation.py` — separate files, separate claim). No further cycles under this adjudication; resume requires a fresh claimed lane on #738.
+
+## §Park-round-4 note (2026-11-08) — STRUCTURAL CONCLUSION
+
+Candidate re-PARKED at R7; preserved unmerged on this branch (`fix/wo738-sanitized-job-snapshot` @ `9af835b`; src `431d24d8…`, tests `44f521f5…`; 123 tests green). The round executed the recorded round-3 next-lane contract in full: `_ParentReadMonitor.get_job` now returns a sanitized plain-typed snapshot (`_snapshot_job`), capture-time normalization and all hostile-comparator pins from R1–R6 kept, and R6's read-2 str-subclass RED test present. R7 single review verdict = PARK per lane contract (P1×2):
+
+- **P1-A** — `_snapshot_job` keeps parent fields VERBATIM (`verified_next_ready.py:503-509`, `plain_identity=False`), so the REUSED seam compares `job_id` at `next_ready_continuation.py:411` and `:432` and `ParentCompletion.__post_init__` compares `version < 1` at `next_ready_continuation.py:109` — ALL BEFORE the observed-side exact-type ingress `verified_next_ready.py:821-835`. The pinned typed codes fire correctly, but hostile `__ne__`/`__lt__` are invoked first — comparators-never-invoked violated.
+- **P1-B** — non-parent normalization converts via `str(job_id)` (`verified_next_ready.py:415`), trusting an overridable `__str__`; a fabricated identity is laundered into a plain string and the run returns `NOOP_ALL_REPRESENTED` with no blocker — silent misrepresentation.
+
+Deviations (1)(3)(4) adjudicated SOUND. Joint adjudication: JEV advisory 0.68 + Terra 0.84, both conditions satisfied.
+
+**STRUCTURAL CONCLUSION (record prominently):** the "zero hostile comparator invocations" contract is NOT achievable from the monitor/wrapper side while the REUSED observation seam (`next_ready_continuation.py`) compares raw fields internally before any external gate. Four park rounds have exhausted the wrapper-side class: every achievable monitor-boundary sanitization still leaves the reused seam invoking comparators on fields it owns, because the seam's own input boundaries (`:411`/:432` identity checks, `ParentCompletion.__post_init__:109` version check) are un-gated. The durable fix belongs INSIDE `next_ready_continuation.py` — exact-type gates at its own input boundaries plus its `ParentCompletion.__post_init__` — a DIFFERENT file requiring its own work order and fresh review budget. The wrapper-side lanes (4 parks, 123 tests, all pins) remain preserved unmerged as scaffolding/reference for that future lane. Park-round-4 checkpoint posted on #738. No-further-cycles rule stands: no further review/repair cycles on this lane under this adjudication; any continuation requires a fresh claimed lane on #738 under the next-lane proposal (exact-type ingress inside `next_ready_continuation.py`).
 
 ## 1. Objective
 
