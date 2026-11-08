@@ -1,5 +1,15 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-08 - WO-P1-736 bootstrap (docs-only) - CURRENT
+
+Issue: [#736](https://github.com/aase7en/A-Wiki-Conductor/issues/736); status BOOTSTRAP / READY_FOR_GATE_RERUN / NOT_IMPLEMENTED.
+Base: `722c4a516bc9ca27e6bb7c5260fc85a72002293f`.
+Worktree: `A-Wiki-Conductor-wo736-bootstrap`; branch: `docs/wo736-prepared-run-recon`.
+Scope: `docs/work-orders/WO-P1-736-prepared-run-reconstruction.md`, `CURRENT-WORK.md`, `handoff.md` only.
+Next executor: rerun full gates, claim #736, and implement only as gated by [WO §5](docs/work-orders/WO-P1-736-prepared-run-reconstruction.md#5-delivery-gates).
+ORCH-1 core /1-/3 acceptance was verified SATISFIED 2026-11-08 via the PR #720 chain, correcting the stale 2026-10-27 PENDING wording below.
+/7 remains HOLD per [#709 c6719134323](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6719134323); no implementation is authorized by this bootstrap.
+
 ## 2026-11-06 - SRM gap-closeout #727/#728 / Serena retirement #725 - CURRENT
 
 This entry supersedes older frontier instructions below where they conflict.

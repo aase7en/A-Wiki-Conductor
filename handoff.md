@@ -1,5 +1,15 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-08 - WO-P1-736 bootstrap (docs-only) - CURRENT
+
+Resume without prior chat: read `00-AGENT-ENTRY.md`, `PROJECT-GRAPH.yaml`, `AGENTS.md`, actual Git/claims, `CURRENT-WORK.md`, and [WO-P1-736](docs/work-orders/WO-P1-736-prepared-run-reconstruction.md); rerun the full gate.
+Issue: [#736](https://github.com/aase7en/A-Wiki-Conductor/issues/736); BOOTSTRAP / READY_FOR_GATE_RERUN / NOT_IMPLEMENTED.
+Base: `722c4a516bc9ca27e6bb7c5260fc85a72002293f`; worktree: `A-Wiki-Conductor-wo736-bootstrap`; branch: `docs/wo736-prepared-run-recon`.
+Bootstrap scope is only the WO, `CURRENT-WORK.md`, and `handoff.md`; preserve unrelated work.
+Next executor: rerun full gates, claim #736, and implement only as gated by WO §5; the future source/test reservation is not an implementation claim or authorization.
+ORCH-1 core /1-/3 acceptance was verified SATISFIED 2026-11-08 via the PR #720 chain, correcting stale 2026-10-27 PENDING wording.
+/7 remains HOLD per [#709 c6719134323](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6719134323); no dispatch or runtime activation.
+
 ## 2026-11-06 - SRM gap-closeout / Serena retirement governing docs
 
 Resume from universal entry, actual Git/GitHub and this entry/CURRENT-WORK,
