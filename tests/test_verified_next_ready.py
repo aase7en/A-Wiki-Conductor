@@ -1666,3 +1666,176 @@ def test_read_monitor_hostile_version_capture_blocked_not_selected() -> None:
     # no hostile comparator or hash was ever invoked inside the seam
     assert _LyingEqHostileVersion.eq_invocations == 0
     assert _LyingEqHostileVersion.hash_invocations == 0
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Universal sanitized job snapshot at the monitor boundary (R6 joint
+# lane: JEV direct 0.68 GRANT + Terra conditional 0.84 — the snapshot
+# must cover EVERY returned job; no raw object reaches the reused seam)
+# ══════════════════════════════════════════════════════════════════════
+
+
+class _CountingHostileRead2JobId(str):
+    """Read-2 parent job_id: str subclass whose comparators always claim
+    EQUAL and whose hash equals the content hash, so a raw read flowing
+    into the reused seam's identity comparison invokes a hostile
+    comparator before the eventual blocker (R6 P1)."""
+
+    eq_invocations = 0
+    ne_invocations = 0
+    hash_invocations = 0
+
+    def __eq__(self, other: object) -> bool:
+        type(self).eq_invocations += 1
+        return True
+
+    def __ne__(self, other: object) -> bool:
+        type(self).ne_invocations += 1
+        return False
+
+    def __hash__(self) -> int:
+        type(self).hash_invocations += 1
+        return str.__hash__(self)
+
+
+class PlainThenHostileJobIdParentJobs:
+    """Parent identity: read 1 (facts projection) = plain COMPLETE v7;
+    read 2 (graph-state projection) = same identity with job_id carried
+    as the hostile str subclass. Under raw passthrough the read-2 object
+    reaches the reused seam unmonitored: the seam's own `!=` invokes the
+    hostile comparator and the non-plain value then launders through
+    ParentCompletion into the observed-side ingress."""
+
+    def __init__(self, parent_job_id: str) -> None:
+        self._parent_job_id = parent_job_id
+        self.parent_read_count = 0
+
+    def get_job(self, job_id: str):
+        if job_id == self._parent_job_id:
+            self.parent_read_count += 1
+            if self.parent_read_count == 1:
+                return _job(TaskState.COMPLETE, PARENT, version=PARENT_VERSION)
+            return _forged_parent_job(
+                job_id=_CountingHostileRead2JobId(self._parent_job_id)
+            )
+        raise JobStoreError("JOB_NOT_FOUND")
+
+
+def test_read_monitor_hostile_read2_job_id_snapshot_blocked_without_comparator() -> None:
+    # R6 P1 (raw job passthrough): the monitor must never hand a raw job
+    # to the reused seam. A read-2 parent job_id that is a hostile str
+    # subclass must be captured as inconsistent (plain-tuple capture,
+    # hostile dropped), the boundary fail-closed as
+    # OBSERVATION_INCONSISTENT:PARENT_JOB_READS_CONFLICT, and the hostile
+    # __eq__/__ne__/__hash__ never invoked anywhere in the pipeline.
+    parent_job_id = GraphDispatchKey(GRAPH, RUN, PARENT).job_id
+    jobs = PlainThenHostileJobIdParentJobs(parent_job_id)
+    outcome = select_verified_next_ready(
+        jobs=jobs,
+        completion_verifier=FakeVerifier(_verdict()),  # verdict binds v7
+        graph=_chain_graph(),
+        graph_id=GRAPH,
+        graph_run_id=RUN,
+        parent_node_id=PARENT,
+        guards=_guards(),
+    )
+    assert jobs.parent_read_count == 2  # double-read boundary proven
+    assert outcome.kind is VerifiedNextReadyOutcomeKind.BLOCKED
+    assert outcome.blocker_code == "OBSERVATION_INCONSISTENT"
+    assert outcome.detail == "OBSERVATION_INCONSISTENT:PARENT_JOB_READS_CONFLICT"
+    assert outcome.selected_node_id is None
+    assert outcome.planner_decision is None
+    # zero hostile comparator invocations anywhere (identity/counter probe)
+    assert _CountingHostileRead2JobId.eq_invocations == 0
+    assert _CountingHostileRead2JobId.ne_invocations == 0
+    assert _CountingHostileRead2JobId.hash_invocations == 0
+
+
+class _CountingHostileSuccessorJobId(str):
+    """Non-parent (successor) job_id: str subclass wrapping the true key
+    whose comparators always claim EQUAL and whose hash equals the
+    content hash — raw passthrough lets the reused seam's successor
+    identity check invoke the hostile comparator (R6: the raw job
+    compared at the seam)."""
+
+    eq_invocations = 0
+    ne_invocations = 0
+    hash_invocations = 0
+
+    def __eq__(self, other: object) -> bool:
+        type(self).eq_invocations += 1
+        return True
+
+    def __ne__(self, other: object) -> bool:
+        type(self).ne_invocations += 1
+        return False
+
+    def __hash__(self) -> int:
+        type(self).hash_invocations += 1
+        return str.__hash__(self)
+
+
+class _ProbeSuccessorJob(JobRuntimeState):
+    """Raw-object identity probe: a JobRuntimeState subclass instance so
+    the test can prove the RAW object itself never reaches the reused
+    seam (its comparators are counted; any set()/==/dict-keying on the
+    raw object increments them)."""
+
+    obj_eq_invocations = 0
+    obj_hash_invocations = 0
+
+    def __eq__(self, other: object) -> bool:
+        type(self).obj_eq_invocations += 1
+        return self is other
+
+    def __hash__(self) -> int:
+        type(self).obj_hash_invocations += 1
+        return JobRuntimeState.__hash__(self)
+
+
+def test_non_parent_hostile_field_job_arrives_plain_typed_at_seam() -> None:
+    # Terra every-job condition: the sanitized snapshot must cover EVERY
+    # returned job, including non-parent graph jobs. A successor job
+    # carrying a hostile job_id (str subclass claiming EQUAL) plus a raw
+    # object identity probe must flow as a plain-typed snapshot: the
+    # reused seam's successor identity check compares the snapshot's
+    # plain job_id (durably represented -> NOOP_ALL_REPRESENTED), with
+    # the hostile field comparators AND the raw-object comparators never
+    # invoked anywhere. Under raw passthrough the hostile __ne__ is
+    # invoked once inside the seam before the same outcome.
+    child_key = GraphDispatchKey(GRAPH, RUN, CHILD).job_id
+    probe_job = _ProbeSuccessorJob(
+        job_id=_CountingHostileSuccessorJobId(child_key),
+        work_order_ref="docs/work-orders/WO-P1-738-verified-next-ready.md",
+        project_id="wo738-project",
+        state=TaskState.READY,
+        worker_id=None,
+        attempt_count=0,
+        max_attempts=3,
+        recovery_classification=None,
+        version=1,
+    )
+    outcome = _select(
+        jobs=FakeJobs(
+            {
+                GraphDispatchKey(GRAPH, RUN, PARENT).job_id: _job(
+                    TaskState.COMPLETE, PARENT, version=PARENT_VERSION
+                ),
+                child_key: probe_job,
+            }
+        ),
+        verifier=FakeVerifier(_verdict()),
+    )
+    assert outcome.kind is VerifiedNextReadyOutcomeKind.NOOP
+    assert outcome.planner_decision is NextReadyDecision.NOOP_ALL_REPRESENTED
+    assert outcome.represented_node_ids == (CHILD,)
+    assert outcome.selected_node_id is None
+    assert outcome.blocker_code is None
+    # hostile FIELD comparators never invoked (the seam compared a
+    # plain-typed snapshot's job_id, not the raw subclass)
+    assert _CountingHostileSuccessorJobId.eq_invocations == 0
+    assert _CountingHostileSuccessorJobId.ne_invocations == 0
+    assert _CountingHostileSuccessorJobId.hash_invocations == 0
+    # raw OBJECT never compared or hashed anywhere (identity probe)
+    assert _ProbeSuccessorJob.obj_eq_invocations == 0
+    assert _ProbeSuccessorJob.obj_hash_invocations == 0

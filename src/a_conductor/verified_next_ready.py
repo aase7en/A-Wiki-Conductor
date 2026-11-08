@@ -132,6 +132,22 @@ unchanged; no second vocabulary):
   invoked. Conflicting or non-plain reads fail closed here BEFORE the
   verdict cross-check and can never select.
 
+  Universal sanitized job snapshot (R6 joint lane, JEV direct 0.68
+  GRANT + Terra conditional 0.84): the monitor returns a fresh
+  exact-type ``JobRuntimeState`` snapshot for EVERY job it is asked for
+  (parent and non-parent) — the reused seam never sees a raw or hostile
+  store object. Parent reads carry their fields verbatim so the
+  observed-side ingress below remains the single adjudicated exact-type
+  gate for the projected parent identity; non-parent reads gate their
+  consumed identity field at the ingress rules (exact plain ``str``,
+  faithful plain extraction for a ``str`` subclass, never its
+  comparators). A read that is not an exact ``JobRuntimeState``, or a
+  snapshot whose fields cannot be faithfully normalized, fails closed
+  through the module's typed store-blocked path (the seam's own
+  invalid-job code / ``ValueError``); a parent read proven conflicting
+  AT CAPTURE fails closed immediately as
+  ``OBSERVATION_INCONSISTENT:PARENT_JOB_READS_CONFLICT``.
+
 Planner containment (existing planner vocabulary passed through unchanged):
 - ``PARENT_NODE_UNKNOWN`` / ``GRAPH_CYCLE`` /
   ``PARENT_COMPLETION_EVIDENCE_MISSING`` / ``WORKTREE_DIRTY`` /
@@ -158,6 +174,7 @@ from typing import Protocol
 from .domain import TaskState
 from .graph.dispatch import GraphDispatchKey
 from .graph.domain import TaskGraph
+from .job_state import JobRuntimeState
 from .job_store import JobStoreError
 from .next_ready_continuation import (
     ContinuationGuards,
@@ -326,21 +343,130 @@ def _normalize_parent_read_identity(
     return (job_id, state, version)
 
 
+_JOB_STATE_FIELDS = (
+    "job_id",
+    "work_order_ref",
+    "project_id",
+    "state",
+    "worker_id",
+    "attempt_count",
+    "max_attempts",
+    "recovery_classification",
+    "version",
+)
+
+
+class _ObservationBlocked(Exception):
+    """Monitor fail-closed signal carrying an exact typed blocker code and
+    detail. Raised by the read monitor when a monitored read can never be
+    proven consistent (or its snapshot cannot be built faithfully) and
+    converted by this module's own observation containment into that same
+    typed blocker — the reused seam never sees the read and no raw or
+    hostile job object ever reaches it."""
+
+    def __init__(self, code: str, detail: str = "") -> None:
+        self.code = code
+        self.detail = detail
+        super().__init__(code)
+
+
+def _snapshot_job(
+    raw_job: object,
+    *,
+    invalid_code: str,
+    plain_identity: bool,
+) -> JobRuntimeState:
+    """Build one fresh exact-type ``JobRuntimeState`` snapshot of a
+    monitored read (universal sanitized job snapshot: EVERY job the
+    monitor returns — parent and non-parent — is a snapshot, never the
+    raw store object).
+
+    ``invalid_code`` mirrors the reused seam's own typed blocker for a
+    non-``JobRuntimeState`` read (``PARENT_JOB_INVALID`` on the first
+    parent read, ``GRAPH_JOB_INVALID`` on later reads and non-parent
+    reads): the seam would raise exactly that code at its isinstance
+    boundary, so raising it here keeps the outcome verbatim while the
+    foreign object never flows.
+
+    Field extraction is bounded: a read whose fields cannot be inspected
+    fails closed as ``ValueError`` (the module's typed
+    ``OBSERVATION_INPUT_INVALID`` path). ``plain_identity=True`` (the
+    identity-consumed non-parent read) additionally gates the consumed
+    identity field at the ingress rules — exact plain ``str`` state is
+    carried verbatim; a ``str`` subclass is normalized by faithful
+    extraction of its presented content (bounded, never its comparators);
+    anything else cannot be faithfully normalized and fails closed
+    typed. ``plain_identity=False`` (the parent read) carries every field
+    VERBATIM: the observed-side ingress immediately after observation is
+    the adjudicated exact-type gate for the projected parent identity,
+    and duplicating it here would change adjudicated outcomes.
+    """
+    if not isinstance(raw_job, JobRuntimeState):
+        raise NextReadyContinuationError(invalid_code)
+    try:
+        fields = {name: getattr(raw_job, name) for name in _JOB_STATE_FIELDS}
+    except Exception as exc:
+        raise ValueError("job snapshot fields are not inspectable") from exc
+    if plain_identity:
+        job_id = fields["job_id"]
+        if type(job_id) is not str:
+            if isinstance(job_id, str):
+                try:
+                    extracted = str(job_id)
+                except Exception as exc:
+                    raise ValueError(
+                        "graph job_id is not faithfully normalizable"
+                    ) from exc
+                if type(extracted) is not str:
+                    raise ValueError(
+                        "graph job_id is not faithfully normalizable"
+                    )
+                job_id = extracted
+            else:
+                raise ValueError("graph job_id is not faithfully normalizable")
+        fields["job_id"] = job_id
+        if type(fields["state"]) is not TaskState:
+            raise ValueError("graph job state is not faithfully normalizable")
+    snapshot = object.__new__(JobRuntimeState)
+    for name, value in fields.items():
+        object.__setattr__(snapshot, name, value)
+    return snapshot
+
+
 class _ParentReadMonitor:
     """Read-recording delegation port for one observation boundary.
 
     Wraps the injected jobs reader passed to ``observe_next_ready_facts``
-    and records the durable identity (job_id/state/version) of every read
-    of the parent job made inside that boundary, NORMALIZED AT CAPTURE
-    (:func:`_normalize_parent_read_identity` — exact-type rules identical
-    to the module ingress; a non-plain capture is recorded as
-    inconsistent). The reused seam reads the parent job more than once
-    (facts projection + graph-state projection); the recorded identities
-    let the consumer prove that the parent identity seen by the verdict
-    cross-check equals the identity of the final projected observation.
+    and (1) records the durable identity (job_id/state/version) of every
+    read of the parent job made inside that boundary, NORMALIZED AT
+    CAPTURE (:func:`_normalize_parent_read_identity` — exact-type rules
+    identical to the module ingress; a non-plain capture is recorded as
+    inconsistent), and (2) returns a SANITIZED PLAIN-TYPED SNAPSHOT for
+    EVERY job it is asked for (parent and non-parent, R6 joint lane:
+    JEV direct 0.68 GRANT + Terra conditional 0.84) so the reused seam
+    never sees a raw or hostile job object. The reused seam reads the
+    parent job more than once (facts projection + graph-state
+    projection); the recorded identities let the consumer prove that the
+    parent identity seen by the verdict cross-check equals the identity
+    of the final projected observation.
+
+    Fail closed (typed, comparators never invoked):
+
+    - a parent read whose capture conflicts with an earlier capture in
+      the same boundary is proven inconsistent AT CAPTURE (plain-tuple
+      comparison only; hostile values were dropped at capture) and
+      raises the typed observation-blocked signal with
+      ``OBSERVATION_INCONSISTENT:PARENT_JOB_READS_CONFLICT`` — the
+      exact blocker the end-of-boundary proof would have produced;
+    - a read that is not an exact ``JobRuntimeState`` instance, or a
+      snapshot whose fields cannot be faithfully normalized, raises the
+      module's typed store-blocked path (``NextReadyContinuationError``
+      with the seam's own invalid-job code / ``ValueError``) so the
+      observation blocks without the raw read ever flowing.
+
     Delegation is verbatim: no read is added, dropped, retried, or
-    reordered, and exceptions propagate unchanged into the existing
-    observation containment.
+    reordered, and reader exceptions (``JobStoreError``) propagate
+    unchanged into the existing observation containment.
     """
 
     def __init__(self, reader: ContinuationJobReader, parent_job_id: str) -> None:
@@ -351,20 +477,37 @@ class _ParentReadMonitor:
     def get_job(self, job_id: str):
         job = self._reader.get_job(job_id)
         if job_id == self._parent_job_id:
+            first_parent_read = not self.parent_reads
             try:
-                self.parent_reads.append(
-                    _normalize_parent_read_identity(
-                        (
-                            getattr(job, "job_id", None),
-                            getattr(job, "state", None),
-                            getattr(job, "version", None),
-                        )
+                capture = _normalize_parent_read_identity(
+                    (
+                        getattr(job, "job_id", None),
+                        getattr(job, "state", None),
+                        getattr(job, "version", None),
                     )
                 )
             except Exception:
                 # identity extraction must never turn into a selection path
-                self.parent_reads.append((None, None, None))
-        return job
+                capture = (None, None, None)
+            if any(prior != capture for prior in self.parent_reads):
+                # conflict PROVEN at capture on normalized plain tuples
+                # (hostile values were dropped, never compared): fail
+                # closed with the exact reads-conflict blocker instead of
+                # letting the conflicting read flow into the seam
+                self.parent_reads.append(capture)
+                raise _ObservationBlocked(
+                    "OBSERVATION_INCONSISTENT",
+                    "OBSERVATION_INCONSISTENT:PARENT_JOB_READS_CONFLICT",
+                )
+            self.parent_reads.append(capture)
+            return _snapshot_job(
+                job,
+                invalid_code=(
+                    "PARENT_JOB_INVALID" if first_parent_read else "GRAPH_JOB_INVALID"
+                ),
+                plain_identity=False,
+            )
+        return _snapshot_job(job, invalid_code="GRAPH_JOB_INVALID", plain_identity=True)
 
 
 def _parent_observation_consistent(
@@ -649,6 +792,8 @@ def select_verified_next_ready(
             guards=guards,
             completion_ref=verdict_evidence_ref,
         )
+    except _ObservationBlocked as exc:
+        return _blocked(exc.code, exc.detail)
     except NextReadyContinuationError as exc:
         return _blocked(exc.code)
     except JobStoreError as exc:
