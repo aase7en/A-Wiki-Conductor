@@ -1,11 +1,11 @@
 # WO-P1-738 Verified NEXT READY Selection (verify-then-select)
 
 Issue: #738
-Status: PARKED_ROUND_2 / REVIEW_R5_NEW_P1 / NOT_PUBLISHED_TO_MAIN
+Status: PARKED_ROUND_3 / REVIEW_R6_PARK / NOT_PUBLISHED_TO_MAIN
 Classification: R3 read-only durable-state boundary (offline fixture-provable)
 Base: `a0eccf289f69dbf61b13cb2a9b8c0b581a3ca217`
 Worktree: `/Volumes/MAC_WORK/DevWorkspace/Github/A-Wiki-Conductor-wo738-bootstrap`
-Branch: `fix/wo738-observed-normalization` (park-round-1 branch `docs/wo738-verified-next-ready` preserved in §Park note)
+Branch: `fix/wo738-monitor-capture-normalization` (park-round-1 branch `docs/wo738-verified-next-ready` and round-2 park branch `fix/wo738-observed-normalization` @ `5c377d4` preserved in history; see §Park notes)
 Mutable bootstrap scope: this document + `CURRENT-WORK.md` + `handoff.md` only.
 Implementation reservation (future, gated): NEW `src/a_conductor/verified_next_ready.py` + `tests/test_verified_next_ready.py` ONLY; no existing source file edits. This reservation is not a claim or authorization.
 Parent frontier: #736 (OPEN ZRA-3G/ZRA-4 tracker). WO-736 delivered via PR #737 (merge `226aa10`, post-main green on `a0eccf2`).
@@ -19,6 +19,10 @@ Candidate PARKED at R4; preserved unmerged on this lane branch (`docs/wo738-veri
 ## §Park-round-2 note (2026-11-08)
 
 Candidate re-PARKED at R5; preserved unmerged on this branch (`fix/wo738-observed-normalization` @ `594c1bc`; src `3d748c57…`, tests `51308af8…`; 120 tests green). R5 fresh review = CHANGES_REQUIRED P1×1 (reproduced conflicting-read bypass): `_ParentReadMonitor` retains RAW read values (`verified_next_ready.py:323`), the consistency check hashes/compares them raw (`:344-347`), and only the projected first parent is normalized (`:636-667`); a lying `__eq__` + colliding-hash int-subclass second read defeats the read-conflict gate → SELECTED. Everything else PASSED: R4 reproduction blocked (closed), disclosure ACCEPTABLE, 120 tests green, hashes verified. Adjudicated PARK 0.94 per stop condition; park-round-2 checkpoint posted on #738. REMAINING FIX CONTRACT for any future lane: normalize each read's identity tuple AT CAPTURE inside `_ParentReadMonitor` (exact-type rules identical to the module's ingress: type-is int/str); RED test = the colliding-hash reproduction expecting `OBSERVATION_INCONSISTENT:PARENT_JOB_READS_CONFLICT`; all 120 tests green; one fresh review; park on any P1. No further cycles under this adjudication; resume requires a new adjudicated lane (fresh claim only).
+
+## §Park-round-3 note (2026-11-08)
+
+Candidate re-PARKED at R6; preserved unmerged on this branch (`fix/wo738-monitor-capture-normalization` @ `7c1b524`; src `acbacdc2…`, tests `9c461f10…`; 121 tests green). R6 single review verdict = PARK per lane contract (P1×1 + P2×1): P1 — monitor `get_job` returns the RAW job (`verified_next_ready.py:367`) and the reused seam compares the raw `job_id` (`next_ready_continuation.py:432`); a hostile `__ne__` is invoked once before the eventual blocker — violates comparators-never-invoked. P2 — hostile-read-1 classification asymmetry (`COMPLETION_VERSION_MISMATCH` vs `PARENT_JOB_READS_CONFLICT`). Everything else PASSED: R5 reproduction blocked with 0 invocations (closed), 121 tests green, hashes verified. Park-round-3 checkpoint posted on #738. RECORDED NEXT-LANE CONTRACT (one remaining idea, likely closes the class IN the same two-file scope): `_ParentReadMonitor` returns a SANITIZED plain-typed job snapshot from `get_job` instead of the raw store object — an exact-type dataclass copy (`job_id`/`state`/`version`/node fields plain) so the reused seam never touches a foreign object; keep capture-time normalization + all pins; RED test = R6's read-2 str-subclass `job_id` case asserting ZERO hostile comparator invocations anywhere (monkeypatch-count at the subclass); 121+ tests green; one fresh review; park on any P1. Alternative if that fails: scope-expanded WO on the reused seam's own typing (`next_ready_continuation.py` — separate files, separate claim). No further cycles under this adjudication; resume requires a fresh claimed lane on #738.
 
 ## 1. Objective
 
