@@ -1,5 +1,11 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-08 - WO-P1-738 verified-next-ready candidate - PARKED
+
+Issue: [#738](https://github.com/aase7en/A-Wiki-Conductor/issues/738) — ZRA-3G slice 2 verified NEXT READY selection. Status: PARKED / REVIEW_R4_NEW_P1 / NOT_PUBLISHED_TO_MAIN on branch `docs/wo738-verified-next-ready` (worktree `/Volumes/MAC_WORK/DevWorkspace/Github/A-Wiki-Conductor-wo738-bootstrap`, base `a0eccf2`).
+Candidate preserved unmerged (src `abada6fc…`, tests `21214c77…`; tests 53+63 green). Review chain: R1 P1×2 → R2 P1×2 → R3 P1×3 (all repaired, reproductions closed) → R4 six contract points CLOSED + flip adjudicated SOUND, but R4 surfaced a NEW P1 on the OBSERVED-side version comparison (outside the verdict ingress): observed-side `facts.parent.version` int-subclass with a lying `__ne__` launders stale evidence into selection at `verified_next_ready.py:622`. Fix contract for the future lane: extend the same ingress normalization to observed/durable-side values (`facts.parent.version` and any other observed field reaching a comparator) + pin REJECTED-direction + liar pins; adjudication pointer: park checkpoint on #738.
+RESUME: via fresh WO claim on #738; do not continue this lane's review budget. No main merge.
+
 ## 2026-11-08 - WO-P1-736 delivery - CURRENT
 
 Issue: [#736](https://github.com/aase7en/A-Wiki-Conductor/issues/736); DELIVERED / MERGED / POST_MAIN_VERIFIED via PR #737.
