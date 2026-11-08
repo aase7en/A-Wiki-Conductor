@@ -92,6 +92,22 @@ before any comparison. Downstream uses only normalized plain values; the
 plain binding comparison itself is additionally wrapped in bounded
 containment (typed blocker on any residual failure).
 
+Observed-side normalization (R4 P1): the store-projected parent identity
+reaching this seam through ``observe_next_ready_facts`` is normalized the
+same way, EXACTLY ONCE at one observed-side ingress boundary immediately
+after the observation and BEFORE any consistency proof, version
+cross-check, state check, or planner use. ``facts.parent.version`` is
+accepted only when ``type(v) is int`` — bool and int subclasses are
+rejected without invoking any comparator, so a non-comparable observed
+version is a ``COMPLETION_VERSION_MISMATCH`` by definition (its lying or
+detonating ``__ne__`` can never suppress the cross-check or escape raw).
+The observed ``job_id``/``node_id`` are accepted only when exact plain
+``str`` and the observed ``state`` only by exact ``TaskState`` type;
+a non-plain observed identity fails closed as ``OBSERVATION_INCONSISTENT``
+with comparators never invoked. Because ``facts`` is a frozen slots
+dataclass built from these normalized values, every later comparator,
+method, and the planner can only ever see plain values.
+
 Observation containment (existing observe vocabulary passed through
 unchanged; no second vocabulary):
 - ``PARENT_JOB_NOT_FOUND`` / ``PARENT_JOB_INVALID`` /
@@ -606,6 +622,48 @@ def select_verified_next_ready(
     except Exception as exc:  # bounded containment: type name only
         return _blocked(
             "OBSERVATION_READ_FAILED", f"OBSERVATION_READ_FAILED:{type(exc).__name__}"
+        )
+
+    # ---- observed-side ingress boundary (EXACTLY ONCE, before any
+    # consistency proof / comparison / state check / planner use) ----
+    # mirror of the verdict-side ingress: the store-projected parent
+    # identity is exact-plain-type gated HERE so no observed comparator
+    # can ever be invoked on a non-plain value downstream (the fields are
+    # slots on the frozen facts dataclass; these reads cannot invoke
+    # comparators or methods). Exact plain types only — hostile int/str
+    # subclasses (lying or detonating __ne__/__eq__) are fail-closed
+    # before any operator of theirs can run.
+    observed_parent_version = facts.parent.version
+    observed_parent_job_id = facts.parent.job_id
+    observed_parent_node_id = facts.parent.node_id
+    observed_parent_state = facts.parent.state
+    # a non-comparable observed version is a version conflict by
+    # definition: gate type(v) is int (rejects bool and int subclasses)
+    # BEFORE the cross-check can invoke its __ne__
+    if type(observed_parent_version) is not int:
+        return _blocked("COMPLETION_VERSION_MISMATCH")
+    # observed identity fields: exact plain str / exact TaskState member;
+    # the projected node_id is copied from the already-normalized caller
+    # input and state is exact by TaskState construction, so these two
+    # gates are boundary totality, while job_id is store-sourced and can
+    # carry a str subclass past isinstance-based upstream validation
+    if type(observed_parent_job_id) is not str or not observed_parent_job_id.strip():
+        return _blocked(
+            "OBSERVATION_INCONSISTENT",
+            "OBSERVATION_INCONSISTENT:PARENT_JOB_IDENTITY_NOT_PLAIN",
+        )
+    if (
+        type(observed_parent_node_id) is not str
+        or not observed_parent_node_id.strip()
+    ):
+        return _blocked(
+            "OBSERVATION_INCONSISTENT",
+            "OBSERVATION_INCONSISTENT:PARENT_NODE_IDENTITY_NOT_PLAIN",
+        )
+    if type(observed_parent_state) is not TaskState:
+        return _blocked(
+            "OBSERVATION_INCONSISTENT",
+            "OBSERVATION_INCONSISTENT:PARENT_STATE_NOT_PLAIN",
         )
 
     # ---- repeated parent observations must agree within the boundary ----

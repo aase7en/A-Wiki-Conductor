@@ -1424,3 +1424,164 @@ class TestIngressNormalization:
             "completion_evidence_ref",
         }
         assert all(count == 1 for count in reads.values()), reads
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Observed-side ingress normalization (R4 P1 adjudicated contract)
+# ══════════════════════════════════════════════════════════════════════
+
+
+class _LyingNeObservedVersion(int):
+    """Observed version subclass whose reflected __ne__ always claims
+    EQUAL (suppresses the version cross-check)."""
+
+    ne_invocations = 0
+
+    def __ne__(self, other: object) -> bool:
+        type(self).ne_invocations += 1
+        return False
+
+
+class _RaisingNeObservedVersion(int):
+    """Observed version subclass whose reflected __ne__ detonates."""
+
+    ne_invocations = 0
+
+    def __ne__(self, other: object) -> bool:
+        type(self).ne_invocations += 1
+        raise RuntimeError("observed-ne-explosion")
+
+
+class _LaunderingObservedJobId(str):
+    """Observed job_id subclass whose comparators always claim EQUAL."""
+
+    cmp_invocations = 0
+
+    def __eq__(self, other: object) -> bool:
+        type(self).cmp_invocations += 1
+        return True
+
+    def __ne__(self, other: object) -> bool:
+        type(self).cmp_invocations += 1
+        return False
+
+    def __hash__(self) -> int:
+        return str.__hash__(self)
+
+
+def _forged_parent_job(**overrides) -> JobRuntimeState:
+    """JobRuntimeState bypassing __post_init__ for hostile observed
+    fields the durable store could never validate but could still
+    project (defense for the consumer boundary, not the store)."""
+    base = _job(TaskState.COMPLETE, PARENT)
+    forged = object.__new__(JobRuntimeState)
+    for name in (
+        "job_id",
+        "work_order_ref",
+        "project_id",
+        "state",
+        "worker_id",
+        "attempt_count",
+        "max_attempts",
+        "recovery_classification",
+        "version",
+    ):
+        object.__setattr__(forged, name, getattr(base, name))
+    for name, value in overrides.items():
+        object.__setattr__(forged, name, value)
+    return forged
+
+
+class TestObservedSideIngressNormalization:
+    """RED/GREEN matrix for the R4 observed-side exact-type ingress
+    boundary (mirror of TestIngressNormalization on the observed side):
+    the store-projected parent identity must be exact-plain-type gated
+    EXACTLY ONCE, immediately after observation and BEFORE the
+    consistency proof / version cross-check / state check / planner use,
+    so no observed comparator is ever invoked on a non-plain value."""
+
+    def test_observed_version_int_subclass_liar_ne_blocked_as_mismatch(
+        self,
+    ) -> None:
+        # R4 reproduction: the durable store projects parent version as an
+        # int subclass whose reflected __ne__ always claims EQUAL, so the
+        # plain `verdict_version != facts.parent.version` cross-check
+        # (verdict says 7, durable says 8) currently launders into a
+        # match and SELECTS. The observed-side ingress must gate
+        # type(v) is int FIRST — a non-plain observed version is a
+        # COMPLETION_VERSION_MISMATCH by definition, comparator never
+        # invoked, never a selection.
+        expected_job_id = GraphDispatchKey(GRAPH, RUN, PARENT).job_id
+        hostile_job = _job(
+            TaskState.COMPLETE, PARENT, version=_LyingNeObservedVersion(8)
+        )
+        outcome = _select(
+            jobs=FakeJobs({expected_job_id: hostile_job}),
+            verifier=FakeVerifier(_verdict()),  # verdict says 7
+        )
+        assert outcome.kind is VerifiedNextReadyOutcomeKind.BLOCKED
+        assert outcome.blocker_code == "COMPLETION_VERSION_MISMATCH"
+        assert outcome.selected_node_id is None
+        assert outcome.planner_decision is None
+        assert _LyingNeObservedVersion.ne_invocations == 0
+
+    def test_observed_version_raising_ne_subclass_blocked_not_raw(
+        self,
+    ) -> None:
+        # Companion: an observed version subclass whose __ne__ detonates
+        # must be fail-closed at the observed-side ingress (comparator
+        # never invoked) — never a raw RuntimeError escape from the seam
+        # at the version cross-check.
+        expected_job_id = GraphDispatchKey(GRAPH, RUN, PARENT).job_id
+        hostile_job = _job(
+            TaskState.COMPLETE, PARENT, version=_RaisingNeObservedVersion(7)
+        )
+        try:
+            outcome = _select(
+                jobs=FakeJobs({expected_job_id: hostile_job}),
+                verifier=FakeVerifier(_verdict()),  # verdict says 7
+            )
+        except RuntimeError as exc:
+            pytest.fail(f"raw comparator exception escaped the seam: {exc}")
+        assert outcome.kind is VerifiedNextReadyOutcomeKind.BLOCKED
+        assert outcome.blocker_code == "COMPLETION_VERSION_MISMATCH"
+        assert outcome.selected_node_id is None
+        assert outcome.planner_decision is None
+        assert _RaisingNeObservedVersion.ne_invocations == 0
+        assert "observed-ne-explosion" not in outcome.detail
+
+    def test_observed_bool_version_blocked_typed(self) -> None:
+        # a projected parent version of True (type(v) is bool, not int)
+        # can never reach a comparator: it must fail closed typed.
+        expected_job_id = GraphDispatchKey(GRAPH, RUN, PARENT).job_id
+        forged_job = _forged_parent_job(version=True)
+        outcome = _select(
+            jobs=FakeJobs({expected_job_id: forged_job}),
+            verifier=FakeVerifier(_verdict()),
+        )
+        assert outcome.kind is VerifiedNextReadyOutcomeKind.BLOCKED
+        assert outcome.blocker_code == "OBSERVATION_INPUT_INVALID"
+        assert outcome.selected_node_id is None
+        assert outcome.planner_decision is None
+
+    def test_observed_job_id_non_plain_subclass_blocked_typed(self) -> None:
+        # a projected parent job_id that is a str subclass (whose
+        # comparators claim EQUAL) must be fail-closed at the observed-side
+        # ingress BEFORE any module-owned consistency proof / planner
+        # identity comparison — never a selection. (The reused observation
+        # seam's own internal identity check runs upstream of this module's
+        # ingress and stays verbatim; the ingress still fails the value
+        # closed before any comparator owned by THIS seam can see it.)
+        expected_job_id = GraphDispatchKey(GRAPH, RUN, PARENT).job_id
+        forged_job = _forged_parent_job(
+            job_id=_LaunderingObservedJobId(expected_job_id)
+        )
+        outcome = _select(
+            jobs=FakeJobs({expected_job_id: forged_job}),
+            verifier=FakeVerifier(_verdict()),
+        )
+        assert outcome.kind is VerifiedNextReadyOutcomeKind.BLOCKED
+        assert outcome.blocker_code == "OBSERVATION_INCONSISTENT"
+        assert "PARENT_JOB_IDENTITY_NOT_PLAIN" in outcome.detail
+        assert outcome.selected_node_id is None
+        assert outcome.planner_decision is None
