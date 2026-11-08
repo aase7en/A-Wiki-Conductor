@@ -1,14 +1,14 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-11-08 - WO-P1-736 bootstrap (docs-only) - CURRENT
+## 2026-11-08 - WO-P1-736 delivery - CURRENT
 
-Issue: [#736](https://github.com/aase7en/A-Wiki-Conductor/issues/736); status BOOTSTRAP / READY_FOR_GATE_RERUN / NOT_IMPLEMENTED.
-Base: `722c4a516bc9ca27e6bb7c5260fc85a72002293f`.
-Worktree: `A-Wiki-Conductor-wo736-bootstrap`; branch: `docs/wo736-prepared-run-recon`.
-Scope: `docs/work-orders/WO-P1-736-prepared-run-reconstruction.md`, `CURRENT-WORK.md`, `handoff.md` only.
-Next executor: rerun full gates, claim #736, and implement only as gated by [WO §5](docs/work-orders/WO-P1-736-prepared-run-reconstruction.md#5-delivery-gates).
+Issue: [#736](https://github.com/aase7en/A-Wiki-Conductor/issues/736); DELIVERED / MERGED / POST_MAIN_VERIFIED via PR #737.
+Frozen candidate SHA-256: source `37ca2e8c0563f24c0afb70fee33089ff3a7001111f558e344f85a79492945527`; tests `52889772bba48249bae357944d6321e8f358a94b930b57c894a3a804e21b09bd`.
+Head `66b0d8c`; exact-head CI `42468483558` SUCCESS; merge `226aa10`; post-main CI `42469856580` SUCCESS.
+Review R1 -> R2 requested changes -> R3 PASS 0/0/0/0; Terra merge concurrence 0.85.
+NEXT: ZRA-3G continuation-loop composition needs its own new WO/bootstrap from `main@226aa10`; #736 remains the open ZRA-3G/ZRA-4 frontier tracker.
 ORCH-1 core /1-/3 acceptance was verified SATISFIED 2026-11-08 via the PR #720 chain, correcting the stale 2026-10-27 PENDING wording below.
-/7 remains HOLD per [#709 c6719134323](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6719134323); no implementation is authorized by this bootstrap.
+/7 remains HOLD per [#709 c6719134323](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6719134323); upstream `79f7937` unchanged and claim row LIVE as of last check. No dispatch or runtime activation implied.
 
 ## 2026-11-06 - SRM gap-closeout #727/#728 / Serena retirement #725 - CURRENT
 
