@@ -1,11 +1,11 @@
 # WO-P1-738 Verified NEXT READY Selection (verify-then-select)
 
 Issue: #738
-Status: PARKED / REVIEW_R4_NEW_P1 / NOT_PUBLISHED_TO_MAIN
+Status: PARKED_ROUND_2 / REVIEW_R5_NEW_P1 / NOT_PUBLISHED_TO_MAIN
 Classification: R3 read-only durable-state boundary (offline fixture-provable)
 Base: `a0eccf289f69dbf61b13cb2a9b8c0b581a3ca217`
 Worktree: `/Volumes/MAC_WORK/DevWorkspace/Github/A-Wiki-Conductor-wo738-bootstrap`
-Branch: `docs/wo738-verified-next-ready`
+Branch: `fix/wo738-observed-normalization` (park-round-1 branch `docs/wo738-verified-next-ready` preserved in §Park note)
 Mutable bootstrap scope: this document + `CURRENT-WORK.md` + `handoff.md` only.
 Implementation reservation (future, gated): NEW `src/a_conductor/verified_next_ready.py` + `tests/test_verified_next_ready.py` ONLY; no existing source file edits. This reservation is not a claim or authorization.
 Parent frontier: #736 (OPEN ZRA-3G/ZRA-4 tracker). WO-736 delivered via PR #737 (merge `226aa10`, post-main green on `a0eccf2`).
@@ -15,6 +15,10 @@ Decision provenance: next-slice selection adjudicated by GPT-6.1 Terra, 2026-11-
 ## §Park note (2026-11-08)
 
 Candidate PARKED at R4; preserved unmerged on this lane branch (`docs/wo738-verified-next-ready`, src `abada6fc…`, tests `21214c77…`; tests 53+63 green). Review chain: R1 P1×2 → R2 P1×2 → R3 P1×3 (all repaired, reproductions closed) → R4 six contract points CLOSED + flip adjudicated SOUND, but R4 surfaced a NEW P1 on the OBSERVED-side version comparison, outside the verdict ingress: observed-side `facts.parent.version` int-subclass with a lying `__ne__` launders stale evidence into selection (`verified_next_ready.py:622`). Exact fix contract for the future lane: extend the same ingress normalization to observed/durable-side values (`facts.parent.version` and any other observed field reaching a comparator) + pin REJECTED-direction + liar pins. Adjudication pointer: park checkpoint posted on #738. No further review/repair cycle under this adjudication; resume requires a fresh claimed lane on #738.
+
+## §Park-round-2 note (2026-11-08)
+
+Candidate re-PARKED at R5; preserved unmerged on this branch (`fix/wo738-observed-normalization` @ `594c1bc`; src `3d748c57…`, tests `51308af8…`; 120 tests green). R5 fresh review = CHANGES_REQUIRED P1×1 (reproduced conflicting-read bypass): `_ParentReadMonitor` retains RAW read values (`verified_next_ready.py:323`), the consistency check hashes/compares them raw (`:344-347`), and only the projected first parent is normalized (`:636-667`); a lying `__eq__` + colliding-hash int-subclass second read defeats the read-conflict gate → SELECTED. Everything else PASSED: R4 reproduction blocked (closed), disclosure ACCEPTABLE, 120 tests green, hashes verified. Adjudicated PARK 0.94 per stop condition; park-round-2 checkpoint posted on #738. REMAINING FIX CONTRACT for any future lane: normalize each read's identity tuple AT CAPTURE inside `_ParentReadMonitor` (exact-type rules identical to the module's ingress: type-is int/str); RED test = the colliding-hash reproduction expecting `OBSERVATION_INCONSISTENT:PARENT_JOB_READS_CONFLICT`; all 120 tests green; one fresh review; park on any P1. No further cycles under this adjudication; resume requires a new adjudicated lane (fresh claim only).
 
 ## 1. Objective
 
