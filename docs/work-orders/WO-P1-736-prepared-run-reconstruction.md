@@ -1,6 +1,6 @@
 # WO-P1-736 Prepared-Run Reconstruction
 
-Issue: [#736](https://github.com/aase7en/A-Wiki-Conductor/issues/736)
+Issue: #736
 Status: CANDIDATE_FROZEN / REVIEW_PASS_R2R3 / CI_PENDING
 Frozen candidate hashes (sha256): src `37ca2e8c0563f24c0afb70fee33089ff3a7001111f558e344f85a79492945527` / tests `52889772bba48249bae357944d6321e8f358a94b930b57c894a3a804e21b09bd`; review verdict R3 PASS 0 findings (0/0/0/0)
 Classification: R2 with R3-adjacent durable-state read boundary (read-only reconstruction of prepared runs; no writes, no dispatch). Reclassify if the full gate identifies an R3 boundary.
