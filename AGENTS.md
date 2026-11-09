@@ -69,9 +69,22 @@ A local worktree alone is never sufficient evidence that equivalent work does no
 - Do not expose or commit secrets/API keys.
 - Do not initialize or publish a GitHub repository without an explicit repository/visibility decision.
 
+## Repo map & developer commands
+
+- Layout: `src/a_conductor/` is a mostly flat module layout (the only subpackage is `graph/`, the DAG engine). Real entrypoints: `a_conductor.desktop_app:main` (Tk GUI) and `a_conductor.web_api:main` (HTTP), both exposed as console scripts; `python -m a_conductor` reaches the GUI. Module families cover supervised execution, worker leases, provider admission, harness adapters (Serena/ZCode/Claude Code), zero-relay, and orchestration. `tests/` is flat `test_*.py` files — no `conftest.py`, no pytest markers, no unit/integration split. `scripts/` holds build/installer/verify tooling plus `diagnose_zcode_config_lock.ps1`. Work orders live in `docs/work-orders/`. `web/sunday-family/` is a React + Vite subapp.
+- Install: `python -m pip install -e .[test]` (Python >=3.11; CI pins 3.11; no lockfile). There is no lint, typecheck, or format tooling in this repo — do not hunt for it or add it silently.
+- Run: `a-conductor` (desktop), `a-conductor-web` (HTTP), or `python -m a_conductor`. Smoke test: `python -m a_conductor --smoke --database <temp path>.sqlite` — always pass `--database`; the default targets the live `%LOCALAPPDATA%\A-Conductor\control-center.sqlite`.
+- Tests: `python -m pytest tests/ -q` (full) or `python -m pytest tests/test_<name>.py -q` (per file — the repo convention, matching CI). Tests are self-contained: plain `monkeypatch` + `tmp_path`, `LOCALAPPDATA` redirected, no live data touched; Tk/GUI tests skip headless-safe; supervised-process tests are Windows-only; a few tests opt in only when an installed CLI is present.
+- CI (`.github/workflows/ci.yml`) deliberately runs one pytest process per file: subprocess-heavy tests sharing a single long-lived process trigger 0x80000003 faulthandler/GC noise on hosted Windows runners. If a full local run dies oddly, mirror CI's per-file loop before diagnosing a real defect.
+- Headless/hosted Windows: set `A_CONDUCTOR_GPU_PARTICLES=0` (WGL access-violates under ModernGL).
+- Known Windows-machine quirks: bare `python` can resolve to an instrumented venv that breaks env-sensitive tests — use a clean interpreter (e.g. `py -3.13`) for local pytest runs. PowerShell also mangles inline quoting in `gh --jq` / `python -c`; prefer `--json` piped through `Out-String` or a temp script file.
+- Build: `python -m pip install pyinstaller==6.22.2` (exact pin), then `python scripts/build_portable.py` and `python scripts/build_installer.py`; verify frozen artifacts with `python scripts/verify_frozen_installer_e2e.py`.
+- Web subapp: root `npm run web:dev` / `npm run web:build` delegate to `web/sunday-family`; run its tests with `npm --prefix web/sunday-family run test`.
+
 ## Development discipline
 
 - Binding delivery policy: `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`. Classify work R0/R1/R2/R3 and use the shortest assurance loop that truthfully matches blast radius; repository/ownership/secret/destructive-operation gates never weaken.
+- Delivery gate sequence: exact reviewed head -> CI run ID on that exact head -> merge the expected head only -> post-main CI run ID -> checkpoint recorded on the driving issue.
 - Current P0 delivery accelerator: `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` / `WO-P1-155`. Until ZRA-4 bounded-parallel acceptance is complete, prefer eliminating human GPT↔external-agent relay before starting broad ODP feature lanes that are not required by the zero-relay path. ODP reconciliation/readiness may still proceed in parallel when it does not consume a required mutable lane or violate ownership/dependency gates.
 - Every multi-step implementation chunk must have a work order.
 - Keep tasks bounded and resumable.
