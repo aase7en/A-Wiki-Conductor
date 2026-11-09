@@ -252,3 +252,24 @@ the existing monitor exception boundary needs no implementation change.
 Prior test assertions were not weakened or adjusted. Source review only; no
 Git/GitHub/pytest/shell or runtime performance measurements were executed.
 The orchestrator owns test execution, measured verification, and re-review.
+
+## 11. Repair Round 3: Punctuation-Adjacent Bearer
+
+Repair base: `9968855` (orchestrator supplied; no executor Git verification).
+Re-review found a P1: quoted, parenthesized, or bracketed Bearer credentials
+escaped the exact whitespace-token check. Verdict: PENDING_RE_REVIEW.
+
+Bearer detection now makes one linear pass over the normalized whitespace
+tokens, stripping a fixed punctuation set from both ends. A pending Bearer
+marker redacts the whole field only when a subsequent similarly stripped token
+is non-empty; punctuation-only tokens are skipped. A bare or wrapped bearer
+word with no following credential remains unchanged. All other matcher logic,
+monotonic prefix windows, normalization, and the 4096-character cap are retained;
+no regex was introduced.
+
+Added projection and raw-monitor regressions for quoted, parenthesized,
+bracketed, error-prefixed, and trailing-punctuation credentials in both name
+and last_error. Additional cases cover intervening punctuation-only tokens and
+the no-credential negative at both boundaries, including JSON-safe output.
+The WO update is append-only. No Git/GitHub/pytest/shell or runtime verification
+was performed; test execution and independent acceptance remain orchestrator gates.

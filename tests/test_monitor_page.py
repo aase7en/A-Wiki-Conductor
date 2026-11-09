@@ -299,6 +299,35 @@ def test_monitor_redacts_secret_at_char_300_before_truncation():
     assert "FAKE" not in json.dumps(view)
 
 
+@pytest.mark.parametrize("value", [
+    '"Bearer FAKE0000000000000000"',
+    "(Bearer FAKE0000000000000000)",
+    "[Bearer FAKE0000000000000000]",
+    "error: Bearer FAKE0000000000000000",
+    "Bearer FAKE0000000000000000...),",
+    "(Bearer () [] ; FAKE0000000000000000)",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_redacts_punctuation_wrapped_bearer_credentials(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert "FAKE" not in json.dumps(view)
+
+
+@pytest.mark.parametrize("value", [
+    "bearer", "(bearer)", '"bearer"', "error: bearer", "bearer () [] {},;.`",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_preserves_bearer_without_a_nonempty_credential(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == value
+    assert json.loads(json.dumps(view)) == view
+
+
 # --- /monitor route ----------------------------------------------------------
 
 def test_monitor_route_requires_token():

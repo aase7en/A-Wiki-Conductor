@@ -373,3 +373,26 @@ def test_linear_matcher_preserves_spaced_and_embedded_secret_shapes(value: str) 
 def test_url_path_at_sign_is_not_userinfo() -> None:
     value = "custom://example.invalid/path/user@example.invalid"
     assert _views(tools=(_tool(last_error=value),))["tools"][0]["last_error"] == value
+
+
+@pytest.mark.parametrize("value", [
+    '"Bearer FAKE0000000000000000"',
+    "(Bearer FAKE0000000000000000)",
+    "[Bearer FAKE0000000000000000]",
+    "error: Bearer FAKE0000000000000000",
+    "Bearer FAKE0000000000000000...),",
+    "(Bearer () [] ; FAKE0000000000000000)",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_punctuation_wrapped_bearer_credentials_are_whole_value_redacted(value, field) -> None:
+    result = _views(tools=(_tool(**{field: value}),))
+    assert result["tools"][0][field] == "[REDACTED]"
+    assert "FAKE" not in repr(result)
+
+
+@pytest.mark.parametrize("value", [
+    "bearer", "(bearer)", '"bearer"', "error: bearer", "bearer () [] {},;.`",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_bearer_without_a_nonempty_credential_is_not_redacted(value, field) -> None:
+    assert _views(tools=(_tool(**{field: value}),))["tools"][0][field] == value

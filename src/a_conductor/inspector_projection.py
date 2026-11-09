@@ -91,6 +91,7 @@ _SECRET_MARKERS = (
     "credential", "cookie", "bearer",
 )
 _LABEL_PUNCTUATION = str.maketrans("", "", "_-\"'")
+_BEARER_BOUNDARY_PUNCTUATION = "()[]{}<>\"'`,;."
 _TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789_"
 _PREFIX_RULES = (
     ("sk-", 8, _TOKEN_ALPHABET + "-"),
@@ -117,10 +118,18 @@ _MARKER_CONFUSABLES = str.maketrans({
 
 def _secret_tokens(tokens: list[str]) -> bool:
     """Fixed work per character: disjoint splits and constant-size checks."""
+    bearer_pending = False
+    for token in tokens:
+        boundary_token = token.strip(_BEARER_BOUNDARY_PUNCTUATION)
+        if not boundary_token:
+            continue
+        if bearer_pending:
+            return True
+        bearer_pending = boundary_token == "bearer"
     previous_label = ""
     private_header = private_word = False
-    for index, token in enumerate(tokens):
-        if token.startswith("authorization:") or (token == "bearer" and index + 1 < len(tokens)):
+    for token in tokens:
+        if token.startswith("authorization:"):
             return True
         scheme_end = token.find("://")
         if scheme_end >= 0:
