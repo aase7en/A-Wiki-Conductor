@@ -1,6 +1,17 @@
 # A-Sunday Conductor — Current Work
 
-## 2026-11-08 - WO-P1-736 delivery - CURRENT
+## 2026-11-09 - #739 slice 1 Tool/Hook/Skill Inspector - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+This entry supersedes older frontier instructions below where they conflict.
+Verified base: main `9d084b560e652dccb6d3d5dac4e70d42c8a5d835` (post-main CI 42610449527 SUCCESS).
+
+Slice 1 delivered via PR #740 (merge `9d084b5`, +2344/−2, 8 files): pure typed `inspector_projection` (InspectorState READY/UNKNOWN/STALE/DISCONNECTED/DEGRADED + ToolPhase REGISTERED/STARTED/CONNECTED/INJECTED per #343; fail-closed secret-redaction family, safe-int bounds, 128-row bounds), read-only `inspector_sources` (SundayMCP instance markers + injectable readyz probe with transport-evidence-only DISCONNECTED; hook contract surface incl. GUARD fail-closed only with policy evidence; A-Wiki skills-registry.json schema v3 with path-existence + staleness truth), Monitor projection optional seam + Monitor page Inspector section (CSP/fragment-token unchanged). Gate chain: claim 6737467325 → WO-P1-739 → RED `00d91eb` (82 RED / 2 pass) → GREEN 439 local → independent review 7 rounds final PASS (540/540 redaction family sweep, 12/12 prior attacks) → Jev merge_now p=0.94 conf 0.91 (Terra unavailable, disclosed) → exact-head CI 42607994606 SUCCESS on `a004f8c` → merge → post-main SUCCESS → checkpoint [6739429453](https://github.com/aase7en/A-Wiki-Conductor/issues/739#issuecomment-6739429453).
+
+### Exact next safe action
+
+(1) #739 slice 2 — wire live collectors into the running monitor provider (injection seam exists on main) + desktop cockpit panel; bootstrap its own WO from `main@9d084b5`. (2) slice 3 — operator actions through the accepted Command Gateway + claims (read-only boundary by design). (3) Physical reboot/login E2E for SundayMCP auto-start remains outstanding on both platforms. (4) /7 mutable refill and rename Track B remain human-gated (see #551 / #731). (5) The 2026-11-09 AGENTS.md repo-map/commands update is complete but uncommitted in the root worktree — carry it into the next docs lane.
+
+## 2026-11-08 - WO-P1-736 delivery
 
 Issue: [#736](https://github.com/aase7en/A-Wiki-Conductor/issues/736); DELIVERED / MERGED / POST_MAIN_VERIFIED via PR #737.
 Frozen candidate SHA-256: source `37ca2e8c0563f24c0afb70fee33089ff3a7001111f558e344f85a79492945527`; tests `52889772bba48249bae357944d6321e8f358a94b930b57c894a3a804e21b09bd`.

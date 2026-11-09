@@ -1,6 +1,14 @@
 # HANDOFF — A-Sunday Conductor
 
-## 2026-11-08 - WO-P1-736 delivery - CURRENT
+## 2026-11-09 - #739 slice 1 inspector - CURRENT
+
+Resume from universal entry, actual Git/GitHub, `CURRENT-WORK.md` top entry, and [WO-P1-739](docs/work-orders/WO-P1-739-tool-hook-skill-inspector.md).
+Issue: [#739](https://github.com/aase7en/A-Wiki-Conductor/issues/739); slice 1 DELIVERED / MERGED / POST_MAIN_VERIFIED via PR #740.
+Candidate `a004f8c`; exact-head CI `42607994606` SUCCESS; merge `9d084b5`; post-main CI `42610449527` SUCCESS; checkpoint [6739429453](https://github.com/aase7en/A-Wiki-Conductor/issues/739#issuecomment-6739429453).
+Review: fresh independent reviewer, 7 rounds, final PASS (540/540 credential-redaction family sweep, 12/12 prior attack shapes). Council: Jev merge_now p=0.94 conf 0.91 (Terra unavailable — OpenRouter 401 + codex OOM, disclosed).
+NEXT: slice 2 (live collector wiring + desktop cockpit panel) and slice 3 (Command Gateway operator actions) each need their own WO/claim from `main@9d084b5`; physical reboot/login E2E for SundayMCP auto-start still outstanding; /7 mutable refill (#551) and rename Track B activation (#731) remain human-gated; AGENTS.md update uncommitted in root worktree.
+
+## 2026-11-08 - WO-P1-736 delivery
 
 Resume from `00-AGENT-ENTRY.md`, `PROJECT-GRAPH.yaml`, `AGENTS.md`, actual Git/claims, `CURRENT-WORK.md`, and [WO-P1-736](docs/work-orders/WO-P1-736-prepared-run-reconstruction.md).
 Issue: [#736](https://github.com/aase7en/A-Wiki-Conductor/issues/736); DELIVERED / MERGED / POST_MAIN_VERIFIED via PR #737.
