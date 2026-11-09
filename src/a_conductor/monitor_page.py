@@ -22,7 +22,8 @@ _PAGE = """<!DOCTYPE html>
  h1{font-size:1.1rem} h2{font-size:1rem;margin-top:1.4rem;color:#9cf}
  .badge{display:inline-block;padding:0.15rem 0.6rem;border:1px solid;border-radius:4px;font-size:0.8rem;margin-right:0.4rem}
  .ok{color:#8f8;border-color:#8f8} .unknown{color:#fc6;border-color:#fc6}
- .stale{color:#f96;border-color:#f96} .degraded{color:#f66;border-color:#f66}
+  .stale{color:#f96;border-color:#f96} .degraded{color:#f66;border-color:#f66}
+  .disconnected{color:#c9f;border-color:#c9f}
  table{border-collapse:collapse;margin-top:0.4rem}
  td,th{border:1px solid #444;padding:0.25rem 0.7rem;font-size:0.85rem;text-align:left}
  #state{margin:1rem 0;padding:0.6rem;border:1px solid #666;min-height:1.2rem}
@@ -36,6 +37,7 @@ _PAGE = """<!DOCTYPE html>
 <h2>Timeline</h2><div id="timeline"></div>
 <h2>STM partitions</h2><div id="stm"></div>
 <h2>Correlation</h2><div id="corr"></div>
+<h2>Inspector</h2><div id="inspector-section"><span class="badge unknown">UNKNOWN</span></div>
 <script>
 "use strict";
 var token = "";
@@ -49,7 +51,7 @@ function badge(label, cls) {
 }
 function esc(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
-    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
   });
 }
 function setState(text, cls) {
@@ -132,11 +134,50 @@ function renderCorrelation(c) {
   }
   document.getElementById("corr").innerHTML = out.join(" ");
 }
+function renderInspector(v) {
+  var out = [];
+  if (!v || v.state) {
+    var state = v && v.state === "DEGRADED" ? "DEGRADED" : "UNKNOWN";
+    out.push(badge(state, state === "DEGRADED" ? "degraded" : "unknown"));
+    out.push(esc(v && v.reason || "INSPECTOR_NOT_PROVIDED"));
+  }
+  [["tools", "Tools"], ["hooks", "Hooks"], ["skills", "Skills"]].forEach(function (group) {
+    out.push("<div><strong>" + group[1] + "</strong></div>");
+    var rows = v && Array.isArray(v[group[0]]) ? v[group[0]] : [];
+    if (!rows.length) {
+      out.push(badge("UNKNOWN", "unknown") + " no inspector evidence");
+      return;
+    }
+    out.push("<table><tr><th>name</th><th>state</th><th>detail</th><th>provenance</th></tr>");
+    rows.slice(-128).forEach(function (r) {
+      r = r || {};
+      var state = r.state;
+      var known = ["READY", "UNKNOWN", "STALE", "DEGRADED", "DISCONNECTED"];
+      if (group[0] === "skills") { known.push("AVAILABLE"); }
+      if (known.indexOf(state) === -1) { state = "UNKNOWN"; }
+      var cls = state === "READY" || state === "AVAILABLE" ? "ok" :
+                state === "STALE" ? "stale" : state === "DEGRADED" ? "degraded" :
+                state === "DISCONNECTED" ? "disconnected" : "unknown";
+      var detail = group[0] === "tools" ? r.phase :
+                   group[0] === "hooks" ? r.hook_class : r.routing_hint;
+      if (r.deprecated) { detail = (detail || "") + " deprecated"; }
+      if (r.duplicate) { detail = (detail || "") + " duplicate"; }
+      out.push("<tr><td>" + esc(String(r.name || "UNKNOWN").slice(0, 200)) + "</td><td>" +
+               badge(state, cls) + "</td><td>" + esc(String(detail || "UNKNOWN").slice(0, 200)) +
+               "</td><td>" + esc(String(r.provenance || "UNKNOWN").slice(0, 200)) + "</td></tr>");
+    });
+    out.push("</table>");
+    var summary = v && v.summary && v.summary[group[0]];
+    if (summary && summary.truncated) { out.push(badge("truncated", "unknown")); }
+  });
+  document.getElementById("inspector-section").innerHTML = out.join(" ");
+}
 function render(views) {
   renderHealth(views.health);
   renderTimeline(views.timeline);
   renderStm(views.stm);
   renderCorrelation(views.correlation);
+  renderInspector(views.inspector);
 }
 function haltOnForbidden(message) {
   if (pollTimer !== null) { clearTimeout(pollTimer); pollTimer = null; }

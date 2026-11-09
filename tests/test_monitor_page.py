@@ -13,12 +13,16 @@ import socket
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 
 import pytest
 
 from a_conductor.monitor_api import MonitorApiConfig, MonitorApiServer
 from a_conductor.monitor_projection import build_monitor_views
 from a_conductor.monitor_page import MONITOR_PAGE_BYTES, monitor_page_bytes
+from a_conductor.inspector_projection import (
+    ToolInspectorRow, build_inspector_views,
+)
 
 
 def start_server(provider=None):
@@ -109,6 +113,328 @@ def test_page_escapes_badge_labels_and_clamps_correlation_state():
     assert "esc(label)" in page
     # Only enum-known good correlation states render green.
     assert '"OBSERVED"' in page  # explicit allowlist for the ok class
+
+
+def test_page_has_flat_inspector_groups_and_disconnected_badge():
+    page = MONITOR_PAGE_BYTES.decode("utf-8")
+    assert re.findall(r"<h2>(.*?)</h2>", page) == [
+        "Health", "Timeline", "STM partitions", "Correlation", "Inspector",
+    ]
+    assert '<div id="inspector-section">' in page
+    assert "function renderInspector(v)" in page
+    assert "renderInspector(views.inspector);" in page
+    for group in ("Tools", "Hooks", "Skills"):
+        assert group in page
+    assert ".disconnected{" in page
+    assert '"DISCONNECTED" ? "disconnected"' in page
+    assert 'badge("UNKNOWN", "unknown") + " no inspector evidence"' in page
+    assert 'known.indexOf(state) === -1' in page
+    assert 'group[0] === "skills"' in page and 'known.push("AVAILABLE")' in page
+    assert "rows.slice(-128)" in page
+    assert 'esc(String(r.name || "UNKNOWN")' in page
+    assert "esc(label)" in page
+    assert "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'" in page
+    assert re.findall(r"https?://", page, re.IGNORECASE) == []
+    for marker in ("localStorage", "sessionStorage", "document.cookie"):
+        assert marker not in page
+    # The Python string must not turn a JS escaped double-quote key into """.
+    assert '\'"\':"&quot;"' in page
+
+
+def _monitor_with_inspector(inspector=None):
+    return build_monitor_views(
+        bus_health={"degraded": False, "counters": {"OBSERVE": 3}, "conditions": []},
+        timeline_records=[], stm_states=[], correlation=None, inspector=inspector,
+    )
+
+
+def _inspector_fixture():
+    return build_inspector_views(
+        tools=(ToolInspectorRow(
+            name="fixture", device="windows-local", category="connector",
+            source="instance.ps1 discovery", phase="REGISTERED", state="UNKNOWN",
+            registration_evidence="instance.ps1", last_verified=None, last_error="",
+            next_safe_action="Inspect health", provenance="discovery-only",
+        ),), hooks=(), skills=(),
+        now=datetime(2026, 11, 9, 10, 0, tzinfo=timezone.utc),
+    )
+
+
+def test_monitor_inspector_absence_is_explicit_unknown():
+    views = _monitor_with_inspector()
+    assert views["inspector"] == {"state": "UNKNOWN", "reason": "INSPECTOR_NOT_PROVIDED"}
+    assert views["health"] == {"degraded": False, "counters": {"OBSERVE": 3}, "conditions": []}
+    assert views["timeline"] == [] and views["stm"] == []
+    assert views["correlation"] == {"state": "UNKNOWN"}
+
+
+@pytest.mark.parametrize("inspector", [{}, [], {"tools": "bad"}, {"state": "READY"}])
+def test_invalid_inspector_degrades_only_its_own_view(inspector):
+    views = _monitor_with_inspector(inspector)
+    assert views["inspector"] == {"state": "DEGRADED", "reason": "INSPECTOR_PROJECTION_INVALID"}
+    assert views["health"]["degraded"] is False
+
+
+def test_monitor_inspector_revalidates_redacts_and_recounts_without_mutation():
+    inspector = _inspector_fixture()
+    inspector["tools"][0]["state"] = "invented"
+    inspector["tools"][0]["phase"] = "invented"
+    inspector["tools"][0]["last_error"] = "token=FAKE0000000000000000000000"
+    inspector["tools"][0]["private_payload"] = "must not pass"
+    inspector["summary"]["tools"]["counts"] = {"READY": 99}
+    before = json.dumps(inspector, sort_keys=True)
+    view = _monitor_with_inspector(inspector)["inspector"]
+    assert view["tools"][0]["state"] == "UNKNOWN"
+    assert view["tools"][0]["phase"] == "UNKNOWN"
+    assert view["tools"][0]["last_error"] == "[REDACTED]"
+    assert view["summary"]["tools"]["counts"] == {"UNKNOWN": 1}
+    assert "private_payload" not in view["tools"][0]
+    assert json.dumps(inspector, sort_keys=True) == before
+
+
+def test_monitor_inspector_preserves_truncation_evidence():
+    inspector = _inspector_fixture()
+    inspector["tools"] *= 129
+    inspector["summary"]["tools"]["truncated"] = True
+    inspector["summary"]["tools"]["dropped"] = 2
+    view = _monitor_with_inspector(inspector)["inspector"]
+    assert len(view["tools"]) == 128
+    assert view["summary"]["tools"]["counts"] == {"UNKNOWN": 128}
+    assert view["summary"]["tools"]["truncated"] is True
+    assert view["summary"]["tools"]["dropped"] == 3
+
+
+def test_monitor_inspector_hostile_dict_and_bad_row_are_isolated():
+    class Hostile(dict):
+        def __getitem__(self, key):
+            raise RuntimeError("token=FAKE0000000000000000")
+
+    for inspector in (Hostile(), _inspector_fixture()):
+        if type(inspector) is dict:
+            inspector["tools"][0]["name"] = ""
+        view = _monitor_with_inspector(inspector)["inspector"]
+        assert view == {"state": "DEGRADED", "reason": "INSPECTOR_PROJECTION_INVALID"}
+
+
+@pytest.mark.parametrize("secret", [
+    "Authorization: Basic RkFLRTpGQUtF",
+    'Authorization: Digest username="FAKE", response="FAKE"',
+    "ftp://fixture-user:FAKE-PASSWORD@example.invalid/path",
+    "t\u043eken=FAKE-CREDENTIAL",
+    "\uff54\uff4f\uff4b\uff45\uff4e=FAKE-CREDENTIAL",
+])
+@pytest.mark.parametrize("section,field", [
+    ("tools", "name"), ("tools", "last_error"),
+    ("skills", "routing_hint"), ("hooks", "provenance"),
+])
+def test_monitor_reprojection_redacts_auth_userinfo_and_unicode_markers(secret, section, field):
+    inspector = _inspector_fixture()
+    inspector["hooks"] = [{
+        "name": "fixture-hook", "hook_class": "OBSERVE", "authority_source": "contract:1.0.0",
+        "enabled": True, "fail_mode": "UNKNOWN", "state": "UNKNOWN",
+        "last_event": "", "last_error": "", "provenance": "contract-only",
+    }]
+    inspector["skills"] = [{
+        "name": "fixture-skill", "state": "AVAILABLE", "registry_source": "skills-registry.json",
+        "routing_hint": "fixture", "harness": "all", "deprecated": False,
+        "duplicate": False, "provenance": "registry-only",
+    }]
+    inspector[section][0][field] = secret
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"][section][0][field] == "[REDACTED]"
+    serialized = json.dumps(view, ensure_ascii=False)
+    assert secret not in serialized
+    assert "FAKE" not in serialized
+
+
+@pytest.mark.parametrize("sign", [-1, 1])
+def test_monitor_oversized_last_verified_is_isolated_and_snapshot_serializes(sign):
+    inspector = _inspector_fixture()
+    inspector["tools"][0]["last_verified"] = sign * 10**5000
+    baseline = _monitor_with_inspector()
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"] == {"state": "DEGRADED", "reason": "INSPECTOR_PROJECTION_INVALID"}
+    for key in ("health", "timeline", "stm", "correlation"):
+        assert view[key] == baseline[key]
+    assert json.loads(json.dumps(view)) == view
+
+
+@pytest.mark.parametrize("verified", [-(2**53), 2**53])
+def test_monitor_last_verified_safe_integer_endpoints_serialize(verified):
+    inspector = _inspector_fixture()
+    inspector["tools"][0]["last_verified"] = verified
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0]["last_verified"] == verified
+    assert json.loads(json.dumps(view)) == view
+
+
+def test_monitor_overlength_inspector_field_is_isolated_and_serializable():
+    inspector = _inspector_fixture()
+    inspector["tools"][0]["last_error"] = "x" * 4097
+    baseline = _monitor_with_inspector()
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"] == {"state": "DEGRADED", "reason": "INSPECTOR_PROJECTION_INVALID"}
+    for key in ("health", "timeline", "stm", "correlation"):
+        assert view[key] == baseline[key]
+    assert json.loads(json.dumps(view)) == view
+
+
+@pytest.mark.parametrize("value", ["x" * 4096, "a:b=c " * 666])
+def test_monitor_accepts_bounded_long_nonsecret_fields(value):
+    inspector = _inspector_fixture()
+    inspector["tools"][0]["last_error"] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0]["last_error"] == value[:200]
+    assert json.loads(json.dumps(view)) == view
+
+
+def test_monitor_redacts_secret_at_char_300_before_truncation():
+    inspector = _inspector_fixture()
+    value = "x" * 299 + " token=FAKE-CREDENTIAL "
+    value += "x" * (800 - len(value))
+    assert len(value) == 800 and value.index("token=") == 300
+    inspector["tools"][0]["last_error"] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0]["last_error"] == "[REDACTED]"
+    assert "FAKE" not in json.dumps(view)
+
+
+@pytest.mark.parametrize("value", [
+    '"Bearer FAKE0000000000000000"',
+    "(Bearer FAKE0000000000000000)",
+    "[Bearer FAKE0000000000000000]",
+    "error: Bearer FAKE0000000000000000",
+    "Bearer FAKE0000000000000000...),",
+    "(Bearer () [] ; FAKE0000000000000000)",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_redacts_punctuation_wrapped_bearer_credentials(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert "FAKE" not in json.dumps(view)
+
+
+@pytest.mark.parametrize("value", [
+    "bearer", "(bearer)", '"bearer"', "error: bearer",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_preserves_bearer_without_a_nonempty_credential(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == value
+    assert json.loads(json.dumps(view)) == view
+
+
+@pytest.mark.parametrize("value", [
+    'message="Bearer FAKE0000000000000000"',
+    "error:(Bearer FAKE0000000000000000)",
+    "-Bearer FAKE0000000000000000-",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_redacts_embedded_bearer_marker_with_payload(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert "FAKE" not in json.dumps(view)
+
+
+@pytest.mark.parametrize("value", [
+    "access_token=FAKE0000000000000000",
+    "refresh_token=FAKE0000000000000000",
+    "OPENAI_API_KEY=fixture-opaque-credential",
+    "session_secret=xyz",
+    'SERVICE_PASSWORD:"fixture-opaque"',
+    "(ACCESS_TOKEN='FAKE0000000000000000')",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_redacts_prefixed_secret_assignment_labels(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert value not in json.dumps(view)
+
+
+@pytest.mark.parametrize("value", [
+    "monitored=1", "key_count=5", "access_token=", "session_secret=''",
+    'SERVICE_PASSWORD:""',
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_preserves_nonsecret_or_payload_free_assignments(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == value
+    assert json.loads(json.dumps(view)) == view
+
+
+@pytest.mark.parametrize("value", [
+    "access_token= FAKE0000000000000000",
+    "MY_TOKEN: xyz",
+    "OPENAI_API_KEY = fixture-opaque-credential",
+    "OPENAI_API_KEY= fixture-opaque-credential",
+    "MY_TOKEN :  xyz",
+    "MY_TOKEN = : xyz",
+    "OPENAI_API_KEY =fixture-opaque-credential",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_redacts_cross_token_secret_assignments(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert value not in json.dumps(view)
+
+
+@pytest.mark.parametrize("value", [
+    "access_token=", "MY_TOKEN: ", "OPENAI_API_KEY = :",
+    "monitored=1", "key_count=5", "bearer",
+    "MY_API KEY", "MY_API unrelated KEY = fixtureOpaque123",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_preserves_incomplete_cross_token_assignments(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == value
+    assert json.loads(json.dumps(view)) == view
+
+
+@pytest.mark.parametrize("value", [
+    '{"SERVICE_PASSWORD": "hunter:2"}',
+    'SERVICE_PASSWORD = "hunter:2"',
+    "SERVICE_PASSWORD: hunter:2",
+    "access_token= fixture:opaque",
+    "access_token= monitored=1",
+    "MY_TOKEN : () monitored=1",
+    "bearer () [] {},;.`",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_fails_closed_on_pending_secret_payloads(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert "hunter:2" not in json.dumps(view)
+    assert "fixture:opaque" not in json.dumps(view)
+
+
+@pytest.mark.parametrize("value", [
+    "MY_API KEY = fixtureOpaque123",
+    "MYAPI KEY:fixtureOpaque123",
+    "MY_ACCESS KEY : fixtureOpaque123",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_redacts_two_word_secret_assignment_labels(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert "fixtureOpaque123" not in json.dumps(view)
 
 
 # --- /monitor route ----------------------------------------------------------
