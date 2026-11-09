@@ -396,3 +396,46 @@ def test_punctuation_wrapped_bearer_credentials_are_whole_value_redacted(value, 
 @pytest.mark.parametrize("field", ["last_error", "name"])
 def test_bearer_without_a_nonempty_credential_is_not_redacted(value, field) -> None:
     assert _views(tools=(_tool(**{field: value}),))["tools"][0][field] == value
+
+
+@pytest.mark.parametrize("value", [
+    'message="Bearer FAKE0000000000000000"',
+    "error:(Bearer FAKE0000000000000000)",
+    "-Bearer FAKE0000000000000000-",
+])
+@pytest.mark.parametrize("section,builder,field", [
+    ("tools", _tool, "last_error"), ("tools", _tool, "name"),
+    ("skills", _skill, "routing_hint"),
+])
+def test_embedded_bearer_marker_with_payload_is_whole_value_redacted(
+    value, section, builder, field,
+) -> None:
+    result = _views(**{section: (builder(**{field: value}),)})
+    assert result[section][0][field] == "[REDACTED]"
+    assert "FAKE" not in repr(result)
+
+
+def test_marker_regex_contains_only_word_boundaries_and_literal_alternation() -> None:
+    pattern = module._MARKERS_RE.pattern
+    prefix, suffix = r"\b(?:", r")\b"
+    assert pattern.startswith(prefix) and pattern.endswith(suffix)
+    literals = pattern[len(prefix):-len(suffix)].split("|")
+    assert {"authorization", "bearer", "token", "secret", "password", "api-key", "credential"} <= set(literals)
+    assert all(literal and all(char in "abcdefghijklmnopqrstuvwxyz_- " for char in literal)
+               for literal in literals)
+
+
+def test_literal_marker_search_runs_once_for_the_normalized_field(monkeypatch) -> None:
+    original = module._MARKERS_RE
+    calls = []
+
+    class RecordingMatcher:
+        def search(self, value):
+            calls.append(value)
+            return original.search(value)
+
+    monkeypatch.setattr(module, "_MARKERS_RE", RecordingMatcher())
+    raw = 'message="Bearer FAKE0000000000000000"'
+    result = _views(tools=(_tool(last_error=raw),))
+    assert result["tools"][0]["last_error"] == "[REDACTED]"
+    assert calls.count(raw.casefold()) == 1

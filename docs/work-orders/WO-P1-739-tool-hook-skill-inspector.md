@@ -273,3 +273,38 @@ and last_error. Additional cases cover intervening punctuation-only tokens and
 the no-credential negative at both boundaries, including JSON-safe output.
 The WO update is append-only. No Git/GitHub/pytest/shell or runtime verification
 was performed; test execution and independent acceptance remain orchestrator gates.
+
+## 12. Repair Round 4: Literal Marker Recognition
+
+Repair base: `e52d9a6` (orchestrator supplied; no executor Git verification).
+Re-review found that token-end punctuation stripping still missed embedded
+Bearer markers in message assignments, error wrappers, and hyphen wrappers.
+Verdict: PENDING_RE_REVIEW. This replaces the earlier word-marker strategy,
+rather than adding more token-boundary special cases.
+
+The 4096-character raw limit remains before all scanning. A field receives one
+NFKD/casefold/combining-mark/confusable normalization; whitespace is canonicalized
+from its token list. One module-level compiled _MARKERS_RE is searched exactly
+once against that normalized field. Its pattern consists solely of literal
+marker alternatives enclosed by word boundaries. Hyphenated, underscored,
+compact, and spaced API/access-key spellings are explicit literal alternatives;
+there are no character classes, repetition quantifiers, or variable-length
+prefixes in the regex. The prior suffix/label/Bearer token-vocabulary rules are
+removed. Fixed-length alternatives bound matching work per input position.
+
+A match redacts the entire field when its tail contains a non-empty following
+token after fixed punctuation stripping, or a non-empty value after colon/equal
+within the next 32 characters. This tail is examined once with a fixed number
+of passes, never per regex match. Structural Authorization, URL-userinfo,
+share/private-key, and monotonic fixed-window credential-prefix checks remain.
+Redaction still precedes the 200-character display truncation; a bare bearer
+without payload remains unchanged.
+
+Added projection and raw-monitor regressions for all three embedded reproductions
+in name/last_error and projection routing_hint. Additional tests require a regex
+containing only word boundaries and literal alternatives, and one marker-search
+call for a normalized field. All prior assertions remain intact, including
+Basic auth, userinfo, Unicode markers, beyond-200 redaction, wrapped Bearer,
+bare-Bearer negatives, cap boundaries, and punctuation-heavy non-matches.
+The WO change is append-only. No Git/GitHub/pytest/shell or runtime verification
+was performed; verification and independent acceptance remain orchestrator gates.

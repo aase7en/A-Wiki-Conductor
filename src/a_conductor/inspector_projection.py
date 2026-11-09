@@ -7,11 +7,13 @@ Integer last_verified values must be within -2**53 .. 2**53, inclusive,
 the inspector's finite JavaScript-safe interchange range (bool is not an int).
 Raw free-text fields longer than 4096 characters are invalid, checked before
 stripping, normalization, or secret scanning. Accepted text is scanned before
-the 200-character display truncation using linear token analysis, never regex.
+the 200-character display truncation using linear structural checks and one
+literal-marker regex search with word boundaries and no quantified patterns.
 """
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from collections import deque
 from dataclasses import dataclass, fields
@@ -86,12 +88,11 @@ class SkillInspectorRow:
 
 
 _RAW_FIELD_LIMIT = 4096
-_SECRET_MARKERS = (
-    "authorization", "token", "secret", "password", "apikey", "accesskey",
-    "credential", "cookie", "bearer",
+_MARKERS_RE = re.compile(
+    r"\b(?:authorization|bearer|token|secret|password|api-key|api_key|apikey|api key|"
+    r"access-key|access_key|accesskey|access key|credential|cookie)\b"
 )
-_LABEL_PUNCTUATION = str.maketrans("", "", "_-\"'")
-_BEARER_BOUNDARY_PUNCTUATION = "()[]{}<>\"'`,;."
+_PAYLOAD_PUNCTUATION = " \t\r\n()[]{}<>\"'`,;.:=-"
 _TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789_"
 _PREFIX_RULES = (
     ("sk-", 8, _TOKEN_ALPHABET + "-"),
@@ -103,8 +104,7 @@ _PREFIX_RULES = (
     ("tunnel_", 32, "0123456789abcdef"),
 )
 
-# NFKD does not fold cross-script lookalikes. Fold marker confusables as well;
-# remaining non-ASCII assignment labels are conservatively treated as secrets.
+# NFKD does not fold cross-script lookalikes. Fold marker confusables as well.
 _MARKER_CONFUSABLES = str.maketrans({
     "\u0430": "a", "\u0432": "b", "\u0441": "c", "\u0501": "d",
     "\u0435": "e", "\u04bb": "h", "\u0456": "i", "\u0458": "j",
@@ -116,17 +116,20 @@ _MARKER_CONFUSABLES = str.maketrans({
 })
 
 
-def _secret_tokens(tokens: list[str]) -> bool:
-    """Fixed work per character: disjoint splits and constant-size checks."""
-    bearer_pending = False
-    for token in tokens:
-        boundary_token = token.strip(_BEARER_BOUNDARY_PUNCTUATION)
-        if not boundary_token:
-            continue
-        if bearer_pending:
+def _marker_payload(normalized: str, marker_end: int) -> bool:
+    """Inspect one matched marker's tail once; delimiters are sought within 32 chars."""
+    tail = normalized[marker_end:]
+    window = tail[:32]
+    for delimiter in (":", "="):
+        offset = window.find(delimiter)
+        if offset >= 0 and tail[offset + 1:].strip(_PAYLOAD_PUNCTUATION):
             return True
-        bearer_pending = boundary_token == "bearer"
-    previous_label = ""
+    _, separator, following = tail.partition(" ")
+    return bool(separator) and any(token.strip(_PAYLOAD_PUNCTUATION) for token in following.split())
+
+
+def _secret_tokens(tokens: list[str]) -> bool:
+    """Structural/prefix evidence only; word markers use _MARKERS_RE once per field."""
     private_header = private_word = False
     for token in tokens:
         if token.startswith("authorization:"):
@@ -159,18 +162,6 @@ def _secret_tokens(tokens: list[str]) -> bool:
                 ):
                     return True
                 start = token.find(prefix, start + 1)
-        parts = token.replace(":", "=").split("=")
-        first = parts[0].translate(_LABEL_PUNCTUATION)
-        if not first:
-            first = previous_label
-        elif previous_label in ("api", "access") and first == "key":
-            first = previous_label + first
-        for part_index, part in enumerate(parts[:-1]):
-            label = first if part_index == 0 else part.translate(_LABEL_PUNCTUATION)
-            if label.endswith(_SECRET_MARKERS) or any(ord(char) > 127 for char in label):
-                return True
-        previous_label = (first if len(parts) == 1 else
-                          parts[-1].translate(_LABEL_PUNCTUATION))[-32:]
     return False
 
 
@@ -179,9 +170,12 @@ def _text(value: object, *, required: bool = False) -> str:
         raise InspectorProjectionError()
     if required and not value.strip():
         raise InspectorProjectionError()
-    normalized = "".join(char for char in unicodedata.normalize("NFKD", value).casefold()
-                         if not unicodedata.combining(char)).translate(_MARKER_CONFUSABLES)
-    if _secret_tokens(normalized.split()):
+    folded = "".join(char for char in unicodedata.normalize("NFKD", value).casefold()
+                     if not unicodedata.combining(char)).translate(_MARKER_CONFUSABLES)
+    tokens = folded.split()
+    normalized = " ".join(tokens)
+    marker = _MARKERS_RE.search(normalized)
+    if (marker is not None and _marker_payload(normalized, marker.end())) or _secret_tokens(tokens):
         return "[REDACTED]"
     if any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in value):
         raise InspectorProjectionError()

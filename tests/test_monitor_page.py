@@ -328,6 +328,20 @@ def test_monitor_reprojection_preserves_bearer_without_a_nonempty_credential(val
     assert json.loads(json.dumps(view)) == view
 
 
+@pytest.mark.parametrize("value", [
+    'message="Bearer FAKE0000000000000000"',
+    "error:(Bearer FAKE0000000000000000)",
+    "-Bearer FAKE0000000000000000-",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_redacts_embedded_bearer_marker_with_payload(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert "FAKE" not in json.dumps(view)
+
+
 # --- /monitor route ----------------------------------------------------------
 
 def test_monitor_route_requires_token():
