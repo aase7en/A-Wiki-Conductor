@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import sys
 from dataclasses import FrozenInstanceError, fields, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -61,6 +62,18 @@ def test_imports_are_pure() -> None:
     for value in vars(module).values():
         if isinstance(value, ModuleType):
             assert value.__name__.split(".")[0] not in banned
+    pending, visited = [module], set()
+    while pending:
+        imported = pending.pop()
+        if imported.__name__ in visited:
+            continue
+        visited.add(imported.__name__)
+        assert imported.__name__.split(".")[0] not in banned
+        for value in vars(imported).values():
+            if isinstance(value, ModuleType):
+                reachable = sys.modules.get(value.__name__)
+                if reachable is not None:
+                    pending.append(reachable)
     tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):

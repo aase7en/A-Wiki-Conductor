@@ -8,14 +8,15 @@ Worktree: `A:\GitHub\AWC-739-inspector`
 Branch: `feat/739-inspector-v1` (orchestrator supplied).
 Owner/scope: https://github.com/aase7en/A-Wiki-Conductor/issues/739#issuecomment-6737467325
 Mutable scope: this WO, `src/a_conductor/inspector_projection.py`, `src/a_conductor/inspector_sources.py`, `tests/test_inspector_projection.py`, `tests/test_inspector_sources.py` only.
+Round 2 scope extension: `src/a_conductor/monitor_projection.py`, `src/a_conductor/monitor_page.py`, `tests/test_monitor_page.py`.
 
 ## 1. Objective
 
 Provide the read-only Tool / Hook / Skill Inspector slice 1 seam: pure bounded
-presentation rows plus local source collectors. This round supplies complete
-behavioral tests and importable frozen dataclasses/enums with RED build/collect
-stubs only. Every build/collect function raises
-`NotImplementedError("INSPECTOR_SLICE_1_RED")`; GREEN implementation is deferred.
+presentation rows plus local source collectors. Round 1 supplied behavioral tests
+and importable frozen dataclasses/enums with RED build/collect stubs. Round 2
+implements those seams and adds the explicitly authorized minimal monitor
+projection/page integration. Verification and GREEN acceptance remain pending.
 
 ## 2. Failure Model
 
@@ -119,8 +120,8 @@ generated_at is not the freshness clock. No A-Wiki Python package is imported.
 Only the orchestrator runs Git, GitHub, shell commands, verification, and commits.
 Executor did not independently verify actual HEAD/dirty/claim status and grants
 no new claim, review, merge, acceptance, runtime, or cross-repo authority.
-Orchestrator must verify the supplied worktree/base/claim and exact five-file diff,
-then capture RED behavior as NotImplementedError, not collection/import failure.
+Orchestrator must verify the supplied worktree/base/claim and authorized-scope diff,
+retain RED evidence, and capture GREEN behavior without collection/import failure.
 
 Verification commands (orchestrator only):
 
@@ -128,12 +129,13 @@ Verification commands (orchestrator only):
 py -3.13 -m pytest tests/test_inspector_projection.py -q
 py -3.13 -m pytest tests/test_inspector_sources.py -q
 py -3.13 -m pytest tests/test_inspector_projection.py::test_imports_are_pure -q
+py -3.13 -m pytest tests/test_monitor_page.py -q
 ```
 
 Evidence model: record exact-head RED then GREEN hashes and verification output.
-RED commit hash: PENDING (orchestrator).
-RED test evidence: PENDING (not run by executor).
-GREEN commit hash: PENDING (later implementation round).
+RED commit hash: `00d91eb` (supplied by orchestrator, not independently checked).
+RED test evidence: 82 failing tests reported by orchestrator; executor ran none.
+GREEN commit hash: PENDING (orchestrator).
 GREEN test evidence: PENDING.
 Independent review / exact-head CI / post-main CI: PENDING (orchestrator gates).
 This WO is the bounded slice checkpoint; shared CURRENT-WORK.md and handoff.md
@@ -142,8 +144,9 @@ are deliberately untouched because outside this executor's allowed scope.
 ## 7. Out Of Scope And Risks
 
 NO gateway actions, NO writes to devices/connectors, NO new store/scheduler/router.
-Desktop cockpit integration and monitor_projection.py / monitor_page.py /
-test_monitor_page.py changes are deferred to the next slice.
+Desktop cockpit source-provider wiring remains deferred. Round 2 explicitly
+authorizes monitor_projection.py / monitor_page.py / test_monitor_page.py changes
+for an optional injected inspector view and rendering only; no live source wiring.
 Local discovery imports subprocess for unrelated existing orchestration; GREEN
 must invoke only discovery/health, never spawn. Health reads may fail or hang;
 reuse existing bounded timeouts. Registry external paths, oversized/malformed
@@ -151,3 +154,29 @@ files, path traversal, freshness drift, and per-item read errors need fail-safe
 handling during GREEN review. Static contract availability does not prove live
 registration; fail-closed adapter emission is not GUARD authority. Test evidence
 and line counts do not substitute for orchestrator verification or acceptance.
+
+## 8. Round 2 Checkpoint
+
+Implemented projection validation/redaction, frozen row models, bounded retained
+counts, and source discovery/health/contract/registry reads. All collectors return
+rows plus code-only notes, with per-item failure isolation and no source writes.
+Registry reads are bounded, duplicate JSON keys rejected, and timestamps injected
+for freshness tests. Repo-relative skill paths must resolve inside the explicit
+root; external/home-relative/escaping paths stay UNKNOWN without metadata reads.
+This is conservative local availability, not proof of cross-machine installation.
+Additional source note: `TOOL_ENTRY_INVALID` for malformed discovered rows.
+
+The optional monitor inspector is re-projected with an allowlist, bounded rows,
+recomputed state counts, sanitized text, and preserved truncation evidence.
+Absent is UNKNOWN; malformed is DEGRADED with INSPECTOR_PROJECTION_INVALID,
+isolated from existing monitor views. The page adds one flat Inspector section,
+three groups, explicit unknown/empty badges, and a disconnected badge class.
+CSP, memory-only fragment token, and same-origin GET polling are unchanged.
+The existing JS double-quote escape-map key was corrected to survive Python
+string decoding; a page-byte regression assertion records that correction.
+
+Purity test now walks reachable module imports through sys.modules as well as
+checking the module namespace and AST. Existing behavioral assertions remain.
+Static source self-review only: no Git, GitHub, pytest, shell, browser execution,
+or other runtime verification. Exact HEAD/diff and all GREEN evidence belong to
+the orchestrator. This checkpoint does not claim that tests or CI have passed.

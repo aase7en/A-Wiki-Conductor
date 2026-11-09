@@ -2,13 +2,15 @@
 
 No I/O dependencies or runtime authority. AVAILABLE is a skill-only static
 availability label, not InspectorState.READY or evidence of runtime liveness.
-Build behavior is intentionally unimplemented for the RED checkpoint.
+Inputs are injected frozen rows; this module never discovers or probes sources.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
+import re
+from collections import deque
+from dataclasses import dataclass, fields
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Sequence
 
@@ -33,6 +35,9 @@ class InspectorProjectionError(RuntimeError):
     """Invalid untrusted projection input; never carries raw input text."""
 
     code = "INSPECTOR_PROJECTION_INVALID_INPUT"
+
+    def __init__(self) -> None:
+        super().__init__(self.code)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +80,64 @@ class SkillInspectorRow:
     provenance: str
 
 
+_SECRET = re.compile(
+    r"sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|"
+    r"github_pat_[A-Za-z0-9_]+|xox[baprs]-[A-Za-z0-9-]+|AKIA[A-Z0-9]{12,}|"
+    r"\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|"
+    r"(?:api[_ -]?key|access[_ -]?key|token|credential|password|secret|cookie)"
+    r"\s*[\"']?\s*[:=]\s*\S+|tunnel_[0-9a-f]{32}|"
+    r"https?://[^\s]+/(?:share|s)/[^\s]+",
+    re.IGNORECASE,
+)
+
+
+def _text(value: object, *, required: bool = False) -> str:
+    if type(value) is not str or (required and not value.strip()):
+        raise InspectorProjectionError()
+    if _SECRET.search(value):
+        return "[REDACTED]"
+    if any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in value):
+        raise InspectorProjectionError()
+    return value[:200]
+
+
+def _enum(value: object, allowed: tuple[str, ...]) -> str:
+    if isinstance(value, (InspectorState, ToolPhase)):
+        value = value.value
+    return value if type(value) is str and value in allowed else "UNKNOWN"
+
+
+def _row_view(row: object, row_type: type) -> dict:
+    if type(row) is not row_type:
+        raise InspectorProjectionError()
+    result = {}
+    for field in fields(row_type):
+        value = getattr(row, field.name)
+        if field.name == "state":
+            allowed = tuple(state.value for state in InspectorState)
+            if row_type is SkillInspectorRow:
+                allowed += ("AVAILABLE",)
+            result[field.name] = _enum(value, allowed)
+        elif field.name == "phase":
+            result[field.name] = _enum(value, tuple(phase.value for phase in ToolPhase))
+        elif field.name == "hook_class":
+            result[field.name] = _enum(value, ("OBSERVE", "ADVISORY", "GUARD", "COMMAND"))
+        elif field.name == "fail_mode":
+            result[field.name] = _enum(value, ("FAIL_CLOSED", "FAIL_OPEN", "UNKNOWN"))
+        elif field.name in {"enabled", "deprecated", "duplicate"}:
+            if type(value) is not bool:
+                raise InspectorProjectionError()
+            result[field.name] = value
+        elif field.name == "last_verified":
+            if value is None or type(value) is int:
+                result[field.name] = value
+            else:
+                result[field.name] = _text(value)
+        else:
+            result[field.name] = _text(value, required=field.name == "name")
+    return result
+
+
 def build_inspector_views(
     *,
     tools: Sequence[ToolInspectorRow],
@@ -83,4 +146,30 @@ def build_inspector_views(
     now: datetime | None = None,
 ) -> dict:
     """Project validated rows; retain the newest 128 per input-order section."""
-    raise NotImplementedError("INSPECTOR_SLICE_1_RED")
+    try:
+        current = datetime.now(timezone.utc) if now is None else now
+        if not isinstance(current, datetime) or current.tzinfo is None or current.utcoffset() is None:
+            raise InspectorProjectionError()
+        summary = {"generated_at": current.astimezone(timezone.utc).isoformat()}
+        result = {"summary": summary}
+        for section, inputs, row_type in (
+            ("tools", tools, ToolInspectorRow),
+            ("hooks", hooks, HookInspectorRow),
+            ("skills", skills, SkillInspectorRow),
+        ):
+            retained: deque = deque(maxlen=128)
+            total = 0
+            for row in inputs:
+                retained.append(_row_view(row, row_type))
+                total += 1
+            counts: dict[str, int] = {}
+            for row in retained:
+                counts[row["state"]] = counts.get(row["state"], 0) + 1
+            result[section] = list(retained)
+            summary[section] = {
+                "counts": counts, "truncated": total > 128,
+                "dropped": max(0, total - 128),
+            }
+        return result
+    except Exception:
+        raise InspectorProjectionError() from None

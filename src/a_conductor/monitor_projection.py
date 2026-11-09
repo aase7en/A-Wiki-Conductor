@@ -11,7 +11,14 @@ are applied before materialization and malformed input is typed-rejected.
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import fields
+from datetime import datetime
 from typing import Any, Mapping, Sequence
+
+from .inspector_projection import (
+    HookInspectorRow, InspectorState, SkillInspectorRow, ToolInspectorRow,
+    build_inspector_views,
+)
 
 __all__ = ["MonitorProjectionError", "build_monitor_views"]
 
@@ -160,12 +167,65 @@ def _correlation_view(correlation: object) -> dict[str, Any]:
     return {"state": state[:32], "entries": view_entries}
 
 
+def _inspector_view(inspector: object) -> dict[str, Any]:
+    if inspector is None:
+        return {"state": "UNKNOWN", "reason": "INSPECTOR_NOT_PROVIDED"}
+    try:
+        if type(inspector) is not dict:
+            raise ValueError("INSPECTOR_PROJECTION_INVALID")
+        summary = inspector["summary"]
+        if type(summary) is not dict:
+            raise ValueError("INSPECTOR_PROJECTION_INVALID")
+        stamp = summary["generated_at"]
+        if type(stamp) is not str or len(stamp) > 64:
+            raise ValueError("INSPECTOR_PROJECTION_INVALID")
+        now = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        inputs = {}
+        for section, row_type in (("tools", ToolInspectorRow), ("hooks", HookInspectorRow),
+                                  ("skills", SkillInspectorRow)):
+            raw_rows = inspector[section]
+            if type(raw_rows) not in (list, tuple) or len(raw_rows) > 4096:
+                raise ValueError("INSPECTOR_PROJECTION_INVALID")
+            names = tuple(field.name for field in fields(row_type))
+            rows = []
+            for raw in raw_rows:
+                if type(raw) is not dict:
+                    raise ValueError("INSPECTOR_PROJECTION_INVALID")
+                rows.append(row_type(**{name: raw[name] for name in names}))
+            inputs[section] = tuple(rows)
+        result = build_inspector_views(**inputs, now=now)
+        for section in inputs:
+            previous = summary[section]
+            if type(previous) is not dict:
+                raise ValueError("INSPECTOR_PROJECTION_INVALID")
+            dropped, truncated = previous["dropped"], previous["truncated"]
+            if (type(dropped) is not int or not 0 <= dropped <= (1 << 53) - 4096
+                    or type(truncated) is not bool or truncated != (dropped > 0)):
+                raise ValueError("INSPECTOR_PROJECTION_INVALID")
+            counts = previous["counts"]
+            if type(counts) is not dict or len(counts) > 6:
+                raise ValueError("INSPECTOR_PROJECTION_INVALID")
+            allowed = {state.value for state in InspectorState}
+            if section == "skills":
+                allowed.add("AVAILABLE")
+            if any(type(key) is not str or key not in allowed or type(value) is not int
+                   or not 0 <= value <= (1 << 53) - 1 for key, value in counts.items()):
+                raise ValueError("INSPECTOR_PROJECTION_INVALID")
+            # Recompute state counts; never trust caller-supplied health totals.
+            result["summary"][section]["dropped"] += dropped
+            result["summary"][section]["truncated"] |= truncated
+        return result
+    except Exception:
+        return {"state": "DEGRADED", "reason": "INSPECTOR_PROJECTION_INVALID"}
+
+
 def build_monitor_views(
     *,
     bus_health: object,
     timeline_records: object,
     stm_states: object,
     correlation: object,
+    inspector: dict | None = None,
 ) -> dict[str, Any]:
     """Build one sanitized snapshot view from injected read results."""
     return {
@@ -173,6 +233,7 @@ def build_monitor_views(
         "timeline": _timeline_view(timeline_records),
         "stm": _stm_view(stm_states),
         "correlation": _correlation_view(correlation),
+        "inspector": _inspector_view(inspector),
     }
 
 
