@@ -216,3 +216,39 @@ Repair base: `2fb5642` (orchestrator supplied; no executor Git verification).
 Regression tests were authored before the implementation repairs; no test or
 shell command was executed by this executor. Orchestrator verification and
 independent re-review are required before any PASS or acceptance claim.
+
+## 10. Repair Round 2: Redaction Availability
+
+Repair base: `c0be7d3` (orchestrator supplied; no executor Git verification).
+Re-review reported the prior four P1 repairs satisfactory, but found a new P1:
+unanchored URI/userinfo and Unicode-assignment regex alternatives repeatedly
+scanned suffixes of long non-matching input, delaying monitor snapshots.
+Verdict for this availability repair: PENDING_RE_REVIEW; no acceptance claim.
+
+The raw free-text limit is now 4096 characters, inclusive. Longer values raise
+INSPECTOR_PROJECTION_INVALID_INPUT before stripping, normalization, or scanning,
+even when they contain secrets. Accepted fields are still redacted as whole
+values before the existing 200-character display truncation.
+
+Redaction no longer uses regex. Each accepted field undergoes one NFKD/casefold
+normalization, combining-mark removal, and confusable fold, then str.split
+whitespace tokenization. Per-token analysis uses fixed marker/prefix vocabularies:
+Authorization headers and standalone Bearer evidence; URI authority boundaries
+with @ before the following slash; share/private-key shapes; and assignment
+labels split into disjoint colon/equal-delimited parts. Prefix searches advance
+monotonically and inspect fixed windows of at most 32 characters, not unbounded
+candidate suffixes. Cross-token state is bounded to 32 label characters plus
+private-header flags. The number of passes is fixed; delimiter count cannot
+induce nested suffix rescans or regex backtracking.
+
+Added regressions for accepted/truncated 4096-character ASCII, pre-normalization
+rejection at 4097 characters, a roughly 4000-character punctuation-heavy
+non-secret, and whole-value redaction of secrets at character 300 in an
+800-character field. Additional checks preserve spaced/embedded secret shapes
+and distinguish URL-path @ from userinfo. Monitor regressions require isolated
+DEGRADED on oversized input, unchanged sibling views, and JSON serialization;
+the existing monitor exception boundary needs no implementation change.
+
+Prior test assertions were not weakened or adjusted. Source review only; no
+Git/GitHub/pytest/shell or runtime performance measurements were executed.
+The orchestrator owns test execution, measured verification, and re-review.

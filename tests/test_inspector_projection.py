@@ -308,3 +308,68 @@ def test_last_verified_safe_integer_endpoints_are_inclusive(verified: int) -> No
 def test_last_verified_just_outside_safe_integer_range_is_rejected(verified: int) -> None:
     with pytest.raises(InspectorProjectionError):
         _views(tools=(_tool(last_verified=verified),))
+
+
+def test_raw_field_at_4096_chars_is_accepted_and_truncated() -> None:
+    row = _views(tools=(_tool(last_error="x" * 4096),))["tools"][0]
+    assert row["last_error"] == "x" * 200
+
+
+def test_raw_field_cap_precedes_redaction_of_overlength_secret() -> None:
+    with pytest.raises(InspectorProjectionError):
+        _views(tools=(_tool(last_error="token=" + "x" * 4097),))
+
+
+@pytest.mark.parametrize("section,builder,field", [
+    ("tools", _tool, "name"), ("tools", _tool, "last_error"),
+    ("skills", _skill, "routing_hint"), ("hooks", _hook, "provenance"),
+])
+def test_raw_field_over_4096_chars_is_rejected_before_normalization(
+    section, builder, field, monkeypatch,
+) -> None:
+    calls = []
+    original = module.unicodedata.normalize
+
+    def observe_normalization(form, value):
+        calls.append(len(value))
+        return original(form, value)
+
+    monkeypatch.setattr(module.unicodedata, "normalize", observe_normalization)
+    with pytest.raises(InspectorProjectionError) as caught:
+        _views(**{section: (builder(**{field: "x" * 4097}),)})
+    assert caught.value.code == "INSPECTOR_PROJECTION_INVALID_INPUT"
+    assert str(caught.value) == caught.value.code
+    assert 4097 not in calls
+
+
+def test_long_ascii_with_scattered_delimiters_is_not_redacted() -> None:
+    value = "a:b=c " * 666
+    assert len(value) == 3996
+    row = _views(tools=(_tool(last_error=value),))["tools"][0]
+    assert row["last_error"] == value[:200]
+
+
+def test_secret_at_char_300_of_800_chars_is_whole_value_redacted() -> None:
+    marker = "t\u043eken=FAKE-CREDENTIAL "
+    value = "x" * 299 + " " + marker
+    value += "x" * (800 - len(value))
+    assert len(value) == 800 and value.index("t\u043eken=") == 300
+    assert _views(tools=(_tool(last_error=value),))["tools"][0]["last_error"] == "[REDACTED]"
+
+
+@pytest.mark.parametrize("value", [
+    "Authorization : Basic FAKE-CREDENTIAL",
+    "api key = FAKE-CREDENTIAL", "access key: FAKE-CREDENTIAL",
+    "password = FAKE-CREDENTIAL", "bearer=FAKE-CREDENTIAL",
+    "cookie: FAKE-CREDENTIAL", "credential = FAKE-CREDENTIAL",
+    "prefix=(sk-FAKE000000000000000000000000)",
+    "sk-ask-bcdefg",
+    "https://example.invalid/share/FAKE-CREDENTIAL",
+])
+def test_linear_matcher_preserves_spaced_and_embedded_secret_shapes(value: str) -> None:
+    assert _views(tools=(_tool(last_error=value),))["tools"][0]["last_error"] == "[REDACTED]"
+
+
+def test_url_path_at_sign_is_not_userinfo() -> None:
+    value = "custom://example.invalid/path/user@example.invalid"
+    assert _views(tools=(_tool(last_error=value),))["tools"][0]["last_error"] == value

@@ -5,11 +5,13 @@ availability label, not InspectorState.READY or evidence of runtime liveness.
 Inputs are injected frozen rows; this module never discovers or probes sources.
 Integer last_verified values must be within -2**53 .. 2**53, inclusive,
 the inspector's finite JavaScript-safe interchange range (bool is not an int).
+Raw free-text fields longer than 4096 characters are invalid, checked before
+stripping, normalization, or secret scanning. Accepted text is scanned before
+the 200-character display truncation using linear token analysis, never regex.
 """
 
 from __future__ import annotations
 
-import re
 import unicodedata
 from collections import deque
 from dataclasses import dataclass, fields
@@ -83,16 +85,21 @@ class SkillInspectorRow:
     provenance: str
 
 
-_SECRET = re.compile(
-    r"sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|"
-    r"github_pat_[A-Za-z0-9_]+|xox[baprs]-[A-Za-z0-9-]+|AKIA[A-Z0-9]{12,}|"
-    r"\bauthorization\s*:|\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|"
-    r"[a-z][a-z0-9+.-]*://[^\s/?#@]+@[^\s/?#]+|"
-    r"(?:api[_ -]?key|access[_ -]?key|token|credential|password|secret|cookie)"
-    r"\s*[\"']?\s*[:=]\s*\S+|tunnel_[0-9a-f]{32}|"
-    r"https?://[^\s]+/(?:share|s)/[^\s]+|"
-    r"[^\s:=]*[^\x00-\x7f][^\s:=]*\s*[:=]\s*\S+",
-    re.IGNORECASE,
+_RAW_FIELD_LIMIT = 4096
+_SECRET_MARKERS = (
+    "authorization", "token", "secret", "password", "apikey", "accesskey",
+    "credential", "cookie", "bearer",
+)
+_LABEL_PUNCTUATION = str.maketrans("", "", "_-\"'")
+_TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789_"
+_PREFIX_RULES = (
+    ("sk-", 8, _TOKEN_ALPHABET + "-"),
+    *((prefix, 8, _TOKEN_ALPHABET) for prefix in ("ghp_", "gho_", "ghu_", "ghs_", "ghr_")),
+    ("github_pat_", 1, _TOKEN_ALPHABET),
+    *((prefix, 1, _TOKEN_ALPHABET.replace("_", "-"))
+      for prefix in ("xoxb-", "xoxa-", "xoxp-", "xoxr-", "xoxs-")),
+    ("akia", 12, _TOKEN_ALPHABET.replace("_", "")),
+    ("tunnel_", 32, "0123456789abcdef"),
 )
 
 # NFKD does not fold cross-script lookalikes. Fold marker confusables as well;
@@ -108,12 +115,64 @@ _MARKER_CONFUSABLES = str.maketrans({
 })
 
 
+def _secret_tokens(tokens: list[str]) -> bool:
+    """Fixed work per character: disjoint splits and constant-size checks."""
+    previous_label = ""
+    private_header = private_word = False
+    for index, token in enumerate(tokens):
+        if token.startswith("authorization:") or (token == "bearer" and index + 1 < len(tokens)):
+            return True
+        scheme_end = token.find("://")
+        if scheme_end >= 0:
+            authority_start = scheme_end + 3
+            authority_end = token.find("/", authority_start)
+            if authority_end < 0:
+                authority_end = len(token)
+            if token.find("@", authority_start, authority_end) >= 0:
+                return True
+        if token.startswith(("http://", "https://")):
+            if token.partition("/share/")[2] or token.partition("/s/")[2]:
+                return True
+        if "-----begin" in token:
+            private_header, private_word = True, False
+        elif private_header and token == "private":
+            private_word = True
+        elif private_word and token.startswith("key-----"):
+            return True
+        for prefix, minimum, alphabet in _PREFIX_RULES:
+            # Searches advance monotonically; inspect only a fixed <=32-char
+            # window, even when credential content contains another prefix.
+            start = token.find(prefix)
+            while start >= 0:
+                payload_start = start + len(prefix)
+                if len(token) - payload_start >= minimum and all(
+                    char in alphabet for char in token[payload_start:payload_start + minimum]
+                ):
+                    return True
+                start = token.find(prefix, start + 1)
+        parts = token.replace(":", "=").split("=")
+        first = parts[0].translate(_LABEL_PUNCTUATION)
+        if not first:
+            first = previous_label
+        elif previous_label in ("api", "access") and first == "key":
+            first = previous_label + first
+        for part_index, part in enumerate(parts[:-1]):
+            label = first if part_index == 0 else part.translate(_LABEL_PUNCTUATION)
+            if label.endswith(_SECRET_MARKERS) or any(ord(char) > 127 for char in label):
+                return True
+        previous_label = (first if len(parts) == 1 else
+                          parts[-1].translate(_LABEL_PUNCTUATION))[-32:]
+    return False
+
+
 def _text(value: object, *, required: bool = False) -> str:
-    if type(value) is not str or (required and not value.strip()):
+    if type(value) is not str or len(value) > _RAW_FIELD_LIMIT:
+        raise InspectorProjectionError()
+    if required and not value.strip():
         raise InspectorProjectionError()
     normalized = "".join(char for char in unicodedata.normalize("NFKD", value).casefold()
                          if not unicodedata.combining(char)).translate(_MARKER_CONFUSABLES)
-    if _SECRET.search(value) or _SECRET.search(normalized):
+    if _secret_tokens(normalized.split()):
         return "[REDACTED]"
     if any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in value):
         raise InspectorProjectionError()

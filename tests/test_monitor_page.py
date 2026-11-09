@@ -268,6 +268,37 @@ def test_monitor_last_verified_safe_integer_endpoints_serialize(verified):
     assert json.loads(json.dumps(view)) == view
 
 
+def test_monitor_overlength_inspector_field_is_isolated_and_serializable():
+    inspector = _inspector_fixture()
+    inspector["tools"][0]["last_error"] = "x" * 4097
+    baseline = _monitor_with_inspector()
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"] == {"state": "DEGRADED", "reason": "INSPECTOR_PROJECTION_INVALID"}
+    for key in ("health", "timeline", "stm", "correlation"):
+        assert view[key] == baseline[key]
+    assert json.loads(json.dumps(view)) == view
+
+
+@pytest.mark.parametrize("value", ["x" * 4096, "a:b=c " * 666])
+def test_monitor_accepts_bounded_long_nonsecret_fields(value):
+    inspector = _inspector_fixture()
+    inspector["tools"][0]["last_error"] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0]["last_error"] == value[:200]
+    assert json.loads(json.dumps(view)) == view
+
+
+def test_monitor_redacts_secret_at_char_300_before_truncation():
+    inspector = _inspector_fixture()
+    value = "x" * 299 + " token=FAKE-CREDENTIAL "
+    value += "x" * (800 - len(value))
+    assert len(value) == 800 and value.index("token=") == 300
+    inspector["tools"][0]["last_error"] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0]["last_error"] == "[REDACTED]"
+    assert "FAKE" not in json.dumps(view)
+
+
 # --- /monitor route ----------------------------------------------------------
 
 def test_monitor_route_requires_token():
