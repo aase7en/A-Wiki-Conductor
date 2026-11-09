@@ -168,6 +168,7 @@ def _correlation_view(correlation: object) -> dict[str, Any]:
 
 
 def _inspector_view(inspector: object) -> dict[str, Any]:
+    """Isolate invalid inspector data; last_verified ints are -2**53 .. 2**53."""
     if inspector is None:
         return {"state": "UNKNOWN", "reason": "INSPECTOR_NOT_PROVIDED"}
     try:
@@ -191,6 +192,10 @@ def _inspector_view(inspector: object) -> dict[str, Any]:
             for raw in raw_rows:
                 if type(raw) is not dict:
                     raise ValueError("INSPECTOR_PROJECTION_INVALID")
+                if row_type is ToolInspectorRow:
+                    verified = raw.get("last_verified")
+                    if type(verified) is int and not -(1 << 53) <= verified <= (1 << 53):
+                        raise ValueError("INSPECTOR_PROJECTION_INVALID")
                 rows.append(row_type(**{name: raw[name] for name in names}))
             inputs[section] = tuple(rows)
         result = build_inspector_views(**inputs, now=now)

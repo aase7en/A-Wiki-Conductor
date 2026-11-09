@@ -3,11 +3,14 @@
 No I/O dependencies or runtime authority. AVAILABLE is a skill-only static
 availability label, not InspectorState.READY or evidence of runtime liveness.
 Inputs are injected frozen rows; this module never discovers or probes sources.
+Integer last_verified values must be within -2**53 .. 2**53, inclusive,
+the inspector's finite JavaScript-safe interchange range (bool is not an int).
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import deque
 from dataclasses import dataclass, fields
 from datetime import datetime, timezone
@@ -83,18 +86,34 @@ class SkillInspectorRow:
 _SECRET = re.compile(
     r"sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|"
     r"github_pat_[A-Za-z0-9_]+|xox[baprs]-[A-Za-z0-9-]+|AKIA[A-Z0-9]{12,}|"
-    r"\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|"
+    r"\bauthorization\s*:|\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|"
+    r"[a-z][a-z0-9+.-]*://[^\s/?#@]+@[^\s/?#]+|"
     r"(?:api[_ -]?key|access[_ -]?key|token|credential|password|secret|cookie)"
     r"\s*[\"']?\s*[:=]\s*\S+|tunnel_[0-9a-f]{32}|"
-    r"https?://[^\s]+/(?:share|s)/[^\s]+",
+    r"https?://[^\s]+/(?:share|s)/[^\s]+|"
+    r"[^\s:=]*[^\x00-\x7f][^\s:=]*\s*[:=]\s*\S+",
     re.IGNORECASE,
 )
+
+# NFKD does not fold cross-script lookalikes. Fold marker confusables as well;
+# remaining non-ASCII assignment labels are conservatively treated as secrets.
+_MARKER_CONFUSABLES = str.maketrans({
+    "\u0430": "a", "\u0432": "b", "\u0441": "c", "\u0501": "d",
+    "\u0435": "e", "\u04bb": "h", "\u0456": "i", "\u0458": "j",
+    "\u043a": "k", "\u04cf": "l", "\u043c": "m", "\u043d": "h",
+    "\u043e": "o", "\u0440": "p", "\u051b": "q", "\u0455": "s",
+    "\u0442": "t", "\u0443": "y", "\u0445": "x", "\u051d": "w",
+    "\u03b1": "a", "\u03b5": "e", "\u03b9": "i", "\u03ba": "k",
+    "\u03bf": "o", "\u03c1": "p", "\u03c4": "t", "\u03c5": "u",
+})
 
 
 def _text(value: object, *, required: bool = False) -> str:
     if type(value) is not str or (required and not value.strip()):
         raise InspectorProjectionError()
-    if _SECRET.search(value):
+    normalized = "".join(char for char in unicodedata.normalize("NFKD", value).casefold()
+                         if not unicodedata.combining(char)).translate(_MARKER_CONFUSABLES)
+    if _SECRET.search(value) or _SECRET.search(normalized):
         return "[REDACTED]"
     if any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in value):
         raise InspectorProjectionError()
@@ -130,6 +149,8 @@ def _row_view(row: object, row_type: type) -> dict:
             result[field.name] = value
         elif field.name == "last_verified":
             if value is None or type(value) is int:
+                if type(value) is int and not -(1 << 53) <= value <= (1 << 53):
+                    raise InspectorProjectionError()
                 result[field.name] = value
             else:
                 result[field.name] = _text(value)

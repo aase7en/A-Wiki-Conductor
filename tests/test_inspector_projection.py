@@ -262,3 +262,49 @@ def test_empty_sections_have_empty_counts() -> None:
     for section in ("tools", "hooks", "skills"):
         assert len(result[section]) == 0
         assert sum(result["summary"][section]["counts"].values()) == 0
+
+
+@pytest.mark.parametrize("secret", [
+    "Authorization: Basic RkFLRTpGQUtF",
+    'Authorization: Digest username="FAKE", response="FAKE"',
+    "Authorization: CustomScheme FAKE-CREDENTIAL",
+    "ftp://fixture-user:FAKE-PASSWORD@example.invalid/path",
+    "custom+fixture://fixture-user:FAKE-PASSWORD@example.invalid/path",
+    "t\u043eken=FAKE-CREDENTIAL",
+    "\uff54\uff4f\uff4b\uff45\uff4e=FAKE-CREDENTIAL",
+    "to\u0301ken=FAKE-CREDENTIAL",
+])
+@pytest.mark.parametrize("section,builder,field", [
+    ("tools", _tool, "name"), ("tools", _tool, "last_error"),
+    ("skills", _skill, "routing_hint"), ("hooks", _hook, "provenance"),
+])
+def test_auth_userinfo_and_unicode_markers_redact_whole_free_text(
+    secret: str, section: str, builder, field: str,
+) -> None:
+    result = _views(**{section: (builder(**{field: secret}),)})
+    assert result[section][0][field] == "[REDACTED]"
+    assert secret not in repr(result)
+
+
+def test_confusable_marker_is_redacted_before_truncation() -> None:
+    result = _views(tools=(_tool(last_error="x" * 210 + " t\u043eken=FAKE-CREDENTIAL"),))
+    assert result["tools"][0]["last_error"] == "[REDACTED]"
+
+
+@pytest.mark.parametrize("sign", [-1, 1])
+def test_oversized_last_verified_is_rejected_without_stringifying(sign: int) -> None:
+    with pytest.raises(InspectorProjectionError) as caught:
+        _views(tools=(_tool(last_verified=sign * 10**5000),))
+    assert caught.value.code == "INSPECTOR_PROJECTION_INVALID_INPUT"
+    assert str(caught.value) == caught.value.code
+
+
+@pytest.mark.parametrize("verified", [-(2**53), 2**53, 0])
+def test_last_verified_safe_integer_endpoints_are_inclusive(verified: int) -> None:
+    assert _views(tools=(_tool(last_verified=verified),))["tools"][0]["last_verified"] == verified
+
+
+@pytest.mark.parametrize("verified", [-(2**53) - 1, 2**53 + 1])
+def test_last_verified_just_outside_safe_integer_range_is_rejected(verified: int) -> None:
+    with pytest.raises(InspectorProjectionError):
+        _views(tools=(_tool(last_verified=verified),))

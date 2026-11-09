@@ -4,11 +4,13 @@ Guarantee: never write files, spawn processes, load secret environments,
 or grant runtime authority. Only discovery and bounded health reads are allowed.
 Each collector returns (rows, degraded_notes), with code-only degradation.
 Omitted probe uses the existing health check; explicit None is discovery-only.
-Existing instance discovery owns pairing checks; pairing IDs never leave it.
+Marker discovery is per-instance and tolerant; pairing IDs are never emitted.
 """
 
 from __future__ import annotations
 
+import errno
+import hashlib
 import json
 import re
 from collections import Counter
@@ -51,19 +53,54 @@ def _safe_row(
     return type(row)(**projected[section][0])
 
 
+# Only these generic OSError errnos establish transport failure. ConnectionError
+# and TimeoutError also establish transport failure; permissions/config do not.
+_TRANSPORT_ERRNOS = frozenset({
+    errno.ECONNREFUSED, errno.ECONNRESET, errno.EHOSTUNREACH, errno.ETIMEDOUT,
+})
+
+
 def collect_local_tool_rows(
     instances_root: Path | str | None = None,
     *,
     probe: Callable[[object], object] | None | EllipsisType = ...,
 ) -> tuple[tuple[ToolInspectorRow, ...], tuple[str, ...]]:
-    """Reuse instance discovery and health; None disables all health probes."""
+    """Tolerantly parse shared marker syntax; None disables all health probes."""
     rows, notes = [], []
     try:
         from . import local_instances
 
-        instances = local_instances.discover_local_instances(instances_root)
+        root = Path(instances_root if instances_root is not None
+                    else local_instances.default_instances_root()).expanduser().resolve(strict=False)
+        if not root.is_dir():
+            return (), ()
         active_probe = local_instances.instance_health_state if probe is ... else probe
-        for instance in instances:
+        for child in sorted(root.iterdir()):
+            try:
+                marker = child / "instance.ps1"
+                if not child.is_dir() or not marker.is_file():
+                    continue
+                fields = {key: value.replace("''", "'") for key, value in
+                          local_instances._INSTANCE_LINE_RE.findall(_read_text(marker))}
+                name = fields.get("InstanceName", "").strip()
+                project = fields.get("ProjectPath", "").strip()
+                address = fields.get("HealthListenAddress", "").strip()
+                if not name or not project or not address:
+                    raise ValueError("TOOL_MARKER_INVALID")
+                tunnel_path = child / "config" / "tunnel-id.txt"
+                configured = False
+                if tunnel_path.is_file():
+                    configured = local_instances._TUNNEL_ID_RE.fullmatch(
+                        _read_text(tunnel_path, 256).strip(),
+                    ) is not None
+                instance = local_instances.LocalInstance(
+                    name=name, project_path=project, health_address=address,
+                    instance_root=child.resolve(strict=False), tunnel_configured=configured,
+                )
+            except Exception:
+                suffix = hashlib.sha256(child.name.encode("utf-8", errors="replace")).hexdigest()[:12]
+                notes.append(f"TOOL_MARKER_UNREADABLE:{suffix}")
+                continue
             try:
                 state, phase, error = "UNKNOWN", "REGISTERED", ""
                 verified = None
@@ -77,8 +114,11 @@ def collect_local_tool_rows(
                             phase = "CONNECTED" if instance.tunnel_configured else "STARTED"
                         elif health in ("STOPPED", "TRANSPORT_ERROR"):
                             state = "DISCONNECTED"
-                    except (ConnectionError, TimeoutError, OSError):
-                        state, error = "DISCONNECTED", "TOOL_PROBE_TRANSPORT_ERROR"
+                    except OSError as exc:
+                        if isinstance(exc, (ConnectionError, TimeoutError)) or exc.errno in _TRANSPORT_ERRNOS:
+                            state, error = "DISCONNECTED", "TOOL_PROBE_TRANSPORT_ERROR"
+                        else:
+                            state, error = "DEGRADED", "TOOL_PROBE_FAILED"
                     except Exception:
                         state, error = "DEGRADED", "TOOL_PROBE_FAILED"
                 if error:

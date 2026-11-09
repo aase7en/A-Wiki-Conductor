@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 from datetime import datetime, timezone
@@ -202,10 +203,10 @@ def test_unexpected_probe_failure_is_typed_degradation(tmp_path: Path) -> None:
 
 
 def test_discovery_failure_is_typed_not_raised(tmp_path: Path, monkeypatch) -> None:
-    def discover(*args, **kwargs):
+    def enumerate_instances(*args, **kwargs):
         raise PermissionError("token=FAKE0000000000000000")
 
-    monkeypatch.setattr(local_instances, "discover_local_instances", discover)
+    monkeypatch.setattr(Path, "iterdir", enumerate_instances)
     rows, notes = collect_local_tool_rows(tmp_path, probe=None)
     assert rows == ()
     assert "TOOLS_DISCOVERY_UNAVAILABLE" in notes
@@ -365,3 +366,68 @@ def test_collectors_do_not_modify_fixture_files(tmp_path: Path) -> None:
     after = {path.relative_to(tmp_path): (path.read_bytes(), path.stat().st_mtime_ns)
              for path in tmp_path.rglob("*") if path.is_file()}
     assert after == before
+
+
+def test_unreadable_marker_preserves_both_valid_neighbors(tmp_path: Path, monkeypatch) -> None:
+    _instance(tmp_path, "a-good")
+    bad = _instance(tmp_path, "b-unreadable") / "instance.ps1"
+    _instance(tmp_path, "c-good")
+    original = Path.open
+
+    def guarded_open(path, *args, **kwargs):
+        if path == bad:
+            raise PermissionError("Authorization: Basic RkFLRTpGQUtF")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    rows, notes = collect_local_tool_rows(tmp_path, probe=None)
+    assert [row.name for row in rows] == ["a-good", "c-good"]
+    assert all(row.state == "UNKNOWN" for row in rows)
+    assert len(notes) == 1 and notes[0].startswith("TOOL_MARKER_UNREADABLE:")
+    assert "FAKE" not in repr((rows, notes))
+    assert FAKE_TUNNEL_ID not in repr((rows, notes))
+
+
+def test_tolerant_discovery_preserves_shared_marker_grammar(tmp_path: Path) -> None:
+    folder = _instance(tmp_path)
+    (folder / "instance.ps1").write_text(
+        "  $InstanceName = 'fixture''s instance'\n"
+        "  $ProjectPath = 'C:/fixture''s project'\n"
+        "  $HealthListenAddress = '127.0.0.1:1'\n", encoding="utf-8",
+    )
+    calls = []
+
+    def probe(instance):
+        calls.append((instance.name, instance.project_path, instance.health_address,
+                      instance.tunnel_configured))
+        return InstanceHealthState.READY
+
+    rows, notes = collect_local_tool_rows(tmp_path, probe=probe)
+    assert notes == ()
+    assert calls == [("fixture's instance", "C:/fixture's project", "127.0.0.1:1", True)]
+    assert rows[0].phase == "CONNECTED"
+    assert FAKE_TUNNEL_ID not in repr((rows, notes))
+
+
+@pytest.mark.parametrize("error,state,code", [
+    (PermissionError(errno.EACCES, "FAKE permission"), "DEGRADED", "TOOL_PROBE_FAILED"),
+    (FileNotFoundError(errno.ENOENT, "FAKE config"), "DEGRADED", "TOOL_PROBE_FAILED"),
+    (ConnectionError("FAKE connection"), "DISCONNECTED", "TOOL_PROBE_TRANSPORT_ERROR"),
+    (TimeoutError("FAKE timeout"), "DISCONNECTED", "TOOL_PROBE_TRANSPORT_ERROR"),
+    (OSError(errno.ECONNREFUSED, "FAKE refusal"), "DISCONNECTED", "TOOL_PROBE_TRANSPORT_ERROR"),
+    (OSError(errno.ECONNRESET, "FAKE reset"), "DISCONNECTED", "TOOL_PROBE_TRANSPORT_ERROR"),
+    (OSError(errno.EHOSTUNREACH, "FAKE host"), "DISCONNECTED", "TOOL_PROBE_TRANSPORT_ERROR"),
+    (OSError(errno.ETIMEDOUT, "FAKE timeout"), "DISCONNECTED", "TOOL_PROBE_TRANSPORT_ERROR"),
+    (OSError("FAKE unknown failure"), "DEGRADED", "TOOL_PROBE_FAILED"),
+])
+def test_probe_oserror_requires_transport_evidence(tmp_path: Path, error, state, code) -> None:
+    _instance(tmp_path)
+
+    def probe(instance):
+        raise error
+
+    rows, notes = collect_local_tool_rows(tmp_path, probe=probe)
+    assert rows[0].state == state
+    assert rows[0].last_error == code
+    assert code in notes
+    assert "FAKE" not in repr((rows, notes))

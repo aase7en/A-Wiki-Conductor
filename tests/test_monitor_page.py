@@ -216,6 +216,58 @@ def test_monitor_inspector_hostile_dict_and_bad_row_are_isolated():
         assert view == {"state": "DEGRADED", "reason": "INSPECTOR_PROJECTION_INVALID"}
 
 
+@pytest.mark.parametrize("secret", [
+    "Authorization: Basic RkFLRTpGQUtF",
+    'Authorization: Digest username="FAKE", response="FAKE"',
+    "ftp://fixture-user:FAKE-PASSWORD@example.invalid/path",
+    "t\u043eken=FAKE-CREDENTIAL",
+    "\uff54\uff4f\uff4b\uff45\uff4e=FAKE-CREDENTIAL",
+])
+@pytest.mark.parametrize("section,field", [
+    ("tools", "name"), ("tools", "last_error"),
+    ("skills", "routing_hint"), ("hooks", "provenance"),
+])
+def test_monitor_reprojection_redacts_auth_userinfo_and_unicode_markers(secret, section, field):
+    inspector = _inspector_fixture()
+    inspector["hooks"] = [{
+        "name": "fixture-hook", "hook_class": "OBSERVE", "authority_source": "contract:1.0.0",
+        "enabled": True, "fail_mode": "UNKNOWN", "state": "UNKNOWN",
+        "last_event": "", "last_error": "", "provenance": "contract-only",
+    }]
+    inspector["skills"] = [{
+        "name": "fixture-skill", "state": "AVAILABLE", "registry_source": "skills-registry.json",
+        "routing_hint": "fixture", "harness": "all", "deprecated": False,
+        "duplicate": False, "provenance": "registry-only",
+    }]
+    inspector[section][0][field] = secret
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"][section][0][field] == "[REDACTED]"
+    serialized = json.dumps(view, ensure_ascii=False)
+    assert secret not in serialized
+    assert "FAKE" not in serialized
+
+
+@pytest.mark.parametrize("sign", [-1, 1])
+def test_monitor_oversized_last_verified_is_isolated_and_snapshot_serializes(sign):
+    inspector = _inspector_fixture()
+    inspector["tools"][0]["last_verified"] = sign * 10**5000
+    baseline = _monitor_with_inspector()
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"] == {"state": "DEGRADED", "reason": "INSPECTOR_PROJECTION_INVALID"}
+    for key in ("health", "timeline", "stm", "correlation"):
+        assert view[key] == baseline[key]
+    assert json.loads(json.dumps(view)) == view
+
+
+@pytest.mark.parametrize("verified", [-(2**53), 2**53])
+def test_monitor_last_verified_safe_integer_endpoints_serialize(verified):
+    inspector = _inspector_fixture()
+    inspector["tools"][0]["last_verified"] = verified
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0]["last_verified"] == verified
+    assert json.loads(json.dumps(view)) == view
+
+
 # --- /monitor route ----------------------------------------------------------
 
 def test_monitor_route_requires_token():

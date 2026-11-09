@@ -180,3 +180,39 @@ checking the module namespace and AST. Existing behavioral assertions remain.
 Static source self-review only: no Git, GitHub, pytest, shell, browser execution,
 or other runtime verification. Exact HEAD/diff and all GREEN evidence belong to
 the orchestrator. This checkpoint does not claim that tests or CI have passed.
+
+## 9. Independent Review Repair Round
+
+Review verdict: FAIL (four P1 findings) -> PENDING_RE_REVIEW.
+Repair base: `2fb5642` (orchestrator supplied; no executor Git verification).
+
+- P1-1, secret redaction: whole-value redaction now includes any Authorization
+  header scheme and URL userinfo for any URI scheme, before text truncation.
+  Marker matching uses NFKD, case folding, combining-mark removal, explicit
+  cross-script confusable folding, and conservative non-ASCII assignment labels.
+  NFKD alone does not convert Cyrillic lookalikes. Added projection and monitor
+  re-projection regressions across name, last_error, routing_hint, and provenance.
+- P1-2, oversized integers: integer last_verified values are accepted only in
+  the documented inclusive -2**53 .. 2**53 range, with exact-int checks excluding
+  bool. Both projection and monitor re-projection enforce that range without
+  stringifying huge values. Added huge-positive/negative and endpoint tests;
+  monitor regressions assert isolated DEGRADED, unchanged other views, and a
+  successful json.dumps round trip instead of losing the whole snapshot.
+- P1-3, unreadable marker isolation: the inspector now enumerates directories
+  and parses each instance.ps1 independently using the shared marker/tunnel-ID
+  regexes and LocalInstance type. This supersedes the earlier all-or-nothing
+  discover_local_instances call; the shared local_instances.py is unmodified.
+  Each bad marker is skipped with TOOL_MARKER_UNREADABLE:<hashed-name-suffix>;
+  notes contain neither raw exception text nor directory credentials. Added
+  good/unreadable/good survival and exact escaped-quote marker grammar tests.
+  The existing root-discovery failure test now injects enumeration failure,
+  retaining its assertions while targeting the new discovery seam.
+- P1-4, probe error truth: only ConnectionError, TimeoutError, or OSError with
+  ECONNREFUSED/ECONNRESET/EHOSTUNREACH/ETIMEDOUT establishes disconnection.
+  PermissionError, FileNotFoundError, and unclassified OSError are DEGRADED with
+  TOOL_PROBE_FAILED. Existing STOPPED/TRANSPORT_ERROR observations still map to
+  DISCONNECTED. Added parameterized transport-versus-permission/config tests.
+
+Regression tests were authored before the implementation repairs; no test or
+shell command was executed by this executor. Orchestrator verification and
+independent re-review are required before any PASS or acceptance claim.
