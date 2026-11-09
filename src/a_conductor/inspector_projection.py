@@ -93,6 +93,11 @@ _MARKERS_RE = re.compile(
     r"access-key|access_key|accesskey|access key|credential|cookie)\b"
 )
 _PAYLOAD_PUNCTUATION = " \t\r\n()[]{}<>\"'`,;.:=-"
+_ASSIGNMENT_MARKERS = (
+    "authorization", "bearer", "token", "secret", "password",
+    "api-key", "api_key", "apikey", "api key",
+    "access-key", "access_key", "accesskey", "access key", "credential", "cookie",
+)
 _TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789_"
 _PREFIX_RULES = (
     ("sk-", 8, _TOKEN_ALPHABET + "-"),
@@ -126,6 +131,20 @@ def _marker_payload(normalized: str, marker_end: int) -> bool:
             return True
     _, separator, following = tail.partition(" ")
     return bool(separator) and any(token.strip(_PAYLOAD_PUNCTUATION) for token in following.split())
+
+
+def _secret_assignments(tokens: list[str]) -> bool:
+    """Check each first-delimiter label once with a fixed suffix vocabulary."""
+    for token in tokens:
+        equal, colon = token.find("="), token.find(":")
+        offset = colon if equal < 0 else equal if colon < 0 else min(equal, colon)
+        if offset < 0:
+            continue
+        label = token[:offset].strip(_PAYLOAD_PUNCTUATION)
+        payload = token[offset + 1:].strip(_PAYLOAD_PUNCTUATION)
+        if payload and label.endswith(_ASSIGNMENT_MARKERS):
+            return True
+    return False
 
 
 def _secret_tokens(tokens: list[str]) -> bool:
@@ -175,7 +194,8 @@ def _text(value: object, *, required: bool = False) -> str:
     tokens = folded.split()
     normalized = " ".join(tokens)
     marker = _MARKERS_RE.search(normalized)
-    if (marker is not None and _marker_payload(normalized, marker.end())) or _secret_tokens(tokens):
+    if ((marker is not None and _marker_payload(normalized, marker.end()))
+            or _secret_assignments(tokens) or _secret_tokens(tokens)):
         return "[REDACTED]"
     if any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in value):
         raise InspectorProjectionError()

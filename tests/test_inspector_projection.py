@@ -439,3 +439,39 @@ def test_literal_marker_search_runs_once_for_the_normalized_field(monkeypatch) -
     result = _views(tools=(_tool(last_error=raw),))
     assert result["tools"][0]["last_error"] == "[REDACTED]"
     assert calls.count(raw.casefold()) == 1
+
+
+@pytest.mark.parametrize("value", [
+    "access_token=FAKE0000000000000000",
+    "refresh_token=FAKE0000000000000000",
+    "OPENAI_API_KEY=fixture-opaque-credential",
+    "session_secret=xyz",
+    'SERVICE_PASSWORD:"fixture-opaque"',
+    "(ACCESS_TOKEN='FAKE0000000000000000')",
+])
+@pytest.mark.parametrize("section,builder,field", [
+    ("tools", _tool, "last_error"), ("tools", _tool, "name"),
+    ("skills", _skill, "routing_hint"),
+])
+def test_prefixed_assignment_labels_with_secret_suffix_are_whole_value_redacted(
+    value, section, builder, field,
+) -> None:
+    result = _views(**{section: (builder(**{field: value}),)})
+    assert result[section][0][field] == "[REDACTED]"
+    assert value not in repr(result)
+
+
+@pytest.mark.parametrize("value", [
+    "monitored=1", "key_count=5", "access_token=", "session_secret=''",
+    'SERVICE_PASSWORD:""',
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_nonsecret_or_payload_free_assignment_labels_are_not_redacted(value, field) -> None:
+    assert _views(tools=(_tool(**{field: value}),))["tools"][0][field] == value
+
+
+def test_assignment_label_pass_preserves_literal_marker_regex() -> None:
+    assert module._MARKERS_RE.pattern == (
+        r"\b(?:authorization|bearer|token|secret|password|api-key|api_key|apikey|api key|"
+        r"access-key|access_key|accesskey|access key|credential|cookie)\b"
+    )

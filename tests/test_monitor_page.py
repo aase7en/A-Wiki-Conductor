@@ -342,6 +342,36 @@ def test_monitor_reprojection_redacts_embedded_bearer_marker_with_payload(value,
     assert "FAKE" not in json.dumps(view)
 
 
+@pytest.mark.parametrize("value", [
+    "access_token=FAKE0000000000000000",
+    "refresh_token=FAKE0000000000000000",
+    "OPENAI_API_KEY=fixture-opaque-credential",
+    "session_secret=xyz",
+    'SERVICE_PASSWORD:"fixture-opaque"',
+    "(ACCESS_TOKEN='FAKE0000000000000000')",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_redacts_prefixed_secret_assignment_labels(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert value not in json.dumps(view)
+
+
+@pytest.mark.parametrize("value", [
+    "monitored=1", "key_count=5", "access_token=", "session_secret=''",
+    'SERVICE_PASSWORD:""',
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_preserves_nonsecret_or_payload_free_assignments(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == value
+    assert json.loads(json.dumps(view)) == view
+
+
 # --- /monitor route ----------------------------------------------------------
 
 def test_monitor_route_requires_token():

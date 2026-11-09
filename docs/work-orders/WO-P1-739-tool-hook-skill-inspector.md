@@ -308,3 +308,26 @@ Basic auth, userinfo, Unicode markers, beyond-200 redaction, wrapped Bearer,
 bare-Bearer negatives, cap boundaries, and punctuation-heavy non-matches.
 The WO change is append-only. No Git/GitHub/pytest/shell or runtime verification
 was performed; verification and independent acceptance remain orchestrator gates.
+
+## 13. Repair Round 5: Assignment Label Families
+
+Repair base: `bd23970` (orchestrator supplied; no executor Git verification).
+Re-review found that word boundaries do not split underscore-prefixed assignment
+labels, allowing access_token, refresh_token, and OPENAI_API_KEY reproductions.
+Verdict: PENDING_RE_REVIEW.
+
+The _MARKERS_RE declaration and pattern are byte-identical to round 4; its one
+search per normalized capped field is unchanged. An additional linear pass reuses
+the same normalized whitespace tokens. Each token is split at its first colon
+or equals; surrounding fixed punctuation/quotes are stripped from label and
+payload. A non-empty payload plus label.endswith against a fixed vocabulary
+redacts the whole field. The vocabulary contains marker families, not provider
+names. There is no new regex, variable-length regex scan, or repeated suffix scan.
+The 4096 cap, normalization, structural checks, and display truncation remain.
+
+Added projection and raw-monitor regressions for access_token, refresh_token,
+OPENAI_API_KEY, session_secret, SERVICE_PASSWORD, and wrapped/quoted assignments.
+Negatives pin monitored=1, key_count=5, and prefixed secret labels with empty
+payloads. A dedicated regression pins the unchanged literal-marker regex.
+Existing assertions remain intact. This WO section is append-only; no
+Git/GitHub/pytest/shell or runtime verification was performed by the executor.
