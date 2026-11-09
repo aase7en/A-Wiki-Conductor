@@ -134,16 +134,28 @@ def _marker_payload(normalized: str, marker_end: int) -> bool:
 
 
 def _secret_assignments(tokens: list[str]) -> bool:
-    """Check each first-delimiter label once with a fixed suffix vocabulary."""
+    """Single-pass assignment state machine; only a pending-label flag persists."""
+    pending = False
     for token in tokens:
         equal, colon = token.find("="), token.find(":")
         offset = colon if equal < 0 else equal if colon < 0 else min(equal, colon)
+        content = token.strip(_PAYLOAD_PUNCTUATION)
+        if pending:
+            if not token.strip("=:"):
+                continue
+            if content and (offset < 0 or not token[:offset].strip(_PAYLOAD_PUNCTUATION)):
+                return True
+            # Punctuation-only tokens or a different labeled assignment end it.
+            pending = False
         if offset < 0:
+            pending = content.endswith(_ASSIGNMENT_MARKERS)
             continue
         label = token[:offset].strip(_PAYLOAD_PUNCTUATION)
         payload = token[offset + 1:].strip(_PAYLOAD_PUNCTUATION)
-        if payload and label.endswith(_ASSIGNMENT_MARKERS):
-            return True
+        if label.endswith(_ASSIGNMENT_MARKERS):
+            if payload:
+                return True
+            pending = True
     return False
 
 

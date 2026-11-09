@@ -475,3 +475,29 @@ def test_assignment_label_pass_preserves_literal_marker_regex() -> None:
         r"\b(?:authorization|bearer|token|secret|password|api-key|api_key|apikey|api key|"
         r"access-key|access_key|accesskey|access key|credential|cookie)\b"
     )
+
+
+@pytest.mark.parametrize("value", [
+    "access_token= FAKE0000000000000000",
+    "MY_TOKEN: xyz",
+    "OPENAI_API_KEY = fixture-opaque-credential",
+    "OPENAI_API_KEY= fixture-opaque-credential",
+    "MY_TOKEN :  xyz",
+    "MY_TOKEN = : xyz",
+    "OPENAI_API_KEY =fixture-opaque-credential",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_cross_token_secret_assignment_payloads_are_whole_value_redacted(value, field) -> None:
+    result = _views(tools=(_tool(**{field: value}),))
+    assert result["tools"][0][field] == "[REDACTED]"
+    assert value not in repr(result)
+
+
+@pytest.mark.parametrize("value", [
+    "access_token=", "MY_TOKEN: ", "OPENAI_API_KEY = :",
+    "access_token= monitored=1", "MY_TOKEN : () monitored=1",
+    "monitored=1", "key_count=5", "bearer",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_cross_token_pending_assignment_clears_without_a_payload(value, field) -> None:
+    assert _views(tools=(_tool(**{field: value}),))["tools"][0][field] == value

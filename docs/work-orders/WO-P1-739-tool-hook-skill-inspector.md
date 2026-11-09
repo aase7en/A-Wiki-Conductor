@@ -331,3 +331,29 @@ Negatives pin monitored=1, key_count=5, and prefixed secret labels with empty
 payloads. A dedicated regression pins the unchanged literal-marker regex.
 Existing assertions remain intact. This WO section is append-only; no
 Git/GitHub/pytest/shell or runtime verification was performed by the executor.
+
+## 14. Repair Round 6: Cross-Token Assignments
+
+Repair base: `225680f` (orchestrator supplied; no executor Git verification).
+Re-review found whitespace-separated prefixed assignments escaped the
+single-token label check. Verdict: PENDING_RE_REVIEW.
+
+The assignment pass is now a single-pass state machine carrying one pending
+boolean, never an unbounded label or accumulated payload. A recognized bare
+label, or a recognized label with an empty value after colon/equal, sets pending.
+Delimiter-only tokens preserve pending; a non-empty value token (including an
+unlabeled delimiter/value token) completes the assignment and redacts the field.
+Punctuation-only tokens and different labeled assignments clear pending; the
+current token is then processed normally. Compact assignments remain supported,
+and genuinely empty assignments remain unchanged at end of input.
+
+Each token has a fixed number of delimiter searches, punctuation trims, and
+fixed-vocabulary suffix checks. Tokens are visited once, and only constant state
+crosses token boundaries, preserving linear work. _MARKERS_RE is byte-identical;
+the 4096 cap, normalization order, and one marker-regex search remain unchanged.
+
+Added projection and raw-monitor regressions for all five spaced reproductions,
+delimiter chains, and delimiter-adjacent payload tokens in name and last_error.
+Negatives pin empty assignments, interrupted pending patterns, monitored=1,
+key_count=5, and bare bearer. Prior assertions are unchanged. This WO section is
+append-only; no Git/GitHub/pytest/shell or runtime verification was performed.

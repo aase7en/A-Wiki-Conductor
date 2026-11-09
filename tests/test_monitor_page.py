@@ -372,6 +372,38 @@ def test_monitor_reprojection_preserves_nonsecret_or_payload_free_assignments(va
     assert json.loads(json.dumps(view)) == view
 
 
+@pytest.mark.parametrize("value", [
+    "access_token= FAKE0000000000000000",
+    "MY_TOKEN: xyz",
+    "OPENAI_API_KEY = fixture-opaque-credential",
+    "OPENAI_API_KEY= fixture-opaque-credential",
+    "MY_TOKEN :  xyz",
+    "MY_TOKEN = : xyz",
+    "OPENAI_API_KEY =fixture-opaque-credential",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_redacts_cross_token_secret_assignments(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert value not in json.dumps(view)
+
+
+@pytest.mark.parametrize("value", [
+    "access_token=", "MY_TOKEN: ", "OPENAI_API_KEY = :",
+    "access_token= monitored=1", "MY_TOKEN : () monitored=1",
+    "monitored=1", "key_count=5", "bearer",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_preserves_incomplete_cross_token_assignments(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == value
+    assert json.loads(json.dumps(view)) == view
+
+
 # --- /monitor route ----------------------------------------------------------
 
 def test_monitor_route_requires_token():
