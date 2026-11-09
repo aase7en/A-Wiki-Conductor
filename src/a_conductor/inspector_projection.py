@@ -98,6 +98,7 @@ _ASSIGNMENT_MARKERS = (
     "api-key", "api_key", "apikey", "api key",
     "access-key", "access_key", "accesskey", "access key", "credential", "cookie",
 )
+_MULTIWORD_ASSIGNMENT_MARKERS = ("api key", "access key")
 _TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789_"
 _PREFIX_RULES = (
     ("sk-", 8, _TOKEN_ALPHABET + "-"),
@@ -134,26 +135,23 @@ def _marker_payload(normalized: str, marker_end: int) -> bool:
 
 
 def _secret_assignments(tokens: list[str]) -> bool:
-    """Single-pass assignment state machine; only a pending-label flag persists."""
+    """Single pass; pending fails closed, with six chars of one-token lookback."""
     pending = False
+    previous = ""
     for token in tokens:
+        if pending:
+            if token.strip("=:"):
+                return True
+            continue
         equal, colon = token.find("="), token.find(":")
         offset = colon if equal < 0 else equal if colon < 0 else min(equal, colon)
         content = token.strip(_PAYLOAD_PUNCTUATION)
-        if pending:
-            if not token.strip("=:"):
-                continue
-            if content and (offset < 0 or not token[:offset].strip(_PAYLOAD_PUNCTUATION)):
-                return True
-            # Punctuation-only tokens or a different labeled assignment end it.
-            pending = False
-        if offset < 0:
-            pending = content.endswith(_ASSIGNMENT_MARKERS)
-            continue
-        label = token[:offset].strip(_PAYLOAD_PUNCTUATION)
-        payload = token[offset + 1:].strip(_PAYLOAD_PUNCTUATION)
-        if label.endswith(_ASSIGNMENT_MARKERS):
-            if payload:
+        label = content if offset < 0 else token[:offset].strip(_PAYLOAD_PUNCTUATION)
+        joined = previous + " " + label
+        # Only suffixes "api" and "access" matter in the preceding token.
+        previous = content[-6:]
+        if label.endswith(_ASSIGNMENT_MARKERS) or joined.endswith(_MULTIWORD_ASSIGNMENT_MARKERS):
+            if offset >= 0 and token[offset + 1:].strip(_PAYLOAD_PUNCTUATION):
                 return True
             pending = True
     return False

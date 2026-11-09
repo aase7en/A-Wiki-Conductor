@@ -391,7 +391,7 @@ def test_punctuation_wrapped_bearer_credentials_are_whole_value_redacted(value, 
 
 
 @pytest.mark.parametrize("value", [
-    "bearer", "(bearer)", '"bearer"', "error: bearer", "bearer () [] {},;.`",
+    "bearer", "(bearer)", '"bearer"', "error: bearer",
 ])
 @pytest.mark.parametrize("field", ["last_error", "name"])
 def test_bearer_without_a_nonempty_credential_is_not_redacted(value, field) -> None:
@@ -495,9 +495,38 @@ def test_cross_token_secret_assignment_payloads_are_whole_value_redacted(value, 
 
 @pytest.mark.parametrize("value", [
     "access_token=", "MY_TOKEN: ", "OPENAI_API_KEY = :",
-    "access_token= monitored=1", "MY_TOKEN : () monitored=1",
     "monitored=1", "key_count=5", "bearer",
+    "MY_API KEY", "MY_API unrelated KEY = fixtureOpaque123",
 ])
 @pytest.mark.parametrize("field", ["last_error", "name"])
-def test_cross_token_pending_assignment_clears_without_a_payload(value, field) -> None:
+def test_cross_token_pending_assignment_without_following_payload_is_not_redacted(value, field) -> None:
     assert _views(tools=(_tool(**{field: value}),))["tools"][0][field] == value
+
+
+@pytest.mark.parametrize("value", [
+    '{"SERVICE_PASSWORD": "hunter:2"}',
+    'SERVICE_PASSWORD = "hunter:2"',
+    "SERVICE_PASSWORD: hunter:2",
+    "access_token= fixture:opaque",
+    "access_token= monitored=1",
+    "MY_TOKEN : () monitored=1",
+    "bearer () [] {},;.`",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_pending_secret_assignment_fails_closed_on_any_non_delimiter_payload(value, field) -> None:
+    result = _views(tools=(_tool(**{field: value}),))
+    assert result["tools"][0][field] == "[REDACTED]"
+    assert "hunter:2" not in repr(result)
+    assert "fixture:opaque" not in repr(result)
+
+
+@pytest.mark.parametrize("value", [
+    "MY_API KEY = fixtureOpaque123",
+    "MYAPI KEY:fixtureOpaque123",
+    "MY_ACCESS KEY : fixtureOpaque123",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_two_word_secret_assignment_labels_use_one_token_lookback(value, field) -> None:
+    result = _views(tools=(_tool(**{field: value}),))
+    assert result["tools"][0][field] == "[REDACTED]"
+    assert "fixtureOpaque123" not in repr(result)

@@ -357,3 +357,36 @@ delimiter chains, and delimiter-adjacent payload tokens in name and last_error.
 Negatives pin empty assignments, interrupted pending patterns, monitored=1,
 key_count=5, and bare bearer. Prior assertions are unchanged. This WO section is
 append-only; no Git/GitHub/pytest/shell or runtime verification was performed.
+
+## 15. Repair Round 7: Fail-Closed Payloads And Spaced Labels
+
+Repair base: `55e32e2` (orchestrator supplied; no executor Git verification).
+Re-review identified colon-bearing payloads being misclassified as different
+assignments, plus missed two-word prefixed API/access-key labels.
+Verdict: PENDING_RE_REVIEW.
+
+Once a secret assignment label is pending, the next whitespace token that is
+not entirely colon/equal delimiters redacts the whole field, regardless of
+quotes, braces, internal colons, or apparent assignment syntax. There is no
+clears-pending branch. End-of-input without a following payload remains the
+true incomplete case. The existing punctuation-strip set already contains JSON
+braces, brackets, parentheses, quotes, and backticks; a label such as
+{"service_password": therefore strips to service_password before suffix matching.
+
+Label recognition also joins the preceding stripped whitespace token with the
+current label for the fixed multiword suffixes api key and access key. Only the
+last six characters of that one preceding token are retained, sufficient for
+the api/access suffixes. One boolean plus this fixed-size one-token lookback
+crosses iterations; no accumulated label history or repeated input scan exists.
+Work remains linear. _MARKERS_RE is byte-identical, and cap/normalization order
+and compact-assignment recognition remain unchanged.
+
+Added projection and raw-monitor regressions for all four colon-bearing/JSON
+payload reproductions and three spaced API/access-key forms, in name/last_error.
+The earlier repair-only interrupted-pattern and punctuation-following-Bearer
+negatives now assert redaction under the explicitly requested fail-closed rule;
+their input cases are retained as positive regressions, not silently dropped.
+Kept negatives include monitored=1, key_count=5, bare bearer, empty assignments,
+and a non-adjacent API/key phrase that proves lookback does not accumulate.
+This WO update is append-only. No Git/GitHub/pytest/shell or runtime verification
+was performed; independent verification and acceptance remain orchestrator gates.

@@ -317,7 +317,7 @@ def test_monitor_reprojection_redacts_punctuation_wrapped_bearer_credentials(val
 
 
 @pytest.mark.parametrize("value", [
-    "bearer", "(bearer)", '"bearer"', "error: bearer", "bearer () [] {},;.`",
+    "bearer", "(bearer)", '"bearer"', "error: bearer",
 ])
 @pytest.mark.parametrize("field", ["last_error", "name"])
 def test_monitor_reprojection_preserves_bearer_without_a_nonempty_credential(value, field):
@@ -392,8 +392,8 @@ def test_monitor_reprojection_redacts_cross_token_secret_assignments(value, fiel
 
 @pytest.mark.parametrize("value", [
     "access_token=", "MY_TOKEN: ", "OPENAI_API_KEY = :",
-    "access_token= monitored=1", "MY_TOKEN : () monitored=1",
     "monitored=1", "key_count=5", "bearer",
+    "MY_API KEY", "MY_API unrelated KEY = fixtureOpaque123",
 ])
 @pytest.mark.parametrize("field", ["last_error", "name"])
 def test_monitor_reprojection_preserves_incomplete_cross_token_assignments(value, field):
@@ -402,6 +402,39 @@ def test_monitor_reprojection_preserves_incomplete_cross_token_assignments(value
     view = _monitor_with_inspector(inspector)
     assert view["inspector"]["tools"][0][field] == value
     assert json.loads(json.dumps(view)) == view
+
+
+@pytest.mark.parametrize("value", [
+    '{"SERVICE_PASSWORD": "hunter:2"}',
+    'SERVICE_PASSWORD = "hunter:2"',
+    "SERVICE_PASSWORD: hunter:2",
+    "access_token= fixture:opaque",
+    "access_token= monitored=1",
+    "MY_TOKEN : () monitored=1",
+    "bearer () [] {},;.`",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_fails_closed_on_pending_secret_payloads(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert "hunter:2" not in json.dumps(view)
+    assert "fixture:opaque" not in json.dumps(view)
+
+
+@pytest.mark.parametrize("value", [
+    "MY_API KEY = fixtureOpaque123",
+    "MYAPI KEY:fixtureOpaque123",
+    "MY_ACCESS KEY : fixtureOpaque123",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_monitor_reprojection_redacts_two_word_secret_assignment_labels(value, field):
+    inspector = _inspector_fixture()
+    inspector["tools"][0][field] = value
+    view = _monitor_with_inspector(inspector)
+    assert view["inspector"]["tools"][0][field] == "[REDACTED]"
+    assert "fixtureOpaque123" not in json.dumps(view)
 
 
 # --- /monitor route ----------------------------------------------------------
