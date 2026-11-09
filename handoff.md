@@ -1,5 +1,13 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-09 - WO-P1-739 inspector projection PARKED at R4 hard-park - PARKED (not published)
+
+Resume from universal entry sequence, actual Git/GitHub state, CURRENT-WORK.md, and [WO-P1-739 §7 Park record](docs/work-orders/WO-P1-739-inspector-projection.md).
+Issue: [#739](https://github.com/aase7en/A-Wiki-Conductor/issues/739); PARKED / REVIEW_R4_HARD_PARK / NOT_PUBLISHED (joint adjudication 2026-11-09).
+Worktree `../A-Wiki-Conductor-wo739-bootstrap`, branch `docs/wo739-inspector-projection` (base `a0eccf289f69dbf61b13cb2a9b8c0b581a3ca217`), all work committed on the branch, pushed, NOT merged.
+Review chain: R1 (P1×4 P2×2) → repair 1 → R2 (P1×3 P2×2) → repair 2 → R3 (P1×1 P2×2) → adjudicated final repair (Terra 0.83 + JEV 0.72 joint grant) → R4 (P1×1 → HARD PARK). R4 finding: equal match COUNTS do not establish the same matched SEGMENTS — `℀Bearer one & tоken=two` (Cyrillic о) redacts only Bearer, folded token leaks (inspector_projection.py:302-306). H2/H3 CLOSED and pinned (52 tests + 40 regression green at frozen sha256 80b94df7…/2c7828e8…).
+RESUME CONTRACT (fresh claimed lane only; no further cycles under this adjudication): replace count-equality with matched-segment-SET comparison (folded-segment fired without ASCII counterpart → whole-value redaction); RED tests = ℀Bearer/tоken probe + segment-boundary family (fold shifts a boundary, marker exists only folded, two mixed segments); keep every existing pin; one fresh review; hard park on any finding.
+
 ## 2026-11-08 - WO-P1-736 delivery - CURRENT
 
 Resume from `00-AGENT-ENTRY.md`, `PROJECT-GRAPH.yaml`, `AGENTS.md`, actual Git/claims, `CURRENT-WORK.md`, and [WO-P1-736](docs/work-orders/WO-P1-736-prepared-run-reconstruction.md).
