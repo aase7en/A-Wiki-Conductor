@@ -1,9 +1,9 @@
 # SundayFamily UX-1 Design Packet
 
-Date: 2026-11-10 | Issue: #739 | Base: `16b897a` (supplied)
+Date: 2026-11-10 | Issue: #743 (UX-1 lane; charter on #739) | Base: `16b897a` (supplied)
 Status: TARGET-STATE PROPOSAL / OPERATOR GREEN-LIGHT PENDING
 Claim: `UX1-739-DESIGN-001`, comment 6770451351.
-WO: [UX-1 work order](../work-orders/WO-P1-739-UX1-sunday-family-dashboard.md).
+WO: [UX-1 work order](../work-orders/WO-P1-743-sunday-family-ux1-dashboard.md).
 Preview: [offline mockup](sunday-family-ux1-mockup.html).
 
 ## 1. Executive Summary

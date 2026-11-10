@@ -1,6 +1,10 @@
-# WO-P1-739-UX1 SundayFamily Unified Dashboard Design
+# WO-P1-743 SundayFamily Unified Dashboard Design
 
-Issue: #739
+Issue: #743
+Identity note: UX-1 design lane; charter and operator directives live on #739
+(comments 6759816854 / 6760564625 / 6765523868). Created as its own issue per
+the work-order identity policy (numeric ids unique + Issue line must match);
+supersedes the provisional name WO-P1-739-UX1 used in the claim comment.
 Status: DESIGN_PREVIEW / AUTHORING_COMPLETE / ACCEPTANCE_PENDING
 Classification: R0 DOCS proposal; no binding runtime/security contract change.
 Topology: CONTROL_PLANE_ONLY documentation.
@@ -22,7 +26,7 @@ design system, Tk migration matrix และ packaging feasibility ให้ ope
 ## 2. Exact Mutable Scope
 
 1. `docs/design/2026-11-10-ux1-surface-audits.md`
-2. `docs/work-orders/WO-P1-739-UX1-sunday-family-dashboard.md`
+2. `docs/work-orders/WO-P1-743-sunday-family-ux1-dashboard.md`
 3. `docs/design/2026-11-10-sunday-family-ux1-design.md`
 4. `docs/design/sunday-family-ux1-mockup.html`
 
