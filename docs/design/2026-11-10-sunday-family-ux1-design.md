@@ -166,7 +166,8 @@ StateBadge background = `surface`; foreground/border = exact state token.
 ไม่มีลด opacity ที่ทำให้ semantic foreground เปลี่ยนสี; ไม่ใช้ green กับ sample/auth/gate chip
 Typeface: `system-ui, 'Segoe UI', 'Leelawadee UI', sans-serif`;
 identifiers/logs: `ui-monospace, Consolas, monospace`. Thai body 15px/1.65,
-helper 13px/1.6, headings 20-28px/1.4; ไม่ใส่ letter-spacing กับข้อความไทย
+helper 13px/1.6; H1 24-28px/1.4, H2 18px/1.5, H3 16px/1.5 ตาม mockup CSS;
+ไม่ใส่ letter-spacing กับข้อความไทย
 Spacing 4/8/12/16/24/32px; card padding 20-24px; radius 8px; border 1px
 ไม่มี GPU logo/continuous animation/external font; performance claims ต้องวัดภายหลัง
 
@@ -229,8 +230,10 @@ WebView2/pywebview เป็น candidates ยังไม่เลือก lib
 ห้าม bundled runtime ออกนอก accepted service boundary (`contract:102-104`)
 
 Token handoff เป็น SECURITY-REVIEWED FOLLOW-UP ไม่ใช่ส่วนที่อนุมัติด้วย mockup:
-current React `TokenGate` ใช้ per-tab sessionStorage และ new window re-prompts
-(audit W2); legacy Monitor fragment auth เป็นคนละ flow (M1) ห้ามยกมาใช้กับ shell
+current React `TokenGate` ใช้ sessionStorage แยกตาม origin/top-level browsing context;
+fresh context ที่ storage ว่างจะแสดง prompt แต่ opener อาจคัดลอก sessionStorage มาเริ่มต้น
+จึงไม่รับประกันว่า new window จะ re-prompt (audit W2);
+legacy Monitor fragment auth เป็นคนละ flow (M1) ห้ามยกมาใช้กับ shell
 ไม่ใช้ URL/file/stdout/HTML injection token handoff; ก่อนมี reviewed mechanism ให้คง
 manual entry ใน auth gate เดิม ห้ามโฆษณา auto-connect หรือเก็บ token ใน mockup
 

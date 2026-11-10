@@ -91,12 +91,12 @@ smoke is headless-safe; effective Tk coverage is Windows-desktop-only, not OS pa
 | `monitor_page.py` (file-level) | CSP `default-src 'none'; style-src/script-src 'unsafe-inline'; connect-src 'self'`; healthy poll 2000ms, exponential backoff to 30000ms |
 | `monitor_api.py`, `desktop_app.py`, `web_api.py` (file-level) | Legacy stdlib `/monitor` server has test callers but no production entrypoint; production `a-conductor-web` serves no HTML |
 | `monitor_page.py:137-174` | Tools/Hooks/Skills groups; name/state/detail/provenance; last 128 rows; detail = phase / hook_class / routing_hint (+ deprecated/duplicate) |
-| `monitor_page.py:137-174` | READY/UNKNOWN/STALE/DISCONNECTED allowlist (+ skills-only AVAILABLE); projection failure badge + `INSPECTOR_NOT_PROVIDED` / `INSPECTOR_PROJECTION_INVALID`; per-group truncated badge |
+| `monitor_page.py:137-174` | READY/UNKNOWN/STALE/DEGRADED/DISCONNECTED allowlist (+ skills-only AVAILABLE); projection failure badge + `INSPECTOR_NOT_PROVIDED` / `INSPECTOR_PROJECTION_INVALID`; per-group truncated badge |
 
 Truth colors: READY/AVAILABLE `#8f8`, UNKNOWN `#fc6`, STALE `#f96`, DEGRADED
 `#f66`, DISCONNECTED `#c9f`. UNKNOWN/STALE/DEGRADED never healthy.
-The page row allowlist is narrower than the five-state backend vocabulary:
-target React must preserve backend DEGRADED, not infer READY from page fallback behavior.
+The page renders all five InspectorStates plus skills-only AVAILABLE;
+unknown values clamp to UNKNOWN (`monitor_page.py:155-160`).
 
 ### M2. Projection And Collectors
 
@@ -149,7 +149,7 @@ Production `dist/` is gitignored and UN-SERVED: no StaticFiles/HTML route in
 
 | File-level anchor under `web/sunday-family/src/` | State today |
 |---|---|
-| `TokenGate` component | sessionStorage, never URL; per-tab, new window re-prompts |
+| `TokenGate` component | Token lives in origin/sessionStorage of the top-level browsing context, never URL; a fresh context with empty storage prompts; an opener may initially copy sessionStorage, so new-window prompting depends on opener behavior and is not guaranteed |
 | `SnapshotView` component | Lane table; honest stale/degraded banners |
 | Connectors panel | List/rename/delete; session-scoped; explicit “Not persisted Tk connectors” |
 | `MetricsPanel` component | Null → Unavailable, not zero |
@@ -166,16 +166,17 @@ All routes below are file-level findings in `web_api.py`; route names are exact 
 | API | Current behavior |
 |---|---|
 | GET `/api/v1/health` | `degraded` hardcoded true; `OPTIONAL_MONITOR_UNAVAILABLE` |
-| GET `/api/v1/snapshot`, `/monitor/snapshot` | `public_snapshot`: cockpit.lanes identity/state/markers/blocker/gates/origin_display; monitor error stub; stale/degraded_observability |
+| GET `/api/v1/snapshot`, `/api/v1/monitor/snapshot` | `public_snapshot`: cockpit.lanes identity/state/markers/blocker/gates/origin_display; monitor error stub; stale/degraded_observability |
 | GET `/api/v1/metrics` | CPU/memory/uptime |
-| GET `/api/v1/stream`, `/events` | SSE; 15s heartbeat; 300s cap |
-| POST `/workers`, DELETE `/workers/{id}` | Mutation routes; not called by frontend |
-| POST `/workers/{id}/command` | STUB: accepted response, no execution; not called by frontend |
-| POST `/connectors` | Session connector create, not called by frontend |
-| GET `/connectors`, PATCH `/connectors/{id}`, DELETE `/connectors/{id}` | Session metadata, not persisted Tk registry; rename; STOPPED-only delete |
-| GET `/mutations` | Audit ≤100; not called by frontend |
+| GET `/api/v1/stream`, `/api/v1/events` | SSE; 15s heartbeat; 300s cap |
+| POST `/api/v1/workers`, DELETE `/api/v1/workers/{worker_id}` | Mutation routes; not called by frontend |
+| POST `/api/v1/workers/{worker_id}/command` | STUB: accepted response, no execution; not called by frontend |
+| POST `/api/v1/connectors` | Session connector create, not called by frontend |
+| GET `/api/v1/connectors`, PATCH `/api/v1/connectors/{connector_id}`, DELETE `/api/v1/connectors/{connector_id}` | Session metadata, not persisted Tk registry; rename; STOPPED-only delete |
+| GET `/api/v1/mutations` | Audit ≤100; not called by frontend |
 
-Mutation gates: X-Confirm + 1/min rate limit. Auth: loopback or Tailscale
+Mutation gates: X-Confirm header required; operation-specific rate limiting where implemented
+(1-second window via time.monotonic()); not uniform across all mutation routes. Auth: loopback or Tailscale
 100.64.0.0/10; Host/Origin/duplicate-header gates; hmac Bearer.
 These existing routes do not prove accepted Command Gateway integration or permission
 to expose controls in UX-1. Network behavior is evidence, not a new remote-mode policy.
