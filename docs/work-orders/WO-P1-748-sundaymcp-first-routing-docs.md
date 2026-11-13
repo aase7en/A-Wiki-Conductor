@@ -1,6 +1,7 @@
 # WO-P1-748: SundayMCP-first active routing docs
 Status: IN_PROGRESS (docs-only, R2 binding routing change)
-Issue: https://github.com/aase7en/A-Wiki-Conductor/issues/748
+Issue: #748
+Issue URL: https://github.com/aase7en/A-Wiki-Conductor/issues/748
 Authority repo: aase7en/A-Wiki-Conductor
 Topology: CONTROL_PLANE_ONLY
 Owner/claim: ChatGPT integrator; exclusive docs-only scope of Issue #748
