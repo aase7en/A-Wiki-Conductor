@@ -6,6 +6,7 @@ from src.a_conductor.semantic_admission import (
     FamilyAdmission,
     SemanticAdmissionError,
     SemanticAdmissionPolicy,
+    SemanticAdmissionTelemetry,
     SemanticFallbackReason,
     SemanticProductionAdmission,
 )
@@ -16,6 +17,7 @@ from src.a_conductor.typesafe_semantic_provider import (
 from src.a_conductor.semantic_decision import (
     SemanticDecisionFamily,
     SemanticDecisionMode,
+    SemanticDecisionReason,
     SemanticDecisionRequest,
     SemanticDisposition,
     SemanticEvidence,
@@ -399,3 +401,80 @@ def test_raw_timeout_exception_opens_ambiguous_transport_circuit():
     assert first.telemetry.fallback_reason is SemanticFallbackReason.AMBIGUOUS_TRANSPORT
     assert second.telemetry.fallback_reason is SemanticFallbackReason.AMBIGUOUS_TRANSPORT
     assert provider.calls == 1
+
+
+def _bare_telemetry(**overrides):
+    data = dict(
+        family=SemanticDecisionFamily.TASK_CLASSIFICATION,
+        mode=SemanticDecisionMode.OFF,
+        disposition=SemanticDisposition.BYPASS,
+        decision_reason=SemanticDecisionReason.MODE_OFF,
+        fallback_reason=SemanticFallbackReason.MODE_OFF,
+    )
+    data.update(overrides)
+    return SemanticAdmissionTelemetry(**data)
+
+
+def test_wo752_correlation_fields_default_to_none_and_stay_keyword_only():
+    telemetry = _bare_telemetry()
+    assert telemetry.execution_id is None
+    assert telemetry.attempt_id is None
+    assert telemetry.request_id is None
+    assert telemetry.authoritative_for_action is False
+
+    with pytest.raises(TypeError):
+        SemanticAdmissionTelemetry(
+            SemanticDecisionFamily.TASK_CLASSIFICATION,
+            SemanticDecisionMode.OFF,
+            SemanticDisposition.BYPASS,
+            SemanticDecisionReason.MODE_OFF,
+            SemanticFallbackReason.MODE_OFF,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            False,
+            "exec-1",
+        )
+
+
+def test_wo752_correlation_fields_pass_through_when_provided():
+    telemetry = _bare_telemetry(
+        execution_id="exec-1",
+        attempt_id="att-1",
+        request_id="req-1",
+    )
+    assert telemetry.execution_id == "exec-1"
+    assert telemetry.attempt_id == "att-1"
+    assert telemetry.request_id == "req-1"
+    assert telemetry.authoritative_for_action is False
+
+
+def test_wo752_correlation_identity_must_be_safe():
+    with pytest.raises(SemanticAdmissionError, match="correlation"):
+        _bare_telemetry(execution_id="unsafe id with spaces")
+    with pytest.raises(SemanticAdmissionError, match="correlation"):
+        _bare_telemetry(attempt_id="")
+    with pytest.raises(SemanticAdmissionError, match="correlation"):
+        _bare_telemetry(request_id=42)
+
+
+def test_wo752_evaluate_flow_telemetry_keeps_correlation_absent():
+    provider = CountingProvider(choice_evidence())
+    result = SemanticProductionAdmission(provider).evaluate(choice_request())
+    assert result.telemetry.execution_id is None
+    assert result.telemetry.attempt_id is None
+    assert result.telemetry.request_id is None
+
+
+def test_wo752_usage_absent_stays_distinguishable_from_usage_zero():
+    absent = _bare_telemetry(input_usage=None, output_usage=None)
+    zero = _bare_telemetry(input_usage=0, output_usage=0)
+    assert absent.input_usage is None
+    assert absent.output_usage is None
+    assert zero.input_usage == 0
+    assert zero.output_usage == 0
+    assert absent != zero
