@@ -6,7 +6,7 @@ WIP, mutation, review, merge, completion, release, or acceptance authority.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import Enum
 import re
 from types import MappingProxyType
@@ -127,7 +127,13 @@ def _safe_identity(value: str | None) -> str | None:
 
 @dataclass(frozen=True)
 class SemanticAdmissionTelemetry:
-    """Privacy-safe normalized receipt; raw request/provider payload is excluded."""
+    """Privacy-safe normalized receipt; raw request/provider payload is excluded.
+
+    ``execution_id``/``attempt_id``/``request_id`` are optional keyword-only
+    correlation fields (WO-P1-752): they bind this receipt to the durable
+    execution identity hub when the caller has one, and stay ``None`` otherwise.
+    Existing constructors and callers are unchanged.
+    """
 
     family: SemanticDecisionFamily
     mode: SemanticDecisionMode
@@ -142,10 +148,19 @@ class SemanticAdmissionTelemetry:
     output_usage: int | None = None
     evidence_ref: str | None = None
     authoritative_for_action: bool = False
+    execution_id: str | None = field(default=None, kw_only=True)
+    attempt_id: str | None = field(default=None, kw_only=True)
+    request_id: str | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         if self.authoritative_for_action:
             raise SemanticAdmissionError("semantic telemetry can never be authoritative")
+        for name in ("execution_id", "attempt_id", "request_id"):
+            value = getattr(self, name)
+            if value is not None and _safe_identity(value) is None:
+                raise SemanticAdmissionError(
+                    f"{name} correlation identity must be a bounded safe id"
+                )
 
 
 @dataclass(frozen=True)
