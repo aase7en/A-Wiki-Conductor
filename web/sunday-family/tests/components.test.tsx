@@ -6,7 +6,7 @@ import { LiveStream } from '../src/LiveStream';
 import { SnapshotView } from '../src/SnapshotView';
 import { TokenGate } from '../src/TokenGate';
 import { API_VERSION } from '../src/api';
-import { snapshot, streamResponse } from './fixtures';
+import { snapshot, liveSnapshot, streamResponse } from './fixtures';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -49,6 +49,23 @@ describe('monitor components', () => {
     expect(screen.getByText('Stale: PROJECTION_STALE')).toBeInTheDocument();
     expect(screen.getByText(/updates may have been dropped/)).toBeInTheDocument();
     expect(screen.getByText('No execution lanes in this snapshot.')).toBeInTheDocument();
+  });
+
+  it('renders per-section live monitor counts with accepted state tokens', () => {
+    render(<SnapshotView snapshot={liveSnapshot} />);
+    expect(screen.getByText('Monitor')).toBeInTheDocument();
+    expect(screen.getByText('DEGRADED')).toBeInTheDocument();
+    expect(screen.getByText('READY 1')).toBeInTheDocument();
+    expect(screen.getByText('AVAILABLE 2')).toBeInTheDocument();
+    expect(screen.getByText('STALE 1')).toBeInTheDocument();
+    expect(screen.getByText('UNKNOWN 1')).toBeInTheDocument();
+    expect(screen.getByText('UNKNOWN 4')).toBeInTheDocument();
+  });
+
+  it('placeholder monitor renders the unavailable note and no live panel', () => {
+    render(<SnapshotView snapshot={snapshot} />);
+    expect(screen.getByText(/OPTIONAL_READ_PORT_UNAVAILABLE/)).toBeInTheDocument();
+    expect(screen.queryByText('Monitor')).not.toBeInTheDocument();
   });
 
   it('shows API degradation instead of claiming healthy', async () => {
