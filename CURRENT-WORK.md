@@ -1,5 +1,18 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-13 - SFU26 program kickoff + card 00 roadmap publication - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+This entry supersedes older frontier instructions below where they conflict.
+Verified base: main `2191328203e2c20705868b2489d039f4421bcb16` (post-main CI 43323957137 SUCCESS).
+
+Operator directive 2026-11-12T22:07Z: goal mode on the SFU26 master roadmap; standing decision protocol = Jev (TypeSafe) + GPT-6.1 Terra advisory, human (batched grill-me) only when genuinely undecidable.
+
+Card 00 (`CAND-SFU26-00`) delivered via PR #745 (merge `2191328`, +796, 2 new files): `docs/plans/2026-11-13-sunday-family-unified-dashboard-routing-roadmap.md` (22 candidate cards `CAND-SFU26-00..21`, 12 milestones, dependency DAG, gates `G-PLAN..G-RELEASE`, OFF→SHADOW→ADVISORY→CANARY→PRODUCTION ladder, rollback invariants) + [WO-P1-744](docs/work-orders/WO-P1-744-sfu26-roadmap-publication.md). Gate chain: issue #744 anchor → worktree AWC-wo744-roadmap → adversarial plan review PASS (0 P0/P1, 3 P2 folded) → identity suite 33 passed → exact-head CI 43320621944 SUCCESS on `6abd3e1` → merge expected head only → post-main CI 43323957137 SUCCESS → checkpoint on [#744](https://github.com/aase7en/A-Wiki-Conductor/issues/744).
+
+### Exact next safe action
+
+(1) Card 01 — web verification floor: add npm/Vitest+build CI step + un-skip/rewrite the 2 stale tests (`tests/test_web_api.py:94,275`); own WO/claim from `main@2191328`. (2) Cards 06/10 offline prep may run disjoint in spare capacity. (3) UX-1 operator green-light (#743) still pending — blocks card 04/UX-2 only. (4) #739 slice 2 (live collector wiring) is card 02 of SFU26 — same seam, program-ordered. (5) Legacy #738/#551/Track-B gates unchanged.
+
 ## 2026-11-09 - #739 slice 1 Tool/Hook/Skill Inspector - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 This entry supersedes older frontier instructions below where they conflict.

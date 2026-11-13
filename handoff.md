@@ -1,5 +1,12 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-13 - SFU26 program + card 00 roadmap publication - CURRENT
+
+Resume from universal entry, actual Git/GitHub, `CURRENT-WORK.md` top entry, and `docs/plans/2026-11-13-sunday-family-unified-dashboard-routing-roadmap.md` (the program roadmap — single authority for card order/gates).
+Operator goal-mode directive 2026-11-12T22:07Z: decisions via Jev (TypeSafe) + GPT-6.1 Terra advisory; batched grill-me to the operator only when genuinely undecidable.
+Card 00 DELIVERED / MERGED / POST_MAIN_VERIFIED via PR #745: candidate `6abd3e1`; exact-head CI 43320621944 SUCCESS; merge `2191328`; post-main CI 43323957137 SUCCESS; checkpoint + close on [#744](https://github.com/aase7en/A-Wiki-Conductor/issues/744).
+NEXT: card 01 (web verification floor) bootstrap from `main@2191328` — own issue/WO/claim; cards 06/10 disjoint prep optional; UX-1 operator gate (#743) blocks card 04 only; all `CAND-SFU26-*` IDs are planning IDs — every successor card needs its own WO/claim/gates.
+
 ## 2026-11-09 - #739 slice 1 inspector - CURRENT
 
 Resume from universal entry, actual Git/GitHub, `CURRENT-WORK.md` top entry, and [WO-P1-739](docs/work-orders/WO-P1-739-tool-hook-skill-inspector.md).
