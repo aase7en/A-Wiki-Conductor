@@ -1,5 +1,10 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-13 - SFU26 card 06 telemetry baseline - CURRENT
+
+Card 06 COMPLETE: PR #753 candidate `4d4241d`; exact-head CI 43500970352 SUCCESS; merge `feb3e3c`; post-main CI 43511495868 SUCCESS; #752 closed. Pure per-attempt route telemetry projection exists (typed UNKNOWN cost semantics, dedup/accounting over execution_id+attempt_id, receipt join); observability + semantic telemetry carry correlation identity additively; zero routing behavior change (MUST-NOT-TOUCH verified).
+NEXT: card 07 / 08 / 09 (any order, one per lane) from `main@feb3e3c`; card 10 after all three; card 03 optional; UX-1 gate (#743) blocks card 04 only.
+
 ## 2026-11-13 - SFU26 card 02 live inspector wiring - CURRENT
 
 Card 02 (= #739 slice 2) COMPLETE: PR #751 candidate `2889b3e`; exact-head CI 43476458454 SUCCESS; merge `c79222e`; post-main CI 43480187819 SUCCESS after capacity rerun; #750 closed; #739 claim released. Live monitor child now serves sanitized inspector/monitor views behind a bounded shared producer (kill-switch env restores legacy placeholder; A_CONDUCTOR_AWIKI_ROOT injectable — set on Mac). Client snapshot validator is a strict union; SnapshotView shows coarse UX-1-token counts only.

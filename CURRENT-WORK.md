@@ -1,5 +1,14 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-13 - SFU26 card 06 route/usage telemetry baseline - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `7a1d89a` -> PR #753 candidate `4d4241d` (7 files +1312/-3) -> exact-head CI 43500970352 SUCCESS -> merge `feb3e3c` -> post-main CI 43511495868 SUCCESS (first try) -> [#752 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/752#issuecomment-6865839149).
+Delivered: NEW pure `route_telemetry_projection.py` (frozen RouteTelemetryEvidence; typed cost UNKNOWN chain USAGE_ABSENT->PRICING_ABSENT->CURRENCY_ABSENT, None never 0; dedup (execution_id, attempt_id) + duplicate_of; accepted = distinct identities w/ ACCEPTED receipt; correlation conflict fails closed; wall-vs-monotonic labeled); EXTEND provider_selection_observability.py (optional selection input fills real reasons; absent = byte-identical, reviewer-proved vs base); EXTEND semantic_admission.py (additive kw-only execution_id/attempt_id/request_id). MUST-NOT-TOUCH files all zero-diff (reviewer verified each). Review PASS 0 P1/P2 + 3 P3 no-action. Adviser: Jev merge_now 0.96; Terra usage-limit disclosed.
+
+### Exact next safe action
+
+(1) Cards 07 (context budget/EvidencePack), 08 (registry shortlist consumer), 09 (model/source freshness) all UNLOCKED by 06 — pick one per lane, own WO/claim from `main@feb3e3c`; card 10 (offline eval) needs 07+08+09. (2) Card 03 (Fleet DTO) optional parallel. (3) UX-1 operator green-light (#743) still blocks card 04/UX-2 only.
+
 ## 2026-11-13 - SFU26 card 02 / #739 slice 2 live inspector wiring - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 Base `224d727` -> PR #751 candidate `2889b3e` (10 files +783/-16) -> exact-head CI 43476458454 SUCCESS -> merge `c79222e` -> post-main CI 43480187819 SUCCESS (same run id, --failed rerun of capacity-cancelled macOS smoke; code jobs green first attempt) -> [#750 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/750#issuecomment-6861892015); claim on #739 released (slice-2 delivery c6861895283).
