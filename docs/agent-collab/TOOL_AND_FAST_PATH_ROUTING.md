@@ -22,25 +22,27 @@ The compact ChatGPT Project Instruction should explicitly preserve these as the 
 
 | Surface | Primary use | Authority limit |
 |---|---|---|
-| SunDay lanes (`SunDay-Worker 1`..`N` naming) | scoped implementation, semantic code navigation, symbol/reference work, test generation, repair, read/write local project files when the lane has a verified per-lane execution-context binding (repo/worktree/branch/HEAD/claim) | lane output is a claim until reconciled with Git/durable state/tests/review; no mutable global Active Project |
-| `Remote Desktop Commander` | multi-device filesystem, shell, process, runtime, logs, local builds/tests, repo-wide inspection, fallback local file operations | RDC online does not imply safe repo/Worker/runtime mutation |
+| `SundayMCP` (macOS) | PRIMARY verified macOS local filesystem, semantic navigation where supported, Git, shell, process, runtime/log inspection, tests and bounded execution | require exact device, actual tool-call proof and normal repo/task/claim/scope gates; substrate is not authority |
+| `SundayMCP Windows` | PRIMARY verified Windows local filesystem, semantic navigation where supported, Git, shell, process, runtime/log inspection, tests and bounded execution | require exact device, actual tool-call proof and normal repo/task/claim/scope gates; substrate is not authority |
+| `Remote Desktop Commander` | SECONDARY verified-device fallback/recovery only when the OS-matched SundayMCP is unavailable, disconnected, degraded or lacks the needed capability | RDC online does not imply safe repo/Worker/runtime mutation; no RDC-first startup |
 | `GitHub` | remote repository truth, branches, PRs, diffs, issues, exact SHAs, Actions/CI, post-merge evidence | GitHub evidence does not override safety, claims, or local dirty-state protection |
 
-These three are CORE. For every substantial project/engineering session, attempt a lightweight READ-ONLY discovery of all three before mutable work. Trivial Q&A and obvious no-routing work bypass this bootstrap. Do not assume previous session mappings are still valid.
+These OS-matched SundayMCP interfaces plus GitHub are CORE; RDC is a conditional fallback. For substantial engineering sessions, perform lightweight READ-ONLY discovery of the relevant SundayMCP device and GitHub, and verify a real harmless tool call before relying on the connector. Trivial Q&A bypasses this bootstrap. Never infer actual connection/readiness from registration or a prior session. SunDay-Worker 1–5 / Serena are retired legacy/compatibility surfaces only, not a default or automatic fallback; any exceptional invocation requires an accepted, explicitly authorized recovery procedure.
 
 ### Substantial-session bootstrap rules
 
-- RDC: identify the exact device/runtime before using filesystem, shell, process, log, build/test or local Git evidence. `RDC ONLINE != SAFE_TO_MUTATE`.
+- SundayMCP: select `SundayMCP` for macOS or `SundayMCP Windows` for Windows; verify actual device identity, supported capability and real harmless call before relying on it. Registration alone is not readiness.
+- RDC: use only as verified-device fallback if the OS-matched SundayMCP fails or lacks a required supported operation. `RDC ONLINE != SAFE_TO_MUTATE`.
 - GitHub: refresh the target repo/default branch, relevant Issue/PR, exact remote SHA and CI/review/post-main evidence when material.
-- SunDay lanes: probe exposed lanes read-only first. Each lane carries an explicit execution-context binding (repo/worktree/branch/HEAD/claim) verified against its executor process/context; Worker 1..N is lane naming only and there is no mutable global Active Project. A context mismatch fails closed as `CONTEXT_DRIFT` and blocks only that lane.
+- Execution lanes: bind each selected active executor to repo/worktree/branch/HEAD/task/claim/scope. Historical Worker/Serena lane binding is retained as compatibility context, not permission to probe, restart or activate retired workers. `CONTEXT_DRIFT` blocks only the affected lane.
 - Classify unavailable/busy/mismatched surfaces with the existing typed failure vocabulary. A failed tool blocks only dependent work.
 - Before any mutation, the normal repo/worktree/branch/HEAD/dirty/task/owner/claim/scope/non-overlap gate still applies.
 
-The future SunDayMCP product may collapse this UX into one facade. The accepted pivot (WO-P1-247 / PR #332) keeps A-Sunday Conductor as the sole control plane with the SunDay Runtime as an execution substrate only; until that implementation is accepted these remain separate core surfaces and the same authority gates apply.
+The two OS-specific SundayMCP connector surfaces are machine-specific execution-substrate routes (usable only after live readiness verification), not one unified multi-device facade. A future single-endpoint fabric remains separate and unaccepted unless proven. The accepted pivot (WO-P1-247 / PR #332) keeps A-Sunday Conductor as the sole control plane with SunDayRemoteMCP as execution substrate; machine access never grants claim or acceptance authority.
 
 ### Lane execution rule
 
-For substantial work, GPT-5.6 Sol activates lanes by explicit per-lane
+For substantial work, the integrator selects verified OS-matched SundayMCP execution capabilities (or an admitted specialist harness) and binds each active lane by explicit per-lane
 execution-context binding — repo/worktree/branch/HEAD/claim — verified against
 each executor process/context, then assigns non-overlapping lane roles from the
 task DAG. Useful roles include implementation owner, GLM task-packet or
@@ -159,7 +161,7 @@ Every individual `SAFE_READY` task receives exactly one `GLM_OFFLOAD_ASSESSMENT`
 Use the current evidence-based order:
 1. Kilo CLI + CoinTH GLM-5.3 MAX is the default first executor to try for useful bounded reasoning, implementation, repair, tests, and eligible independent review whenever task fit and the exact route are admitted (exact executable/provider/model, authorization, permission profile, fresh proxy-quota evidence, no already-observed throttle on that exact route). GLM-5.3 Flash stays bounded read-only. Proxy AVAILABLE permits a useful real request; no separate upstream READY/smoke prerequisite is required.
 2. Claude Code CLI + GLM-5.3 only after exact route/model/auth/liveness is proven on the current runtime.
-3. SunDay lane executors / transitional lane-local Serena for lightweight semantic/local repository operations.
+3. Verified OS-matched SundayMCP native/semantic operations for supported languages and tools; legacy Serena only under explicit accepted compatibility/recovery authorization.
 4. deterministic/native tools when inference is unnecessary.
 5. GPT/Luna (GPT-5.6 Sol) directly only with a recorded GLM blocker (`BLOCKED`), or for work that policy keeps with the supervisor: decomposition, trust/authority/architecture, integration, final adjudication/acceptance.
 6. GPT-6 Astra only for material unresolved architecture/trust ambiguity, contradictory high-impact findings, or difficult repeated failure after root-cause work.
