@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getSnapshot, parseSnapshot, streamSnapshots } from '../src/api';
-import { snapshot, streamResponse } from './fixtures';
+import { getSnapshot, parseSnapshot, streamSnapshots, type MonitorViews } from '../src/api';
+import { liveMonitor, snapshot, streamResponse } from './fixtures';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -66,5 +66,56 @@ describe('authenticated monitor client', () => {
     { ...snapshot, cockpit: { lanes: [{ ...snapshot.cockpit.lanes[0], identity: { lane: {} } }] } },
   ])('rejects unsupported or malformed snapshots', value => {
     expect(() => parseSnapshot(value)).toThrow();
+  });
+});
+
+describe('monitor child union validator (WO-P1-750)', () => {
+  it('accepts live monitor views with all required sections', () => {
+    expect(parseSnapshot({ ...snapshot, monitor: liveMonitor }).monitor).toEqual(liveMonitor);
+  });
+
+  it('accepts live views with a degraded inspector marker', () => {
+    const monitor: MonitorViews = {
+      ...liveMonitor,
+      inspector: { state: 'DEGRADED', reason: 'INSPECTOR_PROJECTION_INVALID' },
+    };
+    expect(parseSnapshot({ ...snapshot, monitor }).monitor).toEqual(monitor);
+  });
+
+  it('still accepts the placeholder child', () => {
+    expect(parseSnapshot(snapshot).monitor).toEqual(snapshot.monitor);
+  });
+
+  const omit = (monitor: MonitorViews, key: keyof MonitorViews): Record<string, unknown> => {
+    const copy = { ...monitor } as Record<string, unknown>;
+    delete copy[key];
+    return copy;
+  };
+  type FullInspector = Extract<MonitorViews['inspector'], { summary: unknown }>;
+  type FullViews = Omit<MonitorViews, 'inspector'> & { inspector: FullInspector };
+  const mutate = (patch: (views: FullViews) => unknown): unknown =>
+    patch(structuredClone(liveMonitor) as FullViews);
+
+  it.each<[string, unknown]>([
+    ['missing required section key', omit(liveMonitor, 'stm')],
+    ['health counters with a string value', mutate(v => ({ ...v, health: { ...v.health, counters: { ready: '1' } } }))],
+    ['health with non-boolean degraded', mutate(v => ({ ...v, health: { ...v.health, degraded: 'yes' } }))],
+    ['oversized health conditions', mutate(v => ({ ...v, health: { ...v.health, conditions: Array.from({ length: 17 }, () => 'X') } }))],
+    ['timeline entry with a numeric value', mutate(v => ({ ...v, timeline: [{ event_id: 1 }] }))],
+    ['oversized timeline', mutate(v => ({ ...v, timeline: Array.from({ length: 65 }, () => ({})) }))],
+    ['stm entry with a non-token state', mutate(v => ({ ...v, stm: [{ partition: 'hooks', state: 'READY', rebuild_required: false, record_count: 0 }] }))],
+    ['stm entry with a negative record count', mutate(v => ({ ...v, stm: [{ partition: 'hooks', state: 'FRESH', rebuild_required: false, record_count: -1 }] }))],
+    ['correlation with an oversized state', mutate(v => ({ ...v, correlation: { state: 'x'.repeat(33) } }))],
+    ['oversized correlation entries', mutate(v => ({ ...v, correlation: { state: 'UNKNOWN', entries: Array.from({ length: 17 }, () => ({})) } }))],
+    ['inspector without a summary', mutate(v => ({ ...v, inspector: { tools: [], hooks: [], skills: [] } }))],
+    ['inspector summary section without counts', mutate(v => ({ ...v, inspector: { ...v.inspector, summary: { ...v.inspector.summary, tools: { truncated: false, dropped: 0 } } } }))],
+    ['inspector with an oversized row list', mutate(v => ({ ...v, inspector: { ...v.inspector, skills: Array.from({ length: 129 }, () => ({})) } }))],
+    ['inspector row with an object value', mutate(v => ({ ...v, inspector: { ...v.inspector, tools: [{ name: { nested: true } }] } }))],
+    ['arbitrary dict without required sections', { foo: 'bar' }],
+    ['placeholder branch with a non-string error', { error: 5 }],
+    ['placeholder branch missing gate', { error: 'MONITOR_PROJECTION_UNAVAILABLE' }],
+    ['inspector tools row list over 128 entries', { ...liveMonitor, inspector: { ...liveMonitor.inspector, tools: Array.from({ length: 129 }, () => ({ name: 'x' })) } }],
+  ])('rejects malformed live monitor views: %s', (_, monitor) => {
+    expect(() => parseSnapshot({ ...snapshot, monitor })).toThrow();
   });
 });

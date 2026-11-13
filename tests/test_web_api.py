@@ -33,8 +33,10 @@ def projection():
 
 
 @pytest.fixture
-def client():
-    app = create_app(projection, WebApiConfig(port=18956, stream_seconds=.15))
+def client(monkeypatch):
+    monkeypatch.delenv("A_CONDUCTOR_MONITOR_PROJECTION", raising=False)
+    monkeypatch.delenv("A_CONDUCTOR_AWIKI_ROOT", raising=False)
+    app = create_app(projection, WebApiConfig(port=18956, poll_seconds=60, stream_seconds=.15))
     with TestClient(app, base_url="http://127.0.0.1:18956") as client:
         client.headers["Authorization"] = f"Bearer {app.state.feed.token}"
         yield client
@@ -47,7 +49,10 @@ def test_snapshot(client):
     assert data["api_version"] == "sunday-family.monitor.v1"
     assert data["cockpit"]["lanes"][0]["state"] == "UNKNOWN"
     assert "EVIDENCE_INCOMPLETE" in data["cockpit"]["lanes"][0]["state_markers"]
-    assert data["monitor"]["error"] == "MONITOR_PROJECTION_UNAVAILABLE"
+    # WO-P1-750: first frame before the first completed live collection carries
+    # the typed marker, never an empty success or the pre-change placeholder.
+    assert data["monitor"] == {"error": "MONITOR_NOT_COLLECTED",
+                               "gate": "OPTIONAL_READ_PORT_UNAVAILABLE"}
     assert response.headers["cache-control"] == "no-store"
     assert client.get("/api/v1/monitor/snapshot").status_code == 200
 
@@ -554,3 +559,146 @@ def test_complete_headers_cancel_deadline_for_live_stream(monkeypatch):
 def test_invalid_header_deadline(seconds):
     with pytest.raises(MonitorApiError, match="MONITOR_CONFIG_INVALID"):
         WebApiConfig(header_seconds=seconds)
+
+
+# --- WO-P1-750: live monitor child (SFU26 card 02, shared bounded producer) ---
+
+PLACEHOLDER = {"error": "MONITOR_PROJECTION_UNAVAILABLE",
+               "gate": "OPTIONAL_READ_PORT_UNAVAILABLE"}
+
+
+def live_child():
+    return {
+        "health": {"degraded": True, "counters": {}, "conditions": ["MONITOR_BUS_ABSENT"]},
+        "timeline": [],
+        "stm": [],
+        "correlation": {"state": "UNKNOWN"},
+        "inspector": {
+            "summary": {"generated_at": "2026-11-13T00:00:00+00:00",
+                        "tools": {"counts": {"READY": 1}, "truncated": False, "dropped": 0},
+                        "hooks": {"counts": {"UNKNOWN": 4}, "truncated": False, "dropped": 0},
+                        "skills": {"counts": {"AVAILABLE": 2}, "truncated": False, "dropped": 0}},
+            "tools": [], "hooks": [], "skills": [],
+        },
+    }
+
+
+def test_live_monitor_child_is_not_placeholder_when_healthy():
+    app = create_app(projection, WebApiConfig(port=18956, poll_seconds=.03),
+                     live_monitor=lambda: {"mode": "live", "monitor": live_child()})
+    with TestClient(app, base_url="http://127.0.0.1:18956") as client:
+        client.headers["Authorization"] = f"Bearer {app.state.feed.token}"
+        data = {}
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            data = client.get("/api/v1/snapshot").json()
+            if data["monitor"] != PLACEHOLDER and "error" not in data["monitor"]:
+                break
+            time.sleep(.02)
+    assert data["monitor"] != PLACEHOLDER
+    assert "error" not in data["monitor"]
+    assert data["monitor"]["inspector"]["summary"]["tools"]["counts"] == {"READY": 1}
+    assert data["cockpit"]["lanes"][0]["state"] == "UNKNOWN"
+
+
+def test_monitor_kill_switch_restores_exact_placeholder():
+    from a_conductor.monitor_live_provider import build_live_monitor_provider
+    app = create_app(projection, WebApiConfig(port=18956, poll_seconds=60),
+                     live_monitor=build_live_monitor_provider(
+                         env={"A_CONDUCTOR_MONITOR_PROJECTION": "off"}))
+    with TestClient(app, base_url="http://127.0.0.1:18956") as client:
+        client.headers["Authorization"] = f"Bearer {app.state.feed.token}"
+        data = client.get("/api/v1/snapshot").json()
+    assert data["monitor"] == PLACEHOLDER
+    assert data["cockpit"]["lanes"][0]["state"] == "UNKNOWN"
+
+
+def test_monitor_collector_failure_is_typed_with_siblings_intact():
+    app = create_app(projection, WebApiConfig(port=18956, poll_seconds=.03),
+                     live_monitor=lambda: {"mode": "error", "monitor": {
+                         "error": "MONITOR_LIVE_PROJECTION_FAILED", "gate": "SKILLS"}})
+    with TestClient(app, base_url="http://127.0.0.1:18956") as client:
+        client.headers["Authorization"] = f"Bearer {app.state.feed.token}"
+        data = {}
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            data = client.get("/api/v1/snapshot").json()
+            if data["monitor"].get("error") == "MONITOR_LIVE_PROJECTION_FAILED":
+                break
+            time.sleep(.02)
+    assert data["monitor"] == {"error": "MONITOR_LIVE_PROJECTION_FAILED", "gate": "SKILLS"}
+    assert data["cockpit"]["lanes"][0]["state"] == "UNKNOWN"
+
+
+def test_no_request_amplification_two_snapshots_at_most_one_collection():
+    calls = []
+
+    def live():
+        calls.append(1)
+        return {"mode": "live", "monitor": live_child()}
+
+    app = create_app(projection, WebApiConfig(port=18956, poll_seconds=60), live_monitor=live)
+    with TestClient(app, base_url="http://127.0.0.1:18956") as client:
+        client.headers["Authorization"] = f"Bearer {app.state.feed.token}"
+        assert client.get("/api/v1/snapshot").status_code == 200
+        after_startup = len(calls)
+        assert client.get("/api/v1/snapshot").status_code == 200
+        assert len(calls) == after_startup
+    assert after_startup >= 1
+
+
+def test_first_frame_before_live_collection_carries_typed_marker():
+    app = create_app(projection, WebApiConfig(port=18956, poll_seconds=60),
+                     live_monitor=lambda: {"mode": "live", "monitor": live_child()})
+    with TestClient(app, base_url="http://127.0.0.1:18956") as client:
+        client.headers["Authorization"] = f"Bearer {app.state.feed.token}"
+        data = client.get("/api/v1/snapshot").json()
+    assert data["monitor"] == {"error": "MONITOR_NOT_COLLECTED",
+                               "gate": "OPTIONAL_READ_PORT_UNAVAILABLE"}
+    assert data["cockpit"]["lanes"][0]["state"] == "UNKNOWN"
+
+
+def test_credential_redaction_surfaces_end_to_end_through_monitor_child(tmp_path):
+    from a_conductor.inspector_projection import SkillInspectorRow
+    from a_conductor.monitor_live_provider import build_live_monitor_provider
+
+    def skill_collector(**kwargs):
+        return ((SkillInspectorRow(
+            name="skill-a", state="UNKNOWN", registry_source="skills-registry.json",
+            routing_hint="invoke with token=abcd1234 now", harness="",
+            deprecated=False, duplicate=False, provenance="registry-only"),), ())
+
+    app = create_app(projection, WebApiConfig(port=18956, poll_seconds=.03),
+                     live_monitor=build_live_monitor_provider(
+                         env={}, skill_collector=skill_collector))
+    with TestClient(app, base_url="http://127.0.0.1:18956") as client:
+        client.headers["Authorization"] = f"Bearer {app.state.feed.token}"
+        data = {}
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            data = client.get("/api/v1/snapshot").json()
+            if "inspector" in data["monitor"]:
+                break
+            time.sleep(.02)
+    text = json.dumps(data)
+    assert "abcd1234" not in text
+    assert "[REDACTED]" in text
+
+
+def test_create_app_and_factory_perform_no_collection_before_feed_lifecycle():
+    from a_conductor.monitor_live_provider import build_live_monitor_provider
+    calls = []
+
+    def counting_tool():
+        calls.append(1)
+        return (), ()
+
+    provider = build_live_monitor_provider(env={}, tool_collector=counting_tool)
+    assert not calls
+    app = create_app(projection, WebApiConfig(port=18956, poll_seconds=60),
+                     live_monitor=provider)
+    assert not calls
+    with TestClient(app, base_url="http://127.0.0.1:18956") as client:
+        client.headers["Authorization"] = f"Bearer {app.state.feed.token}"
+        assert client.get("/api/v1/snapshot").status_code == 200
+    assert len(calls) >= 1

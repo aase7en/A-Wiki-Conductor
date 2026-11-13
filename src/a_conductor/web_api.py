@@ -29,6 +29,10 @@ from uvicorn.protocols.http.h11_impl import H11Protocol
 from .branding import APP_VERSION
 from .cockpit_projection import CockpitSnapshot
 from .monitor_api import MonitorApiConfig, MonitorApiError, MonitorApiServer
+from .monitor_live_provider import (
+    MONITOR_LIVE_PROJECTION_FAILED, MONITOR_NOT_COLLECTED, MONITOR_PLACEHOLDER,
+    build_live_monitor_provider,
+)
 from .web_api_auth import WebApiAuth
 from .system_metrics import SystemMetricsSampler
 
@@ -163,7 +167,9 @@ def public_snapshot(snapshot: CockpitSnapshot) -> dict:
     result = {
         "api_version": API_VERSION, "generated_at": _stamp(snapshot.generated_at),
         "cockpit": {"lanes": lanes},
-        "monitor": {"error": "MONITOR_PROJECTION_UNAVAILABLE", "gate": "OPTIONAL_READ_PORT_UNAVAILABLE"},
+        # WO-P1-750: pre-merge default; the live producer overwrite happens in
+        # WebFeed.read() — never in the request path.
+        "monitor": dict(MONITOR_PLACEHOLDER),
         "stale": snapshot.stale, "stale_reason": _text(snapshot.stale_reason, code=True),
         "degraded_observability": [_text(v) for v in snapshot.degraded_observability],
         "monitor_stream_degraded": False,
@@ -172,30 +178,64 @@ def public_snapshot(snapshot: CockpitSnapshot) -> dict:
     return result
 
 
+def _live_producer_result(result):
+    """WO-P1-750 producer contract: typed wrapper or bounded typed failure.
+
+    The producer never raises and never leaks raw exception text or paths;
+    this guard keeps that invariant even for a misbehaving injected producer.
+    """
+    if (not isinstance(result, dict) or result.get("mode") not in ("off", "live", "error")
+            or not isinstance(result.get("monitor"), dict)):
+        return {"mode": "error",
+                "monitor": {"error": MONITOR_LIVE_PROJECTION_FAILED,
+                            "gate": "PROJECTION"}}
+    return result
+
+
 class WebFeed(MonitorApiServer):
     """Reuse legacy bounded queues/poller; never start its HTTP listener."""
 
-    def __init__(self, provider, config):
+    def __init__(self, provider, config, monitor_producer=None):
         if not callable(provider):
             raise MonitorApiError("MONITOR_PROVIDER_INVALID")
         if not isinstance(config, WebApiConfig):
             raise MonitorApiError("MONITOR_CONFIG_INVALID")
+        if monitor_producer is not None and not callable(monitor_producer):
+            raise MonitorApiError("MONITOR_PROVIDER_INVALID")
 
         def read():
+            fresh, previous = None, None
+            if monitor_producer is not None:
+                try:
+                    fresh = _live_producer_result(monitor_producer())
+                except Exception:
+                    fresh = {"mode": "error",
+                             "monitor": {"error": MONITOR_LIVE_PROJECTION_FAILED,
+                                         "gate": "PROJECTION"}}
+                # The frame carries the last COMPLETED live collection; the
+                # first frame before any completion carries the typed marker.
+                previous, self._live_child = self._live_child, fresh["monitor"]
             try:
                 source = provider()
             except Exception:
                 return {"error": "MONITOR_PROJECTION_UNAVAILABLE"}
             try:
-                return public_snapshot(source)
+                view = public_snapshot(source)
             except MonitorApiError as exc:
                 return {"error": exc.code}
             except Exception:
                 return {"error": "MONITOR_PROJECTION_UNAVAILABLE"}
+            if monitor_producer is not None:
+                view["monitor"] = previous
+            return view
         super().__init__(read, config)
         self._view_lock = threading.RLock()
         self._latest = None
         self._observed_at = 0.0
+        # Only the single poller thread writes this; seeded before start.
+        self._live_child = (dict(getattr(monitor_producer, "initial_child",
+                                         MONITOR_NOT_COLLECTED))
+                            if monitor_producer is not None else None)
 
     def _offer(self, views):
         with self._view_lock:
@@ -258,9 +298,13 @@ class _SubscriberResponse(StreamingResponse):
             self.feed._unsubscribe(self.subscriber)
 
 
-def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
+def create_app(provider, config: WebApiConfig | None = None, live_monitor=None) -> FastAPI:
     config = config or WebApiConfig()
-    feed = WebFeed(provider, config)
+    if live_monitor is None:
+        # WO-P1-750: constructed once, no I/O here — first collection happens
+        # inside the feed lifecycle on the existing poller cadence.
+        live_monitor = build_live_monitor_provider()
+    feed = WebFeed(provider, config, monitor_producer=live_monitor)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -275,6 +319,7 @@ def create_app(provider, config: WebApiConfig | None = None) -> FastAPI:
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.feed = feed
+    app.state.live_monitor = live_monitor
     app.state.metrics_sampler = SystemMetricsSampler()
     app.add_middleware(WebApiAuth, feed=feed, config=config)
 

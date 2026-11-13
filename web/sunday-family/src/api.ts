@@ -18,11 +18,41 @@ export interface Lane {
   gates: Record<string, string | null>;
 }
 
+// WO-P1-750: monitor child is a strict union — the typed placeholder OR the
+// sanitized live monitor views. Anything else is rejected.
+export interface MonitorPlaceholder {
+  error: string;
+  gate: string;
+}
+
+export interface MonitorSummarySection {
+  counts: Record<string, number>;
+  truncated: boolean;
+  dropped: number;
+}
+
+export interface MonitorViews {
+  health: { degraded: boolean; counters: Record<string, number>; conditions: string[] | null };
+  timeline: Array<Record<string, unknown>>;
+  stm: Array<{ partition: string; state: 'FRESH' | 'STALE' | 'UNKNOWN';
+    rebuild_required: boolean; record_count: number }>;
+  correlation: { state: string; entries?: Array<Record<string, unknown>> };
+  inspector: {
+    summary: { generated_at: string; tools: MonitorSummarySection;
+      hooks: MonitorSummarySection; skills: MonitorSummarySection };
+    tools: Array<Record<string, unknown>>;
+    hooks: Array<Record<string, unknown>>;
+    skills: Array<Record<string, unknown>>;
+  } | { state: string; reason: string };
+}
+
+export type Monitor = MonitorPlaceholder | MonitorViews;
+
 export interface Snapshot {
   api_version: string;
   generated_at: string | null;
   cockpit: { lanes: Lane[] };
-  monitor: { error: string; gate: string };
+  monitor: Monitor;
   stale: boolean;
   stale_reason: string | null;
   degraded_observability: string[];
@@ -70,6 +100,79 @@ async function request(path: string, token: string, signal: AbortSignal, stream 
   return response;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const boundedCounts = (value: unknown, maxKeys: number): value is Record<string, number> =>
+  isRecord(value) && Object.keys(value).length <= maxKeys && Object.entries(value).every(
+    ([key, count]) => key.length <= 64 && typeof count === 'number'
+      && Number.isInteger(count) && count >= 0);
+
+const boundedRow = (value: unknown): value is Record<string, unknown> =>
+  isRecord(value) && Object.keys(value).length <= 16 && Object.values(value).every(item =>
+    item === null || (typeof item === 'string' && item.length <= 200)
+    || (typeof item === 'number' && Number.isFinite(item)) || typeof item === 'boolean');
+
+// Server timeline/correlation entries are string-valued only (_plain_str).
+const boundedTextRow = (value: unknown): value is Record<string, string> =>
+  isRecord(value) && Object.keys(value).length <= 16 && Object.values(value).every(
+    item => typeof item === 'string' && item.length <= 256);
+
+const isLiveMonitor = (value: Record<string, unknown>): boolean => {
+  if (!('health' in value && 'timeline' in value && 'stm' in value
+    && 'correlation' in value && 'inspector' in value)) return false;
+  const health = value.health;
+  if (!isRecord(health) || typeof health.degraded !== 'boolean'
+    || !boundedCounts(health.counters, 32)) return false;
+  if (health.conditions !== null
+    && !(Array.isArray(health.conditions) && health.conditions.length <= 16
+      && health.conditions.every(item => typeof item === 'string' && item.length <= 128))) {
+    return false;
+  }
+  if (!Array.isArray(value.timeline) || value.timeline.length > 64
+    || !value.timeline.every(boundedTextRow)) return false;
+  if (!Array.isArray(value.stm) || value.stm.length > 64 || !value.stm.every(item =>
+    isRecord(item) && typeof item.partition === 'string' && item.partition.length >= 1
+    && item.partition.length <= 128
+    && (item.state === 'FRESH' || item.state === 'STALE' || item.state === 'UNKNOWN')
+    && typeof item.rebuild_required === 'boolean'
+    && typeof item.record_count === 'number' && Number.isInteger(item.record_count)
+    && item.record_count >= 0)) return false;
+  const correlation = value.correlation;
+  if (!isRecord(correlation) || typeof correlation.state !== 'string'
+    || correlation.state.length > 32) return false;
+  if (correlation.entries !== undefined
+    && !(Array.isArray(correlation.entries) && correlation.entries.length <= 16
+      && correlation.entries.every(boundedTextRow))) return false;
+  const inspector = value.inspector;
+  if (!isRecord(inspector)) return false;
+  if ('state' in inspector) {
+    return typeof inspector.state === 'string' && inspector.state.length <= 32
+      && typeof inspector.reason === 'string' && inspector.reason.length <= 64;
+  }
+  const summary = inspector.summary;
+  if (!isRecord(summary) || typeof summary.generated_at !== 'string'
+    || summary.generated_at.length > 64) return false;
+  for (const section of ['tools', 'hooks', 'skills'] as const) {
+    const stats = summary[section];
+    if (!isRecord(stats) || !boundedCounts(stats.counts, 6)
+      || typeof stats.truncated !== 'boolean'
+      || typeof stats.dropped !== 'number' || !Number.isInteger(stats.dropped)
+      || stats.dropped < 0 || stats.dropped > 2 ** 53 - 4096) return false;
+    const rows = inspector[section];
+    if (!Array.isArray(rows) || rows.length > 128 || !rows.every(boundedRow)) return false;
+  }
+  return true;
+};
+
+const monitorOk = (value: unknown): boolean => {
+  if (!isRecord(value)) return false;
+  if ('error' in value || 'gate' in value) {
+    return typeof value.error === 'string' && typeof value.gate === 'string';
+  }
+  return isLiveMonitor(value);
+};
+
 export function parseSnapshot(value: unknown): Snapshot {
   if (!value || typeof value !== 'object') throw new Error('Invalid monitor snapshot.');
   const data = value as Snapshot;
@@ -77,8 +180,7 @@ export function parseSnapshot(value: unknown): Snapshot {
     || !(data.generated_at === null || typeof data.generated_at === 'string')
     || !(data.stale_reason === null || typeof data.stale_reason === 'string')
     || typeof data.stale !== 'boolean' || typeof data.monitor_stream_degraded !== 'boolean'
-    || !Array.isArray(data.degraded_observability) || !data.monitor
-    || typeof data.monitor.error !== 'string' || typeof data.monitor.gate !== 'string'
+    || !Array.isArray(data.degraded_observability) || !monitorOk(data.monitor)
     || !data.degraded_observability.every(item => typeof item === 'string')
     || !data.cockpit.lanes.every(lane => lane && typeof lane.state === 'string'
       && lane.identity && typeof lane.identity === 'object' && Array.isArray(lane.state_markers)
