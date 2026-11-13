@@ -1,5 +1,10 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-13 - SFU26 card 01 web verification floor - CURRENT
+
+Card 01 COMPLETE: PR #747 candidate `120936c`; exact-head CI 43348056751 SUCCESS (new web job green); merge `e96f527`; post-main CI 43350541671 SUCCESS; #746 closed with full checkpoint. Frontend verification (vitest + build) is now permanent in CI.
+NEXT: card 02 (= #739 slice 2 live collector wiring) from `main@e96f527` — own issue/WO/claim; inject Mac awiki_root; UX-1 operator gate (#743) blocks card 04 only; P3 follow-ups (methods-attr visibility assert; per-method unknown-path pin) ride the next tests-touching lane.
+
 ## 2026-11-13 - SFU26 program + card 00 roadmap publication - CURRENT
 
 Resume from universal entry, actual Git/GitHub, `CURRENT-WORK.md` top entry, and `docs/plans/2026-11-13-sunday-family-unified-dashboard-routing-roadmap.md` (the program roadmap — single authority for card order/gates).

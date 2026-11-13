@@ -1,5 +1,14 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-13 - SFU26 card 01 web verification floor - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `23050a4` -> PR #747 candidate `120936c` (3 files +86/-8) -> exact-head CI 43348056751 SUCCESS (incl. NEW web job: npm ci + vitest + tsc/vite build) -> merge `e96f527` -> post-main CI 43350541671 SUCCESS -> [#746 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/746#issuecomment-6842109461).
+Delivered: CI `web` job (ubuntu/node20, lockfile-v3 npm ci, vitest, tsc+vite build); stale skip #1 replaced by exact 14-route method-surface completeness contract (two-way set equality; 405/404 vs real gates); stale skip #2 headless-import passed un-skipped, strengthened. Independent review PASS 0 P1/P2; 2 P3 advisories recorded as follow-ups. Adviser disclosure: Terra usage-limit; Jev template-mismatch + direct 422 — merge per pre-published lane contract.
+
+### Exact next safe action
+
+(1) SFU26 card 02 = #739 slice 2: wire live inspector collectors into the running monitor provider (injection seam on main) — own WO/claim from `main@e96f527`; Mac skill-source root must be injected (default is Windows A:\GitHub\A-Wiki). (2) Cards 06/10 offline prep disjoint-optional. (3) UX-1 operator green-light (#743) still pending — blocks card 04/UX-2 only.
+
 ## 2026-11-13 - SFU26 program kickoff + card 00 roadmap publication - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 This entry supersedes older frontier instructions below where they conflict.
