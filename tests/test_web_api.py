@@ -89,13 +89,43 @@ def test_duplicate_headers(client, header):
     assert response.json()["gate"].endswith("_DUPLICATE")
 
 
-# SF-WEB-4/6 mutation endpoints allow POST/DELETE on worker/connector paths.
-# These read-only tests expect pre-SF-WEB-4 behavior. TODO: update for new policy.
-@pytest.mark.skip(reason="SF-WEB-4/6 allows POST/DELETE on mutation paths - needs test update")
-@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
-def test_read_only(client, method):
-    assert client.request(method, "/api/v1/snapshot").status_code == 405
-    assert all(route.methods == {"GET"} for route in client.app.routes)
+# SF-WEB-4/6 explicit route/method contract. Derived from the route
+# decorators in src/a_conductor/web_api.py; any endpoint or method added to
+# the app must update this mapping in the same change or this test fails.
+ROUTE_METHOD_POLICY = {
+    "GET": ("/api/v1/health", "/api/v1/snapshot", "/api/v1/monitor/snapshot",
+            "/api/v1/metrics", "/api/v1/stream", "/api/v1/events",
+            "/api/v1/mutations", "/api/v1/connectors"),
+    "POST": ("/api/v1/workers/{worker_id}/command", "/api/v1/workers",
+             "/api/v1/connectors"),
+    "PATCH": ("/api/v1/connectors/{connector_id}",),
+    "DELETE": ("/api/v1/workers/{worker_id}", "/api/v1/connectors/{connector_id}"),
+}
+READ_ENDPOINTS = ("/api/v1/health", "/api/v1/snapshot", "/api/v1/monitor/snapshot",
+                  "/api/v1/metrics", "/api/v1/stream", "/api/v1/events",
+                  "/api/v1/mutations")
+FORBIDDEN_METHODS = ("POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+
+
+def test_route_method_policy(client):
+    observed = {}
+    for route in client.app.routes:
+        for method in getattr(route, "methods", ()) or ():
+            observed.setdefault(method, set()).add(route.path)
+    assert observed == {method: set(paths)
+                        for method, paths in ROUTE_METHOD_POLICY.items()}
+    assert client.get("/private-path").json() == {"error": "MONITOR_NOT_FOUND"}
+
+
+@pytest.mark.parametrize("method", FORBIDDEN_METHODS)
+@pytest.mark.parametrize("path", READ_ENDPOINTS)
+def test_read_endpoints_reject_mutations(client, path, method):
+    assert client.request(method, path).status_code == 405
+
+
+@pytest.mark.parametrize("method", ("PUT", "DELETE", "PATCH", "OPTIONS"))
+def test_connector_collection_rejects_other_mutations(client, method):
+    assert client.request(method, "/api/v1/connectors").status_code == 405
 
 
 def test_unknown_route(client):
@@ -272,11 +302,11 @@ def test_missing_database_never_created(tmp_path):
     assert not path.exists()
 
 
-@pytest.mark.skip(reason="SF-WEB-4/6 added fastapi/pydantic/mutation imports that affect headless import")
 def test_headless_import():
     result = subprocess.run([sys.executable, "-c", "import sys; "
         "from pathlib import Path; import a_conductor.web_api as w; "
         "w.database_provider(Path('not-opened.sqlite')); "
+        "assert 'a_conductor.desktop_app' not in sys.modules; "
         "assert not any(k == 'tkinter' or k.startswith(('tkinter.', 'OpenGL', "
         "'moderngl', 'tkinterweb')) for k in sys.modules)"],
         capture_output=True, timeout=10)
