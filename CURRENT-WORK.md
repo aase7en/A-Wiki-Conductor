@@ -1,5 +1,14 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-13 - SFU26 card 02 / #739 slice 2 live inspector wiring - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `224d727` -> PR #751 candidate `2889b3e` (10 files +783/-16) -> exact-head CI 43476458454 SUCCESS -> merge `c79222e` -> post-main CI 43480187819 SUCCESS (same run id, --failed rerun of capacity-cancelled macOS smoke; code jobs green first attempt) -> [#750 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/750#issuecomment-6861892015); claim on #739 released (slice-2 delivery c6861895283).
+Delivered: NEW `monitor_live_provider.py` (bounded shared producer composing slice-1 collectors + projection; `A_CONDUCTOR_AWIKI_ROOT` injectable env, `A_CONDUCTOR_MONITOR_PROJECTION=off` kill-switch -> byte-identical legacy placeholder; typed MONITOR_NOT_COLLECTED first frame; section-named failure children); web_api wiring on existing poller cadence, request path cache-only; client Amendment 1 (adjudicated Terra A 0.87 + Jev 0.68, claim amended #739 c6859944942): api.ts strict union validator + SnapshotView minimal UX-1-token summary (no layout/IA — card 04 owns design). Review PASS 0 P1/P2; 5 P3 follow-ups on #750 (frame-size bound edge, discarded notes, kill-switch restart-required, producer-timeout judgment, one-poll-behind). RED independently reproduced by reviewer. npm 93 / py 12-100-30-36-228-10-10-18-33 green.
+
+### Exact next safe action
+
+(1) Card 03 (Fleet/work identity read DTO) or card 06 (telemetry baseline) — own WO/claim from `main@c79222e`. (2) UX-1 operator green-light (#743) still pending — blocks card 04/UX-2 only. (3) Card-02 P3 follow-ups ride future touching lanes. (4) Mac live-monitor usage: set A_CONDUCTOR_AWIKI_ROOT to the A-Wiki checkout when serving snapshots.
+
 ## 2026-11-13 - SFU26 card 01 web verification floor - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 Base `23050a4` -> PR #747 candidate `120936c` (3 files +86/-8) -> exact-head CI 43348056751 SUCCESS (incl. NEW web job: npm ci + vitest + tsc/vite build) -> merge `e96f527` -> post-main CI 43350541671 SUCCESS -> [#746 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/746#issuecomment-6842109461).

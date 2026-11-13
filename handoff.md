@@ -1,5 +1,10 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-13 - SFU26 card 02 live inspector wiring - CURRENT
+
+Card 02 (= #739 slice 2) COMPLETE: PR #751 candidate `2889b3e`; exact-head CI 43476458454 SUCCESS; merge `c79222e`; post-main CI 43480187819 SUCCESS after capacity rerun; #750 closed; #739 claim released. Live monitor child now serves sanitized inspector/monitor views behind a bounded shared producer (kill-switch env restores legacy placeholder; A_CONDUCTOR_AWIKI_ROOT injectable — set on Mac). Client snapshot validator is a strict union; SnapshotView shows coarse UX-1-token counts only.
+NEXT: card 03 (Fleet DTO) or card 06 (telemetry baseline) from `main@c79222e`; UX-1 operator gate (#743) blocks card 04; P3 follow-ups on #750.
+
 ## 2026-11-13 - SFU26 card 01 web verification floor - CURRENT
 
 Card 01 COMPLETE: PR #747 candidate `120936c`; exact-head CI 43348056751 SUCCESS (new web job green); merge `e96f527`; post-main CI 43350541671 SUCCESS; #746 closed with full checkpoint. Frontend verification (vitest + build) is now permanent in CI.
