@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from types import EllipsisType
@@ -197,14 +198,62 @@ def collect_local_hook_rows(
     return tuple(rows), tuple(dict.fromkeys(notes))
 
 
-def collect_local_skill_rows(
-    awiki_root: Path | str = Path(r"A:\GitHub\A-Wiki"),
+@dataclass(frozen=True, slots=True)
+class SkillRegistrySnapshot:
+    """Validated raw-entry snapshot of schema-v3 skills-registry.json (WO-P1-755).
+
+    ``entries`` are the validated raw registry dicts in registry order, aligned
+    with ``entry_states`` (per-entry inspector staleness) and ``duplicate_flags``
+    (computed over RAW entry names, so invalid entries with repeated names still
+    count). ``invalid_entry_count`` lets callers reproduce the per-entry
+    ``SKILL_ENTRY_INVALID`` degradation notes. ``generated_at`` mirrors the
+    registry meta string (None when absent or non-string), ``staleness`` is the
+    registry-level mtime freshness (``AVAILABLE``/``STALE``/``UNKNOWN``) and
+    ``source_path`` is the resolved registry file path.
+    """
+
+    entries: tuple[dict[str, object], ...]
+    entry_states: tuple[str, ...]
+    duplicate_flags: tuple[bool, ...]
+    invalid_entry_count: int
+    generated_at: str | None
+    staleness: str
+    source_path: str
+
+
+def _validate_skill_entry(entry: object) -> None:
+    required = ("name", "domain", "lifecycle_phase", "category", "source", "path", "status")
+    if type(entry) is not dict or any(key not in entry for key in required):
+        raise ValueError("SKILL_ENTRY_INVALID")
+    for key in ("name", "lifecycle_phase", "category", "source", "path", "status"):
+        if type(entry[key]) is not str or not entry[key].strip():
+            raise ValueError("SKILL_ENTRY_INVALID")
+    if entry["status"] not in ("canonical", "alias", "deprecated"):
+        raise ValueError("SKILL_ENTRY_INVALID")
+    for key in ("domain", "agents", "triggers", "aliases"):
+        if type(entry.get(key, [])) is not list or any(
+            type(item) is not str for item in entry.get(key, [])
+        ):
+            raise ValueError("SKILL_ENTRY_INVALID")
+    for key in ("invocation_hint", "a_phase", "canonical", "version", "description"):
+        if key in entry and type(entry[key]) is not str:
+            raise ValueError("SKILL_ENTRY_INVALID")
+
+
+def load_skill_registry(
+    awiki_root: Path | str,
     *,
-    max_age_seconds: int = 7 * 24 * 60 * 60,
+    max_age_seconds: int,
     now: datetime | None = None,
-) -> tuple[tuple[SkillInspectorRow, ...], tuple[str, ...]]:
-    """Read schema-v3 skills-registry.json; freshness uses file mtime, not JSON."""
-    rows, notes = [], []
+) -> SkillRegistrySnapshot:
+    """Load and validate schema-v3 skills-registry.json into a snapshot.
+
+    Either returns a :class:`SkillRegistrySnapshot` or raises
+    ``ValueError("SKILLS_REGISTRY_UNAVAILABLE")`` — never any other failure
+    type. Freshness uses file mtime, never JSON text. This is the shared read
+    path for every skills-registry consumer; callers must not re-read or
+    re-validate the file themselves.
+    """
     try:
         root = Path(awiki_root).resolve()
         registry = root / "skills-registry.json"
@@ -219,46 +268,76 @@ def collect_local_skill_rows(
             raise ValueError("SKILLS_REGISTRY_UNAVAILABLE")
         age = current.timestamp() - registry.stat().st_mtime
         entries = data["skills"]
-        counts = Counter(entry["name"] for entry in entries
-                         if type(entry) is dict and type(entry.get("name")) is str)
+        raw_name_counts = Counter(entry["name"] for entry in entries
+                                  if type(entry) is dict and type(entry.get("name")) is str)
+        valid: list[dict[str, object]] = []
+        states: list[str] = []
+        duplicates: list[bool] = []
+        invalid_count = 0
         for entry in entries:
             try:
-                required = ("name", "domain", "lifecycle_phase", "category", "source", "path", "status")
-                if type(entry) is not dict or any(key not in entry for key in required):
-                    raise ValueError("SKILL_ENTRY_INVALID")
-                for key in ("name", "lifecycle_phase", "category", "source", "path", "status"):
-                    if type(entry[key]) is not str or not entry[key].strip():
-                        raise ValueError("SKILL_ENTRY_INVALID")
-                if entry["status"] not in ("canonical", "alias", "deprecated"):
-                    raise ValueError("SKILL_ENTRY_INVALID")
-                for key in ("domain", "agents", "triggers", "aliases"):
-                    if type(entry.get(key, [])) is not list or any(
-                        type(item) is not str for item in entry.get(key, [])
-                    ):
-                        raise ValueError("SKILL_ENTRY_INVALID")
-                for key in ("invocation_hint", "a_phase", "canonical", "version", "description"):
-                    if key in entry and type(entry[key]) is not str:
-                        raise ValueError("SKILL_ENTRY_INVALID")
-                state = "UNKNOWN"
-                path = Path(entry["path"])
-                # Do not follow absolute, home-relative or escaping registry paths.
-                # Those describe another environment, not this explicit repo root.
-                if not path.is_absolute() and not entry["path"].startswith("~"):
-                    skill_path = (root / path).resolve()
-                    if skill_path.is_relative_to(root) and skill_path.exists():
-                        if age >= 0:
-                            state = "STALE" if age > max_age_seconds else "AVAILABLE"
-                hint = ", ".join(entry.get("triggers", []))
-                if entry.get("invocation_hint"):
-                    hint = "; ".join(filter(None, (hint, entry["invocation_hint"])))
-                rows.append(_safe_row(SkillInspectorRow(
-                    name=entry["name"], state=state, registry_source="skills-registry.json",
-                    routing_hint=hint, harness=", ".join(entry.get("agents", [])),
-                    deprecated=entry["status"] == "deprecated", duplicate=counts[entry["name"]] > 1,
-                    provenance="registry-only",
-                )))
+                _validate_skill_entry(entry)
             except Exception:
-                notes.append("SKILL_ENTRY_INVALID")
+                invalid_count += 1
+                continue
+            state = "UNKNOWN"
+            path = Path(entry["path"])
+            # Do not follow absolute, home-relative or escaping registry paths.
+            # Those describe another environment, not this explicit repo root.
+            if not path.is_absolute() and not entry["path"].startswith("~"):
+                skill_path = (root / path).resolve()
+                if skill_path.is_relative_to(root) and skill_path.exists():
+                    if age >= 0:
+                        state = "STALE" if age > max_age_seconds else "AVAILABLE"
+            valid.append(entry)
+            states.append(state)
+            duplicates.append(raw_name_counts[entry["name"]] > 1)
+        generated_at = data.get("generated_at")
+        staleness = "UNKNOWN" if age < 0 else ("STALE" if age > max_age_seconds else "AVAILABLE")
+        return SkillRegistrySnapshot(
+            entries=tuple(valid),
+            entry_states=tuple(states),
+            duplicate_flags=tuple(duplicates),
+            invalid_entry_count=invalid_count,
+            generated_at=generated_at if type(generated_at) is str else None,
+            staleness=staleness,
+            source_path=str(registry),
+        )
+    except ValueError as exc:
+        if str(exc) == "SKILLS_REGISTRY_UNAVAILABLE":
+            raise
+        raise ValueError("SKILLS_REGISTRY_UNAVAILABLE") from exc
+    except Exception as exc:
+        raise ValueError("SKILLS_REGISTRY_UNAVAILABLE") from exc
+
+
+def collect_local_skill_rows(
+    awiki_root: Path | str = Path(r"A:\GitHub\A-Wiki"),
+    *,
+    max_age_seconds: int = 7 * 24 * 60 * 60,
+    now: datetime | None = None,
+) -> tuple[tuple[SkillInspectorRow, ...], tuple[str, ...]]:
+    """Read schema-v3 skills-registry.json; freshness uses file mtime, not JSON."""
+    rows, notes = [], []
+    try:
+        snapshot = load_skill_registry(awiki_root, max_age_seconds=max_age_seconds, now=now)
     except Exception:
         notes.append("SKILLS_REGISTRY_UNAVAILABLE")
+        return tuple(rows), tuple(dict.fromkeys(notes))
+    notes.extend(["SKILL_ENTRY_INVALID"] * snapshot.invalid_entry_count)
+    for entry, state, duplicate in zip(
+        snapshot.entries, snapshot.entry_states, snapshot.duplicate_flags,
+    ):
+        try:
+            hint = ", ".join(entry.get("triggers", []))
+            if entry.get("invocation_hint"):
+                hint = "; ".join(filter(None, (hint, entry["invocation_hint"])))
+            rows.append(_safe_row(SkillInspectorRow(
+                name=entry["name"], state=state, registry_source="skills-registry.json",
+                routing_hint=hint, harness=", ".join(entry.get("agents", [])),
+                deprecated=entry["status"] == "deprecated", duplicate=duplicate,
+                provenance="registry-only",
+            )))
+        except Exception:
+            notes.append("SKILL_ENTRY_INVALID")
     return tuple(rows), tuple(dict.fromkeys(notes))

@@ -12,9 +12,11 @@ import pytest
 
 from a_conductor import local_instances
 from a_conductor.inspector_sources import (
+    SkillRegistrySnapshot,
     collect_local_hook_rows,
     collect_local_skill_rows,
     collect_local_tool_rows,
+    load_skill_registry,
 )
 from a_conductor.local_instances import InstanceHealthState
 
@@ -431,3 +433,100 @@ def test_probe_oserror_requires_transport_evidence(tmp_path: Path, error, state,
     assert rows[0].last_error == code
     assert code in notes
     assert "FAKE" not in repr((rows, notes))
+
+
+def test_load_skill_registry_returns_validated_snapshot_with_meta(tmp_path: Path) -> None:
+    _registry(tmp_path)
+    snapshot = load_skill_registry(tmp_path, max_age_seconds=7 * 24 * 60 * 60, now=NOW)
+    assert isinstance(snapshot, SkillRegistrySnapshot)
+    assert [entry["name"] for entry in snapshot.entries] == ["present", "missing"]
+    assert snapshot.entry_states == ("AVAILABLE", "UNKNOWN")
+    assert snapshot.duplicate_flags == (False, False)
+    assert snapshot.invalid_entry_count == 0
+    assert snapshot.generated_at == "2026-08-09"
+    assert snapshot.staleness == "AVAILABLE"
+    assert snapshot.source_path == str(Path(tmp_path).resolve() / REGISTRY)
+
+
+def test_load_skill_registry_staleness_is_by_mtime_and_inclusive(tmp_path: Path) -> None:
+    registry = _registry(tmp_path)
+    boundary = NOW.timestamp() - 60
+    os.utime(registry, (boundary, boundary))
+    snapshot = load_skill_registry(tmp_path, max_age_seconds=60, now=NOW)
+    assert snapshot.staleness == "AVAILABLE"
+    os.utime(registry, (boundary - 1, boundary - 1))
+    assert load_skill_registry(tmp_path, max_age_seconds=60, now=NOW).staleness == "STALE"
+    future = NOW.timestamp() + 3600
+    os.utime(registry, (future, future))
+    assert load_skill_registry(tmp_path, max_age_seconds=60, now=NOW).staleness == "UNKNOWN"
+
+
+def test_load_skill_registry_generated_at_must_be_string(tmp_path: Path) -> None:
+    registry = _registry(tmp_path)
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    del payload["generated_at"]
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+    assert load_skill_registry(tmp_path, max_age_seconds=60, now=NOW).generated_at is None
+    payload["generated_at"] = 3
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+    assert load_skill_registry(tmp_path, max_age_seconds=60, now=NOW).generated_at is None
+
+
+def test_load_skill_registry_counts_invalid_entries_and_raw_name_duplicates(tmp_path: Path) -> None:
+    _registry(tmp_path, [_entry("present"), {"name": "present", "path": 3}])
+    snapshot = load_skill_registry(tmp_path, max_age_seconds=7 * 24 * 60 * 60, now=NOW)
+    assert [entry["name"] for entry in snapshot.entries] == ["present"]
+    assert snapshot.invalid_entry_count == 1
+    assert snapshot.duplicate_flags == (True,)
+    rows, notes = collect_local_skill_rows(tmp_path, now=NOW)
+    assert [row.name for row in rows] == ["present"]
+    assert rows[0].duplicate is True
+    assert "SKILL_ENTRY_INVALID" in notes
+
+
+def test_load_skill_registry_failures_are_typed_value_errors(tmp_path: Path) -> None:
+    with pytest.raises(ValueError) as missing:
+        load_skill_registry(tmp_path / "absent", max_age_seconds=60, now=NOW)
+    assert "SKILLS_REGISTRY_UNAVAILABLE" in str(missing.value)
+    (tmp_path / REGISTRY).write_text("{bad", encoding="utf-8")
+    with pytest.raises(ValueError) as corrupt:
+        load_skill_registry(tmp_path, max_age_seconds=60, now=NOW)
+    assert str(corrupt.value) == "SKILLS_REGISTRY_UNAVAILABLE"
+    (tmp_path / REGISTRY).write_text(
+        '{"schema_version": 3, "schema_version": 3, "skills": []}', encoding="utf-8",
+    )
+    with pytest.raises(ValueError) as duplicate:
+        load_skill_registry(tmp_path, max_age_seconds=60, now=NOW)
+    assert str(duplicate.value) == "SKILLS_REGISTRY_UNAVAILABLE"
+    (tmp_path / REGISTRY).write_text(json.dumps(
+        {"schema_version": 3, "skills": [], "pad": "x" * (4 * 1024 * 1024)},
+    ), encoding="utf-8")
+    with pytest.raises(ValueError) as oversized:
+        load_skill_registry(tmp_path, max_age_seconds=60, now=NOW)
+    assert str(oversized.value) == "SKILLS_REGISTRY_UNAVAILABLE"
+    (tmp_path / REGISTRY).write_text('{"schema_version": 2, "skills": []}', encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_skill_registry(tmp_path, max_age_seconds=60, now=NOW)
+    _registry(tmp_path)
+    with pytest.raises(ValueError):
+        load_skill_registry(tmp_path, max_age_seconds=True, now=NOW)
+    with pytest.raises(ValueError):
+        load_skill_registry(tmp_path, max_age_seconds=-1, now=NOW)
+    with pytest.raises(ValueError):
+        load_skill_registry(tmp_path, max_age_seconds=60, now=NOW.replace(tzinfo=None))
+    snapshot = load_skill_registry(tmp_path, max_age_seconds=60, now=NOW)
+    assert snapshot.staleness == "AVAILABLE"
+    assert snapshot.entry_states == ("AVAILABLE", "UNKNOWN")
+
+
+def test_collect_rows_align_with_loader_snapshot(tmp_path: Path) -> None:
+    _registry(tmp_path, [
+        _entry("alpha"), _entry("alpha", status="deprecated"), {"name": "bad", "path": 0},
+    ])
+    snapshot = load_skill_registry(tmp_path, max_age_seconds=7 * 24 * 60 * 60, now=NOW)
+    rows, notes = collect_local_skill_rows(tmp_path, now=NOW)
+    assert [row.name for row in rows] == [entry["name"] for entry in snapshot.entries]
+    assert [row.state for row in rows] == list(snapshot.entry_states)
+    assert [row.duplicate for row in rows] == list(snapshot.duplicate_flags)
+    assert snapshot.invalid_entry_count == 1
+    assert "SKILL_ENTRY_INVALID" in notes
