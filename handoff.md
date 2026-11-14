@@ -1,5 +1,9 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-14 - SFU26 card 08 skill shortlist - CURRENT
+
+Card 08 COMPLETE: PR #756 candidate `5833b4f`; exact-head CI 43637446509 SUCCESS; merge `366c9ed`; post-main CI 43639136433 SUCCESS; #755 closed. First deterministic skills-registry consumer in AWC: shared loader + pure hint projection (non-authoritative; dispositions over canonical only; documented non-parity vs A-Wiki matcher; zero provider calls).
+NEXT: card 09 (freshness projection) from `main@366c9ed`; then 07 -> 10; card 03 optional; UX-1 gate (#743) blocks card 04 only.
 ## 2026-11-13 - SFU26 card 06 telemetry baseline - CURRENT
 
 Card 06 COMPLETE: PR #753 candidate `4d4241d`; exact-head CI 43500970352 SUCCESS; merge `feb3e3c`; post-main CI 43511495868 SUCCESS; #752 closed. Pure per-attempt route telemetry projection exists (typed UNKNOWN cost semantics, dedup/accounting over execution_id+attempt_id, receipt join); observability + semantic telemetry carry correlation identity additively; zero routing behavior change (MUST-NOT-TOUCH verified).

@@ -1,5 +1,13 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-14 - SFU26 card 08 canonical skill shortlist consumer - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `721bd48` -> PR #756 candidate `5833b4f` (feat `285751a` + review-P2 repair; 5 files +1069/-43) -> exact-head CI 43637446509 SUCCESS -> merge `366c9ed` -> post-main CI 43639136433 SUCCESS (first try) -> [#755 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/755#issuecomment-6885450992).
+Delivered: shared schema-v3 loader `load_skill_registry` EXTENDED out of inspector_sources (rows API byte-compat, reviewer-proved identical across 22 differential scenarios; all failure branches wrap to SKILLS_REGISTRY_UNAVAILABLE sentinel with cause preserved) + NEW pure `skill_shortlist_projection.py` (dispositions ABSTAIN/SUGGEST_SINGLE/NEEDS_DISAMBIGUATION over canonical only; deprecated never suggested — migrated_to surfaced; alias resolution to existing canonical else unresolved_aliases; NFC+casefold parity with A-Wiki routing.py normalize; INTENTIONAL documented non-parity: presence-only, no boundary/weights/threshold/tiers/stop-list — decisive labeled tests; staleness carried never blocks; typed unavailable; non_authoritative pinned; zero provider imports structural). Matcher authority remains A-Wiki routing.py — data-derived hint, never a fork. Review R1 CHANGES_REQUIRED 1xP2 (loader ValueError-subclass leak) -> RED-first repair -> delta re-review PASS (7/7 sentinel probes). Adviser: Jev merge_now 0.98; Terra usage-limit disclosed.
+
+### Exact next safe action
+
+(1) Card 09 (provider/model/scout freshness projection) from `main@366c9ed` — staleness evidence already proven (.tmp/model-* ~5 months old; registry exceeds 7-day Inspector bound). (2) Then card 07 (context budget) -> card 10 (offline eval; needs 07+08+09). (3) Card 03 optional parallel. (4) UX-1 operator green-light (#743) still blocks card 04/UX-2 only.
 ## 2026-11-13 - SFU26 card 06 route/usage telemetry baseline - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 Base `7a1d89a` -> PR #753 candidate `4d4241d` (7 files +1312/-3) -> exact-head CI 43500970352 SUCCESS -> merge `feb3e3c` -> post-main CI 43511495868 SUCCESS (first try) -> [#752 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/752#issuecomment-6865839149).
