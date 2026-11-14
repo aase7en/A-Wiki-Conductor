@@ -303,8 +303,10 @@ def load_skill_registry(
             staleness=staleness,
             source_path=str(registry),
         )
-    except ValueError:
-        raise
+    except ValueError as exc:
+        if str(exc) == "SKILLS_REGISTRY_UNAVAILABLE":
+            raise
+        raise ValueError("SKILLS_REGISTRY_UNAVAILABLE") from exc
     except Exception as exc:
         raise ValueError("SKILLS_REGISTRY_UNAVAILABLE") from exc
 

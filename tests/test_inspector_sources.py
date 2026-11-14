@@ -489,8 +489,21 @@ def test_load_skill_registry_failures_are_typed_value_errors(tmp_path: Path) -> 
         load_skill_registry(tmp_path / "absent", max_age_seconds=60, now=NOW)
     assert "SKILLS_REGISTRY_UNAVAILABLE" in str(missing.value)
     (tmp_path / REGISTRY).write_text("{bad", encoding="utf-8")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as corrupt:
         load_skill_registry(tmp_path, max_age_seconds=60, now=NOW)
+    assert str(corrupt.value) == "SKILLS_REGISTRY_UNAVAILABLE"
+    (tmp_path / REGISTRY).write_text(
+        '{"schema_version": 3, "schema_version": 3, "skills": []}', encoding="utf-8",
+    )
+    with pytest.raises(ValueError) as duplicate:
+        load_skill_registry(tmp_path, max_age_seconds=60, now=NOW)
+    assert str(duplicate.value) == "SKILLS_REGISTRY_UNAVAILABLE"
+    (tmp_path / REGISTRY).write_text(json.dumps(
+        {"schema_version": 3, "skills": [], "pad": "x" * (4 * 1024 * 1024)},
+    ), encoding="utf-8")
+    with pytest.raises(ValueError) as oversized:
+        load_skill_registry(tmp_path, max_age_seconds=60, now=NOW)
+    assert str(oversized.value) == "SKILLS_REGISTRY_UNAVAILABLE"
     (tmp_path / REGISTRY).write_text('{"schema_version": 2, "skills": []}', encoding="utf-8")
     with pytest.raises(ValueError):
         load_skill_registry(tmp_path, max_age_seconds=60, now=NOW)
