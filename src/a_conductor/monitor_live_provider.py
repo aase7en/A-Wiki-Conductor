@@ -23,9 +23,20 @@ off, a typed ``MONITOR_NOT_COLLECTED`` marker when live). Result modes
 are distinct: ``off`` (kill-switch placeholder), ``live`` (sanitized
 views), ``error`` (typed failure naming the failing section, without raw
 exception text or paths).
+
+The composed live child is bounded before it can reach a transport
+frame: a child whose UTF-8 JSON encoding exceeds ``MAX_FRAME_BYTES`` (the
+same byte bound the web transport enforces when framing a snapshot)
+degrades to a typed ``MONITOR_PAYLOAD_TOO_LARGE`` marker instead of
+failing or truncating silently at encode time. A child that cannot be
+serialized at all is a projection failure, not a size failure, and keeps
+the existing typed ``MONITOR_LIVE_PROJECTION_FAILED`` / ``PROJECTION``
+marker. Sibling snapshot content (cockpit lanes and friends) is never
+touched by either degradation — only the ``monitor`` child is replaced.
 """
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -43,8 +54,16 @@ from .inspector_projection import (
 )
 
 __all__ = [
-    "MONITOR_NOT_COLLECTED", "MONITOR_PLACEHOLDER", "build_live_monitor_provider",
+    "MAX_FRAME_BYTES", "MONITOR_NOT_COLLECTED", "MONITOR_PAYLOAD_TOO_LARGE",
+    "MONITOR_PLACEHOLDER", "build_live_monitor_provider",
 ]
+
+# Composed-monitor-child byte bound, defined once here. It mirrors the web
+# transport bound (``web_api.MAX_FRAME_BYTES``); the test suite pins the two
+# constants equal so they cannot drift apart. Until an authorized web_api lane
+# re-points ``web_api`` at this constant, this definition is the monitor-path
+# authority — do not introduce a third copy of the number.
+MAX_FRAME_BYTES = 262_144
 
 MONITOR_PLACEHOLDER: dict = {
     "error": "MONITOR_PROJECTION_UNAVAILABLE",
@@ -54,6 +73,10 @@ MONITOR_NOT_COLLECTED: dict = {
     "error": "MONITOR_NOT_COLLECTED",
     "gate": "OPTIONAL_READ_PORT_UNAVAILABLE",
 }
+MONITOR_PAYLOAD_TOO_LARGE: dict = {
+    "error": "MONITOR_PAYLOAD_TOO_LARGE",
+    "gate": "FRAME",
+}
 MONITOR_LIVE_PROJECTION_FAILED = "MONITOR_LIVE_PROJECTION_FAILED"
 _INSPECTOR_ROWS_LIMIT = 128
 _ROW_TYPES = {"tools": ToolInspectorRow, "hooks": HookInspectorRow,
@@ -62,6 +85,16 @@ _ROW_TYPES = {"tools": ToolInspectorRow, "hooks": HookInspectorRow,
 
 def _error_child(gate: str) -> dict:
     return {"error": MONITOR_LIVE_PROJECTION_FAILED, "gate": gate}
+
+
+def _child_bytes(child: dict) -> int | None:
+    """Encoded size with the web frame's exact dumps semantics, or None when
+    the child cannot be serialized at all (a projection failure, not a size)."""
+    try:
+        return len(json.dumps(child, ensure_ascii=False, allow_nan=False,
+                              separators=(",", ":")).encode("utf-8"))
+    except (TypeError, ValueError):
+        return None
 
 
 def _section_summary(rows: list) -> dict:
@@ -131,6 +164,12 @@ def build_live_monitor_provider(
             )
         except Exception:
             return {"mode": "error", "monitor": _error_child("PROJECTION")}
+        child_bytes = _child_bytes(views)
+        if child_bytes is None:
+            # unmeasurable projection output cannot be framed safely either
+            return {"mode": "error", "monitor": _error_child("PROJECTION")}
+        if child_bytes > MAX_FRAME_BYTES:
+            return {"mode": "error", "monitor": dict(MONITOR_PAYLOAD_TOO_LARGE)}
         return {"mode": "live", "monitor": views}
 
     provider.initial_child = dict(MONITOR_PLACEHOLDER if off else MONITOR_NOT_COLLECTED)

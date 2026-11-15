@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
-from datetime import datetime, timezone, tzinfo
+from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 
 import pytest
@@ -214,6 +214,36 @@ class _LiarTzinfo(tzinfo):
 
     def tzname(self, dt):  # type: ignore[override]
         raise RuntimeError("liar tzname")
+
+
+class _FlipFlopTzinfo(tzinfo):
+    """Two-faced tzinfo: aware-looking on early calls, raising on a later one."""
+
+    def __init__(self, raise_on: int) -> None:
+        self.calls = 0
+        self.raise_on = raise_on
+
+    def utcoffset(self, dt):  # type: ignore[override]
+        self.calls += 1
+        if self.calls >= self.raise_on:
+            raise RuntimeError("flip-flop utcoffset")
+        return timedelta(0)
+
+    def dst(self, dt):  # type: ignore[override]
+        return timedelta(0)
+
+    def tzname(self, dt):  # type: ignore[override]
+        return "UTC"
+
+
+class _RaisingStr(str):
+    """Two-faced str subclass whose __iter__/__len__ raise on read."""
+
+    def __iter__(self):  # type: ignore[override]
+        raise RuntimeError("liar __iter__")
+
+    def __len__(self):  # type: ignore[override]
+        raise RuntimeError("liar __len__")
 
 
 class _LiarEnumText:
@@ -1049,3 +1079,62 @@ def test_forbidden_pid_never_projects_anywhere() -> None:
         local_instances=(_Instance(),),
     )
     assert str(FORBIDDEN_PID) not in repr(view)
+
+
+# ---------------------------------------------------------------------------
+# WO-P1-765 card-03: two-faced-subclass residuals (flip-flop stamps, raising
+# __iter__/__len__ str subclasses) must become typed rejections, never escapes
+# ---------------------------------------------------------------------------
+
+
+def test_flip_flop_tzinfo_raising_at_isoformat_is_typed_rejection() -> None:
+    # aware-looking on the awareness probe (call 1), raising at the second
+    # read inside parsed.isoformat() when no ``now`` comparison runs
+    worker = _Worker(
+        session_id="a-worker-01",
+        label="Alpha",
+        created_at=datetime(2026, 11, 15, 10, 0, 0, tzinfo=_FlipFlopTzinfo(2)),
+    )
+    view = project_fleet_view(worker_sessions=(worker,))
+    assert view.worker_sessions.records == ()
+    assert [rejection.code for rejection in view.worker_sessions.rejections] == [
+        "TIMESTAMP_INVALID"
+    ]
+    assert view.worker_sessions.rejections[0].field == "created_at"
+
+
+def test_flip_flop_tzinfo_raising_at_now_subtraction_is_typed_rejection() -> None:
+    # survives the awareness probe (call 1) and isoformat (call 2), raising
+    # only at the ``now - parsed`` subtraction (call 3)
+    worker = _Worker(
+        session_id="a-worker-01",
+        label="Alpha",
+        created_at=datetime(2026, 11, 15, 10, 0, 0, tzinfo=_FlipFlopTzinfo(3)),
+    )
+    view = project_fleet_view(worker_sessions=(worker,), now=NOW)
+    assert view.worker_sessions.records == ()
+    assert [rejection.code for rejection in view.worker_sessions.rejections] == [
+        "TIMESTAMP_INVALID"
+    ]
+    assert view.worker_sessions.rejections[0].field == "created_at"
+
+
+def test_raising_iter_session_id_is_typed_rejection_not_escape() -> None:
+    worker = _Worker(session_id=_RaisingStr("a-worker-01"), label="Alpha")
+    view = project_fleet_view(worker_sessions=(worker,))
+    assert view.worker_sessions.records == ()
+    assert [rejection.code for rejection in view.worker_sessions.rejections] == [
+        "IDENTIFIER_INVALID"
+    ]
+    assert view.worker_sessions.rejections[0].field == "session_id"
+
+
+def test_raising_len_tunnel_suffix_is_typed_rejection_not_escape() -> None:
+    view = project_fleet_view(
+        local_instances=(_Instance(tunnel_suffix=_RaisingStr("abcd")),)
+    )
+    assert view.local_instances.records == ()
+    assert [rejection.code for rejection in view.local_instances.rejections] == [
+        "TUNNEL_SUFFIX_INVALID"
+    ]
+    assert view.local_instances.rejections[0].field == "tunnel_suffix"

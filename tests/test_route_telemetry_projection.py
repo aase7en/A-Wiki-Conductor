@@ -365,6 +365,56 @@ def test_wo752_matching_correlation_passes_through() -> None:
     )
 
 
+# --- WO-P1-765 card-06: type-strict correlation identity ---
+
+
+class _DuckSemantic:
+    """Shape-conforming semantic telemetry with a non-str correlation id.
+
+    The projection accepts injected semantic rows by shape, not by class, so
+    upstream ``_safe_identity`` str validation cannot be assumed for them.
+    """
+
+    def __init__(self, request_id: object) -> None:
+        self.input_usage = None
+        self.output_usage = None
+        self.latency_ms = None
+        self.execution_id = "exec-1"
+        self.attempt_id = "att-1"
+        self.request_id = request_id
+
+
+class _SubStr(str):
+    """str subclass carrying a non-plain correlation identity."""
+
+
+def test_wo765_non_str_correlation_identity_is_typed_rejected_not_coerced() -> None:
+    # int 7 vs row "7" previously passed via str()-coercion comparison
+    with pytest.raises(ValueError, match="must be plain text"):
+        project_route_telemetry(
+            attempts=(
+                RouteAttemptInput(
+                    execution_id="exec-1",
+                    attempt_id="att-1",
+                    request_id="7",
+                    semantic=_DuckSemantic(request_id=7),
+                ),
+            )
+        )
+    # a str subclass is likewise not a plain-text correlation identity
+    with pytest.raises(ValueError, match="must be plain text"):
+        project_route_telemetry(
+            attempts=(
+                RouteAttemptInput(
+                    execution_id="exec-1",
+                    attempt_id="att-1",
+                    request_id="req-1",
+                    semantic=_DuckSemantic(request_id=_SubStr("req-1")),
+                ),
+            )
+        )
+
+
 def test_wo752_selection_summary_reason_and_shortlist() -> None:
     selection = make_selection(
         make_evaluation(reason_code=REASON_SELECTED),
