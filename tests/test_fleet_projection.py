@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 
 import pytest
@@ -115,7 +115,7 @@ class _Session:
 
 
 class _Worker(_Session):
-    pass
+    pid = FORBIDDEN_PID
 
 
 class _Connector(_Session):
@@ -128,6 +128,8 @@ class _Connector(_Session):
 
 class _Instance:
     """Duck-typed local instance plus separately observed health."""
+
+    pid = FORBIDDEN_PID
 
     def __init__(
         self,
@@ -199,6 +201,27 @@ class _RaisingAttr:
     @property
     def scope(self) -> tuple[str, ...]:
         raise RuntimeError("boom")
+
+
+class _LiarTzinfo(tzinfo):
+    """Timezone carrier whose utcoffset read raises (liar time evidence)."""
+
+    def utcoffset(self, dt):  # type: ignore[override]
+        raise RuntimeError("liar utcoffset")
+
+    def dst(self, dt):  # type: ignore[override]
+        raise RuntimeError("liar dst")
+
+    def tzname(self, dt):  # type: ignore[override]
+        raise RuntimeError("liar tzname")
+
+
+class _LiarEnumText:
+    """Enum-like health carrier whose ``value`` read raises."""
+
+    @property
+    def value(self) -> str:
+        raise RuntimeError("liar enum value")
 
 
 # ---------------------------------------------------------------------------
@@ -931,3 +954,98 @@ def test_fleet_view_is_typed_composition_with_identity_summary() -> None:
         "remote_devices",
     ):
         assert isinstance(getattr(view, group_name), FleetRecordGroup)
+
+
+# ---------------------------------------------------------------------------
+# Repair round 1 (review P1/P2/P3): liar carriers, id path-shape law, now
+# contract, forbidden-pid corpus pin
+# ---------------------------------------------------------------------------
+
+
+def test_lease_with_liar_enum_value_health_is_typed_rejection() -> None:
+    observation = CockpitLeaseObservation(
+        available=True,
+        provenance="DURABLE_EXECUTION_RECORD",
+        lease_id="lease-1",
+        worker_id="a-worker-01",
+        branch="feat/x",
+        expected_head=SHA_A,
+        health=_LiarEnumText(),
+    )
+    view = project_fleet_view(lease_observations=(observation,))
+    assert view.leases.records == ()
+    assert [rejection.code for rejection in view.leases.rejections] == [
+        "LEASE_HEALTH_INVALID"
+    ]
+    assert view.leases.rejections[0].field == "health"
+
+
+def test_instance_with_liar_enum_value_health_is_typed_rejection() -> None:
+    view = project_fleet_view(local_instances=(_Instance(health=_LiarEnumText()),))
+    assert view.local_instances.records == ()
+    assert [rejection.code for rejection in view.local_instances.rejections] == [
+        "LOCAL_HEALTH_INVALID"
+    ]
+    assert view.local_instances.rejections[0].field == "health"
+
+
+def test_liar_tzinfo_created_at_is_typed_rejection() -> None:
+    worker = _Worker(
+        session_id="a-worker-01",
+        label="Alpha",
+        created_at=datetime(2026, 11, 15, 10, 0, 0, tzinfo=_LiarTzinfo()),
+    )
+    view = project_fleet_view(worker_sessions=(worker,), now=NOW)
+    assert view.worker_sessions.records == ()
+    assert [rejection.code for rejection in view.worker_sessions.rejections] == [
+        "TIMESTAMP_NAIVE"
+    ]
+    assert view.worker_sessions.rejections[0].field == "created_at"
+
+
+def test_path_shaped_lease_id_is_typed_rejection() -> None:
+    view = project_fleet_view(lease_observations=(_lease(lease_id="/etc/passwd"),))
+    assert view.leases.records == ()
+    assert [rejection.code for rejection in view.leases.rejections] == [
+        "SAFE_FIELD_PATH_SHAPED"
+    ]
+    assert view.leases.rejections[0].field == "lease_id"
+
+
+def test_path_shaped_lease_worker_id_is_typed_rejection() -> None:
+    view = project_fleet_view(
+        lease_observations=(_lease(worker_id="C:\\Users\\operator"),)
+    )
+    assert view.leases.records == ()
+    assert [rejection.code for rejection in view.leases.rejections] == [
+        "SAFE_FIELD_PATH_SHAPED"
+    ]
+    assert view.leases.rejections[0].field == "worker_id"
+
+
+def test_path_shaped_session_id_is_typed_rejection() -> None:
+    worker = _Worker(session_id="../../x", label="Alpha")
+    view = project_fleet_view(worker_sessions=(worker,))
+    assert view.worker_sessions.records == ()
+    assert [rejection.code for rejection in view.worker_sessions.rejections] == [
+        "SAFE_FIELD_PATH_SHAPED"
+    ]
+
+
+def test_liar_tzinfo_now_raises_contract_value_error() -> None:
+    with pytest.raises(ValueError) as excinfo:
+        project_fleet_view(
+            now=datetime(2026, 11, 15, 12, 0, 0, tzinfo=_LiarTzinfo())
+        )
+    assert str(excinfo.value) == "FLEET_NOW_MUST_BE_TZ_AWARE"
+
+
+def test_forbidden_pid_never_projects_anywhere() -> None:
+    view = project_fleet_view(
+        claim_bindings=(_Binding(),),
+        lease_observations=(_lease(),),
+        worker_sessions=(_Worker(session_id="a-worker-01", label="Alpha"),),
+        connector_sessions=(_Connector(session_id="conn-abcd1234", label="Sunday"),),
+        local_instances=(_Instance(),),
+    )
+    assert str(FORBIDDEN_PID) not in repr(view)

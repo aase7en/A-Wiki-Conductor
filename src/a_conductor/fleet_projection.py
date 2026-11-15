@@ -20,7 +20,10 @@ first-wins per class with ``duplicate_count``. Malformed injected records
 become per-record typed rejections with a code only (no diagnostic value
 echo); valid neighbors survive. Every attribute read on injected records is
 wrapped: a raising property becomes a typed rejection, never an exception
-escape. Emitted frames are bounded at 256 rows per group.
+escape. Identifier handles (claim/task/lease/worker/session and instance
+ids) are opaque handles held to the same path-shape law as other safe text
+fields: a path-shaped id is rejected, never projected. Emitted frames are
+bounded at 256 rows per group.
 
 The module performs no I/O, reads no wall clock (``now`` is injectable), and
 imports no ambient-system, network, storage, or provider machinery. All emitted
@@ -262,10 +265,18 @@ def _check_text(value: object) -> str | None:
     return None
 
 
+def _tz_aware(value: datetime) -> bool:
+    """Timezone awareness with liar-tzinfo containment (raise -> naive)."""
+    try:
+        return value.tzinfo is not None and value.tzinfo.utcoffset(value) is not None
+    except Exception:
+        return False
+
+
 def _parse_stamp(value: object) -> tuple[str, datetime | None]:
     """Returns ("ok", dt) | ("naive", None) | ("invalid", None)."""
     if isinstance(value, datetime):
-        if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+        if not _tz_aware(value):
             return "naive", None
         return "ok", value
     if not isinstance(value, str):
@@ -274,7 +285,7 @@ def _parse_stamp(value: object) -> tuple[str, datetime | None]:
         parsed = datetime.fromisoformat(value)
     except ValueError:
         return "invalid", None
-    if parsed.tzinfo is None or parsed.tzinfo.utcoffset(parsed) is None:
+    if not _tz_aware(parsed):
         return "naive", None
     return "ok", parsed
 
@@ -309,11 +320,15 @@ def _unreadable(
 
 
 def _enum_text(value: object) -> object:
+    """Enum-like -> str text; a raising or non-str ``value`` returns the
+    object unchanged so health classification rejects it fail-closed."""
     if isinstance(value, str):
         return value
-    if hasattr(value, "value") and isinstance(value.value, str):
-        return value.value
-    return value
+    try:
+        text = value.value  # type: ignore[union-attr]
+    except Exception:
+        return value
+    return text if isinstance(text, str) else value
 
 
 def _validate_claim(
@@ -413,7 +428,7 @@ def _validate_lease(
     if available:
         for name in ("lease_id", "worker_id"):
             code = _check_text(values[name])
-            if code and code != "SAFE_FIELD_PATH_SHAPED":
+            if code:
                 return _rejection(source_class, code, name, source_index)
         if _blank_text(values["provenance"]):
             return _rejection(
@@ -430,8 +445,12 @@ def _validate_lease(
             source_class, "HEAD_SHA_INVALID", "expected_head", source_index
         )
     health = values["health"]
-    if health is not None and _enum_text(health) not in _LEASE_HEALTH_STATES:
-        return _rejection(source_class, "LEASE_HEALTH_INVALID", "health", source_index)
+    if health is not None:
+        health_text = _enum_text(health)
+        if not isinstance(health_text, str) or health_text not in _LEASE_HEALTH_STATES:
+            return _rejection(
+                source_class, "LEASE_HEALTH_INVALID", "health", source_index
+            )
     return FleetLeaseRecord(
         available=available,
         provenance=(
@@ -463,7 +482,7 @@ def _validate_session(
             source_class, "RECORD_FIELD_MISSING", _SESSION_ID_ATTRS[0], source_index
         )
     code = _check_text(session_id)
-    if code and code != "SAFE_FIELD_PATH_SHAPED":
+    if code:
         return _rejection(source_class, code, id_name, source_index)
     label_status, label_name, label = _first_attr(record, _SESSION_LABEL_ATTRS)
     if label_status == "unreadable":
@@ -561,7 +580,7 @@ def _validate_instance(
         health_text = "UNKNOWN"
     else:
         health_text = _enum_text(health)
-        if health_text not in _LOCAL_HEALTH_STATES:
+        if not isinstance(health_text, str) or health_text not in _LOCAL_HEALTH_STATES:
             return _rejection(
                 source_class, "LOCAL_HEALTH_INVALID", "health", source_index
             )
@@ -716,11 +735,7 @@ def project_fleet_view(
     survive, and the result is a pure value carrying no mutation, claim, or
     completion authority.
     """
-    if now is not None and (
-        not isinstance(now, datetime)
-        or now.tzinfo is None
-        or now.tzinfo.utcoffset(now) is None
-    ):
+    if now is not None and (not isinstance(now, datetime) or not _tz_aware(now)):
         raise ValueError("FLEET_NOW_MUST_BE_TZ_AWARE")
     claims = _project_class(
         "claims",
