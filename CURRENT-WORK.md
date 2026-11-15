@@ -1,5 +1,14 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-15 - SFU26 card 07 evidence packing - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `76e0bd2` -> PR #760 candidate `f0b99f3` (3 NEW files +1292/-0) -> exact-head CI 43685384232 SUCCESS -> merge `01224a8` -> post-main CI 43686908424 SUCCESS (first try) -> [#759 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/759#issuecomment-6892916659).
+Delivered: NEW pure `evidence_pack_projection.py` — char/item/byte budgets over ACTUAL UTF-8 (declared size = provenance only); mandatory NEVER clipped (ABSTAIN PACK_MANDATORY_BUDGET_EXCEEDED, drop gated on not-mandatory); optional overflow dropped-accounting (monitor truncated invariant); dedup (ref,sha256,span) + retain-both conflict notes; typed malformed/raising paths, zero exception escapes; self-digest canonical-JSON-minus-digest + input fingerprint incl. rejected/duplicate statuses; content inert (injection fixture opaque); no retrieval I/O; no token counting; non_authoritative pinned; operator.v1/zero_relay/orchestration codec untouched. Review PASS first try (0 P1/P2, 4 P3 follow-ups). Jev merge_now 0.95; Terra usage-limit disclosed. Ops note: lane executor's GLM key expired mid-chain after merge; integrator completed verification/checkpoint/close/fold directly from durable state.
+
+### Exact next safe action
+
+(1) Card 10 (offline evaluation corpus + preregistration) UNLOCKED — all prerequisites 07/08/09 delivered; own WO/claim from `main@01224a8`. (2) Card 03 optional parallel. (3) UX-1 operator green-light (#743) still blocks card 04/UX-2 only. (4) Subagent-model key renewal (cointh.com/glm) is an operator action if further delegated lanes are needed.
+
 ## 2026-11-15 - SFU26 card 09 model-intel freshness projection - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 Base `2661ee4` -> PR #758 candidate `d1bcf9c` (feat `eec815e` + review-P2 repair; 3 files +1384/-1) -> exact-head CI 43674043693 SUCCESS -> merge `caaff3e` -> post-main CI 43675501122 SUCCESS (first try) -> [#757 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/757#issuecomment-6889145994).

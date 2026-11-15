@@ -1,5 +1,10 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-15 - SFU26 card 07 evidence packing - CURRENT
+
+Card 07 COMPLETE: PR #760 candidate `f0b99f3`; exact-head CI 43685384232 SUCCESS; merge `01224a8`; post-main CI 43686908424 SUCCESS; #759 closed (checkpoint 6892916659). EvidencePack packing exists as pure projection (mandatory-abstain budgets, dedup/conflict typing, self-digest, inert content). Executor key-expiry mid-chain disclosed; integrator closed from durable state.
+NEXT: card 10 (offline eval corpus) from `main@01224a8` — unlocks 11/12/16 lineage; card 03 optional; UX-1 gate (#743) blocks card 04 only.
+
 ## 2026-11-15 - SFU26 card 09 freshness projection - CURRENT
 
 Card 09 COMPLETE: PR #758 candidate `d1bcf9c`; exact-head CI 43674043693 SUCCESS; merge `caaff3e`; post-main CI 43675501122 SUCCESS; #757 closed. Model-intel artifact freshness now typed (dual timestamps, drift notes, thresholds injectable, no paths leaked).
