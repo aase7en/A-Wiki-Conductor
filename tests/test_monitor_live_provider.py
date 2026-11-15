@@ -173,3 +173,57 @@ def test_off_accepts_case_and_whitespace_and_other_values_stay_live():
     assert enabled["mode"] == "live"
     assert build_live_monitor_provider(env={}, tool_collector=tools,
                                        hook_collector=hooks, skill_collector=skills)()["mode"] == "live"
+
+
+# --- WO-P1-765 card-02: composed-child frame-size bound ---
+
+FILLER = "x" * 200
+
+
+def _oversized_tool_row(index):
+    return tool_row(name=f"worker-{index}", device=FILLER, category=FILLER,
+                    source=FILLER, registration_evidence=FILLER,
+                    last_error=FILLER, next_safe_action=FILLER,
+                    provenance=FILLER)
+
+
+def _oversized_hook_row():
+    return hook_row(name=FILLER, authority_source=FILLER, last_event=FILLER,
+                    last_error=FILLER, provenance=FILLER)
+
+
+def _oversized_collectors():
+    tools = tuple(_oversized_tool_row(index) for index in range(128))
+    hooks = tuple(_oversized_hook_row() for _ in range(128))
+    return (lambda: (tools, ()), lambda repo_root: (hooks, ()),
+            lambda **kwargs: ((), ()))
+
+
+def test_oversized_composed_child_degrades_to_typed_marker_with_mode_shape():
+    tools, hooks, skills = _oversized_collectors()
+    provider = build_live_monitor_provider(
+        env={}, tool_collector=tools, hook_collector=hooks, skill_collector=skills)
+    result = provider()
+    assert result["mode"] == "error"
+    assert result["monitor"] == {"error": "MONITOR_PAYLOAD_TOO_LARGE", "gate": "FRAME"}
+    # the typed wrapper stays frame-safe by construction
+    assert len(json.dumps(result, ensure_ascii=False,
+                          separators=(",", ":")).encode("utf-8")) < 4096
+
+
+def test_frame_bound_is_the_web_transport_bound_not_a_magic_duplicate():
+    from a_conductor import monitor_live_provider
+    from a_conductor.web_api import MAX_FRAME_BYTES as WEB_TRANSPORT_BOUND
+    assert monitor_live_provider.MAX_FRAME_BYTES == WEB_TRANSPORT_BOUND
+    assert WEB_TRANSPORT_BOUND == 262_144
+
+
+def test_small_children_stay_live_and_byte_compatible_under_the_bound():
+    tools, hooks, skills = ok_collectors((skill_row(), skill_row(state="STALE")))
+    result = build_live_monitor_provider(
+        env={}, tool_collector=tools, hook_collector=hooks, skill_collector=skills)()
+    assert result["mode"] == "live"
+    from a_conductor.monitor_live_provider import MAX_FRAME_BYTES
+    size = len(json.dumps(result["monitor"], ensure_ascii=False, allow_nan=False,
+                          separators=(",", ":")).encode("utf-8"))
+    assert 0 < size < MAX_FRAME_BYTES

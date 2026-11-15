@@ -49,8 +49,6 @@ RECEIPT_STATUS_ACCEPTED = "ACCEPTED"
 RECEIPT_STATUS_QUARANTINED = "QUARANTINED"
 _RECEIPT_STATUSES = frozenset({RECEIPT_STATUS_ACCEPTED, RECEIPT_STATUS_QUARANTINED})
 
-_MAX_IDENTITY_LENGTH = 128
-
 
 def _enum_value(value: Any) -> Any:
     return getattr(value, "value", value)
@@ -167,7 +165,10 @@ class RouteAttemptInput:
     numeric-or-None, fallback_reason/disposition string-or-None, optional
     execution_id/attempt_id/request_id correlation). Wall stamps are opaque
     durable TEXT passed through verbatim; ``receipt_status`` uses the durable
-    ACCEPTED/QUARANTINED vocabulary.
+    ACCEPTED/QUARANTINED vocabulary. Blank wall stamps raise at input
+    validation like every other text field (fail-closed text convention) —
+    a stamp is never silently dropped or degraded to typed-unavailable; an
+    absent stamp is expressed only by ``None``.
     """
 
     execution_id: str
@@ -401,7 +402,18 @@ def _project_attempt(row: RouteAttemptInput, duplicate_of: int | None) -> RouteA
         disposition = None if disposition is None else str(_enum_value(disposition))
         for name in ("execution_id", "attempt_id", "request_id"):
             sem_value = getattr(semantic, name, None)
-            if sem_value is not None and str(sem_value) != getattr(row, name):
+            if sem_value is None:
+                continue
+            # Correlation identity is type-strict: the row side is already a
+            # validated plain str, and the semantic side must be one too.
+            # Non-str identities (including str subclasses) are typed
+            # rejections — never str()-coerced into a passing comparison.
+            if type(sem_value) is not str:
+                raise ValueError(
+                    f"semantic telemetry correlation identity must be plain "
+                    f"text: {name}"
+                )
+            if sem_value != getattr(row, name):
                 raise ValueError(
                     f"semantic telemetry correlation identity mismatch: {name}"
                 )

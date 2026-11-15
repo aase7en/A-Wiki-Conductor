@@ -137,6 +137,49 @@ def test_unknown_route(client):
     assert client.get("/private-path").json() == {"error": "MONITOR_NOT_FOUND"}
 
 
+# WO-P1-765 card-01: pin HOW the method policy is derived (the app's actual
+# router-table attribute semantics) and pin the unknown-path response shape
+# for EVERY allowed method verb, so a framework change cannot silently weaken
+# the completeness check above.
+
+def test_route_method_derivation_is_pinned_to_router_table_attrs(client):
+    api_routes = [route for route in client.app.routes
+                  if getattr(route, "path", "").startswith("/api/")]
+    assert api_routes
+    for route in api_routes:
+        methods = route.methods
+        assert type(methods) is set and methods, (route.path, methods)
+        for method in methods:
+            assert type(method) is str and method.isalpha() and method == method.upper(), \
+                (route.path, method)
+    derived = {}
+    for route in api_routes:
+        for method in route.methods:
+            derived.setdefault(method, set()).add(route.path)
+    assert derived == {method: set(paths)
+                       for method, paths in ROUTE_METHOD_POLICY.items()}
+
+
+# Unknown paths answer per-method, not uniformly: read verbs reach the router
+# 404 handler; mutation verbs are stopped fail-closed at the auth read-only
+# boundary before routing ever runs (web_api_auth read-only gate), so they get
+# 405 MONITOR_READ_ONLY instead of the 404 shape. Pinned per verb.
+UNKNOWN_PATH_METHOD_POLICY = {
+    "GET": (404, {"error": "MONITOR_NOT_FOUND"}),
+    "POST": (405, {"error": "MONITOR_READ_ONLY"}),
+    "PATCH": (405, {"error": "MONITOR_READ_ONLY"}),
+    "DELETE": (405, {"error": "MONITOR_READ_ONLY"}),
+}
+
+
+@pytest.mark.parametrize("method", sorted(UNKNOWN_PATH_METHOD_POLICY))
+def test_unknown_path_shape_pinned_per_allowed_method(client, method):
+    status, body = UNKNOWN_PATH_METHOD_POLICY[method]
+    response = client.request(method, "/private-path")
+    assert response.status_code == status
+    assert response.json() == body
+
+
 def test_sse(client):
     response = client.get("/api/v1/stream")
     assert response.headers["content-type"].startswith("text/event-stream")

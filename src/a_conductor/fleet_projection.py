@@ -248,9 +248,39 @@ def _path_shaped(value: str) -> bool:
     return ".." in value.split("/")
 
 
+def _probed_str(value: str) -> str | None:
+    """Safe plain-str view of a text value; None for a lying str subclass.
+
+    A plain ``str`` is returned as-is. A ``str`` subclass is probed through
+    its derived views first (iteration and length are wrapped), so a
+    two-faced subclass raising from ``__iter__``/``__len__`` — or one whose
+    length disagrees with its iteration — yields None for typed rejection
+    instead of escaping as a raw exception.
+    """
+    if type(value) is str:
+        return value
+    try:
+        probe = "".join(list(value))
+    except Exception:
+        return None
+    try:
+        if len(probe) != len(value):
+            return None
+    except Exception:
+        return None
+    return probe
+
+
 def _check_text(value: object) -> str | None:
-    """Typed rejection code for a non-conforming text field, else None."""
+    """Typed rejection code for a non-conforming text field, else None.
+
+    Text checks are narrowed against str subclasses: a subclass whose
+    ``__iter__``/``__len__`` raise is a typed rejection, never an escape.
+    """
     if not isinstance(value, str):
+        return "IDENTIFIER_INVALID"
+    value = _probed_str(value)
+    if value is None:
         return "IDENTIFIER_INVALID"
     if any(ord(char) < 32 for char in value):
         return "IDENTIFIER_INVALID"
@@ -520,15 +550,29 @@ def _validate_session(
                 return _rejection(
                     source_class, "SESSION_STATE_INVALID", "state", source_index
                 )
-    created_at = (
-        str(created_value)
-        if isinstance(created_value, str)
-        else parsed.isoformat()
-    )
+    # Two-faced stamp containment: a flip-flop tzinfo can pass the awareness
+    # probe and then raise at the second read inside isoformat() (or at the
+    # third read inside the ``now - parsed`` subtraction). Both are wrapped;
+    # a raising stamp is a typed rejection, never an exception escape.
+    try:
+        created_at = (
+            str(created_value)
+            if isinstance(created_value, str)
+            else parsed.isoformat()
+        )
+    except Exception:
+        return _rejection(
+            source_class, "TIMESTAMP_INVALID", "created_at", source_index
+        )
     age_seconds: float | None = None
     staleness: str | None = None
     if now is not None:
-        age_seconds = (now - parsed).total_seconds()
+        try:
+            age_seconds = (now - parsed).total_seconds()
+        except Exception:
+            return _rejection(
+                source_class, "TIMESTAMP_INVALID", "created_at", source_index
+            )
         staleness = "UNKNOWN" if age_seconds < 0 else "AVAILABLE"
     return FleetAppSessionRecord(
         kind=kind,
@@ -569,7 +613,12 @@ def _validate_instance(
         return _unreadable(source_class, source_index)
     if suffix_status == "missing":
         tunnel_suffix = ""
-    if not isinstance(tunnel_suffix, str) or len(tunnel_suffix) > 4:
+    if not isinstance(tunnel_suffix, str):
+        return _rejection(
+            source_class, "TUNNEL_SUFFIX_INVALID", "tunnel_suffix", source_index
+        )
+    tunnel_suffix = _probed_str(tunnel_suffix)
+    if tunnel_suffix is None or len(tunnel_suffix) > 4:
         return _rejection(
             source_class, "TUNNEL_SUFFIX_INVALID", "tunnel_suffix", source_index
         )
