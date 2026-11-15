@@ -119,6 +119,22 @@ class _ObjectSnapshot:
         self.artifacts = artifacts
 
 
+class _ExplodingRawMaterial:
+    @property
+    def raw(self):
+        raise RuntimeError("boom-raw")
+
+    mtime_epoch_seconds = None
+
+
+class _ExplodingMtimeMaterial:
+    raw = '{"model_count": 2}'
+
+    @property
+    def mtime_epoch_seconds(self):
+        raise RuntimeError("boom-mtime")
+
+
 def _project(materials=None, *, now=NOW, **kwargs):
     return project_model_artifact_freshness(
         {"artifacts": _base_materials() if materials is None else materials},
@@ -312,6 +328,23 @@ def test_unreadable_material_is_typed_not_failed() -> None:
     assert scout.read_reason == "ARTIFACT_MATERIAL_MALFORMED"
     assert scout.mtime_staleness == "UNKNOWN"
     assert scout.content_fingerprint is None
+
+
+def test_raising_material_property_yields_unreadable_record_not_exception() -> None:
+    materials = _base_materials()
+    materials[SCOUT_KEY] = _ExplodingRawMaterial()
+    materials[CATALOG_KEY] = _ExplodingMtimeMaterial()
+    report = _project(materials)
+
+    scout = _record_by_key(report, SCOUT_KEY)
+    assert scout.read_state == "UNREADABLE"
+    assert scout.read_reason == "ARTIFACT_MATERIAL_MALFORMED"
+    catalog = _record_by_key(report, CATALOG_KEY)
+    assert catalog.read_state == "UNREADABLE"
+    assert catalog.read_reason == "ARTIFACT_MATERIAL_MALFORMED"
+    assert _record_by_key(report, ROSTER_KEY).read_state == "AVAILABLE"
+    assert _record_by_key(report, POLICY_KEY).read_state == "AVAILABLE"
+    assert report.degraded is False
 
 
 # ---------------------------------------------------------------------------

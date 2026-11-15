@@ -442,7 +442,13 @@ def _build_record(
             None,
         )
 
-    raw, mtime = _material_fields(entry)
+    try:
+        raw, mtime = _material_fields(entry)
+    except Exception:
+        # Duck-typed entries may raise from .raw/.mtime_epoch_seconds property
+        # access; that failure belongs to the artifact record (UNREADABLE),
+        # never to the caller (review P2, WO-P1-757 repair round 1).
+        raw, mtime = "MALFORMED", None
     if raw is None:
         return (
             ModelArtifactRecord(
