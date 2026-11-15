@@ -1,5 +1,10 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-15 - SFU26 card 10 offline eval corpus - CURRENT
+
+Card 10 COMPLETE: PR 762 candidate `9dcbcf8`; merge `07e74e43c25184c4e0114ae2b807217dce914a41`; post-main CI 43723256737 SUCCESS; #761 closed. Deterministic eval corpus (1,400 cases, sealed holdout, leakage-proven payload projection) + preregistration record exist as pure fixtures — no live path.
+NEXT: card 03 (Fleet DTO) recommended next (only unblocked R2); cards 11/12 need their R3 reviews/budget gates; UX-1 (#743) blocks card 04 only.
+
 ## 2026-11-15 - SFU26 card 07 evidence packing - CURRENT
 
 Card 07 COMPLETE: PR #760 candidate `f0b99f3`; exact-head CI 43685384232 SUCCESS; merge `01224a8`; post-main CI 43686908424 SUCCESS; #759 closed (checkpoint 6892916659). EvidencePack packing exists as pure projection (mandatory-abstain budgets, dedup/conflict typing, self-digest, inert content). Executor key-expiry mid-chain disclosed; integrator closed from durable state.

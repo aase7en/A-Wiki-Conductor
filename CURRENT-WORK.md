@@ -1,5 +1,14 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-15 - SFU26 card 10 offline eval corpus - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `c17bc8a` -> PR 762 candidate `9dcbcf8` (feat `177a58f` + P2 repair; 3 files +2194/-0) -> exact-head CI 43721426566 SUCCESS -> merge `07e74e43c25184c4e0114ae2b807217dce914a41` -> post-main CI 43723256737 SUCCESS -> [#761 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/761#issuecomment-6896193057).
+Delivered: NEW pure `eval_corpus.py` — seeded deterministic corpus (1,080 base: 6 strata x 3 languages x 60, 20 cal + 40 sealed holdout, risk 10/5/5+20/10/10; +320 sentinels/8 categories, fake markers, neutral ids); payload projection {case_id, decision_family, risk, content} — leakage reviewer-recomputed EMPTY; duplicate-lineage rejection; cross-process determinism (hash eb9cc653...); preregistration = all 11 §9.3 metrics + rationale + Jev targets UNPROVEN; sentinel bound 300..10_000; zero provider/network/clock/token imports. Review R1 1xP2 (sentinel id leak) -> RED-first repair -> delta PASS. Jev merge_now 0.96; Terra usage-limit disclosed.
+
+### Exact next safe action
+
+(1) Offline-evaluation chain COMPLETE (07/08/09/10). Next candidates: card 11 (Gemini conformance adapter — R3, needs official API/privacy review first), card 12 (approved external shadow capture — R3, needs explicit budget/egress permission), card 13 (route UX — needs cards 04/05), card 03 (Fleet DTO — R2, unblocked). Card 03 is the only remaining R2 lane not gated on humans or new R3 review — recommend it next. (2) UX-1 operator green-light (#743) still blocks card 04/UX-2 only.
+
 ## 2026-11-15 - SFU26 card 07 evidence packing - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 Base `76e0bd2` -> PR #760 candidate `f0b99f3` (3 NEW files +1292/-0) -> exact-head CI 43685384232 SUCCESS -> merge `01224a8` -> post-main CI 43686908424 SUCCESS (first try) -> [#759 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/759#issuecomment-6892916659).
