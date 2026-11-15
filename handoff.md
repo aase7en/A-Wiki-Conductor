@@ -1,5 +1,10 @@
 # HANDOFF — A-Sunday Conductor
 
+## 2026-11-15 - SFU26 card 09 freshness projection - CURRENT
+
+Card 09 COMPLETE: PR #758 candidate `d1bcf9c`; exact-head CI 43674043693 SUCCESS; merge `caaff3e`; post-main CI 43675501122 SUCCESS; #757 closed. Model-intel artifact freshness now typed (dual timestamps, drift notes, thresholds injectable, no paths leaked).
+NEXT: card 07 (context budget) from `main@caaff3e` — last prerequisite of card 10; then 10 -> 11/12/16 lineage; card 03 optional; UX-1 gate (#743) blocks card 04 only.
+
 ## 2026-11-14 - SFU26 card 08 skill shortlist - CURRENT
 
 Card 08 COMPLETE: PR #756 candidate `5833b4f`; exact-head CI 43637446509 SUCCESS; merge `366c9ed`; post-main CI 43639136433 SUCCESS; #755 closed. First deterministic skills-registry consumer in AWC: shared loader + pure hint projection (non-authoritative; dispositions over canonical only; documented non-parity vs A-Wiki matcher; zero provider calls).

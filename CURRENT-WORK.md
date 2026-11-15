@@ -1,5 +1,14 @@
 # A-Sunday Conductor — Current Work
 
+## 2026-11-15 - SFU26 card 09 model-intel freshness projection - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `2661ee4` -> PR #758 candidate `d1bcf9c` (feat `eec815e` + review-P2 repair; 3 files +1384/-1) -> exact-head CI 43674043693 SUCCESS -> merge `caaff3e` -> post-main CI 43675501122 SUCCESS (first try) -> [#757 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/757#issuecomment-6889145994).
+Delivered: NEW pure `model_artifact_freshness_projection.py` — first AWC reader of A-Wiki model-intel artifacts: per-artifact read-state + mtime staleness AVAILABLE/STALE/UNKNOWN (injectable thresholds 6h/24h/24h/7d/30d, future->UNKNOWN), dual timestamp formats typed (offset-ISO vs naive-local; never silently converted; comparisons like-kind only), empty-scout/empty-catalog typed-not-failed, cross-artifact drift notes (roster-newer-than-policy / scout-echo mismatch / seeds warning), sha256 fingerprint, raw paths never echoed, non_authoritative pinned, zero provider imports, structurally no write/refresh. provider_operator_view untouched (scope note c6888557550 — separate evidence domain). Review R1 CHANGES_REQUIRED 1xP2 (duck-entry exception escape) -> RED-first repair -> delta re-review PASS (13/13). Adviser: Jev merge_now 0.95; Terra usage-limit disclosed.
+
+### Exact next safe action
+
+(1) Card 07 (context budget/EvidencePack packing) from `main@caaff3e` — the LAST prerequisite of card 10 (offline eval). (2) Then card 10 unlocks the whole evaluation/provider lineage (11/12/16). (3) Card 03 optional parallel. (4) UX-1 operator green-light (#743) still blocks card 04/UX-2 only.
+
 ## 2026-11-14 - SFU26 card 08 canonical skill shortlist consumer - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 Base `721bd48` -> PR #756 candidate `5833b4f` (feat `285751a` + review-P2 repair; 5 files +1069/-43) -> exact-head CI 43637446509 SUCCESS -> merge `366c9ed` -> post-main CI 43639136433 SUCCESS (first try) -> [#755 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/755#issuecomment-6885450992).
