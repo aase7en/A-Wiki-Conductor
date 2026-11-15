@@ -1,4 +1,12 @@
 # A-Sunday Conductor — Current Work
+## 2026-11-15 - SFU26 card 03 fleet identity projection - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `69c0a2e` -> PR 764 candidate `92f1557` (feat `58b2bb5` + P1/P2 repair; 3 files +1909/-0) -> exact-head CI 43732361310 SUCCESS -> merge `3c83e604b05e9b114997e50ea43aeaab1ae0acd2` -> post-main CI 43748635822 SUCCESS -> [#763 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/763#issuecomment-6899696531).
+Delivered: NEW pure `fleet_projection.py` — six source classes (claims consume-only EXPIRY_UNKNOWN + scope-count; CockpitLeaseObservation by-reference; app-session labeled never-fleet-ready; local instances path-excluded; remote constant typed UNKNOWN); exclusion law reviewer-verified zero-leak; provable-only joins + typed IDENTITY_CONFLICT; uniform id path-shape law. Review R1 1xP1 (exception escapes) + 1xP2 -> closed RED-first -> delta PASS (4 advisory two-faced-subclass follow-ups recorded). Jev merge_now 0.93; Terra usage-limit disclosed. Standalone — web exposure = card 04/UX-2.
+
+### Exact next safe action
+
+ALL self-unblocked R2 lanes COMPLETE (9/22 cards: 00/01/02/03/06/07/08/09/10). Everything remaining is gated: (a) UX-1 operator green-light (#743) unlocks card 04 (UX-2 React) -> 05/13/14/15/17/18/19 lineage; (b) card 11 needs official Gemini API/privacy review; (c) card 12 needs explicit budget/egress permission; (d) cards 14/15 need authority framing; (e) P3 follow-up backlog (cards 01/02/06/10/03) rides future touching lanes. Recommend: operator reviews docs/design/sunday-family-ux1-mockup.html + 5 decisions on #743 — single action unlocking the largest remaining lineage.
 
 ## 2026-11-15 - SFU26 card 10 offline eval corpus - MERGED / POST_MAIN_VERIFIED - CURRENT
 

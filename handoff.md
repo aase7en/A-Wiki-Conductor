@@ -1,4 +1,8 @@
 # HANDOFF — A-Sunday Conductor
+## 2026-11-15 - SFU26 card 03 fleet projection - CURRENT
+
+Card 03 COMPLETE: PR 764 candidate `92f1557`; merge `3c83e604b05e9b114997e50ea43aeaab1ae0acd2`; post-main CI 43748635822 SUCCESS; #763 closed. Fleet/work identity projection exists (pure, six classes, zero-leak exclusion law).
+NEXT: 9/22 delivered; NO self-unblocked R2 lanes remain. Human gates: UX-1 (#743) unlocks card 04 lineage; card 11/12 need their R3 reviews/budget. P3 backlog rides future lanes.
 
 ## 2026-11-15 - SFU26 card 10 offline eval corpus - CURRENT
 
